@@ -23,6 +23,8 @@
 <head>
     <meta charset="utf-8"/>
     <title>@trip.Name – Printable Guide</title>
+    @* Standalone PDF output loads the same bounded rich-note rhythm as the standard shell. *@
+    <link rel="stylesheet" href="~/css/rich-notes.css" asp-append-version="true" />
 
     <style>
         /* ─── Page & Typography ─── */
@@ -101,9 +103,9 @@
         <code><strong>Updated at:</strong> @trip.UpdatedAt</code>
     </div>
 
-    @if (!string.IsNullOrWhiteSpace(trip.Notes))
+    @if (HtmlHelpers.HasVisibleContent(trip.Notes))
     {
-        <div class="notes text-left">@Html.Raw(trip.Notes)</div>
+        <div class="notes rich-notes-content text-left">@Html.Raw(HtmlHelpers.NormalizeNotesForDisplay(trip.Notes))</div>
     }
 </section>
 
@@ -176,9 +178,9 @@
                         }
                     }
 
-                    @if (!string.IsNullOrWhiteSpace(s.Notes))
+                    @if (HtmlHelpers.HasVisibleContent(s.Notes))
                     {
-                        <div class="notes">@Html.Raw(s.Notes)</div>
+                        <div class="notes rich-notes-content">@Html.Raw(HtmlHelpers.NormalizeNotesForDisplay(s.Notes))</div>
                     }
                 </li>
             }
@@ -202,9 +204,9 @@
             }
         }
 
-        @if (!string.IsNullOrWhiteSpace(r.Notes))
+        @if (HtmlHelpers.HasVisibleContent(r.Notes))
         {
-            <div class="notes">@Html.Raw(r.Notes)</div>
+            <div class="notes rich-notes-content">@Html.Raw(HtmlHelpers.NormalizeNotesForDisplay(r.Notes))</div>
         }
 
         <!-- places -->
@@ -236,9 +238,9 @@
                     }
                 }
 
-                @if (!string.IsNullOrWhiteSpace(p.Notes))
+                @if (HtmlHelpers.HasVisibleContent(p.Notes))
                 {
-                    <div class="notes">@Html.Raw(p.Notes)</div>
+                    <div class="notes rich-notes-content">@Html.Raw(HtmlHelpers.NormalizeNotesForDisplay(p.Notes))</div>
                 }
             </section>
         }

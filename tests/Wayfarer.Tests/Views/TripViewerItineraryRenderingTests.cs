@@ -183,6 +183,52 @@ public sealed class TripViewerItineraryRenderingTests
     }
 
     [Fact]
+    public async Task RichNotesUseSharedPresentationAndSuppressOnlyTerminalArtifacts()
+    {
+        var webRoot = Path.Combine(Path.GetTempPath(), $"wayfarer-rich-notes-render-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(webRoot);
+        await File.WriteAllTextAsync(Path.Combine(webRoot, "frontend.manifest.json"), "{}");
+        try
+        {
+            using var host = BuildRazorHost(webRoot);
+            using var scope = host.Services.CreateScope();
+            var trip = WaypointTrip();
+            trip.User = new ApplicationUser { DisplayName = "Fixture owner" };
+            trip.Notes = "<p>Before</p><ol><li data-list=\"ordered\">Item</li><li data-list=\"ordered\"><br></li></ol>";
+
+            var viewer = await new HtmlParser().ParseDocumentAsync(await RenderViewerAsync(scope.ServiceProvider, trip));
+            var normalNotes = Assert.Single(viewer.QuerySelectorAll("#sidebar-primary .trip-notes.rich-notes-content"));
+            var readableNotes = Assert.Single(viewer.QuerySelectorAll("#readable-modal-body .trip-notes-readable.rich-notes-content"));
+            Assert.Equal("BeforeItem", NormalizeText(normalNotes.TextContent).Replace(" ", string.Empty));
+            Assert.Single(normalNotes.QuerySelectorAll("li"));
+            Assert.Single(readableNotes.QuerySelectorAll("li"));
+
+            var model = new TripPrintViewModel { Trip = trip, Regions = trip.Regions.ToList(), Places = trip.Regions.SelectMany(region => region.Places).ToList(), Segments = trip.Segments.ToList() };
+            var pdf = await new HtmlParser().ParseDocumentAsync(await RenderViewAsync(scope.ServiceProvider, "/Views/Trip/Print.cshtml", model));
+            var richNotesStylesheet = Assert.Single(pdf.QuerySelectorAll("link[rel=stylesheet][href^='/css/rich-notes.css']"));
+            Assert.Contains("rich-notes.css", richNotesStylesheet.GetAttribute("href"));
+            var pdfNotes = Assert.Single(pdf.QuerySelectorAll(".notes.rich-notes-content"));
+            Assert.Single(pdfNotes.QuerySelectorAll("li"));
+
+            var blankTrip = WaypointTrip();
+            blankTrip.User = new ApplicationUser { DisplayName = "Fixture owner" };
+            blankTrip.Notes = "<ol><li data-list=\"ordered\"><br></li></ol>";
+            foreach (var region in blankTrip.Regions) { region.Notes = blankTrip.Notes; foreach (var place in region.Places) place.Notes = blankTrip.Notes; }
+            foreach (var segment in blankTrip.Segments) segment.Notes = blankTrip.Notes;
+            var blankViewer = await new HtmlParser().ParseDocumentAsync(await RenderViewerAsync(scope.ServiceProvider, blankTrip));
+            Assert.Empty(blankViewer.QuerySelectorAll(".rich-notes-content"));
+            Assert.Empty(blankViewer.QuerySelectorAll(".trip-notes-readable"));
+            var blankModel = new TripPrintViewModel { Trip = blankTrip, Regions = blankTrip.Regions.ToList(), Places = blankTrip.Regions.SelectMany(region => region.Places).ToList(), Segments = blankTrip.Segments.ToList() };
+            var blankPdf = await new HtmlParser().ParseDocumentAsync(await RenderViewAsync(scope.ServiceProvider, "/Views/Trip/Print.cshtml", blankModel));
+            Assert.Empty(blankPdf.QuerySelectorAll(".notes.rich-notes-content"));
+        }
+        finally
+        {
+            Directory.Delete(webRoot, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task PdfDoesNotExposeForeignWaypoint()
     {
         var webRoot = Path.Combine(Path.GetTempPath(), $"wayfarer-foreign-waypoint-pdf-{Guid.NewGuid():N}");

@@ -14,9 +14,7 @@ const regionId = '00000000-0000-0000-0000-000000272001';
 const placeId = '00000000-0000-0000-0000-000000272002';
 const areaId = '00000000-0000-0000-0000-000000272003';
 const segmentId = '00000000-0000-0000-0000-000000272004';
-const regionName = 'PW rich notes region';
-const placeName = 'PW rich notes place';
-const areaName = 'PW rich notes area';
+const regionName = 'PW rich notes region', placeName = 'PW rich notes place', areaName = 'PW rich notes area';
 const editorApiMatcher = new RegExp(`${editorApiPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:/.*)?$`, 'i');
 
 test.describe.serial('Trip Editor rich notes parity', () => {

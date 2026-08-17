@@ -89,7 +89,7 @@ internal static class EditorRichNotesRequestHtml
             NormalizeElement(element);
         }
 
-        RemoveTrailingBlankParagraphs(body);
+        RemoveTerminalBlankBlocks(body);
         var html = body.InnerHtml.Trim();
         return string.Equals(html, "<p><br></p>", StringComparison.OrdinalIgnoreCase)
             ? string.Empty
@@ -187,23 +187,49 @@ internal static class EditorRichNotesRequestHtml
         Uri.TryCreate(StripUrlBoundaryControls(value), UriKind.Absolute, out var uri)
         && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps);
 
-    private static void RemoveTrailingBlankParagraphs(IElement body)
+    private static void RemoveTerminalBlankBlocks(IElement body)
     {
-        while (body.LastElementChild != null
-            && string.Equals(body.LastElementChild.TagName, "p", StringComparison.OrdinalIgnoreCase)
-            && IsBlankParagraph(body.LastElementChild))
+        var changed = true;
+        while (changed)
         {
-            body.LastElementChild.Remove();
+            changed = false;
+            var terminal = body.LastElementChild;
+            if (terminal != null
+                && string.Equals(terminal.TagName, "p", StringComparison.OrdinalIgnoreCase)
+                && IsSemanticallyBlank(terminal))
+            {
+                terminal.Remove();
+                changed = true;
+                continue;
+            }
+
+            if (terminal == null || (!string.Equals(terminal.TagName, "ol", StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(terminal.TagName, "ul", StringComparison.OrdinalIgnoreCase)))
+            {
+                continue;
+            }
+
+            while (terminal.LastElementChild != null
+                && string.Equals(terminal.LastElementChild.TagName, "li", StringComparison.OrdinalIgnoreCase)
+                && IsSemanticallyBlank(terminal.LastElementChild))
+            {
+                terminal.LastElementChild.Remove();
+                changed = true;
+            }
+
+            if (!terminal.Children.Any(child => string.Equals(child.TagName, "li", StringComparison.OrdinalIgnoreCase)))
+            {
+                terminal.Remove();
+                changed = true;
+            }
         }
     }
 
-    private static bool IsBlankParagraph(IElement element)
+    private static bool IsSemanticallyBlank(IElement element)
     {
         var text = (element.TextContent ?? string.Empty).Replace('\u00a0', ' ');
         return string.IsNullOrWhiteSpace(text)
-            && element.QuerySelector("img") == null
-            && element.QuerySelector("video") == null
-            && element.QuerySelector("iframe") == null;
+            && element.QuerySelector("img") == null;
     }
 
     private static string CanonicalImageSource(string value)

@@ -432,7 +432,7 @@ const init = () => {
     ${d.placeAddress ? `<p class="mb-1"><strong>Address:</strong> ${d.placeAddress}</p>` : ''}
 
     ${!isHtmlEmpty(notesHtml) ? `
-       <div class="border py-2 px-1 mt-3 rounded overflow-auto trip-notes" >
+       <div class="border py-2 px-1 mt-3 rounded overflow-auto trip-notes rich-notes-content" >
          ${notesHtml}</div>` : ''}
 
     <div class="mt-3 d-flex flex-wrap gap-2">

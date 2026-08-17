@@ -87,10 +87,10 @@ public sealed class TripEditorMetadataControllerTests : TestBase
         var trip = SeedTrip(db, "owner-user");
         var controller = BuildController(db);
         ConfigureControllerWithUserRole(controller, "owner-user");
-        const string expectedNotes = "<p class=\"ql-align-center\">Centered</p><p><img src=\"https://cdn.example.test/proxied.jpg\"></p>";
+        const string expectedNotes = "<p class=\"ql-align-center\">Centered</p><p><img src=\"https://cdn.example.test/proxied.jpg\"></p><ol><li data-list=\"ordered\">Kept</li></ol>";
 
         var result = await PatchMetadata(controller, trip.Id, ValidMetadataJson(notesHtml: """
-        "<p class=\"ql-align-center\" onclick=\"alert(1)\">Centered</p><p><img src=\"/Public/ProxyImage?url=https%3A%2F%2Fcdn.example.test%2Fproxied.jpg\" onerror=\"alert(2)\"></p><p><br></p>"
+        "<p class=\"ql-align-center\" onclick=\"alert(1)\">Centered</p><p><img src=\"/Public/ProxyImage?url=https%3A%2F%2Fcdn.example.test%2Fproxied.jpg\" onerror=\"alert(2)\"></p><ol><li data-list=\"ordered\">Kept</li><li data-list=\"ordered\"><br></li></ol><p><br></p>"
         """), CancellationToken.None);
 
         var envelope = AssertMutation(result);
@@ -101,6 +101,7 @@ public sealed class TripEditorMetadataControllerTests : TestBase
         Assert.DoesNotContain("onclick", stored.Notes);
         Assert.DoesNotContain("onerror", stored.Notes);
         Assert.DoesNotContain("<p><br></p>", stored.Notes);
+        Assert.DoesNotContain("<li data-list=\"ordered\"><br></li>", stored.Notes);
     }
 
     [Theory]

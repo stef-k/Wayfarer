@@ -97,6 +97,25 @@ public sealed class EditorRichNotesRequestHtmlTests
         Assert.Equal(expected, result);
     }
 
+    [Theory]
+    [InlineData("<ol><li data-list=\"ordered\">One</li><li data-list=\"ordered\"><br></li><li data-list=\"ordered\"><strong> </strong><br></li></ol>", "<ol><li data-list=\"ordered\">One</li></ol>")]
+    [InlineData("<ul><li data-list=\"bullet\">One</li><li data-list=\"bullet\">&nbsp;</li></ul>", "<ul><li data-list=\"bullet\">One</li></ul>")]
+    [InlineData("<ol><li data-list=\"ordered\"><br></li></ol>", "")]
+    [InlineData("<ol><li data-list=\"ordered\">One</li><li data-list=\"ordered\"><br></li><li data-list=\"ordered\">Three</li></ol>", "<ol><li data-list=\"ordered\">One</li><li data-list=\"ordered\"><br></li><li data-list=\"ordered\">Three</li></ol>")]
+    [InlineData("<ol><li data-list=\"ordered\"><img src=\"https://cdn.example.test/image.jpg\"></li><li data-list=\"ordered\"><br></li></ol>", "<ol><li data-list=\"ordered\"><img src=\"https://cdn.example.test/image.jpg\"></li></ol>")]
+    [InlineData("<p>Before</p><ol><li data-list=\"ordered\">Item</li></ol><p>After</p>", "<p>Before</p><ol><li data-list=\"ordered\">Item</li></ol><p>After</p>")]
+    [InlineData("<ol><li data-list=\"ordered\">One</li><li data-list=\"ordered\"><br></li></ol><p>After</p>", "<ol><li data-list=\"ordered\">One</li><li data-list=\"ordered\"><br></li></ol><p>After</p>")]
+    [InlineData("<ul><li data-list=\"bullet\"><a href=\"https://example.test\">Visible link</a></li><li data-list=\"bullet\"><br></li></ul>", "<ul><li data-list=\"bullet\"><a href=\"https://example.test\">Visible link</a></li></ul>")]
+    [InlineData("<p>Before</p><ol><li data-list=\"ordered\">Item</li></ol><h2>After</h2>", "<p>Before</p><ol><li data-list=\"ordered\">Item</li></ol><h2>After</h2>")]
+    [InlineData("<ol><li data-list=\"ordered\"><video src=\"https://example.test/a.mp4\"></video></li></ol>", "")]
+    [InlineData("<ol><li data-list=\"ordered\"><video>Fallback text</video></li></ol>", "<ol><li data-list=\"ordered\">Fallback text</li></ol>")]
+    public void NormalizeForPersistence_RemovesOnlySemanticallyBlankTerminalListItems(string input, string expected)
+    {
+        var result = EditorRichNotesRequestHtml.NormalizeForPersistence(input);
+
+        Assert.Equal(expected, result);
+    }
+
     [Fact]
     public void ContainsDataImageSource_DetectsDirectDataImageBeforeNormalization()
     {

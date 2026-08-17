@@ -140,17 +140,22 @@ function handleTextChange(): void {
   emit('update:modelValue', currentHtml());
 }
 
-/// Adds a real editor-local trailing line so users can click and type after terminal rich content.
+/// Adds an unformatted editor-local line only when a terminal image needs a caret target.
 function ensureEditableContinuationLine(): void {
   if (!quill) {
     return;
   }
 
-  if (!normalizeNotesHtml(quill.root.innerHTML) || isLastEditorBlockBlank()) {
+  const lastBlock = quill.root.lastElementChild;
+  if (!(lastBlock instanceof HTMLElement)
+    || isEditorBlockBlank(lastBlock)
+    || !lastBlock.querySelector('img')) {
     return;
   }
 
-  quill.insertText(Math.max(0, quill.getLength() - 1), '\n', 'silent');
+  const continuationIndex = Math.max(0, quill.getLength() - 1);
+  quill.insertText(continuationIndex, '\n', 'silent');
+  quill.removeFormat(continuationIndex, 1, 'silent');
 }
 
 function handlePaste(event: ClipboardEvent): void {
@@ -184,17 +189,8 @@ function handleInput(): void {
   }
 }
 
-function isLastEditorBlockBlank(): boolean {
-  if (!quill || quill.root.children.length === 0) {
-    return false;
-  }
-
-  const lastBlock = quill.root.children.item(quill.root.children.length - 1);
-  if (!(lastBlock instanceof HTMLElement)) {
-    return false;
-  }
-
-  return !lastBlock.textContent?.trim() && !lastBlock.querySelector('img, video, iframe');
+function isEditorBlockBlank(block: HTMLElement): boolean {
+  return !block.textContent?.trim() && !block.querySelector('img, video, iframe');
 }
 
 function containsDataImage(data: DataTransfer): boolean {
