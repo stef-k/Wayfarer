@@ -93,6 +93,38 @@
   z-index: 2;
 }
 
+/* Route roles use an independent pointer-transparent channel beside canonical Place markers. */
+.segment-route-badge-wrapper {
+  background: transparent;
+  border: 0;
+  pointer-events: none;
+}
+
+.segment-route-badge {
+  align-items: center;
+  background: #0057b8;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 45%);
+  color: #fff;
+  display: inline-flex;
+  font: 700 12px/1 system-ui, sans-serif;
+  height: 22px;
+  justify-content: center;
+  min-width: 22px;
+  padding: 0 4px;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.segment-route-badge--pill {
+  border-radius: 11px;
+}
+
+.segment-route-hit {
+  cursor: pointer;
+}
+
 .trip-editor-place-popup__content {
   display: grid;
   gap: 0.45rem;

@@ -8,6 +8,7 @@ import RegionManager from './RegionManager.vue';
 import SegmentManager from './SegmentManager.vue';
 import VisitProgressSurface from './VisitProgressSurface.vue';
 import type { AreaPolygonWorkOptions, CoordinatePickOptions, SegmentDraftRoutePreview, SegmentRouteWorkOptions } from '../map/leafletAdapter';
+import type { EditorSegmentDraftPresentation, SegmentPresentationKey } from '../segments/editorSegmentPresentation';
 
 type SidebarSearchResult = {
   hasMatches: boolean;
@@ -31,6 +32,7 @@ const props = defineProps<{
   hasRegionDraftChanges: boolean;
   hiddenSegmentIds: ReadonlySet<Guid>;
   selectedPlaceId: Guid | null;
+  activeSegmentKey: SegmentPresentationKey | null;
   pendingSearchAdd: { result: EditorGeocodeSearchResult; regionId: Guid; requestId: number } | null;
   mobileDrawerActive?: boolean;
   isMapWorkActive?: boolean;
@@ -42,6 +44,7 @@ const props = defineProps<{
     startSegmentRouteWork: (options: SegmentRouteWorkOptions) => () => void;
   };
   selectPlace: (placeId: Guid) => Promise<boolean>;
+  selectSegment: (key: SegmentPresentationKey) => Promise<boolean>;
   clearSelectedPlace: () => Promise<boolean>;
 }>();
 
@@ -52,6 +55,8 @@ const emit = defineEmits<{
   hiddenSegmentIdsChanged: [ids: Set<Guid>];
   placeDraftPreviewChanged: [preview: PlaceDraftPreview | null];
   segmentRouteDraftPreviewChanged: [preview: SegmentDraftRoutePreview | null];
+  activeSegmentDraftChanged: [snapshot: EditorSegmentDraftPresentation | null];
+  activeSegmentCleared: [key: SegmentPresentationKey];
   searchAddOpened: [requestId: number];
   searchAddPlace: [request: { result: EditorGeocodeSearchResult; regionId: Guid; requestId: number }];
   searchClearPreview: [];
@@ -396,6 +401,8 @@ function normalize(value: string): string {
             :editor-endpoint="editorEndpoint"
             :antiforgery-token="antiforgeryToken"
             :hidden-segment-ids="hiddenSegmentIds"
+            :active-segment-key="activeSegmentKey"
+            :select-segment="selectSegment"
             :route-editor="routeEditor"
             :search-active="isSearchActive"
             :segments="filteredSegments"
@@ -403,6 +410,8 @@ function normalize(value: string): string {
             @hidden-segment-ids-changed="ids => emit('hiddenSegmentIdsChanged', ids)"
             @mutation-applied="result => emit('mutationApplied', result)"
             @route-draft-preview-changed="preview => emit('segmentRouteDraftPreviewChanged', preview)"
+            @active-segment-draft-changed="snapshot => emit('activeSegmentDraftChanged', snapshot)"
+            @active-segment-cleared="key => emit('activeSegmentCleared', key)"
           />
         </section>
       </div>

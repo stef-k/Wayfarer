@@ -4,6 +4,7 @@ import {
   alphabeticAnchorLabel,
   classifySegmentOrientation,
   placeProjectedChevrons,
+  reverseSegmentDraftRoute,
   resolveSegmentAnchors
 } from '../../ClientApps/trip-editor/src/segments/segmentPresentationResolver.ts';
 
@@ -110,4 +111,20 @@ test('places deterministic active and inactive chevrons from projected points', 
   assert.deepEqual(placeProjectedChevrons([[0, 0], [120, 0]], false), [{ x: 60, y: 0, angle: 0 }]);
   assert.equal(placeProjectedChevrons([[0, 0], [1000, 0]], false).length, 4);
   assert.equal(placeProjectedChevrons([[0, 0], [1000, 0]], true).length, 8);
+});
+
+/** Proves Reverse route changes only the supplied draft and retains waypoint identity. */
+test('reverses unsaved draft geometry and remaps waypoint indices atomically', () => {
+  const draft = {
+    route: { type: 'LineString', coordinates: [[12, 22], [11.5, 21.5], [11, 21], [10, 20]] },
+    waypointRouteVertexIndices: [2],
+    waypointRows: [{ clientId: 'via-b', placeId: 'b', routeVertexIndex: 2 }]
+  };
+  const before = structuredClone(draft);
+
+  assert.equal(reverseSegmentDraftRoute(draft), true);
+  assert.deepEqual(draft.route.coordinates, [[10, 20], [11, 21], [11.5, 21.5], [12, 22]]);
+  assert.deepEqual(draft.waypointRouteVertexIndices, [1]);
+  assert.deepEqual(draft.waypointRows, [{ clientId: 'via-b', placeId: 'b', routeVertexIndex: 1 }]);
+  assert.equal(before.waypointRows[0].clientId, draft.waypointRows[0].clientId);
 });

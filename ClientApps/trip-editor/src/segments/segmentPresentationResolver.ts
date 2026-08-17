@@ -38,6 +38,16 @@ export type ProjectedPoint = readonly [number, number];
 
 export type ProjectedChevron = { x: number; y: number; angle: number };
 
+/** Reverses custom geometry and remaps existing waypoint indices in one unsaved draft operation. */
+export function reverseSegmentDraftRoute(draft: EditorSegmentDraft): boolean {
+  if (!draft.route || draft.route.coordinates.length < 2) return false;
+  const pointCount = draft.route.coordinates.length;
+  draft.route = { type: 'LineString', coordinates: [...draft.route.coordinates].reverse().map(point => [...point]) };
+  draft.waypointRouteVertexIndices = draft.waypointRouteVertexIndices.map(index => index === null ? null : pointCount - 1 - index);
+  draft.waypointRows.forEach((row, index) => { row.routeVertexIndex = draft.waypointRouteVertexIndices[index]; });
+  return true;
+}
+
 /** Converts a zero-based anchor position to locale-independent ASCII bijective base-26. */
 export function alphabeticAnchorLabel(position: number): string {
   if (!Number.isSafeInteger(position) || position < 0) {
@@ -214,3 +224,4 @@ function accessibleJourneyName(anchors: readonly ResolvedSegmentAnchor[]): strin
   const vias = anchors.filter(anchor => anchor.role === 'via').map(anchor => anchor.displayName);
   return `Segment from ${start}${vias.length ? ` via ${vias.join(', then ')}` : ''} to ${end}`;
 }
+import type { EditorSegmentDraft } from '../types';

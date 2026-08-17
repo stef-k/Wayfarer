@@ -9,6 +9,7 @@ import { disposeConfirmDialogHost, setConfirmDialogFocusFallback } from './compo
 import { useEditorSurface } from './composables/useEditorSurface';
 import { canFocusActiveEntity, createTripEditorMap, hasAnyGeometry, hasSavedTripView, type AreaPolygonWorkOptions, type CoordinatePickOptions, type FocusActiveEntityResult, type PlaceDraftMarkerPreview, type SegmentDraftRoutePreview, type SegmentRouteWorkOptions, type TripEditorMapView } from './map/leafletAdapter';
 import type { SegmentRouteWorkState } from './components/segmentRouteWorkState';
+import type { EditorSegmentDraftPresentation, SegmentPresentationKey } from './segments/editorSegmentPresentation';
 import type { BootstrapConfig, EditorCoordinate, EditorGeocodeSearchResult, EditorMutationResult, EditorTripMetadata, EditorTripState, Guid } from './types';
 
 const props = defineProps<{ config: BootstrapConfig }>();
@@ -23,6 +24,8 @@ const mobileDrawerActive = ref(false);
 const navigationStatus = ref<string | null>(null);
 const hiddenSegmentIds = ref<Set<string>>(new Set());
 const selectedPlaceId = ref<Guid | null>(null);
+const activeSegmentKey = ref<SegmentPresentationKey | null>(null);
+const activeSegmentDraft = ref<EditorSegmentDraftPresentation | null>(null);
 const activePlaceDraftPreview = ref<PlaceDraftMarkerPreview | null>(null);
 const pendingSearchAdd = ref<{ result: EditorGeocodeSearchResult; regionId: Guid; requestId: number } | null>(null);
 const completedSearchAddRequestId = ref<number | null>(null);
@@ -134,7 +137,8 @@ onMounted(async () => {
     }
 
     mapAdapter = createTripEditorMap(mapElement.value, props.config.tilesUrl, {
-      onPlaceSelected: placeId => selectPlace(placeId, { focusMap: false, openPopup: true })
+      onPlaceSelected: placeId => selectPlace(placeId, { focusMap: false, openPopup: true }),
+      onSegmentSelected: key => selectSegment(key)
     });
     mapAdapter.render(loadedState, hiddenSegmentIds.value, selectedPlaceId.value);
   } catch (loadError) {
@@ -191,6 +195,9 @@ const selectPlace = async (placeId: Guid, options: { focusMap?: boolean; openPop
   }
 
   selectedPlaceId.value = placeId;
+  activeSegmentKey.value = null;
+  activeSegmentDraft.value = null;
+  mapAdapter?.setSegmentPresentation(state.value, null, null);
   mapAdapter?.selectPlace(state.value, placeId, { focus: options.focusMap, openPopup: options.openPopup });
   navigationStatus.value = `Selected place: ${state.value.placesById[placeId].name}`;
   return true;
@@ -212,7 +219,7 @@ async function closeActiveEditorBeforeSelection(placeId: Guid): Promise<boolean>
   }
 
   if (target.kind !== 'place') {
-    return true;
+    return await editorSurface.closeActiveTarget(`Discard unsaved ${targetKindLabel(target.kind)} changes before selecting a Place?`);
   }
 
   if (target.mode === 'add') {
@@ -220,6 +227,42 @@ async function closeActiveEditorBeforeSelection(placeId: Guid): Promise<boolean>
   }
 
   return await editorSurface.closeActiveTarget('Discard unsaved place changes before selecting another place?');
+}
+
+/** Applies one guarded transient Segment selection without opening an editor or mutating Segment data. */
+async function selectSegment(key: SegmentPresentationKey): Promise<boolean> {
+  if (!state.value || key.kind === 'persisted' && !state.value.segmentsById[key.id]) return false;
+  const target = editorSurface.activeTarget.value;
+  const selectedId = key.kind === 'persisted' ? key.id : null;
+  const ownsActiveEditor = target?.kind === 'segment'
+    && (key.kind === 'create-draft' ? target.mode === 'add' : target.entityId === selectedId);
+  if (target && !ownsActiveEditor && !(await editorSurface.closeActiveTarget('Discard unsaved changes before selecting another Segment?'))) {
+    return false;
+  }
+  selectedPlaceId.value = null;
+  mapAdapter?.selectPlace(state.value, null);
+  activeSegmentKey.value = key;
+  navigationStatus.value = key.kind === 'persisted'
+    ? `Selected segment: ${state.value.segmentsById[key.id]?.mode || 'Segment'}`
+    : 'Selected new Segment draft';
+  mapAdapter?.setSegmentPresentation(state.value, key, activeSegmentDraft.value?.key.kind === key.kind ? activeSegmentDraft.value : null);
+  return true;
+}
+
+/** Receives the current D/W snapshot while SegmentManager retains mutation authority. */
+function applyActiveSegmentDraft(snapshot: EditorSegmentDraftPresentation | null): void {
+  activeSegmentDraft.value = snapshot;
+  if (snapshot) activeSegmentKey.value = snapshot.key;
+  if (state.value) mapAdapter?.setSegmentPresentation(state.value, activeSegmentKey.value, snapshot);
+}
+
+/** Clears active presentation only when the supplied owner still owns it. */
+function clearActiveSegment(key: SegmentPresentationKey): void {
+  const current = activeSegmentKey.value;
+  if (!current || current.kind !== key.kind || (current.kind === 'persisted' ? current.id !== (key as { id: Guid }).id : false)) return;
+  activeSegmentKey.value = null;
+  activeSegmentDraft.value = null;
+  if (state.value) mapAdapter?.setSegmentPresentation(state.value, null, null);
 }
 
 /// Maps active editor ownership to the phone drawer tab that can keep it visible.
@@ -380,6 +423,10 @@ const applyMutation = (result: EditorMutationResult<unknown>): void => {
   result.deletedIds.segments.forEach(id => {
     delete next.segmentsById[id];
     hiddenSegmentIds.value.delete(id);
+    if (activeSegmentKey.value?.kind === 'persisted' && activeSegmentKey.value.id === id) {
+      activeSegmentKey.value = null;
+      activeSegmentDraft.value = null;
+    }
   });
   result.deletedIds.tags.forEach(slug => {
     delete next.tagsBySlug[slug];
@@ -431,6 +478,10 @@ const applyMutation = (result: EditorMutationResult<unknown>): void => {
 
 /// Updates client-session-only segment visibility without touching the API contract.
 const updateHiddenSegmentIds = (ids: Set<string>): void => {
+  if (activeSegmentKey.value?.kind === 'persisted' && ids.has(activeSegmentKey.value.id)) {
+    activeSegmentKey.value = null;
+    activeSegmentDraft.value = null;
+  }
   hiddenSegmentIds.value = ids;
   if (state.value) {
     mapAdapter?.render(state.value, hiddenSegmentIds.value, selectedPlaceId.value);
@@ -501,6 +552,7 @@ function focusStatusText(result: FocusActiveEntityResult, target: { kind: string
         :has-region-draft-changes="hasRegionDraftChanges"
         :hidden-segment-ids="hiddenSegmentIds"
         :selected-place-id="selectedPlaceId"
+        :active-segment-key="activeSegmentKey"
         :pending-search-add="pendingSearchAdd"
         :mobile-drawer-active="mobileDrawerActive"
         :is-map-work-active="isMapWorkActive"
@@ -513,8 +565,11 @@ function focusStatusText(result: FocusActiveEntityResult, target: { kind: string
         @region-draft-dirty-changed="setRegionDraftChanges"
         @place-draft-preview-changed="applyPlaceDraftPreview"
         @segment-route-draft-preview-changed="applySegmentRouteDraftPreview"
+        @active-segment-draft-changed="applyActiveSegmentDraft"
+        @active-segment-cleared="clearActiveSegment"
         @hidden-segment-ids-changed="updateHiddenSegmentIds"
         :select-place="placeId => selectPlace(placeId, { focusMap: true })"
+        :select-segment="selectSegment"
         :clear-selected-place="clearSelectedPlace"
         @search-add-opened="handleSearchAddOpened"
         @search-add-place="requestSearchAddPlace"

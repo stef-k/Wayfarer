@@ -14,6 +14,8 @@ const props = defineProps<{
   formSummaryErrors: string[];
   isDirty: boolean;
   isSaving: boolean;
+  routeOrientation: 'forward' | 'reversed' | 'ambiguous' | null;
+  routeMapWorkActive: boolean;
   state: EditorTripState;
   statusText: string;
   target: EditorTarget;
@@ -43,6 +45,7 @@ defineEmits<{
   delete: [];
   drawRoute: [];
   reset: [];
+  reverseRoute: [];
   save: [];
 }>();
 </script>
@@ -50,6 +53,8 @@ defineEmits<{
 <template>
   <EditorSurface :controller="controller" :target="target" :status-text="statusText">
     <template #body>
+      <p v-if="routeOrientation === 'reversed'" class="trip-editor-form-warning" role="status">The custom route is stored in reverse semantic order. Use Reverse route to update this unsaved draft before saving.</p>
+      <p v-else-if="routeOrientation === 'ambiguous'" class="trip-editor-form-warning" role="status">Route direction unavailable. Correct or clear the custom route before relying on direction cues.</p>
       <SegmentEditorForm
         ref="editorForm"
         :draft="draft"
@@ -67,6 +72,7 @@ defineEmits<{
     <template #footer>
       <button v-if="activeSegment?.capabilities.canDelete" type="button" class="btn btn-outline-danger btn-sm me-auto" :disabled="isSaving" @click="$emit('delete')">Delete</button>
       <button ref="routeAction" data-segment-route-action type="button" class="btn btn-outline-light btn-sm" :disabled="isSaving" @click="$emit('drawRoute')">Draw/Edit Route</button>
+      <button v-if="routeOrientation === 'reversed'" type="button" class="btn btn-outline-info btn-sm" :disabled="isSaving || routeMapWorkActive" @click="$emit('reverseRoute')">Reverse route</button>
       <button type="button" class="btn btn-outline-light btn-sm" :disabled="isSaving || draft.route === null" @click="$emit('clearRoute')">Clear Route</button>
       <button type="button" class="btn btn-outline-light btn-sm" :disabled="isSaving" @click="$emit('cancel')">Cancel</button>
       <button type="button" class="btn btn-outline-secondary btn-sm" :disabled="isSaving || !isDirty" @click="$emit('reset')">Reset</button>

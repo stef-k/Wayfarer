@@ -2,6 +2,8 @@ import L, { type LayerGroup, type LeafletMouseEvent, type Map as LeafletMap } fr
 import 'leaflet/dist/leaflet.css';
 import type { EditorTarget } from '../composables/useEditorSurface';
 import type { SegmentRouteWorkState } from '../components/segmentRouteWorkState';
+import type { EditorSegmentDraftPresentation, SegmentPresentationKey } from '../segments/editorSegmentPresentation';
+import { resolveDraftSegmentPresentation, resolvePersistedSegmentPresentation } from '../segments/editorSegmentPresentation';
 import type { EditorArea, EditorCoordinate, EditorPlace, EditorRegion, EditorSegment, EditorTripMetadata, EditorTripState, Guid } from '../types';
 import { createAreaPolygonWorkLayer, type AreaPolygonWorkOptions } from './areaPolygonWorkLayer';
 import { createMapUtilitiesControl } from './mapUtilitiesControl';
@@ -11,6 +13,7 @@ import { placePopupHtml } from './placePopupRendering';
 import { createSearchPreviewLayer } from './searchPreviewLayer';
 import { createSegmentRouteDraftPreviewLayer, type SegmentDraftRoutePreview } from './segmentRouteDraftPreviewLayer';
 import { createSegmentRouteWorkLayer, type SegmentRouteWorkOptions } from './segmentRouteWorkLayer';
+import { createSegmentPresentationLayer } from './segmentPresentationLayer';
 import { createTripEditorTileLayer } from './tileRetryLayer';
 export type { AreaPolygonWorkOptions } from './areaPolygonWorkLayer';
 export type { CoordinatePickOptions } from './placeDraftPreviewLayer';
@@ -29,6 +32,7 @@ interface TripEditorMapAdapter {
   selectPlace: (state: EditorTripState, placeId: Guid | null, options?: SelectPlaceOptions) => void;
   setPlaceDraftPreview: (state: EditorTripState, preview: PlaceDraftMarkerPreview | null) => void;
   setSegmentDraftPreview: (state: EditorTripState, preview: SegmentDraftRoutePreview | null) => void;
+  setSegmentPresentation: (state: EditorTripState, key: SegmentPresentationKey | null, draft: EditorSegmentDraftPresentation | null) => void;
   startCoordinatePick: (options: CoordinatePickOptions) => () => void;
   startAreaPolygonWork: (options: AreaPolygonWorkOptions) => () => void;
   startSegmentRouteWork: (options: SegmentRouteWorkOptions) => () => void;
@@ -53,6 +57,7 @@ export interface PlaceDraftMarkerPreview extends Pick<EditorPlace, 'iconName' | 
 
 export interface TripEditorMapOptions {
   onPlaceSelected?: (placeId: Guid) => boolean | Promise<boolean>;
+  onSegmentSelected?: (key: SegmentPresentationKey) => boolean | Promise<boolean>;
 }
 
 export interface SelectPlaceOptions {
@@ -69,6 +74,7 @@ export const createTripEditorMap = (element: HTMLElement, tilesUrl: string, opti
   const areaPolygonWork = createAreaPolygonWorkLayer(map);
   const segmentRouteWork = createSegmentRouteWorkLayer(map);
   const segmentDraftPreview = createSegmentRouteDraftPreviewLayer(map);
+  const segmentPresentation = createSegmentPresentationLayer(map, key => options.onSegmentSelected?.(key) ?? true);
   const mapUtilities = createMapUtilitiesControl(element).addTo(map);
   const placeMarkers = new Map<Guid, L.Marker>();
   let activePlaceDraftPreview: PlaceDraftMarkerPreview | null = null;
@@ -81,6 +87,8 @@ export const createTripEditorMap = (element: HTMLElement, tilesUrl: string, opti
     element.dataset.tripEditorMapZoom = String(map.getZoom());
   };
   let selectedPlaceId: Guid | null = null;
+  let activeSegmentKey: SegmentPresentationKey | null = null;
+  let activeSegmentDraft: EditorSegmentDraftPresentation | null = null;
   let initialViewApplied = false;
   const prepareMapWork = (): void => { searchPreview.clear(); mapUtilities.cancelMeasure(); };
 
@@ -115,11 +123,13 @@ export const createTripEditorMap = (element: HTMLElement, tilesUrl: string, opti
 
       return options.onPlaceSelected?.(place.id) ?? true;
     }));
-    Object.values(state.segmentsById).forEach(segment => {
-      if (!hiddenSegmentIds.has(segment.id) && segment.id !== segmentDraftPreview.segmentId()) {
-        renderSegment(segment, state, layers);
-      }
-    });
+    const presentations = Object.values(state.segmentsById)
+      .filter(segment => !hiddenSegmentIds.has(segment.id) && activeSegmentDraft?.draft.id !== segment.id)
+      .map(segment => resolvePersistedSegmentPresentation(segment, state));
+    if (activeSegmentDraft && !hiddenSegmentIds.has(activeSegmentDraft.draft.id ?? '')) {
+      presentations.push(resolveDraftSegmentPresentation(activeSegmentDraft, state));
+    }
+    segmentPresentation.render(presentations, activeSegmentKey);
 
     if (!initialViewApplied) {
       initialViewApplied = true;
@@ -189,6 +199,11 @@ export const createTripEditorMap = (element: HTMLElement, tilesUrl: string, opti
     },
     setPlaceDraftPreview,
     setSegmentDraftPreview,
+    setSegmentPresentation: (state, key, draft) => {
+      activeSegmentKey = key;
+      activeSegmentDraft = draft;
+      render(state, lastHiddenSegmentIds, selectedPlaceId);
+    },
     startCoordinatePick: options => (prepareMapWork(), coordinatePick.start(options)),
     startAreaPolygonWork: options => (prepareMapWork(), areaPolygonWork.start(options)),
     startSegmentRouteWork: options => {
@@ -216,6 +231,7 @@ export const createTripEditorMap = (element: HTMLElement, tilesUrl: string, opti
       areaPolygonWork.dispose();
       segmentRouteWork.dispose();
       segmentDraftPreview.dispose();
+      segmentPresentation.dispose();
       mapUtilities.remove();
       map.off('moveend zoomend', updateMapViewDataset);
       map.remove();
