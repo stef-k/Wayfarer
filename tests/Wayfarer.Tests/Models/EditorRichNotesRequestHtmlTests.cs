@@ -97,6 +97,20 @@ public sealed class EditorRichNotesRequestHtmlTests
         Assert.Equal(expected, result);
     }
 
+    [Theory]
+    [InlineData("<ol><li data-list=\"ordered\">One</li><li data-list=\"ordered\"><br></li><li data-list=\"ordered\"><strong> </strong><br></li></ol>", "<ol><li data-list=\"ordered\">One</li></ol>")]
+    [InlineData("<ul><li data-list=\"bullet\">One</li><li data-list=\"bullet\">&nbsp;</li></ul>", "<ul><li data-list=\"bullet\">One</li></ul>")]
+    [InlineData("<ol><li data-list=\"ordered\"><br></li></ol>", "")]
+    [InlineData("<ol><li data-list=\"ordered\">One</li><li data-list=\"ordered\"><br></li><li data-list=\"ordered\">Three</li></ol>", "<ol><li data-list=\"ordered\">One</li><li data-list=\"ordered\"><br></li><li data-list=\"ordered\">Three</li></ol>")]
+    [InlineData("<ol><li data-list=\"ordered\"><img src=\"https://cdn.example.test/image.jpg\"></li><li data-list=\"ordered\"><br></li></ol>", "<ol><li data-list=\"ordered\"><img src=\"https://cdn.example.test/image.jpg\"></li></ol>")]
+    [InlineData("<p>Before</p><ol><li data-list=\"ordered\">Item</li></ol><p>After</p>", "<p>Before</p><ol><li data-list=\"ordered\">Item</li></ol><p>After</p>")]
+    public void NormalizeForPersistence_RemovesOnlySemanticallyBlankTerminalListItems(string input, string expected)
+    {
+        var result = EditorRichNotesRequestHtml.NormalizeForPersistence(input);
+
+        Assert.Equal(expected, result);
+    }
+
     [Fact]
     public void ContainsDataImageSource_DetectsDirectDataImageBeforeNormalization()
     {

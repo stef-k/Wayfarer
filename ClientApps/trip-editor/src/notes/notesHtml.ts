@@ -26,7 +26,7 @@ export function normalizeNotesHtml(value: string): string {
 
     image.setAttribute('src', source);
   });
-  removeTrailingBlankParagraphs(template.content);
+  removeTerminalBlankBlocks(template.content);
 
   const html = template.innerHTML.trim();
   return html === '<p><br></p>' ? '' : html;
@@ -123,15 +123,35 @@ function isAllowedImageSource(value: string): boolean {
   }
 }
 
-function removeTrailingBlankParagraphs(fragment: DocumentFragment): void {
-  let lastElement = fragment.lastElementChild;
-  while (lastElement instanceof HTMLParagraphElement && isBlankParagraph(lastElement)) {
-    lastElement.remove();
-    lastElement = fragment.lastElementChild;
+function removeTerminalBlankBlocks(fragment: DocumentFragment): void {
+  let changed = true;
+  while (changed) {
+    changed = false;
+    const lastElement = fragment.lastElementChild;
+    if (lastElement instanceof HTMLParagraphElement && isSemanticallyBlank(lastElement)) {
+      lastElement.remove();
+      changed = true;
+      continue;
+    }
+
+    if (!(lastElement instanceof HTMLOListElement) && !(lastElement instanceof HTMLUListElement)) {
+      continue;
+    }
+
+    let lastItem = lastElement.lastElementChild;
+    while (lastItem instanceof HTMLLIElement && isSemanticallyBlank(lastItem)) {
+      lastItem.remove();
+      changed = true;
+      lastItem = lastElement.lastElementChild;
+    }
+    if (!lastElement.querySelector(':scope > li')) {
+      lastElement.remove();
+      changed = true;
+    }
   }
 }
 
-function isBlankParagraph(element: HTMLParagraphElement): boolean {
+function isSemanticallyBlank(element: Element): boolean {
   return !element.textContent?.trim() && !element.querySelector('img, video, iframe');
 }
 
