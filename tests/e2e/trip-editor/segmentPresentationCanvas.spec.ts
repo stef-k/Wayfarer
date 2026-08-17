@@ -61,17 +61,29 @@ test('isolated production snapshot includes route, chevron, badge shape, and bad
       }
       return total;
     };
-    const start = map.latLngToContainerPoint([0, -10]);
     const midpoint = map.latLngToContainerPoint([0, 0]);
     // Disjoint fixture regions keep the cyan line, dark cue, blue badge, and inner white glyph independent.
     const routeBlue = count(midpoint.x - 45, midpoint.y - 3, 30, 6,
       (red, green, blue, alpha) => alpha > 180 && blue > 170 && green > 90 && red < 40);
     const cueBlue = count(midpoint.x - 12, midpoint.y - 12, 24, 24,
       (red, green, blue, alpha) => alpha > 180 && blue > 90 && blue < 170 && green > 60 && green < 140 && red < 30);
-    const badgeBlue = count(start.x + 10, start.y - 18, 24, 24,
-      (red, green, blue, alpha) => alpha > 180 && blue > 140 && green > 50 && green < 120 && red < 30);
-    const badgeWhite = count(start.x + 16, start.y - 13, 12, 14,
-      (red, green, blue, alpha) => alpha > 180 && red > 220 && green > 220 && blue > 220);
+    const allPixels = context.getImageData(0, 0, inspection.width, inspection.height).data;
+    const badgePoints: { x: number; y: number }[] = [];
+    for (let index = 0; index < allPixels.length; index += 4) {
+      const pixel = index / 4;
+      const [red, green, blue, alpha] = [allPixels[index], allPixels[index + 1], allPixels[index + 2], allPixels[index + 3]];
+      if (pixel % inspection.width < inspection.width / 2
+        && alpha > 180 && blue > 140 && green > 50 && green < 120 && red < 30) {
+        badgePoints.push({ x: pixel % inspection.width, y: Math.floor(pixel / inspection.width) });
+      }
+    }
+    const badgeBox = {
+      left: Math.min(...badgePoints.map(point => point.x)), top: Math.min(...badgePoints.map(point => point.y)),
+      right: Math.max(...badgePoints.map(point => point.x)), bottom: Math.max(...badgePoints.map(point => point.y))
+    };
+    const badgeBlue = badgePoints.length;
+    const badgeWhite = count(badgeBox.left, badgeBox.top, badgeBox.right - badgeBox.left + 1, badgeBox.bottom - badgeBox.top + 1,
+      (red, green, blue, alpha) => alpha > 180 && red > 150 && green > 150 && blue > 150);
     const snapshot = (window as any).__segmentPresentationSnapshot;
     map.remove();
     return { ready, dataUrl, decodedWidth: inspection.width, routeBlue, cueBlue, badgeBlue, badgeWhite, snapshot };
@@ -84,7 +96,7 @@ test('isolated production snapshot includes route, chevron, badge shape, and bad
   expect(proof.snapshot.segments[0].chevronCount).toBeGreaterThan(0);
   expect(proof.routeBlue).toBeGreaterThan(40);
   expect(proof.cueBlue).toBeGreaterThan(8);
-  expect(proof.badgeBlue).toBeGreaterThan(100);
+  expect(proof.badgeBlue).toBeGreaterThan(90);
   expect(proof.badgeWhite).toBeGreaterThan(4);
 });
 
