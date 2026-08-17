@@ -203,7 +203,7 @@ async function saveDraft(): Promise<void> {
     persistedBaseline.value = cloneDraft(savedDraft);
     Object.assign(draft, savedDraft);
     createBaselineRequest.value = null;
-    props.editorSurface.replaceActiveTarget(activeSegmentTarget.value);
+    props.editorSurface.replaceActiveTarget(buildSegmentEditTarget(result.data, segmentLabel(result.data)));
     emit('routeDraftPreviewChanged', null);
     publishPresentation();
     markSaved();
@@ -222,6 +222,7 @@ async function saveDraft(): Promise<void> {
           persistedBaseline.value = toSegmentDraft(confirmed.data);
           Object.assign(draft, toSegmentDraft(confirmed.data));
           emit('routeDraftPreviewChanged', null);
+          publishPresentation();
           markSaved();
           return;
         } catch (retryError) {

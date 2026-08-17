@@ -115,18 +115,19 @@ export function classifySegmentOrientation(
     return 'ambiguous';
   }
   if (hasWaypoints) {
-    const indices = anchors.map(anchor => anchor.routeVertexIndex);
-    if (indices.some(index => !Number.isSafeInteger(index) || (index as number) < 0 || (index as number) >= coordinates.length)) {
+    const waypointAnchors = anchors.filter(anchor => anchor.role === 'via');
+    const indices = waypointAnchors.map(anchor => anchor.routeVertexIndex);
+    if (indices.some(index => !Number.isSafeInteger(index) || (index as number) <= 0 || (index as number) >= coordinates.length - 1)) {
       return 'ambiguous';
     }
     const numeric = indices as number[];
-    const matches = anchors.every((anchor, index) => coordinatesMatch(coordinates[numeric[index]], anchor.location!));
+    const matches = waypointAnchors.every((anchor, index) => coordinatesMatch(coordinates[numeric[index]], anchor.location!));
     if (!matches) return 'ambiguous';
-    const forward = numeric[0] === 0
-      && numeric.at(-1) === coordinates.length - 1
+    const forward = coordinatesMatch(coordinates[0], anchors[0].location!)
+      && coordinatesMatch(coordinates.at(-1)!, anchors.at(-1)!.location!)
       && numeric.every((value, index) => index === 0 || value > numeric[index - 1]);
-    const reversed = numeric[0] === coordinates.length - 1
-      && numeric.at(-1) === 0
+    const reversed = coordinatesMatch(coordinates[0], anchors.at(-1)!.location!)
+      && coordinatesMatch(coordinates.at(-1)!, anchors[0].location!)
       && numeric.every((value, index) => index === 0 || value < numeric[index - 1]);
     return forward === reversed ? 'ambiguous' : forward ? 'forward' : 'reversed';
   }
