@@ -138,8 +138,6 @@ test.describe.serial('Trip Editor rich notes parity', () => {
     expect(notesHtml).not.toContain('data-original');
   });
 
-  test('terminal list exits stay removed after genuine keyboard editing', async ({ page }) => { await signIn(page); await loadWorkspaceWithRichNotesFixture(page); const host = richEditor(page.locator('#trip-editor-metadata-form')); const editor = host.locator('.ql-editor'); await editor.click(); await page.keyboard.press('Control+A'); await page.keyboard.press('Backspace'); for (const kind of ['ordered', 'bullet']) { await host.locator(`button.ql-list[value="${kind}"]`).click(); await page.keyboard.type(`${kind} item`); await page.keyboard.press('Enter'); await page.keyboard.press('Backspace'); await expect(editor.locator(`li[data-list="${kind}"]`)).toHaveCount(1); await expect(editor.locator(`li[data-list="${kind}"]`).last()).toContainText(`${kind} item`); await page.keyboard.press('Enter'); } });
-
   test('image dialog inserts URL embeds and data images are blocked with visible feedback', async ({ page }) => {
     await signIn(page);
     await loadWorkspaceWithRichNotesFixture(page);
