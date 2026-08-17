@@ -183,6 +183,38 @@ public sealed class TripViewerItineraryRenderingTests
     }
 
     [Fact]
+    public async Task RichNotesUseSharedPresentationAndSuppressOnlyTerminalArtifacts()
+    {
+        var webRoot = Path.Combine(Path.GetTempPath(), $"wayfarer-rich-notes-render-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(webRoot);
+        await File.WriteAllTextAsync(Path.Combine(webRoot, "frontend.manifest.json"), "{}");
+        try
+        {
+            using var host = BuildRazorHost(webRoot);
+            using var scope = host.Services.CreateScope();
+            var trip = WaypointTrip();
+            trip.User = new ApplicationUser { DisplayName = "Fixture owner" };
+            trip.Notes = "<p>Before</p><ol><li data-list=\"ordered\">Item</li><li data-list=\"ordered\"><br></li></ol>";
+
+            var viewer = await new HtmlParser().ParseDocumentAsync(await RenderViewerAsync(scope.ServiceProvider, trip));
+            var normalNotes = Assert.Single(viewer.QuerySelectorAll("#sidebar-primary .trip-notes.rich-notes-content"));
+            var readableNotes = Assert.Single(viewer.QuerySelectorAll("#readable-modal-body .trip-notes-readable.rich-notes-content"));
+            Assert.Equal("BeforeItem", NormalizeText(normalNotes.TextContent).Replace(" ", string.Empty));
+            Assert.Single(normalNotes.QuerySelectorAll("li"));
+            Assert.Single(readableNotes.QuerySelectorAll("li"));
+
+            var model = new TripPrintViewModel { Trip = trip, Regions = trip.Regions.ToList(), Places = trip.Regions.SelectMany(region => region.Places).ToList(), Segments = trip.Segments.ToList() };
+            var pdf = await new HtmlParser().ParseDocumentAsync(await RenderViewAsync(scope.ServiceProvider, "/Views/Trip/Print.cshtml", model));
+            var pdfNotes = Assert.Single(pdf.QuerySelectorAll(".notes.rich-notes-content"));
+            Assert.Single(pdfNotes.QuerySelectorAll("li"));
+        }
+        finally
+        {
+            Directory.Delete(webRoot, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task PdfDoesNotExposeForeignWaypoint()
     {
         var webRoot = Path.Combine(Path.GetTempPath(), $"wayfarer-foreign-waypoint-pdf-{Guid.NewGuid():N}");
