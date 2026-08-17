@@ -11,6 +11,9 @@ import SegmentEditorSurface from './SegmentEditorSurface.vue';
 import { beginSegmentRouteMapWork, stopSegmentRouteEdit, type SegmentRouteEditor, type SegmentRouteMapWorkLifecycleState } from './segmentRouteMapWork';
 import { mutationFeedbackClass } from './useEditorMutationFeedback';
 import { invokeSegmentRouteAction } from './segmentRouteWorkPolicy';
+import type { EditorSegmentDraftPresentation, SegmentPresentationKey } from '../segments/editorSegmentPresentation';
+import { resolveDraftSegmentPresentation, resolvePersistedSegmentPresentation } from '../segments/editorSegmentPresentation';
+import { reverseSegmentDraftRoute } from '../segments/segmentPresentationResolver';
 
 declare global {
   interface Window {
@@ -29,6 +32,8 @@ const props = defineProps<{
   searchActive: boolean;
   segments: EditorSegment[];
   state: EditorTripState;
+  activeSegmentKey: SegmentPresentationKey | null;
+  selectSegment: (key: SegmentPresentationKey) => Promise<boolean>;
 }>();
 
 const emit = defineEmits<{
@@ -36,6 +41,8 @@ const emit = defineEmits<{
   hiddenSegmentIdsChanged: [ids: Set<Guid>];
   mutationApplied: [result: EditorMutationResult<unknown>];
   routeDraftPreviewChanged: [preview: SegmentDraftRoutePreview | null];
+  activeSegmentDraftChanged: [snapshot: EditorSegmentDraftPresentation | null];
+  activeSegmentCleared: [key: SegmentPresentationKey];
 }>();
 
 const segmentFields = ['fromPlaceId', 'toPlaceId', 'waypointPlaceIds', 'waypointRouteVertexIndices', 'aggregateConcurrencyToken', 'mode', 'estimatedDistanceKm', 'estimatedDurationMinutes', 'estimatedDurationSource', 'notesHtml', 'route', 'route.coordinates'];
@@ -69,11 +76,19 @@ const formSummaryErrors = computed(() => Object.entries(validationErrors.value)
 const activeSegmentTarget = computed<EditorTarget>(() => draft.id && activeSegment.value
   ? buildSegmentEditTarget(activeSegment.value, segmentLabel(activeSegment.value))
   : buildSegmentCreateTarget());
+const draftOrientation = computed(() => {
+  if (!draft.route) return null;
+  try {
+    return resolveDraftSegmentPresentation({ key: draft.id ? persistedPresentationKey(draft.id) : createPresentationKey(), draft, work: null }, props.state).orientation;
+  } catch {
+    return 'ambiguous';
+  }
+});
 
 watch(isDirty, value => emit('dirtyStateChanged', value), { immediate: true });
 watch(
-  () => [draft.id, draft.fromPlaceId, draft.toPlaceId, JSON.stringify(draft.route), JSON.stringify(draft.waypointRows), props.hiddenSegmentIds.has(draft.id ?? '')],
-  syncRouteDraftPreview,
+  () => [draft.id, draft.fromPlaceId, draft.toPlaceId, JSON.stringify(draft.route), JSON.stringify(draft.waypointRows)],
+  () => { syncRouteDraftPreview(); publishPresentation(); },
   { flush: 'sync' }
 );
 watch(() => [props.segments.length, props.searchActive, segmentListKey.value], () => nextTick(attachSortable), { immediate: true });
@@ -85,6 +100,7 @@ watch(
   }) ?? false,
   stale => { if (stale) void invalidateStaleRouteWork(); }
 );
+watch(() => JSON.stringify(routeMapWork.work), publishPresentation, { flush: 'sync' });
 
 onMounted(() => {
   unregisterHandler = props.editorSurface.registerTargetHandler(segmentDraftKey, {
@@ -98,6 +114,7 @@ onUnmounted(() => {
   destroySortable();
   stopSegmentRouteEdit(routeMapWork);
   emit('routeDraftPreviewChanged', null);
+  emit('activeSegmentDraftChanged', null);
   emit('dirtyStateChanged', false);
 });
 
@@ -113,6 +130,8 @@ async function openCreate(): Promise<void> {
   createBaselineRequest.value = buildSegmentRequest(draft);
   resetFeedback();
   syncRouteDraftPreview();
+  await props.selectSegment(createPresentationKey());
+  publishPresentation();
 }
 
 async function openEdit(segment: EditorSegment): Promise<boolean> {
@@ -135,6 +154,8 @@ async function openEdit(segment: EditorSegment): Promise<boolean> {
   createBaselineRequest.value = null;
   resetFeedback();
   syncRouteDraftPreview();
+  await props.selectSegment(persistedPresentationKey(segment.id));
+  publishPresentation();
   return true;
 }
 
@@ -143,6 +164,7 @@ function resetDraft(): void {
   Object.assign(draft, draft.id ? cloneDraft(persistedBaseline.value) : emptySegmentDraft());
   resetFeedback();
   syncRouteDraftPreview();
+  publishPresentation();
   void nextTick(async () => {
     await nextTick();
     if (focusDestination === 'notes') {
@@ -170,15 +192,20 @@ async function saveDraft(): Promise<void> {
     const result = draft.id
       ? await updateSegment(props.editorEndpoint, draft.id, props.antiforgeryToken, request)
       : await createSegment(props.editorEndpoint, props.antiforgeryToken, request);
+    const savedDraft = toSegmentDraft(result.data);
+    if (wasCreate) {
+      emit('activeSegmentDraftChanged', { key: persistedPresentationKey(result.data.id), draft: cloneDraft(savedDraft), work: null });
+    }
     if (wasCreate) {
       emit('routeDraftPreviewChanged', buildRouteDraftPreview(result.data.id));
     }
     emit('mutationApplied', result as EditorMutationResult<unknown>);
-    persistedBaseline.value = toSegmentDraft(result.data);
-    Object.assign(draft, toSegmentDraft(result.data));
+    persistedBaseline.value = cloneDraft(savedDraft);
+    Object.assign(draft, savedDraft);
     createBaselineRequest.value = null;
-    props.editorSurface.replaceActiveTarget(activeSegmentTarget.value);
+    props.editorSurface.replaceActiveTarget(buildSegmentEditTarget(result.data, segmentLabel(result.data)));
     emit('routeDraftPreviewChanged', null);
+    publishPresentation();
     markSaved();
   } catch (error) {
     if (error instanceof EditorSegmentConflictError && draft.id) {
@@ -195,6 +222,7 @@ async function saveDraft(): Promise<void> {
           persistedBaseline.value = toSegmentDraft(confirmed.data);
           Object.assign(draft, toSegmentDraft(confirmed.data));
           emit('routeDraftPreviewChanged', null);
+          publishPresentation();
           markSaved();
           return;
         } catch (retryError) {
@@ -272,6 +300,7 @@ async function deleteSegmentWithConfirmation(segment: EditorSegment, deletedTarg
     Object.assign(draft, emptySegmentDraft());
     persistedBaseline.value = emptySegmentDraft();
     emit('routeDraftPreviewChanged', null);
+    emit('activeSegmentCleared', persistedPresentationKey(segment.id));
     createBaselineRequest.value = null;
     props.editorSurface.clearActiveTarget(deletedTarget);
     markSaved();
@@ -318,6 +347,7 @@ function toggleVisibility(segment: EditorSegment): void {
     hidden.delete(segment.id);
   } else {
     hidden.add(segment.id);
+    emit('activeSegmentCleared', persistedPresentationKey(segment.id));
   }
 
   emit('hiddenSegmentIdsChanged', hidden);
@@ -413,12 +443,48 @@ function restoreSegmentOrder(_previousIds: Guid[]): void {
 }
 
 function discardDraft(): void {
+  const discardedKey = draft.id ? persistedPresentationKey(draft.id) : createPresentationKey();
   stopSegmentRouteEdit(routeMapWork);
   Object.assign(draft, emptySegmentDraft());
   persistedBaseline.value = emptySegmentDraft();
   createBaselineRequest.value = null;
   resetFeedback();
   emit('routeDraftPreviewChanged', null);
+  emit('activeSegmentDraftChanged', null);
+  emit('activeSegmentCleared', discardedKey);
+}
+
+/** Reverses only D; Save remains the sole persistence/reconciliation boundary. */
+function reverseRoute(): void {
+  if (!draft.route || routeMapWork.work || draftOrientation.value !== 'reversed') return;
+  reverseSegmentDraftRoute(draft);
+  syncRouteDraftPreview();
+  publishPresentation();
+}
+
+/** Publishes a cloned D/W presentation while this component retains all mutation authority. */
+function publishPresentation(): void {
+  if (!props.editorSurface.isTargetActive(activeSegmentTarget.value)) return;
+  emit('activeSegmentDraftChanged', {
+    key: draft.id ? persistedPresentationKey(draft.id) : createPresentationKey(),
+    draft: cloneDraft(draft),
+    work: routeMapWork.work ? JSON.parse(JSON.stringify(routeMapWork.work)) : null
+  });
+}
+
+const persistedPresentationKey = (id: Guid): SegmentPresentationKey => ({ kind: 'persisted', id });
+const createPresentationKey = (): SegmentPresentationKey => ({ kind: 'create-draft', token: 'segment-create-draft' });
+
+/** Derives current compact and accessible text from persisted ordered anchors. */
+function segmentJourney(segment: EditorSegment): { compact: string; accessible: string } {
+  const presentation = draft.id === segment.id && props.editorSurface.isTargetActive(activeSegmentTarget.value)
+    ? resolveDraftSegmentPresentation({ key: persistedPresentationKey(segment.id), draft, work: routeMapWork.work }, props.state)
+    : resolvePersistedSegmentPresentation(segment, props.state);
+  return { compact: presentation.anchors.compactTrail, accessible: presentation.anchors.accessibleName };
+}
+
+function isActiveSegment(segment: EditorSegment): boolean {
+  return props.activeSegmentKey?.kind === 'persisted' && props.activeSegmentKey.id === segment.id;
 }
 
 /// Publishes the active segment form route without exposing form state to Leaflet internals.
@@ -570,19 +636,19 @@ function modeText(segment: EditorSegment): string {
     </section>
     <button type="button" class="btn btn-primary btn-sm trip-editor-add-button" :disabled="isSaving || isOrdering" @click="openCreate">Add Segment</button>
 
-    <SegmentEditorSurface v-if="isDraftOpen && !draft.id" ref="segmentEditorSurface" :active-segment="activeSegment" :controller="editorSurface" :draft="draft" :field-errors="fieldErrors" :form-id="segmentFormId" :form-summary-errors="formSummaryErrors" :is-dirty="isDirty" :is-saving="isSaving" :state="state" :status-text="statusText" :target="activeSegmentTarget" @cancel="cancelDraft" @clear-error="clearFieldError" @clear-route="clearRoute" @delete="deleteDraft" @draw-route="drawRoute" @reset="resetDraft" @save="saveDraft" />
+    <SegmentEditorSurface v-if="isDraftOpen && !draft.id" ref="segmentEditorSurface" :active-segment="activeSegment" :controller="editorSurface" :draft="draft" :field-errors="fieldErrors" :form-id="segmentFormId" :form-summary-errors="formSummaryErrors" :is-dirty="isDirty" :is-saving="isSaving" :route-orientation="draftOrientation" :route-map-work-active="Boolean(routeMapWork.work)" :state="state" :status-text="statusText" :target="activeSegmentTarget" @cancel="cancelDraft" @clear-error="clearFieldError" @clear-route="clearRoute" @delete="deleteDraft" @draw-route="drawRoute" @reset="resetDraft" @reverse-route="reverseRoute" @save="saveDraft" />
 
     <ul v-if="segments.length > 0" :key="segmentListKey" ref="segmentList" class="trip-editor-segments">
       <li v-for="segment in segments" :key="segment.id" class="trip-editor-segment-row" :data-segment-id="segment.id">
         <button type="button" class="trip-editor-icon-button trip-editor-segment-drag-handle" title="Drag to reorder segment" aria-label="Drag to reorder segment" @keydown.arrow-up.prevent="moveSegmentByKeyboard(segment.id, -1)" @keydown.arrow-down.prevent="moveSegmentByKeyboard(segment.id, 1)">↕</button>
         <button type="button" class="trip-editor-icon-button" :title="hiddenSegmentIds.has(segment.id) ? 'Show segment' : 'Hide segment'" :aria-label="hiddenSegmentIds.has(segment.id) ? 'Show segment' : 'Hide segment'" @click="toggleVisibility(segment)">{{ hiddenSegmentIds.has(segment.id) ? '○' : '●' }}</button>
-        <button type="button" class="trip-editor-list-button" @click="openEdit(segment)">
-          <span>{{ segmentLabel(segment) }}</span>
+        <button type="button" class="trip-editor-list-button" :aria-current="isActiveSegment(segment) ? 'true' : undefined" :aria-label="segmentJourney(segment).accessible" @click="openEdit(segment)">
+          <span>{{ segmentJourney(segment).compact }}</span>
           <small>{{ modeText(segment) }}</small>
         </button>
         <button type="button" class="trip-editor-icon-button" title="Delete segment" aria-label="Delete segment" @click="deleteSegmentFromRow(segment)">×</button>
 
-        <SegmentEditorSurface v-if="draft.id === segment.id && editorSurface.isTargetActive(activeSegmentTarget)" ref="segmentEditorSurface" :active-segment="activeSegment" :controller="editorSurface" :draft="draft" :field-errors="fieldErrors" :form-id="segmentFormId" :form-summary-errors="formSummaryErrors" :is-dirty="isDirty" :is-saving="isSaving" :state="state" :status-text="statusText" :target="activeSegmentTarget" @cancel="cancelDraft" @clear-error="clearFieldError" @clear-route="clearRoute" @delete="deleteDraft" @draw-route="drawRoute" @reset="resetDraft" @save="saveDraft" />
+        <SegmentEditorSurface v-if="draft.id === segment.id && editorSurface.isTargetActive(activeSegmentTarget)" ref="segmentEditorSurface" :active-segment="activeSegment" :controller="editorSurface" :draft="draft" :field-errors="fieldErrors" :form-id="segmentFormId" :form-summary-errors="formSummaryErrors" :is-dirty="isDirty" :is-saving="isSaving" :route-orientation="draftOrientation" :route-map-work-active="Boolean(routeMapWork.work)" :state="state" :status-text="statusText" :target="activeSegmentTarget" @cancel="cancelDraft" @clear-error="clearFieldError" @clear-route="clearRoute" @delete="deleteDraft" @draw-route="drawRoute" @reset="resetDraft" @reverse-route="reverseRoute" @save="saveDraft" />
       </li>
     </ul>
     <p v-else class="trip-editor-empty-state">No travel segments added yet.</p>

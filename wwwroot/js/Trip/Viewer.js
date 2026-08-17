@@ -5,7 +5,6 @@
  *  • segment polylines  + visibility
  *  • sliding legend + sliding “details” pane
  *  • Google-Maps & Wikipedia helpers
- *  • auto-centering that respects legend width
  */
 
 import {
@@ -20,6 +19,7 @@ import {
     getSegmentPolyline,
     canvasRenderer
 } from './tripViewerHelpers.js';
+import {createViewerSegmentPresentationController} from './viewerSegmentPresentationController.js';
 import {
     generateWikipediaLinkHtml,
     initWikipediaPopovers,
@@ -187,6 +187,10 @@ const init = () => {
     }
 
     const map = initLeaflet([lat, lon], zoom);
+    const segmentPresentation = createViewerSegmentPresentationController(map, root, {
+        isPrint,
+        paddingX: () => collapsed || sidebarOverlaysMap() ? 60 : legendW() / 2 + 60
+    });
     // if user clicks anywhere on map except from markers remove current marker highlight
     map.on('click', e => {
         removeHighlightMarker();
@@ -296,6 +300,8 @@ const init = () => {
         const d = li.dataset;
         const label = `From ${d.fromPlaceName} to ${d.toPlaceName}, ${d.estimatedDistance} km by ${d.transportMode} in ${d.estimatedDuration}`;
         addSegmentFromRouteWkt(map, d.segmentId, d.routeWkt, label, {
+            anchors: JSON.parse(d.segmentAnchors || '[]'),
+            orientation: d.routeOrientation || 'ambiguous',
             fromPlace: d.fromPlaceName,
             toPlace: d.toPlaceName,
             fromRegion: d.fromPlaceregionName,
@@ -313,7 +319,11 @@ const init = () => {
     $$('.segment-toggle').forEach(cb => cb.addEventListener('change', e => {
         const sid = e.target.closest('.segment-list-item').dataset.segmentId;
         setSegmentVisible(map, sid, e.target.checked);
+        if (!e.target.checked && root.dataset.activeSegmentId === sid) segmentPresentation.select(null, false);
     }));
+
+    const requestedSegmentId = params.get('seg');
+    void segmentPresentation.initialize(requestedSegmentId);
 
     /* region check-boxes – stop accordion toggle */
     $$('.region-toggle').forEach(cb => {
@@ -506,6 +516,7 @@ const init = () => {
             if (e.target.closest('.segment-toggle, .segment-journey-place')) return;
 
             const sid = li.dataset.segmentId;
+            segmentPresentation.select(sid, false);
             const pl = getSegmentPolyline(sid);
             if (!pl) return;
 
@@ -519,6 +530,10 @@ const init = () => {
             map.once('moveend', () => {
                 applyCentreOffset(collapsed ? -1 : 1, true);
             });
+        });
+        li.querySelector('.segment-selection-button')?.addEventListener('click', e => {
+            e.stopPropagation();
+            segmentPresentation.select(li.dataset.segmentId);
         });
     });
 

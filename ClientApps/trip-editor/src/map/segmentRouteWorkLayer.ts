@@ -5,7 +5,6 @@ import {
   insertAnonymousNode,
   moveAnonymousNode,
   workStateGeometry,
-  type SegmentRouteAnchorNode,
   type SegmentRouteWorkState
 } from '../components/segmentRouteWorkState';
 
@@ -39,30 +38,16 @@ export const createSegmentRouteWorkLayer = (map: LeafletMap): {
     if (!state || !options) return;
 
     if (state.nodes.length < 2) {
-      state.nodes.filter(node => node.kind === 'anchor').forEach(node => {
-        L.marker([node.coordinate[1], node.coordinate[0]], { interactive: false, icon: anchorIcon(node) }).addTo(group);
-      });
       startDraw();
       return;
     }
 
     const geometry = workStateGeometry(state);
-    const line = L.polyline(geometry.coordinates.map(([longitude, latitude]) => [latitude, longitude]), routeStyle())
+    const line = L.polyline(geometry.coordinates.map(([longitude, latitude]) => [latitude, longitude]), routeHitStyle())
       .on('click', insertAtNearestInterval)
       .addTo(group);
-    const element = line.getElement() as SVGElement | null;
-    if (element) {
-      element.dataset.segmentId = options.identity;
-      element.dataset.routeOwner = 'work';
-      element.dataset.routeKind = state.cleared || state.origin === 'fallback' && !state.changedCustom ? 'fallback' : 'custom';
-    }
-
     state.nodes.forEach((node, index) => {
       if (node.kind === 'anchor') {
-        L.marker([node.coordinate[1], node.coordinate[0]], {
-          interactive: false,
-          icon: anchorIcon(node)
-        }).addTo(group);
         return;
       }
 
@@ -164,6 +149,8 @@ export const createSegmentRouteWorkLayer = (map: LeafletMap): {
 };
 
 const routeStyle = (): L.PathOptions => ({ color: '#f97316', dashArray: '2 7', opacity: 0.9, weight: 4 });
+/** Keeps W insertion pointer-operable while the shared presentation registry owns the sole visual line. */
+const routeHitStyle = (): L.PathOptions => ({ className: 'segment-route-work-hit', opacity: 0, weight: 16 });
 /** Renders one pointer-draggable anonymous handle without duplicating saved-Place markers. */
 const anonymousIcon = (): L.DivIcon => L.divIcon({
   className: 'segment-route-work-handle',
@@ -172,17 +159,6 @@ const anonymousIcon = (): L.DivIcon => L.divIcon({
   iconAnchor: [9, 9],
   tooltipAnchor: [0, -12]
 });
-
-/** Names fixed roles by position without turning them into editable marker handles. */
-function anchorIcon(node: SegmentRouteAnchorNode): L.DivIcon {
-  return L.divIcon({
-    className: 'segment-route-work-anchor',
-    html: `<span aria-hidden="true">${node.role === 'from' ? 'S' : node.role === 'to' ? 'E' : 'V'}</span>`,
-    iconSize: [24, 24],
-    iconAnchor: [12, 12],
-    tooltipAnchor: [0, -14]
-  });
-}
 
 const drawPolylineHandler = (): new (map: LeafletMap, options: Record<string, unknown>) => unknown =>
   (L as unknown as { Draw: { Polyline: new (map: LeafletMap, options: Record<string, unknown>) => unknown } }).Draw.Polyline;

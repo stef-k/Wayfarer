@@ -1,6 +1,14 @@
 @using Wayfarer.Util
 @using Wayfarer.Models.ViewModels
+@using System.Text.Json
 @model Wayfarer.Models.Trip
+
+<style>
+    /* Segment selection is textual, wrapping, and visibly current without moving nested actions. */
+    .segment-selection-button { color: inherit; display: block; max-width: 100%; overflow-wrap: anywhere; text-decoration: none; white-space: normal; }
+    .segment-selection-button[aria-current="true"] { font-weight: 700; text-decoration: underline; text-decoration-thickness: .15em; }
+    .segment-route-hit { cursor: pointer; }
+</style>
 
 
 @if (Model.Segments?.Any() == true)
@@ -34,6 +42,15 @@
                 var fromRegion = journey.Anchors.FirstOrDefault()?.RegionName ?? "";
                 var toRegion = journey.Anchors.LastOrDefault()?.RegionName ?? "";
                 var label = journey.TrailText ?? "Journey unavailable";
+                var presentationAnchors = JsonSerializer.Serialize(journey.Anchors.Select(anchor => new
+                {
+                    position = anchor.Position,
+                    placeId = anchor.PlaceId,
+                    name = anchor.DisplayName,
+                    role = anchor.Role,
+                    longitude = anchor.Location?.X,
+                    latitude = anchor.Location?.Y
+                }));
 
                 var durTxt = seg.EstimatedDuration?.ToString(@"hh\:mm") ?? "—";
                 var distTxt = seg.EstimatedDistanceKm?.ToString("0.##") ?? "—";
@@ -57,6 +74,8 @@
                         data-to-place-name="@toName"
                         data-to-placeregion-name="@toRegion"
                         data-segment-name="@($"{seg?.Mode}: {label}")"
+                        data-segment-anchors="@presentationAnchors"
+                        data-route-orientation="@journey.RouteOrientation"
                         data-transport-mode="@seg?.Mode"
                         data-estimated-distance="@seg?.EstimatedDistanceKm"
                         data-estimated-duration="@seg?.EstimatedDuration.FormatDuration()"
@@ -66,6 +85,9 @@
                         }
                         data-segment-notes="@(seg?.Notes ?? "")">
 
+                        <button type="button" class="segment-selection-button btn btn-link p-0 text-start" aria-label="@journey.AccessibleName">
+                            @journey.CompactTrail
+                        </button>
                         <div class="d-flex align-items-start gap-2 small">
                             <span class="fs-5" aria-hidden="true">@emojiIcon</span>
                             <div>
