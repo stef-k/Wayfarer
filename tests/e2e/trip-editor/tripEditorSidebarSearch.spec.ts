@@ -193,6 +193,67 @@ test.describe.serial('Trip Editor sidebar search verification', () => {
 
   });
 
+  test('reattaches Region and nested Sortables after rejected dirty reorder recovery', async ({ page }) => {
+    test.setTimeout(60_000);
+    await signIn(page);
+    const state = await loadEditorStateFixture(page);
+    const normalRegions = state.regionOrder.map(id => state.regionsById[id]).filter(region => region && !region.isShadow);
+    expect(normalRegions.length).toBeGreaterThan(1);
+    await page.goto(absoluteUrl(editorPath));
+    await expectMountedWorkspace(page);
+
+    const collapsedCard = regionCard(page, normalRegions[0].name);
+    const editorCard = regionCard(page, normalRegions[1].name);
+    const collapsedChildren = collapsedCard.locator('ul');
+    await collapsedCard.getByRole('button', { name: 'Collapse' }).click();
+    await expect(collapsedChildren).toBeHidden();
+
+    await regionEditButton(editorCard).click();
+    const editorForm = page.locator('#trip-editor-region-form');
+    await editorForm.getByLabel('Name').fill(`${normalRegions[1].name} unsaved`);
+    const forcedCollapse = editorCard.getByRole('button', { name: 'Collapse' });
+    await expect(forcedCollapse).toBeDisabled();
+
+    const authoritativeIds = normalRegions.map(region => region.id);
+    const editorHeader = editorCard.locator('.trip-editor-region-card__header');
+    await dragFromVisibleHandle(collapsedCard, editorHeader, 'Drag to reorder region');
+    const firstDiscard = page.getByRole('dialog', { name: 'Discard changes?' });
+    await firstDiscard.getByRole('button', { name: 'Keep editing' }).click();
+    await expect(firstDiscard).toHaveCount(0);
+    expect(await page.locator('.trip-editor-region-card--normal').evaluateAll(cards => cards.map(card => (card as HTMLElement).dataset.regionId))).toEqual(authoritativeIds);
+    await expect(collapsedChildren).toBeHidden();
+    await expect(editorForm).toBeVisible();
+    await expect(forcedCollapse).toBeDisabled();
+
+    // A second pointer drag must reach the production Sortable callback on the replacement DOM.
+    await dragFromVisibleHandle(collapsedCard, editorHeader, 'Drag to reorder region');
+    const secondDiscard = page.getByRole('dialog', { name: 'Discard changes?' });
+    await expect(secondDiscard).toBeVisible();
+    await secondDiscard.getByRole('button', { name: 'Keep editing' }).click();
+    await expect(secondDiscard).toHaveCount(0);
+    expect(await page.locator('.trip-editor-region-card--normal').evaluateAll(cards => cards.map(card => (card as HTMLElement).dataset.regionId))).toEqual(authoritativeIds);
+
+    const nestedRegion = normalRegions.find(region => (state.placeOrderByRegionId[region.id]?.length ?? 0) > 1);
+    if (nestedRegion) {
+      const nestedCard = regionCard(page, nestedRegion.name);
+      const nestedToggle = nestedCard.getByRole('button', { name: /Collapse|Expand/ });
+      if (await nestedToggle.getAttribute('aria-expanded') === 'false') {
+        await nestedToggle.click();
+      }
+      const placeIds = state.placeOrderByRegionId[nestedRegion.id];
+      const firstPlace = nestedCard.locator(`[data-place-id="${placeIds[0]}"]`);
+      const secondPlace = nestedCard.locator(`[data-place-id="${placeIds[1]}"]`);
+      await dragFromVisibleHandle(secondPlace, firstPlace, 'Drag to reorder place');
+      const nestedDiscard = page.getByRole('dialog', { name: 'Discard changes?' });
+      await expect(nestedDiscard).toBeVisible();
+      await nestedDiscard.getByRole('button', { name: 'Keep editing' }).click();
+      await expect(nestedDiscard).toHaveCount(0);
+      expect(await nestedCard.locator('.trip-editor-place-row').evaluateAll(rows => rows.map(row => (row as HTMLElement).dataset.placeId))).toEqual(placeIds);
+    } else {
+      test.info().annotations.push({ type: 'fixture limitation', description: 'Configured trip has no normal Region with two Places for nested Sortable interaction.' });
+    }
+  });
+
   test('filters areas when the configured trip has area fixture data', async ({ page }) => {
     await signIn(page);
     const state = await loadEditorStateFixture(page);
