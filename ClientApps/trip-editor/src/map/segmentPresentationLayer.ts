@@ -1,6 +1,6 @@
 import L, { type Map as LeafletMap } from 'leaflet';
 import type { EditorSegmentPresentation, SegmentPresentationKey } from '../segments/editorSegmentPresentation';
-import { placeProjectedChevrons } from '../segments/segmentPresentationResolver';
+import { placeProjectedChevrons, placeRouteBadge, type PresentationRectangle } from '../segments/segmentPresentationResolver';
 
 type RegistryEntry = {
   presentation: EditorSegmentPresentation;
@@ -91,19 +91,28 @@ export const createSegmentPresentationLayer = (
   };
 
   const renderBadges = (presentation: EditorSegmentPresentation): void => {
+    const size = map.getSize();
+    const mapBounds = { left: 0, top: 0, right: size.x, bottom: size.y };
+    const controlBounds = visibleControlBounds(map);
+    const placedBounds: PresentationRectangle[] = [];
     presentation.anchors.badges.forEach(badge => {
+      const anchor = map.latLngToContainerPoint([badge.location[1], badge.location[0]]);
+      const dimensions = badgeDimensions(badge.label);
+      const placement = placeRouteBadge([anchor.x, anchor.y], dimensions, mapBounds, controlBounds, placedBounds);
+      placedBounds.push({ left: placement.left, top: placement.top,
+        right: placement.left + placement.width, bottom: placement.top + placement.height });
       L.marker([badge.location[1], badge.location[0]], {
         pane: 'segment-route-role',
         interactive: false,
         keyboard: false,
         alt: '',
-        icon: routeBadgeIcon(badge.label)
+        icon: routeBadgeIcon(badge.label, placement.left - anchor.x, placement.top - anchor.y, placement.fallback)
       }).addTo(badgeGroup);
     });
   };
 
-  const rerenderForZoom = (): void => render(currentPresentations, currentActiveKey);
-  map.on('zoomend', rerenderForZoom);
+  const rerenderForMovement = (): void => render(currentPresentations, currentActiveKey);
+  map.on('zoomend moveend', rerenderForMovement);
 
   const clearRegistry = (): void => {
     registry.forEach(entry => {
@@ -116,7 +125,7 @@ export const createSegmentPresentationLayer = (
   };
 
   const dispose = (): void => {
-    map.off('zoomend', rerenderForZoom);
+    map.off('zoomend moveend', rerenderForMovement);
     clearRegistry();
     badgeGroup.clearLayers();
     badgeGroup.remove();
@@ -139,15 +148,29 @@ export const createSegmentPresentationLayer = (
 };
 
 /** Produces one decorative pointer-transparent badge without touching the Place marker DOM. */
-function routeBadgeIcon(label: string): L.DivIcon {
-  const pill = label.length > 1;
+function routeBadgeIcon(label: string, leftOffset: number, topOffset: number, fallback: boolean): L.DivIcon {
+  const dimensions = badgeDimensions(label);
+  const pill = label.length > 1 || fallback;
   return L.divIcon({
     className: 'segment-route-badge-wrapper',
     html: `<span class="segment-route-badge${pill ? ' segment-route-badge--pill' : ''}" aria-hidden="true">${escapeHtml(label)}</span>`,
-    iconSize: pill ? [34, 22] : [22, 22],
-    iconAnchor: [-11, 20]
+    iconSize: [dimensions.width, dimensions.height],
+    iconAnchor: [-leftOffset, -topOffset]
   });
 }
+
+/** Returns the fixed application-rendered dimensions used by collision fixtures and Leaflet. */
+const badgeDimensions = (label: string): { width: number; height: number } => ({ width: label.length > 1 ? 34 : 24, height: 24 });
+
+/** Projects visible Leaflet controls into the map container's coordinate system. */
+const visibleControlBounds = (map: LeafletMap): PresentationRectangle[] => {
+  const containerBounds = map.getContainer().getBoundingClientRect();
+  return [...map.getContainer().querySelectorAll<HTMLElement>('.leaflet-control')]
+    .filter(element => element.offsetParent !== null)
+    .map(element => element.getBoundingClientRect())
+    .map(bounds => ({ left: bounds.left - containerBounds.left, top: bounds.top - containerBounds.top,
+      right: bounds.right - containerBounds.left, bottom: bounds.bottom - containerBounds.top }));
+};
 
 const keyText = (key: SegmentPresentationKey): string => key.kind === 'persisted' ? key.id : key.token;
 const sameKey = (left: SegmentPresentationKey, right: SegmentPresentationKey | null): boolean => Boolean(right)

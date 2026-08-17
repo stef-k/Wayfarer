@@ -75,6 +75,27 @@ export const placeViewerChevrons = (points, active) => {
     });
 };
 
+const routeBadgeOffsets = [[10, -18], [-34, -18], [10, -48], [-34, -48], [18, -34], [-42, -34]];
+
+/** Chooses the first bounded route-badge position clear of controls and prior active badges. */
+export const placeRouteBadge = (anchor, size, mapBounds, controlBounds, placedBounds) => {
+    const candidate = (offset, offsetIndex, fallback = false) => ({
+        left: anchor[0] + offset[0], top: anchor[1] + offset[1], width: size.width, height: size.height, offsetIndex, fallback
+    });
+    const clear = placement => {
+        const rectangle = {...placement, right: placement.left + placement.width, bottom: placement.top + placement.height};
+        return rectangle.left >= mapBounds.left && rectangle.top >= mapBounds.top
+            && rectangle.right <= mapBounds.right && rectangle.bottom <= mapBounds.bottom
+            && ![...controlBounds, ...placedBounds].some(blocker => rectangle.left < blocker.right
+                && rectangle.right > blocker.left && rectangle.top < blocker.bottom && rectangle.bottom > blocker.top);
+    };
+    for (let index = 0; index < routeBadgeOffsets.length; index += 1) {
+        const placement = candidate(routeBadgeOffsets[index], index);
+        if (clear(placement)) return placement;
+    }
+    return candidate(routeBadgeOffsets[0], -1, true);
+};
+
 /** Rasterizes one application-owned badge so leaflet-image captures both shape and text. */
 export const routeBadgeDataUrl = label => {
     const width = label.length > 1 ? Math.max(34, 14 + label.length * 9) : 24;

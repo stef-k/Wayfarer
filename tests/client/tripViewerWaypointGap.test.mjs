@@ -78,11 +78,15 @@ test('multiple Segment presentations remain independent and transfer active badg
   const map = {
     _layers: [], removeLayer() {},
     latLngToLayerPoint: ([latitude, longitude]) => ({ x: longitude * 20, y: latitude * 20 }),
-    layerPointToLatLng: ([x, y]) => [y / 20, x / 20]
+    latLngToContainerPoint: ([latitude, longitude]) => ({ x: longitude * 20, y: latitude * 20 }),
+    layerPointToLatLng: ([x, y]) => [y / 20, x / 20],
+    getSize: () => ({ x: 800, y: 600 }),
+    getContainer: () => ({ getBoundingClientRect: () => ({ left: 0, top: 0 }), querySelectorAll: () => [] })
   };
   const layer = () => ({
     addTo(target) { target?._layers?.push(this); return this; }, bindTooltip() { return this; }, unbindTooltip() { return this; },
-    on() { return this; }, off() { return this; }, remove() { return this; }, setStyle() { return this; }
+    on() { return this; }, off() { return this; }, remove() { return this; }, setStyle() { return this; },
+    getElement() { return { complete: true, naturalWidth: 24, decode: () => Promise.resolve() }; }
   });
   prepareLeaflet(layer);
   const helpers = await import(`../../wwwroot/js/Trip/tripViewerHelpers.js?multi=${Date.now()}`);
@@ -114,9 +118,9 @@ test('places viewer route badges with deterministic collision avoidance', async 
   const badge = { width: 24, height: 24 };
   assert.equal(presentation.placeRouteBadge([100, 80], badge, bounds, [], []).offsetIndex, 0);
   assert.equal(presentation.placeRouteBadge([100, 80], badge, bounds,
-    [{ left: 110, top: 75, right: 140, bottom: 105 }], []).offsetIndex, 1);
+    [{ left: 109, top: 61, right: 140, bottom: 87 }], []).offsetIndex, 1);
   assert.equal(presentation.placeRouteBadge([100, 80], badge, bounds, [],
-    [{ left: 110, top: 75, right: 140, bottom: 105 }]).offsetIndex, 1);
+    [{ left: 109, top: 61, right: 140, bottom: 87 }]).offsetIndex, 1);
   assert.notEqual(presentation.placeRouteBadge([190, 150], badge, bounds, [], []).offsetIndex, 0);
   assert.equal(presentation.placeRouteBadge([100, 80], badge, bounds, [bounds], []).fallback, true);
 });
@@ -126,11 +130,15 @@ test('normal requested Segment uses the common controller selection and resolved
   prepareLeaflet();
   globalThis.document.querySelectorAll = () => [];
   globalThis.requestAnimationFrame = callback => callback();
-  const helpers = await import(`../../wwwroot/js/Trip/tripViewerHelpers.js?normal=${Date.now()}`);
+  const helpers = await import('../../wwwroot/js/Trip/tripViewerHelpers.js');
+  helpers.disposeSegmentPresentation();
   const map = {
-    _layers: [], removeLayer() {}, on() {},
+    _layers: [], removeLayer() {}, on() {}, fitBounds() {},
     latLngToLayerPoint: ([latitude, longitude]) => ({ x: longitude * 20, y: latitude * 20 }),
+    latLngToContainerPoint: ([latitude, longitude]) => ({ x: longitude * 20, y: latitude * 20 }),
     layerPointToLatLng: ([x, y]) => [y / 20, x / 20],
+    getSize: () => ({ x: 800, y: 600 }),
+    getContainer: () => ({ getBoundingClientRect: () => ({ left: 0, top: 0 }), querySelectorAll: () => [] }),
     flyToBounds(bounds, options) { this.fitted = { bounds, options }; }
   };
   const line = () => ({
@@ -162,11 +170,15 @@ test('production presentation readiness waits for delayed badge decode', async (
   const decode = new Promise(resolve => { resolveDecode = resolve; });
   const frames = [];
   globalThis.requestAnimationFrame = callback => { frames.push(callback); return frames.length; };
-  const helpers = await import(`../../wwwroot/js/Trip/tripViewerHelpers.js?decode=${Date.now()}`);
+  const helpers = await import('../../wwwroot/js/Trip/tripViewerHelpers.js');
+  helpers.disposeSegmentPresentation();
   const map = {
-    _layers: [], removeLayer() {}, on() {},
+    _layers: [], removeLayer() {}, on() {}, fitBounds() {},
     latLngToLayerPoint: ([latitude, longitude]) => ({ x: longitude * 20, y: latitude * 20 }),
-    layerPointToLatLng: ([x, y]) => [y / 20, x / 20]
+    latLngToContainerPoint: ([latitude, longitude]) => ({ x: longitude * 20, y: latitude * 20 }),
+    layerPointToLatLng: ([x, y]) => [y / 20, x / 20],
+    getSize: () => ({ x: 800, y: 600 }),
+    getContainer: () => ({ getBoundingClientRect: () => ({ left: 0, top: 0 }), querySelectorAll: () => [] })
   };
   const element = { complete: true, naturalWidth: 24, decode: () => decode };
   const layer = () => ({
@@ -186,8 +198,83 @@ test('production presentation readiness waits for delayed badge decode', async (
   const ready = controller.initialize('one');
   frames.splice(0).forEach(callback => callback());
   assert.equal(globalThis.window.__segmentPresentationReady, false);
+  globalThis.requestAnimationFrame = callback => callback();
   resolveDecode();
   await ready;
-  while (frames.length) frames.shift()();
   assert.equal(globalThis.window.__segmentPresentationReady, true);
 });
+
+/** Proves a rejected production decode cannot publish a false-ready print state. */
+test('failed production badge decode leaves presentation readiness false', async () => {
+  prepareLeaflet();
+  globalThis.document.querySelectorAll = () => [];
+  globalThis.requestAnimationFrame = callback => callback();
+  const helpers = await import('../../wwwroot/js/Trip/tripViewerHelpers.js');
+  helpers.disposeSegmentPresentation();
+  const map = presentationMap();
+  const layer = presentationLayer({ complete: true, naturalWidth: 0, decode: () => Promise.reject(new Error('decode failed')) });
+  globalThis.L.polyline = layer;
+  globalThis.L.marker = layer;
+  globalThis.location.search = '?print=1&seg=one';
+  globalThis.window.__segmentPresentationReady = false;
+  helpers.addSegment(map, 'one', [[0, 0], [0, 10]], '', { anchors: badgeAnchors('a', 'b'), orientation: 'forward' });
+  const { createViewerSegmentPresentationController } = await import(`../../wwwroot/js/Trip/viewerSegmentPresentationController.js?failed=${Date.now()}`);
+
+  const ready = await createViewerSegmentPresentationController(map, { dataset: {} }, { isPrint: true, paddingX: () => 60 }).initialize('one');
+
+  assert.equal(ready, false);
+  assert.equal(globalThis.window.__segmentPresentationReady, false);
+});
+
+/** Proves replacement ignores an older pending badge generation. */
+test('replacement render ignores stale production badge promises', async () => {
+  prepareLeaflet();
+  globalThis.document.querySelectorAll = () => [];
+  globalThis.requestAnimationFrame = callback => callback();
+  const helpers = await import('../../wwwroot/js/Trip/tripViewerHelpers.js');
+  helpers.disposeSegmentPresentation();
+  const map = presentationMap();
+  let resolveOld;
+  const oldDecode = new Promise(resolve => { resolveOld = resolve; });
+  let markerCount = 0;
+  globalThis.L.polyline = presentationLayer(null);
+  globalThis.L.marker = () => presentationLayer(markerCount++ < 2
+    ? { complete: true, naturalWidth: 24, decode: () => oldDecode }
+    : { complete: true, naturalWidth: 24, decode: () => Promise.resolve() })();
+  globalThis.location.search = '';
+  helpers.addSegment(map, 'one', [[0, 0], [0, 10]], '', { anchors: badgeAnchors('a', 'b'), orientation: 'forward' });
+  const { createViewerSegmentPresentationController } = await import(`../../wwwroot/js/Trip/viewerSegmentPresentationController.js?stale=${Date.now()}`);
+  const controller = createViewerSegmentPresentationController(map, { dataset: {} }, { isPrint: true, paddingX: () => 60 });
+  globalThis.window.__segmentPresentationReady = false;
+  const oldInitialization = controller.initialize('one');
+  const replacementReady = await controller.initialize('one');
+
+  assert.equal(replacementReady, true);
+  assert.equal(globalThis.window.__segmentPresentationReady, true);
+  assert.equal(helpers.getSegmentPresentationSnapshot().segments.find(item => item.id === 'one').active, true);
+  resolveOld();
+  assert.equal(await oldInitialization, false);
+  assert.equal(globalThis.window.__segmentPresentationReady, true);
+});
+
+/** Supplies a complete bounded map surface for production presentation unit tests. */
+const presentationMap = () => ({
+  _layers: [], removeLayer() {}, on() {}, fitBounds() {}, flyToBounds() {},
+  latLngToLayerPoint: ([latitude, longitude]) => ({ x: longitude * 20, y: latitude * 20 }),
+  latLngToContainerPoint: ([latitude, longitude]) => ({ x: longitude * 20 + 200, y: latitude * 20 + 200 }),
+  layerPointToLatLng: ([x, y]) => [y / 20, x / 20], getSize: () => ({ x: 800, y: 600 }),
+  getContainer: () => ({ getBoundingClientRect: () => ({ left: 0, top: 0 }), querySelectorAll: () => [] })
+});
+
+/** Supplies replaceable Leaflet layers and an optional production image element. */
+const presentationLayer = element => () => ({
+  _layers: [], addTo(target) { target?._layers?.push(this); return this; }, bindTooltip() { return this; }, unbindTooltip() { return this; },
+  on() { return this; }, off() { return this; }, remove() { return this; }, clearLayers() { this._layers = []; return this; },
+  getLayers() { return this._layers; }, setStyle() { return this; }, getElement() { return element; }, getBounds() { return {}; }
+});
+
+/** Returns the smallest complete production badge anchor pair. */
+const badgeAnchors = (start, end) => [
+  { position: 0, placeId: start, name: start, role: 'Start', longitude: 0, latitude: 0 },
+  { position: 1, placeId: end, name: end, role: 'End', longitude: 10, latitude: 0 }
+];

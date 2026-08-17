@@ -38,6 +38,43 @@ export type ProjectedPoint = readonly [number, number];
 
 export type ProjectedChevron = { x: number; y: number; angle: number };
 
+export type PresentationRectangle = { left: number; top: number; right: number; bottom: number };
+export type RouteBadgePlacement = { left: number; top: number; width: number; height: number; offsetIndex: number; fallback: boolean };
+
+const routeBadgeOffsets: readonly [number, number][] = [
+  [10, -18], [-34, -18], [10, -48], [-34, -48], [18, -34], [-42, -34]
+];
+
+/** Chooses the first bounded route-badge position clear of controls and prior active badges. */
+export const placeRouteBadge = (
+  anchor: ProjectedPoint,
+  size: Readonly<{ width: number; height: number }>,
+  mapBounds: PresentationRectangle,
+  controlBounds: readonly PresentationRectangle[],
+  placedBounds: readonly PresentationRectangle[]
+): RouteBadgePlacement => {
+  const candidate = (offset: readonly [number, number], offsetIndex: number, fallback = false): RouteBadgePlacement => ({
+    left: anchor[0] + offset[0], top: anchor[1] + offset[1], width: size.width, height: size.height, offsetIndex, fallback
+  });
+  const clear = (placement: RouteBadgePlacement): boolean => {
+    const rectangle = withEdges(placement);
+    return rectangle.left >= mapBounds.left && rectangle.top >= mapBounds.top
+      && rectangle.right <= mapBounds.right && rectangle.bottom <= mapBounds.bottom
+      && ![...controlBounds, ...placedBounds].some(blocker => intersects(rectangle, blocker));
+  };
+  for (let index = 0; index < routeBadgeOffsets.length; index += 1) {
+    const placement = candidate(routeBadgeOffsets[index], index);
+    if (clear(placement)) return placement;
+  }
+  return candidate(routeBadgeOffsets[0], -1, true);
+};
+
+const withEdges = (rectangle: Readonly<{ left: number; top: number; width: number; height: number }>): PresentationRectangle => ({
+  left: rectangle.left, top: rectangle.top, right: rectangle.left + rectangle.width, bottom: rectangle.top + rectangle.height
+});
+const intersects = (left: PresentationRectangle, right: PresentationRectangle): boolean => left.left < right.right
+  && left.right > right.left && left.top < right.bottom && left.bottom > right.top;
+
 /** Reverses custom geometry and remaps existing waypoint indices in one unsaved draft operation. */
 export function reverseSegmentDraftRoute(draft: EditorSegmentDraft): boolean {
   if (!draft.route || draft.route.coordinates.length < 2) return false;

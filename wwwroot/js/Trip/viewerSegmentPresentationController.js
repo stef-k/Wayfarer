@@ -2,11 +2,13 @@ import {
     getSegmentPolyline,
     getSegmentPresentationSnapshot,
     refreshSegmentPresentation,
-    setActiveSegment
+    setActiveSegment,
+    waitForCurrentBadgeImages
 } from './tripViewerHelpers.js';
 
 /** Owns transient viewer selection, keyboard state, map emphasis, and print readiness. */
 export const createViewerSegmentPresentationController = (map, root, options) => {
+    let initializationGeneration = 0;
     const select = (segmentId, fit = true) => {
         setActiveSegment(map, segmentId);
         document.querySelectorAll('.segment-selection-button').forEach(button => {
@@ -34,21 +36,51 @@ export const createViewerSegmentPresentationController = (map, root, options) =>
     window.wayfarer ??= {};
     window.wayfarer.selectSegment = segmentId => select(segmentId);
 
-    const initializePrint = isolatedSegmentId => {
-        if (isolatedSegmentId && getSegmentPolyline(isolatedSegmentId)) {
-            select(isolatedSegmentId, false);
-            map.fitBounds(getSegmentPolyline(isolatedSegmentId).getBounds(), {padding: [60, 60], animate: false});
+    const initialize = async requestedSegmentId => {
+        const generation = ++initializationGeneration;
+        const registeredLine = requestedSegmentId ? getSegmentPolyline(requestedSegmentId) : null;
+        if (!options.isPrint) {
+            select(registeredLine ? requestedSegmentId : null, Boolean(registeredLine));
+            return true;
         }
-        requestAnimationFrame(() => requestAnimationFrame(() => {
-            const snapshot = publishSnapshot();
-            window.__segmentPresentationReady = options.isPrint
-                ? isolatedSegmentId ? snapshot.segments.length === 1 && snapshot.routeBadgeCount > 0 : snapshot.segments.length === 0
-                : true;
-        }));
+
+        window.__segmentPresentationReady = false;
+        if (registeredLine) {
+            select(requestedSegmentId, false);
+            map.fitBounds(registeredLine.getBounds(), {padding: [60, 60], animate: false});
+        } else {
+            select(null, false);
+        }
+        try {
+            while (generation === initializationGeneration) {
+                const badgeGeneration = await waitForCurrentBadgeImages();
+                if (generation !== initializationGeneration) return false;
+                if (document.fonts?.ready) await document.fonts.ready;
+                await finalFrames();
+                if (generation !== initializationGeneration) return false;
+                const stableGeneration = await waitForCurrentBadgeImages();
+                if (generation !== initializationGeneration) return false;
+                if (badgeGeneration !== stableGeneration) continue;
+                const snapshot = publishSnapshot();
+                const complete = registeredLine
+                    ? snapshot.segments.length === 1 && snapshot.segments[0].id === requestedSegmentId
+                      && snapshot.segments[0].lineCount === 1 && snapshot.segments[0].chevronCount > 0 && snapshot.routeBadgeCount > 0
+                    : snapshot.segments.length === 0 && snapshot.routeBadgeCount === 0;
+                if (generation === initializationGeneration) window.__segmentPresentationReady = complete;
+                return complete;
+            }
+        } catch (error) {
+            if (generation === initializationGeneration) window.__segmentPresentationReady = false;
+            console.error('[print] production Segment badge decode failed', error);
+        }
+        return false;
     };
 
-    return {initializePrint, select};
+    return {initialize, select};
 };
+
+/** Completes the two final paint opportunities required by snapshot capture. */
+const finalFrames = () => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 
 /** Publishes only the issue-approved serializable ownership snapshot. */
 const publishSnapshot = () => {

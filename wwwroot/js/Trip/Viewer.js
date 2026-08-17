@@ -322,8 +322,8 @@ const init = () => {
         if (!e.target.checked && root.dataset.activeSegmentId === sid) segmentPresentation.select(null, false);
     }));
 
-    const isolatedSegmentId = isPrint ? new URLSearchParams(location.search).get('seg') : null;
-    segmentPresentation.initializePrint(isolatedSegmentId);
+    const requestedSegmentId = params.get('seg');
+    void segmentPresentation.initialize(requestedSegmentId);
 
     /* region check-boxes – stop accordion toggle */
     $$('.region-toggle').forEach(cb => {
