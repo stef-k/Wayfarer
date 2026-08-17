@@ -164,6 +164,21 @@ test('moves the combined fallback away from controls and an already placed clear
   assert.deepEqual(viewer.placeCombinedRouteBadge([[100, 80]], { width: 50, height: 24 }, bounds, controls, placed), expected);
 });
 
+/** Proves combined fallback applies the required blocker clearance before using its bounded preference. */
+test('searches the combined fallback grid before a preferred position without four-pixel clearance', async () => {
+  const editor = await import('../../ClientApps/trip-editor/src/segments/segmentPresentationResolver.ts');
+  const viewer = await import(`../../wwwroot/js/Trip/segmentPresentation.js?clearanceRegression=${Date.now()}`);
+  const bounds = { left: 0, top: 0, right: 200, bottom: 160 };
+  const blocker = { left: 148, top: 116, right: 198, bottom: 131 };
+  const expected = { left: 4, top: 4, width: 50, height: 24, offsetIndex: -1, fallback: true };
+
+  const editorResult = editor.placeCombinedRouteBadge([[190, 150]], { width: 50, height: 24 }, bounds, [blocker], []);
+  const viewerResult = viewer.placeCombinedRouteBadge([[190, 150]], { width: 50, height: 24 }, bounds, [blocker], []);
+
+  assert.deepEqual({ editorResult, viewerResult }, { editorResult: expected, viewerResult: expected });
+  assert.deepEqual(viewerResult, editorResult);
+});
+
 /** Proves combined labels fit losslessly and identically without splitting the atomic closed-loop token. */
 test('fits over-wide combined labels into deterministic lossless lines', async () => {
   const editor = await import('../../ClientApps/trip-editor/src/segments/segmentPresentationResolver.ts');
