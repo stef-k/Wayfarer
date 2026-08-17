@@ -106,3 +106,88 @@ test('multiple Segment presentations remain independent and transfer active badg
   assert.equal(snapshot.segments.find(item => item.id === 'one').active, false);
   assert.equal(snapshot.segments.find(item => item.id === 'two').active, true);
 });
+
+/** Proves viewer placement uses the same bounded fixture results as the editor. */
+test('places viewer route badges with deterministic collision avoidance', async () => {
+  const presentation = await import(`../../wwwroot/js/Trip/segmentPresentation.js?placement=${Date.now()}`);
+  const bounds = { left: 0, top: 0, right: 200, bottom: 160 };
+  const badge = { width: 24, height: 24 };
+  assert.equal(presentation.placeRouteBadge([100, 80], badge, bounds, [], []).offsetIndex, 0);
+  assert.equal(presentation.placeRouteBadge([100, 80], badge, bounds,
+    [{ left: 110, top: 75, right: 140, bottom: 105 }], []).offsetIndex, 1);
+  assert.equal(presentation.placeRouteBadge([100, 80], badge, bounds, [],
+    [{ left: 110, top: 75, right: 140, bottom: 105 }]).offsetIndex, 1);
+  assert.notEqual(presentation.placeRouteBadge([190, 150], badge, bounds, [], []).offsetIndex, 0);
+  assert.equal(presentation.placeRouteBadge([100, 80], badge, bounds, [bounds], []).fallback, true);
+});
+
+/** Proves normal URL initialization is not routed through print-only setup. */
+test('normal requested Segment uses the common controller selection and resolved bounds', async () => {
+  prepareLeaflet();
+  globalThis.document.querySelectorAll = () => [];
+  globalThis.requestAnimationFrame = callback => callback();
+  const helpers = await import(`../../wwwroot/js/Trip/tripViewerHelpers.js?normal=${Date.now()}`);
+  const map = {
+    _layers: [], removeLayer() {}, on() {},
+    latLngToLayerPoint: ([latitude, longitude]) => ({ x: longitude * 20, y: latitude * 20 }),
+    layerPointToLatLng: ([x, y]) => [y / 20, x / 20],
+    flyToBounds(bounds, options) { this.fitted = { bounds, options }; }
+  };
+  const line = () => ({
+    addTo(target) { target?._layers?.push(this); return this; }, bindTooltip() { return this; }, unbindTooltip() { return this; },
+    on() { return this; }, off() { return this; }, remove() { return this; }, setStyle() { return this; }, getBounds() { return 'resolved-route-bounds'; }
+  });
+  globalThis.L.polyline = line;
+  helpers.addSegment(map, 'one', [[0, 0], [0, 10]], '', { anchors: [], orientation: 'forward' });
+  helpers.addSegment(map, 'two', [[1, 0], [1, 10]], '', { anchors: [], orientation: 'forward' });
+  const { createViewerSegmentPresentationController } = await import(`../../wwwroot/js/Trip/viewerSegmentPresentationController.js?normal=${Date.now()}`);
+  const root = { dataset: {} };
+  const controller = createViewerSegmentPresentationController(map, root, { isPrint: false, paddingX: () => 75 });
+
+  controller.initialize('one');
+
+  const snapshot = helpers.getSegmentPresentationSnapshot();
+  assert.equal(snapshot.segments.find(item => item.id === 'one').active, true);
+  assert.equal(snapshot.segments.find(item => item.id === 'two').active, false);
+  assert.deepEqual(map.fitted, { bounds: 'resolved-route-bounds', options: { animate: true, duration: 1.2, padding: [75, 60] } });
+  controller.initialize('missing');
+  assert.equal(helpers.getSegmentPresentationSnapshot().segments.some(item => item.active), false);
+});
+
+/** Proves print readiness must remain false until production badge decoding completes. */
+test('production presentation readiness waits for delayed badge decode', async () => {
+  prepareLeaflet();
+  globalThis.document.querySelectorAll = () => [];
+  let resolveDecode;
+  const decode = new Promise(resolve => { resolveDecode = resolve; });
+  const frames = [];
+  globalThis.requestAnimationFrame = callback => { frames.push(callback); return frames.length; };
+  const helpers = await import(`../../wwwroot/js/Trip/tripViewerHelpers.js?decode=${Date.now()}`);
+  const map = {
+    _layers: [], removeLayer() {}, on() {},
+    latLngToLayerPoint: ([latitude, longitude]) => ({ x: longitude * 20, y: latitude * 20 }),
+    layerPointToLatLng: ([x, y]) => [y / 20, x / 20]
+  };
+  const element = { complete: true, naturalWidth: 24, decode: () => decode };
+  const layer = () => ({
+    addTo(target) { target?._layers?.push(this); return this; }, bindTooltip() { return this; }, unbindTooltip() { return this; },
+    on() { return this; }, off() { return this; }, remove() { return this; }, setStyle() { return this; }, getElement() { return element; }, getBounds() { return {}; }
+  });
+  globalThis.L.polyline = layer;
+  globalThis.L.marker = layer;
+  globalThis.location.search = '?print=1&seg=one';
+  globalThis.window.__segmentPresentationReady = false;
+  helpers.addSegment(map, 'one', [[0, 0], [0, 10]], '', { anchors: [
+    { position: 0, placeId: 'a', name: 'A', role: 'Start', longitude: 0, latitude: 0 },
+    { position: 1, placeId: 'b', name: 'B', role: 'End', longitude: 10, latitude: 0 }
+  ], orientation: 'forward' });
+  const { createViewerSegmentPresentationController } = await import(`../../wwwroot/js/Trip/viewerSegmentPresentationController.js?decode=${Date.now()}`);
+  const controller = createViewerSegmentPresentationController(map, { dataset: {} }, { isPrint: true, paddingX: () => 60 });
+  const ready = controller.initialize('one');
+  frames.splice(0).forEach(callback => callback());
+  assert.equal(globalThis.window.__segmentPresentationReady, false);
+  resolveDecode();
+  await ready;
+  while (frames.length) frames.shift()();
+  assert.equal(globalThis.window.__segmentPresentationReady, true);
+});

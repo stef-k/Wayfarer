@@ -121,6 +121,23 @@ test('places deterministic active and inactive chevrons from projected points', 
   assert.equal(placeProjectedChevrons([[0, 0], [1000, 0]], true).length, 8);
 });
 
+/** Proves editor badge placement avoids controls, prior badges, and unusable map space deterministically. */
+test('places editor route badges with bounded collision avoidance', async () => {
+  const module = await import('../../ClientApps/trip-editor/src/segments/segmentPresentationResolver.ts');
+  const bounds = { left: 0, top: 0, right: 200, bottom: 160 };
+  const badge = { width: 24, height: 24 };
+
+  assert.deepEqual(module.placeRouteBadge([100, 80], badge, bounds, [], []),
+    { left: 111, top: 76, width: 24, height: 24, offsetIndex: 0, fallback: false });
+  assert.equal(module.placeRouteBadge([100, 80], badge, bounds,
+    [{ left: 110, top: 75, right: 140, bottom: 105 }], []).offsetIndex, 1);
+  assert.equal(module.placeRouteBadge([100, 80], badge, bounds, [],
+    [{ left: 110, top: 75, right: 140, bottom: 105 }]).offsetIndex, 1);
+  assert.notEqual(module.placeRouteBadge([190, 150], badge, bounds, [], []).offsetIndex, 0);
+  assert.deepEqual(module.placeRouteBadge([100, 80], badge, bounds, [bounds], []),
+    { left: 94, top: 68, width: 12, height: 24, offsetIndex: -1, fallback: true });
+});
+
 /** Proves Reverse route changes only the supplied draft and retains waypoint identity. */
 test('reverses unsaved draft geometry and remaps waypoint indices atomically', () => {
   const draft = {
