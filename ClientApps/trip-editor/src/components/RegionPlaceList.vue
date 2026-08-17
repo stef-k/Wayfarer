@@ -78,8 +78,14 @@ watch(
 );
 
 watch(
-  () => `${props.searchActive}|${props.isOrdering}|${props.regions.map(region => region.id).join('|')}|${Object.entries(props.placeIdsByRegionId).map(([regionId, ids]) => `${regionId}:${ids.join(',')}`).join('|')}|${Object.entries(props.areaIdsByRegionId).map(([regionId, ids]) => `${regionId}:${ids.join(',')}`).join('|')}`,
-  async () => {
+  () => [props.rebuildSignal, `${props.searchActive}|${props.isOrdering}|${props.regions.map(region => region.id).join('|')}|${Object.entries(props.placeIdsByRegionId).map(([regionId, ids]) => `${regionId}:${ids.join(',')}`).join('|')}|${Object.entries(props.areaIdsByRegionId).map(([regionId, ids]) => `${regionId}:${ids.join(',')}`).join('|')}`] as const,
+  async ([rebuildSignal], [previousRebuildSignal]) => {
+    // Parent recovery acknowledges the emitted reorder even when isOrdering never changed.
+    if (rebuildSignal !== previousRebuildSignal) {
+      reorderEmissionLocked = false;
+      optimisticRegionIds.value = null;
+      optimisticPlaceIdsByRegionId.value = {};
+    }
     await nextTick();
     attachSortables();
   }
