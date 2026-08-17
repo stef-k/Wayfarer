@@ -1,8 +1,10 @@
 import { expect, test } from '@playwright/test';
 import {
   absoluteUrl,
+  activeEditorCancelButton,
   closeDraftWithDiscard,
   collectForbiddenSidebarSearchRequests,
+  dragFromVisibleHandle,
   escapeRegex,
   expectMountedWorkspace,
   expectNoSearchAddUi,
@@ -105,6 +107,7 @@ test.describe.serial('Trip Editor sidebar search verification', () => {
   });
 
   test('disables Collapse while an editor forces its Region open without changing ordinary collapse state', async ({ page }) => {
+    test.setTimeout(60_000);
     await signIn(page);
     const state = await loadEditorStateFixture(page);
     const fixture = sidebarSearchFixture(state);
@@ -121,10 +124,73 @@ test.describe.serial('Trip Editor sidebar search verification', () => {
     await expect(children).toBeVisible();
     await expect(forcedCollapse).toHaveAttribute('aria-expanded', 'true');
     await expect(forcedCollapse).toBeDisabled();
+    const editorExplanationId = await forcedCollapse.getAttribute('aria-describedby');
+    await expect(page.locator(`#${editorExplanationId}`)).toHaveText('Collapse is unavailable while a Region, Place, or Area editor in this Region is open. Close the editor first.');
 
-    await closeDraftWithDiscard(page);
+    const forcedBox = await forcedCollapse.boundingBox();
+    expect(forcedBox).not.toBeNull();
+    await page.mouse.click(forcedBox!.x + forcedBox!.width / 2, forcedBox!.y + forcedBox!.height / 2);
+    await forcedCollapse.press('Enter');
+    await forcedCollapse.press('Space');
+    await expect(children).toBeVisible();
+
+    const form = page.locator('#trip-editor-region-form');
+    await form.getByLabel('Name').fill(`${fixture.region.name} unsaved`);
+    await activeEditorCancelButton(page).click();
+    const discard = page.getByRole('dialog', { name: 'Discard changes?' });
+    await discard.getByRole('button', { name: 'Keep editing' }).click();
+    await expect(form).toBeVisible();
+    await expect(forcedCollapse).toBeDisabled();
+
+    await activeEditorCancelButton(page).click();
+    await page.getByRole('dialog', { name: 'Discard changes?' }).getByRole('button', { name: 'Discard' }).click();
     await expect(children).toBeHidden();
     await expect(card.getByRole('button', { name: 'Expand' })).toBeEnabled();
+
+    const placeRegion = regionCard(page, fixture.place.regionName);
+    const placeChildren = placeRegion.locator('ul');
+    const placeToggle = placeRegion.getByRole('button', { name: /Collapse|Expand/ });
+    if (await placeToggle.getAttribute('aria-expanded') === 'false') {
+      await placeToggle.click();
+    }
+    await placeRegion.locator('.trip-editor-place-row').filter({ hasText: fixture.place.name }).click();
+    const selectedCollapse = placeRegion.getByRole('button', { name: 'Collapse' });
+    await expect(selectedCollapse).toBeDisabled();
+    const selectionExplanationId = await selectedCollapse.getAttribute('aria-describedby');
+    await expect(page.locator(`#${selectionExplanationId}`)).toHaveText('Collapse is unavailable while a Place in this Region is selected. Clear the selected Place first.');
+    await page.getByRole('button', { name: 'Clear Selection' }).click();
+    await expect(selectedCollapse).toBeEnabled();
+
+    await selectedCollapse.click();
+    await expect(placeChildren).toBeHidden();
+    const search = page.getByLabel('Sidebar search');
+    await search.fill(fixture.place.name);
+    const searchCollapse = placeRegion.getByRole('button', { name: 'Collapse' });
+    await expect(searchCollapse).toBeDisabled();
+    const searchExplanationId = await searchCollapse.getAttribute('aria-describedby');
+    await expect(page.locator(`#${searchExplanationId}`)).toHaveText('Collapse is unavailable while sidebar search is active. Clear the search to restore your previous Region layout.');
+    await search.fill(`${fixture.place.name} unmatched suffix`);
+    await expect(placeRegion).toBeHidden();
+    await search.fill(fixture.place.name);
+    await expect(placeChildren).toBeVisible();
+    await search.fill('');
+    await expect(placeChildren).toBeHidden();
+
+    const normalRegions = state.regionOrder.map(id => state.regionsById[id]).filter(region => region && !region.isShadow);
+    expect(normalRegions.length).toBeGreaterThan(1);
+    const reorderTarget = normalRegions.find(region => region.id !== normalRegions[0].id)!;
+    const collapsedReorderCard = regionCard(page, reorderTarget.name);
+    const reorderChildren = collapsedReorderCard.locator('ul');
+    const reorderToggle = collapsedReorderCard.getByRole('button', { name: /Collapse|Expand/ });
+    if (await reorderToggle.getAttribute('aria-expanded') === 'true') {
+      await reorderToggle.click();
+    }
+    await expect(reorderChildren).toBeHidden();
+    await page.route(/\/editor\/regions\/order$/, route => route.fulfill({ status: 500, body: 'forced reorder recovery' }), { times: 1 });
+    await dragFromVisibleHandle(collapsedReorderCard, regionCard(page, normalRegions[0].name), 'Drag to reorder region');
+    await expect(page.locator('.trip-editor-form-error')).toBeVisible();
+    await expect(reorderChildren).toBeHidden();
+
   });
 
   test('filters areas when the configured trip has area fixture data', async ({ page }) => {
