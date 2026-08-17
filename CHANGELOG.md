@@ -8,6 +8,12 @@
 
 ### Changed
 - Replaced the fixed runtime transport-mode catalog with administrator-managed database profiles and made saved route geometry plus explicit measurement provenance authoritative for segment estimates (#403, #405).
+- Updated vulnerable frontend and backend dependencies to resolve the current npm and NuGet security findings without mixing unrelated package upgrades (#421).
+
+### Fixed
+- Fixed Trip Editor rich notes so ordered and bullet lists no longer recreate or persist empty terminal items, while canonical spacing remains consistent across editor, viewer, readable, print, and PDF surfaces (#433, #435).
+- Fixed Trip Editor Region disclosure controls so Regions required by active editor, selection, or search context clearly remain expanded without mutating the user's saved collapse choices, including after reorder recovery (#432, #436).
+- Gave the Trip Editor map one stable accessible identity with accurate default, Place, Area, and Segment map-work descriptions (#437, #439).
 
 ## [1.8.1] - 2026-07-26
 
