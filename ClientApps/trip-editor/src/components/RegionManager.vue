@@ -51,7 +51,8 @@ const emit = defineEmits<{
 const regionFields = ['name', 'notesHtml', 'coverImage.rawUrl', 'center.latitude', 'center.longitude'];
 const placeFields = ['regionId', 'name', 'notesHtml', 'address', 'location.latitude', 'location.longitude', 'iconName', 'markerColor', 'reverseGeocode'];
 const areaFields = ['name', 'notesHtml', 'fillHex', 'geometry', 'geometry.coordinates'];
-const regionListKey = ref(0);
+/// Requests a child-owned Sortable DOM rebuild without remounting its collapse-state owner.
+const regionListRebuildSignal = ref(0);
 const regionFormId = 'trip-editor-region-form';
 const placeFormId = 'trip-editor-place-form';
 const areaFormId = 'trip-editor-area-form';
@@ -184,6 +185,25 @@ const placePreviewById = computed<Record<Guid, Pick<EditorPlace, 'iconName' | 'm
 const forcedExpandedRegionIds = computed(() => {
   const ids = props.searchActive ? renderedRegions.value.map(region => region.id) : activeContextRegions().map(region => region.id);
   return new Set(ids);
+});
+/// Applies the product precedence of search, editor context, then selected Place.
+const forcedExpansionReasonByRegionId = computed<Record<Guid, 'editor' | 'selection' | 'search'>>(() => {
+  if (props.searchActive) {
+    return Object.fromEntries(renderedRegions.value.map(region => [region.id, 'search'])) as Record<Guid, 'search'>;
+  }
+
+  const reasons: Record<Guid, 'editor' | 'selection'> = {};
+  for (const region of editorContextRegions()) {
+    reasons[region.id] = 'editor';
+  }
+  if (props.selectedPlaceId) {
+    const selectedRegionId = props.state.placesById[props.selectedPlaceId]?.regionId;
+    if (selectedRegionId && !reasons[selectedRegionId]) {
+      reasons[selectedRegionId] = 'selection';
+    }
+  }
+
+  return reasons;
 });
 const regionBaselineRequest = computed(() => draft.id ? buildRegionRequest(toRegionDraft(activeRegion.value)) : regionCreateBaselineRequest.value ?? buildRegionRequest(emptyRegionDraft()));
 const placeBaselineRequest = computed(() => placeDraft.id ? placeEditBaselineRequest.value ?? buildPlaceRequest(toPlaceDraft(activePlace.value, placeDraft.regionId)) : placeCreateBaselineRequest.value ?? buildPlaceRequest(emptyPlaceDraft(placeDraft.regionId)));
@@ -353,7 +373,7 @@ onUnmounted(() => {
 
 /// Rebuilds the Sortable-mutated list from persisted Vue state after canceled or failed reorder.
 async function restoreRegionOrder(_previousIds: string[]): Promise<void> {
-  regionListKey.value += 1;
+  regionListRebuildSignal.value += 1;
 }
 
 function hasRegionChildren(region: EditorRegion): boolean {
@@ -361,6 +381,20 @@ function hasRegionChildren(region: EditorRegion): boolean {
 }
 
 function activeContextRegions(): EditorRegion[] {
+  const regions = editorContextRegions();
+  if (props.selectedPlaceId) {
+    const selectedPlaceRegionId = props.state.placesById[props.selectedPlaceId]?.regionId;
+    const region = selectedPlaceRegionId ? props.state.regionsById[selectedPlaceRegionId] : null;
+    if (region) {
+      regions.push(region);
+    }
+  }
+
+  return regions;
+}
+
+/// Resolves only editor/create-owned Region expansion, independently of Place selection.
+function editorContextRegions(): EditorRegion[] {
   const regions: EditorRegion[] = [];
   if (activeRegion.value) {
     regions.push(activeRegion.value);
@@ -381,14 +415,6 @@ function activeContextRegions(): EditorRegion[] {
       regions.push(region);
     }
   }
-  if (props.selectedPlaceId) {
-    const selectedPlaceRegionId = props.state.placesById[props.selectedPlaceId]?.regionId;
-    const region = selectedPlaceRegionId ? props.state.regionsById[selectedPlaceRegionId] : null;
-    if (region) {
-      regions.push(region);
-    }
-  }
-
   return regions;
 }
 
@@ -527,7 +553,7 @@ async function selectAndOpenPlaceEdit(place: EditorPlace): Promise<void> {
 
     <RegionEditorSurface v-if="isDraftOpen && !draft.id" :active-region="activeRegion" :controller="editorSurface" :draft="draft" :field-errors="fieldErrors" :form-id="regionFormId" :form-summary-errors="formSummaryErrors" :is-dirty="regionDirty" :is-saving="isSaving" :status-text="statusText" :target="activeRegionTarget" @cancel="cancelDraft" @delete="deleteDraftRegion" @reset="resetDraft" @save="saveDraft" />
 
-    <RegionPlaceList :key="regionListKey" :active-area-id="activeArea?.id ?? null" :active-place-editor-id="activePlaceEditorId" :active-place-id="selectedPlaceId" :active-region-id="activeRegion?.id ?? null" :force-expanded-region-ids="forcedExpandedRegionIds" :is-ordering="isOrdering" :is-saving="isSaving" :place-ids-by-region-id="renderedPlaceIdsByRegionId" :place-preview-by-id="placePreviewById" :area-ids-by-region-id="renderedAreaIdsByRegionId" :regions="renderedRegions" :search-active="searchActive" :state="state" @add-area="openAreaCreate" @add-place="openPlaceCreate" @area-reorder="reorderAreas" @edit-area="openAreaEdit" @edit-place="selectAndOpenPlaceEdit" @edit-region="openEdit" @place-reorder="reorderPlaces" @region-reorder="reorderRegions" @select-place="selectPlace">
+    <RegionPlaceList :active-area-id="activeArea?.id ?? null" :active-place-editor-id="activePlaceEditorId" :active-place-id="selectedPlaceId" :active-region-id="activeRegion?.id ?? null" :force-expanded-region-ids="forcedExpandedRegionIds" :forced-expansion-reason-by-region-id="forcedExpansionReasonByRegionId" :is-ordering="isOrdering" :is-saving="isSaving" :place-ids-by-region-id="renderedPlaceIdsByRegionId" :place-preview-by-id="placePreviewById" :area-ids-by-region-id="renderedAreaIdsByRegionId" :rebuild-signal="regionListRebuildSignal" :regions="renderedRegions" :search-active="searchActive" :state="state" @add-area="openAreaCreate" @add-place="openPlaceCreate" @area-reorder="reorderAreas" @edit-area="openAreaEdit" @edit-place="selectAndOpenPlaceEdit" @edit-region="openEdit" @place-reorder="reorderPlaces" @region-reorder="reorderRegions" @select-place="selectPlace">
       <template #region-editor="{ region }">
         <RegionEditorSurface v-if="isRegionEditOpen(region)" :active-region="activeRegion" :controller="editorSurface" :draft="draft" :field-errors="fieldErrors" :form-id="regionFormId" :form-summary-errors="formSummaryErrors" :is-dirty="regionDirty" :is-saving="isSaving" :status-text="statusText" :target="activeRegionTarget" @cancel="cancelDraft" @delete="deleteDraftRegion" @reset="resetDraft" @save="saveDraft" />
       </template>

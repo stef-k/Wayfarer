@@ -22,9 +22,11 @@ const props = defineProps<{
   isSaving: boolean;
   placeIdsByRegionId: Record<Guid, Guid[]>;
   placePreviewById: Record<Guid, Pick<EditorPlace, 'iconName' | 'markerColor'>>;
+  rebuildSignal: number;
   regions: EditorRegion[];
   searchActive: boolean;
   state: EditorTripState;
+  forcedExpansionReasonByRegionId: Record<Guid, 'editor' | 'selection' | 'search'>;
 }>();
 
 const emit = defineEmits<{
@@ -76,8 +78,14 @@ watch(
 );
 
 watch(
-  () => `${props.searchActive}|${props.isOrdering}|${props.regions.map(region => region.id).join('|')}|${Object.entries(props.placeIdsByRegionId).map(([regionId, ids]) => `${regionId}:${ids.join(',')}`).join('|')}|${Object.entries(props.areaIdsByRegionId).map(([regionId, ids]) => `${regionId}:${ids.join(',')}`).join('|')}`,
-  async () => {
+  () => [props.rebuildSignal, `${props.searchActive}|${props.isOrdering}|${props.regions.map(region => region.id).join('|')}|${Object.entries(props.placeIdsByRegionId).map(([regionId, ids]) => `${regionId}:${ids.join(',')}`).join('|')}|${Object.entries(props.areaIdsByRegionId).map(([regionId, ids]) => `${regionId}:${ids.join(',')}`).join('|')}`] as const,
+  async ([rebuildSignal], [previousRebuildSignal]) => {
+    // Parent recovery acknowledges the emitted reorder even when isOrdering never changed.
+    if (rebuildSignal !== previousRebuildSignal) {
+      reorderEmissionLocked = false;
+      optimisticRegionIds.value = null;
+      optimisticPlaceIdsByRegionId.value = {};
+    }
     await nextTick();
     attachSortables();
   }
@@ -304,8 +312,25 @@ function isCollapsed(regionId: Guid): boolean {
   return collapsedRegionIds.value.has(regionId);
 }
 
+/// Returns the stable explanation for the context that currently requires expansion.
+function forcedExpansionExplanation(regionId: Guid): string | null {
+  const reason = props.forcedExpansionReasonByRegionId[regionId];
+  if (reason === 'search') {
+    return 'Collapse is unavailable while sidebar search is active. Clear the search to restore your previous Region layout.';
+  }
+  if (reason === 'editor') {
+    return 'Collapse is unavailable while a Region, Place, or Area editor in this Region is open. Close the editor first.';
+  }
+  if (reason === 'selection') {
+    return 'Collapse is unavailable while a Place in this Region is selected. Clear the selected Place first.';
+  }
+
+  return null;
+}
+
+/// Prevents forced expansion from changing the ordinary collapse state hidden beneath it.
 function toggleRegion(regionId: Guid): void {
-  if (props.searchActive) {
+  if (props.forceExpandedRegionIds.has(regionId)) {
     return;
   }
 
@@ -339,7 +364,8 @@ function moveAreaByKeyboard(regionId: Guid, areaId: Guid, offset: number): void 
 </script>
 
 <template>
-  <div ref="regionList" class="trip-editor-region-list">
+  <!-- Rebuild only the Sortable-owned DOM when recovery changes the signal; component collapse state survives. -->
+  <div :key="props.rebuildSignal" ref="regionList" class="trip-editor-region-list">
     <article
       v-for="region in props.regions"
       :key="region.id"
@@ -373,11 +399,15 @@ function moveAreaByKeyboard(regionId: Guid, areaId: Guid, offset: number): void 
             class="btn btn-outline-light btn-sm"
             :aria-expanded="!isCollapsed(region.id)"
             :aria-controls="`trip-editor-region-children-${region.id}`"
-            :disabled="props.searchActive"
+            :aria-describedby="forcedExpansionExplanation(region.id) ? `trip-editor-region-collapse-explanation-${region.id}` : undefined"
+            :disabled="props.forceExpandedRegionIds.has(region.id)"
             @click="toggleRegion(region.id)"
           >
             {{ isCollapsed(region.id) ? 'Expand' : 'Collapse' }}
           </button>
+          <span v-if="forcedExpansionExplanation(region.id)" :id="`trip-editor-region-collapse-explanation-${region.id}`" class="visually-hidden">
+            {{ forcedExpansionExplanation(region.id) }}
+          </span>
           <button v-if="!region.isShadow" type="button" class="btn btn-outline-light btn-sm" :disabled="props.isSaving" @click="emit('editRegion', region)">Edit</button>
         </div>
       </header>

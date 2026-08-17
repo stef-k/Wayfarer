@@ -8,6 +8,7 @@ import {
   expectMountedWorkspace,
   loadEditorStateFixture,
   pathRegex,
+  regionCard,
   signIn,
   uniqueName
 } from './tripEditorTestUtils';
@@ -40,6 +41,10 @@ test.describe.serial('Trip Editor Batch 3 error state contracts', () => {
     await expectFailedStatus(page);
     await expect(form.getByLabel('Name')).toHaveValue(draftName);
     await expect(form.getByLabel('Address')).toHaveValue('PW failed place save address');
+    const forcedCollapse = regionCard(page, fixture.region.name).getByRole('button', { name: 'Collapse' });
+    await expect(forcedCollapse).toBeDisabled();
+    const explanationId = await forcedCollapse.getAttribute('aria-describedby');
+    await expect(page.locator(`#${explanationId}`)).toHaveText('Collapse is unavailable while a Region, Place, or Area editor in this Region is open. Close the editor first.');
     await expect(placeRow(page, fixture.place.id)).toHaveAttribute('data-place-name', fixture.place.name);
     await expect(placeRow(page, fixture.place.id).locator('.trip-editor-place-row__name')).toHaveText(canonicalLabel);
     await expectPersistedPlace(page, fixture.place.id, fixture.place.name, fixture.place.address);
