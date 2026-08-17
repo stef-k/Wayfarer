@@ -3,6 +3,30 @@ import path from 'node:path';
 
 const repositoryPath = (...parts: string[]): string => path.resolve(process.cwd(), ...parts);
 
+/** Counts light pixels using the current broad badge-box predicate. */
+const broadLightPixelCount = (pixels: Uint8ClampedArray): number => {
+  let total = 0;
+  for (let index = 0; index < pixels.length; index += 4) {
+    if (pixels[index + 3] > 180 && pixels[index] > 150 && pixels[index + 1] > 150 && pixels[index + 2] > 150) total += 1;
+  }
+  return total;
+};
+
+/** Proves a white outline without a glyph is not acceptable decoded glyph evidence. */
+test('route badge glyph classifier rejects an outline-only negative control', () => {
+  const size = 24;
+  const pixels = new Uint8ClampedArray(size * size * 4);
+  for (let y = 0; y < size; y += 1) {
+    for (let x = 0; x < size; x += 1) {
+      const index = (y * size + x) * 4;
+      const outline = x < 2 || x >= size - 2 || y < 2 || y >= size - 2;
+      pixels.set(outline ? [255, 255, 255, 255] : [0, 87, 184, 255], index);
+    }
+  }
+
+  expect(broadLightPixelCount(pixels)).toBe(0);
+});
+
 /** Loads Leaflet assets while retaining the configured application origin for production module imports. */
 async function prepareProductionMap(page: Page, search: string): Promise<void> {
   await page.goto('/');

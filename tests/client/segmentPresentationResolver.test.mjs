@@ -145,6 +145,37 @@ test('places editor route badges with bounded collision avoidance', async () => 
   assert.deepEqual(viewer.placeCombinedRouteBadge([[190, 150], [100, 80]], { width: 50, height: 24 }, bounds, [bounds], []), combined);
 });
 
+/** Proves the combined fallback searches bounded clear space after every anchor-relative offset is blocked. */
+test('moves the combined fallback away from controls and an already placed clear badge', async () => {
+  const editor = await import('../../ClientApps/trip-editor/src/segments/segmentPresentationResolver.ts');
+  const viewer = await import(`../../wwwroot/js/Trip/segmentPresentation.js?fallbackSearch=${Date.now()}`);
+  const bounds = { left: 0, top: 0, right: 200, bottom: 160 };
+  const placed = [{ left: 109, top: 61, right: 161, bottom: 87 }];
+  const controls = [
+    { left: 65, top: 61, right: 117, bottom: 87 },
+    { left: 109, top: 31, right: 161, bottom: 57 },
+    { left: 65, top: 31, right: 117, bottom: 57 },
+    { left: 117, top: 45, right: 169, bottom: 71 },
+    { left: 57, top: 45, right: 109, bottom: 71 }
+  ];
+  const expected = { left: 4, top: 4, width: 50, height: 24, offsetIndex: -1, fallback: true };
+
+  assert.deepEqual(editor.placeCombinedRouteBadge([[100, 80]], { width: 50, height: 24 }, bounds, controls, placed), expected);
+  assert.deepEqual(viewer.placeCombinedRouteBadge([[100, 80]], { width: 50, height: 24 }, bounds, controls, placed), expected);
+});
+
+/** Proves combined labels fit losslessly and identically without splitting the atomic closed-loop token. */
+test('fits over-wide combined labels into deterministic lossless lines', async () => {
+  const editor = await import('../../ClientApps/trip-editor/src/segments/segmentPresentationResolver.ts');
+  const viewer = await import(`../../wwwroot/js/Trip/segmentPresentation.js?fallbackFit=${Date.now()}`);
+  const labels = ['A/C', 'B', 'AA', 'ZZ', 'AAA'];
+  const expected = { labels, lines: ['A/C/B', 'AA/ZZ', 'AAA'], width: 60, height: 52 };
+
+  assert.deepEqual(editor.fitCombinedRouteBadgeLabels(labels, 60), expected);
+  assert.deepEqual(viewer.fitCombinedRouteBadgeLabels(labels, 60), expected);
+  assert.deepEqual(expected.lines, ['A/C/B', 'AA/ZZ', 'AAA']);
+});
+
 /** Proves Reverse route changes only the supplied draft and retains waypoint identity. */
 test('reverses unsaved draft geometry and remaps waypoint indices atomically', () => {
   const draft = {
