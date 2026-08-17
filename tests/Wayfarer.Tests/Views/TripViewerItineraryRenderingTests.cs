@@ -205,6 +205,8 @@ public sealed class TripViewerItineraryRenderingTests
 
             var model = new TripPrintViewModel { Trip = trip, Regions = trip.Regions.ToList(), Places = trip.Regions.SelectMany(region => region.Places).ToList(), Segments = trip.Segments.ToList() };
             var pdf = await new HtmlParser().ParseDocumentAsync(await RenderViewAsync(scope.ServiceProvider, "/Views/Trip/Print.cshtml", model));
+            var richNotesStylesheet = Assert.Single(pdf.QuerySelectorAll("link[rel=stylesheet][href^='/css/rich-notes.css']"));
+            Assert.Contains("rich-notes.css", richNotesStylesheet.GetAttribute("href"));
             var pdfNotes = Assert.Single(pdf.QuerySelectorAll(".notes.rich-notes-content"));
             Assert.Single(pdfNotes.QuerySelectorAll("li"));
 
