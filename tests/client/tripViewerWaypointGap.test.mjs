@@ -78,7 +78,7 @@ test('multiple Segment presentations remain independent and transfer active badg
   const map = {
     _layers: [], removeLayer() {},
     latLngToLayerPoint: ([latitude, longitude]) => ({ x: longitude * 20, y: latitude * 20 }),
-    latLngToContainerPoint: ([latitude, longitude]) => ({ x: longitude * 20, y: latitude * 20 }),
+    latLngToContainerPoint: ([latitude, longitude]) => ({ x: longitude * 20 + 200, y: latitude * 20 + 200 }),
     layerPointToLatLng: ([x, y]) => [y / 20, x / 20],
     getSize: () => ({ x: 800, y: 600 }),
     getContainer: () => ({ getBoundingClientRect: () => ({ left: 0, top: 0 }), querySelectorAll: () => [] })
@@ -152,6 +152,13 @@ test('combines all no-clear viewer badges into one meaningful fallback pill', as
   });
   const renderer = createViewerSegmentBadgeRenderer(map);
 
+  renderer.render([{ label: 'A', location: [0, 0] }]);
+  await renderer.waitForCurrent();
+  assert.equal(renderer.count(), 1);
+  assert.deepEqual(labels, ['A']);
+  labels.length = 0;
+  markers.length = 0;
+
   renderer.render([
     { label: 'A', location: [0, 0] },
     { label: 'B', location: [1, 0] },
@@ -163,6 +170,44 @@ test('combines all no-clear viewer badges into one meaningful fallback pill', as
   assert.deepEqual(labels, ['A/B/C']);
   assert.equal(markers.length, 1);
   assert.match(markers[0].icon.className, /segment-route-badge-fallback/);
+});
+
+/** Proves clear badges stay separate while only blocked labels combine and replacement remains bounded. */
+test('preserves clear viewer badges and replaces only the blocked group', async () => {
+  const labels = [];
+  prepareLeaflet();
+  globalThis.document.createElement = () => ({
+    width: 0, height: 0, getContext: () => ({
+      scale() {}, beginPath() {}, roundRect() {}, fill() {}, stroke() {},
+      fillText(label) { labels.push(label); }
+    }), toDataURL: () => 'data:image/png;base64,badge'
+  });
+  globalThis.L.marker = () => presentationLayer({ complete: true, naturalWidth: 24, decode: () => Promise.resolve() })();
+  const { createViewerSegmentBadgeRenderer } = await import(`../../wwwroot/js/Trip/viewerSegmentBadgeRenderer.js?mixed=${Date.now()}`);
+  const map = presentationMap();
+  map.getContainer = () => ({
+    getBoundingClientRect: () => ({ left: 0, top: 0 }),
+    querySelectorAll: () => [{
+      offsetParent: {}, getBoundingClientRect: () => ({ left: 330, top: 0, right: 800, bottom: 600 })
+    }]
+  });
+  const renderer = createViewerSegmentBadgeRenderer(map);
+  const badges = [
+    { label: 'A/C', location: [0, 0] },
+    { label: 'B', location: [10, 0] },
+    { label: 'D', location: [20, 0] }
+  ];
+
+  renderer.render(badges);
+  await renderer.waitForCurrent();
+  assert.equal(renderer.count(), 2);
+  assert.deepEqual(labels, ['A/C', 'B/D']);
+
+  labels.length = 0;
+  renderer.render(badges);
+  await renderer.waitForCurrent();
+  assert.equal(renderer.count(), 2);
+  assert.deepEqual(labels, ['A/C', 'B/D']);
 });
 
 /** Proves normal URL initialization is not routed through print-only setup. */

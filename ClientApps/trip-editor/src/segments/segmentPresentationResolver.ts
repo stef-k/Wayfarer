@@ -69,6 +69,27 @@ export const placeRouteBadge = (
   return candidate(routeBadgeOffsets[0], -1, true);
 };
 
+/** Places one combined no-clear pill at a clear affected anchor or clamps it to the map surface. */
+export const placeCombinedRouteBadge = (
+  anchors: readonly ProjectedPoint[],
+  size: Readonly<{ width: number; height: number }>,
+  mapBounds: PresentationRectangle,
+  controlBounds: readonly PresentationRectangle[],
+  placedBounds: readonly PresentationRectangle[]
+): RouteBadgePlacement => {
+  for (const anchor of anchors) {
+    const placement = placeRouteBadge(anchor, size, mapBounds, controlBounds, placedBounds);
+    if (!placement.fallback) return { ...placement, fallback: true };
+  }
+  const preferred = placeRouteBadge(anchors[0], size, mapBounds, controlBounds, placedBounds);
+  return {
+    ...preferred,
+    left: Math.max(mapBounds.left, Math.min(preferred.left, mapBounds.right - size.width)),
+    top: Math.max(mapBounds.top, Math.min(preferred.top, mapBounds.bottom - size.height)),
+    fallback: true
+  };
+};
+
 const withEdges = (rectangle: Readonly<{ left: number; top: number; width: number; height: number }>): PresentationRectangle => ({
   left: rectangle.left, top: rectangle.top, right: rectangle.left + rectangle.width, bottom: rectangle.top + rectangle.height
 });

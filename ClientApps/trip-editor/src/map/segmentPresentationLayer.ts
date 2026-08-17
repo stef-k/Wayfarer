@@ -1,6 +1,6 @@
 import L, { type Map as LeafletMap } from 'leaflet';
 import type { EditorSegmentPresentation, SegmentPresentationKey } from '../segments/editorSegmentPresentation';
-import { placeProjectedChevrons, placeRouteBadge, type PresentationRectangle } from '../segments/segmentPresentationResolver';
+import { placeCombinedRouteBadge, placeProjectedChevrons, placeRouteBadge, type PresentationRectangle } from '../segments/segmentPresentationResolver';
 
 type RegistryEntry = {
   presentation: EditorSegmentPresentation;
@@ -95,20 +95,38 @@ export const createSegmentPresentationLayer = (
     const mapBounds = { left: 0, top: 0, right: size.x, bottom: size.y };
     const controlBounds = visibleControlBounds(map);
     const placedBounds: PresentationRectangle[] = [];
+    const blocked: { badge: typeof presentation.anchors.badges[number]; anchor: L.Point }[] = [];
     presentation.anchors.badges.forEach(badge => {
       const anchor = map.latLngToContainerPoint([badge.location[1], badge.location[0]]);
       const dimensions = badgeDimensions(badge.label);
       const placement = placeRouteBadge([anchor.x, anchor.y], dimensions, mapBounds, controlBounds, placedBounds);
+      if (placement.fallback) {
+        blocked.push({ badge, anchor });
+        return;
+      }
       placedBounds.push({ left: placement.left, top: placement.top,
         right: placement.left + placement.width, bottom: placement.top + placement.height });
-      L.marker([badge.location[1], badge.location[0]], {
+      renderBadgeMarker(badge.location, badge.label, anchor, placement);
+    });
+    if (blocked.length) {
+      const label = blocked.map(item => item.badge.label).join('/');
+      const dimensions = badgeDimensions(label);
+      const placement = placeCombinedRouteBadge(blocked.map(item => [item.anchor.x, item.anchor.y]),
+        dimensions, mapBounds, controlBounds, placedBounds);
+      renderBadgeMarker(blocked[0].badge.location, label, blocked[0].anchor, placement);
+    }
+  };
+
+  /** Adds one pointer-transparent route-role badge without changing its canonical Place marker. */
+  const renderBadgeMarker = (location: readonly [number, number], label: string, anchor: L.Point,
+    placement: ReturnType<typeof placeRouteBadge>): void => {
+      L.marker([location[1], location[0]], {
         pane: 'segment-route-role',
         interactive: false,
         keyboard: false,
         alt: '',
-        icon: routeBadgeIcon(badge.label, placement.left - anchor.x, placement.top - anchor.y, placement.fallback)
+        icon: routeBadgeIcon(label, placement.left - anchor.x, placement.top - anchor.y, placement.fallback)
       }).addTo(badgeGroup);
-    });
   };
 
   const rerenderForMovement = (): void => render(currentPresentations, currentActiveKey);
@@ -160,7 +178,9 @@ function routeBadgeIcon(label: string, leftOffset: number, topOffset: number, fa
 }
 
 /** Returns the fixed application-rendered dimensions used by collision fixtures and Leaflet. */
-const badgeDimensions = (label: string): { width: number; height: number } => ({ width: label.length > 1 ? 34 : 24, height: 24 });
+const badgeDimensions = (label: string): { width: number; height: number } => ({
+  width: label.length > 1 ? Math.max(34, 14 + label.length * 9) : 24, height: 24
+});
 
 /** Projects visible Leaflet controls into the map container's coordinate system. */
 const visibleControlBounds = (map: LeafletMap): PresentationRectangle[] => {

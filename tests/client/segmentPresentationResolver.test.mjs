@@ -136,6 +136,13 @@ test('places editor route badges with bounded collision avoidance', async () => 
   assert.notEqual(module.placeRouteBadge([190, 150], badge, bounds, [], []).offsetIndex, 0);
   assert.deepEqual(module.placeRouteBadge([100, 80], badge, bounds, [bounds], []),
     { left: 110, top: 62, width: 24, height: 24, offsetIndex: -1, fallback: true });
+
+  const combined = module.placeCombinedRouteBadge([[190, 150], [100, 80]], { width: 50, height: 24 }, bounds, [bounds], []);
+  assert.deepEqual(combined, { left: 150, top: 132, width: 50, height: 24, offsetIndex: -1, fallback: true });
+  assert.ok(combined.left >= bounds.left && combined.top >= bounds.top);
+  assert.ok(combined.left + combined.width <= bounds.right && combined.top + combined.height <= bounds.bottom);
+  const viewer = await import(`../../wwwroot/js/Trip/segmentPresentation.js?editorParity=${Date.now()}`);
+  assert.deepEqual(viewer.placeCombinedRouteBadge([[190, 150], [100, 80]], { width: 50, height: 24 }, bounds, [bounds], []), combined);
 });
 
 /** Proves Reverse route changes only the supplied draft and retains waypoint identity. */

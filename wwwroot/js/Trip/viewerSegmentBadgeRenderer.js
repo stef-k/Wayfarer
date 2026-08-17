@@ -1,4 +1,4 @@
-import {placeRouteBadge, routeBadgeDataUrl} from './segmentPresentation.js';
+import {placeCombinedRouteBadge, placeRouteBadge, routeBadgeDataUrl, routeBadgeDimensions} from './segmentPresentation.js';
 
 /** Owns the viewer's replace-only production badge layers, placement, and image decode generation. */
 export const createViewerSegmentBadgeRenderer = map => {
@@ -19,22 +19,39 @@ export const createViewerSegmentBadgeRenderer = map => {
         const mapBounds = {left: 0, top: 0, right: size.x, bottom: size.y};
         const controlBounds = visibleControlBounds(map);
         const placedBounds = [];
-        const images = badges.map(badge => {
-            const raster = routeBadgeDataUrl(badge.label);
+        const blocked = [];
+        const images = badges.flatMap(badge => {
             const anchor = map.latLngToContainerPoint([badge.location[1], badge.location[0]]);
-            const placement = placeRouteBadge([anchor.x, anchor.y], raster, mapBounds, controlBounds, placedBounds);
+            const placement = placeRouteBadge([anchor.x, anchor.y], routeBadgeDimensions(badge.label), mapBounds, controlBounds, placedBounds);
+            if (placement.fallback) {
+                blocked.push({badge, anchor});
+                return [];
+            }
+            const raster = routeBadgeDataUrl(badge.label);
             placedBounds.push({left: placement.left, top: placement.top,
                 right: placement.left + placement.width, bottom: placement.top + placement.height});
-            const marker = L.marker([badge.location[1], badge.location[0]], {
-                icon: L.icon({iconUrl: raster.url, iconSize: [raster.width, raster.height],
-                    iconAnchor: [anchor.x - placement.left, anchor.y - placement.top],
-                    className: placement.fallback ? 'segment-route-badge-fallback' : ''}),
-                interactive: false, keyboard: false, alt: ''
-            }).addTo(layer);
-            return waitForDecodedImage(marker.getElement?.());
+            return [renderMarker(badge, anchor, raster, placement)];
         });
+        if (blocked.length) {
+            const label = blocked.map(item => item.badge.label).join('/');
+            const raster = routeBadgeDataUrl(label);
+            const anchors = blocked.map(item => [item.anchor.x, item.anchor.y]);
+            const placement = placeCombinedRouteBadge(anchors, raster, mapBounds, controlBounds, placedBounds);
+            images.push(renderMarker({...blocked[0].badge, label}, blocked[0].anchor, raster, placement));
+        }
         readiness = Promise.all(images).then(() => ({ok: true}), error => ({ok: false, error}));
         return renderGeneration;
+    };
+
+    /** Adds one decorative raster badge and returns its production decode readiness. */
+    const renderMarker = (badge, anchor, raster, placement) => {
+        const marker = L.marker([badge.location[1], badge.location[0]], {
+            icon: L.icon({iconUrl: raster.url, iconSize: [raster.width, raster.height],
+                iconAnchor: [anchor.x - placement.left, anchor.y - placement.top],
+                className: placement.fallback ? 'segment-route-badge-fallback' : ''}),
+            interactive: false, keyboard: false, alt: ''
+        }).addTo(layer);
+        return waitForDecodedImage(marker.getElement?.());
     };
 
     const waitForCurrent = async () => {

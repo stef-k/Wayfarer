@@ -96,9 +96,21 @@ export const placeRouteBadge = (anchor, size, mapBounds, controlBounds, placedBo
     return candidate(routeBadgeOffsets[0], -1, true);
 };
 
+/** Places one combined no-clear pill at a clear affected anchor or clamps it to the map surface. */
+export const placeCombinedRouteBadge = (anchors, size, mapBounds, controlBounds, placedBounds) => {
+    for (const anchor of anchors) {
+        const placement = placeRouteBadge(anchor, size, mapBounds, controlBounds, placedBounds);
+        if (!placement.fallback) return {...placement, fallback: true};
+    }
+    const preferred = placeRouteBadge(anchors[0], size, mapBounds, controlBounds, placedBounds);
+    return {...preferred,
+        left: Math.max(mapBounds.left, Math.min(preferred.left, mapBounds.right - size.width)),
+        top: Math.max(mapBounds.top, Math.min(preferred.top, mapBounds.bottom - size.height)), fallback: true};
+};
+
 /** Rasterizes one application-owned badge so leaflet-image captures both shape and text. */
 export const routeBadgeDataUrl = label => {
-    const width = label.length > 1 ? Math.max(34, 14 + label.length * 9) : 24;
+    const {width} = routeBadgeDimensions(label);
     const canvas = document.createElement('canvas');
     canvas.width = width * 2;
     canvas.height = 48;
@@ -118,6 +130,9 @@ export const routeBadgeDataUrl = label => {
     context.fillText(label, width / 2, 12);
     return { url: canvas.toDataURL('image/png'), width, height: 24 };
 };
+
+/** Returns the production badge box without rasterizing an image that may be combined away. */
+export const routeBadgeDimensions = label => ({width: label.length > 1 ? Math.max(34, 14 + label.length * 9) : 24, height: 24});
 
 const finiteLocation = input => Number.isFinite(input.longitude) && Number.isFinite(input.latitude)
     ? [input.longitude, input.latitude]
