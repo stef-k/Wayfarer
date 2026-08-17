@@ -6,6 +6,7 @@ using NetTopologySuite.Geometries;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos;
 using Wayfarer.Models.ViewModels;
+using Wayfarer.Parsers;
 using Wayfarer.Services;
 using Wayfarer.Tests.Infrastructure;
 using Xunit;
@@ -90,6 +91,8 @@ public sealed class TripCloneCoordinatorTests : TestBase
         Assert.Equal(importedPlaces["A"].Id, importedLoop.ToPlaceId);
         Assert.Equal(importedPlaces["B"].Id, Assert.Single(importedLoop.Waypoints).PlaceId);
         Assert.Equal("walk", importedCustom.Mode);
+        Assert.Equal("walk", importedCustom.TransportProfile!.Key);
+        Assert.NotNull(importedCustom.EstimatedDistanceKm);
         Assert.Equal(EstimatedDurationSource.Automatic, importedCustom.EstimatedDurationSource);
         Assert.Equal(EstimatedDurationSource.Manual, importedLoop.EstimatedDurationSource);
         Assert.Equal(manualDuration, importedLoop.EstimatedDuration);
@@ -218,11 +221,15 @@ public sealed class TripCloneCoordinatorTests : TestBase
         Assert.Equal(expectedCustom, projected.Segment!.HasCustomRoute);
         Assert.Equal(segment.FromPlaceId, projected.Segment.FromPlaceId);
         Assert.Equal(segment.ToPlaceId, projected.Segment.ToPlaceId);
+        Assert.Equal(Assert.Single(segment.Waypoints).PlaceId, Assert.Single(projected.Segment.Waypoints).PlaceId);
         Assert.Equal(0, Assert.Single(projected.Segment.Waypoints).Position);
         Assert.Equal(Assert.Single(segment.Waypoints).RouteVertexIndex,
             Assert.Single(projected.Segment.Waypoints).RouteVertexIndex);
         using var route = JsonDocument.Parse(projected.Segment.RouteJson!);
-        Assert.Equal(expectedRoutePoints, route.RootElement.GetProperty("coordinates").GetArrayLength());
+        var coordinates = route.RootElement.GetProperty("coordinates");
+        Assert.Equal(expectedRoutePoints, coordinates.GetArrayLength());
+        Assert.Equal(1, coordinates[expectedCustom ? 2 : 1][0].GetDouble());
+        if (expectedCustom) Assert.Equal(0.5, coordinates[1][0].GetDouble());
     }
 
     /// <summary>Creates a readable stream for native KML import.</summary>
