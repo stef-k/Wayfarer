@@ -73,6 +73,22 @@ Manage your API tokens from **User Settings > API Tokens**:
 | GET | `/api/trips/{id}` | Full trip structure (public or owner) |
 | GET | `/api/trips/{id}/boundary` | Bounding box for tile prefetch |
 
+Authorized `GET /api/trips/{id}` segment objects retain the existing fields and types and add:
+
+```json
+{
+  "fromPlaceId": "guid",
+  "toPlaceId": "guid",
+  "routeJson": "{\"type\":\"LineString\",\"coordinates\":[...]}",
+  "waypoints": [
+    { "placeId": "guid", "position": 0, "routeVertexIndex": 2 }
+  ],
+  "hasCustomRoute": true
+}
+```
+
+`waypoints` is ordered and allowlisted: each object contains only `placeId`, zero-based `position`, and nullable zero-based `routeVertexIndex`. A null route index identifies all-anchor fallback geometry; a non-null index identifies the waypoint's vertex in validated custom geometry. `hasCustomRoute` distinguishes those states. `routeJson` remains `string | null`, not a nested JSON object, and contains the complete effective LineString through every waypoint when waypoints exist. Authorization and cross-Trip validation fail closed before projection.
+
 ### Trip Areas
 
 | Method | Endpoint | Description |
@@ -364,6 +380,7 @@ This ensures visit notifications work reliably regardless of app state.
 
 - `TripContentService` pulls `TripDto` and stores structured content; progress events include counts for places/areas/segments.
 - Navigation stack: `NavigationGraphBuilder`, `RouteCalculationService`, `TripNavigationService`, optional `NavigationAudioService`.
+- Waypoint fields are additive and existing public field types remain stable. Older clients may continue using From/To plus effective `routeJson`; semantic Via identity, offline fidelity, and navigation parity remain mobile-owned rather than part of this web-first release.
 
 ### DTOs & Conventions
 

@@ -113,6 +113,10 @@ This enables full roundtrip: export from Wayfarer, then reimport without losing 
 
 - Export filenames include the current date/time for convenience.
 - Exports contain only your own data and respect your trip privacy settings.
-# Segment measurement compatibility
+# Native and generic trip compatibility
 
-Imported distance is ignored and recalculated by the server. Wayfarer KML v1 `DurationMin` is treated as an intentional Manual duration; absence defaults to Automatic. Generic KML/GeoJSON segments default to Automatic and do not infer semantic waypoints. Existing public/export duration minutes continue to use `TimeSpan.TotalMinutes`, so whole-second values retain fractional-minute precision. Waypoint-aware clone remapping and Wayfarer KML v2 remain owned by issues 412 and 413.
+Wayfarer-native KML schema v2 preserves ordered From/Via/To Place identity, waypoint route indices, custom-versus-fallback route state, transport profile, effective measurement, and explicit Automatic/Manual duration provenance. Native imports validate the complete aggregate before applying it, and creating a new trip remaps every Place identity consistently, including one shared identity for both endpoints of a closed loop. The same complete remapping is used by both trip-clone entry points.
+
+Legacy Wayfarer KML v1 remains supported. Its `DurationMin` value is treated as an intentional Manual duration; absence defaults to Automatic. Imported distance is recalculated by the server from the effective route, and existing public/export duration minutes continue to use `TimeSpan.TotalMinutes`, so whole-second values retain fractional-minute precision.
+
+Generic KML and GeoJSON remain geometry-only interchange formats. They do not infer semantic saved-Place waypoints, and generic route coordinates are imported exactly without dense-route simplification. Dense generic-route simplification is deferred to #425; external route generation is deferred to #426.
