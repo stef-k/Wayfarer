@@ -152,7 +152,7 @@ function removeTerminalBlankBlocks(fragment: DocumentFragment): void {
 }
 
 function isSemanticallyBlank(element: Element): boolean {
-  return !element.textContent?.trim() && !element.querySelector('img, video, iframe');
+  return !element.textContent?.trim() && !element.querySelector('img');
 }
 
 function isUnsafeAttributeUrl(element: Element, name: string, value: string): boolean {

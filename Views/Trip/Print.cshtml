@@ -101,7 +101,7 @@
         <code><strong>Updated at:</strong> @trip.UpdatedAt</code>
     </div>
 
-    @if (!string.IsNullOrWhiteSpace(trip.Notes))
+    @if (HtmlHelpers.HasVisibleContent(trip.Notes))
     {
         <div class="notes rich-notes-content text-left">@Html.Raw(HtmlHelpers.NormalizeNotesForDisplay(trip.Notes))</div>
     }
@@ -176,7 +176,7 @@
                         }
                     }
 
-                    @if (!string.IsNullOrWhiteSpace(s.Notes))
+                    @if (HtmlHelpers.HasVisibleContent(s.Notes))
                     {
                         <div class="notes rich-notes-content">@Html.Raw(HtmlHelpers.NormalizeNotesForDisplay(s.Notes))</div>
                     }
@@ -202,7 +202,7 @@
             }
         }
 
-        @if (!string.IsNullOrWhiteSpace(r.Notes))
+        @if (HtmlHelpers.HasVisibleContent(r.Notes))
         {
             <div class="notes rich-notes-content">@Html.Raw(HtmlHelpers.NormalizeNotesForDisplay(r.Notes))</div>
         }
@@ -236,7 +236,7 @@
                     }
                 }
 
-                @if (!string.IsNullOrWhiteSpace(p.Notes))
+                @if (HtmlHelpers.HasVisibleContent(p.Notes))
                 {
                     <div class="notes rich-notes-content">@Html.Raw(HtmlHelpers.NormalizeNotesForDisplay(p.Notes))</div>
                 }

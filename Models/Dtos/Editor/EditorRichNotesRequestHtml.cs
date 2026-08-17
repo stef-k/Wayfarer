@@ -229,9 +229,7 @@ internal static class EditorRichNotesRequestHtml
     {
         var text = (element.TextContent ?? string.Empty).Replace('\u00a0', ' ');
         return string.IsNullOrWhiteSpace(text)
-            && element.QuerySelector("img") == null
-            && element.QuerySelector("video") == null
-            && element.QuerySelector("iframe") == null;
+            && element.QuerySelector("img") == null;
     }
 
     private static string CanonicalImageSource(string value)

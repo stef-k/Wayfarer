@@ -87,6 +87,9 @@ public class HtmlHelpersTests
     [InlineData("<p>&nbsp;</p>", false)]
     [InlineData("<p>&#160;</p>", false)]
     [InlineData("<p>  </p>", false)]
+    [InlineData("<iframe src='https://example.test'></iframe>", false)]
+    [InlineData("<video src='https://example.test/video.mp4'></video>", false)]
+    [InlineData("<audio src='https://example.test/audio.mp3'></audio>", false)]
     public void HasVisibleContent_ReturnsFalse_ForEmptyContent(string? input, bool expected)
     {
         var result = HtmlHelpers.HasVisibleContent(input);

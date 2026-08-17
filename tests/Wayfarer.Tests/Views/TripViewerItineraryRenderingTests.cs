@@ -207,6 +207,18 @@ public sealed class TripViewerItineraryRenderingTests
             var pdf = await new HtmlParser().ParseDocumentAsync(await RenderViewAsync(scope.ServiceProvider, "/Views/Trip/Print.cshtml", model));
             var pdfNotes = Assert.Single(pdf.QuerySelectorAll(".notes.rich-notes-content"));
             Assert.Single(pdfNotes.QuerySelectorAll("li"));
+
+            var blankTrip = WaypointTrip();
+            blankTrip.User = new ApplicationUser { DisplayName = "Fixture owner" };
+            blankTrip.Notes = "<ol><li data-list=\"ordered\"><br></li></ol>";
+            foreach (var region in blankTrip.Regions) { region.Notes = blankTrip.Notes; foreach (var place in region.Places) place.Notes = blankTrip.Notes; }
+            foreach (var segment in blankTrip.Segments) segment.Notes = blankTrip.Notes;
+            var blankViewer = await new HtmlParser().ParseDocumentAsync(await RenderViewerAsync(scope.ServiceProvider, blankTrip));
+            Assert.Empty(blankViewer.QuerySelectorAll(".rich-notes-content"));
+            Assert.Empty(blankViewer.QuerySelectorAll(".trip-notes-readable"));
+            var blankModel = new TripPrintViewModel { Trip = blankTrip, Regions = blankTrip.Regions.ToList(), Places = blankTrip.Regions.SelectMany(region => region.Places).ToList(), Segments = blankTrip.Segments.ToList() };
+            var blankPdf = await new HtmlParser().ParseDocumentAsync(await RenderViewAsync(scope.ServiceProvider, "/Views/Trip/Print.cshtml", blankModel));
+            Assert.Empty(blankPdf.QuerySelectorAll(".notes.rich-notes-content"));
         }
         finally
         {

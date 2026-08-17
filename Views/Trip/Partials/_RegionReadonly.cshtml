@@ -108,9 +108,12 @@
                             </span>
                             <span class="flex-grow-1 itinerary-place-label">@ItineraryPresentation.Label(placeIndex + 1, p.Name)</span>
 
-                            <div class="d-none place-notes rich-notes-content">
-                                @Html.LinkifyHtml(p.Notes)
-                            </div>
+                            @if (HtmlHelpers.HasVisibleContent(p.Notes))
+                            {
+                                <div class="d-none place-notes rich-notes-content">
+                                    @Html.LinkifyHtml(p.Notes)
+                                </div>
+                            }
                         </li>
                     </text>
                 }

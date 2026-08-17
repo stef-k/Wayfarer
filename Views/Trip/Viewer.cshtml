@@ -333,7 +333,7 @@
         <!-- Trip meta: notes (scroll-safe) -->
         <section class="trip-meta border-bottom">
 
-            @if (!string.IsNullOrWhiteSpace(Model.Notes))
+            @if (HtmlHelpers.HasVisibleContent(Model.Notes))
             {
                 <div class="trip-notes rich-notes-content px-3 pb-2" style="max-height: 200px; overflow-y: auto;">
                     @Html.LinkifyHtml(Model.Notes)
@@ -464,7 +464,7 @@
                 }
 
                 <!-- Notes -->
-                @if (!string.IsNullOrWhiteSpace(Model.Notes))
+                @if (HtmlHelpers.HasVisibleContent(Model.Notes))
                 {
                     <div class="trip-notes-readable rich-notes-content mb-4">
                         <h6 class="text-muted mb-2">Notes</h6>
@@ -492,7 +492,7 @@
                                 </div>
                             }
 
-                            @if (!string.IsNullOrWhiteSpace(region.Notes))
+                            @if (HtmlHelpers.HasVisibleContent(region.Notes))
                             {
                                 <div class="mb-3 text-muted rich-notes-content">
                                     @Html.ProxyNotesImages(region.Notes)
@@ -512,7 +512,7 @@
                                                 @await Html.PartialAsync("~/Areas/User/Views/Trip/Partials/_MapIcon.cshtml", (iconName, bgClass))
                                                 <div class="flex-grow-1">
                                                     <strong class="itinerary-place-label">@ItineraryPresentation.Label(placeIndex + 1, place.Name)</strong>
-                                                    @if (!string.IsNullOrWhiteSpace(place.Notes))
+                                                    @if (HtmlHelpers.HasVisibleContent(place.Notes))
                                                     {
                                                         <div class="small text-muted mt-1 rich-notes-content">
                                                             @Html.ProxyNotesImages(place.Notes)

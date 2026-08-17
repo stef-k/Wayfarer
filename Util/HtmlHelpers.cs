@@ -143,7 +143,7 @@ namespace Wayfarer.Util
                 return false;
 
             var displayHtml = NormalizeNotesForDisplay(htmlContent);
-            if (Regex.IsMatch(displayHtml, @"<(?:img|video|audio|iframe)\b", RegexOptions.IgnoreCase))
+            if (Regex.IsMatch(displayHtml, @"<img\b", RegexOptions.IgnoreCase))
                 return true;
 
             // Strip all HTML tags and check if any visible text remains
@@ -207,6 +207,6 @@ namespace Wayfarer.Util
 
         private static bool IsSemanticallyBlank(IElement element) =>
             string.IsNullOrWhiteSpace((element.TextContent ?? string.Empty).Replace('\u00a0', ' '))
-            && element.QuerySelector("img, video, audio, iframe") == null;
+            && element.QuerySelector("img") == null;
     }
 }
