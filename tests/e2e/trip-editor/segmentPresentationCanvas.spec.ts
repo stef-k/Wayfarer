@@ -13,15 +13,19 @@ async function prepareProductionMap(page: Page, search: string): Promise<void> {
   await page.addScriptTag({ path: repositoryPath('wwwroot/lib/leaflet-image/leaflet-image.js') });
 }
 
-/** Invokes the production Segment renderer and readiness gate before decoding its leaflet-image output. */
+/** Invokes the production renderer and inspects only a fresh decode of its published snapshot URL. */
 test('isolated production snapshot includes route, chevron, badge shape, and badge text', async ({ page }) => {
+  await page.route('**/test-segment-tile/**', route => route.fulfill({
+    path: repositoryPath('wwwroot/logo-transparent.png'), contentType: 'image/png'
+  }));
   await prepareProductionMap(page, '?print=1&seg=canvas-segment');
 
   const proof = await page.evaluate(async () => {
+    (window as any).wayfarerTileConfig = { tilesUrl: '/test-segment-tile/{z}/{x}/{y}.png', attribution: '' };
     const helpers = await import('/js/Trip/tripViewerHelpers.js');
     const controllerModule = await import('/js/Trip/viewerSegmentPresentationController.js');
-    const leaflet = (window as any).L;
-    const map = leaflet.map('map', { zoomControl: false, attributionControl: false, zoomAnimation: false }).setView([0, 0], 3);
+    document.querySelector('#map')!.id = 'mapContainer';
+    const map = helpers.initLeaflet([0, 0], 3);
     helpers.addSegment(map, 'canvas-segment', [[0, -10], [0, 10]], '', {
       orientation: 'forward',
       anchors: [
@@ -31,34 +35,57 @@ test('isolated production snapshot includes route, chevron, badge shape, and bad
     });
     const controller = controllerModule.createViewerSegmentPresentationController(map, document.body, { isPrint: true, paddingX: () => 60 });
     const ready = await controller.initialize('canvas-segment');
-    const canvas = await new Promise<HTMLCanvasElement>((resolve, reject) => (window as any).leafletImage(map,
-      (error: Error | null, result: HTMLCanvasElement) => error ? reject(error) : resolve(result)));
-    (window as any).__leafletImageUrl = canvas.toDataURL('image/png');
-    const pixels = canvas.getContext('2d')!.getImageData(0, 0, canvas.width, canvas.height).data;
-    let routeBlue = 0;
-    let cueBlue = 0;
-    let badgeBlue = 0;
-    let badgeWhite = 0;
-    for (let index = 0; index < pixels.length; index += 4) {
-      const [red, green, blue, alpha] = [pixels[index], pixels[index + 1], pixels[index + 2], pixels[index + 3]];
-      if (alpha > 180 && blue > 180 && red < 80 && green > 60 && green < 180) routeBlue += 1;
-      if (alpha > 180 && blue > 90 && red < 40 && green > 70 && green < 150) cueBlue += 1;
-      if (alpha > 180 && blue > 120 && red < 40 && green > 50 && green < 140) badgeBlue += 1;
-      if (alpha > 180 && red > 220 && green > 220 && blue > 220) badgeWhite += 1;
-    }
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const deadline = performance.now() + 5000;
+      const poll = () => {
+        if ((window as any).__leafletImageUrl) resolve((window as any).__leafletImageUrl);
+        else if (performance.now() >= deadline) reject(new Error('Production snapshot URL was not published.'));
+        else requestAnimationFrame(poll);
+      };
+      poll();
+    });
+    const decoded = new Image();
+    decoded.src = dataUrl;
+    await decoded.decode();
+    const inspection = document.createElement('canvas');
+    inspection.width = decoded.naturalWidth;
+    inspection.height = decoded.naturalHeight;
+    const context = inspection.getContext('2d')!;
+    context.drawImage(decoded, 0, 0);
+    const count = (left: number, top: number, width: number, height: number,
+      predicate: (red: number, green: number, blue: number, alpha: number) => boolean): number => {
+      const pixels = context.getImageData(left, top, width, height).data;
+      let total = 0;
+      for (let index = 0; index < pixels.length; index += 4) {
+        if (predicate(pixels[index], pixels[index + 1], pixels[index + 2], pixels[index + 3])) total += 1;
+      }
+      return total;
+    };
+    const start = map.latLngToContainerPoint([0, -10]);
+    const midpoint = map.latLngToContainerPoint([0, 0]);
+    // Disjoint fixture regions keep the cyan line, dark cue, blue badge, and inner white glyph independent.
+    const routeBlue = count(midpoint.x - 45, midpoint.y - 3, 30, 6,
+      (red, green, blue, alpha) => alpha > 180 && blue > 170 && green > 90 && red < 40);
+    const cueBlue = count(midpoint.x - 12, midpoint.y - 12, 24, 24,
+      (red, green, blue, alpha) => alpha > 180 && blue > 90 && blue < 170 && green > 60 && green < 140 && red < 30);
+    const badgeBlue = count(start.x + 10, start.y - 18, 24, 24,
+      (red, green, blue, alpha) => alpha > 180 && blue > 140 && green > 50 && green < 120 && red < 30);
+    const badgeWhite = count(start.x + 16, start.y - 13, 12, 14,
+      (red, green, blue, alpha) => alpha > 180 && red > 220 && green > 220 && blue > 220);
     const snapshot = (window as any).__segmentPresentationSnapshot;
     map.remove();
-    return { ready, dataUrl: (window as any).__leafletImageUrl, routeBlue, cueBlue, badgeBlue, badgeWhite, snapshot };
+    return { ready, dataUrl, decodedWidth: inspection.width, routeBlue, cueBlue, badgeBlue, badgeWhite, snapshot };
   });
 
   expect(proof.ready).toBe(true);
   expect(proof.dataUrl).toMatch(/^data:image\/png;base64,/);
+  expect(proof.decodedWidth).toBeGreaterThan(0);
   expect(proof.snapshot).toMatchObject({ routeBadgeCount: 2, segments: [{ id: 'canvas-segment', active: true, lineCount: 1 }] });
   expect(proof.snapshot.segments[0].chevronCount).toBeGreaterThan(0);
-  expect(proof.routeBlue).toBeGreaterThan(100);
-  expect(proof.cueBlue).toBeGreaterThan(10);
+  expect(proof.routeBlue).toBeGreaterThan(40);
+  expect(proof.cueBlue).toBeGreaterThan(8);
   expect(proof.badgeBlue).toBeGreaterThan(100);
-  expect(proof.badgeWhite).toBeGreaterThan(10);
+  expect(proof.badgeWhite).toBeGreaterThan(4);
 });
 
 /** Proves overview readiness describes a genuinely empty production Segment registry. */

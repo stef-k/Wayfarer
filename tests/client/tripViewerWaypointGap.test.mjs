@@ -125,6 +125,46 @@ test('places viewer route badges with deterministic collision avoidance', async 
   assert.equal(presentation.placeRouteBadge([100, 80], badge, bounds, [bounds], []).fallback, true);
 });
 
+/** Proves blocked semantic badges collapse into one ordered renderer-owned fallback pill. */
+test('combines all no-clear viewer badges into one meaningful fallback pill', async () => {
+  const labels = [];
+  const markers = [];
+  prepareLeaflet();
+  globalThis.document.createElement = () => ({
+    width: 0, height: 0, getContext: () => ({
+      scale() {}, beginPath() {}, roundRect() {}, fill() {}, stroke() {},
+      fillText(label) { labels.push(label); }
+    }),
+    toDataURL: () => `data:image/png;base64,${labels.at(-1)}`
+  });
+  globalThis.L.marker = (_position, options) => {
+    const marker = presentationLayer({ complete: true, naturalWidth: 24, decode: () => Promise.resolve() })();
+    markers.push(options);
+    return marker;
+  };
+  const { createViewerSegmentBadgeRenderer } = await import(`../../wwwroot/js/Trip/viewerSegmentBadgeRenderer.js?blocked=${Date.now()}`);
+  const map = presentationMap();
+  map.getContainer = () => ({
+    getBoundingClientRect: () => ({ left: 0, top: 0 }),
+    querySelectorAll: () => [{
+      offsetParent: {}, getBoundingClientRect: () => ({ left: 0, top: 0, right: 800, bottom: 600 })
+    }]
+  });
+  const renderer = createViewerSegmentBadgeRenderer(map);
+
+  renderer.render([
+    { label: 'A', location: [0, 0] },
+    { label: 'B', location: [1, 0] },
+    { label: 'C', location: [2, 0] }
+  ]);
+  await renderer.waitForCurrent();
+
+  assert.equal(renderer.count(), 1);
+  assert.deepEqual(labels, ['A/B/C']);
+  assert.equal(markers.length, 1);
+  assert.match(markers[0].icon.className, /segment-route-badge-fallback/);
+});
+
 /** Proves normal URL initialization is not routed through print-only setup. */
 test('normal requested Segment uses the common controller selection and resolved bounds', async () => {
   prepareLeaflet();
