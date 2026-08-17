@@ -3,13 +3,31 @@ import path from 'node:path';
 
 const repositoryPath = (...parts: string[]): string => path.resolve(process.cwd(), ...parts);
 
-/** Counts light pixels using the current broad badge-box predicate. */
-const broadLightPixelCount = (pixels: Uint8ClampedArray): number => {
-  let total = 0;
+/** Finds the blue body and counts glyph light only three pixels inside it, beyond the complete two-pixel outline fringe. */
+const badgeGlyphPixelCount = (pixels: Uint8ClampedArray, width: number, height: number): number => {
+  const bodyPoints: { x: number; y: number }[] = [];
   for (let index = 0; index < pixels.length; index += 4) {
-    if (pixels[index + 3] > 180 && pixels[index] > 150 && pixels[index + 1] > 150 && pixels[index + 2] > 150) total += 1;
+    const pixel = index / 4;
+    if (pixels[index + 3] > 180 && pixels[index + 2] > 140
+      && pixels[index + 1] > 50 && pixels[index + 1] < 120 && pixels[index] < 30) {
+      bodyPoints.push({ x: pixel % width, y: Math.floor(pixel / width) });
+    }
   }
-  return total;
+  if (!bodyPoints.length) return 0;
+  const inset = 3;
+  const left = Math.min(...bodyPoints.map(point => point.x)) + inset;
+  const top = Math.min(...bodyPoints.map(point => point.y)) + inset;
+  const right = Math.max(...bodyPoints.map(point => point.x)) - inset;
+  const bottom = Math.max(...bodyPoints.map(point => point.y)) - inset;
+  let light = 0;
+  for (let y = top; y <= bottom && y < height; y += 1) {
+    for (let x = left; x <= right && x < width; x += 1) {
+      const index = (y * width + x) * 4;
+      if (pixels[index + 3] > 180 && pixels[index] > 220
+        && pixels[index + 1] > 220 && pixels[index + 2] > 220) light += 1;
+    }
+  }
+  return light;
 };
 
 /** Proves a white outline without a glyph is not acceptable decoded glyph evidence. */
@@ -24,7 +42,7 @@ test('route badge glyph classifier rejects an outline-only negative control', ()
     }
   }
 
-  expect(broadLightPixelCount(pixels)).toBe(0);
+  expect(badgeGlyphPixelCount(pixels, size, size)).toBe(0);
 });
 
 /** Loads Leaflet assets while retaining the configured application origin for production module imports. */
@@ -106,11 +124,14 @@ test('isolated production snapshot includes route, chevron, badge shape, and bad
       right: Math.max(...badgePoints.map(point => point.x)), bottom: Math.max(...badgePoints.map(point => point.y))
     };
     const badgeBlue = badgePoints.length;
-    const badgeWhite = count(badgeBox.left, badgeBox.top, badgeBox.right - badgeBox.left + 1, badgeBox.bottom - badgeBox.top + 1,
-      (red, green, blue, alpha) => alpha > 180 && red > 150 && green > 150 && blue > 150);
+    // Three pixels inside the production-blue body excludes its complete two-pixel white outline and antialiasing fringe.
+    const glyphInset = 3;
+    const badgeGlyphLight = count(badgeBox.left + glyphInset, badgeBox.top + glyphInset,
+      badgeBox.right - badgeBox.left + 1 - glyphInset * 2, badgeBox.bottom - badgeBox.top + 1 - glyphInset * 2,
+      (red, green, blue, alpha) => alpha > 180 && red > 220 && green > 220 && blue > 220);
     const snapshot = (window as any).__segmentPresentationSnapshot;
     map.remove();
-    return { ready, dataUrl, decodedWidth: inspection.width, routeBlue, cueBlue, badgeBlue, badgeWhite, snapshot };
+    return { ready, dataUrl, decodedWidth: inspection.width, routeBlue, cueBlue, badgeBlue, badgeGlyphLight, snapshot };
   });
 
   expect(proof.ready).toBe(true);
@@ -121,7 +142,8 @@ test('isolated production snapshot includes route, chevron, badge shape, and bad
   expect(proof.routeBlue).toBeGreaterThan(40);
   expect(proof.cueBlue).toBeGreaterThan(8);
   expect(proof.badgeBlue).toBeGreaterThan(90);
-  expect(proof.badgeWhite).toBeGreaterThan(4);
+  // A production 12 px bold "A" contributes well above eight interior light pixels; eight leaves margin without accepting fringe noise.
+  expect(proof.badgeGlyphLight).toBeGreaterThan(8);
 });
 
 /** Proves overview readiness describes a genuinely empty production Segment registry. */
