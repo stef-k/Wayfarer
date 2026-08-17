@@ -37,6 +37,8 @@ function canonicalCases(): Array<{ input: string; expected: string }> {
     { input: '<ol><li data-list="ordered">One</li><li data-list="ordered"><br></li></ol><p>After</p>', expected: '<ol><li data-list="ordered">One</li><li data-list="ordered"><br></li></ol><p>After</p>' },
     { input: '<ul><li data-list="bullet"><a href="https://example.test">Visible link</a></li><li data-list="bullet"><br></li></ul>', expected: '<ul><li data-list="bullet"><a href="https://example.test">Visible link</a></li></ul>' },
     { input: '<ul><li data-list="bullet"><img src="https://example.test/a.jpg"></li><li data-list="bullet"><br></li></ul>', expected: '<ul><li data-list="bullet"><img src="https://example.test/a.jpg"></li></ul>' },
+    { input: '<ol><li data-list="ordered"><video src="https://example.test/a.mp4"></video></li></ol>', expected: '' },
+    { input: '<ol><li data-list="ordered"><video>Fallback text</video></li></ol>', expected: '<ol><li data-list="ordered">Fallback text</li></ol>' },
     { input: '<p>Before</p><ol><li data-list="ordered">Item</li></ol><h2>After</h2>', expected: '<p>Before</p><ol><li data-list="ordered">Item</li></ol><h2>After</h2>' }
   ];
 }

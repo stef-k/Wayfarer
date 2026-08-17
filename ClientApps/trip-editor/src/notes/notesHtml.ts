@@ -11,6 +11,10 @@ export function normalizeNotesHtml(value: string): string {
   template.content.querySelectorAll(forbiddenElements).forEach(element => {
     element.remove();
   });
+  // Match the server allow-list by retaining fallback text while unwrapping unsupported media.
+  template.content.querySelectorAll('audio, video').forEach(element => {
+    element.replaceWith(...Array.from(element.childNodes));
+  });
   template.content.querySelectorAll('span.ql-ui').forEach(element => {
     element.remove();
   });
