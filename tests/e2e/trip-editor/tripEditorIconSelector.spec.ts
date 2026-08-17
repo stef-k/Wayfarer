@@ -222,6 +222,9 @@ async function routeEditorState(route: Route, state: MutableEditorState, request
 }
 
 function prepareIconState(state: MutableEditorState): void {
+  // Keep the synthetic marker inside the mounted map so selector parity assertions are deterministic across reusable trips.
+  state.metadata.center = { latitude: 37.9838, longitude: 23.7275 };
+  state.metadata.zoom = 12;
   state.permissions.canEditRegions = true;
   state.permissions.canEditPlaces = true;
   state.options.iconNames = iconNames;
