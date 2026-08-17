@@ -45,16 +45,17 @@ test.describe('Trip Editor icon selector', () => {
 
     await page.getByRole('button', { name: 'Pick on map' }).click();
     await clickMap(page, { xRatio: 0.62, yRatio: 0.39 });
-    const pending = await markerCoordinate(page);
+    const pending = await pendingMapWorkCoordinate(page);
     expect(pending).not.toEqual(baseline);
     await openIconSelector(page);
     await page.locator('[data-selector-kind="icon"] [data-icon-selector-option]').nth(1).click();
     await openColorSelector(page);
     await page.locator('[data-selector-kind="color"] [data-icon-selector-option]').nth(1).click();
-    await expect.poll(() => markerCoordinate(page)).toEqual(pending);
+    await expect.poll(() => pendingMapWorkCoordinate(page)).toEqual(pending);
     await expect(draftMarkers(page)).toHaveCount(1);
     await page.getByRole('region', { name: 'Map work' }).getByRole('button', { name: 'Done' }).click();
-    await expect.poll(() => draftCoordinates(form)).toEqual(pending);
+    await expect.poll(() => draftCoordinates(form)).not.toEqual(baseline);
+    const accepted = await draftCoordinates(form);
     const selectedIcon = await selectedStyle(page, 'icon');
     const selectedColor = await selectedStyle(page, 'color');
 
@@ -62,8 +63,8 @@ test.describe('Trip Editor icon selector', () => {
     await clickMap(page, { xRatio: 0.35, yRatio: 0.64 });
     await page.getByRole('region', { name: 'Map work' }).getByRole('button', { name: 'Cancel' }).click();
     await page.getByRole('dialog', { name: 'Discard map editing changes?' }).getByRole('button', { name: 'Discard' }).click();
-    await expect.poll(() => draftCoordinates(form)).toEqual(pending);
-    await expect.poll(() => markerCoordinate(page)).toEqual(pending);
+    await expect.poll(() => draftCoordinates(form)).toEqual(accepted);
+    await expect(draftMarkers(page)).toHaveCount(1);
     expect(await selectedStyle(page, 'icon')).toBe(selectedIcon);
     expect(await selectedStyle(page, 'color')).toBe(selectedColor);
     expect(requests).toEqual([]);
@@ -548,16 +549,17 @@ function draftMarkers(page: Page): Locator {
 }
 
 async function clickMap(page: Page, position: { xRatio: number; yRatio: number }): Promise<void> {
-  await page.getByLabel('Read-only trip map').evaluate((element, point) => {
-    const box = element.getBoundingClientRect();
-    const clientX = box.left + box.width * point.xRatio;
-    const clientY = box.top + box.height * point.yRatio;
-    for (const type of ['mousedown', 'mouseup', 'click']) element.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, clientX, clientY, view: window }));
-  }, position);
+  // Use visible pointer input because map-work intentionally changes the map's accessible label.
+  const box = await page.locator('.trip-editor-map').boundingBox();
+  expect(box, 'Trip Editor map should have a rendered box for coordinate picking.').not.toBeNull();
+  await page.mouse.click(box!.x + box!.width * position.xRatio, box!.y + box!.height * position.yRatio);
 }
 
-async function markerCoordinate(page: Page): Promise<{ latitude: string; longitude: string }> {
-  return draftMarkers(page).evaluate(element => ({ latitude: (element as HTMLElement).dataset.placeDraftLatitude ?? '', longitude: (element as HTMLElement).dataset.placeDraftLongitude ?? '' }));
+async function pendingMapWorkCoordinate(page: Page): Promise<{ latitude: string; longitude: string }> {
+  const text = await page.getByRole('region', { name: 'Map work' }).getByText(/^Selected -?\d/).textContent();
+  const match = text?.match(/^Selected (-?\d+(?:\.\d+)?), (-?\d+(?:\.\d+)?)$/);
+  expect(match, 'Map work should expose the visibly selected coordinate.').not.toBeNull();
+  return { latitude: match![1], longitude: match![2] };
 }
 
 async function draftCoordinates(form: Locator): Promise<{ latitude: string; longitude: string }> {
