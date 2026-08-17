@@ -64,6 +64,10 @@ The WayfarerMobile companion app connects to your self-hosted Wayfarer server fo
 - Download trip tiles for **offline access**.
 - View trip details including notes and travel modes.
 
+Waypoint authoring and semantic Via navigation are currently web-first. The additive public trip fields keep existing field types unchanged, and effective waypoint-bearing geometry remains available to older mobile clients, so representative older clients can degrade to their existing From/To route display. Mobile notes-only updates do not replace or erase the server-owned waypoint aggregate.
+
+This is not cross-platform waypoint parity. Semantic Via identity, offline waypoint fidelity, and waypoint-aware navigation remain owned by WayfarerMobile #236/#237. External route generation (#426) is also deferred.
+
 ---
 
 ## Offline Maps

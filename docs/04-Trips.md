@@ -56,6 +56,10 @@ Trips are **private by default**; you can make them public to share with others.
 - Add notes and route geometry if available.
 - Segments display as connected lines on the map.
 
+Each segment has ordered **From → Via → To** semantics. From and To are saved Places, and the optional **Intermediate places** list adds saved Places as ordered Via waypoints without splitting the journey into separate segments. Use the accessible move controls to reorder waypoints. A waypoint cannot duplicate another waypoint or match an endpoint; From and To may intentionally reference the same Place for a closed loop.
+
+Route editing keeps From, every Via waypoint, and To as fixed semantic anchors. Anonymous route vertices may be added, moved, or removed between them. **Clear Route** removes only custom geometry: the saved Place references remain, and Wayfarer draws the all-anchor fallback route in semantic order. Saving and cloning preserve waypoint identity, order, and custom-route indices; the viewer and readable output show the same journey order without creating duplicate Place markers.
+
 ![Segment Edit](images/segment-edit-1.JPG)
 
 ![Segment Route Details](images/segment-edit-2.JPG)
@@ -241,4 +245,6 @@ When editing a trip, the progress header shows:
 
 # Segment distance and duration
 
-Segment distance is read-only and always calculated from the saved route. Duration has explicit **Use automatic estimate** and **Manual** states. Automatic duration is unavailable when the route is incomplete or an administrator has cleared the linked profile speed. Manual duration, including zero, is preserved across route, endpoint, mode, and profile-speed changes until Automatic is explicitly selected.
+Segment distance is read-only and always calculated from the effective saved route: custom geometry when present, otherwise the ordered all-anchor fallback. Duration has explicit **Use automatic estimate** and **Manual** states. Automatic duration uses the selected administrator-managed transport profile's planning speed and is unavailable when the route is incomplete or that speed is cleared. Manual duration, including zero, remains authoritative across route, endpoint, waypoint, mode, and profile-speed changes until Automatic is explicitly selected.
+
+The measurement-provenance migration records whether each duration is Automatic or Manual. Downgrading past `20260802163750_AddSegmentMeasurementProvenance` removes that ownership information, including provenance written after upgrade.

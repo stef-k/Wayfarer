@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## [Unreleased]
+
+### Added
+- Added ordered saved-place waypoints within a single trip segment, including accessible web authoring, all-anchor fallback routes, anchor-aware custom geometry, readable/viewer presentation, clone support, and backward-compatible public API exposure (#388, #403–#414).
+- Added Wayfarer-native KML schema v2 round trips for waypoint identity, route indices, transport profiles, measurements, and Automatic/Manual provenance while retaining native v1 compatibility and exact waypoint-free generic KML behavior (#413, #414).
+
+### Changed
+- Replaced the fixed runtime transport-mode catalog with administrator-managed database profiles and made saved route geometry plus explicit measurement provenance authoritative for segment estimates (#403, #405).
+
 ## [1.8.1] - 2026-07-26
 
 ### Fixed
