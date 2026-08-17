@@ -4,6 +4,7 @@ import {
   editorApiPath,
   expectMountedWorkspace,
   expectNoSearchAddUi,
+  expectTripMapDescription,
   loadEditorStateFixture,
   signIn,
   editorPath
@@ -51,6 +52,7 @@ test.describe.serial('Trip Editor place coordinate map-work', () => {
     await expectPickOnMapHelp(page);
     const normalCursor = await mapCursor(page);
     await page.getByRole('button', { name: 'Pick on map' }).click();
+    await expectTripMapDescription(page, 'Select the Place location. Click the map or drag the marker; Done updates the draft.');
     const mapWork = page.getByRole('region', { name: 'Map work' });
     await expect(mapWork).toContainText('Pick place location');
     await expect(mapWork).toContainText('Selected');
