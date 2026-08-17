@@ -99,7 +99,7 @@ async function isPhoneDrawerViewport(page: Page): Promise<boolean> {
 
 // Confirms Leaflet mounted into a real map box after Vue rendered the workspace.
 export async function expectInitializedTripMap(page: Page): Promise<void> {
-  const map = page.getByLabel('Read-only trip map');
+  const map = tripMap(page);
   await expect(map).toBeVisible();
   await expect(map).toHaveClass(/leaflet-container/);
   await expect(map.locator('.leaflet-pane')).not.toHaveCount(0);
@@ -110,6 +110,16 @@ export async function expectInitializedTripMap(page: Page): Promise<void> {
   expect(box, 'Trip Editor map should have a rendered bounding box.').not.toBeNull();
   expect(box!.width, 'Trip Editor map should have usable width.').toBeGreaterThan(300);
   expect(box!.height, 'Trip Editor map should have usable height.').toBeGreaterThan(300);
+}
+
+// Locates the stable Trip map landmark independently of its current work mode.
+export function tripMap(page: Page): Locator {
+  return page.getByRole('region', { name: 'Trip map', exact: true });
+}
+
+// Confirms the exact instruction exposed for the map's current work owner.
+export async function expectTripMapDescription(page: Page, description: string): Promise<void> {
+  await expect(tripMap(page)).toHaveAccessibleDescription(description);
 }
 
 // Loads the editor API state used to derive runbook-specific E2E fixtures.

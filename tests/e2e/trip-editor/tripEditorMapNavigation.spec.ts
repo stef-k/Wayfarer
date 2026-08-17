@@ -5,10 +5,12 @@ import {
   expectInitializedTripMap,
   expectMountedWorkspace,
   expectNoSearchAddUi,
+  expectTripMapDescription,
   loadEditorStateFixture,
   regionCard,
   regionEditButton,
   signIn,
+  tripMap,
   editorPath
 } from './tripEditorTestUtils';
 
@@ -26,6 +28,7 @@ test.describe.serial('Trip Editor map navigation toolbar', () => {
     await expect(toolbar.getByRole('button', { name: 'Recenter Saved Trip View' })).toBeVisible();
     await expect(toolbar.getByRole('button', { name: 'Focus Active Entity' })).toBeVisible();
     await expectInitializedTripMap(page);
+    await expectTripMapDescription(page, 'View and navigate trip geography.');
     await expectNoSearchAddUi(page);
 
     const before = await metadataMapFieldValues(page);
@@ -436,7 +439,7 @@ async function expectPlaceDraftCoordinateValues(page: Page, values: { latitude: 
 
 async function readMapView(page: Page): Promise<MapViewSnapshot> {
   await expectUsableMapView(page);
-  return await page.getByLabel('Read-only trip map').evaluate(map => {
+  return await tripMap(page).evaluate(map => {
     const readTransform = (selector: string): string => {
       const element = map.querySelector(selector);
       return element ? getComputedStyle(element).transform : '';
@@ -453,7 +456,7 @@ async function readMapView(page: Page): Promise<MapViewSnapshot> {
 
 async function readMapViewCoordinates(page: Page): Promise<{ latitude: number; longitude: number; zoom: number }> {
   await expectUsableMapView(page);
-  return await page.getByLabel('Read-only trip map').evaluate(map => ({
+  return await tripMap(page).evaluate(map => ({
     latitude: Number((map as HTMLElement).dataset.tripEditorMapLat),
     longitude: Number((map as HTMLElement).dataset.tripEditorMapLng),
     zoom: Number((map as HTMLElement).dataset.tripEditorMapZoom)
@@ -487,7 +490,7 @@ async function expectMapViewChanged(page: Page, before: MapViewSnapshot, message
 
 async function expectUsableMapView(page: Page): Promise<void> {
   await expectInitializedTripMap(page);
-  const invalidTokens = await page.getByLabel('Read-only trip map').evaluate(map => {
+  const invalidTokens = await tripMap(page).evaluate(map => {
     const viewText = [
       map.getAttribute('class') ?? '',
       ...Array.from(map.querySelectorAll<HTMLElement>('.leaflet-pane, .leaflet-marker-icon, .leaflet-interactive')).map(element => `${element.getAttribute('style') ?? ''} ${element.getAttribute('d') ?? ''}`)
@@ -498,13 +501,13 @@ async function expectUsableMapView(page: Page): Promise<void> {
 }
 
 async function expectRenderedRouteGeometry(page: Page): Promise<void> {
-  await expect(page.getByLabel('Read-only trip map').locator('.leaflet-overlay-pane path')).not.toHaveCount(0);
+  await expect(tripMap(page).locator('.leaflet-overlay-pane path')).not.toHaveCount(0);
 }
 
 async function clickMap(page: Page, position: { xRatio: number; yRatio: number }): Promise<void> {
-  const map = page.getByLabel('Read-only trip map');
+  const map = tripMap(page);
   await map.scrollIntoViewIfNeeded();
   const box = await map.boundingBox();
-  expect(box, 'Read-only trip map should be rendered before map-work clicks.').not.toBeNull();
+  expect(box, 'Trip map should be rendered before map-work clicks.').not.toBeNull();
   await page.mouse.click(box!.x + box!.width * position.xRatio, box!.y + box!.height * position.yRatio);
 }

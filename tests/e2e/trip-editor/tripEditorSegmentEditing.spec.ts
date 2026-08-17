@@ -6,6 +6,7 @@ import {
   expectMountedWorkspace,
   expectNoLegacyEditorAction,
   expectNoSearchAddUi,
+  expectTripMapDescription,
   loadEditorStateFixture,
   signIn,
   editorPath
@@ -18,6 +19,23 @@ const secondSegmentId = '00000000-0000-0000-0000-000000266002';
 const editorApiMatcher = new RegExp(`${editorApiPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:/.*)?$`, 'i');
 
 test.describe.serial('Trip Editor segment editing', () => {
+  test('Segment route work exposes its exact map description', async ({ page }) => {
+    await signIn(page);
+    await loadWorkspaceWithSegmentFixture(page, state => {
+      const segment = state.segmentsById[segmentId];
+      const from = state.placesById[segment.fromPlaceId].location;
+      const to = state.placesById[segment.toPlaceId].location;
+      const route = { type: 'LineString', coordinates: [[from.longitude, from.latitude], [to.longitude, to.latitude]] };
+      segment.route = route;
+      segment.effectiveRoute = route;
+    });
+
+    await openEditableSegment(page);
+    await page.getByRole('button', { name: 'Draw/Edit Route' }).click();
+    await expect(page.getByRole('region', { name: 'Map work' })).toBeVisible();
+    await expectTripMapDescription(page, 'Edit the Segment route. Saved Place anchors are fixed; add, move, or remove other route points; Done updates the draft.');
+  });
+
   test('ordinary edits invisibly preserve waypoint aggregate state and token', async ({ page }) => {
     await signIn(page);
     const hiddenWaypointId = '00000000-0000-0000-0000-000000266099';

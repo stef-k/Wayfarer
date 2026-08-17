@@ -4,8 +4,10 @@ import {
   editorApiPath,
   expectMountedWorkspace,
   expectNoSearchAddUi,
+  expectTripMapDescription,
   loadEditorStateFixture,
   signIn,
+  tripMap,
   editorPath
 } from './tripEditorTestUtils';
 
@@ -164,10 +166,12 @@ test.describe.serial('Trip Editor place coordinate map-work', () => {
     const originalAnchor = await markerAnchor(activeDraftMarkers(page));
 
     await page.getByRole('button', { name: 'Pick on map' }).click();
+    await expectTripMapDescription(page, 'Select the Place location. Click the map or drag the marker; Done updates the draft.');
     await clickMap(page, { xRatio: 0.58, yRatio: 0.44 });
     const previewAnchor = await markerAnchor(activeDraftMarkers(page));
 
     await page.getByRole('region', { name: 'Map work' }).getByRole('button', { name: 'Done' }).click();
+    await expectTripMapDescription(page, 'View and navigate trip geography.');
     const form = page.locator('#trip-editor-place-form');
     await expect(form.getByLabel('Latitude')).not.toHaveValue('10');
     await expect(form.getByLabel('Longitude')).not.toHaveValue('20');
@@ -479,7 +483,7 @@ async function useMapWorkViewport(page: Page): Promise<void> {
 }
 
 async function clickMap(page: Page, position: { xRatio: number; yRatio: number }): Promise<void> {
-  const map = page.getByLabel('Read-only trip map');
+  const map = tripMap(page);
   await map.evaluate((element, point) => {
     const box = element.getBoundingClientRect();
     const clientX = box.left + box.width * point.xRatio;
@@ -491,7 +495,7 @@ async function clickMap(page: Page, position: { xRatio: number; yRatio: number }
 }
 
 async function mapCursor(page: Page): Promise<string> {
-  return page.getByLabel('Read-only trip map').evaluate(element => getComputedStyle(element).cursor);
+  return tripMap(page).evaluate(element => getComputedStyle(element).cursor);
 }
 
 async function blockTileRequests(page: Page): Promise<void> {
@@ -503,7 +507,7 @@ function activeDraftMarkers(page: Page): Locator {
 }
 
 async function mapView(page: Page): Promise<{ latitude: number; longitude: number; zoom: number }> {
-  return await page.getByLabel('Read-only trip map').evaluate(element => ({
+  return await tripMap(page).evaluate(element => ({
     latitude: Number((element as HTMLElement).dataset.tripEditorMapLat),
     longitude: Number((element as HTMLElement).dataset.tripEditorMapLng),
     zoom: Number((element as HTMLElement).dataset.tripEditorMapZoom)

@@ -45,6 +45,19 @@ const updatedLabel = computed(() =>
   state.value ? new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(state.value.metadata.updatedAt)) : ''
 );
 const isMapWorkActive = computed(() => editorSurface.isMapWorkActive.value);
+// Projects the authoritative map-work owner into the map landmark's exact instruction.
+const mapAccessibleDescription = computed(() => {
+  switch (editorSurface.mapWork.value?.target.kind) {
+    case 'place':
+      return 'Select the Place location. Click the map or drag the marker; Done updates the draft.';
+    case 'area':
+      return 'Edit the Area geometry. Click the map to place polygon vertices; Done updates the draft.';
+    case 'segment':
+      return 'Edit the Segment route. Saved Place anchors are fixed; add, move, or remove other route points; Done updates the draft.';
+    default:
+      return 'View and navigate trip geography.';
+  }
+});
 const selectedPlace = computed(() => selectedPlaceId.value && state.value ? state.value.placesById[selectedPlaceId.value] ?? null : null);
 const selectedPlaceRegionName = computed(() => selectedPlace.value && state.value ? state.value.regionsById[selectedPlace.value.regionId]?.name ?? null : null);
 const toolbarEyebrow = computed(() => {
@@ -537,7 +550,14 @@ function focusStatusText(result: FocusActiveEntityResult, target: { kind: string
           @clear-preview="clearSearchPreview"
           @preview="previewSearchResult"
         />
-        <div ref="mapElement" class="trip-editor-map" :aria-label="isMapWorkActive ? 'Trip map editing segment route; saved Place anchors are fixed' : 'Read-only trip map'"></div>
+        <div
+          ref="mapElement"
+          class="trip-editor-map"
+          role="region"
+          aria-label="Trip map"
+          aria-describedby="trip-editor-map-description"
+        ></div>
+        <p id="trip-editor-map-description" class="visually-hidden">{{ mapAccessibleDescription }}</p>
       </main>
     </template>
 

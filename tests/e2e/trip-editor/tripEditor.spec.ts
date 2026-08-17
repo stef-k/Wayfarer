@@ -16,6 +16,7 @@ import {
   editorPath,
   pathRegex,
   regionEditButton,
+  tripMap,
   signIn,
   signInAs,
   uniqueName,
@@ -290,7 +291,7 @@ test.describe.serial('Trip Editor dev verification', () => {
     await expectMountedWorkspace(page);
 
     await expect(page.locator('.trip-editor-sidebar')).toBeVisible();
-    await expect(page.getByLabel('Read-only trip map')).toBeVisible();
+    await expect(tripMap(page)).toBeVisible();
     await page.getByRole('button', { name: 'Edit Trip' }).click();
     await page.getByRole('button', { name: 'Expand Editor' }).click();
     await expect(page.getByRole('dialog', { name: /Edit Trip -/i })).toBeVisible();
