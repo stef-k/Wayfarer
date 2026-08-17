@@ -130,6 +130,7 @@ export const createTripEditorMap = (element: HTMLElement, tilesUrl: string, opti
       presentations.push(resolveDraftSegmentPresentation(activeSegmentDraft, state));
     }
     segmentPresentation.render(presentations, activeSegmentKey);
+    (window as typeof window & { __segmentPresentationSnapshot?: unknown }).__segmentPresentationSnapshot = segmentPresentation.snapshot();
 
     if (!initialViewApplied) {
       initialViewApplied = true;
@@ -142,9 +143,8 @@ export const createTripEditorMap = (element: HTMLElement, tilesUrl: string, opti
   };
 
   const setSegmentDraftPreview = (state: EditorTripState, preview: SegmentDraftRoutePreview | null): void => {
-    segmentDraftPreview.set(preview);
-    // Reconcile the normal layer and preview in one synchronous adapter render.
-    render(state, lastHiddenSegmentIds, selectedPlaceId);
+    // The unified S/D/W registry owns the sole route representation; retain this API until callers migrate.
+    segmentDraftPreview.set(null);
   };
 
   const applyActivePlaceDraftPreview = (state: EditorTripState): void => {

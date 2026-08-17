@@ -245,7 +245,11 @@ async function selectSegment(key: SegmentPresentationKey): Promise<boolean> {
   navigationStatus.value = key.kind === 'persisted'
     ? `Selected segment: ${state.value.segmentsById[key.id]?.mode || 'Segment'}`
     : 'Selected new Segment draft';
-  mapAdapter?.setSegmentPresentation(state.value, key, activeSegmentDraft.value?.key.kind === key.kind ? activeSegmentDraft.value : null);
+  const retainedDraft = activeSegmentDraft.value;
+  const retainedKey = retainedDraft?.key;
+  const ownsRetainedDraft = retainedKey?.kind === key.kind
+    && (key.kind === 'persisted' ? retainedKey.id === key.id : retainedKey.token === key.token);
+  mapAdapter?.setSegmentPresentation(state.value, key, ownsRetainedDraft ? retainedDraft : null);
   return true;
 }
 

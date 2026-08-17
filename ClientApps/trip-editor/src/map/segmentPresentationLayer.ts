@@ -38,7 +38,7 @@ export const createSegmentPresentationLayer = (
     badgeGroup.clearLayers();
     presentations.forEach(presentation => addEntry(presentation, sameKey(presentation.key, activeKey)));
     const active = presentations.find(presentation => sameKey(presentation.key, activeKey));
-    if (active?.directionTrustworthy) renderBadges(active);
+    if (active) renderBadges(active);
   };
 
   const addEntry = (presentation: EditorSegmentPresentation, active: boolean): void => {
@@ -58,7 +58,13 @@ export const createSegmentPresentationLayer = (
         : 'Route direction unavailable')
       .addTo(group);
     const chevrons = presentation.directionTrustworthy ? renderChevrons(presentation, active, group) : [];
-    line.getElement()?.setAttribute('data-segment-presentation-owner', keyText(presentation.key));
+    const lineElement = line.getElement();
+    if (lineElement) {
+      lineElement.dataset.segmentId = presentation.segmentId ?? keyText(presentation.key);
+      lineElement.dataset.segmentPresentationOwner = keyText(presentation.key);
+      lineElement.dataset.routeOwner = presentation.source === 'S' ? 'saved' : presentation.source === 'D' ? 'draft' : 'work';
+      lineElement.dataset.routeKind = presentation.hasCustomRoute ? 'custom' : 'fallback';
+    }
     hit.getElement()?.setAttribute('data-segment-hit-owner', keyText(presentation.key));
     registry.set(keyText(presentation.key), { presentation, group, line, hit, chevrons });
   };

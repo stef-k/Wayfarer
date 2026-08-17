@@ -55,11 +55,12 @@ test('recalculates complete labels after anchor changes and independently per Se
 
 /** Proves a loop retains semantic roles while producing one canonical marker badge. */
 test('combines closed-loop badge labels without duplicating the canonical Place', () => {
-  const result = resolveSegmentAnchors([
+  const anchors = [
     anchor(0, 'athens', 'Athens', 'start'),
     anchor(1, 'delphi', 'Delphi', 'via'),
     anchor(2, 'athens', 'Athens', 'end')
-  ]);
+  ];
+  const result = resolveSegmentAnchors(anchors);
 
   assert.deepEqual(result.anchors.map(item => [item.label, item.roleText]), [
     ['A', 'Start'], ['B', 'Via 1'], ['C', 'End']
@@ -67,6 +68,13 @@ test('combines closed-loop badge labels without duplicating the canonical Place'
   assert.deepEqual(result.badges.map(item => [item.placeId, item.label]), [
     ['athens', 'A/C'], ['delphi', 'B']
   ]);
+
+  const located = anchors.map((item, index) => ({
+    ...item,
+    location: index === 1 ? [11, 21] : [10, 20],
+    routeVertexIndex: index
+  }));
+  assert.equal(classifySegmentOrientation(located, [[10, 20], [11, 21], [10, 20]], true), 'forward');
 });
 
 /** Proves classification is deterministic and never mutates legacy geometry. */

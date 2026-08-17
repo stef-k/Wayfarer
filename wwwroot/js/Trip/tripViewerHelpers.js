@@ -329,7 +329,7 @@ export const setActiveSegment = (map, sid) => {
         renderSegmentDecorations(map, entry);
     });
     const active = _activeSegmentId ? _segments[_activeSegmentId] : null;
-    if (active && active.orientation !== 'ambiguous') renderActiveBadges(map, active);
+    if (active) renderActiveBadges(map, active);
 };
 
 /** Exposes bounded serializable registry evidence without private text. */

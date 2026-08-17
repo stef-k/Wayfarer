@@ -130,6 +130,10 @@ public static class ViewerSegmentJourneyResolver
             ? WithinLegacyThreshold(route.Coordinates[0], anchors[^1].Location!.Coordinate)
                 && WithinLegacyThreshold(route.Coordinates[^1], anchors[0].Location!.Coordinate)
             : MatchesWaypointOrder(route, waypoints, anchors, reversed: true);
+        if (forward && anchors[0].PlaceId == anchors[^1].PlaceId)
+        {
+            return ((LineString)route.Copy(), "forward");
+        }
         if (forward == reversed) return null;
         return ((LineString)route.Copy(), forward ? "forward" : "reversed");
     }

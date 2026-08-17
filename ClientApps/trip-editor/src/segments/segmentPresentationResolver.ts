@@ -129,6 +129,7 @@ export function classifySegmentOrientation(
     const reversed = coordinatesMatch(coordinates[0], anchors.at(-1)!.location!)
       && coordinatesMatch(coordinates.at(-1)!, anchors[0].location!)
       && numeric.every((value, index) => index === 0 || value < numeric[index - 1]);
+    if (forward && anchors[0].placeId === anchors.at(-1)!.placeId) return 'forward';
     return forward === reversed ? 'ambiguous' : forward ? 'forward' : 'reversed';
   }
 
@@ -138,6 +139,7 @@ export function classifySegmentOrientation(
   const routeEnd = coordinates.at(-1)!;
   const forward = haversineKm(routeStart, start) <= 0.25 && haversineKm(routeEnd, end) <= 0.25;
   const reversed = haversineKm(routeStart, end) <= 0.25 && haversineKm(routeEnd, start) <= 0.25;
+  if (forward && anchors[0].placeId === anchors.at(-1)!.placeId) return 'forward';
   return forward === reversed ? 'ambiguous' : forward ? 'forward' : 'reversed';
 }
 

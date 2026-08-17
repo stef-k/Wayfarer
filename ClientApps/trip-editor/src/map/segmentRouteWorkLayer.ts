@@ -46,13 +46,6 @@ export const createSegmentRouteWorkLayer = (map: LeafletMap): {
     const line = L.polyline(geometry.coordinates.map(([longitude, latitude]) => [latitude, longitude]), routeHitStyle())
       .on('click', insertAtNearestInterval)
       .addTo(group);
-    const element = line.getElement() as SVGElement | null;
-    if (element) {
-      element.dataset.segmentId = options.identity;
-      element.dataset.routeOwner = 'work';
-      element.dataset.routeKind = state.cleared || state.origin === 'fallback' && !state.changedCustom ? 'fallback' : 'custom';
-    }
-
     state.nodes.forEach((node, index) => {
       if (node.kind === 'anchor') {
         return;

@@ -87,7 +87,7 @@ const draftOrientation = computed(() => {
 
 watch(isDirty, value => emit('dirtyStateChanged', value), { immediate: true });
 watch(
-  () => [draft.id, draft.fromPlaceId, draft.toPlaceId, JSON.stringify(draft.route), JSON.stringify(draft.waypointRows), props.hiddenSegmentIds.has(draft.id ?? '')],
+  () => [draft.id, draft.fromPlaceId, draft.toPlaceId, JSON.stringify(draft.route), JSON.stringify(draft.waypointRows)],
   () => { syncRouteDraftPreview(); publishPresentation(); },
   { flush: 'sync' }
 );
@@ -477,7 +477,9 @@ const createPresentationKey = (): SegmentPresentationKey => ({ kind: 'create-dra
 
 /** Derives current compact and accessible text from persisted ordered anchors. */
 function segmentJourney(segment: EditorSegment): { compact: string; accessible: string } {
-  const presentation = resolvePersistedSegmentPresentation(segment, props.state);
+  const presentation = draft.id === segment.id && props.editorSurface.isTargetActive(activeSegmentTarget.value)
+    ? resolveDraftSegmentPresentation({ key: persistedPresentationKey(segment.id), draft, work: routeMapWork.work }, props.state)
+    : resolvePersistedSegmentPresentation(segment, props.state);
   return { compact: presentation.anchors.compactTrail, accessible: presentation.anchors.accessibleName };
 }
 

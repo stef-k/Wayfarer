@@ -62,6 +62,8 @@ public sealed class ViewerSegmentJourneyResolverTests
         var segment = SegmentWithWaypoints(1);
         segment.ToPlaceId = segment.FromPlaceId;
         segment.ToPlace = segment.FromPlace;
+        segment.RouteGeometry = Line((1, 1), (2, 2), (1, 1));
+        Assert.Single(segment.Waypoints).RouteVertexIndex = 1;
 
         var result = ViewerSegmentJourneyResolver.Resolve(segment, segment.TripId, waypointsLoaded: true);
 
@@ -72,6 +74,8 @@ public sealed class ViewerSegmentJourneyResolverTests
         Assert.Equal("End", result.Anchors[^1].Role);
         Assert.Equal(result.Anchors[0].PlaceId, result.Anchors[^1].PlaceId);
         Assert.Contains("1 1", result.RouteWkt);
+        Assert.Equal(3, result.RoutePointCount);
+        Assert.Equal("forward", result.RouteOrientation);
     }
 
     [Fact]
