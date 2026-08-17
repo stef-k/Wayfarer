@@ -144,7 +144,9 @@ test.describe('Trip Editor icon selector', () => {
     await expect(iconSelector.locator('[data-icon-selector-selected-name]')).toHaveText('star');
     await expect(iconSelector.locator('[data-icon-selector-selected-image]')).toHaveAttribute('src', /\/marker\/bg-blue\/star\.png$/);
     await expect(sidebarPlaceIcon(page)).toHaveAttribute('src', /\/marker\/bg-blue\/star\.png$/);
-    await expect(displayedMapPlaceIcon(page)).toHaveAttribute('src', /\/marker\/bg-blue\/star\.png$/);
+    await expect(draftPreviewMarkerIcon(page)).toHaveCount(1);
+    await expect(savedMapPlaceIcon(page)).toHaveCount(0);
+    await expect(draftPreviewMarkerIcon(page)).toHaveAttribute('src', /\/marker\/bg-blue\/star\.png$/);
     await expectLoadedImages(iconSelector.locator('[data-icon-selector-selected-image]'));
 
     await openColorSelector(page);
@@ -156,7 +158,9 @@ test.describe('Trip Editor icon selector', () => {
     await expect(colorSelector.locator('[data-icon-selector-selected-name]')).toHaveText('Purple');
     await expect(iconSelector.locator('[data-icon-selector-selected-image]')).toHaveAttribute('src', /\/marker\/bg-purple\/star\.png$/);
     await expect(sidebarPlaceIcon(page)).toHaveAttribute('src', /\/marker\/bg-purple\/star\.png$/);
-    await expect(displayedMapPlaceIcon(page)).toHaveAttribute('src', /\/marker\/bg-purple\/star\.png$/);
+    await expect(draftPreviewMarkerIcon(page)).toHaveCount(1);
+    await expect(savedMapPlaceIcon(page)).toHaveCount(0);
+    await expect(draftPreviewMarkerIcon(page)).toHaveAttribute('src', /\/marker\/bg-purple\/star\.png$/);
 
     await openIconSelector(page);
     await page.locator('[data-icon-selector-search]').press('Escape');
@@ -176,6 +180,7 @@ test.describe('Trip Editor icon selector', () => {
     await page.setViewportSize({ width: 390, height: 900 });
     await page.reload();
     await expectMountedWorkspace(page);
+    await expect(savedMapPlaceIcon(page)).toHaveAttribute('src', /\/marker\/bg-purple\/star\.png$/);
     await page.getByRole('button', { name: 'Regions' }).click();
     await openPlace(page);
     await expect(page.locator('[data-selector-kind="icon"] [data-icon-selector-selected-name]')).toHaveText('star');
@@ -357,6 +362,7 @@ async function expectIconOptionReachability(page: Page): Promise<void> {
   for (let index = 0; index < 20 && !await optionInsideList(last, options); index += 1) {
     await page.mouse.wheel(0, 180);
   }
+  expect(await optionInsideList(last, options), 'Last icon option should be fully contained by the options list.').toBe(true);
   await expect(last).toBeInViewport();
   expect(await options.evaluate(element => element.scrollTop), 'Options list should consume downward wheel input.').toBeGreaterThan(0);
   expect(await editorOwner.evaluate(element => element.scrollTop), 'Option scrolling should not move the surrounding editor owner.').toBe(ownerStart);
@@ -539,9 +545,14 @@ function sidebarPlaceIcon(page: Page): Locator {
   return page.locator(`[data-place-id="${placeId}"] [data-sidebar-place-icon]`);
 }
 
-// An open place editor replaces its saved marker with the visible draft-preview marker.
-function displayedMapPlaceIcon(page: Page): Locator {
-  return page.locator(`[data-place-marker-icon="${placeId}"], [data-place-draft-preview-marker]`);
+// Locates the saved Place marker, which is absent while the open editor owns its draft preview.
+function savedMapPlaceIcon(page: Page): Locator {
+  return page.locator(`[data-place-marker-icon="${placeId}"]`);
+}
+
+// Locates the open Place editor's exclusive draft-preview marker.
+function draftPreviewMarkerIcon(page: Page): Locator {
+  return page.locator('[data-place-draft-preview-marker]');
 }
 
 function draftMarkers(page: Page): Locator {
