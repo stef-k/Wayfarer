@@ -104,6 +104,29 @@ test.describe.serial('Trip Editor sidebar search verification', () => {
     await expect(card.getByRole('button', { name: 'Expand' })).toBeEnabled();
   });
 
+  test('disables Collapse while an editor forces its Region open without changing ordinary collapse state', async ({ page }) => {
+    await signIn(page);
+    const state = await loadEditorStateFixture(page);
+    const fixture = sidebarSearchFixture(state);
+    await page.goto(absoluteUrl(editorPath));
+    await expectMountedWorkspace(page);
+
+    const card = regionCard(page, fixture.region.name);
+    const children = card.locator('ul');
+    await card.getByRole('button', { name: 'Collapse' }).click();
+    await expect(children).toBeHidden();
+
+    await regionEditButton(card).click();
+    const forcedCollapse = card.getByRole('button', { name: 'Collapse' });
+    await expect(children).toBeVisible();
+    await expect(forcedCollapse).toHaveAttribute('aria-expanded', 'true');
+    await expect(forcedCollapse).toBeDisabled();
+
+    await closeDraftWithDiscard(page);
+    await expect(children).toBeHidden();
+    await expect(card.getByRole('button', { name: 'Expand' })).toBeEnabled();
+  });
+
   test('filters areas when the configured trip has area fixture data', async ({ page }) => {
     await signIn(page);
     const state = await loadEditorStateFixture(page);
