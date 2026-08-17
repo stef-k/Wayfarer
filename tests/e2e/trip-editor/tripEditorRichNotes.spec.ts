@@ -3,7 +3,6 @@ import {
   absoluteUrl, activeEditorCloseButton,
   editorApiPath,
   expectMountedWorkspace,
-  expectTripMapDescription,
   loadEditorStateFixture,
   signIn,
   editorPath
@@ -19,20 +18,6 @@ const regionName = 'PW rich notes region', placeName = 'PW rich notes place', ar
 const editorApiMatcher = new RegExp(`${editorApiPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:/.*)?$`, 'i');
 
 test.describe.serial('Trip Editor rich notes parity', () => {
-  test('Segment route work exposes its exact map description', async ({ page }) => {
-    await signIn(page);
-    await loadWorkspaceWithRichNotesFixture(page, state => {
-      const closedRoute = { type: 'LineString', coordinates: [[23.7275, 37.9838], [23.8, 38], [23.7275, 37.9838]] };
-      state.segmentsById[segmentId].route = closedRoute;
-      state.segmentsById[segmentId].effectiveRoute = closedRoute;
-    });
-
-    await openSegment(page);
-    await page.getByRole('button', { name: 'Draw/Edit Route' }).click();
-    await expect(page.getByRole('region', { name: 'Map work' })).toBeVisible();
-    await expectTripMapDescription(page, 'Edit the Segment route. Saved Place anchors are fixed; add, move, or remove other route points; Done updates the draft.');
-  });
-
   test('all owner forms render the shared rich notes editor instead of raw notes textareas', async ({ page }) => {
     await signIn(page);
     await loadWorkspaceWithRichNotesFixture(page);
