@@ -84,7 +84,7 @@
                                     new Microsoft.AspNetCore.Mvc.ViewFeatures.ViewDataDictionary(ViewData) { ["Interactive"] = true })
                                 @if (HtmlHelpers.HasVisibleContent(seg?.Notes))
                                 {
-                                    <div class="text-muted mt-1 segment-notes-preview" style="max-height: 100px; overflow-y: auto;">
+                                    <div class="text-muted mt-1 segment-notes-preview rich-notes-content" style="max-height: 100px; overflow-y: auto;">
                                         @Html.ProxyNotesImages(seg?.Notes)
                                     </div>
                                 }

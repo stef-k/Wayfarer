@@ -12,6 +12,15 @@ namespace Wayfarer.Tests.Util;
 /// </summary>
 public class HtmlHelpersTests
 {
+    [Theory]
+    [InlineData("<p>Before</p><ol><li data-list=\"ordered\">One</li><li data-list=\"ordered\"><br></li></ol><p><br></p>", "<p>Before</p><ol><li data-list=\"ordered\">One</li></ol>")]
+    [InlineData("<ol><li data-list=\"ordered\">One</li><li data-list=\"ordered\"><br></li><li data-list=\"ordered\">Three</li></ol>", "<ol><li data-list=\"ordered\">One</li><li data-list=\"ordered\"><br></li><li data-list=\"ordered\">Three</li></ol>")]
+    [InlineData("<ul><li data-list=\"bullet\"><img src=\"https://example.test/a.jpg\"></li><li data-list=\"bullet\"> </li></ul>", "<ul><li data-list=\"bullet\"><img src=\"https://example.test/a.jpg\"></li></ul>")]
+    public void NormalizeNotesForDisplay_RemovesOnlyTerminalBlankArtifacts(string input, string expected)
+    {
+        Assert.Equal(expected, HtmlHelpers.NormalizeNotesForDisplay(input));
+    }
+
     private static string Render(IHtmlContent content)
     {
         using var writer = new StringWriter();
@@ -90,7 +99,7 @@ public class HtmlHelpersTests
     [InlineData("<div><p>Nested content</p></div>", true)]
     [InlineData("Plain text without tags", true)]
     [InlineData("<p>Text with &nbsp; space</p>", true)]
-    [InlineData("<img src='test.jpg' alt='Image'>", false)] // Image without text returns false
+    [InlineData("<img src='test.jpg' alt='Image'>", true)] // Image-only notes are visible content.
     public void HasVisibleContent_ReturnsTrue_ForContentWithText(string input, bool expected)
     {
         var result = HtmlHelpers.HasVisibleContent(input);

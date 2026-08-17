@@ -335,7 +335,7 @@
 
             @if (!string.IsNullOrWhiteSpace(Model.Notes))
             {
-                <div class="trip-notes px-3 pb-2" style="max-height: 200px; overflow-y: auto;">
+                <div class="trip-notes rich-notes-content px-3 pb-2" style="max-height: 200px; overflow-y: auto;">
                     @Html.LinkifyHtml(Model.Notes)
                 </div>
             }
@@ -466,7 +466,7 @@
                 <!-- Notes -->
                 @if (!string.IsNullOrWhiteSpace(Model.Notes))
                 {
-                    <div class="trip-notes-readable mb-4">
+                    <div class="trip-notes-readable rich-notes-content mb-4">
                         <h6 class="text-muted mb-2">Notes</h6>
                         <div class="fs-6">
                             @Html.ProxyNotesImages(Model.Notes)
@@ -494,7 +494,7 @@
 
                             @if (!string.IsNullOrWhiteSpace(region.Notes))
                             {
-                                <div class="mb-3 text-muted">
+                                <div class="mb-3 text-muted rich-notes-content">
                                     @Html.ProxyNotesImages(region.Notes)
                                 </div>
                             }
@@ -514,7 +514,7 @@
                                                     <strong class="itinerary-place-label">@ItineraryPresentation.Label(placeIndex + 1, place.Name)</strong>
                                                     @if (!string.IsNullOrWhiteSpace(place.Notes))
                                                     {
-                                                        <div class="small text-muted mt-1">
+                                                        <div class="small text-muted mt-1 rich-notes-content">
                                                             @Html.ProxyNotesImages(place.Notes)
                                                         </div>
                                                     }

@@ -1,0 +1,9 @@
+/* Shared rich-note rhythm is scoped to note surfaces and leaves Bootstrap typography unchanged. */
+.rich-notes-content { line-height: 1.5; }
+.rich-notes-content :is(p, ol, ul, blockquote) { margin: 0 0 0.75rem; }
+.rich-notes-content :is(h1, h2, h3, h4, h5, h6) { margin: 1rem 0 0.5rem; }
+.rich-notes-content > :first-child { margin-top: 0; }
+.rich-notes-content > :last-child { margin-bottom: 0; }
+.rich-notes-content :is(ol, ul) { padding-inline-start: 1.5rem; }
+.rich-notes-content li + li { margin-top: 0.25rem; }
+.rich-notes-content img { display: block; height: auto; margin: 0.75rem auto; max-width: 100%; }

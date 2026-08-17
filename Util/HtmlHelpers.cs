@@ -1,5 +1,7 @@
 using System.Text.Encodings.Web;
 using System.Text.RegularExpressions;
+using AngleSharp.Dom;
+using AngleSharp.Html.Parser;
 using Microsoft.AspNetCore.Html;
 using Microsoft.AspNetCore.Mvc.Rendering;
 
@@ -7,6 +9,7 @@ namespace Wayfarer.Util
 {
     public static class HtmlHelpers
     {
+        private static readonly HtmlParser _htmlParser = new();
         private static readonly Regex _urlRegex = new Regex(
             @"(?<url>https?://[^\s<]+)", 
             RegexOptions.Compiled | RegexOptions.IgnoreCase
@@ -47,7 +50,7 @@ namespace Wayfarer.Util
                 return HtmlString.Empty;
 
             // run regex replace _on the raw HTML_ so existing tags stay intact
-            string linked = _urlInTextRegex.Replace(htmlContent, m =>
+            string linked = _urlInTextRegex.Replace(NormalizeNotesForDisplay(htmlContent), m =>
                 $"<a href=\"{m.Value}\" target=\"_blank\" rel=\"noopener noreferrer\">{m.Value}</a>"
             );
 
@@ -95,7 +98,8 @@ namespace Wayfarer.Util
             if (string.IsNullOrEmpty(htmlContent))
                 return HtmlString.Empty;
 
-            var result = _externalImgSrcRegex.Replace(htmlContent, m =>
+            var displayHtml = NormalizeNotesForDisplay(htmlContent);
+            var result = _externalImgSrcRegex.Replace(displayHtml, m =>
             {
                 var prefix = m.Groups[1].Value;
                 var url = m.Groups["url"].Value;
@@ -107,7 +111,7 @@ namespace Wayfarer.Util
                 var hasLoading = _loadingAttrRegex.IsMatch(prefix);
                 if (!hasLoading)
                 {
-                    var afterMatch = htmlContent.AsSpan(m.Index + m.Length);
+                    var afterMatch = displayHtml.AsSpan(m.Index + m.Length);
                     var closingBracket = afterMatch.IndexOf('>');
                     if (closingBracket >= 0)
                         hasLoading = _loadingAttrRegex.IsMatch(
@@ -138,8 +142,12 @@ namespace Wayfarer.Util
             if (string.IsNullOrWhiteSpace(htmlContent))
                 return false;
 
+            var displayHtml = NormalizeNotesForDisplay(htmlContent);
+            if (Regex.IsMatch(displayHtml, @"<(?:img|video|audio|iframe)\b", RegexOptions.IgnoreCase))
+                return true;
+
             // Strip all HTML tags and check if any visible text remains
-            var textOnly = _htmlTagRegex.Replace(htmlContent, "");
+            var textOnly = _htmlTagRegex.Replace(displayHtml, "");
 
             // Also handle HTML entities for whitespace
             textOnly = textOnly
@@ -148,5 +156,57 @@ namespace Wayfarer.Util
 
             return !string.IsNullOrWhiteSpace(textOnly);
         }
+
+        /// <summary>
+        /// Removes only semantically blank terminal editor artifacts for legacy display.
+        /// Stored HTML remains unchanged and this method is not a general sanitizer.
+        /// </summary>
+        public static string NormalizeNotesForDisplay(string? htmlContent)
+        {
+            if (string.IsNullOrWhiteSpace(htmlContent))
+                return string.Empty;
+
+            var body = _htmlParser.ParseDocument(htmlContent).Body;
+            if (body == null)
+                return string.Empty;
+
+            var changed = false;
+            var passChanged = true;
+            while (passChanged)
+            {
+                passChanged = false;
+                var terminal = body.LastElementChild;
+                if (terminal != null && terminal.LocalName == "p" && IsSemanticallyBlank(terminal))
+                {
+                    terminal.Remove();
+                    changed = true;
+                    passChanged = true;
+                    continue;
+                }
+
+                if (terminal == null || (terminal.LocalName != "ol" && terminal.LocalName != "ul"))
+                    continue;
+
+                while (terminal.LastElementChild?.LocalName == "li" && IsSemanticallyBlank(terminal.LastElementChild))
+                {
+                    terminal.LastElementChild.Remove();
+                    changed = true;
+                    passChanged = true;
+                }
+
+                if (!terminal.Children.Any(child => child.LocalName == "li"))
+                {
+                    terminal.Remove();
+                    changed = true;
+                    passChanged = true;
+                }
+            }
+
+            return changed ? body.InnerHtml.Trim() : htmlContent.Trim();
+        }
+
+        private static bool IsSemanticallyBlank(IElement element) =>
+            string.IsNullOrWhiteSpace((element.TextContent ?? string.Empty).Replace('\u00a0', ' '))
+            && element.QuerySelector("img, video, audio, iframe") == null;
     }
 }

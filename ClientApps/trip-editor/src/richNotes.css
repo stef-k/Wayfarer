@@ -25,6 +25,38 @@
 
 .trip-editor-rich-notes__editor.ql-container .ql-editor {
   min-height: 9rem;
+  line-height: 1.5;
+}
+
+.trip-editor-rich-notes__editor.ql-container .ql-editor :is(p, ol, ul, blockquote) {
+  margin: 0 0 0.75rem;
+}
+
+.trip-editor-rich-notes__editor.ql-container .ql-editor :is(h1, h2, h3, h4, h5, h6) {
+  margin: 1rem 0 0.5rem;
+}
+
+.trip-editor-rich-notes__editor.ql-container .ql-editor > :first-child {
+  margin-top: 0;
+}
+
+.trip-editor-rich-notes__editor.ql-container .ql-editor > :last-child {
+  margin-bottom: 0;
+}
+
+.trip-editor-rich-notes__editor.ql-container .ql-editor :is(ol, ul) {
+  padding-inline-start: 1.5rem;
+}
+
+.trip-editor-rich-notes__editor.ql-container .ql-editor li + li {
+  margin-top: 0.25rem;
+}
+
+.trip-editor-rich-notes__editor.ql-container .ql-editor img {
+  display: block;
+  height: auto;
+  margin: 0.75rem auto;
+  max-width: 100%;
 }
 
 .trip-editor-rich-notes .ql-picker,

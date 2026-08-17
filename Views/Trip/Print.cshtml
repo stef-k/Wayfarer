@@ -103,7 +103,7 @@
 
     @if (!string.IsNullOrWhiteSpace(trip.Notes))
     {
-        <div class="notes text-left">@Html.Raw(trip.Notes)</div>
+        <div class="notes rich-notes-content text-left">@Html.Raw(HtmlHelpers.NormalizeNotesForDisplay(trip.Notes))</div>
     }
 </section>
 
@@ -178,7 +178,7 @@
 
                     @if (!string.IsNullOrWhiteSpace(s.Notes))
                     {
-                        <div class="notes">@Html.Raw(s.Notes)</div>
+                        <div class="notes rich-notes-content">@Html.Raw(HtmlHelpers.NormalizeNotesForDisplay(s.Notes))</div>
                     }
                 </li>
             }
@@ -204,7 +204,7 @@
 
         @if (!string.IsNullOrWhiteSpace(r.Notes))
         {
-            <div class="notes">@Html.Raw(r.Notes)</div>
+            <div class="notes rich-notes-content">@Html.Raw(HtmlHelpers.NormalizeNotesForDisplay(r.Notes))</div>
         }
 
         <!-- places -->
@@ -238,7 +238,7 @@
 
                 @if (!string.IsNullOrWhiteSpace(p.Notes))
                 {
-                    <div class="notes">@Html.Raw(p.Notes)</div>
+                    <div class="notes rich-notes-content">@Html.Raw(HtmlHelpers.NormalizeNotesForDisplay(p.Notes))</div>
                 }
             </section>
         }
