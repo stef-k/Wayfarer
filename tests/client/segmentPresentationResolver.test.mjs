@@ -179,6 +179,26 @@ test('searches the combined fallback grid before a preferred position without fo
   assert.deepEqual(viewerResult, editorResult);
 });
 
+/** Proves controls and placed badges accept four pixels of clearance and reject only three. */
+test('enforces the combined fallback clearance boundary for every blocker source', async () => {
+  const editor = await import('../../ClientApps/trip-editor/src/segments/segmentPresentationResolver.ts');
+  const viewer = await import(`../../wwwroot/js/Trip/segmentPresentation.js?clearanceBoundary=${Date.now()}`);
+  const bounds = { left: 0, top: 0, right: 200, bottom: 160 };
+  const anchorPoint = [[190, 150]];
+  const badgeSize = { width: 50, height: 24 };
+  const fourPixelsAway = { left: 58, top: 4, right: 108, bottom: 28 };
+  const threePixelsAway = { left: 57, top: 4, right: 107, bottom: 28 };
+  const accepted = { left: 4, top: 4, width: 50, height: 24, offsetIndex: -1, fallback: true };
+  const rejected = { left: 111, top: 4, width: 50, height: 24, offsetIndex: -1, fallback: true };
+
+  for (const implementation of [editor, viewer]) {
+    assert.deepEqual(implementation.placeCombinedRouteBadge(anchorPoint, badgeSize, bounds, [fourPixelsAway], []), accepted);
+    assert.deepEqual(implementation.placeCombinedRouteBadge(anchorPoint, badgeSize, bounds, [threePixelsAway], []), rejected);
+    assert.deepEqual(implementation.placeCombinedRouteBadge(anchorPoint, badgeSize, bounds, [], [fourPixelsAway]), accepted);
+    assert.deepEqual(implementation.placeCombinedRouteBadge(anchorPoint, badgeSize, bounds, [], [threePixelsAway]), rejected);
+  }
+});
+
 /** Proves combined labels fit losslessly and identically without splitting the atomic closed-loop token. */
 test('fits over-wide combined labels into deterministic lossless lines', async () => {
   const editor = await import('../../ClientApps/trip-editor/src/segments/segmentPresentationResolver.ts');

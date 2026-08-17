@@ -82,7 +82,9 @@ export const placeCombinedRouteBadge = (
   const gap = 4;
   const usable = { left: mapBounds.left + inset, top: mapBounds.top + inset,
     right: mapBounds.right - inset, bottom: mapBounds.bottom - inset };
-  const blockers = [...controlBounds, ...placedBounds];
+  const blockers = [...controlBounds, ...placedBounds].map(blocker => ({
+    left: blocker.left - gap, top: blocker.top - gap, right: blocker.right + gap, bottom: blocker.bottom + gap
+  }));
   const preferred = placeRouteBadge(anchors[0], size, mapBounds, controlBounds, placedBounds);
   const clampX = (value: number): number => Math.max(usable.left, Math.min(value, usable.right - size.width));
   const clampY = (value: number): number => Math.max(usable.top, Math.min(value, usable.bottom - size.height));
@@ -90,10 +92,10 @@ export const placeCombinedRouteBadge = (
     left: clampX(left), top: clampY(top), width: size.width, height: size.height, offsetIndex: -1, fallback: true });
   const preferredBounded = bounded(preferred.left, preferred.top);
   const xValues = uniqueSorted([usable.left, usable.right - size.width,
-    ...blockers.flatMap(blocker => [blocker.left - size.width - gap, blocker.right + gap])].map(clampX));
+    ...blockers.flatMap(blocker => [blocker.left - size.width, blocker.right])].map(clampX));
   const yValues = uniqueSorted([usable.top, usable.bottom - size.height,
-    ...blockers.flatMap(blocker => [blocker.top - size.height - gap, blocker.bottom + gap])].map(clampY));
-  const candidates = [preferredBounded, ...yValues.flatMap(top => xValues.map(left => bounded(left, top)))];
+    ...blockers.flatMap(blocker => [blocker.top - size.height, blocker.bottom])].map(clampY));
+  const candidates = yValues.flatMap(top => xValues.map(left => bounded(left, top)));
   return candidates.find(candidate => {
     const rectangle = withEdges(candidate);
     return rectangle.left >= usable.left && rectangle.top >= usable.top

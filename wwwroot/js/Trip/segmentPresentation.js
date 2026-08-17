@@ -102,7 +102,9 @@ export const placeCombinedRouteBadge = (anchors, size, mapBounds, controlBounds,
     const gap = 4;
     const usable = {left: mapBounds.left + inset, top: mapBounds.top + inset,
         right: mapBounds.right - inset, bottom: mapBounds.bottom - inset};
-    const blockers = [...controlBounds, ...placedBounds];
+    const blockers = [...controlBounds, ...placedBounds].map(blocker => ({
+        left: blocker.left - gap, top: blocker.top - gap, right: blocker.right + gap, bottom: blocker.bottom + gap
+    }));
     const preferred = placeRouteBadge(anchors[0], size, mapBounds, controlBounds, placedBounds);
     const clampX = value => Math.max(usable.left, Math.min(value, usable.right - size.width));
     const clampY = value => Math.max(usable.top, Math.min(value, usable.bottom - size.height));
@@ -110,10 +112,10 @@ export const placeCombinedRouteBadge = (anchors, size, mapBounds, controlBounds,
         width: size.width, height: size.height, offsetIndex: -1, fallback: true});
     const preferredBounded = bounded(preferred.left, preferred.top);
     const xValues = uniqueSorted([usable.left, usable.right - size.width,
-        ...blockers.flatMap(blocker => [blocker.left - size.width - gap, blocker.right + gap])].map(clampX));
+        ...blockers.flatMap(blocker => [blocker.left - size.width, blocker.right])].map(clampX));
     const yValues = uniqueSorted([usable.top, usable.bottom - size.height,
-        ...blockers.flatMap(blocker => [blocker.top - size.height - gap, blocker.bottom + gap])].map(clampY));
-    return [preferredBounded, ...yValues.flatMap(top => xValues.map(left => bounded(left, top)))].find(candidate => {
+        ...blockers.flatMap(blocker => [blocker.top - size.height, blocker.bottom])].map(clampY));
+    return yValues.flatMap(top => xValues.map(left => bounded(left, top))).find(candidate => {
         const rectangle = {...candidate, right: candidate.left + candidate.width, bottom: candidate.top + candidate.height};
         return rectangle.left >= usable.left && rectangle.top >= usable.top
             && rectangle.right <= usable.right && rectangle.bottom <= usable.bottom
