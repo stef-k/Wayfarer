@@ -13,6 +13,7 @@ import {
     buildSegmentPopup,
     buildAreaPopup
 } from './tripPopupBuilder.js';
+import {placeViewerChevrons, presentViewerCoordinates, resolveViewerAnchors, routeBadgeDataUrl} from './segmentPresentation.js';
 
 /* ---------- Wayfarer PNG marker URL ---------- */
 const png = (icon, bg) => `/icons/wayfarer-map-icons/dist/png/marker/${bg}/${icon}.png`;
@@ -22,7 +23,7 @@ const WF_WIDTH = 28;
 const WF_HEIGHT = 45;
 const WF_ANCHOR = [14, 45];
 export const getPlaceMarker = pid => _places[pid]?.marker ?? null;
-export const getSegmentPolyline = sid => _segments[sid] ?? null;
+export const getSegmentPolyline = sid => _segments[sid]?.line ?? null;
 export const canvasRenderer = L.canvas();
 
 /* ---------- map bootstrap ---------- */
@@ -37,6 +38,8 @@ export const initLeaflet = (center = [20, 0], zoom = 3) => {
 
     /* exporter / Puppeteer waits for this flag */
     window.__leafletTilesOk = false;
+    window.__leafletImageUrl = null;
+    window.__segmentPresentationReady = !isPrint;
 
     /* ─── create map ─── */
     const map = L.map('mapContainer', {
@@ -59,8 +62,15 @@ export const initLeaflet = (center = [20, 0], zoom = 3) => {
             console.log('[print] map ready');
 
             // Wait until *all* visible tiles are decoded
-            tiles.once('load', () => {                // fires exactly once per page
+            tiles.once('load', async () => {                // fires exactly once per page
                 console.log('[print] tile layer loaded');
+                window.__leafletTilesOk = true;
+
+                const presentationReady = await waitForPresentationReady();
+                if (!presentationReady) {
+                    console.error('[print] segment presentation did not become ready');
+                    return;
+                }
 
                 if (!window.leafletImage) {
                     console.error('[print] leafletImage() missing – script not loaded!');
@@ -99,6 +109,8 @@ const bg = s => (s ?? '').trim() || 'bg-blue';
 const _regions = {};             // regionId → centroid marker
 const _places = {};             // placeId  → {marker, regionId}
 const _segments = {};             // segmentId → polyline
+let _activeSegmentId = null;
+let _activeBadgeLayer = null;
 
 /* ---------- region centroid ---------- */
 export const addRegionMarker = (map, id, [lat, lon], name = '') => {
@@ -181,15 +193,23 @@ export const addPlaceMarker = (map, id, [lat, lon], opts = {}) => {
 /* ---------- segment poly-line ---------- */
 export const addSegment = (map, id, coords = [], label = '', opts = {}) => {
     if (!Array.isArray(coords) || coords.length < 2) return;
+    const isPrint = location.search.includes('print=1');
+    const isolatedId = new URLSearchParams(location.search).get('seg');
+    if (isPrint && (!isolatedId || isolatedId !== id)) return null;
 
     // A Segment registry entry owns one line; rerender replaces and detaches the prior layer.
     const existing = _segments[id];
     if (existing) {
-        existing.unbindTooltip();
-        existing.off();
-        map.removeLayer(existing);
+        removeSegmentEntry(existing);
         delete _segments[id];
     }
+
+    _activeBadgeLayer ??= L.layerGroup().addTo(map);
+    const orientation = opts.orientation ?? 'forward';
+    const presentation = resolveViewerAnchors(opts.anchors ?? []);
+    const presentedCoords = presentViewerCoordinates(coords, orientation);
+    const active = id === _activeSegmentId || isPrint && isolatedId === id;
+    if (active) _activeSegmentId = id;
 
     // Build rich popup content if segment data provided
     let popupContent = null;
@@ -203,16 +223,18 @@ export const addSegment = (map, id, coords = [], label = '', opts = {}) => {
             distance: opts.distance,
             duration: opts.duration,
             notes: opts.notes,
-            fromLat: coords[0]?.[0],
-            fromLon: coords[0]?.[1],
-            toLat: coords[coords.length - 1]?.[0],
-            toLon: coords[coords.length - 1]?.[1]
+            fromLat: presentedCoords[0]?.[0],
+            fromLon: presentedCoords[0]?.[1],
+            toLat: presentedCoords[presentedCoords.length - 1]?.[0],
+            toLon: presentedCoords[presentedCoords.length - 1]?.[1]
         });
     }
 
-    const pl = L.polyline(coords, {
-        color: '#0d6efd', weight: 3, className: 'segment-line',
-        renderer: location.search.includes('print=1') ? canvasRenderer : undefined
+    const group = L.layerGroup().addTo(map);
+    const pl = L.polyline(presentedCoords, {
+        color: orientation === 'ambiguous' ? '#6c757d' : '#0d6efd', weight: active ? 5 : 3,
+        opacity: active ? 1 : 0.72, className: 'segment-line', renderer: isPrint ? canvasRenderer : undefined,
+        interactive: false
     });
 
     // Bind rich tooltip for hover if we have segment data
@@ -227,22 +249,26 @@ export const addSegment = (map, id, coords = [], label = '', opts = {}) => {
         pl.bindTooltip(label, {sticky: true, direction: 'top'});
     }
 
-    pl.addTo(map);
-    _segments[id] = pl;
-    /* ─── PRINT-MODE visibility filter ────────────────────────
-     * TripExportService now appends “…&seg=<guid>” only for a
-     * “segment” snapshot.  Anything else (overview, region, place)
-     * carries no “seg=” param, so we want *zero* polylines there.
-     */
-    if (location.search.includes('print=1')) {
-        const segParam = new URLSearchParams(location.search).get('seg');
+    pl.addTo(group);
+    const hit = isPrint ? null : L.polyline(presentedCoords, {opacity: 0, weight: 16, className: 'segment-route-hit'})
+        .bindTooltip(orientation === 'ambiguous' ? 'Route direction unavailable' : presentation.tooltip,
+            {sticky: true, direction: 'top', className: 'trip-rich-tooltip'})
+        .on('click', () => window.wayfarer?.selectSegment?.(id))
+        .addTo(group);
+    const entry = {id, group, line: pl, hit, chevrons: [], presentation, orientation, coords: presentedCoords, visible: true, active};
+    _segments[id] = entry;
+    renderSegmentDecorations(map, entry);
+    if (active && orientation !== 'ambiguous') renderActiveBadges(map, entry);
+    return pl;
+};
 
-        //  no "seg="   → hide every poly-line
-        //  mismatch ID → hide this one
-        if (!segParam || segParam !== id) {
-            map.removeLayer(pl);          // invisible but still in _segments
-        }
+/** Waits for route registry, raster badge assets, and the issue-required two frames. */
+const waitForPresentationReady = async () => {
+    const deadline = performance.now() + 10000;
+    while (!window.__segmentPresentationReady && performance.now() < deadline) {
+        await new Promise(resolve => requestAnimationFrame(resolve));
     }
+    return window.__segmentPresentationReady === true;
 };
 
 /* ---------- area polygon ---------- */
@@ -286,7 +312,99 @@ export const setRegionVisible = (map, rid, visible) => {
 };
 
 export const setSegmentVisible = (map, sid, visible) => {
-    if (_segments[sid]) visible ? map.addLayer(_segments[sid]) : map.removeLayer(_segments[sid]);
+    const entry = _segments[sid];
+    if (!entry) return;
+    entry.visible = visible;
+    visible ? entry.group.addTo(map) : entry.group.remove();
+    if (!visible && _activeSegmentId === sid) setActiveSegment(map, null);
+};
+
+/** Transfers active emphasis and badges without changing either Segment aggregate. */
+export const setActiveSegment = (map, sid) => {
+    _activeSegmentId = sid && _segments[sid]?.visible ? sid : null;
+    _activeBadgeLayer?.clearLayers();
+    Object.values(_segments).forEach(entry => {
+        entry.active = entry.id === _activeSegmentId;
+        entry.line.setStyle({weight: entry.active ? 5 : 3, opacity: entry.active ? 1 : 0.72});
+        renderSegmentDecorations(map, entry);
+    });
+    const active = _activeSegmentId ? _segments[_activeSegmentId] : null;
+    if (active && active.orientation !== 'ambiguous') renderActiveBadges(map, active);
+};
+
+/** Exposes bounded serializable registry evidence without private text. */
+export const getSegmentPresentationSnapshot = () => ({
+    segments: Object.values(_segments).map(entry => ({
+        id: entry.id, source: 'S', visible: entry.visible, active: entry.active, orientation: entry.orientation,
+        lineCount: 1, hitLayerCount: entry.hit ? 1 : 0, chevronCount: entry.chevrons.length,
+        anchorLabels: entry.presentation.anchors.map(anchor => anchor.label)
+    })),
+    routeBadgeCount: _activeBadgeLayer?.getLayers().length ?? 0
+});
+
+/** Removes one complete registry owner including tooltips and listeners. */
+const removeSegmentEntry = entry => {
+    entry.hit?.unbindTooltip();
+    entry.hit?.off();
+    entry.line.unbindTooltip();
+    entry.line.off();
+    entry.group.clearLayers();
+    entry.group.remove();
+};
+
+/** Replaces projected chevrons after selection or zoom changes. */
+const renderSegmentDecorations = (map, entry) => {
+    entry.chevrons.forEach(layer => layer.remove());
+    entry.chevrons = [];
+    if (!entry.visible || entry.orientation === 'ambiguous') return;
+    const projected = entry.coords.map(([latitude, longitude]) => {
+        const point = map.latLngToLayerPoint([latitude, longitude]);
+        return [point.x, point.y];
+    });
+    entry.chevrons = placeViewerChevrons(projected, entry.active).map(cue => {
+        const radians = cue.angle * Math.PI / 180;
+        const length = entry.active ? 10 : 8;
+        const width = entry.active ? 4 : 3;
+        const backX = cue.x - Math.cos(radians) * length;
+        const backY = cue.y - Math.sin(radians) * length;
+        const normalX = -Math.sin(radians) * width;
+        const normalY = Math.cos(radians) * width;
+        return L.polyline([
+            map.layerPointToLatLng([backX + normalX, backY + normalY]),
+            map.layerPointToLatLng([cue.x, cue.y]),
+            map.layerPointToLatLng([backX - normalX, backY - normalY])
+        ], {color: entry.active ? '#075985' : '#0369a1', weight: entry.active ? 3 : 2, opacity: entry.active ? 1 : 0.72,
+            interactive: false, renderer: location.search.includes('print=1') ? canvasRenderer : undefined}).addTo(entry.group);
+    });
+};
+
+/** Replaces the active-only badge channel with separate decorative L.Icon layers. */
+const renderActiveBadges = (map, entry) => {
+    _activeBadgeLayer?.clearLayers();
+    entry.presentation.badges.forEach(badge => {
+        const raster = routeBadgeDataUrl(badge.label);
+        L.marker([badge.location[1], badge.location[0]], {
+            icon: L.icon({iconUrl: raster.url, iconSize: [raster.width, raster.height], iconAnchor: [-10, 18]}),
+            interactive: false, keyboard: false, alt: ''
+        }).addTo(_activeBadgeLayer);
+    });
+};
+
+/** Reprojects cues deterministically while panning leaves their count unchanged. */
+export const refreshSegmentPresentation = map => {
+    Object.values(_segments).forEach(entry => renderSegmentDecorations(map, entry));
+    const active = _activeSegmentId ? _segments[_activeSegmentId] : null;
+    if (active && active.orientation !== 'ambiguous') renderActiveBadges(map, active);
+};
+
+/** Removes every Segment-owned layer and global registry entry. */
+export const disposeSegmentPresentation = () => {
+    Object.values(_segments).forEach(removeSegmentEntry);
+    Object.keys(_segments).forEach(id => delete _segments[id]);
+    _activeBadgeLayer?.clearLayers();
+    _activeBadgeLayer?.remove();
+    _activeBadgeLayer = null;
+    _activeSegmentId = null;
 };
 
 /* ---------- tiny WKT LINESTRING → [lat,lon][] ---------- */

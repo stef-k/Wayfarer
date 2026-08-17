@@ -51,6 +51,7 @@ public sealed class ViewerSegmentJourneyResolverTests
         Assert.Equal(trail, result.TrailText);
         Assert.Equal(waypointCount, result.WaypointCount);
         Assert.Equal(routePointCount, result.RoutePointCount);
+        Assert.Equal("forward", result.RouteOrientation);
         Assert.NotNull(result.RouteWkt);
         Assert.Null(result.DegradationMessage);
     }
@@ -66,6 +67,8 @@ public sealed class ViewerSegmentJourneyResolverTests
 
         Assert.Equal("A → B1 → A", result.TrailText);
         Assert.Equal("Start", result.Anchors[0].Role);
+        Assert.Equal("A", result.Anchors[0].Label);
+        Assert.Equal("C", result.Anchors[^1].Label);
         Assert.Equal("End", result.Anchors[^1].Role);
         Assert.Equal(result.Anchors[0].PlaceId, result.Anchors[^1].PlaceId);
         Assert.Contains("1 1", result.RouteWkt);
@@ -100,8 +103,9 @@ public sealed class ViewerSegmentJourneyResolverTests
         Assert.Null(positionResult.RouteWkt);
         Assert.Equal("Journey order is unavailable.", positionResult.DegradationMessage);
         Assert.Equal("A → B1 → C", indexResult.TrailText);
-        Assert.Null(indexResult.RouteWkt);
-        Assert.Equal("Route line is unavailable.", indexResult.DegradationMessage);
+        Assert.NotNull(indexResult.RouteWkt);
+        Assert.Equal("ambiguous", indexResult.RouteOrientation);
+        Assert.Equal("Route direction unavailable", indexResult.DegradationMessage);
     }
 
     [Fact]
@@ -141,11 +145,25 @@ public sealed class ViewerSegmentJourneyResolverTests
 
         var result = ViewerSegmentJourneyResolver.Resolve(segment, segment.TripId, waypointsLoaded: true);
 
-        Assert.Equal("Unavailable intermediate place", result.Anchors[1].DisplayName);
-        Assert.Equal("Unnamed place", result.Anchors[2].DisplayName);
+        Assert.Equal("Unnamed waypoint", result.Anchors[1].DisplayName);
+        Assert.Equal("Unnamed waypoint", result.Anchors[2].DisplayName);
         Assert.Null(result.Anchors[3].Location);
         Assert.Null(result.RouteWkt);
         Assert.Equal("Route line is unavailable.", result.DegradationMessage);
+    }
+
+    [Fact]
+    public void Resolve_ClassifiesLegacyReversalWithoutMutatingPersistedGeometry()
+    {
+        var segment = SegmentWithWaypoints(0);
+        segment.RouteGeometry = Line((3, 3), (2, 2), (1, 1));
+        var before = segment.RouteGeometry.Copy();
+
+        var result = ViewerSegmentJourneyResolver.Resolve(segment, segment.TripId, waypointsLoaded: true);
+
+        Assert.Equal("reversed", result.RouteOrientation);
+        Assert.Equal("LINESTRING (3 3, 2 2, 1 1)", result.RouteWkt);
+        Assert.True(before.EqualsExact(segment.RouteGeometry));
     }
 
     /// <summary>Builds canonical anchors whose coordinates make the fallback order observable.</summary>

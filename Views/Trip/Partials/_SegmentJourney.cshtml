@@ -11,7 +11,7 @@
             @foreach (var anchor in Model.Anchors)
             {
                 <li class="segment-journey-role text-break">
-                    <strong>@anchor.Role:</strong>
+                    <strong>@anchor.Label — @anchor.Role —</strong>
                     @if (interactive && anchor.PlaceId.HasValue && anchor.Location != null)
                     {
                         <button type="button" class="btn btn-link p-0 align-baseline text-wrap text-start segment-journey-place" data-place-id="@anchor.PlaceId">
@@ -25,7 +25,9 @@
                 </li>
             }
         </ol>
-        <div class="segment-journey-trail text-break" aria-label="Journey: @Model.TrailText">@Model.TrailText</div>
+        <div class="segment-journey-trail text-break" aria-label="@Model.AccessibleName">
+            @Model.CompactTrail
+        </div>
         <div class="small text-muted">
             @Model.WaypointCount @(Model.WaypointCount == 1 ? "waypoint" : "waypoints") ·
             @Model.RoutePointCount @(Model.RoutePointCount == 1 ? "route point" : "route points")

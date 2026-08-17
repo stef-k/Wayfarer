@@ -74,15 +74,17 @@ public sealed class TripViewerItineraryRenderingTests
             var document = await new HtmlParser().ParseDocumentAsync(html);
             var segment = Assert.Single(document.QuerySelectorAll(".segment-list-item"));
 
-            Assert.Equal(["Start: A", "Via 1: B", "End: C"],
+            Assert.Equal(["A — Start — A", "B — Via 1 — B", "C — End — C"],
                 segment.QuerySelectorAll(".segment-journey-role").Select(item => NormalizeText(item.TextContent)));
-            Assert.Equal("A → B → C", segment.QuerySelector(".segment-journey-trail")?.TextContent.Trim());
+            Assert.Equal("A A → B B → C C", NormalizeText(segment.QuerySelector(".segment-journey-trail")?.TextContent ?? string.Empty));
+            Assert.Equal("forward", segment.GetAttribute("data-route-orientation"));
+            Assert.Contains("\"position\":1", segment.GetAttribute("data-segment-anchors"));
             Assert.Contains("1 1, 2 2, 3 3", segment.GetAttribute("data-route-wkt"));
             Assert.True(segment.ClassList.Contains("segment-list-item-view"));
             Assert.Equal("Click to view the route", segment.GetAttribute("title"));
             Assert.Single(segment.QuerySelectorAll(".segment-toggle"));
             Assert.Equal(3, segment.QuerySelectorAll(".segment-journey-place").Length);
-            Assert.Contains("A → B → C", document.QuerySelector("#readable-modal-body")?.TextContent);
+            Assert.Contains("A A → B B → C C", NormalizeText(document.QuerySelector("#readable-modal-body")?.TextContent ?? string.Empty));
 
             var customTrip = WaypointTrip();
             Assert.Single(customTrip.Segments).RouteGeometry = new LineString([
@@ -137,11 +139,11 @@ public sealed class TripViewerItineraryRenderingTests
             Assert.Empty(segment.QuerySelectorAll(".segment-toggle:not([disabled])"));
             Assert.Empty(segment.QuerySelectorAll($".segment-journey-place[data-place-id='{foreign.Id}']"));
             Assert.Contains("Route line is unavailable", segment.TextContent);
-            Assert.Contains("Start: A", NormalizeText(segment.TextContent));
-            Assert.Contains("Via 1: Unavailable intermediate place", NormalizeText(segment.TextContent));
-            Assert.Contains("End: C", NormalizeText(segment.TextContent));
+            Assert.Contains("A — Start — A", NormalizeText(segment.TextContent));
+            Assert.Contains("B — Via 1 — Unnamed waypoint", NormalizeText(segment.TextContent));
+            Assert.Contains("C — End — C", NormalizeText(segment.TextContent));
             Assert.Equal(2, segment.QuerySelectorAll(".segment-journey-place").Length);
-            Assert.Contains("Unavailable intermediate place", document.QuerySelector("#readable-modal-body")?.TextContent);
+            Assert.Contains("Unnamed waypoint", document.QuerySelector("#readable-modal-body")?.TextContent);
         }
         finally
         {
@@ -172,8 +174,8 @@ public sealed class TripViewerItineraryRenderingTests
             var html = await RenderViewAsync(scope.ServiceProvider, "/Views/Trip/Print.cshtml", model);
             var document = await new HtmlParser().ParseDocumentAsync(html);
 
-            Assert.Contains("A → B → C", document.QuerySelector("#segments_all")?.TextContent);
-            Assert.Equal(["Start: A", "Via 1: B", "End: C"],
+            Assert.Contains("A A → B B → C C", NormalizeText(document.QuerySelector("#segments_all")?.TextContent ?? string.Empty));
+            Assert.Equal(["A — Start — A", "B — Via 1 — B", "C — End — C"],
                 document.QuerySelectorAll("#segments_all .segment-journey-role").Select(item => NormalizeText(item.TextContent)));
         }
         finally
@@ -262,7 +264,7 @@ public sealed class TripViewerItineraryRenderingTests
 
             Assert.DoesNotContain(foreign.Id.ToString(), html, StringComparison.OrdinalIgnoreCase);
             Assert.DoesNotContain(foreign.Name, html, StringComparison.Ordinal);
-            Assert.Contains("Unavailable intermediate place", html);
+            Assert.Contains("Unnamed waypoint", html);
             Assert.Contains("Route line is unavailable", html);
         }
         finally
