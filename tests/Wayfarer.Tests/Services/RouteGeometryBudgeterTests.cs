@@ -149,6 +149,50 @@ public sealed class RouteGeometryBudgeterTests
         Assert.False(result.WasSimplified);
     }
 
+    /// <summary>Proves coordinates close to mathematical antipodes remain valid route endpoints.</summary>
+    [Theory]
+    [InlineData(0d, 0d, 179.999999d, 0d)]
+    [InlineData(40d, 90d, -140d, -89.999999d)]
+    public void Budget_NearAntipodalRoute_RemainsExact(
+        double firstLongitude,
+        double firstLatitude,
+        double secondLongitude,
+        double secondLatitude)
+    {
+        var source = new[]
+        {
+            new Coordinate(firstLongitude, firstLatitude),
+            new Coordinate(secondLongitude, secondLatitude)
+        };
+
+        var result = RouteGeometryBudgeter.Budget(source, [0, 1], CancellationToken.None);
+
+        Assert.Equal(source.Select(CoordinatePair), result.Coordinates.Select(CoordinatePair));
+        Assert.False(result.WasSimplified);
+    }
+
+    /// <summary>Proves mathematical antipodes reject, including opposite poles with arbitrary longitudes.</summary>
+    [Theory]
+    [InlineData(0d, 0d, 180d, 0d)]
+    [InlineData(40d, 90d, 75d, -90d)]
+    public void Budget_ExactlyAntipodalRoute_Rejects(
+        double firstLongitude,
+        double firstLatitude,
+        double secondLongitude,
+        double secondLatitude)
+    {
+        var source = new[]
+        {
+            new Coordinate(firstLongitude, firstLatitude),
+            new Coordinate(secondLongitude, secondLatitude)
+        };
+
+        var error = Assert.Throws<RouteGeometryBudgetException>(() =>
+            RouteGeometryBudgeter.Budget(source, [0, 1], CancellationToken.None));
+
+        Assert.Equal("generic_kml_invalid_coordinate", error.Code);
+    }
+
     /// <summary>Proves zero-length and adjacent antipodal routes reject with the stable coordinate code.</summary>
     [Theory]
     [MemberData(nameof(PathologicalRoutes))]
