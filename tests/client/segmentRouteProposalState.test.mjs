@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { computed, nextTick, reactive, watchEffect } from 'vue';
+import { computed, nextTick, watchEffect } from 'vue';
 import { createSegmentRouteProposalStore } from '../../ClientApps/trip-editor/src/components/segmentRouteProposalState.ts';
 
 test('successful completion reactively renders Preview, Accept, and Discard', async () => {
   const store = createSegmentRouteProposalStore();
-  const states = reactive(store.states);
+  const states = store.states;
   const state = computed(() => states.first ??= store.get('first', 'walk'));
   let renderedActions = [];
   watchEffect(() => { renderedActions = state.value.proposal ? ['Preview', 'Accept', 'Discard'] : []; });
@@ -15,6 +15,43 @@ test('successful completion reactively renders Preview, Accept, and Discard', as
   await nextTick();
 
   assert.deepEqual(renderedActions, ['Preview', 'Accept', 'Discard']);
+});
+
+test('reactive visibility remains isolated and requires explicit Discard', async () => {
+  const store = createSegmentRouteProposalStore();
+  const first = observableActions(store, 'first', 'walk');
+  const second = observableActions(store, 'second', 'drive');
+  const request = store.begin('first', 'walk', new AbortController());
+
+  assert.equal(store.complete('first', request, proposalFor('first', 'visible')), true);
+  await nextTick();
+  assert.deepEqual(first.actions(), ['Preview', 'Accept', 'Discard']);
+  assert.deepEqual(second.actions(), []);
+  await nextTick();
+  assert.deepEqual(first.actions(), ['Preview', 'Accept', 'Discard']);
+
+  store.discard('first');
+  await nextTick();
+  assert.deepEqual(first.actions(), []);
+});
+
+test('rejected completions never become reactively visible', async () => {
+  const store = createSegmentRouteProposalStore();
+  const first = observableActions(store, 'first', 'walk');
+  const cancelled = store.begin('first', 'walk', new AbortController());
+  store.discard('first');
+  assert.equal(store.complete('first', cancelled, proposalFor('first', 'cancelled')), false);
+
+  const stale = store.begin('first', 'walk', new AbortController());
+  store.begin('first', 'walk', new AbortController());
+  assert.equal(store.complete('first', stale, proposalFor('first', 'stale')), false);
+  const wrongSegment = store.get('first', 'walk').requestId;
+  assert.equal(store.complete('first', wrongSegment, proposalFor('second', 'wrong')), false);
+  store.dispose();
+  assert.equal(store.complete('first', wrongSegment, proposalFor('first', 'disposed')), false);
+  await nextTick();
+
+  assert.deepEqual(first.actions(), []);
 });
 
 test('two Segments retain isolated proposal and progress state', () => {
@@ -62,7 +99,7 @@ test('successful response is retained for its Segment and can render preview', (
   };
 
   assert.equal(store.complete('first', request, proposal), true);
-  assert.equal(store.get('first', 'walk').proposal, proposal);
+  assert.deepEqual(store.get('first', 'walk').proposal, proposal);
 });
 
 test('cancelled request cannot publish after its response races cancellation', () => {
@@ -109,3 +146,10 @@ const proposalFor = (segmentId, proposalId) => ({
   proposalId, segmentId, geometry: [{ longitude: 23.7, latitude: 37.9 }], waypointIndices: [0],
   protectedContext: 'context', expiresAt: '2026-08-18T22:00:00Z'
 });
+
+const observableActions = (store, segmentId, contextKey) => {
+  const state = computed(() => store.states[segmentId] ??= store.get(segmentId, contextKey));
+  let actions = [];
+  watchEffect(() => { actions = state.value.proposal ? ['Preview', 'Accept', 'Discard'] : []; });
+  return { actions: () => actions };
+};

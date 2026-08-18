@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onUnmounted, reactive, watch } from 'vue';
+import { computed, onUnmounted, watch } from 'vue';
 import { acceptExternalRouteProposal, ExternalRouteProposalError, generateExternalRouteProposal } from '../api/tripEditorApi';
 import { confirm } from '../composables/useConfirmDialog';
 import type { AcceptedExternalRouteProposal, EditorSegment, ExternalRouteProposal, Guid } from '../types';
@@ -20,7 +20,7 @@ const emit = defineEmits<{
 }>();
 
 const proposalStore = createSegmentRouteProposalStore();
-const states = reactive(proposalStore.states);
+const states = proposalStore.states;
 const proposalContextKey = computed(() => `${props.draftTransportProfileId ?? ''}:${props.draftMode}`);
 const state = computed(() => states[props.segment.id] ??= proposalStore.get(props.segment.id, proposalContextKey.value));
 const capability = computed(() => props.segment.externalRouting ?? null);

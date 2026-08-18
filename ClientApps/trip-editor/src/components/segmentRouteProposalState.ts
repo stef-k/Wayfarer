@@ -1,3 +1,4 @@
+import { reactive } from 'vue';
 import type { ExternalRouteProposal, Guid } from '../types';
 
 export interface SegmentRouteProposalState {
@@ -20,13 +21,15 @@ export const createSegmentRouteProposalStore = (): {
   discard: (segmentId: Guid) => void;
   dispose: () => void;
 } => {
-  const states: Record<Guid, SegmentRouteProposalState> = {};
+  const states = reactive<Record<Guid, SegmentRouteProposalState>>({});
   let nextRequestId = 0;
   const fresh = (contextKey: string, requestId = 0): SegmentRouteProposalState => ({
     generating: false, error: null, proposal: null, controller: null, contextKey, requestId
   });
-  const get = (segmentId: Guid, contextKey: string): SegmentRouteProposalState =>
+  const get = (segmentId: Guid, contextKey: string): SegmentRouteProposalState => {
     states[segmentId] ??= fresh(contextKey);
+    return states[segmentId];
+  };
   return {
     states,
     get,
