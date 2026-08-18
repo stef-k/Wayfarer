@@ -1,3 +1,4 @@
+using System.Xml.Linq;
 using NetTopologySuite.Geometries;
 using Wayfarer.Models;
 
@@ -32,3 +33,21 @@ public sealed record WayfarerKmlSegment(
 
 /// <summary>Structural classification for one parsed KML document.</summary>
 public enum WayfarerKmlKind { Generic, NativeV1, NativeV2 }
+
+/// <summary>Retains one hardened detached XML document with its structural native classification.</summary>
+public sealed record WayfarerKmlClassification(
+    WayfarerKmlKind Kind,
+    WayfarerKmlDocument? Document,
+    XDocument Source)
+{
+    /// <summary>Preserves callers that explicitly store the established two-value tuple.</summary>
+    public static implicit operator (WayfarerKmlKind Kind, WayfarerKmlDocument? Document)(
+        WayfarerKmlClassification classification) => (classification.Kind, classification.Document);
+
+    /// <summary>Preserves the established two-value deconstruction contract.</summary>
+    public void Deconstruct(out WayfarerKmlKind kind, out WayfarerKmlDocument? document)
+    {
+        kind = Kind;
+        document = Document;
+    }
+}

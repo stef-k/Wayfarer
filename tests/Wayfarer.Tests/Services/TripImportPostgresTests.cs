@@ -3,6 +3,7 @@ using System.Text;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Logging.Abstractions;
+using NetTopologySuite.Geometries;
 using Wayfarer.Models;
 using Wayfarer.Services;
 using Wayfarer.Tests.Infrastructure;
@@ -67,6 +68,45 @@ public sealed class TripImportPostgresTests(PostgresImportTestFixture fixture)
         Assert.NotNull(segment.TransportProfileId);
         Assert.NotNull(segment.EstimatedDistanceKm);
         Assert.NotNull(segment.EstimatedDuration);
+    }
+
+    /// <summary>Proves generic rollback clears failed state and a retry persists only final budgeted geometry and measurements.</summary>
+    [PostgresFact]
+    public async Task GenericGeometryBudget_RollsBackThenRecoversWithFinalMeasuredGeometry()
+    {
+        fixture.RequireAvailable();
+        var user = await fixture.CreateUserAsync();
+        var rejectedTag = $"fixture-generic-rollback-{Guid.NewGuid():N}";
+        await using var context = fixture.CreateContext();
+        var service = new TripImportService(context, NullLogger<TripImportService>.Instance, CreateReconciler(context));
+
+        await Assert.ThrowsAsync<TripImportValidationException>(() => service.ImportWayfarerKmlAsync(
+            ToStream(CreateOversizedGenericRouteKml("walk", $"{rejectedTag}, ---")),
+            user.Id,
+            TripImportMode.CreateNew));
+
+        Assert.Empty(context.ChangeTracker.Entries());
+        await using (var failedVerification = fixture.CreateContext())
+        {
+            Assert.Empty(await failedVerification.Trips.Where(trip => trip.UserId == user.Id).ToListAsync());
+            Assert.Empty(await failedVerification.Tags.Where(tag => tag.Slug == rejectedTag).ToListAsync());
+        }
+
+        var result = await service.ImportWayfarerKmlAsync(
+            ToStream(CreateOversizedGenericRouteKml("walk", "")), user.Id, TripImportMode.CreateNew);
+        fixture.RegisterTrip(result.TripId);
+
+        await using var verification = fixture.CreateContext();
+        var segment = await verification.Segments.AsNoTracking().Include(item => item.Waypoints)
+            .SingleAsync(item => item.TripId == result.TripId);
+        var geometry = Assert.IsType<LineString>(segment.RouteGeometry);
+        Assert.InRange(geometry.NumPoints, 2, 500);
+        Assert.Equal(0d, geometry.GetCoordinateN(0).X);
+        Assert.Equal(0.2d, geometry.GetCoordinateN(geometry.NumPoints - 1).X);
+        Assert.Empty(segment.Waypoints);
+        Assert.NotNull(segment.EstimatedDistanceKm);
+        Assert.NotNull(segment.EstimatedDuration);
+        Assert.Single(result.Notices);
     }
     [PostgresFact]
     public async Task Tags_UseCitextAndBothGlobalUniqueIndexes()
@@ -146,7 +186,8 @@ public sealed class TripImportPostgresTests(PostgresImportTestFixture fixture)
         fixture.RegisterTrip(tripIds[1]);
 
         await using var verification = fixture.CreateContext();
-        var trips = await verification.Trips.Include(trip => trip.Tags).Where(trip => tripIds.Contains(trip.Id)).ToListAsync();
+        var importedIds = tripIds.Select(result => result.TripId).ToArray();
+        var trips = await verification.Trips.Include(trip => trip.Tags).Where(trip => importedIds.Contains(trip.Id)).ToListAsync();
         Assert.Equal(2, trips.Count);
         var winner = Assert.Single(await verification.Tags.Where(tag => tag.Slug == slug).ToListAsync());
         fixture.RegisterTag(winner);
@@ -260,6 +301,15 @@ public sealed class TripImportPostgresTests(PostgresImportTestFixture fixture)
 <kml xmlns=""http://www.opengis.net/kml/2.2""><Document><name>Generic</name><Folder><name>Routes</name>
 <Placemark><name>{mode}</name><LineString><coordinates>0,0 1,0</coordinates></LineString></Placemark>
 </Folder></Document></kml>";
+
+    private static string CreateOversizedGenericRouteKml(string mode, string tags)
+    {
+        var coordinates = string.Join(' ', Enumerable.Range(0, 2_001).Select(index =>
+            $"{(index * 0.0001d).ToString("R", System.Globalization.CultureInfo.InvariantCulture)},40"));
+        return $@"<kml xmlns=""http://www.opengis.net/kml/2.2"" xmlns:wf=""https://wayfarer.stefk.me/kml""><Document><name>Generic</name>
+<ExtendedData><wf:Tags>{tags}</wf:Tags></ExtendedData><Placemark><name>{mode}</name>
+<LineString><coordinates>{coordinates}</coordinates></LineString></Placemark></Document></kml>";
+    }
 
     private static Trip CreateTrip(string userId, bool isPublic, params Tag[] tags) => new()
     {

@@ -35,28 +35,33 @@ public class TripImportControllerTests : TestBase
     [Theory]
     [InlineData(TripImportMode.Auto)]
     [InlineData(TripImportMode.CreateNew)]
-    public async Task Import_RedirectsToCanonicalTripEdit_OnSuccess(TripImportMode mode)
+    public async Task Import_ReturnsBoundedCanonicalSuccessJson(TripImportMode mode)
     {
         var importSvc = new Mock<ITripImportService>();
-        importSvc.Setup(s => s.ImportWayfarerKmlAsync(It.IsAny<Stream>(), "u1", mode))
-            .ReturnsAsync(Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"));
+        importSvc.Setup(s => s.ImportWayfarerKmlAsync(
+                It.IsAny<Stream>(), "u1", mode, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new TripImportResult(
+                Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
+                [new("generic_route_simplified", "Route", 1500, 400, 1d, 0.5d)]));
         var controller = BuildController(importSvc.Object);
         ConfigureControllerWithUser(controller, "u1");
         var file = CreateFormFile("content");
 
         var result = await controller.Import(file, mode);
 
-        var redirect = Assert.IsType<RedirectToActionResult>(result);
-        Assert.Equal("Edit", redirect.ActionName);
-        Assert.Equal("Trip", redirect.ControllerName);
-        Assert.Equal(Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"), redirect.RouteValues?["id"]);
+        var json = Assert.IsType<JsonResult>(result);
+        Assert.Equal("success", Property<string>(json.Value, "status"));
+        Assert.Equal(Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"), Property<Guid>(json.Value, "tripId"));
+        Assert.Equal("/User/Trip/Edit/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", Property<string>(json.Value, "redirectUrl"));
+        Assert.Single(Property<IReadOnlyList<TripImportNotice>>(json.Value, "notices"));
     }
 
     [Fact]
     public async Task Import_ReturnsDuplicateJson_WhenDuplicateDetected()
     {
         var importSvc = new Mock<ITripImportService>();
-        importSvc.Setup(s => s.ImportWayfarerKmlAsync(It.IsAny<Stream>(), "u1", TripImportMode.Auto))
+        importSvc.Setup(s => s.ImportWayfarerKmlAsync(
+                It.IsAny<Stream>(), "u1", TripImportMode.Auto, It.IsAny<CancellationToken>()))
             .ThrowsAsync(new TripDuplicateException(Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")));
         var controller = BuildController(importSvc.Object);
         ConfigureControllerWithUser(controller, "u1");
@@ -77,7 +82,8 @@ public class TripImportControllerTests : TestBase
     public async Task Import_ReturnsSafeJson_ForExpectedFailures(Type exceptionType, int expectedStatus, string expectedCode)
     {
         var importSvc = new Mock<ITripImportService>();
-        importSvc.Setup(s => s.ImportWayfarerKmlAsync(It.IsAny<Stream>(), "u1", TripImportMode.Auto))
+        importSvc.Setup(s => s.ImportWayfarerKmlAsync(
+                It.IsAny<Stream>(), "u1", TripImportMode.Auto, It.IsAny<CancellationToken>()))
             .ThrowsAsync((Exception)Activator.CreateInstance(exceptionType, "sensitive detail")!);
         var controller = BuildController(importSvc.Object);
         ConfigureControllerWithUser(controller, "u1");
@@ -96,7 +102,8 @@ public class TripImportControllerTests : TestBase
     public async Task Import_ReturnsGenericSafeJson_ForUnexpectedFailures()
     {
         var importSvc = new Mock<ITripImportService>();
-        importSvc.Setup(s => s.ImportWayfarerKmlAsync(It.IsAny<Stream>(), "u1", TripImportMode.Auto))
+        importSvc.Setup(s => s.ImportWayfarerKmlAsync(
+                It.IsAny<Stream>(), "u1", TripImportMode.Auto, It.IsAny<CancellationToken>()))
             .ThrowsAsync(new Exception("postgres connection details"));
         var controller = BuildController(importSvc.Object);
         ConfigureControllerWithUser(controller, "u1");
@@ -107,6 +114,45 @@ public class TripImportControllerTests : TestBase
         Assert.Equal(500, json.StatusCode);
         Assert.Equal("import_failed", json.Value?.GetType().GetProperty("code")?.GetValue(json.Value));
         Assert.DoesNotContain("postgres", json.Value?.GetType().GetProperty("message")?.GetValue(json.Value)?.ToString());
+    }
+
+    /// <summary>Proves stable geometry budget codes and messages cross the controller unchanged and bounded.</summary>
+    [Fact]
+    public async Task Import_ReturnsStableGeometryBudgetFailure()
+    {
+        var importSvc = new Mock<ITripImportService>();
+        importSvc.Setup(service => service.ImportWayfarerKmlAsync(
+                It.IsAny<Stream>(), "u1", TripImportMode.Auto, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new RouteGeometryBudgetException(
+                "generic_kml_processing_limit", "The route geometry is too complex to process safely."));
+        var controller = BuildController(importSvc.Object);
+        ConfigureControllerWithUser(controller, "u1");
+
+        var result = await controller.Import(CreateFormFile("complex"));
+
+        var json = Assert.IsType<JsonResult>(result);
+        Assert.Equal(422, json.StatusCode);
+        Assert.Equal("generic_kml_processing_limit", Property<string>(json.Value, "code"));
+        Assert.Equal("The route geometry is too complex to process safely.", Property<string>(json.Value, "message"));
+    }
+
+    /// <summary>Proves cancellation receives the approved stable response without internal detail.</summary>
+    [Fact]
+    public async Task Import_ReturnsStableCancellationFailure()
+    {
+        var importSvc = new Mock<ITripImportService>();
+        importSvc.Setup(service => service.ImportWayfarerKmlAsync(
+                It.IsAny<Stream>(), "u1", TripImportMode.Auto, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new OperationCanceledException("internal cancellation detail"));
+        var controller = BuildController(importSvc.Object);
+        ConfigureControllerWithUser(controller, "u1");
+
+        var result = await controller.Import(CreateFormFile("cancel"));
+
+        var json = Assert.IsType<JsonResult>(result);
+        Assert.Equal(499, json.StatusCode);
+        Assert.Equal("import_cancelled", Property<string>(json.Value, "code"));
+        Assert.Equal("The import was cancelled.", Property<string>(json.Value, "message"));
     }
 
     private static FormFile CreateFormFile(string content)
@@ -123,4 +169,7 @@ public class TripImportControllerTests : TestBase
             CreateDbContext(),
             service);
     }
+
+    private static T Property<T>(object? owner, string name) =>
+        Assert.IsAssignableFrom<T>(owner?.GetType().GetProperty(name)?.GetValue(owner));
 }

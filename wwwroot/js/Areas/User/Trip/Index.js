@@ -343,6 +343,13 @@ import { submitTripImport } from './tripImportClient.js';
                 pendingFile = file;
                 dupModal?.show();
             },
+            showNotices: notices => notices.forEach(notice => {
+                if (notice.code === 'generic_route_simplified') {
+                    wayfarer.showAlert('info', `${notice.segmentName}: route reduced from ${notice.originalCoordinateCount} to ${notice.resultingCoordinateCount} coordinates.`);
+                } else if (notice.code === 'generic_routes_simplified_additional') {
+                    wayfarer.showAlert('info', `${notice.additionalRouteCount} additional routes were simplified.`);
+                }
+            }),
             showError: message => wayfarer.showAlert('danger', message)
         });
     };
