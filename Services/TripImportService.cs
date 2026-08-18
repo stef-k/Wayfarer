@@ -6,7 +6,7 @@ using Wayfarer.Parsers;
 
 namespace Wayfarer.Services;
 
-public class TripImportService : ITripImportService
+public partial class TripImportService : ITripImportService
 {
     readonly ApplicationDbContext _dbContext;
     readonly ILogger<TripImportService> _log;
@@ -29,146 +29,17 @@ public class TripImportService : ITripImportService
         _tagReconciler = tagReconciler;
     }
 
-    public async Task<Guid> ImportWayfarerKmlAsync(
+    /// <summary>Classifies one hardened document and dispatches to isolated native or generic persistence.</summary>
+    public async Task<TripImportResult> ImportWayfarerKmlAsync(
         Stream kmlStream,
         string userId,
-        TripImportMode mode = TripImportMode.Auto)
+        TripImportMode mode = TripImportMode.Auto,
+        CancellationToken cancellationToken = default)
     {
-        /* Parse once with structural namespace-aware native detection. */
-        using var mem = new MemoryStream();
-        await kmlStream.CopyToAsync(mem);
-        mem.Position = 0;
-        var classification = WayfarerKmlParser.ClassifyAndParse(mem);
+        var classification = await WayfarerKmlParser.ClassifyAndParseAsync(kmlStream, cancellationToken);
         if (classification.Document is not null)
-            return await ImportNativeAsync(classification.Document, userId, mode, CancellationToken.None);
-        mem.Position = 0;
-        var parsed = GoogleMyMapsKmlParser.Parse(mem, userId);
-        var importedTagTokens = parsed.Tags.Select(tag => tag.Slug).ToList();
-        parsed.Tags.Clear(); // Parser tags are transport values, never persistence entities.
-
-        /* 2- decide target trip ----------------------------------------- */
-        var dbTrip = await _dbContext.Trips
-            .Include(t => t.Regions).ThenInclude(r => r.Places)
-            .Include(t => t.Segments)
-            .Include(t => t.Tags)
-            .FirstOrDefaultAsync(t => t.Id == parsed.Id);
-
-        bool owned = dbTrip?.UserId == userId;
-
-        if (mode == TripImportMode.Auto && owned)
-        {
-            // Let the controller ask the user what to do
-            throw new TripDuplicateException(dbTrip!.Id);
-        }
-
-        await using var transaction = _dbContext.Database.IsRelational()
-            ? await _dbContext.Database.BeginTransactionAsync()
-            : null;
-
-        Trip target;
-        var addTargetAfterReconciliation = false;
-
-        switch (mode)
-        {
-            case TripImportMode.Upsert:
-                if (!owned)
-                    throw new InvalidOperationException("Trip not found or not yours for upsert.");
-                target = dbTrip!;
-                break;
-
-            case TripImportMode.CreateNew:
-                parsed.Id = Guid.NewGuid();
-                target = CreateNewShell(parsed, userId);
-                addTargetAfterReconciliation = true;
-                target.Name = $"{target.Name} (Imported)"; 
-                break;
-
-            case TripImportMode.Auto:
-            default:
-                target = owned
-                    ? dbTrip!                               // upsert path → keep name
-                    : CreateNewShell(parsed, userId);       // clone
-                if (!owned)
-                {
-                    addTargetAfterReconciliation = true;
-                    target.Name = $"{target.Name} (Imported)";   // ★ tag once
-                }
-                break;
-        }
-
-        /* 3 sync scalar properties ------------------------------------ */
-        if (mode == TripImportMode.Upsert || owned)            // keep existing name only when upserting
-            target.Name = parsed.Name;
-        target.Notes = parsed.Notes;
-        target.CenterLat = parsed.CenterLat;
-        target.CenterLon = parsed.CenterLon;
-        target.Zoom = parsed.Zoom;
-        target.UpdatedAt = DateTime.UtcNow;
-
-        var reconciledTags = await _tagReconciler.ReconcileAsync(importedTagTokens);
-        if (addTargetAfterReconciliation)
-            _dbContext.Trips.Add(target);
-        target.Tags.Clear();
-        foreach (var tag in reconciledTags)
-        {
-            target.Tags.Add(tag);
-        }
-
-        /* 4 sync regions  segments ----------------------------------- */
-        SyncCollection(parsed.Regions ?? Enumerable.Empty<Region>(), target.Regions ?? new List<Region>(), (p, d) => p.Id == d.Id);
-        SyncCollection(parsed.Segments ?? Enumerable.Empty<Segment>(), target.Segments ?? new List<Segment>(), (p, d) => p.Id == d.Id);
-
-        /* 5 sync places inside each region ---------------------------- */
-        foreach (var pReg in parsed.Regions ?? Enumerable.Empty<Region>())
-        {
-            var tReg = target.Regions?.First(r => r.Id == pReg.Id);
-            SyncCollection(pReg.Places ?? Enumerable.Empty<Place>(),
-                tReg?.Places ?? new List<Place>(),
-                (p, d) => p.Id == d.Id);
-            
-            tReg!.Places ??= new List<Place>();
-
-            SyncCollection(pReg.Areas ?? Enumerable.Empty<Area>(),
-                tReg.Areas ?? new List<Area>(),
-                (p, d) => p.Id == d.Id);
-            tReg.Areas ??= new List<Area>();
-        }
-
-        await ResolveImportedProfilesAsync(target.Segments ?? [], CancellationToken.None);
-
-        // --- ensure every trip has its "Unassigned Places" shadow region ---
-        const string ShadowName = "Unassigned Places";
-        if (!(target.Regions ?? Enumerable.Empty<Region>()).Any(r => r.Name == ShadowName))
-        {
-            // bump all existing display orders up by 1
-            foreach (var r in target.Regions ?? Enumerable.Empty<Region>())
-                r.DisplayOrder++;
-
-            var shadow = new Region
-            {
-                Id           = Guid.NewGuid(),
-                TripId       = target.Id,
-                UserId       = userId,
-                Name         = ShadowName,
-                DisplayOrder = 0,
-                Notes        = null,
-                Center       = null,
-                CoverImageUrl= null,
-                Places       = new List<Place>()
-            };
-            target.Regions ??= new List<Region>();
-            target.Regions.Add(shadow);
-        }
-
-        await _dbContext.SaveChangesAsync();
-        _dbContext.ChangeTracker.Clear();
-        await SegmentMeasurementWriterReconciler.ReconcileTripAsync(
-            _dbContext, target.Id, allowUnavailableAutomatic: true);
-        if (transaction is not null)
-        {
-            await transaction.CommitAsync();
-        }
-        return target.Id;
+            return new(await ImportNativeAsync(classification.Document, userId, mode, cancellationToken), []);
+        return await ImportGenericAsync(classification.Source, userId, mode, cancellationToken);
     }
 
     /// <summary>Coordinates one complete native create or authoritative replacement transaction.</summary>

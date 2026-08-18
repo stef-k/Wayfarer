@@ -145,7 +145,7 @@ public class TripImportServiceTests : TestBase
         var resultId = await service.ImportWayfarerKmlAsync(ToStream(kml), user.Id);
 
         // Assert
-        var trip = await db.Trips.FindAsync(resultId);
+        var trip = await db.Trips.FindAsync(resultId.TripId);
         Assert.NotNull(trip);
         // New trips always get "(Imported)" suffix when no existing trip matches
         Assert.Equal("Wayfarer Trip (Imported)", trip.Name);
@@ -167,7 +167,7 @@ public class TripImportServiceTests : TestBase
         var resultId = await service.ImportWayfarerKmlAsync(ToStream(kml), user.Id);
 
         // Assert
-        var trip = await db.Trips.FindAsync(resultId);
+        var trip = await db.Trips.FindAsync(resultId.TripId);
         Assert.NotNull(trip);
         // New trips always get "(Imported)" suffix
         Assert.Equal("Google Trip (Imported)", trip.Name);
@@ -194,7 +194,7 @@ public class TripImportServiceTests : TestBase
         var resultId = await service.ImportWayfarerKmlAsync(ToStream(kml), user.Id, TripImportMode.Auto);
 
         // Assert
-        var trip = await db.Trips.FindAsync(resultId);
+        var trip = await db.Trips.FindAsync(resultId.TripId);
         Assert.NotNull(trip);
         // New trips always get "(Imported)" suffix in Auto mode
         Assert.Equal("New Trip (Imported)", trip.Name);
@@ -241,7 +241,7 @@ public class TripImportServiceTests : TestBase
 
         // Assert
         Assert.NotEqual(existingTrip.Id, resultId);
-        var clonedTrip = await db.Trips.FindAsync(resultId);
+        var clonedTrip = await db.Trips.FindAsync(resultId.TripId);
         Assert.NotNull(clonedTrip);
         Assert.Equal("Owner's Trip (Imported)", clonedTrip.Name);
         Assert.Equal(importer.Id, clonedTrip.UserId);
@@ -317,7 +317,7 @@ public class TripImportServiceTests : TestBase
 
         // Assert
         Assert.NotEqual(existingTrip.Id, resultId);
-        var newTrip = await db.Trips.FindAsync(resultId);
+        var newTrip = await db.Trips.FindAsync(resultId.TripId);
         Assert.NotNull(newTrip);
         Assert.Equal("Trip to Clone (Imported)", newTrip.Name);
         Assert.Equal(user.Id, newTrip.UserId);
@@ -477,7 +477,7 @@ public class TripImportServiceTests : TestBase
         var resultId = await service.ImportWayfarerKmlAsync(ToStream(kml), user.Id);
 
         // Assert
-        var trip = await db.Trips.FindAsync(resultId);
+        var trip = await db.Trips.FindAsync(resultId.TripId);
         Assert.NotNull(trip);
         Assert.Equal("Trip notes", trip.Notes);
         Assert.Equal(48.8566, trip.CenterLat);
@@ -503,7 +503,7 @@ public class TripImportServiceTests : TestBase
         var resultId = await service.ImportWayfarerKmlAsync(ToStream(kml), user.Id);
 
         // Assert
-        var trip = await db.Trips.FindAsync(resultId);
+        var trip = await db.Trips.FindAsync(resultId.TripId);
         Assert.NotNull(trip);
         Assert.Equal(user.Id, trip.UserId);
     }

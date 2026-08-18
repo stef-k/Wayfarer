@@ -146,7 +146,8 @@ public sealed class TripImportPostgresTests(PostgresImportTestFixture fixture)
         fixture.RegisterTrip(tripIds[1]);
 
         await using var verification = fixture.CreateContext();
-        var trips = await verification.Trips.Include(trip => trip.Tags).Where(trip => tripIds.Contains(trip.Id)).ToListAsync();
+        var importedIds = tripIds.Select(result => result.TripId).ToArray();
+        var trips = await verification.Trips.Include(trip => trip.Tags).Where(trip => importedIds.Contains(trip.Id)).ToListAsync();
         Assert.Equal(2, trips.Count);
         var winner = Assert.Single(await verification.Tags.Where(tag => tag.Slug == slug).ToListAsync());
         fixture.RegisterTag(winner);

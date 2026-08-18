@@ -39,7 +39,8 @@ public class TripImportControllerTests : TestBase
     {
         var importSvc = new Mock<ITripImportService>();
         importSvc.Setup(s => s.ImportWayfarerKmlAsync(It.IsAny<Stream>(), "u1", mode))
-            .ReturnsAsync(Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"));
+            .ReturnsAsync(new TripImportResult(
+                Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"), []));
         var controller = BuildController(importSvc.Object);
         ConfigureControllerWithUser(controller, "u1");
         var file = CreateFormFile("content");

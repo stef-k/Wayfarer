@@ -16,17 +16,26 @@ public static class WayfarerKmlParser
         ["TransportProfileKey", "DurationSeconds", "DurationSource", "HasCustomRoute", "WaypointPlaceIds", "WaypointRouteVertexIndices"];
 
     /// <summary>Parses XML once and returns its structural kind plus native transport data when applicable.</summary>
-    public static (WayfarerKmlKind Kind, WayfarerKmlDocument? Document) ClassifyAndParse(Stream xml)
+    public static WayfarerKmlClassification ClassifyAndParse(Stream xml)
     {
-        var settings = new XmlReaderSettings
-        {
-            DtdProcessing = DtdProcessing.Prohibit,
-            XmlResolver = null,
-            MaxCharactersInDocument = 10 * 1024 * 1024,
-            IgnoreComments = true
-        };
-        using var reader = XmlReader.Create(xml, settings);
+        using var reader = XmlReader.Create(xml, ReaderSettings(async: false));
         var source = XDocument.Load(reader, LoadOptions.SetLineInfo);
+        return Classify(source);
+    }
+
+    /// <summary>Loads and classifies XML once with hardened settings and request cancellation.</summary>
+    public static async Task<WayfarerKmlClassification> ClassifyAndParseAsync(
+        Stream xml,
+        CancellationToken cancellationToken)
+    {
+        using var reader = XmlReader.Create(xml, ReaderSettings(async: true));
+        var source = await XDocument.LoadAsync(reader, LoadOptions.SetLineInfo, cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
+        return Classify(source);
+    }
+
+    private static WayfarerKmlClassification Classify(XDocument source)
+    {
         var document = source.Root?.Element(Kml + "Document") ?? throw new FormatException("Missing KML Document.");
         var versionValues = Values(document, "WayfarerSchemaVersion");
         if (versionValues.Count > 1) throw new FormatException("Duplicate Wayfarer schema version metadata.");
@@ -54,7 +63,8 @@ public static class WayfarerKmlParser
             kind = tripIds.Count == 1 && nativeChild ? WayfarerKmlKind.NativeV1 : WayfarerKmlKind.Generic;
             if (tripIds.Count > 1) throw new FormatException("Duplicate Trip identity metadata.");
         }
-        return kind == WayfarerKmlKind.Generic ? (kind, null) : (kind, ParseDocument(document, kind == WayfarerKmlKind.NativeV2 ? 2 : 1));
+        return new(kind, kind == WayfarerKmlKind.Generic ? null : ParseDocument(
+            document, kind == WayfarerKmlKind.NativeV2 ? 2 : 1), source);
     }
 
     /// <summary>Compatibility wrapper for existing v1 parser callers.</summary>
@@ -64,6 +74,15 @@ public static class WayfarerKmlParser
         if (document is null) throw new FormatException("The document is not Wayfarer-native KML.");
         return ToCompatibilityTrip(document);
     }
+
+    private static XmlReaderSettings ReaderSettings(bool async) => new()
+    {
+        Async = async,
+        DtdProcessing = DtdProcessing.Prohibit,
+        XmlResolver = null,
+        MaxCharactersInDocument = 10 * 1024 * 1024,
+        IgnoreComments = true
+    };
 
     private static WayfarerKmlDocument ParseDocument(XElement owner, int version)
     {
