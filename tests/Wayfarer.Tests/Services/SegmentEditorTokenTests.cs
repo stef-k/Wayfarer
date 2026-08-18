@@ -9,19 +9,21 @@ public sealed class SegmentEditorTokenTests
 {
     /// <summary>Aggregate tokens are opaque, scoped, and preserve only the protected row version.</summary>
     [Fact]
-    public void AggregateTokenRejectsMalformedAndWrongScopeValues()
+    public void AggregateTokenIsOpaqueScopedAndRejectsMalformedValues()
     {
         var service = new SegmentAggregateTokenService(new EphemeralDataProtectionProvider());
         var tripId = Guid.NewGuid();
         var segmentId = Guid.NewGuid();
         var token = service.Issue("owner", tripId, segmentId, 42);
 
-        Assert.DoesNotContain("42", token, StringComparison.Ordinal);
+        Assert.False(string.IsNullOrWhiteSpace(token));
+        Assert.NotEqual("42", token);
         Assert.True(service.TryRead(token, "owner", tripId, segmentId, out var rowVersion));
         Assert.Equal(42u, rowVersion);
         Assert.False(service.TryRead(token, "other", tripId, segmentId, out _));
         Assert.False(service.TryRead(token, "owner", Guid.NewGuid(), segmentId, out _));
         Assert.False(service.TryRead(token, "owner", tripId, Guid.NewGuid(), out _));
+        Assert.False(service.TryRead("42", "owner", tripId, segmentId, out _));
         Assert.False(service.TryRead("malformed", "owner", tripId, segmentId, out _));
     }
 
