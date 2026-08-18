@@ -130,6 +130,8 @@ public sealed class RoutingPinnedTransport : IRoutingPinnedTransport, IDisposabl
         {
             AllowAutoRedirect = false,
             ConnectTimeout = TimeSpan.FromSeconds(3),
+            PooledConnectionLifetime = TimeSpan.Zero,
+            PooledConnectionIdleTimeout = TimeSpan.Zero,
             ConnectCallback = ConnectPinnedAsync
         };
         _client = new HttpClient(_handler, disposeHandler: false);

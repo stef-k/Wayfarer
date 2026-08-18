@@ -75,6 +75,7 @@ defineEmits<{
         v-if="activeSegment && activeSegment.externalRouting?.available"
         :antiforgery-token="antiforgeryToken"
         :draft-has-route="draft.route !== null"
+        :draft-mode="draft.mode"
         :draft-transport-profile-id="draft.transportProfileId"
         :segment="activeSegment"
         :trip-id="state.tripId"

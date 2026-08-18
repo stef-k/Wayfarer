@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Options;
 using Wayfarer.Models;
 using Wayfarer.Services.ExternalRouting;
@@ -25,7 +26,8 @@ public sealed class RoutingVerificationActivationTests : TestBase
         db.Set<RoutingProviderConfiguration>().Add(provider);
         db.SaveChanges();
         var transport = new ProbeTransport(ValidResponse());
-        var verifier = new RoutingProviderVerifier(db, Executor(transport));
+        var verifier = new RoutingProviderVerifier(db, Executor(transport),
+            new RoutingProviderCredentialService(new EphemeralDataProtectionProvider()));
 
         var result = await verifier.VerifyAsync(provider.Id, provider.ConfigurationVersion, provider.RowVersion, CancellationToken.None);
 

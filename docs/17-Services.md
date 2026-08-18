@@ -381,3 +381,11 @@ public class MyCustomJob : IJob
 5. Upload size limit enforced by `DynamicRequestSizeMiddleware`.
 6. Limit configured via `ApplicationSettings.UploadSizeLimitMB`.
 
+---
+
+## External Route Generation
+
+External route generation is disabled by default and uses only explicitly configured OSRM-compatible instances. Public demo services are not seeded or activated. Intentional self-hosting exceptions must be deployment-owned entries under `ExternalRouting:Outbound:SelfHostedAllowlist`; an Admin database value cannot permit a private, loopback, or HTTP destination by itself.
+
+Routing credentials are encrypted with ASP.NET Core Data Protection using a routing-specific purpose. Deployments that configure credentials must preserve and share the Data Protection key ring across restarts and application replicas. Losing or rotating away all applicable keys makes saved routing credentials unusable; Wayfarer returns a bounded Admin error and never falls back to plaintext storage or disabled TLS validation. Back up and protect the key ring according to the deployment's existing Data Protection policy.
+

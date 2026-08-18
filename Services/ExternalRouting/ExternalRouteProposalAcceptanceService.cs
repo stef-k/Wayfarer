@@ -36,7 +36,9 @@ public sealed class ExternalRouteProposalAcceptanceService
             || settings.ActiveRoutingProviderConfigurationId != binding.ProviderId)
             return ExternalRouteAcceptanceResult.Failure("route-proposal-stale");
         var providerCurrent = await _dbContext.Set<RoutingProviderConfiguration>().AsNoTracking()
-            .AnyAsync(item => item.Id == binding.ProviderId && item.ConfigurationVersion == binding.ProviderConfigurationVersion,
+            .AnyAsync(item => item.Id == binding.ProviderId && item.Enabled
+                && item.ConfigurationVersion == binding.ProviderConfigurationVersion
+                && item.VerifiedConfigurationVersion == item.ConfigurationVersion,
                 cancellationToken);
         if (!providerCurrent) return ExternalRouteAcceptanceResult.Failure("route-proposal-stale");
 

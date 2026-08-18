@@ -1,6 +1,7 @@
 using System.Data;
 using Microsoft.EntityFrameworkCore;
 using Wayfarer.Models;
+using Npgsql;
 
 namespace Wayfarer.Services.ExternalRouting;
 
@@ -39,20 +40,26 @@ public sealed class RoutingProviderActivationService
             return new RoutingActivationResult(true, null);
         }
         catch (DbUpdateConcurrencyException) { return RoutingActivationResult.Failure("provider-activation-stale"); }
+        catch (Exception exception) when (IsSerializationFailure(exception))
+        { return RoutingActivationResult.Failure("provider-activation-stale"); }
     }
 
     private Task<ApplicationSettings?> LockSettingsAsync(CancellationToken cancellationToken) =>
         _dbContext.Database.IsNpgsql()
-            ? _dbContext.Set<ApplicationSettings>().FromSqlRaw("SELECT * FROM \"ApplicationSettings\" WHERE \"Id\" = 1 FOR UPDATE").SingleOrDefaultAsync(cancellationToken)
+            ? _dbContext.Set<ApplicationSettings>().FromSqlRaw("SELECT *, xmin FROM \"ApplicationSettings\" WHERE \"Id\" = 1 FOR UPDATE").SingleOrDefaultAsync(cancellationToken)
             : _dbContext.Set<ApplicationSettings>().SingleOrDefaultAsync(item => item.Id == 1, cancellationToken);
 
     private Task<RoutingProviderConfiguration?> LockProviderAsync(Guid id, CancellationToken cancellationToken)
     {
         var query = _dbContext.Database.IsNpgsql()
-            ? _dbContext.Set<RoutingProviderConfiguration>().FromSqlInterpolated($"SELECT * FROM \"RoutingProviderConfigurations\" WHERE \"Id\" = {id} FOR UPDATE")
+            ? _dbContext.Set<RoutingProviderConfiguration>().FromSqlInterpolated($"SELECT *, xmin FROM \"RoutingProviderConfigurations\" WHERE \"Id\" = {id} FOR UPDATE")
             : _dbContext.Set<RoutingProviderConfiguration>().Where(item => item.Id == id);
         return query.Include(item => item.ProfileMappings).SingleOrDefaultAsync(cancellationToken);
     }
+
+    private static bool IsSerializationFailure(Exception exception) =>
+        exception is PostgresException { SqlState: PostgresErrorCodes.SerializationFailure }
+        || exception.InnerException != null && IsSerializationFailure(exception.InnerException);
 }
 
 /// <summary>Contains the bounded atomic activation outcome.</summary>

@@ -8,6 +8,7 @@ import { createSegmentRouteProposalStore } from './segmentRouteProposalState';
 const props = defineProps<{
   antiforgeryToken: string;
   draftHasRoute: boolean;
+  draftMode: string;
   draftTransportProfileId: Guid | null;
   segment: EditorSegment;
   tripId: Guid;
@@ -23,16 +24,17 @@ const states = reactive(proposalStore.states);
 const state = computed(() => states[props.segment.id] ??= proposalStore.get(props.segment.id, props.draftTransportProfileId));
 const capability = computed(() => props.segment.externalRouting ?? null);
 const actionLabel = computed(() => props.draftHasRoute ? 'Replace with routed path' : 'Generate routed path');
+const profileChanged = computed(() => props.draftMode !== props.segment.mode);
 
 watch(() => props.segment.id, () => emit('previewChanged', state.value.proposal), { immediate: true });
-watch(() => props.draftTransportProfileId, profileId => {
-  if (!proposalStore.invalidateProfile(props.segment.id, profileId)) return;
+watch(() => `${props.draftTransportProfileId ?? ''}:${props.draftMode}`, profileKey => {
+  if (!proposalStore.invalidateProfile(props.segment.id, profileKey)) return;
   emit('previewChanged', null);
 });
 
 /** Starts only an explicit user-authorized provider request for this Segment. */
 async function generate(): Promise<void> {
-  if (!capability.value?.available || state.value.generating) return;
+  if (!capability.value?.available || profileChanged.value || state.value.generating) return;
   if (props.draftHasRoute && !(await confirm({
     title: 'Replace current route?', message: 'Generate a proposal without changing the current draft until you accept it.',
     confirmLabel: 'Generate replacement', cancelLabel: 'Keep current route', variant: 'warning'
@@ -89,7 +91,8 @@ onUnmounted(() => {
     <p class="small mb-1"><strong>{{ capability.providerDisplayName }}</strong> · {{ capability.mappedProfileLabel }}</p>
     <p class="small mb-1">{{ capability.disclosure }}</p>
     <p v-if="capability.attribution" class="small text-muted mb-2">{{ capability.attribution }}</p>
-    <button v-if="!state.proposal" type="button" class="btn btn-outline-info btn-sm" :disabled="state.generating" @click="generate">
+    <p v-if="profileChanged" class="small text-warning">Save the transport-profile change before generating a new proposal.</p>
+    <button v-if="!state.proposal" type="button" class="btn btn-outline-info btn-sm" :disabled="state.generating || profileChanged" @click="generate">
       {{ state.generating ? 'Generating…' : actionLabel }}
     </button>
     <button v-if="state.generating" type="button" class="btn btn-outline-secondary btn-sm ms-2" @click="discard">Cancel generation</button>

@@ -84,7 +84,11 @@ public sealed class ExternalRouteProposalAcceptanceTests : TestBase
             ToPlace = to, ToPlaceId = to.Id, TransportProfileId = profile.Id, Mode = profile.Key
         };
         segment.Waypoints.Add(new SegmentWaypoint { Segment = segment, SegmentId = segment.Id, Place = via, PlaceId = via.Id });
-        var provider = new RoutingProviderConfiguration { Id = Guid.NewGuid(), DisplayName = "OSRM", ConfigurationVersion = 3 };
+        var provider = new RoutingProviderConfiguration
+        {
+            Id = Guid.NewGuid(), DisplayName = "OSRM", Enabled = true,
+            ConfigurationVersion = 3, VerifiedConfigurationVersion = 3
+        };
         db.Set<Place>().AddRange(from, via, to);
         db.Set<Segment>().Add(segment);
         db.Set<RoutingProviderConfiguration>().Add(provider);

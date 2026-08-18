@@ -12,10 +12,12 @@ public sealed class RoutingProviderVerifier : IRoutingProviderVerifier
     private const double MaximumAnchorDeviationMetres = 25;
     private readonly ApplicationDbContext _dbContext;
     private readonly RoutingBoundedExecutor _executor;
+    private readonly RoutingProviderCredentialService _credentials;
 
     /// <summary>Initializes bounded verification.</summary>
-    public RoutingProviderVerifier(ApplicationDbContext dbContext, RoutingBoundedExecutor executor)
-        => (_dbContext, _executor) = (dbContext, executor);
+    public RoutingProviderVerifier(
+        ApplicationDbContext dbContext, RoutingBoundedExecutor executor, RoutingProviderCredentialService credentials)
+        => (_dbContext, _executor, _credentials) = (dbContext, executor, credentials);
 
     /// <inheritdoc />
     public async Task<RoutingVerificationResult> VerifyAsync(Guid providerId, int expectedVersion, uint expectedRowVersion, CancellationToken cancellationToken)
@@ -27,13 +29,17 @@ public sealed class RoutingProviderVerifier : IRoutingProviderVerifier
             return RoutingVerificationResult.Failure("provider-configuration-stale");
         var profiles = provider.ProfileMappings.Select(item => item.OsrmProfile).Distinct(StringComparer.Ordinal).ToArray();
         if (profiles.Length is 0 or > MaximumProfiles) return RoutingVerificationResult.Failure("provider-profile-count-invalid");
+        var credential = _credentials.Read(provider);
+        if (!credential.Succeeded) return RoutingVerificationResult.Failure(credential.ErrorCode!);
+        if (provider.CredentialRequired && string.IsNullOrEmpty(credential.Credential))
+            return RoutingVerificationResult.Failure("provider-credential-required");
         var from = new RouteCoordinate(provider.VerificationFromLongitude!.Value, provider.VerificationFromLatitude!.Value);
         var to = new RouteCoordinate(provider.VerificationToLongitude!.Value, provider.VerificationToLatitude!.Value);
         foreach (var profile in profiles)
         {
             var request = OsrmRoutingAdapter.BuildRelativeRequest(profile, [from, to]);
             var execution = await _executor.GetJsonAsync(new Uri(provider.BaseEndpoint!), request,
-                provider.ResponseSizeLimitBytes, TimeSpan.FromSeconds(5), cancellationToken);
+                provider.ResponseSizeLimitBytes, TimeSpan.FromSeconds(5), cancellationToken, credential.Credential);
             if (!execution.Succeeded) return RoutingVerificationResult.Failure(execution.ErrorCode!);
             using var response = JsonResponse(execution.Json!);
             var route = await OsrmRoutingAdapter.ParseAsync(response, cancellationToken);
