@@ -116,6 +116,45 @@ public class TripImportControllerTests : TestBase
         Assert.DoesNotContain("postgres", json.Value?.GetType().GetProperty("message")?.GetValue(json.Value)?.ToString());
     }
 
+    /// <summary>Proves stable geometry budget codes and messages cross the controller unchanged and bounded.</summary>
+    [Fact]
+    public async Task Import_ReturnsStableGeometryBudgetFailure()
+    {
+        var importSvc = new Mock<ITripImportService>();
+        importSvc.Setup(service => service.ImportWayfarerKmlAsync(
+                It.IsAny<Stream>(), "u1", TripImportMode.Auto, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new RouteGeometryBudgetException(
+                "generic_kml_processing_limit", "The route geometry is too complex to process safely."));
+        var controller = BuildController(importSvc.Object);
+        ConfigureControllerWithUser(controller, "u1");
+
+        var result = await controller.Import(CreateFormFile("complex"));
+
+        var json = Assert.IsType<JsonResult>(result);
+        Assert.Equal(422, json.StatusCode);
+        Assert.Equal("generic_kml_processing_limit", Property<string>(json.Value, "code"));
+        Assert.Equal("The route geometry is too complex to process safely.", Property<string>(json.Value, "message"));
+    }
+
+    /// <summary>Proves cancellation receives the approved stable response without internal detail.</summary>
+    [Fact]
+    public async Task Import_ReturnsStableCancellationFailure()
+    {
+        var importSvc = new Mock<ITripImportService>();
+        importSvc.Setup(service => service.ImportWayfarerKmlAsync(
+                It.IsAny<Stream>(), "u1", TripImportMode.Auto, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new OperationCanceledException("internal cancellation detail"));
+        var controller = BuildController(importSvc.Object);
+        ConfigureControllerWithUser(controller, "u1");
+
+        var result = await controller.Import(CreateFormFile("cancel"));
+
+        var json = Assert.IsType<JsonResult>(result);
+        Assert.Equal(499, json.StatusCode);
+        Assert.Equal("import_cancelled", Property<string>(json.Value, "code"));
+        Assert.Equal("The import was cancelled.", Property<string>(json.Value, "message"));
+    }
+
     private static FormFile CreateFormFile(string content)
     {
         var stream = new MemoryStream(Encoding.UTF8.GetBytes(content));

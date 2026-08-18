@@ -199,11 +199,41 @@ public sealed class RouteGeometryBudgeterTests
         Assert.Equal(1_024, work.Evaluations);
     }
 
+    /// <summary>Proves representative ordered-route shapes remain within fixed count and fidelity bounds.</summary>
+    [Theory]
+    [MemberData(nameof(RepresentativeRoutes))]
+    public void Budget_RepresentativeRouteShape_StaysWithinHardBounds(IReadOnlyList<Coordinate> source)
+    {
+        var result = RouteGeometryBudgeter.Budget(source, [0, source.Count - 1], CancellationToken.None);
+
+        Assert.InRange(result.Coordinates.Count, 2, RouteGeometryBudgeter.MaximumPersistedCoordinates);
+        Assert.InRange(result.MaximumDeviationMetres, 0d, RouteGeometryBudgeter.MaximumDeviationMetres);
+        Assert.Equal(CoordinatePair(source[0]), CoordinatePair(result.Coordinates[0]));
+        Assert.Equal(CoordinatePair(source[^1]), CoordinatePair(result.Coordinates[^1]));
+    }
+
     /// <summary>Provides deterministic zero-length and antipodal-adjacent invalid routes.</summary>
     public static TheoryData<IReadOnlyList<Coordinate>> PathologicalRoutes => new()
     {
         new[] { new Coordinate(1d, 2d), new Coordinate(1d, 2d) },
         new[] { new Coordinate(0d, 0d), new Coordinate(180d, 0d) }
+    };
+
+    /// <summary>Provides straight, curved, sharp-turn, jitter, backtracking, and self-crossing oversized routes.</summary>
+    public static TheoryData<IReadOnlyList<Coordinate>> RepresentativeRoutes => new()
+    {
+        Enumerable.Range(0, 1_201).Select(index => new Coordinate(index * 0.0001d, 30d)).ToArray(),
+        Enumerable.Range(0, 1_201).Select(index => new Coordinate(index * 0.0001d, 30d + Math.Sin(index / 100d) * 0.01d)).ToArray(),
+        Enumerable.Range(0, 1_201).Select(index => index < 600
+            ? new Coordinate(index * 0.0001d, 30d)
+            : new Coordinate(0.06d, 30d + (index - 600) * 0.0001d)).ToArray(),
+        Enumerable.Range(0, 1_201).Select(index => new Coordinate(index * 0.0001d, 30d + (index % 2) * 0.00001d)).ToArray(),
+        Enumerable.Range(0, 1_201).Select(index => new Coordinate(index * 0.00005d + Math.Sin(index / 20d) * 0.00002d, 30d)).ToArray(),
+        Enumerable.Range(0, 1_201).Select(index =>
+        {
+            var angle = index * 4d * Math.PI / 1_200d;
+            return new Coordinate(0.02d + Math.Sin(angle) * 0.01d, 30d + Math.Sin(angle) * Math.Cos(angle) * 0.01d);
+        }).ToArray()
     };
 
     private static (double Longitude, double Latitude) CoordinatePair(Coordinate coordinate) =>
