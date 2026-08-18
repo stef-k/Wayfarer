@@ -1,0 +1,103 @@
+<script setup lang="ts">
+import { computed, onUnmounted, reactive, watch } from 'vue';
+import { acceptExternalRouteProposal, ExternalRouteProposalError, generateExternalRouteProposal } from '../api/tripEditorApi';
+import { confirm } from '../composables/useConfirmDialog';
+import type { AcceptedExternalRouteProposal, EditorSegment, ExternalRouteProposal, Guid } from '../types';
+import { createSegmentRouteProposalStore } from './segmentRouteProposalState';
+
+const props = defineProps<{
+  antiforgeryToken: string;
+  draftHasRoute: boolean;
+  draftTransportProfileId: Guid | null;
+  segment: EditorSegment;
+  tripId: Guid;
+}>();
+
+const emit = defineEmits<{
+  accepted: [proposal: AcceptedExternalRouteProposal];
+  previewChanged: [proposal: ExternalRouteProposal | null];
+}>();
+
+const proposalStore = createSegmentRouteProposalStore();
+const states = reactive(proposalStore.states);
+const state = computed(() => states[props.segment.id] ??= proposalStore.get(props.segment.id, props.draftTransportProfileId));
+const capability = computed(() => props.segment.externalRouting ?? null);
+const actionLabel = computed(() => props.draftHasRoute ? 'Replace with routed path' : 'Generate routed path');
+
+watch(() => props.segment.id, () => emit('previewChanged', state.value.proposal), { immediate: true });
+watch(() => props.draftTransportProfileId, profileId => {
+  if (!proposalStore.invalidateProfile(props.segment.id, profileId)) return;
+  emit('previewChanged', null);
+});
+
+/** Starts only an explicit user-authorized provider request for this Segment. */
+async function generate(): Promise<void> {
+  if (!capability.value?.available || state.value.generating) return;
+  if (props.draftHasRoute && !(await confirm({
+    title: 'Replace current route?', message: 'Generate a proposal without changing the current draft until you accept it.',
+    confirmLabel: 'Generate replacement', cancelLabel: 'Keep current route', variant: 'warning'
+  }))) return;
+  state.value.controller?.abort();
+  const controller = new AbortController();
+  Object.assign(state.value, { generating: true, error: null, proposal: null, controller, profileId: props.draftTransportProfileId });
+  emit('previewChanged', null);
+  try {
+    state.value.proposal = await generateExternalRouteProposal(
+      props.tripId, props.segment.id, props.antiforgeryToken, props.segment.aggregateConcurrencyToken, controller.signal);
+    emit('previewChanged', state.value.proposal);
+  } catch (error) {
+    if (controller.signal.aborted) state.value.error = 'Route generation cancelled. The draft is unchanged.';
+    else state.value.error = boundedMessage(error);
+  } finally {
+    state.value.generating = false;
+    state.value.controller = null;
+  }
+}
+
+/** Accepts only after the server revalidates the protected context. */
+async function accept(): Promise<void> {
+  if (!state.value.proposal) return;
+  try {
+    const accepted = await acceptExternalRouteProposal(props.tripId, state.value.proposal, props.antiforgeryToken);
+    emit('accepted', accepted);
+    discard();
+  } catch (error) { state.value.error = boundedMessage(error); }
+}
+
+/** Discards this Segment's proposal without changing its draft. */
+function discard(): void {
+  proposalStore.discard(props.segment.id);
+  emit('previewChanged', null);
+}
+
+function boundedMessage(error: unknown): string {
+  if (!(error instanceof ExternalRouteProposalError)) return 'Route generation is unavailable. The draft is unchanged.';
+  if (error.code.includes('stale') || error.code.includes('expired')) return 'This proposal is stale or expired. Generate it again.';
+  if (error.code.includes('rate') || error.code.includes('budget')) return 'The routing request limit was reached. Try again later.';
+  return 'The routing provider could not produce a safe route. The draft is unchanged.';
+}
+
+onUnmounted(() => {
+  Object.values(states).forEach(item => item.controller?.abort());
+  emit('previewChanged', null);
+});
+</script>
+
+<template>
+  <section v-if="capability?.available" class="border rounded p-2 mt-3" aria-labelledby="external-route-heading">
+    <h3 id="external-route-heading" class="fs-6">External routed path</h3>
+    <p class="small mb-1"><strong>{{ capability.providerDisplayName }}</strong> · {{ capability.mappedProfileLabel }}</p>
+    <p class="small mb-1">{{ capability.disclosure }}</p>
+    <p v-if="capability.attribution" class="small text-muted mb-2">{{ capability.attribution }}</p>
+    <button v-if="!state.proposal" type="button" class="btn btn-outline-info btn-sm" :disabled="state.generating" @click="generate">
+      {{ state.generating ? 'Generating…' : actionLabel }}
+    </button>
+    <button v-if="state.generating" type="button" class="btn btn-outline-secondary btn-sm ms-2" @click="discard">Cancel generation</button>
+    <div v-if="state.proposal" role="status" class="mt-2">
+      <p class="small mb-2">Proposal ready for preview. Accepting changes only this unsaved Segment draft.</p>
+      <button type="button" class="btn btn-success btn-sm" @click="accept">Accept proposal</button>
+      <button type="button" class="btn btn-outline-secondary btn-sm ms-2" @click="discard">Discard proposal</button>
+    </div>
+    <p v-if="state.error" class="trip-editor-form-error mt-2 mb-0" role="alert" tabindex="-1">{{ state.error }}</p>
+  </section>
+</template>

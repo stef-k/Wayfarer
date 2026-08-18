@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import type { EditorSurfaceController, EditorTarget } from '../composables/useEditorSurface';
-import type { EditorSegment, EditorSegmentDraft, EditorTripState } from '../types';
+import type { AcceptedExternalRouteProposal, EditorSegment, EditorSegmentDraft, EditorTripState, ExternalRouteProposal } from '../types';
 import EditorSurface from './EditorSurface.vue';
 import SegmentEditorForm from './SegmentEditorForm.vue';
+import SegmentRouteProposal from './SegmentRouteProposal.vue';
 
 const props = defineProps<{
   activeSegment: EditorSegment | null;
+  antiforgeryToken: string;
   controller: EditorSurfaceController;
   draft: EditorSegmentDraft;
   fieldErrors: (key: string) => string[];
@@ -47,6 +49,8 @@ defineEmits<{
   reset: [];
   reverseRoute: [];
   save: [];
+  routeProposalAccepted: [proposal: AcceptedExternalRouteProposal];
+  routeProposalPreviewChanged: [proposal: ExternalRouteProposal | null];
 }>();
 </script>
 
@@ -66,6 +70,16 @@ defineEmits<{
         :state="state"
         @save="$emit('save')"
         @clear-error="$emit('clearError', $event)"
+      />
+      <SegmentRouteProposal
+        v-if="activeSegment && activeSegment.externalRouting?.available"
+        :antiforgery-token="antiforgeryToken"
+        :draft-has-route="draft.route !== null"
+        :draft-transport-profile-id="draft.transportProfileId"
+        :segment="activeSegment"
+        :trip-id="state.tripId"
+        @accepted="$emit('routeProposalAccepted', $event)"
+        @preview-changed="$emit('routeProposalPreviewChanged', $event)"
       />
     </template>
 

@@ -25,6 +25,7 @@ public static class ExternalRoutingServiceCollectionExtensions
         services.AddScoped<ExternalRouteProposalContextService>();
         services.AddScoped<ExternalRouteProposalGenerator>();
         services.AddScoped<ExternalRouteProposalAcceptanceService>();
+        services.AddScoped<ExternalRoutingCapabilityProjector>();
         return services;
     }
 }
