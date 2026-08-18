@@ -49,3 +49,48 @@ test('successful response is retained for its Segment and can render preview', (
   assert.equal(store.complete('first', request, proposal), true);
   assert.equal(store.get('first', 'walk').proposal, proposal);
 });
+
+test('cancelled request cannot publish after its response races cancellation', () => {
+  const store = createSegmentRouteProposalStore();
+  const request = store.begin('first', 'walk', new AbortController());
+  store.discard('first');
+
+  assert.equal(store.complete('first', request, proposalFor('first', 'cancelled')), false);
+  assert.equal(store.get('first', 'walk').proposal, null);
+});
+
+test('Segment switching publishes completion only to the initiating Segment', () => {
+  const store = createSegmentRouteProposalStore();
+  const request = store.begin('first', 'walk', new AbortController());
+  store.get('second', 'drive');
+
+  assert.equal(store.complete('first', request, proposalFor('first', 'first-proposal')), true);
+  assert.equal(store.get('first', 'walk').proposal.proposalId, 'first-proposal');
+  assert.equal(store.get('second', 'drive').proposal, null);
+});
+
+test('older generation cannot overwrite a newer proposal', () => {
+  const store = createSegmentRouteProposalStore();
+  const older = store.begin('first', 'walk', new AbortController());
+  const newer = store.begin('first', 'walk', new AbortController());
+
+  assert.equal(store.complete('first', newer, proposalFor('first', 'newer')), true);
+  assert.equal(store.complete('first', older, proposalFor('first', 'older')), false);
+  assert.equal(store.get('first', 'walk').proposal.proposalId, 'newer');
+});
+
+test('disposal aborts requests and rejects later completion', () => {
+  const store = createSegmentRouteProposalStore();
+  const controller = new AbortController();
+  const request = store.begin('first', 'walk', controller);
+  store.dispose();
+
+  assert.equal(controller.signal.aborted, true);
+  assert.equal(store.complete('first', request, proposalFor('first', 'disposed')), false);
+  assert.equal(store.get('first', 'walk').proposal, null);
+});
+
+const proposalFor = (segmentId, proposalId) => ({
+  proposalId, segmentId, geometry: [{ longitude: 23.7, latitude: 37.9 }], waypointIndices: [0],
+  protectedContext: 'context', expiresAt: '2026-08-18T22:00:00Z'
+});

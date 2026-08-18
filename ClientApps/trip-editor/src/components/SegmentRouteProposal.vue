@@ -21,13 +21,14 @@ const emit = defineEmits<{
 
 const proposalStore = createSegmentRouteProposalStore();
 const states = reactive(proposalStore.states);
-const state = computed(() => states[props.segment.id] ??= proposalStore.get(props.segment.id, props.draftTransportProfileId));
+const proposalContextKey = computed(() => `${props.draftTransportProfileId ?? ''}:${props.draftMode}`);
+const state = computed(() => states[props.segment.id] ??= proposalStore.get(props.segment.id, proposalContextKey.value));
 const capability = computed(() => props.segment.externalRouting ?? null);
 const actionLabel = computed(() => props.draftHasRoute ? 'Replace with routed path' : 'Generate routed path');
 const profileChanged = computed(() => props.draftMode !== props.segment.mode);
 
 watch(() => props.segment.id, () => emit('previewChanged', state.value.proposal), { immediate: true });
-watch(() => `${props.draftTransportProfileId ?? ''}:${props.draftMode}`, profileKey => {
+watch(proposalContextKey, profileKey => {
   if (!proposalStore.invalidateProfile(props.segment.id, profileKey)) return;
   emit('previewChanged', null);
 });
@@ -41,18 +42,18 @@ async function generate(): Promise<void> {
   }))) return;
   state.value.controller?.abort();
   const controller = new AbortController();
-  Object.assign(state.value, { generating: true, error: null, proposal: null, controller, profileId: props.draftTransportProfileId });
+  const segmentId = props.segment.id;
+  const requestId = proposalStore.begin(segmentId, proposalContextKey.value, controller);
   emit('previewChanged', null);
   try {
-    state.value.proposal = await generateExternalRouteProposal(
-      props.tripId, props.segment.id, props.antiforgeryToken, props.segment.aggregateConcurrencyToken, controller.signal);
-    emit('previewChanged', state.value.proposal);
+    const proposal = await generateExternalRouteProposal(
+      props.tripId, segmentId, props.antiforgeryToken, props.segment.aggregateConcurrencyToken, controller.signal);
+    if (proposalStore.complete(segmentId, requestId, proposal)) emit('previewChanged', proposal);
   } catch (error) {
-    if (controller.signal.aborted) state.value.error = 'Route generation cancelled. The draft is unchanged.';
-    else state.value.error = boundedMessage(error);
-  } finally {
-    state.value.generating = false;
-    state.value.controller = null;
+    const message = controller.signal.aborted
+      ? 'Route generation cancelled. The draft is unchanged.'
+      : boundedMessage(error);
+    proposalStore.fail(segmentId, requestId, message);
   }
 }
 
@@ -80,7 +81,7 @@ function boundedMessage(error: unknown): string {
 }
 
 onUnmounted(() => {
-  Object.values(states).forEach(item => item.controller?.abort());
+  proposalStore.dispose();
   emit('previewChanged', null);
 });
 </script>
