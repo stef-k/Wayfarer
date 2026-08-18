@@ -16,7 +16,7 @@ public sealed class RoutingProviderCredentialService
     }
 
     /// <summary>Initializes credential protection with the purpose-specific protector.</summary>
-    public RoutingProviderCredentialService(IDataProtector protector) => _protector = protector;
+    internal RoutingProviderCredentialService(IDataProtector protector) => _protector = protector;
 
     /// <summary>Preserves a credential for blank edits and replaces non-blank values.</summary>
     public void ApplyEdit(RoutingProviderConfiguration configuration, string? credential)

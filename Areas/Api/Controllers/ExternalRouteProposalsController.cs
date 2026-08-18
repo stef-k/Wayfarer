@@ -13,9 +13,12 @@ namespace Wayfarer.Areas.Api.Controllers;
 public sealed class ExternalRouteProposalsController : ControllerBase
 {
     private readonly ExternalRouteProposalGenerator _generator;
+    private readonly ExternalRouteProposalAcceptanceService? _acceptance;
 
     /// <summary>Initializes the thin proposal controller.</summary>
-    public ExternalRouteProposalsController(ExternalRouteProposalGenerator generator) => _generator = generator;
+    public ExternalRouteProposalsController(
+        ExternalRouteProposalGenerator generator, ExternalRouteProposalAcceptanceService? acceptance = null)
+        => (_generator, _acceptance) = (generator, acceptance);
 
     /// <summary>Generates a proposal from current server-owned Segment and provider context.</summary>
     [HttpPost]
@@ -38,6 +41,21 @@ public sealed class ExternalRouteProposalsController : ControllerBase
             _ => UnprocessableEntity(new ExternalRouteErrorDto(result.ErrorCode ?? "external-routing-unavailable"))
         };
     }
+
+    /// <summary>Validates a proposal for copying into this Segment's client draft without persistence.</summary>
+    [HttpPost("{proposalId:guid}/accept")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Accept(
+        Guid tripId, Guid segmentId, Guid proposalId, ExternalRouteAcceptanceRequest request,
+        CancellationToken cancellationToken)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrWhiteSpace(userId)) return Unauthorized();
+        if (_acceptance == null) return StatusCode(StatusCodes.Status503ServiceUnavailable);
+        var result = await _acceptance.AcceptAsync(userId, tripId, segmentId, proposalId,
+            request.Geometry, request.WaypointIndices, request.ProtectedContext, cancellationToken);
+        return result.Succeeded ? Ok(result.Proposal) : Conflict(new ExternalRouteErrorDto(result.ErrorCode!));
+    }
 }
 
 /// <summary>Contains the only browser-supplied generation input.</summary>
@@ -45,3 +63,7 @@ public sealed record ExternalRouteGenerationRequest(string AggregateConcurrencyT
 
 /// <summary>Contains one bounded Wayfarer-owned route error code.</summary>
 public sealed record ExternalRouteErrorDto(string Code);
+
+/// <summary>Contains the immutable proposal values returned by generation.</summary>
+public sealed record ExternalRouteAcceptanceRequest(
+    IReadOnlyList<RouteCoordinate> Geometry, IReadOnlyList<int> WaypointIndices, string ProtectedContext);

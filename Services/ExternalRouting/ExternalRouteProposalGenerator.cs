@@ -1,5 +1,3 @@
-using System.Security.Cryptography;
-using System.Text;
 using Microsoft.EntityFrameworkCore;
 using Wayfarer.Models;
 
@@ -98,16 +96,9 @@ public sealed class ExternalRouteProposalGenerator
         if (places.Length is < 2 or > 50 || places.Any(place => place?.Location == null))
             return GenerationContext.Failure("segment-anchors-invalid");
         var anchors = places.Select(place => new RouteCoordinate(place!.Location!.X, place.Location.Y)).ToArray();
-        var fingerprint = AnchorFingerprint(places!, anchors);
+        var fingerprint = ExternalRouteAnchorFingerprint.Compute(places!, anchors);
         return new GenerationContext(true, null, provider, mapping.OsrmProfile, anchors, transportProfileId,
             settings.ExternalRouteGenerationVersion, fingerprint);
-    }
-
-    private static string AnchorFingerprint(IReadOnlyList<Place?> places, IReadOnlyList<RouteCoordinate> anchors)
-    {
-        var canonical = string.Join('|', places.Zip(anchors, (place, coordinate) =>
-            $"{place!.Id:N}:{coordinate.Longitude:R},{coordinate.Latitude:R}"));
-        return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(canonical)));
     }
 
     private sealed record GenerationContext(

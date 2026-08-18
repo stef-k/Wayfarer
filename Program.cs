@@ -22,6 +22,7 @@ using Wayfarer.Middleware;
 using Wayfarer.Models;
 using Wayfarer.Parsers;
 using Wayfarer.Services;
+using Wayfarer.Services.ExternalRouting;
 using Wayfarer.Swagger;
 using Wayfarer.Util;
 using IPNetwork = System.Net.IPNetwork;
@@ -600,6 +601,7 @@ static void ConfigureServices(WebApplicationBuilder builder)
 
     builder.Services.AddScoped<IRazorViewRenderer, RazorViewRenderer>();
     builder.Services.AddSingleton<MapSnapshotService>();
+    builder.Services.AddExternalRouting(builder.Configuration);
     builder.Services.AddSingleton(TimeProvider.System); builder.Services.AddScoped<LifecycleDependencyConfirmation>(); builder.Services.AddScoped<SegmentAggregateTokenService>(); builder.Services.AddScoped<SegmentRouteClearConfirmation>(); builder.Services.AddScoped<PlaceRegionLifecycleService>(); builder.Services.AddScoped<TripEditorRegionMutationService>(); builder.Services.AddScoped<TripEditorPlaceMutationReader>(); builder.Services.AddScoped<TripEditorPlaceMutationService>(); builder.Services.AddScoped<TripEditorAreaMutationService>(); builder.Services.AddScoped<TripEditorSegmentMutationService>(); builder.Services.AddScoped<TripCloneCoordinator>();
 
     builder.Services.AddScoped<ITripThumbnailService, TripThumbnailService>();
