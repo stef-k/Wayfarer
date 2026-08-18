@@ -39,7 +39,15 @@ public partial class TripImportService : ITripImportService
         var classification = await WayfarerKmlParser.ClassifyAndParseAsync(kmlStream, cancellationToken);
         if (classification.Document is not null)
             return new(await ImportNativeAsync(classification.Document, userId, mode, cancellationToken), []);
-        return await ImportGenericAsync(classification.Source, userId, mode, cancellationToken);
+        try
+        {
+            return await ImportGenericAsync(classification.Source, userId, mode, cancellationToken);
+        }
+        catch
+        {
+            _dbContext.ChangeTracker.Clear();
+            throw;
+        }
     }
 
     /// <summary>Coordinates one complete native create or authoritative replacement transaction.</summary>

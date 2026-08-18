@@ -288,6 +288,14 @@ public static class RouteGeometryBudgeter
 /// <summary>Tracks the fixed document-wide point-to-segment evaluation budget.</summary>
 public sealed class RouteGeometryBudgetWork
 {
+    /// <summary>Creates a fresh document-wide operation counter.</summary>
+    public RouteGeometryBudgetWork()
+    {
+    }
+
+    /// <summary>Creates an operation counter at a known value for deterministic boundary tests.</summary>
+    internal RouteGeometryBudgetWork(long evaluations) => Evaluations = evaluations;
+
     /// <summary>Gets the number of point-to-segment evaluations performed.</summary>
     public long Evaluations { get; private set; }
 

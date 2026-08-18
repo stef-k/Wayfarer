@@ -35,29 +35,33 @@ public class TripImportControllerTests : TestBase
     [Theory]
     [InlineData(TripImportMode.Auto)]
     [InlineData(TripImportMode.CreateNew)]
-    public async Task Import_RedirectsToCanonicalTripEdit_OnSuccess(TripImportMode mode)
+    public async Task Import_ReturnsBoundedCanonicalSuccessJson(TripImportMode mode)
     {
         var importSvc = new Mock<ITripImportService>();
-        importSvc.Setup(s => s.ImportWayfarerKmlAsync(It.IsAny<Stream>(), "u1", mode))
+        importSvc.Setup(s => s.ImportWayfarerKmlAsync(
+                It.IsAny<Stream>(), "u1", mode, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new TripImportResult(
-                Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"), []));
+                Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"),
+                [new("generic_route_simplified", "Route", 1500, 400, 1d, 0.5d)]));
         var controller = BuildController(importSvc.Object);
         ConfigureControllerWithUser(controller, "u1");
         var file = CreateFormFile("content");
 
         var result = await controller.Import(file, mode);
 
-        var redirect = Assert.IsType<RedirectToActionResult>(result);
-        Assert.Equal("Edit", redirect.ActionName);
-        Assert.Equal("Trip", redirect.ControllerName);
-        Assert.Equal(Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"), redirect.RouteValues?["id"]);
+        var json = Assert.IsType<JsonResult>(result);
+        Assert.Equal("success", Property<string>(json.Value, "status"));
+        Assert.Equal(Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"), Property<Guid>(json.Value, "tripId"));
+        Assert.Equal("/User/Trip/Edit/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", Property<string>(json.Value, "redirectUrl"));
+        Assert.Single(Property<IReadOnlyList<TripImportNotice>>(json.Value, "notices"));
     }
 
     [Fact]
     public async Task Import_ReturnsDuplicateJson_WhenDuplicateDetected()
     {
         var importSvc = new Mock<ITripImportService>();
-        importSvc.Setup(s => s.ImportWayfarerKmlAsync(It.IsAny<Stream>(), "u1", TripImportMode.Auto))
+        importSvc.Setup(s => s.ImportWayfarerKmlAsync(
+                It.IsAny<Stream>(), "u1", TripImportMode.Auto, It.IsAny<CancellationToken>()))
             .ThrowsAsync(new TripDuplicateException(Guid.Parse("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb")));
         var controller = BuildController(importSvc.Object);
         ConfigureControllerWithUser(controller, "u1");
@@ -78,7 +82,8 @@ public class TripImportControllerTests : TestBase
     public async Task Import_ReturnsSafeJson_ForExpectedFailures(Type exceptionType, int expectedStatus, string expectedCode)
     {
         var importSvc = new Mock<ITripImportService>();
-        importSvc.Setup(s => s.ImportWayfarerKmlAsync(It.IsAny<Stream>(), "u1", TripImportMode.Auto))
+        importSvc.Setup(s => s.ImportWayfarerKmlAsync(
+                It.IsAny<Stream>(), "u1", TripImportMode.Auto, It.IsAny<CancellationToken>()))
             .ThrowsAsync((Exception)Activator.CreateInstance(exceptionType, "sensitive detail")!);
         var controller = BuildController(importSvc.Object);
         ConfigureControllerWithUser(controller, "u1");
@@ -97,7 +102,8 @@ public class TripImportControllerTests : TestBase
     public async Task Import_ReturnsGenericSafeJson_ForUnexpectedFailures()
     {
         var importSvc = new Mock<ITripImportService>();
-        importSvc.Setup(s => s.ImportWayfarerKmlAsync(It.IsAny<Stream>(), "u1", TripImportMode.Auto))
+        importSvc.Setup(s => s.ImportWayfarerKmlAsync(
+                It.IsAny<Stream>(), "u1", TripImportMode.Auto, It.IsAny<CancellationToken>()))
             .ThrowsAsync(new Exception("postgres connection details"));
         var controller = BuildController(importSvc.Object);
         ConfigureControllerWithUser(controller, "u1");
@@ -124,4 +130,7 @@ public class TripImportControllerTests : TestBase
             CreateDbContext(),
             service);
     }
+
+    private static T Property<T>(object? owner, string name) =>
+        Assert.IsAssignableFrom<T>(owner?.GetType().GetProperty(name)?.GetValue(owner));
 }

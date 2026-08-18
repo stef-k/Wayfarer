@@ -3,13 +3,14 @@ import test from 'node:test';
 import { genericImportFailure, submitTripImport } from '../../wwwroot/js/Areas/User/Trip/tripImportClient.js';
 
 const createHandlers = (fetchImpl) => {
-    const result = { duplicates: 0, errors: [], redirects: [] };
+    const result = { duplicates: 0, errors: [], notices: [], redirects: [] };
     return {
         result,
         handlers: {
             fetchImpl,
             onRedirect: url => result.redirects.push(url),
             onDuplicate: () => result.duplicates++,
+            showNotices: notices => result.notices.push(...notices),
             showError: message => result.errors.push(message)
         }
     };
@@ -17,17 +18,24 @@ const createHandlers = (fetchImpl) => {
 
 const sampleFile = new Blob(['kml'], { type: 'application/vnd.google-earth.kml+xml' });
 
-test('invokes browser fetch with the global receiver', async () => {
+test('reports bounded notices and follows the canonical success URL', async () => {
     let receiver;
     const { handlers, result } = createHandlers(function () {
         receiver = this;
-        return Promise.resolve({ redirected: true, url: '/User/Trip/Edit/test-trip' });
+        return Promise.resolve({
+            json: async () => ({
+                status: 'success',
+                redirectUrl: '/User/Trip/Edit/test-trip',
+                notices: [{ code: 'generic_route_simplified', originalCoordinateCount: 1500, resultingCoordinateCount: 400 }]
+            })
+        });
     });
 
     await submitTripImport(sampleFile, 'Auto', handlers);
 
     assert.equal(receiver, globalThis);
     assert.deepEqual(result.redirects, ['/User/Trip/Edit/test-trip']);
+    assert.equal(result.notices.length, 1);
 });
 
 test('uses the fixed message when fetch rejects', async () => {

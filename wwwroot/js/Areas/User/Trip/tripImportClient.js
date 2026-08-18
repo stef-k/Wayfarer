@@ -5,7 +5,7 @@ export const genericImportFailure = 'Import failed. Please try again.';
  * Submits one trip import without exposing response bodies to the UI.
  * @param {File} file Selected KML file.
  * @param {string} mode Import mode understood by the server.
- * @param {{ fetchImpl: typeof fetch, onRedirect: (url: string) => void, onDuplicate: () => void, showError: (message: string) => void }} handlers UI callbacks.
+ * @param {{ fetchImpl: typeof fetch, onRedirect: (url: string) => void, onDuplicate: () => void, showError: (message: string) => void, showNotices?: (notices: Array<object>) => void }} handlers UI callbacks.
  * @returns {Promise<void>} Completes after the response has been handled safely.
  */
 export const submitTripImport = async (file, mode, handlers) => {
@@ -15,12 +15,12 @@ export const submitTripImport = async (file, mode, handlers) => {
 
     try {
         const response = await handlers.fetchImpl.call(globalThis, '/User/Trip/Import', { method: 'POST', body: formData });
-        if (response.redirected) {
-            handlers.onRedirect(response.url);
+        const payload = await response.json();
+        if (payload?.status === 'success' && typeof payload.redirectUrl === 'string') {
+            handlers.showNotices?.(Array.isArray(payload.notices) ? payload.notices : []);
+            handlers.onRedirect(payload.redirectUrl);
             return;
         }
-
-        const payload = await response.json();
         if (payload?.status === 'duplicate') {
             handlers.onDuplicate();
             return;

@@ -35,8 +35,15 @@ public class TripImportController : BaseController
 
         try
         {
-            var tripId = await _svc.ImportWayfarerKmlAsync(stream, userId, mode);
-            return RedirectToAction("Edit", "Trip", new { id = tripId });
+            var result = await _svc.ImportWayfarerKmlAsync(stream, userId, mode, HttpContext.RequestAborted);
+            var redirectUrl = $"/User/Trip/Edit/{result.TripId:D}";
+            return Json(new
+            {
+                status = "success",
+                tripId = result.TripId,
+                redirectUrl,
+                notices = result.Notices
+            });
         }
         catch (TripDuplicateException ex)          // <- see section 2
         {
@@ -46,6 +53,16 @@ public class TripImportController : BaseController
         {
             _logger.LogWarning(ex, "Trip import validation failed for user {UserId}", userId);
             return ImportError(StatusCodes.Status422UnprocessableEntity, "validation_failed", "The import contains invalid data.");
+        }
+        catch (RouteGeometryBudgetException ex)
+        {
+            _logger.LogWarning("Generic route import rejected with code {ImportCode} for user {UserId}", ex.Code, userId);
+            return ImportError(StatusCodes.Status422UnprocessableEntity, ex.Code, ex.Message);
+        }
+        catch (OperationCanceledException)
+        {
+            _logger.LogInformation("Trip import was cancelled for user {UserId}", userId);
+            return ImportError(499, "import_cancelled", "The import was cancelled.");
         }
         catch (FormatException ex)
         {

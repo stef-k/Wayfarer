@@ -84,6 +84,128 @@ public sealed class RouteGeometryBudgeterTests
         Assert.Contains(CoordinatePair(source[protectedIndex]), result.Coordinates.Select(CoordinatePair));
     }
 
+    /// <summary>Proves an exact oversized loop retains both endpoint occurrences and a distinct pivot.</summary>
+    [Fact]
+    public void Budget_ExactClosedLoop_PreservesClosureAndDistinctInterior()
+    {
+        var source = Enumerable.Range(0, 1_200).Select(index =>
+        {
+            var angle = index * 2d * Math.PI / 1_200d;
+            return new Coordinate(20d + Math.Cos(angle) * 0.1d, 35d + Math.Sin(angle) * 0.1d);
+        }).Append(new Coordinate(20.1d, 35d)).ToArray();
+
+        var result = RouteGeometryBudgeter.Budget(source, [0, source.Length - 1], CancellationToken.None);
+
+        Assert.Equal(CoordinatePair(source[0]), CoordinatePair(result.Coordinates[0]));
+        Assert.Equal(CoordinatePair(source[^1]), CoordinatePair(result.Coordinates[^1]));
+        Assert.True(result.Coordinates.Count >= 3);
+        Assert.Contains(result.Coordinates.Skip(1).SkipLast(1), point => CoordinatePair(point) != CoordinatePair(source[0]));
+    }
+
+    /// <summary>Proves consecutive duplicates are removable while nonconsecutive ordered positions remain meaningful.</summary>
+    [Fact]
+    public void Budget_Duplicates_PreservesOrderedRouteSemantics()
+    {
+        var source = Enumerable.Range(0, 1_100)
+            .SelectMany(index => index == 500
+                ? new[] { new Coordinate(0.05d, 10.01d), new Coordinate(0.05d, 10.01d) }
+                : new[] { new Coordinate(index * 0.0001d, 10d + (index % 2) * 0.00001d) })
+            .Append(new Coordinate(0.05d, 10.01d))
+            .ToArray();
+
+        var result = RouteGeometryBudgeter.Budget(source, [0, source.Length - 1], CancellationToken.None);
+
+        Assert.Equal(CoordinatePair(source[0]), CoordinatePair(result.Coordinates[0]));
+        Assert.Equal(CoordinatePair(source[^1]), CoordinatePair(result.Coordinates[^1]));
+        Assert.True(result.Coordinates.Count <= RouteGeometryBudgeter.MaximumPersistedCoordinates);
+    }
+
+    /// <summary>Proves spherical budgeting supports antimeridian crossings at high latitude.</summary>
+    [Fact]
+    public void Budget_AntimeridianHighLatitudeRoute_RemainsBounded()
+    {
+        var source = Enumerable.Range(0, 1_501).Select(index =>
+        {
+            var longitude = 179.5d + index * 0.001d;
+            if (longitude > 180d) longitude -= 360d;
+            return new Coordinate(longitude, 82d + Math.Sin(index / 10d) * 0.00001d);
+        }).ToArray();
+
+        var result = RouteGeometryBudgeter.Budget(source, [0, source.Length - 1], CancellationToken.None);
+
+        Assert.InRange(result.Coordinates.Count, 2, RouteGeometryBudgeter.MaximumPersistedCoordinates);
+        Assert.InRange(result.MaximumDeviationMetres, 0d, RouteGeometryBudgeter.MaximumDeviationMetres);
+    }
+
+    /// <summary>Proves the valid two-position minimum remains unchanged.</summary>
+    [Fact]
+    public void Budget_TwoPointRoute_RemainsExact()
+    {
+        var source = new[] { new Coordinate(-1d, 1d), new Coordinate(1d, 2d) };
+
+        var result = RouteGeometryBudgeter.Budget(source, [0, 1], CancellationToken.None);
+
+        Assert.Equal(source.Select(CoordinatePair), result.Coordinates.Select(CoordinatePair));
+        Assert.False(result.WasSimplified);
+    }
+
+    /// <summary>Proves zero-length and adjacent antipodal routes reject with the stable coordinate code.</summary>
+    [Theory]
+    [MemberData(nameof(PathologicalRoutes))]
+    public void Budget_PathologicalRoute_Rejects(IReadOnlyList<Coordinate> source)
+    {
+        var error = Assert.Throws<RouteGeometryBudgetException>(() =>
+            RouteGeometryBudgeter.Budget(source, [0, source.Count - 1], CancellationToken.None));
+
+        Assert.Equal("generic_kml_invalid_coordinate", error.Code);
+    }
+
+    /// <summary>Proves protected geometry rejects rather than exceeding the persisted vertex limit.</summary>
+    [Fact]
+    public void Budget_ImpossibleProtectedCount_Rejects()
+    {
+        var source = Enumerable.Range(0, 1_002)
+            .Select(index => new Coordinate(index * 0.001d, 20d + (index % 2) * 0.001d))
+            .ToArray();
+
+        var error = Assert.Throws<RouteGeometryBudgetException>(() =>
+            RouteGeometryBudgeter.Budget(source, Enumerable.Range(0, source.Length).ToArray(), CancellationToken.None));
+
+        Assert.Equal("generic_kml_geometry_budget_unsatisfied", error.Code);
+    }
+
+    /// <summary>Proves the document operation ceiling rejects before one extra evaluation is accepted.</summary>
+    [Fact]
+    public void Work_OperationBudgetExhausted_Rejects()
+    {
+        var work = new RouteGeometryBudgetWork(RouteGeometryBudgeter.MaximumEvaluations);
+
+        var error = Assert.Throws<RouteGeometryBudgetException>(() =>
+            work.RecordEvaluation(CancellationToken.None));
+
+        Assert.Equal("generic_kml_processing_limit", error.Code);
+        Assert.Equal(RouteGeometryBudgeter.MaximumEvaluations + 1, work.Evaluations);
+    }
+
+    /// <summary>Proves cancellation is observed on the prescribed 1,024th evaluation.</summary>
+    [Fact]
+    public void Work_AtCancellationCadence_PropagatesCancellation()
+    {
+        var work = new RouteGeometryBudgetWork(1_023);
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        Assert.Throws<OperationCanceledException>(() => work.RecordEvaluation(cancellation.Token));
+        Assert.Equal(1_024, work.Evaluations);
+    }
+
+    /// <summary>Provides deterministic zero-length and antipodal-adjacent invalid routes.</summary>
+    public static TheoryData<IReadOnlyList<Coordinate>> PathologicalRoutes => new()
+    {
+        new[] { new Coordinate(1d, 2d), new Coordinate(1d, 2d) },
+        new[] { new Coordinate(0d, 0d), new Coordinate(180d, 0d) }
+    };
+
     private static (double Longitude, double Latitude) CoordinatePair(Coordinate coordinate) =>
         (coordinate.X, coordinate.Y);
 }
