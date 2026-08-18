@@ -38,6 +38,9 @@ public class ApplicationSettings
     /// <summary>Gets or sets the selected routing provider navigation.</summary>
     public RoutingProviderConfiguration? ActiveRoutingProviderConfiguration { get; set; }
 
+    /// <summary>Gets the PostgreSQL optimistic concurrency token for atomic global changes.</summary>
+    public uint RowVersion { get; private set; }
+
     [Required]
     [Range(1, 1440, ErrorMessage = "Time threshold must be between 1 and 1440 minutes (24 hours).")]
     public int LocationTimeThresholdMinutes { get; set; } = 5;

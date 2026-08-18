@@ -9,6 +9,7 @@ public sealed class RoutingProviderConfigurationConfiguration : IEntityTypeConfi
     /// <inheritdoc />
     public void Configure(EntityTypeBuilder<RoutingProviderConfiguration> builder)
     {
+        builder.ToTable("RoutingProviderConfigurations");
         builder.Property(item => item.RowVersion).HasColumnName("xmin").IsRowVersion().ValueGeneratedOnAddOrUpdate();
         builder.HasMany(item => item.ProfileMappings).WithOne(item => item.RoutingProviderConfiguration)
             .HasForeignKey(item => item.RoutingProviderConfigurationId).OnDelete(DeleteBehavior.Cascade);
@@ -21,6 +22,7 @@ public sealed class RoutingProviderProfileMappingConfiguration : IEntityTypeConf
     /// <inheritdoc />
     public void Configure(EntityTypeBuilder<RoutingProviderProfileMapping> builder)
     {
+        builder.ToTable("RoutingProviderProfileMappings");
         builder.HasKey(item => new { item.RoutingProviderConfigurationId, item.TransportProfileId });
         builder.HasOne(item => item.TransportProfile).WithMany().HasForeignKey(item => item.TransportProfileId)
             .OnDelete(DeleteBehavior.Restrict);
@@ -31,7 +33,10 @@ public sealed class RoutingProviderProfileMappingConfiguration : IEntityTypeConf
 public sealed class ApplicationSettingsRoutingConfiguration : IEntityTypeConfiguration<ApplicationSettings>
 {
     /// <inheritdoc />
-    public void Configure(EntityTypeBuilder<ApplicationSettings> builder) => builder
-        .HasOne(item => item.ActiveRoutingProviderConfiguration).WithMany()
-        .HasForeignKey(item => item.ActiveRoutingProviderConfigurationId).OnDelete(DeleteBehavior.Restrict);
+    public void Configure(EntityTypeBuilder<ApplicationSettings> builder)
+    {
+        builder.Property(item => item.RowVersion).HasColumnName("xmin").IsRowVersion().ValueGeneratedOnAddOrUpdate();
+        builder.HasOne(item => item.ActiveRoutingProviderConfiguration).WithMany()
+            .HasForeignKey(item => item.ActiveRoutingProviderConfigurationId).OnDelete(DeleteBehavior.Restrict);
+    }
 }
