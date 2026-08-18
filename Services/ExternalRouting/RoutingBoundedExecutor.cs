@@ -1,0 +1,163 @@
+using System.Net;
+using System.Net.Sockets;
+
+namespace Wayfarer.Services.ExternalRouting;
+
+/// <summary>Executes routing JSON requests with DNS pinning and bounded response handling.</summary>
+public sealed class RoutingBoundedExecutor
+{
+    private readonly IRoutingDnsResolver _resolver;
+    private readonly RoutingEndpointPolicy _policy;
+    private readonly IRoutingPinnedTransport _transport;
+
+    /// <summary>Initializes the routing-specific outbound executor.</summary>
+    public RoutingBoundedExecutor(IRoutingDnsResolver resolver, RoutingEndpointPolicy policy, IRoutingPinnedTransport transport)
+        => (_resolver, _policy, _transport) = (resolver, policy, transport);
+
+    /// <summary>Resolves, validates, pins, and streams one JSON response under the configured byte limit.</summary>
+    public async Task<RoutingExecutionResult> GetJsonAsync(
+        Uri endpoint, string relativeRequest, int responseLimitBytes, TimeSpan timeout, CancellationToken cancellationToken)
+    {
+        if (responseLimitBytes is < 262144 or > 2097152 || timeout > TimeSpan.FromSeconds(30))
+            return RoutingExecutionResult.Failure("routing-policy-invalid");
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(timeout);
+        try
+        {
+            for (var attempt = 0; attempt < 2; attempt++)
+            {
+                var addresses = await _resolver.ResolveAsync(endpoint.Host, deadline.Token);
+                var decision = _policy.Validate(endpoint, addresses);
+                if (!decision.Allowed) return RoutingExecutionResult.Failure("routing-endpoint-unsafe");
+                var requestUri = new Uri(endpoint.ToString().TrimEnd('/') + "/" + relativeRequest.TrimStart('/'));
+                HttpResponseMessage response;
+                try { response = await _transport.SendAsync(requestUri, decision.SelectedAddress!, deadline.Token); }
+                catch (Exception exception) when (exception is HttpRequestException or SocketException)
+                {
+                    if (attempt == 0) continue;
+                    return RoutingExecutionResult.Failure("provider-connection-failure");
+                }
+                using (response)
+                {
+                    if (attempt == 0 && IsRetryable(response.StatusCode)) continue;
+                    return await ReadResponseAsync(response, responseLimitBytes, deadline.Token);
+                }
+            }
+            return RoutingExecutionResult.Failure("provider-connection-failure");
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        { return RoutingExecutionResult.Failure("provider-timeout"); }
+        catch (OperationCanceledException) { return RoutingExecutionResult.Failure("request-cancelled"); }
+    }
+
+    private static async Task<RoutingExecutionResult> ReadResponseAsync(
+        HttpResponseMessage response, int responseLimitBytes, CancellationToken cancellationToken)
+    {
+        if ((int)response.StatusCode is >= 300 and < 400) return RoutingExecutionResult.Failure("provider-redirect-rejected");
+        if (!response.IsSuccessStatusCode) return RoutingExecutionResult.Failure(ClassifyStatus(response.StatusCode));
+        var mediaType = response.Content.Headers.ContentType?.MediaType;
+        if (mediaType is not ("application/json" or "application/problem+json") && mediaType?.EndsWith("+json", StringComparison.OrdinalIgnoreCase) != true)
+            return RoutingExecutionResult.Failure("provider-content-type-invalid");
+        if (response.Content.Headers.ContentLength > responseLimitBytes)
+            return RoutingExecutionResult.Failure("provider-response-too-large");
+        await using var source = await response.Content.ReadAsStreamAsync(cancellationToken);
+        await using var destination = new MemoryStream(Math.Min(responseLimitBytes, 65536));
+        var buffer = new byte[16384];
+        while (true)
+        {
+            var read = await source.ReadAsync(buffer, cancellationToken);
+            if (read == 0) break;
+            if (destination.Length + read > responseLimitBytes)
+                return RoutingExecutionResult.Failure("provider-response-too-large");
+            await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+        }
+        return new RoutingExecutionResult(true, destination.ToArray(), null);
+    }
+
+    private static bool IsRetryable(HttpStatusCode status) => status is
+        HttpStatusCode.BadGateway or HttpStatusCode.ServiceUnavailable or HttpStatusCode.GatewayTimeout;
+
+    private static string ClassifyStatus(HttpStatusCode status) => status switch
+    {
+        HttpStatusCode.TooManyRequests => "provider-rate-limited",
+        HttpStatusCode.BadGateway or HttpStatusCode.ServiceUnavailable or HttpStatusCode.GatewayTimeout => "provider-unavailable",
+        _ => "provider-http-failure"
+    };
+}
+
+/// <summary>Contains bounded response bytes or a safe Wayfarer error category.</summary>
+public sealed record RoutingExecutionResult(bool Succeeded, byte[]? Json, string? ErrorCode)
+{
+    /// <summary>Creates a failure without raw provider details.</summary>
+    public static RoutingExecutionResult Failure(string code) => new(false, null, code);
+}
+
+/// <summary>Resolves every A and AAAA address immediately before a routing connection.</summary>
+public interface IRoutingDnsResolver
+{
+    /// <summary>Resolves the original configured host.</summary>
+    Task<IReadOnlyList<IPAddress>> ResolveAsync(string host, CancellationToken cancellationToken);
+}
+
+/// <summary>Uses the system resolver without caching beyond the current request.</summary>
+public sealed class RoutingDnsResolver : IRoutingDnsResolver
+{
+    /// <inheritdoc />
+    public async Task<IReadOnlyList<IPAddress>> ResolveAsync(string host, CancellationToken cancellationToken) =>
+        await Dns.GetHostAddressesAsync(host, cancellationToken);
+}
+
+/// <summary>Sends a request over the selected address while retaining the original URI host.</summary>
+public interface IRoutingPinnedTransport
+{
+    /// <summary>Sends one non-redirecting request pinned to the validated address.</summary>
+    Task<HttpResponseMessage> SendAsync(Uri requestUri, IPAddress selectedAddress, CancellationToken cancellationToken);
+}
+
+/// <summary>Creates a one-request handler whose connection callback pins the validated address.</summary>
+public sealed class RoutingPinnedTransport : IRoutingPinnedTransport, IDisposable
+{
+    private static readonly HttpRequestOptionsKey<IPAddress> AddressKey = new("WayfarerRoutingPinnedAddress");
+    private readonly SocketsHttpHandler _handler;
+    private readonly HttpClient _client;
+
+    /// <summary>Initializes one reusable non-redirecting transport with per-request address pinning.</summary>
+    public RoutingPinnedTransport()
+    {
+        _handler = new SocketsHttpHandler
+        {
+            AllowAutoRedirect = false,
+            ConnectTimeout = TimeSpan.FromSeconds(3),
+            ConnectCallback = ConnectPinnedAsync
+        };
+        _client = new HttpClient(_handler, disposeHandler: false);
+    }
+
+    /// <inheritdoc />
+    public async Task<HttpResponseMessage> SendAsync(Uri requestUri, IPAddress selectedAddress, CancellationToken cancellationToken)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, requestUri);
+        request.Options.Set(AddressKey, selectedAddress);
+        return await _client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+    }
+
+    /// <inheritdoc />
+    public void Dispose()
+    {
+        _client.Dispose();
+        _handler.Dispose();
+    }
+
+    private static async ValueTask<Stream> ConnectPinnedAsync(SocketsHttpConnectionContext context, CancellationToken token)
+    {
+        if (!context.InitialRequestMessage.Options.TryGetValue(AddressKey, out var selectedAddress))
+            throw new HttpRequestException("The routing connection has no validated address.");
+        var socket = new Socket(selectedAddress.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+        try
+        {
+            await socket.ConnectAsync(new IPEndPoint(selectedAddress, context.DnsEndPoint.Port), token);
+            return new NetworkStream(socket, ownsSocket: true);
+        }
+        catch { socket.Dispose(); throw; }
+    }
+}
