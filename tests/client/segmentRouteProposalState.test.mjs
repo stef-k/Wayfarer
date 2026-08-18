@@ -1,6 +1,21 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { computed, nextTick, reactive, watchEffect } from 'vue';
 import { createSegmentRouteProposalStore } from '../../ClientApps/trip-editor/src/components/segmentRouteProposalState.ts';
+
+test('successful completion reactively renders Preview, Accept, and Discard', async () => {
+  const store = createSegmentRouteProposalStore();
+  const states = reactive(store.states);
+  const state = computed(() => states.first ??= store.get('first', 'walk'));
+  let renderedActions = [];
+  watchEffect(() => { renderedActions = state.value.proposal ? ['Preview', 'Accept', 'Discard'] : []; });
+  const request = store.begin('first', 'walk', new AbortController());
+
+  assert.equal(store.complete('first', request, proposalFor('first', 'completed')), true);
+  await nextTick();
+
+  assert.deepEqual(renderedActions, ['Preview', 'Accept', 'Discard']);
+});
 
 test('two Segments retain isolated proposal and progress state', () => {
   const store = createSegmentRouteProposalStore();
