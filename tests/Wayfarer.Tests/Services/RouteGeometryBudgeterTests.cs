@@ -152,6 +152,7 @@ public sealed class RouteGeometryBudgeterTests
     /// <summary>Proves coordinates close to mathematical antipodes remain valid route endpoints.</summary>
     [Theory]
     [InlineData(0d, 0d, 179.999999d, 0d)]
+    [InlineData(170d, 12d, -10.000001d, -12d)]
     [InlineData(40d, 90d, -140d, -89.999999d)]
     public void Budget_NearAntipodalRoute_RemainsExact(
         double firstLongitude,
@@ -174,6 +175,7 @@ public sealed class RouteGeometryBudgeterTests
     /// <summary>Proves mathematical antipodes reject, including opposite poles with arbitrary longitudes.</summary>
     [Theory]
     [InlineData(0d, 0d, 180d, 0d)]
+    [InlineData(170d, 12d, -10d, -12d)]
     [InlineData(40d, 90d, 75d, -90d)]
     public void Budget_ExactlyAntipodalRoute_Rejects(
         double firstLongitude,

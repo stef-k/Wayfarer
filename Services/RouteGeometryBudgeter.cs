@@ -19,7 +19,6 @@ public static class RouteGeometryBudgeter
     public const long MaximumEvaluations = 5_000_000;
 
     private const double EarthRadiusMetres = 6_371_000d;
-    private const double AntipodalEpsilonRadians = 1e-12;
 
     /// <summary>Budgets one route with a fresh operation counter.</summary>
     public static RouteGeometryBudgetResult Budget(
@@ -259,10 +258,18 @@ public static class RouteGeometryBudgeter
                 - Math.Sin(latitude1) * Math.Cos(latitude2) * Math.Cos(longitudeDelta));
     }
 
+    // Exact coordinate relationships avoid Haversine rounding near pi; longitude is irrelevant at either pole.
     private static bool IsAntipodal(Coordinate first, Coordinate second) =>
-        Math.Abs(Math.PI - AngularDistance(first, second)) <= AntipodalEpsilonRadians;
+        second.Y == -first.Y
+        && (Math.Abs(first.Y) == 90d || Math.Abs(NormalizeDegrees(second.X - first.X)) == 180d);
     private static bool EqualPosition(Coordinate first, Coordinate second) => first.X == second.X && first.Y == second.Y;
     private static double DegreesToRadians(double degrees) => degrees * Math.PI / 180d;
+    private static double NormalizeDegrees(double degrees)
+    {
+        var normalized = (degrees + 180d) % 360d;
+        if (normalized < 0d) normalized += 360d;
+        return normalized - 180d;
+    }
     private static double NormalizeRadians(double radians)
     {
         var normalized = (radians + Math.PI) % (2d * Math.PI);
