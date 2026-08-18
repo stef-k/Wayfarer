@@ -120,7 +120,7 @@ public sealed class RoutingBoundedExecutorTests
         public IPAddress? Address { get; private set; }
         public Uri? Uri { get; private set; }
 
-        public Task<HttpResponseMessage> SendAsync(Uri requestUri, IPAddress selectedAddress, CancellationToken cancellationToken)
+        public Task<HttpResponseMessage> SendAsync(Uri requestUri, IPAddress selectedAddress, string? bearerCredential, CancellationToken cancellationToken)
         {
             (Uri, Address) = (requestUri, selectedAddress);
             return Task.FromResult(response);
@@ -131,7 +131,7 @@ public sealed class RoutingBoundedExecutorTests
     {
         public int Requests { get; private set; }
 
-        public Task<HttpResponseMessage> SendAsync(Uri requestUri, IPAddress selectedAddress, CancellationToken cancellationToken) =>
+        public Task<HttpResponseMessage> SendAsync(Uri requestUri, IPAddress selectedAddress, string? bearerCredential, CancellationToken cancellationToken) =>
             Task.FromResult(responses[Requests++]);
     }
 }

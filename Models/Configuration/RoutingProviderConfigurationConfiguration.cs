@@ -36,6 +36,7 @@ public sealed class ApplicationSettingsRoutingConfiguration : IEntityTypeConfigu
     public void Configure(EntityTypeBuilder<ApplicationSettings> builder)
     {
         builder.Property(item => item.RowVersion).HasColumnName("xmin").IsRowVersion().ValueGeneratedOnAddOrUpdate();
+        builder.Property(item => item.ExternalRouteGenerationVersion).HasDefaultValue(1);
         builder.HasOne(item => item.ActiveRoutingProviderConfiguration).WithMany()
             .HasForeignKey(item => item.ActiveRoutingProviderConfigurationId).OnDelete(DeleteBehavior.Restrict);
     }

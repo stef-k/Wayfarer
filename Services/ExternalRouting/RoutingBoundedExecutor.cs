@@ -16,7 +16,8 @@ public sealed class RoutingBoundedExecutor
 
     /// <summary>Resolves, validates, pins, and streams one JSON response under the configured byte limit.</summary>
     public async Task<RoutingExecutionResult> GetJsonAsync(
-        Uri endpoint, string relativeRequest, int responseLimitBytes, TimeSpan timeout, CancellationToken cancellationToken)
+        Uri endpoint, string relativeRequest, int responseLimitBytes, TimeSpan timeout, CancellationToken cancellationToken,
+        string? bearerCredential = null, Func<bool>? admitAttempt = null)
     {
         if (responseLimitBytes is < 262144 or > 2097152 || timeout > TimeSpan.FromSeconds(30))
             return RoutingExecutionResult.Failure("routing-policy-invalid");
@@ -26,12 +27,13 @@ public sealed class RoutingBoundedExecutor
         {
             for (var attempt = 0; attempt < 2; attempt++)
             {
+                if (admitAttempt?.Invoke() == false) return RoutingExecutionResult.Failure("provider-rate-limited");
                 var addresses = await _resolver.ResolveAsync(endpoint.Host, deadline.Token);
                 var decision = _policy.Validate(endpoint, addresses);
                 if (!decision.Allowed) return RoutingExecutionResult.Failure("routing-endpoint-unsafe");
                 var requestUri = new Uri(endpoint.ToString().TrimEnd('/') + "/" + relativeRequest.TrimStart('/'));
                 HttpResponseMessage response;
-                try { response = await _transport.SendAsync(requestUri, decision.SelectedAddress!, deadline.Token); }
+                try { response = await _transport.SendAsync(requestUri, decision.SelectedAddress!, bearerCredential, deadline.Token); }
                 catch (Exception exception) when (exception is HttpRequestException or SocketException)
                 {
                     if (attempt == 0) continue;
@@ -111,7 +113,7 @@ public sealed class RoutingDnsResolver : IRoutingDnsResolver
 public interface IRoutingPinnedTransport
 {
     /// <summary>Sends one non-redirecting request pinned to the validated address.</summary>
-    Task<HttpResponseMessage> SendAsync(Uri requestUri, IPAddress selectedAddress, CancellationToken cancellationToken);
+    Task<HttpResponseMessage> SendAsync(Uri requestUri, IPAddress selectedAddress, string? bearerCredential, CancellationToken cancellationToken);
 }
 
 /// <summary>Creates a one-request handler whose connection callback pins the validated address.</summary>
@@ -134,10 +136,12 @@ public sealed class RoutingPinnedTransport : IRoutingPinnedTransport, IDisposabl
     }
 
     /// <inheritdoc />
-    public async Task<HttpResponseMessage> SendAsync(Uri requestUri, IPAddress selectedAddress, CancellationToken cancellationToken)
+    public async Task<HttpResponseMessage> SendAsync(Uri requestUri, IPAddress selectedAddress, string? bearerCredential, CancellationToken cancellationToken)
     {
         using var request = new HttpRequestMessage(HttpMethod.Get, requestUri);
         request.Options.Set(AddressKey, selectedAddress);
+        if (!string.IsNullOrEmpty(bearerCredential))
+            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", bearerCredential);
         return await _client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
     }
 

@@ -10,6 +10,11 @@ public sealed class RoutingProviderCredentialService
     public const string ProtectionPurpose = "Wayfarer.ExternalRouting.Credentials.v1";
     private readonly IDataProtector _protector;
 
+    /// <summary>Initializes the isolated protector from the application Data Protection provider.</summary>
+    public RoutingProviderCredentialService(IDataProtectionProvider provider) : this(provider.CreateProtector(ProtectionPurpose))
+    {
+    }
+
     /// <summary>Initializes credential protection with the purpose-specific protector.</summary>
     public RoutingProviderCredentialService(IDataProtector protector) => _protector = protector;
 

@@ -104,7 +104,7 @@ public sealed class RoutingVerificationActivationTests : TestBase
     private sealed class ProbeTransport(HttpResponseMessage template) : IRoutingPinnedTransport
     {
         public int Requests { get; private set; }
-        public async Task<HttpResponseMessage> SendAsync(Uri requestUri, IPAddress selectedAddress, CancellationToken cancellationToken)
+        public async Task<HttpResponseMessage> SendAsync(Uri requestUri, IPAddress selectedAddress, string? bearerCredential, CancellationToken cancellationToken)
         {
             Requests++;
             return new HttpResponseMessage(template.StatusCode)

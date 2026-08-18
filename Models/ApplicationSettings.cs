@@ -32,6 +32,9 @@ public class ApplicationSettings
     /// <summary>Gets or sets whether external route proposal generation is enabled globally.</summary>
     public bool ExternalRouteGenerationEnabled { get; set; }
 
+    /// <summary>Gets or sets the monotonic feature-state generation bound into pending proposals.</summary>
+    public int ExternalRouteGenerationVersion { get; set; } = 1;
+
     /// <summary>Gets or sets the single globally selected routing provider configuration.</summary>
     public Guid? ActiveRoutingProviderConfigurationId { get; set; }
 
