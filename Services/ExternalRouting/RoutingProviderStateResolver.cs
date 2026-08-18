@@ -19,6 +19,7 @@ public static class RoutingProviderStateResolver
 
     private static bool IsComplete(RoutingProviderConfiguration value) =>
         value.Enabled && !string.IsNullOrWhiteSpace(value.DisplayName) && !string.IsNullOrWhiteSpace(value.BaseEndpoint)
+        && (!value.CredentialRequired || value.CredentialPresent)
         && value.VerificationFromLongitude.HasValue && value.VerificationFromLatitude.HasValue
         && value.VerificationToLongitude.HasValue && value.VerificationToLatitude.HasValue
         && value.ProfileMappings.Count > 0;

@@ -1,0 +1,126 @@
+using Microsoft.AspNetCore.DataProtection;
+using Wayfarer.Areas.Admin.Models;
+using Wayfarer.Models;
+using Wayfarer.Services.ExternalRouting;
+using Wayfarer.Tests.Infrastructure;
+using Xunit;
+
+namespace Wayfarer.Tests.Services;
+
+/// <summary>Verifies credential, version, and feature-state administration boundaries.</summary>
+public sealed class RoutingProviderAdministrationServiceTests : TestBase
+{
+    [Fact]
+    public async Task Save_BlankCredentialPreservesCiphertextAndVerificationForMetadataOnlyEdit()
+    {
+        var fixture = CreateFixture(requiredCredential: true, featureEnabled: false);
+        var ciphertext = fixture.Provider.CredentialCiphertext;
+        var version = fixture.Provider.ConfigurationVersion;
+        var model = Model(fixture);
+        model.DisplayName = "Renamed OSRM";
+        model.Credential = " ";
+
+        var result = await fixture.Service.SaveAsync(model, "admin", CancellationToken.None);
+
+        Assert.True(result.Succeeded);
+        Assert.Equal(ciphertext, fixture.Provider.CredentialCiphertext);
+        Assert.Equal(version, fixture.Provider.ConfigurationVersion);
+        Assert.Equal(version, fixture.Provider.VerifiedConfigurationVersion);
+    }
+
+    [Fact]
+    public async Task Save_OperationalChangeIncrementsVersionAndInvalidatesVerification()
+    {
+        var fixture = CreateFixture(requiredCredential: false, featureEnabled: false);
+        var model = Model(fixture);
+        model.GenerationTimeoutSeconds = 20;
+
+        var result = await fixture.Service.SaveAsync(model, "admin", CancellationToken.None);
+
+        Assert.True(result.Succeeded);
+        Assert.Equal(3, fixture.Provider.ConfigurationVersion);
+        Assert.Null(fixture.Provider.VerifiedConfigurationVersion);
+    }
+
+    [Fact]
+    public async Task ClearCredential_RejectsRequiredActiveCredentialUnlessAtomicallyDisabled()
+    {
+        var fixture = CreateFixture(requiredCredential: true, featureEnabled: true);
+
+        var rejected = await fixture.Service.ClearCredentialAsync(
+            fixture.Provider.Id, true, false, "admin", CancellationToken.None);
+        var cleared = await fixture.Service.ClearCredentialAsync(
+            fixture.Provider.Id, true, true, "admin", CancellationToken.None);
+
+        Assert.False(rejected.Succeeded);
+        Assert.True(cleared.Succeeded);
+        Assert.False(fixture.Settings.ExternalRouteGenerationEnabled);
+        Assert.False(fixture.Provider.CredentialPresent);
+        Assert.Null(fixture.Provider.CredentialCiphertext);
+        Assert.Equal(2, fixture.Settings.ExternalRouteGenerationVersion);
+    }
+
+    [Fact]
+    public async Task FeatureEnable_RejectsUnverifiedSelectedProvider()
+    {
+        var fixture = CreateFixture(requiredCredential: false, featureEnabled: false);
+        fixture.Provider.VerifiedConfigurationVersion = null;
+        fixture.Db.SaveChanges();
+
+        var result = await fixture.Service.SetFeatureEnabledAsync(true, fixture.Settings.RowVersion, "admin", CancellationToken.None);
+
+        Assert.False(result.Succeeded);
+        Assert.False(fixture.Settings.ExternalRouteGenerationEnabled);
+    }
+
+    private Fixture CreateFixture(bool requiredCredential, bool featureEnabled)
+    {
+        var db = CreateDbContext();
+        var credentialService = new RoutingProviderCredentialService(new EphemeralDataProtectionProvider());
+        var profile = db.Set<TransportProfile>().First();
+        var provider = new RoutingProviderConfiguration
+        {
+            Id = Guid.NewGuid(), DisplayName = "OSRM", BaseEndpoint = "https://routing.example", Enabled = true,
+            CredentialRequired = requiredCredential, ExternalCoordinateDisclosure = "Coordinates are sent externally.",
+            VerificationFromLongitude = 1, VerificationFromLatitude = 2, VerificationToLongitude = 3,
+            VerificationToLatitude = 4
+        };
+        provider.ProfileMappings.Add(new RoutingProviderProfileMapping
+        {
+            RoutingProviderConfigurationId = provider.Id, TransportProfileId = profile.Id, OsrmProfile = "driving"
+        });
+        if (requiredCredential) credentialService.Replace(provider, "secret");
+        else provider.MarkConfigurationChanged();
+        provider.VerifiedConfigurationVersion = provider.ConfigurationVersion;
+        var settings = new ApplicationSettings
+        {
+            Id = 1, ExternalRouteGenerationEnabled = featureEnabled, ExternalRouteGenerationVersion = 1,
+            ActiveRoutingProviderConfigurationId = provider.Id
+        };
+        db.Set<RoutingProviderConfiguration>().Add(provider);
+        db.ApplicationSettings.Add(settings);
+        db.SaveChanges();
+        return new Fixture(db, new RoutingProviderAdministrationService(db, credentialService), provider, settings, profile);
+    }
+
+    private static RoutingProviderEditViewModel Model(Fixture fixture) => new()
+    {
+        Id = fixture.Provider.Id, DisplayName = fixture.Provider.DisplayName, BaseEndpoint = fixture.Provider.BaseEndpoint!,
+        CredentialRequired = fixture.Provider.CredentialRequired, CredentialPresent = fixture.Provider.CredentialPresent,
+        Enabled = fixture.Provider.Enabled, ExternalCoordinateDisclosure = fixture.Provider.ExternalCoordinateDisclosure!,
+        VerificationFromLongitude = fixture.Provider.VerificationFromLongitude,
+        VerificationFromLatitude = fixture.Provider.VerificationFromLatitude,
+        VerificationToLongitude = fixture.Provider.VerificationToLongitude,
+        VerificationToLatitude = fixture.Provider.VerificationToLatitude,
+        GenerationTimeoutSeconds = fixture.Provider.GenerationTimeoutSeconds,
+        ResponseSizeLimitBytes = fixture.Provider.ResponseSizeLimitBytes,
+        RequestsPerMinute = fixture.Provider.RequestsPerMinute, MaxConcurrency = fixture.Provider.MaxConcurrency,
+        RowVersion = fixture.Provider.RowVersion, ConfigurationVersion = fixture.Provider.ConfigurationVersion,
+        Mappings = [new RoutingProviderMappingViewModel
+            { TransportProfileId = fixture.Profile.Id, OsrmProfile = "driving" }]
+    };
+
+    private sealed record Fixture(
+        ApplicationDbContext Db, RoutingProviderAdministrationService Service, RoutingProviderConfiguration Provider,
+        ApplicationSettings Settings, TransportProfile Profile);
+}

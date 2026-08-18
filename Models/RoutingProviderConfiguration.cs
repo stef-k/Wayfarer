@@ -26,6 +26,9 @@ public sealed class RoutingProviderConfiguration
     /// <summary>Gets or sets whether a protected credential exists.</summary>
     public bool CredentialPresent { get; set; }
 
+    /// <summary>Gets or sets whether this configured OSRM instance requires its server-side credential.</summary>
+    public bool CredentialRequired { get; set; }
+
     /// <summary>Gets or sets whether administrators permit use of this configuration.</summary>
     public bool Enabled { get; set; }
 
