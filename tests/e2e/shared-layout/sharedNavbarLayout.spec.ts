@@ -8,8 +8,8 @@ type NavbarGeometry = Record<string, { left: number; right: number; width: numbe
 };
 
 test.describe('shared standard-layout navbar', () => {
-  test('exposes the authenticated navbar overflow at the zoom-equivalent width', async ({ page }) => {
-    await page.setViewportSize({ width: 600, height: 900 });
+  test('keeps the authenticated navbar coherent across desktop, zoom-equivalent, and phone widths', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
     await signIn(page);
 
     const navbar = page.locator('#mainNavbar');
@@ -20,14 +20,120 @@ test.describe('shared standard-layout navbar', () => {
     await expect(navbar.getByRole('button', { name: 'Logout' })).toBeAttached();
     await expect(collapse).toBeVisible();
     await expect(toggler).toBeHidden();
+    await expectContained(page);
 
-    const geometry = await measureNavbar(page);
-    expect(
-      geometry.scrollWidth,
-      `The mounted authenticated navbar must fit the document. Geometry: ${JSON.stringify(geometry)}`
-    ).toBeLessThanOrEqual(geometry.clientWidth);
+    const accountButton = navbar.locator('.nav-user-btn');
+    await accountButton.focus();
+    await expect(accountButton).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(accountButton).toHaveAttribute('aria-expanded', 'true');
+    await expect(navbar.locator('.user-menu')).toBeVisible();
+    await page.keyboard.press('Escape');
+
+    await page.setViewportSize({ width: 640, height: 300 });
+    await expect(collapse).toBeHidden();
+    await expect(toggler).toBeVisible();
+    await expect(toggler).toHaveClass(/collapsed/);
+    await expect(toggler).toHaveAttribute('aria-expanded', 'false');
+    await expect(navbar.getByRole('link', { name: 'Home' })).toBeHidden();
+    await expectContained(page);
+
+    await toggler.focus();
+    await expect(toggler).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(collapse).toHaveClass(/show/);
+    await expect(toggler).not.toHaveClass(/collapsed/);
+    await expect(toggler).toHaveAttribute('aria-expanded', 'true');
+    await expectStandardControls(navbar);
+    await expectOpenedMenuContained(page);
+
+    await accountButton.focus();
+    await page.keyboard.press('Enter');
+    await expect(accountButton).toHaveAttribute('aria-expanded', 'true');
+    const accountItems = navbar.locator('.user-menu a');
+    await expect(accountItems.first()).toBeVisible();
+    await page.keyboard.press('Tab');
+    await expect(accountItems.first()).toBeFocused();
+    await page.keyboard.press('Escape');
+
+    await toggler.focus();
+    await page.keyboard.press('Space');
+    await expect(collapse).toBeHidden();
+    await expect(toggler).toHaveAttribute('aria-expanded', 'false');
+    await page.keyboard.press('Enter');
+    await expect(collapse).toBeVisible();
+    await expect(collapse).toHaveClass(/show/);
+    await expect(toggler).toHaveAttribute('aria-expanded', 'true');
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expectStandardControls(navbar);
+    await expectContained(page);
+    await expectOpenedMenuContained(page);
+    await toggler.focus();
+    await page.keyboard.press('Enter');
+    await expect(collapse).toBeHidden();
+    await expectContained(page);
+  });
+
+  test('keeps the anonymous Login and Register controls contained', async ({ page }) => {
+    await page.setViewportSize({ width: 640, height: 500 });
+    await page.goto('/Home/Privacy');
+    const navbar = page.locator('#mainNavbar');
+    await navbar.locator('.navbar-toggler').focus();
+    await page.keyboard.press('Enter');
+    await expect(navbar.getByRole('link', { name: 'Register' })).toBeVisible();
+    await expect(navbar.getByRole('link', { name: 'Login' })).toBeVisible();
+    await expectContained(page);
+  });
+
+  test('uses one stable native Bootstrap collapse owner', async ({ page }) => {
+    await page.goto('/Home/Privacy');
+    const toggler = page.locator('#mainNavbar .navbar-toggler');
+    await expect(toggler).toHaveAttribute('data-bs-target', '#mainNavbarCollapse');
+    await expect(toggler).toHaveAttribute('aria-controls', 'mainNavbarCollapse');
+    await expect(page.locator('#mainNavbarCollapse')).toHaveCount(1);
   });
 });
+
+/** Verifies all controls supplied by the supported authenticated fixture remain exposed. */
+async function expectStandardControls(navbar: ReturnType<Page['locator']>): Promise<void> {
+  for (const name of ['Home', 'Trips', 'Docs', 'Mobile', 'Privacy']) {
+    await expect(navbar.getByRole('link', { name, exact: true }).first()).toBeVisible();
+  }
+  await expect(navbar.locator('#themeToggle')).toBeVisible();
+  await expect(navbar.locator('.nav-user-btn')).toBeVisible();
+  await expect(navbar.getByRole('button', { name: 'Logout' })).toBeVisible();
+}
+
+/** Verifies the document and every shared-navbar owner remain inside the CSS viewport. */
+async function expectContained(page: Page): Promise<void> {
+  const geometry = await measureNavbar(page);
+  expect(geometry.scrollWidth, `Navbar geometry: ${JSON.stringify(geometry)}`).toBeLessThanOrEqual(geometry.clientWidth);
+  expect(geometry.firstOverflowingOwner, `Navbar geometry: ${JSON.stringify(geometry)}`).toBeNull();
+}
+
+/** Verifies the opened collapse owns bounded vertical overflow without widening the page. */
+async function expectOpenedMenuContained(page: Page): Promise<void> {
+  const geometry = await page.locator('#mainNavbarCollapse').evaluate(element => {
+    const bounds = element.getBoundingClientRect();
+    const style = getComputedStyle(element);
+    return {
+      bottom: bounds.bottom,
+      clientHeight: element.clientHeight,
+      scrollHeight: element.scrollHeight,
+      viewportHeight: innerHeight,
+      overflowY: style.overflowY
+    };
+  });
+  expect(geometry.bottom).toBeLessThanOrEqual(geometry.viewportHeight + 1);
+  if (geometry.viewportHeight <= 500) {
+    expect(geometry.scrollHeight).toBeGreaterThan(geometry.clientHeight);
+  } else {
+    expect(geometry.scrollHeight).toBeGreaterThanOrEqual(geometry.clientHeight);
+  }
+  expect(geometry.overflowY).toBe('auto');
+  await expectContained(page);
+}
 
 /** Signs in through the mounted Identity page using the ignored local verification fixture. */
 async function signIn(page: Page): Promise<void> {

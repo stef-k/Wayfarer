@@ -28,6 +28,47 @@ body {
     min-height: 0;
 }
 
+/* Keep the native standard-navbar collapse bounded below Bootstrap's lg expansion breakpoint. */
+@media (max-width: 991.98px) {
+    #mainNavbar .container-fluid,
+    #mainNavbar .navbar-collapse,
+    #mainNavbar .navbar-nav,
+    #mainNavbar .navbar-nav > *,
+    #mainNavbar .dropdown,
+    #mainNavbar form {
+        max-width: 100%;
+        min-width: 0;
+    }
+
+    #mainNavbar .navbar-collapse {
+        width: 100%;
+    }
+
+    #mainNavbar .navbar-collapse.show {
+        max-height: calc(100dvh - 4.5rem);
+        overflow-y: auto;
+    }
+
+    #mainNavbar .navbar-nav,
+    #mainNavbar .dropdown-menu {
+        width: 100%;
+    }
+
+    #mainNavbar .nav-link,
+    #mainNavbar .dropdown-item,
+    #mainNavbar .nav-user-btn {
+        max-width: 100%;
+        overflow-wrap: anywhere;
+        white-space: normal;
+    }
+
+    #mainNavbar .nav-user-btn {
+        overflow: visible;
+        text-align: left;
+        text-overflow: clip;
+    }
+}
+
 .site-footer {
     align-items: center;
     border-top: 1px solid rgba(33, 37, 41, 0.10);
