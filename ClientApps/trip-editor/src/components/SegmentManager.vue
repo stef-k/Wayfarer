@@ -14,7 +14,7 @@ import { invokeSegmentRouteAction } from './segmentRouteWorkPolicy';
 import type { EditorSegmentDraftPresentation, SegmentPresentationKey } from '../segments/editorSegmentPresentation';
 import { resolveDraftSegmentPresentation, resolvePersistedSegmentPresentation } from '../segments/editorSegmentPresentation';
 import { reverseSegmentDraftRoute } from '../segments/segmentPresentationResolver';
-import { createSegmentRouteProposalDraftController } from './segmentRouteProposalDraft';
+import { createSegmentRouteProposalDraftController, routeProposalDraftContextKey } from './segmentRouteProposalDraft';
 
 declare global {
   interface Window {
@@ -86,14 +86,7 @@ const draftOrientation = computed(() => {
     return 'ambiguous';
   }
 });
-const routeProposalContextKey = computed(() => JSON.stringify({
-  segmentId: draft.id,
-  transportProfileId: draft.transportProfileId,
-  anchorFingerprint: JSON.stringify([draft.fromPlaceId, ...draft.waypointPlaceIds, draft.toPlaceId].map(id =>
-    id ? [id, props.state.placesById[id]?.location ?? null] : null)),
-  routeFingerprint: JSON.stringify(draft.route),
-  draftRevision: routeProposalDraftRevision.value
-}));
+const routeProposalContextKey = computed(() => routeProposalDraftContextKey(draft, props.state, routeProposalDraftRevision.value));
 const routeProposalDraft = createSegmentRouteProposalDraftController(
   draft, routePreviewIdentity, preview => emit('routeDraftPreviewChanged', preview));
 

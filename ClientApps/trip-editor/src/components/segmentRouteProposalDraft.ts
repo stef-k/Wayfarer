@@ -1,5 +1,17 @@
 import type { SegmentDraftRoutePreview } from '../map/segmentRouteDraftPreviewLayer';
-import type { AcceptedExternalRouteProposal, EditorSegmentDraft, ExternalRouteProposal } from '../types';
+import type { AcceptedExternalRouteProposal, EditorSegmentDraft, EditorTripState, ExternalRouteProposal } from '../types';
+
+/** Snapshots every draft authority that binds proposal preview and acceptance. */
+export const routeProposalDraftContextKey = (
+  draft: EditorSegmentDraft, state: EditorTripState, draftRevision: number
+): string => JSON.stringify({
+  segmentId: draft.id,
+  transportProfileId: draft.transportProfileId,
+  anchorFingerprint: JSON.stringify([draft.fromPlaceId, ...draft.waypointPlaceIds, draft.toPlaceId]
+    .map(id => id ? [id, state.placesById[id]?.location ?? null] : null)),
+  routeFingerprint: JSON.stringify(draft.route),
+  draftRevision
+});
 
 /** Converts provider coordinates into the existing draft GeoJSON and complete intermediate indices. */
 export const applyAcceptedRouteProposal = (
