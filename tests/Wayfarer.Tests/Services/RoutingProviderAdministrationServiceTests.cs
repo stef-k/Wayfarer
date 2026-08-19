@@ -43,6 +43,21 @@ public sealed class RoutingProviderAdministrationServiceTests : TestBase
     }
 
     [Fact]
+    public async Task Save_PersonalAccessChangeIncrementsVersionInvalidatesVerificationAndAuditsSafely()
+    {
+        var fixture = CreateFixture(requiredCredential: false, featureEnabled: false);
+        var model = Model(fixture);
+        model.PersonalRoutingAccess = PersonalRoutingAccess.CredentialFree;
+
+        var result = await fixture.Service.SaveAsync(model, "admin", CancellationToken.None);
+
+        Assert.True(result.Succeeded);
+        Assert.Equal(PersonalRoutingAccess.CredentialFree, fixture.Provider.PersonalRoutingAccess);
+        Assert.Null(fixture.Provider.VerifiedConfigurationVersion);
+        Assert.DoesNotContain(fixture.Db.AuditLogs, item => item.Details.Contains("secret", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public async Task Save_MinimumIntervalChangeIsExactAndInvalidatesOnlyWhenChanged()
     {
         var fixture = CreateFixture(requiredCredential: false, featureEnabled: false);
@@ -198,6 +213,7 @@ public sealed class RoutingProviderAdministrationServiceTests : TestBase
     {
         Id = fixture.Provider.Id, DisplayName = fixture.Provider.DisplayName, BaseEndpoint = fixture.Provider.BaseEndpoint!,
         CredentialRequired = fixture.Provider.CredentialRequired, CredentialPresent = fixture.Provider.CredentialPresent,
+        PersonalRoutingAccess = fixture.Provider.PersonalRoutingAccess,
         Enabled = fixture.Provider.Enabled, ExternalCoordinateDisclosure = fixture.Provider.ExternalCoordinateDisclosure!,
         VerificationFromLongitude = fixture.Provider.VerificationFromLongitude,
         VerificationFromLatitude = fixture.Provider.VerificationFromLatitude,

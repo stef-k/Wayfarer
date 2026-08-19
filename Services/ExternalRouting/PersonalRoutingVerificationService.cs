@@ -10,9 +10,11 @@ namespace Wayfarer.Services.ExternalRouting;
 /// <summary>Verifies required personal credentials without holding database locks during provider contact.</summary>
 public sealed class PersonalRoutingVerificationService(
     ApplicationDbContext dbContext, RoutingBoundedExecutor executor, AuthoritativeRoutingProviderResolver resolver,
-    RoutingAttemptCoordinator attempts)
+    RoutingAttemptCoordinator attempts, TimeProvider? timeProvider = null)
 {
     private const int MaximumProfiles = 8;
+    private const double MaximumAnchorDeviationMetres = 25;
+    private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
 
     /// <summary>Gets the deterministic short-commit lock order.</summary>
     public static IReadOnlyList<PersonalRoutingVerificationLock> CommitLockOrder { get; } =
@@ -22,12 +24,25 @@ public sealed class PersonalRoutingVerificationService(
     public async Task<PersonalRoutingVerificationResult> VerifyAsync(
         string userId, uint expectedUserRowVersion, CancellationToken cancellationToken)
     {
+        using var operationTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        using var timer = _timeProvider.CreateTimer(
+            _ => operationTimeout.Cancel(), null, TimeSpan.FromSeconds(600), Timeout.InfiniteTimeSpan);
+        try { return await VerifyCoreAsync(userId, expectedUserRowVersion, operationTimeout.Token); }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        { return PersonalRoutingVerificationResult.Failure("routing-timeout"); }
+        catch (OperationCanceledException)
+        { return PersonalRoutingVerificationResult.Failure("request-cancelled"); }
+    }
+
+    private async Task<PersonalRoutingVerificationResult> VerifyCoreAsync(
+        string userId, uint expectedUserRowVersion, CancellationToken cancellationToken)
+    {
         var snapshot = await LoadSnapshotAsync(userId, cancellationToken);
         if (snapshot == null || snapshot.UserRowVersion != expectedUserRowVersion)
             return PersonalRoutingVerificationResult.Failure("personal-routing-stale");
         var resolution = await resolver.ResolveForVerificationAsync(userId, snapshot.ProfileIds[0], cancellationToken);
         if (resolution is not { Outcome: RoutingProviderResolutionOutcome.ResolvedPersonal, Execution: { } target })
-            return PersonalRoutingVerificationResult.Failure("personal-credential-unavailable");
+            return await CommitAsync(snapshot, "personal-credential-unavailable", cancellationToken);
 
         foreach (var profile in snapshot.Profiles)
         {
@@ -36,13 +51,18 @@ public sealed class PersonalRoutingVerificationService(
                 TimeSpan.FromSeconds(5), cancellationToken, target.Credential,
                 prepareAttempt: token => attempts.PrepareAsync(snapshot.Provider,
                     inner => IsCurrentAsync(snapshot, inner), token));
-            if (!execution.Succeeded) return PersonalRoutingVerificationResult.Failure(execution.ErrorCode!);
+            if (!execution.Succeeded)
+                return execution.ErrorCode == "request-cancelled"
+                    ? PersonalRoutingVerificationResult.Failure(execution.ErrorCode)
+                    : await CommitAsync(snapshot, execution.ErrorCode!, cancellationToken);
             using var response = JsonResponse(execution.Json!);
             var route = await OsrmRoutingAdapter.ParseAsync(response, cancellationToken);
-            if (!route.Succeeded || route.Waypoints.Count != 2 || route.Geometry.Count > 1000)
-                return PersonalRoutingVerificationResult.Failure("personal-verification-invalid");
+            if (!route.Succeeded || route.Waypoints.Count != 2 || route.Geometry.Count > 1000
+                || DistanceMetres(snapshot.From, route.Waypoints[0]) > MaximumAnchorDeviationMetres
+                || DistanceMetres(snapshot.To, route.Waypoints[1]) > MaximumAnchorDeviationMetres)
+                return await CommitAsync(snapshot, "personal-verification-invalid", cancellationToken);
         }
-        return await CommitAsync(snapshot, cancellationToken);
+        return await CommitAsync(snapshot, null, cancellationToken);
     }
 
     private async Task<PersonalVerificationSnapshot?> LoadSnapshotAsync(
@@ -77,7 +97,7 @@ public sealed class PersonalRoutingVerificationService(
     }
 
     private async Task<PersonalRoutingVerificationResult> CommitAsync(
-        PersonalVerificationSnapshot snapshot, CancellationToken cancellationToken)
+        PersonalVerificationSnapshot snapshot, string? failureCode, CancellationToken cancellationToken)
     {
         var relational = dbContext.Database.IsRelational();
         if (relational) dbContext.ChangeTracker.Clear();
@@ -98,19 +118,21 @@ public sealed class PersonalRoutingVerificationService(
             var configuration = await userQuery.SingleOrDefaultAsync(cancellationToken);
             if (provider == null || configuration == null || !Matches(snapshot, provider, configuration))
                 return PersonalRoutingVerificationResult.Failure("personal-routing-stale");
-            configuration.VerifiedUserConfigurationVersion = configuration.ConfigurationVersion;
-            configuration.VerifiedProviderConfigurationVersion = provider.ConfigurationVersion;
-            configuration.VerificationStatus = "verified";
+            configuration.VerifiedUserConfigurationVersion = failureCode == null ? configuration.ConfigurationVersion : null;
+            configuration.VerifiedProviderConfigurationVersion = failureCode == null ? provider.ConfigurationVersion : null;
+            configuration.VerificationStatus = failureCode == null ? "verified" : "unavailable";
             configuration.UpdatedAt = DateTime.UtcNow;
             dbContext.AuditLogs.Add(new AuditLog
             {
                 UserId = snapshot.UserId, Action = "PersonalRoutingVerification", Timestamp = DateTime.UtcNow,
-                Details = $"ProviderId={snapshot.ProviderId}; Category=success; Transition=ready-to-verified."
+                Details = $"ProviderId={snapshot.ProviderId}; Category={(failureCode == null ? "success" : failureCode)}; Transition={(failureCode == null ? "ready-to-verified" : "verification-unavailable")}."
             });
             await dbContext.SaveChangesAsync(cancellationToken);
             if (transaction != null) await transaction.CommitAsync(cancellationToken);
-            return new PersonalRoutingVerificationResult(true, null, configuration.ConfigurationVersion,
-                provider.ConfigurationVersion, configuration.RowVersion);
+            return failureCode == null
+                ? new PersonalRoutingVerificationResult(true, null, configuration.ConfigurationVersion,
+                    provider.ConfigurationVersion, configuration.RowVersion)
+                : PersonalRoutingVerificationResult.Failure(failureCode);
         }
         catch (DbUpdateConcurrencyException) { return Stale(); }
         catch (Exception exception) when (IsSerializationFailure(exception)) { return Stale(); }
@@ -161,6 +183,18 @@ public sealed class PersonalRoutingVerificationService(
     private static bool IsSerializationFailure(Exception exception) =>
         exception is PostgresException { SqlState: PostgresErrorCodes.SerializationFailure }
         || exception.InnerException != null && IsSerializationFailure(exception.InnerException);
+
+    private static double DistanceMetres(RouteCoordinate first, RouteCoordinate second)
+    {
+        const double radius = 6371000;
+        var firstLat = first.Latitude * Math.PI / 180;
+        var secondLat = second.Latitude * Math.PI / 180;
+        var deltaLat = (second.Latitude - first.Latitude) * Math.PI / 180;
+        var deltaLon = (second.Longitude - first.Longitude) * Math.PI / 180;
+        var value = Math.Sin(deltaLat / 2) * Math.Sin(deltaLat / 2)
+            + Math.Cos(firstLat) * Math.Cos(secondLat) * Math.Sin(deltaLon / 2) * Math.Sin(deltaLon / 2);
+        return radius * 2 * Math.Atan2(Math.Sqrt(value), Math.Sqrt(1 - value));
+    }
 
     private sealed record PersonalVerificationSnapshot(
         string UserId, int UserVersion, uint UserRowVersion, string Ciphertext,

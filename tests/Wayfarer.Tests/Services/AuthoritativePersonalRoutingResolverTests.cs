@@ -50,6 +50,21 @@ public sealed class AuthoritativePersonalRoutingResolverTests : TestBase
         Assert.Null(result.Execution);
     }
 
+    [Fact]
+    public async Task CredentialFreePersonalModeResolvesWithoutPersonalOrGlobalCredential()
+    {
+        var fixture = CreatePersonalFixture(PersonalRoutingAccess.CredentialFree);
+        fixture.Configuration.CredentialCiphertext = null;
+        fixture.Configuration.CredentialPresent = false;
+        fixture.Configuration.InvalidateVerification();
+        fixture.Db.SaveChanges();
+
+        var result = await fixture.Resolver.ResolveAsync(fixture.UserId, fixture.ProfileId, CancellationToken.None);
+
+        Assert.Equal(RoutingProviderResolutionOutcome.ResolvedPersonal, result.Outcome);
+        Assert.Null(result.Execution!.Credential);
+    }
+
     private PersonalFixture CreatePersonalFixture(
         PersonalRoutingAccess access = PersonalRoutingAccess.CredentialRequired)
     {
