@@ -225,11 +225,21 @@ npm run build
 dotnet publish
 ```
 
-For production-like local acceptance, also run `dotnet frontend build` before
-publishing so MvcFrontendKit bundles are freshly generated, then run the
-published output. Source-tree `ASPNETCORE_ENVIRONMENT=Production dotnet run` is
-not the supported bundle acceptance path because local scoped CSS static web
-assets are generated outside `wwwroot`.
+For production-like local acceptance, restore the repository-local tool and
+generate MvcFrontendKit bundles before the remaining frontend build and publish:
+
+```bash
+dotnet tool restore
+dotnet frontend build
+npm ci
+npm run build
+dotnet publish
+```
+
+Then run the published output. Source-tree
+`ASPNETCORE_ENVIRONMENT=Production dotnet run` is not the supported bundle
+acceptance path because local scoped CSS static web assets are generated outside
+`wwwroot`.
 The published output must include
 `wwwroot/vite/trip-editor/manifest.json` plus the CSS/JS files referenced by
 that manifest.
