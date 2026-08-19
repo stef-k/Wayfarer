@@ -206,6 +206,42 @@ public sealed class RoutingBoundedExecutorTests
         Assert.Equal(responseBody ? 1 : 0, transport.Requests);
     }
 
+    [Theory]
+    [InlineData(CancellationStage.Dns, true)]
+    [InlineData(CancellationStage.Send, true)]
+    [InlineData(CancellationStage.ResponseBody, true)]
+    [InlineData(CancellationStage.Dns, false)]
+    [InlineData(CancellationStage.Send, false)]
+    [InlineData(CancellationStage.ResponseBody, false)]
+    public async Task Executor_ClassifiesWrappedCancellationWithoutRetryOrReadmission(
+        CancellationStage stage, bool callerCancellation)
+    {
+        var blocker = new BlockingStage();
+        var stream = new CancellationReadStream(blocker);
+        var resolver = new CancellationResolver(stage, blocker);
+        var transport = new CancellationTransport(stage, blocker, stream);
+        var admissions = 0;
+        var executor = new RoutingBoundedExecutor(resolver, Policy(), transport);
+        using var cancellation = new CancellationTokenSource();
+        var timeout = callerCancellation ? TimeSpan.FromSeconds(5) : TimeSpan.FromMilliseconds(50);
+        var pending = executor.GetJsonAsync(new Uri("https://routing.example"), "route", 262144,
+            timeout, cancellation.Token, admitAttempt: () => { admissions++; return true; });
+
+        await blocker.Entered.WaitAsync(TimeSpan.FromSeconds(5));
+        if (callerCancellation) cancellation.Cancel();
+        var result = await pending;
+
+        Assert.Equal(callerCancellation ? "request-cancelled" : "provider-timeout", result.ErrorCode);
+        Assert.NotEqual("provider-connection-failure", result.ErrorCode);
+        Assert.NotEqual("provider-response-failure", result.ErrorCode);
+        Assert.Null(result.Json);
+        Assert.Equal(1, admissions);
+        Assert.Equal(1, resolver.Requests);
+        Assert.Equal(stage == CancellationStage.Dns ? 0 : 1, transport.Requests);
+        Assert.Equal(stage == CancellationStage.ResponseBody, stream.Disposed);
+        Assert.DoesNotContain("secret", result.ToString(), StringComparison.OrdinalIgnoreCase);
+    }
+
     private static RoutingEndpointPolicy Policy(params RoutingSelfHostedAllowlistEntry[] entries) =>
         new(Options.Create(new RoutingOutboundOptions { SelfHostedAllowlist = [.. entries] }));
 
@@ -269,6 +305,75 @@ public sealed class RoutingBoundedExecutorTests
         private readonly TaskCompletionSource _entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public Task Entered => _entered.Task;
         public void Signal() => _entered.TrySetResult();
+    }
+
+    public enum CancellationStage { Dns, Send, ResponseBody }
+
+    private sealed class CancellationResolver(CancellationStage stage, BlockingStage blocker) : IRoutingDnsResolver
+    {
+        public int Requests { get; private set; }
+
+        public async Task<IReadOnlyList<IPAddress>> ResolveAsync(string host, CancellationToken cancellationToken)
+        {
+            Requests++;
+            if (stage != CancellationStage.Dns) return [IPAddress.Parse("8.8.8.8")];
+            blocker.Signal();
+            await WaitAndThrowWrappedCancellationAsync(cancellationToken);
+            return [];
+        }
+    }
+
+    private sealed class CancellationTransport(
+        CancellationStage stage, BlockingStage blocker, CancellationReadStream stream) : IRoutingPinnedTransport
+    {
+        public int Requests { get; private set; }
+
+        public async Task<HttpResponseMessage> SendAsync(
+            Uri requestUri, IPAddress selectedAddress, string? bearerCredential, CancellationToken cancellationToken)
+        {
+            Requests++;
+            if (stage == CancellationStage.Send)
+            {
+                blocker.Signal();
+                await WaitAndThrowWrappedCancellationAsync(cancellationToken);
+            }
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StreamContent(stream) { Headers = { ContentType = new("application/json") } }
+            };
+        }
+    }
+
+    private sealed class CancellationReadStream(BlockingStage blocker) : Stream
+    {
+        public bool Disposed { get; private set; }
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+        public override void Flush() { }
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            blocker.Signal();
+            await WaitAndThrowWrappedCancellationAsync(cancellationToken);
+            return 0;
+        }
+        protected override void Dispose(bool disposing) { Disposed = true; base.Dispose(disposing); }
+        public override ValueTask DisposeAsync() { Disposed = true; return base.DisposeAsync(); }
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    }
+
+    private static async Task WaitAndThrowWrappedCancellationAsync(CancellationToken cancellationToken)
+    {
+        try { await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken); }
+        catch (OperationCanceledException exception)
+        {
+            throw new HttpRequestException("secret cancellation detail", exception);
+        }
     }
 
     private sealed class ThrowingReadStream(Exception exception) : Stream
