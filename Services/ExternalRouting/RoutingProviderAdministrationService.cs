@@ -22,6 +22,8 @@ public sealed class RoutingProviderAdministrationService
     public async Task<RoutingAdministrationResult> SaveAsync(
         RoutingProviderEditViewModel model, string administratorId, CancellationToken cancellationToken)
     {
+        if (!Enum.IsDefined(model.PersonalRoutingAccess))
+            return RoutingAdministrationResult.Failure("The personal routing access mode is invalid.");
         if (!RoutingMinimumIntervalConverter.TryParse(model.MinimumIntervalSeconds, out var minimumIntervalMilliseconds))
             return RoutingAdministrationResult.Failure("The minimum interval is invalid.");
         if (!TryNormalizeEndpoint(model.BaseEndpoint, out var endpoint))

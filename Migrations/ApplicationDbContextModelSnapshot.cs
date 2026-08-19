@@ -1254,6 +1254,8 @@ namespace Wayfarer.Migrations
                     b.ToTable("RoutingProviderConfigurations", null, t =>
                         {
                             t.HasCheckConstraint("CK_RoutingProviderConfigurations_MinimumIntervalMilliseconds", "\"MinimumIntervalMilliseconds\" >= 0 AND \"MinimumIntervalMilliseconds\" <= 60000");
+
+                            t.HasCheckConstraint("CK_RoutingProviderConfigurations_PersonalRoutingAccess", "\"PersonalRoutingAccess\" IN (0, 1, 2)");
                         });
                 });
 

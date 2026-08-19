@@ -14,6 +14,9 @@ public sealed class RoutingProviderConfigurationConfiguration : IEntityTypeConfi
         builder.ToTable(table => table.HasCheckConstraint(
             "CK_RoutingProviderConfigurations_MinimumIntervalMilliseconds",
             "\"MinimumIntervalMilliseconds\" >= 0 AND \"MinimumIntervalMilliseconds\" <= 60000"));
+        builder.ToTable(table => table.HasCheckConstraint(
+            "CK_RoutingProviderConfigurations_PersonalRoutingAccess",
+            "\"PersonalRoutingAccess\" IN (0, 1, 2)"));
         builder.Property(item => item.RowVersion).HasColumnName("xmin").IsRowVersion().ValueGeneratedOnAddOrUpdate();
         builder.HasMany(item => item.ProfileMappings).WithOne(item => item.RoutingProviderConfiguration)
             .HasForeignKey(item => item.RoutingProviderConfigurationId).OnDelete(DeleteBehavior.Cascade);

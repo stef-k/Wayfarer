@@ -36,6 +36,7 @@ public sealed class RoutingProviderEditViewModel : IValidatableObject
     public bool CredentialRequired { get; set; }
 
     /// <summary>Gets or sets the administrator-owned personal template access mode.</summary>
+    [EnumDataType(typeof(PersonalRoutingAccess))]
     public PersonalRoutingAccess PersonalRoutingAccess { get; set; }
 
     /// <summary>Gets whether a stored credential is present.</summary>

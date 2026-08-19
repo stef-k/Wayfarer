@@ -18,6 +18,11 @@ namespace Wayfarer.Migrations
                 nullable: false,
                 defaultValue: 0);
 
+            migrationBuilder.AddCheckConstraint(
+                name: "CK_RoutingProviderConfigurations_PersonalRoutingAccess",
+                table: "RoutingProviderConfigurations",
+                sql: "\"PersonalRoutingAccess\" IN (0, 1, 2)");
+
             migrationBuilder.CreateTable(
                 name: "UserRoutingConfigurations",
                 columns: table => new
@@ -94,6 +99,10 @@ namespace Wayfarer.Migrations
 
             migrationBuilder.DropTable(
                 name: "UserRoutingConfigurations");
+
+            migrationBuilder.DropCheckConstraint(
+                name: "CK_RoutingProviderConfigurations_PersonalRoutingAccess",
+                table: "RoutingProviderConfigurations");
 
             migrationBuilder.DropColumn(
                 name: "PersonalRoutingAccess",
