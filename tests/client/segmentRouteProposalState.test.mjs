@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { computed, nextTick, watchEffect } from 'vue';
+import { routeProposalDraftContextKey } from '../../ClientApps/trip-editor/src/components/segmentRouteProposalDraft.ts';
 import { createSegmentRouteProposalStore } from '../../ClientApps/trip-editor/src/components/segmentRouteProposalState.ts';
 
 test('successful completion reactively renders Preview, Accept, and Discard', async () => {
@@ -173,6 +174,7 @@ test('acceptance requires the exact initiating proposal and complete draft conte
   for (const changed of [
     { proposalId: 'proposal-2' },
     { transportProfileId: 'bike' },
+    { aggregateConcurrencyToken: 'aggregate-new' },
     { anchorFingerprint: 'changed' },
     { routeFingerprint: 'changed' },
     { draftRevision: 2 }
@@ -187,9 +189,37 @@ test('acceptance requires the exact initiating proposal and complete draft conte
   }
 });
 
+test('notes-only Save invalidates delayed acceptance before old geometry can emit', () => {
+  const store = createSegmentRouteProposalStore();
+  const draft = {
+    id: 'first', transportProfileId: 'walk', fromPlaceId: 'from', waypointPlaceIds: ['via'], toPlaceId: 'to',
+    route: { type: 'LineString', coordinates: [[1, 1], [2, 2], [3, 3]] },
+    aggregateConcurrencyToken: 'aggregate-old'
+  };
+  const tripState = { placesById: {
+    from: { location: [1, 1] }, via: { location: [2, 2] }, to: { location: [3, 3] }
+  } };
+  const oldKey = routeProposalDraftContextKey(draft, tripState, 1);
+  const controller = new AbortController();
+  store.get('first', 'walk').proposal = proposalFor('first', 'proposal-1');
+  const request = store.beginAcceptance('first', 'proposal-1', JSON.parse(oldKey), controller);
+
+  draft.aggregateConcurrencyToken = 'aggregate-new';
+  const newKey = routeProposalDraftContextKey(draft, tripState, 1);
+  if (newKey !== oldKey) store.invalidate('first', 'draft-context-changed');
+  const emitted = [];
+  if (store.completeAcceptance('first', request, 'proposal-1', JSON.parse(newKey)))
+    emitted.push([[9, 9], [10, 10]]);
+
+  assert.equal(controller.signal.aborted, true);
+  assert.equal(store.get('first', 'walk').proposal, null);
+  assert.deepEqual(emitted, []);
+  assert.deepEqual(draft.route.coordinates, [[1, 1], [2, 2], [3, 3]]);
+});
+
 const acceptanceContext = () => ({
   segmentId: 'first', transportProfileId: 'walk', anchorFingerprint: 'from|via|to',
-  routeFingerprint: 'draft-route', draftRevision: 1
+  aggregateConcurrencyToken: 'aggregate-old', routeFingerprint: 'draft-route', draftRevision: 1
 });
 
 const proposalFor = (segmentId, proposalId) => ({
