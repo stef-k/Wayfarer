@@ -27,9 +27,15 @@ public sealed class RoutingAttemptCoordinator
         try
         {
             if (!await validateAuthority(cancellationToken))
+            {
+                concurrency.Dispose();
                 return RoutingAttemptAdmission.Failure("provider-configuration-stale");
+            }
             if (!_budget.TryAdmitProviderAttempt(provider.Id, provider.RequestsPerMinute))
+            {
+                concurrency.Dispose();
                 return RoutingAttemptAdmission.Failure("routing-rate-limited");
+            }
             turn.RecordAttemptStart();
             return new RoutingAttemptAdmission(true, null, concurrency);
         }

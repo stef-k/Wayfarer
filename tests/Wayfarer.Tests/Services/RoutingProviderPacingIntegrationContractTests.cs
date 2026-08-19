@@ -50,4 +50,51 @@ public sealed class RoutingProviderPacingIntegrationContractTests
         Assert.Equal("1.0", model.MinimumIntervalSeconds);
     }
 
+    [Fact]
+    public async Task FailedFinalAuthorityReleasesConcurrencyWithoutRecordingAttempt()
+    {
+        var provider = Provider(0);
+        var budget = new RoutingRequestBudget();
+        var coordinator = new RoutingAttemptCoordinator(
+            new RoutingProviderPacer(TimeProvider.System), budget);
+
+        var rejected = await coordinator.PrepareAsync(
+            provider, _ => Task.FromResult(false), CancellationToken.None);
+        using var recovered = await budget.AcquireAttemptConcurrencyAsync(provider.Id, 1, CancellationToken.None);
+
+        Assert.Equal("provider-configuration-stale", rejected.ErrorCode);
+        Assert.NotNull(recovered);
+        Assert.True(budget.TryAdmitProviderAttempt(provider.Id, 1));
+    }
+
+    [Fact]
+    public async Task CancellationBeforeTurnPerformsNoAuthorityOrRateAdmission()
+    {
+        var provider = Provider(0);
+        var budget = new RoutingRequestBudget();
+        var pacer = new RoutingProviderPacer(TimeProvider.System);
+        pacer.ApplyConfiguration(provider.Id, provider.ConfigurationVersion, 0);
+        var owner = await pacer.WaitAsync(provider.Id, provider.ConfigurationVersion, CancellationToken.None);
+        var coordinator = new RoutingAttemptCoordinator(pacer, budget);
+        var validations = 0;
+        using var cancellation = new CancellationTokenSource();
+        var waiting = coordinator.PrepareAsync(provider, _ =>
+        {
+            validations++;
+            return Task.FromResult(true);
+        }, cancellation.Token);
+        cancellation.Cancel();
+
+        Assert.Equal("request-cancelled", (await waiting).ErrorCode);
+        Assert.Equal(0, validations);
+        Assert.True(budget.TryAdmitProviderAttempt(provider.Id, 1));
+        owner.Turn!.Dispose();
+    }
+
+    private static RoutingProviderConfiguration Provider(int interval) => new()
+    {
+        Id = Guid.NewGuid(), ConfigurationVersion = 1, MinimumIntervalMilliseconds = interval,
+        RequestsPerMinute = 1, MaxConcurrency = 1
+    };
+
 }
