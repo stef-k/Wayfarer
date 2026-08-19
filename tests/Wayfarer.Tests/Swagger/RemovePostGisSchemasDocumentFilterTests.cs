@@ -59,7 +59,7 @@ public sealed class RemovePostGisSchemasDocumentFilterTests
                 }
             }
         };
-        var trip = (OpenApiSchema)document.Components.Schemas["Trip"];
+        var trip = (OpenApiSchema)document.Components!.Schemas["Trip"];
         trip.Properties!["location"] = new OpenApiSchemaReference("Point", document, null);
         ((OpenApiSchema)trip.Properties["path"]).Items = new OpenApiSchemaReference("Geometry", document, null);
         var context = new DocumentFilterContext(
@@ -76,6 +76,102 @@ public sealed class RemovePostGisSchemasDocumentFilterTests
         var filteredTrip = Assert.IsType<OpenApiSchema>(document.Components.Schemas["Trip"]);
         Assert.IsType<OpenApiSchema>(filteredTrip.Properties!["location"]);
         Assert.IsType<OpenApiSchema>(Assert.IsType<OpenApiSchema>(filteredTrip.Properties["path"]).Items);
+    }
+
+    /// <summary>Verifies references are removed from every nested schema container.</summary>
+    [Theory]
+    [InlineData("AllOf")]
+    [InlineData("AnyOf")]
+    [InlineData("OneOf")]
+    [InlineData("Not")]
+    [InlineData("AdditionalProperties")]
+    public void Apply_RemovesReferencesFromNestedSchemaContainers(string container)
+    {
+        OpenApiDocument document = CreateDocument();
+        var root = (OpenApiSchema)document.Components!.Schemas!["Root"];
+        var removedReference = new OpenApiSchemaReference("Geometry", document, null);
+
+        switch (container)
+        {
+            case "AllOf":
+                root.AllOf =
+                [
+                    new OpenApiSchema
+                    {
+                        AdditionalProperties = removedReference
+                    }
+                ];
+                break;
+            case "AnyOf":
+                root.AnyOf = [removedReference];
+                break;
+            case "OneOf":
+                root.OneOf = [removedReference];
+                break;
+            case "Not":
+                root.Not = removedReference;
+                break;
+            case "AdditionalProperties":
+                root.AdditionalProperties = removedReference;
+                break;
+        }
+
+        ApplyFilter(document);
+
+        IOpenApiSchema filtered = container switch
+        {
+            "AllOf" => Assert.IsType<OpenApiSchema>(root.AllOf![0]).AdditionalProperties!,
+            "AnyOf" => root.AnyOf![0],
+            "OneOf" => root.OneOf![0],
+            "Not" => root.Not!,
+            "AdditionalProperties" => root.AdditionalProperties!,
+            _ => throw new InvalidOperationException($"Unexpected container {container}.")
+        };
+        Assert.IsType<OpenApiSchema>(filtered);
+    }
+
+    /// <summary>Verifies nested traversal preserves unrelated references and terminates on cycles.</summary>
+    [Fact]
+    public void Apply_PreservesUnrelatedReferencesAndTerminatesOnNestedCycle()
+    {
+        OpenApiDocument document = CreateDocument();
+        var root = (OpenApiSchema)document.Components!.Schemas!["Root"];
+        IOpenApiSchema unrelatedSchema = document.Components.Schemas["Unrelated"];
+        var unrelatedReference = new OpenApiSchemaReference("Unrelated", document, null);
+        root.AnyOf = [unrelatedReference, root];
+
+        ApplyFilter(document);
+
+        Assert.Same(unrelatedReference, root.AnyOf![0]);
+        Assert.Same(root, root.AnyOf[1]);
+        Assert.Same(unrelatedSchema, document.Components.Schemas["Unrelated"]);
+        Assert.Equal("Unrelated", unrelatedReference.Reference.Id);
+    }
+
+    private static OpenApiDocument CreateDocument()
+        => new()
+        {
+            Components = new OpenApiComponents
+            {
+                Schemas = new Dictionary<string, IOpenApiSchema>
+                {
+                    ["Geometry"] = new OpenApiSchema(),
+                    ["Root"] = new OpenApiSchema(),
+                    ["Unrelated"] = new OpenApiSchema()
+                }
+            }
+        };
+
+    private static void ApplyFilter(OpenApiDocument document)
+    {
+        var context = new DocumentFilterContext(
+            Array.Empty<ApiDescription>(),
+            new SchemaGenerator(
+                new SchemaGeneratorOptions(),
+                new JsonSerializerDataContractResolver(new System.Text.Json.JsonSerializerOptions())),
+            new SchemaRepository());
+
+        new RemovePostGisSchemasDocumentFilter().Apply(document, context);
     }
 }
 
