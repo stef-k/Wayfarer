@@ -146,13 +146,24 @@ public sealed class ExternalRouteProposalAcceptancePostgresTests(PostgresImportT
             DbCommand command, CommandExecutedEventData eventData, DbDataReader result,
             CancellationToken cancellationToken = default)
         {
-            if (command.CommandText.Contains("ApplicationSettings", StringComparison.Ordinal)
-                && !_settingsRead.Task.IsCompleted)
-            {
-                _settingsRead.TrySetResult();
-                await _release.Task.WaitAsync(cancellationToken);
-            }
+            await PauseAfterSettingsReadAsync(command, cancellationToken);
             return result;
+        }
+
+        public override async ValueTask<int> NonQueryExecutedAsync(
+            DbCommand command, CommandExecutedEventData eventData, int result,
+            CancellationToken cancellationToken = default)
+        {
+            await PauseAfterSettingsReadAsync(command, cancellationToken);
+            return result;
+        }
+
+        private async Task PauseAfterSettingsReadAsync(DbCommand command, CancellationToken cancellationToken)
+        {
+            if (!command.CommandText.Contains("ApplicationSettings", StringComparison.Ordinal)
+                || _settingsRead.Task.IsCompleted) return;
+            _settingsRead.TrySetResult();
+            await _release.Task.WaitAsync(cancellationToken);
         }
     }
 }

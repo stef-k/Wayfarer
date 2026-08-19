@@ -65,6 +65,32 @@ public sealed class ExternalRouteProposalAcceptanceTests : TestBase
         Assert.Null(fixture.Segment.RouteGeometry);
     }
 
+    [Fact]
+    public async Task Accept_RejectsInactiveBoundTransportProfile()
+    {
+        var fixture = CreateFixture();
+        fixture.Db.Set<TransportProfile>().Single(item => item.Id == fixture.Segment.TransportProfileId).IsActive = false;
+        fixture.Db.SaveChanges();
+
+        var result = await fixture.Service.AcceptAsync(fixture.UserId, fixture.TripId, fixture.Segment.Id,
+            fixture.ProposalId, fixture.Geometry, fixture.Indices, fixture.Token, CancellationToken.None);
+
+        Assert.Equal("route-proposal-stale", result.ErrorCode);
+    }
+
+    [Fact]
+    public async Task Accept_RejectsRemovedActiveProviderMapping()
+    {
+        var fixture = CreateFixture();
+        fixture.Db.RemoveRange(fixture.Db.Set<RoutingProviderProfileMapping>());
+        fixture.Db.SaveChanges();
+
+        var result = await fixture.Service.AcceptAsync(fixture.UserId, fixture.TripId, fixture.Segment.Id,
+            fixture.ProposalId, fixture.Geometry, fixture.Indices, fixture.Token, CancellationToken.None);
+
+        Assert.Equal("route-proposal-stale", result.ErrorCode);
+    }
+
     private Fixture CreateFixture()
     {
         const string userId = "owner";
@@ -89,6 +115,12 @@ public sealed class ExternalRouteProposalAcceptanceTests : TestBase
             Id = Guid.NewGuid(), DisplayName = "OSRM", Enabled = true,
             ConfigurationVersion = 3, VerifiedConfigurationVersion = 3
         };
+        provider.ProfileMappings.Add(new RoutingProviderProfileMapping
+        {
+            RoutingProviderConfigurationId = provider.Id,
+            TransportProfileId = profile.Id,
+            OsrmProfile = "walking"
+        });
         db.Set<Place>().AddRange(from, via, to);
         db.Set<Segment>().Add(segment);
         db.Set<RoutingProviderConfiguration>().Add(provider);
