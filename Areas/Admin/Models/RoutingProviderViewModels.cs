@@ -69,6 +69,9 @@ public sealed class RoutingProviderEditViewModel : IValidatableObject
     [Range(10, 120)]
     public int RequestsPerMinute { get; set; } = 60;
 
+    /// <summary>Gets or sets strict invariant decimal seconds for provider pacing.</summary>
+    public string MinimumIntervalSeconds { get; set; } = "1.0";
+
     /// <summary>Gets or sets provider concurrency.</summary>
     [Range(1, 8)]
     public int MaxConcurrency { get; set; } = 4;

@@ -20,6 +20,8 @@ public sealed class RoutingProviderAdministrationService
     public async Task<RoutingAdministrationResult> SaveAsync(
         RoutingProviderEditViewModel model, string administratorId, CancellationToken cancellationToken)
     {
+        if (!RoutingMinimumIntervalConverter.TryParse(model.MinimumIntervalSeconds, out var minimumIntervalMilliseconds))
+            return RoutingAdministrationResult.Failure("The minimum interval is invalid.");
         if (!TryNormalizeEndpoint(model.BaseEndpoint, out var endpoint))
             return RoutingAdministrationResult.Failure("The endpoint is malformed or contains unsupported URL parts.");
         var selectedMappings = model.Mappings.Where(item => !string.IsNullOrWhiteSpace(item.OsrmProfile)).ToArray();
@@ -54,6 +56,7 @@ public sealed class RoutingProviderAdministrationService
             || provider.VerificationToLatitude != model.VerificationToLatitude
             || provider.GenerationTimeoutSeconds != model.GenerationTimeoutSeconds
             || provider.ResponseSizeLimitBytes != model.ResponseSizeLimitBytes
+            || provider.MinimumIntervalMilliseconds != minimumIntervalMilliseconds
             || provider.RequestsPerMinute != model.RequestsPerMinute || provider.MaxConcurrency != model.MaxConcurrency
             || !existingMappings.SequenceEqual(normalizedMappings));
 
@@ -71,6 +74,7 @@ public sealed class RoutingProviderAdministrationService
         provider.GenerationTimeoutSeconds = model.GenerationTimeoutSeconds;
         provider.ResponseSizeLimitBytes = model.ResponseSizeLimitBytes;
         provider.RequestsPerMinute = model.RequestsPerMinute;
+        provider.MinimumIntervalMilliseconds = minimumIntervalMilliseconds;
         provider.MaxConcurrency = model.MaxConcurrency;
         if (creating || !existingMappings.SequenceEqual(normalizedMappings))
         {
