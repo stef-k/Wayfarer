@@ -101,27 +101,24 @@ public sealed class UserRoutingConfigurationPostgresTests(PostgresImportTestFixt
         var user = await fixture.CreateUserAsync();
         var providerId = Guid.NewGuid();
         var protection = new EphemeralDataProtectionProvider();
-        int originalFeatureVersion;
-        bool originalFeatureEnabled;
+        SettingsSnapshot? settingsSnapshot = null;
         uint expectedRowVersion;
-        await using (var setup = fixture.CreateContext())
-        {
-            var settings = await setup.ApplicationSettings.SingleAsync(item => item.Id == 1);
-            (originalFeatureEnabled, originalFeatureVersion) =
-                (settings.ExternalRouteGenerationEnabled, settings.ExternalRouteGenerationVersion);
-            settings.ExternalRouteGenerationEnabled = true;
-            var profile = await setup.Set<TransportProfile>().FirstAsync(item => item.IsActive);
-            var provider = VerificationProvider(providerId, profile);
-            setup.Set<RoutingProviderConfiguration>().Add(provider);
-            var configuration = await setup.Set<UserRoutingConfiguration>().SingleAsync(item => item.UserId == user.Id);
-            configuration.SelectPersonalProvider(providerId);
-            new UserRoutingCredentialService(protection).Replace(configuration, providerId, "personal-secret");
-            await setup.SaveChangesAsync();
-            expectedRowVersion = configuration.RowVersion;
-        }
 
         try
         {
+            await using (var setup = fixture.CreateContext())
+            {
+                var profile = await setup.Set<TransportProfile>().FirstAsync(item => item.IsActive);
+                var provider = VerificationProvider(providerId, profile);
+                setup.Set<RoutingProviderConfiguration>().Add(provider);
+                var configuration = await setup.Set<UserRoutingConfiguration>().SingleAsync(item => item.UserId == user.Id);
+                configuration.SelectPersonalProvider(providerId);
+                new UserRoutingCredentialService(protection).Replace(configuration, providerId, "personal-secret");
+                await setup.SaveChangesAsync();
+                settingsSnapshot = await EnableRoutingSettingsAsync(setup, providerId);
+                expectedRowVersion = configuration.RowVersion;
+            }
+
             var recorder = new LockCommandRecorder();
             var transport = new BlockingValidTransport();
             await using var verificationContext = fixture.CreateContext(recorder);
@@ -163,14 +160,7 @@ public sealed class UserRoutingConfigurationPostgresTests(PostgresImportTestFixt
         }
         finally
         {
-            await using var cleanup = fixture.CreateContext();
-            var configuration = await cleanup.Set<UserRoutingConfiguration>().SingleAsync(item => item.UserId == user.Id);
-            configuration.UseServerDefault();
-            var settings = await cleanup.ApplicationSettings.SingleAsync(item => item.Id == 1);
-            settings.ExternalRouteGenerationEnabled = originalFeatureEnabled;
-            settings.ExternalRouteGenerationVersion = originalFeatureVersion;
-            await cleanup.SaveChangesAsync();
-            await cleanup.Set<RoutingProviderConfiguration>().Where(item => item.Id == providerId).ExecuteDeleteAsync();
+            await CleanupRoutingFixtureAsync(fixture, user.Id, providerId, settingsSnapshot);
         }
     }
 
@@ -237,11 +227,7 @@ public sealed class UserRoutingConfigurationPostgresTests(PostgresImportTestFixt
         }
         finally
         {
-            await using var cleanup = fixture.CreateContext();
-            var configuration = await cleanup.Set<UserRoutingConfiguration>().SingleAsync(item => item.UserId == user.Id);
-            configuration.UseServerDefault();
-            await cleanup.SaveChangesAsync();
-            await cleanup.Set<RoutingProviderConfiguration>().Where(item => item.Id == providerId).ExecuteDeleteAsync();
+            await CleanupRoutingFixtureAsync(fixture, user.Id, providerId, null);
         }
     }
 
@@ -253,21 +239,26 @@ public sealed class UserRoutingConfigurationPostgresTests(PostgresImportTestFixt
         var user = await fixture.CreateUserAsync();
         var providerId = Guid.NewGuid();
         var protection = new EphemeralDataProtectionProvider();
+        SettingsSnapshot? settingsSnapshot = null;
         uint expectedUserRowVersion;
-        await using (var setup = fixture.CreateContext())
-        {
-            var profile = await setup.Set<TransportProfile>().FirstAsync(item => item.IsActive);
-            var provider = VerificationProvider(providerId, profile);
-            setup.Set<RoutingProviderConfiguration>().Add(provider);
-            var configuration = await setup.Set<UserRoutingConfiguration>().SingleAsync(item => item.UserId == user.Id);
-            configuration.SelectPersonalProvider(providerId);
-            new UserRoutingCredentialService(protection).Replace(configuration, providerId, "first-secret");
-            await setup.SaveChangesAsync();
-            expectedUserRowVersion = configuration.RowVersion;
-        }
+        var originalProviderVersion = 0;
 
         try
         {
+            await using (var setup = fixture.CreateContext())
+            {
+                var profile = await setup.Set<TransportProfile>().FirstAsync(item => item.IsActive);
+                var provider = VerificationProvider(providerId, profile);
+                setup.Set<RoutingProviderConfiguration>().Add(provider);
+                var configuration = await setup.Set<UserRoutingConfiguration>().SingleAsync(item => item.UserId == user.Id);
+                configuration.SelectPersonalProvider(providerId);
+                new UserRoutingCredentialService(protection).Replace(configuration, providerId, "first-secret");
+                await setup.SaveChangesAsync();
+                settingsSnapshot = await EnableRoutingSettingsAsync(setup, providerId);
+                expectedUserRowVersion = configuration.RowVersion;
+                originalProviderVersion = provider.ConfigurationVersion;
+            }
+
             await using var adminGate = new ProviderLockGateInterceptor(holdAfterAcquisition: true);
             await using var userGate = new ProviderLockGateInterceptor(holdAfterAcquisition: false);
             await using var adminContext = fixture.CreateContext(adminGate);
@@ -286,10 +277,11 @@ public sealed class UserRoutingConfigurationPostgresTests(PostgresImportTestFixt
             var userTask = userService.SaveAsync(
                 user.Id, providerId, "replacement-secret", expectedUserRowVersion, CancellationToken.None);
             await userGate.LockRequested.WaitAsync(TimeSpan.FromSeconds(10));
+            Assert.True(adminGate.BackendProcessId > 0);
+            Assert.True(userGate.BackendProcessId > 0);
             using (var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10)))
-                await ObserveBlockedProviderLockAsync(observerContext, userGate.BackendProcessId, timeout.Token);
-            Assert.False(adminTask.IsCompleted);
-            Assert.False(userTask.IsCompleted);
+                await ObserveBlockedProviderLockAsync(observerContext, userGate.BackendProcessId,
+                    adminGate.BackendProcessId, timeout.Token);
             adminGate.Release();
             await Task.WhenAll(adminTask, userTask).WaitAsync(TimeSpan.FromSeconds(15));
             var adminResult = await adminTask;
@@ -304,6 +296,12 @@ public sealed class UserRoutingConfigurationPostgresTests(PostgresImportTestFixt
             Assert.Equal(PersonalRoutingAccess.CredentialFree,
                 (await userContext.Set<RoutingProviderConfiguration>().AsNoTracking()
                     .SingleAsync(item => item.Id == providerId)).PersonalRoutingAccess);
+            var recoveredUser = await userContext.Set<UserRoutingConfiguration>().AsNoTracking()
+                .SingleAsync(item => item.UserId == user.Id);
+            Assert.False(recoveredUser.CredentialPresent);
+            Assert.Null(recoveredUser.CredentialCiphertext);
+            Assert.Null(recoveredUser.VerifiedUserConfigurationVersion);
+            Assert.Null(recoveredUser.VerifiedProviderConfigurationVersion);
             await using var verification = fixture.CreateContext();
             var storedProvider = await verification.Set<RoutingProviderConfiguration>().AsNoTracking()
                 .SingleAsync(item => item.Id == providerId);
@@ -313,31 +311,70 @@ public sealed class UserRoutingConfigurationPostgresTests(PostgresImportTestFixt
             Assert.Equal(providerId, storedUser.SelectedProviderConfigurationId);
             Assert.False(storedUser.CredentialPresent);
             Assert.Null(storedUser.CredentialCiphertext);
+            Assert.Null(storedUser.VerifiedUserConfigurationVersion);
+            Assert.Null(storedUser.VerifiedProviderConfigurationVersion);
+            Assert.True(storedProvider.ConfigurationVersion > originalProviderVersion);
         }
         finally
         {
-            await using var cleanup = fixture.CreateContext();
-            var configuration = await cleanup.Set<UserRoutingConfiguration>().SingleAsync(item => item.UserId == user.Id);
-            configuration.UseServerDefault();
-            await cleanup.SaveChangesAsync();
-            await cleanup.Set<RoutingProviderConfiguration>().Where(item => item.Id == providerId).ExecuteDeleteAsync();
+            await CleanupRoutingFixtureAsync(fixture, user.Id, providerId, settingsSnapshot);
         }
     }
 
     private static async Task ObserveBlockedProviderLockAsync(
-        ApplicationDbContext observerContext, int backendProcessId, CancellationToken cancellationToken)
+        ApplicationDbContext observerContext, int backendProcessId, int blockingProcessId,
+        CancellationToken cancellationToken)
     {
         while (!cancellationToken.IsCancellationRequested)
         {
             var blocked = await observerContext.Database.SqlQueryRaw<bool>(
                 "SELECT EXISTS (SELECT 1 FROM pg_stat_activity WHERE pid = {0} "
-                + "AND wait_event_type = 'Lock' AND cardinality(pg_blocking_pids(pid)) > 0) AS \"Value\"",
-                backendProcessId).SingleAsync(cancellationToken);
+                + "AND wait_event_type = 'Lock' AND {1} = ANY(pg_blocking_pids(pid))) AS \"Value\"",
+                backendProcessId, blockingProcessId).SingleAsync(cancellationToken);
             if (blocked) return;
             await Task.Yield();
         }
         cancellationToken.ThrowIfCancellationRequested();
     }
+
+    private static async Task<SettingsSnapshot> EnableRoutingSettingsAsync(
+        ApplicationDbContext context, Guid providerId)
+    {
+        var settings = await context.ApplicationSettings.SingleOrDefaultAsync(item => item.Id == 1);
+        var snapshot = new SettingsSnapshot(settings == null,
+            settings == null ? null : (ApplicationSettings)context.Entry(settings).CurrentValues.ToObject());
+        settings ??= new ApplicationSettings { Id = 1 };
+        if (snapshot.Created) context.ApplicationSettings.Add(settings);
+        settings.ExternalRouteGenerationEnabled = true;
+        settings.ExternalRouteGenerationVersion = Math.Max(1, settings.ExternalRouteGenerationVersion);
+        settings.ActiveRoutingProviderConfigurationId = providerId;
+        await context.SaveChangesAsync();
+        context.ChangeTracker.Clear();
+        return snapshot;
+    }
+
+    private static async Task CleanupRoutingFixtureAsync(
+        PostgresImportTestFixture fixture, string userId, Guid providerId, SettingsSnapshot? snapshot)
+    {
+        await using var cleanup = fixture.CreateContext();
+        cleanup.ChangeTracker.Clear();
+        var settings = await cleanup.ApplicationSettings.SingleOrDefaultAsync(item => item.Id == 1);
+        if (snapshot is { Created: true } && settings != null) cleanup.ApplicationSettings.Remove(settings);
+        else if (snapshot?.Original != null && settings != null)
+            cleanup.Entry(settings).CurrentValues.SetValues(snapshot.Original);
+        await cleanup.SaveChangesAsync();
+        cleanup.ChangeTracker.Clear();
+        var configuration = await cleanup.Set<UserRoutingConfiguration>()
+            .SingleOrDefaultAsync(item => item.UserId == userId);
+        if (configuration != null) { configuration.UseServerDefault(); await cleanup.SaveChangesAsync(); }
+        await cleanup.AuditLogs.Where(item => item.UserId == userId
+            || item.Details.Contains(providerId.ToString())).ExecuteDeleteAsync();
+        await cleanup.Users.Where(item => item.Id == userId).ExecuteDeleteAsync();
+        await cleanup.Set<RoutingProviderConfiguration>().Where(item => item.Id == providerId).ExecuteDeleteAsync();
+        cleanup.ChangeTracker.Clear();
+    }
+
+    private sealed record SettingsSnapshot(bool Created, ApplicationSettings? Original);
 
     private static async Task InsertUserAsync(ApplicationDbContext context, string userId)
     {
