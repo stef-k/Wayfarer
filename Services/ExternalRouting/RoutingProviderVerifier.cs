@@ -44,12 +44,17 @@ public sealed class RoutingProviderVerifier : IRoutingProviderVerifier
         if (lease == null) return await FailureAsync(providerId, administratorId, "routing-budget-exhausted", cancellationToken);
         foreach (var profile in profiles)
         {
-            if (!lease.TryAdmitProviderAttempt())
-                return await FailureAsync(providerId, administratorId, "routing-budget-exhausted", cancellationToken);
             var request = OsrmRoutingAdapter.BuildRelativeRequest(profile, [from, to]);
             var execution = await _executor.GetJsonAsync(new Uri(provider.BaseEndpoint!), request,
-                provider.ResponseSizeLimitBytes, TimeSpan.FromSeconds(5), cancellationToken, credential.Credential);
-            if (!execution.Succeeded) return await FailureAsync(providerId, administratorId, execution.ErrorCode!, cancellationToken);
+                provider.ResponseSizeLimitBytes, TimeSpan.FromSeconds(5), cancellationToken, credential.Credential,
+                lease.TryAdmitProviderAttempt);
+            if (!execution.Succeeded)
+            {
+                var category = execution.ErrorCode == "provider-rate-limited"
+                    ? "routing-budget-exhausted" : execution.ErrorCode!;
+                return await FailureAsync(providerId, administratorId, category,
+                    category == "request-cancelled" ? CancellationToken.None : cancellationToken);
+            }
             using var response = JsonResponse(execution.Json!);
             var route = await OsrmRoutingAdapter.ParseAsync(response, cancellationToken);
             if (!route.Succeeded || route.Waypoints.Count != 2 || route.Geometry.Count > 1000

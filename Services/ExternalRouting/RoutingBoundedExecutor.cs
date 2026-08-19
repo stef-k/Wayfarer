@@ -28,7 +28,13 @@ public sealed class RoutingBoundedExecutor
             for (var attempt = 0; attempt < 2; attempt++)
             {
                 if (admitAttempt?.Invoke() == false) return RoutingExecutionResult.Failure("provider-rate-limited");
-                var addresses = await _resolver.ResolveAsync(endpoint.Host, deadline.Token);
+                IReadOnlyList<IPAddress> addresses;
+                try { addresses = await _resolver.ResolveAsync(endpoint.Host, deadline.Token); }
+                catch (Exception exception) when (exception is HttpRequestException or SocketException)
+                {
+                    if (attempt == 0) continue;
+                    return RoutingExecutionResult.Failure("provider-connection-failure");
+                }
                 var decision = _policy.Validate(endpoint, addresses);
                 if (!decision.Allowed) return RoutingExecutionResult.Failure("routing-endpoint-unsafe");
                 var requestUri = new Uri(endpoint.ToString().TrimEnd('/') + "/" + relativeRequest.TrimStart('/'));
@@ -42,7 +48,9 @@ public sealed class RoutingBoundedExecutor
                 using (response)
                 {
                     if (attempt == 0 && IsRetryable(response.StatusCode)) continue;
-                    return await ReadResponseAsync(response, responseLimitBytes, deadline.Token);
+                    try { return await ReadResponseAsync(response, responseLimitBytes, deadline.Token); }
+                    catch (Exception exception) when (exception is HttpRequestException or IOException)
+                    { return RoutingExecutionResult.Failure("provider-response-failure"); }
                 }
             }
             return RoutingExecutionResult.Failure("provider-connection-failure");
