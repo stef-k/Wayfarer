@@ -136,6 +136,38 @@ public sealed class RoutingVerificationActivationTests : TestBase
     }
 
     [Fact]
+    public async Task Verification_RowVersionChangeImmediatelyBeforeContactRejectsWithoutChargingAttempt()
+    {
+        var (db, provider) = ProviderFixture(requestsPerMinute: 1);
+        provider.MinimumIntervalMilliseconds = 1000;
+        db.SaveChanges();
+        var expectedRowVersion = provider.RowVersion;
+        var time = new ControlledTimeProvider();
+        var pacer = new RoutingProviderPacer(time);
+        pacer.ApplyConfiguration(provider.Id, provider.ConfigurationVersion, 1000);
+        var prior = await pacer.WaitAsync(provider.Id, provider.ConfigurationVersion, CancellationToken.None);
+        prior.Turn!.RecordAttemptStart(); prior.Turn.Dispose();
+        var budgets = new RoutingRequestBudget();
+        var resolver = new CountingResolver();
+        var executor = new RoutingBoundedExecutor(
+            resolver, new RoutingEndpointPolicy(Options.Create(new RoutingOutboundOptions())), new ProbeTransport(ValidResponse()));
+        var verifier = new RoutingProviderVerifier(db, executor,
+            new RoutingProviderCredentialService(new EphemeralDataProtectionProvider()),
+            new RoutingAttemptCoordinator(pacer, budgets), time);
+        var verification = verifier.VerifyAsync(
+            provider.Id, provider.ConfigurationVersion, expectedRowVersion, "admin", CancellationToken.None);
+
+        db.Entry(provider).Property(item => item.RowVersion).CurrentValue = expectedRowVersion + 1;
+        db.SaveChanges();
+        time.Advance(TimeSpan.FromSeconds(1));
+        var result = await verification;
+
+        Assert.Equal("provider-configuration-stale", result.ErrorCode);
+        Assert.Equal(0, resolver.Requests);
+        Assert.True(budgets.TryAdmitProviderAttempt(provider.Id, 1));
+    }
+
+    [Fact]
     public async Task Activation_SelectsCandidateOnlyAfterLockedRechecks()
     {
         var db = CreateDbContext();
@@ -220,6 +252,44 @@ public sealed class RoutingVerificationActivationTests : TestBase
     {
         public Task<IReadOnlyList<IPAddress>> ResolveAsync(string host, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<IPAddress>>([IPAddress.Parse("8.8.8.8")]);
+    }
+
+    private sealed class CountingResolver : IRoutingDnsResolver
+    {
+        public int Requests { get; private set; }
+        public Task<IReadOnlyList<IPAddress>> ResolveAsync(string host, CancellationToken cancellationToken)
+        {
+            Requests++;
+            return Task.FromResult<IReadOnlyList<IPAddress>>([IPAddress.Parse("8.8.8.8")]);
+        }
+    }
+
+    private sealed class ControlledTimeProvider : TimeProvider
+    {
+        private readonly List<ControlledTimer> _timers = [];
+        private long _timestamp;
+        public override long TimestampFrequency => TimeSpan.TicksPerSecond;
+        public override long GetTimestamp() => _timestamp;
+        public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
+        {
+            var timer = new ControlledTimer(callback, state, _timestamp + dueTime.Ticks);
+            _timers.Add(timer);
+            return timer;
+        }
+        public void Advance(TimeSpan duration)
+        {
+            _timestamp += duration.Ticks;
+            foreach (var timer in _timers.Where(item => !item.Disposed && item.Due <= _timestamp).ToArray()) timer.Fire();
+        }
+        private sealed class ControlledTimer(TimerCallback callback, object? state, long due) : ITimer
+        {
+            public long Due { get; private set; } = due;
+            public bool Disposed { get; private set; }
+            public bool Change(TimeSpan dueTime, TimeSpan period) { Due += dueTime.Ticks; return true; }
+            public void Fire() { if (!Disposed) callback(state); }
+            public void Dispose() => Disposed = true;
+            public ValueTask DisposeAsync() { Dispose(); return ValueTask.CompletedTask; }
+        }
     }
 
     private sealed class ProbeTransport(HttpResponseMessage template) : IRoutingPinnedTransport

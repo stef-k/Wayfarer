@@ -98,6 +98,66 @@ public sealed class RoutingProviderPacerTests
         Assert.Equal(1, pacer.GateCount);
     }
 
+    [Fact]
+    public async Task AbsoluteDeadlineStillWinsAfterWaiterBecomesHead()
+    {
+        var time = new ManualTimeProvider(); var pacer = new RoutingProviderPacer(time); var provider = Guid.NewGuid();
+        pacer.ApplyConfiguration(provider, 1, 60000);
+        var owner = await pacer.WaitAsync(provider, 1, CancellationToken.None);
+        owner.Turn!.RecordAttemptStart();
+        var waiting = pacer.WaitAsync(provider, 1, CancellationToken.None);
+        time.Advance(TimeSpan.FromSeconds(119));
+        owner.Turn.Dispose();
+        time.Advance(TimeSpan.FromSeconds(1));
+
+        Assert.Equal("routing-timeout", (await waiting).ErrorCode);
+    }
+
+    [Fact]
+    public async Task AbsoluteDeadlineWinsWhenHeadReadinessCompletesSimultaneously()
+    {
+        var time = new ManualTimeProvider(); var pacer = new RoutingProviderPacer(time); var provider = Guid.NewGuid();
+        pacer.ApplyConfiguration(provider, 1, 0);
+        var owner = await pacer.WaitAsync(provider, 1, CancellationToken.None);
+        var waiting = pacer.WaitAsync(provider, 1, CancellationToken.None);
+        time.Advance(RoutingProviderPacer.MaximumWait);
+        owner.Turn!.Dispose();
+
+        Assert.Equal("routing-timeout", (await waiting).ErrorCode);
+    }
+
+    [Fact]
+    public async Task CommittedDecreaseReevaluatesQueuedWaiterAndStalePublicationIsIgnored()
+    {
+        var time = new ManualTimeProvider(); var pacer = new RoutingProviderPacer(time); var provider = Guid.NewGuid();
+        pacer.ApplyConfiguration(provider, 1, 2000);
+        var first = await pacer.WaitAsync(provider, 1, CancellationToken.None);
+        first.Turn!.RecordAttemptStart(); first.Turn.Dispose();
+        var waiting = pacer.WaitAsync(provider, 1, CancellationToken.None);
+        time.Advance(TimeSpan.FromMilliseconds(1000));
+
+        Assert.True(pacer.ApplyConfiguration(provider, 2, 1000));
+        Assert.False(pacer.ApplyConfiguration(provider, 1, 60000));
+        Assert.True((await waiting).Succeeded);
+    }
+
+    [Fact]
+    public async Task CommittedIncreasePreventsQueuedWaiterUsingOlderInterval()
+    {
+        var time = new ManualTimeProvider(); var pacer = new RoutingProviderPacer(time); var provider = Guid.NewGuid();
+        pacer.ApplyConfiguration(provider, 1, 1000);
+        var first = await pacer.WaitAsync(provider, 1, CancellationToken.None);
+        first.Turn!.RecordAttemptStart(); first.Turn.Dispose();
+        var waiting = pacer.WaitAsync(provider, 1, CancellationToken.None);
+        time.Advance(TimeSpan.FromMilliseconds(500));
+
+        Assert.True(pacer.ApplyConfiguration(provider, 2, 2000));
+        time.Advance(TimeSpan.FromMilliseconds(500));
+        Assert.False(waiting.IsCompleted);
+        time.Advance(TimeSpan.FromMilliseconds(1000));
+        Assert.True((await waiting).Succeeded);
+    }
+
     private sealed class ManualTimeProvider : TimeProvider
     {
         private readonly object _sync = new(); private readonly List<ManualTimer> _timers = []; private long _timestamp;

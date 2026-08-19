@@ -91,6 +91,22 @@ public sealed class RoutingProviderPacingIntegrationContractTests
         owner.Turn!.Dispose();
     }
 
+    [Fact]
+    public async Task PreparedAttemptRetainsPacingTurnUntilExecutorCanStartSynchronously()
+    {
+        var provider = Provider(0);
+        var budget = new RoutingRequestBudget();
+        var pacer = new RoutingProviderPacer(TimeProvider.System);
+        var coordinator = new RoutingAttemptCoordinator(pacer, budget);
+        var prepared = await coordinator.PrepareAsync(provider, _ => Task.FromResult(true), CancellationToken.None);
+
+        var following = coordinator.PrepareAsync(provider, _ => Task.FromResult(true), CancellationToken.None);
+
+        Assert.False(following.IsCompleted);
+        prepared.Dispose();
+        (await following).Dispose();
+    }
+
     private static RoutingProviderConfiguration Provider(int interval) => new()
     {
         Id = Guid.NewGuid(), ConfigurationVersion = 1, MinimumIntervalMilliseconds = interval,

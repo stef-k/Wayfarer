@@ -62,6 +62,27 @@ public sealed class RoutingProviderAdministrationServiceTests : TestBase
     }
 
     [Fact]
+    public async Task Save_CommittedIntervalDecreasePublishesToAlreadyQueuedPacingState()
+    {
+        var fixture = CreateFixture(requiredCredential: false, featureEnabled: false);
+        fixture.Provider.MinimumIntervalMilliseconds = 2000;
+        fixture.Db.SaveChanges();
+        fixture.Pacer.ApplyConfiguration(fixture.Provider.Id, fixture.Provider.ConfigurationVersion, 2000);
+        var prior = await fixture.Pacer.WaitAsync(
+            fixture.Provider.Id, fixture.Provider.ConfigurationVersion, CancellationToken.None);
+        prior.Turn!.RecordAttemptStart(); prior.Turn.Dispose();
+        var waiting = fixture.Pacer.WaitAsync(
+            fixture.Provider.Id, fixture.Provider.ConfigurationVersion, CancellationToken.None);
+        fixture.Time.Advance(TimeSpan.FromSeconds(1));
+        var model = Model(fixture);
+        model.MinimumIntervalSeconds = "1.0";
+
+        Assert.True((await fixture.Service.SaveAsync(model, "admin", CancellationToken.None)).Succeeded);
+        Assert.True(waiting.IsCompleted);
+        Assert.True((await waiting).Succeeded);
+    }
+
+    [Fact]
     public async Task ClearCredential_RejectsRequiredActiveCredentialUnlessAtomicallyDisabled()
     {
         var fixture = CreateFixture(requiredCredential: true, featureEnabled: true);
@@ -146,7 +167,9 @@ public sealed class RoutingProviderAdministrationServiceTests : TestBase
         db.Set<RoutingProviderConfiguration>().Add(provider);
         db.ApplicationSettings.Add(settings);
         db.SaveChanges();
-        return new Fixture(db, new RoutingProviderAdministrationService(db, credentialService), provider, settings, profile);
+        var time = new ControlledTimeProvider();
+        var pacer = new RoutingProviderPacer(time);
+        return new Fixture(db, new RoutingProviderAdministrationService(db, credentialService), provider, settings, profile, pacer, time);
     }
 
     private static RoutingProviderEditViewModel Model(Fixture fixture) => new()
@@ -169,5 +192,33 @@ public sealed class RoutingProviderAdministrationServiceTests : TestBase
 
     private sealed record Fixture(
         ApplicationDbContext Db, RoutingProviderAdministrationService Service, RoutingProviderConfiguration Provider,
-        ApplicationSettings Settings, TransportProfile Profile);
+        ApplicationSettings Settings, TransportProfile Profile, RoutingProviderPacer Pacer, ControlledTimeProvider Time);
+
+    private sealed class ControlledTimeProvider : TimeProvider
+    {
+        private readonly List<ControlledTimer> _timers = [];
+        private long _timestamp;
+        public override long TimestampFrequency => TimeSpan.TicksPerSecond;
+        public override long GetTimestamp() => _timestamp;
+        public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
+        {
+            var timer = new ControlledTimer(callback, state, _timestamp + dueTime.Ticks);
+            _timers.Add(timer);
+            return timer;
+        }
+        public void Advance(TimeSpan duration)
+        {
+            _timestamp += duration.Ticks;
+            foreach (var timer in _timers.Where(item => !item.Disposed && item.Due <= _timestamp).ToArray()) timer.Fire();
+        }
+        private sealed class ControlledTimer(TimerCallback callback, object? state, long due) : ITimer
+        {
+            public long Due { get; private set; } = due;
+            public bool Disposed { get; private set; }
+            public bool Change(TimeSpan dueTime, TimeSpan period) { Due += dueTime.Ticks; return true; }
+            public void Fire() { if (!Disposed) callback(state); }
+            public void Dispose() => Disposed = true;
+            public ValueTask DisposeAsync() { Dispose(); return ValueTask.CompletedTask; }
+        }
+    }
 }
