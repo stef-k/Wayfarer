@@ -21,17 +21,19 @@ public sealed class RoutingAttemptCoordinator
         var paced = await _pacer.WaitAsync(provider.Id, provider.ConfigurationVersion, cancellationToken);
         if (!paced.Succeeded) return RoutingAttemptAdmission.Failure(paced.ErrorCode!);
         var turn = paced.Turn!;
-        var concurrency = await _budget.AcquireAttemptConcurrencyAsync(
-            provider.Id, provider.MaxConcurrency, cancellationToken);
-        if (concurrency == null)
-        {
-            turn.Dispose();
-            return RoutingAttemptAdmission.Failure("routing-rate-limited");
-        }
+        IDisposable? concurrency = null;
         try
         {
+            concurrency = await _budget.AcquireAttemptConcurrencyAsync(
+                provider.Id, provider.MaxConcurrency, cancellationToken);
+            if (concurrency == null)
+            {
+                turn.Dispose();
+                return RoutingAttemptAdmission.Failure("routing-rate-limited");
+            }
             if (!await validateAuthority(cancellationToken))
             {
+                turn.Dispose();
                 concurrency.Dispose();
                 return RoutingAttemptAdmission.Failure("provider-configuration-stale");
             }
@@ -41,7 +43,7 @@ public sealed class RoutingAttemptCoordinator
         catch
         {
             turn.Dispose();
-            concurrency.Dispose();
+            concurrency?.Dispose();
             throw;
         }
     }

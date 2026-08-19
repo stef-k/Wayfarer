@@ -32,10 +32,13 @@ public sealed class RoutingBoundedExecutor
                 if (!admission.Succeeded) return RoutingExecutionResult.Failure(admission.ErrorCode!);
                 IReadOnlyList<IPAddress> addresses;
                 Task<IReadOnlyList<IPAddress>>? resolution = null;
-                var startError = admission.StartAttempt(timeout, cancellationToken,
-                    token => resolution = _resolver.ResolveAsync(endpoint.Host, token));
-                if (startError != null) return RoutingExecutionResult.Failure(startError);
-                try { addresses = await resolution!; }
+                try
+                {
+                    var startError = admission.StartAttempt(timeout, cancellationToken,
+                        token => resolution = _resolver.ResolveAsync(endpoint.Host, token));
+                    if (startError != null) return RoutingExecutionResult.Failure(startError);
+                    addresses = await resolution!;
+                }
                 catch (HttpRequestException exception) when (exception.InnerException is OperationCanceledException)
                 { throw exception.InnerException; }
                 catch (Exception exception) when (exception is HttpRequestException or SocketException)

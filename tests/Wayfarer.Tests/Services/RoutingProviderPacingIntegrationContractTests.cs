@@ -60,10 +60,13 @@ public sealed class RoutingProviderPacingIntegrationContractTests
 
         var rejected = await coordinator.PrepareAsync(
             provider, _ => Task.FromResult(false), CancellationToken.None);
-        using var recovered = await budget.AcquireAttemptConcurrencyAsync(provider.Id, 1, CancellationToken.None);
+        using (var recovered = await budget.AcquireAttemptConcurrencyAsync(provider.Id, 1, CancellationToken.None))
+            Assert.NotNull(recovered);
+        using var nextPacingTurn = await coordinator.PrepareAsync(
+            provider, _ => Task.FromResult(true), CancellationToken.None);
 
         Assert.Equal("provider-configuration-stale", rejected.ErrorCode);
-        Assert.NotNull(recovered);
+        Assert.True(nextPacingTurn.Succeeded);
         Assert.True(budget.TryAdmitProviderAttempt(provider.Id, 1));
     }
 
