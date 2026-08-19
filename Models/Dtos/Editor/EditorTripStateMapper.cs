@@ -21,7 +21,8 @@ public static class EditorTripStateMapper
         EditorOptionsDto options,
         string? publicUrl,
         string? progressPublicUrl,
-        Func<Segment, string>? aggregateTokenFactory = null)
+        Func<Segment, string>? aggregateTokenFactory = null,
+        Func<Segment, EditorExternalRoutingCapabilityDto?>? externalRoutingFactory = null)
     {
         ArgumentNullException.ThrowIfNull(trip);
 
@@ -46,7 +47,8 @@ public static class EditorTripStateMapper
                 .ToList()),
             AreasById = areas.ToDictionary(a => a.Area.Id, a => ToArea(trip.Id, a.Region.Id, a.Area)),
             AreaOrderByRegionId = regions.ToDictionary(r => r.Id, r => (IReadOnlyList<Guid>)r.Areas.OrderBy(a => a.DisplayOrder).ThenBy(a => a.Name).Select(a => a.Id).ToList()),
-            SegmentsById = segments.ToDictionary(s => s.Id, s => ToSegment(trip.Id, s, aggregateTokenFactory?.Invoke(s) ?? string.Empty, true)),
+            SegmentsById = segments.ToDictionary(s => s.Id, s => ToSegment(trip.Id, s,
+                aggregateTokenFactory?.Invoke(s) ?? string.Empty, true, externalRoutingFactory?.Invoke(s))),
             SegmentOrder = segments.Select(s => s.Id).ToList(),
             TagsBySlug = trip.Tags.OrderBy(t => t.Name).ToDictionary(t => t.Slug, t => new EditorTagDto(t.Id, t.Name, t.Slug)),
             TagOrder = trip.Tags.OrderBy(t => t.Name).Select(t => t.Slug).ToList(),
@@ -113,7 +115,9 @@ public static class EditorTripStateMapper
     /// <summary>
     /// Maps a segment into the editor segment contract.
     /// </summary>
-    public static EditorSegmentDto ToSegment(Guid tripId, Segment segment, string aggregateConcurrencyToken = "", bool waypointsAuthoritative = false)
+    public static EditorSegmentDto ToSegment(
+        Guid tripId, Segment segment, string aggregateConcurrencyToken = "", bool waypointsAuthoritative = false,
+        EditorExternalRoutingCapabilityDto? externalRouting = null)
     {
         if (!waypointsAuthoritative)
             throw new InvalidOperationException("Authoritative Segment mapping requires explicitly loaded waypoint children.");
@@ -135,7 +139,8 @@ public static class EditorTripStateMapper
             ToGeoJson(segment.RouteGeometry ?? BuildEffectiveRoute(segment)),
             aggregateConcurrencyToken,
             segment.DisplayOrder,
-            EditableLeafCapabilities());
+            EditableLeafCapabilities(),
+            externalRouting);
     }
 
     private static LineString? BuildEffectiveRoute(Segment segment)

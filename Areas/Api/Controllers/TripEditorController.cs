@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos.Editor;
 using Wayfarer.Services;
+using Wayfarer.Services.ExternalRouting;
 using Wayfarer.Util;
 
 namespace Wayfarer.Areas.Api.Controllers;
@@ -35,6 +36,7 @@ public sealed partial class TripEditorController : ControllerBase
     private readonly TripEditorSegmentMutationService _segmentMutations;
     private readonly ITripEditorGeocodeSearchService? _geocodeSearch;
     private readonly ILogger<TripEditorController> _logger;
+    private readonly ExternalRoutingCapabilityProjector? _externalRoutingCapabilities;
 
     /// <summary>
     /// Initializes a new instance of the Trip Editor API controller.
@@ -51,7 +53,8 @@ public sealed partial class TripEditorController : ControllerBase
         TripEditorAreaMutationService areaMutations,
         TripEditorSegmentMutationService segmentMutations,
         ILogger<TripEditorController> logger,
-        ITripEditorGeocodeSearchService? geocodeSearch = null)
+        ITripEditorGeocodeSearchService? geocodeSearch = null,
+        ExternalRoutingCapabilityProjector? externalRoutingCapabilities = null)
     {
         _dbContext = dbContext;
         _environment = environment;
@@ -65,6 +68,7 @@ public sealed partial class TripEditorController : ControllerBase
         _segmentMutations = segmentMutations;
         _geocodeSearch = geocodeSearch;
         _logger = logger;
+        _externalRoutingCapabilities = externalRoutingCapabilities;
     }
 
     /// <summary>
@@ -124,13 +128,17 @@ public sealed partial class TripEditorController : ControllerBase
 
         try
         {
+            var routingCapabilities = _externalRoutingCapabilities == null
+                ? new Dictionary<Guid, EditorExternalRoutingCapabilityDto>()
+                : await _externalRoutingCapabilities.ProjectAsync(trip.Segments.ToArray(), cancellationToken);
             return Ok(EditorTripStateMapper.ToEditorState(
                 trip,
                 visitsByPlaceId,
                 await BuildOptionsAsync(cancellationToken),
                 publicUrl,
                 progressPublicUrl,
-                segment => _segmentMutations.IssueAggregateToken(userId, tripId, segment)));
+                segment => _segmentMutations.IssueAggregateToken(userId, tripId, segment),
+                segment => routingCapabilities.GetValueOrDefault(segment.Id)));
         }
         catch (EditorInvalidAreaGeometryException ex)
         {

@@ -4,7 +4,7 @@ import { createSegment, deleteSegment, EditorSegmentConflictError, orderSegments
 import { confirm } from '../composables/useConfirmDialog';
 import type { EditorSurfaceController, EditorTarget } from '../composables/useEditorSurface';
 import type { SegmentDraftRoutePreview } from '../map/leafletAdapter';
-import type { EditorMutationResult, EditorSegment, EditorSegmentConflict, EditorSegmentDraft, EditorSegmentSaveRequest, EditorSegmentWaypointDraftRow, EditorTripState, Guid } from '../types';
+import type { AcceptedExternalRouteProposal, EditorMutationResult, EditorSegment, EditorSegmentConflict, EditorSegmentDraft, EditorSegmentSaveRequest, EditorSegmentWaypointDraftRow, EditorTripState, ExternalRouteProposal, Guid } from '../types';
 import { buildSegmentCreateTarget, buildSegmentEditTarget, segmentDraftKey } from './regionPlaceEditorTargets';
 import { buildSegmentRequest, emptySegmentDraft, mapWaypointErrors, toSegmentDraft } from './regionPlaceDrafts';
 import SegmentEditorSurface from './SegmentEditorSurface.vue';
@@ -14,6 +14,7 @@ import { invokeSegmentRouteAction } from './segmentRouteWorkPolicy';
 import type { EditorSegmentDraftPresentation, SegmentPresentationKey } from '../segments/editorSegmentPresentation';
 import { resolveDraftSegmentPresentation, resolvePersistedSegmentPresentation } from '../segments/editorSegmentPresentation';
 import { reverseSegmentDraftRoute } from '../segments/segmentPresentationResolver';
+import { createSegmentRouteProposalDraftController, routeProposalDraftContextKey } from './segmentRouteProposalDraft';
 
 declare global {
   interface Window {
@@ -59,6 +60,7 @@ const segmentConflict = ref<EditorSegmentConflict | null>(null);
 const saveError = ref<string | null>(null);
 const lastSavedAt = ref<string | null>(null);
 const routeMapWork = reactive<SegmentRouteMapWorkLifecycleState>({ work: null, stopEdit: null });
+const routeProposalDraftRevision = ref(0);
 const segmentEditorSurface = ref<{ focusNotes: () => void; focusRouteAction: () => boolean } | null>(null);
 let unregisterHandler: (() => void) | null = null;
 let sortable: { destroy: () => void } | null = null;
@@ -84,6 +86,9 @@ const draftOrientation = computed(() => {
     return 'ambiguous';
   }
 });
+const routeProposalContextKey = computed(() => routeProposalDraftContextKey(draft, props.state, routeProposalDraftRevision.value));
+const routeProposalDraft = createSegmentRouteProposalDraftController(
+  draft, routePreviewIdentity, preview => emit('routeDraftPreviewChanged', preview));
 
 watch(isDirty, value => emit('dirtyStateChanged', value), { immediate: true });
 watch(
@@ -160,6 +165,7 @@ async function openEdit(segment: EditorSegment): Promise<boolean> {
 }
 
 function resetDraft(): void {
+  routeProposalDraftRevision.value += 1;
   const focusDestination = resetFocusDestination(draft, draft.id ? persistedBaseline.value : emptySegmentDraft());
   Object.assign(draft, draft.id ? cloneDraft(persistedBaseline.value) : emptySegmentDraft());
   resetFeedback();
@@ -312,6 +318,7 @@ async function deleteSegmentWithConfirmation(segment: EditorSegment, deletedTarg
 }
 
 function drawRoute(): void {
+  routeProposalDraftRevision.value += 1;
   invokeSegmentRouteAction(draft, () => {
     const error = beginSegmentRouteMapWork(routePreviewIdentity(), draft, props.editorSurface, props.routeEditor, routeMapWork, props.state, focusRouteAction);
     if (!error) return;
@@ -443,6 +450,7 @@ function restoreSegmentOrder(_previousIds: Guid[]): void {
 }
 
 function discardDraft(): void {
+  routeProposalDraftRevision.value += 1;
   const discardedKey = draft.id ? persistedPresentationKey(draft.id) : createPresentationKey();
   stopSegmentRouteEdit(routeMapWork);
   Object.assign(draft, emptySegmentDraft());
@@ -493,12 +501,22 @@ function syncRouteDraftPreview(): void {
     return;
   }
 
+  if (routeProposalDraft.publishIfPresent()) return;
   if (draft.waypointPlaceIds.length > 0) {
     emit('routeDraftPreviewChanged', null);
     return;
   }
   emit('routeDraftPreviewChanged', buildRouteDraftPreview());
 }
+
+/** Applies a server-accepted proposal only to the active Segment draft. */
+const acceptRouteProposal = (proposal: AcceptedExternalRouteProposal): void => {
+  if (routeProposalDraft.accept(proposal)) { syncRouteDraftPreview(); publishPresentation(); }
+};
+
+/** Publishes or clears the non-persisted provider preview without changing the draft. */
+const previewRouteProposal = (proposal: ExternalRouteProposal | null): void =>
+  { routeProposalDraft.preview(proposal); syncRouteDraftPreview(); };
 
 function buildRouteDraftPreview(segmentId: Guid | null = draft.id): SegmentDraftRoutePreview {
   return {
@@ -636,7 +654,7 @@ function modeText(segment: EditorSegment): string {
     </section>
     <button type="button" class="btn btn-primary btn-sm trip-editor-add-button" :disabled="isSaving || isOrdering" @click="openCreate">Add Segment</button>
 
-    <SegmentEditorSurface v-if="isDraftOpen && !draft.id" ref="segmentEditorSurface" :active-segment="activeSegment" :controller="editorSurface" :draft="draft" :field-errors="fieldErrors" :form-id="segmentFormId" :form-summary-errors="formSummaryErrors" :is-dirty="isDirty" :is-saving="isSaving" :route-orientation="draftOrientation" :route-map-work-active="Boolean(routeMapWork.work)" :state="state" :status-text="statusText" :target="activeSegmentTarget" @cancel="cancelDraft" @clear-error="clearFieldError" @clear-route="clearRoute" @delete="deleteDraft" @draw-route="drawRoute" @reset="resetDraft" @reverse-route="reverseRoute" @save="saveDraft" />
+    <SegmentEditorSurface v-if="isDraftOpen && !draft.id" ref="segmentEditorSurface" :active-segment="activeSegment" :antiforgery-token="antiforgeryToken" :controller="editorSurface" :draft="draft" :draft-context-key="routeProposalContextKey" :field-errors="fieldErrors" :form-id="segmentFormId" :form-summary-errors="formSummaryErrors" :is-dirty="isDirty" :is-saving="isSaving" :route-orientation="draftOrientation" :route-map-work-active="Boolean(routeMapWork.work)" :state="state" :status-text="statusText" :target="activeSegmentTarget" @cancel="cancelDraft" @clear-error="clearFieldError" @clear-route="clearRoute" @delete="deleteDraft" @draw-route="drawRoute" @reset="resetDraft" @reverse-route="reverseRoute" @route-proposal-accepted="acceptRouteProposal" @route-proposal-preview-changed="previewRouteProposal" @save="saveDraft" />
 
     <ul v-if="segments.length > 0" :key="segmentListKey" ref="segmentList" class="trip-editor-segments">
       <li v-for="segment in segments" :key="segment.id" class="trip-editor-segment-row" :data-segment-id="segment.id">
@@ -648,7 +666,7 @@ function modeText(segment: EditorSegment): string {
         </button>
         <button type="button" class="trip-editor-icon-button" title="Delete segment" aria-label="Delete segment" @click="deleteSegmentFromRow(segment)">×</button>
 
-        <SegmentEditorSurface v-if="draft.id === segment.id && editorSurface.isTargetActive(activeSegmentTarget)" ref="segmentEditorSurface" :active-segment="activeSegment" :controller="editorSurface" :draft="draft" :field-errors="fieldErrors" :form-id="segmentFormId" :form-summary-errors="formSummaryErrors" :is-dirty="isDirty" :is-saving="isSaving" :route-orientation="draftOrientation" :route-map-work-active="Boolean(routeMapWork.work)" :state="state" :status-text="statusText" :target="activeSegmentTarget" @cancel="cancelDraft" @clear-error="clearFieldError" @clear-route="clearRoute" @delete="deleteDraft" @draw-route="drawRoute" @reset="resetDraft" @reverse-route="reverseRoute" @save="saveDraft" />
+        <SegmentEditorSurface v-if="draft.id === segment.id && editorSurface.isTargetActive(activeSegmentTarget)" ref="segmentEditorSurface" :active-segment="activeSegment" :antiforgery-token="antiforgeryToken" :controller="editorSurface" :draft="draft" :draft-context-key="routeProposalContextKey" :field-errors="fieldErrors" :form-id="segmentFormId" :form-summary-errors="formSummaryErrors" :is-dirty="isDirty" :is-saving="isSaving" :route-orientation="draftOrientation" :route-map-work-active="Boolean(routeMapWork.work)" :state="state" :status-text="statusText" :target="activeSegmentTarget" @cancel="cancelDraft" @clear-error="clearFieldError" @clear-route="clearRoute" @delete="deleteDraft" @draw-route="drawRoute" @reset="resetDraft" @reverse-route="reverseRoute" @route-proposal-accepted="acceptRouteProposal" @route-proposal-preview-changed="previewRouteProposal" @save="saveDraft" />
       </li>
     </ul>
     <p v-else class="trip-editor-empty-state">No travel segments added yet.</p>

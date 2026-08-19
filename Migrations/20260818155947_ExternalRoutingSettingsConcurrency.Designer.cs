@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using NetTopologySuite.Geometries;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
@@ -12,9 +13,11 @@ using Wayfarer.Models;
 namespace Wayfarer.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260818155947_ExternalRoutingSettingsConcurrency")]
+    partial class ExternalRoutingSettingsConcurrency
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -38,11 +41,6 @@ namespace Wayfarer.Migrations
 
                     b.Property<bool>("ExternalRouteGenerationEnabled")
                         .HasColumnType("boolean");
-
-                    b.Property<int>("ExternalRouteGenerationVersion")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(1);
 
                     b.Property<int>("ImageCacheExpiryDays")
                         .HasColumnType("integer");
@@ -1183,9 +1181,6 @@ namespace Wayfarer.Migrations
                         .HasColumnType("character varying(4096)");
 
                     b.Property<bool>("CredentialPresent")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("CredentialRequired")
                         .HasColumnType("boolean");
 
                     b.Property<string>("DisplayName")

@@ -446,7 +446,9 @@ const applyMutation = (result: EditorMutationResult<unknown>): void => {
     next.areasById[area.id] = area;
   });
   result.affected.segments.forEach(segment => {
-    next.segmentsById[segment.id] = segment;
+    next.segmentsById[segment.id] = segment.externalRouting
+      ? segment
+      : { ...segment, externalRouting: next.segmentsById[segment.id]?.externalRouting ?? null };
   });
   result.affected.tags.forEach(tag => {
     next.tagsBySlug[tag.slug] = tag;

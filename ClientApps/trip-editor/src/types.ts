@@ -44,6 +44,31 @@ export interface EditorRegion {
   capabilities: EditorEntityCapabilities;
 }
 
+export interface EditorExternalRoutingCapability {
+  available: boolean;
+  unavailableReason: string | null;
+  providerDisplayName: string | null;
+  mappedProfileLabel: string | null;
+  disclosure: string | null;
+  attribution: string | null;
+}
+
+export interface ExternalRouteProposal {
+  proposalId: Guid;
+  segmentId: Guid;
+  geometry: Array<{ longitude: number; latitude: number }>;
+  waypointIndices: number[];
+  protectedContext: string;
+  expiresAt: string;
+}
+
+export interface AcceptedExternalRouteProposal {
+  proposalId: Guid;
+  segmentId: Guid;
+  geometry: Array<{ longitude: number; latitude: number }>;
+  waypointIndices: number[];
+}
+
 export interface EditorPlace {
   id: Guid;
   tripId: Guid;
@@ -90,6 +115,7 @@ export interface EditorSegment {
   aggregateConcurrencyToken: string;
   displayOrder: number;
   capabilities: EditorEntityCapabilities;
+  externalRouting?: EditorExternalRoutingCapability | null;
 }
 
 export interface EditorTag {

@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using NetTopologySuite.Geometries;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
@@ -12,9 +13,11 @@ using Wayfarer.Models;
 namespace Wayfarer.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260818155012_ExternalRouteGenerationProviders")]
+    partial class ExternalRouteGenerationProviders
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -38,11 +41,6 @@ namespace Wayfarer.Migrations
 
                     b.Property<bool>("ExternalRouteGenerationEnabled")
                         .HasColumnType("boolean");
-
-                    b.Property<int>("ExternalRouteGenerationVersion")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(1);
 
                     b.Property<int>("ImageCacheExpiryDays")
                         .HasColumnType("integer");
@@ -75,12 +73,6 @@ namespace Wayfarer.Migrations
 
                     b.Property<int>("ProxyImageRateLimitPerMinute")
                         .HasColumnType("integer");
-
-                    b.Property<uint>("RowVersion")
-                        .IsConcurrencyToken()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("xid")
-                        .HasColumnName("xmin");
 
                     b.Property<int>("TileMetadataHotCacheSizeMB")
                         .HasColumnType("integer");
@@ -1185,9 +1177,6 @@ namespace Wayfarer.Migrations
                     b.Property<bool>("CredentialPresent")
                         .HasColumnType("boolean");
 
-                    b.Property<bool>("CredentialRequired")
-                        .HasColumnType("boolean");
-
                     b.Property<string>("DisplayName")
                         .IsRequired()
                         .HasMaxLength(120)
@@ -1243,7 +1232,7 @@ namespace Wayfarer.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("RoutingProviderConfigurations", (string)null);
+                    b.ToTable("RoutingProviderConfigurations");
                 });
 
             modelBuilder.Entity("Wayfarer.Models.RoutingProviderProfileMapping", b =>
@@ -1263,7 +1252,7 @@ namespace Wayfarer.Migrations
 
                     b.HasIndex("TransportProfileId");
 
-                    b.ToTable("RoutingProviderProfileMappings", (string)null);
+                    b.ToTable("RoutingProviderProfileMappings");
                 });
 
             modelBuilder.Entity("Wayfarer.Models.Segment", b =>
