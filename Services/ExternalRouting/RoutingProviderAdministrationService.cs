@@ -55,7 +55,7 @@ public sealed class RoutingProviderAdministrationService
                 .Select(item => (item.TransportProfileId, Profile: item.OsrmProfile)).ToArray();
             var intervalChanged = creating || provider!.MinimumIntervalMilliseconds != minimumIntervalMilliseconds;
             var credentialFreeTransition = !creating
-                && provider.PersonalRoutingAccess == PersonalRoutingAccess.CredentialRequired
+                && provider.PersonalRoutingAccess != PersonalRoutingAccess.CredentialFree
                 && model.PersonalRoutingAccess == PersonalRoutingAccess.CredentialFree;
             var changed = !creating && (provider.BaseEndpoint != endpoint
             || provider.CredentialRequired != model.CredentialRequired

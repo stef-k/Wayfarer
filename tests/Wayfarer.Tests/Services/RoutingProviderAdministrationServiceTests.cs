@@ -151,6 +151,53 @@ public sealed class RoutingProviderAdministrationServiceTests : TestBase
     }
 
     [Fact]
+    public async Task Save_CredentialFreeToCredentialFreeDoesNotVersionCleanSelectingUser()
+    {
+        const string userId = "clean-personal-owner";
+        var fixture = CreateFixture(requiredCredential: false, featureEnabled: false);
+        fixture.Provider.PersonalRoutingAccess = PersonalRoutingAccess.CredentialFree;
+        var configuration = UserRoutingConfiguration.CreateServerDefault(userId);
+        configuration.SelectPersonalProvider(fixture.Provider.Id);
+        configuration.NormalizeCredentialFree();
+        fixture.Db.Set<UserRoutingConfiguration>().Add(configuration);
+        fixture.Db.SaveChanges();
+        var originalUserVersion = configuration.ConfigurationVersion;
+
+        var result = await fixture.Service.SaveAsync(Model(fixture), "admin", CancellationToken.None);
+
+        Assert.True(result.Succeeded);
+        Assert.Equal(originalUserVersion, configuration.ConfigurationVersion);
+        Assert.Equal(fixture.Provider.Id, configuration.SelectedProviderConfigurationId);
+    }
+
+    [Fact]
+    public async Task Save_CredentialFreeToDisabledDoesNotPerformSelectingUserCleanup()
+    {
+        const string userId = "disabled-cleanup-boundary";
+        var fixture = CreateFixture(requiredCredential: false, featureEnabled: false);
+        fixture.Provider.PersonalRoutingAccess = PersonalRoutingAccess.CredentialFree;
+        var configuration = UserRoutingConfiguration.CreateServerDefault(userId);
+        configuration.SelectPersonalProvider(fixture.Provider.Id);
+        new UserRoutingCredentialService(new EphemeralDataProtectionProvider())
+            .Replace(configuration, fixture.Provider.Id, "retained-boundary-secret");
+        configuration.VerificationStatus = "retained-boundary-state";
+        fixture.Db.Set<UserRoutingConfiguration>().Add(configuration);
+        fixture.Db.SaveChanges();
+        var originalUserVersion = configuration.ConfigurationVersion;
+        var model = Model(fixture);
+        model.PersonalRoutingAccess = PersonalRoutingAccess.Disabled;
+
+        var result = await fixture.Service.SaveAsync(model, "admin", CancellationToken.None);
+
+        Assert.True(result.Succeeded);
+        Assert.Equal(PersonalRoutingAccess.Disabled, fixture.Provider.PersonalRoutingAccess);
+        Assert.True(configuration.CredentialPresent);
+        Assert.NotNull(configuration.CredentialCiphertext);
+        Assert.Equal("retained-boundary-state", configuration.VerificationStatus);
+        Assert.Equal(originalUserVersion, configuration.ConfigurationVersion);
+    }
+
+    [Fact]
     public async Task Save_MinimumIntervalChangeIsExactAndInvalidatesOnlyWhenChanged()
     {
         var fixture = CreateFixture(requiredCredential: false, featureEnabled: false);
