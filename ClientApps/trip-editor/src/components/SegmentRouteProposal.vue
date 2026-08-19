@@ -4,12 +4,14 @@ import { acceptExternalRouteProposal, ExternalRouteProposalError, generateExtern
 import { confirm } from '../composables/useConfirmDialog';
 import type { AcceptedExternalRouteProposal, EditorSegment, ExternalRouteProposal, Guid } from '../types';
 import { createSegmentRouteProposalStore } from './segmentRouteProposalState';
+import type { RouteAcceptanceContext } from './segmentRouteProposalState';
 
 const props = defineProps<{
   antiforgeryToken: string;
   draftHasRoute: boolean;
   draftMode: string;
   draftTransportProfileId: Guid | null;
+  draftContextKey: string;
   segment: EditorSegment;
   tripId: Guid;
 }>();
@@ -22,12 +24,21 @@ const emit = defineEmits<{
 const proposalStore = createSegmentRouteProposalStore();
 const states = proposalStore.states;
 const proposalContextKey = computed(() => `${props.draftTransportProfileId ?? ''}:${props.draftMode}`);
+const acceptanceContext = computed<RouteAcceptanceContext>(() => JSON.parse(props.draftContextKey));
 const state = computed(() => states[props.segment.id] ??= proposalStore.get(props.segment.id, proposalContextKey.value));
 const capability = computed(() => props.segment.externalRouting ?? null);
 const actionLabel = computed(() => props.draftHasRoute ? 'Replace with routed path' : 'Generate routed path');
 const profileChanged = computed(() => props.draftMode !== props.segment.mode);
 
-watch(() => props.segment.id, () => emit('previewChanged', state.value.proposal), { immediate: true });
+watch(() => props.segment.id, (segmentId, previousId) => {
+  if (previousId) proposalStore.invalidateAcceptance(previousId);
+  emit('previewChanged', proposalStore.get(segmentId, proposalContextKey.value).proposal);
+}, { immediate: true });
+watch(() => props.draftContextKey, (value, previous) => {
+  if (value === previous) return;
+  proposalStore.invalidate(props.segment.id, 'draft-context-changed');
+  emit('previewChanged', null);
+});
 watch(proposalContextKey, profileKey => {
   if (!proposalStore.invalidateProfile(props.segment.id, profileKey)) return;
   emit('previewChanged', null);
@@ -59,12 +70,21 @@ async function generate(): Promise<void> {
 
 /** Accepts only after the server revalidates the protected context. */
 async function accept(): Promise<void> {
-  if (!state.value.proposal) return;
+  const proposal = state.value.proposal;
+  if (!proposal || state.value.accepting) return;
+  const controller = new AbortController();
+  const context = acceptanceContext.value;
+  const requestId = proposalStore.beginAcceptance(props.segment.id, proposal.proposalId, context, controller);
+  if (requestId === null) return;
   try {
-    const accepted = await acceptExternalRouteProposal(props.tripId, state.value.proposal, props.antiforgeryToken);
+    const accepted = await acceptExternalRouteProposal(props.tripId, proposal, props.antiforgeryToken, controller.signal);
+    if (!proposalStore.completeAcceptance(props.segment.id, requestId, proposal.proposalId, acceptanceContext.value)) return;
     emit('accepted', accepted);
     discard();
-  } catch (error) { state.value.error = boundedMessage(error); }
+  } catch (error) {
+    if (!controller.signal.aborted) state.value.error = boundedMessage(error);
+    proposalStore.invalidateAcceptance(props.segment.id);
+  }
 }
 
 /** Discards this Segment's proposal without changing its draft. */
@@ -99,8 +119,8 @@ onUnmounted(() => {
     <button v-if="state.generating" type="button" class="btn btn-outline-secondary btn-sm ms-2" @click="discard">Cancel generation</button>
     <div v-if="state.proposal" role="status" class="mt-2">
       <p class="small mb-2">Proposal ready for preview. Accepting changes only this unsaved Segment draft.</p>
-      <button type="button" class="btn btn-success btn-sm" @click="accept">Accept proposal</button>
-      <button type="button" class="btn btn-outline-secondary btn-sm ms-2" @click="discard">Discard proposal</button>
+      <button type="button" class="btn btn-success btn-sm" :disabled="state.accepting" @click="accept">{{ state.accepting ? 'Accepting…' : 'Accept proposal' }}</button>
+      <button type="button" class="btn btn-outline-secondary btn-sm ms-2" :disabled="state.accepting" @click="discard">Discard proposal</button>
     </div>
     <p v-if="state.error" class="trip-editor-form-error mt-2 mb-0" role="alert" tabindex="-1">{{ state.error }}</p>
   </section>

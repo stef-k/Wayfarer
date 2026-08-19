@@ -11,6 +11,7 @@ const props = defineProps<{
   antiforgeryToken: string;
   controller: EditorSurfaceController;
   draft: EditorSegmentDraft;
+  draftContextKey: string;
   fieldErrors: (key: string) => string[];
   formId: string;
   formSummaryErrors: string[];
@@ -75,6 +76,7 @@ defineEmits<{
         v-if="activeSegment && activeSegment.externalRouting?.available"
         :antiforgery-token="antiforgeryToken"
         :draft-has-route="draft.route !== null"
+        :draft-context-key="draftContextKey"
         :draft-mode="draft.mode"
         :draft-transport-profile-id="draft.transportProfileId"
         :segment="activeSegment"

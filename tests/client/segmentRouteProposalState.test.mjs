@@ -148,6 +148,7 @@ test('acceptance completion is rejected after every lifecycle invalidation', () 
     const store = createSegmentRouteProposalStore();
     const context = acceptanceContext();
     const controller = new AbortController();
+    store.get('first', 'walk').proposal = proposalFor('first', 'proposal-1');
     const request = store.beginAcceptance('first', 'proposal-1', context, controller);
 
     store.invalidate('first', reason);
@@ -160,6 +161,7 @@ test('acceptance completion is rejected after every lifecycle invalidation', () 
 test('duplicate acceptance is refused while the initiating request is pending', () => {
   const store = createSegmentRouteProposalStore();
   const context = acceptanceContext();
+  store.get('first', 'walk').proposal = proposalFor('first', 'proposal-1');
   const first = store.beginAcceptance('first', 'proposal-1', context, new AbortController());
 
   assert.equal(typeof first, 'number');
@@ -177,6 +179,7 @@ test('acceptance requires the exact initiating proposal and complete draft conte
   ]) {
     const store = createSegmentRouteProposalStore();
     const context = acceptanceContext();
+    store.get('first', 'walk').proposal = proposalFor('first', 'proposal-1');
     const request = store.beginAcceptance('first', 'proposal-1', context, new AbortController());
     const proposalId = changed.proposalId ?? 'proposal-1';
 

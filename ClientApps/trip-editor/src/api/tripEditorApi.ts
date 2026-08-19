@@ -57,11 +57,12 @@ export const generateExternalRouteProposal = async (
 
 /** Revalidates a protected proposal without persistence or provider contact. */
 export const acceptExternalRouteProposal = async (
-  tripId: string, proposal: ExternalRouteProposal, antiforgeryToken: string
+  tripId: string, proposal: ExternalRouteProposal, antiforgeryToken: string, signal?: AbortSignal
 ): Promise<AcceptedExternalRouteProposal> => {
   const response = await fetch(`/api/trip-editor/${encodeURIComponent(tripId)}/segments/${encodeURIComponent(proposal.segmentId)}/route-proposals/${encodeURIComponent(proposal.proposalId)}/accept`, {
     method: 'POST', credentials: 'same-origin',
-    headers: { Accept: 'application/json', 'Content-Type': 'application/json', RequestVerificationToken: antiforgeryToken },
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json', RequestVerificationToken: antiforgeryToken },
+      signal,
     body: JSON.stringify({ geometry: proposal.geometry, waypointIndices: proposal.waypointIndices, protectedContext: proposal.protectedContext })
   });
   if (!response.ok) {
