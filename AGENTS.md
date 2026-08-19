@@ -74,6 +74,9 @@
 
 - Clear, imperative commits. Conventional Commits welcome (e.g., `feat(trips): ...`, `chore: ...`).
 - PRs must include: description, linked issues, screenshots for UI changes, test plan/steps, and DB migration notes when relevant.
+- Treat the GitHub Actions `test` check on the current PR head as the merge gate. Poll the actual check until it reports success, then merge; do not rely on `gh pr checks --required` or `gh pr merge --auto` unless branch protection and auto-merge enforcement have first been verified.
+- Pending, failed, cancelled, or missing checks are not successful merge evidence. For a clear infrastructure stall, cancel and rerun the unchanged workflow at most once before reporting the infrastructure failure.
+- Documentation-only PRs may skip the expensive test steps, but the required `test` job must still complete successfully through its documented fast path.
 
 ## Security & Configuration Tips
 
