@@ -268,10 +268,11 @@ public sealed class UserRoutingConfigurationPostgresTests(PostgresImportTestFixt
 
         try
         {
-            var adminRecorder = new LockCommandRecorder();
-            var userRecorder = new LockCommandRecorder();
-            await using var adminContext = fixture.CreateContext(adminRecorder);
-            await using var userContext = fixture.CreateContext(userRecorder);
+            await using var adminGate = new ProviderLockGateInterceptor(holdAfterAcquisition: true);
+            await using var userGate = new ProviderLockGateInterceptor(holdAfterAcquisition: false);
+            await using var adminContext = fixture.CreateContext(adminGate);
+            await using var userContext = fixture.CreateContext(userGate);
+            await using var observerContext = fixture.CreateContext();
             var provider = await adminContext.Set<RoutingProviderConfiguration>().AsNoTracking()
                 .Include(item => item.ProfileMappings).SingleAsync(item => item.Id == providerId);
             var administration = new RoutingProviderAdministrationService(adminContext,
@@ -281,17 +282,28 @@ public sealed class UserRoutingConfigurationPostgresTests(PostgresImportTestFixt
 
             var adminTask = administration.SaveAsync(
                 CredentialFreeModel(provider), "admin", CancellationToken.None);
+            await adminGate.LockAcquired.WaitAsync(TimeSpan.FromSeconds(10));
             var userTask = userService.SaveAsync(
                 user.Id, providerId, "replacement-secret", expectedUserRowVersion, CancellationToken.None);
+            await userGate.LockRequested.WaitAsync(TimeSpan.FromSeconds(10));
+            using (var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10)))
+                await ObserveBlockedProviderLockAsync(observerContext, userGate.BackendProcessId, timeout.Token);
+            Assert.False(adminTask.IsCompleted);
+            Assert.False(userTask.IsCompleted);
+            adminGate.Release();
             await Task.WhenAll(adminTask, userTask).WaitAsync(TimeSpan.FromSeconds(15));
             var adminResult = await adminTask;
             var userResult = await userTask;
 
             Assert.True(adminResult.Succeeded);
-            Assert.True(userResult.Succeeded || userResult == UserRoutingMutationResult.Conflict || userResult.Missing
-                || userResult.Error == "This template does not accept a personal credential.");
-            AssertProviderBeforeUser(adminRecorder.Commands);
-            AssertProviderBeforeUser(userRecorder.Commands);
+            Assert.Equal(UserRoutingMutationResult.Conflict, userResult);
+            AssertProviderBeforeUser(adminGate.Commands);
+            Assert.Contains(userGate.Commands, command => command.Contains("RoutingProviderConfigurations", StringComparison.Ordinal)
+                && command.Contains("FOR UPDATE", StringComparison.Ordinal));
+            Assert.Empty(userContext.ChangeTracker.Entries());
+            Assert.Equal(PersonalRoutingAccess.CredentialFree,
+                (await userContext.Set<RoutingProviderConfiguration>().AsNoTracking()
+                    .SingleAsync(item => item.Id == providerId)).PersonalRoutingAccess);
             await using var verification = fixture.CreateContext();
             var storedProvider = await verification.Set<RoutingProviderConfiguration>().AsNoTracking()
                 .SingleAsync(item => item.Id == providerId);
@@ -310,6 +322,21 @@ public sealed class UserRoutingConfigurationPostgresTests(PostgresImportTestFixt
             await cleanup.SaveChangesAsync();
             await cleanup.Set<RoutingProviderConfiguration>().Where(item => item.Id == providerId).ExecuteDeleteAsync();
         }
+    }
+
+    private static async Task ObserveBlockedProviderLockAsync(
+        ApplicationDbContext observerContext, int backendProcessId, CancellationToken cancellationToken)
+    {
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            var blocked = await observerContext.Database.SqlQueryRaw<bool>(
+                "SELECT EXISTS (SELECT 1 FROM pg_stat_activity WHERE pid = {0} "
+                + "AND wait_event_type = 'Lock' AND cardinality(pg_blocking_pids(pid)) > 0) AS \"Value\"",
+                backendProcessId).SingleAsync(cancellationToken);
+            if (blocked) return;
+            await Task.Yield();
+        }
+        cancellationToken.ThrowIfCancellationRequested();
     }
 
     private static async Task InsertUserAsync(ApplicationDbContext context, string userId)
@@ -409,6 +436,50 @@ public sealed class UserRoutingConfigurationPostgresTests(PostgresImportTestFixt
             DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result,
             CancellationToken cancellationToken = default)
         { Commands.Add(command.CommandText); return ValueTask.FromResult(result); }
+    }
+
+    /// <summary>Observes provider-lock requests and optionally holds an acquired production lock.</summary>
+    private sealed class ProviderLockGateInterceptor(bool holdAfterAcquisition) : DbCommandInterceptor, IAsyncDisposable
+    {
+        private readonly TaskCompletionSource _lockRequested = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource _lockAcquired = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource _release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public List<string> Commands { get; } = [];
+        public Task LockRequested => _lockRequested.Task;
+        public Task LockAcquired => _lockAcquired.Task;
+        public int BackendProcessId { get; private set; }
+
+        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+            DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result,
+            CancellationToken cancellationToken = default)
+        {
+            Commands.Add(command.CommandText);
+            if (IsProviderLock(command))
+            {
+                BackendProcessId = ((NpgsqlConnection)command.Connection!).ProcessID;
+                _lockRequested.TrySetResult();
+            }
+            return ValueTask.FromResult(result);
+        }
+
+        public override async ValueTask<DbDataReader> ReaderExecutedAsync(
+            DbCommand command, CommandExecutedEventData eventData, DbDataReader result,
+            CancellationToken cancellationToken = default)
+        {
+            if (holdAfterAcquisition && IsProviderLock(command))
+            {
+                _lockAcquired.TrySetResult();
+                await _release.Task.WaitAsync(cancellationToken);
+            }
+            return result;
+        }
+
+        public void Release() => _release.TrySetResult();
+        public ValueTask DisposeAsync() { Release(); return ValueTask.CompletedTask; }
+
+        private static bool IsProviderLock(DbCommand command) =>
+            command.CommandText.Contains("RoutingProviderConfigurations", StringComparison.Ordinal)
+            && command.CommandText.Contains("FOR UPDATE", StringComparison.Ordinal);
     }
 
     private sealed class FailUserRoutingUpdateInterceptor : DbCommandInterceptor
