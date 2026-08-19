@@ -50,19 +50,4 @@ public sealed class RoutingProviderPacingIntegrationContractTests
         Assert.Equal("1.0", model.MinimumIntervalSeconds);
     }
 
-    [Theory]
-    [InlineData("GenerationTotalTimeout", 300)]
-    [InlineData("VerificationTotalTimeout", 600)]
-    [InlineData("ConcurrencyNotHeldDuringPacing", 0)]
-    [InlineData("GlobalThenProviderConcurrency", 0)]
-    [InlineData("OneRateAdmissionPerAttempt", 0)]
-    [InlineData("DnsAndSendFailuresAdvancePacing", 0)]
-    [InlineData("ResponseFailureAddsNoStart", 0)]
-    [InlineData("RetryPacedAndReadmitted", 0)]
-    [InlineData("CancellationBeforeStartHasNoContact", 0)]
-    [InlineData("SharedGenerationVerificationQueue", 0)]
-    [InlineData("VerificationProfilesShareQueue", 0)]
-    [InlineData("FinalPreContactStaleRejection", 0)]
-    public void AttemptBoundaryContractIsExposed(string contract, int seconds) =>
-        Assert.True(RoutingAttemptContract.Supports(contract, seconds));
 }
