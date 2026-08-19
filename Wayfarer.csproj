@@ -23,18 +23,16 @@
 
 
         <!-- EF Core packages for .NET 10 -->
-        <PackageReference Include="Microsoft.AspNetCore.Diagnostics.EntityFrameworkCore" Version="10.0.0" />
-        <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.0" />
-        <PackageReference Include="Microsoft.AspNetCore.Identity.UI" Version="10.0.0" />
-        <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.0">
+        <PackageReference Include="Microsoft.AspNetCore.Diagnostics.EntityFrameworkCore" Version="10.0.11" />
+        <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.11" />
+        <PackageReference Include="Microsoft.AspNetCore.Identity.UI" Version="10.0.11" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.11">
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
             <PrivateAssets>all</PrivateAssets>
         </PackageReference>
-        <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.0" />
-        <!-- Override EF Core's vulnerable SQLite native bundle until its dependency floor advances. -->
-        <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="2.1.12" />
-        <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.0" />
-        <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="10.0.0">
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.11" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.11" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="10.0.11">
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
             <PrivateAssets>all</PrivateAssets>
         </PackageReference>
@@ -44,8 +42,8 @@
         <PackageReference Include="NetTopologySuite.Features" Version="2.2.0" />
         <PackageReference Include="NetTopologySuite.IO.GeoJSON" Version="4.0.0" />
         <PackageReference Include="NodaTime" Version="3.2.2" />
-        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.0" />
-        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL.NetTopologySuite" Version="10.0.0" />
+        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
+        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL.NetTopologySuite" Version="10.0.3" />
         <PackageReference Include="Microsoft.Playwright" Version="1.48.0" />
         <PackageReference Include="Quartz" Version="3.14.0" />
         <PackageReference Include="Quartz.Extensions.DependencyInjection" Version="3.14.0" />
