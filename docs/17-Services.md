@@ -387,5 +387,9 @@ public class MyCustomJob : IJob
 
 External route generation is disabled by default and uses only explicitly configured OSRM-compatible instances. Public demo services are not seeded or activated. Intentional self-hosting exceptions must be deployment-owned entries under `ExternalRouting:Outbound:SelfHostedAllowlist`; an Admin database value cannot permit a private, loopback, or HTTP destination by itself.
 
+Each provider has a **Minimum interval (seconds)** setting. It defaults to `1.0`, accepts `0.0` through `60.0` in 0.1-second steps, and is stored as exact integer milliseconds. The interval is measured between upstream attempt starts and is cumulative with requests-per-minute, per-user, global concurrency, provider concurrency, timeout, response-size, cancellation, and retry limits. A retry is a new paced and rate-admitted attempt. Setting `0.0` disables interval delay but retains atomic FIFO attempt selection; administrators must use it only when the provider agreement permits bursts.
+
+Pacing and request budgets are process-local. Multi-replica operators must divide every provider limit between replicas or enforce shared pacing and rate limits at an upstream gateway. Wayfarer provides no bundled/demo provider and makes no availability guarantee for manually configured services; administrators are responsible for the service's usage, disclosure, attribution, profile, and availability terms.
+
 Routing credentials are encrypted with ASP.NET Core Data Protection using a routing-specific purpose. Deployments that configure credentials must preserve and share the Data Protection key ring across restarts and application replicas. Losing or rotating away all applicable keys makes saved routing credentials unusable; Wayfarer returns a bounded Admin error and never falls back to plaintext storage or disabled TLS validation. Back up and protect the key ring according to the deployment's existing Data Protection policy.
 
