@@ -130,7 +130,7 @@ public sealed partial class TripEditorController : ControllerBase
         {
             var routingCapabilities = _externalRoutingCapabilities == null
                 ? new Dictionary<Guid, EditorExternalRoutingCapabilityDto>()
-                : await _externalRoutingCapabilities.ProjectAsync(trip.Segments.ToArray(), cancellationToken);
+                : await _externalRoutingCapabilities.ProjectAsync(userId, trip.Segments.ToArray(), cancellationToken);
             return Ok(EditorTripStateMapper.ToEditorState(
                 trip,
                 visitsByPlaceId,
