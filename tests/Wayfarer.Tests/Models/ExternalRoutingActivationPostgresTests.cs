@@ -66,8 +66,8 @@ public sealed class ExternalRoutingActivationPostgresTests
             var secondService = new RoutingProviderActivationService(secondContext, new BarrierVerifier(secondContext, barrier));
 
             var results = await Task.WhenAll(
-                firstService.VerifyAndActivateAsync(firstId, 1, first.RowVersion, settingsRowVersion, CancellationToken.None),
-                secondService.VerifyAndActivateAsync(secondId, 1, second.RowVersion, settingsRowVersion, CancellationToken.None));
+                firstService.VerifyAndActivateAsync(firstId, 1, first.RowVersion, settingsRowVersion, "admin", CancellationToken.None),
+                secondService.VerifyAndActivateAsync(secondId, 1, second.RowVersion, settingsRowVersion, "admin", CancellationToken.None));
 
             Assert.Single(results, result => result.Succeeded);
             Assert.Single(results, result => !result.Succeeded && result.ErrorCode == "provider-activation-stale");
@@ -120,7 +120,7 @@ public sealed class ExternalRoutingActivationPostgresTests
     private sealed class BarrierVerifier(ApplicationDbContext db, VerificationBarrier barrier) : IRoutingProviderVerifier
     {
         public async Task<RoutingVerificationResult> VerifyAsync(
-            Guid providerId, int expectedVersion, uint expectedRowVersion, CancellationToken cancellationToken)
+            Guid providerId, int expectedVersion, uint expectedRowVersion, string administratorId, CancellationToken cancellationToken)
         {
             var provider = await db.Set<RoutingProviderConfiguration>().SingleAsync(item => item.Id == providerId, cancellationToken);
             provider.VerifiedConfigurationVersion = expectedVersion;

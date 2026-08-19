@@ -29,7 +29,8 @@ public sealed class RoutingProviderController : Controller
     {
         var settings = await _dbContext.ApplicationSettings.AsNoTracking().SingleAsync(item => item.Id == 1, cancellationToken);
         var providers = await _dbContext.Set<RoutingProviderConfiguration>().AsNoTracking()
-            .Include(item => item.ProfileMappings).OrderBy(item => item.DisplayName).ToArrayAsync(cancellationToken);
+            .Include(item => item.ProfileMappings).ThenInclude(item => item.TransportProfile)
+            .OrderBy(item => item.DisplayName).ToArrayAsync(cancellationToken);
         return View(new RoutingProviderIndexViewModel(settings.ExternalRouteGenerationEnabled, settings.RowVersion,
             settings.ActiveRoutingProviderConfigurationId, providers.Select(provider => new RoutingProviderRowViewModel(
                 provider.Id, provider.DisplayName, RoutingProviderStateResolver.Resolve(provider,
@@ -84,7 +85,7 @@ public sealed class RoutingProviderController : Controller
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> Verify(Guid id, int configurationVersion, uint rowVersion, CancellationToken cancellationToken)
     {
-        var result = await _verifier.VerifyAsync(id, configurationVersion, rowVersion, cancellationToken);
+        var result = await _verifier.VerifyAsync(id, configurationVersion, rowVersion, AdministratorId(), cancellationToken);
         SetResult(result.Succeeded, result.Succeeded ? "Provider verification succeeded." : "Provider verification failed safely.");
         return RedirectToAction(nameof(Index));
     }
@@ -95,7 +96,7 @@ public sealed class RoutingProviderController : Controller
         Guid id, int configurationVersion, uint providerRowVersion, uint settingsRowVersion, CancellationToken cancellationToken)
     {
         var result = await _activation.VerifyAndActivateAsync(
-            id, configurationVersion, providerRowVersion, settingsRowVersion, cancellationToken);
+            id, configurationVersion, providerRowVersion, settingsRowVersion, AdministratorId(), cancellationToken);
         SetResult(result.Succeeded, result.Succeeded ? "Routing provider activated." : "Provider activation failed; the previous selection was retained.");
         return RedirectToAction(nameof(Index));
     }

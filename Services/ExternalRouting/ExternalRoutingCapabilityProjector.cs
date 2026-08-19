@@ -21,6 +21,7 @@ public sealed class ExternalRoutingCapabilityProjector
             .SingleAsync(item => item.Id == 1, cancellationToken);
         var provider = settings.ActiveRoutingProviderConfiguration;
         var profileLabels = await _dbContext.Set<TransportProfile>().AsNoTracking()
+            .Where(item => item.IsActive)
             .ToDictionaryAsync(item => item.Id, item => item.Label, cancellationToken);
         return segments.ToDictionary(segment => segment.Id, segment => Project(segment, settings, provider, profileLabels));
     }
@@ -33,6 +34,7 @@ public sealed class ExternalRoutingCapabilityProjector
         if (provider is not { Enabled: true } || provider.VerifiedConfigurationVersion != provider.ConfigurationVersion)
             return Unavailable("External route generation is temporarily unavailable.");
         if (segment.TransportProfileId is not { } profileId
+            || !profileLabels.ContainsKey(profileId)
             || provider.ProfileMappings.SingleOrDefault(item => item.TransportProfileId == profileId) is not { } mapping)
             return Unavailable("The selected transport profile is not supported by the active routing provider.");
         if (segment.FromPlace?.Location == null || segment.ToPlace?.Location == null

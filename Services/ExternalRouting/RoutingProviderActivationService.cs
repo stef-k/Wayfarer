@@ -18,10 +18,10 @@ public sealed class RoutingProviderActivationService
     /// <summary>Leaves the previous provider selected unless verification and every locked recheck succeeds.</summary>
     public async Task<RoutingActivationResult> VerifyAndActivateAsync(
         Guid candidateId, int expectedVersion, uint expectedProviderRowVersion, uint expectedSettingsRowVersion,
-        CancellationToken cancellationToken)
+        string administratorId, CancellationToken cancellationToken)
     {
-        var verification = await _verifier.VerifyAsync(candidateId, expectedVersion, expectedProviderRowVersion, cancellationToken);
-        if (!verification.Succeeded) return RoutingActivationResult.Failure(verification.ErrorCode!);
+        var verification = await _verifier.VerifyAsync(candidateId, expectedVersion, expectedProviderRowVersion, administratorId, cancellationToken);
+        if (!verification.Succeeded) return await FailureAsync(candidateId, administratorId, "verification-failed", verification.ErrorCode!, cancellationToken);
 
         await using var transaction = _dbContext.Database.IsRelational()
             ? await _dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken) : null;
@@ -32,17 +32,48 @@ public sealed class RoutingProviderActivationService
             if (settings == null || candidate == null || settings.RowVersion != expectedSettingsRowVersion
                 || !candidate.Enabled || candidate.ConfigurationVersion != expectedVersion
                 || candidate.VerifiedConfigurationVersion != expectedVersion || candidate.RowVersion != verification.RowVersion
-                || candidate.ProfileMappings.Count == 0)
+                || candidate.ProfileMappings.Count == 0
+                || candidate.ProfileMappings.Any(mapping => mapping.TransportProfile is not { IsActive: true }))
+            {
+                AddAudit(administratorId, candidateId, "conflict", "activation-retained");
+                await _dbContext.SaveChangesAsync(cancellationToken);
+                if (transaction != null) await transaction.CommitAsync(cancellationToken);
                 return RoutingActivationResult.Failure("provider-activation-stale");
+            }
             settings.ActiveRoutingProviderConfigurationId = candidateId;
+            AddAudit(administratorId, candidateId, "success", "verified-to-active");
             await _dbContext.SaveChangesAsync(cancellationToken);
             if (transaction != null) await transaction.CommitAsync(cancellationToken);
             return new RoutingActivationResult(true, null);
         }
-        catch (DbUpdateConcurrencyException) { return RoutingActivationResult.Failure("provider-activation-stale"); }
+        catch (DbUpdateConcurrencyException)
+        {
+            if (transaction != null) await transaction.RollbackAsync(cancellationToken);
+            _dbContext.ChangeTracker.Clear();
+            return await FailureAsync(candidateId, administratorId, "conflict", "provider-activation-stale", cancellationToken);
+        }
         catch (Exception exception) when (IsSerializationFailure(exception))
-        { return RoutingActivationResult.Failure("provider-activation-stale"); }
+        {
+            if (transaction != null) await transaction.RollbackAsync(cancellationToken);
+            _dbContext.ChangeTracker.Clear();
+            return await FailureAsync(candidateId, administratorId, "failure", "provider-activation-stale", cancellationToken);
+        }
     }
+
+    private async Task<RoutingActivationResult> FailureAsync(
+        Guid providerId, string administratorId, string category, string code, CancellationToken cancellationToken)
+    {
+        AddAudit(administratorId, providerId, category, "activation-retained");
+        await _dbContext.SaveChangesAsync(cancellationToken);
+        return RoutingActivationResult.Failure(code);
+    }
+
+    private void AddAudit(string administratorId, Guid providerId, string category, string transition) =>
+        _dbContext.AuditLogs.Add(new AuditLog
+        {
+            UserId = administratorId, Action = "RoutingProviderActivation", Timestamp = DateTime.UtcNow,
+            Details = $"ProviderId={providerId}; AdapterType=OsrmCompatible; Category={category}; Transition={transition}."
+        });
 
     private Task<ApplicationSettings?> LockSettingsAsync(CancellationToken cancellationToken) =>
         _dbContext.Database.IsNpgsql()
@@ -54,7 +85,8 @@ public sealed class RoutingProviderActivationService
         var query = _dbContext.Database.IsNpgsql()
             ? _dbContext.Set<RoutingProviderConfiguration>().FromSqlInterpolated($"SELECT *, xmin FROM \"RoutingProviderConfigurations\" WHERE \"Id\" = {id} FOR UPDATE")
             : _dbContext.Set<RoutingProviderConfiguration>().Where(item => item.Id == id);
-        return query.Include(item => item.ProfileMappings).SingleOrDefaultAsync(cancellationToken);
+        return query.Include(item => item.ProfileMappings).ThenInclude(item => item.TransportProfile)
+            .SingleOrDefaultAsync(cancellationToken);
     }
 
     private static bool IsSerializationFailure(Exception exception) =>

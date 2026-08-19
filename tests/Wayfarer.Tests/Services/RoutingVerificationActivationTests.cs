@@ -29,11 +29,14 @@ public sealed class RoutingVerificationActivationTests : TestBase
         var verifier = new RoutingProviderVerifier(db, Executor(transport),
             new RoutingProviderCredentialService(new EphemeralDataProtectionProvider()));
 
-        var result = await verifier.VerifyAsync(provider.Id, provider.ConfigurationVersion, provider.RowVersion, CancellationToken.None);
+        var result = await verifier.VerifyAsync(provider.Id, provider.ConfigurationVersion, provider.RowVersion, "admin", CancellationToken.None);
 
         Assert.True(result.Succeeded);
         Assert.Equal(2, transport.Requests);
         Assert.Equal(provider.ConfigurationVersion, provider.VerifiedConfigurationVersion);
+        var audit = Assert.Single(db.AuditLogs.Where(item => item.Action == "RoutingProviderVerification"));
+        Assert.Equal("admin", audit.UserId);
+        Assert.Contains("Category=success", audit.Details);
     }
 
     [Fact]
@@ -47,10 +50,12 @@ public sealed class RoutingVerificationActivationTests : TestBase
         db.SaveChanges();
         var service = new RoutingProviderActivationService(db, new MarkVerifiedVerifier(db));
 
-        var result = await service.VerifyAndActivateAsync(candidate.Id, 1, candidate.RowVersion, 0, CancellationToken.None);
+        var result = await service.VerifyAndActivateAsync(candidate.Id, 1, candidate.RowVersion, 0, "admin", CancellationToken.None);
 
         Assert.True(result.Succeeded);
         Assert.Equal(candidate.Id, db.ApplicationSettings.Single().ActiveRoutingProviderConfigurationId);
+        Assert.Contains(db.AuditLogs, item => item.Action == "RoutingProviderActivation"
+            && item.UserId == "admin" && item.Details.Contains("Category=success"));
     }
 
     [Fact]
@@ -65,10 +70,12 @@ public sealed class RoutingVerificationActivationTests : TestBase
         db.SaveChanges();
         var service = new RoutingProviderActivationService(db, new FailingVerifier());
 
-        var result = await service.VerifyAndActivateAsync(candidate.Id, 1, candidate.RowVersion, 0, CancellationToken.None);
+        var result = await service.VerifyAndActivateAsync(candidate.Id, 1, candidate.RowVersion, 0, "admin", CancellationToken.None);
 
         Assert.False(result.Succeeded);
         Assert.Equal(previous.Id, db.ApplicationSettings.Single().ActiveRoutingProviderConfigurationId);
+        Assert.Contains(db.AuditLogs, item => item.Action == "RoutingProviderActivation"
+            && item.UserId == "admin" && item.Details.Contains("Category=verification-failed"));
     }
 
     private static RoutingProviderConfiguration CompleteProvider(TransportProfile profile, string osrmProfile)
@@ -116,7 +123,7 @@ public sealed class RoutingVerificationActivationTests : TestBase
 
     private sealed class MarkVerifiedVerifier(ApplicationDbContext db) : IRoutingProviderVerifier
     {
-        public async Task<RoutingVerificationResult> VerifyAsync(Guid providerId, int expectedVersion, uint expectedRowVersion, CancellationToken cancellationToken)
+        public async Task<RoutingVerificationResult> VerifyAsync(Guid providerId, int expectedVersion, uint expectedRowVersion, string administratorId, CancellationToken cancellationToken)
         {
             var provider = db.Set<RoutingProviderConfiguration>().Single(item => item.Id == providerId);
             provider.VerifiedConfigurationVersion = expectedVersion;
@@ -127,7 +134,7 @@ public sealed class RoutingVerificationActivationTests : TestBase
 
     private sealed class FailingVerifier : IRoutingProviderVerifier
     {
-        public Task<RoutingVerificationResult> VerifyAsync(Guid providerId, int expectedVersion, uint expectedRowVersion, CancellationToken cancellationToken) =>
+        public Task<RoutingVerificationResult> VerifyAsync(Guid providerId, int expectedVersion, uint expectedRowVersion, string administratorId, CancellationToken cancellationToken) =>
             Task.FromResult(RoutingVerificationResult.Failure("provider-verification-invalid"));
     }
 }

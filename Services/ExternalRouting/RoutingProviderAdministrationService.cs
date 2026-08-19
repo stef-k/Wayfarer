@@ -1,4 +1,6 @@
+using System.Data;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 using Wayfarer.Areas.Admin.Models;
 using Wayfarer.Models;
 
@@ -23,6 +25,11 @@ public sealed class RoutingProviderAdministrationService
         var selectedMappings = model.Mappings.Where(item => !string.IsNullOrWhiteSpace(item.OsrmProfile)).ToArray();
         if (selectedMappings.Select(item => item.TransportProfileId).Distinct().Count() != selectedMappings.Length)
             return RoutingAdministrationResult.Failure("Each transport profile may be mapped only once.");
+        var activeProfileIds = await _dbContext.Set<TransportProfile>().AsNoTracking()
+            .Where(item => item.IsActive && selectedMappings.Select(mapping => mapping.TransportProfileId).Contains(item.Id))
+            .Select(item => item.Id).ToArrayAsync(cancellationToken);
+        if (activeProfileIds.Length != selectedMappings.Length)
+            return RoutingAdministrationResult.Failure("Every provider mapping must reference an active transport profile.");
         var provider = model.Id == Guid.Empty ? null : await _dbContext.Set<RoutingProviderConfiguration>()
             .Include(item => item.ProfileMappings).SingleOrDefaultAsync(item => item.Id == model.Id, cancellationToken);
         var creating = provider == null && model.Id == Guid.Empty;
@@ -89,46 +96,87 @@ public sealed class RoutingProviderAdministrationService
         Guid providerId, bool confirmed, bool disableRouting, string administratorId, CancellationToken cancellationToken)
     {
         if (!confirmed) return RoutingAdministrationResult.Failure("Confirm credential clearing.");
-        var settings = await _dbContext.ApplicationSettings.SingleAsync(item => item.Id == 1, cancellationToken);
-        var provider = await _dbContext.Set<RoutingProviderConfiguration>().SingleOrDefaultAsync(item => item.Id == providerId, cancellationToken);
-        if (provider == null) return RoutingAdministrationResult.Failure("The provider configuration was not found.");
-        if (settings.ExternalRouteGenerationEnabled && settings.ActiveRoutingProviderConfigurationId == providerId
-            && provider.CredentialRequired && !disableRouting)
-            return RoutingAdministrationResult.Failure("Disable external routing atomically before clearing this required active credential.");
-        if (disableRouting && settings.ExternalRouteGenerationEnabled)
+        await using var transaction = _dbContext.Database.IsRelational()
+            ? await _dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken) : null;
+        try
         {
-            settings.ExternalRouteGenerationEnabled = false;
-            settings.ExternalRouteGenerationVersion = checked(settings.ExternalRouteGenerationVersion + 1);
+            var settings = await LockSettingsAsync(cancellationToken);
+            var provider = await LockProviderAsync(providerId, cancellationToken);
+            if (settings == null || provider == null)
+                return RoutingAdministrationResult.Failure("The provider configuration was not found.");
+            if (settings.ExternalRouteGenerationEnabled && settings.ActiveRoutingProviderConfigurationId == providerId
+                && provider.CredentialRequired && !disableRouting)
+                return RoutingAdministrationResult.Failure("Disable external routing atomically before clearing this required active credential.");
+            if (disableRouting && settings.ExternalRouteGenerationEnabled)
+            {
+                settings.ExternalRouteGenerationEnabled = false;
+                settings.ExternalRouteGenerationVersion = checked(settings.ExternalRouteGenerationVersion + 1);
+            }
+            provider.CredentialCiphertext = null;
+            provider.CredentialPresent = false;
+            provider.MarkConfigurationChanged();
+            AddAudit(administratorId, "RoutingProviderCredentialClear", providerId, "credential cleared; no secret value recorded");
+            await _dbContext.SaveChangesAsync(cancellationToken);
+            if (transaction != null) await transaction.CommitAsync(cancellationToken);
+            return new RoutingAdministrationResult(true, null, providerId);
         }
-        provider.CredentialCiphertext = null;
-        provider.CredentialPresent = false;
-        provider.MarkConfigurationChanged();
-        AddAudit(administratorId, "RoutingProviderCredentialClear", providerId, "credential cleared; no secret value recorded");
-        await _dbContext.SaveChangesAsync(cancellationToken);
-        return new RoutingAdministrationResult(true, null, providerId);
+        catch (DbUpdateConcurrencyException) { _dbContext.ChangeTracker.Clear(); return RoutingAdministrationResult.Failure("The provider configuration changed. Reload and try again."); }
+        catch (Exception exception) when (IsSerializationFailure(exception))
+        { _dbContext.ChangeTracker.Clear(); return RoutingAdministrationResult.Failure("The provider configuration changed. Reload and try again."); }
     }
 
     /// <summary>Enables only a verified selected provider or explicitly disables while retaining selection.</summary>
     public async Task<RoutingAdministrationResult> SetFeatureEnabledAsync(
         bool enabled, uint expectedSettingsRowVersion, string administratorId, CancellationToken cancellationToken)
     {
-        var settings = await _dbContext.ApplicationSettings.Include(item => item.ActiveRoutingProviderConfiguration)
-            .SingleAsync(item => item.Id == 1, cancellationToken);
-        if (settings.RowVersion != expectedSettingsRowVersion)
-            return RoutingAdministrationResult.Failure("Application settings changed. Reload and try again.");
-        if (enabled && (settings.ActiveRoutingProviderConfiguration is not { Enabled: true } provider
-            || provider.VerifiedConfigurationVersion != provider.ConfigurationVersion))
-            return RoutingAdministrationResult.Failure("Select and verify an enabled provider before enabling external routing.");
-        if (settings.ExternalRouteGenerationEnabled != enabled)
+        await using var transaction = _dbContext.Database.IsRelational()
+            ? await _dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken) : null;
+        try
         {
-            settings.ExternalRouteGenerationEnabled = enabled;
-            settings.ExternalRouteGenerationVersion = checked(settings.ExternalRouteGenerationVersion + 1);
+            var settings = await LockSettingsAsync(cancellationToken);
+            if (settings == null || settings.RowVersion != expectedSettingsRowVersion)
+                return RoutingAdministrationResult.Failure("Application settings changed. Reload and try again.");
+            var provider = settings.ActiveRoutingProviderConfigurationId is { } providerId
+                ? await LockProviderAsync(providerId, cancellationToken) : null;
+            if (enabled && (provider is not { Enabled: true }
+                || provider.VerifiedConfigurationVersion != provider.ConfigurationVersion
+                || provider.CredentialRequired && (!provider.CredentialPresent || provider.CredentialCiphertext == null)
+                || provider.ProfileMappings.Count == 0
+                || provider.ProfileMappings.Any(mapping => mapping.TransportProfile is not { IsActive: true })))
+                return RoutingAdministrationResult.Failure("Select and verify an enabled provider before enabling external routing.");
+            if (settings.ExternalRouteGenerationEnabled != enabled)
+            {
+                settings.ExternalRouteGenerationEnabled = enabled;
+                settings.ExternalRouteGenerationVersion = checked(settings.ExternalRouteGenerationVersion + 1);
+            }
+            AddAudit(administratorId, "ExternalRouteGenerationFeature", settings.ActiveRoutingProviderConfigurationId,
+                enabled ? "enabled" : "disabled");
+            await _dbContext.SaveChangesAsync(cancellationToken);
+            if (transaction != null) await transaction.CommitAsync(cancellationToken);
+            return new RoutingAdministrationResult(true, null);
         }
-        AddAudit(administratorId, "ExternalRouteGenerationFeature", settings.ActiveRoutingProviderConfigurationId,
-            enabled ? "enabled" : "disabled");
-        await _dbContext.SaveChangesAsync(cancellationToken);
-        return new RoutingAdministrationResult(true, null);
+        catch (DbUpdateConcurrencyException) { _dbContext.ChangeTracker.Clear(); return RoutingAdministrationResult.Failure("Application settings changed. Reload and try again."); }
+        catch (Exception exception) when (IsSerializationFailure(exception))
+        { _dbContext.ChangeTracker.Clear(); return RoutingAdministrationResult.Failure("Application settings changed. Reload and try again."); }
     }
+
+    private Task<ApplicationSettings?> LockSettingsAsync(CancellationToken cancellationToken) =>
+        _dbContext.Database.IsNpgsql()
+            ? _dbContext.ApplicationSettings.FromSqlRaw("SELECT *, xmin FROM \"ApplicationSettings\" WHERE \"Id\" = 1 FOR UPDATE").SingleOrDefaultAsync(cancellationToken)
+            : _dbContext.ApplicationSettings.SingleOrDefaultAsync(item => item.Id == 1, cancellationToken);
+
+    private Task<RoutingProviderConfiguration?> LockProviderAsync(Guid providerId, CancellationToken cancellationToken)
+    {
+        var query = _dbContext.Database.IsNpgsql()
+            ? _dbContext.Set<RoutingProviderConfiguration>().FromSqlInterpolated($"SELECT *, xmin FROM \"RoutingProviderConfigurations\" WHERE \"Id\" = {providerId} FOR UPDATE")
+            : _dbContext.Set<RoutingProviderConfiguration>().Where(item => item.Id == providerId);
+        return query.Include(item => item.ProfileMappings).ThenInclude(item => item.TransportProfile)
+            .SingleOrDefaultAsync(cancellationToken);
+    }
+
+    private static bool IsSerializationFailure(Exception exception) =>
+        exception is PostgresException { SqlState: PostgresErrorCodes.SerializationFailure }
+        || exception.InnerException != null && IsSerializationFailure(exception.InnerException);
 
     private void AddAudit(string userId, string action, Guid? providerId, string result) => _dbContext.AuditLogs.Add(new AuditLog
     {

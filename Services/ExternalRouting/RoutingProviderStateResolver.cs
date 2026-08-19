@@ -29,7 +29,8 @@ public static class RoutingProviderStateResolver
         && (endpoint.Scheme == Uri.UriSchemeHttps || endpoint.Scheme == Uri.UriSchemeHttp)
         && CoordinatesValid(value.VerificationFromLongitude!.Value, value.VerificationFromLatitude!.Value)
         && CoordinatesValid(value.VerificationToLongitude!.Value, value.VerificationToLatitude!.Value)
-        && value.ProfileMappings.All(mapping => !string.IsNullOrWhiteSpace(mapping.OsrmProfile));
+        && value.ProfileMappings.All(mapping => !string.IsNullOrWhiteSpace(mapping.OsrmProfile)
+            && mapping.TransportProfile is { IsActive: true });
 
     private static bool CoordinatesValid(double longitude, double latitude) =>
         double.IsFinite(longitude) && double.IsFinite(latitude) && longitude is >= -180 and <= 180 && latitude is >= -90 and <= 90;

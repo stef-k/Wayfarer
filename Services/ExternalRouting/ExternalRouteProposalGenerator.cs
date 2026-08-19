@@ -51,6 +51,7 @@ public sealed class ExternalRouteProposalGenerator
 
         var finalContext = await LoadContextAsync(userId, tripId, segmentId, aggregateConcurrencyToken, cancellationToken);
         if (!finalContext.Succeeded || finalContext.Fingerprint != context.Fingerprint
+            || finalContext.TransportProfileId != context.TransportProfileId
             || finalContext.Provider!.Id != context.Provider.Id
             || finalContext.Provider.ConfigurationVersion != context.Provider.ConfigurationVersion
             || finalContext.FeatureStateGeneration != context.FeatureStateGeneration)
@@ -88,6 +89,9 @@ public sealed class ExternalRouteProposalGenerator
         if (!_aggregateTokens!.TryRead(aggregateToken, userId, tripId, segmentId, out var rowVersion)
             || rowVersion != segment.RowVersion) return GenerationContext.Failure("segment-aggregate-stale");
         if (segment.TransportProfileId is not { } transportProfileId)
+            return GenerationContext.Failure("routing-profile-unavailable");
+        if (!await _dbContext.Set<TransportProfile>().AsNoTracking()
+            .AnyAsync(item => item.Id == transportProfileId && item.IsActive, cancellationToken))
             return GenerationContext.Failure("routing-profile-unavailable");
         var mapping = provider.ProfileMappings.SingleOrDefault(item => item.TransportProfileId == transportProfileId);
         if (mapping == null) return GenerationContext.Failure("routing-profile-unavailable");
