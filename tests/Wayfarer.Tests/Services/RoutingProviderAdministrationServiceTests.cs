@@ -73,6 +73,33 @@ public sealed class RoutingProviderAdministrationServiceTests : TestBase
         Assert.False(fixture.Settings.ExternalRouteGenerationEnabled);
     }
 
+    [Fact]
+    public async Task Save_RejectsMappingToInactiveProfile()
+    {
+        var fixture = CreateFixture(requiredCredential: false, featureEnabled: false);
+        fixture.Profile.IsActive = false;
+        fixture.Db.SaveChanges();
+
+        var result = await fixture.Service.SaveAsync(Model(fixture), "admin", CancellationToken.None);
+
+        Assert.False(result.Succeeded);
+    }
+
+    [Fact]
+    public async Task FeatureEnable_RejectsRequiredCredentialClearedAfterVerification()
+    {
+        var fixture = CreateFixture(requiredCredential: true, featureEnabled: false);
+        fixture.Provider.CredentialPresent = false;
+        fixture.Provider.CredentialCiphertext = null;
+        fixture.Db.SaveChanges();
+
+        var result = await fixture.Service.SetFeatureEnabledAsync(
+            true, fixture.Settings.RowVersion, "admin", CancellationToken.None);
+
+        Assert.False(result.Succeeded);
+        Assert.False(fixture.Settings.ExternalRouteGenerationEnabled);
+    }
+
     private Fixture CreateFixture(bool requiredCredential, bool featureEnabled)
     {
         var db = CreateDbContext();

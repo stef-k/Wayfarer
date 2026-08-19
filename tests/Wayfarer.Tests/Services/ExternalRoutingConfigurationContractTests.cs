@@ -26,6 +26,24 @@ public sealed class ExternalRoutingConfigurationContractTests
     }
 
     [Fact]
+    public void Configuration_WithOnlyInactiveProfileMapping_IsInvalid()
+    {
+        var profile = new TransportProfile { Id = Guid.NewGuid(), IsActive = false };
+        var configuration = new RoutingProviderConfiguration
+        {
+            DisplayName = "OSRM", Enabled = true, BaseEndpoint = "https://routing.example",
+            VerificationFromLongitude = 1, VerificationFromLatitude = 2,
+            VerificationToLongitude = 3, VerificationToLatitude = 4
+        };
+        configuration.ProfileMappings.Add(new RoutingProviderProfileMapping
+        {
+            TransportProfileId = profile.Id, TransportProfile = profile, OsrmProfile = "driving"
+        });
+
+        Assert.Equal(RoutingProviderState.Invalid, RoutingProviderStateResolver.Resolve(configuration, false));
+    }
+
+    [Fact]
     public void ActiveProvider_IsOwnedOnlyBySingletonApplicationSettings()
     {
         var providerId = Guid.NewGuid();
