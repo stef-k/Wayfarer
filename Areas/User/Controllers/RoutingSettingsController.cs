@@ -76,13 +76,16 @@ public sealed class RoutingSettingsController(
         var providers = await dbContext.Set<RoutingProviderConfiguration>().AsNoTracking()
             .Include(item => item.ProfileMappings).ThenInclude(item => item.TransportProfile)
             .OrderBy(item => item.DisplayName).ToArrayAsync(cancellationToken);
-        var templates = providers.Where(item => PersonalRoutingEligibility.Evaluate(item).Eligible)
+        var featureEnabled = await dbContext.ApplicationSettings.AsNoTracking()
+            .AnyAsync(item => item.Id == 1 && item.ExternalRouteGenerationEnabled, cancellationToken);
+        var templates = providers.Where(item => featureEnabled && PersonalRoutingEligibility.Evaluate(item).Eligible)
             .Select(item => new RoutingTemplateViewModel(item.Id, item.DisplayName,
                 item.PersonalRoutingAccess == PersonalRoutingAccess.CredentialRequired,
                 item.ExternalCoordinateDisclosure!)).ToArray();
-        var status = ResolveStatus(configuration, providers);
+        var status = ResolveStatus(configuration, providers, featureEnabled);
         return new RoutingSettingsViewModel
         {
+            FeatureEnabled = featureEnabled,
             SelectedProviderConfigurationId = submitted?.SelectedProviderConfigurationId ?? configuration.SelectedProviderConfigurationId,
             CredentialPresent = configuration.CredentialPresent, RowVersion = configuration.RowVersion,
             Status = status, Templates = templates
@@ -90,8 +93,9 @@ public sealed class RoutingSettingsController(
     }
 
     private string ResolveStatus(
-        UserRoutingConfiguration configuration, IReadOnlyList<RoutingProviderConfiguration> providers)
+        UserRoutingConfiguration configuration, IReadOnlyList<RoutingProviderConfiguration> providers, bool featureEnabled)
     {
+        if (!featureEnabled) return "Unavailable";
         if (configuration.SelectedProviderConfigurationId == null) return "Ready";
         var provider = providers.SingleOrDefault(item => item.Id == configuration.SelectedProviderConfigurationId);
         if (provider == null || !PersonalRoutingEligibility.Evaluate(provider).Eligible) return "Unavailable";

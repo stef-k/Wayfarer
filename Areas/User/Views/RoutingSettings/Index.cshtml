@@ -4,6 +4,12 @@
 <p>Select only an administrator-approved routing template. Wayfarer never displays your stored credential.</p>
 <div asp-validation-summary="ModelOnly" class="text-danger" role="alert"></div>
 <p aria-live="polite"><strong>Status:</strong> @Model.Status. Credential: @(Model.CredentialPresent ? "stored (masked)" : "not stored").</p>
+@if (!Model.FeatureEnabled)
+{
+    <div class="alert alert-secondary" role="status">Personal routing settings are currently unavailable.</div>
+}
+else
+{
 <form asp-action="Save" method="post">
     <input asp-for="RowVersion" type="hidden" />
     <div class="mb-3">
@@ -37,4 +43,5 @@
         <div class="form-check"><input id="confirm-clear" name="confirmed" value="true" type="checkbox" class="form-check-input" /><label for="confirm-clear" class="form-check-label">Confirm removal of my personal routing credential</label></div>
         <button class="btn btn-danger mt-2" type="submit">Clear credential</button>
     </form>
+}
 }

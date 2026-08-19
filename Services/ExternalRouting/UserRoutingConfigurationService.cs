@@ -19,6 +19,9 @@ public sealed class UserRoutingConfigurationService
     {
         if (credential?.Length > 2000)
             return UserRoutingMutationResult.Invalid("The personal credential is too long.");
+        if (!await _dbContext.ApplicationSettings.AsNoTracking()
+                .AnyAsync(item => item.Id == 1 && item.ExternalRouteGenerationEnabled, cancellationToken))
+            return UserRoutingMutationResult.Invalid("Personal routing settings are unavailable.");
         var configuration = await _dbContext.Set<UserRoutingConfiguration>()
             .SingleOrDefaultAsync(item => item.UserId == userId, cancellationToken);
         if (configuration == null) return UserRoutingMutationResult.NotFound;

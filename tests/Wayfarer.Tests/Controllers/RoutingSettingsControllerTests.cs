@@ -37,6 +37,7 @@ public sealed class RoutingSettingsControllerTests : TestBase
         credentials.Replace(configuration, provider.Id, "must-not-render");
         db.Set<RoutingProviderConfiguration>().Add(provider);
         db.Set<UserRoutingConfiguration>().Add(configuration);
+        db.ApplicationSettings.Add(new ApplicationSettings { Id = 1, ExternalRouteGenerationEnabled = true });
         db.SaveChanges();
         var controller = new RoutingSettingsController(db, null!, null!, credentials)
         {

@@ -16,6 +16,7 @@ public sealed class UserRoutingAuthorizationTests : TestBase
         var db = CreateDbContext();
         var owner = UserRoutingConfiguration.CreateServerDefault(ownerId);
         db.Set<UserRoutingConfiguration>().Add(owner);
+        db.ApplicationSettings.Add(new ApplicationSettings { Id = 1, ExternalRouteGenerationEnabled = true });
         db.SaveChanges();
         var service = new UserRoutingConfigurationService(db,
             new UserRoutingCredentialService(new EphemeralDataProtectionProvider()));

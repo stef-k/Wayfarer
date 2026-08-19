@@ -6,6 +6,8 @@ namespace Wayfarer.Areas.User.RoutingModels;
 /// <summary>Contains only safe current-user routing settings.</summary>
 public sealed class RoutingSettingsViewModel
 {
+    /// <summary>Gets whether administrators currently permit external routing capability.</summary>
+    public bool FeatureEnabled { get; set; }
     /// <summary>Gets or sets the selected approved template; null means server default.</summary>
     public Guid? SelectedProviderConfigurationId { get; set; }
     /// <summary>Gets or sets an optional replacement credential. Blank preserves the stored value.</summary>
