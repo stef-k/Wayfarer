@@ -29,4 +29,20 @@ public sealed class UserRoutingAuthorizationTests : TestBase
         Assert.False(owner.CredentialPresent);
         Assert.DoesNotContain(db.AuditLogs, item => item.UserId == "foreign-user");
     }
+
+    [Fact]
+    public async Task ForeignUserVerificationReturnsBoundedStaleWithoutChangingOwnerState()
+    {
+        var db = CreateDbContext();
+        var owner = UserRoutingConfiguration.CreateServerDefault("owner");
+        db.Set<UserRoutingConfiguration>().Add(owner);
+        db.SaveChanges();
+        var verification = new PersonalRoutingVerificationService(db, null!, null!, null!);
+
+        var result = await verification.VerifyAsync("foreign-user", owner.RowVersion, CancellationToken.None);
+
+        Assert.Equal("personal-routing-stale", result.ErrorCode);
+        Assert.Null(owner.VerificationStatus);
+        Assert.Empty(db.AuditLogs);
+    }
 }
