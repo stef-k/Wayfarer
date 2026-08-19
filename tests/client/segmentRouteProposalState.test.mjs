@@ -142,6 +142,53 @@ test('disposal aborts requests and rejects later completion', () => {
   assert.equal(store.get('first', 'walk').proposal, null);
 });
 
+test('acceptance completion is rejected after every lifecycle invalidation', () => {
+  for (const reason of ['discard', 'segment-switch', 'disposal', 'proposal-replacement', 'profile-change',
+    'anchor-change', 'clear', 'reset', 'cancel', 'manual-route-change']) {
+    const store = createSegmentRouteProposalStore();
+    const context = acceptanceContext();
+    const controller = new AbortController();
+    const request = store.beginAcceptance('first', 'proposal-1', context, controller);
+
+    store.invalidate('first', reason);
+
+    assert.equal(controller.signal.aborted, true, reason);
+    assert.equal(store.completeAcceptance('first', request, 'proposal-1', context), false, reason);
+  }
+});
+
+test('duplicate acceptance is refused while the initiating request is pending', () => {
+  const store = createSegmentRouteProposalStore();
+  const context = acceptanceContext();
+  const first = store.beginAcceptance('first', 'proposal-1', context, new AbortController());
+
+  assert.equal(typeof first, 'number');
+  assert.equal(store.beginAcceptance('first', 'proposal-1', context, new AbortController()), null);
+  assert.equal(store.get('first', 'walk').accepting, true);
+});
+
+test('acceptance requires the exact initiating proposal and complete draft context', () => {
+  for (const changed of [
+    { proposalId: 'proposal-2' },
+    { transportProfileId: 'bike' },
+    { anchorFingerprint: 'changed' },
+    { routeFingerprint: 'changed' },
+    { draftRevision: 2 }
+  ]) {
+    const store = createSegmentRouteProposalStore();
+    const context = acceptanceContext();
+    const request = store.beginAcceptance('first', 'proposal-1', context, new AbortController());
+    const proposalId = changed.proposalId ?? 'proposal-1';
+
+    assert.equal(store.completeAcceptance('first', request, proposalId, { ...context, ...changed }), false);
+  }
+});
+
+const acceptanceContext = () => ({
+  segmentId: 'first', transportProfileId: 'walk', anchorFingerprint: 'from|via|to',
+  routeFingerprint: 'draft-route', draftRevision: 1
+});
+
 const proposalFor = (segmentId, proposalId) => ({
   proposalId, segmentId, geometry: [{ longitude: 23.7, latitude: 37.9 }], waypointIndices: [0],
   protectedContext: 'context', expiresAt: '2026-08-18T22:00:00Z'
