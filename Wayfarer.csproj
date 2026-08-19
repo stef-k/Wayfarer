@@ -55,8 +55,7 @@
         <PackageReference Include="Serilog.Sinks.PostgreSQL" Version="2.3.0" />
         <PackageReference Include="SixLabors.ImageSharp" Version="3.1.12" />
 
-        <!-- Swashbuckle locked at 9.0.1 -->
-        <PackageReference Include="Swashbuckle.AspNetCore" Version="9.0.3" />
+        <PackageReference Include="Swashbuckle.AspNetCore" Version="10.2.3" />
 
         <PackageReference Include="TimeZoneConverter" Version="7.2.0" />
 
