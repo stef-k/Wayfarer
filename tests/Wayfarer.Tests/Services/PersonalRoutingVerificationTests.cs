@@ -31,7 +31,9 @@ public sealed class PersonalRoutingVerificationTests : TestBase
         var transport = new ProbeTransport();
         var executor = new RoutingBoundedExecutor(new PublicResolver(),
             new RoutingEndpointPolicy(Options.Create(new RoutingOutboundOptions())), transport);
-        var service = new PersonalRoutingVerificationService(db, executor, credentials,
+        var resolver = new AuthoritativeRoutingProviderResolver(db,
+            new RoutingProviderCredentialService(protection), credentials);
+        var service = new PersonalRoutingVerificationService(db, executor, resolver,
             new RoutingAttemptCoordinator(new RoutingProviderPacer(TimeProvider.System), new RoutingRequestBudget()));
 
         var result = await service.VerifyAsync(userId, configuration.RowVersion, CancellationToken.None);
@@ -41,6 +43,42 @@ public sealed class PersonalRoutingVerificationTests : TestBase
         Assert.All(transport.Credentials, value => Assert.Equal("personal-secret", value));
         Assert.Equal(configuration.ConfigurationVersion, configuration.VerifiedUserConfigurationVersion);
         Assert.Equal(provider.ConfigurationVersion, configuration.VerifiedProviderConfigurationVersion);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task VerifyRejectsProviderOrUserAuthorityChangeAfterContact(bool changeProvider)
+    {
+        const string userId = "owner";
+        var db = CreateDbContext();
+        var protection = new EphemeralDataProtectionProvider();
+        var credentials = new UserRoutingCredentialService(protection);
+        var provider = Provider(db.Set<TransportProfile>().Take(1).ToArray());
+        var configuration = UserRoutingConfiguration.CreateServerDefault(userId);
+        configuration.SelectPersonalProvider(provider.Id);
+        credentials.Replace(configuration, provider.Id, "personal-secret");
+        db.Set<RoutingProviderConfiguration>().Add(provider);
+        db.Set<UserRoutingConfiguration>().Add(configuration);
+        db.ApplicationSettings.Add(new ApplicationSettings { Id = 1, ExternalRouteGenerationEnabled = true });
+        db.SaveChanges();
+        var transport = new MutatingProbeTransport(() =>
+        {
+            if (changeProvider) provider.MarkConfigurationChanged(); else configuration.IncrementVersion();
+            db.SaveChanges();
+        });
+        var executor = new RoutingBoundedExecutor(new PublicResolver(),
+            new RoutingEndpointPolicy(Options.Create(new RoutingOutboundOptions())), transport);
+        var resolver = new AuthoritativeRoutingProviderResolver(db,
+            new RoutingProviderCredentialService(protection), credentials);
+        var service = new PersonalRoutingVerificationService(db, executor, resolver,
+            new RoutingAttemptCoordinator(new RoutingProviderPacer(TimeProvider.System), new RoutingRequestBudget()));
+
+        var result = await service.VerifyAsync(userId, configuration.RowVersion, CancellationToken.None);
+
+        Assert.Equal("personal-routing-stale", result.ErrorCode);
+        Assert.Null(configuration.VerifiedUserConfigurationVersion);
+        Assert.Null(configuration.VerifiedProviderConfigurationVersion);
     }
 
     private static RoutingProviderConfiguration Provider(IReadOnlyList<TransportProfile> profiles)
@@ -77,6 +115,21 @@ public sealed class PersonalRoutingVerificationTests : TestBase
             Uri requestUri, IPAddress selectedAddress, string? bearerCredential, CancellationToken cancellationToken)
         {
             Credentials.Add(bearerCredential);
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(
+                    "{\"code\":\"Ok\",\"routes\":[{\"geometry\":{\"type\":\"LineString\",\"coordinates\":[[23.7,37.9],[23.8,38.0]]}}],\"waypoints\":[{\"location\":[23.7,37.9]},{\"location\":[23.8,38.0]}]}",
+                    Encoding.UTF8, "application/json")
+            });
+        }
+    }
+
+    private sealed class MutatingProbeTransport(Action mutate) : IRoutingPinnedTransport
+    {
+        public Task<HttpResponseMessage> SendAsync(
+            Uri requestUri, IPAddress selectedAddress, string? bearerCredential, CancellationToken cancellationToken)
+        {
+            mutate();
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
             {
                 Content = new StringContent(

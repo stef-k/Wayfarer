@@ -9,7 +9,7 @@ namespace Wayfarer.Services.ExternalRouting;
 
 /// <summary>Verifies required personal credentials without holding database locks during provider contact.</summary>
 public sealed class PersonalRoutingVerificationService(
-    ApplicationDbContext dbContext, RoutingBoundedExecutor executor, UserRoutingCredentialService credentials,
+    ApplicationDbContext dbContext, RoutingBoundedExecutor executor, AuthoritativeRoutingProviderResolver resolver,
     RoutingAttemptCoordinator attempts)
 {
     private const int MaximumProfiles = 8;
@@ -25,14 +25,15 @@ public sealed class PersonalRoutingVerificationService(
         var snapshot = await LoadSnapshotAsync(userId, cancellationToken);
         if (snapshot == null || snapshot.UserRowVersion != expectedUserRowVersion)
             return PersonalRoutingVerificationResult.Failure("personal-routing-stale");
-        var credential = credentials.Unprotect(userId, snapshot.ProviderId, snapshot.Ciphertext);
-        if (!credential.Succeeded) return PersonalRoutingVerificationResult.Failure("personal-credential-unavailable");
+        var resolution = await resolver.ResolveForVerificationAsync(userId, snapshot.ProfileIds[0], cancellationToken);
+        if (resolution is not { Outcome: RoutingProviderResolutionOutcome.ResolvedPersonal, Execution: { } target })
+            return PersonalRoutingVerificationResult.Failure("personal-credential-unavailable");
 
         foreach (var profile in snapshot.Profiles)
         {
             var request = OsrmRoutingAdapter.BuildRelativeRequest(profile, [snapshot.From, snapshot.To]);
             var execution = await executor.GetJsonAsync(snapshot.Endpoint, request, snapshot.ResponseSizeLimitBytes,
-                TimeSpan.FromSeconds(5), cancellationToken, credential.Credential,
+                TimeSpan.FromSeconds(5), cancellationToken, target.Credential,
                 prepareAttempt: token => attempts.PrepareAsync(snapshot.Provider,
                     inner => IsCurrentAsync(snapshot, inner), token));
             if (!execution.Succeeded) return PersonalRoutingVerificationResult.Failure(execution.ErrorCode!);
@@ -57,13 +58,16 @@ public sealed class PersonalRoutingVerificationService(
         if (provider == null || provider.PersonalRoutingAccess != PersonalRoutingAccess.CredentialRequired
             || !PersonalRoutingEligibility.Evaluate(provider).Eligible
             || !TryCoordinates(provider, out var from, out var to)) return null;
-        var profiles = provider.ProfileMappings.Where(item => item.TransportProfile is { IsActive: true })
-            .Select(item => item.OsrmProfile).Distinct(StringComparer.Ordinal).Order().ToArray();
+        var mappings = provider.ProfileMappings.Where(item => item.TransportProfile is { IsActive: true })
+            .GroupBy(item => item.OsrmProfile, StringComparer.Ordinal).Select(group => group.First())
+            .OrderBy(item => item.OsrmProfile).ToArray();
+        var profiles = mappings.Select(item => item.OsrmProfile).ToArray();
         if (profiles.Length is 0 or > MaximumProfiles) return null;
         var operationalProvider = provider.WithCredentialRemoved();
         return new PersonalVerificationSnapshot(userId, configuration.ConfigurationVersion, configuration.RowVersion,
             configuration.CredentialCiphertext, provider.Id, provider.ConfigurationVersion, provider.RowVersion,
-            new Uri(provider.BaseEndpoint!), provider.ResponseSizeLimitBytes, profiles, from, to, operationalProvider);
+            new Uri(provider.BaseEndpoint!), provider.ResponseSizeLimitBytes, profiles,
+            mappings.Select(item => item.TransportProfileId).ToArray(), from, to, operationalProvider);
     }
 
     private async Task<bool> IsCurrentAsync(PersonalVerificationSnapshot snapshot, CancellationToken cancellationToken)
@@ -161,7 +165,8 @@ public sealed class PersonalRoutingVerificationService(
     private sealed record PersonalVerificationSnapshot(
         string UserId, int UserVersion, uint UserRowVersion, string Ciphertext,
         Guid ProviderId, int ProviderVersion, uint ProviderRowVersion, Uri Endpoint, int ResponseSizeLimitBytes,
-        string[] Profiles, RouteCoordinate From, RouteCoordinate To, RoutingProviderConfiguration Provider);
+        string[] Profiles, Guid[] ProfileIds, RouteCoordinate From, RouteCoordinate To,
+        RoutingProviderConfiguration Provider);
 }
 
 internal static class PersonalRoutingProviderSnapshotExtensions

@@ -11,6 +11,15 @@ public sealed class AuthoritativeRoutingProviderResolver(
     /// <summary>Resolves the authenticated user's current mode for one active transport profile.</summary>
     public async Task<RoutingProviderResolutionResult> ResolveAsync(
         string userId, Guid transportProfileId, CancellationToken cancellationToken)
+        => await ResolveAsync(userId, transportProfileId, requirePersonalVerification: true, cancellationToken);
+
+    /// <summary>Prepares an unverified required personal credential for bounded verification only.</summary>
+    public async Task<RoutingProviderResolutionResult> ResolveForVerificationAsync(
+        string userId, Guid transportProfileId, CancellationToken cancellationToken)
+        => await ResolveAsync(userId, transportProfileId, requirePersonalVerification: false, cancellationToken);
+
+    private async Task<RoutingProviderResolutionResult> ResolveAsync(
+        string userId, Guid transportProfileId, bool requirePersonalVerification, CancellationToken cancellationToken)
     {
         var settings = await dbContext.ApplicationSettings.AsNoTracking()
             .SingleOrDefaultAsync(item => item.Id == 1, cancellationToken);
@@ -29,13 +38,14 @@ public sealed class AuthoritativeRoutingProviderResolver(
         var mapping = provider.ProfileMappings.SingleOrDefault(item => item.TransportProfileId == transportProfileId
             && item.TransportProfile is { IsActive: true } && !string.IsNullOrWhiteSpace(item.OsrmProfile));
         return personal
-            ? ResolvePersonal(userConfiguration, provider, mapping, settings.ExternalRouteGenerationVersion)
+            ? ResolvePersonal(userConfiguration, provider, mapping, settings.ExternalRouteGenerationVersion,
+                requirePersonalVerification)
             : ResolveServerDefault(userConfiguration, provider, mapping, settings.ExternalRouteGenerationVersion);
     }
 
     private RoutingProviderResolutionResult ResolvePersonal(
         UserRoutingConfiguration userConfiguration, RoutingProviderConfiguration provider,
-        RoutingProviderProfileMapping? mapping, int featureVersion)
+        RoutingProviderProfileMapping? mapping, int featureVersion, bool requireVerification)
     {
         if (!PersonalRoutingEligibility.Evaluate(provider).Eligible || mapping == null)
             return RoutingProviderResolutionResult.Unavailable("personal-provider-unavailable");
@@ -50,10 +60,10 @@ public sealed class AuthoritativeRoutingProviderResolver(
         }
         else
         {
-            if (!userConfiguration.CredentialPresent
-                || userConfiguration.VerifiedUserConfigurationVersion != userConfiguration.ConfigurationVersion
-                || userConfiguration.VerifiedProviderConfigurationVersion != provider.ConfigurationVersion
-                || userConfiguration.VerificationStatus != "verified")
+            if (!userConfiguration.CredentialPresent || requireVerification
+                && (userConfiguration.VerifiedUserConfigurationVersion != userConfiguration.ConfigurationVersion
+                    || userConfiguration.VerifiedProviderConfigurationVersion != provider.ConfigurationVersion
+                    || userConfiguration.VerificationStatus != "verified"))
                 return RoutingProviderResolutionResult.Unavailable("personal-credential-unavailable");
             var read = userCredentials.Unprotect(
                 userConfiguration.UserId, provider.Id, userConfiguration.CredentialCiphertext);
