@@ -31,8 +31,6 @@
             <PrivateAssets>all</PrivateAssets>
         </PackageReference>
         <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.11" />
-        <!-- Override EF Core's vulnerable SQLite native bundle until its dependency floor advances. -->
-        <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="2.1.12" />
         <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.11" />
         <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="10.0.11">
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
