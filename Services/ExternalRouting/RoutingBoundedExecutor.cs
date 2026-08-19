@@ -30,10 +30,12 @@ public sealed class RoutingBoundedExecutor
                     ? RoutingAttemptAdmission.Legacy(admitAttempt?.Invoke() != false)
                     : await prepareAttempt(cancellationToken);
                 if (!admission.Succeeded) return RoutingExecutionResult.Failure(admission.ErrorCode!);
-                using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                deadline.CancelAfter(timeout);
                 IReadOnlyList<IPAddress> addresses;
-                try { addresses = await _resolver.ResolveAsync(endpoint.Host, deadline.Token); }
+                Task<IReadOnlyList<IPAddress>>? resolution = null;
+                var startError = admission.StartAttempt(timeout, cancellationToken,
+                    token => resolution = _resolver.ResolveAsync(endpoint.Host, token));
+                if (startError != null) return RoutingExecutionResult.Failure(startError);
+                try { addresses = await resolution!; }
                 catch (HttpRequestException exception) when (exception.InnerException is OperationCanceledException)
                 { throw exception.InnerException; }
                 catch (Exception exception) when (exception is HttpRequestException or SocketException)
@@ -45,7 +47,7 @@ public sealed class RoutingBoundedExecutor
                 if (!decision.Allowed) return RoutingExecutionResult.Failure("routing-endpoint-unsafe");
                 var requestUri = new Uri(endpoint.ToString().TrimEnd('/') + "/" + relativeRequest.TrimStart('/'));
                 HttpResponseMessage response;
-                try { response = await _transport.SendAsync(requestUri, decision.SelectedAddress!, bearerCredential, deadline.Token); }
+                try { response = await _transport.SendAsync(requestUri, decision.SelectedAddress!, bearerCredential, admission.AttemptToken); }
                 catch (HttpRequestException exception) when (exception.InnerException is OperationCanceledException)
                 { throw exception.InnerException; }
                 catch (Exception exception) when (exception is HttpRequestException or SocketException)
@@ -56,7 +58,7 @@ public sealed class RoutingBoundedExecutor
                 using (response)
                 {
                     if (attempt == 0 && IsRetryable(response.StatusCode)) continue;
-                    try { return await ReadResponseAsync(response, responseLimitBytes, deadline.Token); }
+                    try { return await ReadResponseAsync(response, responseLimitBytes, admission.AttemptToken); }
                     catch (HttpRequestException exception) when (exception.InnerException is OperationCanceledException)
                     { throw exception.InnerException; }
                     catch (Exception exception) when (exception is HttpRequestException or IOException)
@@ -106,14 +108,47 @@ public sealed class RoutingBoundedExecutor
 }
 
 /// <summary>Owns per-attempt concurrency after pacing, authority validation, rate admission, and timestamp recording.</summary>
-public sealed record RoutingAttemptAdmission(bool Succeeded, string? ErrorCode, IDisposable? Lease = null) : IDisposable
+public sealed class RoutingAttemptAdmission : IDisposable
 {
+    private readonly IDisposable? _lease;
+    private readonly RoutingProviderPacer.RoutingPacingTurn? _turn;
+    private readonly Func<bool>? _admitRate;
+    private IDisposable? _deadline;
+    private bool _legacy;
+    private RoutingAttemptAdmission(bool succeeded, string? errorCode, IDisposable? lease = null,
+        RoutingProviderPacer.RoutingPacingTurn? turn = null, Func<bool>? admitRate = null)
+        => (Succeeded, ErrorCode, _lease, _turn, _admitRate) = (succeeded, errorCode, lease, turn, admitRate);
+    public bool Succeeded { get; }
+    public string? ErrorCode { get; }
+    public CancellationToken AttemptToken { get; private set; }
     /// <summary>Creates a bounded failed admission.</summary>
     public static RoutingAttemptAdmission Failure(string code) => new(false, code);
+    internal static RoutingAttemptAdmission Prepared(IDisposable lease,
+        RoutingProviderPacer.RoutingPacingTurn turn, Func<bool> admitRate) => new(true, null, lease, turn, admitRate);
     internal static RoutingAttemptAdmission Legacy(bool admitted) => admitted
-        ? new(true, null) : Failure("provider-rate-limited");
+        ? new(true, null) { _legacy = true } : Failure("provider-rate-limited");
+    internal string? StartAttempt(TimeSpan timeout, CancellationToken cancellationToken, Action<CancellationToken> beginDns)
+    {
+        if (_legacy)
+        {
+            AttemptToken = cancellationToken;
+            beginDns(cancellationToken);
+            return null;
+        }
+        var error = _turn!.StartAttempt(timeout, cancellationToken, _admitRate!, token =>
+        {
+            AttemptToken = token;
+            beginDns(token);
+        }, out _deadline);
+        return error;
+    }
     /// <inheritdoc />
-    public void Dispose() => Lease?.Dispose();
+    public void Dispose()
+    {
+        _deadline?.Dispose();
+        _turn?.Dispose();
+        _lease?.Dispose();
+    }
 }
 
 /// <summary>Contains bounded response bytes or a safe Wayfarer error category.</summary>

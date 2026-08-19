@@ -20,10 +20,14 @@ public sealed class RoutingAttemptCoordinator
         _pacer.ApplyConfiguration(provider.Id, provider.ConfigurationVersion, provider.MinimumIntervalMilliseconds);
         var paced = await _pacer.WaitAsync(provider.Id, provider.ConfigurationVersion, cancellationToken);
         if (!paced.Succeeded) return RoutingAttemptAdmission.Failure(paced.ErrorCode!);
-        using var turn = paced.Turn!;
+        var turn = paced.Turn!;
         var concurrency = await _budget.AcquireAttemptConcurrencyAsync(
             provider.Id, provider.MaxConcurrency, cancellationToken);
-        if (concurrency == null) return RoutingAttemptAdmission.Failure("routing-rate-limited");
+        if (concurrency == null)
+        {
+            turn.Dispose();
+            return RoutingAttemptAdmission.Failure("routing-rate-limited");
+        }
         try
         {
             if (!await validateAuthority(cancellationToken))
@@ -31,16 +35,12 @@ public sealed class RoutingAttemptCoordinator
                 concurrency.Dispose();
                 return RoutingAttemptAdmission.Failure("provider-configuration-stale");
             }
-            if (!_budget.TryAdmitProviderAttempt(provider.Id, provider.RequestsPerMinute))
-            {
-                concurrency.Dispose();
-                return RoutingAttemptAdmission.Failure("routing-rate-limited");
-            }
-            turn.RecordAttemptStart();
-            return new RoutingAttemptAdmission(true, null, concurrency);
+            return RoutingAttemptAdmission.Prepared(concurrency, turn,
+                () => _budget.TryAdmitProviderAttempt(provider.Id, provider.RequestsPerMinute));
         }
         catch
         {
+            turn.Dispose();
             concurrency.Dispose();
             throw;
         }

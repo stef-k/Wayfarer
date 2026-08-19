@@ -49,7 +49,7 @@ public sealed class RoutingProviderPacer
         Guid providerId, int expectedConfigurationVersion, CancellationToken cancellationToken)
     {
         var gate = GetGate(providerId);
-        var waiter = new Waiter();
+        var waiter = new Waiter(_timeProvider.GetTimestamp());
         try
         {
             lock (gate.Sync)
@@ -71,43 +71,64 @@ public sealed class RoutingProviderPacer
         {
             while (true)
             {
-                var headTask = waiter.Head.Task;
-                var completed = await Task.WhenAny(headTask, timeoutTask);
-                if (completed == timeoutTask)
+                if (cancellationToken.IsCancellationRequested)
                 {
                     CancelWaiter(gate, waiter);
-                    return cancellationToken.IsCancellationRequested
-                        ? RoutingPacingResult.Failure("request-cancelled")
-                        : RoutingPacingResult.Failure("routing-timeout");
+                    return RoutingPacingResult.Failure("request-cancelled");
+                }
+                if (_timeProvider.GetElapsedTime(waiter.EnqueuedTimestamp) >= MaximumWait)
+                {
+                    CancelWaiter(gate, waiter);
+                    return RoutingPacingResult.Failure("routing-timeout");
+                }
+                var headTask = waiter.Head.Task;
+                var completed = await Task.WhenAny(headTask, timeoutTask);
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    CancelWaiter(gate, waiter);
+                    return RoutingPacingResult.Failure("request-cancelled");
+                }
+                if (_timeProvider.GetElapsedTime(waiter.EnqueuedTimestamp) >= MaximumWait)
+                {
+                    CancelWaiter(gate, waiter);
+                    return RoutingPacingResult.Failure("routing-timeout");
                 }
                 await headTask;
-                cancellationToken.ThrowIfCancellationRequested();
 
                 TimeSpan remaining;
                 CancellationToken changed;
                 lock (gate.Sync)
                 {
                     if (waiter.Node?.List == null) return RoutingPacingResult.Failure("request-cancelled");
-                    if (gate.ConfigurationVersion != expectedConfigurationVersion)
-                    {
-                        Remove(gate, waiter);
-                        return RoutingPacingResult.Failure("provider-configuration-stale");
-                    }
                     remaining = gate.Remaining(_timeProvider);
                     if (remaining <= TimeSpan.Zero && !gate.Active)
                     {
+                        if (cancellationToken.IsCancellationRequested)
+                        {
+                            Remove(gate, waiter);
+                            return RoutingPacingResult.Failure("request-cancelled");
+                        }
+                        if (_timeProvider.GetElapsedTime(waiter.EnqueuedTimestamp) >= MaximumWait)
+                        {
+                            Remove(gate, waiter);
+                            return RoutingPacingResult.Failure("routing-timeout");
+                        }
                         gate.Active = true;
                         gate.Waiters.Remove(waiter.Node);
                         waiter.Node = null;
                         timeout.Cancel();
                         return new RoutingPacingResult(true, null,
-                            new RoutingPacingTurn(gate, _timeProvider));
+                            new RoutingPacingTurn(gate, _timeProvider, waiter.EnqueuedTimestamp));
                     }
                     changed = gate.ConfigurationChanged.Token;
                     waiter.Head = NewSignal();
                 }
                 using var reevaluate = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, changed);
-                try { await Task.Delay(remaining, _timeProvider, reevaluate.Token); }
+                try
+                {
+                    var deadlineRemaining = MaximumWait - _timeProvider.GetElapsedTime(waiter.EnqueuedTimestamp);
+                    await Task.Delay(remaining < deadlineRemaining ? remaining : deadlineRemaining, _timeProvider, reevaluate.Token);
+                }
                 catch (OperationCanceledException) when (changed.IsCancellationRequested && !cancellationToken.IsCancellationRequested) { }
                 lock (gate.Sync) gate.PulseHead();
             }
@@ -178,8 +199,9 @@ public sealed class RoutingProviderPacer
     private static TaskCompletionSource NewSignal() =>
         new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-    internal sealed class Waiter
+    internal sealed class Waiter(long enqueuedTimestamp)
     {
+        public long EnqueuedTimestamp { get; } = enqueuedTimestamp;
         public TaskCompletionSource Head { get; set; } = NewSignal();
         public LinkedListNode<Waiter>? Node { get; set; }
     }
@@ -214,10 +236,11 @@ public sealed class RoutingProviderPacer
     {
         private readonly ProviderGate _gate;
         private readonly TimeProvider _timeProvider;
+        private readonly long _enqueuedTimestamp;
         private int _disposed;
 
-        internal RoutingPacingTurn(ProviderGate gate, TimeProvider timeProvider)
-            => (_gate, _timeProvider) = (gate, timeProvider);
+        internal RoutingPacingTurn(ProviderGate gate, TimeProvider timeProvider, long enqueuedTimestamp)
+            => (_gate, _timeProvider, _enqueuedTimestamp) = (gate, timeProvider, enqueuedTimestamp);
 
         /// <summary>Records the exact monotonic start immediately before DNS.</summary>
         public void RecordAttemptStart()
@@ -227,6 +250,33 @@ public sealed class RoutingProviderPacer
                 if (_disposed != 0) throw new ObjectDisposedException(nameof(RoutingPacingTurn));
                 _gate.LastAttemptStart = _timeProvider.GetTimestamp();
             }
+        }
+
+        /// <summary>Atomically starts the network deadline, records pacing, releases the turn, and invokes DNS.</summary>
+        internal string? StartAttempt(
+            TimeSpan timeout, CancellationToken cancellationToken, Func<bool> admitRate,
+            Action<CancellationToken> beginDns, out IDisposable? deadline)
+        {
+            deadline = null;
+            CancellationTokenSource? source = null;
+            ITimer? timer = null;
+            lock (_gate.Sync)
+            {
+                if (_disposed != 0) throw new ObjectDisposedException(nameof(RoutingPacingTurn));
+                if (cancellationToken.IsCancellationRequested) return "request-cancelled";
+                if (_timeProvider.GetElapsedTime(_enqueuedTimestamp) >= MaximumWait) return "routing-timeout";
+                if (!admitRate()) return "routing-rate-limited";
+                source = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                timer = _timeProvider.CreateTimer(_ => source.Cancel(), null, timeout, Timeout.InfiniteTimeSpan);
+                _gate.LastAttemptStart = _timeProvider.GetTimestamp();
+                _disposed = 1;
+                _gate.Active = false;
+                _gate.LastIdleTimestamp = _timeProvider.GetTimestamp();
+                _gate.PulseHead();
+            }
+            deadline = new AttemptDeadline(source, timer);
+            beginDns(source.Token);
+            return null;
         }
 
         /// <inheritdoc />
@@ -239,6 +289,15 @@ public sealed class RoutingProviderPacer
                 _gate.LastIdleTimestamp = _timeProvider.GetTimestamp();
                 _gate.PulseHead();
             }
+        }
+    }
+
+    private sealed class AttemptDeadline(CancellationTokenSource source, ITimer timer) : IDisposable
+    {
+        public void Dispose()
+        {
+            timer.Dispose();
+            source.Dispose();
         }
     }
 }

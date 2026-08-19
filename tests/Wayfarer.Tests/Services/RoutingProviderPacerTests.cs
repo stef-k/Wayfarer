@@ -65,7 +65,7 @@ public sealed class RoutingProviderPacerTests
     }
 
     [Fact]
-    public async Task IntervalChangesPreserveLastStartAndRejectStaleWaiters()
+    public async Task IntervalChangesPreserveLastStartAndReevaluateQueuedWaiters()
     {
         var time = new ManualTimeProvider(); var pacer = new RoutingProviderPacer(time); var provider = Guid.NewGuid();
         pacer.ApplyConfiguration(provider, 1, 1000);
@@ -73,11 +73,13 @@ public sealed class RoutingProviderPacerTests
         first.Turn!.RecordAttemptStart(); first.Turn.Dispose(); time.Advance(TimeSpan.FromMilliseconds(500));
         var waiting = pacer.WaitAsync(provider, 1, CancellationToken.None);
         pacer.ApplyConfiguration(provider, 2, 2000);
-        Assert.Equal("provider-configuration-stale", (await waiting).ErrorCode);
-        var increased = pacer.WaitAsync(provider, 2, CancellationToken.None);
-        time.Advance(TimeSpan.FromMilliseconds(1499)); Assert.False(increased.IsCompleted);
+        time.Advance(TimeSpan.FromMilliseconds(1499)); Assert.False(waiting.IsCompleted);
+        time.Advance(TimeSpan.FromMilliseconds(1));
+        var increased = await waiting;
+        Assert.True(increased.Succeeded);
+        increased.Turn!.RecordAttemptStart(); increased.Turn.Dispose();
         pacer.ApplyConfiguration(provider, 3, 1000);
-        Assert.Equal("provider-configuration-stale", (await increased).ErrorCode);
+        time.Advance(TimeSpan.FromMilliseconds(1000));
         Assert.True((await pacer.WaitAsync(provider, 3, CancellationToken.None)).Succeeded);
     }
 
