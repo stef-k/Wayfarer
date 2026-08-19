@@ -36,13 +36,9 @@ public sealed class RemovePostGisSchemasDocumentFilter : IDocumentFilter
     {
         if (schema is not OpenApiSchema mutableSchema || !visited.Add(schema)) return;
 
-        if (mutableSchema.Properties != null)
-        {
-            foreach (string name in mutableSchema.Properties.Keys.ToArray())
-            {
-                mutableSchema.Properties[name] = SanitizeNestedSchema(mutableSchema.Properties[name], visited);
-            }
-        }
+        SanitizeNestedSchemas(mutableSchema.Properties, visited);
+        SanitizeNestedSchemas(mutableSchema.PatternProperties, visited);
+        SanitizeNestedSchemas(mutableSchema.Definitions, visited);
 
         if (mutableSchema.Items != null)
         {
@@ -61,6 +57,25 @@ public sealed class RemovePostGisSchemasDocumentFilter : IDocumentFilter
         if (mutableSchema.AdditionalProperties != null)
         {
             mutableSchema.AdditionalProperties = SanitizeNestedSchema(mutableSchema.AdditionalProperties, visited);
+        }
+
+        if (mutableSchema.UnevaluatedPropertiesSchema != null)
+        {
+            mutableSchema.UnevaluatedPropertiesSchema =
+                SanitizeNestedSchema(mutableSchema.UnevaluatedPropertiesSchema, visited);
+        }
+    }
+
+    /// <summary>Sanitizes mutable schema dictionary values in place while preserving keys and ordering.</summary>
+    private static void SanitizeNestedSchemas(
+        IDictionary<string, IOpenApiSchema>? schemas,
+        HashSet<IOpenApiSchema> visited)
+    {
+        if (schemas == null) return;
+
+        foreach (string name in schemas.Keys.ToArray())
+        {
+            schemas[name] = SanitizeNestedSchema(schemas[name], visited);
         }
     }
 
