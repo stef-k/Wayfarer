@@ -112,6 +112,45 @@ public sealed class RoutingProviderAdministrationServiceTests : TestBase
     }
 
     [Fact]
+    public async Task Save_DisabledToCredentialFreeClearsRetainedSelectingUserStateAtomically()
+    {
+        const string userId = "disabled-personal-owner";
+        var fixture = CreateFixture(requiredCredential: false, featureEnabled: false);
+        fixture.Provider.PersonalRoutingAccess = PersonalRoutingAccess.CredentialRequired;
+        var configuration = UserRoutingConfiguration.CreateServerDefault(userId);
+        configuration.SelectPersonalProvider(fixture.Provider.Id);
+        new UserRoutingCredentialService(new EphemeralDataProtectionProvider())
+            .Replace(configuration, fixture.Provider.Id, "personal-secret");
+        configuration.VerifiedUserConfigurationVersion = configuration.ConfigurationVersion;
+        configuration.VerifiedProviderConfigurationVersion = fixture.Provider.ConfigurationVersion;
+        configuration.VerificationStatus = "verified";
+        fixture.Db.Set<UserRoutingConfiguration>().Add(configuration);
+        fixture.Db.SaveChanges();
+
+        var disable = Model(fixture);
+        disable.PersonalRoutingAccess = PersonalRoutingAccess.Disabled;
+        Assert.True((await fixture.Service.SaveAsync(disable, "admin", CancellationToken.None)).Succeeded);
+        Assert.True(configuration.CredentialPresent);
+        Assert.NotNull(configuration.CredentialCiphertext);
+        Assert.NotNull(configuration.VerifiedUserConfigurationVersion);
+        var disabledUserVersion = configuration.ConfigurationVersion;
+
+        var credentialFree = Model(fixture);
+        credentialFree.PersonalRoutingAccess = PersonalRoutingAccess.CredentialFree;
+        var result = await fixture.Service.SaveAsync(credentialFree, "admin", CancellationToken.None);
+
+        Assert.True(result.Succeeded);
+        Assert.Equal(PersonalRoutingAccess.CredentialFree, fixture.Provider.PersonalRoutingAccess);
+        Assert.Equal(fixture.Provider.Id, configuration.SelectedProviderConfigurationId);
+        Assert.Null(configuration.CredentialCiphertext);
+        Assert.False(configuration.CredentialPresent);
+        Assert.Null(configuration.VerifiedUserConfigurationVersion);
+        Assert.Null(configuration.VerifiedProviderConfigurationVersion);
+        Assert.Null(configuration.VerificationStatus);
+        Assert.Equal(disabledUserVersion + 1, configuration.ConfigurationVersion);
+    }
+
+    [Fact]
     public async Task Save_MinimumIntervalChangeIsExactAndInvalidatesOnlyWhenChanged()
     {
         var fixture = CreateFixture(requiredCredential: false, featureEnabled: false);
