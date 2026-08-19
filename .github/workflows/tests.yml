@@ -75,9 +75,9 @@ jobs:
         if: steps.scope.outputs.run_full == 'true'
         run: dotnet tool restore
 
-      - name: Smoke test Trip Editor assets
+      - name: Validate built Trip Editor assets
         if: steps.scope.outputs.run_frontend == 'true'
-        run: npm run smoke:trip-editor:assets
+        run: npm run smoke:trip-editor:assets:built
 
       - name: Check file size limits
         if: steps.scope.outputs.run_full == 'true'

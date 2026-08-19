@@ -18,9 +18,12 @@ const localDir = path.join(rootDir, '.local');
 const publishDir = path.join(localDir, 'publish-smoke');
 const logsDir = path.join(localDir, 'asset-smoke');
 const viteBaseUrl = 'http://localhost:5173';
+const tripEditorEntryKey = 'ClientApps/trip-editor/src/main.ts';
+const defaultBuildOutputDir = path.join(rootDir, 'wwwroot', 'vite', 'trip-editor');
 
-const mode = parseMode(process.argv.slice(2));
-const config = loadTripEditorConfig();
+const args = process.argv.slice(2);
+const mode = parseMode(args);
+const config = mode === 'built' ? null : loadTripEditorConfig();
 const startedProcesses = [];
 
 process.on('SIGINT', () => {
@@ -28,8 +31,12 @@ process.on('SIGINT', () => {
 });
 
 try {
-  fs.mkdirSync(logsDir, { recursive: true });
-  printScopeBoundary();
+  if (mode === 'built') {
+    runBuiltAssetSmoke(resolveBuildOutputDir(args));
+  } else {
+    fs.mkdirSync(logsDir, { recursive: true });
+    printScopeBoundary();
+  }
 
   if (mode === 'development' || mode === 'all') {
     await runDevelopmentSmoke();
@@ -40,6 +47,14 @@ try {
   }
 
   console.log('\nTrip Editor asset smoke complete.');
+} catch (error) {
+  if (mode !== 'built') {
+    throw error;
+  }
+
+  const message = error instanceof Error ? error.message : String(error);
+  console.error(`[built] FAIL: ${message.slice(0, 500)}`);
+  process.exitCode = 1;
 } finally {
   await stopStartedProcesses();
 }
@@ -47,11 +62,96 @@ try {
 // Parses the explicit smoke mode requested by the npm script or direct CLI use.
 function parseMode(args) {
   const modeArg = args.find(arg => arg.startsWith('--mode='))?.split('=')[1] ?? 'all';
-  if (!['development', 'published', 'all'].includes(modeArg)) {
-    throw new Error(`Unsupported smoke mode "${modeArg}". Use development, published, or all.`);
+  if (!['built', 'development', 'published', 'all'].includes(modeArg)) {
+    throw new Error(`Unsupported smoke mode "${modeArg}". Use built, development, published, or all.`);
   }
 
   return modeArg;
+}
+
+// Resolves an optional isolated build-output directory used by deterministic validation.
+function resolveBuildOutputDir(args) {
+  const outputArg = args.find(arg => arg.startsWith('--build-output='));
+  return path.resolve(rootDir, outputArg?.slice('--build-output='.length) || defaultBuildOutputDir);
+}
+
+// Validates the complete manifest-owned Trip Editor asset graph without starting runtime services.
+function runBuiltAssetSmoke(buildOutputDir) {
+  console.log(`[built] Validating ${path.relative(rootDir, buildOutputDir) || '.'}.`);
+  const manifest = readTripEditorManifest(buildOutputDir);
+  validateManifestEntry(manifest, tripEditorEntryKey, buildOutputDir, new Set());
+  console.log('[built] PASS: Trip Editor manifest entry and all referenced build assets are non-empty.');
+}
+
+// Reads the generated Vite manifest shared by deterministic and published asset checks.
+function readTripEditorManifest(buildOutputDir) {
+  const manifestPath = path.join(buildOutputDir, 'manifest.json');
+  requireNonEmptyFile(manifestPath, 'Trip Editor manifest');
+
+  try {
+    return JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  } catch (error) {
+    throw new Error(`Trip Editor manifest is not valid JSON: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+// Recursively validates a manifest chunk and every declared import, stylesheet, and asset.
+function validateManifestEntry(manifest, entryKey, buildOutputDir, visited) {
+  if (visited.has(entryKey)) {
+    return;
+  }
+
+  const entry = manifest[entryKey];
+  if (!entry || typeof entry !== 'object') {
+    throw new Error(`Trip Editor manifest entry is missing: ${entryKey}`);
+  }
+
+  visited.add(entryKey);
+  if (!/\.m?js$/i.test(entry.file ?? '')) {
+    throw new Error(`Manifest entry ${entryKey} does not reference a JavaScript file.`);
+  }
+
+  validateBuildReference(buildOutputDir, entry.file, `JavaScript for ${entryKey}`);
+  for (const cssFile of entry.css ?? []) {
+    validateBuildReference(buildOutputDir, cssFile, `CSS for ${entryKey}`);
+  }
+
+  for (const assetFile of entry.assets ?? []) {
+    validateBuildReference(buildOutputDir, assetFile, `asset for ${entryKey}`);
+  }
+
+  for (const importKey of [...(entry.imports ?? []), ...(entry.dynamicImports ?? [])]) {
+    validateManifestEntry(manifest, importKey, buildOutputDir, visited);
+  }
+}
+
+// Rejects escaped paths before requiring a referenced artifact to be present and non-empty.
+function validateBuildReference(buildOutputDir, reference, label) {
+  if (typeof reference !== 'string' || !reference.trim()) {
+    throw new Error(`${label} has an invalid manifest path.`);
+  }
+
+  const outputRoot = path.resolve(buildOutputDir);
+  const artifactPath = path.resolve(outputRoot, reference);
+  if (artifactPath === outputRoot || !artifactPath.startsWith(`${outputRoot}${path.sep}`)) {
+    throw new Error(`${label} escapes the build-output directory: ${reference}`);
+  }
+
+  requireNonEmptyFile(artifactPath, `${label} (${reference})`);
+}
+
+// Requires one ordinary non-empty file and reports a bounded artifact-specific failure.
+function requireNonEmptyFile(filePath, label) {
+  let stats;
+  try {
+    stats = fs.statSync(filePath);
+  } catch {
+    throw new Error(`${label} is missing.`);
+  }
+
+  if (!stats.isFile() || stats.size === 0) {
+    throw new Error(`${label} must be a non-empty file.`);
+  }
 }
 
 // Loads the same runbook credentials used by the focused Trip Editor Playwright specs.
@@ -331,10 +431,9 @@ async function expectDocumentAssetsServed(context, page, selector, label) {
 }
 
 async function expectManifestAssetsServed(context) {
-  const manifestPath = path.join(publishDir, 'wwwroot', 'vite', 'trip-editor', 'manifest.json');
-  expect(fs.existsSync(manifestPath), 'Published Trip Editor manifest should exist on disk.').toBeTruthy();
-  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-  const entry = manifest['ClientApps/trip-editor/src/main.ts'];
+  const buildOutputDir = path.join(publishDir, 'wwwroot', 'vite', 'trip-editor');
+  const manifest = readTripEditorManifest(buildOutputDir);
+  const entry = manifest[tripEditorEntryKey];
   expect(entry, 'Published manifest should contain the Trip Editor entry script.').toBeTruthy();
 
   await expectServedAsset(context, `/vite/trip-editor/${entry.file}`, 'manifest Trip Editor script');
