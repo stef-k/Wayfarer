@@ -53,6 +53,28 @@ public sealed class OsrmRoutingAdapterTests
         Assert.Equal("provider-response-invalid", result.ErrorCode);
     }
 
+    [Theory]
+    [InlineData("{\"code\":1,\"routes\":[],\"waypoints\":[]}")]
+    [InlineData("{\"code\":null,\"routes\":[],\"waypoints\":[]}")]
+    [InlineData("{\"code\":{},\"routes\":[],\"waypoints\":[]}")]
+    [InlineData("{\"code\":[],\"routes\":[],\"waypoints\":[]}")]
+    [InlineData("{\"code\":\"Ok\",\"routes\":{},\"waypoints\":[]}")]
+    [InlineData("{\"code\":\"Ok\",\"routes\":[1],\"waypoints\":[]}")]
+    [InlineData("{\"code\":\"Ok\",\"routes\":[{\"geometry\":1}],\"waypoints\":[]}")]
+    [InlineData("{\"code\":\"Ok\",\"routes\":[{\"geometry\":{\"type\":1,\"coordinates\":[]}}],\"waypoints\":[]}")]
+    [InlineData("{\"code\":\"Ok\",\"routes\":[{\"geometry\":{\"type\":\"LineString\",\"coordinates\":{}}}],\"waypoints\":[]}")]
+    [InlineData("{\"code\":\"Ok\",\"routes\":[{\"geometry\":{\"type\":\"LineString\",\"coordinates\":[[\"1\",2],[3,4]]}}],\"waypoints\":[{\"location\":[1,2]},{\"location\":[3,4]}]}")]
+    [InlineData("{\"code\":\"Ok\",\"routes\":[{\"geometry\":{\"type\":\"LineString\",\"coordinates\":[[1,2],[3,4]]}}],\"waypoints\":{}}")]
+    [InlineData("{\"code\":\"Ok\",\"routes\":[{\"geometry\":{\"type\":\"LineString\",\"coordinates\":[[1,2],[3,4]]}}],\"waypoints\":[1,{\"location\":[3,4]}]}")]
+    [InlineData("{\"code\":\"Ok\",\"routes\":[{\"geometry\":{\"type\":\"LineString\",\"coordinates\":[[1,2],[3,4]]}}],\"waypoints\":[{\"location\":{}},{\"location\":[3,4]}]}")]
+    public async Task ParseResponse_BoundsEveryProviderControlledTypeFailure(string json)
+    {
+        var result = await OsrmRoutingAdapter.ParseAsync(Response(json), CancellationToken.None);
+
+        Assert.False(result.Succeeded);
+        Assert.Equal("provider-response-invalid", result.ErrorCode);
+    }
+
     private static HttpResponseMessage Response(string json) => new(HttpStatusCode.OK)
     {
         Content = new StringContent(json, Encoding.UTF8, "application/json")
