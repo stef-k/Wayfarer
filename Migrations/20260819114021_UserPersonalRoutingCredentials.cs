@@ -63,6 +63,21 @@ namespace Wayfarer.Migrations
                 ON CONFLICT ("UserId") DO NOTHING;
                 """);
 
+            migrationBuilder.Sql("""
+                CREATE FUNCTION "CreateDefaultUserRoutingConfiguration"() RETURNS trigger AS $$
+                BEGIN
+                    INSERT INTO "UserRoutingConfigurations"
+                        ("UserId", "CredentialPresent", "ConfigurationVersion", "CreatedAt", "UpdatedAt")
+                    VALUES (NEW."Id", FALSE, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+                    RETURN NEW;
+                END;
+                $$ LANGUAGE plpgsql;
+
+                CREATE TRIGGER "TR_AspNetUsers_CreateDefaultRoutingConfiguration"
+                AFTER INSERT ON "AspNetUsers"
+                FOR EACH ROW EXECUTE FUNCTION "CreateDefaultUserRoutingConfiguration"();
+                """);
+
             migrationBuilder.CreateIndex(
                 name: "IX_UserRoutingConfigurations_SelectedProviderConfigurationId",
                 table: "UserRoutingConfigurations",
@@ -72,6 +87,11 @@ namespace Wayfarer.Migrations
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.Sql("""
+                DROP TRIGGER IF EXISTS "TR_AspNetUsers_CreateDefaultRoutingConfiguration" ON "AspNetUsers";
+                DROP FUNCTION IF EXISTS "CreateDefaultUserRoutingConfiguration"();
+                """);
+
             migrationBuilder.DropTable(
                 name: "UserRoutingConfigurations");
 
