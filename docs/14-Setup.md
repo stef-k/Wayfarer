@@ -28,7 +28,7 @@ Frontend Development
   - Configuration: `frontend.config.yaml`
   - Convention: JS files in `wwwroot/js/Areas/{Area}/{Controller}/{Action}.js` auto-link to matching views.
   - Development: runs unbundled for debugging.
-  - Production prerequisite: run `dotnet frontend build` to generate minified bundles in `/dist`.
+  - Production prerequisite: run `dotnet tool restore`, then `dotnet frontend build` to generate minified bundles in `/dist` with the repository-local CLI.
 - **Trip Editor**: Vue/Vite builds static assets under `wwwroot/vite/trip-editor`.
   - Production prerequisite: run `npm ci` and `npm run build` before publishing when building on the server.
   - Production output must include `wwwroot/vite/trip-editor/manifest.json` and the CSS/JS files referenced by that manifest.
@@ -40,7 +40,7 @@ Frontend Development
 - Global assets: `site.js` and `site.css` load on every page.
 
 Production-like Bundle Acceptance
-- Build frontend prerequisites first: `dotnet frontend build`, then `npm ci` and `npm run build`.
+- Build frontend prerequisites first: `dotnet tool restore`, `dotnet frontend build`, then `npm ci` and `npm run build`.
 - Publish and run the published output:
 
 ```bash
