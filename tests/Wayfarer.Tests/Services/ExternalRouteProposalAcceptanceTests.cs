@@ -126,7 +126,7 @@ public sealed class ExternalRouteProposalAcceptanceTests : TestBase
         segment.Waypoints.Add(new SegmentWaypoint { Segment = segment, SegmentId = segment.Id, Place = via, PlaceId = via.Id });
         var provider = new RoutingProviderConfiguration
         {
-            Id = Guid.NewGuid(), DisplayName = "OSRM", Enabled = true,
+            Id = Guid.NewGuid(), DisplayName = "OSRM", Enabled = true, BaseEndpoint = "https://routing.example",
             ConfigurationVersion = 3, VerifiedConfigurationVersion = 3
         };
         provider.ProfileMappings.Add(new RoutingProviderProfileMapping
@@ -155,7 +155,9 @@ public sealed class ExternalRouteProposalAcceptanceTests : TestBase
             ExternalRouteAnchorFingerprint.Compute(places, geometry), profile.Id, provider.Id, 3, 2, aggregateToken);
         var token = contexts.Issue(binding).Token;
         db.ChangeTracker.Clear();
-        return new Fixture(db, new ExternalRouteProposalAcceptanceService(db, aggregateTokens, contexts), time,
+        var resolver = new AuthoritativeRoutingProviderResolver(db,
+            new RoutingProviderCredentialService(dataProtection), new UserRoutingCredentialService(dataProtection));
+        return new Fixture(db, new ExternalRouteProposalAcceptanceService(db, aggregateTokens, contexts, resolver), time,
             userId, tripId, segment, proposalId, geometry, indices, token);
     }
 

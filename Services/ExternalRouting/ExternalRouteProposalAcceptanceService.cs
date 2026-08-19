@@ -12,12 +12,14 @@ public sealed class ExternalRouteProposalAcceptanceService
     private readonly ApplicationDbContext _dbContext;
     private readonly SegmentAggregateTokenService _aggregateTokens;
     private readonly ExternalRouteProposalContextService _proposalContexts;
+    private readonly AuthoritativeRoutingProviderResolver _resolver;
 
     /// <summary>Initializes server-authoritative proposal acceptance.</summary>
     public ExternalRouteProposalAcceptanceService(
         ApplicationDbContext dbContext, SegmentAggregateTokenService aggregateTokens,
-        ExternalRouteProposalContextService proposalContexts)
-        => (_dbContext, _aggregateTokens, _proposalContexts) = (dbContext, aggregateTokens, proposalContexts);
+        ExternalRouteProposalContextService proposalContexts, AuthoritativeRoutingProviderResolver resolver)
+        => (_dbContext, _aggregateTokens, _proposalContexts, _resolver) =
+            (dbContext, aggregateTokens, proposalContexts, resolver);
 
     /// <summary>Returns an accepted draft value only if geometry and every stale dimension remain authoritative.</summary>
     public async Task<ExternalRouteAcceptanceResult> AcceptAsync(
@@ -65,7 +67,8 @@ public sealed class ExternalRouteProposalAcceptanceService
             .SingleOrDefaultAsync(item => item.Id == 1, cancellationToken);
         if (settings?.ExternalRouteGenerationEnabled != true
             || settings.ExternalRouteGenerationVersion != binding.FeatureStateGeneration
-            || settings.ActiveRoutingProviderConfigurationId != binding.ProviderId)
+            || binding.ProviderSelectionMode == RoutingProviderSelectionMode.ServerDefault
+                && settings.ActiveRoutingProviderConfigurationId != binding.ProviderId)
             return ExternalRouteAcceptanceResult.Failure("route-proposal-stale");
 
         if (relational)
@@ -77,6 +80,19 @@ public sealed class ExternalRouteProposalAcceptanceService
         if (provider is not { Enabled: true }
             || provider.ConfigurationVersion != binding.ProviderConfigurationVersion
             || provider.VerifiedConfigurationVersion != provider.ConfigurationVersion)
+            return ExternalRouteAcceptanceResult.Failure("route-proposal-stale");
+
+        if (relational)
+            await _dbContext.Database.ExecuteSqlInterpolatedAsync(
+                $"SELECT 1 FROM \"UserRoutingConfigurations\" WHERE \"UserId\" = {userId} FOR UPDATE",
+                cancellationToken);
+        var resolution = await _resolver.ResolveAsync(userId, binding.TransportProfileId, cancellationToken);
+        var execution = resolution.Execution;
+        if (execution == null || execution.SelectionMode != binding.ProviderSelectionMode
+            || execution.UserConfigurationVersion != binding.UserRoutingConfigurationVersion
+            || execution.Provider.Id != binding.ProviderId
+            || execution.ProviderConfigurationVersion != binding.ProviderConfigurationVersion
+            || execution.FeatureStateGeneration != binding.FeatureStateGeneration)
             return ExternalRouteAcceptanceResult.Failure("route-proposal-stale");
 
         if (relational)
