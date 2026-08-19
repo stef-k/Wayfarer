@@ -14,6 +14,7 @@ public sealed class RoutingProviderPacer
 
     private const int CleanupScanLimit = 8;
     private readonly ConcurrentDictionary<Guid, ProviderGate> _gates = new();
+    private readonly object _gateLookupSync = new();
     private readonly TimeProvider _timeProvider;
     private int _cleanupCursor;
 
@@ -26,17 +27,21 @@ public sealed class RoutingProviderPacer
         ArgumentOutOfRangeException.ThrowIfNegative(configurationVersion);
         if (intervalMilliseconds is < 0 or > 60000) throw new ArgumentOutOfRangeException(nameof(intervalMilliseconds));
         var gate = GetGate(providerId);
-        lock (gate.Sync)
+        try
         {
-            if (configurationVersion < gate.ConfigurationVersion) return false;
-            gate.ConfigurationVersion = configurationVersion;
-            gate.IntervalMilliseconds = intervalMilliseconds;
-            gate.ConfigurationChanged.Cancel();
-            gate.ConfigurationChanged.Dispose();
-            gate.ConfigurationChanged = new CancellationTokenSource();
-            gate.PulseHead();
-            return true;
+            lock (gate.Sync)
+            {
+                if (configurationVersion < gate.ConfigurationVersion) return false;
+                gate.ConfigurationVersion = configurationVersion;
+                gate.IntervalMilliseconds = intervalMilliseconds;
+                gate.ConfigurationChanged.Cancel();
+                gate.ConfigurationChanged.Dispose();
+                gate.ConfigurationChanged = new CancellationTokenSource();
+                gate.PulseHead();
+                return true;
+            }
         }
+        finally { ReleaseAccessor(gate); }
     }
 
     /// <summary>Waits for the provider's atomic pacing turn without holding concurrency permits.</summary>
@@ -45,15 +50,19 @@ public sealed class RoutingProviderPacer
     {
         var gate = GetGate(providerId);
         var waiter = new Waiter();
-        lock (gate.Sync)
+        try
         {
-            if (gate.ConfigurationVersion != expectedConfigurationVersion)
-                return RoutingPacingResult.Failure("provider-configuration-stale");
-            if (gate.Waiters.Count >= MaximumQueuedWaiters)
-                return RoutingPacingResult.Failure("routing-rate-limited");
-            waiter.Node = gate.Waiters.AddLast(waiter);
-            gate.PulseHead();
+            lock (gate.Sync)
+            {
+                if (gate.ConfigurationVersion != expectedConfigurationVersion)
+                    return RoutingPacingResult.Failure("provider-configuration-stale");
+                if (gate.Waiters.Count >= MaximumQueuedWaiters)
+                    return RoutingPacingResult.Failure("routing-rate-limited");
+                waiter.Node = gate.Waiters.AddLast(waiter);
+                gate.PulseHead();
+            }
         }
+        finally { ReleaseAccessor(gate); }
 
         using var callerRegistration = cancellationToken.Register(() => CancelWaiter(gate, waiter));
         using var timeout = new CancellationTokenSource();
@@ -113,21 +122,24 @@ public sealed class RoutingProviderPacer
     /// <summary>Opportunistically retires a bounded number of safely idle gates.</summary>
     internal int CleanupIdle()
     {
-        var removed = 0;
-        var candidates = _gates.ToArray();
-        if (candidates.Length == 0) return 0;
-        var start = Math.Abs(Interlocked.Increment(ref _cleanupCursor));
-        for (var index = 0; index < Math.Min(CleanupScanLimit, candidates.Length); index++)
+        lock (_gateLookupSync)
         {
-            var candidate = candidates[(start + index) % candidates.Length];
-            lock (candidate.Value.Sync)
+            var removed = 0;
+            var candidates = _gates.ToArray();
+            if (candidates.Length == 0) return 0;
+            var start = Math.Abs(Interlocked.Increment(ref _cleanupCursor));
+            for (var index = 0; index < Math.Min(CleanupScanLimit, candidates.Length); index++)
             {
-                if (!candidate.Value.Active && candidate.Value.Waiters.Count == 0
-                    && _timeProvider.GetElapsedTime(candidate.Value.LastIdleTimestamp) >= MinimumIdleLifetime
-                    && _gates.TryRemove(candidate)) removed++;
+                var candidate = candidates[(start + index) % candidates.Length];
+                lock (candidate.Value.Sync)
+                {
+                    if (candidate.Value.Accessors == 0 && !candidate.Value.Active && candidate.Value.Waiters.Count == 0
+                        && _timeProvider.GetElapsedTime(candidate.Value.LastIdleTimestamp) >= MinimumIdleLifetime
+                        && _gates.TryRemove(candidate)) removed++;
+                }
             }
+            return removed;
         }
-        return removed;
     }
 
     internal int GateCount => _gates.Count;
@@ -135,7 +147,17 @@ public sealed class RoutingProviderPacer
     private ProviderGate GetGate(Guid providerId)
     {
         CleanupIdle();
-        return _gates.GetOrAdd(providerId, _ => new ProviderGate(_timeProvider.GetTimestamp()));
+        lock (_gateLookupSync)
+        {
+            var gate = _gates.GetOrAdd(providerId, _ => new ProviderGate(_timeProvider.GetTimestamp()));
+            lock (gate.Sync) gate.Accessors++;
+            return gate;
+        }
+    }
+
+    private static void ReleaseAccessor(ProviderGate gate)
+    {
+        lock (gate.Sync) gate.Accessors--;
     }
 
     private static void CancelWaiter(ProviderGate gate, Waiter waiter)
@@ -170,6 +192,7 @@ public sealed class RoutingProviderPacer
         internal int ConfigurationVersion { get; set; } = -1;
         internal int IntervalMilliseconds { get; set; } = 1000;
         internal bool Active { get; set; }
+        internal int Accessors { get; set; }
         internal long? LastAttemptStart { get; set; }
         internal long LastIdleTimestamp { get; set; } = createdTimestamp;
 

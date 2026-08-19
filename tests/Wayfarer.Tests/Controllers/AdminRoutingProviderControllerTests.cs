@@ -31,6 +31,11 @@ public sealed class AdminRoutingProviderControllerTests
         Assert.Contains("Leave blank to preserve", form, StringComparison.Ordinal);
         Assert.DoesNotContain("CredentialCiphertext", form + index, StringComparison.Ordinal);
         Assert.DoesNotContain("BaseEndpoint", index, StringComparison.Ordinal);
+        Assert.Contains("Minimum interval (seconds)", form, StringComparison.Ordinal);
+        Assert.Contains("type=\"number\"", form, StringComparison.Ordinal);
+        Assert.Contains("min=\"0.0\"", form, StringComparison.Ordinal);
+        Assert.Contains("max=\"60.0\"", form, StringComparison.Ordinal);
+        Assert.Contains("step=\"0.1\"", form, StringComparison.Ordinal);
     }
 
     private static string FindRepositoryRoot()

@@ -43,6 +43,25 @@ public sealed class RoutingProviderAdministrationServiceTests : TestBase
     }
 
     [Fact]
+    public async Task Save_MinimumIntervalChangeIsExactAndInvalidatesOnlyWhenChanged()
+    {
+        var fixture = CreateFixture(requiredCredential: false, featureEnabled: false);
+        var originalVersion = fixture.Provider.ConfigurationVersion;
+        var changed = Model(fixture);
+        changed.MinimumIntervalSeconds = " 1.1 ";
+
+        Assert.True((await fixture.Service.SaveAsync(changed, "admin", CancellationToken.None)).Succeeded);
+        Assert.Equal(1100, fixture.Provider.MinimumIntervalMilliseconds);
+        Assert.Equal(originalVersion + 1, fixture.Provider.ConfigurationVersion);
+        Assert.Null(fixture.Provider.VerifiedConfigurationVersion);
+
+        var unchangedVersion = fixture.Provider.ConfigurationVersion;
+        var unchanged = Model(fixture);
+        Assert.True((await fixture.Service.SaveAsync(unchanged, "admin", CancellationToken.None)).Succeeded);
+        Assert.Equal(unchangedVersion, fixture.Provider.ConfigurationVersion);
+    }
+
+    [Fact]
     public async Task ClearCredential_RejectsRequiredActiveCredentialUnlessAtomicallyDisabled()
     {
         var fixture = CreateFixture(requiredCredential: true, featureEnabled: true);
@@ -142,6 +161,7 @@ public sealed class RoutingProviderAdministrationServiceTests : TestBase
         GenerationTimeoutSeconds = fixture.Provider.GenerationTimeoutSeconds,
         ResponseSizeLimitBytes = fixture.Provider.ResponseSizeLimitBytes,
         RequestsPerMinute = fixture.Provider.RequestsPerMinute, MaxConcurrency = fixture.Provider.MaxConcurrency,
+        MinimumIntervalSeconds = RoutingMinimumIntervalConverter.Format(fixture.Provider.MinimumIntervalMilliseconds),
         RowVersion = fixture.Provider.RowVersion, ConfigurationVersion = fixture.Provider.ConfigurationVersion,
         Mappings = [new RoutingProviderMappingViewModel
             { TransportProfileId = fixture.Profile.Id, OsrmProfile = "driving" }]

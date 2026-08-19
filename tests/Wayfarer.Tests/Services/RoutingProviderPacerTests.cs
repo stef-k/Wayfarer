@@ -81,6 +81,23 @@ public sealed class RoutingProviderPacerTests
         Assert.True((await pacer.WaitAsync(provider, 3, CancellationToken.None)).Succeeded);
     }
 
+    [Fact]
+    public async Task WaitTimeoutAndIdleCleanupReleaseAllState()
+    {
+        var time = new ManualTimeProvider(); var pacer = new RoutingProviderPacer(time); var provider = Guid.NewGuid();
+        pacer.ApplyConfiguration(provider, 1, 0);
+        var owner = await pacer.WaitAsync(provider, 1, CancellationToken.None);
+        var waiting = pacer.WaitAsync(provider, 1, CancellationToken.None);
+        time.Advance(RoutingProviderPacer.MaximumWait);
+        Assert.Equal("routing-timeout", (await waiting).ErrorCode);
+        owner.Turn!.Dispose();
+        time.Advance(RoutingProviderPacer.MinimumIdleLifetime);
+        Assert.Equal(1, pacer.CleanupIdle());
+        Assert.Equal(0, pacer.GateCount);
+        Assert.True(pacer.ApplyConfiguration(provider, 2, 0));
+        Assert.Equal(1, pacer.GateCount);
+    }
+
     private sealed class ManualTimeProvider : TimeProvider
     {
         private readonly object _sync = new(); private readonly List<ManualTimer> _timers = []; private long _timestamp;
