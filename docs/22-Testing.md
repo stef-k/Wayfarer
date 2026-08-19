@@ -40,6 +40,14 @@ Running Tests
 - `dotnet test`
 - Trip Editor E2E: `npm run test:e2e:trip-editor`
 
+Pull Request Merge Gate
+- The GitHub Actions `test` check for the current PR head is authoritative merge evidence.
+- Inspect the actual PR check with `gh pr checks <pr-number>` and wait until it reports success before invoking `gh pr merge`.
+- Do not infer safety from the merge button, `gh pr checks --required`, or `gh pr merge --auto`; repository settings can allow an administrator to merge while a non-required check is still pending.
+- Pending, missing, cancelled, neutral, or failed executions are not a passing gate.
+- If a run clearly stalls in runner/package setup before reaching repository code, cancel it and rerun the unchanged workflow once. If that rerun also fails or stalls, report CI infrastructure failure instead of modifying product code or repeatedly rebuilding the environment.
+- Documentation-only changes under `docs/` or in Markdown files take the workflow's fast path: the `test` job succeeds without running restore, build, ordinary tests, or Playwright. Workflow, configuration, source, test, migration, and dependency changes always run the complete job.
+
 .NET Playwright Rendering Test
 - The .NET rendering test owns a browser cache separate from JavaScript Playwright.
 - Restore and build first so Microsoft.Playwright generates its version-coupled installer.

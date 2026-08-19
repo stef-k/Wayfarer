@@ -7,47 +7,76 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     env:
       MvcFrontendKitEnabled: 'false'
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect documentation-only changes
+        id: scope
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          changed_files="$(git diff --name-only "$BASE_SHA" "$HEAD_SHA")"
+          if [ -n "$changed_files" ] && ! grep -Eqv '^(docs/.*|.*\.md)$' <<< "$changed_files"; then
+            echo "run_full=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run_full=false" >> "$GITHUB_OUTPUT"
+            echo "Documentation-only change detected; expensive validation steps are skipped."
+          fi
 
       - name: Install SpatiaLite
+        if: steps.scope.outputs.run_full == 'true'
+        timeout-minutes: 5
         run: sudo apt-get update && sudo apt-get install -y libsqlite3-mod-spatialite
 
       - name: Setup .NET
+        if: steps.scope.outputs.run_full == 'true'
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
 
       - name: Restore dependencies
+        if: steps.scope.outputs.run_full == 'true'
         run: dotnet restore
 
       - name: Restore tools
+        if: steps.scope.outputs.run_full == 'true'
         run: dotnet tool restore
 
       - name: Check file size limits
+        if: steps.scope.outputs.run_full == 'true'
         run: dotnet run --project tools/Wayfarer.LocCheck -- --warn 400 --fail 600
 
       - name: Build tests
+        if: steps.scope.outputs.run_full == 'true'
         run: dotnet build tests/Wayfarer.Tests/Wayfarer.Tests.csproj --configuration Release --no-restore
 
       - name: Run ordinary tests
+        if: steps.scope.outputs.run_full == 'true'
         run: dotnet test tests/Wayfarer.Tests/Wayfarer.Tests.csproj --configuration Release --no-build --verbosity normal --filter "Category!=RequiresSpatialite&Category!=RequiresPlaywright"
 
       - name: Install .NET Playwright Chromium
+        if: steps.scope.outputs.run_full == 'true'
         run: pwsh tests/Wayfarer.Tests/bin/Release/net10.0/playwright.ps1 install --with-deps chromium
         env:
           PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/wayfarer-dotnet-playwright
 
       - name: Run .NET Playwright rendering tests
+        if: steps.scope.outputs.run_full == 'true'
         run: dotnet test tests/Wayfarer.Tests/Wayfarer.Tests.csproj --configuration Release --no-build --verbosity normal --filter "Category=RequiresPlaywright"
         env:
           PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/wayfarer-dotnet-playwright
           WAYFARER_TEST_ARTIFACT_DIRECTORY: ${{ runner.temp }}/wayfarer-test-artifacts
 
       - name: Verify .NET Playwright rendering artifacts
+        if: steps.scope.outputs.run_full == 'true'
         run: |
           test -s "$WAYFARER_TEST_ARTIFACT_DIRECTORY/phase2b-map-attribution.pdf"
           test -s "$WAYFARER_TEST_ARTIFACT_DIRECTORY/phase2b-map-attribution-print.png"
