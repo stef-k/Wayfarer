@@ -6,23 +6,25 @@
   "scripts": {
     "dev": "vite --host localhost --port 5173",
     "build": "vite build",
+    "test:client": "node --test tests/client/*.test.mjs",
     "test:trip-import-client": "node --test tests/client/tripImportClient.test.mjs",
     "test:segment-route-policy": "node --test tests/client/segmentRouteWorkPolicy.test.mjs",
     "test:external-route-proposals": "node --test tests/client/segmentRouteProposalState.test.mjs",
     "test:e2e:trip-editor": "playwright test --config=playwright.config.ts",
     "test:e2e:shared-layout": "playwright test --config=playwright.shared-layout.config.ts",
     "smoke:trip-editor:assets": "node tools/trip-editor-asset-smoke.mjs --mode=all",
+    "smoke:trip-editor:assets:built": "node tools/trip-editor-asset-smoke.mjs --mode=built",
     "smoke:trip-editor:assets:dev": "node tools/trip-editor-asset-smoke.mjs --mode=development",
     "smoke:trip-editor:assets:published": "node tools/trip-editor-asset-smoke.mjs --mode=published"
   },
   "dependencies": {
-    "@types/leaflet": "1.9.21",
-    "@vitejs/plugin-vue": "6.0.3",
+    "@types/leaflet": "1.9.22",
+    "@vitejs/plugin-vue": "6.0.8",
     "leaflet": "1.9.4",
     "quill": "2.0.2",
     "typescript": "5.9.3",
     "vite": "7.3.6",
-    "vue": "3.5.34"
+    "vue": "3.5.41"
   },
   "devDependencies": {
     "@playwright/test": "^1.59.1"
