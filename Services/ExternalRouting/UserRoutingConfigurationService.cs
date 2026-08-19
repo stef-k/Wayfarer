@@ -17,7 +17,7 @@ public sealed class UserRoutingConfigurationService
     public async Task<UserRoutingMutationResult> SaveAsync(
         string userId, Guid? providerId, string? credential, uint expectedRowVersion, CancellationToken cancellationToken)
     {
-        var configuration = await _dbContext.UserRoutingConfigurations
+        var configuration = await _dbContext.Set<UserRoutingConfiguration>()
             .SingleOrDefaultAsync(item => item.UserId == userId, cancellationToken);
         if (configuration == null) return UserRoutingMutationResult.NotFound;
         if (configuration.RowVersion != expectedRowVersion) return UserRoutingMutationResult.Conflict;
@@ -55,7 +55,7 @@ public sealed class UserRoutingConfigurationService
         string userId, bool confirmed, uint expectedRowVersion, CancellationToken cancellationToken)
     {
         if (!confirmed) return UserRoutingMutationResult.Invalid("Confirm credential clearing.");
-        var configuration = await _dbContext.UserRoutingConfigurations
+        var configuration = await _dbContext.Set<UserRoutingConfiguration>()
             .SingleOrDefaultAsync(item => item.UserId == userId, cancellationToken);
         if (configuration == null) return UserRoutingMutationResult.NotFound;
         if (configuration.RowVersion != expectedRowVersion) return UserRoutingMutationResult.Conflict;

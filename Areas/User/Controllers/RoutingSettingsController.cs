@@ -55,7 +55,7 @@ public sealed class RoutingSettingsController(
     private async Task<RoutingSettingsViewModel?> BuildAsync(
         string userId, RoutingSettingsViewModel? submitted, CancellationToken cancellationToken)
     {
-        var configuration = await dbContext.UserRoutingConfigurations.AsNoTracking()
+        var configuration = await dbContext.Set<UserRoutingConfiguration>().AsNoTracking()
             .SingleOrDefaultAsync(item => item.UserId == userId, cancellationToken);
         if (configuration == null) return null;
         var providers = await dbContext.Set<RoutingProviderConfiguration>().AsNoTracking()

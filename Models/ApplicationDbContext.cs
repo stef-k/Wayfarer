@@ -19,7 +19,6 @@ namespace Wayfarer.Models
         public DbSet<ApiToken> ApiTokens { get; set; }
 
         public DbSet<ApplicationUser> ApplicationUsers { get; set; }
-        public DbSet<UserRoutingConfiguration> UserRoutingConfigurations { get; set; }
         public DbSet<AuditLog> AuditLogs { get; set; }
         public DbSet<JobHistory> JobHistories { get; set; }
         public DbSet<ActivityType> ActivityTypes { get; set; }
