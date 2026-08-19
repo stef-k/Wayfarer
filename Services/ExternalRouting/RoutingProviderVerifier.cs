@@ -13,11 +13,13 @@ public sealed class RoutingProviderVerifier : IRoutingProviderVerifier
     private readonly ApplicationDbContext _dbContext;
     private readonly RoutingBoundedExecutor _executor;
     private readonly RoutingProviderCredentialService _credentials;
+    private readonly RoutingRequestBudget _budgets;
 
     /// <summary>Initializes bounded verification.</summary>
     public RoutingProviderVerifier(
-        ApplicationDbContext dbContext, RoutingBoundedExecutor executor, RoutingProviderCredentialService credentials)
-        => (_dbContext, _executor, _credentials) = (dbContext, executor, credentials);
+        ApplicationDbContext dbContext, RoutingBoundedExecutor executor, RoutingProviderCredentialService credentials,
+        RoutingRequestBudget budgets)
+        => (_dbContext, _executor, _credentials, _budgets) = (dbContext, executor, credentials, budgets);
 
     /// <inheritdoc />
     public async Task<RoutingVerificationResult> VerifyAsync(
@@ -37,8 +39,13 @@ public sealed class RoutingProviderVerifier : IRoutingProviderVerifier
             return await FailureAsync(providerId, administratorId, "provider-credential-required", cancellationToken);
         var from = new RouteCoordinate(provider.VerificationFromLongitude!.Value, provider.VerificationFromLatitude!.Value);
         var to = new RouteCoordinate(provider.VerificationToLongitude!.Value, provider.VerificationToLatitude!.Value);
+        using var lease = await _budgets.AcquireProviderAsync(
+            provider.Id, provider.RequestsPerMinute, provider.MaxConcurrency, cancellationToken);
+        if (lease == null) return await FailureAsync(providerId, administratorId, "routing-budget-exhausted", cancellationToken);
         foreach (var profile in profiles)
         {
+            if (!lease.TryAdmitProviderAttempt())
+                return await FailureAsync(providerId, administratorId, "routing-budget-exhausted", cancellationToken);
             var request = OsrmRoutingAdapter.BuildRelativeRequest(profile, [from, to]);
             var execution = await _executor.GetJsonAsync(new Uri(provider.BaseEndpoint!), request,
                 provider.ResponseSizeLimitBytes, TimeSpan.FromSeconds(5), cancellationToken, credential.Credential);

@@ -8,7 +8,7 @@ public sealed class RoutingRequestBudget
     private const int UserGenerationsPerMinute = 5;
     private const int GlobalConcurrency = 8;
     private readonly SemaphoreSlim _global = new(GlobalConcurrency, GlobalConcurrency);
-    private readonly ConcurrentDictionary<(Guid ProviderId, int Limit), SemaphoreSlim> _providerConcurrency = new();
+    private readonly ConcurrentDictionary<Guid, ProviderGate> _providerConcurrency = new();
     private readonly ConcurrentDictionary<string, SlidingWindow> _userWindows = new();
     private readonly ConcurrentDictionary<Guid, SlidingWindow> _providerWindows = new();
     private readonly TimeProvider _timeProvider;
@@ -23,16 +23,52 @@ public sealed class RoutingRequestBudget
         if (!_userWindows.GetOrAdd(userId, _ => new SlidingWindow()).TryTake(UserGenerationsPerMinute, _timeProvider.GetUtcNow()))
             return null;
         if (!await _global.WaitAsync(0, cancellationToken)) return null;
-        var providerGate = _providerConcurrency.GetOrAdd((providerId, providerMaxConcurrency),
-            key => new SemaphoreSlim(key.Limit, key.Limit));
-        if (!await providerGate.WaitAsync(0, cancellationToken))
+        var providerGate = _providerConcurrency.GetOrAdd(providerId, _ => new ProviderGate());
+        if (!providerGate.TryAcquire(providerMaxConcurrency))
         {
             _global.Release();
             return null;
         }
-        return new RoutingBudgetLease(_global, providerGate,
+        return new RoutingBudgetLease(_global, providerGate.Release,
             () => _providerWindows.GetOrAdd(providerId, _ => new SlidingWindow())
                 .TryTake(providerRequestsPerMinute, _timeProvider.GetUtcNow()));
+    }
+
+    /// <summary>Applies the same durable provider admission to administrator verification probes.</summary>
+    public async Task<RoutingBudgetLease?> AcquireProviderAsync(
+        Guid providerId, int requestsPerMinute, int maxConcurrency, CancellationToken cancellationToken)
+    {
+        if (!await _global.WaitAsync(0, cancellationToken)) return null;
+        var providerGate = _providerConcurrency.GetOrAdd(providerId, _ => new ProviderGate());
+        if (!providerGate.TryAcquire(maxConcurrency)) { _global.Release(); return null; }
+        return new RoutingBudgetLease(_global, providerGate.Release,
+            () => _providerWindows.GetOrAdd(providerId, _ => new SlidingWindow())
+                .TryTake(requestsPerMinute, _timeProvider.GetUtcNow()));
+    }
+
+    private sealed class ProviderGate
+    {
+        private readonly object _sync = new();
+        private int _active;
+
+        public bool TryAcquire(int capacity)
+        {
+            lock (_sync)
+            {
+                if (_active >= capacity) return false;
+                _active++;
+                return true;
+            }
+        }
+
+        public void Release()
+        {
+            lock (_sync)
+            {
+                if (_active == 0) throw new InvalidOperationException("The provider gate has no active lease.");
+                _active--;
+            }
+        }
     }
 
     private sealed class SlidingWindow
@@ -56,12 +92,12 @@ public sealed class RoutingRequestBudget
 public sealed class RoutingBudgetLease : IDisposable
 {
     private readonly SemaphoreSlim _global;
-    private readonly SemaphoreSlim _provider;
+    private readonly Action _releaseProvider;
     private readonly Func<bool> _admitAttempt;
     private int _disposed;
 
-    internal RoutingBudgetLease(SemaphoreSlim global, SemaphoreSlim provider, Func<bool> admitAttempt)
-        => (_global, _provider, _admitAttempt) = (global, provider, admitAttempt);
+    internal RoutingBudgetLease(SemaphoreSlim global, Action releaseProvider, Func<bool> admitAttempt)
+        => (_global, _releaseProvider, _admitAttempt) = (global, releaseProvider, admitAttempt);
 
     /// <summary>Charges one actual provider attempt, including the one permitted retry.</summary>
     public bool TryAdmitProviderAttempt() => _admitAttempt();
@@ -70,7 +106,7 @@ public sealed class RoutingBudgetLease : IDisposable
     public void Dispose()
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
-        _provider.Release();
+        _releaseProvider();
         _global.Release();
     }
 }

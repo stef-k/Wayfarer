@@ -27,7 +27,7 @@ public sealed class RoutingVerificationActivationTests : TestBase
         db.SaveChanges();
         var transport = new ProbeTransport(ValidResponse());
         var verifier = new RoutingProviderVerifier(db, Executor(transport),
-            new RoutingProviderCredentialService(new EphemeralDataProtectionProvider()));
+            new RoutingProviderCredentialService(new EphemeralDataProtectionProvider()), new RoutingRequestBudget());
 
         var result = await verifier.VerifyAsync(provider.Id, provider.ConfigurationVersion, provider.RowVersion, "admin", CancellationToken.None);
 

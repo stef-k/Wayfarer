@@ -48,6 +48,24 @@ public sealed class RoutingRequestBudgetTests
         Assert.False(lease.TryAdmitProviderAttempt());
     }
 
+    [Fact]
+    public async Task ProviderCapacityChangesKeepOneGateWithoutOverlappingOwnership()
+    {
+        var budget = new RoutingRequestBudget();
+        var provider = Guid.NewGuid();
+        using var first = await budget.AcquireAsync("first", provider, 60, 2, CancellationToken.None);
+        using var second = await budget.AcquireAsync("second", provider, 60, 2, CancellationToken.None);
+
+        Assert.Null(await budget.AcquireAsync("third", provider, 60, 1, CancellationToken.None));
+        first!.Dispose();
+        Assert.Null(await budget.AcquireAsync("third", provider, 60, 1, CancellationToken.None));
+        second!.Dispose();
+        using var reduced = await budget.AcquireAsync("third", provider, 60, 1, CancellationToken.None);
+        Assert.NotNull(reduced);
+        using var increased = await budget.AcquireAsync("fourth", provider, 60, 2, CancellationToken.None);
+        Assert.NotNull(increased);
+    }
+
     private sealed class MutableTimeProvider(DateTimeOffset now) : TimeProvider
     {
         private DateTimeOffset _now = now;
