@@ -40,9 +40,15 @@
 
 ## Testing Guidelines
 
-- No test project committed yet. Prefer xUnit in `tests/Wayfarer.Tests` with `*Tests.cs` naming.
-- Focused unit tests for Services/Parsers; integration tests for critical flows.
-- Run tests with `dotnet test` (once tests exist). Aim high coverage for changed code.
+- Use the existing xUnit project under `tests/Wayfarer.Tests`; name focused tests `*Tests.cs`.
+- Follow the test pyramid: pure/unit tests own algorithms and state matrices; component tests own reactive UI transitions; focused PostgreSQL tests own persistence, locking, and recovery; Playwright owns only behavior that materially requires a mounted browser.
+- Keep browser evidence proportionate: normally one critical happy-path smoke and, only when the risk warrants it, one focused negative/race observation. Do not encode exhaustive lifecycle, role, viewport, provider, or failure matrices as one uninterrupted browser workflow.
+- Prove each requirement at the lowest reliable seam. Do not repeat a state-transition matrix in Playwright when deterministic client/component tests already exercise the production state owner, or repeat persistence matrices in the browser when focused relational tests cover them.
+- A browser fixture, locator, host, port, timing, or setup failure is test-infrastructure evidence, not a product defect. Diagnose and correct it once, then allow at most one full rerun of the same selection. Do not perform a third environment rebuild unless the preceding run exposed a concrete product failure.
+- When browser infrastructure remains unavailable or fails again without a product counterexample, report the browser evidence as unavailable/validation debt and make the readiness decision from the remaining risk and evidence. Missing browser evidence blocks readiness only when the changed user-visible behavior cannot be credibly exercised at a lower stable seam.
+- Do not let test-harness refinement displace the production fix. If the same setup gap recurs across issues, improve or document the shared harness in a dedicated slice instead of rebuilding bespoke infrastructure inside each product issue.
+- Design issue acceptance criteria with these limits from the outset. “One uninterrupted workflow” may cover the core journey, but must not become a cross-product of every transition and failure case.
+- Run focused selections first. Run wider suites only when the touched shared seam makes wider regression plausible.
 
 ## Validation & PR Readiness
 
@@ -58,10 +64,11 @@
   - Do not split purely to satisfy the number if the split adds indirection without design benefit.
   - Report the decision as either "warning accepted with justification" or "split performed because ...".
 - When validation fails, classify each failure as either a current-branch regression or an out-of-scope pre-existing/cross-slice failure.
+- Also classify fixture/environment failures separately; never convert them into product blockers without a production counterexample.
 - Fix current-branch regressions before declaring a branch PR-ready.
 - For out-of-scope failures, open or link a follow-up issue before merge, then mention that issue in PR, review, and merge notes.
 - Do not claim the full suite is green until the follow-up is fixed and the full suite has been rerun successfully.
-- A focused slice may proceed with tracked validation debt only when that debt is explicitly accepted.
+- A focused slice may proceed with explicitly reported validation debt when the product risk is already covered proportionately at stable lower seams; user approval is required only when the remaining untested risk is material, not merely because a disposable browser harness failed.
 
 ## Commit & Pull Request Guidelines
 

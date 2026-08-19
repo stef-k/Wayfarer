@@ -4,6 +4,38 @@ Approach
 - Add xUnit tests under `tests/Wayfarer.Tests` (recommended structure).
 - Focus on Services and Parsers for unit tests; add integration tests for critical flows (imports, trip exports, API auth).
 
+Proportionate Validation Policy
+- Product correctness is the objective; producing an exhaustive browser harness is not.
+- Select the lowest stable seam that can prove the behavior:
+  - pure/unit tests for algorithms, validation, parsing, limits, and state machines;
+  - client/component tests for reactive transitions, cancellation, stale completion, and per-entity isolation;
+  - focused PostgreSQL tests for migrations, constraints, transactions, locking, persistence, and recovery;
+  - Playwright for a small number of browser-only facts such as mounted rendering, native interaction, focus, layout, and one representative cross-layer journey.
+- The normal browser cap for one issue is one critical happy path plus at most one risk-specific negative observation. Role, theme, viewport, lifecycle, provider, and failure variants belong below the browser layer unless the variant is itself visual or interaction-specific.
+- Do not require a single browser test to prove every lifecycle transition. Long serial workflows are fragile: one fixture precondition prevents all later evidence and turns ordinary setup mistakes into false release blockers.
+- Do not duplicate proof. A deterministic production-store test plus one mounted visibility smoke is stronger and cheaper than replaying the entire store matrix through Playwright. A PostgreSQL transaction test plus one real Save smoke is sufficient without repeating every relational failure in the browser.
+- A fixture/locator/port/host/timing failure is classified as harness evidence. It becomes a product finding only after a production counterexample is established.
+- After the first harness-only failure, permit one diagnosis/correction and one full rerun. If the same selection fails again for harness reasons, stop rebuilding the environment, report the exact unavailable evidence, and proceed or request a decision only if the remaining product risk is material.
+- Never impose an agent-created promise such as “one more run only” that prevents correcting a trivial fixture mistake within the allowed correction cycle. Conversely, do not spend repeated sessions chasing complete browser coverage after the cap is reached.
+- When a prerequisite repeatedly has to be rediscovered, update this runbook or create a dedicated reusable test-infrastructure issue. Product issues must not each invent a temporary database/account/host orchestration framework.
+
+Trip Editor Browser Preflight
+- Decide the evidence class before starting:
+  1. Use client/component tests when the claim is state transitions, races, cancellation, or reactivity.
+  2. Use focused PostgreSQL tests when the claim is persistence, concurrency, measurements, or cleanup.
+  3. Use the configured reusable Trip Editor fixture for mounted UI smoke.
+  4. Create an isolated end-to-end database only when one inseparable cross-layer journey is the actual risk.
+- Check all browser prerequisites once, before creating fixtures or starting a long run:
+  - Playwright Chromium launches;
+  - the selected ASP.NET and Vite ports are free or the intended hosts are healthy;
+  - the database connection is reachable;
+  - `WAYFARER_E2E_BASE_URL`, `WAYFARER_E2E_USERNAME`, `WAYFARER_E2E_PASSWORD`, and `WAYFARER_E2E_TRIP_ID` resolve from the environment or `.local/manual-verification.md`;
+  - the configured Trip endpoint returns success and contains the minimum entities required by the selected smoke.
+- If those prerequisites are absent, do not start the workflow and discover the same failure after provisioning. Report it immediately as unavailable evidence.
+- Use the existing `playwright.config.ts`, `tripEditorConfig.ts`, `.local/manual-verification.md`, and ignored `.local/playwright` output locations. Do not create a parallel runner merely to avoid these contracts.
+- A product-specific fake upstream is appropriate when the upstream protocol is under test. It must not replace Wayfarer generation, acceptance, mutation, or persistence endpoints in the one real cross-layer smoke.
+- Cleanup only run-owned processes, ports, database rows/databases, profiles, and artifacts. Preserve user-owned hosts and PostgreSQL instances.
+
 Running Tests
 - `dotnet test`
 - Trip Editor E2E: `npm run test:e2e:trip-editor`
