@@ -539,7 +539,7 @@ dpkg -l | grep -E 'libnss3|libgbm1|libasound2|libxshmfence'
 sudo rm -rf /var/www/wayfarer/ChromeCache/playwright-browsers
 sudo -u wayfarer bash
 cd /var/www/wayfarer
-pwsh bin/Release/net9.0/playwright.ps1 install chromium
+pwsh bin/Release/net10.0/playwright.ps1 install chromium
 ```
 
 ### Out of Disk Space

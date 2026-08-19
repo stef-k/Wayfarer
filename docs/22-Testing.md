@@ -52,6 +52,7 @@ Pull Request Merge Gate
 - The .NET rendering test owns a browser cache separate from JavaScript Playwright.
 - Restore and build first so Microsoft.Playwright generates its version-coupled installer.
 - The installer and test process must receive the same absolute `PLAYWRIGHT_BROWSERS_PATH`.
+- CI derives the .NET Chromium cache identity from the generated Release `browsers.json`; package versions and browser revisions are not copied into the key manually.
 
 ```powershell
 dotnet restore
@@ -133,11 +134,17 @@ npm run test:e2e:trip-editor
 - Required keys are `WAYFARER_E2E_BASE_URL`, `WAYFARER_E2E_USERNAME`, `WAYFARER_E2E_PASSWORD`, and `WAYFARER_E2E_TRIP_ID`.
 - Do not commit credentials, screenshots, traces, videos, browser profiles, or Playwright reports.
 - Do not reset passwords or create users for E2E verification unless that action is explicitly approved.
-- Install browser binaries locally when needed:
+- Install JavaScript browser binaries into their own run-owned cache and use that same absolute path for execution:
 
 ```powershell
-npx playwright install
+$jsBrowserCache = [IO.Path]::GetFullPath('.local/playwright/js-browsers')
+New-Item -ItemType Directory -Force $jsBrowserCache | Out-Null
+$env:PLAYWRIGHT_BROWSERS_PATH = $jsBrowserCache
+npx playwright install chromium
+npx playwright test --config=playwright.config.ts
 ```
+
+- Do not use the generated .NET installer or .NET browser cache for JavaScript tests, and do not delete global Playwright caches during local cleanup.
 
 - If browser verification cannot run, report the exact reason, such as missing `WAYFARER_E2E_*` settings, ASP.NET not running, Vite not running, or missing Playwright browser binaries. Do not describe skipped browser checks as passed.
 

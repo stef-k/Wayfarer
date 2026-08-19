@@ -361,7 +361,7 @@ Licensed under the MIT License.
 
 --------------------------------------------------------------------------------
 
-Microsoft.Playwright 1.48.0
+Microsoft.Playwright 1.62.0
 ---------------------------
 https://playwright.dev/dotnet/
 Copyright (c) Microsoft Corporation

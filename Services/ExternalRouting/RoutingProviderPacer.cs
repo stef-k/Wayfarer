@@ -267,7 +267,9 @@ public sealed class RoutingProviderPacer
                 if (_timeProvider.GetElapsedTime(_enqueuedTimestamp) >= MaximumWait) return "routing-timeout";
                 if (!admitRate()) return "routing-rate-limited";
                 source = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                timer = _timeProvider.CreateTimer(_ => source.Cancel(), null, timeout, Timeout.InfiniteTimeSpan);
+                timer = _timeProvider.CreateTimer(
+                    static state => CancelDeadline((CancellationTokenSource)state!), source,
+                    timeout, Timeout.InfiniteTimeSpan);
                 _gate.LastAttemptStart = _timeProvider.GetTimestamp();
                 _disposed = 1;
                 _gate.Active = false;
@@ -277,6 +279,13 @@ public sealed class RoutingProviderPacer
             deadline = new AttemptDeadline(source, timer);
             beginDns(source.Token);
             return null;
+        }
+
+        /// <summary>Cancels an active deadline while tolerating a callback already dispatched during disposal.</summary>
+        private static void CancelDeadline(CancellationTokenSource source)
+        {
+            try { source.Cancel(); }
+            catch (ObjectDisposedException) { }
         }
 
         /// <inheritdoc />

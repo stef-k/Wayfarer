@@ -160,6 +160,25 @@ public sealed class RoutingProviderPacerTests
         Assert.True((await waiting).Succeeded);
     }
 
+    [Fact]
+    public async Task AttemptDeadline_LateTimerCallbackAfterDisposalDoesNotThrow()
+    {
+        var time = new LateCallbackTimeProvider();
+        var pacer = new RoutingProviderPacer(time);
+        var provider = Guid.NewGuid();
+        pacer.ApplyConfiguration(provider, 1, 0);
+        var pacing = await pacer.WaitAsync(provider, 1, CancellationToken.None);
+
+        var error = pacing.Turn!.StartAttempt(
+            TimeSpan.FromSeconds(5), CancellationToken.None, () => true, _ => { }, out var deadline);
+        deadline!.Dispose();
+
+        var exception = Record.Exception(time.FireAfterDisposal);
+
+        Assert.Null(error);
+        Assert.Null(exception);
+    }
+
     private sealed class ManualTimeProvider : TimeProvider
     {
         private readonly object _sync = new(); private readonly List<ManualTimer> _timers = []; private long _timestamp;
@@ -184,6 +203,27 @@ public sealed class RoutingProviderPacerTests
             public void Fire() { if (!Disposed) callback(state); }
             public void Dispose() => Disposed = true;
             public ValueTask DisposeAsync() { Dispose(); return ValueTask.CompletedTask; }
+        }
+    }
+
+    private sealed class LateCallbackTimeProvider : TimeProvider
+    {
+        private TimerCallback? _callback;
+        private object? _state;
+
+        public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
+        {
+            (_callback, _state) = (callback, state);
+            return new DisposedTimer();
+        }
+
+        public void FireAfterDisposal() => _callback!(_state);
+
+        private sealed class DisposedTimer : ITimer
+        {
+            public bool Change(TimeSpan dueTime, TimeSpan period) => true;
+            public void Dispose() { }
+            public ValueTask DisposeAsync() => ValueTask.CompletedTask;
         }
     }
 }
