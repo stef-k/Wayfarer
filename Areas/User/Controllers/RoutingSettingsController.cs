@@ -29,10 +29,11 @@ public sealed class RoutingSettingsController(
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (userId == null) return Challenge();
+        var credential = Request.HasFormContentType ? Request.Form[nameof(model.Credential)].ToString() : null;
         if (ModelState.IsValid)
         {
             var result = await configurations.SaveAsync(
-                userId, model.SelectedProviderConfigurationId, model.Credential, model.RowVersion, cancellationToken);
+                userId, model.SelectedProviderConfigurationId, credential, model.RowVersion, cancellationToken);
             if (result.Missing) return NotFound();
             if (result.Succeeded) return RedirectToAction(nameof(Index));
             ModelState.AddModelError(string.Empty, result.Error!);

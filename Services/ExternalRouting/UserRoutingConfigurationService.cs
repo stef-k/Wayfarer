@@ -17,6 +17,8 @@ public sealed class UserRoutingConfigurationService
     public async Task<UserRoutingMutationResult> SaveAsync(
         string userId, Guid? providerId, string? credential, uint expectedRowVersion, CancellationToken cancellationToken)
     {
+        if (credential?.Length > 2000)
+            return UserRoutingMutationResult.Invalid("The personal credential is too long.");
         var configuration = await _dbContext.Set<UserRoutingConfiguration>()
             .SingleOrDefaultAsync(item => item.UserId == userId, cancellationToken);
         if (configuration == null) return UserRoutingMutationResult.NotFound;

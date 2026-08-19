@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 
 namespace Wayfarer.Areas.User.RoutingModels;
 
@@ -8,7 +9,7 @@ public sealed class RoutingSettingsViewModel
     /// <summary>Gets or sets the selected approved template; null means server default.</summary>
     public Guid? SelectedProviderConfigurationId { get; set; }
     /// <summary>Gets or sets an optional replacement credential. Blank preserves the stored value.</summary>
-    [StringLength(2000)]
+    [BindNever]
     public string? Credential { get; set; }
     /// <summary>Gets whether a protected credential is present.</summary>
     public bool CredentialPresent { get; set; }

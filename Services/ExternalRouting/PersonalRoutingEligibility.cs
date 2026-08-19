@@ -9,9 +9,13 @@ public static class PersonalRoutingEligibility
     public static PersonalRoutingEligibilityResult Evaluate(RoutingProviderConfiguration provider)
     {
         var credentialRequired = provider.PersonalRoutingAccess == PersonalRoutingAccess.CredentialRequired;
+        var endpointValid = Uri.TryCreate(provider.BaseEndpoint, UriKind.Absolute, out var endpoint)
+            && endpoint.Scheme is "https" or "http" && endpoint.UserInfo.Length == 0
+            && endpoint.Query.Length == 0 && endpoint.Fragment.Length == 0
+            && !endpoint.Host.Contains('*', StringComparison.Ordinal);
         var eligible = provider.PersonalRoutingAccess != PersonalRoutingAccess.Disabled
             && provider.Enabled && provider.VerifiedConfigurationVersion == provider.ConfigurationVersion
-            && Uri.TryCreate(provider.BaseEndpoint, UriKind.Absolute, out _)
+            && endpointValid
             && !string.IsNullOrWhiteSpace(provider.Attribution)
             && !string.IsNullOrWhiteSpace(provider.ExternalCoordinateDisclosure)
             && provider.ProfileMappings.Any(mapping => mapping.TransportProfile is { IsActive: true }
