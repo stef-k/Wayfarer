@@ -467,6 +467,14 @@ namespace Wayfarer.Models
 
         public override async Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
         {
+            // Identity owns user creation; attach the required retained default routing row to the same unit of work.
+            foreach (var user in ChangeTracker.Entries<ApplicationUser>()
+                         .Where(entry => entry.State == EntityState.Added).Select(entry => entry.Entity))
+            {
+                if (!ChangeTracker.Entries<UserRoutingConfiguration>().Any(entry => entry.Entity.UserId == user.Id))
+                    UserRoutingConfigurations.Add(UserRoutingConfiguration.CreateServerDefault(user.Id));
+            }
+
             // Automatically set the UpdatedAt field before saving changes to the database
             foreach (var entry in ChangeTracker.Entries<LocationImport>())
             {
