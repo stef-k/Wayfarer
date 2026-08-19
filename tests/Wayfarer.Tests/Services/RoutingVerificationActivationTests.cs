@@ -26,8 +26,10 @@ public sealed class RoutingVerificationActivationTests : TestBase
         db.Set<RoutingProviderConfiguration>().Add(provider);
         db.SaveChanges();
         var transport = new ProbeTransport(ValidResponse());
+        var budgets = new RoutingRequestBudget();
         var verifier = new RoutingProviderVerifier(db, Executor(transport),
-            new RoutingProviderCredentialService(new EphemeralDataProtectionProvider()), new RoutingRequestBudget());
+            new RoutingProviderCredentialService(new EphemeralDataProtectionProvider()),
+            new RoutingAttemptCoordinator(new RoutingProviderPacer(TimeProvider.System), budgets));
 
         var result = await verifier.VerifyAsync(provider.Id, provider.ConfigurationVersion, provider.RowVersion, "admin", CancellationToken.None);
 
@@ -85,7 +87,7 @@ public sealed class RoutingVerificationActivationTests : TestBase
         var result = await verifier.VerifyAsync(
             provider.Id, provider.ConfigurationVersion, provider.RowVersion, "admin", CancellationToken.None);
 
-        Assert.Equal("routing-budget-exhausted", result.ErrorCode);
+        Assert.Equal("routing-rate-limited", result.ErrorCode);
         Assert.Equal(1, transport.Requests);
     }
 
@@ -107,7 +109,7 @@ public sealed class RoutingVerificationActivationTests : TestBase
         var result = await verifier.VerifyAsync(
             provider.Id, provider.ConfigurationVersion, provider.RowVersion, "admin", CancellationToken.None);
 
-        Assert.Equal("routing-budget-exhausted", result.ErrorCode);
+        Assert.Equal("routing-rate-limited", result.ErrorCode);
         Assert.Equal(2, transport.Requests);
     }
 
@@ -131,6 +133,58 @@ public sealed class RoutingVerificationActivationTests : TestBase
 
         Assert.Equal("request-cancelled", result.ErrorCode);
         Assert.NotNull(lease);
+    }
+
+    [Fact]
+    public async Task Verification_RowVersionChangeImmediatelyBeforeContactRejectsWithoutChargingAttempt()
+    {
+        var (db, provider) = ProviderFixture(requestsPerMinute: 1);
+        provider.MinimumIntervalMilliseconds = 1000;
+        db.SaveChanges();
+        var expectedRowVersion = provider.RowVersion;
+        var time = new ControlledTimeProvider();
+        var pacer = new RoutingProviderPacer(time);
+        pacer.ApplyConfiguration(provider.Id, provider.ConfigurationVersion, 1000);
+        var prior = await pacer.WaitAsync(provider.Id, provider.ConfigurationVersion, CancellationToken.None);
+        prior.Turn!.RecordAttemptStart(); prior.Turn.Dispose();
+        var budgets = new RoutingRequestBudget();
+        var resolver = new CountingResolver();
+        var executor = new RoutingBoundedExecutor(
+            resolver, new RoutingEndpointPolicy(Options.Create(new RoutingOutboundOptions())), new ProbeTransport(ValidResponse()));
+        var verifier = new RoutingProviderVerifier(db, executor,
+            new RoutingProviderCredentialService(new EphemeralDataProtectionProvider()),
+            new RoutingAttemptCoordinator(pacer, budgets), time);
+        var verification = verifier.VerifyAsync(
+            provider.Id, provider.ConfigurationVersion, expectedRowVersion, "admin", CancellationToken.None);
+
+        db.Entry(provider).Property(item => item.RowVersion).CurrentValue = expectedRowVersion + 1;
+        db.SaveChanges();
+        time.Advance(TimeSpan.FromSeconds(1));
+        var result = await verification;
+
+        Assert.Equal("provider-configuration-stale", result.ErrorCode);
+        Assert.Equal(0, resolver.Requests);
+        Assert.True(budgets.TryAdmitProviderAttempt(provider.Id, 1));
+    }
+
+    [Fact]
+    public async Task Verification_TotalOperationTimeoutExpiresAtExactlySixHundredSeconds()
+    {
+        var (db, provider) = ProviderFixture(requestsPerMinute: 1);
+        var time = new ControlledTimeProvider();
+        var resolver = new BlockingResolver();
+        var verifier = new RoutingProviderVerifier(db, new RoutingBoundedExecutor(
+                resolver, new RoutingEndpointPolicy(Options.Create(new RoutingOutboundOptions())),
+                new ProbeTransport(ValidResponse())),
+            new RoutingProviderCredentialService(new EphemeralDataProtectionProvider()),
+            new RoutingAttemptCoordinator(new RoutingProviderPacer(time), new RoutingRequestBudget()), time);
+        var pending = verifier.VerifyAsync(
+            provider.Id, provider.ConfigurationVersion, provider.RowVersion, "admin", CancellationToken.None);
+        await resolver.Entered;
+
+        time.Advance(TimeSpan.FromSeconds(600));
+
+        Assert.Equal("routing-timeout", (await pending).ErrorCode);
     }
 
     [Fact]
@@ -177,6 +231,7 @@ public sealed class RoutingVerificationActivationTests : TestBase
         var provider = new RoutingProviderConfiguration
         {
             Id = Guid.NewGuid(), DisplayName = "OSRM", Enabled = true, BaseEndpoint = "https://routing.example",
+            MinimumIntervalMilliseconds = 0,
             VerificationFromLongitude = 23.7, VerificationFromLatitude = 37.9,
             VerificationToLongitude = 23.8, VerificationToLatitude = 38.0
         };
@@ -200,7 +255,8 @@ public sealed class RoutingVerificationActivationTests : TestBase
 
     private static RoutingProviderVerifier Verifier(
         ApplicationDbContext db, IRoutingPinnedTransport transport, RoutingRequestBudget budgets) =>
-        new(db, Executor(transport), new RoutingProviderCredentialService(new EphemeralDataProtectionProvider()), budgets);
+        new(db, Executor(transport), new RoutingProviderCredentialService(new EphemeralDataProtectionProvider()),
+            new RoutingAttemptCoordinator(new RoutingProviderPacer(TimeProvider.System), budgets));
 
     private static RoutingBoundedExecutor Executor(IRoutingPinnedTransport transport) => new(
         new PublicResolver(), new RoutingEndpointPolicy(Options.Create(new RoutingOutboundOptions())), transport);
@@ -216,6 +272,56 @@ public sealed class RoutingVerificationActivationTests : TestBase
     {
         public Task<IReadOnlyList<IPAddress>> ResolveAsync(string host, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<IPAddress>>([IPAddress.Parse("8.8.8.8")]);
+    }
+
+    private sealed class CountingResolver : IRoutingDnsResolver
+    {
+        public int Requests { get; private set; }
+        public Task<IReadOnlyList<IPAddress>> ResolveAsync(string host, CancellationToken cancellationToken)
+        {
+            Requests++;
+            return Task.FromResult<IReadOnlyList<IPAddress>>([IPAddress.Parse("8.8.8.8")]);
+        }
+    }
+
+    private sealed class BlockingResolver : IRoutingDnsResolver
+    {
+        private readonly TaskCompletionSource _entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public Task Entered => _entered.Task;
+        public async Task<IReadOnlyList<IPAddress>> ResolveAsync(string host, CancellationToken cancellationToken)
+        {
+            _entered.TrySetResult();
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            throw new InvalidOperationException("The timed-out verification continued.");
+        }
+    }
+
+    private sealed class ControlledTimeProvider : TimeProvider
+    {
+        private readonly List<ControlledTimer> _timers = [];
+        private long _timestamp;
+        public override long TimestampFrequency => TimeSpan.TicksPerSecond;
+        public override long GetTimestamp() => _timestamp;
+        public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
+        {
+            var timer = new ControlledTimer(callback, state, _timestamp + dueTime.Ticks);
+            _timers.Add(timer);
+            return timer;
+        }
+        public void Advance(TimeSpan duration)
+        {
+            _timestamp += duration.Ticks;
+            foreach (var timer in _timers.Where(item => !item.Disposed && item.Due <= _timestamp).ToArray()) timer.Fire();
+        }
+        private sealed class ControlledTimer(TimerCallback callback, object? state, long due) : ITimer
+        {
+            public long Due { get; private set; } = due;
+            public bool Disposed { get; private set; }
+            public bool Change(TimeSpan dueTime, TimeSpan period) { Due += dueTime.Ticks; return true; }
+            public void Fire() { if (!Disposed) callback(state); }
+            public void Dispose() => Disposed = true;
+            public ValueTask DisposeAsync() { Dispose(); return ValueTask.CompletedTask; }
+        }
     }
 
     private sealed class ProbeTransport(HttpResponseMessage template) : IRoutingPinnedTransport

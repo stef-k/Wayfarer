@@ -16,6 +16,8 @@ public static class ExternalRoutingServiceCollectionExtensions
         services.AddSingleton<IRoutingPinnedTransport>(provider => provider.GetRequiredService<RoutingPinnedTransport>());
         services.AddSingleton<RoutingBoundedExecutor>();
         services.AddSingleton<RoutingRequestBudget>();
+        services.AddSingleton<RoutingProviderPacer>();
+        services.AddScoped<RoutingAttemptCoordinator>();
         services.AddSingleton<IProviderRouteGeometryValidator, ProviderRouteGeometryValidator>();
         services.AddScoped<RoutingProviderCredentialService>();
         services.AddScoped<IOsrmRouteClient, OsrmRouteClient>();

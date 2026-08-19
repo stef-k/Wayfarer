@@ -10,6 +10,10 @@ public sealed class RoutingProviderConfigurationConfiguration : IEntityTypeConfi
     public void Configure(EntityTypeBuilder<RoutingProviderConfiguration> builder)
     {
         builder.ToTable("RoutingProviderConfigurations");
+        builder.Property(item => item.MinimumIntervalMilliseconds).HasDefaultValue(1000);
+        builder.ToTable(table => table.HasCheckConstraint(
+            "CK_RoutingProviderConfigurations_MinimumIntervalMilliseconds",
+            "\"MinimumIntervalMilliseconds\" >= 0 AND \"MinimumIntervalMilliseconds\" <= 60000"));
         builder.Property(item => item.RowVersion).HasColumnName("xmin").IsRowVersion().ValueGeneratedOnAddOrUpdate();
         builder.HasMany(item => item.ProfileMappings).WithOne(item => item.RoutingProviderConfiguration)
             .HasForeignKey(item => item.RoutingProviderConfigurationId).OnDelete(DeleteBehavior.Cascade);

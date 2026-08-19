@@ -129,8 +129,9 @@ public sealed class ExternalRoutingActivationPostgresTests
         {
             await using var clearContext = _fixture.CreateContext();
             await using var enableContext = _fixture.CreateContext();
-            var clear = new RoutingProviderAdministrationService(clearContext, credentials);
-            var enable = new RoutingProviderAdministrationService(enableContext, credentials);
+            var pacer = new RoutingProviderPacer(TimeProvider.System);
+            var clear = new RoutingProviderAdministrationService(clearContext, credentials, pacer);
+            var enable = new RoutingProviderAdministrationService(enableContext, credentials, pacer);
             await Task.WhenAll(
                 clear.ClearCredentialAsync(providerId, true, false, providerRowVersion, settingsRowVersion,
                     "admin-clear", CancellationToken.None),

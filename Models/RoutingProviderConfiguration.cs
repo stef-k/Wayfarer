@@ -78,6 +78,10 @@ public sealed class RoutingProviderConfiguration
     [Range(10, 120)]
     public int RequestsPerMinute { get; set; } = 60;
 
+    /// <summary>Gets or sets the minimum elapsed time between provider attempt starts.</summary>
+    [Range(0, 60000)]
+    public int MinimumIntervalMilliseconds { get; set; } = 1000;
+
     /// <summary>Gets or sets the provider concurrency limit.</summary>
     [Range(1, 8)]
     public int MaxConcurrency { get; set; } = 4;

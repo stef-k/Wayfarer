@@ -13,6 +13,7 @@ public sealed class ExternalRouteProposalGenerator
     private readonly IProviderRouteGeometryValidator? _geometryValidator;
     private readonly ExternalRouteProposalContextService? _proposalContexts;
     private readonly RoutingRequestBudget? _budgets;
+    private readonly TimeProvider _timeProvider = TimeProvider.System;
 
     /// <summary>Initializes the narrow feature-gate seam used by configuration contract tests.</summary>
     public ExternalRouteProposalGenerator(Func<ApplicationSettings> settings) => _settingsForGateTest = settings;
@@ -21,9 +22,12 @@ public sealed class ExternalRouteProposalGenerator
     public ExternalRouteProposalGenerator(
         ApplicationDbContext dbContext, SegmentAggregateTokenService aggregateTokens, IOsrmRouteClient client,
         IProviderRouteGeometryValidator geometryValidator, ExternalRouteProposalContextService proposalContexts,
-        RoutingRequestBudget budgets)
-        => (_dbContext, _aggregateTokens, _client, _geometryValidator, _proposalContexts, _budgets)
+        RoutingRequestBudget budgets, TimeProvider? timeProvider = null)
+    {
+        (_dbContext, _aggregateTokens, _client, _geometryValidator, _proposalContexts, _budgets)
             = (dbContext, aggregateTokens, client, geometryValidator, proposalContexts, budgets);
+        _timeProvider = timeProvider ?? TimeProvider.System;
+    }
 
     /// <summary>Rejects disabled generation without contacting a provider.</summary>
     public Task<ExternalRouteGenerationResult> GenerateAsync(CancellationToken cancellationToken)
@@ -38,21 +42,40 @@ public sealed class ExternalRouteProposalGenerator
     public async Task<ExternalRouteGenerationResult> GenerateAsync(
         string userId, Guid tripId, Guid segmentId, string aggregateConcurrencyToken, CancellationToken cancellationToken)
     {
-        var context = await LoadContextAsync(userId, tripId, segmentId, aggregateConcurrencyToken, cancellationToken);
-        if (!context.Succeeded) return ExternalRouteGenerationResult.Failure(context.ErrorCode!);
-        using var lease = await _budgets!.AcquireAsync(userId, context.Provider!.Id,
-            context.Provider.RequestsPerMinute, context.Provider.MaxConcurrency, cancellationToken);
-        if (lease == null) return ExternalRouteGenerationResult.Failure("routing-budget-exhausted");
+        using var operationTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        using var operationTimer = _timeProvider.CreateTimer(
+            _ => operationTimeout.Cancel(), null, TimeSpan.FromSeconds(300), Timeout.InfiniteTimeSpan);
+        try
+        {
+            var result = await GenerateCoreAsync(
+                userId, tripId, segmentId, aggregateConcurrencyToken, operationTimeout.Token);
+            return operationTimeout.IsCancellationRequested && !cancellationToken.IsCancellationRequested
+                ? ExternalRouteGenerationResult.Failure("routing-timeout") : result;
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        { return ExternalRouteGenerationResult.Failure("routing-timeout"); }
+        catch (OperationCanceledException)
+        { return ExternalRouteGenerationResult.Failure("request-cancelled"); }
+    }
 
-        var providerResult = await _client!.RouteAsync(context.Provider, context.OsrmProfile!, context.Anchors!, lease, cancellationToken);
+    private async Task<ExternalRouteGenerationResult> GenerateCoreAsync(
+        string userId, Guid tripId, Guid segmentId, string aggregateConcurrencyToken, CancellationToken operationToken)
+    {
+        var context = await LoadContextAsync(userId, tripId, segmentId, aggregateConcurrencyToken, operationToken);
+        if (!context.Succeeded) return ExternalRouteGenerationResult.Failure(context.ErrorCode!);
+        if (!_budgets!.TryAdmitUserGeneration(userId))
+            return ExternalRouteGenerationResult.Failure("routing-budget-exhausted");
+
+        var providerResult = await _client!.RouteAsync(context.Provider!, context.OsrmProfile!, context.Anchors!,
+            token => IsCurrentAsync(context, userId, tripId, segmentId, aggregateConcurrencyToken, token), operationToken);
         if (!providerResult.Succeeded) return ExternalRouteGenerationResult.Failure(providerResult.ErrorCode!);
-        var validated = _geometryValidator!.Validate(context.Anchors!, providerResult, cancellationToken);
+        var validated = _geometryValidator!.Validate(context.Anchors!, providerResult, operationToken);
         if (!validated.Succeeded) return ExternalRouteGenerationResult.Failure(validated.ErrorCode!);
 
-        var finalContext = await LoadContextAsync(userId, tripId, segmentId, aggregateConcurrencyToken, cancellationToken);
+        var finalContext = await LoadContextAsync(userId, tripId, segmentId, aggregateConcurrencyToken, operationToken);
         if (!finalContext.Succeeded || finalContext.Fingerprint != context.Fingerprint
             || finalContext.TransportProfileId != context.TransportProfileId
-            || finalContext.Provider!.Id != context.Provider.Id
+            || finalContext.Provider!.Id != context.Provider!.Id
             || finalContext.Provider.ConfigurationVersion != context.Provider.ConfigurationVersion
             || finalContext.FeatureStateGeneration != context.FeatureStateGeneration)
             return ExternalRouteGenerationResult.Failure("route-proposal-context-stale");
@@ -67,6 +90,17 @@ public sealed class ExternalRouteProposalGenerator
         var proposal = new ExternalRouteProposalDto(proposalId, segmentId, validated.Geometry!, validated.WaypointIndices!,
             protectedContext.Token, protectedContext.ExpiresAt);
         return new ExternalRouteGenerationResult(true, null, proposal);
+    }
+
+    private async Task<bool> IsCurrentAsync(
+        GenerationContext original, string userId, Guid tripId, Guid segmentId, string aggregateToken,
+        CancellationToken cancellationToken)
+    {
+        var current = await LoadContextAsync(userId, tripId, segmentId, aggregateToken, cancellationToken);
+        return current.Succeeded && current.Provider!.Id == original.Provider!.Id
+            && current.Provider.ConfigurationVersion == original.Provider.ConfigurationVersion
+            && current.FeatureStateGeneration == original.FeatureStateGeneration
+            && current.TransportProfileId == original.TransportProfileId && current.Fingerprint == original.Fingerprint;
     }
 
     private async Task<GenerationContext> LoadContextAsync(

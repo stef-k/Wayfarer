@@ -16,11 +16,30 @@ public sealed class RoutingRequestBudget
     /// <summary>Initializes budgets with an injectable clock for deterministic tests.</summary>
     public RoutingRequestBudget(TimeProvider? timeProvider = null) => _timeProvider = timeProvider ?? TimeProvider.System;
 
+    /// <summary>Admits one complete generation operation against the per-user window.</summary>
+    public bool TryAdmitUserGeneration(string userId) =>
+        _userWindows.GetOrAdd(userId, _ => new SlidingWindow()).TryTake(UserGenerationsPerMinute, _timeProvider.GetUtcNow());
+
+    /// <summary>Acquires fail-fast global then durable provider concurrency for one actual attempt.</summary>
+    public async Task<RoutingConcurrencyLease?> AcquireAttemptConcurrencyAsync(
+        Guid providerId, int providerMaxConcurrency, CancellationToken cancellationToken)
+    {
+        if (!await _global.WaitAsync(0, cancellationToken)) return null;
+        var providerGate = _providerConcurrency.GetOrAdd(providerId, _ => new ProviderGate());
+        if (!providerGate.TryAcquire(providerMaxConcurrency)) { _global.Release(); return null; }
+        return new RoutingConcurrencyLease(_global, providerGate.Release);
+    }
+
+    /// <summary>Charges exactly one actual provider attempt against its rolling window.</summary>
+    public bool TryAdmitProviderAttempt(Guid providerId, int requestsPerMinute) =>
+        _providerWindows.GetOrAdd(providerId, _ => new SlidingWindow())
+            .TryTake(requestsPerMinute, _timeProvider.GetUtcNow());
+
     /// <summary>Admits one user generation and acquires provider/global concurrency.</summary>
     public async Task<RoutingBudgetLease?> AcquireAsync(
         string userId, Guid providerId, int providerRequestsPerMinute, int providerMaxConcurrency, CancellationToken cancellationToken)
     {
-        if (!_userWindows.GetOrAdd(userId, _ => new SlidingWindow()).TryTake(UserGenerationsPerMinute, _timeProvider.GetUtcNow()))
+        if (!TryAdmitUserGeneration(userId))
             return null;
         if (!await _global.WaitAsync(0, cancellationToken)) return null;
         var providerGate = _providerConcurrency.GetOrAdd(providerId, _ => new ProviderGate());
@@ -85,6 +104,25 @@ public sealed class RoutingRequestBudget
                 return true;
             }
         }
+    }
+}
+
+/// <summary>Holds global and provider capacity for exactly one DNS/send/response attempt.</summary>
+public sealed class RoutingConcurrencyLease : IDisposable
+{
+    private readonly SemaphoreSlim _global;
+    private readonly Action _releaseProvider;
+    private int _disposed;
+
+    internal RoutingConcurrencyLease(SemaphoreSlim global, Action releaseProvider)
+        => (_global, _releaseProvider) = (global, releaseProvider);
+
+    /// <inheritdoc />
+    public void Dispose()
+    {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+        _releaseProvider();
+        _global.Release();
     }
 }
 

@@ -46,6 +46,7 @@ public sealed class RoutingProviderController : Controller
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> Create(RoutingProviderEditViewModel model, CancellationToken cancellationToken)
     {
+        ValidateMinimumInterval(model);
         if (!ModelState.IsValid) return View(await PopulateMappingsAsync(model, cancellationToken));
         var result = await _administration.SaveAsync(model, AdministratorId(), cancellationToken);
         if (!result.Succeeded)
@@ -74,6 +75,7 @@ public sealed class RoutingProviderController : Controller
     public async Task<IActionResult> Edit(Guid id, RoutingProviderEditViewModel model, CancellationToken cancellationToken)
     {
         if (id != model.Id) return NotFound();
+        ValidateMinimumInterval(model);
         if (!ModelState.IsValid) return View(await PopulateMappingsAsync(model, cancellationToken));
         var result = await _administration.SaveAsync(model, AdministratorId(), cancellationToken);
         if (!result.Succeeded)
@@ -151,10 +153,18 @@ public sealed class RoutingProviderController : Controller
         VerificationToLongitude = provider.VerificationToLongitude, VerificationToLatitude = provider.VerificationToLatitude,
         GenerationTimeoutSeconds = provider.GenerationTimeoutSeconds, ResponseSizeLimitBytes = provider.ResponseSizeLimitBytes,
         RequestsPerMinute = provider.RequestsPerMinute, MaxConcurrency = provider.MaxConcurrency,
+        MinimumIntervalSeconds = RoutingMinimumIntervalConverter.Format(provider.MinimumIntervalMilliseconds),
         RowVersion = provider.RowVersion, ConfigurationVersion = provider.ConfigurationVersion,
         Mappings = provider.ProfileMappings.Select(item => new RoutingProviderMappingViewModel
             { TransportProfileId = item.TransportProfileId, OsrmProfile = item.OsrmProfile }).ToList()
     };
+
+    private void ValidateMinimumInterval(RoutingProviderEditViewModel model)
+    {
+        if (!RoutingMinimumIntervalConverter.TryParse(model.MinimumIntervalSeconds, out _))
+            ModelState.AddModelError(nameof(model.MinimumIntervalSeconds),
+                "Use plain decimal seconds from 0.0 through 60.0 with at most one fractional digit.");
+    }
 
     private string AdministratorId() => User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "admin";
     private void Success(string message) => SetResult(true, message);
