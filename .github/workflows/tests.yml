@@ -24,7 +24,7 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           changed_files="$(git diff --name-only "$BASE_SHA" "$HEAD_SHA")"
-          if [ -n "$changed_files" ] && ! grep -Eqv '^(docs/.*|.*\.md)$' <<< "$changed_files"; then
+          if [ -n "$changed_files" ] && grep -Eqv '^(docs/.*|.*\.md)$' <<< "$changed_files"; then
             echo "run_full=true" >> "$GITHUB_OUTPUT"
           else
             echo "run_full=false" >> "$GITHUB_OUTPUT"
