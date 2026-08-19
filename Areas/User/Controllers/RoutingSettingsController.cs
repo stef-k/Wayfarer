@@ -11,7 +11,8 @@ namespace Wayfarer.Areas.User.Controllers;
 /// <summary>Manages only the authenticated user's approved personal routing selection.</summary>
 [Area("User"), Authorize(Roles = "User")]
 public sealed class RoutingSettingsController(
-    ApplicationDbContext dbContext, UserRoutingConfigurationService configurations) : Controller
+    ApplicationDbContext dbContext, UserRoutingConfigurationService configurations,
+    PersonalRoutingVerificationService verification, UserRoutingCredentialService credentials) : Controller
 {
     /// <summary>Displays masked current-user routing settings.</summary>
     public async Task<IActionResult> Index(CancellationToken cancellationToken)
@@ -52,6 +53,19 @@ public sealed class RoutingSettingsController(
         return RedirectToAction(nameof(Index));
     }
 
+    /// <summary>Verifies the current user's required personal credential.</summary>
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> Verify(uint rowVersion, CancellationToken cancellationToken)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId == null) return Challenge();
+        var result = await verification.VerifyAsync(userId, rowVersion, cancellationToken);
+        TempData["AlertType"] = result.Succeeded ? "success" : "danger";
+        TempData["AlertMessage"] = result.Succeeded
+            ? "Personal routing credential verified." : "Personal routing verification is unavailable or stale.";
+        return RedirectToAction(nameof(Index));
+    }
+
     private async Task<RoutingSettingsViewModel?> BuildAsync(
         string userId, RoutingSettingsViewModel? submitted, CancellationToken cancellationToken)
     {
@@ -65,11 +79,29 @@ public sealed class RoutingSettingsController(
             .Select(item => new RoutingTemplateViewModel(item.Id, item.DisplayName,
                 item.PersonalRoutingAccess == PersonalRoutingAccess.CredentialRequired,
                 item.ExternalCoordinateDisclosure!)).ToArray();
+        var status = ResolveStatus(configuration, providers);
         return new RoutingSettingsViewModel
         {
             SelectedProviderConfigurationId = submitted?.SelectedProviderConfigurationId ?? configuration.SelectedProviderConfigurationId,
             CredentialPresent = configuration.CredentialPresent, RowVersion = configuration.RowVersion,
-            Status = configuration.VerificationStatus == "verified" ? "Verified" : "Ready", Templates = templates
+            Status = status, Templates = templates
         };
+    }
+
+    private string ResolveStatus(
+        UserRoutingConfiguration configuration, IReadOnlyList<RoutingProviderConfiguration> providers)
+    {
+        if (configuration.SelectedProviderConfigurationId == null) return "Ready";
+        var provider = providers.SingleOrDefault(item => item.Id == configuration.SelectedProviderConfigurationId);
+        if (provider == null || !PersonalRoutingEligibility.Evaluate(provider).Eligible) return "Unavailable";
+        if (provider.PersonalRoutingAccess == PersonalRoutingAccess.CredentialFree)
+            return configuration.CredentialPresent ? "Unavailable" : "Ready";
+        if (!configuration.CredentialPresent
+            || !credentials.Unprotect(configuration.UserId, provider.Id, configuration.CredentialCiphertext).Succeeded)
+            return "Unavailable";
+        return configuration.VerificationStatus == "verified"
+            && configuration.VerifiedUserConfigurationVersion == configuration.ConfigurationVersion
+            && configuration.VerifiedProviderConfigurationVersion == provider.ConfigurationVersion
+            ? "Verified" : "Ready";
     }
 }

@@ -32,16 +32,21 @@ public sealed class UserRoutingConfigurationService
                 .ThenInclude(item => item.TransportProfile).SingleOrDefaultAsync(item => item.Id == providerId, cancellationToken);
             if (provider == null || !PersonalRoutingEligibility.Evaluate(provider).Eligible)
                 return UserRoutingMutationResult.NotFound;
+            if (provider.PersonalRoutingAccess == PersonalRoutingAccess.CredentialFree
+                && !string.IsNullOrWhiteSpace(credential))
+                return UserRoutingMutationResult.Invalid("This template does not accept a personal credential.");
+            if (provider.PersonalRoutingAccess == PersonalRoutingAccess.CredentialRequired
+                && string.IsNullOrWhiteSpace(credential)
+                && (configuration.SelectedProviderConfigurationId != provider.Id || !configuration.CredentialPresent))
+                return UserRoutingMutationResult.Invalid("Enter a personal credential for this template.");
             configuration.SelectPersonalProvider(provider.Id);
             if (provider.PersonalRoutingAccess == PersonalRoutingAccess.CredentialFree)
             {
-                if (!string.IsNullOrWhiteSpace(credential)) return UserRoutingMutationResult.Invalid("This template does not accept a personal credential.");
+                configuration.InvalidateVerification();
             }
             else
             {
                 _credentials.Replace(configuration, provider.Id, credential);
-                if (!configuration.CredentialPresent)
-                    return UserRoutingMutationResult.Invalid("Enter a personal credential for this template.");
             }
             Audit(userId, "UserRoutingSelection", provider.Id, "approved template selected");
         }
@@ -59,7 +64,8 @@ public sealed class UserRoutingConfigurationService
             .SingleOrDefaultAsync(item => item.UserId == userId, cancellationToken);
         if (configuration == null) return UserRoutingMutationResult.NotFound;
         if (configuration.RowVersion != expectedRowVersion) return UserRoutingMutationResult.Conflict;
-        _credentials.Clear(configuration, true);
+        if (!_credentials.Clear(configuration, true))
+            return UserRoutingMutationResult.Invalid("No personal credential is stored.");
         Audit(userId, "UserRoutingCredentialClear", configuration.SelectedProviderConfigurationId, "credential cleared");
         try { await _dbContext.SaveChangesAsync(cancellationToken); }
         catch (DbUpdateConcurrencyException) { return UserRoutingMutationResult.Conflict; }
