@@ -67,7 +67,8 @@ public sealed class RoutingProviderVerifier : IRoutingProviderVerifier
             var execution = await _executor.GetJsonAsync(new Uri(provider.BaseEndpoint!), request,
                 provider.ResponseSizeLimitBytes, TimeSpan.FromSeconds(5), operationToken, credential.Credential,
                 prepareAttempt: token => _attempts.PrepareAsync(provider,
-                    inner => IsCurrentForVerificationAsync(providerId, expectedVersion, profile, inner), token));
+                    inner => IsCurrentForVerificationAsync(
+                        providerId, expectedVersion, expectedRowVersion, profile, inner), token));
             if (!execution.Succeeded)
             {
                 var category = execution.ErrorCode!;
@@ -95,12 +96,13 @@ public sealed class RoutingProviderVerifier : IRoutingProviderVerifier
     }
 
     private async Task<bool> IsCurrentForVerificationAsync(
-        Guid providerId, int expectedVersion, string profile, CancellationToken cancellationToken)
+        Guid providerId, int expectedVersion, uint expectedRowVersion, string profile, CancellationToken cancellationToken)
     {
         var current = await _dbContext.Set<RoutingProviderConfiguration>().AsNoTracking()
             .Include(item => item.ProfileMappings).ThenInclude(item => item.TransportProfile)
             .SingleOrDefaultAsync(item => item.Id == providerId, cancellationToken);
         return current is { Enabled: true } && current.ConfigurationVersion == expectedVersion
+            && current.RowVersion == expectedRowVersion
             && current.ProfileMappings.Any(mapping => mapping.OsrmProfile == profile
                 && mapping.TransportProfile is { IsActive: true });
     }
