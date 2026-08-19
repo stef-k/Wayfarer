@@ -91,6 +91,20 @@ public sealed class ExternalRouteProposalAcceptanceTests : TestBase
         Assert.Equal("route-proposal-stale", result.ErrorCode);
     }
 
+    [Fact]
+    public async Task Accept_RejectsSelectionModeAndUserConfigurationVersionChange()
+    {
+        var fixture = CreateFixture();
+        var configuration = fixture.Db.Set<UserRoutingConfiguration>().Single();
+        configuration.SelectPersonalProvider(fixture.Db.Set<RoutingProviderConfiguration>().Single().Id);
+        fixture.Db.SaveChanges();
+
+        var result = await fixture.Service.AcceptAsync(fixture.UserId, fixture.TripId, fixture.Segment.Id,
+            fixture.ProposalId, fixture.Geometry, fixture.Indices, fixture.Token, CancellationToken.None);
+
+        Assert.Equal("route-proposal-stale", result.ErrorCode);
+    }
+
     private Fixture CreateFixture()
     {
         const string userId = "owner";
@@ -124,6 +138,7 @@ public sealed class ExternalRouteProposalAcceptanceTests : TestBase
         db.Set<Place>().AddRange(from, via, to);
         db.Set<Segment>().Add(segment);
         db.Set<RoutingProviderConfiguration>().Add(provider);
+        db.Set<UserRoutingConfiguration>().Add(UserRoutingConfiguration.CreateServerDefault(userId));
         db.ApplicationSettings.Add(new ApplicationSettings
         {
             Id = 1, ExternalRouteGenerationEnabled = true, ExternalRouteGenerationVersion = 2,
