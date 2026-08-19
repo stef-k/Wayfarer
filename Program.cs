@@ -6,10 +6,7 @@ using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.OpenApi.Any;
-using Microsoft.OpenApi.Models;
 using MvcFrontendKit.Extensions;
-using NetTopologySuite.Geometries;
 using Microsoft.Extensions.Options;
 using Wayfarer.Models.Options;
 using Quartz;
@@ -511,35 +508,7 @@ static void ConfigureServices(WebApplicationBuilder builder)
 
 
     // Add Swagger generation
-    builder.Services.AddSwaggerGen(c =>
-    {
-        c.SwaggerDoc("v1", new OpenApiInfo { Title = "Wayfarer API" });
-
-        // Custom Point converter in Swagger
-        // Directly configure how 'Point' is represented in Swagger UI
-        c.MapType<Point>(() => new OpenApiSchema
-        {
-            Type = "string",
-            Format = "wkt", // Optional: specify Well-Known Text format (WKT)
-            Description = "The coordinates in WKT format (Point)",
-            Example = new OpenApiString("48.8588443, 2.2943506"), // Example of WKT format
-            Nullable = false // Explicitly set 'Nullable' to false
-        });
-
-
-        // Apply the schema filter to hide PostGIS types
-        c.DocumentFilter<RemovePostGisSchemasDocumentFilter>();
-
-        // Use a predicate to include only actions within the "Api" area
-        c.DocInclusionPredicate((docName, apiDesc) =>
-        {
-            var actionDescriptor = apiDesc.ActionDescriptor;
-
-            // Check if the action descriptor has the "area" route value set to "Api"
-            return actionDescriptor.RouteValues.ContainsKey("area") &&
-                   actionDescriptor.RouteValues["area"] == "Api";
-        });
-    });
+    builder.Services.AddSwaggerGen(WayfarerSwaggerConfiguration.Configure);
 
     // PostGIS POINT JSON converter for JSON serialization
     builder.Services.AddControllers()
