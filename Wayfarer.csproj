@@ -18,7 +18,7 @@
 
     <ItemGroup>
         <PackageReference Include="CsvHelper" Version="33.1.0" />
-        <PackageReference Include="GeoTimeZone" Version="6.0.0" />
+        <PackageReference Include="GeoTimeZone" Version="6.1.0" />
         <PackageReference Include="HtmlSanitizer" Version="9.2.995" />
 
 
@@ -37,20 +37,20 @@
             <PrivateAssets>all</PrivateAssets>
         </PackageReference>
 
-        <PackageReference Include="MvcFrontendKit" Version="1.0.0" />
+        <PackageReference Include="MvcFrontendKit" Version="1.1.0" />
         <PackageReference Include="NetTopologySuite" Version="2.6.0" />
         <PackageReference Include="NetTopologySuite.Features" Version="2.2.0" />
         <PackageReference Include="NetTopologySuite.IO.GeoJSON" Version="4.0.0" />
-        <PackageReference Include="NodaTime" Version="3.2.2" />
+        <PackageReference Include="NodaTime" Version="3.3.3" />
         <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
         <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL.NetTopologySuite" Version="10.0.3" />
         <PackageReference Include="Microsoft.Playwright" Version="1.48.0" />
-        <PackageReference Include="Quartz" Version="3.14.0" />
-        <PackageReference Include="Quartz.Extensions.DependencyInjection" Version="3.14.0" />
-        <PackageReference Include="Quartz.Serialization.Json" Version="3.14.0" />
-        <PackageReference Include="Serilog" Version="4.3.0" />
+        <PackageReference Include="Quartz" Version="3.19.1" />
+        <PackageReference Include="Quartz.Extensions.DependencyInjection" Version="3.19.1" />
+        <PackageReference Include="Quartz.Serialization.Json" Version="3.19.1" />
+        <PackageReference Include="Serilog" Version="4.4.0" />
         <PackageReference Include="Serilog.Extensions.Logging" Version="9.0.2" />
-        <PackageReference Include="Serilog.Sinks.Console" Version="6.0.0" />
+        <PackageReference Include="Serilog.Sinks.Console" Version="6.1.1" />
         <PackageReference Include="Serilog.Sinks.File" Version="7.0.0" />
         <PackageReference Include="Serilog.Sinks.PostgreSQL" Version="2.3.0" />
         <PackageReference Include="SixLabors.ImageSharp" Version="3.1.12" />
@@ -58,7 +58,7 @@
         <!-- Swashbuckle locked at 9.0.1 -->
         <PackageReference Include="Swashbuckle.AspNetCore" Version="9.0.3" />
 
-        <PackageReference Include="TimeZoneConverter" Version="7.0.0" />
+        <PackageReference Include="TimeZoneConverter" Version="7.2.0" />
 
         <PackageReference Include="Unidecode.NET" Version="2.2.1" />
     </ItemGroup>

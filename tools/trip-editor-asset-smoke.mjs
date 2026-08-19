@@ -304,6 +304,7 @@ async function runPublishedSmoke() {
 async function preparePublishedOutput() {
   safeRemoveDirectory(publishDir);
   fs.mkdirSync(publishDir, { recursive: true });
+  runCommand(dotnetCommand, ['tool', 'restore'], 'dotnet tool restore');
   runCommand(dotnetCommand, ['frontend', 'build'], 'dotnet frontend build');
   runCommand(npmCommand, ['run', 'build'], 'npm run build');
   runCommand(dotnetCommand, ['publish', 'Wayfarer.csproj', '-c', 'Release', '-o', publishDir], 'dotnet publish Wayfarer.csproj -c Release');

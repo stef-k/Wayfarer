@@ -273,6 +273,7 @@ cd /var/www/wayfarer
 
 # Restore and build frontend prerequisites
 dotnet restore
+dotnet tool restore
 dotnet frontend build
 npm ci
 npm run build
@@ -416,6 +417,7 @@ sudo -u postgres pg_dump wayfarer > wayfarer-backup-$(date +%Y%m%d).sql
 # Pull and build
 cd /home/youruser/Wayfarer
 git pull origin main
+dotnet tool restore
 dotnet frontend build
 npm ci
 npm run build

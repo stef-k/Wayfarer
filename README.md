@@ -117,7 +117,8 @@ See `docs/22-Testing.md` for the required variables, local file format, and
 browser install command. Do not reset passwords or create users for this harness
 unless that is explicitly approved.
 
-Production-like bundle acceptance should build frontend prerequisites with
+Production-like bundle acceptance should restore repository-local .NET tools,
+then build frontend prerequisites with `dotnet tool restore`,
 `dotnet frontend build`, `npm ci`, and `npm run build` before `dotnet publish`.
 Run the published output rather than source-tree
 `ASPNETCORE_ENVIRONMENT=Production dotnet run`; published output is the supported
