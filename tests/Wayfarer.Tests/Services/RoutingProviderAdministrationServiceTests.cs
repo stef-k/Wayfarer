@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.EntityFrameworkCore;
 using Wayfarer.Areas.Admin.Models;
 using Wayfarer.Models;
 using Wayfarer.Services.ExternalRouting;
@@ -300,6 +301,42 @@ public sealed class RoutingProviderAdministrationServiceTests : TestBase
         var result = await fixture.Service.SaveAsync(Model(fixture), "admin", CancellationToken.None);
 
         Assert.False(result.Succeeded);
+    }
+
+    [Fact]
+    public async Task Save_UndefinedPersonalAccessRejectsWithoutMutatingProviderUserOrAuditState()
+    {
+        const string userId = "undefined-access-owner";
+        var fixture = CreateFixture(requiredCredential: true, featureEnabled: false);
+        fixture.Provider.PersonalRoutingAccess = PersonalRoutingAccess.CredentialRequired;
+        var configuration = UserRoutingConfiguration.CreateServerDefault(userId);
+        configuration.SelectPersonalProvider(fixture.Provider.Id);
+        new UserRoutingCredentialService(new EphemeralDataProtectionProvider())
+            .Replace(configuration, fixture.Provider.Id, "personal-secret");
+        configuration.VerifiedUserConfigurationVersion = configuration.ConfigurationVersion;
+        configuration.VerifiedProviderConfigurationVersion = fixture.Provider.ConfigurationVersion;
+        configuration.VerificationStatus = "verified";
+        fixture.Db.Set<UserRoutingConfiguration>().Add(configuration);
+        fixture.Db.SaveChanges();
+        var providerValues = fixture.Db.Entry(fixture.Provider).CurrentValues.Clone();
+        var userValues = fixture.Db.Entry(configuration).CurrentValues.Clone();
+        var auditCount = fixture.Db.AuditLogs.Count();
+        var model = Model(fixture);
+        model.PersonalRoutingAccess = (PersonalRoutingAccess)999;
+        model.DisplayName = "Must not persist";
+        model.Credential = "replacement-secret";
+
+        var result = await fixture.Service.SaveAsync(model, "admin", CancellationToken.None);
+
+        Assert.False(result.Succeeded);
+        Assert.Equal(providerValues.Properties.Select(property => providerValues[property]),
+            fixture.Db.Entry(fixture.Provider).CurrentValues.Properties.Select(
+                property => fixture.Db.Entry(fixture.Provider).CurrentValues[property]));
+        Assert.Equal(userValues.Properties.Select(property => userValues[property]),
+            fixture.Db.Entry(configuration).CurrentValues.Properties.Select(
+                property => fixture.Db.Entry(configuration).CurrentValues[property]));
+        Assert.Equal(auditCount, fixture.Db.AuditLogs.Count());
+        Assert.DoesNotContain(fixture.Db.ChangeTracker.Entries(), entry => entry.State != EntityState.Unchanged);
     }
 
     [Fact]

@@ -56,6 +56,28 @@ public sealed class UserRoutingConfigurationPostgresTests(PostgresImportTestFixt
                      "MinimumIntervalMilliseconds", "MaxConcurrency", "PersonalRoutingAccess")
                 VALUES ({{providerId}}, {{"Personal fixture"}}, 1, FALSE, FALSE, TRUE, 1, 15, 1048576, 60, 0, 4, 2)
                 """);
+            foreach (var access in Enum.GetValues<PersonalRoutingAccess>())
+            {
+                await context.Database.ExecuteSqlInterpolatedAsync($$"""
+                    UPDATE "RoutingProviderConfigurations" SET "PersonalRoutingAccess" = {{(int)access}}
+                    WHERE "Id" = {{providerId}}
+                    """);
+                Assert.Equal(access, (await context.Set<RoutingProviderConfiguration>().AsNoTracking()
+                    .SingleAsync(item => item.Id == providerId)).PersonalRoutingAccess);
+            }
+            foreach (var undefinedAccess in new[] { 999, -1 })
+            {
+                await Assert.ThrowsAsync<PostgresException>(() => context.Database.ExecuteSqlInterpolatedAsync($$"""
+                    UPDATE "RoutingProviderConfigurations" SET "PersonalRoutingAccess" = {{undefinedAccess}}
+                    WHERE "Id" = {{providerId}}
+                    """));
+                context.ChangeTracker.Clear();
+                Assert.Equal(PersonalRoutingAccess.CredentialFree,
+                    (await context.Set<RoutingProviderConfiguration>().AsNoTracking()
+                        .SingleAsync(item => item.Id == providerId)).PersonalRoutingAccess);
+                Assert.Equal(2, await context.Set<UserRoutingConfiguration>().CountAsync(item =>
+                    item.UserId == legacyUserId || item.UserId == futureUserId));
+            }
             await context.Database.ExecuteSqlInterpolatedAsync($$"""
                 UPDATE "UserRoutingConfigurations" SET "SelectedProviderConfigurationId" = {{providerId}}
                 WHERE "UserId" = {{legacyUserId}}
