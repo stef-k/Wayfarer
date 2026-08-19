@@ -43,6 +43,28 @@ public sealed class RoutingProviderAdministrationServiceTests : TestBase
     }
 
     [Fact]
+    public async Task Save_EachEnabledTransitionIncrementsVersionAndInvalidatesVerification()
+    {
+        var fixture = CreateFixture(requiredCredential: false, featureEnabled: false);
+        var originalVersion = fixture.Provider.ConfigurationVersion;
+        var disable = Model(fixture);
+        disable.Enabled = false;
+
+        Assert.True((await fixture.Service.SaveAsync(disable, "admin", CancellationToken.None)).Succeeded);
+        Assert.Equal(originalVersion + 1, fixture.Provider.ConfigurationVersion);
+        Assert.Null(fixture.Provider.VerifiedConfigurationVersion);
+
+        fixture.Provider.VerifiedConfigurationVersion = fixture.Provider.ConfigurationVersion;
+        fixture.Db.SaveChanges();
+        var reenable = Model(fixture);
+        reenable.Enabled = true;
+
+        Assert.True((await fixture.Service.SaveAsync(reenable, "admin", CancellationToken.None)).Succeeded);
+        Assert.Equal(originalVersion + 2, fixture.Provider.ConfigurationVersion);
+        Assert.Null(fixture.Provider.VerifiedConfigurationVersion);
+    }
+
+    [Fact]
     public async Task Save_PersonalAccessChangeIncrementsVersionInvalidatesVerificationAndAuditsSafely()
     {
         var fixture = CreateFixture(requiredCredential: false, featureEnabled: false);

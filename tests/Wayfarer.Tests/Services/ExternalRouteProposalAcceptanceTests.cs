@@ -105,7 +105,23 @@ public sealed class ExternalRouteProposalAcceptanceTests : TestBase
         Assert.Equal("route-proposal-stale", result.ErrorCode);
     }
 
-    private Fixture CreateFixture()
+    [Fact]
+    public async Task Accept_RejectsPersonalProposalAfterProviderDisableAndReenable()
+    {
+        var fixture = CreateFixture(personal: true);
+        var provider = fixture.Db.Set<RoutingProviderConfiguration>().Single();
+        provider.Enabled = false;
+        fixture.Db.SaveChanges();
+        provider.Enabled = true;
+        fixture.Db.SaveChanges();
+
+        var result = await fixture.Service.AcceptAsync(fixture.UserId, fixture.TripId, fixture.Segment.Id,
+            fixture.ProposalId, fixture.Geometry, fixture.Indices, fixture.Token, CancellationToken.None);
+
+        Assert.Equal("route-proposal-stale", result.ErrorCode);
+    }
+
+    private Fixture CreateFixture(bool personal = false)
     {
         const string userId = "owner";
         var db = CreateDbContext();
@@ -127,7 +143,9 @@ public sealed class ExternalRouteProposalAcceptanceTests : TestBase
         var provider = new RoutingProviderConfiguration
         {
             Id = Guid.NewGuid(), DisplayName = "OSRM", Enabled = true, BaseEndpoint = "https://routing.example",
-            ConfigurationVersion = 3, VerifiedConfigurationVersion = 3
+            ConfigurationVersion = 3, VerifiedConfigurationVersion = 3,
+            PersonalRoutingAccess = personal ? PersonalRoutingAccess.CredentialFree : PersonalRoutingAccess.Disabled,
+            Attribution = "Attribution", ExternalCoordinateDisclosure = "Coordinates leave Wayfarer."
         };
         provider.ProfileMappings.Add(new RoutingProviderProfileMapping
         {
@@ -138,7 +156,9 @@ public sealed class ExternalRouteProposalAcceptanceTests : TestBase
         db.Set<Place>().AddRange(from, via, to);
         db.Set<Segment>().Add(segment);
         db.Set<RoutingProviderConfiguration>().Add(provider);
-        db.Set<UserRoutingConfiguration>().Add(UserRoutingConfiguration.CreateServerDefault(userId));
+        var userConfiguration = UserRoutingConfiguration.CreateServerDefault(userId);
+        if (personal) userConfiguration.SelectPersonalProvider(provider.Id);
+        db.Set<UserRoutingConfiguration>().Add(userConfiguration);
         db.ApplicationSettings.Add(new ApplicationSettings
         {
             Id = 1, ExternalRouteGenerationEnabled = true, ExternalRouteGenerationVersion = 2,
@@ -152,7 +172,9 @@ public sealed class ExternalRouteProposalAcceptanceTests : TestBase
         var places = new Place?[] { from, via, to };
         var binding = new ExternalRouteProposalBinding(
             proposalId, tripId, segment.Id, userId, ExternalRouteProposalContextService.GeometryHash(geometry, indices),
-            ExternalRouteAnchorFingerprint.Compute(places, geometry), profile.Id, provider.Id, 3, 2, aggregateToken);
+            ExternalRouteAnchorFingerprint.Compute(places, geometry), profile.Id, provider.Id, 3, 2, aggregateToken,
+            personal ? RoutingProviderSelectionMode.Personal : RoutingProviderSelectionMode.ServerDefault,
+            userConfiguration.ConfigurationVersion);
         var token = contexts.Issue(binding).Token;
         db.ChangeTracker.Clear();
         var resolver = new AuthoritativeRoutingProviderResolver(db,
