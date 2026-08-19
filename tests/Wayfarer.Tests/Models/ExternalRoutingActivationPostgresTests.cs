@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.DataProtection;
 using Wayfarer.Models;
 using Wayfarer.Services.ExternalRouting;
 using Wayfarer.Tests.Infrastructure;
@@ -91,6 +92,112 @@ public sealed class ExternalRoutingActivationPostgresTests
         }
     }
 
+    [PostgresFact]
+    public async Task CredentialClearRacingFeatureEnable_NeverLeavesEnabledProviderWithoutCredential()
+    {
+        _fixture.RequireAvailable();
+        var providerId = Guid.NewGuid();
+        Guid? originalActive;
+        bool originalEnabled;
+        int originalGeneration;
+        var credentials = new RoutingProviderCredentialService(new EphemeralDataProtectionProvider());
+        uint settingsRowVersion, providerRowVersion;
+        await using (var setup = _fixture.CreateContext())
+        {
+            var settings = await setup.ApplicationSettings.SingleAsync(item => item.Id == 1);
+            (originalActive, originalEnabled, originalGeneration) = (settings.ActiveRoutingProviderConfigurationId,
+                settings.ExternalRouteGenerationEnabled, settings.ExternalRouteGenerationVersion);
+            var profile = await setup.Set<TransportProfile>().FirstAsync(item => item.IsActive);
+            var provider = Provider(providerId, profile.Id);
+            provider.CredentialRequired = true;
+            credentials.Replace(provider, "run-owned-secret");
+            provider.VerifiedConfigurationVersion = provider.ConfigurationVersion;
+            setup.Set<RoutingProviderConfiguration>().Add(provider);
+            settings.ActiveRoutingProviderConfigurationId = providerId;
+            settings.ExternalRouteGenerationEnabled = false;
+            await setup.SaveChangesAsync();
+            settingsRowVersion = settings.RowVersion;
+            providerRowVersion = provider.RowVersion;
+        }
+
+        try
+        {
+            await using var clearContext = _fixture.CreateContext();
+            await using var enableContext = _fixture.CreateContext();
+            var clear = new RoutingProviderAdministrationService(clearContext, credentials);
+            var enable = new RoutingProviderAdministrationService(enableContext, credentials);
+            await Task.WhenAll(
+                clear.ClearCredentialAsync(providerId, true, false, providerRowVersion, settingsRowVersion,
+                    "admin-clear", CancellationToken.None),
+                enable.SetFeatureEnabledAsync(true, settingsRowVersion, "admin-enable", CancellationToken.None));
+
+            await using var verification = _fixture.CreateContext();
+            var settings = await verification.ApplicationSettings.AsNoTracking().SingleAsync(item => item.Id == 1);
+            var provider = await verification.Set<RoutingProviderConfiguration>().AsNoTracking()
+                .SingleAsync(item => item.Id == providerId);
+            Assert.False(settings.ExternalRouteGenerationEnabled && (!provider.CredentialPresent
+                || provider.VerifiedConfigurationVersion != provider.ConfigurationVersion));
+        }
+        finally
+        {
+            await using var cleanup = _fixture.CreateContext();
+            var settings = await cleanup.ApplicationSettings.SingleAsync(item => item.Id == 1);
+            settings.ActiveRoutingProviderConfigurationId = originalActive;
+            settings.ExternalRouteGenerationEnabled = originalEnabled;
+            settings.ExternalRouteGenerationVersion = originalGeneration;
+            await cleanup.SaveChangesAsync();
+            await cleanup.Set<RoutingProviderConfiguration>().Where(item => item.Id == providerId).ExecuteDeleteAsync();
+        }
+    }
+
+    [PostgresFact]
+    public async Task ActivationRacingProfileDeactivation_PreservesPreviousSelection()
+    {
+        _fixture.RequireAvailable();
+        var providerId = Guid.NewGuid();
+        Guid profileId;
+        bool originalProfileActive;
+        Guid? originalActive;
+        uint settingsRowVersion;
+        await using (var setup = _fixture.CreateContext())
+        {
+            var settings = await setup.ApplicationSettings.SingleAsync(item => item.Id == 1);
+            originalActive = settings.ActiveRoutingProviderConfigurationId;
+            settingsRowVersion = settings.RowVersion;
+            var profile = await setup.Set<TransportProfile>().FirstAsync(item => item.IsActive);
+            profileId = profile.Id;
+            originalProfileActive = profile.IsActive;
+            setup.Set<RoutingProviderConfiguration>().Add(Provider(providerId, profileId));
+            await setup.SaveChangesAsync();
+        }
+
+        try
+        {
+            await using var activationContext = _fixture.CreateContext();
+            await using var profileContext = _fixture.CreateContext();
+            var provider = await activationContext.Set<RoutingProviderConfiguration>().AsNoTracking()
+                .SingleAsync(item => item.Id == providerId);
+            var service = new RoutingProviderActivationService(activationContext,
+                new ProfileDeactivatingVerifier(activationContext, profileContext, profileId));
+
+            var result = await service.VerifyAndActivateAsync(
+                providerId, provider.ConfigurationVersion, provider.RowVersion, settingsRowVersion, "admin", CancellationToken.None);
+
+            Assert.False(result.Succeeded);
+            await using var verification = _fixture.CreateContext();
+            Assert.Equal(originalActive, (await verification.ApplicationSettings.AsNoTracking()
+                .SingleAsync(item => item.Id == 1)).ActiveRoutingProviderConfigurationId);
+        }
+        finally
+        {
+            await using var cleanup = _fixture.CreateContext();
+            var profile = await cleanup.Set<TransportProfile>().SingleAsync(item => item.Id == profileId);
+            profile.IsActive = originalProfileActive;
+            await cleanup.SaveChangesAsync();
+            await cleanup.Set<RoutingProviderConfiguration>().Where(item => item.Id == providerId).ExecuteDeleteAsync();
+        }
+    }
+
     private static RoutingProviderConfiguration Provider(Guid id, Guid profileId)
     {
         var provider = new RoutingProviderConfiguration
@@ -126,6 +233,22 @@ public sealed class ExternalRoutingActivationPostgresTests
             provider.VerifiedConfigurationVersion = expectedVersion;
             await db.SaveChangesAsync(cancellationToken);
             await barrier.ArriveAsync();
+            return new RoutingVerificationResult(true, null, expectedVersion, provider.RowVersion);
+        }
+    }
+
+    private sealed class ProfileDeactivatingVerifier(
+        ApplicationDbContext providerDb, ApplicationDbContext profileDb, Guid profileId) : IRoutingProviderVerifier
+    {
+        public async Task<RoutingVerificationResult> VerifyAsync(
+            Guid providerId, int expectedVersion, uint expectedRowVersion, string administratorId, CancellationToken cancellationToken)
+        {
+            var provider = await providerDb.Set<RoutingProviderConfiguration>().SingleAsync(item => item.Id == providerId, cancellationToken);
+            provider.VerifiedConfigurationVersion = expectedVersion;
+            await providerDb.SaveChangesAsync(cancellationToken);
+            var profile = await profileDb.Set<TransportProfile>().SingleAsync(item => item.Id == profileId, cancellationToken);
+            profile.IsActive = false;
+            await profileDb.SaveChangesAsync(cancellationToken);
             return new RoutingVerificationResult(true, null, expectedVersion, provider.RowVersion);
         }
     }
