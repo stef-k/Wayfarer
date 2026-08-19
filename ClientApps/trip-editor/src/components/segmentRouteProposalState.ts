@@ -18,6 +18,7 @@ export interface SegmentRouteProposalState {
 export interface RouteAcceptanceContext {
   segmentId: Guid;
   transportProfileId: Guid | null;
+  aggregateConcurrencyToken: string | null;
   anchorFingerprint: string;
   routeFingerprint: string;
   draftRevision: number;

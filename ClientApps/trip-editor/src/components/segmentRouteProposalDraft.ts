@@ -7,6 +7,7 @@ export const routeProposalDraftContextKey = (
 ): string => JSON.stringify({
   segmentId: draft.id,
   transportProfileId: draft.transportProfileId,
+  aggregateConcurrencyToken: draft.aggregateConcurrencyToken,
   anchorFingerprint: JSON.stringify([draft.fromPlaceId, ...draft.waypointPlaceIds, draft.toPlaceId]
     .map(id => id ? [id, state.placesById[id]?.location ?? null] : null)),
   routeFingerprint: JSON.stringify(draft.route),
