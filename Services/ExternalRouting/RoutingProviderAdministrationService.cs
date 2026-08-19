@@ -11,10 +11,12 @@ public sealed class RoutingProviderAdministrationService
 {
     private readonly ApplicationDbContext _dbContext;
     private readonly RoutingProviderCredentialService _credentials;
+    private readonly RoutingProviderPacer _pacer;
 
     /// <summary>Initializes focused provider administration.</summary>
-    public RoutingProviderAdministrationService(ApplicationDbContext dbContext, RoutingProviderCredentialService credentials)
-        => (_dbContext, _credentials) = (dbContext, credentials);
+    public RoutingProviderAdministrationService(
+        ApplicationDbContext dbContext, RoutingProviderCredentialService credentials, RoutingProviderPacer pacer)
+        => (_dbContext, _credentials, _pacer) = (dbContext, credentials, pacer);
 
     /// <summary>Creates or updates one OSRM configuration while invalidating changed versions.</summary>
     public async Task<RoutingAdministrationResult> SaveAsync(
@@ -48,6 +50,7 @@ public sealed class RoutingProviderAdministrationService
             .Select(item => (item.TransportProfileId, Profile: item.OsrmProfile!.Trim())).ToArray();
         var existingMappings = provider!.ProfileMappings.OrderBy(item => item.TransportProfileId)
             .Select(item => (item.TransportProfileId, Profile: item.OsrmProfile)).ToArray();
+        var intervalChanged = creating || provider!.MinimumIntervalMilliseconds != minimumIntervalMilliseconds;
         var changed = !creating && (provider.BaseEndpoint != endpoint
             || provider.CredentialRequired != model.CredentialRequired
             || provider.VerificationFromLongitude != model.VerificationFromLongitude
@@ -92,6 +95,8 @@ public sealed class RoutingProviderAdministrationService
             changed || !string.IsNullOrWhiteSpace(model.Credential) ? "configuration changed; verification invalidated" : "metadata preserved");
         try { await _dbContext.SaveChangesAsync(cancellationToken); }
         catch (DbUpdateConcurrencyException) { return RoutingAdministrationResult.Failure("The provider configuration changed. Reload and try again."); }
+        if (intervalChanged)
+            _pacer.ApplyConfiguration(provider.Id, provider.ConfigurationVersion, provider.MinimumIntervalMilliseconds);
         return new RoutingAdministrationResult(true, null, provider.Id);
     }
 

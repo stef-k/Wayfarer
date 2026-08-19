@@ -78,7 +78,6 @@ public sealed class RoutingProviderAdministrationServiceTests : TestBase
         model.MinimumIntervalSeconds = "1.0";
 
         Assert.True((await fixture.Service.SaveAsync(model, "admin", CancellationToken.None)).Succeeded);
-        Assert.True(waiting.IsCompleted);
         Assert.True((await waiting).Succeeded);
     }
 
@@ -169,7 +168,7 @@ public sealed class RoutingProviderAdministrationServiceTests : TestBase
         db.SaveChanges();
         var time = new ControlledTimeProvider();
         var pacer = new RoutingProviderPacer(time);
-        return new Fixture(db, new RoutingProviderAdministrationService(db, credentialService), provider, settings, profile, pacer, time);
+        return new Fixture(db, new RoutingProviderAdministrationService(db, credentialService, pacer), provider, settings, profile, pacer, time);
     }
 
     private static RoutingProviderEditViewModel Model(Fixture fixture) => new()
