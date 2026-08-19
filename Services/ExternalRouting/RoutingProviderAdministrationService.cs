@@ -93,7 +93,8 @@ public sealed class RoutingProviderAdministrationService
 
     /// <summary>Clears a credential only through an explicit confirmed action.</summary>
     public async Task<RoutingAdministrationResult> ClearCredentialAsync(
-        Guid providerId, bool confirmed, bool disableRouting, string administratorId, CancellationToken cancellationToken)
+        Guid providerId, bool confirmed, bool disableRouting, uint expectedProviderRowVersion,
+        uint expectedSettingsRowVersion, string administratorId, CancellationToken cancellationToken)
     {
         if (!confirmed) return RoutingAdministrationResult.Failure("Confirm credential clearing.");
         await using var transaction = _dbContext.Database.IsRelational()
@@ -104,6 +105,8 @@ public sealed class RoutingProviderAdministrationService
             var provider = await LockProviderAsync(providerId, cancellationToken);
             if (settings == null || provider == null)
                 return RoutingAdministrationResult.Failure("The provider configuration was not found.");
+            if (settings.RowVersion != expectedSettingsRowVersion || provider.RowVersion != expectedProviderRowVersion)
+                return RoutingAdministrationResult.Failure("The provider configuration changed. Reload and try again.");
             if (settings.ExternalRouteGenerationEnabled && settings.ActiveRoutingProviderConfigurationId == providerId
                 && provider.CredentialRequired && !disableRouting)
                 return RoutingAdministrationResult.Failure("Disable external routing atomically before clearing this required active credential.");

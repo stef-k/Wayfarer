@@ -79,6 +79,9 @@ public sealed class RoutingProviderEditViewModel : IValidatableObject
     /// <summary>Gets or sets the expected provider concurrency token.</summary>
     public uint RowVersion { get; set; }
 
+    /// <summary>Gets or sets the expected singleton settings concurrency token for credential clearing.</summary>
+    public uint SettingsRowVersion { get; set; }
+
     /// <summary>Gets the current configuration version.</summary>
     public int ConfigurationVersion { get; set; } = 1;
 

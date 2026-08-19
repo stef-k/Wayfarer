@@ -48,9 +48,9 @@ public sealed class RoutingProviderAdministrationServiceTests : TestBase
         var fixture = CreateFixture(requiredCredential: true, featureEnabled: true);
 
         var rejected = await fixture.Service.ClearCredentialAsync(
-            fixture.Provider.Id, true, false, "admin", CancellationToken.None);
+            fixture.Provider.Id, true, false, fixture.Provider.RowVersion, fixture.Settings.RowVersion, "admin", CancellationToken.None);
         var cleared = await fixture.Service.ClearCredentialAsync(
-            fixture.Provider.Id, true, true, "admin", CancellationToken.None);
+            fixture.Provider.Id, true, true, fixture.Provider.RowVersion, fixture.Settings.RowVersion, "admin", CancellationToken.None);
 
         Assert.False(rejected.Succeeded);
         Assert.True(cleared.Succeeded);

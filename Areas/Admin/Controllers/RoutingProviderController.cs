@@ -62,7 +62,11 @@ public sealed class RoutingProviderController : Controller
     {
         var provider = await _dbContext.Set<RoutingProviderConfiguration>().AsNoTracking()
             .Include(item => item.ProfileMappings).SingleOrDefaultAsync(item => item.Id == id, cancellationToken);
-        return provider == null ? NotFound() : View(await PopulateMappingsAsync(ToModel(provider), cancellationToken));
+        if (provider == null) return NotFound();
+        var model = ToModel(provider);
+        model.SettingsRowVersion = await _dbContext.ApplicationSettings.AsNoTracking()
+            .Where(item => item.Id == 1).Select(item => item.RowVersion).SingleAsync(cancellationToken);
+        return View(await PopulateMappingsAsync(model, cancellationToken));
     }
 
     /// <summary>Updates allowlisted fields; a blank credential preserves ciphertext.</summary>
@@ -104,10 +108,11 @@ public sealed class RoutingProviderController : Controller
     /// <summary>Explicitly clears a credential, optionally disabling routing in the same save.</summary>
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> ClearCredential(
-        Guid id, bool confirmed, bool disableRouting, CancellationToken cancellationToken)
+        Guid id, bool confirmed, bool disableRouting, uint providerRowVersion, uint settingsRowVersion,
+        CancellationToken cancellationToken)
     {
         var result = await _administration.ClearCredentialAsync(
-            id, confirmed, disableRouting, AdministratorId(), cancellationToken);
+            id, confirmed, disableRouting, providerRowVersion, settingsRowVersion, AdministratorId(), cancellationToken);
         SetResult(result.Succeeded, result.Succeeded ? "Credential cleared." : result.Error!);
         return RedirectToAction(nameof(Edit), new { id });
     }
