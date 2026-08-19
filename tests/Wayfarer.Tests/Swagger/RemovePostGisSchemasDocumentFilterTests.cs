@@ -130,6 +130,86 @@ public sealed class RemovePostGisSchemasDocumentFilterTests
         Assert.IsType<OpenApiSchema>(filtered);
     }
 
+    /// <summary>Verifies references are removed from the remaining dictionary and schema containers.</summary>
+    [Theory]
+    [InlineData("PatternProperties")]
+    [InlineData("UnevaluatedPropertiesSchema")]
+    [InlineData("Definitions")]
+    public void Apply_RemovesReferencesFromRemainingSchemaContainers(string container)
+    {
+        OpenApiDocument document = CreateDocument();
+        var root = (OpenApiSchema)document.Components!.Schemas!["Root"];
+        var removedReference = new OpenApiSchemaReference("Geometry", document, null);
+
+        switch (container)
+        {
+            case "PatternProperties":
+                root.PatternProperties = new Dictionary<string, IOpenApiSchema>
+                {
+                    ["^location-"] = removedReference
+                };
+                break;
+            case "UnevaluatedPropertiesSchema":
+                root.UnevaluatedPropertiesSchema = removedReference;
+                break;
+            case "Definitions":
+                root.Definitions = new Dictionary<string, IOpenApiSchema>
+                {
+                    ["location"] = removedReference
+                };
+                break;
+        }
+
+        ApplyFilter(document);
+
+        IOpenApiSchema filtered = container switch
+        {
+            "PatternProperties" => root.PatternProperties!["^location-"],
+            "UnevaluatedPropertiesSchema" => root.UnevaluatedPropertiesSchema!,
+            "Definitions" => root.Definitions!["location"],
+            _ => throw new InvalidOperationException($"Unexpected container {container}.")
+        };
+        Assert.IsType<OpenApiSchema>(filtered);
+    }
+
+    /// <summary>Verifies nested remaining containers preserve keys, identities, and cycles.</summary>
+    [Fact]
+    public void Apply_TraversesRemainingContainersAndPreservesUnrelatedGraphNodes()
+    {
+        OpenApiDocument document = CreateDocument();
+        var root = (OpenApiSchema)document.Components!.Schemas!["Root"];
+        IOpenApiSchema unrelatedSchema = document.Components.Schemas["Unrelated"];
+        var unrelatedReference = new OpenApiSchemaReference("Unrelated", document, null);
+        var patternSchema = new OpenApiSchema
+        {
+            UnevaluatedPropertiesSchema = new OpenApiSchemaReference("Geometry", document, null),
+            Definitions = new Dictionary<string, IOpenApiSchema>
+            {
+                ["retained"] = unrelatedReference
+            }
+        };
+        root.PatternProperties = new Dictionary<string, IOpenApiSchema>
+        {
+            ["^nested-"] = patternSchema
+        };
+        root.Definitions = new Dictionary<string, IOpenApiSchema>
+        {
+            ["cycle"] = root,
+            ["shared"] = unrelatedSchema
+        };
+
+        ApplyFilter(document);
+
+        Assert.Equal(["^nested-"], root.PatternProperties.Keys);
+        Assert.Equal(["cycle", "shared"], root.Definitions.Keys);
+        Assert.IsType<OpenApiSchema>(patternSchema.UnevaluatedPropertiesSchema);
+        Assert.Same(unrelatedReference, patternSchema.Definitions!["retained"]);
+        Assert.Equal("Unrelated", unrelatedReference.Reference.Id);
+        Assert.Same(root, root.Definitions["cycle"]);
+        Assert.Same(unrelatedSchema, root.Definitions["shared"]);
+        Assert.Same(unrelatedSchema, document.Components.Schemas["Unrelated"]);
+    }
+
     /// <summary>Verifies nested traversal preserves unrelated references and terminates on cycles.</summary>
     [Fact]
     public void Apply_PreservesUnrelatedReferencesAndTerminatesOnNestedCycle()
