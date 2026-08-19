@@ -63,6 +63,17 @@ public sealed class UserRoutingConfiguration
         VerificationStatus = null;
     }
 
+    /// <summary>Removes state prohibited for a credential-free selection and advances authority when needed.</summary>
+    public bool NormalizeCredentialFree()
+    {
+        if (CredentialCiphertext == null && !CredentialPresent && VerifiedUserConfigurationVersion == null
+            && VerifiedProviderConfigurationVersion == null && VerificationStatus == null)
+            return false;
+        ClearCredentialAndVerification();
+        IncrementVersion();
+        return true;
+    }
+
     /// <summary>Increments the sole user routing generation.</summary>
     public void IncrementVersion()
     {

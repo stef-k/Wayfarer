@@ -1,4 +1,6 @@
+using System.Data;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 using Wayfarer.Models;
 
 namespace Wayfarer.Services.ExternalRouting;
@@ -22,42 +24,52 @@ public sealed class UserRoutingConfigurationService
         if (!await _dbContext.ApplicationSettings.AsNoTracking()
                 .AnyAsync(item => item.Id == 1 && item.ExternalRouteGenerationEnabled, cancellationToken))
             return UserRoutingMutationResult.Invalid("Personal routing settings are unavailable.");
-        var configuration = await _dbContext.Set<UserRoutingConfiguration>()
-            .SingleOrDefaultAsync(item => item.UserId == userId, cancellationToken);
-        if (configuration == null) return UserRoutingMutationResult.NotFound;
-        if (configuration.RowVersion != expectedRowVersion) return UserRoutingMutationResult.Conflict;
-        if (providerId == null)
+        await using var transaction = _dbContext.Database.IsRelational()
+            ? await _dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken) : null;
+        try
         {
-            configuration.UseServerDefault();
-            Audit(userId, "UserRoutingDefault", null, "server-default selected");
-        }
-        else
-        {
-            var provider = await _dbContext.Set<RoutingProviderConfiguration>().Include(item => item.ProfileMappings)
-                .ThenInclude(item => item.TransportProfile).SingleOrDefaultAsync(item => item.Id == providerId, cancellationToken);
-            if (provider == null || !PersonalRoutingEligibility.Evaluate(provider).Eligible)
-                return UserRoutingMutationResult.NotFound;
-            if (provider.PersonalRoutingAccess == PersonalRoutingAccess.CredentialFree
-                && !string.IsNullOrWhiteSpace(credential))
-                return UserRoutingMutationResult.Invalid("This template does not accept a personal credential.");
-            if (provider.PersonalRoutingAccess == PersonalRoutingAccess.CredentialRequired
-                && string.IsNullOrWhiteSpace(credential)
-                && (configuration.SelectedProviderConfigurationId != provider.Id || !configuration.CredentialPresent))
-                return UserRoutingMutationResult.Invalid("Enter a personal credential for this template.");
-            configuration.SelectPersonalProvider(provider.Id);
-            if (provider.PersonalRoutingAccess == PersonalRoutingAccess.CredentialFree)
+            var provider = providerId is { } selectedProviderId
+                ? await LockProviderAsync(selectedProviderId, cancellationToken) : null;
+            var configuration = await LockUserAsync(userId, cancellationToken);
+            if (configuration == null) return UserRoutingMutationResult.NotFound;
+            if (configuration.RowVersion != expectedRowVersion) return UserRoutingMutationResult.Conflict;
+            if (providerId == null)
             {
-                configuration.InvalidateVerification();
+                configuration.UseServerDefault();
+                Audit(userId, "UserRoutingDefault", null, "server-default selected");
             }
             else
             {
-                _credentials.Replace(configuration, provider.Id, credential);
+                if (provider == null || !PersonalRoutingEligibility.Evaluate(provider).Eligible)
+                    return UserRoutingMutationResult.NotFound;
+                if (provider.PersonalRoutingAccess == PersonalRoutingAccess.CredentialFree
+                    && !string.IsNullOrWhiteSpace(credential))
+                    return UserRoutingMutationResult.Invalid("This template does not accept a personal credential.");
+                if (provider.PersonalRoutingAccess == PersonalRoutingAccess.CredentialRequired
+                    && string.IsNullOrWhiteSpace(credential)
+                    && (configuration.SelectedProviderConfigurationId != provider.Id || !configuration.CredentialPresent))
+                    return UserRoutingMutationResult.Invalid("Enter a personal credential for this template.");
+                configuration.SelectPersonalProvider(provider.Id);
+                if (provider.PersonalRoutingAccess == PersonalRoutingAccess.CredentialFree)
+                    configuration.NormalizeCredentialFree();
+                else
+                    _credentials.Replace(configuration, provider.Id, credential);
+                Audit(userId, "UserRoutingSelection", provider.Id, "approved template selected");
             }
-            Audit(userId, "UserRoutingSelection", provider.Id, "approved template selected");
+            await _dbContext.SaveChangesAsync(cancellationToken);
+            if (transaction != null) await transaction.CommitAsync(cancellationToken);
+            return UserRoutingMutationResult.Success;
         }
-        try { await _dbContext.SaveChangesAsync(cancellationToken); }
-        catch (DbUpdateConcurrencyException) { return UserRoutingMutationResult.Conflict; }
-        return UserRoutingMutationResult.Success;
+        catch (DbUpdateConcurrencyException)
+        {
+            _dbContext.ChangeTracker.Clear();
+            return UserRoutingMutationResult.Conflict;
+        }
+        catch (Exception exception) when (IsSerializationFailure(exception))
+        {
+            _dbContext.ChangeTracker.Clear();
+            return UserRoutingMutationResult.Conflict;
+        }
     }
 
     /// <summary>Clears only the current user's credential after confirmation.</summary>
@@ -82,6 +94,28 @@ public sealed class UserRoutingConfigurationService
         UserId = userId, Action = action, Timestamp = DateTime.UtcNow,
         Details = $"ProviderId={providerId?.ToString() ?? "none"}; {result}."
     });
+
+    private Task<RoutingProviderConfiguration?> LockProviderAsync(Guid providerId, CancellationToken cancellationToken)
+    {
+        var query = _dbContext.Database.IsNpgsql()
+            ? _dbContext.Set<RoutingProviderConfiguration>().FromSqlInterpolated(
+                $"SELECT *, xmin FROM \"RoutingProviderConfigurations\" WHERE \"Id\" = {providerId} FOR UPDATE")
+            : _dbContext.Set<RoutingProviderConfiguration>().Where(item => item.Id == providerId);
+        return query.Include(item => item.ProfileMappings).ThenInclude(item => item.TransportProfile)
+            .SingleOrDefaultAsync(cancellationToken);
+    }
+
+    private Task<UserRoutingConfiguration?> LockUserAsync(string userId, CancellationToken cancellationToken) =>
+        _dbContext.Database.IsNpgsql()
+            ? _dbContext.Set<UserRoutingConfiguration>().FromSqlInterpolated(
+                $"SELECT *, xmin FROM \"UserRoutingConfigurations\" WHERE \"UserId\" = {userId} FOR UPDATE")
+                .SingleOrDefaultAsync(cancellationToken)
+            : _dbContext.Set<UserRoutingConfiguration>().SingleOrDefaultAsync(
+                item => item.UserId == userId, cancellationToken);
+
+    private static bool IsSerializationFailure(Exception exception) =>
+        exception is PostgresException { SqlState: PostgresErrorCodes.SerializationFailure }
+        || exception.InnerException != null && IsSerializationFailure(exception.InnerException);
 }
 
 /// <summary>Contains a bounded user-routing mutation outcome.</summary>

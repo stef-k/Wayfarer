@@ -245,6 +245,73 @@ public sealed class UserRoutingConfigurationPostgresTests(PostgresImportTestFixt
         }
     }
 
+    /// <summary>Proves admin cleanup and user replacement serialize under provider-first locking.</summary>
+    [PostgresFact]
+    public async Task RequiredToCredentialFree_RacingCredentialReplacementEndsCredentialFreeWithOrderedLocks()
+    {
+        fixture.RequireAvailable();
+        var user = await fixture.CreateUserAsync();
+        var providerId = Guid.NewGuid();
+        var protection = new EphemeralDataProtectionProvider();
+        uint expectedUserRowVersion;
+        await using (var setup = fixture.CreateContext())
+        {
+            var profile = await setup.Set<TransportProfile>().FirstAsync(item => item.IsActive);
+            var provider = VerificationProvider(providerId, profile);
+            setup.Set<RoutingProviderConfiguration>().Add(provider);
+            var configuration = await setup.Set<UserRoutingConfiguration>().SingleAsync(item => item.UserId == user.Id);
+            configuration.SelectPersonalProvider(providerId);
+            new UserRoutingCredentialService(protection).Replace(configuration, providerId, "first-secret");
+            await setup.SaveChangesAsync();
+            expectedUserRowVersion = configuration.RowVersion;
+        }
+
+        try
+        {
+            var adminRecorder = new LockCommandRecorder();
+            var userRecorder = new LockCommandRecorder();
+            await using var adminContext = fixture.CreateContext(adminRecorder);
+            await using var userContext = fixture.CreateContext(userRecorder);
+            var provider = await adminContext.Set<RoutingProviderConfiguration>().AsNoTracking()
+                .Include(item => item.ProfileMappings).SingleAsync(item => item.Id == providerId);
+            var administration = new RoutingProviderAdministrationService(adminContext,
+                new RoutingProviderCredentialService(protection), new RoutingProviderPacer(TimeProvider.System));
+            var userService = new UserRoutingConfigurationService(userContext,
+                new UserRoutingCredentialService(protection));
+
+            var adminTask = administration.SaveAsync(
+                CredentialFreeModel(provider), "admin", CancellationToken.None);
+            var userTask = userService.SaveAsync(
+                user.Id, providerId, "replacement-secret", expectedUserRowVersion, CancellationToken.None);
+            await Task.WhenAll(adminTask, userTask).WaitAsync(TimeSpan.FromSeconds(15));
+            var adminResult = await adminTask;
+            var userResult = await userTask;
+
+            Assert.True(adminResult.Succeeded);
+            Assert.True(userResult.Succeeded || userResult == UserRoutingMutationResult.Conflict || userResult.Missing
+                || userResult.Error == "This template does not accept a personal credential.");
+            AssertProviderBeforeUser(adminRecorder.Commands);
+            AssertProviderBeforeUser(userRecorder.Commands);
+            await using var verification = fixture.CreateContext();
+            var storedProvider = await verification.Set<RoutingProviderConfiguration>().AsNoTracking()
+                .SingleAsync(item => item.Id == providerId);
+            var storedUser = await verification.Set<UserRoutingConfiguration>().AsNoTracking()
+                .SingleAsync(item => item.UserId == user.Id);
+            Assert.Equal(PersonalRoutingAccess.CredentialFree, storedProvider.PersonalRoutingAccess);
+            Assert.Equal(providerId, storedUser.SelectedProviderConfigurationId);
+            Assert.False(storedUser.CredentialPresent);
+            Assert.Null(storedUser.CredentialCiphertext);
+        }
+        finally
+        {
+            await using var cleanup = fixture.CreateContext();
+            var configuration = await cleanup.Set<UserRoutingConfiguration>().SingleAsync(item => item.UserId == user.Id);
+            configuration.UseServerDefault();
+            await cleanup.SaveChangesAsync();
+            await cleanup.Set<RoutingProviderConfiguration>().Where(item => item.Id == providerId).ExecuteDeleteAsync();
+        }
+    }
+
     private static async Task InsertUserAsync(ApplicationDbContext context, string userId)
     {
         context.Users.Add(new ApplicationUser
@@ -274,6 +341,36 @@ public sealed class UserRoutingConfigurationPostgresTests(PostgresImportTestFixt
             TransportProfile = profile, OsrmProfile = "driving"
         });
         return provider;
+    }
+
+    private static RoutingProviderEditViewModel CredentialFreeModel(RoutingProviderConfiguration provider) => new()
+    {
+        Id = provider.Id, DisplayName = provider.DisplayName, BaseEndpoint = provider.BaseEndpoint!,
+        CredentialRequired = provider.CredentialRequired, CredentialPresent = provider.CredentialPresent,
+        PersonalRoutingAccess = PersonalRoutingAccess.CredentialFree, Enabled = provider.Enabled,
+        Attribution = provider.Attribution, ExternalCoordinateDisclosure = provider.ExternalCoordinateDisclosure!,
+        VerificationFromLongitude = provider.VerificationFromLongitude,
+        VerificationFromLatitude = provider.VerificationFromLatitude,
+        VerificationToLongitude = provider.VerificationToLongitude,
+        VerificationToLatitude = provider.VerificationToLatitude,
+        GenerationTimeoutSeconds = provider.GenerationTimeoutSeconds,
+        ResponseSizeLimitBytes = provider.ResponseSizeLimitBytes,
+        RequestsPerMinute = provider.RequestsPerMinute, MaxConcurrency = provider.MaxConcurrency,
+        MinimumIntervalSeconds = RoutingMinimumIntervalConverter.Format(provider.MinimumIntervalMilliseconds),
+        RowVersion = provider.RowVersion, ConfigurationVersion = provider.ConfigurationVersion,
+        Mappings = provider.ProfileMappings.Select(item => new RoutingProviderMappingViewModel
+            { TransportProfileId = item.TransportProfileId, OsrmProfile = item.OsrmProfile }).ToList()
+    };
+
+    private static void AssertProviderBeforeUser(IReadOnlyList<string> commands)
+    {
+        var providerLock = commands.ToList().FindIndex(command =>
+            command.Contains("RoutingProviderConfigurations", StringComparison.Ordinal)
+            && command.Contains("FOR UPDATE", StringComparison.Ordinal));
+        var userLock = commands.ToList().FindIndex(command =>
+            command.Contains("UserRoutingConfigurations", StringComparison.Ordinal)
+            && command.Contains("FOR UPDATE", StringComparison.Ordinal));
+        Assert.True(providerLock >= 0 && userLock > providerLock);
     }
 
     private sealed class PublicResolver : IRoutingDnsResolver
