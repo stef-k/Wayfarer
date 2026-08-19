@@ -60,8 +60,8 @@ public sealed class PersonalRoutingContractTests
     public void ProposalContextBindsSelectionModeAndUserConfigurationVersion()
     {
         var binding = new ExternalRouteProposalBinding(
-            Guid.NewGuid(), "user-1", Guid.NewGuid(), 4, 2, Guid.NewGuid(), 7, Guid.NewGuid(), Guid.NewGuid(),
-            Guid.NewGuid(), "driving", "anchors", "geometry",
+            Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "user-1", "geometry", "anchors",
+            Guid.NewGuid(), Guid.NewGuid(), 4, 2, "aggregate",
             RoutingProviderSelectionMode.Personal, 9);
 
         Assert.Equal(RoutingProviderSelectionMode.Personal, binding.ProviderSelectionMode);

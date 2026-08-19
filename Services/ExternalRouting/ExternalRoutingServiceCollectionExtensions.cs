@@ -20,6 +20,10 @@ public static class ExternalRoutingServiceCollectionExtensions
         services.AddScoped<RoutingAttemptCoordinator>();
         services.AddSingleton<IProviderRouteGeometryValidator, ProviderRouteGeometryValidator>();
         services.AddScoped<RoutingProviderCredentialService>();
+        services.AddScoped<UserRoutingCredentialService>();
+        services.AddScoped<UserRoutingConfigurationService>();
+        services.AddScoped<AuthoritativeRoutingProviderResolver>();
+        services.AddScoped<PersonalRoutingVerificationService>();
         services.AddScoped<IOsrmRouteClient, OsrmRouteClient>();
         services.AddScoped<IRoutingProviderVerifier, RoutingProviderVerifier>();
         services.AddScoped<RoutingProviderActivationService>();
