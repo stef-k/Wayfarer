@@ -31,14 +31,16 @@ public static partial class OsrmRoutingAdapter
             await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
             using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
             var root = document.RootElement;
-            if (!root.TryGetProperty("code", out var code) || code.GetString() != "Ok"
+            if (root.ValueKind != JsonValueKind.Object
+                || !root.TryGetProperty("code", out var code) || code.ValueKind != JsonValueKind.String || code.GetString() != "Ok"
                 || !root.TryGetProperty("routes", out var routes) || routes.ValueKind != JsonValueKind.Array
                 || routes.GetArrayLength() != 1)
                 return OsrmRouteResult.Invalid("provider-response-invalid");
 
             var route = routes[0];
-            if (!route.TryGetProperty("geometry", out var geometry)
-                || !geometry.TryGetProperty("type", out var type) || type.GetString() != "LineString"
+            if (route.ValueKind != JsonValueKind.Object
+                || !route.TryGetProperty("geometry", out var geometry) || geometry.ValueKind != JsonValueKind.Object
+                || !geometry.TryGetProperty("type", out var type) || type.ValueKind != JsonValueKind.String || type.GetString() != "LineString"
                 || !geometry.TryGetProperty("coordinates", out var coordinates))
                 return OsrmRouteResult.Invalid("provider-response-invalid");
             var routeCoordinates = ParseCoordinates(coordinates);
@@ -49,14 +51,18 @@ public static partial class OsrmRoutingAdapter
             var waypointCoordinates = new List<RouteCoordinate>(waypoints.GetArrayLength());
             foreach (var waypoint in waypoints.EnumerateArray())
             {
-                if (!waypoint.TryGetProperty("location", out var location) || ParseCoordinate(location) is not { } parsed)
+                if (waypoint.ValueKind != JsonValueKind.Object
+                    || !waypoint.TryGetProperty("location", out var location) || ParseCoordinate(location) is not { } parsed)
                     return OsrmRouteResult.Invalid("provider-response-invalid");
                 waypointCoordinates.Add(parsed);
             }
             if (waypointCoordinates.Count < 2) return OsrmRouteResult.Invalid("provider-response-invalid");
             return new OsrmRouteResult(true, routeCoordinates, waypointCoordinates, null);
         }
-        catch (JsonException) { return OsrmRouteResult.Invalid("provider-response-invalid"); }
+        catch (Exception exception) when (exception is JsonException or InvalidOperationException)
+        {
+            return OsrmRouteResult.Invalid("provider-response-invalid");
+        }
     }
 
     private static List<RouteCoordinate>? ParseCoordinates(JsonElement value)
@@ -74,6 +80,7 @@ public static partial class OsrmRoutingAdapter
     private static RouteCoordinate? ParseCoordinate(JsonElement value)
     {
         if (value.ValueKind != JsonValueKind.Array || value.GetArrayLength() != 2
+            || value[0].ValueKind != JsonValueKind.Number || value[1].ValueKind != JsonValueKind.Number
             || !value[0].TryGetDouble(out var longitude) || !value[1].TryGetDouble(out var latitude)) return null;
         var coordinate = new RouteCoordinate(longitude, latitude);
         return coordinate.IsValid ? coordinate : null;
