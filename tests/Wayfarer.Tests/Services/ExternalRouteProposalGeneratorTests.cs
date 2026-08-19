@@ -113,7 +113,8 @@ public sealed class ExternalRouteProposalGeneratorTests : TestBase
     {
         public int Requests { get; private set; }
         public Task<OsrmRouteResult> RouteAsync(RoutingProviderConfiguration provider, string profile,
-            IReadOnlyList<RouteCoordinate> requestedAnchors, RoutingBudgetLease budget, CancellationToken cancellationToken)
+            IReadOnlyList<RouteCoordinate> requestedAnchors, Func<CancellationToken, Task<bool>> validateAuthority,
+            CancellationToken cancellationToken)
         {
             Requests++;
             return Task.FromResult(new OsrmRouteResult(true, anchors, anchors, null));

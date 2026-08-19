@@ -26,8 +26,10 @@ public sealed class RoutingVerificationActivationTests : TestBase
         db.Set<RoutingProviderConfiguration>().Add(provider);
         db.SaveChanges();
         var transport = new ProbeTransport(ValidResponse());
+        var budgets = new RoutingRequestBudget();
         var verifier = new RoutingProviderVerifier(db, Executor(transport),
-            new RoutingProviderCredentialService(new EphemeralDataProtectionProvider()), new RoutingRequestBudget());
+            new RoutingProviderCredentialService(new EphemeralDataProtectionProvider()),
+            new RoutingAttemptCoordinator(new RoutingProviderPacer(TimeProvider.System), budgets));
 
         var result = await verifier.VerifyAsync(provider.Id, provider.ConfigurationVersion, provider.RowVersion, "admin", CancellationToken.None);
 
@@ -85,7 +87,7 @@ public sealed class RoutingVerificationActivationTests : TestBase
         var result = await verifier.VerifyAsync(
             provider.Id, provider.ConfigurationVersion, provider.RowVersion, "admin", CancellationToken.None);
 
-        Assert.Equal("routing-budget-exhausted", result.ErrorCode);
+        Assert.Equal("routing-rate-limited", result.ErrorCode);
         Assert.Equal(1, transport.Requests);
     }
 
@@ -107,7 +109,7 @@ public sealed class RoutingVerificationActivationTests : TestBase
         var result = await verifier.VerifyAsync(
             provider.Id, provider.ConfigurationVersion, provider.RowVersion, "admin", CancellationToken.None);
 
-        Assert.Equal("routing-budget-exhausted", result.ErrorCode);
+        Assert.Equal("routing-rate-limited", result.ErrorCode);
         Assert.Equal(2, transport.Requests);
     }
 
@@ -177,6 +179,7 @@ public sealed class RoutingVerificationActivationTests : TestBase
         var provider = new RoutingProviderConfiguration
         {
             Id = Guid.NewGuid(), DisplayName = "OSRM", Enabled = true, BaseEndpoint = "https://routing.example",
+            MinimumIntervalMilliseconds = 0,
             VerificationFromLongitude = 23.7, VerificationFromLatitude = 37.9,
             VerificationToLongitude = 23.8, VerificationToLatitude = 38.0
         };
@@ -200,7 +203,8 @@ public sealed class RoutingVerificationActivationTests : TestBase
 
     private static RoutingProviderVerifier Verifier(
         ApplicationDbContext db, IRoutingPinnedTransport transport, RoutingRequestBudget budgets) =>
-        new(db, Executor(transport), new RoutingProviderCredentialService(new EphemeralDataProtectionProvider()), budgets);
+        new(db, Executor(transport), new RoutingProviderCredentialService(new EphemeralDataProtectionProvider()),
+            new RoutingAttemptCoordinator(new RoutingProviderPacer(TimeProvider.System), budgets));
 
     private static RoutingBoundedExecutor Executor(IRoutingPinnedTransport transport) => new(
         new PublicResolver(), new RoutingEndpointPolicy(Options.Create(new RoutingOutboundOptions())), transport);

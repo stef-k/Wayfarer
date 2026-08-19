@@ -13,21 +13,24 @@ public sealed class RoutingProviderVerifier : IRoutingProviderVerifier
     private readonly ApplicationDbContext _dbContext;
     private readonly RoutingBoundedExecutor _executor;
     private readonly RoutingProviderCredentialService _credentials;
-    private readonly RoutingRequestBudget _budgets;
+    private readonly RoutingAttemptCoordinator _attempts;
 
     /// <summary>Initializes bounded verification.</summary>
     public RoutingProviderVerifier(
         ApplicationDbContext dbContext, RoutingBoundedExecutor executor, RoutingProviderCredentialService credentials,
-        RoutingRequestBudget budgets)
-        => (_dbContext, _executor, _credentials, _budgets) = (dbContext, executor, credentials, budgets);
+        RoutingAttemptCoordinator attempts)
+        => (_dbContext, _executor, _credentials, _attempts) = (dbContext, executor, credentials, attempts);
 
     /// <inheritdoc />
     public async Task<RoutingVerificationResult> VerifyAsync(
         Guid providerId, int expectedVersion, uint expectedRowVersion, string administratorId, CancellationToken cancellationToken)
     {
+        using var operationTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        operationTimeout.CancelAfter(TimeSpan.FromSeconds(600));
+        var operationToken = operationTimeout.Token;
         var provider = await _dbContext.Set<RoutingProviderConfiguration>().AsNoTracking()
             .Include(item => item.ProfileMappings).ThenInclude(item => item.TransportProfile)
-            .SingleOrDefaultAsync(item => item.Id == providerId, cancellationToken);
+            .SingleOrDefaultAsync(item => item.Id == providerId, operationToken);
         if (provider == null || provider.ConfigurationVersion != expectedVersion || provider.RowVersion != expectedRowVersion
             || RoutingProviderStateResolver.Resolve(provider, false) is RoutingProviderState.Incomplete or RoutingProviderState.Invalid)
             return await FailureAsync(providerId, administratorId, "provider-configuration-stale", cancellationToken);
@@ -39,19 +42,17 @@ public sealed class RoutingProviderVerifier : IRoutingProviderVerifier
             return await FailureAsync(providerId, administratorId, "provider-credential-required", cancellationToken);
         var from = new RouteCoordinate(provider.VerificationFromLongitude!.Value, provider.VerificationFromLatitude!.Value);
         var to = new RouteCoordinate(provider.VerificationToLongitude!.Value, provider.VerificationToLatitude!.Value);
-        using var lease = await _budgets.AcquireProviderAsync(
-            provider.Id, provider.RequestsPerMinute, provider.MaxConcurrency, cancellationToken);
-        if (lease == null) return await FailureAsync(providerId, administratorId, "routing-budget-exhausted", cancellationToken);
         foreach (var profile in profiles)
         {
             var request = OsrmRoutingAdapter.BuildRelativeRequest(profile, [from, to]);
             var execution = await _executor.GetJsonAsync(new Uri(provider.BaseEndpoint!), request,
-                provider.ResponseSizeLimitBytes, TimeSpan.FromSeconds(5), cancellationToken, credential.Credential,
-                lease.TryAdmitProviderAttempt);
+                provider.ResponseSizeLimitBytes, TimeSpan.FromSeconds(5), operationToken, credential.Credential,
+                prepareAttempt: token => _attempts.PrepareAsync(provider,
+                    inner => IsCurrentForVerificationAsync(providerId, expectedVersion, profile, inner), token));
             if (!execution.Succeeded)
             {
-                var category = execution.ErrorCode == "provider-rate-limited"
-                    ? "routing-budget-exhausted" : execution.ErrorCode!;
+                var category = operationTimeout.IsCancellationRequested && !cancellationToken.IsCancellationRequested
+                    ? "routing-timeout" : execution.ErrorCode!;
                 return await FailureAsync(providerId, administratorId, category,
                     category == "request-cancelled" ? CancellationToken.None : cancellationToken);
             }
@@ -73,6 +74,17 @@ public sealed class RoutingProviderVerifier : IRoutingProviderVerifier
         try { await _dbContext.SaveChangesAsync(cancellationToken); }
         catch (DbUpdateConcurrencyException) { return RoutingVerificationResult.Failure("provider-configuration-stale"); }
         return new RoutingVerificationResult(true, null, tracked.ConfigurationVersion, tracked.RowVersion);
+    }
+
+    private async Task<bool> IsCurrentForVerificationAsync(
+        Guid providerId, int expectedVersion, string profile, CancellationToken cancellationToken)
+    {
+        var current = await _dbContext.Set<RoutingProviderConfiguration>().AsNoTracking()
+            .Include(item => item.ProfileMappings).ThenInclude(item => item.TransportProfile)
+            .SingleOrDefaultAsync(item => item.Id == providerId, cancellationToken);
+        return current is { Enabled: true } && current.ConfigurationVersion == expectedVersion
+            && current.ProfileMappings.Any(mapping => mapping.OsrmProfile == profile
+                && mapping.TransportProfile is { IsActive: true });
     }
 
     private async Task<RoutingVerificationResult> FailureAsync(

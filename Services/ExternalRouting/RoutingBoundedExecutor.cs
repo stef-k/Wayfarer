@@ -17,17 +17,21 @@ public sealed class RoutingBoundedExecutor
     /// <summary>Resolves, validates, pins, and streams one JSON response under the configured byte limit.</summary>
     public async Task<RoutingExecutionResult> GetJsonAsync(
         Uri endpoint, string relativeRequest, int responseLimitBytes, TimeSpan timeout, CancellationToken cancellationToken,
-        string? bearerCredential = null, Func<bool>? admitAttempt = null)
+        string? bearerCredential = null, Func<bool>? admitAttempt = null,
+        Func<CancellationToken, Task<RoutingAttemptAdmission>>? prepareAttempt = null)
     {
         if (responseLimitBytes is < 262144 or > 2097152 || timeout > TimeSpan.FromSeconds(30))
             return RoutingExecutionResult.Failure("routing-policy-invalid");
-        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        deadline.CancelAfter(timeout);
         try
         {
             for (var attempt = 0; attempt < 2; attempt++)
             {
-                if (admitAttempt?.Invoke() == false) return RoutingExecutionResult.Failure("provider-rate-limited");
+                using var admission = prepareAttempt == null
+                    ? RoutingAttemptAdmission.Legacy(admitAttempt?.Invoke() != false)
+                    : await prepareAttempt(cancellationToken);
+                if (!admission.Succeeded) return RoutingExecutionResult.Failure(admission.ErrorCode!);
+                using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                deadline.CancelAfter(timeout);
                 IReadOnlyList<IPAddress> addresses;
                 try { addresses = await _resolver.ResolveAsync(endpoint.Host, deadline.Token); }
                 catch (HttpRequestException exception) when (exception.InnerException is OperationCanceledException)
@@ -99,6 +103,17 @@ public sealed class RoutingBoundedExecutor
         HttpStatusCode.BadGateway or HttpStatusCode.ServiceUnavailable or HttpStatusCode.GatewayTimeout => "provider-unavailable",
         _ => "provider-http-failure"
     };
+}
+
+/// <summary>Owns per-attempt concurrency after pacing, authority validation, rate admission, and timestamp recording.</summary>
+public sealed record RoutingAttemptAdmission(bool Succeeded, string? ErrorCode, IDisposable? Lease = null) : IDisposable
+{
+    /// <summary>Creates a bounded failed admission.</summary>
+    public static RoutingAttemptAdmission Failure(string code) => new(false, code);
+    internal static RoutingAttemptAdmission Legacy(bool admitted) => admitted
+        ? new(true, null) : Failure("provider-rate-limited");
+    /// <inheritdoc />
+    public void Dispose() => Lease?.Dispose();
 }
 
 /// <summary>Contains bounded response bytes or a safe Wayfarer error category.</summary>
