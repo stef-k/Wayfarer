@@ -82,6 +82,29 @@ public sealed class RoutingProviderAdministrationServiceTests : TestBase
     }
 
     [Fact]
+    public async Task Save_CommittedIntervalIncreasePreventsQueuedWorkUsingOlderInterval()
+    {
+        var fixture = CreateFixture(requiredCredential: false, featureEnabled: false);
+        fixture.Provider.MinimumIntervalMilliseconds = 1000;
+        fixture.Db.SaveChanges();
+        fixture.Pacer.ApplyConfiguration(fixture.Provider.Id, fixture.Provider.ConfigurationVersion, 1000);
+        var prior = await fixture.Pacer.WaitAsync(
+            fixture.Provider.Id, fixture.Provider.ConfigurationVersion, CancellationToken.None);
+        prior.Turn!.RecordAttemptStart(); prior.Turn.Dispose();
+        var waiting = fixture.Pacer.WaitAsync(
+            fixture.Provider.Id, fixture.Provider.ConfigurationVersion, CancellationToken.None);
+        fixture.Time.Advance(TimeSpan.FromMilliseconds(500));
+        var model = Model(fixture);
+        model.MinimumIntervalSeconds = "2.0";
+
+        Assert.True((await fixture.Service.SaveAsync(model, "admin", CancellationToken.None)).Succeeded);
+        fixture.Time.Advance(TimeSpan.FromMilliseconds(500));
+        Assert.False(waiting.IsCompleted);
+        fixture.Time.Advance(TimeSpan.FromSeconds(1));
+        Assert.True((await waiting).Succeeded);
+    }
+
+    [Fact]
     public async Task ClearCredential_RejectsRequiredActiveCredentialUnlessAtomicallyDisabled()
     {
         var fixture = CreateFixture(requiredCredential: true, featureEnabled: true);
