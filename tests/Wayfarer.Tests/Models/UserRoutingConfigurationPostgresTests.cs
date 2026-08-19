@@ -248,15 +248,15 @@ public sealed class UserRoutingConfigurationPostgresTests(PostgresImportTestFixt
             await using (var setup = fixture.CreateContext())
             {
                 var profile = await setup.Set<TransportProfile>().FirstAsync(item => item.IsActive);
-                var provider = VerificationProvider(providerId, profile);
-                setup.Set<RoutingProviderConfiguration>().Add(provider);
+                var configuredProvider = VerificationProvider(providerId, profile);
+                setup.Set<RoutingProviderConfiguration>().Add(configuredProvider);
                 var configuration = await setup.Set<UserRoutingConfiguration>().SingleAsync(item => item.UserId == user.Id);
                 configuration.SelectPersonalProvider(providerId);
                 new UserRoutingCredentialService(protection).Replace(configuration, providerId, "first-secret");
                 await setup.SaveChangesAsync();
                 settingsSnapshot = await EnableRoutingSettingsAsync(setup, providerId);
                 expectedUserRowVersion = configuration.RowVersion;
-                originalProviderVersion = provider.ConfigurationVersion;
+                originalProviderVersion = configuredProvider.ConfigurationVersion;
             }
 
             await using var adminGate = new ProviderLockGateInterceptor(holdAfterAcquisition: true);
