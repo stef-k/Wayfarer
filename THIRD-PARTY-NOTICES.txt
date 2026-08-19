@@ -335,7 +335,7 @@ https://sixlabors.com/pricing/
 
 --------------------------------------------------------------------------------
 
-Swashbuckle.AspNetCore 9.0.3
+Swashbuckle.AspNetCore 10.2.3
 ----------------------------
 https://github.com/domaindrivendev/Swashbuckle.AspNetCore
 Copyright (c) 2016 Richard Morris

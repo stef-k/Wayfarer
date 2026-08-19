@@ -1,66 +1,267 @@
-using System;
 using Microsoft.AspNetCore.Mvc.ApiExplorer;
-using Microsoft.OpenApi.Models;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.OpenApi;
 using Swashbuckle.AspNetCore.SwaggerGen;
+using NetTopologySuite.Geometries;
 using Wayfarer.Swagger;
 using Xunit;
 
 namespace Wayfarer.Tests.Swagger;
 
-/// <summary>
-/// Ensures PostGIS-related schemas are pruned and references cleared.
-/// </summary>
-public class RemovePostGisSchemasDocumentFilterTests
+/// <summary>Ensures PostGIS-related schemas and references are removed from OpenAPI output.</summary>
+public sealed class RemovePostGisSchemasDocumentFilterTests
 {
     [Fact]
-    public void Apply_RemovesSchemas_AndClearsReferences()
+    public async Task GeneratedDocument_IsOpenApi3WithApiPathsAndNoPostGisReferences()
     {
-        var doc = new OpenApiDocument
+        WebApplicationBuilder builder = WebApplication.CreateBuilder();
+        builder.WebHost.UseTestServer();
+        builder.Services.AddControllers().AddApplicationPart(typeof(SwaggerContractController).Assembly);
+        builder.Services.AddEndpointsApiExplorer();
+        builder.Services.AddSwaggerGen(WayfarerSwaggerConfiguration.Configure);
+        await using WebApplication application = builder.Build();
+        application.UseSwagger();
+        application.MapControllers();
+        await application.StartAsync();
+
+        string json = await application.GetTestClient().GetStringAsync("/swagger/v1/swagger.json");
+
+        Assert.Contains("\"openapi\": \"3.0", json, StringComparison.Ordinal);
+        Assert.Contains("/api/swagger-contract", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("#/components/schemas/Point", json, StringComparison.Ordinal);
+        Assert.DoesNotContain("#/components/schemas/Geometry", json, StringComparison.Ordinal);
+        Assert.Contains("\"format\": \"wkt\"", json, StringComparison.Ordinal);
+        Assert.Contains("48.8588443, 2.2943506", json, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Apply_RemovesSchemasAndDirectOrCollectionReferences()
+    {
+        var document = new OpenApiDocument
         {
             Components = new OpenApiComponents
             {
-                Schemas =
+                Schemas = new Dictionary<string, IOpenApiSchema>
                 {
                     ["Point"] = new OpenApiSchema(),
                     ["Geometry"] = new OpenApiSchema(),
                     ["Trip"] = new OpenApiSchema
                     {
-                        Properties =
+                        Properties = new Dictionary<string, IOpenApiSchema>
                         {
-                            ["location"] = new OpenApiSchema
-                            {
-                                Reference = new OpenApiReference
-                                {
-                                    Id = "Point",
-                                    Type = ReferenceType.Schema
-                                }
-                            },
-                            ["path"] = new OpenApiSchema
-                            {
-                                Items = new OpenApiSchema
-                                {
-                                    Reference = new OpenApiReference
-                                    {
-                                        Id = "Geometry",
-                                        Type = ReferenceType.Schema
-                                    }
-                                }
-                            }
+                            ["location"] = new OpenApiSchema(),
+                            ["path"] = new OpenApiSchema { Items = new OpenApiSchema() }
                         }
                     }
                 }
             }
         };
-        var filter = new RemovePostGisSchemasDocumentFilter();
-        var context = new DocumentFilterContext(Array.Empty<ApiDescription>(), new SchemaGenerator(new SchemaGeneratorOptions(), new JsonSerializerDataContractResolver(new System.Text.Json.JsonSerializerOptions())), new SchemaRepository());
+        var trip = (OpenApiSchema)document.Components!.Schemas["Trip"];
+        trip.Properties!["location"] = new OpenApiSchemaReference("Point", document, null);
+        ((OpenApiSchema)trip.Properties["path"]).Items = new OpenApiSchemaReference("Geometry", document, null);
+        var context = new DocumentFilterContext(
+            Array.Empty<ApiDescription>(),
+            new SchemaGenerator(
+                new SchemaGeneratorOptions(),
+                new JsonSerializerDataContractResolver(new System.Text.Json.JsonSerializerOptions())),
+            new SchemaRepository());
 
-        filter.Apply(doc, context);
+        new RemovePostGisSchemasDocumentFilter().Apply(document, context);
 
-        Assert.DoesNotContain("Point", doc.Components.Schemas.Keys);
-        Assert.DoesNotContain("Geometry", doc.Components.Schemas.Keys);
-        Assert.True(doc.Components.Schemas.ContainsKey("Trip"));
-        Assert.Null(doc.Components.Schemas["Trip"].Properties["location"].Reference);
-        // Current filter only clears direct $ref; collection items remain unchanged.
-        Assert.NotNull(doc.Components.Schemas["Trip"].Properties["path"].Items.Reference);
+        Assert.DoesNotContain("Point", document.Components.Schemas.Keys);
+        Assert.DoesNotContain("Geometry", document.Components.Schemas.Keys);
+        var filteredTrip = Assert.IsType<OpenApiSchema>(document.Components.Schemas["Trip"]);
+        Assert.IsType<OpenApiSchema>(filteredTrip.Properties!["location"]);
+        Assert.IsType<OpenApiSchema>(Assert.IsType<OpenApiSchema>(filteredTrip.Properties["path"]).Items);
     }
+
+    /// <summary>Verifies references are removed from every nested schema container.</summary>
+    [Theory]
+    [InlineData("AllOf")]
+    [InlineData("AnyOf")]
+    [InlineData("OneOf")]
+    [InlineData("Not")]
+    [InlineData("AdditionalProperties")]
+    public void Apply_RemovesReferencesFromNestedSchemaContainers(string container)
+    {
+        OpenApiDocument document = CreateDocument();
+        var root = (OpenApiSchema)document.Components!.Schemas!["Root"];
+        var removedReference = new OpenApiSchemaReference("Geometry", document, null);
+
+        switch (container)
+        {
+            case "AllOf":
+                root.AllOf =
+                [
+                    new OpenApiSchema
+                    {
+                        AdditionalProperties = removedReference
+                    }
+                ];
+                break;
+            case "AnyOf":
+                root.AnyOf = [removedReference];
+                break;
+            case "OneOf":
+                root.OneOf = [removedReference];
+                break;
+            case "Not":
+                root.Not = removedReference;
+                break;
+            case "AdditionalProperties":
+                root.AdditionalProperties = removedReference;
+                break;
+        }
+
+        ApplyFilter(document);
+
+        IOpenApiSchema filtered = container switch
+        {
+            "AllOf" => Assert.IsType<OpenApiSchema>(root.AllOf![0]).AdditionalProperties!,
+            "AnyOf" => root.AnyOf![0],
+            "OneOf" => root.OneOf![0],
+            "Not" => root.Not!,
+            "AdditionalProperties" => root.AdditionalProperties!,
+            _ => throw new InvalidOperationException($"Unexpected container {container}.")
+        };
+        Assert.IsType<OpenApiSchema>(filtered);
+    }
+
+    /// <summary>Verifies references are removed from the remaining dictionary and schema containers.</summary>
+    [Theory]
+    [InlineData("PatternProperties")]
+    [InlineData("UnevaluatedPropertiesSchema")]
+    [InlineData("Definitions")]
+    public void Apply_RemovesReferencesFromRemainingSchemaContainers(string container)
+    {
+        OpenApiDocument document = CreateDocument();
+        var root = (OpenApiSchema)document.Components!.Schemas!["Root"];
+        var removedReference = new OpenApiSchemaReference("Geometry", document, null);
+
+        switch (container)
+        {
+            case "PatternProperties":
+                root.PatternProperties = new Dictionary<string, IOpenApiSchema>
+                {
+                    ["^location-"] = removedReference
+                };
+                break;
+            case "UnevaluatedPropertiesSchema":
+                root.UnevaluatedPropertiesSchema = removedReference;
+                break;
+            case "Definitions":
+                root.Definitions = new Dictionary<string, IOpenApiSchema>
+                {
+                    ["location"] = removedReference
+                };
+                break;
+        }
+
+        ApplyFilter(document);
+
+        IOpenApiSchema filtered = container switch
+        {
+            "PatternProperties" => root.PatternProperties!["^location-"],
+            "UnevaluatedPropertiesSchema" => root.UnevaluatedPropertiesSchema!,
+            "Definitions" => root.Definitions!["location"],
+            _ => throw new InvalidOperationException($"Unexpected container {container}.")
+        };
+        Assert.IsType<OpenApiSchema>(filtered);
+    }
+
+    /// <summary>Verifies nested remaining containers preserve keys, identities, and cycles.</summary>
+    [Fact]
+    public void Apply_TraversesRemainingContainersAndPreservesUnrelatedGraphNodes()
+    {
+        OpenApiDocument document = CreateDocument();
+        var root = (OpenApiSchema)document.Components!.Schemas!["Root"];
+        IOpenApiSchema unrelatedSchema = document.Components.Schemas["Unrelated"];
+        var unrelatedReference = new OpenApiSchemaReference("Unrelated", document, null);
+        var patternSchema = new OpenApiSchema
+        {
+            UnevaluatedPropertiesSchema = new OpenApiSchemaReference("Geometry", document, null),
+            Definitions = new Dictionary<string, IOpenApiSchema>
+            {
+                ["retained"] = unrelatedReference
+            }
+        };
+        root.PatternProperties = new Dictionary<string, IOpenApiSchema>
+        {
+            ["^nested-"] = patternSchema
+        };
+        root.Definitions = new Dictionary<string, IOpenApiSchema>
+        {
+            ["cycle"] = root,
+            ["shared"] = unrelatedSchema
+        };
+
+        ApplyFilter(document);
+
+        Assert.Equal(["^nested-"], root.PatternProperties.Keys);
+        Assert.Equal(["cycle", "shared"], root.Definitions.Keys);
+        Assert.IsType<OpenApiSchema>(patternSchema.UnevaluatedPropertiesSchema);
+        Assert.Same(unrelatedReference, patternSchema.Definitions!["retained"]);
+        Assert.Equal("Unrelated", unrelatedReference.Reference.Id);
+        Assert.Same(root, root.Definitions["cycle"]);
+        Assert.Same(unrelatedSchema, root.Definitions["shared"]);
+        Assert.Same(unrelatedSchema, document.Components.Schemas["Unrelated"]);
+    }
+
+    /// <summary>Verifies nested traversal preserves unrelated references and terminates on cycles.</summary>
+    [Fact]
+    public void Apply_PreservesUnrelatedReferencesAndTerminatesOnNestedCycle()
+    {
+        OpenApiDocument document = CreateDocument();
+        var root = (OpenApiSchema)document.Components!.Schemas!["Root"];
+        IOpenApiSchema unrelatedSchema = document.Components.Schemas["Unrelated"];
+        var unrelatedReference = new OpenApiSchemaReference("Unrelated", document, null);
+        root.AnyOf = [unrelatedReference, root];
+
+        ApplyFilter(document);
+
+        Assert.Same(unrelatedReference, root.AnyOf![0]);
+        Assert.Same(root, root.AnyOf[1]);
+        Assert.Same(unrelatedSchema, document.Components.Schemas["Unrelated"]);
+        Assert.Equal("Unrelated", unrelatedReference.Reference.Id);
+    }
+
+    private static OpenApiDocument CreateDocument()
+        => new()
+        {
+            Components = new OpenApiComponents
+            {
+                Schemas = new Dictionary<string, IOpenApiSchema>
+                {
+                    ["Geometry"] = new OpenApiSchema(),
+                    ["Root"] = new OpenApiSchema(),
+                    ["Unrelated"] = new OpenApiSchema()
+                }
+            }
+        };
+
+    private static void ApplyFilter(OpenApiDocument document)
+    {
+        var context = new DocumentFilterContext(
+            Array.Empty<ApiDescription>(),
+            new SchemaGenerator(
+                new SchemaGeneratorOptions(),
+                new JsonSerializerDataContractResolver(new System.Text.Json.JsonSerializerOptions())),
+            new SchemaRepository());
+
+        new RemovePostGisSchemasDocumentFilter().Apply(document, context);
+    }
+}
+
+/// <summary>Provides one API action for generated-document contract validation.</summary>
+[ApiController]
+[Area("Api")]
+[Route("api/swagger-contract")]
+public sealed class SwaggerContractController : ControllerBase
+{
+    /// <summary>Returns a point so the production schema mapping is generated.</summary>
+    [HttpGet]
+    public ActionResult<Point> Get() => new Point(2.2943506, 48.8588443);
 }

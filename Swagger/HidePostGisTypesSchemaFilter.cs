@@ -1,58 +1,108 @@
-﻿using Microsoft.OpenApi.Models;
+using Microsoft.OpenApi;
 using Swashbuckle.AspNetCore.SwaggerGen;
 
-namespace Wayfarer.Swagger
+namespace Wayfarer.Swagger;
+
+/// <summary>Removes PostGIS implementation schemas and references from the public API document.</summary>
+public sealed class RemovePostGisSchemasDocumentFilter : IDocumentFilter
 {
-    public class RemovePostGisSchemasDocumentFilter : IDocumentFilter
+    private static readonly HashSet<string> PostGisTypes = new(StringComparer.Ordinal)
     {
-        public void Apply(OpenApiDocument swaggerDoc, DocumentFilterContext context)
+        "Coordinate", "CoordinateEqualityComparer", "CoordinateSequence", "CoordinateSequenceFactory",
+        "Dimension", "Envelope", "Geometry", "GeometryFactory", "GeometryOverlay",
+        "NtsGeometryServices", "OgcGeometryType", "Ordinates", "Point",
+        "PrecisionModel", "PrecisionModels"
+    };
+
+    /// <inheritdoc />
+    public void Apply(OpenApiDocument swaggerDoc, DocumentFilterContext context)
+    {
+        var schemas = swaggerDoc.Components?.Schemas;
+        if (schemas == null) return;
+
+        foreach (string type in PostGisTypes)
         {
-            // List of PostGIS-related types to hide
-            string[] postGisTypes = new[]
-            {
-                "Coordinate", "CoordinateEqualityComparer", "CoordinateSequence", "CoordinateSequenceFactory",
-                "Dimension", "Envelope", "Geometry", "GeometryFactory", "GeometryOverlay",
-                "NtsGeometryServices", "OgcGeometryType", "Ordinates", "Point",
-                "PrecisionModel", "PrecisionModels"
-            };
-
-            // Remove schemas from the Swagger document that are in the PostGIS-related types list
-            foreach (string type in postGisTypes)
-            {
-                if (swaggerDoc.Components.Schemas.ContainsKey(type))
-                {
-                    swaggerDoc.Components.Schemas.Remove(type);
-                }
-            }
-
-            // Now iterate through all schemas and remove references to the removed types
-            foreach (OpenApiSchema? schema in swaggerDoc.Components.Schemas.Values)
-            {
-                RemoveInvalidReferences(schema, postGisTypes);
-            }
+            schemas.Remove(type);
         }
 
-        private void RemoveInvalidReferences(OpenApiSchema schema, string[] postGisTypes)
+        var visited = new HashSet<IOpenApiSchema>(ReferenceEqualityComparer.Instance);
+        foreach (IOpenApiSchema schema in schemas.Values)
         {
-            // Iterate through all properties of the schema
-            if (schema.Properties != null)
-            {
-                foreach (OpenApiSchema? property in schema.Properties.Values)
-                {
-                    // Check if the property is a reference ($ref)
-                    if (property.Reference != null && postGisTypes.Contains(property.Reference.Id))
-                    {
-                        // Set it to null or a default schema
-                        property.Reference = null; // Or replace with another schema if necessary
-                    }
-                }
-            }
-
-            // If there are any items in array type, check recursively for $ref in items as well
-            if (schema.Items != null && schema.Items.Reference != null && postGisTypes.Contains(schema.Items.Reference.Id))
-            {
-                schema.Items.Reference = null; // Or replace with another schema if necessary
-            }
+            RemoveInvalidReferences(schema, visited);
         }
     }
+
+    private static void RemoveInvalidReferences(IOpenApiSchema schema, HashSet<IOpenApiSchema> visited)
+    {
+        if (schema is not OpenApiSchema mutableSchema || !visited.Add(schema)) return;
+
+        SanitizeNestedSchemas(mutableSchema.Properties, visited);
+        SanitizeNestedSchemas(mutableSchema.PatternProperties, visited);
+        SanitizeNestedSchemas(mutableSchema.Definitions, visited);
+
+        if (mutableSchema.Items != null)
+        {
+            mutableSchema.Items = SanitizeNestedSchema(mutableSchema.Items, visited);
+        }
+
+        SanitizeNestedSchemas(mutableSchema.AllOf, visited);
+        SanitizeNestedSchemas(mutableSchema.AnyOf, visited);
+        SanitizeNestedSchemas(mutableSchema.OneOf, visited);
+
+        if (mutableSchema.Not != null)
+        {
+            mutableSchema.Not = SanitizeNestedSchema(mutableSchema.Not, visited);
+        }
+
+        if (mutableSchema.AdditionalProperties != null)
+        {
+            mutableSchema.AdditionalProperties = SanitizeNestedSchema(mutableSchema.AdditionalProperties, visited);
+        }
+
+        if (mutableSchema.UnevaluatedPropertiesSchema != null)
+        {
+            mutableSchema.UnevaluatedPropertiesSchema =
+                SanitizeNestedSchema(mutableSchema.UnevaluatedPropertiesSchema, visited);
+        }
+    }
+
+    /// <summary>Sanitizes mutable schema dictionary values in place while preserving keys and ordering.</summary>
+    private static void SanitizeNestedSchemas(
+        IDictionary<string, IOpenApiSchema>? schemas,
+        HashSet<IOpenApiSchema> visited)
+    {
+        if (schemas == null) return;
+
+        foreach (string name in schemas.Keys.ToArray())
+        {
+            schemas[name] = SanitizeNestedSchema(schemas[name], visited);
+        }
+    }
+
+    /// <summary>Sanitizes a mutable schema list in place while preserving its shape and ordering.</summary>
+    private static void SanitizeNestedSchemas(IList<IOpenApiSchema>? schemas, HashSet<IOpenApiSchema> visited)
+    {
+        if (schemas == null) return;
+
+        for (int index = 0; index < schemas.Count; index++)
+        {
+            schemas[index] = SanitizeNestedSchema(schemas[index], visited);
+        }
+    }
+
+    /// <summary>Replaces a removed reference or recursively sanitizes an otherwise retained schema.</summary>
+    private static IOpenApiSchema SanitizeNestedSchema(
+        IOpenApiSchema schema,
+        HashSet<IOpenApiSchema> visited)
+    {
+        if (ReferencesRemovedType(schema)) return new OpenApiSchema();
+
+        RemoveInvalidReferences(schema, visited);
+        return schema;
+    }
+
+    private static bool ReferencesRemovedType(IOpenApiSchema schema)
+        => schema is OpenApiSchemaReference reference &&
+           reference.Reference.Id is string id &&
+           PostGisTypes.Contains(id);
 }
