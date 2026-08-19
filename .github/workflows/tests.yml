@@ -31,6 +31,36 @@ jobs:
             echo "Documentation-only change detected; expensive validation steps are skipped."
           fi
 
+          if grep -Eq '^(package(-lock)?\.json|ClientApps/|wwwroot/(css|js)/|tests/client/|vite\.config\.[^/]+$|tsconfig[^/]*\.json$|tools/trip-editor-asset-smoke\.mjs$)' <<< "$changed_files"; then
+            echo "run_frontend=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run_frontend=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup Node
+        if: steps.scope.outputs.run_frontend == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.x'
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install frontend dependencies
+        if: steps.scope.outputs.run_frontend == 'true'
+        run: npm ci
+
+      - name: Audit frontend dependencies
+        if: steps.scope.outputs.run_frontend == 'true'
+        run: npm audit
+
+      - name: Run deterministic client tests
+        if: steps.scope.outputs.run_frontend == 'true'
+        run: npm run test:client
+
+      - name: Build frontend assets
+        if: steps.scope.outputs.run_frontend == 'true'
+        run: npm run build
+
       - name: Setup .NET
         if: steps.scope.outputs.run_full == 'true'
         uses: actions/setup-dotnet@v4
@@ -44,6 +74,10 @@ jobs:
       - name: Restore tools
         if: steps.scope.outputs.run_full == 'true'
         run: dotnet tool restore
+
+      - name: Smoke test Trip Editor assets
+        if: steps.scope.outputs.run_frontend == 'true'
+        run: npm run smoke:trip-editor:assets
 
       - name: Check file size limits
         if: steps.scope.outputs.run_full == 'true'

@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite --host localhost --port 5173",
     "build": "vite build",
+    "test:client": "node --test tests/client/*.test.mjs",
     "test:trip-import-client": "node --test tests/client/tripImportClient.test.mjs",
     "test:segment-route-policy": "node --test tests/client/segmentRouteWorkPolicy.test.mjs",
     "test:external-route-proposals": "node --test tests/client/segmentRouteProposalState.test.mjs",
