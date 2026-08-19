@@ -10,6 +10,7 @@
     <div class="col-md-8"><label asp-for="Credential" class="form-label">Replacement credential</label><input asp-for="Credential" type="password" class="form-control" autocomplete="new-password" /><div class="form-text">Leave blank to preserve the @(Model.CredentialPresent ? "stored credential" : "empty credential").</div></div>
     <div class="col-md-4 form-check mt-md-5"><input asp-for="CredentialRequired" class="form-check-input" /><label asp-for="CredentialRequired" class="form-check-label">Credential required</label></div>
     <div class="col-md-4 form-check ms-2"><input asp-for="Enabled" class="form-check-input" /><label asp-for="Enabled" class="form-check-label">Configuration enabled</label></div>
+    <div class="col-md-6"><label asp-for="PersonalRoutingAccess" class="form-label">Personal routing access</label><select asp-for="PersonalRoutingAccess" asp-items="Html.GetEnumSelectList<Wayfarer.Models.PersonalRoutingAccess>()" class="form-select"></select><div class="form-text">Controls whether users may select this administrator-owned template and whether they must supply their own credential.</div></div>
     <div class="col-12"><label asp-for="Attribution" class="form-label"></label><input asp-for="Attribution" class="form-control" /></div>
     <div class="col-12"><label asp-for="ExternalCoordinateDisclosure" class="form-label">Coordinate disclosure</label><textarea asp-for="ExternalCoordinateDisclosure" class="form-control"></textarea><span asp-validation-for="ExternalCoordinateDisclosure" class="text-danger"></span></div>
 </div>

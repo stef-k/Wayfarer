@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using Wayfarer.Services.ExternalRouting;
+using Wayfarer.Models;
 
 namespace Wayfarer.Areas.Admin.Models;
 
@@ -33,6 +34,9 @@ public sealed class RoutingProviderEditViewModel : IValidatableObject
 
     /// <summary>Gets or sets whether a credential is required for this instance.</summary>
     public bool CredentialRequired { get; set; }
+
+    /// <summary>Gets or sets the administrator-owned personal template access mode.</summary>
+    public PersonalRoutingAccess PersonalRoutingAccess { get; set; }
 
     /// <summary>Gets whether a stored credential is present.</summary>
     public bool CredentialPresent { get; set; }

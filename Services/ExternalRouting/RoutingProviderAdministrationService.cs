@@ -53,6 +53,7 @@ public sealed class RoutingProviderAdministrationService
         var intervalChanged = creating || provider!.MinimumIntervalMilliseconds != minimumIntervalMilliseconds;
         var changed = !creating && (provider.BaseEndpoint != endpoint
             || provider.CredentialRequired != model.CredentialRequired
+            || provider.PersonalRoutingAccess != model.PersonalRoutingAccess
             || provider.VerificationFromLongitude != model.VerificationFromLongitude
             || provider.VerificationFromLatitude != model.VerificationFromLatitude
             || provider.VerificationToLongitude != model.VerificationToLongitude
@@ -67,6 +68,7 @@ public sealed class RoutingProviderAdministrationService
         provider.AdapterType = RoutingAdapterType.OsrmCompatible;
         provider.BaseEndpoint = endpoint;
         provider.CredentialRequired = model.CredentialRequired;
+        provider.PersonalRoutingAccess = model.PersonalRoutingAccess;
         provider.Enabled = model.Enabled;
         provider.Attribution = Normalize(model.Attribution);
         provider.ExternalCoordinateDisclosure = model.ExternalCoordinateDisclosure.Trim();

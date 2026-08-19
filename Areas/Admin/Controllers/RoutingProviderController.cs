@@ -147,6 +147,7 @@ public sealed class RoutingProviderController : Controller
     {
         Id = provider.Id, DisplayName = provider.DisplayName, BaseEndpoint = provider.BaseEndpoint ?? string.Empty,
         CredentialRequired = provider.CredentialRequired, CredentialPresent = provider.CredentialPresent,
+        PersonalRoutingAccess = provider.PersonalRoutingAccess,
         Enabled = provider.Enabled, Attribution = provider.Attribution,
         ExternalCoordinateDisclosure = provider.ExternalCoordinateDisclosure ?? string.Empty,
         VerificationFromLongitude = provider.VerificationFromLongitude, VerificationFromLatitude = provider.VerificationFromLatitude,
