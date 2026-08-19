@@ -117,7 +117,7 @@ public sealed class PersonalRoutingVerificationService(
                 : dbContext.Set<UserRoutingConfiguration>().Where(item => item.UserId == snapshot.UserId);
             var configuration = await userQuery.SingleOrDefaultAsync(cancellationToken);
             if (provider == null || configuration == null || !Matches(snapshot, provider, configuration))
-                return PersonalRoutingVerificationResult.Failure("personal-routing-stale");
+                return Stale();
             configuration.VerifiedUserConfigurationVersion = failureCode == null ? configuration.ConfigurationVersion : null;
             configuration.VerifiedProviderConfigurationVersion = failureCode == null ? provider.ConfigurationVersion : null;
             configuration.VerificationStatus = failureCode == null ? "verified" : "unavailable";
