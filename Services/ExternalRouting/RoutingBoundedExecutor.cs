@@ -30,6 +30,8 @@ public sealed class RoutingBoundedExecutor
                 if (admitAttempt?.Invoke() == false) return RoutingExecutionResult.Failure("provider-rate-limited");
                 IReadOnlyList<IPAddress> addresses;
                 try { addresses = await _resolver.ResolveAsync(endpoint.Host, deadline.Token); }
+                catch (HttpRequestException exception) when (exception.InnerException is OperationCanceledException)
+                { throw exception.InnerException; }
                 catch (Exception exception) when (exception is HttpRequestException or SocketException)
                 {
                     if (attempt == 0) continue;
@@ -40,6 +42,8 @@ public sealed class RoutingBoundedExecutor
                 var requestUri = new Uri(endpoint.ToString().TrimEnd('/') + "/" + relativeRequest.TrimStart('/'));
                 HttpResponseMessage response;
                 try { response = await _transport.SendAsync(requestUri, decision.SelectedAddress!, bearerCredential, deadline.Token); }
+                catch (HttpRequestException exception) when (exception.InnerException is OperationCanceledException)
+                { throw exception.InnerException; }
                 catch (Exception exception) when (exception is HttpRequestException or SocketException)
                 {
                     if (attempt == 0) continue;
@@ -49,6 +53,8 @@ public sealed class RoutingBoundedExecutor
                 {
                     if (attempt == 0 && IsRetryable(response.StatusCode)) continue;
                     try { return await ReadResponseAsync(response, responseLimitBytes, deadline.Token); }
+                    catch (HttpRequestException exception) when (exception.InnerException is OperationCanceledException)
+                    { throw exception.InnerException; }
                     catch (Exception exception) when (exception is HttpRequestException or IOException)
                     { return RoutingExecutionResult.Failure("provider-response-failure"); }
                 }
