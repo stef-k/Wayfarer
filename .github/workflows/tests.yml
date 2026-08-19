@@ -91,13 +91,42 @@ jobs:
         if: steps.scope.outputs.run_full == 'true'
         run: dotnet test tests/Wayfarer.Tests/Wayfarer.Tests.csproj --configuration Release --no-build --verbosity normal --filter "Category!=RequiresSpatialite&Category!=RequiresPlaywright"
 
+      - name: Resolve .NET Playwright Chromium revision
+        if: steps.scope.outputs.run_full == 'true'
+        id: playwright-metadata
+        shell: pwsh
+        run: |
+          $metadataRoot = 'tests/Wayfarer.Tests/bin/Release/net10.0/.playwright/package'
+          $metadataFiles = @(Get-ChildItem -LiteralPath $metadataRoot -Filter browsers.json -File -Recurse -ErrorAction SilentlyContinue)
+          if ($metadataFiles.Count -ne 1) {
+            throw "Expected exactly one generated .NET Playwright browsers.json under '$metadataRoot'; found $($metadataFiles.Count)."
+          }
+
+          try {
+            $metadata = Get-Content -LiteralPath $metadataFiles[0].FullName -Raw | ConvertFrom-Json
+          } catch {
+            throw "Generated .NET Playwright browser metadata is not valid JSON: $($_.Exception.Message)"
+          }
+
+          $chromiumEntries = @($metadata.browsers | Where-Object { $_.name -eq 'chromium' })
+          if ($chromiumEntries.Count -ne 1) {
+            throw "Expected exactly one Chromium entry in generated .NET Playwright metadata; found $($chromiumEntries.Count)."
+          }
+
+          $revision = [string]$chromiumEntries[0].revision
+          if ([string]::IsNullOrWhiteSpace($revision) -or $revision -notmatch '^\d+$') {
+            throw "Generated .NET Playwright Chromium revision is empty or malformed: '$revision'."
+          }
+
+          "chromium_revision=$revision" >> $env:GITHUB_OUTPUT
+
       - name: Restore .NET Playwright Chromium
         if: steps.scope.outputs.run_full == 'true'
         id: playwright-cache
         uses: actions/cache@v4
         with:
           path: ${{ runner.temp }}/wayfarer-dotnet-playwright
-          key: playwright-${{ runner.os }}-1.48.0-chromium
+          key: playwright-${{ runner.os }}-dotnet-chromium-${{ steps.playwright-metadata.outputs.chromium_revision }}
 
       - name: Install .NET Playwright Chromium
         if: steps.scope.outputs.run_full == 'true' && steps.playwright-cache.outputs.cache-hit != 'true'
