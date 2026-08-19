@@ -134,7 +134,7 @@ public sealed class ExternalRouteProposalGeneratorTests : TestBase
     private sealed class StubClient(IReadOnlyList<RouteCoordinate> anchors) : IOsrmRouteClient
     {
         public int Requests { get; private set; }
-        public Task<OsrmRouteResult> RouteAsync(RoutingProviderConfiguration provider, string profile,
+        public Task<OsrmRouteResult> RouteAsync(ResolvedRoutingProviderExecution execution,
             IReadOnlyList<RouteCoordinate> requestedAnchors, Func<CancellationToken, Task<bool>> validateAuthority,
             CancellationToken cancellationToken)
         {
@@ -148,7 +148,7 @@ public sealed class ExternalRouteProposalGeneratorTests : TestBase
         private readonly TaskCompletionSource _entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public Task Entered => _entered.Task;
         public async Task<OsrmRouteResult> RouteAsync(
-            RoutingProviderConfiguration provider, string profile, IReadOnlyList<RouteCoordinate> requestedAnchors,
+            ResolvedRoutingProviderExecution execution, IReadOnlyList<RouteCoordinate> requestedAnchors,
             Func<CancellationToken, Task<bool>> validateAuthority, CancellationToken cancellationToken)
         {
             _entered.TrySetResult();
