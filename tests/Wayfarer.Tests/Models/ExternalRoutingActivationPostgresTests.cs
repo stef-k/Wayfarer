@@ -102,12 +102,17 @@ public sealed class ExternalRoutingActivationPostgresTests
         int originalGeneration;
         var credentials = new RoutingProviderCredentialService(new EphemeralDataProtectionProvider());
         uint settingsRowVersion, providerRowVersion;
+        bool createdSettings = false, createdProfile = false;
+        Guid profileId;
         await using (var setup = _fixture.CreateContext())
         {
-            var settings = await setup.ApplicationSettings.SingleAsync(item => item.Id == 1);
+            var settings = await setup.ApplicationSettings.SingleOrDefaultAsync(item => item.Id == 1);
+            if (settings == null) { settings = new ApplicationSettings { Id = 1 }; setup.ApplicationSettings.Add(settings); createdSettings = true; }
             (originalActive, originalEnabled, originalGeneration) = (settings.ActiveRoutingProviderConfigurationId,
                 settings.ExternalRouteGenerationEnabled, settings.ExternalRouteGenerationVersion);
-            var profile = await setup.Set<TransportProfile>().FirstAsync(item => item.IsActive);
+            var profile = await setup.Set<TransportProfile>().FirstOrDefaultAsync(item => item.IsActive);
+            if (profile == null) { profile = new TransportProfile { Id = Guid.NewGuid(), Key = $"routing-clear-{Guid.NewGuid():N}", Label = "Routing clear", Category = "Test", IsActive = true }; setup.Set<TransportProfile>().Add(profile); createdProfile = true; }
+            profileId = profile.Id;
             var provider = Provider(providerId, profile.Id);
             provider.CredentialRequired = true;
             credentials.Replace(provider, "run-owned-secret");
@@ -147,6 +152,8 @@ public sealed class ExternalRoutingActivationPostgresTests
             settings.ExternalRouteGenerationVersion = originalGeneration;
             await cleanup.SaveChangesAsync();
             await cleanup.Set<RoutingProviderConfiguration>().Where(item => item.Id == providerId).ExecuteDeleteAsync();
+            if (createdProfile) await cleanup.Set<TransportProfile>().Where(item => item.Id == profileId).ExecuteDeleteAsync();
+            if (createdSettings) await cleanup.ApplicationSettings.Where(item => item.Id == 1).ExecuteDeleteAsync();
         }
     }
 
@@ -159,12 +166,15 @@ public sealed class ExternalRoutingActivationPostgresTests
         bool originalProfileActive;
         Guid? originalActive;
         uint settingsRowVersion;
+        bool createdSettings = false, createdProfile = false;
         await using (var setup = _fixture.CreateContext())
         {
-            var settings = await setup.ApplicationSettings.SingleAsync(item => item.Id == 1);
+            var settings = await setup.ApplicationSettings.SingleOrDefaultAsync(item => item.Id == 1);
+            if (settings == null) { settings = new ApplicationSettings { Id = 1 }; setup.ApplicationSettings.Add(settings); createdSettings = true; }
             originalActive = settings.ActiveRoutingProviderConfigurationId;
             settingsRowVersion = settings.RowVersion;
-            var profile = await setup.Set<TransportProfile>().FirstAsync(item => item.IsActive);
+            var profile = await setup.Set<TransportProfile>().FirstOrDefaultAsync(item => item.IsActive);
+            if (profile == null) { profile = new TransportProfile { Id = Guid.NewGuid(), Key = $"routing-profile-{Guid.NewGuid():N}", Label = "Routing profile", Category = "Test", IsActive = true }; setup.Set<TransportProfile>().Add(profile); createdProfile = true; }
             profileId = profile.Id;
             originalProfileActive = profile.IsActive;
             setup.Set<RoutingProviderConfiguration>().Add(Provider(providerId, profileId));
@@ -195,6 +205,8 @@ public sealed class ExternalRoutingActivationPostgresTests
             profile.IsActive = originalProfileActive;
             await cleanup.SaveChangesAsync();
             await cleanup.Set<RoutingProviderConfiguration>().Where(item => item.Id == providerId).ExecuteDeleteAsync();
+            if (createdProfile) await cleanup.Set<TransportProfile>().Where(item => item.Id == profileId).ExecuteDeleteAsync();
+            if (createdSettings) await cleanup.ApplicationSettings.Where(item => item.Id == 1).ExecuteDeleteAsync();
         }
     }
 
