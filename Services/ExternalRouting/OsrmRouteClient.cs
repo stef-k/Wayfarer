@@ -8,29 +8,27 @@ namespace Wayfarer.Services.ExternalRouting;
 public sealed class OsrmRouteClient : IOsrmRouteClient
 {
     private readonly RoutingBoundedExecutor _executor;
-    private readonly RoutingProviderCredentialService _credentials;
     private readonly RoutingAttemptCoordinator _attempts;
 
     /// <summary>Initializes the server-only OSRM client.</summary>
     public OsrmRouteClient(
-        RoutingBoundedExecutor executor, RoutingProviderCredentialService credentials, RoutingAttemptCoordinator attempts)
-        => (_executor, _credentials, _attempts) = (executor, credentials, attempts);
+        RoutingBoundedExecutor executor, RoutingAttemptCoordinator attempts)
+        => (_executor, _attempts) = (executor, attempts);
 
     /// <inheritdoc />
     public async Task<OsrmRouteResult> RouteAsync(
-        RoutingProviderConfiguration provider, string profile, IReadOnlyList<RouteCoordinate> anchors,
+        ResolvedRoutingProviderExecution execution, IReadOnlyList<RouteCoordinate> anchors,
         Func<CancellationToken, Task<bool>> validateAuthority, CancellationToken cancellationToken)
     {
-        var credential = _credentials.Read(provider);
-        if (!credential.Succeeded) return OsrmRouteResult.Invalid(credential.ErrorCode!);
-        var request = OsrmRoutingAdapter.BuildRelativeRequest(profile, anchors);
-        var execution = await _executor.GetJsonAsync(new Uri(provider.BaseEndpoint!), request,
+        var provider = execution.Provider;
+        var request = OsrmRoutingAdapter.BuildRelativeRequest(execution.Profile, anchors);
+        var responseExecution = await _executor.GetJsonAsync(new Uri(provider.BaseEndpoint!), request,
             provider.ResponseSizeLimitBytes, TimeSpan.FromSeconds(provider.GenerationTimeoutSeconds), cancellationToken,
-            credential.Credential, prepareAttempt: token => _attempts.PrepareAsync(provider, validateAuthority, token));
-        if (!execution.Succeeded) return OsrmRouteResult.Invalid(execution.ErrorCode!);
+            execution.Credential, prepareAttempt: token => _attempts.PrepareAsync(provider, validateAuthority, token));
+        if (!responseExecution.Succeeded) return OsrmRouteResult.Invalid(responseExecution.ErrorCode!);
         using var response = new HttpResponseMessage(HttpStatusCode.OK)
         {
-            Content = new ByteArrayContent(execution.Json!)
+            Content = new ByteArrayContent(responseExecution.Json!)
         };
         response.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
         return await OsrmRoutingAdapter.ParseAsync(response, cancellationToken);
@@ -42,6 +40,6 @@ public interface IOsrmRouteClient
 {
     /// <summary>Returns only parsed validated provider geometry and snapped waypoints.</summary>
     Task<OsrmRouteResult> RouteAsync(
-        RoutingProviderConfiguration provider, string profile, IReadOnlyList<RouteCoordinate> anchors,
+        ResolvedRoutingProviderExecution execution, IReadOnlyList<RouteCoordinate> anchors,
         Func<CancellationToken, Task<bool>> validateAuthority, CancellationToken cancellationToken);
 }

@@ -22,7 +22,7 @@ public sealed class ExternalRouteProposalGeneratorTests : TestBase
         var client = new StubClient(fixture.Anchors);
         var validator = new StubValidator(fixture.Anchors);
         var generator = new ExternalRouteProposalGenerator(db, aggregateTokens, client, validator,
-            new ExternalRouteProposalContextService(dataProtection), new RoutingRequestBudget());
+            new ExternalRouteProposalContextService(dataProtection), new RoutingRequestBudget(), Resolver(db, dataProtection));
 
         var result = await generator.GenerateAsync(fixture.UserId, fixture.TripId, fixture.Segment.Id, token, CancellationToken.None);
 
@@ -43,7 +43,7 @@ public sealed class ExternalRouteProposalGeneratorTests : TestBase
         var aggregateTokens = new SegmentAggregateTokenService(dataProtection);
         var client = new StubClient(fixture.Anchors);
         var generator = new ExternalRouteProposalGenerator(db, aggregateTokens, client, new StubValidator(fixture.Anchors),
-            new ExternalRouteProposalContextService(dataProtection), new RoutingRequestBudget());
+            new ExternalRouteProposalContextService(dataProtection), new RoutingRequestBudget(), Resolver(db, dataProtection));
 
         var result = await generator.GenerateAsync(fixture.UserId, fixture.TripId, fixture.Segment.Id,
             aggregateTokens.Issue(fixture.UserId, fixture.TripId, fixture.Segment.Id, fixture.Segment.RowVersion), CancellationToken.None);
@@ -62,7 +62,7 @@ public sealed class ExternalRouteProposalGeneratorTests : TestBase
         var aggregateTokens = new SegmentAggregateTokenService(dataProtection);
         var client = new StubClient(fixture.Anchors);
         var generator = new ExternalRouteProposalGenerator(db, aggregateTokens, client, new StubValidator(fixture.Anchors),
-            new ExternalRouteProposalContextService(dataProtection), new RoutingRequestBudget());
+            new ExternalRouteProposalContextService(dataProtection), new RoutingRequestBudget(), Resolver(db, dataProtection));
 
         var result = await generator.GenerateAsync(fixture.UserId, fixture.TripId, fixture.Segment.Id,
             aggregateTokens.Issue(fixture.UserId, fixture.TripId, fixture.Segment.Id, fixture.Segment.RowVersion + 1), CancellationToken.None);
@@ -82,7 +82,7 @@ public sealed class ExternalRouteProposalGeneratorTests : TestBase
         var client = new BlockingClient();
         var generator = new ExternalRouteProposalGenerator(db, aggregateTokens, client,
             new StubValidator(fixture.Anchors), new ExternalRouteProposalContextService(dataProtection),
-            new RoutingRequestBudget(), time);
+            new RoutingRequestBudget(), Resolver(db, dataProtection), time);
         var pending = generator.GenerateAsync(fixture.UserId, fixture.TripId, fixture.Segment.Id,
             aggregateTokens.Issue(fixture.UserId, fixture.TripId, fixture.Segment.Id, fixture.Segment.RowVersion),
             CancellationToken.None);
@@ -91,6 +91,39 @@ public sealed class ExternalRouteProposalGeneratorTests : TestBase
         time.Advance(TimeSpan.FromSeconds(300));
 
         Assert.Equal("routing-timeout", (await pending).ErrorCode);
+    }
+
+    [Fact]
+    public async Task Generate_PersonalModeBindsUserVersionAndPassesOnlyPersonalCredential()
+    {
+        var db = CreateDbContext();
+        var protection = new EphemeralDataProtectionProvider();
+        var fixture = AddFixture(db, enabled: true);
+        var provider = db.Set<RoutingProviderConfiguration>().Single();
+        provider.PersonalRoutingAccess = PersonalRoutingAccess.CredentialRequired;
+        provider.Attribution = "Attribution";
+        provider.ExternalCoordinateDisclosure = "Coordinates leave Wayfarer.";
+        var configuration = db.Set<UserRoutingConfiguration>().Single();
+        configuration.SelectPersonalProvider(provider.Id);
+        new UserRoutingCredentialService(protection).Replace(configuration, provider.Id, "personal-secret");
+        configuration.VerifiedUserConfigurationVersion = configuration.ConfigurationVersion;
+        configuration.VerifiedProviderConfigurationVersion = provider.ConfigurationVersion;
+        configuration.VerificationStatus = "verified";
+        db.SaveChanges();
+        var tokens = new SegmentAggregateTokenService(protection);
+        var contexts = new ExternalRouteProposalContextService(protection);
+        var client = new StubClient(fixture.Anchors);
+        var generator = new ExternalRouteProposalGenerator(db, tokens, client, new StubValidator(fixture.Anchors),
+            contexts, new RoutingRequestBudget(), Resolver(db, protection));
+
+        var result = await generator.GenerateAsync(fixture.UserId, fixture.TripId, fixture.Segment.Id,
+            tokens.Issue(fixture.UserId, fixture.TripId, fixture.Segment.Id, fixture.Segment.RowVersion), CancellationToken.None);
+
+        Assert.True(result.Succeeded);
+        Assert.Equal("personal-secret", client.LastExecution!.Credential);
+        Assert.True(contexts.TryRead(result.Proposal!.ProtectedContext, out var binding));
+        Assert.Equal(RoutingProviderSelectionMode.Personal, binding!.ProviderSelectionMode);
+        Assert.Equal(configuration.ConfigurationVersion, binding.UserRoutingConfigurationVersion);
     }
 
     private static Fixture AddFixture(ApplicationDbContext db, bool enabled)
@@ -119,6 +152,7 @@ public sealed class ExternalRouteProposalGeneratorTests : TestBase
         db.Set<Place>().AddRange(from, via, to);
         db.Set<Segment>().Add(segment);
         db.Set<RoutingProviderConfiguration>().Add(provider);
+        db.Set<UserRoutingConfiguration>().Add(UserRoutingConfiguration.CreateServerDefault(userId));
         db.ApplicationSettings.Add(new ApplicationSettings
         {
             Id = 1, ExternalRouteGenerationEnabled = enabled, ActiveRoutingProviderConfigurationId = provider.Id
@@ -129,16 +163,21 @@ public sealed class ExternalRouteProposalGeneratorTests : TestBase
 
     private static Point Point(double longitude, double latitude) => new(longitude, latitude) { SRID = 4326 };
 
+    private static AuthoritativeRoutingProviderResolver Resolver(ApplicationDbContext db, IDataProtectionProvider protection) =>
+        new(db, new RoutingProviderCredentialService(protection), new UserRoutingCredentialService(protection));
+
     private sealed record Fixture(string UserId, Guid TripId, Segment Segment, IReadOnlyList<RouteCoordinate> Anchors);
 
     private sealed class StubClient(IReadOnlyList<RouteCoordinate> anchors) : IOsrmRouteClient
     {
         public int Requests { get; private set; }
+        public ResolvedRoutingProviderExecution? LastExecution { get; private set; }
         public Task<OsrmRouteResult> RouteAsync(ResolvedRoutingProviderExecution execution,
             IReadOnlyList<RouteCoordinate> requestedAnchors, Func<CancellationToken, Task<bool>> validateAuthority,
             CancellationToken cancellationToken)
         {
             Requests++;
+            LastExecution = execution;
             return Task.FromResult(new OsrmRouteResult(true, anchors, anchors, null));
         }
     }
