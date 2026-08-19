@@ -58,6 +58,38 @@ public sealed class RoutingProviderAdministrationServiceTests : TestBase
     }
 
     [Fact]
+    public async Task Save_RequiredToCredentialFreeClearsSelectingUsersWithoutChangingSelection()
+    {
+        const string userId = "personal-owner";
+        var fixture = CreateFixture(requiredCredential: false, featureEnabled: false);
+        fixture.Provider.PersonalRoutingAccess = PersonalRoutingAccess.CredentialRequired;
+        var configuration = UserRoutingConfiguration.CreateServerDefault(userId);
+        configuration.SelectPersonalProvider(fixture.Provider.Id);
+        new UserRoutingCredentialService(new EphemeralDataProtectionProvider())
+            .Replace(configuration, fixture.Provider.Id, "personal-secret");
+        configuration.VerifiedUserConfigurationVersion = configuration.ConfigurationVersion;
+        configuration.VerifiedProviderConfigurationVersion = fixture.Provider.ConfigurationVersion;
+        configuration.VerificationStatus = "verified";
+        fixture.Db.Set<UserRoutingConfiguration>().Add(configuration);
+        fixture.Db.SaveChanges();
+        var originalUserVersion = configuration.ConfigurationVersion;
+        var model = Model(fixture);
+        model.PersonalRoutingAccess = PersonalRoutingAccess.CredentialFree;
+
+        var result = await fixture.Service.SaveAsync(model, "admin", CancellationToken.None);
+
+        Assert.True(result.Succeeded);
+        Assert.Equal(fixture.Provider.Id, configuration.SelectedProviderConfigurationId);
+        Assert.Null(configuration.CredentialCiphertext);
+        Assert.False(configuration.CredentialPresent);
+        Assert.Null(configuration.VerifiedUserConfigurationVersion);
+        Assert.Null(configuration.VerifiedProviderConfigurationVersion);
+        Assert.Null(configuration.VerificationStatus);
+        Assert.Equal(originalUserVersion + 1, configuration.ConfigurationVersion);
+        Assert.True(configuration.UpdatedAt > configuration.CreatedAt);
+    }
+
+    [Fact]
     public async Task Save_MinimumIntervalChangeIsExactAndInvalidatesOnlyWhenChanged()
     {
         var fixture = CreateFixture(requiredCredential: false, featureEnabled: false);
