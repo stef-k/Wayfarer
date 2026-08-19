@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Sockets;
 using System.Text;
 using Microsoft.Extensions.Options;
 using Wayfarer.Services.ExternalRouting;
@@ -103,16 +104,144 @@ public sealed class RoutingBoundedExecutorTests
         Assert.Equal(1, transport.Requests);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Executor_RetriesBoundedDnsConnectionFailureOnce(bool httpFailure)
+    {
+        var resolver = new ThrowingResolver(httpFailure
+            ? new HttpRequestException("https://secret.invalid/37.9,23.7?key=credential")
+            : new SocketException((int)SocketError.HostNotFound));
+        var admissions = 0;
+        var executor = new RoutingBoundedExecutor(resolver, Policy(), new SequenceTransport());
+
+        var result = await executor.GetJsonAsync(new Uri("https://routing.example"), "route", 262144,
+            TimeSpan.FromSeconds(5), CancellationToken.None, admitAttempt: () => { admissions++; return true; });
+
+        Assert.Equal("provider-connection-failure", result.ErrorCode);
+        Assert.Null(result.Json);
+        Assert.Equal(2, resolver.Requests);
+        Assert.Equal(2, admissions);
+        Assert.DoesNotContain("credential", result.ToString(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Executor_DnsRetryStopsWhenSecondAttemptIsNotAdmitted()
+    {
+        var resolver = new ThrowingResolver(new SocketException((int)SocketError.HostNotFound));
+        var admissions = 0;
+        var executor = new RoutingBoundedExecutor(resolver, Policy(), new SequenceTransport());
+
+        var result = await executor.GetJsonAsync(new Uri("https://routing.example"), "route", 262144,
+            TimeSpan.FromSeconds(5), CancellationToken.None,
+            admitAttempt: () => ++admissions == 1);
+
+        Assert.Equal("provider-rate-limited", result.ErrorCode);
+        Assert.Equal(1, resolver.Requests);
+        Assert.Equal(2, admissions);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Executor_BoundsResponseStreamFailureWithoutRetry(bool httpFailure)
+    {
+        var transport = new SequenceTransport(StreamFailureResponse(httpFailure
+            ? new HttpRequestException("response https://secret.invalid credential 37.9,23.7")
+            : new IOException("response-content-secret")));
+        var admissions = 0;
+        var executor = new RoutingBoundedExecutor(new StubResolver(IPAddress.Parse("8.8.8.8")), Policy(), transport);
+
+        var result = await executor.GetJsonAsync(new Uri("https://routing.example"), "route", 262144,
+            TimeSpan.FromSeconds(5), CancellationToken.None, admitAttempt: () => { admissions++; return true; });
+
+        Assert.Equal("provider-response-failure", result.ErrorCode);
+        Assert.Null(result.Json);
+        Assert.Equal(1, transport.Requests);
+        Assert.Equal(1, admissions);
+        Assert.DoesNotContain("secret", result.ToString(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Executor_PreservesCallerCancellationDuringDnsAndResponseBody(bool responseBody)
+    {
+        var blocker = new BlockingStage();
+        IRoutingDnsResolver resolver = responseBody
+            ? new StubResolver(IPAddress.Parse("8.8.8.8")) : new BlockingResolver(blocker);
+        var transport = responseBody
+            ? new SequenceTransport(BlockingResponse(blocker))
+            : new SequenceTransport();
+        var executor = new RoutingBoundedExecutor(resolver, Policy(), transport);
+        using var cancellation = new CancellationTokenSource();
+        var pending = executor.GetJsonAsync(new Uri("https://routing.example"), "route", 262144,
+            TimeSpan.FromSeconds(5), cancellation.Token);
+        await blocker.Entered.WaitAsync(TimeSpan.FromSeconds(5));
+
+        cancellation.Cancel();
+        var result = await pending;
+
+        Assert.Equal("request-cancelled", result.ErrorCode);
+        Assert.Equal(responseBody ? 1 : 0, transport.Requests);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Executor_ClassifiesDeadlineDuringDnsAndResponseBody(bool responseBody)
+    {
+        var blocker = new BlockingStage();
+        IRoutingDnsResolver resolver = responseBody
+            ? new StubResolver(IPAddress.Parse("8.8.8.8")) : new BlockingResolver(blocker);
+        var transport = responseBody
+            ? new SequenceTransport(BlockingResponse(blocker))
+            : new SequenceTransport();
+        var executor = new RoutingBoundedExecutor(resolver, Policy(), transport);
+
+        var result = await executor.GetJsonAsync(new Uri("https://routing.example"), "route", 262144,
+            TimeSpan.FromMilliseconds(50), CancellationToken.None);
+
+        Assert.Equal("provider-timeout", result.ErrorCode);
+        Assert.Equal(responseBody ? 1 : 0, transport.Requests);
+    }
+
     private static RoutingEndpointPolicy Policy(params RoutingSelfHostedAllowlistEntry[] entries) =>
         new(Options.Create(new RoutingOutboundOptions { SelfHostedAllowlist = [.. entries] }));
 
     private static HttpResponseMessage Response(string body) => new(HttpStatusCode.OK)
     { Content = new StringContent(body, Encoding.UTF8, "application/json") };
 
+    private static HttpResponseMessage StreamFailureResponse(Exception exception) => new(HttpStatusCode.OK)
+    { Content = new StreamContent(new ThrowingReadStream(exception)) { Headers = { ContentType = new("application/json") } } };
+
+    private static HttpResponseMessage BlockingResponse(BlockingStage blocker) => new(HttpStatusCode.OK)
+    { Content = new StreamContent(new BlockingReadStream(blocker)) { Headers = { ContentType = new("application/json") } } };
+
     private sealed class StubResolver(params IPAddress[] addresses) : IRoutingDnsResolver
     {
         public Task<IReadOnlyList<IPAddress>> ResolveAsync(string host, CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<IPAddress>>(addresses);
+    }
+
+    private sealed class ThrowingResolver(Exception exception) : IRoutingDnsResolver
+    {
+        public int Requests { get; private set; }
+        public Task<IReadOnlyList<IPAddress>> ResolveAsync(string host, CancellationToken cancellationToken)
+        {
+            Requests++;
+            return Task.FromException<IReadOnlyList<IPAddress>>(exception);
+        }
+    }
+
+    private sealed class BlockingResolver(BlockingStage blocker) : IRoutingDnsResolver
+    {
+        public async Task<IReadOnlyList<IPAddress>> ResolveAsync(string host, CancellationToken cancellationToken)
+        {
+            blocker.Signal();
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            return [];
+        }
     }
 
     private sealed class RecordingTransport(HttpResponseMessage response) : IRoutingPinnedTransport
@@ -133,5 +262,48 @@ public sealed class RoutingBoundedExecutorTests
 
         public Task<HttpResponseMessage> SendAsync(Uri requestUri, IPAddress selectedAddress, string? bearerCredential, CancellationToken cancellationToken) =>
             Task.FromResult(responses[Requests++]);
+    }
+
+    private sealed class BlockingStage
+    {
+        private readonly TaskCompletionSource _entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public Task Entered => _entered.Task;
+        public void Signal() => _entered.TrySetResult();
+    }
+
+    private sealed class ThrowingReadStream(Exception exception) : Stream
+    {
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+        public override void Flush() { }
+        public override int Read(byte[] buffer, int offset, int count) => throw exception;
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default) =>
+            ValueTask.FromException<int>(exception);
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+    }
+
+    private sealed class BlockingReadStream(BlockingStage blocker) : Stream
+    {
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => throw new NotSupportedException(); set => throw new NotSupportedException(); }
+        public override void Flush() { }
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            blocker.Signal();
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            return 0;
+        }
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
     }
 }

@@ -40,6 +40,100 @@ public sealed class RoutingVerificationActivationTests : TestBase
     }
 
     [Fact]
+    public async Task Verification_SuccessChargesOneUpstreamContact()
+    {
+        var (db, provider) = ProviderFixture(requestsPerMinute: 1);
+        var budgets = new RoutingRequestBudget();
+        var verifier = Verifier(db, new ProbeTransport(ValidResponse()), budgets);
+
+        var result = await verifier.VerifyAsync(
+            provider.Id, provider.ConfigurationVersion, provider.RowVersion, "admin", CancellationToken.None);
+        using var lease = await budgets.AcquireProviderAsync(provider.Id, 1, provider.MaxConcurrency, CancellationToken.None);
+
+        Assert.True(result.Succeeded);
+        Assert.NotNull(lease);
+        Assert.False(lease.TryAdmitProviderAttempt());
+    }
+
+    [Fact]
+    public async Task Verification_Transient503RetryChargesTwoContacts()
+    {
+        var (db, provider) = ProviderFixture(requestsPerMinute: 2);
+        var budgets = new RoutingRequestBudget();
+        var transport = new ProbeSequenceTransport(
+            new HttpResponseMessage(HttpStatusCode.ServiceUnavailable), ValidResponse());
+        var verifier = Verifier(db, transport, budgets);
+
+        var result = await verifier.VerifyAsync(
+            provider.Id, provider.ConfigurationVersion, provider.RowVersion, "admin", CancellationToken.None);
+        using var lease = await budgets.AcquireProviderAsync(provider.Id, 2, provider.MaxConcurrency, CancellationToken.None);
+
+        Assert.True(result.Succeeded);
+        Assert.Equal(2, transport.Requests);
+        Assert.NotNull(lease);
+        Assert.False(lease.TryAdmitProviderAttempt());
+    }
+
+    [Fact]
+    public async Task Verification_ExhaustedBudgetPreventsTransientRetry()
+    {
+        var (db, provider) = ProviderFixture(requestsPerMinute: 1);
+        var transport = new ProbeSequenceTransport(
+            new HttpResponseMessage(HttpStatusCode.ServiceUnavailable), ValidResponse());
+        var verifier = Verifier(db, transport, new RoutingRequestBudget());
+
+        var result = await verifier.VerifyAsync(
+            provider.Id, provider.ConfigurationVersion, provider.RowVersion, "admin", CancellationToken.None);
+
+        Assert.Equal("routing-budget-exhausted", result.ErrorCode);
+        Assert.Equal(1, transport.Requests);
+    }
+
+    [Fact]
+    public async Task Verification_MappedProfilesAndRetryShareOneProviderBudget()
+    {
+        var (db, provider) = ProviderFixture(requestsPerMinute: 2);
+        var secondProfile = db.Set<TransportProfile>().First(item => item.Id != provider.ProfileMappings.Single().TransportProfileId);
+        provider.ProfileMappings.Add(new RoutingProviderProfileMapping
+        {
+            RoutingProviderConfigurationId = provider.Id, TransportProfileId = secondProfile.Id,
+            TransportProfile = secondProfile, OsrmProfile = "walking"
+        });
+        db.SaveChanges();
+        var transport = new ProbeSequenceTransport(
+            new HttpResponseMessage(HttpStatusCode.ServiceUnavailable), ValidResponse(), ValidResponse());
+        var verifier = Verifier(db, transport, new RoutingRequestBudget());
+
+        var result = await verifier.VerifyAsync(
+            provider.Id, provider.ConfigurationVersion, provider.RowVersion, "admin", CancellationToken.None);
+
+        Assert.Equal("routing-budget-exhausted", result.ErrorCode);
+        Assert.Equal(2, transport.Requests);
+    }
+
+    [Fact]
+    public async Task Verification_CancellationReturnsBoundedResultAndReleasesConcurrency()
+    {
+        var (db, provider) = ProviderFixture(requestsPerMinute: 10);
+        provider.MaxConcurrency = 1;
+        db.SaveChanges();
+        var budgets = new RoutingRequestBudget();
+        var transport = new BlockingProbeTransport();
+        var verifier = Verifier(db, transport, budgets);
+        using var cancellation = new CancellationTokenSource();
+        var pending = verifier.VerifyAsync(
+            provider.Id, provider.ConfigurationVersion, provider.RowVersion, "admin", cancellation.Token);
+        await transport.Entered.WaitAsync(TimeSpan.FromSeconds(5));
+
+        cancellation.Cancel();
+        var result = await pending;
+        using var lease = await budgets.AcquireProviderAsync(provider.Id, 10, 1, CancellationToken.None);
+
+        Assert.Equal("request-cancelled", result.ErrorCode);
+        Assert.NotNull(lease);
+    }
+
+    [Fact]
     public async Task Activation_SelectsCandidateOnlyAfterLockedRechecks()
     {
         var db = CreateDbContext();
@@ -94,6 +188,20 @@ public sealed class RoutingVerificationActivationTests : TestBase
         return provider;
     }
 
+    private (ApplicationDbContext Db, RoutingProviderConfiguration Provider) ProviderFixture(int requestsPerMinute)
+    {
+        var db = CreateDbContext();
+        var provider = CompleteProvider(db.Set<TransportProfile>().First(), "driving");
+        provider.RequestsPerMinute = requestsPerMinute;
+        db.Set<RoutingProviderConfiguration>().Add(provider);
+        db.SaveChanges();
+        return (db, provider);
+    }
+
+    private static RoutingProviderVerifier Verifier(
+        ApplicationDbContext db, IRoutingPinnedTransport transport, RoutingRequestBudget budgets) =>
+        new(db, Executor(transport), new RoutingProviderCredentialService(new EphemeralDataProtectionProvider()), budgets);
+
     private static RoutingBoundedExecutor Executor(IRoutingPinnedTransport transport) => new(
         new PublicResolver(), new RoutingEndpointPolicy(Options.Create(new RoutingOutboundOptions())), transport);
 
@@ -118,6 +226,34 @@ public sealed class RoutingVerificationActivationTests : TestBase
             Requests++;
             return new HttpResponseMessage(template.StatusCode)
             { Content = new StringContent(await template.Content.ReadAsStringAsync(cancellationToken), Encoding.UTF8, "application/json") };
+        }
+    }
+
+    private sealed class ProbeSequenceTransport(params HttpResponseMessage[] responses) : IRoutingPinnedTransport
+    {
+        public int Requests { get; private set; }
+        public async Task<HttpResponseMessage> SendAsync(
+            Uri requestUri, IPAddress selectedAddress, string? bearerCredential, CancellationToken cancellationToken)
+        {
+            var template = responses[Requests++];
+            var response = new HttpResponseMessage(template.StatusCode);
+            if (template.Content != null)
+                response.Content = new StringContent(
+                    await template.Content.ReadAsStringAsync(cancellationToken), Encoding.UTF8, "application/json");
+            return response;
+        }
+    }
+
+    private sealed class BlockingProbeTransport : IRoutingPinnedTransport
+    {
+        private readonly TaskCompletionSource _entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public Task Entered => _entered.Task;
+        public async Task<HttpResponseMessage> SendAsync(
+            Uri requestUri, IPAddress selectedAddress, string? bearerCredential, CancellationToken cancellationToken)
+        {
+            _entered.TrySetResult();
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            throw new InvalidOperationException("The cancelled verification transport continued.");
         }
     }
 
