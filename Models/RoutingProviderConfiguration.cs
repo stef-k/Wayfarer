@@ -29,6 +29,9 @@ public sealed class RoutingProviderConfiguration
     /// <summary>Gets or sets whether this configured OSRM instance requires its server-side credential.</summary>
     public bool CredentialRequired { get; set; }
 
+    /// <summary>Gets or sets whether this administrator-approved template supports personal routing.</summary>
+    public PersonalRoutingAccess PersonalRoutingAccess { get; set; }
+
     /// <summary>Gets or sets whether administrators permit use of this configuration.</summary>
     public bool Enabled { get; set; }
 
@@ -107,4 +110,15 @@ public enum RoutingAdapterType
 {
     /// <summary>The explicit OSRM route API contract.</summary>
     OsrmCompatible = 1
+}
+
+/// <summary>Controls whether users may select an administrator-owned provider template.</summary>
+public enum PersonalRoutingAccess
+{
+    /// <summary>The provider cannot be selected for personal routing.</summary>
+    Disabled = 0,
+    /// <summary>A selecting user must supply and verify a personal credential.</summary>
+    CredentialRequired = 1,
+    /// <summary>The approved template may be used without storing a personal credential.</summary>
+    CredentialFree = 2
 }

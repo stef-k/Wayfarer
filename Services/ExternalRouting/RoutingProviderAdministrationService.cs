@@ -22,6 +22,8 @@ public sealed class RoutingProviderAdministrationService
     public async Task<RoutingAdministrationResult> SaveAsync(
         RoutingProviderEditViewModel model, string administratorId, CancellationToken cancellationToken)
     {
+        if (!Enum.IsDefined(model.PersonalRoutingAccess))
+            return RoutingAdministrationResult.Failure("The personal routing access mode is invalid.");
         if (!RoutingMinimumIntervalConverter.TryParse(model.MinimumIntervalSeconds, out var minimumIntervalMilliseconds))
             return RoutingAdministrationResult.Failure("The minimum interval is invalid.");
         if (!TryNormalizeEndpoint(model.BaseEndpoint, out var endpoint))
@@ -34,25 +36,33 @@ public sealed class RoutingProviderAdministrationService
             .Select(item => item.Id).ToArrayAsync(cancellationToken);
         if (activeProfileIds.Length != selectedMappings.Length)
             return RoutingAdministrationResult.Failure("Every provider mapping must reference an active transport profile.");
-        var provider = model.Id == Guid.Empty ? null : await _dbContext.Set<RoutingProviderConfiguration>()
-            .Include(item => item.ProfileMappings).SingleOrDefaultAsync(item => item.Id == model.Id, cancellationToken);
-        var creating = provider == null && model.Id == Guid.Empty;
-        if (!creating && provider == null) return RoutingAdministrationResult.Failure("The provider configuration was not found.");
-        if (creating)
+        await using var transaction = _dbContext.Database.IsRelational()
+            ? await _dbContext.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken) : null;
+        try
         {
-            provider = new RoutingProviderConfiguration { Id = Guid.NewGuid(), ConfigurationVersion = 1 };
-            _dbContext.Set<RoutingProviderConfiguration>().Add(provider);
-        }
-        else if (provider!.RowVersion != model.RowVersion)
-            return RoutingAdministrationResult.Failure("The provider configuration changed. Reload and try again.");
+            var provider = model.Id == Guid.Empty ? null : await LockProviderAsync(model.Id, cancellationToken);
+            var creating = provider == null && model.Id == Guid.Empty;
+            if (!creating && provider == null) return RoutingAdministrationResult.Failure("The provider configuration was not found.");
+            if (creating)
+            {
+                provider = new RoutingProviderConfiguration { Id = Guid.NewGuid(), ConfigurationVersion = 1 };
+                _dbContext.Set<RoutingProviderConfiguration>().Add(provider);
+            }
+            else if (provider!.RowVersion != model.RowVersion)
+                return RoutingAdministrationResult.Failure("The provider configuration changed. Reload and try again.");
 
-        var normalizedMappings = selectedMappings.OrderBy(item => item.TransportProfileId)
-            .Select(item => (item.TransportProfileId, Profile: item.OsrmProfile!.Trim())).ToArray();
-        var existingMappings = provider!.ProfileMappings.OrderBy(item => item.TransportProfileId)
-            .Select(item => (item.TransportProfileId, Profile: item.OsrmProfile)).ToArray();
-        var intervalChanged = creating || provider!.MinimumIntervalMilliseconds != minimumIntervalMilliseconds;
-        var changed = !creating && (provider.BaseEndpoint != endpoint
+            var normalizedMappings = selectedMappings.OrderBy(item => item.TransportProfileId)
+                .Select(item => (item.TransportProfileId, Profile: item.OsrmProfile!.Trim())).ToArray();
+            var existingMappings = provider!.ProfileMappings.OrderBy(item => item.TransportProfileId)
+                .Select(item => (item.TransportProfileId, Profile: item.OsrmProfile)).ToArray();
+            var intervalChanged = creating || provider!.MinimumIntervalMilliseconds != minimumIntervalMilliseconds;
+            var credentialFreeTransition = !creating
+                && provider.PersonalRoutingAccess != PersonalRoutingAccess.CredentialFree
+                && model.PersonalRoutingAccess == PersonalRoutingAccess.CredentialFree;
+            var changed = !creating && (provider.BaseEndpoint != endpoint
             || provider.CredentialRequired != model.CredentialRequired
+            || provider.PersonalRoutingAccess != model.PersonalRoutingAccess
+            || provider.Enabled != model.Enabled
             || provider.VerificationFromLongitude != model.VerificationFromLongitude
             || provider.VerificationFromLatitude != model.VerificationFromLatitude
             || provider.VerificationToLongitude != model.VerificationToLongitude
@@ -61,12 +71,16 @@ public sealed class RoutingProviderAdministrationService
             || provider.ResponseSizeLimitBytes != model.ResponseSizeLimitBytes
             || provider.MinimumIntervalMilliseconds != minimumIntervalMilliseconds
             || provider.RequestsPerMinute != model.RequestsPerMinute || provider.MaxConcurrency != model.MaxConcurrency
-            || !existingMappings.SequenceEqual(normalizedMappings));
+                || !existingMappings.SequenceEqual(normalizedMappings));
 
-        provider.DisplayName = model.DisplayName.Trim();
+            var affectedUsers = credentialFreeTransition
+                ? await LockSelectingUsersAsync(provider.Id, cancellationToken) : [];
+
+            provider.DisplayName = model.DisplayName.Trim();
         provider.AdapterType = RoutingAdapterType.OsrmCompatible;
         provider.BaseEndpoint = endpoint;
         provider.CredentialRequired = model.CredentialRequired;
+        provider.PersonalRoutingAccess = model.PersonalRoutingAccess;
         provider.Enabled = model.Enabled;
         provider.Attribution = Normalize(model.Attribution);
         provider.ExternalCoordinateDisclosure = model.ExternalCoordinateDisclosure.Trim();
@@ -78,26 +92,38 @@ public sealed class RoutingProviderAdministrationService
         provider.ResponseSizeLimitBytes = model.ResponseSizeLimitBytes;
         provider.RequestsPerMinute = model.RequestsPerMinute;
         provider.MinimumIntervalMilliseconds = minimumIntervalMilliseconds;
-        provider.MaxConcurrency = model.MaxConcurrency;
-        if (creating || !existingMappings.SequenceEqual(normalizedMappings))
-        {
-            provider.ProfileMappings.Clear();
-            foreach (var mapping in normalizedMappings)
-                provider.ProfileMappings.Add(new RoutingProviderProfileMapping
-                {
-                    RoutingProviderConfigurationId = provider.Id, TransportProfileId = mapping.TransportProfileId,
-                    OsrmProfile = mapping.Profile
-                });
+            provider.MaxConcurrency = model.MaxConcurrency;
+            if (creating || !existingMappings.SequenceEqual(normalizedMappings))
+            {
+                provider.ProfileMappings.Clear();
+                foreach (var mapping in normalizedMappings)
+                    provider.ProfileMappings.Add(new RoutingProviderProfileMapping
+                    {
+                        RoutingProviderConfigurationId = provider.Id, TransportProfileId = mapping.TransportProfileId,
+                        OsrmProfile = mapping.Profile
+                    });
+            }
+            if (changed) provider.MarkConfigurationChanged();
+            _credentials.ApplyEdit(provider, model.Credential);
+            foreach (var configuration in affectedUsers) configuration.NormalizeCredentialFree();
+            AddAudit(administratorId, creating ? "RoutingProviderCreate" : "RoutingProviderUpdate", provider.Id,
+                changed || !string.IsNullOrWhiteSpace(model.Credential) ? "configuration changed; verification invalidated" : "metadata preserved");
+            await _dbContext.SaveChangesAsync(cancellationToken);
+            if (transaction != null) await transaction.CommitAsync(cancellationToken);
+            if (intervalChanged)
+                _pacer.ApplyConfiguration(provider.Id, provider.ConfigurationVersion, provider.MinimumIntervalMilliseconds);
+            return new RoutingAdministrationResult(true, null, provider.Id);
         }
-        if (changed) provider.MarkConfigurationChanged();
-        _credentials.ApplyEdit(provider, model.Credential);
-        AddAudit(administratorId, creating ? "RoutingProviderCreate" : "RoutingProviderUpdate", provider.Id,
-            changed || !string.IsNullOrWhiteSpace(model.Credential) ? "configuration changed; verification invalidated" : "metadata preserved");
-        try { await _dbContext.SaveChangesAsync(cancellationToken); }
-        catch (DbUpdateConcurrencyException) { return RoutingAdministrationResult.Failure("The provider configuration changed. Reload and try again."); }
-        if (intervalChanged)
-            _pacer.ApplyConfiguration(provider.Id, provider.ConfigurationVersion, provider.MinimumIntervalMilliseconds);
-        return new RoutingAdministrationResult(true, null, provider.Id);
+        catch (DbUpdateConcurrencyException)
+        {
+            _dbContext.ChangeTracker.Clear();
+            return RoutingAdministrationResult.Failure("The provider configuration changed. Reload and try again.");
+        }
+        catch (Exception exception) when (IsSerializationFailure(exception))
+        {
+            _dbContext.ChangeTracker.Clear();
+            return RoutingAdministrationResult.Failure("The provider configuration changed. Reload and try again.");
+        }
     }
 
     /// <summary>Clears a credential only through an explicit confirmed action.</summary>
@@ -185,6 +211,17 @@ public sealed class RoutingProviderAdministrationService
         return query.Include(item => item.ProfileMappings).ThenInclude(item => item.TransportProfile)
             .SingleOrDefaultAsync(cancellationToken);
     }
+
+    private Task<List<UserRoutingConfiguration>> LockSelectingUsersAsync(
+        Guid providerId, CancellationToken cancellationToken) => _dbContext.Database.IsNpgsql()
+        ? _dbContext.Set<UserRoutingConfiguration>().FromSqlInterpolated($$"""
+            SELECT *, xmin FROM "UserRoutingConfigurations"
+            WHERE "SelectedProviderConfigurationId" = {{providerId}}
+            ORDER BY "UserId" FOR UPDATE
+            """).ToListAsync(cancellationToken)
+        : _dbContext.Set<UserRoutingConfiguration>()
+            .Where(item => item.SelectedProviderConfigurationId == providerId)
+            .OrderBy(item => item.UserId).ToListAsync(cancellationToken);
 
     private static bool IsSerializationFailure(Exception exception) =>
         exception is PostgresException { SqlState: PostgresErrorCodes.SerializationFailure }

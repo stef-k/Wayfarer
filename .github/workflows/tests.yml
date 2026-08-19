@@ -31,11 +31,6 @@ jobs:
             echo "Documentation-only change detected; expensive validation steps are skipped."
           fi
 
-      - name: Install SpatiaLite
-        if: steps.scope.outputs.run_full == 'true'
-        timeout-minutes: 5
-        run: sudo apt-get update && sudo apt-get install -y libsqlite3-mod-spatialite
-
       - name: Setup .NET
         if: steps.scope.outputs.run_full == 'true'
         uses: actions/setup-dotnet@v4
@@ -62,9 +57,18 @@ jobs:
         if: steps.scope.outputs.run_full == 'true'
         run: dotnet test tests/Wayfarer.Tests/Wayfarer.Tests.csproj --configuration Release --no-build --verbosity normal --filter "Category!=RequiresSpatialite&Category!=RequiresPlaywright"
 
-      - name: Install .NET Playwright Chromium
+      - name: Restore .NET Playwright Chromium
         if: steps.scope.outputs.run_full == 'true'
-        run: pwsh tests/Wayfarer.Tests/bin/Release/net10.0/playwright.ps1 install --with-deps chromium
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/wayfarer-dotnet-playwright
+          key: playwright-${{ runner.os }}-1.48.0-chromium
+
+      - name: Install .NET Playwright Chromium
+        if: steps.scope.outputs.run_full == 'true' && steps.playwright-cache.outputs.cache-hit != 'true'
+        timeout-minutes: 5
+        run: pwsh tests/Wayfarer.Tests/bin/Release/net10.0/playwright.ps1 install chromium
         env:
           PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/wayfarer-dotnet-playwright
 

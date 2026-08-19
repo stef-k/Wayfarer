@@ -13,6 +13,7 @@ public sealed class ExternalRouteProposalGenerator
     private readonly IProviderRouteGeometryValidator? _geometryValidator;
     private readonly ExternalRouteProposalContextService? _proposalContexts;
     private readonly RoutingRequestBudget? _budgets;
+    private readonly AuthoritativeRoutingProviderResolver? _resolver;
     private readonly TimeProvider _timeProvider = TimeProvider.System;
 
     /// <summary>Initializes the narrow feature-gate seam used by configuration contract tests.</summary>
@@ -22,10 +23,11 @@ public sealed class ExternalRouteProposalGenerator
     public ExternalRouteProposalGenerator(
         ApplicationDbContext dbContext, SegmentAggregateTokenService aggregateTokens, IOsrmRouteClient client,
         IProviderRouteGeometryValidator geometryValidator, ExternalRouteProposalContextService proposalContexts,
-        RoutingRequestBudget budgets, TimeProvider? timeProvider = null)
+        RoutingRequestBudget budgets, AuthoritativeRoutingProviderResolver resolver, TimeProvider? timeProvider = null)
     {
         (_dbContext, _aggregateTokens, _client, _geometryValidator, _proposalContexts, _budgets)
             = (dbContext, aggregateTokens, client, geometryValidator, proposalContexts, budgets);
+        _resolver = resolver;
         _timeProvider = timeProvider ?? TimeProvider.System;
     }
 
@@ -66,7 +68,7 @@ public sealed class ExternalRouteProposalGenerator
         if (!_budgets!.TryAdmitUserGeneration(userId))
             return ExternalRouteGenerationResult.Failure("routing-budget-exhausted");
 
-        var providerResult = await _client!.RouteAsync(context.Provider!, context.OsrmProfile!, context.Anchors!,
+        var providerResult = await _client!.RouteAsync(context.Execution!, context.Anchors!,
             token => IsCurrentAsync(context, userId, tripId, segmentId, aggregateConcurrencyToken, token), operationToken);
         if (!providerResult.Succeeded) return ExternalRouteGenerationResult.Failure(providerResult.ErrorCode!);
         var validated = _geometryValidator!.Validate(context.Anchors!, providerResult, operationToken);
@@ -75,17 +77,16 @@ public sealed class ExternalRouteProposalGenerator
         var finalContext = await LoadContextAsync(userId, tripId, segmentId, aggregateConcurrencyToken, operationToken);
         if (!finalContext.Succeeded || finalContext.Fingerprint != context.Fingerprint
             || finalContext.TransportProfileId != context.TransportProfileId
-            || finalContext.Provider!.Id != context.Provider!.Id
-            || finalContext.Provider.ConfigurationVersion != context.Provider.ConfigurationVersion
-            || finalContext.FeatureStateGeneration != context.FeatureStateGeneration)
+            || !SameAuthority(finalContext.Execution, context.Execution))
             return ExternalRouteGenerationResult.Failure("route-proposal-context-stale");
 
         var proposalId = Guid.NewGuid();
         var geometryHash = ExternalRouteProposalContextService.GeometryHash(validated.Geometry!, validated.WaypointIndices!);
         var binding = new ExternalRouteProposalBinding(
             proposalId, tripId, segmentId, userId, geometryHash, context.Fingerprint!, context.TransportProfileId!.Value,
-            context.Provider.Id, context.Provider.ConfigurationVersion, context.FeatureStateGeneration,
-            aggregateConcurrencyToken);
+            context.Execution!.Provider.Id, context.Execution.ProviderConfigurationVersion,
+            context.Execution.FeatureStateGeneration, aggregateConcurrencyToken,
+            context.Execution.SelectionMode, context.Execution.UserConfigurationVersion);
         var protectedContext = _proposalContexts!.Issue(binding);
         var proposal = new ExternalRouteProposalDto(proposalId, segmentId, validated.Geometry!, validated.WaypointIndices!,
             protectedContext.Token, protectedContext.ExpiresAt);
@@ -97,25 +98,14 @@ public sealed class ExternalRouteProposalGenerator
         CancellationToken cancellationToken)
     {
         var current = await LoadContextAsync(userId, tripId, segmentId, aggregateToken, cancellationToken);
-        return current.Succeeded && current.Provider!.Id == original.Provider!.Id
-            && current.Provider.ConfigurationVersion == original.Provider.ConfigurationVersion
-            && current.FeatureStateGeneration == original.FeatureStateGeneration
+        return current.Succeeded && SameAuthority(current.Execution, original.Execution)
             && current.TransportProfileId == original.TransportProfileId && current.Fingerprint == original.Fingerprint;
     }
 
     private async Task<GenerationContext> LoadContextAsync(
         string userId, Guid tripId, Guid segmentId, string aggregateToken, CancellationToken cancellationToken)
     {
-        var settings = await _dbContext!.ApplicationSettings.AsNoTracking()
-            .Include(item => item.ActiveRoutingProviderConfiguration)!
-            .ThenInclude(item => item!.ProfileMappings)
-            .SingleOrDefaultAsync(item => item.Id == 1, cancellationToken);
-        if (settings?.ExternalRouteGenerationEnabled != true) return GenerationContext.Failure("external-routing-disabled");
-        var provider = settings.ActiveRoutingProviderConfiguration;
-        if (provider == null || !provider.Enabled || provider.VerifiedConfigurationVersion != provider.ConfigurationVersion)
-            return GenerationContext.Failure("external-routing-unavailable");
-
-        var segment = await _dbContext.Set<Segment>().AsNoTracking()
+        var segment = await _dbContext!.Set<Segment>().AsNoTracking()
             .Include(item => item.FromPlace).Include(item => item.ToPlace)
             .Include(item => item.Waypoints.OrderBy(waypoint => waypoint.Position)).ThenInclude(item => item.Place)
             .SingleOrDefaultAsync(item => item.Id == segmentId && item.TripId == tripId && item.UserId == userId, cancellationToken);
@@ -127,22 +117,30 @@ public sealed class ExternalRouteProposalGenerator
         if (!await _dbContext.Set<TransportProfile>().AsNoTracking()
             .AnyAsync(item => item.Id == transportProfileId && item.IsActive, cancellationToken))
             return GenerationContext.Failure("routing-profile-unavailable");
-        var mapping = provider.ProfileMappings.SingleOrDefault(item => item.TransportProfileId == transportProfileId);
-        if (mapping == null) return GenerationContext.Failure("routing-profile-unavailable");
+        var resolution = await _resolver!.ResolveAsync(userId, transportProfileId, cancellationToken);
+        if (resolution.Execution == null) return GenerationContext.Failure(resolution.ErrorCode ?? "external-routing-unavailable");
         var places = new[] { segment.FromPlace }.Concat(segment.Waypoints.OrderBy(item => item.Position).Select(item => item.Place))
             .Concat([segment.ToPlace]).ToArray();
         if (places.Length is < 2 or > 50 || places.Any(place => place?.Location == null))
             return GenerationContext.Failure("segment-anchors-invalid");
         var anchors = places.Select(place => new RouteCoordinate(place!.Location!.X, place.Location.Y)).ToArray();
         var fingerprint = ExternalRouteAnchorFingerprint.Compute(places!, anchors);
-        return new GenerationContext(true, null, provider, mapping.OsrmProfile, anchors, transportProfileId,
-            settings.ExternalRouteGenerationVersion, fingerprint);
+        return new GenerationContext(true, null, resolution.Execution, anchors, transportProfileId, fingerprint);
     }
 
+    private static bool SameAuthority(ResolvedRoutingProviderExecution? first, ResolvedRoutingProviderExecution? second) =>
+        first != null && second != null && first.SelectionMode == second.SelectionMode
+        && first.Provider.Id == second.Provider.Id
+        && first.ProviderConfigurationVersion == second.ProviderConfigurationVersion
+        && first.ProviderRowVersion == second.ProviderRowVersion
+        && first.UserConfigurationVersion == second.UserConfigurationVersion
+        && first.UserRowVersion == second.UserRowVersion
+        && first.FeatureStateGeneration == second.FeatureStateGeneration
+        && first.Profile == second.Profile;
+
     private sealed record GenerationContext(
-        bool Succeeded, string? ErrorCode, RoutingProviderConfiguration? Provider = null, string? OsrmProfile = null,
-        IReadOnlyList<RouteCoordinate>? Anchors = null, Guid? TransportProfileId = null,
-        int FeatureStateGeneration = 0, string? Fingerprint = null)
+        bool Succeeded, string? ErrorCode, ResolvedRoutingProviderExecution? Execution = null,
+        IReadOnlyList<RouteCoordinate>? Anchors = null, Guid? TransportProfileId = null, string? Fingerprint = null)
     {
         public static GenerationContext Failure(string code) => new(false, code);
     }

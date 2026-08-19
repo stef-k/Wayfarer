@@ -80,7 +80,9 @@ public sealed class ExternalRouteProposalAcceptancePostgresTests(PostgresImportT
             var gate = new SettingsReadGate();
             await using var acceptanceContext = fixture.CreateContext(gate);
             await using var authorityContext = fixture.CreateContext();
-            var service = new ExternalRouteProposalAcceptanceService(acceptanceContext, aggregateTokens, contexts);
+            var resolver = new AuthoritativeRoutingProviderResolver(acceptanceContext,
+                new RoutingProviderCredentialService(protection), new UserRoutingCredentialService(protection));
+            var service = new ExternalRouteProposalAcceptanceService(acceptanceContext, aggregateTokens, contexts, resolver);
             var acceptanceTask = service.AcceptAsync(seed.UserId, seed.TripId, seed.SegmentId!.Value,
                 binding.ProposalId, geometry, indices, protectedContext, CancellationToken.None);
             await gate.SettingsRead.WaitAsync(TimeSpan.FromSeconds(10));

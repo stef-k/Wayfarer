@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.EntityFrameworkCore;
 using Wayfarer.Areas.Admin.Models;
 using Wayfarer.Models;
 using Wayfarer.Services.ExternalRouting;
@@ -40,6 +41,161 @@ public sealed class RoutingProviderAdministrationServiceTests : TestBase
         Assert.True(result.Succeeded);
         Assert.Equal(3, fixture.Provider.ConfigurationVersion);
         Assert.Null(fixture.Provider.VerifiedConfigurationVersion);
+    }
+
+    [Fact]
+    public async Task Save_EachEnabledTransitionIncrementsVersionAndInvalidatesVerification()
+    {
+        var fixture = CreateFixture(requiredCredential: false, featureEnabled: false);
+        var originalVersion = fixture.Provider.ConfigurationVersion;
+        var disable = Model(fixture);
+        disable.Enabled = false;
+
+        Assert.True((await fixture.Service.SaveAsync(disable, "admin", CancellationToken.None)).Succeeded);
+        Assert.Equal(originalVersion + 1, fixture.Provider.ConfigurationVersion);
+        Assert.Null(fixture.Provider.VerifiedConfigurationVersion);
+
+        fixture.Provider.VerifiedConfigurationVersion = fixture.Provider.ConfigurationVersion;
+        fixture.Db.SaveChanges();
+        var reenable = Model(fixture);
+        reenable.Enabled = true;
+
+        Assert.True((await fixture.Service.SaveAsync(reenable, "admin", CancellationToken.None)).Succeeded);
+        Assert.Equal(originalVersion + 2, fixture.Provider.ConfigurationVersion);
+        Assert.Null(fixture.Provider.VerifiedConfigurationVersion);
+    }
+
+    [Fact]
+    public async Task Save_PersonalAccessChangeIncrementsVersionInvalidatesVerificationAndAuditsSafely()
+    {
+        var fixture = CreateFixture(requiredCredential: false, featureEnabled: false);
+        var model = Model(fixture);
+        model.PersonalRoutingAccess = PersonalRoutingAccess.CredentialFree;
+
+        var result = await fixture.Service.SaveAsync(model, "admin", CancellationToken.None);
+
+        Assert.True(result.Succeeded);
+        Assert.Equal(PersonalRoutingAccess.CredentialFree, fixture.Provider.PersonalRoutingAccess);
+        Assert.Null(fixture.Provider.VerifiedConfigurationVersion);
+        Assert.DoesNotContain(fixture.Db.AuditLogs, item => item.Details.Contains("secret", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public async Task Save_RequiredToCredentialFreeClearsSelectingUsersWithoutChangingSelection()
+    {
+        const string userId = "personal-owner";
+        var fixture = CreateFixture(requiredCredential: false, featureEnabled: false);
+        fixture.Provider.PersonalRoutingAccess = PersonalRoutingAccess.CredentialRequired;
+        var configuration = UserRoutingConfiguration.CreateServerDefault(userId);
+        configuration.SelectPersonalProvider(fixture.Provider.Id);
+        new UserRoutingCredentialService(new EphemeralDataProtectionProvider())
+            .Replace(configuration, fixture.Provider.Id, "personal-secret");
+        configuration.VerifiedUserConfigurationVersion = configuration.ConfigurationVersion;
+        configuration.VerifiedProviderConfigurationVersion = fixture.Provider.ConfigurationVersion;
+        configuration.VerificationStatus = "verified";
+        fixture.Db.Set<UserRoutingConfiguration>().Add(configuration);
+        fixture.Db.SaveChanges();
+        var originalUserVersion = configuration.ConfigurationVersion;
+        var model = Model(fixture);
+        model.PersonalRoutingAccess = PersonalRoutingAccess.CredentialFree;
+
+        var result = await fixture.Service.SaveAsync(model, "admin", CancellationToken.None);
+
+        Assert.True(result.Succeeded);
+        Assert.Equal(fixture.Provider.Id, configuration.SelectedProviderConfigurationId);
+        Assert.Null(configuration.CredentialCiphertext);
+        Assert.False(configuration.CredentialPresent);
+        Assert.Null(configuration.VerifiedUserConfigurationVersion);
+        Assert.Null(configuration.VerifiedProviderConfigurationVersion);
+        Assert.Null(configuration.VerificationStatus);
+        Assert.Equal(originalUserVersion + 1, configuration.ConfigurationVersion);
+        Assert.True(configuration.UpdatedAt > configuration.CreatedAt);
+    }
+
+    [Fact]
+    public async Task Save_DisabledToCredentialFreeClearsRetainedSelectingUserStateAtomically()
+    {
+        const string userId = "disabled-personal-owner";
+        var fixture = CreateFixture(requiredCredential: false, featureEnabled: false);
+        fixture.Provider.PersonalRoutingAccess = PersonalRoutingAccess.CredentialRequired;
+        var configuration = UserRoutingConfiguration.CreateServerDefault(userId);
+        configuration.SelectPersonalProvider(fixture.Provider.Id);
+        new UserRoutingCredentialService(new EphemeralDataProtectionProvider())
+            .Replace(configuration, fixture.Provider.Id, "personal-secret");
+        configuration.VerifiedUserConfigurationVersion = configuration.ConfigurationVersion;
+        configuration.VerifiedProviderConfigurationVersion = fixture.Provider.ConfigurationVersion;
+        configuration.VerificationStatus = "verified";
+        fixture.Db.Set<UserRoutingConfiguration>().Add(configuration);
+        fixture.Db.SaveChanges();
+
+        var disable = Model(fixture);
+        disable.PersonalRoutingAccess = PersonalRoutingAccess.Disabled;
+        Assert.True((await fixture.Service.SaveAsync(disable, "admin", CancellationToken.None)).Succeeded);
+        Assert.True(configuration.CredentialPresent);
+        Assert.NotNull(configuration.CredentialCiphertext);
+        Assert.NotNull(configuration.VerifiedUserConfigurationVersion);
+        var disabledUserVersion = configuration.ConfigurationVersion;
+
+        var credentialFree = Model(fixture);
+        credentialFree.PersonalRoutingAccess = PersonalRoutingAccess.CredentialFree;
+        var result = await fixture.Service.SaveAsync(credentialFree, "admin", CancellationToken.None);
+
+        Assert.True(result.Succeeded);
+        Assert.Equal(PersonalRoutingAccess.CredentialFree, fixture.Provider.PersonalRoutingAccess);
+        Assert.Equal(fixture.Provider.Id, configuration.SelectedProviderConfigurationId);
+        Assert.Null(configuration.CredentialCiphertext);
+        Assert.False(configuration.CredentialPresent);
+        Assert.Null(configuration.VerifiedUserConfigurationVersion);
+        Assert.Null(configuration.VerifiedProviderConfigurationVersion);
+        Assert.Null(configuration.VerificationStatus);
+        Assert.Equal(disabledUserVersion + 1, configuration.ConfigurationVersion);
+    }
+
+    [Fact]
+    public async Task Save_CredentialFreeToCredentialFreeDoesNotVersionCleanSelectingUser()
+    {
+        const string userId = "clean-personal-owner";
+        var fixture = CreateFixture(requiredCredential: false, featureEnabled: false);
+        fixture.Provider.PersonalRoutingAccess = PersonalRoutingAccess.CredentialFree;
+        var configuration = UserRoutingConfiguration.CreateServerDefault(userId);
+        configuration.SelectPersonalProvider(fixture.Provider.Id);
+        configuration.NormalizeCredentialFree();
+        fixture.Db.Set<UserRoutingConfiguration>().Add(configuration);
+        fixture.Db.SaveChanges();
+        var originalUserVersion = configuration.ConfigurationVersion;
+
+        var result = await fixture.Service.SaveAsync(Model(fixture), "admin", CancellationToken.None);
+
+        Assert.True(result.Succeeded);
+        Assert.Equal(originalUserVersion, configuration.ConfigurationVersion);
+        Assert.Equal(fixture.Provider.Id, configuration.SelectedProviderConfigurationId);
+    }
+
+    [Fact]
+    public async Task Save_CredentialFreeToDisabledDoesNotPerformSelectingUserCleanup()
+    {
+        const string userId = "disabled-cleanup-boundary";
+        var fixture = CreateFixture(requiredCredential: false, featureEnabled: false);
+        fixture.Provider.PersonalRoutingAccess = PersonalRoutingAccess.CredentialFree;
+        var configuration = UserRoutingConfiguration.CreateServerDefault(userId);
+        configuration.SelectPersonalProvider(fixture.Provider.Id);
+        new UserRoutingCredentialService(new EphemeralDataProtectionProvider())
+            .Replace(configuration, fixture.Provider.Id, "retained-boundary-secret");
+        configuration.VerificationStatus = "retained-boundary-state";
+        fixture.Db.Set<UserRoutingConfiguration>().Add(configuration);
+        fixture.Db.SaveChanges();
+        var originalUserVersion = configuration.ConfigurationVersion;
+        var model = Model(fixture);
+        model.PersonalRoutingAccess = PersonalRoutingAccess.Disabled;
+
+        var result = await fixture.Service.SaveAsync(model, "admin", CancellationToken.None);
+
+        Assert.True(result.Succeeded);
+        Assert.Equal(PersonalRoutingAccess.Disabled, fixture.Provider.PersonalRoutingAccess);
+        Assert.True(configuration.CredentialPresent);
+        Assert.NotNull(configuration.CredentialCiphertext);
+        Assert.Equal("retained-boundary-state", configuration.VerificationStatus);
+        Assert.Equal(originalUserVersion, configuration.ConfigurationVersion);
     }
 
     [Fact]
@@ -148,6 +304,42 @@ public sealed class RoutingProviderAdministrationServiceTests : TestBase
     }
 
     [Fact]
+    public async Task Save_UndefinedPersonalAccessRejectsWithoutMutatingProviderUserOrAuditState()
+    {
+        const string userId = "undefined-access-owner";
+        var fixture = CreateFixture(requiredCredential: true, featureEnabled: false);
+        fixture.Provider.PersonalRoutingAccess = PersonalRoutingAccess.CredentialRequired;
+        var configuration = UserRoutingConfiguration.CreateServerDefault(userId);
+        configuration.SelectPersonalProvider(fixture.Provider.Id);
+        new UserRoutingCredentialService(new EphemeralDataProtectionProvider())
+            .Replace(configuration, fixture.Provider.Id, "personal-secret");
+        configuration.VerifiedUserConfigurationVersion = configuration.ConfigurationVersion;
+        configuration.VerifiedProviderConfigurationVersion = fixture.Provider.ConfigurationVersion;
+        configuration.VerificationStatus = "verified";
+        fixture.Db.Set<UserRoutingConfiguration>().Add(configuration);
+        fixture.Db.SaveChanges();
+        var providerValues = fixture.Db.Entry(fixture.Provider).CurrentValues.Clone();
+        var userValues = fixture.Db.Entry(configuration).CurrentValues.Clone();
+        var auditCount = fixture.Db.AuditLogs.Count();
+        var model = Model(fixture);
+        model.PersonalRoutingAccess = (PersonalRoutingAccess)999;
+        model.DisplayName = "Must not persist";
+        model.Credential = "replacement-secret";
+
+        var result = await fixture.Service.SaveAsync(model, "admin", CancellationToken.None);
+
+        Assert.False(result.Succeeded);
+        Assert.Equal(providerValues.Properties.Select(property => providerValues[property]),
+            fixture.Db.Entry(fixture.Provider).CurrentValues.Properties.Select(
+                property => fixture.Db.Entry(fixture.Provider).CurrentValues[property]));
+        Assert.Equal(userValues.Properties.Select(property => userValues[property]),
+            fixture.Db.Entry(configuration).CurrentValues.Properties.Select(
+                property => fixture.Db.Entry(configuration).CurrentValues[property]));
+        Assert.Equal(auditCount, fixture.Db.AuditLogs.Count());
+        Assert.DoesNotContain(fixture.Db.ChangeTracker.Entries(), entry => entry.State != EntityState.Unchanged);
+    }
+
+    [Fact]
     public async Task FeatureEnable_RejectsRequiredCredentialClearedAfterVerification()
     {
         var fixture = CreateFixture(requiredCredential: true, featureEnabled: false);
@@ -198,6 +390,7 @@ public sealed class RoutingProviderAdministrationServiceTests : TestBase
     {
         Id = fixture.Provider.Id, DisplayName = fixture.Provider.DisplayName, BaseEndpoint = fixture.Provider.BaseEndpoint!,
         CredentialRequired = fixture.Provider.CredentialRequired, CredentialPresent = fixture.Provider.CredentialPresent,
+        PersonalRoutingAccess = fixture.Provider.PersonalRoutingAccess,
         Enabled = fixture.Provider.Enabled, ExternalCoordinateDisclosure = fixture.Provider.ExternalCoordinateDisclosure!,
         VerificationFromLongitude = fixture.Provider.VerificationFromLongitude,
         VerificationFromLatitude = fixture.Provider.VerificationFromLatitude,

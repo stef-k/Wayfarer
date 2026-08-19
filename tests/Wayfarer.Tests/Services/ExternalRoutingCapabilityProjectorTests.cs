@@ -1,4 +1,5 @@
 using NetTopologySuite.Geometries;
+using Microsoft.AspNetCore.DataProtection;
 using Wayfarer.Models;
 using Wayfarer.Services.ExternalRouting;
 using Wayfarer.Tests.Infrastructure;
@@ -14,8 +15,8 @@ public sealed class ExternalRoutingCapabilityProjectorTests : TestBase
     {
         var fixture = CreateFixture(enabled: false);
 
-        var capability = (await new ExternalRoutingCapabilityProjector(fixture.Db)
-            .ProjectAsync([fixture.Segment], CancellationToken.None))[fixture.Segment.Id];
+        var capability = (await CreateProjector(fixture.Db)
+            .ProjectAsync(fixture.UserId, [fixture.Segment], CancellationToken.None))[fixture.Segment.Id];
 
         Assert.False(capability.Available);
         Assert.Null(capability.ProviderDisplayName);
@@ -28,8 +29,8 @@ public sealed class ExternalRoutingCapabilityProjectorTests : TestBase
     {
         var fixture = CreateFixture(enabled: true);
 
-        var capability = (await new ExternalRoutingCapabilityProjector(fixture.Db)
-            .ProjectAsync([fixture.Segment], CancellationToken.None))[fixture.Segment.Id];
+        var capability = (await CreateProjector(fixture.Db)
+            .ProjectAsync(fixture.UserId, [fixture.Segment], CancellationToken.None))[fixture.Segment.Id];
 
         Assert.True(capability.Available);
         Assert.Equal("OSRM instance", capability.ProviderDisplayName);
@@ -62,14 +63,23 @@ public sealed class ExternalRoutingCapabilityProjectorTests : TestBase
         db.Set<Place>().AddRange(from, to);
         db.Set<Segment>().Add(segment);
         db.Set<RoutingProviderConfiguration>().Add(provider);
+        db.Set<UserRoutingConfiguration>().Add(UserRoutingConfiguration.CreateServerDefault("owner"));
         db.ApplicationSettings.Add(new ApplicationSettings
         {
             Id = 1, ExternalRouteGenerationEnabled = enabled, ActiveRoutingProviderConfigurationId = provider.Id
         });
         db.SaveChanges();
-        return new Fixture(db, segment);
+        return new Fixture(db, segment, "owner");
+    }
+
+    private static ExternalRoutingCapabilityProjector CreateProjector(ApplicationDbContext db)
+    {
+        var protection = new EphemeralDataProtectionProvider();
+        var resolver = new AuthoritativeRoutingProviderResolver(db,
+            new RoutingProviderCredentialService(protection), new UserRoutingCredentialService(protection));
+        return new ExternalRoutingCapabilityProjector(resolver);
     }
 
     private static Point Point(double longitude, double latitude) => new(longitude, latitude) { SRID = 4326 };
-    private sealed record Fixture(ApplicationDbContext Db, Segment Segment);
+    private sealed record Fixture(ApplicationDbContext Db, Segment Segment, string UserId);
 }

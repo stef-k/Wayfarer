@@ -8,7 +8,7 @@ namespace Wayfarer.Services.ExternalRouting;
 /// <summary>Protects immutable proposal geometry and authoritative generation context.</summary>
 public sealed class ExternalRouteProposalContextService
 {
-    private const int ContractVersion = 1;
+    private const int ContractVersion = 2;
     private static readonly TimeSpan ProposalLifetime = TimeSpan.FromMinutes(10);
     private readonly IDataProtector _protector;
     private readonly TimeProvider _timeProvider;
@@ -57,7 +57,8 @@ public sealed class ExternalRouteProposalContextService
 public sealed record ExternalRouteProposalBinding(
     Guid ProposalId, Guid TripId, Guid SegmentId, string UserId, string GeometryHash, string AnchorFingerprint,
     Guid TransportProfileId, Guid ProviderId, int ProviderConfigurationVersion, int FeatureStateGeneration,
-    string AggregateConcurrencyToken);
+    string AggregateConcurrencyToken, RoutingProviderSelectionMode ProviderSelectionMode = RoutingProviderSelectionMode.ServerDefault,
+    int UserRoutingConfigurationVersion = 1);
 
 /// <summary>Returns the protected context and its initial ten-minute expiry.</summary>
 public sealed record ProtectedProposalContext(string Token, DateTimeOffset ExpiresAt);
