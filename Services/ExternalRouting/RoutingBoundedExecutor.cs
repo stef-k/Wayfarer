@@ -131,8 +131,11 @@ public sealed class RoutingAttemptAdmission : IDisposable
     {
         if (_legacy)
         {
-            AttemptToken = cancellationToken;
-            beginDns(cancellationToken);
+            var source = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            source.CancelAfter(timeout);
+            _deadline = source;
+            AttemptToken = source.Token;
+            beginDns(source.Token);
             return null;
         }
         var error = _turn!.StartAttempt(timeout, cancellationToken, _admitRate!, token =>
