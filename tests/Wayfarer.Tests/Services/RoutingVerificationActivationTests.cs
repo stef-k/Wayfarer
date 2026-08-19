@@ -168,6 +168,26 @@ public sealed class RoutingVerificationActivationTests : TestBase
     }
 
     [Fact]
+    public async Task Verification_TotalOperationTimeoutExpiresAtExactlySixHundredSeconds()
+    {
+        var (db, provider) = ProviderFixture(requestsPerMinute: 1);
+        var time = new ControlledTimeProvider();
+        var resolver = new BlockingResolver();
+        var verifier = new RoutingProviderVerifier(db, new RoutingBoundedExecutor(
+                resolver, new RoutingEndpointPolicy(Options.Create(new RoutingOutboundOptions())),
+                new ProbeTransport(ValidResponse())),
+            new RoutingProviderCredentialService(new EphemeralDataProtectionProvider()),
+            new RoutingAttemptCoordinator(new RoutingProviderPacer(time), new RoutingRequestBudget()), time);
+        var pending = verifier.VerifyAsync(
+            provider.Id, provider.ConfigurationVersion, provider.RowVersion, "admin", CancellationToken.None);
+        await resolver.Entered;
+
+        time.Advance(TimeSpan.FromSeconds(600));
+
+        Assert.Equal("routing-timeout", (await pending).ErrorCode);
+    }
+
+    [Fact]
     public async Task Activation_SelectsCandidateOnlyAfterLockedRechecks()
     {
         var db = CreateDbContext();
@@ -261,6 +281,18 @@ public sealed class RoutingVerificationActivationTests : TestBase
         {
             Requests++;
             return Task.FromResult<IReadOnlyList<IPAddress>>([IPAddress.Parse("8.8.8.8")]);
+        }
+    }
+
+    private sealed class BlockingResolver : IRoutingDnsResolver
+    {
+        private readonly TaskCompletionSource _entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public Task Entered => _entered.Task;
+        public async Task<IReadOnlyList<IPAddress>> ResolveAsync(string host, CancellationToken cancellationToken)
+        {
+            _entered.TrySetResult();
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            throw new InvalidOperationException("The timed-out verification continued.");
         }
     }
 

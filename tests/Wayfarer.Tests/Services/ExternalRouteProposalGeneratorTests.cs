@@ -71,6 +71,28 @@ public sealed class ExternalRouteProposalGeneratorTests : TestBase
         Assert.Equal(0, client.Requests);
     }
 
+    [Fact]
+    public async Task Generate_TotalOperationTimeoutExpiresAtExactlyThreeHundredSeconds()
+    {
+        var db = CreateDbContext();
+        var dataProtection = new EphemeralDataProtectionProvider();
+        var fixture = AddFixture(db, enabled: true);
+        var aggregateTokens = new SegmentAggregateTokenService(dataProtection);
+        var time = new ControlledTimeProvider();
+        var client = new BlockingClient();
+        var generator = new ExternalRouteProposalGenerator(db, aggregateTokens, client,
+            new StubValidator(fixture.Anchors), new ExternalRouteProposalContextService(dataProtection),
+            new RoutingRequestBudget(), time);
+        var pending = generator.GenerateAsync(fixture.UserId, fixture.TripId, fixture.Segment.Id,
+            aggregateTokens.Issue(fixture.UserId, fixture.TripId, fixture.Segment.Id, fixture.Segment.RowVersion),
+            CancellationToken.None);
+        await client.Entered;
+
+        time.Advance(TimeSpan.FromSeconds(300));
+
+        Assert.Equal("routing-timeout", (await pending).ErrorCode);
+    }
+
     private static Fixture AddFixture(ApplicationDbContext db, bool enabled)
     {
         const string userId = "owner";
@@ -118,6 +140,48 @@ public sealed class ExternalRouteProposalGeneratorTests : TestBase
         {
             Requests++;
             return Task.FromResult(new OsrmRouteResult(true, anchors, anchors, null));
+        }
+    }
+
+    private sealed class BlockingClient : IOsrmRouteClient
+    {
+        private readonly TaskCompletionSource _entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public Task Entered => _entered.Task;
+        public async Task<OsrmRouteResult> RouteAsync(
+            RoutingProviderConfiguration provider, string profile, IReadOnlyList<RouteCoordinate> requestedAnchors,
+            Func<CancellationToken, Task<bool>> validateAuthority, CancellationToken cancellationToken)
+        {
+            _entered.TrySetResult();
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            throw new InvalidOperationException("The timed-out generation continued.");
+        }
+    }
+
+    private sealed class ControlledTimeProvider : TimeProvider
+    {
+        private readonly List<ControlledTimer> _timers = [];
+        private long _timestamp;
+        public override long TimestampFrequency => TimeSpan.TicksPerSecond;
+        public override long GetTimestamp() => _timestamp;
+        public override ITimer CreateTimer(TimerCallback callback, object? state, TimeSpan dueTime, TimeSpan period)
+        {
+            var timer = new ControlledTimer(callback, state, _timestamp + dueTime.Ticks);
+            _timers.Add(timer);
+            return timer;
+        }
+        public void Advance(TimeSpan duration)
+        {
+            _timestamp += duration.Ticks;
+            foreach (var timer in _timers.Where(item => !item.Disposed && item.Due <= _timestamp).ToArray()) timer.Fire();
+        }
+        private sealed class ControlledTimer(TimerCallback callback, object? state, long due) : ITimer
+        {
+            public long Due { get; private set; } = due;
+            public bool Disposed { get; private set; }
+            public bool Change(TimeSpan dueTime, TimeSpan period) { Due += dueTime.Ticks; return true; }
+            public void Fire() { if (!Disposed) callback(state); }
+            public void Dispose() => Disposed = true;
+            public ValueTask DisposeAsync() { Dispose(); return ValueTask.CompletedTask; }
         }
     }
 
