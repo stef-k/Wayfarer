@@ -60,6 +60,7 @@ public sealed class RoutingProviderAdministrationService
             var changed = !creating && (provider.BaseEndpoint != endpoint
             || provider.CredentialRequired != model.CredentialRequired
             || provider.PersonalRoutingAccess != model.PersonalRoutingAccess
+            || provider.Enabled != model.Enabled
             || provider.VerificationFromLongitude != model.VerificationFromLongitude
             || provider.VerificationFromLatitude != model.VerificationFromLatitude
             || provider.VerificationToLongitude != model.VerificationToLongitude

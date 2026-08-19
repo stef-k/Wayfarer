@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.DataProtection;
 using NetTopologySuite.Geometries;
+using Wayfarer.Areas.Admin.Models;
 using Wayfarer.Models;
 using Wayfarer.Services;
 using Wayfarer.Services.ExternalRouting;
@@ -110,16 +111,40 @@ public sealed class ExternalRouteProposalAcceptanceTests : TestBase
     {
         var fixture = CreateFixture(personal: true);
         var provider = fixture.Db.Set<RoutingProviderConfiguration>().Single();
-        provider.Enabled = false;
-        fixture.Db.SaveChanges();
-        provider.Enabled = true;
-        fixture.Db.SaveChanges();
+        var administration = new RoutingProviderAdministrationService(fixture.Db,
+            new RoutingProviderCredentialService(new EphemeralDataProtectionProvider()),
+            new RoutingProviderPacer(TimeProvider.System));
+        var disable = ProviderModel(provider);
+        disable.Enabled = false;
+        Assert.True((await administration.SaveAsync(disable, "admin", CancellationToken.None)).Succeeded);
+        var reenable = ProviderModel(provider);
+        reenable.Enabled = true;
+        Assert.True((await administration.SaveAsync(reenable, "admin", CancellationToken.None)).Succeeded);
 
         var result = await fixture.Service.AcceptAsync(fixture.UserId, fixture.TripId, fixture.Segment.Id,
             fixture.ProposalId, fixture.Geometry, fixture.Indices, fixture.Token, CancellationToken.None);
 
         Assert.Equal("route-proposal-stale", result.ErrorCode);
     }
+
+    private static RoutingProviderEditViewModel ProviderModel(RoutingProviderConfiguration provider) => new()
+    {
+        Id = provider.Id, DisplayName = provider.DisplayName, BaseEndpoint = provider.BaseEndpoint!,
+        CredentialRequired = provider.CredentialRequired, CredentialPresent = provider.CredentialPresent,
+        PersonalRoutingAccess = provider.PersonalRoutingAccess, Enabled = provider.Enabled,
+        Attribution = provider.Attribution, ExternalCoordinateDisclosure = provider.ExternalCoordinateDisclosure!,
+        VerificationFromLongitude = provider.VerificationFromLongitude,
+        VerificationFromLatitude = provider.VerificationFromLatitude,
+        VerificationToLongitude = provider.VerificationToLongitude,
+        VerificationToLatitude = provider.VerificationToLatitude,
+        GenerationTimeoutSeconds = provider.GenerationTimeoutSeconds,
+        ResponseSizeLimitBytes = provider.ResponseSizeLimitBytes,
+        RequestsPerMinute = provider.RequestsPerMinute, MaxConcurrency = provider.MaxConcurrency,
+        MinimumIntervalSeconds = RoutingMinimumIntervalConverter.Format(provider.MinimumIntervalMilliseconds),
+        RowVersion = provider.RowVersion, ConfigurationVersion = provider.ConfigurationVersion,
+        Mappings = provider.ProfileMappings.Select(item => new RoutingProviderMappingViewModel
+            { TransportProfileId = item.TransportProfileId, OsrmProfile = item.OsrmProfile }).ToList()
+    };
 
     private Fixture CreateFixture(bool personal = false)
     {
