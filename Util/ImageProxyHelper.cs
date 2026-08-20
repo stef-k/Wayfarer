@@ -4,6 +4,7 @@ using System.Text;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats;
 using SixLabors.ImageSharp.Processing;
+using SixLabors.ImageSharp.Processing.Processors.Transforms;
 using Wayfarer.Services;
 
 namespace Wayfarer.Util;
@@ -15,6 +16,9 @@ namespace Wayfarer.Util;
 /// </summary>
 public static class ImageProxyHelper
 {
+    /// <summary>The established high-quality resampler used by optimized proxy images.</summary>
+    internal static IResampler OptimizationResampler => KnownResamplers.Lanczos3;
+
     /// <summary>
     /// Browser-like User-Agent sent by image proxy HttpClients to avoid 403 rejections
     /// from servers (e.g. Wikipedia/Wikimedia) that block requests without a User-Agent.
@@ -130,7 +134,7 @@ public static class ImageProxyHelper
         // Resize if needed
         if (targetWidth != image.Width || targetHeight != image.Height)
         {
-            image.Mutate(x => x.Resize(targetWidth, targetHeight, KnownResamplers.Lanczos3));
+            image.Mutate(x => x.Resize(targetWidth, targetHeight, OptimizationResampler));
         }
 
         // Choose format based on transparency
@@ -165,59 +169,60 @@ public static class ImageProxyHelper
     {
         try
         {
-            var apng = ApngFrameAuthority.Inspect(imageBytes);
-            if (apng.Decision == ApngAuthorityDecision.Failed)
+            var png = PngFrameAuthority.Inspect(imageBytes);
+            if (png.Decision == PngAuthorityDecision.Failed)
             {
                 return DecodedImageResourceResult.Failed();
             }
 
-            var info = DecodedImageResourceLimits.Identify(
-                imageBytes,
-                apng.Decision == ApngAuthorityDecision.Animated);
+            if (png.Decision == PngAuthorityDecision.TooManyFrames)
+            {
+                return DecodedImageResourceResult.TooLarge(
+                    "frame-count",
+                    png.FrameCount,
+                    DecodedImageResourceLimits.MaximumFrameCount);
+            }
+
+            var info = DecodedImageResourceLimits.Identify(imageBytes);
             var formatName = info.Metadata.DecodedImageFormat?.Name;
             var usesFrameSentinel = string.Equals(formatName, "GIF", StringComparison.OrdinalIgnoreCase) ||
                                     string.Equals(formatName, "WEBP", StringComparison.OrdinalIgnoreCase);
-            long frameCount = apng.Decision == ApngAuthorityDecision.Animated
-                ? apng.FrameCount
-                : usesFrameSentinel
-                    ? Math.Max(1, info.FrameMetadataCollection.Count)
-                    : 1;
+            var frameCount = usesFrameSentinel
+                ? Math.Max(1, info.FrameMetadataCollection.Count)
+                : 1;
 
             return DecodedImageResourceLimits.Evaluate(info.Width, info.Height, frameCount);
         }
-        catch (Exception ex) when (ex is UnknownImageFormatException or InvalidImageContentException or NotSupportedException or ArgumentException)
+        catch (Exception ex) when (ex is UnknownImageFormatException or InvalidImageContentException or
+            NotSupportedException or ArgumentException or SixLabors.ImageSharp.Memory.InvalidMemoryOperationException)
         {
             return DecodedImageResourceResult.Failed();
         }
     }
 }
 
-/// <summary>Reads only the PNG animation-control authority needed to bound APNG frame allocation.</summary>
-internal static class ApngFrameAuthority
+/// <summary>Scans bounded PNG chunks only far enough to reject declared animation before decode.</summary>
+internal static class PngFrameAuthority
 {
     private static ReadOnlySpan<byte> PngSignature => [137, 80, 78, 71, 13, 10, 26, 10];
 
-    public static ApngAuthorityResult Inspect(ReadOnlySpan<byte> bytes)
+    public static PngAuthorityResult Inspect(ReadOnlySpan<byte> bytes)
     {
         if (bytes.Length < PngSignature.Length || !bytes[..PngSignature.Length].SequenceEqual(PngSignature))
         {
-            return ApngAuthorityResult.NotPng();
+            return PngAuthorityResult.NotPng();
         }
 
         var offset = PngSignature.Length;
         var sawHeader = false;
         var sawImageData = false;
-        var sawEnd = false;
-        var firstFrameControlPrecededImageData = false;
-        long? declaredFrames = null;
-        long frameControls = 0;
-        uint expectedSequence = 0;
+        var sawAnimationControl = false;
 
         while (offset < bytes.Length)
         {
             if (bytes.Length - offset < 12)
             {
-                return ApngAuthorityResult.Failed();
+                return PngAuthorityResult.Failed();
             }
 
             var length = ReadUInt32BigEndian(bytes.Slice(offset, 4));
@@ -228,12 +233,12 @@ internal static class ApngFrameAuthority
             }
             catch (OverflowException)
             {
-                return ApngAuthorityResult.Failed();
+                return PngAuthorityResult.Failed();
             }
 
             if (chunkEnd > bytes.Length)
             {
-                return ApngAuthorityResult.Failed();
+                return PngAuthorityResult.Failed();
             }
 
             var type = bytes.Slice(offset + 4, 4);
@@ -242,53 +247,35 @@ internal static class ApngFrameAuthority
             {
                 if (!type.SequenceEqual("IHDR"u8) || length != 13)
                 {
-                    return ApngAuthorityResult.Failed();
+                    return PngAuthorityResult.Failed();
                 }
 
                 sawHeader = true;
             }
             else if (type.SequenceEqual("IHDR"u8))
             {
-                return ApngAuthorityResult.Failed();
+                return PngAuthorityResult.Failed();
             }
 
             if (type.SequenceEqual("acTL"u8))
             {
-                if (length != 8 || declaredFrames.HasValue || sawImageData)
+                if (length != 8 || sawAnimationControl || sawImageData ||
+                    !HasValidAnimationControlCrc(type, data, bytes.Slice(offset + 16, 4)))
                 {
-                    return ApngAuthorityResult.Failed();
+                    return PngAuthorityResult.Failed();
                 }
 
-                declaredFrames = ReadUInt32BigEndian(data[..4]);
-                if (declaredFrames <= 0)
+                sawAnimationControl = true;
+                var declaredFrames = ReadUInt32BigEndian(data[..4]);
+                if (declaredFrames == 0)
                 {
-                    return ApngAuthorityResult.Failed();
-                }
-            }
-            else if (type.SequenceEqual("fcTL"u8))
-            {
-                if (!declaredFrames.HasValue || length != 26 || ReadUInt32BigEndian(data[..4]) != expectedSequence)
-                {
-                    return ApngAuthorityResult.Failed();
+                    return PngAuthorityResult.Failed();
                 }
 
-                if (frameControls == 0)
+                if (declaredFrames > DecodedImageResourceLimits.MaximumFrameCount)
                 {
-                    firstFrameControlPrecededImageData = !sawImageData;
+                    return PngAuthorityResult.TooManyFrames(declaredFrames);
                 }
-
-                expectedSequence++;
-                frameControls++;
-            }
-            else if (type.SequenceEqual("fdAT"u8))
-            {
-                if (!declaredFrames.HasValue || length < 4 || !sawImageData ||
-                    ReadUInt32BigEndian(data[..4]) != expectedSequence)
-                {
-                    return ApngAuthorityResult.Failed();
-                }
-
-                expectedSequence++;
             }
             else if (type.SequenceEqual("IDAT"u8))
             {
@@ -296,37 +283,42 @@ internal static class ApngFrameAuthority
             }
             else if (type.SequenceEqual("IEND"u8))
             {
-                if (length != 0 || sawEnd || declaredFrames.HasValue && chunkEnd != bytes.Length)
+                if (length != 0 || chunkEnd != bytes.Length)
                 {
-                    return ApngAuthorityResult.Failed();
+                    return PngAuthorityResult.Failed();
                 }
 
-                sawEnd = true;
-                if (!declaredFrames.HasValue)
-                {
-                    return ApngAuthorityResult.StaticPng();
-                }
+                return PngAuthorityResult.StillPng();
             }
 
             offset = checked((int)chunkEnd);
         }
 
-        if (!sawHeader || !sawEnd)
-        {
-            return ApngAuthorityResult.Failed();
-        }
+        return PngAuthorityResult.Failed();
+    }
 
-        if (!declaredFrames.HasValue)
-        {
-            return ApngAuthorityResult.Failed();
-        }
+    /// <summary>Validates only the CRC-protected acTL type and data that drive frame policy.</summary>
+    private static bool HasValidAnimationControlCrc(
+        ReadOnlySpan<byte> type,
+        ReadOnlySpan<byte> data,
+        ReadOnlySpan<byte> expectedBytes)
+    {
+        var crc = uint.MaxValue;
+        UpdateCrc(ref crc, type);
+        UpdateCrc(ref crc, data);
+        return ~crc == ReadUInt32BigEndian(expectedBytes);
+    }
 
-        if (!sawImageData || !firstFrameControlPrecededImageData || frameControls != declaredFrames.Value)
+    private static void UpdateCrc(ref uint crc, ReadOnlySpan<byte> bytes)
+    {
+        foreach (var value in bytes)
         {
-            return ApngAuthorityResult.Failed();
+            crc ^= value;
+            for (var bit = 0; bit < 8; bit++)
+            {
+                crc = (crc & 1) == 0 ? crc >> 1 : 0xEDB88320u ^ (crc >> 1);
+            }
         }
-
-        return ApngAuthorityResult.Animated(declaredFrames.Value);
     }
 
     private static uint ReadUInt32BigEndian(ReadOnlySpan<byte> value) =>
@@ -334,19 +326,20 @@ internal static class ApngFrameAuthority
 }
 
 /// <summary>Classifies the narrow PNG animation-control scan.</summary>
-internal enum ApngAuthorityDecision
+internal enum PngAuthorityDecision
 {
     NotPng,
-    StaticPng,
-    Animated,
+    StillPng,
+    TooManyFrames,
     Failed
 }
 
-/// <summary>Contains the APNG-declared frame count when present and structurally valid.</summary>
-internal readonly record struct ApngAuthorityResult(ApngAuthorityDecision Decision, long FrameCount)
+/// <summary>Contains a CRC-trusted excessive APNG frame declaration when present.</summary>
+internal readonly record struct PngAuthorityResult(PngAuthorityDecision Decision, long FrameCount)
 {
-    public static ApngAuthorityResult NotPng() => new(ApngAuthorityDecision.NotPng, 0);
-    public static ApngAuthorityResult StaticPng() => new(ApngAuthorityDecision.StaticPng, 1);
-    public static ApngAuthorityResult Animated(long frameCount) => new(ApngAuthorityDecision.Animated, frameCount);
-    public static ApngAuthorityResult Failed() => new(ApngAuthorityDecision.Failed, 0);
+    public static PngAuthorityResult NotPng() => new(PngAuthorityDecision.NotPng, 0);
+    public static PngAuthorityResult StillPng() => new(PngAuthorityDecision.StillPng, 1);
+    public static PngAuthorityResult TooManyFrames(long frameCount) =>
+        new(PngAuthorityDecision.TooManyFrames, frameCount);
+    public static PngAuthorityResult Failed() => new(PngAuthorityDecision.Failed, 0);
 }

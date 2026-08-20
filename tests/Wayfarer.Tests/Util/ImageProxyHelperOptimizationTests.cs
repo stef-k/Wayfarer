@@ -4,13 +4,14 @@ using SixLabors.ImageSharp.Formats.Webp;
 using SixLabors.ImageSharp.Metadata.Profiles.Exif;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Memory;
+using SixLabors.ImageSharp.Processing;
 using System.Reflection;
 using Wayfarer.Util;
 using Xunit;
 
 namespace Wayfarer.Tests.Util;
 
-/// <summary>Protects accepted image behavior and animated decoded-resource accounting.</summary>
+/// <summary>Protects accepted still-image behavior and single-frame authority.</summary>
 public sealed class ImageProxyHelperOptimizationTests
 {
     /// <summary>Static formats supported by the existing proxy pass decoded preflight.</summary>
@@ -18,6 +19,7 @@ public sealed class ImageProxyHelperOptimizationTests
     [InlineData("jpeg")]
     [InlineData("png")]
     [InlineData("webp")]
+    [InlineData("gif")]
     public void Preflight_AcceptsSupportedStaticFormats(string format)
     {
         var result = ImageProxyHelper.PreflightDecodedResources(CreateStaticImage(format));
@@ -25,10 +27,10 @@ public sealed class ImageProxyHelperOptimizationTests
         Assert.Equal(DecodedImageResourceDecision.Accepted, result.Decision);
     }
 
-    /// <summary>GIF identification uses the ninth observed frame only as a rejection sentinel.</summary>
+    /// <summary>GIF identification accepts one frame and rejects on the second observed frame.</summary>
     [Theory]
-    [InlineData(8, 0)]
-    [InlineData(9, 1)]
+    [InlineData(1, 0)]
+    [InlineData(2, 1)]
     public void Preflight_EnforcesGifFrameSentinel(int frames, int expectedDecision)
     {
         var result = ImageProxyHelper.PreflightDecodedResources(CreateAnimation(frames, "gif"));
@@ -36,60 +38,15 @@ public sealed class ImageProxyHelperOptimizationTests
         Assert.Equal(expectedDecision, (int)result.Decision);
     }
 
-    /// <summary>Animated WebP identification uses the ninth observed frame only as a rejection sentinel.</summary>
+    /// <summary>WebP identification accepts one frame and rejects on the second observed frame.</summary>
     [Theory]
-    [InlineData(8, 0)]
-    [InlineData(9, 1)]
+    [InlineData(1, 0)]
+    [InlineData(2, 1)]
     public void Preflight_EnforcesWebpFrameSentinel(int frames, int expectedDecision)
     {
         var result = ImageProxyHelper.PreflightDecodedResources(CreateAnimation(frames, "webp"));
 
         Assert.Equal(expectedDecision, (int)result.Decision);
-    }
-
-    /// <summary>All accepted animation frames contribute to aggregate decoded-byte accounting.</summary>
-    [Fact]
-    public void Preflight_AccountsForEveryGifFrameWithoutLargeAllocation()
-    {
-        var bytes = CreateAnimation(8, "gif");
-        bytes[6] = 0;
-        bytes[7] = 8;
-        bytes[8] = 1;
-        bytes[9] = 4;
-
-        var result = ImageProxyHelper.PreflightDecodedResources(bytes);
-
-        Assert.Equal(DecodedImageResourceDecision.TooLarge, result.Decision);
-        Assert.Equal("aggregate-decoded-bytes", result.LimitName);
-    }
-
-    /// <summary>Accepted animations are decoded with every original frame rather than truncated.</summary>
-    [Theory]
-    [InlineData("gif")]
-    [InlineData("webp")]
-    public void OptimizeImage_PreservesAllAcceptedAnimationFrames(string format)
-    {
-        var output = ImageProxyHelper.OptimizeImage(CreateAnimation(8, format), null, null, 90, out var isPng);
-
-        using var decoded = Image.Load(output);
-        Assert.Equal(format == "gif", isPng);
-        Assert.Equal(format == "gif" ? 8 : 1, decoded.Frames.Count);
-    }
-
-    /// <summary>Accepted APNG input is decoded and encoded without truncating its original frames.</summary>
-    [Fact]
-    public void OptimizeImage_PreservesAllAcceptedApngFrames()
-    {
-        var output = ImageProxyHelper.OptimizeImage(
-            PngContractFixture.Create(1, 1, apngFrames: 8),
-            null,
-            null,
-            90,
-            out var isPng);
-
-        using var decoded = Image.Load(output);
-        Assert.True(isPng);
-        Assert.Equal(8, decoded.Frames.Count);
     }
 
     /// <summary>Opaque images retain proportional width-first/height-second resizing and JPEG routing.</summary>
@@ -120,15 +77,16 @@ public sealed class ImageProxyHelperOptimizationTests
         Assert.Equal(1, decoded.Height);
     }
 
-    /// <summary>PNG input retains transparency-oriented PNG output routing.</summary>
+    /// <summary>Transparent PNG input retains PNG routing and non-opaque alpha.</summary>
     [Fact]
     public void OptimizeImage_PreservesPngRouting()
     {
         var output = ImageProxyHelper.OptimizeImage(CreateStaticImage("png"), null, null, 90, out var isPng);
 
-        using var decoded = Image.Load(output);
+        using var decoded = Image.Load<Rgba32>(output);
         Assert.True(isPng);
         Assert.Equal("PNG", decoded.Metadata.DecodedImageFormat?.Name);
+        Assert.NotEqual(byte.MaxValue, decoded[0, 0].A);
     }
 
     /// <summary>JPEG orientation and ordinary EXIF metadata retain the current pass-through behavior.</summary>
@@ -146,6 +104,8 @@ public sealed class ImageProxyHelperOptimizationTests
 
         using var decoded = Image.Load(output);
         var profile = Assert.IsType<ExifProfile>(decoded.Metadata.ExifProfile);
+        Assert.Equal(2, decoded.Width);
+        Assert.Equal(1, decoded.Height);
         Assert.True(profile.TryGetValue(ExifTag.Orientation, out var orientation));
         Assert.True(profile.TryGetValue(ExifTag.Software, out var software));
         Assert.Equal((ushort)6, orientation.Value);
@@ -178,6 +138,13 @@ public sealed class ImageProxyHelperOptimizationTests
         Assert.True(highQuality.Length > lowQuality.Length);
     }
 
+    /// <summary>The production resize seam remains explicitly configured with Lanczos3.</summary>
+    [Fact]
+    public void OptimizationResampler_UsesLanczos3()
+    {
+        Assert.Same(KnownResamplers.Lanczos3, ImageProxyHelper.OptimizationResampler);
+    }
+
     /// <summary>The dedicated allocator exposes the fixed allocation-group capacity as defense in depth.</summary>
     [Fact]
     public void ProxyAllocator_UsesFixedAllocationGroupLimit()
@@ -206,6 +173,9 @@ public sealed class ImageProxyHelperOptimizationTests
                 break;
             case "webp":
                 image.SaveAsWebp(output);
+                break;
+            case "gif":
+                image.SaveAsGif(output);
                 break;
             default:
                 throw new ArgumentOutOfRangeException(nameof(format));

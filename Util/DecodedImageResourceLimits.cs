@@ -12,37 +12,30 @@ internal static class DecodedImageResourceLimits
     public const long MaximumWidth = 8_192;
     public const long MaximumHeight = 8_192;
     public const long MaximumPixelsPerFrame = 12_000_000;
-    public const long MaximumFrameCount = 8;
-    public const long MaximumAggregateDecodedBytes = 64L * 1024 * 1024;
+    public const long MaximumFrameCount = 1;
+    public const long MaximumDecodedBytes = 64L * 1024 * 1024;
     public const int AllocationGroupLimitMegabytes = 128;
     public const int RetainedPoolMegabytes = 128;
-    public const int FrameSentinel = (int)MaximumFrameCount + 1;
+    public const int FrameSentinel = 2;
 
     private static readonly Configuration ProxyConfiguration = CreateConfiguration();
 
-    /// <summary>Options that bound GIF/WebP identification at one frame beyond the accepted limit.</summary>
+    /// <summary>Options that stop GIF/WebP identification after observing the rejection sentinel.</summary>
     private static readonly DecoderOptions IdentificationOptions = new()
     {
         Configuration = ProxyConfiguration,
         MaxFrames = FrameSentinel
     };
 
-    /// <summary>Options that read APNG dimensions while the parser supplies declared frame authority.</summary>
-    private static readonly DecoderOptions ApngIdentificationOptions = new()
+    /// <summary>Options that decode only the single frame accepted by preflight.</summary>
+    private static readonly DecoderOptions DecodeOptions = new()
     {
         Configuration = ProxyConfiguration,
         MaxFrames = 1
     };
 
-    /// <summary>Options that decode every frame of an image already accepted by preflight.</summary>
-    private static readonly DecoderOptions DecodeOptions = new()
-    {
-        Configuration = ProxyConfiguration
-    };
-
-    /// <summary>Identifies an image with the codec-appropriate immutable proxy options.</summary>
-    public static ImageInfo Identify(ReadOnlySpan<byte> bytes, bool isApng) =>
-        Image.Identify(isApng ? ApngIdentificationOptions : IdentificationOptions, bytes);
+    /// <summary>Identifies an image with the immutable two-frame sentinel options.</summary>
+    public static ImageInfo Identify(ReadOnlySpan<byte> bytes) => Image.Identify(IdentificationOptions, bytes);
 
     /// <summary>Loads every frame of an image accepted by decoded-resource preflight.</summary>
     public static Image Load(ReadOnlySpan<byte> bytes) => Image.Load(DecodeOptions, bytes);
@@ -56,18 +49,18 @@ internal static class DecodedImageResourceLimits
         }
 
         long pixelsPerFrame;
-        long aggregateDecodedBytes;
+        long decodedBytes;
         try
         {
             pixelsPerFrame = checked(width * height);
-            aggregateDecodedBytes = checked(pixelsPerFrame * 4L * frameCount);
+            decodedBytes = checked(pixelsPerFrame * 4L);
         }
         catch (OverflowException)
         {
             return DecodedImageResourceResult.TooLarge(
                 "resource-arithmetic",
                 long.MaxValue,
-                MaximumAggregateDecodedBytes);
+                MaximumDecodedBytes);
         }
 
         if (width > MaximumWidth)
@@ -80,25 +73,53 @@ internal static class DecodedImageResourceLimits
             return DecodedImageResourceResult.TooLarge("height", height, MaximumHeight);
         }
 
-        if (pixelsPerFrame > MaximumPixelsPerFrame)
-        {
-            return DecodedImageResourceResult.TooLarge(
-                "pixels-per-frame",
-                pixelsPerFrame,
-                MaximumPixelsPerFrame);
-        }
-
         if (frameCount > MaximumFrameCount)
         {
             return DecodedImageResourceResult.TooLarge("frame-count", frameCount, MaximumFrameCount);
         }
 
-        if (aggregateDecodedBytes > MaximumAggregateDecodedBytes)
+        return EvaluateCalculated(width, height, pixelsPerFrame, decodedBytes, frameCount);
+    }
+
+    /// <summary>Applies every independent boundary to already checked resource values.</summary>
+    internal static DecodedImageResourceResult EvaluateCalculated(
+        long width,
+        long height,
+        long pixels,
+        long decodedBytes,
+        long frameCount)
+    {
+        if (width <= 0 || height <= 0 || pixels <= 0 || decodedBytes <= 0 || frameCount <= 0)
+        {
+            return DecodedImageResourceResult.Failed();
+        }
+
+        if (width > MaximumWidth)
+        {
+            return DecodedImageResourceResult.TooLarge("width", width, MaximumWidth);
+        }
+
+        if (height > MaximumHeight)
+        {
+            return DecodedImageResourceResult.TooLarge("height", height, MaximumHeight);
+        }
+
+        if (pixels > MaximumPixelsPerFrame)
+        {
+            return DecodedImageResourceResult.TooLarge("pixels", pixels, MaximumPixelsPerFrame);
+        }
+
+        if (decodedBytes > MaximumDecodedBytes)
         {
             return DecodedImageResourceResult.TooLarge(
-                "aggregate-decoded-bytes",
-                aggregateDecodedBytes,
-                MaximumAggregateDecodedBytes);
+                "decoded-bytes",
+                decodedBytes,
+                MaximumDecodedBytes);
+        }
+
+        if (frameCount > MaximumFrameCount)
+        {
+            return DecodedImageResourceResult.TooLarge("frame-count", frameCount, MaximumFrameCount);
         }
 
         return DecodedImageResourceResult.Accepted();

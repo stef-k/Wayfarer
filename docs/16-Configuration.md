@@ -31,9 +31,11 @@ CacheSettings
 
 Image Proxy Resource Limits
 - **Max Proxy Image Download Size** (Admin UI) is the encoded origin-response limit. Its existing range remains 5–200 MiB and its default is 50 MiB.
-- Optimized images also have fixed decoded limits: 8,192 pixels per dimension, 12,000,000 pixels per frame, 8 frames, and a 64 MiB aggregate estimate calculated as width × height × 4 × frames.
+- Optimization intentionally supports still/single-frame JPEG, PNG, WebP, and GIF images only. Multi-frame inputs are rejected as decoded-resource policy violations before full decode.
+- Accepted optimized images have fixed decoded limits: 8,192 pixels per dimension, 12,000,000 pixels, exactly one frame, and a 64 MiB conservative estimate calculated as width × height × 4.
+- `Optimize=false` remains byte-for-byte pass-through and performs no image identification or decode.
 - The proxy uses one dedicated ImageSharp allocator with a 128 MiB allocation-group limit and 128 MiB retained pool. These allocator settings are defense in depth, not a cumulative request or process-memory quota.
-- The 1 GiB minimum-host assumption applies only when the encoded download ceiling is 50 MiB or less. Higher encoded settings retain proportionally more origin data and require a proportionally larger host-memory budget.
+- A bounded Linux x64 observation supports only a tentative 1 GiB rationale when the encoded download ceiling is at most 50 MiB. APNG was not included, precise native allocation was unavailable, and workload peak and complete-command peak measured different scopes. Higher encoded settings retain proportionally more origin data and require a proportionally larger host-memory budget.
 
 Tile Provider Settings (Admin UI)
 - **Tile Provider** — select from presets (OpenStreetMap, Carto Light/Dark, ESRI Satellite) or configure a custom URL template.
