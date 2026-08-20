@@ -1,6 +1,5 @@
 using System.Collections.Concurrent;
 using System.Collections.Specialized;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Npgsql;
 using Quartz;
@@ -23,8 +22,8 @@ public sealed class QuartzSchemaLifecyclePostgresTests(PostgresImportTestFixture
     public async Task AlignedSchema_QuartzLifecycle_OmitsMissingColumnWarnings()
     {
         fixture.RequireAvailable();
-        await using var context = fixture.CreateContext();
-        var connection = (NpgsqlConnection)context.Database.GetDbConnection();
+        await using var connection = fixture.CreateConnection();
+        var quartzConnectionString = connection.ConnectionString;
         await connection.OpenAsync();
         var schema = $"quartz_478_{Guid.NewGuid():N}";
         var logs = new CapturingLoggerProvider();
@@ -37,7 +36,7 @@ public sealed class QuartzSchemaLifecyclePostgresTests(PostgresImportTestFixture
             await ExecuteAsync(connection, $"CREATE SCHEMA {schema}");
             await ExecuteAsync(connection, $"SET search_path TO {schema}");
             await QuartzSchemaInstaller.EnsureQuartzTablesExistAsync(connection, CancellationToken.None);
-            var connectionBuilder = new NpgsqlConnectionStringBuilder(connection.ConnectionString)
+            var connectionBuilder = new NpgsqlConnectionStringBuilder(quartzConnectionString)
             {
                 SearchPath = schema
             };
