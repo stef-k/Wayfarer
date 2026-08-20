@@ -27,6 +27,30 @@ public sealed class ImageProxyHelperOptimizationTests
         Assert.Equal(DecodedImageResourceDecision.Accepted, result.Decision);
     }
 
+    /// <summary>Every supported single-frame input completes the established PNG/JPEG output route.</summary>
+    [Theory]
+    [InlineData("jpeg", false, "JPEG")]
+    [InlineData("png", true, "PNG")]
+    [InlineData("webp", false, "JPEG")]
+    [InlineData("gif", true, "PNG")]
+    public void OptimizeImage_AcceptsSupportedStillFormats(
+        string format,
+        bool expectedPng,
+        string expectedOutputFormat)
+    {
+        var output = ImageProxyHelper.OptimizeImage(
+            CreateStaticImage(format),
+            null,
+            null,
+            90,
+            out var isPng);
+
+        using var decoded = Image.Load(output);
+        Assert.Equal(expectedPng, isPng);
+        Assert.Equal(expectedOutputFormat, decoded.Metadata.DecodedImageFormat?.Name);
+        Assert.Single(decoded.Frames);
+    }
+
     /// <summary>GIF identification accepts one frame and rejects on the second observed frame.</summary>
     [Theory]
     [InlineData(1, 0)]
