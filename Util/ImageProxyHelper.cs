@@ -183,6 +183,20 @@ public static class ImageProxyHelper
                     DecodedImageResourceLimits.MaximumFrameCount);
             }
 
+            var webp = WebpFrameAuthority.Inspect(imageBytes);
+            if (webp.Decision == WebpAuthorityDecision.Failed)
+            {
+                return DecodedImageResourceResult.Failed();
+            }
+
+            if (webp.Decision == WebpAuthorityDecision.TooManyFrames)
+            {
+                return DecodedImageResourceResult.TooLarge(
+                    "frame-count",
+                    webp.FrameCount,
+                    DecodedImageResourceLimits.MaximumFrameCount);
+            }
+
             var info = DecodedImageResourceLimits.Identify(imageBytes);
             var formatName = info.Metadata.DecodedImageFormat?.Name;
             var usesFrameSentinel = string.Equals(formatName, "GIF", StringComparison.OrdinalIgnoreCase) ||
