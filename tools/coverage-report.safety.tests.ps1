@@ -1,41 +1,31 @@
 $ErrorActionPreference = "Stop"
 
-$scriptUnderTest = Join-Path $PSScriptRoot "coverage-report-paths.ps1"
-. $scriptUnderTest
+. (Join-Path $PSScriptRoot "coverage-report-paths.ps1")
 
 $passed = 0
 $failed = 0
 $temporaryRoot = Join-Path ([IO.Path]::GetTempPath()) ("wayfarer-coverage-safety-" + [Guid]::NewGuid().ToString("N"))
 $repositoryRoot = Join-Path $temporaryRoot "repository"
-$externalRoot = Join-Path $temporaryRoot "external"
+$coverageRoot = Join-Path $repositoryRoot "coverage-report"
+$resultsRoot = Join-Path $repositoryRoot "tests/Wayfarer.Tests/TestResults/coverage-report"
 
-function Assert-Accepted {
-    param(
-        [string]$Name,
-        [string]$OutputDir,
-        [bool]$RequireOwnership = $false
-    )
-
+function Assert-Pass {
+    param([string]$Name, [scriptblock]$Test)
     try {
-        Test-CoverageOutputPath -RepoRoot $repositoryRoot -OutputDir $OutputDir -RequireOwnership:$RequireOwnership | Out-Null
+        & $Test
         $script:passed++
         Write-Host "PASS: $Name"
     }
     catch {
         $script:failed++
-        Write-Error "FAIL: $Name should be accepted: $($_.Exception.Message)" -ErrorAction Continue
+        Write-Error "FAIL: $Name`: $($_.Exception.Message)" -ErrorAction Continue
     }
 }
 
 function Assert-Rejected {
-    param(
-        [string]$Name,
-        [string]$OutputDir,
-        [bool]$RequireOwnership = $false
-    )
-
+    param([string]$Name, [scriptblock]$Test)
     try {
-        Test-CoverageOutputPath -RepoRoot $repositoryRoot -OutputDir $OutputDir -RequireOwnership:$RequireOwnership | Out-Null
+        & $Test
         $script:failed++
         Write-Error "FAIL: $Name should be rejected." -ErrorAction Continue
     }
@@ -46,81 +36,74 @@ function Assert-Rejected {
 }
 
 try {
-    New-Item -ItemType Directory -Path $repositoryRoot, $externalRoot | Out-Null
-    foreach ($directory in @("tools", ".git", "docs", "tests", "unrelated", "coverage-report")) {
-        New-Item -ItemType Directory -Path (Join-Path $repositoryRoot $directory) | Out-Null
-    }
-
-    $sentinel = Join-Path $repositoryRoot "unrelated/sentinel.txt"
-    Set-Content -LiteralPath $sentinel -Value "preserve"
-    $ownedOutput = Join-Path $repositoryRoot "coverage-report/owned"
-    New-Item -ItemType Directory -Path $ownedOutput | Out-Null
-    Set-Content -LiteralPath (Join-Path $ownedOutput ".wayfarer-coverage-output") -Value $CoverageOutputMarkerValue -NoNewline
-    Set-Content -LiteralPath (Join-Path $ownedOutput "coverage.cobertura.xml") -Value "generated"
-    New-Item -ItemType Junction -Path (Join-Path $repositoryRoot "coverage-report/escape") -Target $externalRoot | Out-Null
-
-    Assert-Rejected "repository root" $repositoryRoot
-    Assert-Rejected "parent traversal outside repository" (Join-Path $repositoryRoot "../outside")
-    Assert-Rejected "tools" (Join-Path $repositoryRoot "tools")
-    Assert-Rejected ".git" (Join-Path $repositoryRoot ".git")
-    Assert-Rejected "docs" (Join-Path $repositoryRoot "docs")
-    Assert-Rejected "tests" (Join-Path $repositoryRoot "tests")
-    Assert-Rejected "unrelated repository directory" (Join-Path $repositoryRoot "unrelated")
-    Assert-Rejected "junction escape" (Join-Path $repositoryRoot "coverage-report/escape/output")
-    Assert-Rejected "unowned coverage directory" (Join-Path $repositoryRoot "coverage-report") -RequireOwnership $true
-
-    $boundaryMarker = Join-Path $repositoryRoot "coverage-report/.wayfarer-coverage-output"
-    Set-Content -LiteralPath $boundaryMarker -Value "malformed" -NoNewline
-    Assert-Rejected "malformed ownership marker" (Join-Path $repositoryRoot "coverage-report") -RequireOwnership $true
-    Remove-Item -LiteralPath $boundaryMarker -Force
-    New-Item -ItemType Junction -Path $boundaryMarker -Target $externalRoot | Out-Null
-    Assert-Rejected "reparse-point ownership marker" (Join-Path $repositoryRoot "coverage-report") -RequireOwnership $true
-    Remove-Item -LiteralPath $boundaryMarker -Force
-
-    $fileOutput = Join-Path $repositoryRoot "coverage-report/file-output"
-    Set-Content -LiteralPath $fileOutput -Value "not a directory"
-    Assert-Rejected "file used as output directory" $fileOutput
-
-    Remove-Item -LiteralPath (Join-Path $repositoryRoot "coverage-report") -Recurse -Force
-    New-Item -ItemType Directory -Path (Join-Path $repositoryRoot "coverage-report") | Out-Null
-    Assert-Accepted "default fresh coverage output" (Join-Path $repositoryRoot "coverage-report")
-    Assert-Accepted "fresh permitted descendant" (Join-Path $repositoryRoot "coverage-report/fresh/child")
-
-    New-Item -ItemType Directory -Path $ownedOutput | Out-Null
-    Set-Content -LiteralPath (Join-Path $ownedOutput ".wayfarer-coverage-output") -Value $CoverageOutputMarkerValue -NoNewline
-    Set-Content -LiteralPath (Join-Path $ownedOutput "coverage.cobertura.xml") -Value "generated"
-    Assert-Accepted "owned existing generated output" $ownedOutput -RequireOwnership $true
-    New-Item -ItemType Junction -Path (Join-Path $ownedOutput "nested-escape") -Target $externalRoot | Out-Null
-    Assert-Rejected "owned output containing a reparse point" $ownedOutput -RequireOwnership $true
-
+    New-Item -ItemType Directory -Path $repositoryRoot | Out-Null
     $runId = [Guid]::NewGuid().ToString("N")
-    $resultsRoot = Join-Path $repositoryRoot "tests/Wayfarer.Tests/TestResults/coverage-report"
-    $runResults = Join-Path $resultsRoot $runId
-    New-Item -ItemType Directory -Path $runResults | Out-Null
-    Test-RunResultsPath -ResultsRoot $resultsRoot -RunResultsDir $runResults -RunId $runId | Out-Null
-    $passed++
-    Write-Host "PASS: exact current-run results directory"
-    try {
-        Test-RunResultsPath -ResultsRoot $resultsRoot -RunResultsDir (Join-Path $resultsRoot "other") -RunId $runId | Out-Null
-        $failed++
-        Write-Error "FAIL: unrelated results directory should be rejected." -ErrorAction Continue
+
+    Assert-Pass "generated run ID is exact N-format GUID" {
+        Test-CoverageRunId -RunId $runId | Out-Null
+        if ($runId -cnotmatch '^[0-9a-f]{32}$') { throw "Run ID is not lowercase N format." }
     }
-    catch {
-        $passed++
-        Write-Host "PASS: unrelated results directory rejected: $($_.Exception.Message)"
+    foreach ($malformed in @("", "not-a-guid", ([Guid]::NewGuid().ToString("D")), $runId.ToUpperInvariant())) {
+        Assert-Rejected "malformed run ID '$malformed'" { Test-CoverageRunId -RunId $malformed | Out-Null }
     }
 
-    if ((Get-Content -LiteralPath $sentinel -Raw).Trim() -ne "preserve") {
-        throw "The unrelated sentinel changed during validation."
+    Assert-Pass "run paths use the same exact GUID child" {
+        $paths = Get-CoverageRunPaths -RepoRoot $repositoryRoot -RunId $runId
+        if ($paths.ReportDirectory -cne (Join-Path $coverageRoot $runId)) { throw "Unexpected report path." }
+        if ($paths.ResultsDirectory -cne (Join-Path $resultsRoot $runId)) { throw "Unexpected results path." }
+    }
+
+    Assert-Pass "existing ordinary coverage root is accepted" {
+        New-Item -ItemType Directory -Path $coverageRoot | Out-Null
+        $reportDirectory = New-CoverageReportDirectory -CoverageRoot $coverageRoot -RunId $runId
+        if ($reportDirectory -cne (Join-Path $coverageRoot $runId)) { throw "Unexpected report directory." }
+    }
+
+    Remove-Item -LiteralPath $coverageRoot -Recurse -Force
+    Set-Content -LiteralPath $coverageRoot -Value "file"
+    Assert-Rejected "coverage root that is a file" { New-CoverageReportDirectory -CoverageRoot $coverageRoot -RunId $runId | Out-Null }
+    Remove-Item -LiteralPath $coverageRoot -Force
+
+    $reparseTarget = Join-Path $temporaryRoot "reparse-target"
+    New-Item -ItemType Directory -Path $reparseTarget | Out-Null
+    New-Item -ItemType Junction -Path $coverageRoot -Target $reparseTarget | Out-Null
+    Assert-Rejected "coverage root that is a reparse point" { New-CoverageReportDirectory -CoverageRoot $coverageRoot -RunId $runId | Out-Null }
+    Remove-Item -LiteralPath $coverageRoot -Force
+
+    New-Item -ItemType Directory -Path (Join-Path $coverageRoot $runId) | Out-Null
+    Assert-Rejected "pre-existing report GUID child" { New-CoverageReportDirectory -CoverageRoot $coverageRoot -RunId $runId | Out-Null }
+
+    $currentResults = Join-Path $resultsRoot $runId
+    $siblingResults = Join-Path $resultsRoot ([Guid]::NewGuid().ToString("N"))
+    New-Item -ItemType Directory -Path $currentResults, $siblingResults | Out-Null
+    Set-Content -LiteralPath (Join-Path $currentResults "current.txt") -Value "remove"
+    Set-Content -LiteralPath (Join-Path $siblingResults "sibling.txt") -Value "preserve"
+
+    Assert-Pass "current results GUID is accepted for cleanup" {
+        Test-CoverageResultsCleanupPath -ResultsRoot $resultsRoot -ResultsDirectory $currentResults -RunId $runId | Out-Null
+    }
+    Assert-Rejected "sibling results path" {
+        Test-CoverageResultsCleanupPath -ResultsRoot $resultsRoot -ResultsDirectory $siblingResults -RunId $runId | Out-Null
+    }
+    Assert-Rejected "malformed results run ID" {
+        Test-CoverageResultsCleanupPath -ResultsRoot $resultsRoot -ResultsDirectory $currentResults -RunId "bad" | Out-Null
+    }
+
+    Assert-Pass "temporary cleanup removes only the current GUID fixture" {
+        $validated = Test-CoverageResultsCleanupPath -ResultsRoot $resultsRoot -ResultsDirectory $currentResults -RunId $runId
+        Remove-Item -LiteralPath $validated -Recurse -Force
+        if (Test-Path -LiteralPath $currentResults) { throw "Current results remain." }
+        if (-not (Test-Path -LiteralPath (Join-Path $siblingResults "sibling.txt") -PathType Leaf)) { throw "Sibling results changed." }
+    }
+
+    Assert-Pass "workflow never removes report output" {
+        $workflow = Get-Content -LiteralPath (Join-Path $PSScriptRoot "coverage-report.ps1") -Raw
+        if ($workflow -match '(?is)Remove-Item[^\r\n]*(resolvedOutput|report|coverageRoot)') { throw "Workflow contains report-output removal." }
     }
 }
 finally {
-    if (Test-Path -LiteralPath $temporaryRoot) {
-        Remove-Item -LiteralPath $temporaryRoot -Recurse -Force
-    }
+    if (Test-Path -LiteralPath $temporaryRoot) { Remove-Item -LiteralPath $temporaryRoot -Recurse -Force }
 }
 
 Write-Host "Safety checks: $passed passed, $failed failed."
-if ($failed -ne 0) {
-    exit 1
-}
+if ($failed -ne 0) { exit 1 }
