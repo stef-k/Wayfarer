@@ -16,6 +16,7 @@ import { resolveDraftSegmentPresentation, resolvePersistedSegmentPresentation } 
 import { reverseSegmentDraftRoute } from '../segments/segmentPresentationResolver';
 import { createSegmentRouteProposalDraftController, routeProposalDraftContextKey } from './segmentRouteProposalDraft';
 import { createSegmentSemanticTaint } from './segmentSemanticTaint';
+import { activateAuthoritativeSegment } from './segmentDraftActivation';
 
 declare global {
   interface Window {
@@ -142,28 +143,9 @@ async function openCreate(): Promise<void> {
 }
 
 async function openEdit(segment: EditorSegment): Promise<boolean> {
-  const target = buildSegmentEditTarget(segment, segmentLabel(segment));
-  const isAlreadyActive = props.editorSurface.isTargetActive(target);
-  if (!segment.capabilities.canEdit) {
-    return false;
-  }
+  if (!segment.capabilities.canEdit) return false;
 
-  if (isAlreadyActive) {
-    return true;
-  }
-
-  if (!(await props.editorSurface.activateTarget(target))) {
-    return false;
-  }
-
-  persistedBaseline.value = toSegmentDraft(segment);
-  Object.assign(draft, toSegmentDraft(segment));
-  createBaselineRequest.value = null; semanticTaint.resetFromAuthoritativeBaseline();
-  resetFeedback();
-  syncRouteDraftPreview();
-  await props.selectSegment(persistedPresentationKey(segment.id));
-  publishPresentation();
-  return true;
+  return activatePersistedSegment(segment);
 }
 
 function resetDraft(): void {
@@ -258,28 +240,45 @@ async function deleteDraft(): Promise<void> {
 }
 
 async function deleteSegmentFromRow(segment: EditorSegment): Promise<void> {
-  if (!segment.capabilities.canDelete) {
-    return;
-  }
+  if (!segment.capabilities.canDelete) return;
 
   const target = buildSegmentEditTarget(segment, segmentLabel(segment));
-  const isAlreadyActive = props.editorSurface.isTargetActive(target);
-  if (!isAlreadyActive) {
-    const activated = await props.editorSurface.activateTarget(target);
-    if (!activated) {
-      return;
-    }
-
-    Object.assign(draft, toSegmentDraft(segment));
-    createBaselineRequest.value = null;
-    resetFeedback();
-  }
+  if (!(await activatePersistedSegment(segment))) return;
 
   if (!props.editorSurface.isTargetActive(target) || draft.id !== segment.id) {
     return;
   }
 
   await deleteSegmentWithConfirmation(segment, target);
+}
+
+/** Switches target first, then installs all authoritative ownership for that Segment. */
+async function activatePersistedSegment(
+  segment: EditorSegment
+): Promise<boolean> {
+  const target = buildSegmentEditTarget(segment, segmentLabel(segment));
+  const isAlreadyActive = props.editorSurface.isTargetActive(target);
+  const activated = await activateAuthoritativeSegment({
+    segment,
+    isAlreadyActive,
+    activateTarget: () => props.editorSurface.activateTarget(target),
+    installAuthoritativeSegment
+  });
+  if (!activated || isAlreadyActive) return activated;
+  syncRouteDraftPreview();
+  await props.selectSegment(persistedPresentationKey(segment.id));
+  publishPresentation();
+  return true;
+}
+
+/** Replaces draft, persisted baseline, feedback, and semantic history as one ownership commit. */
+function installAuthoritativeSegment(segment: EditorSegment): void {
+  const authoritativeDraft = toSegmentDraft(segment);
+  persistedBaseline.value = cloneDraft(authoritativeDraft);
+  Object.assign(draft, authoritativeDraft);
+  createBaselineRequest.value = null;
+  semanticTaint.resetFromAuthoritativeBaseline();
+  resetFeedback();
 }
 
 async function deleteSegmentWithConfirmation(segment: EditorSegment, deletedTarget: EditorTarget): Promise<void> {
