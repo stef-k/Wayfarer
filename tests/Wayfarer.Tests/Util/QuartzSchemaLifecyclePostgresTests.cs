@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Collections.Specialized;
+using System.Runtime.ExceptionServices;
 using Microsoft.Extensions.Logging;
 using Npgsql;
 using Quartz;
@@ -7,6 +8,7 @@ using Quartz.Impl;
 using Wayfarer.Tests.Infrastructure;
 using Xunit;
 using QuartzLogContext = Quartz.Logging.LogContext;
+using QuartzLogProvider = Quartz.Logging.LogProvider;
 
 namespace Wayfarer.Tests.Util;
 
@@ -27,9 +29,11 @@ public sealed class QuartzSchemaLifecyclePostgresTests(PostgresImportTestFixture
         await connection.OpenAsync();
         var schema = $"quartz_478_{Guid.NewGuid():N}";
         var logs = new CapturingLoggerProvider();
-        using var loggerFactory = LoggerFactory.Create(builder =>
+        var loggerFactory = LoggerFactory.Create(builder =>
             builder.SetMinimumLevel(LogLevel.Trace).AddProvider(logs));
+        var loggingWasDisabled = QuartzLogProvider.IsDisabled;
         IScheduler? scheduler = null;
+        Exception? failure = null;
 
         try
         {
@@ -53,14 +57,76 @@ public sealed class QuartzSchemaLifecyclePostgresTests(PostgresImportTestFixture
             Assert.DoesNotContain(logs.Entries, entry => entry.Message.Contains(MisfireWarning, StringComparison.Ordinal));
             Assert.DoesNotContain(logs.Entries, entry => entry.Message.Contains(PreferredNodeWarning, StringComparison.Ordinal));
         }
+        catch (Exception exception)
+        {
+            failure = exception;
+        }
         finally
         {
-            if (scheduler is not null) await scheduler.Shutdown(true);
-            QuartzLogContext.SetCurrentLogProvider(LoggerFactory.Create(builder => builder.SetMinimumLevel(LogLevel.Information)));
-            await ExecuteAsync(connection, "SET search_path TO public");
-            await ExecuteAsync(connection, $"DROP SCHEMA IF EXISTS {schema} CASCADE");
+            try
+            {
+                if (scheduler is not null) await scheduler.Shutdown(true);
+            }
+            catch (Exception exception)
+            {
+                failure = CombineFailures(failure, exception);
+            }
+
+            try
+            {
+                // Quartz 3.19.1 exposes no provider getter; null resets its supported provider discovery.
+                QuartzLogProvider.SetCurrentLogProvider(null!);
+            }
+            catch (Exception exception)
+            {
+                failure = CombineFailures(failure, exception);
+            }
+
+            try
+            {
+                QuartzLogProvider.IsDisabled = loggingWasDisabled;
+            }
+            catch (Exception exception)
+            {
+                failure = CombineFailures(failure, exception);
+            }
+
+            try
+            {
+                await ExecuteAsync(connection, "SET search_path TO public");
+                await ExecuteAsync(connection, $"DROP SCHEMA IF EXISTS {schema} CASCADE");
+            }
+            catch (Exception exception)
+            {
+                failure = CombineFailures(failure, exception);
+            }
+
+            try
+            {
+                loggerFactory.Dispose();
+            }
+            catch (Exception exception)
+            {
+                failure = CombineFailures(failure, exception);
+            }
+
+            try
+            {
+                logs.Dispose();
+            }
+            catch (Exception exception)
+            {
+                failure = CombineFailures(failure, exception);
+            }
         }
+
+        if (failure is not null) ExceptionDispatchInfo.Capture(failure).Throw();
     }
+
+    /// <summary>Keeps the original test failure first while exposing a cleanup failure.</summary>
+    private static Exception CombineFailures(Exception? failure, Exception cleanupFailure) => failure is null
+        ? cleanupFailure
+        : new AggregateException("Quartz lifecycle failed and cleanup also failed.", failure, cleanupFailure);
 
     /// <summary>Matches Wayfarer's pinned real PostgreSQL scheduler settings without enabling excluded features.</summary>
     private static NameValueCollection CreateQuartzProperties(string connectionString) => new()
