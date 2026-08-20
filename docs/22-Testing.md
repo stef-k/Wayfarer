@@ -19,6 +19,33 @@ Proportionate Validation Policy
 - Never impose an agent-created promise such as “one more run only” that prevents correcting a trivial fixture mistake within the allowed correction cycle. Conversely, do not spend repeated sessions chasing complete browser coverage after the cap is reached.
 - When a prerequisite repeatedly has to be rediscovered, update this runbook or create a dedicated reusable test-infrastructure issue. Product issues must not each invent a temporary database/account/host orchestration framework.
 
+Reusable Environment Discovery
+- A missing environment variable means the prerequisite is not attached to the current process; it does not prove that the underlying service or runtime is absent.
+- Before reporting PostgreSQL evidence as unavailable, inspect the Windows PostgreSQL service, `C:\Program Files\PostgreSQL\17\bin`, the persistent `wayfarer_import_tests` database, the user-scoped `WAYFARER_TEST_POSTGRES_CONNECTION`, and existing repository runners such as `tools/run-407-waypoint-browser.ps1`.
+- Before reporting browser evidence as unavailable, distinguish the Codex in-app browser backend from repository Playwright. The absence of an attached in-app browser does not prevent `npx playwright` or the generated .NET `playwright.ps1` from launching Chromium.
+- Inspect existing Playwright caches and installers before reinstalling. Install the required version into the documented cache when it is missing, then run one launch/readiness check before the selected tests.
+- An agent may declare infrastructure unavailable only after these discovery and repair steps fail or require credentials/authority that are genuinely absent. Report the exact failed prerequisite and command; do not substitute “environment variable missing” for environment discovery.
+
+Persistent PostgreSQL Test Database
+- Local relational work uses the persistent PostgreSQL 17 service and the dedicated database named exactly `wayfarer_import_tests`. Never point guarded tests at the normal `wayfarer` development database or a production database.
+- `WAYFARER_TEST_POSTGRES_CONNECTION` is the safety attachment consumed by the test process. Store the dedicated connection at Windows user scope so new shells and agents can discover it; also copy it into the current process before running tests.
+- The dedicated database is reusable. Tests must isolate their own schemas or rows and clean only their owned data. Do not recreate the database for every issue merely because the process environment is empty.
+- If the database is not present, use the installed PostgreSQL 17 tools and the existing local administrator connection to create only `wayfarer_import_tests`, then install PostGIS when the selected fixture requires it. Do not print or commit the password.
+
+```powershell
+# Read the already-configured user-scoped connection without displaying it.
+$testConnection = [Environment]::GetEnvironmentVariable(
+    'WAYFARER_TEST_POSTGRES_CONNECTION',
+    'User')
+if ([string]::IsNullOrWhiteSpace($testConnection)) {
+    throw 'Configure the persistent wayfarer_import_tests connection at Windows user scope.'
+}
+$env:WAYFARER_TEST_POSTGRES_CONNECTION = $testConnection
+```
+
+- The guarded fixture parses the connection with Npgsql and rejects every database name other than exactly `wayfarer_import_tests`; let that fixture remain the final safety authority instead of echoing or reparsing credentials in shell output.
+- Repository runs that need complete isolation may still use the disposable cluster pattern in `tools/run-407-waypoint-browser.ps1`, but that is an exceptional cross-layer fixture, not the default answer to a missing process variable.
+
 Trip Editor Browser Preflight
 - Decide the evidence class before starting:
   1. Use client/component tests when the claim is state transitions, races, cancellation, or reactivity.
@@ -31,7 +58,7 @@ Trip Editor Browser Preflight
   - the database connection is reachable;
   - `WAYFARER_E2E_BASE_URL`, `WAYFARER_E2E_USERNAME`, `WAYFARER_E2E_PASSWORD`, and `WAYFARER_E2E_TRIP_ID` resolve from the environment or `.local/manual-verification.md`;
   - the configured Trip endpoint returns success and contains the minimum entities required by the selected smoke.
-- If those prerequisites are absent, do not start the workflow and discover the same failure after provisioning. Report it immediately as unavailable evidence.
+- If those prerequisites are absent, diagnose them before starting the workflow: attach the persistent database/credentials, start or verify the intended hosts, and install the correct Chromium runtime using the commands below. Report unavailable evidence only when that repair requires missing authority or fails once for a concrete infrastructure reason.
 - Use the existing `playwright.config.ts`, `tripEditorConfig.ts`, `.local/manual-verification.md`, and ignored `.local/playwright` output locations. Do not create a parallel runner merely to avoid these contracts.
 - A product-specific fake upstream is appropriate when the upstream protocol is under test. It must not replace Wayfarer generation, acceptance, mutation, or persistence endpoints in the one real cross-layer smoke.
 - Cleanup only run-owned processes, ports, database rows/databases, profiles, and artifacts. Preserve user-owned hosts and PostgreSQL instances.
@@ -60,6 +87,7 @@ Pull Request Merge Gate
 - Restore and build first so Microsoft.Playwright generates its version-coupled installer.
 - The installer and test process must receive the same absolute `PLAYWRIGHT_BROWSERS_PATH`.
 - CI derives the .NET Chromium cache identity from the generated Release `browsers.json`; package versions and browser revisions are not copied into the key manually.
+- Local readiness order is: restore/build, locate the generated `playwright.ps1`, set one absolute cache path, install Chromium with that generated script, then execute the selected tests with the same path. A missing Codex browser backend is irrelevant to this CLI workflow.
 
 ```powershell
 dotnet restore
@@ -151,9 +179,12 @@ npx playwright install chromium
 npx playwright test --config=playwright.config.ts
 ```
 
+- Before installing, inspect `$env:LOCALAPPDATA\ms-playwright` and the selected `.local/playwright/js-browsers` cache. Reuse only a revision compatible with the current JavaScript Playwright package; otherwise run `npx playwright install chromium` into the selected cache.
+- Verify the runtime itself before blaming application fixtures: `npx playwright install --dry-run chromium` identifies the expected revision and a minimal Playwright launch can prove the executable starts. Browser launch success, authenticated host readiness, and product behavior are separate evidence boundaries.
+
 - Do not use the generated .NET installer or .NET browser cache for JavaScript tests, and do not delete global Playwright caches during local cleanup.
 
-- If browser verification cannot run, report the exact reason, such as missing `WAYFARER_E2E_*` settings, ASP.NET not running, Vite not running, or missing Playwright browser binaries. Do not describe skipped browser checks as passed.
+- If browser verification still cannot run after discovery and one repair attempt, report the exact reason, such as unavailable credentials, an unhealthy ASP.NET/Vite host, a failed version-coupled Chromium installation, or a reproducible launch error. Do not describe skipped browser checks as passed, and do not call Chromium unavailable merely because the in-app browser backend is absent.
 
 Trip Editor Test Credibility Matrix
 - This matrix is the durable #297 claim-honesty artifact for Trip Editor tests.
