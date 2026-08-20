@@ -6,6 +6,7 @@ import SegmentWaypointEditor from './SegmentWaypointEditor.vue';
 import { fallbackRoute } from './segmentRouteMapWork';
 
 const props = defineProps<{
+  baselineDraft: EditorSegmentDraft;
   draft: EditorSegmentDraft;
   fieldErrors: (key: string) => string[];
   formId: string;
@@ -68,7 +69,7 @@ function orderedPlaceIds(regionId: Guid): Guid[] {
       <small v-for="message in fieldErrors('fromPlaceId')" :key="message">{{ message }}</small>
     </label>
 
-    <SegmentWaypointEditor :draft="draft" :field-errors="fieldErrors" :is-saving="isSaving" :state="state" @clear-error="$emit('clearError', $event)" />
+    <SegmentWaypointEditor :baseline-draft="baselineDraft" :draft="draft" :field-errors="fieldErrors" :is-saving="isSaving" :state="state" @clear-error="$emit('clearError', $event)" />
 
     <label class="trip-editor-field">
       <span>To place</span>

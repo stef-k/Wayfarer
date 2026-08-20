@@ -119,10 +119,11 @@ function nearestLegStart(point: [number, number], coordinates: [number, number][
 
 /** Returns angular point-to-minor-great-circle-segment distance, or null for non-unique cases. */
 function sphericalPointToSegmentDistance(point: [number, number], start: [number, number], end: [number, number]): number | null {
-  if (coordinatesMatch(start, end)) return angularDistance(point, start);
+  if (start[0] === end[0] && start[1] === end[1]) return angularDistance(point, start);
   const segmentDistance = angularDistance(start, end);
   if (!Number.isFinite(segmentDistance) || Math.abs(Math.PI - segmentDistance) <= antipodalTolerance) return null;
   const pointDistance = angularDistance(start, point);
+  if (Math.abs(Math.PI - pointDistance) <= antipodalTolerance) return null;
   if (pointDistance === 0) return 0;
   const segmentBearing = initialBearing(start, end);
   const pointBearing = initialBearing(start, point);

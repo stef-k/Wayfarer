@@ -9,6 +9,7 @@ import SegmentRouteProposal from './SegmentRouteProposal.vue';
 const props = defineProps<{
   activeSegment: EditorSegment | null;
   antiforgeryToken: string;
+  baselineDraft: EditorSegmentDraft;
   controller: EditorSurfaceController;
   draft: EditorSegmentDraft;
   draftContextKey: string;
@@ -62,6 +63,7 @@ defineEmits<{
       <p v-else-if="routeOrientation === 'ambiguous'" class="trip-editor-form-warning" role="status">Route direction unavailable. Correct or clear the custom route before relying on direction cues.</p>
       <SegmentEditorForm
         ref="editorForm"
+        :baseline-draft="baselineDraft"
         :draft="draft"
         :field-errors="fieldErrors"
         :form-id="formId"

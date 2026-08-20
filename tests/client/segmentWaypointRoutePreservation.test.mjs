@@ -137,6 +137,15 @@ test('rejects an antipodal non-unique leg conservatively', () => {
   assert.equal(result.kind, 'unsafe');
 });
 
+test('rejects a Place antipodal to an eligible leg endpoint conservatively', () => {
+  const result = preserveWaypointRouteChange(proposal({
+    toPlaceId: 'z', waypointPlaceIds: [], waypointRouteVertexIndices: [], proposedWaypointPlaceIds: ['b'],
+    route: { type: 'LineString', coordinates: [[0, 0], [90, 0]] },
+    placeLocations: { a: locations.a, b: { longitude: 180, latitude: 0 }, z: { longitude: 90, latitude: 0 } }
+  }));
+  assert.equal(result.kind, 'unsafe');
+});
+
 test('does not reuse occupied endpoint or waypoint anchors', () => {
   const endpoint = preserveWaypointRouteChange(proposal({
     toPlaceId: 'c', waypointPlaceIds: [], waypointRouteVertexIndices: [], proposedWaypointPlaceIds: ['b'],
