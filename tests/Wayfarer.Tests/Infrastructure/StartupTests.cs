@@ -1,8 +1,14 @@
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Serilog;
+using Serilog.Core;
+using Serilog.Events;
+using Wayfarer.Middleware;
 using Wayfarer.Models;
 using Wayfarer.Models.Enums;
 using Wayfarer.Parsers;
@@ -18,6 +24,45 @@ namespace Wayfarer.Tests.Infrastructure;
 /// </summary>
 public class StartupTests
 {
+    /// <summary>
+    /// Verifies that the Microsoft logging bridge registers one Serilog provider and
+    /// preserves structured scopes plus request context on emitted events.
+    /// </summary>
+    [Fact]
+    public async Task SerilogProvider_EmitsStructuredRequestContextWithoutDuplicates()
+    {
+        var sink = new CollectingSink();
+        using var serilogLogger = new LoggerConfiguration()
+            .Enrich.FromLogContext()
+            .WriteTo.Sink(sink)
+            .CreateLogger();
+        var services = new ServiceCollection();
+        services.AddLogging(logging =>
+        {
+            logging.ClearProviders();
+            logging.AddSerilog(serilogLogger, dispose: false);
+        });
+
+        using var serviceProvider = services.BuildServiceProvider();
+        var providers = serviceProvider.GetServices<ILoggerProvider>();
+        var logger = serviceProvider.GetRequiredService<ILogger<StartupTests>>();
+        var context = new DefaultHttpContext { TraceIdentifier = "request-462" };
+        var middleware = new RequestIdLoggingMiddleware(async _ =>
+        {
+            using (logger.BeginScope(new Dictionary<string, object> { ["Operation"] = "startup" }))
+                logger.LogInformation("Serilog integration {Issue}", 462);
+            await Task.CompletedTask;
+        });
+
+        await middleware.InvokeAsync(context);
+
+        Assert.Single(providers);
+        var logEvent = Assert.Single(sink.Events);
+        Assert.Equal(462, Assert.IsType<ScalarValue>(logEvent.Properties["Issue"]).Value);
+        Assert.Equal("startup", Assert.IsType<ScalarValue>(logEvent.Properties["Operation"]).Value);
+        Assert.Equal("request-462", Assert.IsType<ScalarValue>(logEvent.Properties["RequestId"]).Value);
+    }
+
     /// <summary>
     /// Verifies that all core services can be resolved from the DI container.
     /// This catches missing registrations, circular dependencies, and configuration errors.
@@ -145,5 +190,15 @@ public class StartupTests
         Assert.NotNull(factory.GetParser(LocationImportFileType.Kml));
         Assert.NotNull(factory.GetParser(LocationImportFileType.GoogleTimeline));
         Assert.NotNull(factory.GetParser(LocationImportFileType.WayfarerGeoJson));
+    }
+
+    /// <summary>Collects Serilog events without an external sink dependency.</summary>
+    private sealed class CollectingSink : ILogEventSink
+    {
+        /// <summary>Gets the events emitted through the Microsoft logging provider.</summary>
+        public List<LogEvent> Events { get; } = [];
+
+        /// <inheritdoc />
+        public void Emit(LogEvent logEvent) => Events.Add(logEvent);
     }
 }
