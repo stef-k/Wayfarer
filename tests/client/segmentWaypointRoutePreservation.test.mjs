@@ -38,8 +38,8 @@ test('restricts nearest-leg selection to B semantic interval', () => {
     route: { type: 'LineString', coordinates: [[0, 0], [5, 8], [10, 0], [5, 2.01], [20, 0]] }
   }));
   assert.equal(result.kind, 'addition');
-  assert.deepEqual(result.route.coordinates, [[0, 0], [5, 2], [5, 8], [10, 0], [5, 2.01], [20, 0]]);
-  assert.deepEqual(result.waypointRouteVertexIndices, [1, 3]);
+  assert.deepEqual(result.route.coordinates, [[0, 0], [5, 8], [5, 2], [10, 0], [5, 2.01], [20, 0]]);
+  assert.deepEqual(result.waypointRouteVertexIndices, [2, 3]);
 });
 
 test('pure removal preserves geometry and surviving numeric indices', () => {
@@ -67,7 +67,7 @@ test('reuses the lowest eligible exact anonymous coordinate', () => {
 test('increments only indices strictly after an actual insertion point', () => {
   const result = preserveWaypointRouteChange(proposal());
   assert.equal(result.kind, 'addition');
-  assert.deepEqual(result.waypointRouteVertexIndices, [3, 4]);
+  assert.deepEqual(result.waypointRouteVertexIndices, [2, 4]);
 });
 
 test('fails conservatively for malformed and ambiguous mappings', () => {
@@ -80,7 +80,7 @@ test('fails conservatively for malformed and ambiguous mappings', () => {
 test('classifies before, between, after, and zero-waypoint insertions', () => {
   const cases = [
     proposal({ proposedWaypointPlaceIds: ['b', 'c'] }),
-    proposal({ waypointPlaceIds: ['b'], waypointRouteVertexIndices: [2], proposedWaypointPlaceIds: ['b', 'c'] }),
+    proposal({ waypointPlaceIds: ['b'], waypointRouteVertexIndices: [2], route: { type: 'LineString', coordinates: [[0, 0], [2, 0], [5, 2], [20, 0]] }, proposedWaypointPlaceIds: ['b', 'c'] }),
     proposal({ waypointPlaceIds: [], waypointRouteVertexIndices: [], proposedWaypointPlaceIds: ['b'] })
   ];
   assert.deepEqual(cases.map(item => preserveWaypointRouteChange(item).kind), ['addition', 'addition', 'addition']);

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref } from 'vue';
 import type { EditorPlace, EditorRegion, EditorSegmentDraft, EditorSegmentWaypointDraftRow, EditorTripState, Guid } from '../types';
+import { preserveWaypointRouteChange, type WaypointRouteChangeResult } from '../segments/segmentWaypointRoutePreservation';
 import { createWaypointRow, syncWaypointArrays } from './regionPlaceDrafts';
 
 const props = defineProps<{
@@ -16,8 +17,12 @@ const addSelect = ref<HTMLSelectElement | null>(null);
 const legend = ref<HTMLElement | null>(null);
 const rowControls = new Map<string, HTMLSelectElement>();
 const announcement = ref('');
+const preservedRouteFingerprint = ref<string | null>(null);
 const normalRegions = computed(() => props.state.regionOrder.map(id => props.state.regionsById[id]).filter(region => region && !region.isShadow) as EditorRegion[]);
 const aggregateErrors = computed(() => [...new Set([...props.fieldErrors('waypointPlaceIds'), ...props.fieldErrors('waypointRouteVertexIndices')])]);
+const preservationMessage = computed(() => preservedRouteFingerprint.value === routeFingerprint()
+  ? 'Existing route geometry was preserved. The new connection to this Place is straight; edit the route or request an external route if needed.'
+  : null);
 
 defineExpose({ focusLegend: () => legend.value?.focus() });
 
@@ -35,8 +40,10 @@ function orderedPlaceIds(regionId: Guid): Guid[] {
 function addWaypoint(): void {
   if (props.isSaving || !placeToAdd.value || !choices(null).some(place => place.id === placeToAdd.value && place.location)) return;
   const row = createWaypointRow(placeToAdd.value);
+  const preservation = preserveChange([...props.draft.waypointRows.map(candidate => candidate.placeId), row.placeId]);
   props.draft.waypointRows.push(row);
-  syncWaypointArrays(props.draft);
+  applyPreservation(preservation);
+  preservedRouteFingerprint.value = preservation.kind === 'addition' ? routeFingerprint() : null;
   clearAggregateErrors();
   const name = placeName(row.placeId);
   placeToAdd.value = '';
@@ -46,6 +53,7 @@ function addWaypoint(): void {
 
 function substitute(row: EditorSegmentWaypointDraftRow, placeId: string): void {
   row.placeId = placeId;
+  preservedRouteFingerprint.value = null;
   syncWaypointArrays(props.draft);
   emit('clearError', `waypoint.${row.clientId}`);
   clearAggregateErrors();
@@ -58,6 +66,7 @@ function move(row: EditorSegmentWaypointDraftRow, offset: number): void {
   if (index < 0 || destination < 0 || destination >= props.draft.waypointRows.length) return;
   props.draft.waypointRows.splice(index, 1);
   props.draft.waypointRows.splice(destination, 0, row);
+  preservedRouteFingerprint.value = null;
   syncWaypointArrays(props.draft);
   announcement.value = `${placeName(row.placeId)} moved to position ${destination + 1}.`;
   void nextTick(() => rowControls.get(row.clientId)?.focus());
@@ -68,8 +77,9 @@ function remove(row: EditorSegmentWaypointDraftRow): void {
   const index = props.draft.waypointRows.indexOf(row);
   if (index < 0) return;
   const name = placeName(row.placeId);
+  const preservation = preserveChange(props.draft.waypointRows.filter(candidate => candidate !== row).map(candidate => candidate.placeId));
   props.draft.waypointRows.splice(index, 1);
-  syncWaypointArrays(props.draft);
+  applyPreservation(preservation);
   emit('clearError', `waypoint.${row.clientId}`);
   clearAggregateErrors();
   announcement.value = `${name} removed.`;
@@ -77,6 +87,33 @@ function remove(row: EditorSegmentWaypointDraftRow): void {
     const target = props.draft.waypointRows[index] ?? props.draft.waypointRows[index - 1];
     target ? rowControls.get(target.clientId)?.focus() : addSelect.value?.focus();
   });
+}
+
+/** Constructs one pure proposal from the current synchronous draft snapshot. */
+function preserveChange(proposedWaypointPlaceIds: string[]): WaypointRouteChangeResult {
+  return preserveWaypointRouteChange({
+    fromPlaceId: props.draft.fromPlaceId,
+    toPlaceId: props.draft.toPlaceId,
+    waypointPlaceIds: props.draft.waypointRows.map(row => row.placeId),
+    waypointRouteVertexIndices: props.draft.waypointRows.map(row => row.routeVertexIndex),
+    proposedWaypointPlaceIds,
+    route: props.draft.route,
+    placeLocations: Object.fromEntries(Object.values(props.state.placesById).map(place => [place.id, place.location]))
+  });
+}
+
+/** Applies a successful pure projection to route and row mirrors in one event turn. */
+function applyPreservation(result: WaypointRouteChangeResult): void {
+  if (result.kind !== 'unsafe') {
+    props.draft.route = result.route;
+    props.draft.waypointRows.forEach((row, index) => { row.routeVertexIndex = result.waypointRouteVertexIndices[index] ?? null; });
+  }
+  syncWaypointArrays(props.draft);
+}
+
+/** Hides operation feedback as soon as Reset, reorder, removal, or another edit changes its proposal. */
+function routeFingerprint(): string {
+  return JSON.stringify([props.draft.route, props.draft.waypointRows.map(row => [row.placeId, row.routeVertexIndex])]);
 }
 
 function placeName(id: string | null): string {
@@ -146,6 +183,7 @@ const journeyOrder = computed(() => [props.draft.fromPlaceId ? placeName(props.d
     <div v-if="aggregateErrors.length > 0" id="segment-waypoint-errors">
       <small v-for="message in aggregateErrors" :key="message">{{ message }}</small>
     </div>
+    <p v-if="preservationMessage" class="trip-editor-help" role="status">{{ preservationMessage }}</p>
     <p><strong>Journey order:</strong> {{ journeyOrder }}</p>
     <span class="visually-hidden" aria-live="polite">{{ announcement }}</span>
   </fieldset>

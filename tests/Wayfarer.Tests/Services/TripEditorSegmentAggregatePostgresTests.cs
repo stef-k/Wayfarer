@@ -71,9 +71,9 @@ public sealed class TripEditorSegmentAggregatePostgresTests(PostgresImportTestFi
         Assert.Empty((await TripEditorSegmentMutationPostgresTestSupport.ReadAsync(context, seed.SegmentId.Value)).Waypoints);
     }
 
-    /// <summary>Pure waypoint removal needs no warning, preserves geometry, anonymizes the vertex, and shifts later indices.</summary>
+    /// <summary>Pure waypoint removal needs no warning, preserves geometry, and retains the surviving numeric index.</summary>
     [PostgresFact]
-    public async Task PureWaypointRemoval_PreservesGeometryAndReindexesSurvivor()
+    public async Task PureWaypointRemoval_PreservesGeometryAndRetainsSurvivorIndex()
     {
         var support = new TripEditorSegmentMutationPostgresTestSupport(fixture);
         var seed = await support.SeedAsync();
@@ -91,7 +91,27 @@ public sealed class TripEditorSegmentAggregatePostgresTests(PostgresImportTestFi
         Assert.Equal(1, stored.RouteGeometry.GetCoordinateN(1).X);
     }
 
-    /// <summary>Addition, substitution, reorder, and endpoint replacement all require route-clear confirmation.</summary>
+    /// <summary>A complete valid client splice is accepted atomically without entering the destructive clear path.</summary>
+    [PostgresFact]
+    public async Task PreservedWaypointAddition_CommitsRouteAndIndicesWithoutClearConfirmation()
+    {
+        var support = new TripEditorSegmentMutationPostgresTestSupport(fixture);
+        var seed = await support.SeedAsync();
+        await using var context = fixture.CreateContext();
+        var token = await support.TokenAsync(context, seed);
+        var outcome = await support.Service(context).UpdateSegmentAsync(seed.TripId, seed.SegmentId!.Value, seed.UserId,
+            TripEditorSegmentMutationPostgresTestSupport.Body(seed,
+                [seed.FirstWaypointId, seed.AlternateId, seed.SecondWaypointId], [1, 2, 3], token, customRoute: true,
+                route: [(0, 0), (1, 1), (1.5, 1.5), (2, 2), (3, 3)]), null, CancellationToken.None);
+
+        Assert.Equal(EditorRegionMutationStatus.Success, outcome.Status);
+        var stored = await TripEditorSegmentMutationPostgresTestSupport.ReadAsync(context, seed.SegmentId.Value);
+        Assert.Equal(5, stored.RouteGeometry!.NumPoints);
+        Assert.Equal([seed.FirstWaypointId, seed.AlternateId, seed.SecondWaypointId], stored.Waypoints.Select(item => item.PlaceId));
+        Assert.Equal([1, 2, 3], stored.Waypoints.Select(item => item.RouteVertexIndex));
+    }
+
+    /// <summary>Unmapped addition, substitution, reorder, and endpoint replacement require route-clear confirmation.</summary>
     [PostgresTheory]
     [InlineData("addition")]
     [InlineData("substitution")]
