@@ -77,7 +77,7 @@ If you expose Wayfarer publicly, you are responsible for:
 * **Tile provider settings** — presets, custom templates, API key support.
 * **GPS accuracy filtering** — reject low-quality location readings.
 * **Background jobs** — pause, resume, cancel running jobs; view history and status.
-* **Cache management** — tile cache statistics, LRU cleanup, MBTiles for mobile.
+* **Cache management** — tile cache statistics and LRU cleanup.
 * **Audit logs** — track all admin actions for compliance.
 * **Log viewer** — real-time application log viewing with search.
 
@@ -161,7 +161,6 @@ The [WayfarerMobile](https://github.com/stef-k/WayfarerMobile) app (built with .
 
 * **Live GPS tracking** with configurable intervals
 * **Manual check-ins** for specific locations
-* **Offline map tiles** cached for use without connectivity
 * **SSE subscriptions** for real-time group updates
 * **QR code pairing** for easy server connection
 
