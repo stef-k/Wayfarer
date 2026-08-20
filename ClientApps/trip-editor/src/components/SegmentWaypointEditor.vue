@@ -9,9 +9,13 @@ const props = defineProps<{
   draft: EditorSegmentDraft;
   fieldErrors: (key: string) => string[];
   isSaving: boolean;
+  semanticEditsSafe: boolean;
   state: EditorTripState;
 }>();
-const emit = defineEmits<{ clearError: [key: string] }>();
+const emit = defineEmits<{
+  clearError: [key: string];
+  semanticEditsUnsafe: [];
+}>();
 
 const placeToAdd = ref('');
 const addSelect = ref<HTMLSelectElement | null>(null);
@@ -19,7 +23,6 @@ const legend = ref<HTMLElement | null>(null);
 const rowControls = new Map<string, HTMLSelectElement>();
 const announcement = ref('');
 const preservedRouteFingerprint = ref<string | null>(null);
-const semanticEditsSafe = ref(true);
 const normalRegions = computed(() => props.state.regionOrder.map(id => props.state.regionsById[id]).filter(region => region && !region.isShadow) as EditorRegion[]);
 const aggregateErrors = computed(() => [...new Set([...props.fieldErrors('waypointPlaceIds'), ...props.fieldErrors('waypointRouteVertexIndices')])]);
 const preservationMessage = computed(() => preservedRouteFingerprint.value === routeFingerprint()
@@ -42,8 +45,7 @@ function orderedPlaceIds(regionId: Guid): Guid[] {
 function addWaypoint(): void {
   if (props.isSaving || !placeToAdd.value || !choices(null).some(place => place.id === placeToAdd.value && place.location)) return;
   const row = createWaypointRow(placeToAdd.value);
-  if (routeFingerprint() === baselineFingerprint()) semanticEditsSafe.value = true;
-  const preservation = semanticEditsSafe.value && endpointsMatchBaseline()
+  const preservation = props.semanticEditsSafe && endpointsMatchBaseline()
     ? preserveChange([...props.draft.waypointRows.map(candidate => candidate.placeId), row.placeId])
     : { kind: 'unsafe' as const, reason: 'The draft contains another semantic anchor change.' };
   props.draft.waypointRows.push(row);
@@ -58,7 +60,7 @@ function addWaypoint(): void {
 
 function substitute(row: EditorSegmentWaypointDraftRow, placeId: string): void {
   row.placeId = placeId;
-  semanticEditsSafe.value = false;
+  emit('semanticEditsUnsafe');
   preservedRouteFingerprint.value = null;
   syncWaypointArrays(props.draft);
   emit('clearError', `waypoint.${row.clientId}`);
@@ -72,7 +74,7 @@ function move(row: EditorSegmentWaypointDraftRow, offset: number): void {
   if (index < 0 || destination < 0 || destination >= props.draft.waypointRows.length) return;
   props.draft.waypointRows.splice(index, 1);
   props.draft.waypointRows.splice(destination, 0, row);
-  semanticEditsSafe.value = false;
+  emit('semanticEditsUnsafe');
   preservedRouteFingerprint.value = null;
   syncWaypointArrays(props.draft);
   announcement.value = `${placeName(row.placeId)} moved to position ${destination + 1}.`;
@@ -118,13 +120,9 @@ function applyPreservation(result: WaypointRouteChangeResult): void {
   syncWaypointArrays(props.draft);
 }
 
-/** Hides operation feedback as soon as Reset, reorder, removal, or another edit changes its proposal. */
+/** Identifies whether preservation feedback still describes the current route and waypoint proposal. */
 function routeFingerprint(): string {
   return JSON.stringify([props.draft.route, props.draft.waypointRows.map(row => [row.placeId, row.routeVertexIndex])]);
-}
-
-function baselineFingerprint(): string {
-  return JSON.stringify([props.baselineDraft.route, props.baselineDraft.waypointRows.map(row => [row.placeId, row.routeVertexIndex])]);
 }
 
 function endpointsMatchBaseline(): boolean {

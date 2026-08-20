@@ -20,6 +20,7 @@ const props = defineProps<{
   isSaving: boolean;
   routeOrientation: 'forward' | 'reversed' | 'ambiguous' | null;
   routeMapWorkActive: boolean;
+  semanticEditsSafe: boolean;
   state: EditorTripState;
   statusText: string;
   target: EditorTarget;
@@ -51,6 +52,7 @@ defineEmits<{
   reset: [];
   reverseRoute: [];
   save: [];
+  semanticEditsUnsafe: [];
   routeProposalAccepted: [proposal: AcceptedExternalRouteProposal];
   routeProposalPreviewChanged: [proposal: ExternalRouteProposal | null];
 }>();
@@ -70,9 +72,11 @@ defineEmits<{
         :form-summary-errors="formSummaryErrors"
         :is-dirty="isDirty"
         :is-saving="isSaving"
+        :semantic-edits-safe="semanticEditsSafe"
         :state="state"
         @save="$emit('save')"
         @clear-error="$emit('clearError', $event)"
+        @semantic-edits-unsafe="$emit('semanticEditsUnsafe')"
       />
       <SegmentRouteProposal
         v-if="activeSegment && activeSegment.externalRouting?.available"

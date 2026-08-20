@@ -63,8 +63,10 @@ test('safe waypoint preservation remains anchored to the persisted semantic base
   const component = await sourceOrEmpty(componentPath);
   const manager = await sourceOrEmpty(managerPath);
   assert.match(manager, /:baseline-draft="persistedBaseline"/);
+  assert.match(manager, /createSegmentSemanticTaint/);
+  assert.match(manager, /semanticTaint\.markUnsafe/);
   assert.match(component, /semanticEditsSafe/);
   assert.match(component, /endpointsMatchBaseline/);
-  assert.match(component, /substitute[\s\S]*semanticEditsSafe\.value = false/);
-  assert.match(component, /move[\s\S]*semanticEditsSafe\.value = false/);
+  assert.match(component, /substitute[\s\S]*emit\('semanticEditsUnsafe'\)/);
+  assert.match(component, /move[\s\S]*emit\('semanticEditsUnsafe'\)/);
 });
