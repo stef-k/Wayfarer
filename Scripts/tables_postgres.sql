@@ -1,17 +1,3 @@
-set client_min_messages = WARNING;
-DROP TABLE IF EXISTS qrtz_fired_triggers;
-DROP TABLE IF EXISTS qrtz_paused_trigger_grps;
-DROP TABLE IF EXISTS qrtz_scheduler_state;
-DROP TABLE IF EXISTS qrtz_locks;
-DROP TABLE IF EXISTS qrtz_simprop_triggers;
-DROP TABLE IF EXISTS qrtz_simple_triggers;
-DROP TABLE IF EXISTS qrtz_cron_triggers;
-DROP TABLE IF EXISTS qrtz_blob_triggers;
-DROP TABLE IF EXISTS qrtz_triggers;
-DROP TABLE IF EXISTS qrtz_job_details;
-DROP TABLE IF EXISTS qrtz_calendars;
-set client_min_messages = NOTICE;
-
 CREATE TABLE qrtz_job_details
   (
     sched_name TEXT NOT NULL,
@@ -44,6 +30,10 @@ CREATE TABLE qrtz_triggers
     end_time BIGINT NULL,
     calendar_name TEXT NULL,
     misfire_instr SMALLINT NULL,
+    misfire_orig_fire_time BIGINT NULL,
+    execution_group VARCHAR(200) NULL,
+    preferred_node VARCHAR(200) NULL,
+    preferred_node_auto BOOL NOT NULL DEFAULT FALSE,
     job_data BYTEA NULL,
     PRIMARY KEY (sched_name,trigger_name,trigger_group),
     FOREIGN KEY (sched_name,job_name,job_group) 
@@ -138,6 +128,7 @@ CREATE TABLE qrtz_fired_triggers
     job_group TEXT NULL,
     is_nonconcurrent BOOL NOT NULL,
     requests_recovery BOOL NULL,
+    execution_group VARCHAR(200) NULL,
     PRIMARY KEY (sched_name,entry_id)
 );
 

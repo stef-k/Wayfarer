@@ -67,6 +67,13 @@ public sealed class PostgresImportTestFixture : IAsyncLifetime
         return new ApplicationDbContext(options, _serviceProvider);
     }
 
+    /// <summary>Creates an unopened provider connection from the guarded test configuration.</summary>
+    public NpgsqlConnection CreateConnection()
+    {
+        RequireAvailable();
+        return new NpgsqlConnection(_connectionString!);
+    }
+
     /// <summary>Creates a specialized test context over the same guarded PostgreSQL database.</summary>
     internal TContext CreateContext<TContext>(
         Func<DbContextOptions<ApplicationDbContext>, IServiceProvider, TContext> factory,
