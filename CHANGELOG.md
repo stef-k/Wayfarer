@@ -1,22 +1,29 @@
 # CHANGELOG
 
-## [Unreleased]
+## [1.9.0] - 2026-08-20
 
 ### Added
 - Added ordered saved-place waypoints within a single trip segment, including accessible web authoring, all-anchor fallback routes, anchor-aware custom geometry, readable/viewer presentation, clone support, and backward-compatible public API exposure (#388, #403–#414).
 - Added Wayfarer-native KML schema v2 round trips for waypoint identity, route indices, transport profiles, measurements, and Automatic/Manual provenance while retaining native v1 compatibility and exact waypoint-free generic KML behavior (#413, #414).
 - Added active Segment route presentation across the Trip Editor and Viewer, including Start/Via/End trails, direction cues, route-order badges, synchronized selection, draft-only route reversal, and readable/print parity (#389, #442).
+- Added external route generation for administrator-approved providers, with configurable provider pacing and optional personal credentials that remain isolated from server-owned secrets (#426, #448, #449, #451, #453, #454).
 
 ### Changed
 - Replaced the fixed runtime transport-mode catalog with administrator-managed database profiles and made saved route geometry plus explicit measurement provenance authoritative for segment estimates (#403, #405).
-- Updated vulnerable frontend and backend dependencies to resolve the current npm and NuGet security findings without mixing unrelated package upgrades (#421).
+- Updated vulnerable and supported frontend/backend dependencies and development toolchains, including Vite 8, stable TypeScript 6 typechecking, aligned Playwright packages, Swashbuckle 10, and .NET 10-compatible test tooling (#421, #465–#475).
 - Added fixed vertex, fidelity, and processing budgets for oversized generic KML routes before persistence, with exact endpoint preservation and bounded simplification reporting during import (#425, #444).
+- Aligned fresh and existing PostgreSQL Quartz schemas with the pinned Quartz 3.19 contract under transactional, serialized startup validation (#478, #484).
+- Corrected project documentation by removing unsupported MBTiles and offline mobile-map claims.
 
 ### Fixed
 - Fixed Trip Editor rich notes so ordered and bullet lists no longer recreate or persist empty terminal items, while canonical spacing remains consistent across editor, viewer, readable, print, and PDF surfaces (#433, #435).
 - Fixed Trip Editor Region disclosure controls so Regions required by active editor, selection, or search context clearly remain expanded without mutating the user's saved collapse choices, including after reorder recovery (#432, #436).
 - Gave the Trip Editor map one stable accessible identity with accurate default, Place, Area, and Segment map-work descriptions (#437, #439).
 - Contained the global navbar at browser-zoom widths by using the native collapsed navigation state while preserving keyboard access and long account/menu content (#441, #443).
+- Bounded decoded dimensions, frame counts, and memory estimates for optimized public image-proxy inputs while retaining still-image compatibility (#476, #477).
+- Corrected Segment route chevron ownership, sizing, contrast, and route-badge layout after zoom and visibility changes (#479, #482).
+- Preserved custom route geometry when adding or removing intermediate saved places instead of replacing the route with straight lines (#481, #483).
+- Stopped treating generic KML route titles as transport authority; imported routes remain unassigned and show one post-import reminder to select transport modes where needed (#480, #486).
 
 ## [1.8.1] - 2026-07-26
 
