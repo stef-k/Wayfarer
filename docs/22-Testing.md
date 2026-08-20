@@ -43,7 +43,8 @@ Running Tests
 
 Trip Editor Typecheck
 - Run `npm run typecheck` before client tests and `npm run build`; it checks both ordinary TypeScript modules and Vue single-file components included by `tsconfig.json`.
-- The retained compiler is TypeScript 5.9.3 with `vue-tsc` 3.3.10. TypeScript 7.0.2 remains deferred because the Vue checker cannot load the native compiler's non-exported `typescript/lib/tsc` entry point.
+- [Issue #464](https://github.com/stef-k/Wayfarer/issues/464) adopts stable TypeScript 6, through the official `@typescript/typescript6` compatibility package, as the supported compiler for Vue SFC typechecking with `vue-tsc` 3.3.10.
+- TypeScript 7 adoption is deferred to [issue #474](https://github.com/stef-k/Wayfarer/issues/474) because TypeScript 7.0 lacks the programmatic API required by stable Vue SFC tooling.
 - The conditional frontend CI path runs this command after dependency audit and before client tests and the production build.
 
 Pull Request Merge Gate
