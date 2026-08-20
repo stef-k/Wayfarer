@@ -69,6 +69,18 @@ try {
     Assert-Rejected "junction escape" (Join-Path $repositoryRoot "coverage-report/escape/output")
     Assert-Rejected "unowned coverage directory" (Join-Path $repositoryRoot "coverage-report") -RequireOwnership $true
 
+    $boundaryMarker = Join-Path $repositoryRoot "coverage-report/.wayfarer-coverage-output"
+    Set-Content -LiteralPath $boundaryMarker -Value "malformed" -NoNewline
+    Assert-Rejected "malformed ownership marker" (Join-Path $repositoryRoot "coverage-report") -RequireOwnership $true
+    Remove-Item -LiteralPath $boundaryMarker -Force
+    New-Item -ItemType Junction -Path $boundaryMarker -Target $externalRoot | Out-Null
+    Assert-Rejected "reparse-point ownership marker" (Join-Path $repositoryRoot "coverage-report") -RequireOwnership $true
+    Remove-Item -LiteralPath $boundaryMarker -Force
+
+    $fileOutput = Join-Path $repositoryRoot "coverage-report/file-output"
+    Set-Content -LiteralPath $fileOutput -Value "not a directory"
+    Assert-Rejected "file used as output directory" $fileOutput
+
     Remove-Item -LiteralPath (Join-Path $repositoryRoot "coverage-report") -Recurse -Force
     New-Item -ItemType Directory -Path (Join-Path $repositoryRoot "coverage-report") | Out-Null
     Assert-Accepted "default fresh coverage output" (Join-Path $repositoryRoot "coverage-report")
@@ -78,6 +90,25 @@ try {
     Set-Content -LiteralPath (Join-Path $ownedOutput ".wayfarer-coverage-output") -Value $CoverageOutputMarkerValue -NoNewline
     Set-Content -LiteralPath (Join-Path $ownedOutput "coverage.cobertura.xml") -Value "generated"
     Assert-Accepted "owned existing generated output" $ownedOutput -RequireOwnership $true
+    New-Item -ItemType Junction -Path (Join-Path $ownedOutput "nested-escape") -Target $externalRoot | Out-Null
+    Assert-Rejected "owned output containing a reparse point" $ownedOutput -RequireOwnership $true
+
+    $runId = [Guid]::NewGuid().ToString("N")
+    $resultsRoot = Join-Path $repositoryRoot "tests/Wayfarer.Tests/TestResults/coverage-report"
+    $runResults = Join-Path $resultsRoot $runId
+    New-Item -ItemType Directory -Path $runResults | Out-Null
+    Test-RunResultsPath -ResultsRoot $resultsRoot -RunResultsDir $runResults -RunId $runId | Out-Null
+    $passed++
+    Write-Host "PASS: exact current-run results directory"
+    try {
+        Test-RunResultsPath -ResultsRoot $resultsRoot -RunResultsDir (Join-Path $resultsRoot "other") -RunId $runId | Out-Null
+        $failed++
+        Write-Error "FAIL: unrelated results directory should be rejected." -ErrorAction Continue
+    }
+    catch {
+        $passed++
+        Write-Host "PASS: unrelated results directory rejected: $($_.Exception.Message)"
+    }
 
     if ((Get-Content -LiteralPath $sentinel -Raw).Trim() -ne "preserve") {
         throw "The unrelated sentinel changed during validation."

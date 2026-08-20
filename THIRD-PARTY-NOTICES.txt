@@ -410,7 +410,7 @@ Licensed under the Apache License, Version 2.0.
 
 --------------------------------------------------------------------------------
 
-Bogus 35.6.1
+Bogus 35.6.5
 ------------
 https://github.com/bchavez/Bogus
 Copyright (c) 2015-2024 Brian Chavez
@@ -419,8 +419,8 @@ Licensed under the MIT License.
 
 --------------------------------------------------------------------------------
 
-Coverlet 6.0.2
---------------
+Coverlet 10.0.1
+----------------
 https://github.com/coverlet-coverage/coverlet
 Copyright (c) 2018 Toni Solarin-Sodara
 
