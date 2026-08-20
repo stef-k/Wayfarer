@@ -1,6 +1,6 @@
 import L, { type Map as LeafletMap } from 'leaflet';
 import type { EditorSegmentPresentation, SegmentPresentationKey } from '../segments/editorSegmentPresentation';
-import { fitCombinedRouteBadgeLabels, placeCombinedRouteBadge, placeProjectedChevrons, placeRouteBadge,
+import { fitCombinedRouteBadgeLabels, placeCombinedRouteBadge, placeProjectedChevrons, placeRouteBadge, projectChevronArm,
   type CombinedRouteBadgeLayout, type PresentationRectangle } from '../segments/segmentPresentationResolver';
 
 type RegistryEntry = {
@@ -76,18 +76,9 @@ export const createSegmentPresentationLayer = (
       return [point.x, point.y] as [number, number];
     });
     return placeProjectedChevrons(projected, active).map(cue => {
-      const radians = cue.angle * Math.PI / 180;
-      const length = active ? 10 : 8;
-      const width = active ? 4 : 3;
-      const backX = cue.x - Math.cos(radians) * length;
-      const backY = cue.y - Math.sin(radians) * length;
-      const normalX = -Math.sin(radians) * width;
-      const normalY = Math.cos(radians) * width;
-      return L.polyline([
-        map.layerPointToLatLng([backX + normalX, backY + normalY]),
-        map.layerPointToLatLng([cue.x, cue.y]),
-        map.layerPointToLatLng([backX - normalX, backY - normalY])
-      ], { color: active ? '#075985' : '#0369a1', opacity: active ? 1 : 0.72, weight: active ? 3 : 2, interactive: false, pane: 'segment-route-role' }).addTo(group);
+      const points = projectChevronArm(cue, active).map(point => map.layerPointToLatLng([point[0], point[1]]));
+      return L.polyline(points, { color: '#541B08', opacity: active ? 1 : 0.72, weight: active ? 3 : 2,
+        interactive: false, pane: 'segment-route-role' }).addTo(group);
     });
   };
 
@@ -111,7 +102,7 @@ export const createSegmentPresentationLayer = (
     });
     if (blocked.length) {
       const labels = blocked.map(item => item.badge.label);
-      const layout = fitCombinedRouteBadgeLabels(labels, mapBounds.right - mapBounds.left - 8);
+      const layout = fitCombinedRouteBadgeLabels(labels, Math.min(160, mapBounds.right - mapBounds.left - 8));
       const label = labels.join('/');
       const placement = placeCombinedRouteBadge(blocked.map(item => [item.anchor.x, item.anchor.y]),
         layout, mapBounds, controlBounds, placedBounds);

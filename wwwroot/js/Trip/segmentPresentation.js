@@ -126,7 +126,7 @@ export const placeCombinedRouteBadge = (anchors, size, mapBounds, controlBounds,
 
 /** Wraps only between semantic tokens unless one token alone must be split to preserve all characters. */
 export const fitCombinedRouteBadgeLabels = (labels, maximumWidth) => {
-    const width = Math.max(1, maximumWidth);
+    const width = Math.min(160, Math.max(1, maximumWidth), routeBadgeDimensions(labels.join('/')).width);
     const characterCapacity = Math.max(1, Math.floor((width - 14) / 9));
     const fittedTokens = labels.flatMap(label => label.length <= characterCapacity ? [label]
         : Array.from({length: Math.ceil(label.length / characterCapacity)}, (_, index) =>
@@ -139,6 +139,18 @@ export const fitCombinedRouteBadgeLabels = (labels, maximumWidth) => {
         else lines.push(token);
     });
     return {labels: [...labels], lines, width, height: 10 + lines.length * 14};
+};
+
+/** Converts one projected cue into the bounded three-point arrow geometry rendered by Leaflet. */
+export const projectChevronArm = (cue, active) => {
+    const radians = cue.angle * Math.PI / 180;
+    const length = active ? 10 : 8;
+    const width = active ? 4 : 3;
+    const backX = cue.x - Math.cos(radians) * length;
+    const backY = cue.y - Math.sin(radians) * length;
+    const normalX = -Math.sin(radians) * width;
+    const normalY = Math.cos(radians) * width;
+    return [[backX + normalX, backY + normalY], [cue.x, cue.y], [backX - normalX, backY - normalY]];
 };
 
 /** Rasterizes one application-owned badge so leaflet-image captures both shape and text. */

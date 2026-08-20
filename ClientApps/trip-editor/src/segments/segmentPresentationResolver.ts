@@ -106,7 +106,7 @@ export const placeCombinedRouteBadge = (
 
 /** Wraps only between semantic tokens unless one token alone must be split to preserve all characters. */
 export const fitCombinedRouteBadgeLabels = (labels: readonly string[], maximumWidth: number): CombinedRouteBadgeLayout => {
-  const width = Math.max(1, maximumWidth);
+  const width = Math.min(160, Math.max(1, maximumWidth), badgeTextWidth(labels.join('/')));
   const characterCapacity = Math.max(1, Math.floor((width - 14) / 9));
   const fittedTokens = labels.flatMap(label => label.length <= characterCapacity
     ? [label]
@@ -120,6 +120,18 @@ export const fitCombinedRouteBadgeLabels = (labels: readonly string[], maximumWi
     else lines.push(token);
   });
   return { labels: [...labels], lines, width, height: 10 + lines.length * 14 };
+};
+
+/** Converts one projected cue into the bounded three-point arrow geometry rendered by Leaflet. */
+export const projectChevronArm = (cue: ProjectedChevron, active: boolean): ProjectedPoint[] => {
+  const radians = cue.angle * Math.PI / 180;
+  const length = active ? 10 : 8;
+  const width = active ? 4 : 3;
+  const backX = cue.x - Math.cos(radians) * length;
+  const backY = cue.y - Math.sin(radians) * length;
+  const normalX = -Math.sin(radians) * width;
+  const normalY = Math.cos(radians) * width;
+  return [[backX + normalX, backY + normalY], [cue.x, cue.y], [backX - normalX, backY - normalY]];
 };
 
 const badgeTextWidth = (text: string): number => text.length > 1 ? Math.max(34, 14 + text.length * 9) : 24;

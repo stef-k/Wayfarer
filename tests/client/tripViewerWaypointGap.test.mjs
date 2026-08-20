@@ -13,6 +13,7 @@ const prepareLeaflet = (layer = () => ({})) => {
   const makeLayer = () => ({
     _layers: [],
     addTo(target) { target?._layers?.push(this); return this; },
+    removeLayer(child) { this._layers = this._layers.filter(item => item !== child); child.removed = true; return this; },
     bindTooltip() { return this; }, unbindTooltip() { return this; }, on() { return this; }, off() { return this; },
     remove() { this.removed = true; return this; }, clearLayers() { this._layers = []; return this; },
     getLayers() { return this._layers; }, setStyle(style) { this.style = style; return this; }, getElement() { return null; }
