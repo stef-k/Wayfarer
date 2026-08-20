@@ -184,10 +184,14 @@ Trip Editor Test Credibility Matrix
 | Import/export/backfill/public viewer/mobile/API | Not Trip Editor E2E unless the editor entry point depends on the behavior. | out of scope | Do not report these as Trip Editor release proof. | Track in separate issue/suite if needed. |
 
 Coverage
-- Install tools and generate HTML: `dotnet tool restore` then `.\tools\coverage-report.ps1`
-- Reports land in `coverage-report/index.html` (cobertura XML in `tests/Wayfarer.Tests/TestResults/coverage/coverage.cobertura.xml`).
-- Uses Coverlet (msbuild) + ReportGenerator; backend-only scope, no prod code changes.
+- The test project uses xUnit v2 with the xUnit Visual Studio adapter and the default VSTest execution model. It does not opt into Microsoft Testing Platform.
+- `coverlet.collector` is the sole coverage integration. The repository does not use Coverlet's MSBuild properties or console tool.
+- Restore repository-local tools and generate HTML with `.\tools\coverage-report.ps1`. The script builds the Debug test project, runs `dotnet test --collect:"XPlat Code Coverage"` with `coverlet.runsettings`, and fails unless the current run produces one non-empty Cobertura file and a non-empty `coverage-report/<run-id>/index.html`.
+- Each invocation creates a fresh internally generated GUID child under `coverage-report` and prints its exact path. Previous reports are retained, and users may manually remove these ignored report directories when they are no longer needed. The script never recursively replaces a caller-selected directory.
+- Ordinary coverage uses `Category!=RequiresSpatialite&Category!=RequiresPlaywright`. PostgreSQL tests remain discoverable but skip unless `WAYFARER_TEST_POSTGRES_CONNECTION` identifies the dedicated test database; the coverage command does not install browsers, load SpatiaLite, or contact an unconfigured PostgreSQL fixture.
+- Current-run Cobertura XML is isolated temporarily below `tests/Wayfarer.Tests/TestResults/coverage-report/<run-id>/`; the script never searches older result directories and removes only that invocation's exact run directory after success or failure.
 - Compiled Razor views (`AspNetCoreGeneratedDocument*`) are excluded from coverage to keep numbers focused on backend code.
+- List opt-in cases without executing their infrastructure with `dotnet test tests/Wayfarer.Tests/Wayfarer.Tests.csproj --list-tests --filter "Category=RequiresPlaywright"`, `--filter "Category=RequiresSpatialite"`, or `--filter "FullyQualifiedName~Postgres"`. Listing is discovery evidence only; execute an opt-in selection only after provisioning its documented prerequisite.
 
 Targets
 - Parsers: sample fixtures for GPX/KML/CSV/GeoJSON/Google JSON.
