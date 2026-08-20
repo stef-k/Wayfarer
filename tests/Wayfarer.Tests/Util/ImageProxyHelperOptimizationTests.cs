@@ -73,6 +73,20 @@ public sealed class ImageProxyHelperOptimizationTests
         Assert.Equal(expectedDecision, (int)result.Decision);
     }
 
+    /// <summary>An ancillary chunk between WebP frames must not hide the second frame from preflight.</summary>
+    [Fact]
+    public void Preflight_RejectsWebpFramesSeparatedByAncillaryChunk()
+    {
+        var bytes = InsertWebpChunkAfterFirstFrame(
+            CreateAnimation(2, "webp"),
+            "test"u8,
+            [0x01, 0x02]);
+
+        var result = ImageProxyHelper.PreflightDecodedResources(bytes);
+
+        Assert.Equal(DecodedImageResourceDecision.TooLarge, result.Decision);
+    }
+
     /// <summary>Opaque images retain proportional width-first/height-second resizing and JPEG routing.</summary>
     [Fact]
     public void OptimizeImage_PreservesProportionalResizeAndJpegRouting()
@@ -227,5 +241,31 @@ public sealed class ImageProxyHelperOptimizationTests
         }
 
         return output.ToArray();
+    }
+
+    /// <summary>Inserts a bounded RIFF chunk after the first encoded WebP animation frame.</summary>
+    private static byte[] InsertWebpChunkAfterFirstFrame(byte[] webp, ReadOnlySpan<byte> type, byte[] payload)
+    {
+        var frameType = "ANMF"u8;
+        var offset = 12;
+        while (!webp.AsSpan(offset, 4).SequenceEqual(frameType))
+        {
+            var payloadLength = BitConverter.ToUInt32(webp, offset + 4);
+            offset = checked(offset + 8 + (int)payloadLength + (int)(payloadLength & 1));
+        }
+
+        var frameLength = BitConverter.ToUInt32(webp, offset + 4);
+        var insertionOffset = checked(offset + 8 + (int)frameLength + (int)(frameLength & 1));
+        var chunk = new byte[checked(8 + payload.Length + (payload.Length & 1))];
+        type.CopyTo(chunk.AsSpan(0, 4));
+        BitConverter.TryWriteBytes(chunk.AsSpan(4, 4), (uint)payload.Length);
+        payload.CopyTo(chunk, 8);
+
+        var result = new byte[checked(webp.Length + chunk.Length)];
+        webp.AsSpan(0, insertionOffset).CopyTo(result);
+        chunk.CopyTo(result, insertionOffset);
+        webp.AsSpan(insertionOffset).CopyTo(result.AsSpan(insertionOffset + chunk.Length));
+        BitConverter.TryWriteBytes(result.AsSpan(4, 4), checked((uint)result.Length - 8));
+        return result;
     }
 }
