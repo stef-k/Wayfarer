@@ -51,23 +51,25 @@ public sealed class TripImportPostgresTests(PostgresImportTestFixture fixture)
             Assert.NotNull(segment.EstimatedDuration);
     }
 
-    /// <summary>Generic route KML defaults Automatic and derives distance and duration through the known catalog profile.</summary>
+    /// <summary>Generic route titles remain descriptive text and never select a transport profile.</summary>
     [PostgresFact]
-    public async Task GenericKmlRouteImport_DefaultsAutomaticAndCalculatesKnownMode()
+    public async Task GenericKmlRouteImport_LeavesTransportUnassigned()
     {
         fixture.RequireAvailable();
         var user = await fixture.CreateUserAsync();
         await using var context = fixture.CreateContext();
         var service = new TripImportService(context, NullLogger<TripImportService>.Instance, CreateReconciler(context));
 
-        var tripId = await service.ImportWayfarerKmlAsync(ToStream(CreateGenericRouteKml("walk")), user.Id, TripImportMode.CreateNew);
+        var tripId = await service.ImportWayfarerKmlAsync(
+            ToStream(CreateGenericRouteKml("Ella to Kandy by TRAIN")), user.Id, TripImportMode.CreateNew);
         fixture.RegisterTrip(tripId);
 
         var segment = await context.Segments.AsNoTracking().SingleAsync(item => item.TripId == tripId);
+        Assert.Equal(string.Empty, segment.Mode);
+        Assert.Null(segment.TransportProfileId);
         Assert.Equal(EstimatedDurationSource.Automatic, segment.EstimatedDurationSource);
-        Assert.NotNull(segment.TransportProfileId);
         Assert.NotNull(segment.EstimatedDistanceKm);
-        Assert.NotNull(segment.EstimatedDuration);
+        Assert.Null(segment.EstimatedDuration);
     }
 
     /// <summary>Proves generic rollback clears failed state and a retry persists only final budgeted geometry and measurements.</summary>
