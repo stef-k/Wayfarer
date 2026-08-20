@@ -21,7 +21,10 @@ public sealed record TripImportNotice(
     int? AdditionalRouteCount = null);
 
 /// <summary>Bounded successful import result returned without source geometry.</summary>
-public sealed record TripImportResult(Guid TripId, IReadOnlyList<TripImportNotice> Notices)
+public sealed record TripImportResult(
+    Guid TripId,
+    IReadOnlyList<TripImportNotice> Notices,
+    bool IsGenericWithRoutes = false)
 {
     /// <summary>Supports existing internal consumers that require only the imported identity.</summary>
     public static implicit operator Guid(TripImportResult result) => result.TripId;

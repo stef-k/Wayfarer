@@ -166,18 +166,6 @@ public partial class TripImportService : ITripImportService
         }
     }
 
-    /// <summary>Links known import modes before reconciliation while leaving unknown modes to the database compatibility trigger.</summary>
-    private async Task ResolveImportedProfilesAsync(IEnumerable<Segment> segments, CancellationToken cancellationToken)
-    {
-        var profiles = await _dbContext.Set<TransportProfile>().AsNoTracking().ToDictionaryAsync(
-            profile => profile.Key, cancellationToken);
-        foreach (var segment in segments)
-        {
-            var normalized = TransportProfile.NormalizeKey(segment.Mode);
-            segment.TransportProfileId = profiles.TryGetValue(normalized, out var profile) ? profile.Id : null;
-        }
-    }
-
     /* ---------- helpers ------------------------------------------------- */
     static Trip CreateNewShell(Trip parsed, string userId)
     {
