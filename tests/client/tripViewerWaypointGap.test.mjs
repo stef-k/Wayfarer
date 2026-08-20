@@ -73,6 +73,54 @@ test('Segment and Place layers replace existing canonical registry entries', asy
   assert.equal(helpers.getSegmentPresentationSnapshot().segments.filter(item => item.id === 'segment-1').length, 1);
 });
 
+/** Proves decoration refresh replaces owning-group membership, not only the public generation array. */
+test('Viewer refresh and hide-show retain only the current owned chevron generation', async () => {
+  const groups = [];
+  const map = {
+    _layers: [],
+    latLngToLayerPoint: ([latitude, longitude]) => ({ x: longitude * 20, y: latitude * 20 }),
+    layerPointToLatLng: ([x, y]) => [y / 20, x / 20]
+  };
+  const layer = () => ({
+    addTo(owner) { owner.addLayer(this); return this; },
+    bindTooltip() { return this; }, unbindTooltip() { return this; }, on() { return this; }, off() { return this; },
+    remove() { this.mounted = false; return this; }, setStyle() { return this; }
+  });
+  prepareLeaflet(layer);
+  globalThis.L.layerGroup = () => {
+    const group = {
+      layers: [], mounted: false,
+      addLayer(child) { this.layers.push(child); child.mounted = this.mounted; return this; },
+      removeLayer(child) { this.layers = this.layers.filter(item => item !== child); child.mounted = false; return this; },
+      addTo() { this.mounted = true; this.layers.forEach(child => { child.mounted = true; }); return this; },
+      remove() { this.mounted = false; this.layers.forEach(child => { child.mounted = false; }); return this; },
+      clearLayers() { this.layers.forEach(child => { child.mounted = false; }); this.layers = []; return this; },
+      getLayers() { return this.layers; }
+    };
+    groups.push(group);
+    return group;
+  };
+  const helpers = await import(`../../wwwroot/js/Trip/tripViewerHelpers.js?ownership=${Date.now()}`);
+  helpers.addSegment(map, 'owned', [[0, 0], [0, 10]], '', { anchors: [], orientation: 'forward' });
+  const segmentGroup = groups[1];
+  const expected = () => 1 + 1 + helpers.getSegmentPresentationSnapshot().segments[0].chevronCount;
+
+  assert.equal(segmentGroup.getLayers().length, expected());
+  const firstGeneration = segmentGroup.getLayers().slice(2);
+  helpers.refreshSegmentPresentation(map);
+  assert.equal(segmentGroup.getLayers().length, expected(), 'refresh retained stale group-owned chevrons');
+  helpers.refreshSegmentPresentation(map);
+  assert.equal(segmentGroup.getLayers().length, expected(), 'public chevron count was false-green after repeated refresh');
+
+  helpers.setSegmentVisible(map, 'owned', false);
+  helpers.setSegmentVisible(map, 'owned', true);
+  assert.equal(segmentGroup.getLayers().length, expected());
+  assert.equal(firstGeneration.some(child => child.mounted), false, 'hide-show resurrected a stale chevron generation');
+
+  helpers.disposeSegmentPresentation();
+  assert.equal(segmentGroup.getLayers().length, 0, 'disposal retained Segment-owned layers');
+});
+
 /** Proves independent A-sequences and active-only closed-loop badges transfer cleanly. */
 test('multiple Segment presentations remain independent and transfer active badges', async () => {
   const map = {
