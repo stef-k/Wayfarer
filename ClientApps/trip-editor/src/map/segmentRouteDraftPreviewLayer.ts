@@ -39,9 +39,9 @@ export const createSegmentRouteDraftPreviewLayer = (map: LeafletMap): {
     }).addTo(layers);
     const element = polyline.getElement();
     if (element) {
-      element.dataset.segmentId = preview.identity;
-      element.dataset.routeOwner = 'draft';
-      element.dataset.routeKind = preview.route === null ? 'fallback' : 'custom';
+      element.setAttribute('data-segment-id', preview.identity);
+      element.setAttribute('data-route-owner', 'draft');
+      element.setAttribute('data-route-kind', preview.route === null ? 'fallback' : 'custom');
     }
   };
 

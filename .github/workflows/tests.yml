@@ -53,6 +53,10 @@ jobs:
         if: steps.scope.outputs.run_frontend == 'true'
         run: npm audit
 
+      - name: Typecheck Trip Editor sources
+        if: steps.scope.outputs.run_frontend == 'true'
+        run: npm run typecheck
+
       - name: Run deterministic client tests
         if: steps.scope.outputs.run_frontend == 'true'
         run: npm run test:client

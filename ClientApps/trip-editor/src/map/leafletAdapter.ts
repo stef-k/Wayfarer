@@ -341,9 +341,9 @@ const renderSegment = (segment: EditorSegment, state: EditorTripState, layers: L
   }).bindTooltip(escapeHtml(segmentLabel(segment, state))).addTo(layers);
   const element = polyline.getElement();
   if (element) {
-    element.dataset.segmentId = segment.id;
-    element.dataset.routeOwner = 'saved';
-    element.dataset.routeKind = segment.hasCustomRoute ? 'custom' : 'fallback';
+    element.setAttribute('data-segment-id', segment.id);
+    element.setAttribute('data-route-owner', 'saved');
+    element.setAttribute('data-route-kind', segment.hasCustomRoute ? 'custom' : 'fallback');
   }
 };
 
@@ -624,6 +624,8 @@ declare global {
   interface Window {
     wayfarerTileConfig?: {
       attribution?: string;
+      burstCapacity?: number;
+      retryAfterSeconds?: number;
     };
   }
 }

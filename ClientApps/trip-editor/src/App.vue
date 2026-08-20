@@ -247,8 +247,9 @@ async function selectSegment(key: SegmentPresentationKey): Promise<boolean> {
     : 'Selected new Segment draft';
   const retainedDraft = activeSegmentDraft.value;
   const retainedKey = retainedDraft?.key;
-  const ownsRetainedDraft = retainedKey?.kind === key.kind
-    && (key.kind === 'persisted' ? retainedKey.id === key.id : retainedKey.token === key.token);
+  const ownsRetainedDraft = key.kind === 'persisted'
+    ? retainedKey?.kind === 'persisted' && retainedKey.id === key.id
+    : retainedKey?.kind === 'create-draft' && retainedKey.token === key.token;
   mapAdapter?.setSegmentPresentation(state.value, key, ownsRetainedDraft ? retainedDraft : null);
   return true;
 }
