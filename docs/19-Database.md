@@ -253,7 +253,12 @@ Candidates are deleted once a PlaceVisitEvent is created or when stale.
 
 ## Quartz
 
-- Quartz uses a persistent ADO store with `qrtz_*` tables, auto‑created via `QuartzSchemaInstaller` on startup.
+- Quartz uses a persistent ADO store with `qrtz_*` tables. Before Quartz initializes, `QuartzSchemaInstaller`
+  creates or aligns Wayfarer's owned schema to the pinned Quartz 3.19.1 PostgreSQL definitions.
+- The application database role requires `CREATE`, `ALTER`, and `UPDATE` privileges for that schema. Startup
+  fails when an existing required Quartz column has an incompatible definition instead of rewriting it.
+- Manual installation must use the aligned embedded `Scripts/tables_postgres.sql` script or catalog-equivalent
+  definitions, including all Quartz 3.19.1 optional columns owned by the installer.
 # Segment measurement provenance
 
 `Segments.EstimatedDurationSource` is a required integer enum: `Automatic = 0` and `Manual = 1`. The database default is Automatic and `CK_Segments_EstimatedDurationSource` rejects every other value. The issue 405 migration classifies each legacy non-null duration as Manual and each null duration as Automatic without recalculating distance or duration. Downgrading removes the column and permanently loses provenance written after the upgrade; re-upgrading can only reclassify from duration nullability.
