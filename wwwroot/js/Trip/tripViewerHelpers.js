@@ -13,7 +13,7 @@ import {
     buildSegmentPopup,
     buildAreaPopup
 } from './tripPopupBuilder.js';
-import {placeViewerChevrons, presentViewerCoordinates, resolveViewerAnchors} from './segmentPresentation.js';
+import {placeViewerChevrons, presentViewerCoordinates, projectChevronArm, resolveViewerAnchors} from './segmentPresentation.js';
 import {createViewerSegmentBadgeRenderer} from './viewerSegmentBadgeRenderer.js';
 
 /* ---------- Wayfarer PNG marker URL ---------- */
@@ -317,6 +317,7 @@ export const setSegmentVisible = (map, sid, visible) => {
     if (!entry) return;
     entry.visible = visible;
     visible ? entry.group.addTo(map) : entry.group.remove();
+    renderSegmentDecorations(map, entry);
     if (!visible && _activeSegmentId === sid) setActiveSegment(map, null);
 };
 
@@ -355,7 +356,7 @@ const removeSegmentEntry = entry => {
 
 /** Replaces projected chevrons after selection or zoom changes. */
 const renderSegmentDecorations = (map, entry) => {
-    entry.chevrons.forEach(layer => layer.remove());
+    entry.chevrons.forEach(layer => entry.group.removeLayer(layer));
     entry.chevrons = [];
     if (!entry.visible || entry.orientation === 'ambiguous') return;
     const projected = entry.coords.map(([latitude, longitude]) => {
@@ -363,18 +364,8 @@ const renderSegmentDecorations = (map, entry) => {
         return [point.x, point.y];
     });
     entry.chevrons = placeViewerChevrons(projected, entry.active).map(cue => {
-        const radians = cue.angle * Math.PI / 180;
-        const length = entry.active ? 10 : 8;
-        const width = entry.active ? 4 : 3;
-        const backX = cue.x - Math.cos(radians) * length;
-        const backY = cue.y - Math.sin(radians) * length;
-        const normalX = -Math.sin(radians) * width;
-        const normalY = Math.cos(radians) * width;
-        return L.polyline([
-            map.layerPointToLatLng([backX + normalX, backY + normalY]),
-            map.layerPointToLatLng([cue.x, cue.y]),
-            map.layerPointToLatLng([backX - normalX, backY - normalY])
-        ], {color: entry.active ? '#075985' : '#0369a1', weight: entry.active ? 3 : 2, opacity: entry.active ? 1 : 0.72,
+        const points = projectChevronArm(cue, entry.active).map(point => map.layerPointToLatLng(point));
+        return L.polyline(points, {color: '#852D10', weight: entry.active ? 3 : 2, opacity: entry.active ? 1 : 0.72,
             interactive: false, renderer: location.search.includes('print=1') ? canvasRenderer : undefined}).addTo(entry.group);
     });
 };

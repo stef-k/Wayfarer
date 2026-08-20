@@ -121,6 +121,37 @@ test('places deterministic active and inactive chevrons from projected points', 
   assert.equal(placeProjectedChevrons([[0, 0], [1000, 0]], true).length, 8);
 });
 
+/** Proves both consumers derive bounded arms and opposite directions from the same projected vectors. */
+test('keeps mirrored chevron arms bounded and directionally stable', async () => {
+  const editor = await import('../../ClientApps/trip-editor/src/segments/segmentPresentationResolver.ts');
+  const viewer = await import(`../../wwwroot/js/Trip/segmentPresentation.js?chevronBounds=${Date.now()}`);
+  const implementations = [editor, viewer];
+
+  for (const implementation of implementations) {
+    assert.equal(typeof implementation.projectChevronArm, 'function');
+    for (const active of [false, true]) {
+      const cue = implementation.placeProjectedChevrons?.([[0, 0], [120, 0]], active)?.[0]
+        ?? implementation.placeViewerChevrons([[0, 0], [120, 0]], active)[0];
+      const points = implementation.projectChevronArm(cue, active);
+      const armLengths = [points[0], points[2]].map(point => Math.hypot(point[0] - points[1][0], point[1] - points[1][1]));
+      const xs = points.map(point => point[0]);
+      const ys = points.map(point => point[1]);
+      assert.ok(armLengths.every(length => length <= (active ? 12 : 10)));
+      assert.ok(Math.max(...xs) - Math.min(...xs) <= 24);
+      assert.ok(Math.max(...ys) - Math.min(...ys) <= 24);
+    }
+    const forward = implementation.placeProjectedChevrons?.([[0, 0], [120, 0]], true)?.[0]
+      ?? implementation.placeViewerChevrons([[0, 0], [120, 0]], true)[0];
+    const reversed = implementation.placeProjectedChevrons?.([[120, 0], [0, 0]], true)?.[0]
+      ?? implementation.placeViewerChevrons([[120, 0], [0, 0]], true)[0];
+    assert.equal(forward.angle, 0);
+    assert.equal(Math.abs(reversed.angle), 180);
+  }
+
+  assert.deepEqual(editor.placeProjectedChevrons([[0, 0], [Number.NaN, 1]], true), []);
+  assert.deepEqual(viewer.placeViewerChevrons([[0, 0], [Number.NaN, 1]], true), []);
+});
+
 /** Proves editor badge placement avoids controls, prior badges, and unusable map space deterministically. */
 test('places editor route badges with bounded collision avoidance', async () => {
   const module = await import('../../ClientApps/trip-editor/src/segments/segmentPresentationResolver.ts');
@@ -209,6 +240,27 @@ test('fits over-wide combined labels into deterministic lossless lines', async (
   assert.deepEqual(editor.fitCombinedRouteBadgeLabels(labels, 60), expected);
   assert.deepEqual(viewer.fitCombinedRouteBadgeLabels(labels, 60), expected);
   assert.deepEqual(expected.lines, ['A/C/B', 'AA/ZZ', 'AAA']);
+});
+
+/** Proves viewport width limits combined badges but never becomes their requested intrinsic width. */
+test('derives mirrored combined badge width from content with a fixed viewport cap', async () => {
+  const editor = await import('../../ClientApps/trip-editor/src/segments/segmentPresentationResolver.ts');
+  const viewer = await import(`../../wwwroot/js/Trip/segmentPresentation.js?badgeWidth=${Date.now()}`);
+
+  for (const implementation of [editor, viewer]) {
+    const blockedSingle = implementation.fitCombinedRouteBadgeLabels(['B'], 792);
+    assert.ok(blockedSingle.width <= 32, `single B width was ${blockedSingle.width}px`);
+    assert.ok(blockedSingle.height <= 32, `single B height was ${blockedSingle.height}px`);
+    assert.deepEqual(blockedSingle.lines, ['B']);
+
+    const capped = implementation.fitCombinedRouteBadgeLabels(['ABCDEFGHIJ', 'KLMNOPQRST'], 792);
+    assert.equal(capped.width, 160);
+    assert.equal(capped.lines.join('/').replaceAll('/', ''), 'ABCDEFGHIJKLMNOPQRST');
+
+    const narrow = implementation.fitCombinedRouteBadgeLabels(['ABCDEFGHIJ', 'KLMNOPQRST'], 72);
+    assert.equal(narrow.width, 72);
+    assert.equal(narrow.lines.join('/').replaceAll('/', ''), 'ABCDEFGHIJKLMNOPQRST');
+  }
 });
 
 /** Proves Reverse route changes only the supplied draft and retains waypoint identity. */

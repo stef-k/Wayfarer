@@ -36,7 +36,7 @@ export const createViewerSegmentBadgeRenderer = map => {
         if (blocked.length) {
             const labels = blocked.map(item => item.badge.label);
             const label = labels.join('/');
-            const layout = fitCombinedRouteBadgeLabels(labels, mapBounds.right - mapBounds.left - 8);
+            const layout = fitCombinedRouteBadgeLabels(labels, Math.min(160, mapBounds.right - mapBounds.left - 8));
             const raster = routeBadgeDataUrl(label, layout);
             const anchors = blocked.map(item => [item.anchor.x, item.anchor.y]);
             const placement = placeCombinedRouteBadge(anchors, layout, mapBounds, controlBounds, placedBounds);
