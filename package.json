@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite --host localhost --port 5173",
     "build": "vite build",
+    "typecheck": "vue-tsc --noEmit",
     "test:client": "node --test tests/client/*.test.mjs",
     "test:trip-import-client": "node --test tests/client/tripImportClient.test.mjs",
     "test:segment-route-policy": "node --test tests/client/segmentRouteWorkPolicy.test.mjs",
@@ -28,6 +29,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",
-    "esbuild": "0.28.1"
+    "esbuild": "0.28.1",
+    "vue-tsc": "3.3.10"
   }
 }
