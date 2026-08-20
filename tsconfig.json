@@ -11,5 +11,5 @@
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "types": []
   },
-  "include": ["ClientApps/trip-editor/src/**/*.ts", "ClientApps/trip-editor/src/**/*.vue"]
+  "include": ["ClientApps/trip-editor/src/**/*.ts", "ClientApps/trip-editor/src/**/*.tsx", "ClientApps/trip-editor/src/**/*.vue"]
 }

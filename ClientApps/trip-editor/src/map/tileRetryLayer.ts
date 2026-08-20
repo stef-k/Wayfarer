@@ -72,7 +72,8 @@ class TripEditorRetryTileLayer extends L.TileLayer {
       URL.revokeObjectURL(tile.el.src);
     }
 
-    super._removeTile(key);
+    // Leaflet's runtime cleanup hook is private and therefore absent from its public typings.
+    (L.TileLayer.prototype as unknown as { _removeTile: (tileKey: string) => void })._removeTile.call(this, key);
   }
 
   private fetchWithRetry(url: string, tile: RetryTileImage, done: L.DoneCallback, attempt: number, signal: AbortSignal): void {
@@ -137,7 +138,7 @@ class TripEditorRetryTileLayer extends L.TileLayer {
 
     tile.onload = (): void => {
       URL.revokeObjectURL(tile.src);
-      done(null, tile);
+      done(undefined, tile);
     };
     tile.onerror = (): void => {
       URL.revokeObjectURL(tile.src);

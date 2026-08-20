@@ -36,17 +36,18 @@ export const createSegmentRouteWorkLayer = (map: LeafletMap): {
     stopDraw();
     group.clearLayers();
     if (!state || !options) return;
+    const renderedState = state;
 
-    if (state.nodes.length < 2) {
+    if (renderedState.nodes.length < 2) {
       startDraw();
       return;
     }
 
-    const geometry = workStateGeometry(state);
+    const geometry = workStateGeometry(renderedState);
     const line = L.polyline(geometry.coordinates.map(([longitude, latitude]) => [latitude, longitude]), routeHitStyle())
       .on('click', insertAtNearestInterval)
       .addTo(group);
-    state.nodes.forEach((node, index) => {
+    renderedState.nodes.forEach((node, index) => {
       if (node.kind === 'anchor') {
         return;
       }
@@ -54,7 +55,7 @@ export const createSegmentRouteWorkLayer = (map: LeafletMap): {
       const marker = L.marker([node.coordinate[1], node.coordinate[0]], {
         draggable: true,
         icon: anonymousIcon(),
-        title: `Route point ${state.nodes.slice(0, index + 1).filter(candidate => candidate.kind === 'anonymous').length}`
+        title: `Route point ${renderedState.nodes.slice(0, index + 1).filter(candidate => candidate.kind === 'anonymous').length}`
       });
       marker.addTo(group);
       marker.getElement()?.setAttribute('data-route-point-key', node.key);

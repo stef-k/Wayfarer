@@ -61,10 +61,10 @@ export const createSegmentPresentationLayer = (
     const chevrons = presentation.directionTrustworthy ? renderChevrons(presentation, active, group) : [];
     const lineElement = line.getElement();
     if (lineElement) {
-      lineElement.dataset.segmentId = presentation.segmentId ?? keyText(presentation.key);
-      lineElement.dataset.segmentPresentationOwner = keyText(presentation.key);
-      lineElement.dataset.routeOwner = presentation.source === 'S' ? 'saved' : presentation.source === 'D' ? 'draft' : 'work';
-      lineElement.dataset.routeKind = presentation.hasCustomRoute ? 'custom' : 'fallback';
+      lineElement.setAttribute('data-segment-id', presentation.segmentId ?? keyText(presentation.key));
+      lineElement.setAttribute('data-segment-presentation-owner', keyText(presentation.key));
+      lineElement.setAttribute('data-route-owner', presentation.source === 'S' ? 'saved' : presentation.source === 'D' ? 'draft' : 'work');
+      lineElement.setAttribute('data-route-kind', presentation.hasCustomRoute ? 'custom' : 'fallback');
     }
     hit.getElement()?.setAttribute('data-segment-hit-owner', keyText(presentation.key));
     registry.set(keyText(presentation.key), { presentation, group, line, hit, chevrons });

@@ -292,7 +292,7 @@ export async function verifyMapWorkLifecycle(options?: { dirty?: boolean }): Pro
       return false;
     }
   }));
-  mapWorkPreservedAfterRejectedCancel = mapWork.value !== null && surfaceMode.value === 'map-work';
+  mapWorkPreservedAfterRejectedCancel = isMapWorkActive.value;
   await cancelActiveMapWork({
     confirmDirty: async () => {
       dirtyCancelPrompted = true;
@@ -317,7 +317,7 @@ export async function verifyMapWorkLifecycle(options?: { dirty?: boolean }): Pro
     previousSurface: work?.previousSurface ?? null,
     rollbackValue,
     returnedToPreviousSurface,
-    statusText: work?.statusText ?? null
+    statusText: typeof work?.statusText === 'function' ? work.statusText() : work?.statusText ?? null
   };
 }
 

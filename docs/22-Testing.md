@@ -38,7 +38,14 @@ Trip Editor Browser Preflight
 
 Running Tests
 - `dotnet test`
+- Trip Editor typecheck: `npm run typecheck`
 - Trip Editor E2E: `npm run test:e2e:trip-editor`
+
+Trip Editor Typecheck
+- Run `npm run typecheck` before client tests and `npm run build`; it checks both ordinary TypeScript modules and Vue single-file components included by `tsconfig.json`.
+- [Issue #464](https://github.com/stef-k/Wayfarer/issues/464) adopts stable TypeScript 6, through the official `@typescript/typescript6` compatibility package, as the supported compiler for Vue SFC typechecking with `vue-tsc` 3.3.10.
+- TypeScript 7 adoption is deferred to [issue #474](https://github.com/stef-k/Wayfarer/issues/474) because TypeScript 7.0 lacks the programmatic API required by stable Vue SFC tooling.
+- The conditional frontend CI path runs this command after dependency audit and before client tests and the production build.
 
 Pull Request Merge Gate
 - The GitHub Actions `test` check for the current PR head is authoritative merge evidence.

@@ -7,20 +7,16 @@ import MapSearchControl from './MapSearchControl.vue';
 import RegionManager from './RegionManager.vue';
 import SegmentManager from './SegmentManager.vue';
 import VisitProgressSurface from './VisitProgressSurface.vue';
-import type { AreaPolygonWorkOptions, CoordinatePickOptions, SegmentDraftRoutePreview, SegmentRouteWorkOptions } from '../map/leafletAdapter';
+import type { AreaPolygonWorkOptions, PlaceDraftMarkerPreview, SegmentDraftRoutePreview } from '../map/leafletAdapter';
 import type { EditorSegmentDraftPresentation, SegmentPresentationKey } from '../segments/editorSegmentPresentation';
+import type { PlaceCoordinatePicker } from './placeCoordinateMapWork';
+import type { SegmentRouteEditor } from './segmentRouteMapWork';
 
 type SidebarSearchResult = {
   hasMatches: boolean;
   regions: EditorRegion[];
   placesByRegionId: Record<Guid, Guid[]>;
   areasByRegionId: Record<Guid, Guid[]>;
-};
-
-type PlaceDraftPreview = {
-  iconName: string;
-  markerColor: string;
-  placeId: Guid;
 };
 
 const props = defineProps<{
@@ -37,12 +33,9 @@ const props = defineProps<{
   mobileDrawerActive?: boolean;
   isMapWorkActive?: boolean;
   completedSearchAddRequestId?: number | null;
-  coordinatePicker: { startCoordinatePick: (options: CoordinatePickOptions) => () => void };
+  coordinatePicker: PlaceCoordinatePicker;
   polygonEditor: { startAreaPolygonWork: (options: AreaPolygonWorkOptions) => () => void };
-  routeEditor: {
-    setSegmentRouteWorkRoute: (route: EditorSegment['route']) => void;
-    startSegmentRouteWork: (options: SegmentRouteWorkOptions) => () => void;
-  };
+  routeEditor: SegmentRouteEditor;
   selectPlace: (placeId: Guid) => Promise<boolean>;
   selectSegment: (key: SegmentPresentationKey) => Promise<boolean>;
   clearSelectedPlace: () => Promise<boolean>;
@@ -53,7 +46,7 @@ const emit = defineEmits<{
   mutationApplied: [result: EditorMutationResult<unknown>];
   regionDraftDirtyChanged: [isDirty: boolean];
   hiddenSegmentIdsChanged: [ids: Set<Guid>];
-  placeDraftPreviewChanged: [preview: PlaceDraftPreview | null];
+  placeDraftPreviewChanged: [preview: PlaceDraftMarkerPreview | null];
   segmentRouteDraftPreviewChanged: [preview: SegmentDraftRoutePreview | null];
   activeSegmentDraftChanged: [snapshot: EditorSegmentDraftPresentation | null];
   activeSegmentCleared: [key: SegmentPresentationKey];
