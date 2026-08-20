@@ -77,7 +77,7 @@ export const createSegmentPresentationLayer = (
     });
     return placeProjectedChevrons(projected, active).map(cue => {
       const points = projectChevronArm(cue, active).map(point => map.layerPointToLatLng([point[0], point[1]]));
-      return L.polyline(points, { color: '#541B08', opacity: active ? 1 : 0.72, weight: active ? 3 : 2,
+      return L.polyline(points, { color: '#852D10', opacity: active ? 1 : 0.72, weight: active ? 3 : 2,
         interactive: false, pane: 'segment-route-role' }).addTo(group);
     });
   };
