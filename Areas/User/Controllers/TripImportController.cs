@@ -10,6 +10,8 @@ namespace Wayfarer.Areas.User.Controllers;
 [Area("User"), Authorize, Route("User/Trip/[action]")]
 public class TripImportController : BaseController
 {
+    private const string GenericRouteReminder =
+        "Imported KML routes do not contain reliable transport information. Select a transport mode for each route where needed to enable automatic duration estimates.";
     private readonly ITripImportService _svc;
 
     public TripImportController(
@@ -37,6 +39,11 @@ public class TripImportController : BaseController
         {
             var result = await _svc.ImportWayfarerKmlAsync(stream, userId, mode, HttpContext.RequestAborted);
             var redirectUrl = $"/User/Trip/Edit/{result.TripId:D}";
+            if (result.IsGenericWithRoutes)
+            {
+                TempData["AlertType"] = "info";
+                TempData["AlertMessage"] = GenericRouteReminder;
+            }
             return Json(new
             {
                 status = "success",

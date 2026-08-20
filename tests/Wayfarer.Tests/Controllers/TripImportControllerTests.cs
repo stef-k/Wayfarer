@@ -3,6 +3,7 @@ using System.Security.Claims;
 using System.Text;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Wayfarer.Areas.User.Controllers;
@@ -18,6 +19,9 @@ namespace Wayfarer.Tests.Controllers;
 /// </summary>
 public class TripImportControllerTests : TestBase
 {
+    private const string GenericRouteReminder =
+        "Imported KML routes do not contain reliable transport information. Select a transport mode for each route where needed to enable automatic duration estimates.";
+
     [Fact]
     public async Task Import_ReturnsBadRequest_WhenFileMissing()
     {
@@ -54,6 +58,32 @@ public class TripImportControllerTests : TestBase
         Assert.Equal(Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"), Property<Guid>(json.Value, "tripId"));
         Assert.Equal("/User/Trip/Edit/aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", Property<string>(json.Value, "redirectUrl"));
         Assert.Single(Property<IReadOnlyList<TripImportNotice>>(json.Value, "notices"));
+    }
+
+    /// <summary>Successful generic route imports install one informational editor reminder.</summary>
+    [Fact]
+    public async Task Import_GenericRoute_InstallsOneTimeInformationAndReturnsEditorRedirect()
+    {
+        var db = CreateDbContext();
+        var service = new TripImportService(db, NullLogger<TripImportService>.Instance);
+        var controller = BuildController(service);
+        ConfigureControllerWithUser(controller, "u1");
+        controller.TempData = new TempDataDictionary(controller.HttpContext, Mock.Of<ITempDataProvider>());
+        var file = CreateFormFile("""
+            <kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>Generic</name>
+            <Placemark><name>Ella to Kandy by TRAIN</name><LineString><coordinates>80,7 81,7</coordinates></LineString></Placemark>
+            </Document></kml>
+            """);
+
+        var result = await controller.Import(file, TripImportMode.CreateNew);
+
+        var json = Assert.IsType<JsonResult>(result);
+        Assert.Equal("success", Property<string>(json.Value, "status"));
+        var tripId = Property<Guid>(json.Value, "tripId");
+        Assert.Equal($"/User/Trip/Edit/{tripId:D}", Property<string>(json.Value, "redirectUrl"));
+        Assert.Equal("info", controller.TempData["AlertType"]);
+        Assert.Equal(GenericRouteReminder, controller.TempData["AlertMessage"]);
+        Assert.Equal(2, controller.TempData.Count);
     }
 
     [Fact]

@@ -154,7 +154,7 @@ public class GoogleMyMapsKmlParserTests
         // Assert
         Assert.Single(trip.Segments);
         var segment = trip.Segments.First();
-        Assert.Equal("drive", segment.Mode);
+        Assert.Equal(string.Empty, segment.Mode);
         Assert.Equal(trip.Id, segment.TripId);
         Assert.Equal("user1", segment.UserId);
         Assert.IsType<LineString>(segment.RouteGeometry);
@@ -221,7 +221,7 @@ public class GoogleMyMapsKmlParserTests
 
         // Assert
         Assert.Single(trip.Segments);
-        Assert.Equal("route", trip.Segments.First().Mode);
+        Assert.Equal(string.Empty, trip.Segments.First().Mode);
     }
 
     [Fact]

@@ -30,7 +30,6 @@ public partial class TripImportService
             var reconciledTags = await _tagReconciler.ReconcileAsync(importedTagTokens, cancellationToken);
             foreach (var tag in reconciledTags) target.Tags.Add(tag);
             AddShadowRegion(target, userId);
-            await ResolveImportedProfilesAsync(target.Segments, cancellationToken);
             _dbContext.Trips.Add(target);
             await _dbContext.SaveChangesAsync(cancellationToken);
             _dbContext.ChangeTracker.Clear();
@@ -38,7 +37,7 @@ public partial class TripImportService
                 _dbContext, target.Id, allowUnavailableAutomatic: true, cancellationToken);
             if (transaction is not null) await transaction.CommitAsync(cancellationToken);
             _dbContext.ChangeTracker.Clear();
-            return new(target.Id, parsed.Notices);
+            return new(target.Id, parsed.Notices, target.Segments.Count > 0);
         }
         catch
         {
