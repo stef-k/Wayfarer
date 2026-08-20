@@ -55,8 +55,12 @@ try {
 
     Assert-Pass "existing ordinary coverage root is accepted" {
         New-Item -ItemType Directory -Path $coverageRoot | Out-Null
+        $previousReport = Join-Path $coverageRoot ([Guid]::NewGuid().ToString("N"))
+        New-Item -ItemType Directory -Path $previousReport | Out-Null
+        Set-Content -LiteralPath (Join-Path $previousReport "index.html") -Value "previous"
         $reportDirectory = New-CoverageReportDirectory -CoverageRoot $coverageRoot -RunId $runId
         if ($reportDirectory -cne (Join-Path $coverageRoot $runId)) { throw "Unexpected report directory." }
+        if (-not (Test-Path -LiteralPath (Join-Path $previousReport "index.html") -PathType Leaf)) { throw "Previous report changed." }
     }
 
     Remove-Item -LiteralPath $coverageRoot -Recurse -Force

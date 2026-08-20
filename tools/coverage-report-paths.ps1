@@ -1,144 +1,87 @@
-$CoverageOutputMarkerName = ".wayfarer-coverage-output"
-$CoverageOutputMarkerValue = "wayfarer:tools/coverage-report.ps1:v1"
+# Validates the internally generated identifier without normalizing malformed input.
+function Test-CoverageRunId {
+    param([string]$RunId)
 
-function Get-CanonicalPath {
-    param([string]$BasePath, [string]$Path)
+    [Guid]$parsedRunId = [Guid]::Empty
+    if (-not [Guid]::TryParseExact($RunId, "N", [ref]$parsedRunId) -or
+        $parsedRunId.ToString("N") -cne $RunId) {
+        throw "Coverage run ID must be an exact N-format GUID: $RunId"
+    }
 
-    return [IO.Path]::GetFullPath($Path, [IO.Path]::GetFullPath($BasePath))
+    return $RunId
 }
 
-function Test-PathWithin {
-    param([string]$ParentPath, [string]$CandidatePath, [switch]$AllowEqual)
+# Derives both run-owned paths from repository roots and the same validated identifier.
+function Get-CoverageRunPaths {
+    param([string]$RepoRoot, [string]$RunId)
 
-    $parent = [IO.Path]::GetFullPath($ParentPath).TrimEnd([IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar)
-    $candidate = [IO.Path]::GetFullPath($CandidatePath).TrimEnd([IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar)
-    if ($AllowEqual -and $candidate.Equals($parent, [StringComparison]::OrdinalIgnoreCase)) {
-        return $true
-    }
-
-    $prefix = $parent + [IO.Path]::DirectorySeparatorChar
-    return $candidate.StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase)
-}
-
-function Assert-OrdinaryPathAncestors {
-    param([string]$RootPath, [string]$CandidatePath)
-
-    $root = [IO.Path]::GetFullPath($RootPath)
-    $candidate = [IO.Path]::GetFullPath($CandidatePath)
-    if (-not (Test-PathWithin -ParentPath $root -CandidatePath $candidate -AllowEqual)) {
-        throw "Path must remain under $root`: $candidate"
-    }
-
-    if (Test-Path -LiteralPath $root) {
-        $rootItem = Get-Item -LiteralPath $root -Force
-        if (($rootItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
-            throw "Coverage paths cannot use a reparse-point root: $root"
-        }
-        if (-not $rootItem.PSIsContainer) {
-            throw "Coverage path root is not a directory: $root"
-        }
-    }
-
-    $relative = [IO.Path]::GetRelativePath($root, $candidate)
-    $current = $root
-    foreach ($component in $relative.Split([IO.Path]::DirectorySeparatorChar, [StringSplitOptions]::RemoveEmptyEntries)) {
-        $current = Join-Path $current $component
-        if (-not (Test-Path -LiteralPath $current)) {
-            break
-        }
-
-        $item = Get-Item -LiteralPath $current -Force
-        if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
-            throw "Coverage paths cannot pass through a reparse point: $current"
-        }
-        if (-not $item.PSIsContainer -and -not $current.Equals($candidate, [StringComparison]::OrdinalIgnoreCase)) {
-            throw "Coverage path ancestor is not a directory: $current"
-        }
-    }
-}
-
-function Assert-NoReparseTree {
-    param([string]$DirectoryPath)
-
-    $pending = [Collections.Generic.Stack[string]]::new()
-    $pending.Push($DirectoryPath)
-    while ($pending.Count -gt 0) {
-        $directory = $pending.Pop()
-        foreach ($item in Get-ChildItem -LiteralPath $directory -Force) {
-            if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
-                throw "Coverage output contains a reparse point and cannot be replaced: $($item.FullName)"
-            }
-            if ($item.PSIsContainer) {
-                $pending.Push($item.FullName)
-            }
-        }
-    }
-}
-
-function Test-CoverageOutputPath {
-    param(
-        [string]$RepoRoot,
-        [string]$OutputDir,
-        [switch]$RequireOwnership
-    )
-
+    Test-CoverageRunId -RunId $RunId | Out-Null
     $repository = [IO.Path]::GetFullPath($RepoRoot)
-    $coverageRoot = Join-Path $repository "coverage-report"
-    $candidate = Get-CanonicalPath -BasePath $repository -Path $OutputDir
-    if (-not (Test-PathWithin -ParentPath $coverageRoot -CandidatePath $candidate -AllowEqual)) {
-        throw "Coverage output must be coverage-report or one of its descendants: $candidate"
-    }
+    $reportRoot = Join-Path $repository "coverage-report"
+    $resultsRoot = Join-Path $repository "tests/Wayfarer.Tests/TestResults/coverage-report"
 
-    Assert-OrdinaryPathAncestors -RootPath $repository -CandidatePath $candidate
-    if (Test-Path -LiteralPath $candidate) {
-        $item = Get-Item -LiteralPath $candidate -Force
-        if (-not $item.PSIsContainer) {
-            throw "Coverage output must be a directory: $candidate"
-        }
+    return [PSCustomObject]@{
+        ReportRoot       = $reportRoot
+        ReportDirectory  = Join-Path $reportRoot $RunId
+        ResultsRoot      = $resultsRoot
+        ResultsDirectory = Join-Path $resultsRoot $RunId
     }
-
-    if ($RequireOwnership) {
-        if (-not (Test-Path -LiteralPath $candidate -PathType Container)) {
-            throw "Existing coverage output directory was expected: $candidate"
-        }
-        $markerPath = Join-Path $candidate $CoverageOutputMarkerName
-        if (-not (Test-Path -LiteralPath $markerPath -PathType Leaf)) {
-            throw "Existing coverage output is not owned by this script: $candidate"
-        }
-        $marker = Get-Item -LiteralPath $markerPath -Force
-        if (($marker.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0 -or
-            (Get-Content -LiteralPath $markerPath -Raw) -cne $CoverageOutputMarkerValue) {
-            throw "Coverage output ownership marker is invalid: $markerPath"
-        }
-        Assert-NoReparseTree -DirectoryPath $candidate
-    }
-
-    return $candidate
 }
 
-function New-CoverageOutputMarker {
-    param([string]$OutputPath)
+# Creates only a fresh report child beneath an ordinary repository coverage root.
+function New-CoverageReportDirectory {
+    param([string]$CoverageRoot, [string]$RunId)
 
-    $markerPath = Join-Path $OutputPath $CoverageOutputMarkerName
-    Set-Content -LiteralPath $markerPath -Value $CoverageOutputMarkerValue -NoNewline
+    Test-CoverageRunId -RunId $RunId | Out-Null
+    $root = [IO.Path]::GetFullPath($CoverageRoot)
+    if (-not (Test-Path -LiteralPath $root)) {
+        New-Item -ItemType Directory -Path $root | Out-Null
+    }
+
+    $rootItem = Get-Item -LiteralPath $root -Force
+    if (-not $rootItem.PSIsContainer) {
+        throw "Coverage report root must be a directory: $root"
+    }
+    if (($rootItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+        throw "Coverage report root cannot be a reparse point: $root"
+    }
+
+    $reportDirectory = Join-Path $root $RunId
+    if (Test-Path -LiteralPath $reportDirectory) {
+        $existing = Get-Item -LiteralPath $reportDirectory -Force
+        if (($existing.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+            throw "Coverage report child cannot be a reparse point: $reportDirectory"
+        }
+        throw "Coverage report child already exists: $reportDirectory"
+    }
+
+    New-Item -ItemType Directory -Path $reportDirectory | Out-Null
+    return $reportDirectory
 }
 
-function Test-RunResultsPath {
-    param([string]$ResultsRoot, [string]$RunResultsDir, [string]$RunId)
+# Allows cleanup only for the exact ordinary results child owned by this run.
+function Test-CoverageResultsCleanupPath {
+    param([string]$ResultsRoot, [string]$ResultsDirectory, [string]$RunId)
 
+    Test-CoverageRunId -RunId $RunId | Out-Null
     $root = [IO.Path]::GetFullPath($ResultsRoot)
-    $candidate = [IO.Path]::GetFullPath($RunResultsDir)
-    $expected = Join-Path $root $RunId
+    $candidate = [IO.Path]::GetFullPath($ResultsDirectory)
+    $expected = [IO.Path]::GetFullPath((Join-Path $root $RunId))
     if (-not $candidate.Equals($expected, [StringComparison]::OrdinalIgnoreCase)) {
         throw "Current-run results path must be the exact generated run directory: $candidate"
     }
-    Assert-OrdinaryPathAncestors -RootPath $root -CandidatePath $candidate
-    if (Test-Path -LiteralPath $candidate) {
-        $item = Get-Item -LiteralPath $candidate -Force
-        if (-not $item.PSIsContainer) {
-            throw "Current-run results path must be a directory: $candidate"
-        }
-        Assert-NoReparseTree -DirectoryPath $candidate
+
+    $rootItem = Get-Item -LiteralPath $root -Force
+    if (-not $rootItem.PSIsContainer -or
+        ($rootItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+        throw "Coverage results root must be an ordinary directory: $root"
     }
+
+    $childItem = Get-Item -LiteralPath $candidate -Force
+    if (-not $childItem.PSIsContainer -or
+        ($childItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+        throw "Current-run results must be an ordinary directory: $candidate"
+    }
+
     return $candidate
 }
