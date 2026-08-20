@@ -24,15 +24,17 @@ public sealed class ImageProxyDecodedPreflightContractTests
 
     /// <summary>APNG declared frames are authoritative even when ImageSharp omits the count.</summary>
     [Theory]
-    [InlineData(8u, DecodedImageResourceDecision.Accepted)]
-    [InlineData(9u, DecodedImageResourceDecision.TooLarge)]
-    public void Preflight_EnforcesApngDeclaredFrames(uint frames, DecodedImageResourceDecision expected)
+    [InlineData(8u, 0)]
+    [InlineData(9u, 1)]
+    public void Preflight_EnforcesApngDeclaredFrames(uint frames, int expectedDecision)
     {
         var bytes = PngContractFixture.Create(width: 1, height: 1, apngFrames: frames);
 
+        var authority = ApngFrameAuthority.Inspect(bytes);
         var result = ImageProxyHelper.PreflightDecodedResources(bytes);
 
-        Assert.Equal(expected, result.Decision);
+        Assert.Equal(ApngAuthorityDecision.Animated, authority.Decision);
+        Assert.Equal(expectedDecision, (int)result.Decision);
     }
 
     /// <summary>Malformed, duplicate, or contradictory APNG authority remains a decoder failure.</summary>
@@ -40,9 +42,10 @@ public sealed class ImageProxyDecodedPreflightContractTests
     [InlineData(PngContractFixtureMode.TruncatedAnimationControl)]
     [InlineData(PngContractFixtureMode.DuplicateAnimationControl)]
     [InlineData(PngContractFixtureMode.AnimationControlAfterImageData)]
+    [InlineData(PngContractFixtureMode.ContradictoryFrameCount)]
     public void Preflight_FailsMalformedApngAuthority(PngContractFixtureMode mode)
     {
-        var bytes = PngContractFixture.Create(width: 1, height: 1, apngFrames: 1, mode);
+        var bytes = PngContractFixture.Create(width: 1, height: 1, apngFrames: 2, mode);
 
         var result = ImageProxyHelper.PreflightDecodedResources(bytes);
 
@@ -67,7 +70,8 @@ public enum PngContractFixtureMode
     Valid,
     TruncatedAnimationControl,
     DuplicateAnimationControl,
-    AnimationControlAfterImageData
+    AnimationControlAfterImageData,
+    ContradictoryFrameCount
 }
 
 /// <summary>Builds compact PNG/APNG headers without allocating their declared pixel buffers.</summary>
@@ -80,47 +84,58 @@ internal static class PngContractFixture
         PngContractFixtureMode mode = PngContractFixtureMode.Valid)
     {
         using var image = new Image<Rgba32>(1, 1);
+        if (apngFrames.HasValue)
+        {
+            for (var frame = 1u; frame < apngFrames.Value; frame++)
+            {
+                image.Frames.AddFrame(image.Frames.RootFrame);
+            }
+        }
+
         using var output = new MemoryStream();
         image.SaveAsPng(output);
         var png = output.ToArray();
-        WriteUInt32BigEndian(png.AsSpan(16, 4), width);
-        WriteUInt32BigEndian(png.AsSpan(20, 4), height);
-        WriteUInt32BigEndian(png.AsSpan(29, 4), ComputeCrc(png.AsSpan(12, 17)));
+        if (width != 1 || height != 1)
+        {
+            WriteUInt32BigEndian(png.AsSpan(16, 4), width);
+            WriteUInt32BigEndian(png.AsSpan(20, 4), height);
+            WriteUInt32BigEndian(png.AsSpan(29, 4), ComputeCrc(png.AsSpan(12, 17)));
+        }
 
         if (!apngFrames.HasValue)
         {
             return png;
         }
 
-        var animationControl = CreateAnimationControl(apngFrames.Value);
+        var animationControlOffset = FindChunkOffset(png, "acTL");
+        var animationControl = png.AsSpan(animationControlOffset, 20).ToArray();
         if (mode == PngContractFixtureMode.TruncatedAnimationControl)
         {
-            return [.. png.AsSpan(0, 33).ToArray(), .. animationControl.AsSpan(0, 10).ToArray()];
+            return png.AsSpan(0, animationControlOffset + 10).ToArray();
         }
 
-        var imageDataOffset = FindChunkOffset(png, "IDAT");
         var endOffset = FindChunkOffset(png, "IEND");
+        if (mode == PngContractFixtureMode.ContradictoryFrameCount)
+        {
+            WriteUInt32BigEndian(png.AsSpan(animationControlOffset + 8, 4), apngFrames.Value + 1);
+            WriteUInt32BigEndian(
+                png.AsSpan(animationControlOffset + 16, 4),
+                ComputeCrc(png.AsSpan(animationControlOffset + 4, 12)));
+            return png;
+        }
+
         return mode switch
         {
             PngContractFixtureMode.DuplicateAnimationControl =>
-                [.. png.AsSpan(0, imageDataOffset).ToArray(), .. animationControl, .. animationControl,
-                    .. png.AsSpan(imageDataOffset).ToArray()],
+                [.. png.AsSpan(0, animationControlOffset).ToArray(), .. animationControl,
+                    .. png.AsSpan(animationControlOffset).ToArray()],
             PngContractFixtureMode.AnimationControlAfterImageData =>
-                [.. png.AsSpan(0, endOffset).ToArray(), .. animationControl, .. png.AsSpan(endOffset).ToArray()],
-            _ => [.. png.AsSpan(0, imageDataOffset).ToArray(), .. animationControl,
-                .. png.AsSpan(imageDataOffset).ToArray()]
+                [.. png.AsSpan(0, animationControlOffset).ToArray(),
+                    .. png.AsSpan(animationControlOffset + animationControl.Length,
+                        endOffset - animationControlOffset - animationControl.Length).ToArray(),
+                    .. animationControl, .. png.AsSpan(endOffset).ToArray()],
+            _ => png
         };
-    }
-
-    private static byte[] CreateAnimationControl(uint frames)
-    {
-        var chunk = new byte[20];
-        WriteUInt32BigEndian(chunk.AsSpan(0, 4), 8);
-        "acTL"u8.CopyTo(chunk.AsSpan(4, 4));
-        WriteUInt32BigEndian(chunk.AsSpan(8, 4), frames);
-        WriteUInt32BigEndian(chunk.AsSpan(12, 4), 0);
-        WriteUInt32BigEndian(chunk.AsSpan(16, 4), ComputeCrc(chunk.AsSpan(4, 12)));
-        return chunk;
     }
 
     private static int FindChunkOffset(byte[] png, string chunkName)

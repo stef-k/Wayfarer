@@ -179,6 +179,10 @@ public class ImageProxyService : IImageProxyService
         {
             resp = await _httpClient.GetAsync(request.Url, HttpCompletionOption.ResponseHeadersRead, ct);
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            throw;
+        }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Failed to download image from {Url}.", request.Url);
@@ -218,9 +222,19 @@ public class ImageProxyService : IImageProxyService
                         out var isPng);
                     contentType = isPng ? "image/png" : "image/jpeg";
                 }
-                catch (Exception ex)
+                catch (DecodedImageResourceRejectedException ex)
                 {
-                    _logger.LogWarning(ex, "Failed to optimize image from {Url}.", request.Url);
+                    _logger.LogInformation(
+                        "Rejected image proxy cache key {CacheKey}: {LimitName} observed {Observed}, limit {Limit}.",
+                        cacheKey,
+                        ex.Result.LimitName,
+                        ex.Result.Observed,
+                        ex.Result.Limit);
+                    return new ImageProxyResult(ImageProxyResultStatus.TooLarge, cacheKey, null, null);
+                }
+                catch (Exception)
+                {
+                    _logger.LogDebug("Failed to optimize image for cache key {CacheKey}.", cacheKey);
                     return new ImageProxyResult(ImageProxyResultStatus.Failed, cacheKey, null, null);
                 }
             }

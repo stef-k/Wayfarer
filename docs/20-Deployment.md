@@ -32,12 +32,14 @@ This guide covers installation, deployment, logging, and operational commands fo
 ### Hardware Requirements
 
 **Minimum:**
-- 1 GB RAM
+- 1 GB RAM when the image proxy's encoded download ceiling is no greater than its 50 MiB default. Higher values in the supported 5–200 MiB range require proportionally more host memory; four 200 MiB origin downloads alone can retain approximately 800 MiB before decoded images, output, cache I/O, ASP.NET, and runtime overhead.
 - **5 GB disk space** minimum:
   - ~2 GB for tile cache (zoom <= 8: ~1 GB permanent, zoom >= 9: 1 GB default, 256 MB minimum per OSM 7-day caching policy)
   - ~512 MB for image proxy cache (configurable in Admin Settings)
   - Plus storage for uploaded location data, logs, and application files
 - ARM or x64 CPU (Raspberry Pi 3+ or equivalent)
+
+Optimized proxy images are independently bounded to 8,192 pixels per dimension, 12,000,000 pixels per frame, 8 frames, and a conservative 64 MiB decoded estimate. The dedicated ImageSharp allocator's 128 MiB allocation-group limit and 128 MiB retained pool provide defense in depth; they are not total request or process-memory quotas.
 
 **Recommended:**
 - 2+ GB RAM

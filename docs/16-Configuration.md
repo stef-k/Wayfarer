@@ -29,6 +29,12 @@ CacheSettings
 - `CacheSettings:TileCacheDirectory` — local directory for map tile cache.
 - **Max Tile Cache Size** (Admin UI) — controls the LRU cache size for zoom >= 9 tiles. Default: 1024 MB. Minimum: 256 MB (OSM requires tiles cached for at least 7 days). Set to `-1` to disable the size limit (no LRU eviction). Zoom 0-8 tiles (~1 GB) are cached permanently and do not count against this limit.
 
+Image Proxy Resource Limits
+- **Max Proxy Image Download Size** (Admin UI) is the encoded origin-response limit. Its existing range remains 5–200 MiB and its default is 50 MiB.
+- Optimized images also have fixed decoded limits: 8,192 pixels per dimension, 12,000,000 pixels per frame, 8 frames, and a 64 MiB aggregate estimate calculated as width × height × 4 × frames.
+- The proxy uses one dedicated ImageSharp allocator with a 128 MiB allocation-group limit and 128 MiB retained pool. These allocator settings are defense in depth, not a cumulative request or process-memory quota.
+- The 1 GiB minimum-host assumption applies only when the encoded download ceiling is 50 MiB or less. Higher encoded settings retain proportionally more origin data and require a proportionally larger host-memory budget.
+
 Tile Provider Settings (Admin UI)
 - **Tile Provider** — select from presets (OpenStreetMap, Carto Light/Dark, ESRI Satellite) or configure a custom URL template.
 - **Custom URL Template** — use `{z}`, `{x}`, `{y}` placeholders; optionally `{apikey}` for providers requiring authentication.

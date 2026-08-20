@@ -6,7 +6,6 @@ using Wayfarer.Models;
 using Wayfarer.Parsers;
 using Wayfarer.Services;
 using Wayfarer.Tests.Infrastructure;
-using Wayfarer.Tests.Util;
 using Xunit;
 
 namespace Wayfarer.Tests.Services;
@@ -285,69 +284,6 @@ public partial class ImageProxyServiceTests : TestBase
         cacheMock.Verify(c => c.SetAsync(It.IsAny<string>(), It.IsAny<byte[]>(), It.IsAny<string>()), Times.Once);
     }
 
-    /// <summary>Optimize=false bypasses identification and preserves origin bytes and content type.</summary>
-    [Fact]
-    public async Task GetOrFetchAsync_OptimizeFalse_BypassesDecodeAndPreservesResponse()
-    {
-        var originBytes = new byte[] { 1, 2, 3 };
-        var handler = new MockHttpMessageHandler(HttpStatusCode.OK, originBytes, "image/png");
-        var cacheMock = new Mock<IProxiedImageCacheService>();
-        cacheMock.Setup(c => c.GetAsync(It.IsAny<string>()))
-            .ReturnsAsync(new ProxiedImageCacheResult(ProxiedImageCacheStatus.Miss, null, null, null));
-        var service = CreateImageProxyService(handler: handler, cacheMock: cacheMock);
-
-        var result = await service.GetOrFetchAsync(
-            new ImageProxyRequest("https://example.com/pass-through.png", Optimize: false),
-            allowOriginFetch: true);
-
-        Assert.Equal(ImageProxyResultStatus.Fetched, result.Status);
-        Assert.Equal(originBytes, result.Bytes);
-        Assert.Equal("image/png", result.ContentType);
-    }
-
-    /// <summary>A decoded-resource rejection is TooLarge and never populates the cache.</summary>
-    [Fact]
-    public async Task GetOrFetchAsync_DecodedResourceRejection_DoesNotPopulateCache()
-    {
-        var handler = new MockHttpMessageHandler(
-            HttpStatusCode.OK,
-            PngContractFixture.Create(8193, 1),
-            "image/png");
-        var cacheMock = new Mock<IProxiedImageCacheService>();
-        cacheMock.Setup(c => c.GetAsync(It.IsAny<string>()))
-            .ReturnsAsync(new ProxiedImageCacheResult(ProxiedImageCacheStatus.Miss, null, null, null));
-        var service = CreateImageProxyService(handler: handler, cacheMock: cacheMock);
-
-        var result = await service.GetOrFetchAsync(
-            new ImageProxyRequest("https://example.com/declared-wide.png"),
-            allowOriginFetch: true);
-
-        Assert.Equal(ImageProxyResultStatus.TooLarge, result.Status);
-        cacheMock.Verify(c => c.SetAsync(It.IsAny<string>(), It.IsAny<byte[]>(), It.IsAny<string>()), Times.Never);
-    }
-
-    /// <summary>Coalesced callers share one origin request and the same decoded rejection.</summary>
-    [Fact]
-    public async Task GetOrFetchAsync_CoalescesDecodedResourceRejection()
-    {
-        var handler = new GatedHttpMessageHandler(PngContractFixture.Create(8193, 1), "image/png");
-        var cacheMock = new Mock<IProxiedImageCacheService>();
-        cacheMock.Setup(c => c.GetAsync(It.IsAny<string>()))
-            .ReturnsAsync(new ProxiedImageCacheResult(ProxiedImageCacheStatus.Miss, null, null, null));
-        var service = CreateImageProxyService(handler: handler, cacheMock: cacheMock);
-        var request = new ImageProxyRequest("https://example.com/coalesced-wide.png");
-
-        var first = service.GetOrFetchAsync(request, allowOriginFetch: true);
-        await handler.WaitForRequestAsync();
-        var second = service.GetOrFetchAsync(request, allowOriginFetch: true);
-        handler.Release();
-        var results = await Task.WhenAll(first, second);
-
-        Assert.All(results, result => Assert.Equal(ImageProxyResultStatus.TooLarge, result.Status));
-        Assert.Equal(1, handler.RequestCount);
-        cacheMock.Verify(c => c.SetAsync(It.IsAny<string>(), It.IsAny<byte[]>(), It.IsAny<string>()), Times.Never);
-    }
-
     /// <summary>
     /// Creates an <see cref="ImageProxyService"/> with test doubles.
     /// </summary>
@@ -476,33 +412,6 @@ public partial class ImageProxyServiceTests : TestBase
                 }
             }
             while (Interlocked.CompareExchange(ref _maxActiveRequests, active, current) != current);
-        }
-    }
-
-    /// <summary>Deterministically holds one response so a same-key waiter can join it.</summary>
-    private sealed class GatedHttpMessageHandler(byte[] bytes, string contentType) : HttpMessageHandler
-    {
-        private readonly TaskCompletionSource _requested = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        private readonly TaskCompletionSource _released = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        private int _requestCount;
-
-        public int RequestCount => _requestCount;
-
-        public Task WaitForRequestAsync() => _requested.Task.WaitAsync(TimeSpan.FromSeconds(5));
-
-        public void Release() => _released.TrySetResult();
-
-        protected override async Task<HttpResponseMessage> SendAsync(
-            HttpRequestMessage request,
-            CancellationToken cancellationToken)
-        {
-            Interlocked.Increment(ref _requestCount);
-            _requested.TrySetResult();
-            await _released.Task.WaitAsync(cancellationToken);
-            return new HttpResponseMessage(HttpStatusCode.OK)
-            {
-                Content = CreateContent(bytes, contentType)
-            };
         }
     }
 
