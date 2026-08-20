@@ -58,3 +58,15 @@ test('an unsaved waypoint draft cannot emit a misleading endpoint-only map previ
   const source = await sourceOrEmpty(managerPath);
   assert.match(source, /waypointPlaceIds\.length[\s\S]*routeDraftPreviewChanged/);
 });
+
+test('safe waypoint preservation remains anchored to the persisted semantic baseline', async () => {
+  const component = await sourceOrEmpty(componentPath);
+  const manager = await sourceOrEmpty(managerPath);
+  assert.match(manager, /:baseline-draft="persistedBaseline"/);
+  assert.match(manager, /createSegmentSemanticTaint/);
+  assert.match(manager, /semanticTaint\.markUnsafe/);
+  assert.match(component, /semanticEditsSafe/);
+  assert.match(component, /endpointsMatchBaseline/);
+  assert.match(component, /substitute[\s\S]*emit\('semanticEditsUnsafe'\)/);
+  assert.match(component, /move[\s\S]*emit\('semanticEditsUnsafe'\)/);
+});

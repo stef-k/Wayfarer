@@ -9,6 +9,7 @@ import SegmentRouteProposal from './SegmentRouteProposal.vue';
 const props = defineProps<{
   activeSegment: EditorSegment | null;
   antiforgeryToken: string;
+  baselineDraft: EditorSegmentDraft;
   controller: EditorSurfaceController;
   draft: EditorSegmentDraft;
   draftContextKey: string;
@@ -19,6 +20,7 @@ const props = defineProps<{
   isSaving: boolean;
   routeOrientation: 'forward' | 'reversed' | 'ambiguous' | null;
   routeMapWorkActive: boolean;
+  semanticEditsSafe: boolean;
   state: EditorTripState;
   statusText: string;
   target: EditorTarget;
@@ -50,6 +52,7 @@ defineEmits<{
   reset: [];
   reverseRoute: [];
   save: [];
+  semanticEditsUnsafe: [];
   routeProposalAccepted: [proposal: AcceptedExternalRouteProposal];
   routeProposalPreviewChanged: [proposal: ExternalRouteProposal | null];
 }>();
@@ -62,15 +65,18 @@ defineEmits<{
       <p v-else-if="routeOrientation === 'ambiguous'" class="trip-editor-form-warning" role="status">Route direction unavailable. Correct or clear the custom route before relying on direction cues.</p>
       <SegmentEditorForm
         ref="editorForm"
+        :baseline-draft="baselineDraft"
         :draft="draft"
         :field-errors="fieldErrors"
         :form-id="formId"
         :form-summary-errors="formSummaryErrors"
         :is-dirty="isDirty"
         :is-saving="isSaving"
+        :semantic-edits-safe="semanticEditsSafe"
         :state="state"
         @save="$emit('save')"
         @clear-error="$emit('clearError', $event)"
+        @semantic-edits-unsafe="$emit('semanticEditsUnsafe')"
       />
       <SegmentRouteProposal
         v-if="activeSegment && activeSegment.externalRouting?.available"

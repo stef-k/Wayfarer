@@ -6,18 +6,21 @@ import SegmentWaypointEditor from './SegmentWaypointEditor.vue';
 import { fallbackRoute } from './segmentRouteMapWork';
 
 const props = defineProps<{
+  baselineDraft: EditorSegmentDraft;
   draft: EditorSegmentDraft;
   fieldErrors: (key: string) => string[];
   formId: string;
   formSummaryErrors: string[];
   isDirty: boolean;
   isSaving: boolean;
+  semanticEditsSafe: boolean;
   state: EditorTripState;
 }>();
 
 defineEmits<{
   clearError: [key: string];
   save: [];
+  semanticEditsUnsafe: [];
 }>();
 
 const notesEditor = ref<{ focusEditor: () => void } | null>(null);
@@ -59,7 +62,7 @@ function orderedPlaceIds(regionId: Guid): Guid[] {
 
     <label class="trip-editor-field">
       <span>From place</span>
-      <select v-model="draft.fromPlaceId" data-segment-field="fromPlaceId" @change="$emit('clearError', 'fromPlaceId')">
+      <select v-model="draft.fromPlaceId" data-segment-field="fromPlaceId" @change="$emit('clearError', 'fromPlaceId'); $emit('semanticEditsUnsafe')">
         <option :value="null">Unlinked</option>
         <optgroup v-for="region in normalRegions" :key="region.id" :label="region.name">
           <option v-for="placeId in orderedPlaceIds(region.id)" :key="placeId" :value="placeId">{{ state.placesById[placeId]?.name }}</option>
@@ -68,11 +71,11 @@ function orderedPlaceIds(regionId: Guid): Guid[] {
       <small v-for="message in fieldErrors('fromPlaceId')" :key="message">{{ message }}</small>
     </label>
 
-    <SegmentWaypointEditor :draft="draft" :field-errors="fieldErrors" :is-saving="isSaving" :state="state" @clear-error="$emit('clearError', $event)" />
+    <SegmentWaypointEditor :baseline-draft="baselineDraft" :draft="draft" :field-errors="fieldErrors" :is-saving="isSaving" :semantic-edits-safe="semanticEditsSafe" :state="state" @clear-error="$emit('clearError', $event)" @semantic-edits-unsafe="$emit('semanticEditsUnsafe')" />
 
     <label class="trip-editor-field">
       <span>To place</span>
-      <select v-model="draft.toPlaceId" data-segment-field="toPlaceId" @change="$emit('clearError', 'toPlaceId')">
+      <select v-model="draft.toPlaceId" data-segment-field="toPlaceId" @change="$emit('clearError', 'toPlaceId'); $emit('semanticEditsUnsafe')">
         <option :value="null">Unlinked</option>
         <optgroup v-for="region in normalRegions" :key="region.id" :label="region.name">
           <option v-for="placeId in orderedPlaceIds(region.id)" :key="placeId" :value="placeId">{{ state.placesById[placeId]?.name }}</option>

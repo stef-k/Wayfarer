@@ -455,7 +455,11 @@ public sealed partial class TripEditorSegmentMutationService
         var pureRemoval = current.FromPlaceId == proposed.FromPlaceId && current.ToPlaceId == proposed.ToPlaceId
             && proposed.WaypointPlaceIds.Count < currentIds.Length
             && IsOrderPreservingSubsequence(proposed.WaypointPlaceIds, currentIds);
-        return !pureRemoval && (current.FromPlaceId != proposed.FromPlaceId || current.ToPlaceId != proposed.ToPlaceId
+        var completePreservedAddition = current.FromPlaceId == proposed.FromPlaceId && current.ToPlaceId == proposed.ToPlaceId
+            && proposed.Route != null && proposed.WaypointRouteVertexIndices.All(index => index.HasValue)
+            && proposed.WaypointPlaceIds.Count == currentIds.Length + 1
+            && IsOrderPreservingSubsequence(currentIds, proposed.WaypointPlaceIds);
+        return !pureRemoval && !completePreservedAddition && (current.FromPlaceId != proposed.FromPlaceId || current.ToPlaceId != proposed.ToPlaceId
             || !currentIds.SequenceEqual(proposed.WaypointPlaceIds));
     }
 
