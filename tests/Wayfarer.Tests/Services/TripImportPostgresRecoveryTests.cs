@@ -106,7 +106,11 @@ public sealed class TripImportPostgresRecoveryTests(PostgresImportTestFixture fi
 
     private static MemoryStream ToStream(string kml) => new(Encoding.UTF8.GetBytes(kml));
 
-    private static string CreateKml(Guid id, string tags) => $@"<kml xmlns=""http://www.opengis.net/kml/2.2""><Document><name>Trip</name><ExtendedData><Data name=""TripId""><value>{id}</value></Data><Data name=""Tags""><value>{tags}</value></Data></ExtendedData></Document></kml>";
+    /// <summary>Creates a tag-only versionless-v1 fixture with a native region identity.</summary>
+    private static string CreateKml(Guid id, string tags) => $@"<kml xmlns=""http://www.opengis.net/kml/2.2""><Document><name>Trip</name><ExtendedData>
+<Data name=""TripId""><value>{id}</value></Data><Data name=""Tags""><value>{tags}</value></Data></ExtendedData>
+<Folder><name>Imported Region</name><ExtendedData><Data name=""RegionId""><value>{Guid.NewGuid()}</value></Data></ExtendedData></Folder>
+</Document></kml>";
 
     /// <summary>Identifies the key which PostgreSQL rejects before recovery sees a repaired winner.</summary>
     public enum ConflictKey { Slug, Name }

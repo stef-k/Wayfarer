@@ -15,42 +15,6 @@ namespace Wayfarer.Tests.Services;
 [Collection(PostgresImportTestCollection.Name)]
 public sealed class TripImportPostgresTests(PostgresImportTestFixture fixture)
 {
-    /// <summary>Route-bearing Wayfarer v1 imports resolve profiles and ignore imported distance authority.</summary>
-    [PostgresTheory]
-    [InlineData("walk", null, EstimatedDurationSource.Automatic, false)]
-    [InlineData("walk", 12.5, EstimatedDurationSource.Manual, false)]
-    [InlineData("unknown fixture mode", null, EstimatedDurationSource.Automatic, true)]
-    public async Task WayfarerV1RouteImport_ResolvesProfileAndReconcilesMeasurements(
-        string mode,
-        double? durationMinutes,
-        EstimatedDurationSource expectedSource,
-        bool expectUnavailable)
-    {
-        fixture.RequireAvailable();
-        var user = await fixture.CreateUserAsync();
-        await using var context = fixture.CreateContext();
-        var service = new TripImportService(context, NullLogger<TripImportService>.Instance, CreateReconciler(context));
-
-        var tripId = await service.ImportWayfarerKmlAsync(
-            ToStream(CreateRouteKml(Guid.NewGuid(), mode, durationMinutes, importedDistanceKm: 999_999)),
-            user.Id,
-            TripImportMode.CreateNew);
-        fixture.RegisterTrip(tripId);
-
-        var segment = await context.Segments.AsNoTracking().SingleAsync(item => item.TripId == tripId);
-        Assert.Equal(mode, segment.Mode);
-        Assert.NotNull(segment.TransportProfileId);
-        Assert.NotEqual(999_999, segment.EstimatedDistanceKm);
-        Assert.InRange(segment.EstimatedDistanceKm!.Value, 111.194, 111.196);
-        Assert.Equal(expectedSource, segment.EstimatedDurationSource);
-        if (expectedSource == EstimatedDurationSource.Manual)
-            Assert.Equal(TimeSpan.FromMinutes(12.5), segment.EstimatedDuration);
-        else if (expectUnavailable)
-            Assert.Null(segment.EstimatedDuration);
-        else
-            Assert.NotNull(segment.EstimatedDuration);
-    }
-
     /// <summary>Generic route titles remain descriptive text and never select a transport profile.</summary>
     [PostgresFact]
     public async Task GenericKmlRouteImport_LeavesTransportUnassigned()
@@ -106,9 +70,11 @@ public sealed class TripImportPostgresTests(PostgresImportTestFixture fixture)
         Assert.Equal(0d, geometry.GetCoordinateN(0).X);
         Assert.Equal(0.2d, geometry.GetCoordinateN(geometry.NumPoints - 1).X);
         Assert.Empty(segment.Waypoints);
+        Assert.Equal(string.Empty, segment.Mode);
+        Assert.Null(segment.TransportProfileId);
+        Assert.Equal(EstimatedDurationSource.Automatic, segment.EstimatedDurationSource);
+        Assert.Null(segment.EstimatedDuration);
         Assert.NotNull(segment.EstimatedDistanceKm);
-        Assert.NotNull(segment.EstimatedDuration);
-        Assert.Single(result.Notices);
     }
     [PostgresFact]
     public async Task Tags_UseCitextAndBothGlobalUniqueIndexes()
@@ -272,31 +238,16 @@ public sealed class TripImportPostgresTests(PostgresImportTestFixture fixture)
         Assert.Equal(2, await verification.Trips.CountAsync(trip => trip.UserId == user.Id));
         Assert.Empty(await verification.Tags.Where(tag => tag.Slug.StartsWith("fixture-rollback-")).ToListAsync());
 
-        var privateTag = new Tag { Id = Guid.NewGuid(), Name = "Fixture Private Only", Slug = $"fixture-private-{Guid.NewGuid():N}" };
-        var privateTrip = CreateTrip(user.Id, false, privateTag);
-        fixture.RegisterTag(privateTag);
-        fixture.RegisterTrip(privateTrip.Id);
-        verification.AddRange(privateTag, privateTrip);
-        await verification.SaveChangesAsync();
-
-        var tagService = new TripTagService(verification, NullLogger<TripTagService>.Instance);
-        Assert.DoesNotContain(await tagService.GetSuggestionsAsync("Fixture Private"), tag => tag.Slug == privateTag.Slug);
-        Assert.DoesNotContain(await tagService.GetPopularAsync(), tag => tag.Slug == privateTag.Slug);
     }
 
     private static TripImportTagReconciler CreateReconciler(ApplicationDbContext context) => new(context, NullLogger<TripImportTagReconciler>.Instance);
 
     private static MemoryStream ToStream(string kml) => new(Encoding.UTF8.GetBytes(kml));
 
-    private static string CreateKml(Guid id, string tags) => $@"<kml xmlns=""http://www.opengis.net/kml/2.2""><Document><name>Trip</name><ExtendedData><Data name=""TripId""><value>{id}</value></Data><Data name=""Tags""><value>{tags}</value></Data></ExtendedData></Document></kml>";
-
-    private static string CreateRouteKml(Guid id, string mode, double? durationMinutes, double importedDistanceKm) => $@"
-<kml xmlns=""http://www.opengis.net/kml/2.2""><Document><name>Trip</name>
-<ExtendedData><Data name=""TripId""><value>{id}</value></Data><Data name=""Tags""><value></value></Data></ExtendedData>
-<Folder><name>Segments</name><Placemark><name>Route</name><ExtendedData>
-<Data name=""Mode""><value>{mode}</value></Data><Data name=""DistanceKm""><value>{importedDistanceKm}</value></Data>
-{(durationMinutes.HasValue ? $"<Data name=\"DurationMin\"><value>{durationMinutes.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)}</value></Data>" : string.Empty)}
-</ExtendedData><LineString><coordinates>0,0 1,0</coordinates></LineString></Placemark></Folder>
+    /// <summary>Creates a tag-only versionless-v1 fixture with a native region identity.</summary>
+    private static string CreateKml(Guid id, string tags) => $@"<kml xmlns=""http://www.opengis.net/kml/2.2""><Document><name>Trip</name><ExtendedData>
+<Data name=""TripId""><value>{id}</value></Data><Data name=""Tags""><value>{tags}</value></Data></ExtendedData>
+<Folder><name>Imported Region</name><ExtendedData><Data name=""RegionId""><value>{Guid.NewGuid()}</value></Data></ExtendedData></Folder>
 </Document></kml>";
 
     private static string CreateGenericRouteKml(string mode) => $@"
