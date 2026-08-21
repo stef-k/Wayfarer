@@ -221,6 +221,35 @@ test('combines all no-clear viewer badges into one meaningful fallback pill', as
   assert.match(markers[0].icon.className, /segment-route-badge-fallback/);
 });
 
+/** Proves Viewer badge hover escapes each complete line and preserves non-keyboard ownership. */
+test('binds escaped rich tooltips to pointer-only viewer badges in Segment order', async () => {
+  const markers = [];
+  prepareLeaflet();
+  globalThis.L.marker = (_position, options) => {
+    const marker = presentationLayer({ complete: true, naturalWidth: 24, decode: () => Promise.resolve() })();
+    marker.bindTooltip = (content, tooltipOptions) => {
+      marker.tooltip = { content, options: tooltipOptions };
+      return marker;
+    };
+    markers.push({ marker, options });
+    return marker;
+  };
+  const { createViewerSegmentBadgeRenderer } = await import(`../../wwwroot/js/Trip/viewerSegmentBadgeRenderer.js?tooltips=${Date.now()}`);
+  const renderer = createViewerSegmentBadgeRenderer(presentationMap());
+
+  renderer.render([{
+    label: 'A/C', location: [0, 0],
+    descriptions: ['A — Start — <Ella>', 'C — End — Ella & Co']
+  }]);
+  await renderer.waitForCurrent();
+
+  assert.equal(markers[0].marker.tooltip.content, 'A — Start — &lt;Ella&gt;<br>C — End — Ella &amp; Co');
+  assert.deepEqual(markers[0].marker.tooltip.options, { className: 'trip-rich-tooltip' });
+  assert.equal(markers[0].options.interactive, true);
+  assert.equal(markers[0].options.keyboard, false);
+  assert.equal(markers[0].marker.clickHandler, undefined);
+});
+
 /** Proves clear badges stay separate while only blocked labels combine and replacement remains bounded. */
 test('preserves clear viewer badges and replaces only the blocked group', async () => {
   const labels = [];
