@@ -93,11 +93,11 @@
   z-index: 2;
 }
 
-/* Route roles use an independent pointer-transparent channel beside canonical Place markers. */
+/* Route roles accept hover only within the painted badge bounds beside canonical Place markers. */
 .segment-route-badge-wrapper {
   background: transparent;
   border: 0;
-  pointer-events: none;
+  pointer-events: auto;
 }
 
 .segment-route-badge {

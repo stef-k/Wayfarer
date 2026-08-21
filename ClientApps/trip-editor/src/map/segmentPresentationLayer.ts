@@ -28,7 +28,6 @@ export const createSegmentPresentationLayer = (
   const pane = map.getPane('segment-route-role');
   if (pane) {
     pane.style.zIndex = '590';
-    pane.style.pointerEvents = 'none';
     pane.setAttribute('aria-hidden', 'true');
   }
 
@@ -56,7 +55,7 @@ export const createSegmentPresentationLayer = (
       .on('click', () => void onSelected(presentation.key))
       .bindTooltip(presentation.directionTrustworthy
         ? presentation.anchors.anchors.map(anchor => `${anchor.label} — ${anchor.roleText} — ${anchor.displayName}`).join('<br>')
-        : 'Route direction unavailable')
+        : 'Route direction unavailable', { className: 'trip-rich-tooltip' })
       .addTo(group);
     const chevrons = presentation.directionTrustworthy ? renderChevrons(presentation, active, group) : [];
     const lineElement = line.getElement();
@@ -98,7 +97,7 @@ export const createSegmentPresentationLayer = (
       }
       placedBounds.push({ left: placement.left, top: placement.top,
         right: placement.left + placement.width, bottom: placement.top + placement.height });
-      renderBadgeMarker(badge.location, badge.label, anchor, placement);
+      renderBadgeMarker(badge.location, badge.label, badge.descriptions, anchor, placement);
     });
     if (blocked.length) {
       const labels = blocked.map(item => item.badge.label);
@@ -106,20 +105,21 @@ export const createSegmentPresentationLayer = (
       const label = labels.join('/');
       const placement = placeCombinedRouteBadge(blocked.map(item => [item.anchor.x, item.anchor.y]),
         layout, mapBounds, controlBounds, placedBounds);
-      renderBadgeMarker(blocked[0].badge.location, label, blocked[0].anchor, placement, layout);
+      renderBadgeMarker(blocked[0].badge.location, label, blocked.flatMap(item => item.badge.descriptions),
+        blocked[0].anchor, placement, layout);
     }
   };
 
-  /** Adds one pointer-transparent route-role badge without changing its canonical Place marker. */
-  const renderBadgeMarker = (location: readonly [number, number], label: string, anchor: L.Point,
+  /** Adds one pointer-only route-role badge without changing its canonical Place marker. */
+  const renderBadgeMarker = (location: readonly [number, number], label: string, descriptions: readonly string[], anchor: L.Point,
     placement: ReturnType<typeof placeRouteBadge>, layout?: CombinedRouteBadgeLayout): void => {
       L.marker([location[1], location[0]], {
         pane: 'segment-route-role',
-        interactive: false,
+        interactive: true,
         keyboard: false,
         alt: '',
         icon: routeBadgeIcon(label, placement.left - anchor.x, placement.top - anchor.y, placement.fallback, layout)
-      }).addTo(badgeGroup);
+      }).bindTooltip(descriptions.map(escapeHtml).join('<br>'), { className: 'trip-rich-tooltip' }).addTo(badgeGroup);
   };
 
   const rerenderForMovement = (): void => render(currentPresentations, currentActiveKey);

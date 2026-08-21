@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import {
   alphabeticAnchorLabel,
@@ -75,6 +76,52 @@ test('combines closed-loop badge labels without duplicating the canonical Place'
     routeVertexIndex: index
   }));
   assert.equal(classifySegmentOrientation(located, [[10, 20], [11, 21], [10, 20]], true), 'forward');
+});
+
+/** Proves both transient resolvers retain complete ordered descriptions for badge hover. */
+test('retains complete ordered anchor descriptions in editor and viewer badges', async () => {
+  const viewer = await import(`../../wwwroot/js/Trip/segmentPresentation.js?descriptions=${Date.now()}`);
+  const inputs = [
+    anchor(0, 'ella', 'Ella', 'start'),
+    anchor(1, 'sri-pada', 'Sri Pada', 'via'),
+    anchor(2, 'kandy', 'Kandy', 'end')
+  ];
+  const viewerInputs = inputs.map(item => ({ ...item, longitude: item.location[0], latitude: item.location[1] }));
+  const expected = [
+    ['A — Start — Ella'],
+    ['B — Via 1 — Sri Pada'],
+    ['C — End — Kandy']
+  ];
+
+  assert.deepEqual(resolveSegmentAnchors(inputs).badges.map(item => item.descriptions), expected);
+  assert.deepEqual(viewer.resolveViewerAnchors(viewerInputs).badges.map(item => item.descriptions), expected);
+});
+
+/** Proves a reused Place keeps its combined label and every description in Segment order. */
+test('retains both ordered descriptions for a reused same-Place badge', async () => {
+  const viewer = await import(`../../wwwroot/js/Trip/segmentPresentation.js?samePlaceDescriptions=${Date.now()}`);
+  const inputs = [
+    anchor(0, 'ella', 'Ella', 'start'),
+    anchor(1, 'kandy', 'Kandy', 'via'),
+    anchor(2, 'ella', 'Ella', 'end')
+  ];
+  const viewerInputs = inputs.map(item => ({ ...item, longitude: item.location[0], latitude: item.location[1] }));
+  const expected = { label: 'A/C', descriptions: ['A — Start — Ella', 'C — End — Ella'] };
+
+  assert.deepEqual(resolveSegmentAnchors(inputs).badges[0], { placeId: 'ella', location: [10, 20], ...expected });
+  assert.deepEqual(viewer.resolveViewerAnchors(viewerInputs).badges[0], { placeId: 'ella', location: [10, 20], ...expected });
+});
+
+/** Pins the Editor's existing Leaflet route and badge tooltip boundary without a second Leaflet harness. */
+test('binds editor Segment and badge tooltips to the shared rich theme without keyboard badges', async () => {
+  const source = await readFile('ClientApps/trip-editor/src/map/segmentPresentationLayer.ts', 'utf8');
+  const css = await readFile('ClientApps/trip-editor/src/map.css', 'utf8');
+
+  assert.match(source, /\.bindTooltip\([^]*className:\s*'trip-rich-tooltip'/);
+  assert.match(source, /descriptions\.map\(escapeHtml\)\.join\('<br>'\)/);
+  assert.match(source, /interactive:\s*true,[^]*keyboard:\s*false/);
+  assert.doesNotMatch(source, /marker[^;]*\.on\(['"]click/);
+  assert.match(css, /\.segment-route-badge-wrapper\s*{[^}]*pointer-events:\s*auto/);
 });
 
 /** Proves classification is deterministic and never mutates legacy geometry. */

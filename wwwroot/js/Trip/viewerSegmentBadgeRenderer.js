@@ -40,7 +40,8 @@ export const createViewerSegmentBadgeRenderer = map => {
             const raster = routeBadgeDataUrl(label, layout);
             const anchors = blocked.map(item => [item.anchor.x, item.anchor.y]);
             const placement = placeCombinedRouteBadge(anchors, layout, mapBounds, controlBounds, placedBounds);
-            images.push(renderMarker({...blocked[0].badge, label}, blocked[0].anchor, raster, placement));
+            const descriptions = blocked.flatMap(item => item.badge.descriptions);
+            images.push(renderMarker({...blocked[0].badge, label, descriptions}, blocked[0].anchor, raster, placement));
         }
         readiness = Promise.all(images).then(() => ({ok: true}), error => ({ok: false, error}));
         return renderGeneration;
@@ -52,7 +53,9 @@ export const createViewerSegmentBadgeRenderer = map => {
             icon: L.icon({iconUrl: raster.url, iconSize: [raster.width, raster.height],
                 iconAnchor: [anchor.x - placement.left, anchor.y - placement.top],
                 className: placement.fallback ? 'segment-route-badge-fallback' : ''}),
-            interactive: false, keyboard: false, alt: ''
+            interactive: true, keyboard: false, alt: ''
+        }).bindTooltip(badge.descriptions.map(escapeHtml).join('<br>'), {
+            className: 'trip-rich-tooltip'
         }).addTo(layer);
         return waitForDecodedImage(marker.getElement?.());
     };
@@ -75,6 +78,11 @@ export const createViewerSegmentBadgeRenderer = map => {
         waitForCurrent
     };
 };
+
+/** Escapes one complete description at the final Leaflet HTML boundary. */
+const escapeHtml = value => value.replace(/[&<>"']/g, character => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
+})[character]);
 
 /** Uses decode when supported and an explicit complete/load fallback otherwise. */
 const waitForDecodedImage = image => {

@@ -178,6 +178,7 @@ test('places viewer route badges with deterministic collision avoidance', async 
 test('combines all no-clear viewer badges into one meaningful fallback pill', async () => {
   const labels = [];
   const markers = [];
+  const tooltips = [];
   prepareLeaflet();
   globalThis.document.createElement = () => ({
     width: 0, height: 0, getContext: () => ({
@@ -188,6 +189,10 @@ test('combines all no-clear viewer badges into one meaningful fallback pill', as
   });
   globalThis.L.marker = (_position, options) => {
     const marker = presentationLayer({ complete: true, naturalWidth: 24, decode: () => Promise.resolve() })();
+    marker.bindTooltip = (content, tooltipOptions) => {
+      tooltips.push({ content, options: tooltipOptions });
+      return marker;
+    };
     markers.push(options);
     return marker;
   };
@@ -201,7 +206,7 @@ test('combines all no-clear viewer badges into one meaningful fallback pill', as
   });
   const renderer = createViewerSegmentBadgeRenderer(map);
 
-  renderer.render([{ label: 'A', location: [0, 0] }]);
+  renderer.render([{ label: 'A', location: [0, 0], descriptions: ['A — Start — Alpha'] }]);
   await renderer.waitForCurrent();
   assert.equal(renderer.count(), 1);
   assert.deepEqual(labels, ['A']);
@@ -209,9 +214,9 @@ test('combines all no-clear viewer badges into one meaningful fallback pill', as
   markers.length = 0;
 
   renderer.render([
-    { label: 'A', location: [0, 0] },
-    { label: 'B', location: [1, 0] },
-    { label: 'C', location: [2, 0] }
+    { label: 'A', location: [0, 0], descriptions: ['A — Start — Alpha'] },
+    { label: 'B', location: [1, 0], descriptions: ['B — Via 1 — Beta'] },
+    { label: 'C', location: [2, 0], descriptions: ['C — End — Gamma'] }
   ]);
   await renderer.waitForCurrent();
 
@@ -219,6 +224,39 @@ test('combines all no-clear viewer badges into one meaningful fallback pill', as
   assert.deepEqual(labels, ['A/B/C']);
   assert.equal(markers.length, 1);
   assert.match(markers[0].icon.className, /segment-route-badge-fallback/);
+  assert.deepEqual(tooltips.at(-1), {
+    content: 'A — Start — Alpha<br>B — Via 1 — Beta<br>C — End — Gamma',
+    options: { className: 'trip-rich-tooltip' }
+  });
+});
+
+/** Proves Viewer badge hover escapes each complete line and preserves non-keyboard ownership. */
+test('binds escaped rich tooltips to pointer-only viewer badges in Segment order', async () => {
+  const markers = [];
+  prepareLeaflet();
+  globalThis.L.marker = (_position, options) => {
+    const marker = presentationLayer({ complete: true, naturalWidth: 24, decode: () => Promise.resolve() })();
+    marker.bindTooltip = (content, tooltipOptions) => {
+      marker.tooltip = { content, options: tooltipOptions };
+      return marker;
+    };
+    markers.push({ marker, options });
+    return marker;
+  };
+  const { createViewerSegmentBadgeRenderer } = await import(`../../wwwroot/js/Trip/viewerSegmentBadgeRenderer.js?tooltips=${Date.now()}`);
+  const renderer = createViewerSegmentBadgeRenderer(presentationMap());
+
+  renderer.render([{
+    label: 'A/C', location: [0, 0],
+    descriptions: ['A — Start — <Ella>', 'C — End — Ella & Co']
+  }]);
+  await renderer.waitForCurrent();
+
+  assert.equal(markers[0].marker.tooltip.content, 'A — Start — &lt;Ella&gt;<br>C — End — Ella &amp; Co');
+  assert.deepEqual(markers[0].marker.tooltip.options, { className: 'trip-rich-tooltip' });
+  assert.equal(markers[0].options.interactive, true);
+  assert.equal(markers[0].options.keyboard, false);
+  assert.equal(markers[0].marker.clickHandler, undefined);
 });
 
 /** Proves clear badges stay separate while only blocked labels combine and replacement remains bounded. */
@@ -242,9 +280,9 @@ test('preserves clear viewer badges and replaces only the blocked group', async 
   });
   const renderer = createViewerSegmentBadgeRenderer(map);
   const badges = [
-    { label: 'A/C', location: [0, 0] },
-    { label: 'B', location: [10, 0] },
-    { label: 'D', location: [20, 0] }
+    { label: 'A/C', location: [0, 0], descriptions: ['A — Start — Alpha', 'C — End — Alpha'] },
+    { label: 'B', location: [10, 0], descriptions: ['B — Via 1 — Beta'] },
+    { label: 'D', location: [20, 0], descriptions: ['D — End — Delta'] }
   ];
 
   renderer.render(badges);
