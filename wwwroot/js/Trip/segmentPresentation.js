@@ -25,8 +25,13 @@ export const resolveViewerAnchors = inputs => {
     anchors.forEach(anchor => {
         if (!anchor.placeId || !anchor.location) return;
         const existing = badges.get(anchor.placeId);
-        if (existing) existing.label += `/${anchor.label}`;
-        else badges.set(anchor.placeId, { placeId: anchor.placeId, label: anchor.label, location: anchor.location });
+        const description = `${anchor.label} — ${anchor.roleText} — ${anchor.name}`;
+        if (existing) {
+            existing.label += `/${anchor.label}`;
+            existing.descriptions.push(description);
+        } else badges.set(anchor.placeId, {
+            placeId: anchor.placeId, label: anchor.label, location: anchor.location, descriptions: [description]
+        });
     });
     return {
         anchors,

@@ -23,6 +23,7 @@ export type ResolvedSegmentBadge = {
   placeId: string;
   location: readonly [number, number];
   label: string;
+  descriptions: string[];
 };
 
 export type ResolvedSegmentAnchors = {
@@ -194,11 +195,15 @@ export function resolveSegmentAnchors(inputs: readonly SegmentAnchorInput[]): Re
   anchors.forEach(anchor => {
     if (!anchor.placeId || !anchor.location) return;
     const existing = badgeByPlace.get(anchor.placeId);
+    const description = `${anchor.label} — ${anchor.roleText} — ${anchor.displayName}`;
     if (existing) {
       existing.label = `${existing.label}/${anchor.label}`;
+      existing.descriptions.push(description);
       return;
     }
-    badgeByPlace.set(anchor.placeId, { placeId: anchor.placeId, location: anchor.location, label: anchor.label });
+    badgeByPlace.set(anchor.placeId, {
+      placeId: anchor.placeId, location: anchor.location, label: anchor.label, descriptions: [description]
+    });
   });
 
   const compactTrail = anchors.map(anchor => `${anchor.label} ${anchor.displayName}`).join(' → ');

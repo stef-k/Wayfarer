@@ -115,11 +115,13 @@ test('retains both ordered descriptions for a reused same-Place badge', async ()
 /** Pins the Editor's existing Leaflet route and badge tooltip boundary without a second Leaflet harness. */
 test('binds editor Segment and badge tooltips to the shared rich theme without keyboard badges', async () => {
   const source = await readFile('ClientApps/trip-editor/src/map/segmentPresentationLayer.ts', 'utf8');
+  const css = await readFile('ClientApps/trip-editor/src/map.css', 'utf8');
 
   assert.match(source, /\.bindTooltip\([^]*className:\s*'trip-rich-tooltip'/);
   assert.match(source, /descriptions\.map\(escapeHtml\)\.join\('<br>'\)/);
   assert.match(source, /interactive:\s*true,[^]*keyboard:\s*false/);
   assert.doesNotMatch(source, /marker[^;]*\.on\(['"]click/);
+  assert.match(css, /\.segment-route-badge-wrapper\s*{[^}]*pointer-events:\s*auto/);
 });
 
 /** Proves classification is deterministic and never mutates legacy geometry. */
