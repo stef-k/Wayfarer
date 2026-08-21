@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## [1.9.1] - 2026-08-21
+
+### Changed
+- Aligned the opt-in PostgreSQL KML import fixtures with the v1.9 generic/native classification contract while retaining focused rollback, upsert, conflict, concurrency, and recovery protection (#487, #491).
+
+### Fixed
+- Added themed hover tooltips to active Segment route badges so A/B/C anchors identify their Start/Via/End role and Place name consistently in the Trip Editor and Viewer (#489, #490).
+
 ## [1.9.0] - 2026-08-20
 
 ### Added
