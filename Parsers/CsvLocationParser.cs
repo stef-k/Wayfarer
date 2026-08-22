@@ -81,6 +81,7 @@ public sealed class CsvLocationParser : ILocationDataParser
             var osVersion = GetField(csv, "OsVersion");
             var batteryLevel = GetNullableInt(csv, "BatteryLevel");
             var isCharging = GetNullableBool(csv, "IsCharging");
+            var idempotencyKey = ParseOptionalGuid(GetField(csv, "IdempotencyKey"));
 
             var location = new Location
             {
@@ -114,7 +115,8 @@ public sealed class CsvLocationParser : ILocationDataParser
                 DeviceModel = deviceModel,
                 OsVersion = osVersion,
                 BatteryLevel = batteryLevel,
-                IsCharging = isCharging
+                IsCharging = isCharging,
+                IdempotencyKey = idempotencyKey
             };
 
             locations.Add(location);
@@ -127,6 +129,11 @@ public sealed class CsvLocationParser : ILocationDataParser
     private static string? GetField(CsvReader csv, string field)
     {
         return csv.TryGetField(field, out string? value) ? value : null;
+    }
+
+    private static Guid? ParseOptionalGuid(string? value)
+    {
+        return Guid.TryParse(value, out var key) ? key : null;
     }
 
     private static double? GetNullableDouble(CsvReader csv, string field)

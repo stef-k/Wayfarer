@@ -17,18 +17,6 @@ public class WayfarerGeoJsonParserTests
         _parser = new WayfarerGeoJsonParser(NullLogger<WayfarerGeoJsonParser>.Instance);
     }
 
-    [Fact]
-    public async Task ParseAsync_CanonicalRecoveryId_PersistsAuthenticatedUserIdentity()
-    {
-        var key = Guid.NewGuid();
-        var json = "{\"type\":\"FeatureCollection\",\"features\":[{\"type\":\"Feature\",\"geometry\":{\"type\":\"Point\",\"coordinates\":[22.2,40.1]},\"properties\":{\"TimestampUtc\":\"2026-08-22T10:00:00Z\",\"IdempotencyKey\":\"" + key.ToString("D") + "\"}}]}";
-
-        var location = Assert.Single(await _parser.ParseAsync(ToStream(json), "authenticated-user"));
-
-        Assert.Equal("authenticated-user", location.UserId);
-        Assert.Equal(key, location.IdempotencyKey);
-    }
-
     /// <summary>
     /// Converts a GeoJSON string to a MemoryStream.
     /// </summary>

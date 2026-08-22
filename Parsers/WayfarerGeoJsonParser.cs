@@ -113,6 +113,9 @@ namespace Wayfarer.Parsers
                 var osVersion = getString("OsVersion");
                 var batteryLevel = getInt("BatteryLevel");
                 var isCharging = getBool("IsCharging");
+                var idempotencyKey = Guid.TryParse(getString("IdempotencyKey"), out var parsedKey)
+                    ? parsedKey
+                    : (Guid?)null;
 
                 // 4) Construct domain object with explicit SRID
                 var loc = new Location
@@ -146,6 +149,7 @@ namespace Wayfarer.Parsers
                     OsVersion = osVersion,
                     BatteryLevel = batteryLevel,
                     IsCharging = isCharging,
+                    IdempotencyKey = idempotencyKey,
 
                     // Activity mapping handled by LocationImportService
                     ActivityType = null!,
