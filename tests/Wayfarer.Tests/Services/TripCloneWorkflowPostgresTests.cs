@@ -121,6 +121,7 @@ public sealed class TripCloneWorkflowPostgresTests(PostgresImportTestFixture fix
         region.Places = [a, b, c];
         trip.Segments.Add(segment);
         trip.Tags.Add(tag);
+        context.Attach(apiUser);
         context.ApiTokens.Add(new ApiToken { Token = "clone-token", Name = "clone", UserId = apiUser.Id, User = apiUser });
         context.AddRange(trip, profile);
         await context.SaveChangesAsync();
