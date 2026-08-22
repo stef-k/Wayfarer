@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## [1.9.2] - 2026-08-22
+
+### Changed
+- Added authenticated per-user idempotency-key handling to CSV and Wayfarer GeoJSON location imports so mobile offline-queue recovery imports and normal location delivery converge on one server record while retaining legacy keyless import behavior (#244, #494).
+
 ## [1.9.1] - 2026-08-21
 
 ### Changed
