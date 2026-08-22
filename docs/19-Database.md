@@ -1,5 +1,9 @@
 # Database
 
+## Location recovery identity
+
+Locations are unique by authenticated `(UserId, IdempotencyKey)`, so the same GUID remains independent across users and concurrent import/drain paths reuse one winner. Keyless legacy data retains timestamp/coordinate compatibility. Counts and proximity are never authority to delete a mobile queue.
+
 ORM & Provider
 - EF Core with Npgsql provider and NetTopologySuite for spatial types.
 - PostGIS is required (e.g., `geography(Point, 4326)` for `Location.Coordinates`).

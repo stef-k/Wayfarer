@@ -1,5 +1,9 @@
 # Architecture
 
+## Recovery import convergence
+
+Bulk import and normal mobile drain share authenticated per-user GUID identity. Either may arrive first; the second reuses the stored location. Legacy keyless imports retain timestamp/coordinate compatibility. Partial batches converge record by record, but counts and proximity never authorize mobile queue deletion. Direct queue restoration is excluded: server import restores Wayfarer history, not client delivery state.
+
 Overview of Wayfarer's technical architecture, design patterns, and application structure.
 
 ---
