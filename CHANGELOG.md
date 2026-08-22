@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## [1.9.3] - 2026-08-22
+
+### Fixed
+- Corrected the guarded PostgreSQL clone-workflow fixture to reuse its persisted API user instead of attempting a duplicate identity insertion, restoring deterministic relational release validation (#495, #497).
+
 ## [1.9.2] - 2026-08-22
 
 ### Changed
