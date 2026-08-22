@@ -17,6 +17,18 @@ public class CsvLocationParserTests
         _parser = new CsvLocationParser(NullLogger<CsvLocationParser>.Instance);
     }
 
+    [Fact]
+    public async Task ParseAsync_CanonicalRecoveryId_PersistsAuthenticatedUserIdentity()
+    {
+        var key = Guid.NewGuid();
+        var csv = $"Latitude,Longitude,TimestampUtc,IdempotencyKey\r\n40.1,22.2,2026-08-22T10:00:00Z,{key:D}";
+
+        var location = Assert.Single(await _parser.ParseAsync(CreateStream(csv), "authenticated-user"));
+
+        Assert.Equal("authenticated-user", location.UserId);
+        Assert.Equal(key, location.IdempotencyKey);
+    }
+
     /// <summary>
     /// Creates a memory stream from a CSV string for testing.
     /// </summary>

@@ -1,5 +1,9 @@
 # Services, Parsers & Jobs
 
+## Location recovery convergence
+
+`LocationImportService` and normal mobile upload converge through authenticated per-user `IdempotencyKey` uniqueness. The first stores the location; the second reuses/skips it and returns the same server identity. Legacy keyless imports retain timestamp/coordinate deduplication. Partial batches can contain stored and failed records, so review the terminal result before mobile resume. Server import changes Wayfarer history only and never restores or clears mobile queue state.
+
 This document covers the key services, file parsers, and background jobs in the Wayfarer application.
 
 ---
