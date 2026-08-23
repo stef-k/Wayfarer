@@ -362,6 +362,12 @@ static void ConfigureQuartz(WebApplicationBuilder builder)
     builder.Services.AddTransient<LocationEnrichmentJob>();
     builder.Services.AddScoped<Wayfarer.Services.LocationEnrichment.LocationEnrichmentScheduler>();
     builder.Services.AddScoped<Wayfarer.Services.LocationEnrichment.LocationEnrichmentReconciler>();
+    builder.Services.AddScoped<Wayfarer.Services.LocationEnrichment.ILocationEnrichmentBatch,
+        Wayfarer.Services.LocationProviders.GeoapifyLocationBackfillService>();
+    builder.Services.AddScoped<Wayfarer.Jobs.ILocationEnrichmentWorker,
+        Wayfarer.Services.LocationEnrichment.LocationEnrichmentWorker>();
+    builder.Services.AddScoped<Wayfarer.Services.LocationEnrichment.IWorkflowScheduleProjection,
+        Wayfarer.Services.LocationEnrichment.WorkflowScheduleProjection>();
 
     // 2) Build & start the Quartz scheduler
     builder.Services.AddSingleton<IScheduler>(sp =>

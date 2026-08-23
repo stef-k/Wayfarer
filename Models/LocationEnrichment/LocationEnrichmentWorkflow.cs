@@ -158,6 +158,22 @@ public sealed class LocationEnrichmentWorkflow
         UpdatedAtUtc = nowUtc;
     }
 
+    /// <summary>Persists the next authoritative state after one committed bounded batch.</summary>
+    public void ContinueAs(LocationEnrichmentState state, LocationEnrichmentOutcome outcome,
+        DateTime? nextEligibleAtUtc, DateTime nowUtc)
+    {
+        EnsureUtc(nowUtc);
+        if (nextEligibleAtUtc.HasValue) EnsureUtc(nextEligibleAtUtc.Value);
+        if (state is not (LocationEnrichmentState.Scheduled or LocationEnrichmentState.PausedByBudget
+            or LocationEnrichmentState.PausedByAuthority or LocationEnrichmentState.BackingOff))
+            throw new ArgumentOutOfRangeException(nameof(state));
+        State = state;
+        Outcome = outcome;
+        NextEligibleAtUtc = nextEligibleAtUtc;
+        IntentEnabled = state != LocationEnrichmentState.PausedByAuthority;
+        UpdatedAtUtc = nowUtc;
+    }
+
     private static void EnsureUtc(DateTime value)
     {
         if (value.Kind != DateTimeKind.Utc) throw new ArgumentException("Workflow timestamps must be UTC.");

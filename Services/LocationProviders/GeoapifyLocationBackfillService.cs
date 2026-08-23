@@ -1,13 +1,14 @@
 using Microsoft.EntityFrameworkCore;
 using Wayfarer.Models;
 using Wayfarer.Parsers;
+using Wayfarer.Services.LocationEnrichment;
 
 namespace Wayfarer.Services.LocationProviders;
 
 /// <summary>Runs one explicit bounded and resumable Geoapify Location enrichment invocation.</summary>
 public sealed class GeoapifyLocationBackfillService(
     ApplicationDbContext dbContext, ReverseGeocodingService reverseGeocoding,
-    IDbContextFactory<ApplicationDbContext> dbContextFactory)
+    IDbContextFactory<ApplicationDbContext> dbContextFactory) : ILocationEnrichmentBatch
 {
     /// <summary>Gets the strict maximum records scanned by one invocation.</summary>
     public const int MaximumRecords = 100;
