@@ -87,6 +87,9 @@ namespace Wayfarer.Models
                 .Property(at => at.UserId)
                 .IsRequired();
 
+            // Legacy Mapbox plaintext is migration recovery state, never a generic token/contact source.
+            builder.Entity<ApiToken>().HasQueryFilter(at => at.Name.Trim().ToLower() != "mapbox");
+
             builder.Entity<ApiToken>()
                 .Property(at => at.CreatedAt)
                 .HasDefaultValueSql("CURRENT_TIMESTAMP"); // PostgreSQL will set the current timestamp by default

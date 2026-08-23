@@ -40,9 +40,8 @@
         public bool IsHashedToken => TokenHash != null;
 
         /// <summary>
-        /// Gets a display-safe representation of the token.
-        /// Returns masked value for hashed tokens, actual value for third-party tokens.
+        /// Gets a fixed display-safe representation without redisplaying stored provider credentials.
         /// </summary>
-        public string DisplayToken => IsHashedToken ? "••••••••••••••••" : (Token ?? "");
+        public string DisplayToken => "••••••••••••••••";
     }
 }

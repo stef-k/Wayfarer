@@ -1,0 +1,44 @@
+@model Wayfarer.Areas.User.LocationProviderModels.LocationProviderSettingsViewModel
+
+<h1>Personal location providers</h1>
+<p>Credentials are protected and never displayed again or sent to WayfarerMobile. <a href="/docs/24-Personal-Location-Providers.html">Read the credential and usage guide</a>.</p>
+@if (Model.LegacyMigrationState is Wayfarer.Models.LocationProviders.LegacyMapboxMigrationState.Conflict or Wayfarer.Models.LocationProviders.LegacyMapboxMigrationState.ProtectedCredentialUnavailable)
+{ <div class="alert alert-danger">Legacy Mapbox migration needs explicit recovery. No provider contact is authorized and no stored value was removed.</div> }
+<div class="alert alert-info">Wayfarer records only its own contacts. Other applications can consume the provider account allowance; use a dedicated Wayfarer key when possible. Multiple keys may still share one provider allowance.</div>
+@foreach (var profile in Model.Profiles)
+{
+<section class="card mb-4"><div class="card-body">
+    <h2 class="h4">@profile.DisplayName</h2>
+    <p><strong>Credential:</strong> @(profile.CredentialConfigured ? profile.Mask + " (configured)" : "not configured")</p>
+    <form asp-action="SaveProfile" method="post">
+        <input name="ProviderKey" value="@profile.ProviderKey" type="hidden" />
+        <label class="form-label">Replacement credential</label><input name="ReplacementCredential" type="password" autocomplete="new-password" class="form-control" />
+        <div class="form-text">Leave blank to retain this profile's credential. Switching never deletes credentials.</div>
+        <div class="form-check mt-3"><input name="GeocodingAuthorized" value="true" type="checkbox" class="form-check-input" checked="@profile.GeocodingAuthorized" /><label class="form-check-label">Authorize geocoding (@profile.GeocodingVerification)</label></div>
+        <div class="form-check"><input name="RoutingAuthorized" value="true" type="checkbox" class="form-check-input" checked="@profile.RoutingAuthorized" /><label class="form-check-label">Authorize routing (@profile.RoutingVerification)</label></div>
+        <div class="form-check"><input name="ActiveForGeocoding" value="true" type="checkbox" class="form-check-input" checked="@(Model.ActiveGeocodingProvider == profile.ProviderKey)" /><label class="form-check-label">Active for geocoding</label></div>
+        <div class="form-check"><input name="ActiveForRouting" value="true" type="checkbox" class="form-check-input" checked="@(Model.ActiveRoutingProvider == profile.ProviderKey)" /><label class="form-check-label">Active for routing</label></div>
+        <button class="btn btn-primary mt-2" type="submit">Save profile and selection</button>
+    </form>
+    @if (profile.ProviderKey == "mapbox")
+    {
+    <p class="mt-3"><strong>Directions guard:</strong> @(profile.DirectionsGuardEnabled == true ? "enabled" : "disabled") — @profile.DirectionsUsed / @profile.DirectionsLimit contacts. Separate Wayfarer UTC calendar-month safety cycle.</p>
+    <form asp-action="SaveGuard" method="post" class="row g-2">
+        <input name="GuardKey" value="mapbox-directions" type="hidden" />
+        <div class="col-auto form-check"><input name="Enabled" value="true" type="checkbox" class="form-check-input" checked="@profile.DirectionsGuardEnabled" /><label class="form-check-label">Directions guard enabled</label></div>
+        <div class="col-auto"><input name="Limit" value="@profile.DirectionsLimit" type="number" min="0" class="form-control" aria-label="Directions limit" /></div>
+        <div class="col-auto"><button class="btn btn-outline-primary" type="submit">Save Directions guard</button></div>
+    </form>
+    }
+    <p class="mt-3"><strong>Guard:</strong> @(profile.GuardEnabled ? "enabled" : "disabled") — @profile.Used / @profile.Limit @profile.Unit. @profile.WindowExplanation. @(profile.Exhausted ? "New contacts are paused; stored data remains available." : "")</p>
+    <form asp-action="SaveGuard" method="post" class="row g-2">
+        <input name="GuardKey" value="@(profile.ProviderKey == "geoapify" ? "geoapify" : "mapbox-permanent")" type="hidden" />
+        <div class="col-auto form-check"><input name="Enabled" value="true" type="checkbox" class="form-check-input" checked="@profile.GuardEnabled" /><label class="form-check-label">Guard enabled</label></div>
+        <div class="col-auto"><input name="Limit" value="@profile.Limit" type="number" min="0" class="form-control" aria-label="Provider-native limit" /></div>
+        <div class="col-auto"><button class="btn btn-outline-primary" type="submit">Save guard</button></div>
+    </form>
+    @if (profile.CredentialConfigured)
+    { <form asp-action="Revoke" method="post" class="mt-3"><input name="providerKey" value="@profile.ProviderKey" type="hidden" /><label><input name="confirmed" value="true" type="checkbox" /> Confirm revocation</label> <button class="btn btn-danger" type="submit">Revoke</button></form> }
+</div></section>
+}
+<p>Cache and stored-result reuse costs no new credit. Exhaustion pauses new contacts without deleting source or historical data. Disabling a guard may incur paid usage. Imports and backfills share the same remaining allowance.</p>

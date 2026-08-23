@@ -99,7 +99,7 @@ public sealed class PersonalLocationProviderFoundationTests : TestBase
         Assert.Equal("legacy-key", owner.Read(profile).Credential);
         Assert.True(profile.GeocodingAuthorized);
         Assert.False(profile.RoutingAuthorized);
-        Assert.DoesNotContain(await db.ApiTokens.ToListAsync(), item => PersonalProviderKeys.IsLegacyMapbox(item.Name));
+        Assert.DoesNotContain(await db.ApiTokens.IgnoreQueryFilters().ToListAsync(), item => PersonalProviderKeys.IsLegacyMapbox(item.Name));
         Assert.Contains(await db.ApiTokens.ToListAsync(), item => item.Name == "mobile");
     }
 
@@ -118,7 +118,30 @@ public sealed class PersonalLocationProviderFoundationTests : TestBase
             new PersonalProviderCredentialService(new EphemeralDataProtectionProvider())).MigrateAsync(user.Id);
 
         Assert.Equal(LegacyMapboxMigrationState.Conflict, result.State);
-        Assert.Equal(2, await db.ApiTokens.CountAsync());
+        Assert.Equal(2, await db.ApiTokens.IgnoreQueryFilters().CountAsync());
         Assert.Null((await db.PersonalLocationProviderProfiles.SingleAsync()).ProtectedCredential);
+    }
+
+    [Fact]
+    public void PersistentKeyRing_ReadsCredentialAfterServiceRecreation()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"wayfarer-provider-keys-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(path);
+        try
+        {
+            var profile = PersonalLocationProviderProfile.Create("restart-user", PersonalLocationProvider.Geoapify);
+            var first = new PersonalProviderCredentialService(DataProtectionProvider.Create(
+                new DirectoryInfo(path), options => options.SetApplicationName("Wayfarer")));
+            first.Replace(profile, "restart-safe-key");
+
+            var recreated = new PersonalProviderCredentialService(DataProtectionProvider.Create(
+                new DirectoryInfo(path), options => options.SetApplicationName("Wayfarer")));
+
+            Assert.Equal("restart-safe-key", recreated.Read(profile).Credential);
+        }
+        finally
+        {
+            Directory.Delete(path, recursive: true);
+        }
     }
 }

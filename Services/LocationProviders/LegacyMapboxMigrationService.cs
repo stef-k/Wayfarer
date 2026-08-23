@@ -93,7 +93,7 @@ public sealed class LegacyMapboxMigrationService(
                 SELECT * FROM "ApiTokens" WHERE "UserId" = {{userId}}
                 AND lower(btrim("Name")) = 'mapbox' AND btrim(COALESCE("Token", '')) <> '' FOR UPDATE
                 """).ToListAsync(cancellationToken)
-            : await dbContext.ApiTokens.Where(item => item.UserId == userId && item.Token != null)
+            : await dbContext.ApiTokens.IgnoreQueryFilters().Where(item => item.UserId == userId && item.Token != null)
                 .ToListAsync(cancellationToken);
         return rows.Where(item => PersonalProviderKeys.IsLegacyMapbox(item.Name)
                                   && !string.IsNullOrWhiteSpace(item.Token)).ToList();

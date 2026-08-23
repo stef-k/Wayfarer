@@ -206,7 +206,7 @@
                                                         <p class="d-flex flex-wrap align-items-center justify-content-between gap-2">
                                                             <span class="text-break">
                                                                 <strong>Token:</strong> <code id="wayfarer-token"
-                                                                    class="api-token-value border p-2 rounded bg-body-tertiary user-select-all">@(token.IsHashedToken ? token.DisplayToken : token.Token)</code>
+                                                                    class="api-token-value border p-2 rounded bg-body-tertiary user-select-all">@token.DisplayToken</code>
                                                                 @if (token.IsHashedToken)
                                                                 {
                                                                     <small class="text-warning ms-2" title="Token is securely hashed. Regenerate to get a new token."><i class="bi bi-shield-lock"></i></small>
@@ -295,7 +295,7 @@
                                             <p class="mb-2"><strong>Content-Type:</strong> <code>application/json</code>
                                             </p>
                                             <p class="mb-3"><strong>Authorization:</strong>
-                                                <code>Bearer @(token.IsHashedToken ? "<your-token>" : token.Token)</code></p>
+                                                <code>Bearer &lt;your-token&gt;</code></p>
 
                                             <p class="mb-2">
                                                 <strong>Required parameters:</strong> <code>latitude, longitude,
@@ -314,7 +314,7 @@
                                                 <li>Add the following headers:</li>
                                                 <ul>
                                                     <li><code>Content-Type: application/json</code></li>
-                                                    <li><code>Authorization: Bearer @(token.IsHashedToken ? "<your-token>" : token.Token)</code></li>
+                                                    <li><code>Authorization: Bearer &lt;your-token&gt;</code></li>
                                                 </ul>
                                                 <li>Use the following JSON Template:</li>
                                             </ol>
@@ -360,7 +360,7 @@
                                     <p class="mb-1"><strong>Service:</strong> @token.Name</p>
                                     <p class="mb-1"><strong>Created At:</strong> @token.CreatedAt</p>
                                     <p class="mb-0"><strong>Token:</strong> <code
-                                            class="api-token-value border p-2 rounded bg-body-tertiary user-select-all">@(token.IsHashedToken ? token.DisplayToken : token.Token)</code></p>
+                                            class="api-token-value border p-2 rounded bg-body-tertiary user-select-all">@token.DisplayToken</code></p>
                                 </div>
                                 <div class="text-end">
                                     <!-- NO REGENERATE BUTTON - only delete -->
@@ -623,7 +623,7 @@
                 @:var newTokenFromTempData = "@Html.Raw(newToken ?? "")";
                 @:var newTokenNameFromTempData = "@Html.Raw(newTokenName ?? "")";
                 @:var isHashedToken = @(token.IsHashedToken ? "true" : "false");
-                @:var plainToken = "@Html.Raw(token.Token ?? "")";
+                @:var plainToken = "";
                 @:var serverBaseUrl = "@serverBaseUrl";
                 @:var userName = "@Model.UserName";
                 @:var serverName = "@Context.Request.Host.Host";

@@ -96,6 +96,11 @@ namespace Wayfarer.Areas.User.Controllers
                 SetAlert("User not authenticated.", "danger");
                 return RedirectToAction("Index", "Home", new { area = "" });
             }
+            if (Wayfarer.Models.LocationProviders.PersonalProviderKeys.IsLegacyMapbox(thirdPartyServiceName))
+            {
+                SetAlert("Configure Mapbox under Personal location providers; provider credentials are protected there.", "warning");
+                return RedirectToAction("Index", "LocationProviderSettings");
+            }
 
             // Check if token exists for current user before creating it
             bool exists = await _dbContext.ApiTokens.AnyAsync(t =>
