@@ -10,6 +10,23 @@ public sealed class PersonalProviderContactGate(
     ApplicationDbContext dbContext, PersonalProviderCredentialService credentials,
     LegacyMapboxMigrationService legacyMigration, IConfiguration configuration)
 {
+    /// <summary>Resolves the selected geocoding provider and admits its exact persistent product cost.</summary>
+    public async Task<PersonalProviderAdmission> AdmitPersistentGeocodingAsync(
+        string userId, CancellationToken cancellationToken = default)
+    {
+        var selection = await dbContext.Set<PersonalLocationProviderSelection>().AsNoTracking()
+            .SingleOrDefaultAsync(item => item.UserId == userId, cancellationToken);
+        var product = selection?.GeocodingProviderKey switch
+        {
+            "geoapify" => PersonalProviderProduct.Geocoding,
+            "mapbox" => PersonalProviderProduct.PermanentGeocoding,
+            _ => (PersonalProviderProduct?)null
+        };
+        return product.HasValue
+            ? await AdmitAsync(userId, PersonalProviderCapability.Geocoding, product.Value, 1, cancellationToken)
+            : PersonalProviderAdmission.Rejected(PersonalProviderAdmissionCategory.NoProviderSelected);
+    }
+
     /// <summary>Resolves current authority and durably admits the caller's validated provider-native cost.</summary>
     public async Task<PersonalProviderAdmission> AdmitAsync(
         string userId, PersonalProviderCapability capability, PersonalProviderProduct product,
