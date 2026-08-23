@@ -129,19 +129,31 @@ public sealed class GeoapifyBackfillConcurrencyPostgresTests(PostgresImportTestF
         var independent = Service(otherDb, protection, handler);
 
         var firstRun = first.RunAsync(user.Id);
-        await handler.FirstUserRequestEntered;
-        await using (var duringContact = fixture.CreateContext())
-            Assert.Equal(1, await duringContact.Set<GeoapifyUsageAdmission>()
-                .CountAsync(item => item.UserId == user.Id));
-        var secondRun = second.RunAsync(user.Id);
-        var otherRun = independent.RunAsync(other.Id);
-        await handler.OtherUserRequestEntered;
-        var ownershipObserved = ObserveLockOrDuplicateContactAsync(handler, user.Id);
-        await ownershipObserved;
-        handler.Release();
-        await Task.WhenAll(firstRun, secondRun, otherRun);
+        Task<GeoapifyBackfillResult>? secondRun = null;
+        Task<GeoapifyBackfillResult>? otherRun = null;
+        try
+        {
+            await handler.FirstUserRequestEntered;
+            await using (var duringContact = fixture.CreateContext())
+                Assert.Equal(1, await duringContact.Set<GeoapifyUsageAdmission>()
+                    .CountAsync(item => item.UserId == user.Id));
+            secondRun = second.RunAsync(user.Id);
+            otherRun = independent.RunAsync(other.Id);
+            await handler.OtherUserRequestEntered;
+            await ObserveLockOrDuplicateContactAsync(handler, user.Id);
+        }
+        finally
+        {
+            handler.Release();
+        }
+        await Task.WhenAll(firstRun, secondRun!, otherRun!);
 
         await using var verify = fixture.CreateContext();
+        var sameUserAdmissions = await verify.GeoapifyUsageAdmissions
+            .Where(item => item.UserId == user.Id).ToListAsync();
+        var admission = Assert.Single(sameUserAdmissions);
+        Assert.Equal(1, admission.Credits);
+        Assert.Equal(PersonalProviderProduct.Geocoding, admission.Product);
         Assert.Equal(1, handler.RequestsFor(user.Id));
         Assert.Equal(1, await verify.Locations.CountAsync(item => item.UserId == user.Id && item.ReverseGeocodingProvider == "geoapify"));
         Assert.Equal(1, handler.RequestsFor(other.Id));
@@ -149,17 +161,26 @@ public sealed class GeoapifyBackfillConcurrencyPostgresTests(PostgresImportTestF
 
     private async Task ObserveLockOrDuplicateContactAsync(CoordinatedHandler handler, string userId)
     {
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         await using var connection = fixture.CreateConnection();
-        await connection.OpenAsync();
-        while (handler.RequestsFor(userId) < 2)
+        try
         {
-            await using var command = new NpgsqlCommand("""
-                SELECT EXISTS (SELECT 1 FROM pg_stat_activity
-                WHERE wait_event_type = 'Lock'
-                AND (query LIKE '%pg_advisory_xact_lock%' OR query LIKE '%AspNetUsers%FOR UPDATE%'))
-                """, connection);
-            if ((bool)(await command.ExecuteScalarAsync())!) return;
-            await Task.Yield();
+            await connection.OpenAsync(timeout.Token);
+            while (handler.RequestsFor(userId) < 2)
+            {
+                await using var command = new NpgsqlCommand("""
+                    SELECT EXISTS (SELECT 1 FROM pg_stat_activity
+                    WHERE wait_event_type = 'Lock'
+                    AND (query LIKE '%pg_advisory_xact_lock%' OR query LIKE '%AspNetUsers%FOR UPDATE%'))
+                    """, connection);
+                if ((bool)(await command.ExecuteScalarAsync(timeout.Token))!) return;
+                await Task.Yield();
+                timeout.Token.ThrowIfCancellationRequested();
+            }
+        }
+        catch (OperationCanceledException) when (timeout.IsCancellationRequested)
+        {
+            Assert.Fail("The competing same-user backfill did not enter the expected PostgreSQL lock wait within 10 seconds.");
         }
     }
 
