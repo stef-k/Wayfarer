@@ -14,11 +14,17 @@ public sealed class LocationEnrichmentScheduler(IScheduler scheduler)
 
     /// <summary>Idempotently ensures or removes Quartz state after relational commit.</summary>
     public async Task EnsureScheduledAsync(LocationEnrichmentWorkflow workflow, CancellationToken cancellationToken = default)
+        => await EnsureScheduledAsync(workflow, null, cancellationToken);
+
+    /// <summary>Projects one workflow using a caller-supplied group snapshot during bounded reconciliation.</summary>
+    public async Task EnsureScheduledAsync(LocationEnrichmentWorkflow workflow,
+        ISet<TriggerKey>? knownTriggerKeys, CancellationToken cancellationToken = default)
     {
         var jobKey = JobKey(workflow.SchedulerId);
         var triggerKey = TriggerKey(workflow.SchedulerId, workflow.Epoch);
         var prefix = $"Workflow_{workflow.SchedulerId:N}_";
-        var triggerKeys = await scheduler.GetTriggerKeys(GroupMatcher<TriggerKey>.GroupEquals(Group), cancellationToken);
+        IEnumerable<TriggerKey> triggerKeys = knownTriggerKeys ?? (IEnumerable<TriggerKey>)await scheduler.GetTriggerKeys(
+            GroupMatcher<TriggerKey>.GroupEquals(Group), cancellationToken);
         var jobExists = await scheduler.CheckExists(jobKey, cancellationToken);
         if (!jobExists)
         {
@@ -33,7 +39,10 @@ public sealed class LocationEnrichmentScheduler(IScheduler scheduler)
             or LocationEnrichmentState.Cancelled or LocationEnrichmentState.Failed)
         {
             foreach (var live in triggerKeys.Where(item => item.Name.StartsWith(prefix, StringComparison.Ordinal)))
+            {
                 await scheduler.UnscheduleJob(live, cancellationToken);
+                knownTriggerKeys?.Remove(live);
+            }
             if (workflow.State is LocationEnrichmentState.PausedByUser or LocationEnrichmentState.Cancelled)
                 await scheduler.Interrupt(jobKey, cancellationToken);
             return;
@@ -41,7 +50,10 @@ public sealed class LocationEnrichmentScheduler(IScheduler scheduler)
 
         foreach (var stale in triggerKeys.Where(item => item.Name.StartsWith(prefix, StringComparison.Ordinal)
             && item != triggerKey))
+        {
             await scheduler.UnscheduleJob(stale, cancellationToken);
+            knownTriggerKeys?.Remove(stale);
+        }
         if (jobExists && await scheduler.CheckExists(triggerKey, cancellationToken)) return;
         var trigger = TriggerBuilder.Create().WithIdentity(triggerKey).ForJob(jobKey)
             .UsingJobData("epoch", workflow.Epoch.ToString(System.Globalization.CultureInfo.InvariantCulture))
@@ -49,5 +61,6 @@ public sealed class LocationEnrichmentScheduler(IScheduler scheduler)
             .WithSimpleSchedule(schedule => schedule.WithRepeatCount(0)
                 .WithMisfireHandlingInstructionNextWithRemainingCount()).Build();
         await scheduler.ScheduleJob(trigger, cancellationToken);
+        knownTriggerKeys?.Add(triggerKey);
     }
 }

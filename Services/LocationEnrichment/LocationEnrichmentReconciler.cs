@@ -19,6 +19,10 @@ public sealed class LocationEnrichmentReconciler(
             ? await db.Database.SqlQuery<DateTime>($"SELECT (clock_timestamp() AT TIME ZONE 'UTC') AS \"Value\"")
                 .SingleAsync(cancellationToken)
             : DateTime.UtcNow;
+        var triggerKeys = (await scheduler.GetTriggerKeys(
+            GroupMatcher<TriggerKey>.GroupEquals(LocationEnrichmentScheduler.Group), cancellationToken)).ToHashSet();
+        var orphanCandidates = (await scheduler.GetJobKeys(
+            GroupMatcher<JobKey>.GroupEquals(LocationEnrichmentScheduler.Group), cancellationToken)).ToHashSet();
         string? afterUserId = null;
         while (true)
         {
@@ -30,16 +34,18 @@ public sealed class LocationEnrichmentReconciler(
                 workflow.RecoverRunning(now);
             await db.SaveChangesAsync(cancellationToken);
             foreach (var workflow in page)
-                await schedulerOwner.EnsureScheduledAsync(workflow, cancellationToken);
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                orphanCandidates.Remove(LocationEnrichmentScheduler.JobKey(workflow.SchedulerId));
+                await schedulerOwner.EnsureScheduledAsync(workflow, triggerKeys, cancellationToken);
+            }
             afterUserId = page[^1].UserId;
             db.ChangeTracker.Clear();
         }
-        var quartzKeys = await scheduler.GetJobKeys(
-            GroupMatcher<JobKey>.GroupEquals(LocationEnrichmentScheduler.Group), cancellationToken);
-        var validIds = (await db.LocationEnrichmentWorkflows.AsNoTracking()
-            .Select(item => item.SchedulerId).ToListAsync(cancellationToken))
-            .Select(LocationEnrichmentScheduler.JobKey).ToHashSet();
-        foreach (var orphan in quartzKeys.Where(item => !validIds.Contains(item)))
+        foreach (var orphan in orphanCandidates)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
             await scheduler.DeleteJob(orphan, cancellationToken);
+        }
     }
 }
