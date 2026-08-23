@@ -62,7 +62,7 @@ public sealed class PersonalLocationProviderFoundationTests
         var ledger = new PersonalProviderUsageLedger();
         var now = new DateTimeOffset(2026, 8, 23, 12, 0, 0, TimeSpan.Zero);
 
-        Assert.True(ledger.TryAdmitGeoapify(now, 2_500, 2_499, PersonalProviderProduct.Geocoding));
+        Assert.True(ledger.TryAdmitGeoapify(now, 2_500, 2_500, PersonalProviderProduct.Geocoding));
         Assert.False(ledger.TryAdmitGeoapify(now, 2_500, 1, PersonalProviderProduct.Routing));
     }
 

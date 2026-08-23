@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using Npgsql.EntityFrameworkCore.PostgreSQL;
+using Wayfarer.Models.LocationProviders;
 
 namespace Wayfarer.Models
 {
@@ -17,6 +18,16 @@ namespace Wayfarer.Models
 
         public DbSet<Location> Locations { get; set; }
         public DbSet<ApiToken> ApiTokens { get; set; }
+        /// <summary>Gets personal provider profiles.</summary>
+        public DbSet<PersonalLocationProviderProfile> PersonalLocationProviderProfiles { get; set; }
+        /// <summary>Gets independent active provider selections.</summary>
+        public DbSet<PersonalLocationProviderSelection> PersonalLocationProviderSelections { get; set; }
+        /// <summary>Gets Geoapify shared-pool guard rows.</summary>
+        public DbSet<GeoapifyUsageGuard> GeoapifyUsageGuards { get; set; }
+        /// <summary>Gets rolling Geoapify admissions.</summary>
+        public DbSet<GeoapifyUsageAdmission> GeoapifyUsageAdmissions { get; set; }
+        /// <summary>Gets independent Mapbox product meters.</summary>
+        public DbSet<MapboxProductMeter> MapboxProductMeters { get; set; }
 
         public DbSet<ApplicationUser> ApplicationUsers { get; set; }
         public DbSet<AuditLog> AuditLogs { get; set; }
