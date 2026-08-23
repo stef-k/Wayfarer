@@ -58,7 +58,8 @@ public sealed class GeoapifyBackfillConcurrencyPostgresTests(PostgresImportTestF
         {
             await using var command = new NpgsqlCommand("""
                 SELECT EXISTS (SELECT 1 FROM pg_stat_activity
-                WHERE wait_event_type = 'Lock' AND query LIKE '%pg_advisory_xact_lock%')
+                WHERE wait_event_type = 'Lock'
+                AND (query LIKE '%pg_advisory_xact_lock%' OR query LIKE '%AspNetUsers%FOR UPDATE%'))
                 """, connection);
             if ((bool)(await command.ExecuteScalarAsync())!) return;
             await Task.Yield();
