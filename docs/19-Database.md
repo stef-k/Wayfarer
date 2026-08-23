@@ -8,6 +8,7 @@ ORM & Provider
 - EF Core with Npgsql provider and NetTopologySuite for spatial types.
 - Personal provider profiles, independent selections, Geoapify rolling admissions, and separate Mapbox product meters use constrained PostgreSQL authority; schema and retention are described in [Personal Location Providers](24-Personal-Location-Providers.md).
 - Mapbox Permanent consent is versioned, UTC-timestamped, and credential-generation-bound. Nullable provider/storage-mode/time provenance on `Location` and `Place` remains unknown for historical and manual/imported values; migrations perform no historical rewrite.
+- Accepted Geoapify Segment routes use additive nullable normalized instruction, provider/configuration/profile/mapping, generation-time, attribution, and storage-authority columns. Historical geometry is not rewritten and raw provider responses, credentials, and authenticated URLs are never stored.
 - PostGIS is required (e.g., `geography(Point, 4326)` for `Location.Coordinates`).
 
 Key Entities (selected)

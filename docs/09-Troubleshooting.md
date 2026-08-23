@@ -4,6 +4,8 @@ For unreadable protected credentials, legacy Mapbox conflicts, exhaustion, guard
 
 If Mapbox is configured but paused, complete each distinct step shown in settings: Permanent consent, generic geocoding authorization, explicit verification, active selection, and available Permanent meter capacity. Capture/import remains usable while paused and retains existing enrichment. Verification and provider failures are safe to retry explicitly; no automatic queue is implied.
 
+For Geoapify route suggestions, an unmapped Wayfarer Transport Profile requires an administrator mapping; an unsupported mapping requires one of the closed Geoapify modes. Temporary failures and rolling-credit exhaustion never clear accepted geometry. Wayfarer does not fall back to Mapbox, public OSRM, or another provider.
+
 Sign‑In Issues
 - Wrong password: reset via account page or ask an admin.
 - Locked out: your admin can unlock accounts. Enable 2FA for extra security.
