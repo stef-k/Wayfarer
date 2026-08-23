@@ -6,7 +6,8 @@ namespace Wayfarer.Services.LocationProviders;
 
 /// <summary>Runs one explicit bounded and resumable Geoapify Location enrichment invocation.</summary>
 public sealed class GeoapifyLocationBackfillService(
-    ApplicationDbContext dbContext, ReverseGeocodingService reverseGeocoding)
+    ApplicationDbContext dbContext, ReverseGeocodingService reverseGeocoding,
+    IDbContextFactory<ApplicationDbContext> dbContextFactory)
 {
     /// <summary>Gets the strict maximum records scanned by one invocation.</summary>
     public const int MaximumRecords = 100;
@@ -14,16 +15,28 @@ public sealed class GeoapifyLocationBackfillService(
     /// <summary>Runs one user-owned chronological invocation and returns content-free progress.</summary>
     public async Task<GeoapifyBackfillResult> RunAsync(string userId, CancellationToken cancellationToken = default)
     {
-        await using var transaction = dbContext.Database.IsNpgsql()
-            ? await dbContext.Database.BeginTransactionAsync(cancellationToken) : null;
-        if (transaction != null)
-        {
-            // The exact user row is the durable invocation authority. Holding it across bounded provider calls is
-            // intentional: candidate selection cannot otherwise guarantee at-most-one admission/contact per Location.
-            _ = await dbContext.Users.FromSqlInterpolated($$"""
+        await using var lockOwner = dbContext.Database.IsNpgsql()
+            ? await dbContextFactory.CreateDbContextAsync(cancellationToken) : null;
+        await using var lockTransaction = lockOwner == null
+            ? null : await lockOwner.Database.BeginTransactionAsync(cancellationToken);
+        if (lockOwner != null)
+            _ = await lockOwner.Users.FromSqlInterpolated($$"""
                 SELECT * FROM "AspNetUsers" WHERE "Id" = {{userId}} FOR UPDATE
                 """).AsNoTracking().SingleAsync(cancellationToken);
+
+        try
+        {
+            return await RunOperationalAsync(userId, cancellationToken);
         }
+        finally
+        {
+            // This transaction owns only invocation serialization. Operational transactions commit independently.
+            if (lockTransaction != null) await lockTransaction.RollbackAsync(CancellationToken.None);
+        }
+    }
+
+    private async Task<GeoapifyBackfillResult> RunOperationalAsync(string userId, CancellationToken cancellationToken)
+    {
         var ids = await LoadCandidateIdsAsync(dbContext, userId, MaximumRecords, cancellationToken);
         var scanned = 0; var succeeded = 0; var noResult = 0; var unavailable = 0; var exhausted = false;
         foreach (var id in ids)
@@ -55,7 +68,6 @@ public sealed class GeoapifyLocationBackfillService(
         }
         var remaining = await WhollyUnenriched(dbContext.Locations.Where(item => item.UserId == userId))
             .CountAsync(cancellationToken);
-        if (transaction != null) await transaction.CommitAsync(cancellationToken);
         return new(scanned, succeeded, noResult, unavailable, remaining, exhausted);
     }
 
@@ -84,6 +96,15 @@ public sealed class GeoapifyLocationBackfillService(
         && (value.Region == null || value.Region == "") && (value.Country == null || value.Country == "")
         && value.ReverseGeocodingProvider == null && value.ReverseGeocodingStorageMode == null
         && value.ReverseGeocodedAt == null);
+}
+
+/// <summary>Creates independent contexts for transaction-scoped backfill lock ownership.</summary>
+public sealed class BackfillLockDbContextFactory(
+    DbContextOptions<ApplicationDbContext> options, IServiceProvider services)
+    : IDbContextFactory<ApplicationDbContext>
+{
+    /// <summary>Creates a context whose connection is never shared with operational persistence.</summary>
+    public ApplicationDbContext CreateDbContext() => new(options, services);
 }
 
 /// <summary>Contains bounded content-free progress for one explicit backfill invocation.</summary>

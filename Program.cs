@@ -315,6 +315,7 @@ static void ConfigureDatabase(WebApplicationBuilder builder)
         options.ConfigureWarnings(warnings =>
             warnings.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
     });
+    builder.Services.AddSingleton<IDbContextFactory<ApplicationDbContext>, BackfillLockDbContextFactory>();
 
     // Add exception handling for database-related errors during development
     builder.Services.AddDatabaseDeveloperPageExceptionFilter();

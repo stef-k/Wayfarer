@@ -33,6 +33,9 @@ public sealed class GeoapifyBackfillConcurrencyPostgresTests(PostgresImportTestF
 
         var cancelledRun = cancelledService.RunAsync(user.Id, cancellation.Token);
         await cancelledHandler.FirstUserRequestEntered;
+        await using (var duringContact = fixture.CreateContext())
+            Assert.Equal(1, await duringContact.Set<GeoapifyUsageAdmission>()
+                .CountAsync(item => item.UserId == user.Id));
         cancellation.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => cancelledRun);
 
@@ -77,6 +80,9 @@ public sealed class GeoapifyBackfillConcurrencyPostgresTests(PostgresImportTestF
 
         var firstRun = first.RunAsync(user.Id);
         await handler.FirstUserRequestEntered;
+        await using (var duringContact = fixture.CreateContext())
+            Assert.Equal(1, await duringContact.Set<GeoapifyUsageAdmission>()
+                .CountAsync(item => item.UserId == user.Id));
         var secondRun = second.RunAsync(user.Id);
         var otherRun = independent.RunAsync(other.Id);
         await handler.OtherUserRequestEntered;
@@ -120,6 +126,7 @@ public sealed class GeoapifyBackfillConcurrencyPostgresTests(PostgresImportTestF
             profile.GeocodingVerifiedConfigurationGeneration = profile.GeocodingGeneration;
             db.Add(profile);
             db.Add(new PersonalLocationProviderSelection { UserId = id, GeocodingProviderKey = "geoapify" });
+            db.Add(new GeoapifyUsageGuard { UserId = id });
             db.Locations.Add(new Location
             {
                 UserId = id, Timestamp = DateTime.UtcNow, LocalTimestamp = DateTime.UtcNow, TimeZoneId = "UTC",
@@ -129,14 +136,20 @@ public sealed class GeoapifyBackfillConcurrencyPostgresTests(PostgresImportTestF
         await db.SaveChangesAsync();
     }
 
-    private static GeoapifyLocationBackfillService Service(ApplicationDbContext db,
+    private GeoapifyLocationBackfillService Service(ApplicationDbContext db,
         IDataProtectionProvider protection, CoordinatedHandler handler)
     {
         var credentials = new PersonalProviderCredentialService(protection);
         var gate = new PersonalProviderContactGate(db, credentials,
             new LegacyMapboxMigrationService(db, credentials), new ConfigurationBuilder().Build());
         var reverse = new ReverseGeocodingService(new HttpClient(handler), NullLogger<BaseApiController>.Instance, gate, db);
-        return new GeoapifyLocationBackfillService(db, reverse);
+        return new GeoapifyLocationBackfillService(db, reverse, new FixtureDbContextFactory(fixture));
+    }
+
+    private sealed class FixtureDbContextFactory(PostgresImportTestFixture fixture)
+        : IDbContextFactory<ApplicationDbContext>
+    {
+        public ApplicationDbContext CreateDbContext() => fixture.CreateContext();
     }
 
     private sealed class CoordinatedHandler(string primaryUserId, string? otherUserId) : HttpMessageHandler
