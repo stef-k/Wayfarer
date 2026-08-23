@@ -46,6 +46,45 @@ public sealed class GeoapifyRoutingAdapterTests
         Assert.Empty(result.Geometry);
     }
 
+    [Theory]
+    [InlineData("[21,11],[20,10],[22,12]", "reversed intermediate anchor")]
+    [InlineData("[20,10],[20,10],[22,12]", "duplicated anchor")]
+    public async Task IncoherentAnchorOrderingFailsClosed(string coordinates, string reason)
+    {
+        using var response = Response(MultiLegJson.Replace("[20,10],[21,11],[22,12]", coordinates));
+        var result = await GeoapifyRoutingAdapter.ParseAsync(response, [new(20, 10), new(21, 11), new(22, 12)]);
+        Assert.False(result.Succeeded, reason);
+    }
+
+    [Theory]
+    [InlineData("\"to_index\":1", "\"to_index\":3")]
+    [InlineData("\"from_index\":1,\"to_index\":2", "\"from_index\":0,\"to_index\":2")]
+    [InlineData("\"distance\":30,\"time\":10", "\"distance\":31,\"time\":10")]
+    [InlineData("\"distance\":30,\"time\":10", "\"distance\":30,\"time\":11")]
+    public async Task IncoherentIndicesOrTotalsFailClosed(string current, string mutation)
+    {
+        using var response = Response(MultiLegJson.Replace(current, mutation, StringComparison.Ordinal));
+        var result = await GeoapifyRoutingAdapter.ParseAsync(response, [new(20, 10), new(21, 11), new(22, 12)]);
+        Assert.False(result.Succeeded);
+    }
+
+    [Fact]
+    public async Task RoundedMultiLegRouteWithinExplicitToleranceRemainsAccepted()
+    {
+        using var response = Response(MultiLegJson.Replace("\"distance\":30,\"time\":10", "\"distance\":30.01,\"time\":10.01"));
+        var result = await GeoapifyRoutingAdapter.ParseAsync(response, [new(20, 10), new(21, 11), new(22, 12)]);
+        Assert.True(result.Succeeded);
+    }
+
+    private static HttpResponseMessage Response(string json) =>
+        new(HttpStatusCode.OK) { Content = new StringContent(json) };
+
+    private const string MultiLegJson = """
+        {"results":[{"distance":30,"time":10,"geometry":{"type":"LineString","coordinates":[[20,10],[21,11],[22,12]]},
+        "legs":[{"distance":10,"time":4,"steps":[{"instruction":{"text":"First","type":"Straight"},"from_index":0,"to_index":1,"distance":10,"time":4}]},
+        {"distance":20,"time":6,"steps":[{"instruction":{"text":"Second","type":"Straight"},"from_index":1,"to_index":2,"distance":20,"time":6}]}]}]}
+        """;
+
     private const string ValidJson = """
         {"results":[{"distance":1234,"time":321,"geometry":{"type":"LineString","coordinates":[[20,10],[21,11]]},
         "legs":[{"distance":1234,"time":321,"steps":[{"instruction":{"text":"Continue","type":"Straight"},
