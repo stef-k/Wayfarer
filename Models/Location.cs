@@ -46,6 +46,12 @@ namespace Wayfarer.Models
         public string? Place { get; set; }
         public string? Region { get; set; }
         public string? Country { get; set; }
+        /// <summary>Provider that supplied the retained reverse-geocoding enrichment.</summary>
+        [MaxLength(24)] public string? ReverseGeocodingProvider { get; set; }
+        /// <summary>Provider storage mode governing the retained enrichment.</summary>
+        [MaxLength(16)] public string? ReverseGeocodingStorageMode { get; set; }
+        /// <summary>UTC instant at which reverse-geocoding enrichment was persisted.</summary>
+        public DateTimeOffset? ReverseGeocodedAt { get; set; }
         public string? Notes { get; set; }  // This could store plain text, HTML, or Markdown
 
         #region Metadata Fields

@@ -17,6 +17,8 @@ public enum PersonalProviderVerification { Unverified = 0, Verified = 1, Failed 
 /// <summary>Owns one protected credential and independent capability authority for one user/provider.</summary>
 public sealed class PersonalLocationProviderProfile
 {
+    /// <summary>Gets the currently recognized Permanent Geocoding consent version.</summary>
+    public const int RequiredPermanentGeocodingConsentVersion = 1;
     /// <summary>Gets or sets the stable profile identifier.</summary>
     public Guid Id { get; set; } = Guid.NewGuid();
     /// <summary>Gets or sets the owning Identity user.</summary>
@@ -27,6 +29,12 @@ public sealed class PersonalLocationProviderProfile
     [StringLength(4096)] public string? ProtectedCredential { get; set; }
     /// <summary>Gets or sets the monotonic credential authority generation.</summary>
     public int CredentialGeneration { get; set; } = 1;
+    /// <summary>Gets or sets the acknowledged Mapbox Permanent Geocoding terms version.</summary>
+    public int? PermanentGeocodingConsentVersion { get; set; }
+    /// <summary>Gets or sets the UTC instant of explicit Mapbox Permanent Geocoding consent.</summary>
+    public DateTimeOffset? PermanentGeocodingConsentedAt { get; set; }
+    /// <summary>Gets or sets the credential generation to which consent is bound.</summary>
+    public int? PermanentGeocodingConsentCredentialGeneration { get; set; }
     /// <summary>Gets or sets when the credential was explicitly revoked.</summary>
     public DateTimeOffset? RevokedAt { get; set; }
     /// <summary>Gets or sets independent geocoding authorization.</summary>
@@ -68,11 +76,36 @@ public sealed class PersonalLocationProviderProfile
         _ => false
     };
 
+    /// <summary>Returns whether explicit Permanent Geocoding consent is current for this credential.</summary>
+    public bool HasCurrentPermanentGeocodingConsent() => ProviderKey == "mapbox"
+        && PermanentGeocodingConsentVersion == RequiredPermanentGeocodingConsentVersion
+        && PermanentGeocodingConsentedAt.HasValue
+        && PermanentGeocodingConsentCredentialGeneration == CredentialGeneration;
+
+    /// <summary>Records explicit Permanent Geocoding consent for the current credential generation.</summary>
+    public void GrantPermanentGeocodingConsent(DateTimeOffset consentedAt)
+    {
+        PermanentGeocodingConsentVersion = RequiredPermanentGeocodingConsentVersion;
+        PermanentGeocodingConsentedAt = consentedAt.ToUniversalTime();
+        PermanentGeocodingConsentCredentialGeneration = CredentialGeneration;
+        ClearVerification(PersonalProviderCapability.Geocoding);
+        UpdatedAt = DateTimeOffset.UtcNow;
+    }
+
+    /// <summary>Clears Permanent Geocoding consent without affecting retained provider data.</summary>
+    public void ClearPermanentGeocodingConsent()
+    {
+        PermanentGeocodingConsentVersion = null;
+        PermanentGeocodingConsentedAt = null;
+        PermanentGeocodingConsentCredentialGeneration = null;
+        ClearVerification(PersonalProviderCapability.Geocoding);
+    }
+
     /// <summary>Changes only the requested capability authority and invalidates its verification.</summary>
     public void SetAuthorization(PersonalProviderCapability capability, bool authorized)
     {
         if (capability == PersonalProviderCapability.Geocoding && GeocodingAuthorized != authorized)
-        { GeocodingAuthorized = authorized; GeocodingGeneration++; ClearVerification(capability); }
+        { GeocodingAuthorized = authorized; GeocodingGeneration++; ClearVerification(capability); if (!authorized && ProviderKey == "mapbox") ClearPermanentGeocodingConsent(); }
         else if (capability == PersonalProviderCapability.Routing && RoutingAuthorized != authorized)
         { RoutingAuthorized = authorized; RoutingGeneration++; ClearVerification(capability); }
         UpdatedAt = DateTimeOffset.UtcNow;

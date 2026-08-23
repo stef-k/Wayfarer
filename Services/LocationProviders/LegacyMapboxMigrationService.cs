@@ -89,15 +89,11 @@ public sealed class LegacyMapboxMigrationService(
         PersonalLocationProviderProfile profile, string userId, CancellationToken cancellationToken)
     {
         profile.SetAuthorization(PersonalProviderCapability.Geocoding, true);
+        profile.ClearPermanentGeocodingConsent();
         var selection = await dbContext.Set<PersonalLocationProviderSelection>()
             .SingleOrDefaultAsync(item => item.UserId == userId, cancellationToken);
-        if (selection == null)
-        {
-            selection = PersonalLocationProviderSelection.Create(userId);
-            dbContext.Add(selection);
-        }
-        if (selection.GeocodingProviderKey == null)
-            selection.Select(PersonalProviderCapability.Geocoding, PersonalLocationProvider.Mapbox);
+        if (selection?.GeocodingProviderKey == "mapbox")
+            selection.Select(PersonalProviderCapability.Geocoding, null);
     }
 
     private async Task<List<ApiToken>> LockLegacyRowsAsync(string userId, CancellationToken cancellationToken)
