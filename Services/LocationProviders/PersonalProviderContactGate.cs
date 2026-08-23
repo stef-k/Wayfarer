@@ -168,6 +168,28 @@ public sealed class PersonalProviderContactGate(
             && (snapshot.Capability == PersonalProviderCapability.Geocoding
                 ? profile.GeocodingAuthorized && profile.GeocodingGeneration == snapshot.CapabilityGeneration
                 : profile.RoutingAuthorized && profile.RoutingGeneration == snapshot.CapabilityGeneration));
+        if (dbContext.Database.IsRelational())
+        {
+            var verified = verification == PersonalProviderVerification.Verified;
+            var now = DateTimeOffset.UtcNow;
+            var count = snapshot.Capability == PersonalProviderCapability.Geocoding
+                ? await query.ExecuteUpdateAsync(setters => setters
+                    .SetProperty(profile => profile.GeocodingVerification, verification)
+                    .SetProperty(profile => profile.GeocodingVerifiedCredentialGeneration,
+                        verified ? snapshot.CredentialGeneration : null)
+                    .SetProperty(profile => profile.GeocodingVerifiedConfigurationGeneration,
+                        verified ? snapshot.CapabilityGeneration : null)
+                    .SetProperty(profile => profile.UpdatedAt, now), cancellationToken)
+                : await query.ExecuteUpdateAsync(setters => setters
+                    .SetProperty(profile => profile.RoutingVerification, verification)
+                    .SetProperty(profile => profile.RoutingVerifiedCredentialGeneration,
+                        verified ? snapshot.CredentialGeneration : null)
+                    .SetProperty(profile => profile.RoutingVerifiedConfigurationGeneration,
+                        verified ? snapshot.CapabilityGeneration : null)
+                    .SetProperty(profile => profile.UpdatedAt, now), cancellationToken);
+            dbContext.ChangeTracker.Clear();
+            return count == 1;
+        }
         var profile = await query.SingleOrDefaultAsync(cancellationToken);
         if (profile == null) return false;
         credentials.RecordVerification(profile, snapshot.Capability, verification);
