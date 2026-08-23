@@ -205,6 +205,8 @@ public sealed class PersonalProviderUsagePostgresTests(PostgresImportTestFixture
         var owner = new PersonalProviderCredentialService(protection);
         var profile = PersonalLocationProviderProfile.Create(userId, provider);
         owner.Replace(profile, "test-provider-key");
+        if (provider == PersonalLocationProvider.Mapbox && (capability == PersonalProviderCapability.Geocoding || alsoRouting))
+            profile.GrantPermanentGeocodingConsent(DateTimeOffset.UtcNow);
         Verify(profile, capability);
         if (alsoRouting) Verify(profile, PersonalProviderCapability.Routing);
         var selection = PersonalLocationProviderSelection.Create(userId);

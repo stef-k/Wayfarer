@@ -99,6 +99,9 @@ public sealed class PersonalProviderContactGate(
         var read = credentials.Read(profile);
         if (!read.Succeeded) return ResolvedAuthority.Fail(PersonalProviderAdmissionCategory.CredentialUnavailable);
 
+        if (providerKey == "mapbox" && capability == PersonalProviderCapability.Geocoding
+            && !profile.HasCurrentPermanentGeocodingConsent())
+            return ResolvedAuthority.Fail(PersonalProviderAdmissionCategory.ConsentRequired);
         var verified = capability == PersonalProviderCapability.Geocoding
             ? profile.GeocodingVerification == PersonalProviderVerification.Verified
               && profile.GeocodingVerifiedCredentialGeneration == profile.CredentialGeneration
@@ -107,9 +110,6 @@ public sealed class PersonalProviderContactGate(
               && profile.RoutingVerifiedCredentialGeneration == profile.CredentialGeneration
               && profile.RoutingVerifiedConfigurationGeneration == profile.RoutingGeneration;
         if (!verified) return ResolvedAuthority.Fail(PersonalProviderAdmissionCategory.Unverified);
-        if (providerKey == "mapbox" && capability == PersonalProviderCapability.Geocoding
-            && !profile.HasCurrentPermanentGeocodingConsent())
-            return ResolvedAuthority.Fail(PersonalProviderAdmissionCategory.ConsentRequired);
         return new(true, PersonalProviderAdmissionCategory.Admitted, providerKey, read.Credential,
             profile.CredentialGeneration,
             capability == PersonalProviderCapability.Geocoding ? profile.GeocodingGeneration : profile.RoutingGeneration,

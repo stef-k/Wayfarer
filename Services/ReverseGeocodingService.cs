@@ -234,7 +234,8 @@ namespace Wayfarer.Parsers
             return state;
         }
 
-        public async Task<ReverseLocationResults> GetReverseGeocodingDataAsync(
+        /// <summary>Test-only transport parser retained for focused fake-HTTP parsing coverage.</summary>
+        internal async Task<ReverseLocationResults> GetReverseGeocodingDataAsync(
             double latitude,
             double longitude,
             string apiToken,
