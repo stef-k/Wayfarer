@@ -45,20 +45,31 @@ public static class GeoapifyRoutingAdapter
                 || !route.TryGetProperty("legs", out var legs) || legs.ValueKind != JsonValueKind.Array
                 || legs.GetArrayLength() != anchors.Count - 1) return Invalid();
             if (!Close(points[0], anchors[0]) || !Close(points[^1], anchors[^1])) return Invalid();
-            foreach (var anchor in anchors)
-                if (!points.Any(point => Close(point, anchor))) return Invalid();
+            var anchorIndices = MapAnchors(points, anchors);
+            if (anchorIndices == null) return Invalid();
             var instructions = new List<RouteInstruction>();
+            var legDistances = new List<double>();
+            var legDurations = new List<double>();
+            var legIndex = 0;
             foreach (var leg in legs.EnumerateArray())
             {
-                if (!Number(leg, "distance", out _) || !Number(leg, "time", out _)
+                if (!Number(leg, "distance", out var legDistance) || !Number(leg, "time", out var legDuration)
                     || !leg.TryGetProperty("steps", out var steps) || steps.ValueKind != JsonValueKind.Array) return Invalid();
+                var legInstructions = new List<RouteInstruction>();
                 foreach (var step in steps.EnumerateArray())
                 {
                     if (instructions.Count == MaximumInstructions || !TryInstruction(step, out var instruction)) return Invalid();
+                    legInstructions.Add(instruction!);
                     instructions.Add(instruction!);
                 }
+                if (!ValidateLeg(legInstructions, anchorIndices[legIndex], anchorIndices[legIndex + 1],
+                        points.Count, legDistance, legDuration)) return Invalid();
+                legDistances.Add(legDistance);
+                legDurations.Add(legDuration);
+                legIndex++;
             }
-            if (instructions.Count == 0) return Invalid();
+            if (instructions.Count == 0 || !TotalsAgree(legDistances, distance) || !TotalsAgree(legDurations, duration))
+                return Invalid();
             return new(true, points, anchors.ToArray(), null, distance, duration, instructions);
         }
         catch (Exception exception) when (exception is JsonException or InvalidOperationException)
@@ -87,7 +98,7 @@ public static class GeoapifyRoutingAdapter
             || !instruction.TryGetProperty("text", out var text) || string.IsNullOrWhiteSpace(text.GetString())
             || !instruction.TryGetProperty("type", out var type) || string.IsNullOrWhiteSpace(type.GetString())
             || !step.TryGetProperty("from_index", out var from) || !from.TryGetInt32(out var fromIndex) || fromIndex < 0
-            || !step.TryGetProperty("to_index", out var to) || !to.TryGetInt32(out var toIndex) || toIndex <= fromIndex
+            || !step.TryGetProperty("to_index", out var to) || !to.TryGetInt32(out var toIndex) || toIndex < fromIndex
             || !Number(step, "distance", out var distance) || !Number(step, "time", out var duration)) return false;
         value = new(text.GetString()!.Trim()[..Math.Min(500, text.GetString()!.Trim().Length)],
             type.GetString()!.Trim()[..Math.Min(80, type.GetString()!.Trim().Length)],
@@ -105,6 +116,41 @@ public static class GeoapifyRoutingAdapter
     private static bool Close(RouteCoordinate first, RouteCoordinate second) =>
         Math.Abs(first.Longitude - second.Longitude) <= 0.00025
         && Math.Abs(first.Latitude - second.Latitude) <= 0.00025;
+
+    private static int[]? MapAnchors(IReadOnlyList<RouteCoordinate> points, IReadOnlyList<RouteCoordinate> anchors)
+    {
+        var indices = new int[anchors.Count];
+        for (var anchorIndex = 0; anchorIndex < anchors.Count; anchorIndex++)
+        {
+            var matches = Enumerable.Range(0, points.Count).Where(index => Close(points[index], anchors[anchorIndex])).ToArray();
+            if (matches.Length != 1 || anchorIndex > 0 && matches[0] <= indices[anchorIndex - 1]) return null;
+            indices[anchorIndex] = matches[0];
+        }
+        return indices[0] == 0 && indices[^1] == points.Count - 1 ? indices : null;
+    }
+
+    private static bool ValidateLeg(IReadOnlyList<RouteInstruction> steps, int legStart, int legEnd,
+        int pointCount, double legDistance, double legDuration)
+    {
+        if (steps.Count == 0 || steps[0].FromIndex != legStart || steps[^1].ToIndex != legEnd) return false;
+        for (var index = 0; index < steps.Count; index++)
+        {
+            var step = steps[index];
+            if (step.FromIndex < legStart || step.ToIndex > legEnd || step.ToIndex >= pointCount
+                || index > 0 && step.FromIndex != steps[index - 1].ToIndex) return false;
+        }
+        return TotalsAgree(steps.Select(step => step.DistanceMetres), legDistance)
+            && TotalsAgree(steps.Select(step => step.DurationSeconds), legDuration);
+    }
+
+    // Geoapify reports decimal metrics; half of the final displayed hundredth per summed value bounds rounding drift.
+    private static bool TotalsAgree(IEnumerable<double> parts, double total)
+    {
+        var values = parts.ToArray();
+        var sum = values.Sum();
+        var tolerance = (values.Length + 1) * 0.005 + 1e-9;
+        return double.IsFinite(sum) && Math.Abs(sum - total) <= tolerance;
+    }
 
     private static OsrmRouteResult Invalid() => OsrmRouteResult.Invalid("provider-response-invalid");
 }
