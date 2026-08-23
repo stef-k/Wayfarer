@@ -16,6 +16,41 @@ namespace Wayfarer.Tests.Services;
 /// <summary>Locks the three bounded corrections discovered by the final #501 review.</summary>
 public sealed class MapboxGeocodingCorrectionTests
 {
+    [Fact]
+    public async Task VerificationRejectsMissingFeaturesMemberWithoutChangingProviderState()
+    {
+        await using var db = CreateDb(nameof(VerificationRejectsMissingFeaturesMemberWithoutChangingProviderState));
+        var credentialOwner = new PersonalProviderCredentialService(new EphemeralDataProtectionProvider());
+        var profile = PersonalLocationProviderProfile.Create("missing-features-user", PersonalLocationProvider.Mapbox);
+        credentialOwner.Replace(profile, "credential");
+        profile.SetAuthorization(PersonalProviderCapability.Geocoding, true);
+        profile.GrantPermanentGeocodingConsent(DateTimeOffset.UtcNow);
+        var selection = PersonalLocationProviderSelection.Create(profile.UserId);
+        db.AddRange(profile, selection);
+        await db.SaveChangesAsync();
+        var handler = new JsonHandler("{\"type\":\"FeatureCollection\"}");
+        var gate = new PersonalProviderContactGate(db, credentialOwner,
+            new LegacyMapboxMigrationService(db, credentialOwner), new ConfigurationBuilder().Build());
+        var service = new ReverseGeocodingService(new HttpClient(handler),
+            NullLogger<BaseApiController>.Instance, gate, db);
+
+        var result = await service.VerifyMapboxPermanentAsync(profile.UserId);
+
+        Assert.Equal(PersonalProviderVerification.Unavailable, result);
+        Assert.Equal(1, handler.RequestCount);
+        Assert.Contains("permanent=true", handler.RequestUri!.Query, StringComparison.Ordinal);
+        var meter = await db.Set<MapboxProductMeter>().SingleAsync();
+        Assert.Equal(PersonalProviderProduct.PermanentGeocoding, meter.Product);
+        Assert.Equal(1, meter.AdmittedCount);
+        Assert.Equal(PersonalProviderVerification.Unverified, profile.GeocodingVerification);
+        Assert.Null(profile.GeocodingVerifiedCredentialGeneration);
+        Assert.Null(profile.GeocodingVerifiedConfigurationGeneration);
+        Assert.Null(selection.GeocodingProviderKey);
+        Assert.Equal(0, selection.GeocodingSelectionGeneration);
+        Assert.Empty(db.Locations);
+        Assert.Empty(db.Places);
+    }
+
     [Theory]
     [InlineData("{\"features\":[]}")]
     [InlineData("{\"type\":\"Other\",\"features\":[]}")]
@@ -129,7 +164,14 @@ public sealed class MapboxGeocodingCorrectionTests
 
     private sealed class JsonHandler(string json) : HttpMessageHandler
     {
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
-            Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(json) });
+        public int RequestCount { get; private set; }
+        public Uri? RequestUri { get; private set; }
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            RequestCount++;
+            RequestUri = request.RequestUri;
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(json) });
+        }
     }
 }
