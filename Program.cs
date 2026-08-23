@@ -489,6 +489,8 @@ static void ConfigureServices(WebApplicationBuilder builder)
     // Register ApiTokenService with DI container
     builder.Services.AddScoped<ApiTokenService>();
     builder.Services.AddScoped<PersonalProviderCredentialService>();
+    builder.Services.AddScoped<LegacyMapboxMigrationService>();
+    builder.Services.AddScoped<PersonalProviderContactGate>();
 
     // IRegistrationService as a transient or singleton service
     builder.Services.AddTransient<IRegistrationService, RegistrationService>();

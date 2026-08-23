@@ -1,12 +1,15 @@
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.EntityFrameworkCore;
+using Wayfarer.Models;
 using Wayfarer.Models.LocationProviders;
 using Wayfarer.Services.LocationProviders;
+using Wayfarer.Tests.Infrastructure;
 using Xunit;
 
 namespace Wayfarer.Tests.Services;
 
 /// <summary>Defines the shared personal-provider authority required by issues 500 through 502.</summary>
-public sealed class PersonalLocationProviderFoundationTests
+public sealed class PersonalLocationProviderFoundationTests : TestBase
 {
     [Fact]
     public void CredentialOwner_ProtectsProviderProfileCredential()
@@ -75,5 +78,47 @@ public sealed class PersonalLocationProviderFoundationTests
         Assert.True(ledger.TryAdmitMapbox(cycle, PersonalProviderProduct.PermanentGeocoding, 1, 1));
         Assert.False(ledger.TryAdmitMapbox(cycle, PersonalProviderProduct.PermanentGeocoding, 1, 1));
         Assert.True(ledger.TryAdmitMapbox(cycle, PersonalProviderProduct.Directions, 1, 1));
+    }
+
+    [Fact]
+    public async Task LegacyMigration_ProtectsBeforeRetiringAndPreservesUnrelatedTokens()
+    {
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "legacy-user", username: "legacy");
+        db.Users.Add(user);
+        db.ApiTokens.AddRange(
+            new ApiToken { Id = 8001, Name = " MapBOX ", Token = "legacy-key", UserId = user.Id, User = user },
+            new ApiToken { Id = 8002, Name = "mobile", TokenHash = "hash", UserId = user.Id, User = user });
+        await db.SaveChangesAsync();
+        var owner = new PersonalProviderCredentialService(new EphemeralDataProtectionProvider());
+
+        var result = await new LegacyMapboxMigrationService(db, owner).MigrateAsync(user.Id);
+
+        var profile = await db.PersonalLocationProviderProfiles.SingleAsync();
+        Assert.True(result.ProtectedCredentialReady);
+        Assert.Equal("legacy-key", owner.Read(profile).Credential);
+        Assert.True(profile.GeocodingAuthorized);
+        Assert.False(profile.RoutingAuthorized);
+        Assert.DoesNotContain(await db.ApiTokens.ToListAsync(), item => PersonalProviderKeys.IsLegacyMapbox(item.Name));
+        Assert.Contains(await db.ApiTokens.ToListAsync(), item => item.Name == "mobile");
+    }
+
+    [Fact]
+    public async Task LegacyMigration_PreservesDistinctRecognizedValuesAndFailsClosed()
+    {
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "conflict-user", username: "conflict");
+        db.Users.Add(user);
+        db.ApiTokens.AddRange(
+            new ApiToken { Id = 8101, Name = "Mapbox", Token = "first", UserId = user.Id, User = user },
+            new ApiToken { Id = 8102, Name = "mapBOX", Token = "second", UserId = user.Id, User = user });
+        await db.SaveChangesAsync();
+
+        var result = await new LegacyMapboxMigrationService(db,
+            new PersonalProviderCredentialService(new EphemeralDataProtectionProvider())).MigrateAsync(user.Id);
+
+        Assert.Equal(LegacyMapboxMigrationState.Conflict, result.State);
+        Assert.Equal(2, await db.ApiTokens.CountAsync());
+        Assert.Null((await db.PersonalLocationProviderProfiles.SingleAsync()).ProtectedCredential);
     }
 }
