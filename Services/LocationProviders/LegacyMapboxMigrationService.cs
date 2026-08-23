@@ -52,21 +52,13 @@ public sealed class LegacyMapboxMigrationService(
             }
             if (!string.Equals(protectedRead.Credential, values[0], StringComparison.Ordinal))
                 return await PreserveConflictAsync(profile, userId, transaction, cancellationToken);
+            await EnsureGeocodingAuthorityAsync(profile, userId, cancellationToken);
         }
         else
         {
             credentials.Replace(profile, values[0]);
-            profile.SetAuthorization(PersonalProviderCapability.Geocoding, true);
             profile.SetAuthorization(PersonalProviderCapability.Routing, false);
-            var selection = await dbContext.Set<PersonalLocationProviderSelection>()
-                .SingleOrDefaultAsync(item => item.UserId == userId, cancellationToken);
-            if (selection == null)
-            {
-                selection = PersonalLocationProviderSelection.Create(userId);
-                dbContext.Add(selection);
-            }
-            if (selection.GeocodingProviderKey == null)
-                selection.Select(PersonalProviderCapability.Geocoding, PersonalLocationProvider.Mapbox);
+            await EnsureGeocodingAuthorityAsync(profile, userId, cancellationToken);
             await dbContext.SaveChangesAsync(cancellationToken);
             var protectedRead = credentials.Read(profile);
             if (!protectedRead.Succeeded || !string.Equals(protectedRead.Credential, values[0], StringComparison.Ordinal))
@@ -92,6 +84,21 @@ public sealed class LegacyMapboxMigrationService(
                 """).SingleOrDefaultAsync(cancellationToken)
             : dbContext.Set<PersonalLocationProviderProfile>().SingleOrDefaultAsync(
                 item => item.UserId == userId && item.ProviderKey == "mapbox", cancellationToken);
+
+    private async Task EnsureGeocodingAuthorityAsync(
+        PersonalLocationProviderProfile profile, string userId, CancellationToken cancellationToken)
+    {
+        profile.SetAuthorization(PersonalProviderCapability.Geocoding, true);
+        var selection = await dbContext.Set<PersonalLocationProviderSelection>()
+            .SingleOrDefaultAsync(item => item.UserId == userId, cancellationToken);
+        if (selection == null)
+        {
+            selection = PersonalLocationProviderSelection.Create(userId);
+            dbContext.Add(selection);
+        }
+        if (selection.GeocodingProviderKey == null)
+            selection.Select(PersonalProviderCapability.Geocoding, PersonalLocationProvider.Mapbox);
+    }
 
     private async Task<List<ApiToken>> LockLegacyRowsAsync(string userId, CancellationToken cancellationToken)
     {

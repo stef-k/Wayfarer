@@ -44,9 +44,9 @@ public sealed class LocationProviderSettingsController(
         var selection = await dbContext.PersonalLocationProviderSelections.SingleOrDefaultAsync(
             item => item.UserId == userId, cancellationToken) ?? PersonalLocationProviderSelection.Create(userId);
         if (dbContext.Entry(selection).State == EntityState.Detached) dbContext.Add(selection);
-        if (input.ActiveForGeocoding) selection.Select(PersonalProviderCapability.Geocoding, provider);
+        if (input.ActiveForGeocoding && input.GeocodingAuthorized) selection.Select(PersonalProviderCapability.Geocoding, provider);
         else if (selection.GeocodingProviderKey == key) selection.Select(PersonalProviderCapability.Geocoding, null);
-        if (input.ActiveForRouting) selection.Select(PersonalProviderCapability.Routing, provider);
+        if (input.ActiveForRouting && input.RoutingAuthorized) selection.Select(PersonalProviderCapability.Routing, provider);
         else if (selection.RoutingProviderKey == key) selection.Select(PersonalProviderCapability.Routing, null);
         await dbContext.SaveChangesAsync(cancellationToken);
         return RedirectToAction(nameof(Index));

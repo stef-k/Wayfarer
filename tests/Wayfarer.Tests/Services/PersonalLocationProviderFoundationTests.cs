@@ -89,7 +89,8 @@ public sealed class PersonalLocationProviderFoundationTests : TestBase
         db.Users.Add(user);
         db.ApiTokens.AddRange(
             new ApiToken { Id = 8001, Name = " MapBOX ", Token = "legacy-key", UserId = user.Id, User = user },
-            new ApiToken { Id = 8002, Name = "mobile", TokenHash = "hash", UserId = user.Id, User = user });
+            new ApiToken { Id = 8002, Name = "mobile", TokenHash = "hash", UserId = user.Id, User = user },
+            new ApiToken { Id = 8003, Name = "MyMapboxBackup", Token = "unrelated", UserId = user.Id, User = user });
         await db.SaveChangesAsync();
         var owner = new PersonalProviderCredentialService(new EphemeralDataProtectionProvider());
 
@@ -102,6 +103,7 @@ public sealed class PersonalLocationProviderFoundationTests : TestBase
         Assert.False(profile.RoutingAuthorized);
         Assert.DoesNotContain(await db.ApiTokens.IgnoreQueryFilters().ToListAsync(), item => PersonalProviderKeys.IsLegacyMapbox(item.Name));
         Assert.Contains(await db.ApiTokens.ToListAsync(), item => item.Name == "mobile");
+        Assert.Contains(await db.ApiTokens.ToListAsync(), item => item.Name == "MyMapboxBackup");
     }
 
     [Fact]
@@ -231,5 +233,28 @@ public sealed class PersonalLocationProviderFoundationTests : TestBase
             (await service.MigrateAsync(invalidUser.Id)).State);
         Assert.Equal(LegacyMapboxMigrationState.Revoked, (await service.MigrateAsync(revokedUser.Id)).State);
         Assert.Equal(2, await db.ApiTokens.IgnoreQueryFilters().CountAsync());
+    }
+
+    [Fact]
+    public async Task LegacyMigration_MatchingProtectedValueWinsAndEnablesOnlyGeocoding()
+    {
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "matching-user", username: "matching");
+        db.Users.Add(user);
+        var owner = new PersonalProviderCredentialService(new EphemeralDataProtectionProvider());
+        var profile = PersonalLocationProviderProfile.Create(user.Id, PersonalLocationProvider.Mapbox);
+        owner.Replace(profile, "matching-key");
+        db.Add(profile);
+        db.ApiTokens.Add(new ApiToken
+        { Id = 8401, Name = "Mapbox", Token = "matching-key", UserId = user.Id, User = user });
+        await db.SaveChangesAsync();
+
+        var result = await new LegacyMapboxMigrationService(db, owner).MigrateAsync(user.Id);
+
+        Assert.True(result.ProtectedCredentialReady);
+        Assert.Equal("matching-key", owner.Read(profile).Credential);
+        Assert.True(profile.GeocodingAuthorized);
+        Assert.False(profile.RoutingAuthorized);
+        Assert.Empty(await db.ApiTokens.IgnoreQueryFilters().ToListAsync());
     }
 }
