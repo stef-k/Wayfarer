@@ -198,6 +198,41 @@ public sealed class PersonalProviderUsagePostgresTests(PostgresImportTestFixture
         Assert.Single(results, item => item.Category == PersonalProviderAdmissionCategory.Exhausted);
     }
 
+    [PostgresFact]
+    public async Task MapboxVerificationWrite_CannotVerifyReplacementCredential()
+    {
+        fixture.RequireAvailable();
+        var user = await fixture.CreateUserAsync();
+        var protection = new EphemeralDataProtectionProvider();
+        await using var context = fixture.CreateContext();
+        var owner = new PersonalProviderCredentialService(protection);
+        var profile = PersonalLocationProviderProfile.Create(user.Id, PersonalLocationProvider.Mapbox);
+        owner.Replace(profile, "generation-one");
+        profile.SetAuthorization(PersonalProviderCapability.Geocoding, true);
+        profile.GrantPermanentGeocodingConsent(DateTimeOffset.UtcNow);
+        context.Add(profile);
+        await context.SaveChangesAsync();
+        var snapshot = new PersonalProviderAuthoritySnapshot(user.Id, "mapbox", PersonalProviderCapability.Geocoding,
+            "generation-one", profile.CredentialGeneration, profile.GeocodingGeneration, 0,
+            profile.PermanentGeocodingConsentVersion, profile.PermanentGeocodingConsentedAt,
+            profile.PermanentGeocodingConsentCredentialGeneration);
+
+        await using (var replacement = fixture.CreateContext())
+        {
+            var current = await replacement.PersonalLocationProviderProfiles.SingleAsync(item => item.UserId == user.Id);
+            owner.Replace(current, "generation-two");
+            current.GrantPermanentGeocodingConsent(DateTimeOffset.UtcNow.AddMinutes(1));
+            await replacement.SaveChangesAsync();
+        }
+
+        Assert.False(await Gate(context, protection).TryRecordMapboxPermanentVerificationAsync(
+            snapshot, PersonalProviderVerification.Verified));
+        await using var verify = fixture.CreateContext();
+        var retained = await verify.PersonalLocationProviderProfiles.SingleAsync(item => item.UserId == user.Id);
+        Assert.Equal(PersonalProviderVerification.Unverified, retained.GeocodingVerification);
+        Assert.Null(retained.GeocodingVerifiedCredentialGeneration);
+    }
+
     private async Task SeedVerifiedProfileAsync(string userId, PersonalLocationProvider provider,
         PersonalProviderCapability capability, IDataProtectionProvider protection, bool alsoRouting = false)
     {
