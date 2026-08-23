@@ -18,8 +18,11 @@ public sealed class LocationEnrichmentSchedulerTests
             .ReturnsAsync(new HashSet<TriggerKey>());
         IJobDetail? capturedJob = null;
         ITrigger? capturedTrigger = null;
-        scheduler.Setup(item => item.ScheduleJob(It.IsAny<IJobDetail>(), It.IsAny<ITrigger>(), default))
-            .Callback<IJobDetail, ITrigger, CancellationToken>((job, trigger, _) => { capturedJob = job; capturedTrigger = trigger; })
+        scheduler.Setup(item => item.AddJob(It.IsAny<IJobDetail>(), false, default))
+            .Callback<IJobDetail, bool, CancellationToken>((job, _, _) => capturedJob = job)
+            .Returns(Task.CompletedTask);
+        scheduler.Setup(item => item.ScheduleJob(It.IsAny<ITrigger>(), default))
+            .Callback<ITrigger, CancellationToken>((trigger, _) => capturedTrigger = trigger)
             .ReturnsAsync(DateTimeOffset.UtcNow);
         var workflow = LocationEnrichmentWorkflow.Create("server-user", DateTime.UtcNow);
         workflow.Start(DateTime.UtcNow);
@@ -41,6 +44,7 @@ public sealed class LocationEnrichmentSchedulerTests
     {
         var scheduler = new Mock<IScheduler>();
         scheduler.Setup(item => item.CheckExists(It.IsAny<JobKey>(), default)).ReturnsAsync(true);
+        scheduler.Setup(item => item.CheckExists(It.IsAny<TriggerKey>(), default)).ReturnsAsync(true);
         scheduler.Setup(item => item.GetTriggerKeys(It.IsAny<Quartz.Impl.Matchers.GroupMatcher<TriggerKey>>(), default))
             .ReturnsAsync(new HashSet<TriggerKey>());
         var workflow = LocationEnrichmentWorkflow.Create("user", DateTime.UtcNow);
@@ -48,7 +52,8 @@ public sealed class LocationEnrichmentSchedulerTests
 
         await new LocationEnrichmentScheduler(scheduler.Object).EnsureScheduledAsync(workflow);
 
-        scheduler.Verify(item => item.ScheduleJob(It.IsAny<IJobDetail>(), It.IsAny<ITrigger>(), default), Times.Never);
+        scheduler.Verify(item => item.AddJob(It.IsAny<IJobDetail>(), It.IsAny<bool>(), default), Times.Never);
+        scheduler.Verify(item => item.ScheduleJob(It.IsAny<ITrigger>(), default), Times.Never);
     }
 
     [Fact]

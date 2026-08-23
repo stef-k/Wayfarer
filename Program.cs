@@ -395,8 +395,6 @@ static void ConfigureQuartz(WebApplicationBuilder builder)
         using var scope = sp.CreateScope();
         scheduler.ListenerManager.AddJobListener(scope.ServiceProvider.GetRequiredService<IJobListener>());
 
-        scheduler.Start().Wait();
-
         // Schedule maintenance jobs once if missing
         var logJobKey = new JobKey("LogCleanupJob", "Maintenance");
         var auditJobKey = new JobKey("AuditLogCleanupJob", "Maintenance");

@@ -16,31 +16,36 @@ public sealed class LocationEnrichmentScheduler(IScheduler scheduler)
     public async Task EnsureScheduledAsync(LocationEnrichmentWorkflow workflow, CancellationToken cancellationToken = default)
     {
         var jobKey = JobKey(workflow.SchedulerId);
+        var triggerKey = TriggerKey(workflow.SchedulerId, workflow.Epoch);
+        var prefix = $"Workflow_{workflow.SchedulerId:N}_";
+        var triggerKeys = await scheduler.GetTriggerKeys(GroupMatcher<TriggerKey>.GroupEquals(Group), cancellationToken);
+        var jobExists = await scheduler.CheckExists(jobKey, cancellationToken);
+        if (!jobExists)
+        {
+            var data = new JobDataMap { ["workflowId"] = workflow.SchedulerId.ToString("N"), ["schema"] = "1" };
+            var durable = JobBuilder.Create<LocationEnrichmentJob>().WithIdentity(jobKey)
+                .UsingJobData(data).StoreDurably().Build();
+            await scheduler.AddJob(durable, false, cancellationToken);
+            jobExists = true;
+        }
         if (!workflow.IntentEnabled || workflow.State is LocationEnrichmentState.PausedByUser
             or LocationEnrichmentState.PausedByAuthority or LocationEnrichmentState.Completed
             or LocationEnrichmentState.Cancelled or LocationEnrichmentState.Failed)
         {
-            if (await scheduler.CheckExists(jobKey, cancellationToken))
-                await scheduler.DeleteJob(jobKey, cancellationToken);
+            foreach (var live in triggerKeys.Where(item => item.Name.StartsWith(prefix, StringComparison.Ordinal)))
+                await scheduler.UnscheduleJob(live, cancellationToken);
             return;
         }
 
-        var triggerKey = TriggerKey(workflow.SchedulerId, workflow.Epoch);
-        var prefix = $"Workflow_{workflow.SchedulerId:N}_";
-        var triggerKeys = await scheduler.GetTriggerKeys(GroupMatcher<TriggerKey>.GroupEquals(Group), cancellationToken);
         foreach (var stale in triggerKeys.Where(item => item.Name.StartsWith(prefix, StringComparison.Ordinal)
             && item != triggerKey))
             await scheduler.UnscheduleJob(stale, cancellationToken);
-        var jobExists = await scheduler.CheckExists(jobKey, cancellationToken);
         if (jobExists && await scheduler.CheckExists(triggerKey, cancellationToken)) return;
-        var data = new JobDataMap { ["workflowId"] = workflow.SchedulerId.ToString("N"), ["schema"] = "1" };
-        var job = JobBuilder.Create<LocationEnrichmentJob>().WithIdentity(jobKey).UsingJobData(data).StoreDurably().Build();
         var trigger = TriggerBuilder.Create().WithIdentity(triggerKey).ForJob(jobKey)
             .UsingJobData("epoch", workflow.Epoch.ToString(System.Globalization.CultureInfo.InvariantCulture))
             .StartAt(workflow.NextEligibleAtUtc ?? DateTime.UtcNow)
             .WithSimpleSchedule(schedule => schedule.WithRepeatCount(0)
                 .WithMisfireHandlingInstructionNextWithRemainingCount()).Build();
-        if (!jobExists) await scheduler.ScheduleJob(job, trigger, cancellationToken);
-        else await scheduler.ScheduleJob(trigger, cancellationToken);
+        await scheduler.ScheduleJob(trigger, cancellationToken);
     }
 }

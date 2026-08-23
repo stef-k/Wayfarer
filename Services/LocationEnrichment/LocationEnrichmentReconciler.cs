@@ -10,20 +10,36 @@ namespace Wayfarer.Services.LocationEnrichment;
 public sealed class LocationEnrichmentReconciler(
     ApplicationDbContext db, LocationEnrichmentScheduler schedulerOwner, IScheduler scheduler)
 {
+    private const int PageSize = 200;
+
     /// <summary>Recovers running rows, repairs active triggers, and removes orphan jobs without contact.</summary>
     public async Task ReconcileAsync(CancellationToken cancellationToken = default)
     {
-        var workflows = await db.LocationEnrichmentWorkflows.ToListAsync(cancellationToken);
-        var now = DateTime.UtcNow;
-        foreach (var workflow in workflows.Where(item => item.State == LocationEnrichmentState.Running))
-            workflow.RecoverRunning(now);
-        await db.SaveChangesAsync(cancellationToken);
-        foreach (var workflow in workflows)
-            await schedulerOwner.EnsureScheduledAsync(workflow, cancellationToken);
-        var valid = workflows.Select(item => LocationEnrichmentScheduler.JobKey(item.SchedulerId)).ToHashSet();
+        var now = db.Database.IsNpgsql()
+            ? await db.Database.SqlQuery<DateTime>($"SELECT (clock_timestamp() AT TIME ZONE 'UTC') AS \"Value\"")
+                .SingleAsync(cancellationToken)
+            : DateTime.UtcNow;
+        string? afterUserId = null;
+        while (true)
+        {
+            var page = await db.LocationEnrichmentWorkflows
+                .Where(item => afterUserId == null || string.Compare(item.UserId, afterUserId) > 0)
+                .OrderBy(item => item.UserId).Take(PageSize).ToListAsync(cancellationToken);
+            if (page.Count == 0) break;
+            foreach (var workflow in page.Where(item => item.State == LocationEnrichmentState.Running))
+                workflow.RecoverRunning(now);
+            await db.SaveChangesAsync(cancellationToken);
+            foreach (var workflow in page)
+                await schedulerOwner.EnsureScheduledAsync(workflow, cancellationToken);
+            afterUserId = page[^1].UserId;
+            db.ChangeTracker.Clear();
+        }
         var quartzKeys = await scheduler.GetJobKeys(
             GroupMatcher<JobKey>.GroupEquals(LocationEnrichmentScheduler.Group), cancellationToken);
-        foreach (var orphan in quartzKeys.Where(item => !valid.Contains(item)))
+        var validIds = (await db.LocationEnrichmentWorkflows.AsNoTracking()
+            .Select(item => item.SchedulerId).ToListAsync(cancellationToken))
+            .Select(LocationEnrichmentScheduler.JobKey).ToHashSet();
+        foreach (var orphan in quartzKeys.Where(item => !validIds.Contains(item)))
             await scheduler.DeleteJob(orphan, cancellationToken);
     }
 }
