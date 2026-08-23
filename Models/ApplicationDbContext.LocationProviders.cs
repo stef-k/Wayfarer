@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Wayfarer.Models.LocationProviders;
+using Wayfarer.Models.LocationEnrichment;
 
 namespace Wayfarer.Models;
 
@@ -16,4 +17,8 @@ public partial class ApplicationDbContext
     public DbSet<GeoapifyUsageAdmission> GeoapifyUsageAdmissions { get; set; }
     /// <summary>Gets independent Mapbox product meters.</summary>
     public DbSet<MapboxProductMeter> MapboxProductMeters { get; set; }
+    /// <summary>Gets one retained enrichment workflow per user.</summary>
+    public DbSet<LocationEnrichmentWorkflow> LocationEnrichmentWorkflows { get; set; }
+    /// <summary>Gets bounded per-location enrichment attempt metadata.</summary>
+    public DbSet<LocationEnrichmentAttempt> LocationEnrichmentAttempts { get; set; }
 }

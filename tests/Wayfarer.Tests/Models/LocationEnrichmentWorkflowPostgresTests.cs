@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Point = NetTopologySuite.Geometries.Point;
 using Wayfarer.Models;
 using Wayfarer.Models.LocationEnrichment;
 using Wayfarer.Tests.Infrastructure;
@@ -20,8 +21,9 @@ public sealed class LocationEnrichmentWorkflowPostgresTests(PostgresImportTestFi
         db.LocationEnrichmentWorkflows.Add(LocationEnrichmentWorkflow.Create(second.Id, DateTime.UtcNow));
         await db.SaveChangesAsync();
 
-        db.LocationEnrichmentWorkflows.Add(LocationEnrichmentWorkflow.Create(first.Id, DateTime.UtcNow));
-        await Assert.ThrowsAsync<DbUpdateException>(() => db.SaveChangesAsync());
+        await using var duplicate = fixture.CreateContext();
+        duplicate.LocationEnrichmentWorkflows.Add(LocationEnrichmentWorkflow.Create(first.Id, DateTime.UtcNow));
+        await Assert.ThrowsAsync<DbUpdateException>(() => duplicate.SaveChangesAsync());
     }
 
     [PostgresFact]
@@ -55,7 +57,8 @@ public sealed class LocationEnrichmentWorkflowPostgresTests(PostgresImportTestFi
             UserId = user.Id,
             Timestamp = DateTime.UtcNow,
             LocalTimestamp = DateTime.UtcNow,
-            TimeZoneId = "UTC"
+            TimeZoneId = "UTC",
+            Coordinates = new Point(20, 10) { SRID = 4326 }
         };
         db.Locations.Add(location);
         db.LocationEnrichmentWorkflows.Add(LocationEnrichmentWorkflow.Create(user.Id, DateTime.UtcNow));

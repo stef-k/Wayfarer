@@ -66,4 +66,10 @@ public class LocationImport
     /// Count of locations skipped during import due to deduplication.
     /// </summary>
     public int SkippedDuplicates { get; set; }
+
+    /// <summary>Whether this import may hand remaining enrichment to the user's durable workflow.</summary>
+    public bool EnrichmentRequested { get; set; }
+
+    /// <summary>UTC time at which the user explicitly opted into durable enrichment.</summary>
+    public DateTime? EnrichmentRequestedAtUtc { get; set; }
 }
