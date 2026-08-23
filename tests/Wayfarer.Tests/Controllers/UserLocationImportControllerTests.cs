@@ -8,6 +8,8 @@ using Wayfarer.Areas.User.Controllers;
 using Wayfarer.Models;
 using Wayfarer.Models.Enums;
 using Wayfarer.Models.ViewModels;
+using Wayfarer.Models.LocationEnrichment;
+using Wayfarer.Services.LocationEnrichment;
 using Wayfarer.Tests.Infrastructure;
 using Xunit;
 
@@ -82,14 +84,61 @@ public class UserLocationImportControllerTests : TestBase
         Assert.Empty(db.LocationImports);
     }
 
-    private LocationImportController BuildController(ApplicationDbContext db, string userId)
+    [Fact]
+    public async Task RetryDeferredUsesOnlyAuthenticatedClaimIdentity()
+    {
+        var handoff = new Mock<IImportEnrichmentHandoff>();
+        handoff.Setup(item => item.RetryDeferredAsync("u1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(EnrichmentCommandResult.Success("scheduled"));
+        var controller = BuildController(CreateDbContext(), "u1", handoff.Object);
+
+        var result = await controller.RetryDeferredEnrichment();
+
+        Assert.IsType<RedirectToActionResult>(result);
+        handoff.Verify(item => item.RetryDeferredAsync("u1", It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task PauseWhileIdleReturnsBoundedConflict()
+    {
+        var db = CreateDbContext();
+        db.Add(LocationEnrichmentWorkflow.Create("u1", DateTime.UtcNow));
+        await db.SaveChangesAsync();
+        var controller = BuildController(db, "u1");
+
+        var result = await controller.PauseEnrichment();
+
+        var conflict = Assert.IsType<ConflictObjectResult>(result);
+        Assert.Equal("invalid-state", conflict.Value);
+    }
+
+    [Fact]
+    public async Task ResumeWithoutCurrentProviderAuthorityReturnsBoundedConflict()
+    {
+        var db = CreateDbContext();
+        var workflow = LocationEnrichmentWorkflow.Create("u1", DateTime.UtcNow);
+        workflow.Start(DateTime.UtcNow);
+        workflow.Pause(DateTime.UtcNow);
+        db.Add(workflow);
+        await db.SaveChangesAsync();
+        var controller = BuildController(db, "u1");
+
+        var result = await controller.ResumeEnrichment();
+
+        var conflict = Assert.IsType<ConflictObjectResult>(result);
+        Assert.Equal("authority-unavailable", conflict.Value);
+    }
+
+    private LocationImportController BuildController(ApplicationDbContext db, string userId,
+        IImportEnrichmentHandoff? handoff = null, IWorkflowScheduleProjection? projection = null)
     {
         var env = new Mock<IWebHostEnvironment>();
         env.SetupGet(e => e.WebRootPath).Returns(Path.GetTempPath());
         var scheduler = new Mock<IScheduler>();
         scheduler.Setup(s => s.ScheduleJob(It.IsAny<IJobDetail>(), It.IsAny<ITrigger>(), default)).ReturnsAsync(DateTimeOffset.UtcNow);
 
-        var controller = new LocationImportController(db, NullLogger<LocationImportController>.Instance, env.Object, scheduler.Object);
+        var controller = new LocationImportController(db, NullLogger<LocationImportController>.Instance,
+            env.Object, scheduler.Object, handoff, projection);
         controller.ControllerContext = new ControllerContext { HttpContext = BuildHttpContextWithUser(userId) };
         return controller;
     }
