@@ -58,11 +58,12 @@ public sealed class GeoapifyBackfillConcurrencyPostgresTests(PostgresImportTestF
         var task = Service(run, protection, handler).RunAsync(user.Id, epoch);
         await handler.FirstUserRequestEntered;
         handler.Release();
-        await task;
+        var result = await task;
 
         await using var verify = fixture.CreateContext();
         Assert.Equal("geoapify", (await verify.Locations.SingleAsync(item => item.Id == laterId)).ReverseGeocodingProvider);
         Assert.Single(await verify.LocationEnrichmentAttempts.Where(item => item.UserId == user.Id).ToListAsync());
+        Assert.Equal(0, result.RemainingEstimate);
     }
 
     [PostgresFact(Timeout = 30_000)]
@@ -82,7 +83,7 @@ public sealed class GeoapifyBackfillConcurrencyPostgresTests(PostgresImportTestF
         var handler = new CoordinatedHandler(user.Id, null, ContactOutcome.ProviderFailure);
         await using var run = fixture.CreateContext();
         var task = Service(run, protection, handler).RunAsync(user.Id, epoch);
-        await handler.FirstUserRequestEntered; handler.Release(); await task;
+        await handler.FirstUserRequestEntered; handler.Release(); var result = await task;
 
         await using var verify = fixture.CreateContext();
         var attempt = await verify.LocationEnrichmentAttempts.SingleAsync(item => item.UserId == user.Id);
@@ -90,6 +91,8 @@ public sealed class GeoapifyBackfillConcurrencyPostgresTests(PostgresImportTestF
         Assert.Equal(1, attempt.AdmittedAttemptCount);
         Assert.Equal("geoapify", attempt.ProviderKey);
         Assert.NotNull(attempt.NextAttemptAtUtc);
+        Assert.Equal(1, result.RemainingEstimate);
+        Assert.Equal(attempt.NextAttemptAtUtc, result.NextEligibleAt?.UtcDateTime);
         Assert.Single(await verify.GeoapifyUsageAdmissions.Where(item => item.UserId == user.Id).ToListAsync());
     }
 

@@ -53,9 +53,11 @@ public sealed class GeoapifyLocationBackfillService(
     {
         var authority = await LoadAuthorityAsync(userId, cancellationToken);
         var ids = await LoadCandidateIdsAsync(dbContext, userId, authority, MaximumRecords, cancellationToken);
-        var scanned = 0; var succeeded = 0; var noResult = 0; var unavailable = 0; var exhausted = false;
+        var scanned = 0; var succeeded = 0; var noResult = 0; var unavailable = 0; var admitted = 0;
+        var exhausted = false;
         DateTimeOffset? nextEligibleAt = null;
         var authorityUnavailable = false;
+        var cancellationAfterContact = false;
         foreach (var id in ids)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -67,6 +69,7 @@ public sealed class GeoapifyLocationBackfillService(
             var result = await reverseGeocoding.EnrichAsync(userId,
                 location.Coordinates.Y, location.Coordinates.X,
                 ReverseGeocodingIntent.ImportMissingAddress, cancellationToken);
+            if (result.Authority != null) admitted++;
             if (!epoch.HasValue && result.Category == ReverseGeocodingCategory.CancelledAfterContact)
                 cancellationToken.ThrowIfCancellationRequested();
             if (epoch.HasValue && !await ExecutionStillCurrentAsync(userId, epoch.Value, CancellationToken.None))
@@ -90,12 +93,16 @@ public sealed class GeoapifyLocationBackfillService(
             if (!result.Succeeded)
             {
                 if (epoch.HasValue)
-                    await RecordAttemptAsync(userId, location.Id, authority, result, cancellationToken);
+                    await RecordAttemptAsync(userId, location.Id, authority, result,
+                        result.Category == ReverseGeocodingCategory.CancelledAfterContact
+                            ? CancellationToken.None : cancellationToken);
                 if (result.Category is ReverseGeocodingCategory.InvalidResponse or ReverseGeocodingCategory.InvalidRequest)
                     noResult++;
                 else unavailable++;
                 if (result.Category == ReverseGeocodingCategory.Authorization)
                 { authorityUnavailable = true; break; }
+                if (result.Category == ReverseGeocodingCategory.CancelledAfterContact)
+                { cancellationAfterContact = true; break; }
                 continue;
             }
             await dbContext.Entry(location).ReloadAsync(cancellationToken);
@@ -108,9 +115,22 @@ public sealed class GeoapifyLocationBackfillService(
                 succeeded++;
             }
         }
-        var remaining = await WhollyUnenriched(dbContext.Locations.Where(item => item.UserId == userId))
-            .CountAsync(cancellationToken);
-        return new(scanned, succeeded, noResult, unavailable, remaining, exhausted, nextEligibleAt, authorityUnavailable);
+        var finalToken = cancellationAfterContact ? CancellationToken.None : cancellationToken;
+        var remaining = await CandidateQuery(dbContext, userId, authority, DateTime.UtcNow)
+            .CountAsync(finalToken);
+        if (remaining == 0 && !exhausted && !authorityUnavailable)
+        {
+            var futureDue = await FutureRetryQuery(dbContext, userId, authority, DateTime.UtcNow)
+                .MinAsync(item => (DateTime?)item.NextAttemptAtUtc, finalToken);
+            if (futureDue.HasValue)
+            {
+                remaining = 1;
+                unavailable = Math.Max(unavailable, 1);
+                nextEligibleAt = new DateTimeOffset(futureDue.Value);
+            }
+        }
+        return new(scanned, succeeded, noResult, unavailable, remaining, exhausted, nextEligibleAt,
+            authorityUnavailable, admitted);
     }
 
     /// <summary>Loads only stable candidate identities in chronological order.</summary>
@@ -133,9 +153,14 @@ public sealed class GeoapifyLocationBackfillService(
         EnrichmentAuthority authority, int limit, CancellationToken cancellationToken = default)
     {
         if (limit is < 1 or > MaximumRecords) throw new ArgumentOutOfRangeException(nameof(limit));
-        var now = DateTime.UtcNow;
+        return CandidateQuery(dbContext, userId, authority, DateTime.UtcNow).Take(limit).ToListAsync(cancellationToken);
+    }
+
+    private static IQueryable<int> CandidateQuery(ApplicationDbContext dbContext, string userId,
+        EnrichmentAuthority authority, DateTime now)
+    {
         var attempts = dbContext.LocationEnrichmentAttempts.Where(item => item.UserId == userId);
-        return (from location in WhollyUnenriched(dbContext.Locations.Where(item => item.UserId == userId))
+        return from location in WhollyUnenriched(dbContext.Locations.Where(item => item.UserId == userId))
                 join attempt in attempts on location.Id equals attempt.LocationId into matches
                 from attempt in matches.DefaultIfEmpty()
                 where attempt == null ||
@@ -149,8 +174,21 @@ public sealed class GeoapifyLocationBackfillService(
                          || (attempt.AdmittedAttemptCount < 3
                              && (attempt.NextAttemptAtUtc == null || attempt.NextAttemptAtUtc <= now))))
                 orderby location.Timestamp, location.Id
-                select location.Id).Take(limit).ToListAsync(cancellationToken);
+                select location.Id;
     }
+
+    private static IQueryable<LocationEnrichmentAttempt> FutureRetryQuery(ApplicationDbContext dbContext,
+        string userId, EnrichmentAuthority authority, DateTime now) =>
+        from attempt in dbContext.LocationEnrichmentAttempts
+        join location in WhollyUnenriched(dbContext.Locations.Where(item => item.UserId == userId))
+            on attempt.LocationId equals location.Id
+        where attempt.UserId == userId && attempt.ProviderKey == authority.ProviderKey
+            && attempt.CredentialGeneration == authority.CredentialGeneration
+            && attempt.ConfigurationGeneration == authority.ConfigurationGeneration
+            && attempt.SelectionGeneration == authority.SelectionGeneration
+            && attempt.Outcome == LocationEnrichmentOutcome.RetryableFailure
+            && attempt.AdmittedAttemptCount < 3 && attempt.NextAttemptAtUtc > now
+        select attempt;
 
     private async Task<EnrichmentAuthority> LoadAuthorityAsync(string userId, CancellationToken cancellationToken)
     {
@@ -244,7 +282,7 @@ public sealed class BackfillLockDbContextFactory(
 /// <summary>Contains bounded content-free progress for one explicit backfill invocation.</summary>
 public sealed record GeoapifyBackfillResult(
     int Scanned, int Succeeded, int NoResult, int Unavailable, int RemainingEstimate, bool Exhausted,
-    DateTimeOffset? NextEligibleAt = null, bool AuthorityUnavailable = false);
+    DateTimeOffset? NextEligibleAt = null, bool AuthorityUnavailable = false, int Admitted = 0);
 
 /// <summary>Contains only bounded provider generation identity used by candidate selection.</summary>
 public sealed record EnrichmentAuthority(string ProviderKey, int CredentialGeneration,

@@ -21,7 +21,7 @@ public sealed class LocationEnrichmentWorker(
         if (workflow.State != LocationEnrichmentState.Running || workflow.Epoch != epoch) return;
         var now = DateTime.UtcNow;
         workflow.RecordBatch(result.Scanned, result.Succeeded, result.Unavailable, result.NoResult,
-            result.Scanned, now);
+            result.Admitted, now);
         if (result.AuthorityUnavailable)
             workflow.PauseForAuthority(LocationEnrichmentOutcome.AuthorityUnavailable, now);
         else if (result.RemainingEstimate == 0)
@@ -34,7 +34,7 @@ public sealed class LocationEnrichmentWorker(
         }
         else if (result.Unavailable > 0)
         {
-            var next = await db.LocationEnrichmentAttempts.Where(item => item.UserId == userId
+            var next = result.NextEligibleAt?.UtcDateTime ?? await db.LocationEnrichmentAttempts.Where(item => item.UserId == userId
                     && item.Outcome == LocationEnrichmentOutcome.RetryableFailure)
                 .MinAsync(item => (DateTime?)item.NextAttemptAtUtc, cancellationToken) ?? now;
             workflow.ContinueAs(LocationEnrichmentState.BackingOff,
