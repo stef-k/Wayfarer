@@ -2,6 +2,8 @@ using System.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Npgsql;
+using NetTopologySuite.Geometries;
+using System.Text.Json;
 using Wayfarer.Models;
 
 namespace Wayfarer.Services.ExternalRouting;
@@ -117,7 +119,7 @@ public sealed class ExternalRouteProposalAcceptanceService
             await _dbContext.Database.ExecuteSqlInterpolatedAsync(
                 $"SELECT 1 FROM \"Segments\" WHERE \"Id\" = {segmentId} AND \"TripId\" = {tripId} AND \"UserId\" = {userId} FOR UPDATE",
                 cancellationToken);
-        var segment = await _dbContext.Set<Segment>().AsNoTracking()
+        var segment = await _dbContext.Set<Segment>()
             .Include(item => item.FromPlace).Include(item => item.ToPlace)
             .Include(item => item.Waypoints.OrderBy(waypoint => waypoint.Position)).ThenInclude(item => item.Place)
             .SingleOrDefaultAsync(item => item.Id == segmentId && item.TripId == tripId && item.UserId == userId, cancellationToken);
@@ -133,8 +135,30 @@ public sealed class ExternalRouteProposalAcceptanceService
             || waypointIndices.Where((index, anchorIndex) => geometry[index] != anchors[anchorIndex]).Any())
             return ExternalRouteAcceptanceResult.Failure("route-proposal-stale");
 
+        var aggregateConcurrencyToken = binding.AggregateConcurrencyToken;
+        if (binding.ProviderKey == "geoapify" && binding.StorageMode == "persistent")
+        {
+            segment.RouteGeometry = new LineString(geometry.Select(item => new Coordinate(item.Longitude, item.Latitude)).ToArray()) { SRID = 4326 };
+            segment.EstimatedDistanceKm = binding.DistanceMetres / 1000d;
+            segment.EstimatedDuration = binding.DurationSeconds.HasValue
+                ? TimeSpan.FromSeconds(binding.DurationSeconds.Value) : null;
+            segment.EstimatedDurationSource = EstimatedDurationSource.Automatic;
+            segment.RouteInstructionsJson = JsonSerializer.Serialize(binding.Instructions ?? []);
+            segment.RouteProvider = binding.ProviderKey;
+            segment.RouteProviderConfigurationId = binding.ProviderId;
+            segment.RouteProviderConfigurationVersion = binding.ProviderConfigurationVersion;
+            segment.RouteTransportProfileId = binding.TransportProfileId;
+            segment.RouteMappingMode = binding.MappingMode;
+            segment.RouteGeneratedAt = binding.GeneratedAt?.ToUniversalTime();
+            segment.RouteAttribution = binding.Attribution;
+            segment.RouteStorageMode = binding.StorageMode;
+            await _dbContext.SaveChangesAsync(cancellationToken);
+            aggregateConcurrencyToken = _aggregateTokens.Issue(userId, tripId, segmentId, segment.RowVersion);
+        }
         return new ExternalRouteAcceptanceResult(true, null,
-            new AcceptedExternalRouteProposalDto(proposalId, segmentId, geometry, waypointIndices));
+            new AcceptedExternalRouteProposalDto(proposalId, segmentId, geometry, waypointIndices,
+                binding.DistanceMetres, binding.DurationSeconds, binding.Instructions, binding.ProviderKey,
+                binding.Attribution, binding.StorageMode, aggregateConcurrencyToken));
     }
 
     private static bool GeometryShapeValid(IReadOnlyList<RouteCoordinate> geometry, IReadOnlyList<int> indices) =>
@@ -146,7 +170,10 @@ public sealed class ExternalRouteProposalAcceptanceService
 
 /// <summary>Contains a validated proposal suitable only for copying into one client draft.</summary>
 public sealed record AcceptedExternalRouteProposalDto(
-    Guid ProposalId, Guid SegmentId, IReadOnlyList<RouteCoordinate> Geometry, IReadOnlyList<int> WaypointIndices);
+    Guid ProposalId, Guid SegmentId, IReadOnlyList<RouteCoordinate> Geometry, IReadOnlyList<int> WaypointIndices,
+    double? DistanceMetres = null, double? DurationSeconds = null, IReadOnlyList<RouteInstruction>? Instructions = null,
+    string? Provider = null, string? Attribution = null, string? StorageMode = null,
+    string? AggregateConcurrencyToken = null);
 
 /// <summary>Contains a bounded acceptance outcome without persistence.</summary>
 public sealed record ExternalRouteAcceptanceResult(

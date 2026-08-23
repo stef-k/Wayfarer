@@ -109,7 +109,11 @@ public sealed class RoutingProviderConfiguration
 public enum RoutingAdapterType
 {
     /// <summary>The explicit OSRM route API contract.</summary>
-    OsrmCompatible = 1
+    OsrmCompatible = 1,
+    /// <summary>The fixed Geoapify Routing API contract.</summary>
+    Geoapify = 2,
+    /// <summary>The distinct Mapbox Directions contract reserved for issue #500.</summary>
+    MapboxDirections = 3
 }
 
 /// <summary>Controls whether users may select an administrator-owned provider template.</summary>

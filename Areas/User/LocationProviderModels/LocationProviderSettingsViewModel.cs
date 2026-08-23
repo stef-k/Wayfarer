@@ -26,7 +26,9 @@ public sealed record LocationProviderProfileViewModel(
 public sealed class LocationProviderProfileInput
 {
     [Required, RegularExpression("geoapify|mapbox")] public string ProviderKey { get; set; } = string.Empty;
-    [DataType(DataType.Password), StringLength(2048)] public string? ReplacementCredential { get; set; }
+    [DataType(DataType.Password), StringLength(2048), RegularExpression(@"^[^\s\p{Cc}]*$",
+        ErrorMessage = "Credentials cannot contain whitespace or control characters.")]
+    public string? ReplacementCredential { get; set; }
     public bool GeocodingAuthorized { get; set; }
     public bool RoutingAuthorized { get; set; }
     public bool ActiveForGeocoding { get; set; }

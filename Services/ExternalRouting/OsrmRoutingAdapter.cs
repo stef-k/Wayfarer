@@ -100,8 +100,16 @@ public readonly record struct RouteCoordinate(double Longitude, double Latitude)
 
 /// <summary>Contains only validated OSRM route and snapped waypoint coordinates.</summary>
 public sealed record OsrmRouteResult(
-    bool Succeeded, IReadOnlyList<RouteCoordinate> Geometry, IReadOnlyList<RouteCoordinate> Waypoints, string? ErrorCode)
+    bool Succeeded, IReadOnlyList<RouteCoordinate> Geometry, IReadOnlyList<RouteCoordinate> Waypoints, string? ErrorCode,
+    double? DistanceMetres = null, double? DurationSeconds = null,
+    IReadOnlyList<RouteInstruction>? RouteInstructions = null)
 {
+    /// <summary>Gets normalized instructions or an empty list for providers that do not supply them.</summary>
+    public IReadOnlyList<RouteInstruction> Instructions => RouteInstructions ?? [];
     /// <summary>Creates a bounded invalid result without provider details.</summary>
     public static OsrmRouteResult Invalid(string code) => new(false, [], [], code);
 }
+
+/// <summary>Contains one bounded provider-neutral route instruction.</summary>
+public sealed record RouteInstruction(
+    string Text, string Type, int FromIndex, int ToIndex, double DistanceMetres, double DurationSeconds);

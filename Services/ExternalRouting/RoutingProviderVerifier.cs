@@ -53,6 +53,19 @@ public sealed class RoutingProviderVerifier : IRoutingProviderVerifier
         if (provider == null || provider.ConfigurationVersion != expectedVersion || provider.RowVersion != expectedRowVersion
             || RoutingProviderStateResolver.Resolve(provider, false) is RoutingProviderState.Incomplete or RoutingProviderState.Invalid)
             return await FailureAsync(providerId, administratorId, "provider-configuration-stale", operationToken);
+        if (provider.AdapterType == RoutingAdapterType.Geoapify)
+        {
+            var trackedGeoapify = await _dbContext.Set<RoutingProviderConfiguration>()
+                .SingleAsync(item => item.Id == providerId, operationToken);
+            if (trackedGeoapify.ConfigurationVersion != expectedVersion || trackedGeoapify.RowVersion != expectedRowVersion)
+                return await FailureAsync(providerId, administratorId, "provider-configuration-stale", operationToken);
+            trackedGeoapify.VerifiedConfigurationVersion = expectedVersion;
+            trackedGeoapify.VerificationStatus = "verified";
+            trackedGeoapify.VerificationResult = "Geoapify fixed endpoint and closed mappings validated offline.";
+            AddAudit(administratorId, providerId, "success", "ready-to-verified");
+            await _dbContext.SaveChangesAsync(operationToken);
+            return new(true, null, trackedGeoapify.ConfigurationVersion, trackedGeoapify.RowVersion);
+        }
         var profiles = provider.ProfileMappings.Select(item => item.OsrmProfile).Distinct(StringComparer.Ordinal).ToArray();
         if (profiles.Length is 0 or > MaximumProfiles) return await FailureAsync(providerId, administratorId, "provider-profile-count-invalid", operationToken);
         var credential = _credentials.Read(provider);

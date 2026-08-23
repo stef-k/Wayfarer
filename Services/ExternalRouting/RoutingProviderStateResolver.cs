@@ -19,7 +19,7 @@ public static class RoutingProviderStateResolver
 
     private static bool IsComplete(RoutingProviderConfiguration value) =>
         value.Enabled && !string.IsNullOrWhiteSpace(value.DisplayName) && !string.IsNullOrWhiteSpace(value.BaseEndpoint)
-        && (!value.CredentialRequired || value.CredentialPresent)
+        && (value.AdapterType == RoutingAdapterType.Geoapify || !value.CredentialRequired || value.CredentialPresent)
         && value.VerificationFromLongitude.HasValue && value.VerificationFromLatitude.HasValue
         && value.VerificationToLongitude.HasValue && value.VerificationToLatitude.HasValue
         && value.ProfileMappings.Count > 0;
@@ -30,7 +30,9 @@ public static class RoutingProviderStateResolver
         && CoordinatesValid(value.VerificationFromLongitude!.Value, value.VerificationFromLatitude!.Value)
         && CoordinatesValid(value.VerificationToLongitude!.Value, value.VerificationToLatitude!.Value)
         && value.ProfileMappings.All(mapping => !string.IsNullOrWhiteSpace(mapping.OsrmProfile)
-            && mapping.TransportProfile is { IsActive: true });
+            && mapping.TransportProfile is { IsActive: true }
+            && (value.AdapterType != RoutingAdapterType.Geoapify
+                || GeoapifyRouteCost.TryParse(mapping.OsrmProfile, out _)));
 
     private static bool CoordinatesValid(double longitude, double latitude) =>
         double.IsFinite(longitude) && double.IsFinite(latitude) && longitude is >= -180 and <= 180 && latitude is >= -90 and <= 90;

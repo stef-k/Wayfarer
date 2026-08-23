@@ -255,3 +255,5 @@ Trip editing state is owned by the Vue Trip Editor:
 - Public/private visibility controls
 
 Persistent reverse enrichment has one server-side boundary that owns protected authority, consent, verification, selection, provider-native admission, transport, normalization, generation revalidation, and bounded results. Capture/import/Trip callers never receive credentials or choose storage mode.
+
+Geoapify routing is a distinct adapter behind the existing proposal seam. Administrator configuration plus stable Transport Profile ID resolves a closed provider mode; mapping/configuration version participates in stale-work authority. Explicit acceptance owns durable Segment route provenance, while the dedicated authenticated mobile route endpoint returns but does not persist ad-hoc routes.

@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using System.ComponentModel.DataAnnotations;
 using NetTopologySuite.Geometries;
 
 namespace Wayfarer.Models;
@@ -72,6 +73,25 @@ public class Segment
 
     /// <summary>Estimated distance in kilometers.</summary>
     public double? EstimatedDistanceKm { get; set; }
+
+    /// <summary>Bounded provider-neutral normalized route instructions.</summary>
+    [MaxLength(65535)] public string? RouteInstructionsJson { get; set; }
+    /// <summary>Safe provider identity for an explicitly accepted retained route.</summary>
+    [MaxLength(24)] public string? RouteProvider { get; set; }
+    /// <summary>Administrator routing-configuration identity used to generate the route.</summary>
+    public Guid? RouteProviderConfigurationId { get; set; }
+    /// <summary>Configuration and mapping authority version used to generate the route.</summary>
+    public int? RouteProviderConfigurationVersion { get; set; }
+    /// <summary>Stable Wayfarer transport-profile identity used by the mapping.</summary>
+    public Guid? RouteTransportProfileId { get; set; }
+    /// <summary>Bounded exact provider-native mapping value retained for stale/offline matching.</summary>
+    [MaxLength(80)] public string? RouteMappingMode { get; set; }
+    /// <summary>UTC instant at which the accepted provider route was generated.</summary>
+    public DateTimeOffset? RouteGeneratedAt { get; set; }
+    /// <summary>Safe linked attribution contract for display with the route.</summary>
+    [MaxLength(500)] public string? RouteAttribution { get; set; }
+    /// <summary>Rights-authorized route storage marker.</summary>
+    [MaxLength(16)] public string? RouteStorageMode { get; set; }
 
     /// <summary>Order for displaying segments in the UI.</summary>
     public int DisplayOrder { get; set; }

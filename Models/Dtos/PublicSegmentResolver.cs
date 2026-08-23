@@ -70,7 +70,15 @@ public static class PublicSegmentResolver
                 Position = item.Position,
                 RouteVertexIndex = item.RouteVertexIndex
             }).ToArray(),
-            HasCustomRoute = segment.RouteGeometry is not null
+            HasCustomRoute = segment.RouteGeometry is not null,
+            RouteInstructionsJson = segment.RouteInstructionsJson,
+            RouteProvider = segment.RouteProvider,
+            RouteProviderConfigurationId = segment.RouteProviderConfigurationId,
+            RouteProviderConfigurationVersion = segment.RouteProviderConfigurationVersion,
+            RouteTransportProfileId = segment.RouteTransportProfileId,
+            RouteGeneratedAt = segment.RouteGeneratedAt,
+            RouteAttribution = segment.RouteAttribution,
+            RouteStorageMode = segment.RouteStorageMode
         }, null);
     }
 

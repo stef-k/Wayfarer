@@ -67,6 +67,7 @@ export interface AcceptedExternalRouteProposal {
   segmentId: Guid;
   geometry: Array<{ longitude: number; latitude: number }>;
   waypointIndices: number[];
+  aggregateConcurrencyToken?: string | null;
 }
 
 export interface EditorPlace {

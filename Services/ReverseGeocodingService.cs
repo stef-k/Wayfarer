@@ -181,6 +181,7 @@ namespace Wayfarer.Parsers
         private readonly ILogger _logger;
         private readonly PersonalProviderContactGate? _contactGate;
         private readonly ApplicationDbContext? _dbContext;
+        private readonly GeoapifyReverseGeocodingAdapter _geoapify;
 
         public ReverseGeocodingService(HttpClient httpClient, ILogger<BaseApiController> logger,
             PersonalProviderContactGate? contactGate = null, ApplicationDbContext? dbContext = null)
@@ -189,6 +190,7 @@ namespace Wayfarer.Parsers
             _logger = logger;
             _contactGate = contactGate;
             _dbContext = dbContext;
+            _geoapify = new GeoapifyReverseGeocodingAdapter(httpClient);
         }
 
         /// <summary>Returns one generation-bound, admitted Permanent enrichment.</summary>
@@ -198,14 +200,15 @@ namespace Wayfarer.Parsers
             if (_contactGate == null || !double.IsFinite(latitude) || !double.IsFinite(longitude)
                 || latitude is < -90 or > 90 || longitude is < -180 or > 180)
                 return ReverseGeocodingResult.Unavailable(ReverseGeocodingCategory.InvalidRequest);
-            var admission = await _contactGate.AdmitAsync(userId, PersonalProviderCapability.Geocoding,
-                PersonalProviderProduct.PermanentGeocoding, 1, cancellationToken);
+            var admission = await _contactGate.AdmitPersistentGeocodingAsync(userId, cancellationToken);
             if (!admission.Succeeded) return ReverseGeocodingResult.Unavailable(MapAdmission(admission.Category));
             var authority = admission.Authority!;
             if (!await _contactGate.IsCurrentAsync(authority, cancellationToken))
                 return ReverseGeocodingResult.Unavailable(ReverseGeocodingCategory.StaleAuthority);
-            var result = await ContactAsync(latitude, longitude, authority.Credential, cancellationToken, false);
-            if (result.Category == ReverseGeocodingCategory.Authorization)
+            var result = authority.ProviderKey == "geoapify"
+                ? await _geoapify.ReverseAsync(latitude, longitude, authority.Credential, cancellationToken)
+                : await ContactAsync(latitude, longitude, authority.Credential, cancellationToken, false);
+            if (result.Category == ReverseGeocodingCategory.Authorization && authority.ProviderKey == "mapbox")
                 await RecordMapboxAuthorizationFailureAsync(userId, cancellationToken);
             if (!result.Succeeded) return result;
             if (!await _contactGate.IsCurrentAsync(authority, cancellationToken))
@@ -387,7 +390,7 @@ namespace Wayfarer.Parsers
         public static ReverseGeocodingResult Unavailable(ReverseGeocodingCategory category) => new(category, null, null);
         public static ReverseGeocodingResult Failure(ReverseGeocodingCategory category) => new(category, null, null);
 
-        /// <summary>Atomically applies a complete successful Mapbox enrichment and provenance.</summary>
+        /// <summary>Atomically applies a complete successful enrichment and provider-specific provenance.</summary>
         public bool ApplyTo(Location location, DateTimeOffset persistedAt)
         {
             if (!Succeeded || Value == null) return false;
@@ -395,7 +398,9 @@ namespace Wayfarer.Parsers
             location.AddressNumber = Value.AddressNumber; location.StreetName = Value.StreetName;
             location.PostCode = Value.PostCode; location.Place = Value.Place;
             location.Region = Value.Region; location.Country = Value.Country;
-            location.ReverseGeocodingProvider = "mapbox"; location.ReverseGeocodingStorageMode = "permanent";
+            var provider = Authority?.ProviderKey ?? "mapbox";
+            location.ReverseGeocodingProvider = provider;
+            location.ReverseGeocodingStorageMode = provider == "geoapify" ? "persistent" : "permanent";
             location.ReverseGeocodedAt = persistedAt.ToUniversalTime();
             return true;
         }

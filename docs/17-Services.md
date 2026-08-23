@@ -32,6 +32,8 @@ This document covers the key services, file parsers, and background jobs in the 
 ### ReverseGeocodingService
 - Owns persistent reverse enrichment: protected authority, explicit Mapbox Permanent consent and verification, meter admission, `permanent=true`, bounded provider handling, generation revalidation, normalization, and provenance. Callers supply only authenticated user identity, coordinates, and intent.
 - Personal credentials and provider-native admission are owned by the protected provider foundation; legacy `ApiToken` Mapbox rows migrate non-destructively. See [Personal Location Providers](24-Personal-Location-Providers.md).
+
+Geoapify reverse geocoding and routing use separate cohesive adapters with fixed official endpoints, response/timeout bounds, exact normalization, and exception containment. Routing resolves administrator-owned provider-scoped stable Transport Profile mappings before shared-credit admission; labels are never interpreted as provider modes. The mobile routing service returns neutral validated routes without persisting ad-hoc server state.
 - Populates street, city, country, postal code fields.
 - **Key File**: `Services/ReverseGeocodingService.cs`
 

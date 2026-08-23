@@ -373,6 +373,10 @@ This ensures visit notifications work reliably regardless of app state.
 - Storage paths under `FileSystem.AppDataDirectory` (e.g., `tiles/trips`). Uses SQLite (`wayfarer.db`) to track downloads.
 - Throttling: `TileRateLimiter`, `SettingsStore.MaxConcurrentTileDownloads` and `MinTileRequestDelayMs`.
 - Tile server URL configurable via `SettingsStore.TileServerUrl` (defaults to OSM standard tile server). Respect provider usage policies.
+
+## Provider-neutral mobile routing
+
+`GET /api/mobile/routing/capability/{transportProfileId}` authenticates with the existing mobile token and performs no provider contact. `POST /api/mobile/routing/route` accepts a stable Wayfarer Transport Profile ID, origin/destination, and at most three ordered anchors. The client cannot submit a provider, native mode, endpoint, or credential. Responses use bounded outcomes and may include validated geometry, metrics, normalized instructions, generation time, stable non-secret provider/configuration/mapping identity, linked attribution, and offline storage authority. Ad-hoc routes are not persisted by Wayfarer.
 - Server cache behaviour: the backend caches tiles for zoom levels 0-8 permanently and applies an LRU eviction policy for higher zooms. The default `CacheSettings:MaxCacheSizeMb` is 1024 MB but can be reduced for constrained hosts.
 - Trip downloads coordinate with `TripContentService` which stores Trip/Region/Place/Area/Segment metadata locally.
 
