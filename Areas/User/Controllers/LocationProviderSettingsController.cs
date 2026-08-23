@@ -14,7 +14,9 @@ namespace Wayfarer.Areas.User.Controllers;
 [Area("User"), Authorize(Roles = "User")]
 public sealed class LocationProviderSettingsController(
     ApplicationDbContext dbContext, PersonalProviderCredentialService credentials,
-    LegacyMapboxMigrationService migration, ReverseGeocodingService reverseGeocoding) : Controller
+    LegacyMapboxMigrationService migration, ReverseGeocodingService reverseGeocoding,
+    GeoapifyVerificationService? geoapifyVerification = null,
+    GeoapifyLocationBackfillService? geoapifyBackfill = null) : Controller
 {
     /// <summary>Displays masked provider authority and provider-native usage status.</summary>
     public async Task<IActionResult> Index(CancellationToken cancellationToken)
@@ -52,7 +54,11 @@ public sealed class LocationProviderSettingsController(
             && (provider != PersonalLocationProvider.Mapbox || profile.HasCurrentPermanentGeocodingConsent()))
             selection.Select(PersonalProviderCapability.Geocoding, provider);
         else if (selection.GeocodingProviderKey == key) selection.Select(PersonalProviderCapability.Geocoding, null);
-        if (input.ActiveForRouting && input.RoutingAuthorized) selection.Select(PersonalProviderCapability.Routing, provider);
+        var routingVerified = profile.RoutingVerification == PersonalProviderVerification.Verified
+            && profile.RoutingVerifiedCredentialGeneration == profile.CredentialGeneration
+            && profile.RoutingVerifiedConfigurationGeneration == profile.RoutingGeneration;
+        if (input.ActiveForRouting && input.RoutingAuthorized && routingVerified)
+            selection.Select(PersonalProviderCapability.Routing, provider);
         else if (selection.RoutingProviderKey == key) selection.Select(PersonalProviderCapability.Routing, null);
         await dbContext.SaveChangesAsync(cancellationToken);
         return RedirectToAction(nameof(Index));
@@ -82,6 +88,33 @@ public sealed class LocationProviderSettingsController(
         if (userId == null) return Challenge();
         TempData["ProviderStatus"] = await reverseGeocoding.VerifyMapboxPermanentAsync(userId, cancellationToken) switch
         { PersonalProviderVerification.Verified => "Mapbox Permanent Geocoding verified. Activate it explicitly to begin enrichment.", PersonalProviderVerification.Failed => "Mapbox rejected Permanent Geocoding authorization.", _ => "Mapbox Permanent Geocoding verification is unavailable; no stored data was changed." };
+        return RedirectToAction(nameof(Index));
+    }
+
+    /// <summary>Runs one explicit Geoapify capability verification without changing selection.</summary>
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> VerifyGeoapify(PersonalProviderCapability capability, CancellationToken cancellationToken)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId == null) return Challenge();
+        var result = geoapifyVerification == null ? PersonalProviderVerification.Unavailable
+            : capability == PersonalProviderCapability.Geocoding
+                ? await geoapifyVerification.VerifyGeocodingAsync(userId, cancellationToken)
+                : await geoapifyVerification.VerifyRoutingAsync(userId, cancellationToken);
+        TempData["ProviderStatus"] = $"Geoapify {capability.ToString().ToLowerInvariant()} verification: {result}. No provider was selected automatically.";
+        return RedirectToAction(nameof(Index));
+    }
+
+    /// <summary>Runs one explicit bounded Location backfill for the authenticated owner.</summary>
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> BackfillGeoapify(CancellationToken cancellationToken)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId == null) return Challenge();
+        if (geoapifyBackfill == null) return RedirectToAction(nameof(Index));
+        var result = await geoapifyBackfill.RunAsync(userId, cancellationToken);
+        TempData["ProviderStatus"] = $"Backfill scanned {result.Scanned}, enriched {result.Succeeded}, no result {result.NoResult}, unavailable {result.Unavailable}, remaining {result.RemainingEstimate}."
+            + (result.Exhausted ? " The rolling safety guard is exhausted; retry after admitted credits age out." : string.Empty);
         return RedirectToAction(nameof(Index));
     }
 

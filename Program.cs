@@ -491,6 +491,7 @@ static void ConfigureServices(WebApplicationBuilder builder)
     builder.Services.AddScoped<PersonalProviderCredentialService>();
     builder.Services.AddScoped<LegacyMapboxMigrationService>();
     builder.Services.AddScoped<PersonalProviderContactGate>();
+    builder.Services.AddScoped<GeoapifyLocationBackfillService>();
 
     // IRegistrationService as a transient or singleton service
     builder.Services.AddTransient<IRegistrationService, RegistrationService>();
@@ -524,6 +525,7 @@ static void ConfigureServices(WebApplicationBuilder builder)
     // Reverse geocoding Mapbox service
     // Query-string authentication and coordinates must never enter default HTTP diagnostics.
     builder.Services.AddHttpClient<ReverseGeocodingService>().RemoveAllLoggers();
+    builder.Services.AddHttpClient<GeoapifyVerificationService>().RemoveAllLoggers();
 
     // Tile Cache service — typed HttpClient with OSM-compliant headers.
     // Manual redirects are handled in TileCacheService.SendTileRequestAsync.

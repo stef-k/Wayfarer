@@ -4,6 +4,7 @@ using NetTopologySuite.Geometries;
 using Wayfarer.Models;
 using Wayfarer.Services.LocationProviders;
 using Xunit;
+using Location = Wayfarer.Models.Location;
 
 namespace Wayfarer.Tests.Services;
 
