@@ -95,7 +95,7 @@ public sealed class GeoapifyStageOneContractTests
     [InlineData("Περπάτημα")]
     public void DisplayNameNeverCreatesAProviderMapping(string displayName)
     {
-        var profile = new TransportProfile { Id = Guid.NewGuid(), Name = displayName };
+        var profile = new TransportProfile { Id = Guid.NewGuid(), Label = displayName };
         var configuration = new RoutingProviderConfiguration { Id = Guid.NewGuid(), AdapterType = RoutingAdapterType.Geoapify };
 
         var resolution = ProviderTransportProfileResolver.Resolve(configuration, profile);
@@ -106,14 +106,14 @@ public sealed class GeoapifyStageOneContractTests
     [Fact]
     public void ExplicitMappingSurvivesRenameAndIsIndependentPerProvider()
     {
-        var profile = new TransportProfile { Id = Guid.NewGuid(), Name = "Family car" };
+        var profile = new TransportProfile { Id = Guid.NewGuid(), Label = "Family car" };
         var geoapify = Configuration(RoutingAdapterType.Geoapify, profile.Id, "drive");
         var mapbox = Configuration(RoutingAdapterType.MapboxDirections, profile.Id, "mapbox/driving-traffic");
 
         Assert.Equal("drive", ProviderTransportProfileResolver.Resolve(geoapify, profile).NativeMode);
         Assert.Equal("mapbox/driving-traffic", ProviderTransportProfileResolver.Resolve(mapbox, profile).NativeMode);
 
-        profile.Name = "Voiture familiale";
+        profile.Label = "Voiture familiale";
 
         Assert.Equal("drive", ProviderTransportProfileResolver.Resolve(geoapify, profile).NativeMode);
         Assert.Equal("mapbox/driving-traffic", ProviderTransportProfileResolver.Resolve(mapbox, profile).NativeMode);
@@ -122,7 +122,7 @@ public sealed class GeoapifyStageOneContractTests
     [Fact]
     public void MissingAndUnsupportedMappingsAreRejectedBeforeCreditOrHttp()
     {
-        var profile = new TransportProfile { Id = Guid.NewGuid(), Name = "Custom" };
+        var profile = new TransportProfile { Id = Guid.NewGuid(), Label = "Custom" };
         var configuration = Configuration(RoutingAdapterType.Geoapify, profile.Id, "hovercraft");
         var ledger = new PersonalProviderUsageLedger();
         var handler = new RecordingHandler(ValidRouteJson);
@@ -142,11 +142,11 @@ public sealed class GeoapifyStageOneContractTests
     {
         var profileId = Guid.NewGuid();
         var configuration = Configuration(RoutingAdapterType.Geoapify, profileId, "walk");
-        var first = ProviderTransportProfileResolver.Resolve(configuration, new TransportProfile { Id = profileId, Name = "A" });
+        var first = ProviderTransportProfileResolver.Resolve(configuration, new TransportProfile { Id = profileId, Label = "A" });
 
         configuration.ProfileMappings.Single().SetNativeMode("bicycle");
         configuration.MarkConfigurationChanged();
-        var second = ProviderTransportProfileResolver.Resolve(configuration, new TransportProfile { Id = profileId, Name = "A" });
+        var second = ProviderTransportProfileResolver.Resolve(configuration, new TransportProfile { Id = profileId, Label = "A" });
 
         Assert.NotEqual(first.Authority, second.Authority);
         Assert.Equal("bicycle", second.NativeMode);

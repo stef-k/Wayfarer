@@ -31,6 +31,7 @@ public sealed class RoutingProviderProfileMappingConfiguration : IEntityTypeConf
     {
         builder.ToTable("RoutingProviderProfileMappings");
         builder.HasKey(item => new { item.RoutingProviderConfigurationId, item.TransportProfileId });
+        builder.Ignore(item => item.ProviderNativeMode);
         builder.HasOne(item => item.TransportProfile).WithMany().HasForeignKey(item => item.TransportProfileId)
             .OnDelete(DeleteBehavior.Restrict);
     }

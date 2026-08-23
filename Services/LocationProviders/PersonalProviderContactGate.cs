@@ -105,6 +105,59 @@ public sealed class PersonalProviderContactGate(
         return true;
     }
 
+    /// <summary>Admits one explicit Geoapify capability verification without requiring selection or prior verification.</summary>
+    public async Task<PersonalProviderAdmission> AdmitGeoapifyVerificationAsync(
+        string userId, PersonalProviderCapability capability, CancellationToken cancellationToken = default)
+    {
+        var profile = await dbContext.Set<PersonalLocationProviderProfile>().AsNoTracking()
+            .SingleOrDefaultAsync(item => item.UserId == userId && item.ProviderKey == "geoapify", cancellationToken);
+        if (profile == null || profile.RevokedAt != null || !profile.IsAuthorized(capability))
+            return PersonalProviderAdmission.Rejected(PersonalProviderAdmissionCategory.Unauthorized);
+        var read = credentials.Read(profile);
+        if (!read.Succeeded)
+            return PersonalProviderAdmission.Rejected(PersonalProviderAdmissionCategory.CredentialUnavailable);
+        var product = capability == PersonalProviderCapability.Geocoding
+            ? PersonalProviderProduct.Geocoding : PersonalProviderProduct.Routing;
+        var admitted = await AdmitGeoapifyAsync(userId, product, 1, cancellationToken);
+        if (!admitted.Succeeded) return admitted;
+        var generation = capability == PersonalProviderCapability.Geocoding
+            ? profile.GeocodingGeneration : profile.RoutingGeneration;
+        return new(PersonalProviderAdmissionCategory.Admitted,
+            new(userId, "geoapify", capability, read.Credential!, profile.CredentialGeneration, generation, 0),
+            admitted.Usage);
+    }
+
+    /// <summary>Revalidates Geoapify verification authority without requiring selection or verified state.</summary>
+    public async Task<bool> IsGeoapifyVerificationCurrentAsync(
+        PersonalProviderAuthoritySnapshot snapshot, CancellationToken cancellationToken = default)
+    {
+        var profile = await dbContext.Set<PersonalLocationProviderProfile>().AsNoTracking()
+            .SingleOrDefaultAsync(item => item.UserId == snapshot.UserId && item.ProviderKey == "geoapify", cancellationToken);
+        return profile != null && profile.RevokedAt == null && profile.IsAuthorized(snapshot.Capability)
+            && profile.CredentialGeneration == snapshot.CredentialGeneration
+            && (snapshot.Capability == PersonalProviderCapability.Geocoding
+                ? profile.GeocodingGeneration : profile.RoutingGeneration) == snapshot.CapabilityGeneration;
+    }
+
+    /// <summary>Atomically records one Geoapify capability result only for the authority that contacted the provider.</summary>
+    public async Task<bool> TryRecordGeoapifyVerificationAsync(
+        PersonalProviderAuthoritySnapshot snapshot, PersonalProviderVerification verification,
+        CancellationToken cancellationToken = default)
+    {
+        if (snapshot.ProviderKey != "geoapify") return false;
+        var query = dbContext.Set<PersonalLocationProviderProfile>().Where(profile =>
+            profile.UserId == snapshot.UserId && profile.ProviderKey == "geoapify" && profile.RevokedAt == null
+            && profile.CredentialGeneration == snapshot.CredentialGeneration
+            && (snapshot.Capability == PersonalProviderCapability.Geocoding
+                ? profile.GeocodingAuthorized && profile.GeocodingGeneration == snapshot.CapabilityGeneration
+                : profile.RoutingAuthorized && profile.RoutingGeneration == snapshot.CapabilityGeneration));
+        var profile = await query.SingleOrDefaultAsync(cancellationToken);
+        if (profile == null) return false;
+        credentials.RecordVerification(profile, snapshot.Capability, verification);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return true;
+    }
+
     /// <summary>Revalidates bounded authority immediately before contact and result persistence.</summary>
     public async Task<bool> IsCurrentAsync(
         PersonalProviderAuthoritySnapshot snapshot, CancellationToken cancellationToken = default)
@@ -174,8 +227,12 @@ public sealed class PersonalProviderContactGate(
 
         dbContext.Set<GeoapifyUsageAdmission>().Add(new()
         { UserId = userId, Credits = credits, Product = product, AdmittedAt = now });
-        await dbContext.Set<GeoapifyUsageAdmission>()
-            .Where(item => item.UserId == userId && item.AdmittedAt <= cutoff).ExecuteDeleteAsync(cancellationToken);
+        var expired = dbContext.Set<GeoapifyUsageAdmission>()
+            .Where(item => item.UserId == userId && item.AdmittedAt <= cutoff);
+        if (dbContext.Database.IsRelational())
+            await expired.ExecuteDeleteAsync(cancellationToken);
+        else
+            dbContext.RemoveRange(await expired.ToListAsync(cancellationToken));
         await dbContext.SaveChangesAsync(cancellationToken);
         return await CompleteAsync(new(PersonalProviderAdmissionCategory.Admitted, null,
             new(used + credits, guard.CreditLimit, "credits", cutoff, null)), transaction, true, cancellationToken);
