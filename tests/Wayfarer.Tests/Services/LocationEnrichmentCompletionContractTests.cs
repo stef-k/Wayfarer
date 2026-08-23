@@ -84,6 +84,20 @@ public sealed class LocationEnrichmentCompletionContractTests
         Assert.False(workflow.TryResume(Now.AddSeconds(3), authorityAvailable: true, out _));
     }
 
+    [Fact]
+    public void CorrectedAuthorityCanResumeAuthorityPauseButNotBudgetPause()
+    {
+        var workflow = LocationEnrichmentWorkflow.Create("user", Now);
+        workflow.Start(Now);
+        workflow.PauseForAuthority(LocationEnrichmentOutcome.AuthorityUnavailable, Now.AddSeconds(1));
+
+        Assert.True(workflow.TryResume(Now.AddSeconds(2), authorityAvailable: true, out _));
+        workflow.ContinueAs(LocationEnrichmentState.PausedByBudget,
+            LocationEnrichmentOutcome.BudgetExhausted, Now.AddHours(1), Now.AddSeconds(3));
+        Assert.False(workflow.TryResume(Now.AddSeconds(4), authorityAvailable: true, out var reason));
+        Assert.Equal("invalid-state", reason);
+    }
+
     private static LocationEnrichmentAttempt Attempt(
         LocationEnrichmentOutcome outcome, int admitted, DateTime? next)
         => new()

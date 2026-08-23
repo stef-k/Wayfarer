@@ -17,7 +17,24 @@ public sealed class ImportEnrichmentHandoff(
     ApplicationDbContext db, IWorkflowScheduleProjection projection) : IImportEnrichmentHandoff
 {
     public async Task EnsureAsync(string userId, CancellationToken cancellationToken = default)
-        => _ = await StartAsync(userId, cancellationToken);
+    {
+        if (await HasCurrentAuthorityAsync(userId, cancellationToken))
+        {
+            _ = await StartAsync(userId, cancellationToken);
+            return;
+        }
+        var workflow = await db.LocationEnrichmentWorkflows.SingleOrDefaultAsync(
+            item => item.UserId == userId, cancellationToken);
+        if (workflow is null)
+        {
+            workflow = LocationEnrichmentWorkflow.Create(userId, DateTime.UtcNow);
+            db.Add(workflow);
+        }
+        workflow.Start(DateTime.UtcNow);
+        workflow.PauseForAuthority(LocationEnrichmentOutcome.AuthorityUnavailable, DateTime.UtcNow);
+        await db.SaveChangesAsync(cancellationToken);
+        try { await projection.ProjectAsync(userId, cancellationToken); } catch { }
+    }
 
     /// <summary>Commits explicit intent only when current authority and candidates permit a run.</summary>
     public async Task<EnrichmentCommandResult> StartAsync(

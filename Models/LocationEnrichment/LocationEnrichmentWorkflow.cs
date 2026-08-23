@@ -114,7 +114,8 @@ public sealed class LocationEnrichmentWorkflow
     {
         EnsureUtc(nowUtc);
         if (State == LocationEnrichmentState.Scheduled && IntentEnabled) { reason = null; return true; }
-        if (State != LocationEnrichmentState.PausedByUser || !authorityAvailable)
+        if (State is not (LocationEnrichmentState.PausedByUser or LocationEnrichmentState.PausedByAuthority)
+            || !authorityAvailable)
         { reason = authorityAvailable ? "invalid-state" : "authority-unavailable"; return false; }
         Resume(nowUtc); reason = null; return true;
     }

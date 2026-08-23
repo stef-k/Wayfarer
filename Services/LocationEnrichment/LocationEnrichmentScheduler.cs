@@ -34,6 +34,8 @@ public sealed class LocationEnrichmentScheduler(IScheduler scheduler)
         {
             foreach (var live in triggerKeys.Where(item => item.Name.StartsWith(prefix, StringComparison.Ordinal)))
                 await scheduler.UnscheduleJob(live, cancellationToken);
+            if (workflow.State is LocationEnrichmentState.PausedByUser or LocationEnrichmentState.Cancelled)
+                await scheduler.Interrupt(jobKey, cancellationToken);
             return;
         }
 
