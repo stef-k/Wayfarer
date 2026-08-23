@@ -29,7 +29,7 @@ Wayfarer is a comprehensive self-hosted travel companion with location tracking,
 - **Import deduplication** prevents duplicate entries based on timestamp and coordinates.
 - **Metadata preservation** — accuracy, speed, altitude, heading, and source tracked per location.
 - **Export locations** to GeoJSON, KML, CSV, or GPX formats with full metadata.
-- **Personal location providers** retain protected Geoapify/Mapbox profiles with independent capability selection and provider-native usage guards; see [Personal Location Providers](24-Personal-Location-Providers.md).
+- **Personal location providers** retain protected profiles with explicit Mapbox Permanent consent/verification, independent selection, nullable provenance, and provider-native guards; capture remains available without enrichment. See [Personal Location Providers](24-Personal-Location-Providers.md).
 - **Wikipedia integration** — click the Wiki button on any location to see nearby Wikipedia articles; uses dual geo + text search for reliable discovery.
 - **Activity types** categorize entries (walking, driving, eating, etc.).
 - **Inline activity editing** — edit activity type directly from location modals and tables.

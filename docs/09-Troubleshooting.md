@@ -2,6 +2,8 @@
 
 For unreadable protected credentials, legacy Mapbox conflicts, exhaustion, guard recovery, and key-ring restore, see [Personal Location Providers](24-Personal-Location-Providers.md).
 
+If Mapbox is configured but paused, complete each distinct step shown in settings: Permanent consent, generic geocoding authorization, explicit verification, active selection, and available Permanent meter capacity. Capture/import remains usable while paused and retains existing enrichment. Verification and provider failures are safe to retry explicitly; no automatic queue is implied.
+
 Sign‑In Issues
 - Wrong password: reset via account page or ask an admin.
 - Locked out: your admin can unlock accounts. Enable 2FA for extra security.

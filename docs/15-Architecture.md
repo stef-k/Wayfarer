@@ -254,3 +254,4 @@ Trip editing state is owned by the Vue Trip Editor:
 - Hidden areas for location privacy
 - Public/private visibility controls
 
+Persistent reverse enrichment has one server-side boundary that owns protected authority, consent, verification, selection, provider-native admission, transport, normalization, generation revalidation, and bounded results. Capture/import/Trip callers never receive credentials or choose storage mode.

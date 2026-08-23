@@ -31,7 +31,7 @@ If you expose Wayfarer publicly, you are responsible for:
 * **Import deduplication** prevents duplicate entries automatically.
 * **Metadata preservation** — accuracy, speed, altitude, heading tracked per location.
 * **Export locations** to GeoJSON, KML, CSV, or GPX formats with full metadata.
-* **Personal location providers** use protected per-user Geoapify or Mapbox profiles with independent geocoding/routing authorization and durable provider-native guards; see the [personal provider guide](docs/24-Personal-Location-Providers.md).
+* **Personal location providers** use protected per-user profiles, explicit Mapbox Permanent consent/verification, independent selection, and provider-native guards; capture continues when enrichment is paused. See the [personal provider guide](docs/24-Personal-Location-Providers.md).
 * **Wikipedia integration** — discover related articles for any location or trip place.
 * **Location statistics** — visit counts by country, region, and city.
 * **Bulk edit notes** to update multiple records at once.

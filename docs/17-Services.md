@@ -30,7 +30,7 @@ This document covers the key services, file parsers, and background jobs in the 
 - **Key File**: `Services/LocationStatsService.cs`
 
 ### ReverseGeocodingService
-- Enriches coordinates with address data via Mapbox API.
+- Owns persistent reverse enrichment: protected authority, explicit Mapbox Permanent consent and verification, meter admission, `permanent=true`, bounded provider handling, generation revalidation, normalization, and provenance. Callers supply only authenticated user identity, coordinates, and intent.
 - Personal credentials and provider-native admission are owned by the protected provider foundation; legacy `ApiToken` Mapbox rows migrate non-destructively. See [Personal Location Providers](24-Personal-Location-Providers.md).
 - Populates street, city, country, postal code fields.
 - **Key File**: `Services/ReverseGeocodingService.cs`
