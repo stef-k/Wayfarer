@@ -86,10 +86,19 @@ public sealed class ExternalRouteProposalGenerator
             proposalId, tripId, segmentId, userId, geometryHash, context.Fingerprint!, context.TransportProfileId!.Value,
             context.Execution!.Provider.Id, context.Execution.ProviderConfigurationVersion,
             context.Execution.FeatureStateGeneration, aggregateConcurrencyToken,
-            context.Execution.SelectionMode, context.Execution.UserConfigurationVersion);
+            context.Execution.SelectionMode, context.Execution.UserConfigurationVersion,
+            providerResult.DistanceMetres, providerResult.DurationSeconds, providerResult.Instructions,
+            context.Execution.Provider.AdapterType == RoutingAdapterType.Geoapify ? "geoapify" : null,
+            context.Execution.Profile, _timeProvider.GetUtcNow(),
+            context.Execution.Provider.AdapterType == RoutingAdapterType.Geoapify
+                ? "Powered by Geoapify|© OpenStreetMap contributors" : context.Execution.Attribution,
+            context.Execution.Provider.AdapterType == RoutingAdapterType.Geoapify ? "persistent" : null);
         var protectedContext = _proposalContexts!.Issue(binding);
         var proposal = new ExternalRouteProposalDto(proposalId, segmentId, validated.Geometry!, validated.WaypointIndices!,
-            protectedContext.Token, protectedContext.ExpiresAt);
+            protectedContext.Token, protectedContext.ExpiresAt, providerResult.DistanceMetres,
+            providerResult.DurationSeconds, providerResult.Instructions,
+            context.Execution.Provider.AdapterType == RoutingAdapterType.Geoapify ? "geoapify" : null,
+            context.Execution.Attribution);
         return new ExternalRouteGenerationResult(true, null, proposal);
     }
 
@@ -156,7 +165,8 @@ public sealed record ExternalRouteGenerationResult(bool Succeeded, string? Error
 /// <summary>Contains an immutable, non-persisted route proposal for explicit acceptance.</summary>
 public sealed record ExternalRouteProposalDto(
     Guid ProposalId, Guid SegmentId, IReadOnlyList<RouteCoordinate> Geometry, IReadOnlyList<int> WaypointIndices,
-    string ProtectedContext, DateTimeOffset ExpiresAt);
+    string ProtectedContext, DateTimeOffset ExpiresAt, double? DistanceMetres = null, double? DurationSeconds = null,
+    IReadOnlyList<RouteInstruction>? Instructions = null, string? Provider = null, string? Attribution = null);
 
 /// <summary>Validates and budgets untrusted provider geometry while preserving every exact anchor.</summary>
 public interface IProviderRouteGeometryValidator

@@ -58,7 +58,9 @@ public sealed record ExternalRouteProposalBinding(
     Guid ProposalId, Guid TripId, Guid SegmentId, string UserId, string GeometryHash, string AnchorFingerprint,
     Guid TransportProfileId, Guid ProviderId, int ProviderConfigurationVersion, int FeatureStateGeneration,
     string AggregateConcurrencyToken, RoutingProviderSelectionMode ProviderSelectionMode = RoutingProviderSelectionMode.ServerDefault,
-    int UserRoutingConfigurationVersion = 1);
+    int UserRoutingConfigurationVersion = 1, double? DistanceMetres = null, double? DurationSeconds = null,
+    IReadOnlyList<RouteInstruction>? Instructions = null, string? ProviderKey = null, string? MappingMode = null,
+    DateTimeOffset? GeneratedAt = null, string? Attribution = null, string? StorageMode = null);
 
 /// <summary>Returns the protected context and its initial ten-minute expiry.</summary>
 public sealed record ProtectedProposalContext(string Token, DateTimeOffset ExpiresAt);
