@@ -18,6 +18,9 @@ public enum LocationEnrichmentOutcome
     InvalidCoordinates, NoResult, AttemptLimit, DataFailure
 }
 
+/// <summary>Opaque, fenced ownership returned by a short relational lease acquisition.</summary>
+public readonly record struct LocationEnrichmentExecutionLease(Guid LeaseId, long FencingGeneration);
+
 /// <summary>PostgreSQL authority for one user-controlled, restart-safe enrichment workflow.</summary>
 public sealed class LocationEnrichmentWorkflow
 {
@@ -38,6 +41,10 @@ public sealed class LocationEnrichmentWorkflow
     public int PermanentlyDeferredCount { get; private set; }
     public int RemainingEligibleCount { get; private set; }
     public int AdmittedUsageCount { get; private set; }
+    public int FailedBatchCount { get; private set; }
+    public Guid? ExecutionLeaseId { get; private set; }
+    public long ExecutionFencingGeneration { get; private set; }
+    public DateTime? ExecutionLeaseExpiresAtUtc { get; private set; }
     public DateTime? NextEligibleAtUtc { get; private set; }
     public DateTime? StartedAtUtc { get; private set; }
     public DateTime? CompletedAtUtc { get; private set; }
@@ -79,6 +86,7 @@ public sealed class LocationEnrichmentWorkflow
         EnsureUtc(nowUtc);
         if (State == LocationEnrichmentState.Cancelled) return;
         if (State != LocationEnrichmentState.PausedByUser) Epoch++;
+        InvalidateExecutionLease();
         IntentEnabled = false;
         State = LocationEnrichmentState.PausedByUser;
         NextEligibleAtUtc = null;
@@ -151,6 +159,7 @@ public sealed class LocationEnrichmentWorkflow
         EnsureUtc(nowUtc);
         if (State == LocationEnrichmentState.Cancelled) return;
         Epoch++;
+        InvalidateExecutionLease();
         IntentEnabled = false;
         State = LocationEnrichmentState.Cancelled;
         NextEligibleAtUtc = null;
@@ -195,6 +204,59 @@ public sealed class LocationEnrichmentWorkflow
         NextEligibleAtUtc = null;
         UpdatedAtUtc = nowUtc;
         return true;
+    }
+
+    /// <summary>Acquires one expiring execution owner without retaining a database resource.</summary>
+    public LocationEnrichmentExecutionLease? TryAcquireExecutionLease(DateTime nowUtc, TimeSpan duration)
+    {
+        EnsureUtc(nowUtc);
+        if (duration <= TimeSpan.FromSeconds(15)) throw new ArgumentOutOfRangeException(nameof(duration));
+        if (!IntentEnabled || State is not (LocationEnrichmentState.Scheduled or LocationEnrichmentState.Running))
+            return null;
+        if (ExecutionLeaseId.HasValue && ExecutionLeaseExpiresAtUtc > nowUtc) return null;
+        ExecutionFencingGeneration++;
+        ExecutionLeaseId = Guid.NewGuid();
+        ExecutionLeaseExpiresAtUtc = nowUtc.Add(duration);
+        State = LocationEnrichmentState.Running;
+        NextEligibleAtUtc = null;
+        UpdatedAtUtc = nowUtc;
+        return new(ExecutionLeaseId.Value, ExecutionFencingGeneration);
+    }
+
+    /// <summary>Renews only the current fenced execution owner.</summary>
+    public bool TryRenewExecutionLease(Guid leaseId, long fencingGeneration, DateTime nowUtc, TimeSpan duration)
+    {
+        EnsureUtc(nowUtc);
+        if (duration <= TimeSpan.FromSeconds(15)) throw new ArgumentOutOfRangeException(nameof(duration));
+        if (!HasExecutionLease(leaseId, fencingGeneration, nowUtc)) return false;
+        ExecutionLeaseExpiresAtUtc = nowUtc.Add(duration);
+        UpdatedAtUtc = nowUtc;
+        return true;
+    }
+
+    /// <summary>Checks token, fence, intent, and expiry before contact or persistence.</summary>
+    public bool HasExecutionLease(Guid leaseId, long fencingGeneration, DateTime nowUtc)
+    {
+        EnsureUtc(nowUtc);
+        return IntentEnabled && State == LocationEnrichmentState.Running
+            && ExecutionLeaseId == leaseId && ExecutionFencingGeneration == fencingGeneration
+            && ExecutionLeaseExpiresAtUtc > nowUtc;
+    }
+
+    /// <summary>Conditionally releases without allowing a stale owner to clear a newer lease.</summary>
+    public bool TryReleaseExecutionLease(Guid leaseId, long fencingGeneration)
+    {
+        if (ExecutionLeaseId != leaseId || ExecutionFencingGeneration != fencingGeneration) return false;
+        ExecutionLeaseId = null;
+        ExecutionLeaseExpiresAtUtc = null;
+        return true;
+    }
+
+    private void InvalidateExecutionLease()
+    {
+        ExecutionFencingGeneration++;
+        ExecutionLeaseId = null;
+        ExecutionLeaseExpiresAtUtc = null;
     }
 
     /// <summary>Recovers an abandoned running observation to scheduled relational intent.</summary>
@@ -246,7 +308,14 @@ public sealed class LocationEnrichmentWorkflowConfiguration : IEntityTypeConfigu
         {
             table.HasCheckConstraint("CK_LocationEnrichmentWorkflow_Epoch", "\"Epoch\" >= 0");
             table.HasCheckConstraint("CK_LocationEnrichmentWorkflow_Counters",
-                "\"ProcessedCount\" >= 0 AND \"EnrichedCount\" >= 0 AND \"SkippedCount\" >= 0 AND \"RetryableDeferredCount\" >= 0 AND \"PermanentlyDeferredCount\" >= 0 AND \"RemainingEligibleCount\" >= 0 AND \"AdmittedUsageCount\" >= 0");
+                "\"ProcessedCount\" >= 0 AND \"EnrichedCount\" >= 0 AND \"SkippedCount\" >= 0 AND \"RetryableDeferredCount\" >= 0 AND \"PermanentlyDeferredCount\" >= 0 AND \"RemainingEligibleCount\" >= 0 AND \"AdmittedUsageCount\" >= 0 AND \"FailedBatchCount\" >= 0");
+            table.HasCheckConstraint("CK_LocationEnrichmentWorkflow_ExecutionFence", "\"ExecutionFencingGeneration\" >= 0");
+            table.HasCheckConstraint("CK_LocationEnrichmentWorkflow_ExecutionLeasePair",
+                "(\"ExecutionLeaseId\" IS NULL) = (\"ExecutionLeaseExpiresAtUtc\" IS NULL)");
+            table.HasCheckConstraint("CK_LocationEnrichmentWorkflow_State",
+                "\"State\" IN ('Idle','Scheduled','Running','PausedByUser','PausedByBudget','PausedByAuthority','BackingOff','Completed','Cancelled','Failed')");
+            table.HasCheckConstraint("CK_LocationEnrichmentWorkflow_Outcome",
+                "\"Outcome\" IN ('None','NoCandidates','BudgetExhausted','AuthorityUnavailable','RetryableFailure','InvalidCoordinates','NoResult','AttemptLimit','DataFailure')");
         });
     }
 }

@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using NetTopologySuite.Geometries;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
@@ -12,9 +13,11 @@ using Wayfarer.Models;
 namespace Wayfarer.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260823215504_ConstrainLocationEnrichmentExecutionLease")]
+    partial class ConstrainLocationEnrichmentExecutionLease
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -988,12 +991,6 @@ namespace Wayfarer.Migrations
                     b.ToTable("LocationEnrichmentAttempts", t =>
                         {
                             t.HasCheckConstraint("CK_LocationEnrichmentAttempt_Count", "\"AdmittedAttemptCount\" >= 0 AND \"AdmittedAttemptCount\" <= 3");
-
-                            t.HasCheckConstraint("CK_LocationEnrichmentAttempt_Generations", "\"CredentialGeneration\" >= 0 AND \"ConfigurationGeneration\" >= 0 AND \"SelectionGeneration\" >= 0");
-
-                            t.HasCheckConstraint("CK_LocationEnrichmentAttempt_Outcome", "\"Outcome\" IN ('None','NoCandidates','BudgetExhausted','AuthorityUnavailable','RetryableFailure','InvalidCoordinates','NoResult','AttemptLimit','DataFailure')");
-
-                            t.HasCheckConstraint("CK_LocationEnrichmentAttempt_Provider", "\"ProviderKey\" IN ('', 'geoapify', 'mapbox')");
                         });
                 });
 

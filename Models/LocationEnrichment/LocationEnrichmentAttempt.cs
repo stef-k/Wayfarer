@@ -65,7 +65,16 @@ public sealed class LocationEnrichmentAttemptConfiguration : IEntityTypeConfigur
         builder.HasOne(item => item.Location).WithMany().HasForeignKey(item => new { item.UserId, item.LocationId })
             .HasPrincipalKey(item => new { item.UserId, item.Id })
             .OnDelete(DeleteBehavior.Cascade);
-        builder.ToTable(table => table.HasCheckConstraint("CK_LocationEnrichmentAttempt_Count",
-            "\"AdmittedAttemptCount\" >= 0 AND \"AdmittedAttemptCount\" <= 3"));
+        builder.ToTable(table =>
+        {
+            table.HasCheckConstraint("CK_LocationEnrichmentAttempt_Count",
+                "\"AdmittedAttemptCount\" >= 0 AND \"AdmittedAttemptCount\" <= 3");
+            table.HasCheckConstraint("CK_LocationEnrichmentAttempt_Generations",
+                "\"CredentialGeneration\" >= 0 AND \"ConfigurationGeneration\" >= 0 AND \"SelectionGeneration\" >= 0");
+            table.HasCheckConstraint("CK_LocationEnrichmentAttempt_Provider",
+                "\"ProviderKey\" IN ('', 'geoapify', 'mapbox')");
+            table.HasCheckConstraint("CK_LocationEnrichmentAttempt_Outcome",
+                "\"Outcome\" IN ('None','NoCandidates','BudgetExhausted','AuthorityUnavailable','RetryableFailure','InvalidCoordinates','NoResult','AttemptLimit','DataFailure')");
+        });
     }
 }
