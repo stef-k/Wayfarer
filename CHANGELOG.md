@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## Unreleased
+
+### Added
+- Added an explicit resumable per-user missing-address workflow with durable controls, bounded retries, exact provider-budget wakes, restart reconciliation, and authenticated content-free progress (#507).
+
+### Changed
+- Location-history uploads now advertise exactly Google Timeline JSON, Wayfarer GeoJSON, CSV, GPX, and location-history KML. Generic GeoJSON is rejected while historical rows retain a bounded unsupported outcome; Trip imports remain separate (#507).
+
 ## [1.9.3] - 2026-08-22
 
 ### Fixed

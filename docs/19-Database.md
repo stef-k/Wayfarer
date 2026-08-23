@@ -20,6 +20,7 @@ Key Entities (selected)
 - `ApiToken` — per‑user tokens for API access.
 - `ApplicationSettings` — admin‑editable runtime settings stored in DB.
 - `AuditLog`, `JobHistory`, `TileCacheMetadata`, `LocationImport` — diagnostics, jobs, cache, and import tracking.
+- `LocationEnrichmentWorkflow` is unique by user and uses PostgreSQL `xmin`; `LocationEnrichmentAttempt` is unique by user/Location with a matching-owner composite foreign key. They retain bounded scheduling metadata only.
 
 ---
 
@@ -266,6 +267,7 @@ Candidates are deleted once a PlaceVisitEvent is created or when stale.
   fails when an existing required Quartz column has an incompatible definition instead of rewriting it.
 - Manual installation must use the aligned embedded `Scripts/tables_postgres.sql` script or catalog-equivalent
   definitions, including all Quartz 3.19.1 optional columns owned by the installer.
+- Enrichment retains one durable job and one epoch trigger per active workflow. Rollback removes only workflow/attempt scheduling metadata after stopping the scheduler; it never removes Locations, enrichment, provenance, credentials, admissions, or meters.
 # Segment measurement provenance
 
 `Segments.EstimatedDurationSource` is a required integer enum: `Automatic = 0` and `Manual = 1`. The database default is Automatic and `CK_Segments_EstimatedDurationSource` rejects every other value. The issue 405 migration classifies each legacy non-null duration as Manual and each null duration as Automatic without recalculating distance or duration. Downgrading removes the column and permanently loses provenance written after the upgrade; re-upgrading can only reclassify from duration nullability.

@@ -234,6 +234,7 @@ Coverage
 Targets
 - Parsers: sample fixtures for GPX/KML/CSV/GeoJSON/Google JSON.
 - Services: `LocationImportService`, `TripExportService`, `ReverseGeocodingService` (mock external calls).
+- Resumable enrichment uses fake HTTP for outcomes, guarded PostgreSQL for admission/attempt fairness and ownership, and the real Quartz ADO store for restart/misfire/reconciliation. Never contact public providers; give concurrency tests explicit timeouts and avoid sleep-based scheduler assertions.
 - API: controller tests using `WebApplicationFactory` and in-memory DB or test containers.
 
 Guidelines

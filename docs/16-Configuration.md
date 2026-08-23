@@ -86,6 +86,8 @@ Reverse Geocoding (Per‑User)
 
 Geoapify uses one rolling pool across persistent reverse geocoding and routing. The 2,500 default retains headroom below the 3,000-credit Free-plan context retrieved 2026-08-23; Wayfarer cannot observe external account use or infer a provider reset timezone. Administrators configure the fixed Geoapify adapter and closed stable-ID transport mappings, never a user key.
 
+Resumable enrichment has a fixed 100-contact execution bound. Geoapify wakes at the oldest admission inside the strict PostgreSQL-time 24-hour window plus five seconds; Mapbox Permanent wakes at the next Wayfarer UTC month boundary plus five seconds. Retry backoff and budget wakes remain distinct. There is no separate queue, scheduler, polling interval, or provider reset-timezone setting.
+
 Mobile
 - `MobileGroups:Query:DefaultPageSize` and `MaxPageSize` — paging for mobile group queries.
 - `MobileSse:HeartbeatIntervalMilliseconds` — SSE keepalive interval.

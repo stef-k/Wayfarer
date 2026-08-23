@@ -85,6 +85,15 @@ Upload → LocationImport row → Quartz job → LocationImportService
        → SSE progress updates
 ```
 
+Optional missing-address work then converges separately:
+
+```text
+owned eligible Locations → LocationEnrichmentWorkflow → stable Quartz job/one-shot trigger
+  → bounded worker → provider admission ledger/meter → attempt or enrichment
+```
+
+Import and enrichment completion are independent. PostgreSQL owns intent, eligibility, attempts, counters, and admissions; Quartz owns durable wake delivery. One active scheduler is supported unless clustering is explicitly configured and proven.
+
 ### Trip Export
 
 ```

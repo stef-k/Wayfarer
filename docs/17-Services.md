@@ -267,6 +267,13 @@ Wayfarer uses Quartz.NET for background job scheduling and execution.
   - Processes JSON (Google Timeline), GPX, and KML files.
 - **Key File**: `Jobs/LocationImportJob.cs`
 
+#### LocationEnrichmentJob
+
+- Runs one user-owned batch of at most 100 contacts through the existing provider admission authority.
+- Uses a stable durable job, epoch-bound one-shot trigger, non-replay misfire handling, and startup reconciliation. Relational state commits before Quartz projection, so scheduling failures remain repairable.
+- Import parsing/insertion is separate: a run-wide no-contact result stops later inline checks and 200 ms delays while import batches continue and reconcile the opted-in workflow.
+- Long downtime causes one current-state execution, not replay of missed batches. Shutdown preserves committed Locations, admissions, attempts, counters, and intent.
+
 #### VisitCleanupJob
 - **Purpose**: Cleans up stale visit data globally.
 - **Schedule**: Runs periodically (configurable).

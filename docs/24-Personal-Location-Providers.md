@@ -37,7 +37,7 @@ The settings workflow is deliberately ordered: configure a masked credential, ac
 
 Wayfarer's meter counts only Wayfarer contacts. Other applications or tokens can consume the Mapbox account allowance. A disabled guard can incur charges. With no eligible provider, consent, verification, selection, or remaining budget, capture, imports, Trips, Places, Timeline, exports, and synchronization continue without new enrichment. Provider failures preserve submitted/manual and prior enrichment.
 
-Historical rows have unknown nullable provenance because they may contain Temporary Mapbox output, imports, or manual edits; this release does not delete or reclassify them. New successful Mapbox enrichment records `mapbox`, `permanent`, and its UTC persistence time. There is no automatic retry or pending queue. [#502](https://github.com/stef-k/Wayfarer/issues/502) owns the same-release explicit bounded backfill after Geoapify becomes available.
+Historical rows have unknown nullable provenance because they may contain Temporary Mapbox output, imports, or manual edits; this release does not delete or reclassify them. New successful Mapbox enrichment records `mapbox`, `permanent`, and its UTC persistence time. Issue #507 adds an explicitly opted-in relational enrichment workflow over #502's bounded admission seam; provider changes never grant consent or silently start work.
 
 ## Geoapify persistent geocoding and routing
 
@@ -72,5 +72,11 @@ Wayfarer counts only contacts it admits. Cached/stored reuse and pre-HTTP reject
 ## Exhaustion, imports, privacy, and recovery
 
 Exhaustion stops new provider contact and recovers automatically as rolling credits expire, a product cycle advances, or a guard is raised/disabled. Source records remain retryable and historical data remains available. Imports and backfills use the same remaining pool and receive no catch-up burst.
+
+## Resumable workflow authority
+
+One retained workflow per user owns intent, epoch, state, counters, due time, and compact generation-bound attempts. Quartz owns one stable durable job and one current one-shot trigger; stale epochs no-op and startup reconciliation repairs scheduling metadata. The supported deployment runs one active scheduler because clustering is not configured, while PostgreSQL locks remain final contact authority.
+
+Transient 429, timeout, network, and 503 outcomes use deterministic backoff and no more than three admitted attempts per provider generation. Invalid coordinates and unusable results defer until **Retry deferred**. Attempts contain bounded identities, generations, outcomes, counts, and times only—never coordinates, addresses, credentials, URLs, payloads, or exception text.
 
 Provider contact discloses coordinates and may disclose route inputs to the selected provider. Query-string authentication may be provider-required, but complete URIs, credentials, coordinates, returned addresses, request/response payloads, and imported content are excluded from Wayfarer logs and diagnostics. Revoke a provider key at both Wayfarer and the provider account when compromise is suspected; revocation does not delete historical data.

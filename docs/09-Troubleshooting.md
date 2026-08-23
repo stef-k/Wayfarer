@@ -16,6 +16,8 @@ Maps Not Loading
 - **403 "Referrer is required"**: Configure `AllowedHosts=wayfarer.example.com` for one hostname or `AllowedHosts=wayfarer.example.com;www.wayfarer.example.com` for several. Entries are semicolon-separated exact public DNS hostnames; wildcards, IP literals, localhost/private names, ports, and URL schemes are invalid. Also configure `Application:ContactEmail` for the User-Agent contact identity; it does not configure Referer.
 
 Imports Fail or Hang
+
+If imported data completed while addresses remain blank, inspect the separate enrichment state. **PausedByAuthority** requires correcting selection/credential/consent/verification and then Resume; **PausedByBudget** retains the provider-specific wake; **BackingOff** waits for retry. Use **Retry deferred** only to reconsider deterministic poison/no-result rows. Restart is safe: reconciliation repairs the current one-shot trigger without replaying completed batches.
 - Verify file format/size and required fields.
 - Refresh to see progress; if still failing, ask admin to review logs.
 
