@@ -36,12 +36,14 @@
         <div class="col-md-6">
         @if (Model.AdapterType == Wayfarer.Models.RoutingAdapterType.Geoapify)
         {
-            <select asp-for="Mappings[index].OsrmProfile" class="form-select"><option value="">Not mapped</option><option value="walk">Walk</option><option value="bicycle">Bicycle</option><option value="motorcycle">Motorcycle</option><option value="drive">Drive</option><option value="bus">Bus</option></select>
+            <select asp-for="Mappings[index].OsrmProfile" class="form-select" data-routing-mapping-control><option value="">Not mapped</option><option value="walk">Walk</option><option value="bicycle">Bicycle</option><option value="motorcycle">Motorcycle</option><option value="drive">Drive</option><option value="bus">Bus</option></select>
         }
         else
-        { <input asp-for="Mappings[index].OsrmProfile" class="form-control" placeholder="Exact OSRM profile, e.g. driving" /> }
+        { <input asp-for="Mappings[index].OsrmProfile" class="form-control" placeholder="Exact OSRM profile, e.g. driving" data-routing-mapping-control /> }
+        <span asp-validation-for="Mappings[index].OsrmProfile" class="text-danger"></span>
         </div>
     </div>
 }
 </fieldset>
 <button type="submit" class="btn btn-primary mt-3">Save configuration</button>
+<script type="module" src="~/js/admin/routing-provider-mappings.js"></script>
