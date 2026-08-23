@@ -4,9 +4,20 @@ Wayfarer stores one personal credential per user and provider (`Geoapify` or `Ma
 
 ## Key-ring durability and backup
 
-The supported Linux/systemd deployment already pins `HOME=/home/wayfarer`; its existing ASP.NET Core ring is `/home/wayfarer/.aspnet/DataProtection-Keys`. Wayfarer now configures that same path explicitly, and the installer/deployer enforces service ownership with mode `0700`. It survives process restarts and `/var/www/wayfarer` publish replacement without relocating existing keys. Keys are scoped to the application name `Wayfarer`; at-rest protection is the dedicated service identity plus host filesystem permissions and disk/host encryption. Wayfarer does not claim certificate, cloud-KMS, container, or multi-host key sharing.
+The supported Linux/systemd deployment pins `WorkingDirectory=/var/www/wayfarer` and `HOME=/home/wayfarer`. Its existing ASP.NET Core ring is `/home/wayfarer/.aspnet/DataProtection-Keys`; Wayfarer configures that retained path explicitly. The application discriminator remains the ASP.NET Core hosted discriminator derived from the fixed `/var/www/wayfarer` content root, preserving ciphertext created before #499. The ring survives process restarts and publish replacement without relocating existing keys.
 
-Back up the key-ring directory together with the PostgreSQL database and restore both from the same recovery set. Losing applicable keys makes protected credentials unreadable. Startup fails closed if the directory is unusable or any retained administrator/personal routing or location-provider credential cannot be read.
+The installer and deployer assign the ring to the `wayfarer` service account and set the ring directory to mode `0700`. They do not apply a separate mode to individual key files; the directory boundary prevents access by other accounts. At-rest protection is the dedicated service identity plus host filesystem permissions and disk/host encryption.
+
+Back up the PostgreSQL database and key ring together in the same recovery set. Restore both before starting the application, then restore the production ownership and directory permission exactly:
+
+```bash
+sudo chown -R wayfarer:wayfarer /home/wayfarer/.aspnet/DataProtection-Keys
+sudo chmod 700 /home/wayfarer/.aspnet/DataProtection-Keys
+```
+
+Losing the applicable key ring makes protected administrator routing, personal routing, and location-provider credentials unreadable even when the database survives. Startup fails closed if the directory is unusable or retained protected credentials cannot be read.
+
+This compatibility contract covers the fixed single-host systemd deployment at `/var/www/wayfarer`. Containers, a changed content root, and multiple hosts are not covered automatically and require an explicitly shared, stable Data Protection authority before deployment; Wayfarer does not claim certificate, cloud-KMS, container, or multi-host key sharing.
 
 ## Profiles, authorization, and switching
 

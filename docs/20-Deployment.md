@@ -405,7 +405,7 @@ sudo systemctl start wayfarer
 
 ## Updating Wayfarer
 
-Before the first release that uses protected personal provider profiles, preserve the service user's existing Data Protection keys and configure `/var/lib/wayfarer/data-protection-keys` as described in [Personal Location Providers](24-Personal-Location-Providers.md). Database-only backups are incomplete once protected credentials exist.
+Before the first release that uses protected personal provider profiles, preserve the service user's existing Data Protection keys at `/home/wayfarer/.aspnet/DataProtection-Keys` as described in [Personal Location Providers](24-Personal-Location-Providers.md). Back up and restore the PostgreSQL database and key ring together; restoration, ownership, and permission recovery must be complete before starting Wayfarer. Database-only backups are incomplete once protected credentials exist.
 
 ### Automated (Recommended)
 
