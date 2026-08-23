@@ -114,7 +114,11 @@ onUnmounted(() => {
     <h3 id="external-route-heading" class="fs-6">External routed path</h3>
     <p class="small mb-1"><strong>{{ capability.providerDisplayName }}</strong> · {{ capability.mappedProfileLabel }}</p>
     <p class="small mb-1">{{ capability.disclosure }}</p>
-    <p v-if="capability.attribution" class="small text-muted mb-2">{{ capability.attribution }}</p>
+    <p v-if="capability.attribution?.includes('Powered by Geoapify')" class="small text-muted mb-2">
+      <a href="https://www.geoapify.com/" rel="follow">Powered by Geoapify</a> ·
+      <a href="https://www.openstreetmap.org/copyright">© OpenStreetMap contributors</a>
+    </p>
+    <p v-else-if="capability.attribution" class="small text-muted mb-2">{{ capability.attribution }}</p>
     <p v-if="profileChanged" class="small text-warning">Save the transport-profile change before generating a new proposal.</p>
     <button v-if="!state.proposal" type="button" class="btn btn-outline-info btn-sm" :disabled="state.generating || profileChanged" @click="generate">
       {{ state.generating ? 'Generating…' : actionLabel }}

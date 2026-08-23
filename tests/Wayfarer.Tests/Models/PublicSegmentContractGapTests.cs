@@ -44,7 +44,10 @@ public sealed class PublicSegmentContractGapTests : TestBase
         using var document = JsonDocument.Parse(JsonSerializer.Serialize(dto, JsonOptions));
         Assert.Equal(
             ["id", "mode", "estimatedDistanceKm", "estimatedDurationMinutes", "notes", "displayOrder",
-                "fromPlaceId", "toPlaceId", "routeJson", "waypoints", "hasCustomRoute"],
+                "fromPlaceId", "toPlaceId", "routeJson", "waypoints", "hasCustomRoute",
+                "routeInstructionsJson", "routeProvider", "routeProviderConfigurationId",
+                "routeProviderConfigurationVersion", "routeTransportProfileId", "routeGeneratedAt",
+                "routeAttribution", "routeStorageMode"],
             document.RootElement.EnumerateObject().Select(item => item.Name));
         var waypoint = document.RootElement.GetProperty("waypoints")[0];
         Assert.Equal(["placeId", "position", "routeVertexIndex"], waypoint.EnumerateObject().Select(item => item.Name));

@@ -90,8 +90,10 @@ public sealed class RoutingProviderAdministrationService
         provider.PersonalRoutingAccess = model.AdapterType == RoutingAdapterType.Geoapify
             ? PersonalRoutingAccess.CredentialRequired : model.PersonalRoutingAccess;
         provider.Enabled = model.Enabled;
-        provider.Attribution = Normalize(model.Attribution);
-        provider.ExternalCoordinateDisclosure = model.ExternalCoordinateDisclosure.Trim();
+        provider.Attribution = model.AdapterType == RoutingAdapterType.Geoapify
+            ? "Powered by Geoapify|© OpenStreetMap contributors" : Normalize(model.Attribution);
+        provider.ExternalCoordinateDisclosure = model.AdapterType == RoutingAdapterType.Geoapify
+            ? "Route coordinates are sent server-to-provider for routing." : model.ExternalCoordinateDisclosure.Trim();
         provider.VerificationFromLongitude = model.VerificationFromLongitude;
         provider.VerificationFromLatitude = model.VerificationFromLatitude;
         provider.VerificationToLongitude = model.VerificationToLongitude;

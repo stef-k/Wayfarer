@@ -21,9 +21,12 @@ public sealed class ExternalRoutingCapabilityProjector(AuthoritativeRoutingProvi
             var resolution = await resolver.ResolveAsync(userId, profileId, cancellationToken);
             if (resolution.Execution == null)
             {
-                results[segment.Id] = Unavailable(resolution.Outcome == RoutingProviderResolutionOutcome.ExternalRoutingDisabled
-                    ? "External route generation is disabled."
-                    : "External route generation is temporarily unavailable.");
+                results[segment.Id] = Unavailable(resolution.ErrorCode switch
+                {
+                    "unmapped-transport-profile" => "Route suggestions are not configured for this transport profile.",
+                    "unsupported-transport-profile" => "This routing provider does not support the mapped transport mode.",
+                    _ => "Route suggestions are temporarily unavailable."
+                });
                 continue;
             }
             if (segment.FromPlace?.Location == null || segment.ToPlace?.Location == null
