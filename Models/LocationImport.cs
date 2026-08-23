@@ -72,4 +72,11 @@ public class LocationImport
 
     /// <summary>UTC time at which the user explicitly opted into durable enrichment.</summary>
     public DateTime? EnrichmentRequestedAtUtc { get; set; }
+
+    /// <summary>Bounded reason why inline enrichment stopped while import persistence continued.</summary>
+    [MaxLength(32)]
+    public string? EnrichmentPauseReason { get; set; }
+
+    /// <summary>Last bounded estimate of imported rows still eligible for enrichment.</summary>
+    public int RemainingEnrichmentCount { get; set; }
 }

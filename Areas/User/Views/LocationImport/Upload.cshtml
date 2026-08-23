@@ -20,6 +20,13 @@
                         <div class="alert alert-danger">
                             @Html.ValidationSummary("Please correct the errors below.", true)
                         </div>
+
+                        <div class="form-check mb-3">
+                            <input asp-for="EnrichmentRequested" class="form-check-input" />
+                            <label asp-for="EnrichmentRequested" class="form-check-label">
+                                Continue filling missing addresses after the import completes
+                            </label>
+                        </div>
                     }
 
                     <p class="mb-3">

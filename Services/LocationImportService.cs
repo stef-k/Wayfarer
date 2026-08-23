@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using Wayfarer.Models;
 using Wayfarer.Models.Enums;
 using Wayfarer.Parsers;
+using Wayfarer.Services.LocationEnrichment;
 
 namespace Wayfarer.Parsers
 {
@@ -23,19 +24,22 @@ namespace Wayfarer.Parsers
         private readonly ILogger<LocationImportService> _logger;
         private readonly LocationDataParserFactory _parserFactory;
         private readonly SseService _sse;
+        private readonly IImportEnrichmentHandoff? _enrichmentHandoff;
 
         public LocationImportService(
             ApplicationDbContext context,
             ReverseGeocodingService reverseGeocodingService,
             ILogger<LocationImportService> logger,
             LocationDataParserFactory parserFactory,
-            SseService sse)
+            SseService sse,
+            IImportEnrichmentHandoff? enrichmentHandoff = null)
         {
             _context = context;
             _reverseGeocodingService = reverseGeocodingService;
             _logger = logger;
             _parserFactory = parserFactory;
             _sse = sse;
+            _enrichmentHandoff = enrichmentHandoff;
         }
 
         public async Task ProcessImport(int importId, CancellationToken cancellationToken)
@@ -54,6 +58,7 @@ namespace Wayfarer.Parsers
                 int processed  = locationImport.LastProcessedIndex;
                 locationImport.TotalRecords = total;
                 const int batchSize = 50;
+                var inlineEnrichmentEnabled = locationImport.EnrichmentRequested;
 
                 while (processed < total)
                 {
@@ -117,14 +122,21 @@ namespace Wayfarer.Parsers
                             cancellationToken.ThrowIfCancellationRequested();
 
                             // Only geocode points that lack an address
-                            if (string.IsNullOrWhiteSpace(loc.FullAddress))
+                            if (inlineEnrichmentEnabled && string.IsNullOrWhiteSpace(loc.FullAddress))
                             {
                                 var enrichment = await _reverseGeocodingService.EnrichAsync(locationImport.UserId,
                                     loc.Coordinates.Y, loc.Coordinates.X, ReverseGeocodingIntent.ImportMissingAddress,
                                     cancellationToken);
                                 enrichment.ApplyTo(loc, DateTimeOffset.UtcNow);
-
-                                await Task.Delay(200, cancellationToken);
+                                if (IsRunWideNoContact(enrichment.Category))
+                                {
+                                    inlineEnrichmentEnabled = false;
+                                    locationImport.EnrichmentPauseReason = enrichment.Category.ToString();
+                                }
+                                else
+                                {
+                                    await Task.Delay(200, cancellationToken);
+                                }
                             }
                         }
                     }
@@ -155,6 +167,8 @@ namespace Wayfarer.Parsers
 
                     locationImport.LastProcessedIndex = processed;
                     await _context.SaveChangesAsync(cancellationToken);
+                    if (locationImport.EnrichmentRequested && _enrichmentHandoff is not null)
+                        await _enrichmentHandoff.EnsureAsync(locationImport.UserId, cancellationToken);
 
                     await _sse.BroadcastAsync(
                         $"import-{locationImport?.UserId}",
@@ -224,9 +238,7 @@ namespace Wayfarer.Parsers
                 if (li != null)
                 {
                     li.Status = ImportStatus.Failed;
-                    li.ErrorMessage = ex.ToString().Length > 2000
-                        ? ex.ToString().Substring(0, 2000)
-                        : ex.ToString();
+                    li.ErrorMessage = "Import processing failed.";
                     await _context.SaveChangesAsync(CancellationToken.None);
                     await _sse.BroadcastAsync(
                         $"import-{li.UserId}",
@@ -243,6 +255,13 @@ namespace Wayfarer.Parsers
                 }
             }
         }
+
+        /// <summary>Identifies run-wide authority outcomes after which inline retries cannot succeed.</summary>
+        public static bool IsRunWideNoContact(ReverseGeocodingCategory category) => category is
+            ReverseGeocodingCategory.Exhausted or ReverseGeocodingCategory.NoProviderSelected
+            or ReverseGeocodingCategory.CredentialRequired or ReverseGeocodingCategory.ConsentRequired
+            or ReverseGeocodingCategory.Unauthorized or ReverseGeocodingCategory.VerificationRequired
+            or ReverseGeocodingCategory.StaleAuthority;
 
         private async Task<List<Location>> GetLocationsToProcess(LocationImport locationImport, CancellationToken cancellationToken)
         {

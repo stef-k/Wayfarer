@@ -329,6 +329,8 @@ namespace Wayfarer.Areas.User.Controllers
                     TotalRecords = 0,
                     Status = ImportStatus.Stopped,
                     ErrorMessage = null
+                    ,EnrichmentRequested = model.EnrichmentRequested
+                    ,EnrichmentRequestedAtUtc = model.EnrichmentRequested ? DateTime.UtcNow : null
                 };
 
                 _dbContext.LocationImports.Add(importRecord);

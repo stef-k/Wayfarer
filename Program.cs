@@ -368,6 +368,8 @@ static void ConfigureQuartz(WebApplicationBuilder builder)
         Wayfarer.Services.LocationEnrichment.LocationEnrichmentWorker>();
     builder.Services.AddScoped<Wayfarer.Services.LocationEnrichment.IWorkflowScheduleProjection,
         Wayfarer.Services.LocationEnrichment.WorkflowScheduleProjection>();
+    builder.Services.AddScoped<Wayfarer.Services.LocationEnrichment.IImportEnrichmentHandoff,
+        Wayfarer.Services.LocationEnrichment.ImportEnrichmentHandoff>();
 
     // 2) Build & start the Quartz scheduler
     builder.Services.AddSingleton<IScheduler>(sp =>
