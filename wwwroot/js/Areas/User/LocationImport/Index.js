@@ -1,14 +1,12 @@
 // index.js
 document.addEventListener('DOMContentLoaded', () => {
     // SSE stream
-    const stream = new EventSource('/api/sse/import');
+    const stream = typeof EventSource === 'undefined' ? null : new EventSource('/api/sse/import');
     // grab the antiforgery token
     const antiForgeryToken = document.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
     const cfg = window.__locationImportConfig;
 
-    stream.onmessage = (event) => {
-        handleStream(event);
-    }
+    if (stream) stream.onmessage = (event) => handleStream(event);
     
     // helper to POST a tiny form
     function postForm(actionUrl, payload) {
@@ -84,9 +82,15 @@ document.addEventListener('DOMContentLoaded', () => {
  * Parses the incoming Server Send Event payload and updates the correct row with the updated data.
  * @param event
  */
+let refreshQueued = false;
+
+/** Coalesces content-free notifications into one authoritative page reload. */
 const handleStream = (event) => {
-    const payload = JSON.parse(event.data);
-    if (payload.type === 'import-state') window.location.reload();
+    let payload;
+    try { payload = JSON.parse(event.data); } catch { return; }
+    if (!['import-state', 'enrichment-state'].includes(payload?.type) || refreshQueued) return;
+    refreshQueued = true;
+    window.setTimeout(() => window.location.reload(), 100);
 }
 
 /**
