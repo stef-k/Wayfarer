@@ -441,6 +441,9 @@ echo ""
 echo "Creating deployment directory (if needed) and setting ownership."
 sudo mkdir -p "$DEPLOY_DIR"
 sudo chown -R "$APP_USER":"$APP_USER" "$DEPLOY_DIR"
+sudo mkdir -p /var/lib/wayfarer/data-protection-keys
+sudo chown -R "$APP_USER":"$APP_USER" /var/lib/wayfarer
+sudo chmod 700 /var/lib/wayfarer /var/lib/wayfarer/data-protection-keys
 
 # ------------------------------
 # 6. Configure PostgreSQL

@@ -46,8 +46,7 @@ CSV uses the CSV importer and suits spreadsheets/Python. GeoJSON uses the Wayfar
 
 ### Reverse Geocoding (Optional)
 
-- Add a personal Mapbox API token to enrich imported points with addresses.
-- Create an API token named "Mapbox" under your account, then re-run imports to enrich future data.
+- Configure an authorized and verified personal provider profile before address enrichment. Imports share its remaining guard allowance and preserve retryable source data on exhaustion; see [Personal Location Providers](24-Personal-Location-Providers.md).
 - Without a token, imports still work; address fields stay blank.
 
 ### Metadata Fields

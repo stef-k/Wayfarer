@@ -1,5 +1,7 @@
 # Troubleshooting
 
+For unreadable protected credentials, legacy Mapbox conflicts, exhaustion, guard recovery, and key-ring restore, see [Personal Location Providers](24-Personal-Location-Providers.md).
+
 Sign‑In Issues
 - Wrong password: reset via account page or ask an admin.
 - Locked out: your admin can unlock accounts. Enable 2FA for extra security.
