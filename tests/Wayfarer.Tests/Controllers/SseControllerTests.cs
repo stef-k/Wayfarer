@@ -250,4 +250,26 @@ public class SseControllerTests
         Assert.IsType<EmptyResult>(result);
         Assert.Equal("text/event-stream", controller.HttpContext.Response.Headers["Content-Type"].ToString());
     }
+
+    [Fact]
+    public async Task ImportStreamWithoutAuthenticatedIdentityIsUnauthorized()
+    {
+        using var db = CreateDb();
+        var controller = CreateController(db, Mock.Of<IGroupTimelineService>());
+
+        var result = await controller.SubscribeToImportAsync(CancellationToken.None);
+
+        Assert.IsType<UnauthorizedResult>(result);
+    }
+
+    [Fact]
+    public async Task LegacyCallerSelectedImportChannelIsRejected()
+    {
+        using var db = CreateDb();
+        var controller = CreateController(db, Mock.Of<IGroupTimelineService>(), CreateUser("owner"));
+
+        await controller.Stream("import", "other-user", CancellationToken.None);
+
+        Assert.Equal(StatusCodes.Status404NotFound, controller.Response.StatusCode);
+    }
 }
