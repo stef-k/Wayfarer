@@ -20,17 +20,15 @@ public sealed class MobileRoutingService(
         if (resolution.Execution == null)
             return new(MapOutcome(resolution.ErrorCode), transportProfileId, null, null, null, null, null);
         var execution = resolution.Execution;
-        if (execution.Provider.AdapterType == RoutingAdapterType.Geoapify)
-        {
-            var guard = await dbContext.GeoapifyUsageGuards.AsNoTracking()
-                .SingleOrDefaultAsync(item => item.UserId == userId, cancellationToken);
-            var cutoff = DateTimeOffset.UtcNow.AddHours(-24);
-            var used = await dbContext.GeoapifyUsageAdmissions.AsNoTracking()
-                .Where(item => item.UserId == userId && item.AdmittedAt > cutoff)
-                .SumAsync(item => (int?)item.Credits, cancellationToken) ?? 0;
-            if (guard is { Enabled: true } && used >= guard.CreditLimit)
-                return new("exhausted", transportProfileId, null, null, null, null, null);
-        }
+        if (!IsPersonalGeoapify(execution, userId)) return UnavailableCapability(transportProfileId);
+        var guard = await dbContext.GeoapifyUsageGuards.AsNoTracking()
+            .SingleOrDefaultAsync(item => item.UserId == userId, cancellationToken);
+        var cutoff = DateTimeOffset.UtcNow.AddHours(-24);
+        var used = await dbContext.GeoapifyUsageAdmissions.AsNoTracking()
+            .Where(item => item.UserId == userId && item.AdmittedAt > cutoff)
+            .SumAsync(item => (int?)item.Credits, cancellationToken) ?? 0;
+        if (guard is { Enabled: true } && used >= guard.CreditLimit)
+            return new("exhausted", transportProfileId, null, null, null, null, null);
         return new("available", transportProfileId, "geoapify", execution.Provider.Id,
             MappingIdentity(execution, transportProfileId), "persistent", Attributions());
     }
@@ -44,6 +42,8 @@ public sealed class MobileRoutingService(
             return MobileRouteServiceResult.Failure("invalid-request");
         var resolution = await resolver.ResolveAsync(userId, transportProfileId, cancellationToken);
         if (resolution.Execution == null) return MobileRouteServiceResult.Failure(MapOutcome(resolution.ErrorCode));
+        if (!IsPersonalGeoapify(resolution.Execution, userId))
+            return MobileRouteServiceResult.Failure("no-provider-selected");
         if (!budgets.TryAdmitUserGeneration(userId)) return MobileRouteServiceResult.Failure("rate-limited");
         var execution = resolution.Execution;
         var route = await routeClient.RouteAsync(execution, points,
@@ -71,6 +71,14 @@ public sealed class MobileRoutingService(
 
     private static string MappingIdentity(ResolvedRoutingProviderExecution execution, Guid profileId) =>
         $"{execution.Provider.Id:N}:{execution.ProviderConfigurationVersion}:{profileId:N}";
+
+    private static bool IsPersonalGeoapify(ResolvedRoutingProviderExecution execution, string userId) =>
+        execution.Provider.AdapterType == RoutingAdapterType.Geoapify
+        && execution.SelectionMode == RoutingProviderSelectionMode.Personal
+        && execution.PersonalProviderUserId == userId;
+
+    private static MobileRoutingCapability UnavailableCapability(Guid profileId) =>
+        new("no-provider-selected", profileId, null, null, null, null, null);
 
     private static IReadOnlyList<MobileRouteAttribution> Attributions() =>
     [
