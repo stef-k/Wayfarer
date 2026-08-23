@@ -264,7 +264,7 @@ Wayfarer uses Quartz.NET for background job scheduling and execution.
 - **Features**:
   - Progress tracking via SSE.
   - Supports cancellation via `CancellationToken`.
-  - Processes JSON (Google Timeline), GPX, and KML files.
+  - Processes Google Timeline JSON, Wayfarer GeoJSON, CSV, GPX, and the existing location-history KML schema. Generic GeoJSON remains rejected.
 - **Key File**: `Jobs/LocationImportJob.cs`
 
 #### LocationEnrichmentJob

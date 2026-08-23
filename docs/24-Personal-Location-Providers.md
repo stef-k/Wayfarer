@@ -55,7 +55,7 @@ Only explicit Trip Editor acceptance persists a Geoapify route. Stored geometry,
 
 Geoapify states that request data, headers, IP, and timestamps are used for access, usage, and statistics, and that successful-request data is generally retained no longer than 24 hours. Coordinates, routes, and addresses travel server-to-provider/CDNs. Wayfarer does not log credentials, authenticated URLs, coordinates, returned addresses, geometry, instructions, or raw payloads.
 
-Issue #505 owns the coordinated release: #502 precedes #500, PostgreSQL and the Data Protection key ring are backed up together, backend deploys first, family accounts are configured explicitly after deployment, and Mobile publishes only after API/device acceptance. No provider is selected automatically and #502 must not be deployed publicly by itself.
+Issue #505 owns the coordinated release: #502 → #507 → #500, PostgreSQL and the Data Protection key ring are backed up together, backend deploys first, family accounts are configured explicitly after deployment, and Mobile publishes only after API/device acceptance. No provider is selected automatically and #502 must not be deployed publicly by itself.
 
 Official policy sources retrieved 2026-08-23: [Geocoding v6 API and storage](https://docs.mapbox.com/api/search/geocoding/), [Temporary versus Permanent](https://docs.mapbox.com/help/dive-deeper/understand-temporary-vs-permanent-geocoding/), [pricing](https://www.mapbox.com/pricing/), and [attribution guidance](https://docs.mapbox.com/help/dive-deeper/attribution/).
 
@@ -75,7 +75,9 @@ Exhaustion stops new provider contact and recovers automatically as rolling cred
 
 ## Resumable workflow authority
 
-One retained workflow per user owns intent, epoch, state, counters, due time, and compact generation-bound attempts. Quartz owns one stable durable job and one current one-shot trigger; stale epochs no-op and startup reconciliation repairs scheduling metadata. The supported deployment runs one active scheduler because clustering is not configured, while PostgreSQL locks remain final contact authority.
+One retained workflow per user owns intent, epoch, state, progress, due time, an expiring execution lease with a monotonically advancing fence, and compact generation-bound attempts. Quartz owns one stable durable job and one current one-shot trigger; stale epochs no-op and startup reconciliation repairs scheduling metadata. The supported deployment runs one active scheduler because clustering is not configured. Wayfarer's relational lease/fence is product execution authority and short provider-ledger transactions remain admission authority; neither a database resource nor scheduler lock spans provider HTTP.
+
+Processed, enriched, and skipped are cumulative committed outcomes. Retryable and permanent deferred counts describe committed attempt outcomes; failed batches count committed batch failures. Runnable remaining is recomputed from current wholly-unenriched, due eligibility, and next attempt is the earliest future retry. Displayed provider credits come from the provider admission ledger, not an invented workflow counter.
 
 Transient 429, timeout, network, and 503 outcomes use deterministic backoff and no more than three admitted attempts per provider generation. Invalid coordinates and unusable results defer until **Retry deferred**. Attempts contain bounded identities, generations, outcomes, counts, and times only—never coordinates, addresses, credentials, URLs, payloads, or exception text.
 

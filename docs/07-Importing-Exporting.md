@@ -28,7 +28,7 @@ CSV uses the CSV importer and suits spreadsheets/Python. GeoJSON uses the Wayfar
 - A background job parses your file in batches.
 - **Deduplication** — imports automatically detect and skip duplicate locations based on timestamp and coordinates within a small tolerance.
 - **Metadata preservation** — accuracy, speed, altitude, heading, and source fields are imported when available.
-- If reverse geocoding is configured (per-user token), missing addresses are enriched.
+- Missing addresses are enriched only after explicit upload opt-in or a later **Start** command, and only while current provider authority permits contact.
 - Progress updates show status and last imported record.
 
 ### Import Controls
@@ -135,4 +135,4 @@ Wayfarer-native KML schema v2 preserves ordered From/Via/To Place identity, wayp
 Legacy Wayfarer KML v1 remains supported. Its `DurationMin` value is treated as an intentional Manual duration; absence defaults to Automatic. Imported distance is recalculated by the server from the effective route, and existing public/export duration minutes continue to use `TimeSpan.TotalMinutes`, so whole-second values retain fractional-minute precision.
 
 Generic KML and GeoJSON remain geometry-only interchange formats. They do not infer semantic saved-Place waypoints, and generic route coordinates are imported exactly without dense-route simplification. Dense generic-route simplification is deferred to #425; external route generation is deferred to #426.
-Imports with supplied addresses retain those values with unknown provenance. Missing-address enrichment is optional and uses the shared admitted persistent-provider boundary; unavailable providers do not stop accepted imports. There is no automatic enrichment queue. The authenticated Geoapify action processes at most 100 wholly unenriched owned Locations chronologically per invocation and resumes from remaining domain state.
+Imports with supplied addresses retain those values with unknown provenance. Missing-address enrichment is optional and uses the shared admitted persistent-provider boundary; unavailable providers do not stop accepted imports. Explicit upload opt-in creates durable relational intent projected to Quartz one-shot continuations. Each execution processes at most 100 wholly unenriched owned Locations chronologically and resumes from remaining domain state; import completion remains independent.
