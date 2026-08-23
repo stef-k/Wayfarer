@@ -18,7 +18,9 @@ public sealed record LocationProviderProfileViewModel(
     bool GeocodingAuthorized, PersonalProviderVerification GeocodingVerification,
     bool RoutingAuthorized, PersonalProviderVerification RoutingVerification,
     bool GuardEnabled, int Limit, int Used, string Unit, string WindowExplanation, bool Exhausted,
-    bool? DirectionsGuardEnabled = null, int? DirectionsLimit = null, int? DirectionsUsed = null);
+    bool? DirectionsGuardEnabled = null, int? DirectionsLimit = null, int? DirectionsUsed = null,
+    bool PermanentConsentCurrent = false, int? PermanentConsentVersion = null,
+    DateTimeOffset? PermanentConsentedAt = null, string? PausedReason = null, DateOnly? CycleStart = null);
 
 /// <summary>Accepts explicit profile replacement/authorization and independent selection.</summary>
 public sealed class LocationProviderProfileInput
@@ -37,4 +39,14 @@ public sealed class LocationProviderGuardInput
     [Required, RegularExpression("geoapify|mapbox-permanent|mapbox-directions")] public string GuardKey { get; set; } = string.Empty;
     public bool Enabled { get; set; }
     [Range(0, 10_000_000)] public int Limit { get; set; }
+}
+
+/// <summary>Accepts all explicit acknowledgements required for Mapbox Permanent Geocoding.</summary>
+public sealed class MapboxPermanentConsentInput
+{
+    [Range(typeof(bool), "true", "true", ErrorMessage = "Confirm that stored Mapbox enrichment was chosen.")] public bool StorageAcknowledged { get; set; }
+    [Range(typeof(bool), "true", "true", ErrorMessage = "Confirm that Permanent Geocoding may incur charges.")] public bool BillingAcknowledged { get; set; }
+    [Range(typeof(bool), "true", "true", ErrorMessage = "Confirm eligible Mapbox billing or enterprise terms.")] public bool BillingEligibilityAcknowledged { get; set; }
+    [Range(typeof(bool), "true", "true", ErrorMessage = "Confirm that Wayfarer meters only its own contacts.")] public bool WayfarerMeterAcknowledged { get; set; }
+    [Range(typeof(bool), "true", "true", ErrorMessage = "Confirm external applications may consume the allowance.")] public bool ExternalUsageAcknowledged { get; set; }
 }

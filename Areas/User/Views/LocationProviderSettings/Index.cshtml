@@ -5,11 +5,26 @@
 @if (Model.LegacyMigrationState is Wayfarer.Models.LocationProviders.LegacyMapboxMigrationState.Conflict or Wayfarer.Models.LocationProviders.LegacyMapboxMigrationState.ProtectedCredentialUnavailable)
 { <div class="alert alert-danger">Legacy Mapbox migration needs explicit recovery. No provider contact is authorized and no stored value was removed.</div> }
 <div class="alert alert-info">Wayfarer records only its own contacts. Other applications can consume the provider account allowance; use a dedicated Wayfarer key when possible. Multiple keys may still share one provider allowance.</div>
+@if (TempData["ProviderStatus"] is string providerStatus) { <div class="alert alert-info">@providerStatus</div> }
 @foreach (var profile in Model.Profiles)
 {
 <section class="card mb-4"><div class="card-body">
     <h2 class="h4">@profile.DisplayName</h2>
     <p><strong>Credential:</strong> @(profile.CredentialConfigured ? profile.Mask + " (configured)" : "not configured")</p>
+    @if (profile.ProviderKey == "mapbox")
+    {
+    <h3 class="h5">Permanent Geocoding consent</h3>
+    <p><strong>Consent:</strong> @(profile.PermanentConsentCurrent ? $"current (version {profile.PermanentConsentVersion}, {profile.PermanentConsentedAt:u})" : "missing")</p>
+    <form asp-action="ConsentMapboxPermanent" method="post">
+        <div asp-validation-summary="All" class="text-danger"></div>
+        <div class="form-check"><input id="storage-ack" name="StorageAcknowledged" value="true" type="checkbox" class="form-check-input" /><label for="storage-ack" class="form-check-label">I choose stored Mapbox Permanent Geocoding enrichment.</label></div>
+        <div class="form-check"><input id="billing-ack" name="BillingAcknowledged" value="true" type="checkbox" class="form-check-input" /><label for="billing-ack" class="form-check-label">I understand Permanent Geocoding is separately billed and may incur charges.</label></div>
+        <div class="form-check"><input id="eligibility-ack" name="BillingEligibilityAcknowledged" value="true" type="checkbox" class="form-check-input" /><label for="eligibility-ack" class="form-check-label">My Mapbox account has an eligible credit card or enterprise contract.</label></div>
+        <div class="form-check"><input id="meter-ack" name="WayfarerMeterAcknowledged" value="true" type="checkbox" class="form-check-input" /><label for="meter-ack" class="form-check-label">Wayfarer's meter counts only contacts made by Wayfarer.</label></div>
+        <div class="form-check"><input id="external-ack" name="ExternalUsageAcknowledged" value="true" type="checkbox" class="form-check-input" /><label for="external-ack" class="form-check-label">Other applications or tokens may consume the same account allowance.</label></div>
+        <button class="btn btn-outline-primary mt-2" type="submit">Record Permanent consent</button>
+    </form>
+    }
     <form asp-action="SaveProfile" method="post">
         <input name="ProviderKey" value="@profile.ProviderKey" type="hidden" />
         <label class="form-label">Replacement credential</label><input name="ReplacementCredential" type="password" autocomplete="new-password" class="form-control" />
@@ -22,6 +37,11 @@
     </form>
     @if (profile.ProviderKey == "mapbox")
     {
+    <h3 class="h5 mt-3">Permanent Geocoding verification</h3>
+    <p>State: <strong>@profile.GeocodingVerification</strong>. Verification makes one admitted, potentially billable Permanent request using fixed non-personal coordinates and does not activate Mapbox.</p>
+    <form asp-action="VerifyMapboxPermanent" method="post"><button class="btn btn-outline-primary" type="submit">Verify Mapbox Permanent Geocoding</button></form>
+    <p class="mt-3"><strong>Permanent Geocoding meter:</strong> @(profile.GuardEnabled ? "enabled" : "disabled") — @profile.Used / @profile.Limit contacts; UTC cycle starts @profile.CycleStart and resets at the next UTC month boundary. @(!profile.GuardEnabled ? "The guard is disabled; contacts may incur charges." : "")</p>
+    <p><strong>Paused reason:</strong> @(profile.PausedReason ?? (Model.ActiveGeocodingProvider == "mapbox" ? "active" : "Mapbox is not selected"))</p>
     <p class="mt-3"><strong>Directions guard:</strong> @(profile.DirectionsGuardEnabled == true ? "enabled" : "disabled") — @profile.DirectionsUsed / @profile.DirectionsLimit contacts. Separate Wayfarer UTC calendar-month safety cycle.</p>
     <form asp-action="SaveGuard" method="post" class="row g-2">
         <input name="GuardKey" value="mapbox-directions" type="hidden" />
@@ -38,7 +58,7 @@
         <div class="col-auto"><button class="btn btn-outline-primary" type="submit">Save guard</button></div>
     </form>
     @if (profile.CredentialConfigured)
-    { <form asp-action="Revoke" method="post" class="mt-3"><input name="providerKey" value="@profile.ProviderKey" type="hidden" /><label><input name="confirmed" value="true" type="checkbox" /> Confirm revocation</label> <button class="btn btn-danger" type="submit">Revoke</button></form> }
+    { <form asp-action="Revoke" method="post" class="mt-3"><input name="providerKey" value="@profile.ProviderKey" type="hidden" /><label><input name="confirmed" value="true" type="checkbox" /> Confirm revocation; coordinates, addresses, Trips, Places, imports, and synchronization data are preserved.</label> <button class="btn btn-danger" type="submit">Revoke</button></form> }
 </div></section>
 }
 <p>Cache and stored-result reuse costs no new credit. Exhaustion pauses new contacts without deleting source or historical data. Disabling a guard may incur paid usage. Imports and backfills share the same remaining allowance.</p>
