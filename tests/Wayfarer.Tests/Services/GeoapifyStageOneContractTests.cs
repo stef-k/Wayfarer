@@ -133,7 +133,7 @@ public sealed class GeoapifyStageOneContractTests
 
         Assert.Equal(ProviderTransportProfileCategory.Unsupported, unsupported.Category);
         Assert.Equal(ProviderTransportProfileCategory.Unmapped, unmapped.Category);
-        Assert.Equal(0, handler.Requests.Count);
+        Assert.Empty(handler.Requests);
         Assert.True(ledger.TryAdmitGeoapify(DateTimeOffset.UtcNow, 1, 1, PersonalProviderProduct.Routing));
     }
 
