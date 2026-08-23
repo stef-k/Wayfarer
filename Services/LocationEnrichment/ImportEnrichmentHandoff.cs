@@ -32,7 +32,12 @@ public sealed class ImportEnrichmentHandoff(
         }
         workflow.Start(DateTime.UtcNow);
         workflow.PauseForAuthority(LocationEnrichmentOutcome.AuthorityUnavailable, DateTime.UtcNow);
-        await db.SaveChangesAsync(cancellationToken);
+        try { await db.SaveChangesAsync(cancellationToken); }
+        catch (DbUpdateException)
+        {
+            db.ChangeTracker.Clear();
+            return;
+        }
         try { await projection.ProjectAsync(userId, cancellationToken); } catch { }
     }
 
@@ -52,7 +57,12 @@ public sealed class ImportEnrichmentHandoff(
             db.Add(workflow);
         }
         workflow.Start(DateTime.UtcNow);
-        await db.SaveChangesAsync(cancellationToken);
+        try { await db.SaveChangesAsync(cancellationToken); }
+        catch (DbUpdateException)
+        {
+            db.ChangeTracker.Clear();
+            return EnrichmentCommandResult.Conflict("concurrent-command");
+        }
         try { await projection.ProjectAsync(userId, cancellationToken); }
         catch { return EnrichmentCommandResult.Conflict("scheduling-reconciliation-required"); }
         return EnrichmentCommandResult.Success("scheduled");
@@ -83,7 +93,12 @@ public sealed class ImportEnrichmentHandoff(
                 selection.GeocodingSelectionGeneration, now);
         var workflow = await db.LocationEnrichmentWorkflows.SingleAsync(item => item.UserId == userId, cancellationToken);
         if (!workflow.RetryDeferred(now)) return EnrichmentCommandResult.Conflict("invalid-state");
-        await db.SaveChangesAsync(cancellationToken);
+        try { await db.SaveChangesAsync(cancellationToken); }
+        catch (DbUpdateException)
+        {
+            db.ChangeTracker.Clear();
+            return EnrichmentCommandResult.Conflict("concurrent-command");
+        }
         try { await projection.ProjectAsync(userId, cancellationToken); }
         catch { return EnrichmentCommandResult.Conflict("scheduling-reconciliation-required"); }
         return EnrichmentCommandResult.Success("scheduled");

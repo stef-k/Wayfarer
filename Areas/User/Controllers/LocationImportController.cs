@@ -126,7 +126,12 @@ namespace Wayfarer.Areas.User.Controllers
             {
                 try { change(workflow, DateTime.UtcNow); }
                 catch (EnrichmentCommandConflictException exception) { return Conflict(exception.Code); }
-                await _dbContext.SaveChangesAsync();
+                try { await _dbContext.SaveChangesAsync(); }
+                catch (DbUpdateConcurrencyException)
+                {
+                    _dbContext.ChangeTracker.Clear();
+                    return Conflict("concurrent-command");
+                }
                 if (_workflowProjection is not null)
                 {
                     try { await _workflowProjection.ProjectAsync(userId); }
