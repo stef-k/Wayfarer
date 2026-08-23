@@ -19,6 +19,47 @@ namespace Wayfarer.Tests.Services;
 [Collection(PostgresImportTestCollection.Name)]
 public sealed class GeoapifyBackfillConcurrencyPostgresTests(PostgresImportTestFixture fixture)
 {
+    /// <summary>Proves cancellation after contact retains admission and releases durable ownership.</summary>
+    [PostgresFact]
+    public async Task CancellationAfterContactRetainsAdmissionAndAllowsRetry()
+    {
+        var user = await fixture.CreateUserAsync();
+        var protection = new EphemeralDataProtectionProvider();
+        await SeedAsync(user.Id, null, protection);
+        var cancelledHandler = new CoordinatedHandler(user.Id, null);
+        await using var cancelledDb = fixture.CreateContext();
+        var cancelledService = Service(cancelledDb, protection, cancelledHandler);
+        using var cancellation = new CancellationTokenSource();
+
+        var cancelledRun = cancelledService.RunAsync(user.Id, cancellation.Token);
+        await cancelledHandler.FirstUserRequestEntered;
+        cancellation.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => cancelledRun);
+
+        await using (var verify = fixture.CreateContext())
+        {
+            Assert.Equal(1, await verify.Set<GeoapifyUsageAdmission>()
+                .CountAsync(item => item.UserId == user.Id));
+            var location = await verify.Locations.SingleAsync(item => item.UserId == user.Id);
+            Assert.True(GeoapifyLocationBackfillService.IsWhollyUnenriched(location));
+            Assert.Equal(1, handlerRequests(cancelledHandler, user.Id));
+        }
+
+        var retryHandler = new CoordinatedHandler(user.Id, null);
+        await using var retryDb = fixture.CreateContext();
+        var retry = Service(retryDb, protection, retryHandler).RunAsync(user.Id);
+        await retryHandler.FirstUserRequestEntered;
+        retryHandler.Release();
+        await retry;
+
+        await using var final = fixture.CreateContext();
+        Assert.Equal(2, await final.Set<GeoapifyUsageAdmission>().CountAsync(item => item.UserId == user.Id));
+        Assert.Equal(1, retryHandler.RequestsFor(user.Id));
+        Assert.Equal("geoapify", (await final.Locations.SingleAsync(item => item.UserId == user.Id)).ReverseGeocodingProvider);
+
+        static int handlerRequests(CoordinatedHandler handler, string userId) => handler.RequestsFor(userId);
+    }
+
     [PostgresFact]
     public async Task ConcurrentSameUserInvocationsContactOnceWhileAnotherUserRemainsIndependent()
     {
@@ -66,10 +107,10 @@ public sealed class GeoapifyBackfillConcurrencyPostgresTests(PostgresImportTestF
         }
     }
 
-    private async Task SeedAsync(string userId, string otherUserId, IDataProtectionProvider protection)
+    private async Task SeedAsync(string userId, string? otherUserId, IDataProtectionProvider protection)
     {
         await using var db = fixture.CreateContext();
-        foreach (var id in new[] { userId, otherUserId })
+        foreach (var id in new[] { userId, otherUserId }.OfType<string>())
         {
             var profile = PersonalLocationProviderProfile.Create(id, PersonalLocationProvider.Geoapify);
             new PersonalProviderCredentialService(protection).Replace(profile, $"key-{id}");
@@ -98,7 +139,7 @@ public sealed class GeoapifyBackfillConcurrencyPostgresTests(PostgresImportTestF
         return new GeoapifyLocationBackfillService(db, reverse);
     }
 
-    private sealed class CoordinatedHandler(string primaryUserId, string otherUserId) : HttpMessageHandler
+    private sealed class CoordinatedHandler(string primaryUserId, string? otherUserId) : HttpMessageHandler
     {
         private readonly TaskCompletionSource _first = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private readonly TaskCompletionSource _other = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -115,7 +156,7 @@ public sealed class GeoapifyBackfillConcurrencyPostgresTests(PostgresImportTestF
             var userId = Uri.UnescapeDataString(key)[4..];
             lock (_requests) _requests[userId] = _requests.GetValueOrDefault(userId) + 1;
             if (userId == primaryUserId) _first.TrySetResult();
-            if (userId == otherUserId) _other.TrySetResult();
+            if (otherUserId != null && userId == otherUserId) _other.TrySetResult();
             await _release.Task.WaitAsync(cancellationToken);
             return new(System.Net.HttpStatusCode.OK)
             {
