@@ -189,24 +189,9 @@ public class LocationController : BaseApiController
 
             try
             {
-                // Reverse geocoding (exactly like log-location)
-                var apiToken = user.ApiTokens?.FirstOrDefault(t => t.Name == "Mapbox");
-                if (apiToken != null)
-                {
-                    var locationInfo = await _reverseGeocodingService.GetReverseGeocodingDataAsync(
-                        dto.Latitude, dto.Longitude, apiToken.Token ?? string.Empty, apiToken.Name ?? string.Empty);
-
-                    _logger.LogInformation("Check-in reverse geocoding completed.");
-
-                    location.FullAddress = locationInfo.FullAddress;
-                    location.Address = locationInfo.Address;
-                    location.AddressNumber = locationInfo.AddressNumber;
-                    location.StreetName = locationInfo.StreetName;
-                    location.PostCode = locationInfo.PostCode;
-                    location.Place = locationInfo.Place;
-                    location.Region = locationInfo.Region;
-                    location.Country = locationInfo.Country;
-                }
+                var enrichment = await _reverseGeocodingService.EnrichAsync(user.Id, dto.Latitude, dto.Longitude,
+                    ReverseGeocodingIntent.LocationCreate, HttpContext.RequestAborted);
+                enrichment.ApplyTo(location, DateTimeOffset.UtcNow);
 
                 // Save location (same as log-location)
                 _dbContext.Locations.Add(location);
@@ -668,23 +653,9 @@ public class LocationController : BaseApiController
 
             try
             {
-                var apiToken = user.ApiTokens?.FirstOrDefault(t => t.Name == "Mapbox");
-                if (apiToken?.Token != null)
-                {
-                    var locationInfo = await _reverseGeocodingService.GetReverseGeocodingDataAsync(
-                        dto.Latitude, dto.Longitude, apiToken.Token, apiToken.Name);
-
-                    _logger.LogInformation("Log-location reverse geocoding completed.");
-
-                    location.FullAddress = locationInfo.FullAddress;
-                    location.Address = locationInfo.Address;
-                    location.AddressNumber = locationInfo.AddressNumber;
-                    location.StreetName = locationInfo.StreetName;
-                    location.PostCode = locationInfo.PostCode;
-                    location.Place = locationInfo.Place;
-                    location.Region = locationInfo.Region;
-                    location.Country = locationInfo.Country;
-                }
+                var enrichment = await _reverseGeocodingService.EnrichAsync(user.Id, dto.Latitude, dto.Longitude,
+                    ReverseGeocodingIntent.LocationCreate, HttpContext.RequestAborted);
+                enrichment.ApplyTo(location, DateTimeOffset.UtcNow);
 
                 _dbContext.Locations.Add(location);
                 await _dbContext.SaveChangesAsync();
@@ -1040,37 +1011,13 @@ public class LocationController : BaseApiController
                 }
             }
 
-            // Reverse geocode if coordinates were updated and user has a 3rd party token (e.g., Mapbox)
+            // Reverse geocode only through the admitted persistent-enrichment boundary.
             if (coordsUpdated)
-                try
-                {
-                    var apiToken = user.ApiTokens?.FirstOrDefault(t => t.Name == "Mapbox");
-                    if (apiToken?.Token != null)
-                    {
-                        var lat = location.Coordinates.Y;
-                        var lon = location.Coordinates.X;
-
-                        var locationInfo = await _reverseGeocodingService.GetReverseGeocodingDataAsync(
-                            lat, lon, apiToken.Token, apiToken.Name);
-
-                        _logger.LogInformation("Update reverse geocoding completed for location {LocationId}.", id);
-
-                        location.FullAddress = locationInfo.FullAddress;
-                        location.Address = locationInfo.Address;
-                        location.AddressNumber = locationInfo.AddressNumber;
-                        location.StreetName = locationInfo.StreetName;
-                        location.PostCode = locationInfo.PostCode;
-                        location.Place = locationInfo.Place;
-                        location.Region = locationInfo.Region;
-                        location.Country = locationInfo.Country;
-                        anyChange = true; // Addresses updated
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "Reverse geocoding failed during update for location {LocationId}", id);
-                    // Non-fatal: keep other changes
-                }
+            {
+                var enrichment = await _reverseGeocodingService.EnrichAsync(user.Id, location.Coordinates.Y,
+                    location.Coordinates.X, ReverseGeocodingIntent.LocationCoordinateRefresh, HttpContext.RequestAborted);
+                anyChange |= enrichment.ApplyTo(location, DateTimeOffset.UtcNow);
+            }
 
             if (!anyChange) return Ok(new { success = true, message = "No changes applied.", location });
 

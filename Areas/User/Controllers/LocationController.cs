@@ -141,11 +141,9 @@ namespace Wayfarer.Areas.User.Controllers
                 // Associate the location with the current user
                 model.UserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
                 if (model.UserId == null) return Unauthorized();
+                var user = await _dbContext.ApplicationUsers.AsNoTracking()
+                    .FirstOrDefaultAsync(item => item.Id == model.UserId);
 
-                ApplicationUser? user = await _dbContext.ApplicationUsers
-                    .Include(u => u.ApiTokens)
-                    .FirstOrDefaultAsync(u => u.Id == model.UserId);
-                ApiToken? apiToken = user?.ApiTokens.Where(t => t.Name == "Mapbox").FirstOrDefault();
                 DateTime Timestamp = DateTime.UtcNow;
                 // Map the ViewModel to the Location entity
                 var utc = CoordinateTimeZoneConverter.ConvertToUtc(model.Latitude, model.Longitude,
@@ -170,20 +168,12 @@ namespace Wayfarer.Areas.User.Controllers
                 };
 
 
-                if (apiToken?.Token != null)
+                if (string.IsNullOrWhiteSpace(model.Address))
                 {
-                    ReverseLocationResults locationInfo =
-                        await _reverseGeocodingService.GetReverseGeocodingDataAsync(location.Coordinates.Y,
-                            location.Coordinates.X, apiToken.Token, apiToken.Name);
-
-                    location.FullAddress = locationInfo.FullAddress;
-                    location.Address = locationInfo.Address;
-                    location.AddressNumber = locationInfo.AddressNumber;
-                    location.StreetName = locationInfo.StreetName;
-                    location.PostCode = locationInfo.PostCode;
-                    location.Place = locationInfo.Place;
-                    location.Region = locationInfo.Region;
-                    location.Country = locationInfo.Country;
+                    var enrichment = await _reverseGeocodingService.EnrichAsync(model.UserId,
+                        location.Coordinates.Y, location.Coordinates.X, ReverseGeocodingIntent.LocationCreate,
+                        HttpContext.RequestAborted);
+                    enrichment.ApplyTo(location, DateTimeOffset.UtcNow);
                 }
 
                 // Save the location to the database
@@ -386,10 +376,18 @@ namespace Wayfarer.Areas.User.Controllers
 
             // Update the location fields
             var utc = CoordinateTimeZoneConverter.ConvertToUtc(model.Latitude, model.Longitude, model.LocalTimestamp);
+            var coordinatesChanged = !location.Coordinates.X.Equals(model.Longitude) || !location.Coordinates.Y.Equals(model.Latitude);
             location.Coordinates.X = model.Longitude;
             location.Coordinates.Y = model.Latitude;
             location.Altitude = model.Altitude;
+            var manualAddressChanged = !string.Equals(location.Address, model.Address, StringComparison.Ordinal);
             location.Address = model.Address;
+            if (manualAddressChanged && !string.IsNullOrWhiteSpace(model.Address))
+            {
+                location.ReverseGeocodingProvider = null;
+                location.ReverseGeocodingStorageMode = null;
+                location.ReverseGeocodedAt = null;
+            }
             location.LocalTimestamp = DateTime.SpecifyKind(utc, DateTimeKind.Utc);
             location.TimeZoneId =
                 CoordinateTimeZoneConverter.GetTimeZoneIdFromCoordinates(model.Latitude, model.Longitude);
@@ -397,25 +395,11 @@ namespace Wayfarer.Areas.User.Controllers
             location.Notes = model.Notes;
 
             model.UserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            ApplicationUser? user = await _dbContext.ApplicationUsers
-                .Include(u => u.ApiTokens)
-                .FirstOrDefaultAsync(u => u.Id == model.UserId);
-            ApiToken? apiToken = user?.ApiTokens.Where(t => t.Name == "Mapbox").FirstOrDefault();
-
-            if (apiToken?.Token != null)
+            if (model.UserId != null && coordinatesChanged && string.IsNullOrWhiteSpace(model.Address))
             {
-                ReverseLocationResults locationInfo =
-                    await _reverseGeocodingService.GetReverseGeocodingDataAsync(location.Coordinates.Y,
-                        location.Coordinates.X, apiToken.Token, apiToken.Name);
-
-                location.FullAddress = locationInfo.FullAddress;
-                location.Address = locationInfo.Address;
-                location.AddressNumber = locationInfo.AddressNumber;
-                location.StreetName = locationInfo.StreetName;
-                location.PostCode = locationInfo.PostCode;
-                location.Place = locationInfo.Place;
-                location.Region = locationInfo.Region;
-                location.Country = locationInfo.Country;
+                var enrichment = await _reverseGeocodingService.EnrichAsync(model.UserId, location.Coordinates.Y,
+                    location.Coordinates.X, ReverseGeocodingIntent.LocationCoordinateRefresh, HttpContext.RequestAborted);
+                enrichment.ApplyTo(location, DateTimeOffset.UtcNow);
             }
 
             await _dbContext.SaveChangesAsync();

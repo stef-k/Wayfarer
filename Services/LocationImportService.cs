@@ -45,22 +45,7 @@ namespace Wayfarer.Parsers
             if (locationImport == null || locationImport.Status != ImportStatus.InProgress)
                 return;
 
-            // 1) Grab Mapbox key (if any) and the fileType
-            var apiToken = await _context.ApiTokens
-                .Where(t => t.UserId == locationImport.UserId
-                            && t.Name.ToLower() == "mapbox")
-                .Select(t => t.Token)
-                .FirstOrDefaultAsync(cancellationToken);
-
-            bool hasApiKey = !string.IsNullOrWhiteSpace(apiToken);
             var fileType  = locationImport.FileType;
-
-            if (!hasApiKey)
-            {
-                _logger.LogWarning(
-                    "User {UserId} has no Mapbox key—any missing addresses will remain blank for import {ImportId}.",
-                    locationImport.UserId, importId);
-            }
 
             try
             {
@@ -125,7 +110,7 @@ namespace Wayfarer.Parsers
                     locationImport.SkippedDuplicates += skippedInBatch;
 
                     // 3) Reverse‑geocode only non-duplicates that need it
-                    if (hasApiKey && toInsert.Count > 0)
+                    if (toInsert.Count > 0)
                     {
                         foreach (var loc in toInsert)
                         {
@@ -134,19 +119,10 @@ namespace Wayfarer.Parsers
                             // Only geocode points that lack an address
                             if (string.IsNullOrWhiteSpace(loc.FullAddress))
                             {
-                                var rev = await _reverseGeocodingService
-                                    .GetReverseGeocodingDataAsync(
-                                        loc.Coordinates.Y,
-                                        loc.Coordinates.X,
-                                        apiToken!);
-
-                                loc.FullAddress   = rev.FullAddress;
-                                loc.Place         = rev.Place;
-                                loc.AddressNumber = rev.AddressNumber;
-                                loc.StreetName    = rev.StreetName;
-                                loc.PostCode      = rev.PostCode;
-                                loc.Region        = rev.Region;
-                                loc.Country       = rev.Country;
+                                var enrichment = await _reverseGeocodingService.EnrichAsync(locationImport.UserId,
+                                    loc.Coordinates.Y, loc.Coordinates.X, ReverseGeocodingIntent.ImportMissingAddress,
+                                    cancellationToken);
+                                enrichment.ApplyTo(loc, DateTimeOffset.UtcNow);
 
                                 await Task.Delay(200, cancellationToken);
                             }
