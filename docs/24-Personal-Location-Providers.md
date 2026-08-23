@@ -4,9 +4,9 @@ Wayfarer stores one personal credential per user and provider (`Geoapify` or `Ma
 
 ## Key-ring durability and backup
 
-The supported Linux/systemd deployment sets `DataProtection__KeyRingPath=/var/lib/wayfarer/data-protection-keys`. The installer/deployer creates that directory as the `wayfarer` service identity with mode `0700`. It survives process restarts and `/var/www/wayfarer` publish replacement. Keys are scoped to the application name `Wayfarer`; at-rest protection is the dedicated service identity plus host filesystem permissions and disk/host encryption. Wayfarer does not claim certificate, cloud-KMS, container, or multi-host key sharing.
+The supported Linux/systemd deployment already pins `HOME=/home/wayfarer`; its existing ASP.NET Core ring is `/home/wayfarer/.aspnet/DataProtection-Keys`. Wayfarer now configures that same path explicitly, and the installer/deployer enforces service ownership with mode `0700`. It survives process restarts and `/var/www/wayfarer` publish replacement without relocating existing keys. Keys are scoped to the application name `Wayfarer`; at-rest protection is the dedicated service identity plus host filesystem permissions and disk/host encryption. Wayfarer does not claim certificate, cloud-KMS, container, or multi-host key sharing.
 
-Back up the key-ring directory together with the PostgreSQL database and restore both from the same recovery set. Losing applicable keys makes protected credentials unreadable. Startup fails closed if the directory is unusable or any retained administrator/personal routing or location-provider credential cannot be read. Before changing an existing deployment to the explicit path, stop Wayfarer and copy the existing service-user ring from `/home/wayfarer/.aspnet/DataProtection-Keys` if it exists; retain the original backup until startup and credential readback succeed.
+Back up the key-ring directory together with the PostgreSQL database and restore both from the same recovery set. Losing applicable keys makes protected credentials unreadable. Startup fails closed if the directory is unusable or any retained administrator/personal routing or location-provider credential cannot be read.
 
 ## Profiles, authorization, and switching
 

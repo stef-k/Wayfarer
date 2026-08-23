@@ -226,9 +226,9 @@ sudo chown -R "$APP_USER":"$APP_USER" "$DEPLOY_DIR"
 # Ensure writable directories exist and have correct permissions
 echo "Ensuring writable directories exist..."
 sudo mkdir -p "$DEPLOY_DIR/Uploads" "$DEPLOY_DIR/TileCache" "$DEPLOY_DIR/ImageCache" "$DEPLOY_DIR/ChromeCache" "$DEPLOY_DIR/Logs"
-sudo mkdir -p /var/lib/wayfarer/data-protection-keys
-sudo chown -R "$APP_USER":"$APP_USER" /var/lib/wayfarer
-sudo chmod 700 /var/lib/wayfarer /var/lib/wayfarer/data-protection-keys
+sudo mkdir -p "/home/$APP_USER/.aspnet/DataProtection-Keys"
+sudo chown -R "$APP_USER":"$APP_USER" "/home/$APP_USER/.aspnet"
+sudo chmod 700 "/home/$APP_USER/.aspnet" "/home/$APP_USER/.aspnet/DataProtection-Keys"
 sudo chown -R "$APP_USER":"$APP_USER" "$DEPLOY_DIR/Uploads" "$DEPLOY_DIR/TileCache" "$DEPLOY_DIR/ImageCache" "$DEPLOY_DIR/ChromeCache" "$DEPLOY_DIR/Logs"
 sudo chmod 755 "$DEPLOY_DIR/Uploads" "$DEPLOY_DIR/TileCache" "$DEPLOY_DIR/ImageCache" "$DEPLOY_DIR/ChromeCache" "$DEPLOY_DIR/Logs"
 
