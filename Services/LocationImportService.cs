@@ -19,6 +19,7 @@ namespace Wayfarer.Parsers
 
     public class LocationImportService : ILocationImportService
     {
+        private const string SafeProgressEvent = """{"type":"import-state"}""";
         private readonly ApplicationDbContext _context;
         private readonly ReverseGeocodingService _reverseGeocodingService;
         private readonly ILogger<LocationImportService> _logger;
@@ -79,15 +80,7 @@ namespace Wayfarer.Parsers
 
                         await _sse.BroadcastAsync(
                             $"import-{locationImport.UserId}",
-                            JsonSerializer.Serialize(new {
-                                FilePath           = Path.GetFileName(locationImport.FilePath ?? string.Empty),
-                                LastImportedRecord = locationImport.LastImportedRecord,
-                                LastProcessedIndex = locationImport.LastProcessedIndex,
-                                TotalRecords     = locationImport.TotalRecords,
-                                SkippedDuplicates = locationImport.SkippedDuplicates,
-                                Status             = ImportStatus.Stopped,
-                                ErrorMessage = locationImport.ErrorMessage,
-                            })
+                            SafeProgressEvent
                         );
 
                         _logger.LogInformation(
@@ -172,15 +165,7 @@ namespace Wayfarer.Parsers
 
                     await _sse.BroadcastAsync(
                         $"import-{locationImport?.UserId}",
-                        JsonSerializer.Serialize(new {
-                            FilePath             = Path.GetFileName(locationImport?.FilePath ?? string.Empty),
-                            LastImportedRecord   = locationImport?.LastImportedRecord,
-                            LastProcessedIndex   = locationImport?.LastProcessedIndex,
-                            TotalRecords     = locationImport?.TotalRecords ?? 0,
-                            SkippedDuplicates = locationImport?.SkippedDuplicates ?? 0,
-                            Status = ImportStatus.InProgress,
-                            ErrorMessage = locationImport?.ErrorMessage,
-                        })
+                        SafeProgressEvent
                     );
 
                     // brief pause between batches
@@ -194,15 +179,7 @@ namespace Wayfarer.Parsers
                     await _context.SaveChangesAsync(cancellationToken);
                     await _sse.BroadcastAsync(
                         $"import-{locationImport.UserId}",
-                        JsonSerializer.Serialize(new {
-                            FilePath             = Path.GetFileName(locationImport.FilePath ?? string.Empty),
-                            LastImportedRecord   = locationImport.LastImportedRecord,
-                            LastProcessedIndex   = locationImport.LastProcessedIndex,
-                            TotalRecords         = locationImport.TotalRecords,
-                            SkippedDuplicates    = locationImport.SkippedDuplicates,
-                            Status = ImportStatus.Completed,
-                            ErrorMessage = locationImport.ErrorMessage,
-                        })
+                        SafeProgressEvent
                     );
                     _logger.LogInformation(
                         "Import {ImportId} completed successfully: {Total} records processed, {Skipped} duplicates skipped.",
@@ -219,15 +196,7 @@ namespace Wayfarer.Parsers
                     await _context.SaveChangesAsync(CancellationToken.None);
                     await _sse.BroadcastAsync(
                         $"import-{locationImport?.UserId}",
-                        JsonSerializer.Serialize(new {
-                            FilePath             = Path.GetFileName(locationImport?.FilePath ?? string.Empty),
-                            LastImportedRecord   = locationImport?.LastImportedRecord,
-                            LastProcessedIndex   = locationImport?.LastProcessedIndex,
-                            TotalRecords     = locationImport?.TotalRecords ?? 0,
-                            SkippedDuplicates = locationImport?.SkippedDuplicates ?? 0,
-                            Status = ImportStatus.Stopped,
-                            ErrorMessage = locationImport?.ErrorMessage,
-                        })
+                        SafeProgressEvent
                     );
                 }
             }
@@ -242,15 +211,7 @@ namespace Wayfarer.Parsers
                     await _context.SaveChangesAsync(CancellationToken.None);
                     await _sse.BroadcastAsync(
                         $"import-{li.UserId}",
-                        JsonSerializer.Serialize(new {
-                            FilePath             = Path.GetFileName(li.FilePath ?? string.Empty),
-                            LastImportedRecord   = li.LastImportedRecord,
-                            LastProcessedIndex   = li.LastProcessedIndex,
-                            TotalRecords         = li.TotalRecords,
-                            SkippedDuplicates    = li.SkippedDuplicates,
-                            Status               = ImportStatus.Failed,
-                            ErrorMessage         = li.ErrorMessage,
-                        })
+                        SafeProgressEvent
                     );
                 }
             }

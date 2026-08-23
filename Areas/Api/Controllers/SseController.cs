@@ -44,6 +44,11 @@ public class SseController : Controller
     [HttpGet("stream/{type}/{id}")]
     public async Task Stream(string type, string id, CancellationToken ct)
     {
+        if (type == "import")
+        {
+            Response.StatusCode = StatusCodes.Status404NotFound;
+            return;
+        }
         if (type == "location-update")
         {
             var user = await _db.Users
@@ -67,6 +72,17 @@ public class SseController : Controller
 
         var channel = $"{type}-{id}";
         await _sse.SubscribeAsync(channel, Response, ct);
+    }
+
+    /// <summary>Subscribes only to the authenticated caller's content-free import progress channel.</summary>
+    [Authorize]
+    [HttpGet("import")]
+    public async Task<IActionResult> SubscribeToImportAsync(CancellationToken ct)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrWhiteSpace(userId)) return Unauthorized();
+        await _sse.SubscribeAsync($"import-{userId}", Response, ct);
+        return new EmptyResult();
     }
 
     /// <summary>

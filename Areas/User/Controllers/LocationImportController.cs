@@ -8,6 +8,8 @@ using Wayfarer.Jobs;
 using Wayfarer.Models;
 using Wayfarer.Models.Enums;
 using Wayfarer.Models.ViewModels;
+using Wayfarer.Models.LocationEnrichment;
+using Wayfarer.Services.LocationEnrichment;
 
 namespace Wayfarer.Areas.User.Controllers
 {
@@ -22,15 +24,21 @@ namespace Wayfarer.Areas.User.Controllers
 
         private readonly IWebHostEnvironment _environment;
         private readonly IScheduler        _scheduler;
+        private readonly IImportEnrichmentHandoff? _enrichmentHandoff;
+        private readonly IWorkflowScheduleProjection? _workflowProjection;
 
         public LocationImportController(ApplicationDbContext dbContext,
             ILogger<LocationImportController> logger,
             IWebHostEnvironment environment,
-            IScheduler scheduler)
+            IScheduler scheduler,
+            IImportEnrichmentHandoff? enrichmentHandoff = null,
+            IWorkflowScheduleProjection? workflowProjection = null)
             : base(logger, dbContext)
         {
             _environment = environment;
             _scheduler = scheduler;
+            _enrichmentHandoff = enrichmentHandoff;
+            _workflowProjection = workflowProjection;
         }
 
         /// <summary>
@@ -46,9 +54,47 @@ namespace Wayfarer.Areas.User.Controllers
                 .ToListAsync();
             
             ViewData["UserId"] = userId;
+            ViewData["EnrichmentWorkflow"] = await _dbContext.LocationEnrichmentWorkflows
+                .AsNoTracking().SingleOrDefaultAsync(item => item.UserId == userId);
 
             SetPageTitle("Location Imports");
             return View(imports);
+        }
+
+        /// <summary>Starts or idempotently reuses the authenticated user's one enrichment workflow.</summary>
+        [HttpPost, ValidateAntiForgeryToken]
+        public async Task<IActionResult> StartEnrichment()
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrWhiteSpace(userId)) return Challenge();
+            if (_enrichmentHandoff is not null) await _enrichmentHandoff.EnsureAsync(userId);
+            return RedirectToAction(nameof(Index));
+        }
+
+        /// <summary>Persists authenticated pause intent before neutralizing Quartz work.</summary>
+        [HttpPost, ValidateAntiForgeryToken]
+        public Task<IActionResult> PauseEnrichment() => ChangeEnrichmentAsync((workflow, now) => workflow.Pause(now));
+
+        /// <summary>Idempotently resumes the authenticated user's current nonterminal epoch.</summary>
+        [HttpPost, ValidateAntiForgeryToken]
+        public Task<IActionResult> ResumeEnrichment() => ChangeEnrichmentAsync((workflow, now) => workflow.Resume(now));
+
+        /// <summary>Cancels only enrichment metadata while retaining import and Location data.</summary>
+        [HttpPost, ValidateAntiForgeryToken]
+        public Task<IActionResult> CancelEnrichment() => ChangeEnrichmentAsync((workflow, now) => workflow.Cancel(now));
+
+        private async Task<IActionResult> ChangeEnrichmentAsync(Action<LocationEnrichmentWorkflow, DateTime> change)
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrWhiteSpace(userId)) return Challenge();
+            var workflow = await _dbContext.LocationEnrichmentWorkflows.SingleOrDefaultAsync(item => item.UserId == userId);
+            if (workflow is not null)
+            {
+                change(workflow, DateTime.UtcNow);
+                await _dbContext.SaveChangesAsync();
+                if (_workflowProjection is not null) await _workflowProjection.ProjectAsync(userId);
+            }
+            return RedirectToAction(nameof(Index));
         }
 
         [HttpPost]

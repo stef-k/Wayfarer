@@ -179,8 +179,8 @@ public class LocationImportServiceTests : TestBase
         Assert.Equal(1, updatedImport.SkippedDuplicates);
         Assert.Equal(2, updatedImport.LastProcessedIndex); // Processed 2 records
 
-        // Verify SSE broadcast includes SkippedDuplicates
-        Assert.Contains(sse.Messages, m => m.Contains("SkippedDuplicates"));
+        // SSE is only a content-free reload hint; relational state owns the counters.
+        Assert.All(sse.Messages, message => Assert.EndsWith("{\"type\":\"import-state\"}", message));
     }
 
     [Fact]

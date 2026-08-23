@@ -1,7 +1,7 @@
 // index.js
 document.addEventListener('DOMContentLoaded', () => {
     // SSE stream
-    const stream = new EventSource(`/api/sse/stream/import/${userId}`);
+    const stream = new EventSource('/api/sse/import');
     // grab the antiforgery token
     const antiForgeryToken = document.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
     const cfg = window.__locationImportConfig;
@@ -86,7 +86,7 @@ document.addEventListener('DOMContentLoaded', () => {
  */
 const handleStream = (event) => {
     const payload = JSON.parse(event.data);
-    updateRow(payload.FilePath, payload.LastProcessedIndex, payload.LastImportedRecord, payload.TotalRecords, payload.Status, payload.ErrorMessage, payload.SkippedDuplicates);
+    if (payload.type === 'import-state') window.location.reload();
 }
 
 /**

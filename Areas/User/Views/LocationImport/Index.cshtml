@@ -1,3 +1,4 @@
+@using Wayfarer.Models.LocationEnrichment
 @model IEnumerable<Wayfarer.Models.LocationImport>
 @{
     ViewData["BodyClass"] = "container-fluid";
@@ -166,3 +167,21 @@
 @section Scripts {
     @Html.FrontendViewScripts()
 }
+@{
+    var enrichment = ViewData["EnrichmentWorkflow"] as LocationEnrichmentWorkflow;
+}
+<section class="card mb-3" aria-labelledby="enrichment-heading">
+    <div class="card-body">
+        <h2 id="enrichment-heading" class="h5">Missing-address enrichment</h2>
+        <p>State: <strong>@(enrichment?.State.ToString() ?? "Idle")</strong>;
+            processed @(enrichment?.ProcessedCount ?? 0), enriched @(enrichment?.EnrichedCount ?? 0),
+            retryable deferred @(enrichment?.RetryableDeferredCount ?? 0),
+            permanently deferred @(enrichment?.PermanentlyDeferredCount ?? 0).</p>
+        <div class="d-flex gap-2 flex-wrap">
+            <form asp-action="StartEnrichment" method="post"><button class="btn btn-primary" type="submit">Start</button></form>
+            <form asp-action="PauseEnrichment" method="post"><button class="btn btn-outline-secondary" type="submit">Pause</button></form>
+            <form asp-action="ResumeEnrichment" method="post"><button class="btn btn-outline-primary" type="submit">Resume</button></form>
+            <form asp-action="CancelEnrichment" method="post"><button class="btn btn-outline-danger" type="submit">Cancel</button></form>
+        </div>
+    </div>
+</section>
