@@ -1,5 +1,10 @@
 ﻿using System.Text.Json;
 
+using Microsoft.EntityFrameworkCore;
+using Wayfarer.Models;
+using Wayfarer.Models.LocationProviders;
+using Wayfarer.Services.LocationProviders;
+
 namespace Wayfarer.Parsers
 {
     using System.Collections.Generic;
@@ -173,12 +178,60 @@ namespace Wayfarer.Parsers
     public class ReverseGeocodingService
     {
         private readonly HttpClient _httpClient;
-        private ILogger _logger;
+        private readonly ILogger _logger;
+        private readonly PersonalProviderContactGate? _contactGate;
+        private readonly ApplicationDbContext? _dbContext;
 
-        public ReverseGeocodingService(HttpClient httpClient, ILogger<BaseApiController> logger)
+        public ReverseGeocodingService(HttpClient httpClient, ILogger<BaseApiController> logger,
+            PersonalProviderContactGate? contactGate = null, ApplicationDbContext? dbContext = null)
         {
             _httpClient = httpClient;
             _logger = logger;
+            _contactGate = contactGate;
+            _dbContext = dbContext;
+        }
+
+        /// <summary>Returns one generation-bound, admitted Permanent enrichment.</summary>
+        public async Task<ReverseGeocodingResult> EnrichAsync(string userId, double latitude, double longitude,
+            ReverseGeocodingIntent intent, CancellationToken cancellationToken = default)
+        {
+            if (_contactGate == null || !double.IsFinite(latitude) || !double.IsFinite(longitude)
+                || latitude is < -90 or > 90 || longitude is < -180 or > 180)
+                return ReverseGeocodingResult.Unavailable(ReverseGeocodingCategory.InvalidRequest);
+            var admission = await _contactGate.AdmitAsync(userId, PersonalProviderCapability.Geocoding,
+                PersonalProviderProduct.PermanentGeocoding, 1, cancellationToken);
+            if (!admission.Succeeded) return ReverseGeocodingResult.Unavailable(MapAdmission(admission.Category));
+            var authority = admission.Authority!;
+            if (!await _contactGate.IsCurrentAsync(authority, cancellationToken))
+                return ReverseGeocodingResult.Unavailable(ReverseGeocodingCategory.StaleAuthority);
+            var result = await ContactAsync(latitude, longitude, authority.Credential, cancellationToken, false);
+            if (!result.Succeeded) return result;
+            if (!await _contactGate.IsCurrentAsync(authority, cancellationToken))
+                return ReverseGeocodingResult.Unavailable(ReverseGeocodingCategory.StaleAuthority);
+            return result with { Authority = authority };
+        }
+
+        /// <summary>Performs one explicit Permanent verification contact using fixed non-personal coordinates.</summary>
+        public async Task<PersonalProviderVerification> VerifyMapboxPermanentAsync(string userId, CancellationToken cancellationToken = default)
+        {
+            if (_contactGate == null || _dbContext == null) return PersonalProviderVerification.Unavailable;
+            var admission = await _contactGate.AdmitMapboxPermanentVerificationAsync(userId, cancellationToken);
+            if (!admission.Succeeded) return PersonalProviderVerification.Unavailable;
+            var authority = admission.Authority!;
+            if (!await _contactGate.IsVerificationCurrentAsync(authority, cancellationToken)) return PersonalProviderVerification.Unavailable;
+            var result = await ContactAsync(0, 0, authority.Credential, cancellationToken, true);
+            var state = result.Category == ReverseGeocodingCategory.Success ? PersonalProviderVerification.Verified
+                : result.Category == ReverseGeocodingCategory.Authorization ? PersonalProviderVerification.Failed
+                : PersonalProviderVerification.Unavailable;
+            if (!await _contactGate.IsVerificationCurrentAsync(authority, cancellationToken)) return PersonalProviderVerification.Unavailable;
+            var profile = await _dbContext.Set<PersonalLocationProviderProfile>().SingleAsync(
+                item => item.UserId == userId && item.ProviderKey == "mapbox", cancellationToken);
+            profile.GeocodingVerification = state;
+            profile.GeocodingVerifiedCredentialGeneration = state == PersonalProviderVerification.Verified ? profile.CredentialGeneration : null;
+            profile.GeocodingVerifiedConfigurationGeneration = state == PersonalProviderVerification.Verified ? profile.GeocodingGeneration : null;
+            profile.UpdatedAt = DateTimeOffset.UtcNow;
+            await _dbContext.SaveChangesAsync(cancellationToken);
+            return state;
         }
 
         public async Task<ReverseLocationResults> GetReverseGeocodingDataAsync(
@@ -195,7 +248,7 @@ namespace Wayfarer.Parsers
                 return new ReverseLocationResults();
             }
 
-            string url = $"https://api.mapbox.com/search/geocode/v6/reverse?limit=1&language=en&longitude={longitude}&latitude={latitude}&access_token={apiToken}";
+            string url = $"https://api.mapbox.com/search/geocode/v6/reverse?permanent=true&limit=1&language=en&longitude={longitude}&latitude={latitude}&access_token={apiToken}";
             HttpResponseMessage response = await _httpClient.GetAsync(url, cancellationToken);
 
             if (!response.IsSuccessStatusCode)
@@ -225,6 +278,46 @@ namespace Wayfarer.Parsers
                 return new ReverseLocationResults();
             }
         }
+
+        private async Task<ReverseGeocodingResult> ContactAsync(double latitude, double longitude, string credential,
+            CancellationToken cancellationToken, bool allowEmpty)
+        {
+            try
+            {
+                var url = $"https://api.mapbox.com/search/geocode/v6/reverse?permanent=true&limit=1&language=en&longitude={longitude}&latitude={latitude}&access_token={Uri.EscapeDataString(credential)}";
+                using var response = await _httpClient.GetAsync(url, cancellationToken);
+                if (response.StatusCode is System.Net.HttpStatusCode.Unauthorized or System.Net.HttpStatusCode.Forbidden)
+                    return ReverseGeocodingResult.Failure(ReverseGeocodingCategory.Authorization);
+                if ((int)response.StatusCode == 429) return ReverseGeocodingResult.Unavailable(ReverseGeocodingCategory.RateLimited);
+                if (!response.IsSuccessStatusCode) return ReverseGeocodingResult.Unavailable(ReverseGeocodingCategory.ProviderUnavailable);
+                if (response.Content.Headers.ContentLength > 262_144) return ReverseGeocodingResult.Failure(ReverseGeocodingCategory.InvalidResponse);
+                var bytes = await response.Content.ReadAsByteArrayAsync(cancellationToken);
+                if (bytes.Length > 262_144) return ReverseGeocodingResult.Failure(ReverseGeocodingCategory.InvalidResponse);
+                var data = JsonSerializer.Deserialize<ReverseLocationResponse>(bytes);
+                if (data?.Features == null || data.Features.Count == 0)
+                    return allowEmpty && data?.Type == "FeatureCollection" ? ReverseGeocodingResult.Success(new())
+                        : ReverseGeocodingResult.Failure(ReverseGeocodingCategory.InvalidResponse);
+                var value = reverseLocationResults(data);
+                return string.IsNullOrWhiteSpace(value.FullAddress) && string.IsNullOrWhiteSpace(value.Address)
+                    ? ReverseGeocodingResult.Failure(ReverseGeocodingCategory.InvalidResponse)
+                    : ReverseGeocodingResult.Success(value);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+            catch (TaskCanceledException) { return ReverseGeocodingResult.Unavailable(ReverseGeocodingCategory.ProviderUnavailable); }
+            catch (HttpRequestException) { return ReverseGeocodingResult.Unavailable(ReverseGeocodingCategory.ProviderUnavailable); }
+            catch (JsonException) { return ReverseGeocodingResult.Failure(ReverseGeocodingCategory.InvalidResponse); }
+        }
+
+        private static ReverseGeocodingCategory MapAdmission(PersonalProviderAdmissionCategory category) => category switch
+        {
+            PersonalProviderAdmissionCategory.NoProviderSelected => ReverseGeocodingCategory.NoProviderSelected,
+            PersonalProviderAdmissionCategory.ConsentRequired => ReverseGeocodingCategory.ConsentRequired,
+            PersonalProviderAdmissionCategory.Unauthorized => ReverseGeocodingCategory.Unauthorized,
+            PersonalProviderAdmissionCategory.Unverified => ReverseGeocodingCategory.VerificationRequired,
+            PersonalProviderAdmissionCategory.Exhausted => ReverseGeocodingCategory.Exhausted,
+            PersonalProviderAdmissionCategory.CredentialUnavailable => ReverseGeocodingCategory.CredentialRequired,
+            _ => ReverseGeocodingCategory.ProviderUnavailable
+        };
 
 
         private ReverseLocationResults reverseLocationResults(ReverseLocationResponse reverseData)
@@ -257,6 +350,36 @@ namespace Wayfarer.Parsers
             return results;
         }
 
+    }
+
+    /// <summary>Identifies the durable caller's bounded enrichment purpose.</summary>
+    public enum ReverseGeocodingIntent { LocationCreate, LocationCoordinateRefresh, ImportMissingAddress, PlaceAddress }
+
+    /// <summary>Identifies bounded outcomes safe for callers and diagnostics.</summary>
+    public enum ReverseGeocodingCategory
+    { Success, InvalidRequest, CredentialRequired, NoProviderSelected, ConsentRequired, Unauthorized, VerificationRequired, Exhausted, Authorization, RateLimited, ProviderUnavailable, InvalidResponse, StaleAuthority }
+
+    /// <summary>Contains normalized fields and internal generation-bound persistence authority.</summary>
+    public sealed record ReverseGeocodingResult(ReverseGeocodingCategory Category, ReverseLocationResults? Value,
+        PersonalProviderAuthoritySnapshot? Authority)
+    {
+        public bool Succeeded => Category == ReverseGeocodingCategory.Success && Value != null;
+        public static ReverseGeocodingResult Success(ReverseLocationResults value) => new(ReverseGeocodingCategory.Success, value, null);
+        public static ReverseGeocodingResult Unavailable(ReverseGeocodingCategory category) => new(category, null, null);
+        public static ReverseGeocodingResult Failure(ReverseGeocodingCategory category) => new(category, null, null);
+
+        /// <summary>Atomically applies a complete successful Mapbox enrichment and provenance.</summary>
+        public bool ApplyTo(Location location, DateTimeOffset persistedAt)
+        {
+            if (!Succeeded || Value == null) return false;
+            location.FullAddress = Value.FullAddress; location.Address = Value.Address;
+            location.AddressNumber = Value.AddressNumber; location.StreetName = Value.StreetName;
+            location.PostCode = Value.PostCode; location.Place = Value.Place;
+            location.Region = Value.Region; location.Country = Value.Country;
+            location.ReverseGeocodingProvider = "mapbox"; location.ReverseGeocodingStorageMode = "permanent";
+            location.ReverseGeocodedAt = persistedAt.ToUniversalTime();
+            return true;
+        }
     }
 
 }
