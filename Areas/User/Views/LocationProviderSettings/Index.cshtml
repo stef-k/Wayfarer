@@ -1,7 +1,7 @@
 @model Wayfarer.Areas.User.LocationProviderModels.LocationProviderSettingsViewModel
 
 <h1>Personal location providers</h1>
-<p>Credentials are protected and never displayed again or sent to WayfarerMobile. <a href="/docs/24-Personal-Location-Providers.html">Read the credential and usage guide</a>.</p>
+<p>Credentials are protected and never displayed again or sent to WayfarerMobile. <a href="/docs/#/24-Personal-Location-Providers">Read the credential and usage guide</a>.</p>
 @if (Model.LegacyMigrationState is Wayfarer.Models.LocationProviders.LegacyMapboxMigrationState.Conflict or Wayfarer.Models.LocationProviders.LegacyMapboxMigrationState.ProtectedCredentialUnavailable)
 { <div class="alert alert-danger">Legacy Mapbox migration needs explicit recovery. No provider contact is authorized and no stored value was removed.</div> }
 <div class="alert alert-info">Wayfarer records only its own contacts. Other applications can consume the provider account allowance; use a dedicated Wayfarer key when possible. Multiple keys may still share one provider allowance.</div>
