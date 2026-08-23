@@ -2,6 +2,7 @@ using System.Net;
 using System.Reflection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.AspNetCore.DataProtection;
 using Wayfarer.Areas.Api.Controllers;
 using Wayfarer.Models;
 using Wayfarer.Models.LocationProviders;
@@ -100,6 +101,46 @@ public sealed class MapboxPermanentGeocodingContractTests
             Assert.DoesNotContain("ApiTokens", source, StringComparison.Ordinal);
             Assert.DoesNotContain("GetReverseGeocodingDataAsync", source, StringComparison.Ordinal);
         }
+    }
+
+    [Fact]
+    public void Consent_IsCredentialBound_AndReplacementOrDisableInvalidatesIt()
+    {
+        var profile = PersonalLocationProviderProfile.Create("consent-user", PersonalLocationProvider.Mapbox);
+        var credentials = new Wayfarer.Services.LocationProviders.PersonalProviderCredentialService(
+            new EphemeralDataProtectionProvider());
+        credentials.Replace(profile, "first-key");
+        profile.SetAuthorization(PersonalProviderCapability.Geocoding, true);
+        profile.GrantPermanentGeocodingConsent(DateTimeOffset.UtcNow);
+        Assert.True(profile.HasCurrentPermanentGeocodingConsent());
+
+        credentials.Replace(profile, "replacement-key");
+        Assert.False(profile.HasCurrentPermanentGeocodingConsent());
+        profile.GrantPermanentGeocodingConsent(DateTimeOffset.UtcNow);
+        profile.SetAuthorization(PersonalProviderCapability.Geocoding, false);
+        Assert.False(profile.HasCurrentPermanentGeocodingConsent());
+        Assert.Equal(PersonalProviderVerification.Unverified, profile.GeocodingVerification);
+    }
+
+    [Fact]
+    public async Task UnavailableBoundary_MakesZeroHttpAndPreservesExistingEnrichment()
+    {
+        var handler = new RecordingHandler();
+        var service = new ReverseGeocodingService(new HttpClient(handler), NullLogger<BaseApiController>.Instance);
+        var location = new Location
+        {
+            UserId = "preserve-user", TimeZoneId = "UTC", Timestamp = DateTime.UtcNow,
+            LocalTimestamp = DateTime.UtcNow, Coordinates = new NetTopologySuite.Geometries.Point(20, 10) { SRID = 4326 },
+            FullAddress = "Existing address", ReverseGeocodingProvider = "mapbox",
+            ReverseGeocodingStorageMode = "permanent", ReverseGeocodedAt = DateTimeOffset.UtcNow
+        };
+
+        var result = await service.EnrichAsync(location.UserId, 10, 20, ReverseGeocodingIntent.LocationCoordinateRefresh);
+
+        Assert.False(result.ApplyTo(location, DateTimeOffset.UtcNow));
+        Assert.Null(handler.RequestUri);
+        Assert.Equal("Existing address", location.FullAddress);
+        Assert.Equal("mapbox", location.ReverseGeocodingProvider);
     }
 
     private static void AssertNullableProperties<T>(params string[] names)
