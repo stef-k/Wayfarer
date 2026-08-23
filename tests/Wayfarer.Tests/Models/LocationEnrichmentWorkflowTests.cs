@@ -7,6 +7,44 @@ namespace Wayfarer.Tests.Models;
 public sealed class LocationEnrichmentWorkflowTests
 {
     [Fact]
+    public void ExecutionLeaseIsFencedAndStaleOwnersCannotMutateOrRelease()
+    {
+        var now = new DateTime(2026, 8, 24, 8, 0, 0, DateTimeKind.Utc);
+        var workflow = LocationEnrichmentWorkflow.Create("user", now);
+        workflow.Start(now);
+
+        var first = workflow.TryAcquireExecutionLease(now, TimeSpan.FromSeconds(20));
+        Assert.NotNull(first);
+        Assert.Null(workflow.TryAcquireExecutionLease(now.AddSeconds(1), TimeSpan.FromSeconds(20)));
+        Assert.True(workflow.TryRenewExecutionLease(first.Value.LeaseId, first.Value.FencingGeneration,
+            now.AddSeconds(2), TimeSpan.FromSeconds(20)));
+        Assert.False(workflow.TryReleaseExecutionLease(Guid.NewGuid(), first.Value.FencingGeneration));
+        Assert.True(workflow.TryReleaseExecutionLease(first.Value.LeaseId, first.Value.FencingGeneration));
+
+        var second = workflow.TryAcquireExecutionLease(now.AddSeconds(3), TimeSpan.FromSeconds(20));
+        Assert.NotNull(second);
+        Assert.True(second.Value.FencingGeneration > first.Value.FencingGeneration);
+        Assert.False(workflow.HasExecutionLease(first.Value.LeaseId, first.Value.FencingGeneration,
+            now.AddSeconds(4)));
+    }
+
+    [Fact]
+    public void PauseAndCancelFenceAnActiveExecutionLease()
+    {
+        var now = new DateTime(2026, 8, 24, 8, 0, 0, DateTimeKind.Utc);
+        var paused = LocationEnrichmentWorkflow.Create("paused", now);
+        paused.Start(now);
+        var pauseLease = paused.TryAcquireExecutionLease(now, TimeSpan.FromSeconds(20))!.Value;
+        paused.Pause(now.AddSeconds(1));
+        Assert.False(paused.HasExecutionLease(pauseLease.LeaseId, pauseLease.FencingGeneration, now.AddSeconds(2)));
+
+        var cancelled = LocationEnrichmentWorkflow.Create("cancelled", now);
+        cancelled.Start(now);
+        var cancelLease = cancelled.TryAcquireExecutionLease(now, TimeSpan.FromSeconds(20))!.Value;
+        cancelled.Cancel(now.AddSeconds(1));
+        Assert.False(cancelled.HasExecutionLease(cancelLease.LeaseId, cancelLease.FencingGeneration, now.AddSeconds(2)));
+    }
+    [Fact]
     public void StartAndResumeAreIdempotentWithinAnActiveEpoch()
     {
         var now = new DateTime(2026, 8, 23, 12, 0, 0, DateTimeKind.Utc);

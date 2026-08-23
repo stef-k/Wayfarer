@@ -52,6 +52,30 @@ public class UserLocationImportControllerTests : TestBase
     }
 
     [Fact]
+    public void UploadGetReturnsUnselectedEnrichmentOptInModel()
+    {
+        var controller = BuildController(CreateDbContext(), "u1");
+
+        var view = Assert.IsType<ViewResult>(controller.Upload());
+
+        var model = Assert.IsType<LocationImportUploadViewModel>(view.Model);
+        Assert.False(model.EnrichmentRequested);
+    }
+
+    [Fact]
+    public async Task UploadValidationRerenderPreservesEnrichmentOptIn()
+    {
+        var controller = BuildController(CreateDbContext(), "u1");
+        controller.ModelState.AddModelError(nameof(LocationImportUploadViewModel.File), "required");
+        var model = new LocationImportUploadViewModel { EnrichmentRequested = true };
+
+        var view = Assert.IsType<ViewResult>(await controller.Upload(model));
+
+        Assert.Same(model, view.Model);
+        Assert.True(Assert.IsType<LocationImportUploadViewModel>(view.Model).EnrichmentRequested);
+    }
+
+    [Fact]
     public void UploadChoicesExcludeGenericGeoJsonButRetainWayfarerGeoJson()
     {
         var controller = BuildController(CreateDbContext(), "u1");
