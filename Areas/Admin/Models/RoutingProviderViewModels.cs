@@ -17,6 +17,9 @@ public sealed record RoutingProviderRowViewModel(
 /// <summary>Contains allowlisted OSRM configuration and mapping edit fields.</summary>
 public sealed class RoutingProviderEditViewModel : IValidatableObject
 {
+    /// <summary>Gets or sets the explicit adapter owned by this configuration.</summary>
+    [EnumDataType(typeof(RoutingAdapterType))]
+    public RoutingAdapterType AdapterType { get; set; } = RoutingAdapterType.OsrmCompatible;
     /// <summary>Gets or sets the provider identity for edits.</summary>
     public Guid Id { get; set; }
 
@@ -96,7 +99,8 @@ public sealed class RoutingProviderEditViewModel : IValidatableObject
     /// <summary>Validates coordinates and credential-required completeness.</summary>
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
     {
-        if (CredentialRequired && !CredentialPresent && string.IsNullOrWhiteSpace(Credential))
+        if (AdapterType == RoutingAdapterType.OsrmCompatible && CredentialRequired
+            && !CredentialPresent && string.IsNullOrWhiteSpace(Credential))
             yield return new ValidationResult("A credential is required for this configuration.", [nameof(Credential)]);
         foreach (var (value, name, minimum, maximum) in new[]
         {
@@ -105,10 +109,11 @@ public sealed class RoutingProviderEditViewModel : IValidatableObject
             (VerificationToLongitude, nameof(VerificationToLongitude), -180d, 180d),
             (VerificationToLatitude, nameof(VerificationToLatitude), -90d, 90d)
         })
-            if (value is not double coordinate || !double.IsFinite(coordinate) || coordinate < minimum || coordinate > maximum)
+            if (AdapterType == RoutingAdapterType.OsrmCompatible
+                && (value is not double coordinate || !double.IsFinite(coordinate) || coordinate < minimum || coordinate > maximum))
                 yield return new ValidationResult("A finite in-range verification coordinate is required.", [name]);
-        if (Mappings.Count(item => !string.IsNullOrWhiteSpace(item.OsrmProfile)) is 0 or > 8)
-            yield return new ValidationResult("Map between one and eight transport profiles.", [nameof(Mappings)]);
+        if (Mappings.Count(item => !string.IsNullOrWhiteSpace(item.OsrmProfile)) > 100)
+            yield return new ValidationResult("Too many transport-profile mappings.", [nameof(Mappings)]);
     }
 }
 

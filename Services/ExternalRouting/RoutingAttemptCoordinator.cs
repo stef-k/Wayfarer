@@ -15,7 +15,8 @@ public sealed class RoutingAttemptCoordinator
     /// <summary>Prepares one actual provider attempt immediately before DNS resolution.</summary>
     public async Task<RoutingAttemptAdmission> PrepareAsync(
         RoutingProviderConfiguration provider, Func<CancellationToken, Task<bool>> validateAuthority,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Func<CancellationToken, Task<string?>>? admitExternalCost = null)
     {
         _pacer.ApplyConfiguration(provider.Id, provider.ConfigurationVersion, provider.MinimumIntervalMilliseconds);
         var paced = await _pacer.WaitAsync(provider.Id, provider.ConfigurationVersion, cancellationToken);
@@ -36,6 +37,13 @@ public sealed class RoutingAttemptCoordinator
                 turn.Dispose();
                 concurrency.Dispose();
                 return RoutingAttemptAdmission.Failure("provider-configuration-stale");
+            }
+            var externalError = admitExternalCost == null ? null : await admitExternalCost(cancellationToken);
+            if (externalError != null)
+            {
+                turn.Dispose();
+                concurrency.Dispose();
+                return RoutingAttemptAdmission.Failure(externalError);
             }
             return RoutingAttemptAdmission.Prepared(concurrency, turn,
                 () => _budget.TryAdmitProviderAttempt(provider.Id, provider.RequestsPerMinute));

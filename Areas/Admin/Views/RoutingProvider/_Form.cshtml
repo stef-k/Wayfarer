@@ -5,8 +5,8 @@
 <input asp-for="ConfigurationVersion" type="hidden" /><input asp-for="CredentialPresent" type="hidden" />
 <div class="row g-3">
     <div class="col-md-6"><label asp-for="DisplayName" class="form-label"></label><input asp-for="DisplayName" class="form-control" /><span asp-validation-for="DisplayName" class="text-danger"></span></div>
-    <div class="col-md-6"><label class="form-label">Adapter</label><input class="form-control" value="OSRM-compatible" disabled /></div>
-    <div class="col-12"><label asp-for="BaseEndpoint" class="form-label"></label><input asp-for="BaseEndpoint" class="form-control" /><span asp-validation-for="BaseEndpoint" class="text-danger"></span></div>
+    <div class="col-md-6"><label asp-for="AdapterType" class="form-label">Adapter</label><select asp-for="AdapterType" class="form-select"><option value="1">OSRM-compatible</option><option value="2">Geoapify</option></select></div>
+    <div class="col-12"><label asp-for="BaseEndpoint" class="form-label"></label><input asp-for="BaseEndpoint" class="form-control" /><div class="form-text">Geoapify always uses its fixed official endpoint; this value is ignored.</div><span asp-validation-for="BaseEndpoint" class="text-danger"></span></div>
     <div class="col-md-8"><label asp-for="Credential" class="form-label">Replacement credential</label><input asp-for="Credential" type="password" class="form-control" autocomplete="new-password" /><div class="form-text">Leave blank to preserve the @(Model.CredentialPresent ? "stored credential" : "empty credential").</div></div>
     <div class="col-md-4 form-check mt-md-5"><input asp-for="CredentialRequired" class="form-check-input" /><label asp-for="CredentialRequired" class="form-check-label">Credential required</label></div>
     <div class="col-md-4 form-check ms-2"><input asp-for="Enabled" class="form-check-input" /><label asp-for="Enabled" class="form-check-label">Configuration enabled</label></div>
@@ -33,7 +33,14 @@
     <div class="row g-2 mb-2">
         <input asp-for="Mappings[index].TransportProfileId" type="hidden" />
         <div class="col-md-6"><label class="form-label" for="Mappings_@(index)__OsrmProfile">@Model.Mappings[index].TransportProfileLabel</label></div>
-        <div class="col-md-6"><input asp-for="Mappings[index].OsrmProfile" class="form-control" placeholder="Exact OSRM profile, e.g. driving" /></div>
+        <div class="col-md-6">
+        @if (Model.AdapterType == Wayfarer.Models.RoutingAdapterType.Geoapify)
+        {
+            <select asp-for="Mappings[index].OsrmProfile" class="form-select"><option value="">Not mapped</option><option value="walk">Walk</option><option value="bicycle">Bicycle</option><option value="motorcycle">Motorcycle</option><option value="drive">Drive</option><option value="bus">Bus</option></select>
+        }
+        else
+        { <input asp-for="Mappings[index].OsrmProfile" class="form-control" placeholder="Exact OSRM profile, e.g. driving" /> }
+        </div>
     </div>
 }
 </fieldset>

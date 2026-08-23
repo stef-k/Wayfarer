@@ -40,7 +40,8 @@ public sealed class RoutingProviderController : Controller
 
     /// <summary>Displays a new typed OSRM configuration.</summary>
     public async Task<IActionResult> Create(CancellationToken cancellationToken) =>
-        View(await PopulateMappingsAsync(new RoutingProviderEditViewModel(), cancellationToken));
+        View(await PopulateMappingsAsync(new RoutingProviderEditViewModel
+        { VerificationFromLongitude = 0, VerificationFromLatitude = 0, VerificationToLongitude = 0.01, VerificationToLatitude = 0 }, cancellationToken));
 
     /// <summary>Creates one allowlisted OSRM configuration.</summary>
     [HttpPost, ValidateAntiForgeryToken]
@@ -145,7 +146,8 @@ public sealed class RoutingProviderController : Controller
 
     private static RoutingProviderEditViewModel ToModel(RoutingProviderConfiguration provider) => new()
     {
-        Id = provider.Id, DisplayName = provider.DisplayName, BaseEndpoint = provider.BaseEndpoint ?? string.Empty,
+        Id = provider.Id, DisplayName = provider.DisplayName, AdapterType = provider.AdapterType,
+        BaseEndpoint = provider.BaseEndpoint ?? string.Empty,
         CredentialRequired = provider.CredentialRequired, CredentialPresent = provider.CredentialPresent,
         PersonalRoutingAccess = provider.PersonalRoutingAccess,
         Enabled = provider.Enabled, Attribution = provider.Attribution,

@@ -1,12 +1,15 @@
 using Microsoft.EntityFrameworkCore;
 using Wayfarer.Models;
+using Wayfarer.Models.LocationProviders;
+using Wayfarer.Services.LocationProviders;
 
 namespace Wayfarer.Services.ExternalRouting;
 
 /// <summary>Resolves exactly one server-authoritative routing mode and its server-only execution data.</summary>
 public sealed class AuthoritativeRoutingProviderResolver(
     ApplicationDbContext dbContext, RoutingProviderCredentialService providerCredentials,
-    UserRoutingCredentialService userCredentials)
+    UserRoutingCredentialService userCredentials,
+    PersonalProviderCredentialService? personalCredentials = null)
 {
     /// <summary>Resolves the authenticated user's current mode for one active transport profile.</summary>
     public async Task<RoutingProviderResolutionResult> ResolveAsync(
@@ -24,6 +27,11 @@ public sealed class AuthoritativeRoutingProviderResolver(
         var settings = await dbContext.ApplicationSettings.AsNoTracking()
             .SingleOrDefaultAsync(item => item.Id == 1, cancellationToken);
         if (settings?.ExternalRouteGenerationEnabled != true) return RoutingProviderResolutionResult.Disabled;
+        var personalSelection = await dbContext.Set<PersonalLocationProviderSelection>().AsNoTracking()
+            .SingleOrDefaultAsync(item => item.UserId == userId, cancellationToken);
+        if (personalSelection?.RoutingProviderKey == "geoapify")
+            return await ResolveGeoapifyAsync(userId, transportProfileId, settings.ExternalRouteGenerationVersion,
+                requirePersonalVerification, cancellationToken);
         var userConfiguration = await dbContext.Set<UserRoutingConfiguration>().AsNoTracking()
             .SingleOrDefaultAsync(item => item.UserId == userId, cancellationToken);
         if (userConfiguration == null) return RoutingProviderResolutionResult.Unavailable("user-routing-unavailable");
@@ -41,6 +49,48 @@ public sealed class AuthoritativeRoutingProviderResolver(
             ? ResolvePersonal(userConfiguration, provider, mapping, settings.ExternalRouteGenerationVersion,
                 requirePersonalVerification)
             : ResolveServerDefault(userConfiguration, provider, mapping, settings.ExternalRouteGenerationVersion);
+    }
+
+    private async Task<RoutingProviderResolutionResult> ResolveGeoapifyAsync(
+        string userId, Guid transportProfileId, int featureVersion, bool requireVerification,
+        CancellationToken cancellationToken)
+    {
+        if (personalCredentials == null)
+            return RoutingProviderResolutionResult.Unavailable("personal-credential-unavailable");
+        var profile = await dbContext.Set<PersonalLocationProviderProfile>().AsNoTracking().SingleOrDefaultAsync(
+            item => item.UserId == userId && item.ProviderKey == "geoapify", cancellationToken);
+        if (profile == null || profile.RevokedAt != null || !profile.RoutingAuthorized)
+            return RoutingProviderResolutionResult.Unavailable("unauthorized");
+        if (requireVerification && (profile.RoutingVerification != PersonalProviderVerification.Verified
+            || profile.RoutingVerifiedCredentialGeneration != profile.CredentialGeneration
+            || profile.RoutingVerifiedConfigurationGeneration != profile.RoutingGeneration))
+            return RoutingProviderResolutionResult.Unavailable("verification-required");
+        var credential = personalCredentials.Read(profile);
+        if (!credential.Succeeded)
+            return RoutingProviderResolutionResult.Unavailable("personal-credential-unavailable");
+        var providers = await dbContext.Set<RoutingProviderConfiguration>().AsNoTracking()
+            .Include(item => item.ProfileMappings).ThenInclude(item => item.TransportProfile)
+            .Where(item => item.AdapterType == RoutingAdapterType.Geoapify && item.Enabled).ToListAsync(cancellationToken);
+        if (providers.Count != 1)
+            return RoutingProviderResolutionResult.Unavailable("temporarily-unavailable");
+        var provider = providers[0];
+        if (provider.VerifiedConfigurationVersion != provider.ConfigurationVersion)
+            return RoutingProviderResolutionResult.Unavailable("temporarily-unavailable");
+        var transportProfile = provider.ProfileMappings.Select(item => item.TransportProfile)
+            .SingleOrDefault(item => item.Id == transportProfileId && item.IsActive);
+        if (transportProfile == null)
+            return RoutingProviderResolutionResult.Unavailable("unmapped-transport-profile");
+        var mapping = ProviderTransportProfileResolver.Resolve(provider, transportProfile);
+        if (mapping.Category == ProviderTransportProfileCategory.Unmapped)
+            return RoutingProviderResolutionResult.Unavailable("unmapped-transport-profile");
+        if (mapping.Category == ProviderTransportProfileCategory.Unsupported)
+            return RoutingProviderResolutionResult.Unavailable("unsupported-transport-profile");
+        var operational = OperationalProvider(provider, "https://api.geoapify.com/");
+        return new(RoutingProviderResolutionOutcome.ResolvedPersonal, null, false,
+            new(operational, mapping.NativeMode!, credential.Credential, RoutingProviderSelectionMode.Personal,
+                profile.RoutingGeneration, (uint)profile.CredentialGeneration, provider.ConfigurationVersion,
+                provider.RowVersion, featureVersion, provider.DisplayName, provider.ExternalCoordinateDisclosure,
+                provider.Attribution, userId));
     }
 
     private RoutingProviderResolutionResult ResolvePersonal(
@@ -92,23 +142,24 @@ public sealed class AuthoritativeRoutingProviderResolver(
         UserRoutingConfiguration userConfiguration, RoutingProviderConfiguration provider,
         RoutingProviderProfileMapping mapping, int featureVersion, string? credential)
     {
-        var operationalProvider = new RoutingProviderConfiguration
-        {
-            Id = provider.Id, DisplayName = provider.DisplayName, AdapterType = provider.AdapterType,
-            BaseEndpoint = provider.BaseEndpoint, Enabled = provider.Enabled,
-            Attribution = provider.Attribution, ExternalCoordinateDisclosure = provider.ExternalCoordinateDisclosure,
-            ConfigurationVersion = provider.ConfigurationVersion,
-            VerifiedConfigurationVersion = provider.VerifiedConfigurationVersion,
-            GenerationTimeoutSeconds = provider.GenerationTimeoutSeconds,
-            ResponseSizeLimitBytes = provider.ResponseSizeLimitBytes, RequestsPerMinute = provider.RequestsPerMinute,
-            MinimumIntervalMilliseconds = provider.MinimumIntervalMilliseconds, MaxConcurrency = provider.MaxConcurrency
-        };
+        var operationalProvider = OperationalProvider(provider, provider.BaseEndpoint);
         return new RoutingProviderResolutionResult(outcome, null, false,
             new ResolvedRoutingProviderExecution(
                 operationalProvider, mapping.OsrmProfile, credential, mode, userConfiguration.ConfigurationVersion,
                 userConfiguration.RowVersion, provider.ConfigurationVersion, provider.RowVersion, featureVersion,
                 provider.DisplayName, provider.ExternalCoordinateDisclosure, provider.Attribution));
     }
+
+    private static RoutingProviderConfiguration OperationalProvider(RoutingProviderConfiguration provider, string? endpoint) => new()
+    {
+        Id = provider.Id, DisplayName = provider.DisplayName, AdapterType = provider.AdapterType,
+        BaseEndpoint = endpoint, Enabled = provider.Enabled, Attribution = provider.Attribution,
+        ExternalCoordinateDisclosure = provider.ExternalCoordinateDisclosure,
+        ConfigurationVersion = provider.ConfigurationVersion, VerifiedConfigurationVersion = provider.VerifiedConfigurationVersion,
+        GenerationTimeoutSeconds = provider.GenerationTimeoutSeconds, ResponseSizeLimitBytes = provider.ResponseSizeLimitBytes,
+        RequestsPerMinute = provider.RequestsPerMinute, MinimumIntervalMilliseconds = provider.MinimumIntervalMilliseconds,
+        MaxConcurrency = provider.MaxConcurrency
+    };
 
     private static RoutingProviderResolutionResult UnavailableForMode(bool personal) => personal
         ? RoutingProviderResolutionResult.Unavailable("personal-provider-unavailable")
@@ -143,7 +194,8 @@ public sealed record ResolvedRoutingProviderExecution(
     RoutingProviderConfiguration Provider, string Profile, string? Credential,
     RoutingProviderSelectionMode SelectionMode, int UserConfigurationVersion, uint UserRowVersion,
     int ProviderConfigurationVersion, uint ProviderRowVersion, int FeatureStateGeneration,
-    string DisplayName, string? Disclosure, string? Attribution);
+    string DisplayName, string? Disclosure, string? Attribution,
+    string? PersonalProviderUserId = null);
 
 /// <summary>Identifies the provider selection bound into protected proposals.</summary>
 public enum RoutingProviderSelectionMode { ServerDefault, Personal }

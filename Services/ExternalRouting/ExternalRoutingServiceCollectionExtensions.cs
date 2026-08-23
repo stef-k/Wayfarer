@@ -24,7 +24,8 @@ public static class ExternalRoutingServiceCollectionExtensions
         services.AddScoped<UserRoutingConfigurationService>();
         services.AddScoped<AuthoritativeRoutingProviderResolver>();
         services.AddScoped<PersonalRoutingVerificationService>();
-        services.AddScoped<IOsrmRouteClient, OsrmRouteClient>();
+        services.AddScoped<OsrmRouteClient>();
+        services.AddScoped<IOsrmRouteClient, ProviderRouteClient>();
         services.AddScoped<IRoutingProviderVerifier, RoutingProviderVerifier>();
         services.AddScoped<RoutingProviderActivationService>();
         services.AddScoped<RoutingProviderAdministrationService>();

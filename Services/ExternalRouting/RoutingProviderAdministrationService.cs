@@ -24,11 +24,18 @@ public sealed class RoutingProviderAdministrationService
     {
         if (!Enum.IsDefined(model.PersonalRoutingAccess))
             return RoutingAdministrationResult.Failure("The personal routing access mode is invalid.");
+        if (model.AdapterType is not (RoutingAdapterType.OsrmCompatible or RoutingAdapterType.Geoapify))
+            return RoutingAdministrationResult.Failure("The routing adapter is not available.");
         if (!RoutingMinimumIntervalConverter.TryParse(model.MinimumIntervalSeconds, out var minimumIntervalMilliseconds))
             return RoutingAdministrationResult.Failure("The minimum interval is invalid.");
-        if (!TryNormalizeEndpoint(model.BaseEndpoint, out var endpoint))
+        string endpoint;
+        if (model.AdapterType == RoutingAdapterType.Geoapify) endpoint = "https://api.geoapify.com/";
+        else if (!TryNormalizeEndpoint(model.BaseEndpoint, out endpoint))
             return RoutingAdministrationResult.Failure("The endpoint is malformed or contains unsupported URL parts.");
         var selectedMappings = model.Mappings.Where(item => !string.IsNullOrWhiteSpace(item.OsrmProfile)).ToArray();
+        if (model.AdapterType == RoutingAdapterType.Geoapify
+            && selectedMappings.Any(item => !GeoapifyRouteCost.TryParse(item.OsrmProfile, out _)))
+            return RoutingAdministrationResult.Failure("A Geoapify mapping contains an unsupported transport mode.");
         if (selectedMappings.Select(item => item.TransportProfileId).Distinct().Count() != selectedMappings.Length)
             return RoutingAdministrationResult.Failure("Each transport profile may be mapped only once.");
         var activeProfileIds = await _dbContext.Set<TransportProfile>().AsNoTracking()
@@ -59,7 +66,7 @@ public sealed class RoutingProviderAdministrationService
             var credentialFreeTransition = !creating
                 && provider.PersonalRoutingAccess != PersonalRoutingAccess.CredentialFree
                 && model.PersonalRoutingAccess == PersonalRoutingAccess.CredentialFree;
-            var changed = !creating && (provider.BaseEndpoint != endpoint
+            var changed = !creating && (provider.AdapterType != model.AdapterType || provider.BaseEndpoint != endpoint
             || provider.CredentialRequired != model.CredentialRequired
             || provider.PersonalRoutingAccess != model.PersonalRoutingAccess
             || provider.Enabled != model.Enabled
@@ -77,10 +84,11 @@ public sealed class RoutingProviderAdministrationService
                 ? await LockSelectingUsersAsync(provider.Id, cancellationToken) : [];
 
             provider.DisplayName = model.DisplayName.Trim();
-        provider.AdapterType = RoutingAdapterType.OsrmCompatible;
+        provider.AdapterType = model.AdapterType;
         provider.BaseEndpoint = endpoint;
-        provider.CredentialRequired = model.CredentialRequired;
-        provider.PersonalRoutingAccess = model.PersonalRoutingAccess;
+        provider.CredentialRequired = model.AdapterType == RoutingAdapterType.OsrmCompatible && model.CredentialRequired;
+        provider.PersonalRoutingAccess = model.AdapterType == RoutingAdapterType.Geoapify
+            ? PersonalRoutingAccess.CredentialRequired : model.PersonalRoutingAccess;
         provider.Enabled = model.Enabled;
         provider.Attribution = Normalize(model.Attribution);
         provider.ExternalCoordinateDisclosure = model.ExternalCoordinateDisclosure.Trim();
@@ -104,7 +112,7 @@ public sealed class RoutingProviderAdministrationService
                     });
             }
             if (changed) provider.MarkConfigurationChanged();
-            _credentials.ApplyEdit(provider, model.Credential);
+            _credentials.ApplyEdit(provider, model.AdapterType == RoutingAdapterType.Geoapify ? null : model.Credential);
             foreach (var configuration in affectedUsers) configuration.NormalizeCredentialFree();
             AddAudit(administratorId, creating ? "RoutingProviderCreate" : "RoutingProviderUpdate", provider.Id,
                 changed || !string.IsNullOrWhiteSpace(model.Credential) ? "configuration changed; verification invalidated" : "metadata preserved");
