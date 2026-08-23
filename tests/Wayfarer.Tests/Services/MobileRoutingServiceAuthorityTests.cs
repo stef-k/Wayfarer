@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.DataProtection;
 using Wayfarer.Models;
+using Wayfarer.Models.LocationProviders;
+using Wayfarer.Services.LocationProviders;
 using Wayfarer.Services.ExternalRouting;
 using Wayfarer.Tests.Infrastructure;
 using Xunit;
@@ -46,6 +48,49 @@ public sealed class MobileRoutingServiceAuthorityTests : TestBase
         Assert.Null(route.Provider);
         Assert.Null(route.StorageMode);
         Assert.Equal(0, client.Requests);
+    }
+
+    [Fact]
+    public async Task CurrentPersonallySelectedGeoapifyAuthorityRemainsAvailableAndRoutable()
+    {
+        var db = CreateDbContext();
+        var transport = db.Set<TransportProfile>().First();
+        var provider = new RoutingProviderConfiguration
+        {
+            Id = Guid.NewGuid(), DisplayName = "Geoapify", AdapterType = RoutingAdapterType.Geoapify,
+            Enabled = true, BaseEndpoint = "https://api.geoapify.com/", ConfigurationVersion = 2,
+            VerifiedConfigurationVersion = 2
+        };
+        provider.ProfileMappings.Add(new RoutingProviderProfileMapping
+        {
+            RoutingProviderConfigurationId = provider.Id, TransportProfileId = transport.Id, OsrmProfile = "walk"
+        });
+        var protection = new EphemeralDataProtectionProvider();
+        var credentials = new PersonalProviderCredentialService(protection);
+        var personal = PersonalLocationProviderProfile.Create("owner", PersonalLocationProvider.Geoapify);
+        credentials.Replace(personal, "secret");
+        personal.RoutingAuthorized = true;
+        personal.RoutingVerification = PersonalProviderVerification.Verified;
+        personal.RoutingVerifiedCredentialGeneration = personal.CredentialGeneration;
+        personal.RoutingVerifiedConfigurationGeneration = personal.RoutingGeneration;
+        db.AddRange(provider, personal,
+            new PersonalLocationProviderSelection { UserId = "owner", RoutingProviderKey = "geoapify" });
+        db.ApplicationSettings.Add(new ApplicationSettings { Id = 1, ExternalRouteGenerationEnabled = true });
+        await db.SaveChangesAsync();
+        var resolver = new AuthoritativeRoutingProviderResolver(db, new(protection), new(protection), credentials);
+        var client = new RecordingClient();
+        var service = new MobileRoutingService(db, resolver, client, new AcceptingValidator(), new());
+
+        var capability = await service.CapabilityAsync("owner", transport.Id, default);
+        var route = await service.RouteAsync("owner", transport.Id, [new(20, 10), new(21, 11)], default);
+
+        Assert.Equal("available", capability.Outcome);
+        Assert.Equal("geoapify", capability.Provider);
+        Assert.Equal("persistent", capability.StorageMode);
+        Assert.True(route.Succeeded);
+        Assert.Equal("geoapify", route.Provider);
+        Assert.Equal("persistent", route.StorageMode);
+        Assert.Equal(1, client.Requests);
     }
 
     private sealed class RecordingClient : IOsrmRouteClient
