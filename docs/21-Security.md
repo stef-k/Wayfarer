@@ -66,3 +66,4 @@ Uploads & Secrets
 - Avoid logging PII. Use role-based checks on admin endpoints.
 - API keys are redacted from tile service logs to prevent exposure.
 
+Persistent reverse geocoding never exposes credentials to callers. Provider URLs, coordinates, addresses, and payloads are excluded from application diagnostics; provider exceptions are translated to bounded categories inside the shared boundary. Mapbox Permanent contact requires explicit current consent, authorization, verification, selection, and meter admission.

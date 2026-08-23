@@ -21,6 +21,7 @@ public sealed class PersonalProviderCredentialService
         profile.ProtectedCredential = Protector(profile).Protect(credential.Trim());
         profile.CredentialGeneration = checked(profile.CredentialGeneration + 1);
         profile.RevokedAt = null;
+        profile.ClearPermanentGeocodingConsent();
         profile.ClearVerification(PersonalProviderCapability.Geocoding);
         profile.ClearVerification(PersonalProviderCapability.Routing);
         profile.UpdatedAt = DateTimeOffset.UtcNow;
@@ -41,6 +42,7 @@ public sealed class PersonalProviderCredentialService
         profile.ProtectedCredential = null;
         profile.CredentialGeneration = checked(profile.CredentialGeneration + 1);
         profile.RevokedAt = DateTimeOffset.UtcNow;
+        profile.ClearPermanentGeocodingConsent();
         profile.SetAuthorization(PersonalProviderCapability.Geocoding, false);
         profile.SetAuthorization(PersonalProviderCapability.Routing, false);
         profile.ClearVerification(PersonalProviderCapability.Geocoding);

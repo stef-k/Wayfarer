@@ -522,7 +522,8 @@ static void ConfigureServices(WebApplicationBuilder builder)
         .AddJsonOptions(options => { options.JsonSerializerOptions.Converters.Add(new PointJsonConverter()); });
 
     // Reverse geocoding Mapbox service
-    builder.Services.AddHttpClient<ReverseGeocodingService>();
+    // Query-string authentication and coordinates must never enter default HTTP diagnostics.
+    builder.Services.AddHttpClient<ReverseGeocodingService>().RemoveAllLoggers();
 
     // Tile Cache service — typed HttpClient with OSM-compliant headers.
     // Manual redirects are handled in TileCacheService.SendTileRequestAsync.

@@ -6,6 +6,7 @@ using Wayfarer.Areas.User.LocationProviderModels;
 using Wayfarer.Models;
 using Wayfarer.Models.LocationProviders;
 using Wayfarer.Services.LocationProviders;
+using Wayfarer.Parsers;
 
 namespace Wayfarer.Areas.User.Controllers;
 
@@ -13,7 +14,7 @@ namespace Wayfarer.Areas.User.Controllers;
 [Area("User"), Authorize(Roles = "User")]
 public sealed class LocationProviderSettingsController(
     ApplicationDbContext dbContext, PersonalProviderCredentialService credentials,
-    LegacyMapboxMigrationService migration) : Controller
+    LegacyMapboxMigrationService migration, ReverseGeocodingService reverseGeocoding) : Controller
 {
     /// <summary>Displays masked provider authority and provider-native usage status.</summary>
     public async Task<IActionResult> Index(CancellationToken cancellationToken)
@@ -44,11 +45,43 @@ public sealed class LocationProviderSettingsController(
         var selection = await dbContext.PersonalLocationProviderSelections.SingleOrDefaultAsync(
             item => item.UserId == userId, cancellationToken) ?? PersonalLocationProviderSelection.Create(userId);
         if (dbContext.Entry(selection).State == EntityState.Detached) dbContext.Add(selection);
-        if (input.ActiveForGeocoding && input.GeocodingAuthorized) selection.Select(PersonalProviderCapability.Geocoding, provider);
+        var geocodingVerified = profile.GeocodingVerification == PersonalProviderVerification.Verified
+            && profile.GeocodingVerifiedCredentialGeneration == profile.CredentialGeneration
+            && profile.GeocodingVerifiedConfigurationGeneration == profile.GeocodingGeneration;
+        if (input.ActiveForGeocoding && input.GeocodingAuthorized && geocodingVerified
+            && (provider != PersonalLocationProvider.Mapbox || profile.HasCurrentPermanentGeocodingConsent()))
+            selection.Select(PersonalProviderCapability.Geocoding, provider);
         else if (selection.GeocodingProviderKey == key) selection.Select(PersonalProviderCapability.Geocoding, null);
         if (input.ActiveForRouting && input.RoutingAuthorized) selection.Select(PersonalProviderCapability.Routing, provider);
         else if (selection.RoutingProviderKey == key) selection.Select(PersonalProviderCapability.Routing, null);
         await dbContext.SaveChangesAsync(cancellationToken);
+        return RedirectToAction(nameof(Index));
+    }
+
+    /// <summary>Records explicit Mapbox Permanent Geocoding consent after every acknowledgement validates.</summary>
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> ConsentMapboxPermanent(MapboxPermanentConsentInput input, CancellationToken cancellationToken)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId == null) return Challenge();
+        if (!ModelState.IsValid) return View("Index", await BuildAsync(userId, cancellationToken));
+        var profile = await dbContext.PersonalLocationProviderProfiles.SingleOrDefaultAsync(
+            item => item.UserId == userId && item.ProviderKey == "mapbox", cancellationToken);
+        if (profile == null || credentials.Read(profile).Succeeded == false)
+        { ModelState.AddModelError(string.Empty, "Configure a readable Mapbox credential before consenting."); return View("Index", await BuildAsync(userId, cancellationToken)); }
+        profile.GrantPermanentGeocodingConsent(DateTimeOffset.UtcNow);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return RedirectToAction(nameof(Index));
+    }
+
+    /// <summary>Runs one explicit admitted Mapbox Permanent verification contact.</summary>
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> VerifyMapboxPermanent(CancellationToken cancellationToken)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId == null) return Challenge();
+        TempData["ProviderStatus"] = await reverseGeocoding.VerifyMapboxPermanentAsync(userId, cancellationToken) switch
+        { PersonalProviderVerification.Verified => "Mapbox Permanent Geocoding verified. Activate it explicitly to begin enrichment.", PersonalProviderVerification.Failed => "Mapbox rejected Permanent Geocoding authorization.", _ => "Mapbox Permanent Geocoding verification is unavailable; no stored data was changed." };
         return RedirectToAction(nameof(Index));
     }
 
@@ -136,8 +169,13 @@ public sealed class LocationProviderSettingsController(
             profile?.RoutingAuthorized == true, profile?.RoutingVerification ?? 0,
             permanent?.Enabled ?? true, permanent?.Limit ?? 1000, permanent?.AdmittedCount ?? 0, "Permanent Geocoding contacts",
             "Wayfarer UTC calendar-month Permanent Geocoding safety cycle", permanent?.Enabled == true && permanent.AdmittedCount >= permanent.Limit,
-            directions?.Enabled ?? true, directions?.Limit ?? 1000, directions?.AdmittedCount ?? 0);
+            directions?.Enabled ?? true, directions?.Limit ?? 1000, directions?.AdmittedCount ?? 0,
+            profile?.HasCurrentPermanentGeocodingConsent() == true, profile?.PermanentGeocodingConsentVersion,
+            profile?.PermanentGeocodingConsentedAt, MapboxPausedReason(profile, permanent), permanent?.CycleStart);
     }
+
+    private static string? MapboxPausedReason(PersonalLocationProviderProfile? profile, MapboxProductMeter? meter) => profile switch
+    { null or { ProtectedCredential: null } => "Credential required", { GeocodingAuthorized: false } => "Geocoding authorization required", _ when !profile.HasCurrentPermanentGeocodingConsent() => "Permanent consent required", { GeocodingVerification: not PersonalProviderVerification.Verified } => "Permanent verification required", _ when meter?.Enabled == true && meter.AdmittedCount >= meter.Limit => "Permanent meter exhausted", _ => null };
 
     private static PersonalLocationProvider ParseProvider(string key) => key switch
     { "geoapify" => PersonalLocationProvider.Geoapify, "mapbox" => PersonalLocationProvider.Mapbox, _ => throw new ArgumentOutOfRangeException(nameof(key)) };

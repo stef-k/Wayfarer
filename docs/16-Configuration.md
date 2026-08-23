@@ -82,7 +82,7 @@ Uploads
 
 Reverse Geocoding (Per‑User)
 - `DataProtection:KeyRingPath` is the persistent key authority for Identity and protected administrator/personal provider credentials. The supported systemd deployment explicitly retains its existing `/home/wayfarer/.aspnet/DataProtection-Keys` authority; backup requirements are in [Personal Location Providers](24-Personal-Location-Providers.md).
-- `LocationProviders:Geoapify:RollingCreditLimit` defaults to 2,500 credits. `LocationProviders:Mapbox:PermanentGeocodingLimit` and `LocationProviders:Mapbox:DirectionsLimit` configure separate Wayfarer safety counters. Users manage explicit authorization and selection in Personal location providers.
+- `LocationProviders:Geoapify:RollingCreditLimit` defaults to 2,500 credits. `LocationProviders:Mapbox:PermanentGeocodingLimit` and `LocationProviders:Mapbox:DirectionsLimit` configure separate Wayfarer safety counters. Mapbox retained geocoding also requires explicit versioned Permanent consent, verification, and selection; disabling a guard may incur charges.
 
 Mobile
 - `MobileGroups:Query:DefaultPageSize` and `MaxPageSize` — paging for mobile group queries.

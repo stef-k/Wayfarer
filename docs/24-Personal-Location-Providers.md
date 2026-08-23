@@ -27,7 +27,19 @@ Provider contact requires the active selection, an authorized and currently veri
 
 ## Legacy Mapbox migration
 
-On the authenticated user’s provider-settings entry and common geocoding resolver, Wayfarer recognizes only trimmed, case-insensitive exact `Mapbox` names. It never performs a startup-wide scan. One unambiguous value is protected, read back through production Data Protection, compared in memory, and only then are exact matching legacy rows retired. Geocoding is authorized; routing is not.
+On the authenticated user’s provider-settings entry and common geocoding resolver, Wayfarer recognizes only trimmed, case-insensitive exact `Mapbox` names. It never performs a startup-wide scan. One unambiguous value is protected, read back through production Data Protection, compared in memory, and only then are exact matching legacy rows retired. Generic geocoding is authorized for compatibility; routing is not. Migration never grants Permanent consent or selects Mapbox, so migrated profiles are configured but paused, unverified, and inactive. Under [#505](https://github.com/stef-k/Wayfarer/issues/505), maintainer-managed family accounts are migrated explicitly after the coordinated backend release.
+
+## Mapbox Permanent Geocoding
+
+Mapbox Geocoding v6 defaults to Temporary mode. Temporary results may not be cached; retained Wayfarer enrichment therefore uses only explicitly consented Mapbox Permanent Geocoding with `permanent=true`, or makes no Mapbox contact. Permanent results may be stored indefinitely, are separately billed with no advertised free tier, and require an eligible credit card or active enterprise contract.
+
+The settings workflow is deliberately ordered: configure a masked credential, acknowledge storage and possible billing, authorize geocoding, run one explicit potentially billable verification at fixed non-personal coordinates, explicitly select Mapbox, and configure the separate Permanent contact meter. Verification does not activate Mapbox. Credential replacement, revocation, or disabling geocoding clears consent and verification; provider switching and meter changes preserve consent.
+
+Wayfarer's meter counts only Wayfarer contacts. Other applications or tokens can consume the Mapbox account allowance. A disabled guard can incur charges. With no eligible provider, consent, verification, selection, or remaining budget, capture, imports, Trips, Places, Timeline, exports, and synchronization continue without new enrichment. Provider failures preserve submitted/manual and prior enrichment.
+
+Historical rows have unknown nullable provenance because they may contain Temporary Mapbox output, imports, or manual edits; this release does not delete or reclassify them. New successful Mapbox enrichment records `mapbox`, `permanent`, and its UTC persistence time. There is no automatic retry or pending queue. [#502](https://github.com/stef-k/Wayfarer/issues/502) owns the same-release explicit bounded backfill after Geoapify becomes available.
+
+Official policy sources retrieved 2026-08-23: [Geocoding v6 API and storage](https://docs.mapbox.com/api/search/geocoding/), [Temporary versus Permanent](https://docs.mapbox.com/help/dive-deeper/understand-temporary-vs-permanent-geocoding/), [pricing](https://www.mapbox.com/pricing/), and [attribution guidance](https://docs.mapbox.com/help/dive-deeper/attribution/).
 
 Valid protected data always wins and is never overwritten. Matching duplicate casing rows converge; distinct values, invalid ciphertext, and revoked profiles preserve every recovery copy and fail closed without provider contact. Reruns are idempotent. Unrelated inbound Wayfarer API tokens and all domain data are untouched.
 

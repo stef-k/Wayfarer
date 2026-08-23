@@ -45,4 +45,10 @@ public class Place
 
     /// <summary>Optional street address of the place.</summary>
     public string? Address { get; set; }
+    /// <summary>Provider that supplied the retained address enrichment.</summary>
+    [System.ComponentModel.DataAnnotations.MaxLength(24)] public string? AddressEnrichmentProvider { get; set; }
+    /// <summary>Provider storage mode governing the retained address enrichment.</summary>
+    [System.ComponentModel.DataAnnotations.MaxLength(16)] public string? AddressEnrichmentStorageMode { get; set; }
+    /// <summary>UTC instant at which address enrichment was persisted.</summary>
+    public DateTimeOffset? AddressEnrichedAt { get; set; }
 }
