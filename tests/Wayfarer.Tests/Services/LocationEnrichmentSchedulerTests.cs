@@ -30,7 +30,7 @@ public sealed class LocationEnrichmentSchedulerTests
         Assert.Equal(workflow.Epoch, capturedTrigger.JobDataMap.GetInt("epoch"));
         Assert.Equal(1, capturedJob.JobDataMap.GetInt("schema"));
         Assert.Equal(MisfireInstruction.SimpleTrigger.RescheduleNextWithRemainingCount,
-            capturedTrigger.GetSimpleTrigger().MisfireInstruction);
+            Assert.IsAssignableFrom<ISimpleTrigger>(capturedTrigger).MisfireInstruction);
         Assert.DoesNotContain(capturedJob.JobDataMap.Keys, key => key.Contains("user", StringComparison.OrdinalIgnoreCase));
     }
 

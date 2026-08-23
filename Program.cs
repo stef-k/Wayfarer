@@ -359,6 +359,9 @@ static void ConfigureQuartz(WebApplicationBuilder builder)
     builder.Services.AddSingleton<IJobFactory, ScopedJobFactory>();
     builder.Services.AddScoped<IJobListener, JobExecutionListener>();
     builder.Services.AddTransient<LocationImportJob>();
+    builder.Services.AddTransient<LocationEnrichmentJob>();
+    builder.Services.AddScoped<Wayfarer.Services.LocationEnrichment.LocationEnrichmentScheduler>();
+    builder.Services.AddScoped<Wayfarer.Services.LocationEnrichment.LocationEnrichmentReconciler>();
 
     // 2) Build & start the Quartz scheduler
     builder.Services.AddSingleton<IScheduler>(sp =>

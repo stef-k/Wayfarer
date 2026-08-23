@@ -26,6 +26,7 @@ public sealed class LocationEnrichmentWorkflow
 
     [Key, MaxLength(450)]
     public string UserId { get; private set; } = string.Empty;
+    public Guid SchedulerId { get; private set; }
     public LocationEnrichmentState State { get; private set; } = LocationEnrichmentState.Idle;
     public bool IntentEnabled { get; private set; }
     public int Epoch { get; private set; }
@@ -53,7 +54,7 @@ public sealed class LocationEnrichmentWorkflow
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(userId);
         EnsureUtc(nowUtc);
-        return new() { UserId = userId, CreatedAtUtc = nowUtc, UpdatedAtUtc = nowUtc };
+        return new() { UserId = userId, SchedulerId = Guid.NewGuid(), CreatedAtUtc = nowUtc, UpdatedAtUtc = nowUtc };
     }
 
     /// <summary>Enables a scheduled run idempotently and advances only a new terminal epoch.</summary>
@@ -136,6 +137,27 @@ public sealed class LocationEnrichmentWorkflow
         UpdatedAtUtc = nowUtc;
     }
 
+    /// <summary>Claims a current scheduled epoch immediately before bounded worker entry.</summary>
+    public bool TryClaim(int epoch, DateTime nowUtc)
+    {
+        EnsureUtc(nowUtc);
+        if (!IntentEnabled || State != LocationEnrichmentState.Scheduled || Epoch != epoch) return false;
+        State = LocationEnrichmentState.Running;
+        NextEligibleAtUtc = null;
+        UpdatedAtUtc = nowUtc;
+        return true;
+    }
+
+    /// <summary>Recovers an abandoned running observation to scheduled relational intent.</summary>
+    public void RecoverRunning(DateTime nowUtc)
+    {
+        EnsureUtc(nowUtc);
+        if (State != LocationEnrichmentState.Running) return;
+        State = IntentEnabled ? LocationEnrichmentState.Scheduled : LocationEnrichmentState.PausedByUser;
+        NextEligibleAtUtc = IntentEnabled ? nowUtc : null;
+        UpdatedAtUtc = nowUtc;
+    }
+
     private static void EnsureUtc(DateTime value)
     {
         if (value.Kind != DateTimeKind.Utc) throw new ArgumentException("Workflow timestamps must be UTC.");
@@ -154,6 +176,7 @@ public sealed class LocationEnrichmentWorkflowConfiguration : IEntityTypeConfigu
             .OnDelete(DeleteBehavior.Cascade);
         builder.HasIndex(item => new { item.State, item.NextEligibleAtUtc })
             .HasDatabaseName("IX_LocationEnrichmentWorkflow_Due");
+        builder.HasIndex(item => item.SchedulerId).IsUnique();
         builder.ToTable(table =>
         {
             table.HasCheckConstraint("CK_LocationEnrichmentWorkflow_Epoch", "\"Epoch\" >= 0");
