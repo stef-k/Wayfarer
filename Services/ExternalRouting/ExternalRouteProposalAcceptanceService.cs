@@ -135,6 +135,7 @@ public sealed class ExternalRouteProposalAcceptanceService
             || waypointIndices.Where((index, anchorIndex) => geometry[index] != anchors[anchorIndex]).Any())
             return ExternalRouteAcceptanceResult.Failure("route-proposal-stale");
 
+        var aggregateConcurrencyToken = binding.AggregateConcurrencyToken;
         if (binding.ProviderKey == "geoapify" && binding.StorageMode == "persistent")
         {
             segment.RouteGeometry = new LineString(geometry.Select(item => new Coordinate(item.Longitude, item.Latitude)).ToArray()) { SRID = 4326 };
@@ -152,11 +153,12 @@ public sealed class ExternalRouteProposalAcceptanceService
             segment.RouteAttribution = binding.Attribution;
             segment.RouteStorageMode = binding.StorageMode;
             await _dbContext.SaveChangesAsync(cancellationToken);
+            aggregateConcurrencyToken = _aggregateTokens.Issue(userId, tripId, segmentId, segment.RowVersion);
         }
         return new ExternalRouteAcceptanceResult(true, null,
             new AcceptedExternalRouteProposalDto(proposalId, segmentId, geometry, waypointIndices,
                 binding.DistanceMetres, binding.DurationSeconds, binding.Instructions, binding.ProviderKey,
-                binding.Attribution, binding.StorageMode));
+                binding.Attribution, binding.StorageMode, aggregateConcurrencyToken));
     }
 
     private static bool GeometryShapeValid(IReadOnlyList<RouteCoordinate> geometry, IReadOnlyList<int> indices) =>
@@ -170,7 +172,8 @@ public sealed class ExternalRouteProposalAcceptanceService
 public sealed record AcceptedExternalRouteProposalDto(
     Guid ProposalId, Guid SegmentId, IReadOnlyList<RouteCoordinate> Geometry, IReadOnlyList<int> WaypointIndices,
     double? DistanceMetres = null, double? DurationSeconds = null, IReadOnlyList<RouteInstruction>? Instructions = null,
-    string? Provider = null, string? Attribution = null, string? StorageMode = null);
+    string? Provider = null, string? Attribution = null, string? StorageMode = null,
+    string? AggregateConcurrencyToken = null);
 
 /// <summary>Contains a bounded acceptance outcome without persistence.</summary>
 public sealed record ExternalRouteAcceptanceResult(

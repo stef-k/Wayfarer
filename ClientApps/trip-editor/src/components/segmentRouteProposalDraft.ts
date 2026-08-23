@@ -20,6 +20,7 @@ export const applyAcceptedRouteProposal = (
   proposal: AcceptedExternalRouteProposal
 ): boolean => {
   if (proposal.segmentId !== draft.id) return false;
+  if (proposal.aggregateConcurrencyToken) draft.aggregateConcurrencyToken = proposal.aggregateConcurrencyToken;
   draft.route = { type: 'LineString', coordinates: proposal.geometry.map(item => [item.longitude, item.latitude]) };
   draft.waypointRows.forEach((row, index) => { row.routeVertexIndex = proposal.waypointIndices[index + 1] ?? null; });
   return true;
