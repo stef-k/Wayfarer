@@ -200,6 +200,10 @@ public class LocationController : BaseApiController
                 _logger.LogInformation("Check-in location saved with ID {LocationId} at {Timestamp}", location.Id,
                     location.Timestamp);
             }
+            catch (OperationCanceledException) when (HttpContext.RequestAborted.IsCancellationRequested)
+            {
+                throw;
+            }
             catch (DbUpdateException ex) when (idempotencyKey.HasValue)
             {
                 var existingLocation = await _dbContext.Locations
@@ -663,6 +667,10 @@ public class LocationController : BaseApiController
                 _logger.LogInformation("Location saved with ID {LocationId} at {Timestamp}", location.Id,
                     location.Timestamp);
             }
+            catch (OperationCanceledException) when (HttpContext.RequestAborted.IsCancellationRequested)
+            {
+                throw;
+            }
             catch (DbUpdateException ex) when (idempotencyKey.HasValue)
             {
                 var existingLocation = await _dbContext.Locations
@@ -1024,6 +1032,10 @@ public class LocationController : BaseApiController
             await _dbContext.SaveChangesAsync();
             _logger.LogDebug("Updated location {LocationId} for user {UserId}", id, user.Id);
             return Ok(new { success = true, message = "Location updated.", location });
+        }
+        catch (OperationCanceledException) when (HttpContext.RequestAborted.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception ex)
         {

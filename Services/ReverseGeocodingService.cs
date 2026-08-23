@@ -225,16 +225,8 @@ namespace Wayfarer.Parsers
             var state = result.Category == ReverseGeocodingCategory.Success ? PersonalProviderVerification.Verified
                 : result.Category == ReverseGeocodingCategory.Authorization ? PersonalProviderVerification.Failed
                 : PersonalProviderVerification.Unavailable;
-            if (!await _contactGate.IsVerificationCurrentAsync(authority, cancellationToken)) return PersonalProviderVerification.Unavailable;
-            var profile = await _dbContext.Set<PersonalLocationProviderProfile>().SingleAsync(
-                item => item.UserId == userId && item.ProviderKey == "mapbox", cancellationToken);
-            profile.GeocodingVerification = state;
-            profile.GeocodingVerifiedCredentialGeneration = state == PersonalProviderVerification.Verified ? profile.CredentialGeneration : null;
-            profile.GeocodingVerifiedConfigurationGeneration = state == PersonalProviderVerification.Verified ? profile.GeocodingGeneration : null;
-            profile.UpdatedAt = DateTimeOffset.UtcNow;
-            try { await _dbContext.SaveChangesAsync(cancellationToken); return state; }
-            catch (DbUpdateConcurrencyException)
-            { _dbContext.ChangeTracker.Clear(); return PersonalProviderVerification.Unavailable; }
+            return await _contactGate.TryRecordMapboxPermanentVerificationAsync(authority, state, cancellationToken)
+                ? state : PersonalProviderVerification.Unavailable;
         }
 
         private async Task RecordMapboxAuthorizationFailureAsync(string userId, CancellationToken cancellationToken)
@@ -276,9 +268,11 @@ namespace Wayfarer.Parsers
             }
 
             string jsonResponse = await response.Content.ReadAsStringAsync();
-            ReverseLocationResponse? reverseData = JsonSerializer.Deserialize<ReverseLocationResponse>(jsonResponse);
+            ReverseLocationResponse? reverseData;
+            try { reverseData = JsonSerializer.Deserialize<ReverseLocationResponse>(jsonResponse); }
+            catch (JsonException) { return new ReverseLocationResults(); }
 
-            if (reverseData?.Features != null && reverseData.Features.Any())
+            if (HasValidEnvelope(reverseData) && reverseData!.Features.Count != 0)
             {
                 // Optionally choose a specific feature (e.g., "street") or just use the first one
                 Feature feature = reverseData.Features
@@ -311,8 +305,9 @@ namespace Wayfarer.Parsers
                 var bytes = await response.Content.ReadAsByteArrayAsync(cancellationToken);
                 if (bytes.Length > 262_144) return ReverseGeocodingResult.Failure(ReverseGeocodingCategory.InvalidResponse);
                 var data = JsonSerializer.Deserialize<ReverseLocationResponse>(bytes);
-                if (data?.Features == null || data.Features.Count == 0)
-                    return allowEmpty && data?.Type == "FeatureCollection" ? ReverseGeocodingResult.Success(new())
+                if (!HasValidEnvelope(data)) return ReverseGeocodingResult.Failure(ReverseGeocodingCategory.InvalidResponse);
+                if (data!.Features.Count == 0)
+                    return allowEmpty ? ReverseGeocodingResult.Success(new())
                         : ReverseGeocodingResult.Failure(ReverseGeocodingCategory.InvalidResponse);
                 var value = reverseLocationResults(data);
                 return string.IsNullOrWhiteSpace(value.FullAddress) && string.IsNullOrWhiteSpace(value.Address)
@@ -335,6 +330,12 @@ namespace Wayfarer.Parsers
             PersonalProviderAdmissionCategory.CredentialUnavailable => ReverseGeocodingCategory.CredentialRequired,
             _ => ReverseGeocodingCategory.ProviderUnavailable
         };
+
+        private static bool HasValidEnvelope(ReverseLocationResponse? data) =>
+            data is { Type: "FeatureCollection", Features: not null }
+            && data.Features.All(feature => feature != null && feature.Type == "Feature"
+                && !string.IsNullOrWhiteSpace(feature.Id) && feature.Properties != null
+                && !string.IsNullOrWhiteSpace(feature.Properties.FeatureType));
 
 
         private ReverseLocationResults reverseLocationResults(ReverseLocationResponse reverseData)
