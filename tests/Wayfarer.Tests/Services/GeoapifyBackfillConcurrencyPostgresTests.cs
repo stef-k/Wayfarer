@@ -19,6 +19,56 @@ namespace Wayfarer.Tests.Services;
 [Collection(PostgresImportTestCollection.Name)]
 public sealed class GeoapifyBackfillConcurrencyPostgresTests(PostgresImportTestFixture fixture)
 {
+    /// <summary>Proves cancellation before durable ownership/admission has no provider cost.</summary>
+    [PostgresFact]
+    public async Task CancellationBeforeAdmissionCostsNothing()
+    {
+        var user = await fixture.CreateUserAsync();
+        var protection = new EphemeralDataProtectionProvider();
+        await SeedAsync(user.Id, null, protection);
+        var handler = new CoordinatedHandler(user.Id, null);
+        await using var db = fixture.CreateContext();
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => Service(db, protection, handler).RunAsync(user.Id, cancellation.Token));
+
+        await using var verify = fixture.CreateContext();
+        Assert.Equal(0, handler.RequestsFor(user.Id));
+        Assert.Equal(0, await verify.Set<GeoapifyUsageAdmission>().CountAsync(item => item.UserId == user.Id));
+    }
+
+    /// <summary>Proves admitted timeout and provider failure remain charged and release ownership for retry.</summary>
+    [PostgresFact]
+    public async Task AdmittedFailuresRetainAdmissionAndAllowRetry()
+    {
+        foreach (var outcome in new[] { ContactOutcome.Timeout, ContactOutcome.ProviderFailure })
+        {
+            var user = await fixture.CreateUserAsync();
+            var protection = new EphemeralDataProtectionProvider();
+            await SeedAsync(user.Id, null, protection);
+            var failedHandler = new CoordinatedHandler(user.Id, null, outcome);
+            await using var failedDb = fixture.CreateContext();
+            var failedRun = Service(failedDb, protection, failedHandler).RunAsync(user.Id);
+            await failedHandler.FirstUserRequestEntered;
+            failedHandler.Release();
+            var failure = await failedRun;
+            Assert.Equal(1, failure.Unavailable);
+
+            var retryHandler = new CoordinatedHandler(user.Id, null);
+            await using var retryDb = fixture.CreateContext();
+            var retry = Service(retryDb, protection, retryHandler).RunAsync(user.Id);
+            await retryHandler.FirstUserRequestEntered;
+            retryHandler.Release();
+            await retry;
+
+            await using var verify = fixture.CreateContext();
+            Assert.Equal(2, await verify.Set<GeoapifyUsageAdmission>().CountAsync(item => item.UserId == user.Id));
+            Assert.Equal("geoapify", (await verify.Locations.SingleAsync(item => item.UserId == user.Id)).ReverseGeocodingProvider);
+        }
+    }
+
     /// <summary>Proves cancellation after contact retains admission and releases durable ownership.</summary>
     [PostgresFact]
     public async Task CancellationAfterContactRetainsAdmissionAndAllowsRetry()
@@ -152,7 +202,8 @@ public sealed class GeoapifyBackfillConcurrencyPostgresTests(PostgresImportTestF
         public ApplicationDbContext CreateDbContext() => fixture.CreateContext();
     }
 
-    private sealed class CoordinatedHandler(string primaryUserId, string? otherUserId) : HttpMessageHandler
+    private sealed class CoordinatedHandler(
+        string primaryUserId, string? otherUserId, ContactOutcome outcome = ContactOutcome.Success) : HttpMessageHandler
     {
         private readonly TaskCompletionSource _first = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private readonly TaskCompletionSource _other = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -171,6 +222,9 @@ public sealed class GeoapifyBackfillConcurrencyPostgresTests(PostgresImportTestF
             if (userId == primaryUserId) _first.TrySetResult();
             if (otherUserId != null && userId == otherUserId) _other.TrySetResult();
             await _release.Task.WaitAsync(cancellationToken);
+            if (outcome == ContactOutcome.Timeout) throw new TaskCanceledException();
+            if (outcome == ContactOutcome.ProviderFailure)
+                return new(System.Net.HttpStatusCode.ServiceUnavailable);
             return new(System.Net.HttpStatusCode.OK)
             {
                 Content = new StringContent("""
@@ -179,4 +233,6 @@ public sealed class GeoapifyBackfillConcurrencyPostgresTests(PostgresImportTestF
             };
         }
     }
+
+    private enum ContactOutcome { Success, Timeout, ProviderFailure }
 }
