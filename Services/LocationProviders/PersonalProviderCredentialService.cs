@@ -48,6 +48,27 @@ public sealed class PersonalProviderCredentialService
         profile.UpdatedAt = DateTimeOffset.UtcNow;
     }
 
+    /// <summary>Records only bounded verification and binds it to current credential/capability generations.</summary>
+    public void RecordVerification(PersonalLocationProviderProfile profile, PersonalProviderCapability capability,
+        PersonalProviderVerification verification)
+    {
+        if (verification is < PersonalProviderVerification.Unverified or > PersonalProviderVerification.Unavailable)
+            throw new ArgumentOutOfRangeException(nameof(verification));
+        if (capability == PersonalProviderCapability.Geocoding)
+        {
+            profile.GeocodingVerification = verification;
+            profile.GeocodingVerifiedCredentialGeneration = verification == PersonalProviderVerification.Verified ? profile.CredentialGeneration : null;
+            profile.GeocodingVerifiedConfigurationGeneration = verification == PersonalProviderVerification.Verified ? profile.GeocodingGeneration : null;
+        }
+        else
+        {
+            profile.RoutingVerification = verification;
+            profile.RoutingVerifiedCredentialGeneration = verification == PersonalProviderVerification.Verified ? profile.CredentialGeneration : null;
+            profile.RoutingVerifiedConfigurationGeneration = verification == PersonalProviderVerification.Verified ? profile.RoutingGeneration : null;
+        }
+        profile.UpdatedAt = DateTimeOffset.UtcNow;
+    }
+
     private IDataProtector Protector(PersonalLocationProviderProfile profile) => _provider
         .CreateProtector(ProtectionPurpose).CreateProtector("credential")
         .CreateProtector(profile.ProviderKey).CreateProtector(profile.UserId);

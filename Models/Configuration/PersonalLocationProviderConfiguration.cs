@@ -4,12 +4,20 @@ using Wayfarer.Models.LocationProviders;
 
 namespace Wayfarer.Models.Configuration;
 
+/// <summary>Prevents generic token/authentication readers from exposing legacy Mapbox recovery plaintext.</summary>
+public sealed class LegacyProviderTokenReadConfiguration : IEntityTypeConfiguration<ApiToken>
+{
+    public void Configure(EntityTypeBuilder<ApiToken> builder) =>
+        builder.HasQueryFilter(item => item.Name.Trim().ToLower() != "mapbox");
+}
+
 /// <summary>Defines bounded relational authority for personal provider profiles and selections.</summary>
 public sealed class PersonalLocationProviderConfiguration : IEntityTypeConfiguration<PersonalLocationProviderProfile>
 {
     public void Configure(EntityTypeBuilder<PersonalLocationProviderProfile> builder)
     {
         builder.HasKey(item => item.Id);
+        builder.HasAlternateKey(item => new { item.UserId, item.ProviderKey });
         builder.HasIndex(item => new { item.UserId, item.ProviderKey }).IsUnique();
         builder.HasOne<ApplicationUser>().WithMany().HasForeignKey(item => item.UserId).OnDelete(DeleteBehavior.Cascade);
         builder.Property(item => item.RowVersion).HasColumnName("xmin").IsRowVersion().ValueGeneratedOnAddOrUpdate();
@@ -29,6 +37,12 @@ public sealed class PersonalLocationProviderSelectionConfiguration : IEntityType
     {
         builder.HasKey(item => item.UserId);
         builder.HasOne<ApplicationUser>().WithOne().HasForeignKey<PersonalLocationProviderSelection>(item => item.UserId).OnDelete(DeleteBehavior.Cascade);
+        builder.HasOne<PersonalLocationProviderProfile>().WithMany()
+            .HasForeignKey(item => new { item.UserId, item.GeocodingProviderKey })
+            .HasPrincipalKey(item => new { item.UserId, item.ProviderKey }).OnDelete(DeleteBehavior.Restrict);
+        builder.HasOne<PersonalLocationProviderProfile>().WithMany()
+            .HasForeignKey(item => new { item.UserId, item.RoutingProviderKey })
+            .HasPrincipalKey(item => new { item.UserId, item.ProviderKey }).OnDelete(DeleteBehavior.Restrict);
         builder.Property(item => item.RowVersion).HasColumnName("xmin").IsRowVersion().ValueGeneratedOnAddOrUpdate();
         builder.ToTable(table =>
         {

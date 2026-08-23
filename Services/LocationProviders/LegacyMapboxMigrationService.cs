@@ -20,7 +20,14 @@ public sealed class LegacyMapboxMigrationService(
         var values = legacyRows.Select(item => item.Token!.Trim()).Distinct(StringComparer.Ordinal).ToArray();
 
         if (values.Length == 0)
-            return await CompleteAsync(new(LegacyMapboxMigrationState.None, 0, false), transaction, cancellationToken);
+        {
+            if (profile?.RevokedAt != null) profile.LegacyMigrationState = LegacyMapboxMigrationState.Revoked;
+            else if (!string.IsNullOrEmpty(profile?.ProtectedCredential) && !credentials.Read(profile).Succeeded)
+                profile.LegacyMigrationState = LegacyMapboxMigrationState.ProtectedCredentialUnavailable;
+            if (profile != null) await dbContext.SaveChangesAsync(cancellationToken);
+            return await CompleteAsync(new(profile?.LegacyMigrationState ?? LegacyMapboxMigrationState.None, 0,
+                profile != null && credentials.Read(profile).Succeeded), transaction, cancellationToken);
+        }
         if (profile?.RevokedAt != null)
         {
             profile.LegacyMigrationState = LegacyMapboxMigrationState.Revoked;

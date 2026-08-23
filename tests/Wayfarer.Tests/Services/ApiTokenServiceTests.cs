@@ -117,7 +117,7 @@ public class ApiTokenServiceTests : TestBase
     }
 
     [Fact]
-    public async Task ValidateApiTokenAsync_WorksWithThirdPartyPlainTokens()
+    public async Task ValidateApiTokenAsync_DoesNotTreatLegacyProviderCredentialAsInboundToken()
     {
         var db = CreateDbContext();
         var user = TestDataFixtures.CreateUser(id: "u6", username: "frank");
@@ -130,7 +130,7 @@ public class ApiTokenServiceTests : TestBase
         var valid = await service.ValidateApiTokenAsync(user.Id, "mapbox-token-123");
         var invalid = await service.ValidateApiTokenAsync(user.Id, "wrong");
 
-        Assert.True(valid);
+        Assert.False(valid);
         Assert.False(invalid);
     }
 

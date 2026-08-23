@@ -8,6 +8,7 @@ public enum LegacyMapboxMigrationState
 public sealed record PersonalCredentialRead(bool Succeeded, string? Credential)
 {
     public static PersonalCredentialRead Unavailable { get; } = new(false, null);
+    public override string ToString() => $"PersonalCredentialRead {{ Succeeded = {Succeeded} }}";
 }
 
 /// <summary>Represents the non-destructive retirement decision.</summary>

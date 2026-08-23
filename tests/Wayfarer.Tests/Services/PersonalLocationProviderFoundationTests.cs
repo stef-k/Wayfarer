@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json;
 using Wayfarer.Models;
 using Wayfarer.Models.LocationProviders;
 using Wayfarer.Services.LocationProviders;
@@ -143,5 +144,92 @@ public sealed class PersonalLocationProviderFoundationTests : TestBase
         {
             Directory.Delete(path, recursive: true);
         }
+    }
+
+    [Fact]
+    public void ContactAuthority_RedactsCredentialFromSerializationAndDiagnostics()
+    {
+        var snapshot = new PersonalProviderAuthoritySnapshot("user", "mapbox",
+            PersonalProviderCapability.Geocoding, "never-disclose", 2, 3, 4);
+
+        Assert.DoesNotContain("never-disclose", snapshot.ToString(), StringComparison.Ordinal);
+        Assert.DoesNotContain("never-disclose", JsonSerializer.Serialize(snapshot), StringComparison.Ordinal);
+        Assert.DoesNotContain("never-disclose", new PersonalCredentialRead(true, "never-disclose").ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ReplacementAndRevocation_AdvanceGenerationAndInvalidateBothCapabilities()
+    {
+        var profile = PersonalLocationProviderProfile.Create("generation-user", PersonalLocationProvider.Mapbox);
+        var owner = new PersonalProviderCredentialService(new EphemeralDataProtectionProvider());
+        owner.Replace(profile, "first");
+        profile.SetAuthorization(PersonalProviderCapability.Geocoding, true);
+        profile.SetAuthorization(PersonalProviderCapability.Routing, true);
+        owner.RecordVerification(profile, PersonalProviderCapability.Geocoding, PersonalProviderVerification.Verified);
+        owner.RecordVerification(profile, PersonalProviderCapability.Routing, PersonalProviderVerification.Verified);
+        var beforeReplacement = profile.CredentialGeneration;
+
+        owner.Replace(profile, "second");
+
+        Assert.True(profile.CredentialGeneration > beforeReplacement);
+        Assert.Equal(PersonalProviderVerification.Unverified, profile.GeocodingVerification);
+        Assert.Equal(PersonalProviderVerification.Unverified, profile.RoutingVerification);
+        Assert.True(profile.GeocodingAuthorized);
+        Assert.True(profile.RoutingAuthorized);
+        var beforeRevocation = profile.CredentialGeneration;
+
+        owner.Revoke(profile);
+
+        Assert.True(profile.CredentialGeneration > beforeRevocation);
+        Assert.False(profile.GeocodingAuthorized);
+        Assert.False(profile.RoutingAuthorized);
+        Assert.Null(profile.ProtectedCredential);
+    }
+
+    [Fact]
+    public async Task LegacyMigration_SameValueAliasesAndRerunConverge()
+    {
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "alias-user", username: "alias");
+        db.Users.Add(user);
+        db.ApiTokens.AddRange(
+            new ApiToken { Id = 8201, Name = "Mapbox", Token = "same", UserId = user.Id, User = user },
+            new ApiToken { Id = 8202, Name = " mapBOX ", Token = "same", UserId = user.Id, User = user });
+        await db.SaveChangesAsync();
+        var service = new LegacyMapboxMigrationService(db,
+            new PersonalProviderCredentialService(new EphemeralDataProtectionProvider()));
+
+        var first = await service.MigrateAsync(user.Id);
+        var rerun = await service.MigrateAsync(user.Id);
+
+        Assert.Equal(2, first.RetiredLegacyRows);
+        Assert.True(first.ProtectedCredentialReady);
+        Assert.Equal(LegacyMapboxMigrationState.Migrated, rerun.State);
+        Assert.Empty(await db.ApiTokens.IgnoreQueryFilters().ToListAsync());
+    }
+
+    [Fact]
+    public async Task LegacyMigration_InvalidCiphertextAndRevocationPreservePlaintext()
+    {
+        var db = CreateDbContext();
+        var invalidUser = TestDataFixtures.CreateUser(id: "invalid-user", username: "invalid");
+        var revokedUser = TestDataFixtures.CreateUser(id: "revoked-user", username: "revoked");
+        db.Users.AddRange(invalidUser, revokedUser);
+        var invalid = PersonalLocationProviderProfile.Create(invalidUser.Id, PersonalLocationProvider.Mapbox);
+        invalid.ProtectedCredential = "invalid-ciphertext";
+        var revoked = PersonalLocationProviderProfile.Create(revokedUser.Id, PersonalLocationProvider.Mapbox);
+        revoked.RevokedAt = DateTimeOffset.UtcNow;
+        db.AddRange(invalid, revoked);
+        db.ApiTokens.AddRange(
+            new ApiToken { Id = 8301, Name = "Mapbox", Token = "legacy-invalid", UserId = invalidUser.Id, User = invalidUser },
+            new ApiToken { Id = 8302, Name = "Mapbox", Token = "legacy-revoked", UserId = revokedUser.Id, User = revokedUser });
+        await db.SaveChangesAsync();
+        var service = new LegacyMapboxMigrationService(db,
+            new PersonalProviderCredentialService(new EphemeralDataProtectionProvider()));
+
+        Assert.Equal(LegacyMapboxMigrationState.ProtectedCredentialUnavailable,
+            (await service.MigrateAsync(invalidUser.Id)).State);
+        Assert.Equal(LegacyMapboxMigrationState.Revoked, (await service.MigrateAsync(revokedUser.Id)).State);
+        Assert.Equal(2, await db.ApiTokens.IgnoreQueryFilters().CountAsync());
     }
 }

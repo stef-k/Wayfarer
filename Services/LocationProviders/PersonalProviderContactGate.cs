@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using System.Text.Json.Serialization;
 using Wayfarer.Models;
 using Wayfarer.Models.LocationProviders;
 
@@ -195,9 +196,24 @@ public enum PersonalProviderAdmissionCategory
 { Admitted, InvalidCost, NoProviderSelected, UnsupportedProvider, UnsupportedProduct, Unauthorized, Unverified, CredentialUnavailable, Exhausted }
 
 /// <summary>Contains server-internal immutable contact authority; it must never be serialized.</summary>
-public sealed record PersonalProviderAuthoritySnapshot(string UserId, string ProviderKey,
-    PersonalProviderCapability Capability, string Credential, int CredentialGeneration,
-    int CapabilityGeneration, int SelectionGeneration);
+public sealed class PersonalProviderAuthoritySnapshot
+{
+    public PersonalProviderAuthoritySnapshot(string userId, string providerKey, PersonalProviderCapability capability,
+        string credential, int credentialGeneration, int capabilityGeneration, int selectionGeneration)
+    {
+        UserId = userId; ProviderKey = providerKey; Capability = capability; Credential = credential;
+        CredentialGeneration = credentialGeneration; CapabilityGeneration = capabilityGeneration;
+        SelectionGeneration = selectionGeneration;
+    }
+    public string UserId { get; }
+    public string ProviderKey { get; }
+    public PersonalProviderCapability Capability { get; }
+    [JsonIgnore] public string Credential { get; }
+    public int CredentialGeneration { get; }
+    public int CapabilityGeneration { get; }
+    public int SelectionGeneration { get; }
+    public override string ToString() => $"PersonalProviderAuthoritySnapshot {{ ProviderKey = {ProviderKey}, Capability = {Capability}, CredentialGeneration = {CredentialGeneration}, CapabilityGeneration = {CapabilityGeneration}, SelectionGeneration = {SelectionGeneration} }}";
+}
 
 /// <summary>Contains only bounded usage status.</summary>
 public sealed record PersonalProviderUsageStatus(int Used, int Limit, string Unit, DateTimeOffset? RollingCutoff, DateOnly? CycleStart);

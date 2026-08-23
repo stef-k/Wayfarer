@@ -334,7 +334,7 @@ public sealed class TripEditorPlaceControllerTests : TripEditorPlaceControllerTe
     }
 
     [Fact]
-    public async Task ReverseGeocodeRequestCancellationPropagates()
+    public async Task LegacyMapboxCredential_CannotReachOutboundHandler()
     {
         using var cancellation = new CancellationTokenSource();
         using var db = CreateDbContext();
@@ -354,10 +354,12 @@ public sealed class TripEditorPlaceControllerTests : TripEditorPlaceControllerTe
             NullLogger<BaseApiController>.Instance));
         ConfigureControllerWithUserRole(controller, "owner-user");
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-            SendJson(controller, c => c.CreatePlace(trip.Id, region.Id, cancellation.Token), ValidCreateBody("Geo", reverseGeocode: true)));
+        var result = await SendJson(controller,
+            c => c.CreatePlace(trip.Id, region.Id, cancellation.Token), ValidCreateBody("Geo", reverseGeocode: true));
 
-        Assert.True(handler.RequestCancellationReachedOutboundHandler);
-        Assert.DoesNotContain(db.Places, p => p.Name == "Geo");
+        var envelope = AssertMutation<EditorPlaceDto>(result);
+        Assert.False(handler.RequestCancellationReachedOutboundHandler);
+        Assert.Equal("reverse-geocode-unavailable", Assert.Single(envelope.Warnings).Code);
+        Assert.Contains(db.Places, p => p.Name == "Geo");
     }
 }
