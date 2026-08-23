@@ -3,12 +3,14 @@ using Wayfarer.Jobs;
 using Wayfarer.Models;
 using Wayfarer.Models.LocationEnrichment;
 using Wayfarer.Services.LocationProviders;
+using Wayfarer.Parsers;
 
 namespace Wayfarer.Services.LocationEnrichment;
 
 /// <summary>Adapts the existing bounded provider-authority backfill into one Quartz execution.</summary>
 public sealed class LocationEnrichmentWorker(
-    ApplicationDbContext db, ILocationEnrichmentBatch batch, IWorkflowScheduleProjection schedule) : ILocationEnrichmentWorker
+    ApplicationDbContext db, ILocationEnrichmentBatch batch, IWorkflowScheduleProjection schedule,
+    SseService? sse = null) : ILocationEnrichmentWorker
 {
     public async Task RunBatchAsync(string userId, int epoch, CancellationToken cancellationToken)
     {
@@ -41,6 +43,8 @@ public sealed class LocationEnrichmentWorker(
         else
             workflow.ContinueAs(LocationEnrichmentState.Scheduled, LocationEnrichmentOutcome.None, now, now);
         await db.SaveChangesAsync(cancellationToken);
+        if (sse is not null)
+            await sse.BroadcastAsync($"import-{userId}", "{\"type\":\"enrichment-state\"}");
         await schedule.ProjectAsync(userId, cancellationToken);
     }
 }

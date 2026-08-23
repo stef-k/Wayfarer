@@ -44,7 +44,10 @@ public class SseController : Controller
     [HttpGet("stream/{type}/{id}")]
     public async Task Stream(string type, string id, CancellationToken ct)
     {
-        if (type == "import")
+        if (type.Equals("import", StringComparison.OrdinalIgnoreCase)
+            || type.StartsWith("import-", StringComparison.OrdinalIgnoreCase)
+            || type.Equals("enrichment", StringComparison.OrdinalIgnoreCase)
+            || type.StartsWith("enrichment-", StringComparison.OrdinalIgnoreCase))
         {
             Response.StatusCode = StatusCodes.Status404NotFound;
             return;
