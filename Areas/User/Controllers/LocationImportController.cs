@@ -325,6 +325,14 @@ namespace Wayfarer.Areas.User.Controllers
         [HttpGet]
         public IActionResult Upload()
         {
+            PrepareUploadView();
+            SetPageTitle("Upload File");
+            return View(new LocationImportUploadViewModel());
+        }
+
+        /// <summary>Builds upload choices for GET and validation rerenders.</summary>
+        private void PrepareUploadView()
+        {
             var fileTypes = Enum.GetValues(typeof(LocationImportFileType))
                 .Cast<LocationImportFileType>()
                 .Where(fileType => fileType.IsSupportedUpload())
@@ -347,9 +355,14 @@ namespace Wayfarer.Areas.User.Controllers
 
             var uploadSettings = _dbContext.ApplicationSettings.OrderBy(s => s.Id).FirstOrDefault();
             ViewBag.UploadLimit = (uploadSettings?.UploadSizeLimitMB ?? ApplicationSettings.DefaultUploadSizeLimitMB).ToString();
+        }
 
+        /// <summary>Preserves the submitted model and required view data after validation failure.</summary>
+        private ViewResult InvalidUpload(LocationImportUploadViewModel model)
+        {
+            PrepareUploadView();
             SetPageTitle("Upload File");
-            return View(new LocationImportUploadViewModel());
+            return View("Upload", model);
         }
 
         [HttpPost]
@@ -358,26 +371,26 @@ namespace Wayfarer.Areas.User.Controllers
         {
             if (!ModelState.IsValid)
             {
-                return RedirectToAction("Upload");
+                return InvalidUpload(model);
             }
 
             if (model.File == null || model.File.Length == 0)
             {
                 ModelState.AddModelError("", "Please select a valid file.");
-                return View("Upload", model);
+                return InvalidUpload(model);
             }
 
             if (!model.FileType.HasValue)
             {
                 ModelState.AddModelError(nameof(model.FileType), "Please select a valid file type.");
-                return View("Upload", model);
+                return InvalidUpload(model);
             }
 
             if (!model.FileType.Value.IsSupportedUpload())
             {
                 ModelState.AddModelError(nameof(model.FileType),
                     "Generic GeoJSON is not a supported location-history format. Select Wayfarer GeoJSON for Wayfarer exports.");
-                return View("Upload", model);
+                return InvalidUpload(model);
             }
 
             var extension = Path.GetExtension(model.File.FileName);
@@ -385,12 +398,12 @@ namespace Wayfarer.Areas.User.Controllers
             {
                 ModelState.AddModelError(nameof(model.File),
                     $"Invalid file extension '{extension}'. Allowed: {string.Join(", ", model.FileType.Value.GetAllowedExtensions())}");
-                return View("Upload", model);
+                return InvalidUpload(model);
             }
 
             if (!ValidateModelState())
             {
-                return View("Upload", model);
+                return InvalidUpload(model);
             }
 
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);

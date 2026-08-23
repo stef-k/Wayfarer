@@ -21,12 +21,6 @@
                             @Html.ValidationSummary("Please correct the errors below.", true)
                         </div>
 
-                        <div class="form-check mb-3">
-                            <input asp-for="EnrichmentRequested" class="form-check-input" />
-                            <label asp-for="EnrichmentRequested" class="form-check-label">
-                                Continue filling missing addresses after the import completes
-                            </label>
-                        </div>
                     }
 
                     <p class="mb-3">
@@ -49,6 +43,18 @@
 
                             @Html.ValidationMessageFor(m => m.FileType, "", new { @class = "text-danger" })
                         </div>
+
+                        <div class="form-check mb-1">
+                            <input asp-for="EnrichmentRequested" class="form-check-input" />
+                            <label asp-for="EnrichmentRequested" class="form-check-label">
+                                Continue filling missing addresses after the import completes
+                            </label>
+                            <span asp-validation-for="EnrichmentRequested" class="text-danger"></span>
+                        </div>
+                        <p class="form-text mb-3">
+                            Import completion is independent. If selected, Wayfarer continues later enrichment in
+                            bounded scheduled batches; provider availability may pause it without removing imported data.
+                        </p>
 
                         <div class="d-grid gap-2 mt-3">
                             <button type="submit" class="btn btn-outline-primary">Upload File</button>
