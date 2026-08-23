@@ -18,7 +18,7 @@ namespace Wayfarer.Parsers
         public string Type { get; set; } = string.Empty;
 
         [JsonPropertyName("features")]
-        public List<Feature> Features { get; set; } = new();
+        public List<Feature>? Features { get; set; }
 
         [JsonPropertyName("attribution")]
         public string Attribution { get; set; } = string.Empty;
@@ -222,6 +222,7 @@ namespace Wayfarer.Parsers
             var authority = admission.Authority!;
             if (!await _contactGate.IsVerificationCurrentAsync(authority, cancellationToken)) return PersonalProviderVerification.Unavailable;
             var result = await ContactAsync(0, 0, authority.Credential, cancellationToken, true);
+            if (result.Category == ReverseGeocodingCategory.InvalidResponse) return PersonalProviderVerification.Unavailable;
             var state = result.Category == ReverseGeocodingCategory.Success ? PersonalProviderVerification.Verified
                 : result.Category == ReverseGeocodingCategory.Authorization ? PersonalProviderVerification.Failed
                 : PersonalProviderVerification.Unavailable;
@@ -272,7 +273,7 @@ namespace Wayfarer.Parsers
             try { reverseData = JsonSerializer.Deserialize<ReverseLocationResponse>(jsonResponse); }
             catch (JsonException) { return new ReverseLocationResults(); }
 
-            if (HasValidEnvelope(reverseData) && reverseData!.Features.Count != 0)
+            if (HasValidEnvelope(reverseData) && reverseData!.Features!.Count != 0)
             {
                 // Optionally choose a specific feature (e.g., "street") or just use the first one
                 Feature feature = reverseData.Features
@@ -306,7 +307,7 @@ namespace Wayfarer.Parsers
                 if (bytes.Length > 262_144) return ReverseGeocodingResult.Failure(ReverseGeocodingCategory.InvalidResponse);
                 var data = JsonSerializer.Deserialize<ReverseLocationResponse>(bytes);
                 if (!HasValidEnvelope(data)) return ReverseGeocodingResult.Failure(ReverseGeocodingCategory.InvalidResponse);
-                if (data!.Features.Count == 0)
+                if (data!.Features!.Count == 0)
                     return allowEmpty ? ReverseGeocodingResult.Success(new())
                         : ReverseGeocodingResult.Failure(ReverseGeocodingCategory.InvalidResponse);
                 var value = reverseLocationResults(data);
