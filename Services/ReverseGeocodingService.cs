@@ -205,6 +205,8 @@ namespace Wayfarer.Parsers
             if (!await _contactGate.IsCurrentAsync(authority, cancellationToken))
                 return ReverseGeocodingResult.Unavailable(ReverseGeocodingCategory.StaleAuthority);
             var result = await ContactAsync(latitude, longitude, authority.Credential, cancellationToken, false);
+            if (result.Category == ReverseGeocodingCategory.Authorization)
+                await RecordMapboxAuthorizationFailureAsync(userId, cancellationToken);
             if (!result.Succeeded) return result;
             if (!await _contactGate.IsCurrentAsync(authority, cancellationToken))
                 return ReverseGeocodingResult.Unavailable(ReverseGeocodingCategory.StaleAuthority);
@@ -230,8 +232,22 @@ namespace Wayfarer.Parsers
             profile.GeocodingVerifiedCredentialGeneration = state == PersonalProviderVerification.Verified ? profile.CredentialGeneration : null;
             profile.GeocodingVerifiedConfigurationGeneration = state == PersonalProviderVerification.Verified ? profile.GeocodingGeneration : null;
             profile.UpdatedAt = DateTimeOffset.UtcNow;
+            try { await _dbContext.SaveChangesAsync(cancellationToken); return state; }
+            catch (DbUpdateConcurrencyException)
+            { _dbContext.ChangeTracker.Clear(); return PersonalProviderVerification.Unavailable; }
+        }
+
+        private async Task RecordMapboxAuthorizationFailureAsync(string userId, CancellationToken cancellationToken)
+        {
+            if (_dbContext == null) return;
+            var profile = await _dbContext.Set<PersonalLocationProviderProfile>().SingleOrDefaultAsync(
+                item => item.UserId == userId && item.ProviderKey == "mapbox", cancellationToken);
+            if (profile == null) return;
+            profile.GeocodingVerification = PersonalProviderVerification.Failed;
+            profile.GeocodingVerifiedCredentialGeneration = null;
+            profile.GeocodingVerifiedConfigurationGeneration = null;
+            profile.UpdatedAt = DateTimeOffset.UtcNow;
             await _dbContext.SaveChangesAsync(cancellationToken);
-            return state;
         }
 
         /// <summary>Test-only transport parser retained for focused fake-HTTP parsing coverage.</summary>
