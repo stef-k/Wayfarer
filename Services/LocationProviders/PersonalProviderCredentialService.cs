@@ -18,7 +18,10 @@ public sealed class PersonalProviderCredentialService
     public void Replace(PersonalLocationProviderProfile profile, string credential)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(credential);
-        profile.ProtectedCredential = Protector(profile).Protect(credential.Trim());
+        var normalized = credential.Trim();
+        if (normalized.Length > 2048 || normalized.Any(character => char.IsWhiteSpace(character) || char.IsControl(character)))
+            throw new ArgumentException("The provider credential contains unsupported characters.", nameof(credential));
+        profile.ProtectedCredential = Protector(profile).Protect(normalized);
         profile.CredentialGeneration = checked(profile.CredentialGeneration + 1);
         profile.RevokedAt = null;
         profile.ClearPermanentGeocodingConsent();
