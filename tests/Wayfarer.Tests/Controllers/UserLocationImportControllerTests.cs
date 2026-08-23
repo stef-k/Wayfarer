@@ -49,6 +49,19 @@ public class UserLocationImportControllerTests : TestBase
         Assert.IsType<ViewResult>(result);
     }
 
+    [Fact]
+    public void UploadChoicesExcludeGenericGeoJsonButRetainWayfarerGeoJson()
+    {
+        var controller = BuildController(CreateDbContext(), "u1");
+
+        controller.Upload();
+
+        var choices = Assert.IsAssignableFrom<IEnumerable<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem>>(
+            controller.ViewBag.FileTypes);
+        Assert.DoesNotContain(choices, item => item.Value == nameof(LocationImportFileType.GeoJson));
+        Assert.Contains(choices, item => item.Value == nameof(LocationImportFileType.WayfarerGeoJson));
+    }
+
     private LocationImportController BuildController(ApplicationDbContext db, string userId)
     {
         var env = new Mock<IWebHostEnvironment>();

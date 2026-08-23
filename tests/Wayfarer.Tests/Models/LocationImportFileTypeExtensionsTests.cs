@@ -13,7 +13,6 @@ public class LocationImportFileTypeExtensionsTests
     [InlineData(LocationImportFileType.GoogleTimeline, ".json")]
     [InlineData(LocationImportFileType.WayfarerGeoJson, ".geojson")]
     [InlineData(LocationImportFileType.Gpx, ".gpx")]
-    [InlineData(LocationImportFileType.GeoJson, ".json")]
     [InlineData(LocationImportFileType.Kml, ".kml")]
     [InlineData(LocationImportFileType.Csv, ".csv")]
     public void GetAllowedExtensions_ReturnsExpected(LocationImportFileType type, string expected)
@@ -48,4 +47,8 @@ public class LocationImportFileTypeExtensionsTests
 
         Assert.False(result);
     }
+
+    [Fact]
+    public void GenericGeoJsonHasNoAcceptedNewUploadExtensions()
+        => Assert.Empty(LocationImportFileType.GeoJson.GetAllowedExtensions());
 }
