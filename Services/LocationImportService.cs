@@ -77,6 +77,7 @@ namespace Wayfarer.Parsers
                     {
                         locationImport.Status = ImportStatus.Stopped;
                         await _context.SaveChangesAsync(cancellationToken);
+                        await ReconcileEnrichmentAsync(locationImport, cancellationToken);
 
                         await _sse.BroadcastAsync(
                             $"import-{locationImport.UserId}",
@@ -160,8 +161,7 @@ namespace Wayfarer.Parsers
 
                     locationImport.LastProcessedIndex = processed;
                     await _context.SaveChangesAsync(cancellationToken);
-                    if (locationImport.EnrichmentRequested && _enrichmentHandoff is not null)
-                        await _enrichmentHandoff.EnsureAsync(locationImport.UserId, cancellationToken);
+                    await ReconcileEnrichmentAsync(locationImport, cancellationToken);
 
                     await _sse.BroadcastAsync(
                         $"import-{locationImport?.UserId}",
@@ -177,6 +177,7 @@ namespace Wayfarer.Parsers
                 {
                     locationImport.Status = ImportStatus.Completed;
                     await _context.SaveChangesAsync(cancellationToken);
+                    await ReconcileEnrichmentAsync(locationImport, cancellationToken);
                     await _sse.BroadcastAsync(
                         $"import-{locationImport.UserId}",
                         SafeProgressEvent
@@ -194,6 +195,7 @@ namespace Wayfarer.Parsers
                 {
                     li.Status = ImportStatus.Stopped;
                     await _context.SaveChangesAsync(CancellationToken.None);
+                    await ReconcileEnrichmentAsync(li, CancellationToken.None);
                     await _sse.BroadcastAsync(
                         $"import-{locationImport?.UserId}",
                         SafeProgressEvent
@@ -209,6 +211,7 @@ namespace Wayfarer.Parsers
                     li.Status = ImportStatus.Failed;
                     li.ErrorMessage = "Import processing failed.";
                     await _context.SaveChangesAsync(CancellationToken.None);
+                    await ReconcileEnrichmentAsync(li, CancellationToken.None);
                     await _sse.BroadcastAsync(
                         $"import-{li.UserId}",
                         SafeProgressEvent
@@ -223,6 +226,17 @@ namespace Wayfarer.Parsers
             or ReverseGeocodingCategory.CredentialRequired or ReverseGeocodingCategory.ConsentRequired
             or ReverseGeocodingCategory.Unauthorized or ReverseGeocodingCategory.VerificationRequired
             or ReverseGeocodingCategory.StaleAuthority;
+
+        private async Task ReconcileEnrichmentAsync(LocationImport import, CancellationToken cancellationToken)
+        {
+            if (!import.EnrichmentRequested || _enrichmentHandoff is null) return;
+            try { await _enrichmentHandoff.EnsureAsync(import.UserId, cancellationToken); }
+            catch (Exception exception)
+            {
+                _logger.LogWarning(exception,
+                    "Enrichment scheduling requires reconciliation after import {ImportId}.", import.Id);
+            }
+        }
 
         private async Task<List<Location>> GetLocationsToProcess(LocationImport locationImport, CancellationToken cancellationToken)
         {
