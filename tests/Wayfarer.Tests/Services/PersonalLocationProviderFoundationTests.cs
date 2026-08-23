@@ -134,11 +134,11 @@ public sealed class PersonalLocationProviderFoundationTests : TestBase
         {
             var profile = PersonalLocationProviderProfile.Create("restart-user", PersonalLocationProvider.Geoapify);
             var first = new PersonalProviderCredentialService(DataProtectionProvider.Create(
-                new DirectoryInfo(path), options => options.SetApplicationName("Wayfarer")));
+                new DirectoryInfo(path)));
             first.Replace(profile, "restart-safe-key");
 
             var recreated = new PersonalProviderCredentialService(DataProtectionProvider.Create(
-                new DirectoryInfo(path), options => options.SetApplicationName("Wayfarer")));
+                new DirectoryInfo(path)));
 
             Assert.Equal("restart-safe-key", recreated.Read(profile).Credential);
         }

@@ -20,7 +20,6 @@ public static class DataProtectionAuthority
             : Path.GetFullPath(configured);
         Directory.CreateDirectory(path);
         builder.Services.AddDataProtection()
-            .SetApplicationName("Wayfarer")
             .PersistKeysToFileSystem(new DirectoryInfo(path));
         builder.Services.AddSingleton(new DataProtectionKeyRing(path));
     }
