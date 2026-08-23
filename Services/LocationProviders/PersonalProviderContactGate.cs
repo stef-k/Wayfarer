@@ -251,7 +251,7 @@ public sealed class PersonalProviderContactGate(
     private async Task<PersonalProviderAdmission> AdmitGeoapifyAsync(
         string userId, PersonalProviderProduct product, int credits, CancellationToken cancellationToken)
     {
-        await using var transaction = dbContext.Database.IsRelational()
+        await using var transaction = dbContext.Database.IsRelational() && dbContext.Database.CurrentTransaction == null
             ? await dbContext.Database.BeginTransactionAsync(cancellationToken) : null;
         var guard = await LockGeoapifyGuardAsync(userId, cancellationToken);
         var now = dbContext.Database.IsNpgsql()
@@ -301,7 +301,7 @@ public sealed class PersonalProviderContactGate(
     private async Task<PersonalProviderAdmission> AdmitMapboxAsync(
         string userId, PersonalProviderProduct product, int cost, CancellationToken cancellationToken)
     {
-        await using var transaction = dbContext.Database.IsRelational()
+        await using var transaction = dbContext.Database.IsRelational() && dbContext.Database.CurrentTransaction == null
             ? await dbContext.Database.BeginTransactionAsync(cancellationToken) : null;
         var meter = await LockMapboxMeterAsync(userId, product, cancellationToken);
         var today = dbContext.Database.IsNpgsql()

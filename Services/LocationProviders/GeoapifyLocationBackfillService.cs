@@ -14,6 +14,16 @@ public sealed class GeoapifyLocationBackfillService(
     /// <summary>Runs one user-owned chronological invocation and returns content-free progress.</summary>
     public async Task<GeoapifyBackfillResult> RunAsync(string userId, CancellationToken cancellationToken = default)
     {
+        await using var transaction = dbContext.Database.IsNpgsql()
+            ? await dbContext.Database.BeginTransactionAsync(cancellationToken) : null;
+        if (transaction != null)
+        {
+            // The exact user row is the durable invocation authority. Holding it across bounded provider calls is
+            // intentional: candidate selection cannot otherwise guarantee at-most-one admission/contact per Location.
+            _ = await dbContext.Users.FromSqlInterpolated($$"""
+                SELECT * FROM "AspNetUsers" WHERE "Id" = {{userId}} FOR UPDATE
+                """).AsNoTracking().SingleAsync(cancellationToken);
+        }
         var ids = await LoadCandidateIdsAsync(dbContext, userId, MaximumRecords, cancellationToken);
         var scanned = 0; var succeeded = 0; var noResult = 0; var unavailable = 0; var exhausted = false;
         foreach (var id in ids)
@@ -45,6 +55,7 @@ public sealed class GeoapifyLocationBackfillService(
         }
         var remaining = await WhollyUnenriched(dbContext.Locations.Where(item => item.UserId == userId))
             .CountAsync(cancellationToken);
+        if (transaction != null) await transaction.CommitAsync(cancellationToken);
         return new(scanned, succeeded, noResult, unavailable, remaining, exhausted);
     }
 

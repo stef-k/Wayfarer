@@ -12,7 +12,7 @@ public sealed class LegacyMapboxMigrationService(
     public async Task<LegacyMapboxMigrationResult> MigrateAsync(string userId, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(userId);
-        await using var transaction = dbContext.Database.IsRelational()
+        await using var transaction = dbContext.Database.IsRelational() && dbContext.Database.CurrentTransaction == null
             ? await dbContext.Database.BeginTransactionAsync(cancellationToken) : null;
 
         var profile = await LockProfileAsync(userId, cancellationToken);
