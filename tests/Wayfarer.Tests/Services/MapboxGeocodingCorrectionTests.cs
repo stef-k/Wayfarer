@@ -33,6 +33,8 @@ public sealed class MapboxGeocodingCorrectionTests
             new LegacyMapboxMigrationService(db, credentialOwner), new ConfigurationBuilder().Build());
         var service = new ReverseGeocodingService(new HttpClient(handler),
             NullLogger<BaseApiController>.Instance, gate, db);
+        var initialProvider = selection.GeocodingProviderKey;
+        var initialGeneration = selection.GeocodingSelectionGeneration;
 
         var result = await service.VerifyMapboxPermanentAsync(profile.UserId);
 
@@ -46,7 +48,8 @@ public sealed class MapboxGeocodingCorrectionTests
         Assert.Null(profile.GeocodingVerifiedCredentialGeneration);
         Assert.Null(profile.GeocodingVerifiedConfigurationGeneration);
         Assert.Null(selection.GeocodingProviderKey);
-        Assert.Equal(0, selection.GeocodingSelectionGeneration);
+        Assert.Equal(initialProvider, selection.GeocodingProviderKey);
+        Assert.Equal(initialGeneration, selection.GeocodingSelectionGeneration);
         Assert.Empty(db.Locations);
         Assert.Empty(db.Places);
     }
