@@ -62,6 +62,26 @@ public class UserLocationImportControllerTests : TestBase
         Assert.Contains(choices, item => item.Value == nameof(LocationImportFileType.WayfarerGeoJson));
     }
 
+    [Fact]
+    public async Task UploadRejectsCraftedGenericGeoJsonBeforePersistingImport()
+    {
+        var db = CreateDbContext();
+        var controller = BuildController(db, "u1");
+        var file = new Mock<IFormFile>();
+        file.SetupGet(item => item.FileName).Returns("crafted.geojson");
+        file.SetupGet(item => item.Length).Returns(2);
+
+        var result = await controller.Upload(new LocationImportUploadViewModel
+        {
+            File = file.Object,
+            FileType = LocationImportFileType.GeoJson
+        });
+
+        Assert.IsType<ViewResult>(result);
+        Assert.False(controller.ModelState.IsValid);
+        Assert.Empty(db.LocationImports);
+    }
+
     private LocationImportController BuildController(ApplicationDbContext db, string userId)
     {
         var env = new Mock<IWebHostEnvironment>();
