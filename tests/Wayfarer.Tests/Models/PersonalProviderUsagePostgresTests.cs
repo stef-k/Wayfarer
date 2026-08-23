@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Wayfarer.Models;
 using Wayfarer.Models.LocationProviders;
 using Wayfarer.Services.LocationProviders;
 using Wayfarer.Tests.Infrastructure;
@@ -12,6 +13,75 @@ namespace Wayfarer.Tests.Models;
 [Collection(PostgresEnvironmentEvidenceTestCollection.Name)]
 public sealed class PersonalProviderUsagePostgresTests(PostgresImportTestFixture fixture)
 {
+    [PostgresFact]
+    public async Task LegacyMapboxMigration_BypassesProductionFilterAndPreservesUnrelatedData()
+    {
+        fixture.RequireAvailable();
+        var user = await fixture.CreateUserAsync();
+        var retainedTag = new Tag { Id = Guid.NewGuid(), Name = "Retained domain data", Slug = $"retained-{Guid.NewGuid():N}" };
+        await using (var setup = fixture.CreateContext())
+        {
+            var trackedUser = await setup.Users.SingleAsync(item => item.Id == user.Id);
+            setup.Add(retainedTag);
+            setup.ApiTokens.AddRange(
+                new ApiToken { Name = " MapBOX ", Token = "legacy-mapbox-key", UserId = user.Id, User = trackedUser },
+                new ApiToken { Name = "mobile", Token = "retained-token", UserId = user.Id, User = trackedUser },
+                new ApiToken { Name = "MyMapboxBackup", Token = "retained-substring", UserId = user.Id, User = trackedUser });
+            await setup.SaveChangesAsync();
+            Assert.DoesNotContain(await setup.ApiTokens.ToListAsync(), token =>
+                string.Equals(token.Name.Trim(), "Mapbox", StringComparison.OrdinalIgnoreCase));
+        }
+        fixture.RegisterTag(retainedTag);
+
+        var protection = new EphemeralDataProtectionProvider();
+        await using (var migrate = fixture.CreateContext())
+        {
+            var owner = new PersonalProviderCredentialService(protection);
+            var result = await new LegacyMapboxMigrationService(migrate, owner).MigrateAsync(user.Id);
+            var profile = await migrate.PersonalLocationProviderProfiles.SingleAsync(item => item.UserId == user.Id);
+
+            Assert.True(result.ProtectedCredentialReady);
+            Assert.Equal("legacy-mapbox-key", owner.Read(profile).Credential);
+            Assert.True(profile.GeocodingAuthorized);
+            Assert.False(profile.RoutingAuthorized);
+        }
+
+        await using var verify = fixture.CreateContext();
+        var remaining = await verify.ApiTokens.IgnoreQueryFilters().Where(token => token.UserId == user.Id).ToListAsync();
+        Assert.Equal(2, remaining.Count);
+        Assert.DoesNotContain(remaining, token =>
+            string.Equals(token.Name.Trim(), "Mapbox", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(remaining, token => token.Name == "mobile");
+        Assert.Contains(remaining, token => token.Name == "MyMapboxBackup");
+        Assert.True(await verify.Tags.AnyAsync(tag => tag.Id == retainedTag.Id));
+    }
+
+    [PostgresFact]
+    public async Task LegacyMapboxMigration_DistinctAliasesPreserveConflictRows()
+    {
+        fixture.RequireAvailable();
+        var user = await fixture.CreateUserAsync();
+        await using (var setup = fixture.CreateContext())
+        {
+            var trackedUser = await setup.Users.SingleAsync(item => item.Id == user.Id);
+            setup.ApiTokens.AddRange(
+                new ApiToken { Name = "Mapbox", Token = "first-value", UserId = user.Id, User = trackedUser },
+                new ApiToken { Name = " mapBOX ", Token = "second-value", UserId = user.Id, User = trackedUser });
+            await setup.SaveChangesAsync();
+        }
+
+        await using (var migrate = fixture.CreateContext())
+        {
+            var owner = new PersonalProviderCredentialService(new EphemeralDataProtectionProvider());
+            var result = await new LegacyMapboxMigrationService(migrate, owner).MigrateAsync(user.Id);
+            Assert.Equal(LegacyMapboxMigrationState.Conflict, result.State);
+            Assert.False(result.ProtectedCredentialReady);
+        }
+
+        await using var verify = fixture.CreateContext();
+        Assert.Equal(2, await verify.ApiTokens.IgnoreQueryFilters().CountAsync(token => token.UserId == user.Id));
+    }
+
     [PostgresFact]
     public async Task GeoapifyConcurrentLastCredit_HasExactlyOneWinnerAcrossContexts()
     {
