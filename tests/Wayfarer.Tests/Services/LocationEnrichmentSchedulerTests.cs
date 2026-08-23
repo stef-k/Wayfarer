@@ -14,6 +14,8 @@ public sealed class LocationEnrichmentSchedulerTests
     {
         var scheduler = new Mock<IScheduler>();
         scheduler.Setup(item => item.CheckExists(It.IsAny<JobKey>(), default)).ReturnsAsync(false);
+        scheduler.Setup(item => item.GetTriggerKeys(It.IsAny<Quartz.Impl.Matchers.GroupMatcher<TriggerKey>>(), default))
+            .ReturnsAsync(new HashSet<TriggerKey>());
         IJobDetail? capturedJob = null;
         ITrigger? capturedTrigger = null;
         scheduler.Setup(item => item.ScheduleJob(It.IsAny<IJobDetail>(), It.IsAny<ITrigger>(), default))
@@ -39,6 +41,8 @@ public sealed class LocationEnrichmentSchedulerTests
     {
         var scheduler = new Mock<IScheduler>();
         scheduler.Setup(item => item.CheckExists(It.IsAny<JobKey>(), default)).ReturnsAsync(true);
+        scheduler.Setup(item => item.GetTriggerKeys(It.IsAny<Quartz.Impl.Matchers.GroupMatcher<TriggerKey>>(), default))
+            .ReturnsAsync(new HashSet<TriggerKey>());
         var workflow = LocationEnrichmentWorkflow.Create("user", DateTime.UtcNow);
         workflow.Start(DateTime.UtcNow);
 
@@ -55,13 +59,15 @@ public sealed class LocationEnrichmentSchedulerTests
         scheduler.Setup(item => item.CheckExists(It.IsAny<TriggerKey>(), default)).ReturnsAsync(false);
         scheduler.Setup(item => item.GetTriggerKeys(It.IsAny<Quartz.Impl.Matchers.GroupMatcher<TriggerKey>>(), default))
             .ReturnsAsync(new HashSet<TriggerKey>());
-        scheduler.Setup(item => item.ScheduleJob(It.IsAny<ITrigger>(), default)).ReturnsAsync(DateTimeOffset.UtcNow);
+        ITrigger? scheduled = null;
+        scheduler.Setup(item => item.ScheduleJob(It.IsAny<ITrigger>(), It.IsAny<CancellationToken>()))
+            .Callback<ITrigger, CancellationToken>((trigger, _) => scheduled = trigger)
+            .ReturnsAsync(DateTimeOffset.UtcNow);
         var workflow = LocationEnrichmentWorkflow.Create("user", DateTime.UtcNow);
         workflow.Start(DateTime.UtcNow);
 
         await new LocationEnrichmentScheduler(scheduler.Object).EnsureScheduledAsync(workflow);
 
-        scheduler.Verify(item => item.ScheduleJob(It.Is<ITrigger>(trigger =>
-            trigger.Key == LocationEnrichmentScheduler.TriggerKey(workflow.SchedulerId, workflow.Epoch)), default), Times.Once);
+        Assert.Equal(LocationEnrichmentScheduler.TriggerKey(workflow.SchedulerId, workflow.Epoch), scheduled?.Key);
     }
 }

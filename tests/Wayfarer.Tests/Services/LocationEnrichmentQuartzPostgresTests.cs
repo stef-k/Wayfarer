@@ -18,6 +18,7 @@ public sealed class LocationEnrichmentQuartzPostgresTests(PostgresImportTestFixt
     {
         fixture.RequireAvailable();
         await using var admin = fixture.CreateConnection();
+        var persistedConnectionString = admin.ConnectionString;
         await admin.OpenAsync();
         var schema = $"quartz_507_{Guid.NewGuid():N}";
         await ExecuteAsync(admin, $"CREATE SCHEMA {schema}");
@@ -27,7 +28,7 @@ public sealed class LocationEnrichmentQuartzPostgresTests(PostgresImportTestFixt
         {
             await ExecuteAsync(admin, $"SET search_path TO {schema}");
             await QuartzSchemaInstaller.EnsureQuartzTablesExistAsync(admin, CancellationToken.None);
-            var builder = new NpgsqlConnectionStringBuilder(admin.ConnectionString) { SearchPath = schema };
+            var builder = new NpgsqlConnectionStringBuilder(persistedConnectionString) { SearchPath = schema };
             var schedulerName = $"Wayfarer507-{Guid.NewGuid():N}";
             first = await new StdSchedulerFactory(Properties(builder.ConnectionString, schedulerName)).GetScheduler();
             var workflow = LocationEnrichmentWorkflow.Create("opaque-user", DateTime.UtcNow);

@@ -1,4 +1,5 @@
 using Quartz;
+using Quartz.Impl.Matchers;
 using Wayfarer.Jobs;
 using Wayfarer.Models.LocationEnrichment;
 
@@ -25,12 +26,18 @@ public sealed class LocationEnrichmentScheduler(IScheduler scheduler)
         }
 
         var triggerKey = TriggerKey(workflow.SchedulerId, workflow.Epoch);
+        var prefix = $"Workflow_{workflow.SchedulerId:N}_";
+        var triggerKeys = await scheduler.GetTriggerKeys(GroupMatcher<TriggerKey>.GroupEquals(Group), cancellationToken);
+        foreach (var stale in triggerKeys.Where(item => item.Name.StartsWith(prefix, StringComparison.Ordinal)
+            && item != triggerKey))
+            await scheduler.UnscheduleJob(stale, cancellationToken);
         var jobExists = await scheduler.CheckExists(jobKey, cancellationToken);
         if (jobExists && await scheduler.CheckExists(triggerKey, cancellationToken)) return;
-        var data = new JobDataMap { ["workflowId"] = workflow.SchedulerId.ToString("N"), ["schema"] = 1 };
+        var data = new JobDataMap { ["workflowId"] = workflow.SchedulerId.ToString("N"), ["schema"] = "1" };
         var job = JobBuilder.Create<LocationEnrichmentJob>().WithIdentity(jobKey).UsingJobData(data).StoreDurably().Build();
         var trigger = TriggerBuilder.Create().WithIdentity(triggerKey).ForJob(jobKey)
-            .UsingJobData("epoch", workflow.Epoch).StartAt(workflow.NextEligibleAtUtc ?? DateTime.UtcNow)
+            .UsingJobData("epoch", workflow.Epoch.ToString(System.Globalization.CultureInfo.InvariantCulture))
+            .StartAt(workflow.NextEligibleAtUtc ?? DateTime.UtcNow)
             .WithSimpleSchedule(schedule => schedule.WithRepeatCount(0)
                 .WithMisfireHandlingInstructionNextWithRemainingCount()).Build();
         if (!jobExists) await scheduler.ScheduleJob(job, trigger, cancellationToken);
