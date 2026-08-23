@@ -551,7 +551,7 @@ public class MobileCurrentUserAccessorTests : TestBase
     }
 
     [Fact]
-    public async Task GetCurrentUserAsync_FallsBackToPlainToken_WhenHashNotSet()
+    public async Task GetCurrentUserAsync_DoesNotAuthenticateWithLegacyProviderPlaintext()
     {
         // Arrange - Third-party tokens only have Token set (no hash)
         var db = CreateDbContext();
@@ -581,9 +581,7 @@ public class MobileCurrentUserAccessorTests : TestBase
         // Act
         var result = await accessor.GetCurrentUserAsync();
 
-        // Assert - Should match via plain Token
-        Assert.NotNull(result);
-        Assert.Equal(user.Id, result.Id);
+        Assert.Null(result);
     }
 
     #endregion

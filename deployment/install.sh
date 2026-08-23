@@ -441,6 +441,9 @@ echo ""
 echo "Creating deployment directory (if needed) and setting ownership."
 sudo mkdir -p "$DEPLOY_DIR"
 sudo chown -R "$APP_USER":"$APP_USER" "$DEPLOY_DIR"
+sudo mkdir -p "/home/$APP_USER/.aspnet/DataProtection-Keys"
+sudo chown -R "$APP_USER":"$APP_USER" "/home/$APP_USER/.aspnet"
+sudo chmod 700 "/home/$APP_USER/.aspnet" "/home/$APP_USER/.aspnet/DataProtection-Keys"
 
 # ------------------------------
 # 6. Configure PostgreSQL

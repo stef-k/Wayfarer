@@ -31,7 +31,7 @@ This document covers the key services, file parsers, and background jobs in the 
 
 ### ReverseGeocodingService
 - Enriches coordinates with address data via Mapbox API.
-- Per-user Mapbox token stored as `ApiToken` with name "Mapbox".
+- Personal credentials and provider-native admission are owned by the protected provider foundation; legacy `ApiToken` Mapbox rows migrate non-destructively. See [Personal Location Providers](24-Personal-Location-Providers.md).
 - Populates street, city, country, postal code fields.
 - **Key File**: `Services/ReverseGeocodingService.cs`
 
@@ -395,7 +395,7 @@ Each provider has a **Minimum interval (seconds)** setting. It defaults to `1.0`
 
 Pacing and request budgets are process-local. A committed Admin interval change immediately updates queued pacing state only in the current process; another replica receives no notification. Multi-replica operators must divide every provider limit between replicas or enforce shared pacing and rate limits at an upstream gateway. Wayfarer provides no bundled/demo provider and makes no availability guarantee for manually configured services; administrators are responsible for the service's usage, disclosure, attribution, profile, and availability terms.
 
-Routing credentials are encrypted with ASP.NET Core Data Protection using a routing-specific purpose. Deployments that configure credentials must preserve and share the Data Protection key ring across restarts and application replicas. Losing or rotating away all applicable keys makes saved routing credentials unusable; Wayfarer returns a bounded Admin error and never falls back to plaintext storage or disabled TLS validation. Back up and protect the key ring according to the deployment's existing Data Protection policy.
+Routing credentials are encrypted with ASP.NET Core Data Protection using a routing-specific purpose. The supported single-host key-ring authority, backup boundary, and fail-closed startup validation are documented in [Personal Location Providers](24-Personal-Location-Providers.md). Wayfarer does not currently claim multi-replica key sharing.
 
 Administrators may separately expose a verified provider configuration as a personal routing template. `Disabled` keeps it server-only, `CredentialRequired` requires each selecting user to store and verify an independently protected credential, and `CredentialFree` stores no user credential. Users explicitly choose either the server default or one approved template; an unavailable personal selection never falls back to the server default or reads its global credential. Personal credentials are masked, bound cryptographically to credential type, user, and provider, and depend on the same persisted Data Protection key ring described above.
 

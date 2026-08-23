@@ -20,6 +20,7 @@ using Wayfarer.Models;
 using Wayfarer.Parsers;
 using Wayfarer.Services;
 using Wayfarer.Services.ExternalRouting;
+using Wayfarer.Services.LocationProviders;
 using Wayfarer.Swagger;
 using Wayfarer.Util;
 using IPNetwork = System.Net.IPNetwork;
@@ -140,6 +141,7 @@ await QuartzSchemaInstaller.EnsureQuartzTablesExistAsync(app.Services);
 
 // Seed the database with roles and the admin user if necessary
 await SeedDatabase(app);
+await DataProtectionAuthority.ValidateAsync(app.Services);
 
 #endregion Database Seeding
 
@@ -470,6 +472,8 @@ static void ConfigureQuartz(WebApplicationBuilder builder)
 // Method to configure services for the application
 static void ConfigureServices(WebApplicationBuilder builder)
 {
+    // Use one explicit durable authority for Identity and all protected provider credentials.
+    builder.AddWayfarerDataProtection();
     // Explicitly register IHttpContextAccessor for services that need it (e.g., TileCacheService).
     // Some framework components may register it implicitly, but explicit registration is safer.
     builder.Services.AddHttpContextAccessor();
@@ -484,6 +488,9 @@ static void ConfigureServices(WebApplicationBuilder builder)
 
     // Register ApiTokenService with DI container
     builder.Services.AddScoped<ApiTokenService>();
+    builder.Services.AddScoped<PersonalProviderCredentialService>();
+    builder.Services.AddScoped<LegacyMapboxMigrationService>();
+    builder.Services.AddScoped<PersonalProviderContactGate>();
 
     // IRegistrationService as a transient or singleton service
     builder.Services.AddTransient<IRegistrationService, RegistrationService>();

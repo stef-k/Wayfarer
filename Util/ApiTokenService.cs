@@ -158,9 +158,11 @@ namespace Wayfarer.Util
         public async Task<List<ApiToken>> GetTokensForUserAsync(string userId)
         {
             List<ApiToken> tokens = await _dbContext.ApiTokens
+                .AsNoTracking()
                 .Where(t => t.UserId == userId)
                 .ToListAsync();
-
+            // Token-management presentation never receives stored third-party plaintext.
+            foreach (var token in tokens) token.Token = null;
             return tokens;
         }
 

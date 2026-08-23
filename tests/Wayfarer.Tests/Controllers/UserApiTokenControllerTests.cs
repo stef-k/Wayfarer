@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
@@ -84,11 +85,12 @@ public class UserApiTokenControllerTests : TestBase
 
         var redirect = Assert.IsType<RedirectToActionResult>(result);
         Assert.Equal("Index", redirect.ActionName);
-        Assert.Equal(1, db.ApiTokens.Count(t => t.UserId == user.Id));
+        Assert.Equal("LocationProviderSettings", redirect.ControllerName);
+        Assert.Equal(1, db.ApiTokens.IgnoreQueryFilters().Count(t => t.UserId == user.Id));
     }
 
     [Fact]
-    public async Task StoreThirdPartyToken_CreatesWhenUnique()
+    public async Task StoreThirdPartyToken_RoutesMapboxToProtectedProviderSettings()
     {
         var db = CreateDbContext();
         var user = TestDataFixtures.CreateUser(id: "u1", username: "alice");
@@ -100,7 +102,8 @@ public class UserApiTokenControllerTests : TestBase
 
         var redirect = Assert.IsType<RedirectToActionResult>(result);
         Assert.Equal("Index", redirect.ActionName);
-        Assert.Single(db.ApiTokens.Where(t => t.UserId == user.Id && t.Name == "Mapbox"));
+        Assert.Equal("LocationProviderSettings", redirect.ControllerName);
+        Assert.Empty(db.ApiTokens.IgnoreQueryFilters().Where(t => t.UserId == user.Id));
     }
 
     [Fact]

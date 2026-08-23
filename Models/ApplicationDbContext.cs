@@ -4,7 +4,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL;
 
 namespace Wayfarer.Models
 {
-    public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
+    public partial class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     {
         private readonly IServiceProvider _serviceProvider;
 
@@ -75,6 +75,7 @@ namespace Wayfarer.Models
             builder.Entity<ApiToken>()
                 .Property(at => at.UserId)
                 .IsRequired();
+
 
             builder.Entity<ApiToken>()
                 .Property(at => at.CreatedAt)

@@ -81,7 +81,8 @@ Uploads
 - Upload staging directory defaults under `Uploads/Temp/` (path visible in Admin Settings). Ensure writable by the app.
 
 Reverse Geocoding (Per‑User)
-- Users can store a personal Mapbox API token as an `ApiToken` named "Mapbox"; when present, imports and manual adds enrich addresses.
+- `DataProtection:KeyRingPath` is the persistent key authority for Identity and protected administrator/personal provider credentials. The supported systemd deployment explicitly retains its existing `/home/wayfarer/.aspnet/DataProtection-Keys` authority; backup requirements are in [Personal Location Providers](24-Personal-Location-Providers.md).
+- `LocationProviders:Geoapify:RollingCreditLimit` defaults to 2,500 credits. `LocationProviders:Mapbox:PermanentGeocodingLimit` and `LocationProviders:Mapbox:DirectionsLimit` configure separate Wayfarer safety counters. Users manage explicit authorization and selection in Personal location providers.
 
 Mobile
 - `MobileGroups:Query:DefaultPageSize` and `MaxPageSize` — paging for mobile group queries.

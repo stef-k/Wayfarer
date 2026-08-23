@@ -22,7 +22,7 @@ Overview of Wayfarer's technical architecture, design patterns, and application 
 | Map Icons | [wayfarer-map-icons](https://github.com/stef-k/wayfarer-map-icons) |
 | Real-time | Server-Sent Events (SSE) |
 | PDF Export | Microsoft Playwright |
-| Geocoding | Mapbox API (optional) |
+| Geocoding/routing authority | Protected personal provider profiles and durable provider-native admission; [details](24-Personal-Location-Providers.md) |
 | Auth | ASP.NET Core Identity with 2FA |
 | Testing | xUnit |
 

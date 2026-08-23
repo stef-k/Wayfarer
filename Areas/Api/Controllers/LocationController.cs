@@ -196,8 +196,7 @@ public class LocationController : BaseApiController
                     var locationInfo = await _reverseGeocodingService.GetReverseGeocodingDataAsync(
                         dto.Latitude, dto.Longitude, apiToken.Token ?? string.Empty, apiToken.Name ?? string.Empty);
 
-                    _logger.LogInformation(
-                        $"Check-in, user has mapbox Api token, we got reverse geocoding data: {locationInfo.FullAddress}");
+                    _logger.LogInformation("Check-in reverse geocoding completed.");
 
                     location.FullAddress = locationInfo.FullAddress;
                     location.Address = locationInfo.Address;
@@ -675,8 +674,7 @@ public class LocationController : BaseApiController
                     var locationInfo = await _reverseGeocodingService.GetReverseGeocodingDataAsync(
                         dto.Latitude, dto.Longitude, apiToken.Token, apiToken.Name);
 
-                    _logger.LogInformation(
-                        $"Log-location, user has mapbox Api token, we got reverse geocoding data: {locationInfo.FullAddress}");
+                    _logger.LogInformation("Log-location reverse geocoding completed.");
 
                     location.FullAddress = locationInfo.FullAddress;
                     location.Address = locationInfo.Address;
@@ -1055,9 +1053,7 @@ public class LocationController : BaseApiController
                         var locationInfo = await _reverseGeocodingService.GetReverseGeocodingDataAsync(
                             lat, lon, apiToken.Token, apiToken.Name);
 
-                        _logger.LogInformation(
-                            "Update: reverse geocoding refreshed for location {LocationId}: {Address}",
-                            id, locationInfo.FullAddress);
+                        _logger.LogInformation("Update reverse geocoding completed for location {LocationId}.", id);
 
                         location.FullAddress = locationInfo.FullAddress;
                         location.Address = locationInfo.Address;

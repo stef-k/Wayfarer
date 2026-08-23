@@ -31,7 +31,7 @@ If you expose Wayfarer publicly, you are responsible for:
 * **Import deduplication** prevents duplicate entries automatically.
 * **Metadata preservation** — accuracy, speed, altitude, heading tracked per location.
 * **Export locations** to GeoJSON, KML, CSV, or GPX formats with full metadata.
-* **Reverse geocoding** enriches coordinates with addresses (Mapbox token required).
+* **Personal location providers** use protected per-user Geoapify or Mapbox profiles with independent geocoding/routing authorization and durable provider-native guards; see the [personal provider guide](docs/24-Personal-Location-Providers.md).
 * **Wikipedia integration** — discover related articles for any location or trip place.
 * **Location statistics** — visit counts by country, region, and city.
 * **Bulk edit notes** to update multiple records at once.
@@ -134,7 +134,7 @@ manifest.
 
 2. Configure thresholds, cache limits, and registration mode under **Admin > Settings**.
 3. Invite users or enable open registration; managers only see data from users who trust them.
-4. (Optional) Add a personal Mapbox token on your account to enrich locations with addresses.
+4. (Optional) Configure a protected personal location-provider profile; see the [credential, switching, privacy, and usage guide](docs/24-Personal-Location-Providers.md).
 
 > **Note:** The `appsettings.json` files contain placeholder database passwords. For production, configure credentials via systemd environment variables—see the [Deployment Guide](https://stef-k.github.io/Wayfarer/#/developer/26-Deployment).
 

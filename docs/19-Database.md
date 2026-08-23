@@ -6,6 +6,7 @@ Locations are unique by authenticated `(UserId, IdempotencyKey)`, so the same GU
 
 ORM & Provider
 - EF Core with Npgsql provider and NetTopologySuite for spatial types.
+- Personal provider profiles, independent selections, Geoapify rolling admissions, and separate Mapbox product meters use constrained PostgreSQL authority; schema and retention are described in [Personal Location Providers](24-Personal-Location-Providers.md).
 - PostGIS is required (e.g., `geography(Point, 4326)` for `Location.Coordinates`).
 
 Key Entities (selected)

@@ -18,7 +18,7 @@ Account Lockout
 API Tokens
 - **Wayfarer API tokens** (used for mobile app and API authentication) are stored as SHA-256 hashes—never in plain text. If the database is compromised, the tokens cannot be recovered or reused.
 - Tokens are shown **only once** when created or regenerated. Users must copy and store them securely.
-- **Third-party tokens** (e.g., Mapbox API keys) are stored as provided since the application needs them for outgoing API calls. Use scoped/restricted keys from providers when possible.
+- **Personal provider credentials** are protected with purpose-, provider-, and user-bound Data Protection and are never redisplayed or sent to mobile. Key-ring backup, filesystem protection, privacy disclosure, and legacy migration are documented in [Personal Location Providers](24-Personal-Location-Providers.md).
 - Rotate API tokens regularly and revoke any that may have been exposed.
 
 Authorization

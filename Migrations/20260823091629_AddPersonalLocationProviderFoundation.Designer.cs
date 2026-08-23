@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using NetTopologySuite.Geometries;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
@@ -12,9 +13,11 @@ using Wayfarer.Models;
 namespace Wayfarer.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260823091629_AddPersonalLocationProviderFoundation")]
+    partial class AddPersonalLocationProviderFoundation
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1188,10 +1191,6 @@ namespace Wayfarer.Migrations
 
                     b.HasKey("UserId");
 
-                    b.HasIndex("UserId", "GeocodingProviderKey");
-
-                    b.HasIndex("UserId", "RoutingProviderKey");
-
                     b.ToTable("PersonalLocationProviderSelections", t =>
                         {
                             t.HasCheckConstraint("CK_PersonalProviderSelection_Geocoding", "\"GeocodingProviderKey\" IS NULL OR \"GeocodingProviderKey\" IN ('geoapify', 'mapbox')");
@@ -2097,19 +2096,6 @@ namespace Wayfarer.Migrations
                         .HasForeignKey("Wayfarer.Models.LocationProviders.PersonalLocationProviderSelection", "UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-
-                    b.HasOne("Wayfarer.Models.LocationProviders.PersonalLocationProviderProfile", null)
-                        .WithMany()
-                        .HasForeignKey("UserId", "GeocodingProviderKey")
-                        .HasPrincipalKey("UserId", "ProviderKey")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("Wayfarer.Models.LocationProviders.PersonalLocationProviderProfile", null)
-                        .WithMany()
-                        .HasForeignKey("UserId", "RoutingProviderKey")
-                        .HasPrincipalKey("UserId", "ProviderKey")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .HasConstraintName("FK_PersonalLocationProviderSelections_PersonalLocationProvide~1");
                 });
 
             modelBuilder.Entity("Wayfarer.Models.Place", b =>
