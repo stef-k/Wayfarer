@@ -283,6 +283,7 @@ namespace Wayfarer.Areas.User.Controllers
         {
             var fileTypes = Enum.GetValues(typeof(LocationImportFileType))
                 .Cast<LocationImportFileType>()
+                .Where(fileType => fileType.IsSupportedUpload())
                 .Select(fileType => new SelectListItem
                 {
                     Value = fileType.ToString(),
@@ -295,6 +296,7 @@ namespace Wayfarer.Areas.User.Controllers
 
             var acceptedExtensions = Enum.GetValues(typeof(LocationImportFileType))
                 .Cast<LocationImportFileType>()
+                .Where(fileType => fileType.IsSupportedUpload())
                 .SelectMany(fileType => fileType.GetAllowedExtensions())
                 .Distinct(StringComparer.OrdinalIgnoreCase);
             ViewBag.AcceptedExtensions = string.Join(",", acceptedExtensions);
@@ -324,6 +326,13 @@ namespace Wayfarer.Areas.User.Controllers
             if (!model.FileType.HasValue)
             {
                 ModelState.AddModelError(nameof(model.FileType), "Please select a valid file type.");
+                return View("Upload", model);
+            }
+
+            if (!model.FileType.Value.IsSupportedUpload())
+            {
+                ModelState.AddModelError(nameof(model.FileType),
+                    "Generic GeoJSON is not a supported location-history format. Select Wayfarer GeoJSON for Wayfarer exports.");
                 return View("Upload", model);
             }
 

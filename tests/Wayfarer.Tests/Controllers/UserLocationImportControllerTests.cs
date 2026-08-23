@@ -57,7 +57,7 @@ public class UserLocationImportControllerTests : TestBase
         controller.Upload();
 
         var choices = Assert.IsAssignableFrom<IEnumerable<Microsoft.AspNetCore.Mvc.Rendering.SelectListItem>>(
-            controller.ViewBag.FileTypes);
+            controller.ViewData["FileTypes"]);
         Assert.DoesNotContain(choices, item => item.Value == nameof(LocationImportFileType.GeoJson));
         Assert.Contains(choices, item => item.Value == nameof(LocationImportFileType.WayfarerGeoJson));
     }
