@@ -205,12 +205,21 @@ namespace Wayfarer.Parsers
             var authority = admission.Authority!;
             if (!await _contactGate.IsCurrentAsync(authority, cancellationToken))
                 return ReverseGeocodingResult.Unavailable(ReverseGeocodingCategory.StaleAuthority);
-            var result = authority.ProviderKey == "geoapify"
-                ? await _geoapify.ReverseAsync(latitude, longitude, authority.Credential, cancellationToken)
-                : await ContactAsync(latitude, longitude, authority.Credential, cancellationToken, false);
+            ReverseGeocodingResult result;
+            try
+            {
+                result = authority.ProviderKey == "geoapify"
+                    ? await _geoapify.ReverseAsync(latitude, longitude, authority.Credential, cancellationToken)
+                    : await ContactAsync(latitude, longitude, authority.Credential, cancellationToken, false);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                return ReverseGeocodingResult.Unavailable(ReverseGeocodingCategory.CancelledAfterContact)
+                    with { Authority = authority };
+            }
             if (result.Category == ReverseGeocodingCategory.Authorization && authority.ProviderKey == "mapbox")
                 await RecordMapboxAuthorizationFailureAsync(userId, cancellationToken);
-            if (!result.Succeeded) return result;
+            if (!result.Succeeded) return result with { Authority = authority };
             if (!await _contactGate.IsCurrentAsync(authority, cancellationToken))
                 return ReverseGeocodingResult.Unavailable(ReverseGeocodingCategory.StaleAuthority);
             return result with { Authority = authority };
@@ -379,7 +388,7 @@ namespace Wayfarer.Parsers
 
     /// <summary>Identifies bounded outcomes safe for callers and diagnostics.</summary>
     public enum ReverseGeocodingCategory
-    { Success, InvalidRequest, CredentialRequired, NoProviderSelected, ConsentRequired, Unauthorized, VerificationRequired, Exhausted, Authorization, RateLimited, ProviderUnavailable, InvalidResponse, StaleAuthority }
+    { Success, InvalidRequest, CredentialRequired, NoProviderSelected, ConsentRequired, Unauthorized, VerificationRequired, Exhausted, Authorization, RateLimited, ProviderUnavailable, InvalidResponse, StaleAuthority, CancelledAfterContact }
 
     /// <summary>Contains normalized fields and internal generation-bound persistence authority.</summary>
     public sealed record ReverseGeocodingResult(ReverseGeocodingCategory Category, ReverseLocationResults? Value,

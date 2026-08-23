@@ -78,10 +78,22 @@ public sealed class LocationEnrichmentWorkflow
     {
         EnsureUtc(nowUtc);
         if (State == LocationEnrichmentState.Cancelled) return;
+        if (State != LocationEnrichmentState.PausedByUser) Epoch++;
         IntentEnabled = false;
         State = LocationEnrichmentState.PausedByUser;
         NextEligibleAtUtc = null;
         UpdatedAtUtc = nowUtc;
+    }
+
+    /// <summary>Attempts a user pause and returns a bounded conflict rather than throwing.</summary>
+    public bool TryPause(DateTime nowUtc, out string? reason)
+    {
+        EnsureUtc(nowUtc);
+        if (State is LocationEnrichmentState.Idle or LocationEnrichmentState.Completed
+            or LocationEnrichmentState.Cancelled or LocationEnrichmentState.Failed)
+        { reason = "invalid-state"; return false; }
+        if (State == LocationEnrichmentState.PausedByUser) { reason = null; return true; }
+        Pause(nowUtc); reason = null; return true;
     }
 
     /// <summary>Resumes the same nonterminal epoch idempotently.</summary>
@@ -97,11 +109,47 @@ public sealed class LocationEnrichmentWorkflow
         UpdatedAtUtc = nowUtc;
     }
 
+    /// <summary>Attempts a valid user resume after current provider authority has been checked.</summary>
+    public bool TryResume(DateTime nowUtc, bool authorityAvailable, out string? reason)
+    {
+        EnsureUtc(nowUtc);
+        if (State == LocationEnrichmentState.Scheduled && IntentEnabled) { reason = null; return true; }
+        if (State != LocationEnrichmentState.PausedByUser || !authorityAvailable)
+        { reason = authorityAvailable ? "invalid-state" : "authority-unavailable"; return false; }
+        Resume(nowUtc); reason = null; return true;
+    }
+
+    /// <summary>Persists a run-wide authority pause without erasing user opt-in or durable data.</summary>
+    public void PauseForAuthority(LocationEnrichmentOutcome outcome, DateTime nowUtc)
+    {
+        EnsureUtc(nowUtc);
+        State = LocationEnrichmentState.PausedByAuthority;
+        Outcome = outcome;
+        NextEligibleAtUtc = null;
+        UpdatedAtUtc = nowUtc;
+    }
+
+    /// <summary>Advances the epoch once for an explicit deferred-attempt retry request.</summary>
+    public bool RetryDeferred(DateTime nowUtc)
+    {
+        EnsureUtc(nowUtc);
+        if (State is LocationEnrichmentState.Running or LocationEnrichmentState.Scheduled
+            or LocationEnrichmentState.BackingOff or LocationEnrichmentState.PausedByBudget) return false;
+        Epoch++;
+        IntentEnabled = true;
+        State = LocationEnrichmentState.Scheduled;
+        Outcome = LocationEnrichmentOutcome.None;
+        NextEligibleAtUtc = nowUtc;
+        UpdatedAtUtc = nowUtc;
+        return true;
+    }
+
     /// <summary>Persists terminal cancellation without clearing results, attempts, or usage.</summary>
     public void Cancel(DateTime nowUtc)
     {
         EnsureUtc(nowUtc);
         if (State == LocationEnrichmentState.Cancelled) return;
+        Epoch++;
         IntentEnabled = false;
         State = LocationEnrichmentState.Cancelled;
         NextEligibleAtUtc = null;

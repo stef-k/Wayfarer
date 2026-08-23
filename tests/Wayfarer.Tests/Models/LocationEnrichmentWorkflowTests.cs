@@ -20,7 +20,7 @@ public sealed class LocationEnrichmentWorkflowTests
         workflow.Resume(now.AddSeconds(4));
 
         Assert.Equal(1, epoch);
-        Assert.Equal(epoch, workflow.Epoch);
+        Assert.Equal(epoch + 1, workflow.Epoch);
         Assert.Equal(LocationEnrichmentState.Scheduled, workflow.State);
         Assert.True(workflow.IntentEnabled);
     }

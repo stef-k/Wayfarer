@@ -14,15 +14,30 @@ public sealed class LocationEnrichmentWorker(
     {
         var workflow = await db.LocationEnrichmentWorkflows.SingleAsync(item => item.UserId == userId, cancellationToken);
         if (workflow.State != LocationEnrichmentState.Running || workflow.Epoch != epoch) return;
-        var result = await batch.RunAsync(userId, cancellationToken);
+        var result = await batch.RunAsync(userId, epoch, cancellationToken);
+        await db.Entry(workflow).ReloadAsync(CancellationToken.None);
+        if (workflow.State != LocationEnrichmentState.Running || workflow.Epoch != epoch) return;
         var now = DateTime.UtcNow;
         workflow.RecordBatch(result.Scanned, result.Succeeded, result.Unavailable, result.NoResult,
             result.Scanned, now);
-        if (result.RemainingEstimate == 0)
+        if (result.AuthorityUnavailable)
+            workflow.PauseForAuthority(LocationEnrichmentOutcome.AuthorityUnavailable, now);
+        else if (result.RemainingEstimate == 0)
             workflow.TransitionToTerminal(LocationEnrichmentState.Completed, LocationEnrichmentOutcome.NoCandidates, now);
         else if (result.Exhausted)
-            workflow.ContinueAs(LocationEnrichmentState.PausedByBudget,
-                LocationEnrichmentOutcome.BudgetExhausted, now.AddMinutes(5), now);
+        {
+            var wake = result.NextEligibleAt?.UtcDateTime;
+            workflow.ContinueAs(wake.HasValue ? LocationEnrichmentState.PausedByBudget : LocationEnrichmentState.Scheduled,
+                LocationEnrichmentOutcome.BudgetExhausted, wake ?? now, now);
+        }
+        else if (result.Unavailable > 0)
+        {
+            var next = await db.LocationEnrichmentAttempts.Where(item => item.UserId == userId
+                    && item.Outcome == LocationEnrichmentOutcome.RetryableFailure)
+                .MinAsync(item => (DateTime?)item.NextAttemptAtUtc, cancellationToken) ?? now;
+            workflow.ContinueAs(LocationEnrichmentState.BackingOff,
+                LocationEnrichmentOutcome.RetryableFailure, next, now);
+        }
         else
             workflow.ContinueAs(LocationEnrichmentState.Scheduled, LocationEnrichmentOutcome.None, now, now);
         await db.SaveChangesAsync(cancellationToken);
@@ -33,7 +48,8 @@ public sealed class LocationEnrichmentWorker(
 /// <summary>Common bounded primitive implemented by the existing protected backfill owner.</summary>
 public interface ILocationEnrichmentBatch
 {
-    Task<GeoapifyBackfillResult> RunAsync(string userId, CancellationToken cancellationToken = default);
+    Task<GeoapifyBackfillResult> RunAsync(string userId, int epoch,
+        CancellationToken cancellationToken = default);
 }
 
 /// <summary>Projects only already-committed workflow state into Quartz.</summary>

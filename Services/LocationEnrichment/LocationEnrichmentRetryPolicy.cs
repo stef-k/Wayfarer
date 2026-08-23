@@ -14,6 +14,14 @@ public static class LocationEnrichmentRetryPolicy
         return oldest == default ? now.AddSeconds(5) : oldest.AddHours(24).AddSeconds(5);
     }
 
+    /// <summary>Returns no invented delay when no admission remains in the strict shared window.</summary>
+    public static DateTimeOffset? TryGeoapifyWake(DateTimeOffset now, IEnumerable<DateTimeOffset> admissions)
+    {
+        var cutoff = now.AddHours(-24);
+        var counted = admissions.Where(item => item > cutoff).Order().FirstOrDefault();
+        return counted == default ? null : counted.AddHours(24).AddSeconds(5);
+    }
+
     /// <summary>Uses Wayfarer's UTC month meter boundary without inferring provider-account resets.</summary>
     public static DateTimeOffset MapboxWake(DateTimeOffset now)
     {

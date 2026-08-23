@@ -7,6 +7,7 @@ using Npgsql;
 using Wayfarer.Areas.Api.Controllers;
 using Wayfarer.Models;
 using Wayfarer.Models.LocationProviders;
+using Wayfarer.Models.LocationEnrichment;
 using Wayfarer.Parsers;
 using Wayfarer.Services.LocationProviders;
 using Wayfarer.Tests.Infrastructure;
@@ -19,6 +20,79 @@ namespace Wayfarer.Tests.Services;
 [Collection(PostgresImportTestCollection.Name)]
 public sealed class GeoapifyBackfillConcurrencyPostgresTests(PostgresImportTestFixture fixture)
 {
+    [PostgresFact(Timeout = 30_000)]
+    public async Task ScheduledPoisonRowDoesNotStarveLaterCandidate()
+    {
+        var user = await fixture.CreateUserAsync();
+        var protection = new EphemeralDataProtectionProvider();
+        await SeedAsync(user.Id, null, protection);
+        int laterId;
+        int epoch;
+        await using (var setup = fixture.CreateContext())
+        {
+            var oldest = await setup.Locations.SingleAsync(item => item.UserId == user.Id);
+            oldest.Timestamp = DateTime.UtcNow.AddMinutes(-2);
+            var later = new Location
+            {
+                UserId = user.Id, Timestamp = DateTime.UtcNow.AddMinutes(-1), LocalTimestamp = DateTime.UtcNow,
+                TimeZoneId = "UTC", Coordinates = new Point(21, 11) { SRID = 4326 }
+            };
+            setup.Add(later);
+            var workflow = LocationEnrichmentWorkflow.Create(user.Id, DateTime.UtcNow);
+            workflow.Start(DateTime.UtcNow);
+            epoch = workflow.Epoch;
+            Assert.True(workflow.TryClaim(epoch, DateTime.UtcNow));
+            setup.Add(workflow);
+            setup.Add(new LocationEnrichmentAttempt
+            {
+                UserId = user.Id, Location = oldest, ProviderKey = "geoapify", CredentialGeneration = 2,
+                ConfigurationGeneration = 1, SelectionGeneration = 1,
+                Outcome = LocationEnrichmentOutcome.NoResult, AdmittedAttemptCount = 1,
+                LastAttemptAtUtc = DateTime.UtcNow.AddMinutes(-1)
+            });
+            await setup.SaveChangesAsync();
+            laterId = later.Id;
+        }
+        var handler = new CoordinatedHandler(user.Id, null);
+        await using var run = fixture.CreateContext();
+        var task = Service(run, protection, handler).RunAsync(user.Id, epoch);
+        await handler.FirstUserRequestEntered;
+        handler.Release();
+        await task;
+
+        await using var verify = fixture.CreateContext();
+        Assert.Equal("geoapify", (await verify.Locations.SingleAsync(item => item.Id == laterId)).ReverseGeocodingProvider);
+        Assert.Single(await verify.LocationEnrichmentAttempts.Where(item => item.UserId == user.Id).ToListAsync());
+    }
+
+    [PostgresFact(Timeout = 30_000)]
+    public async Task ScheduledTransientFailurePersistsGenerationBoundAttemptAndAdmission()
+    {
+        var user = await fixture.CreateUserAsync();
+        var protection = new EphemeralDataProtectionProvider();
+        await SeedAsync(user.Id, null, protection);
+        int epoch;
+        await using (var setup = fixture.CreateContext())
+        {
+            var workflow = LocationEnrichmentWorkflow.Create(user.Id, DateTime.UtcNow);
+            workflow.Start(DateTime.UtcNow); epoch = workflow.Epoch;
+            Assert.True(workflow.TryClaim(epoch, DateTime.UtcNow));
+            setup.Add(workflow); await setup.SaveChangesAsync();
+        }
+        var handler = new CoordinatedHandler(user.Id, null, ContactOutcome.ProviderFailure);
+        await using var run = fixture.CreateContext();
+        var task = Service(run, protection, handler).RunAsync(user.Id, epoch);
+        await handler.FirstUserRequestEntered; handler.Release(); await task;
+
+        await using var verify = fixture.CreateContext();
+        var attempt = await verify.LocationEnrichmentAttempts.SingleAsync(item => item.UserId == user.Id);
+        Assert.Equal(LocationEnrichmentOutcome.RetryableFailure, attempt.Outcome);
+        Assert.Equal(1, attempt.AdmittedAttemptCount);
+        Assert.Equal("geoapify", attempt.ProviderKey);
+        Assert.NotNull(attempt.NextAttemptAtUtc);
+        Assert.Single(await verify.GeoapifyUsageAdmissions.Where(item => item.UserId == user.Id).ToListAsync());
+    }
+
     /// <summary>Proves cancellation before durable ownership/admission has no provider cost.</summary>
     [PostgresFact]
     public async Task CancellationBeforeAdmissionCostsNothing()

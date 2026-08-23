@@ -24,7 +24,7 @@ public sealed class LocationEnrichmentWorkerTests
         db.Add(workflow);
         await db.SaveChangesAsync();
         var batch = new Mock<ILocationEnrichmentBatch>();
-        batch.Setup(item => item.RunAsync("user", It.IsAny<CancellationToken>()))
+        batch.Setup(item => item.RunAsync("user", workflow.Epoch, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new GeoapifyBackfillResult(5, 5, 0, 0, 0, false));
         var scheduler = new Mock<IWorkflowScheduleProjection>();
 
@@ -34,7 +34,7 @@ public sealed class LocationEnrichmentWorkerTests
         Assert.Equal(LocationEnrichmentState.Completed, workflow.State);
         Assert.Equal(5, workflow.ProcessedCount);
         Assert.Equal(5, workflow.EnrichedCount);
-        batch.Verify(item => item.RunAsync("user", It.IsAny<CancellationToken>()), Times.Once);
+        batch.Verify(item => item.RunAsync("user", workflow.Epoch, It.IsAny<CancellationToken>()), Times.Once);
         scheduler.Verify(item => item.ProjectAsync(workflow.UserId, It.IsAny<CancellationToken>()), Times.Once);
     }
 }
