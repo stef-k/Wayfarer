@@ -10,6 +10,7 @@ using Wayfarer.Models.Enums;
 using Wayfarer.Parsers;
 using Wayfarer.Services.LocationEnrichment;
 using Wayfarer.Services.LocationProviders;
+using Wayfarer.Services.LocationImports;
 
 namespace Wayfarer.Parsers
 {
@@ -18,7 +19,13 @@ namespace Wayfarer.Parsers
         Task ProcessImport(int importId, CancellationToken cancellationToken);
     }
 
-    public class LocationImportService : ILocationImportService
+    /// <summary>Exposes a bounded execution outcome to the Quartz job/listener seam.</summary>
+    public interface ILocationImportExecutionService
+    {
+        Task<LocationImportExecutionOutcome> ProcessImportExecution(int importId, int epoch, CancellationToken cancellationToken);
+    }
+
+    public class LocationImportService : ILocationImportService, ILocationImportExecutionService
     {
         private const string SafeProgressEvent = """{"type":"import-state"}""";
         private readonly ApplicationDbContext _context;
@@ -44,10 +51,28 @@ namespace Wayfarer.Parsers
 
         public async Task ProcessImport(int importId, CancellationToken cancellationToken)
         {
+            var outcome = await ProcessImportExecution(importId, 0, cancellationToken);
+            if (outcome == LocationImportExecutionOutcome.Stale) return;
+            var import = await _context.LocationImports.FindAsync([importId], CancellationToken.None);
+            if (import is null) return;
+            import.Status = outcome switch
+            {
+                LocationImportExecutionOutcome.Completed => ImportStatus.Completed,
+                LocationImportExecutionOutcome.Failed => ImportStatus.Failed,
+                _ => ImportStatus.Stopped
+            };
+            if (outcome == LocationImportExecutionOutcome.Failed) import.ErrorMessage = "Import processing failed.";
+            await _context.SaveChangesAsync(CancellationToken.None);
+        }
+
+        public async Task<LocationImportExecutionOutcome> ProcessImportExecution(
+            int importId, int epoch, CancellationToken cancellationToken)
+        {
             // 0) Load the import record
             var locationImport = await _context.LocationImports.FindAsync(importId);
-            if (locationImport == null || locationImport.Status != ImportStatus.InProgress)
-                return;
+            if (locationImport == null || locationImport.Status != ImportStatus.InProgress
+                || (epoch > 0 && locationImport.ExecutionEpoch != epoch))
+                return LocationImportExecutionOutcome.Stale;
 
             var fileType  = locationImport.FileType;
 
@@ -64,17 +89,15 @@ namespace Wayfarer.Parsers
                     cancellationToken.ThrowIfCancellationRequested();
 
                     // Refresh status in case user clicked "stop"
-                    locationImport = await _context.LocationImports.FindAsync(importId);
+                    await _context.Entry(locationImport!).ReloadAsync(cancellationToken);
                     if (locationImport == null)
                     {
                         _logger.LogWarning("Import {ImportId} record disappeared during processing.", importId);
-                        return;
+                        return LocationImportExecutionOutcome.Stale;
                     }
 
                     if (locationImport.Status == ImportStatus.Stopping)
                     {
-                        locationImport.Status = ImportStatus.Stopped;
-                        await _context.SaveChangesAsync(cancellationToken);
                         await ReconcileEnrichmentAsync(locationImport, cancellationToken);
 
                         await _sse.BroadcastAsync(
@@ -85,7 +108,7 @@ namespace Wayfarer.Parsers
                         _logger.LogInformation(
                             "Import {ImportId} cancelled by user after {Processed} records.",
                             importId, processed);
-                        return;
+                        return LocationImportExecutionOutcome.Cancelled;
                     }
 
                     // Pull the next chunk
@@ -149,8 +172,6 @@ namespace Wayfarer.Parsers
                 // 5) All done
                 if (locationImport != null)
                 {
-                    locationImport.Status = ImportStatus.Completed;
-                    await _context.SaveChangesAsync(cancellationToken);
                     await ReconcileEnrichmentAsync(locationImport, cancellationToken);
                     await _sse.BroadcastAsync(
                         $"import-{locationImport.UserId}",
@@ -160,6 +181,7 @@ namespace Wayfarer.Parsers
                         "Import {ImportId} completed successfully: {Total} records processed, {Skipped} duplicates skipped.",
                         importId, total, locationImport.SkippedDuplicates);
                 }
+                return LocationImportExecutionOutcome.Completed;
             }
             catch (OperationCanceledException)
             {
@@ -167,14 +189,13 @@ namespace Wayfarer.Parsers
                 var li = await _context.LocationImports.FindAsync(importId);
                 if (li != null)
                 {
-                    li.Status = ImportStatus.Stopped;
-                    await _context.SaveChangesAsync(CancellationToken.None);
                     await ReconcileEnrichmentAsync(li, CancellationToken.None);
                     await _sse.BroadcastAsync(
                         $"import-{locationImport?.UserId}",
                         SafeProgressEvent
                     );
                 }
+                return LocationImportExecutionOutcome.Cancelled;
             }
             catch (Exception ex)
             {
@@ -182,15 +203,13 @@ namespace Wayfarer.Parsers
                 var li = await _context.LocationImports.FindAsync(importId);
                 if (li != null)
                 {
-                    li.Status = ImportStatus.Failed;
-                    li.ErrorMessage = "Import processing failed.";
-                    await _context.SaveChangesAsync(CancellationToken.None);
                     await ReconcileEnrichmentAsync(li, CancellationToken.None);
                     await _sse.BroadcastAsync(
                         $"import-{li.UserId}",
                         SafeProgressEvent
                     );
                 }
+                return LocationImportExecutionOutcome.Failed;
             }
         }
 

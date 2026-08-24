@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
+using NetTopologySuite.Geometries;
 using Quartz;
 using Wayfarer.Models;
 using Wayfarer.Models.Enums;
@@ -140,7 +141,11 @@ public sealed class LocationImportLifecycleContractTests : TestBase
         var import = NewImport(ImportStatus.Stopping, epoch: 1);
         import.RemainingEnrichmentCount = 1;
         db.LocationImports.Add(import);
-        db.Locations.Add(new Location { UserId = "owner", Timestamp = DateTime.UtcNow, Latitude = 1, Longitude = 1 });
+        db.Locations.Add(new Wayfarer.Models.Location
+        {
+            UserId = "owner", Timestamp = DateTime.UtcNow, TimeZoneId = "UTC",
+            Coordinates = new Point(1, 1) { SRID = 4326 }
+        });
         await db.SaveChangesAsync();
 
         await Owner(db, Scheduler().Object).ConvergeExecutionAsync(1, 1, LocationImportExecutionOutcome.Cancelled);
@@ -181,12 +186,23 @@ public sealed class LocationImportLifecycleContractTests : TestBase
     private static Mock<IScheduler> Scheduler(bool jobExists = false, int? projectedEpoch = null)
     {
         var scheduler = new Mock<IScheduler>();
-        scheduler.Setup(item => item.CheckExists(It.IsAny<JobKey>(), default)).ReturnsAsync(jobExists);
+        var keys = new HashSet<JobKey>();
+        if (jobExists && projectedEpoch is not null) keys.Add(LocationImportSchedulerKeys.Job(1, projectedEpoch.Value));
+        scheduler.Setup(item => item.CheckExists(It.IsAny<JobKey>(), default))
+            .ReturnsAsync((JobKey key, CancellationToken _) => jobExists && projectedEpoch is null || keys.Contains(key));
         scheduler.Setup(item => item.GetCurrentlyExecutingJobs(default)).ReturnsAsync([]);
+        scheduler.Setup(item => item.GetJobKeys(It.IsAny<Quartz.Impl.Matchers.GroupMatcher<JobKey>>(), default))
+            .ReturnsAsync(projectedEpoch is null ? new HashSet<JobKey>() : [LocationImportSchedulerKeys.Job(1, projectedEpoch.Value)]);
+        scheduler.Setup(item => item.GetTriggerKeys(It.IsAny<Quartz.Impl.Matchers.GroupMatcher<TriggerKey>>(), default))
+            .ReturnsAsync(projectedEpoch is null ? new HashSet<TriggerKey>() : [LocationImportSchedulerKeys.Trigger(1, projectedEpoch.Value)]);
+        scheduler.Setup(item => item.CheckExists(It.IsAny<TriggerKey>(), default))
+            .ReturnsAsync((TriggerKey key, CancellationToken _) => keys.Any(job => job.Name.EndsWith(key.Name.Split('_')[^1], StringComparison.Ordinal)));
+        scheduler.Setup(item => item.ScheduleJob(It.IsAny<ITrigger>(), default)).ReturnsAsync(DateTimeOffset.UtcNow);
         scheduler.Setup(item => item.GetJobDetail(It.IsAny<JobKey>(), default)).ReturnsAsync(() => projectedEpoch is null
             ? null
             : LocationImportSchedulerKeys.BuildJob(1, projectedEpoch.Value));
         scheduler.Setup(item => item.ScheduleJob(It.IsAny<IJobDetail>(), It.IsAny<ITrigger>(), default))
+            .Callback<IJobDetail, ITrigger, CancellationToken>((job, _, _) => keys.Add(job.Key))
             .ReturnsAsync(DateTimeOffset.UtcNow);
         scheduler.Setup(item => item.DeleteJob(It.IsAny<JobKey>(), default)).ReturnsAsync(true);
         return scheduler;

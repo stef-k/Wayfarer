@@ -4,6 +4,7 @@ using Wayfarer.Areas.Admin.Controllers;
 using Wayfarer.Models;
 using Wayfarer.Models.DTOs;
 using Wayfarer.Parsers;
+using Wayfarer.Services.LocationImports;
 
 namespace Wayfarer.Jobs
 {
@@ -51,7 +52,9 @@ namespace Wayfarer.Jobs
             string jobGroup = context.JobDetail.Key.Group;
 
             // Determine status from JobDataMap (jobs may set Cancelled status) or exception
-            string jobStatus = context.JobDetail.JobDataMap["Status"]?.ToString() ?? "Completed";
+            string jobStatus = context.Result is LocationImportExecutionOutcome outcome
+                ? LocationImportJobOutcome.ToHistoryStatus(outcome)
+                : context.JobDetail.JobDataMap["Status"]?.ToString() ?? "Completed";
             if (jobException != null)
             {
                 jobStatus = "Failed";
@@ -76,7 +79,7 @@ namespace Wayfarer.Jobs
                 _ => "job_completed"
             };
 
-            await BroadcastJobStatusAsync(eventType, context, jobStatus, jobException?.Message);
+            await BroadcastJobStatusAsync(eventType, context, jobStatus, null);
         }
 
         /// <summary>

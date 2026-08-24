@@ -94,7 +94,7 @@ public class LocationImportControllerTests : TestBase
     }
 
     [Fact]
-    public async Task StopImport_TransitionsToStopped()
+    public async Task StopImport_PersistsStoppingUntilWorkerConverges()
     {
         var db = CreateDbContext();
         var user = TestDataFixtures.CreateUser(id: "u1", username: "alice");
@@ -111,7 +111,7 @@ public class LocationImportControllerTests : TestBase
         var redirect = Assert.IsType<RedirectToActionResult>(result);
         Assert.Equal("Index", redirect.ActionName);
         scheduler.Verify(s => s.Interrupt(It.IsAny<JobKey>(), It.IsAny<CancellationToken>()), Times.Once);
-        Assert.Equal(ImportStatus.Stopped, db.LocationImports.Single(i => i.Id == 20).Status);
+        Assert.Equal(ImportStatus.Stopping, db.LocationImports.Single(i => i.Id == 20).Status);
     }
 
     [Fact]
@@ -201,7 +201,7 @@ public class LocationImportControllerTests : TestBase
     }
 
     [Fact]
-    public async Task StartImport_DeletesExistingJob_BeforeRescheduling()
+    public async Task StartImport_ReusesExistingCurrentProjection()
     {
         var db = CreateDbContext();
         var user = TestDataFixtures.CreateUser(id: "u1");
@@ -214,8 +214,8 @@ public class LocationImportControllerTests : TestBase
 
         var result = await controller.StartImport(15);
 
-        scheduler.Verify(s => s.DeleteJob(It.IsAny<JobKey>(), It.IsAny<CancellationToken>()), Times.Once);
-        scheduler.Verify(s => s.ScheduleJob(It.IsAny<IJobDetail>(), It.IsAny<ITrigger>(), It.IsAny<CancellationToken>()), Times.Once);
+        scheduler.Verify(s => s.DeleteJob(It.IsAny<JobKey>(), It.IsAny<CancellationToken>()), Times.Never);
+        scheduler.Verify(s => s.ScheduleJob(It.IsAny<IJobDetail>(), It.IsAny<ITrigger>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -264,7 +264,8 @@ public class LocationImportControllerTests : TestBase
         var result = await controller.StopImport(26);
 
         var redirect = Assert.IsType<RedirectToActionResult>(result);
-        scheduler.Verify(s => s.Interrupt(It.IsAny<JobKey>(), It.IsAny<CancellationToken>()), Times.Never);
+        scheduler.Verify(s => s.Interrupt(It.IsAny<JobKey>(), It.IsAny<CancellationToken>()), Times.Once);
+        Assert.Equal(ImportStatus.Stopping, db.LocationImports.Single(i => i.Id == 26).Status);
     }
 
     [Fact]

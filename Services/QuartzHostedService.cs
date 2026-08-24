@@ -23,6 +23,9 @@ namespace Wayfarer.Parsers // Namespace
                 await scope.ServiceProvider
                     .GetRequiredService<Wayfarer.Services.LocationEnrichment.LocationEnrichmentReconciler>()
                     .ReconcileAsync(cancellationToken);
+                await scope.ServiceProvider
+                    .GetRequiredService<Wayfarer.Services.LocationImports.LocationImportReconciler>()
+                    .ReconcileAsync(cancellationToken);
             }
             // Start the Quartz scheduler when the app starts
             await _scheduler.Start(cancellationToken);

@@ -81,6 +81,21 @@ public class LocationImport
 
     /// <summary>Last bounded estimate of imported rows still eligible for enrichment.</summary>
     public int RemainingEnrichmentCount { get; set; }
+
+    /// <summary>Monotonic authority generation embedded in the Quartz projection.</summary>
+    public int ExecutionEpoch { get; set; }
+
+    /// <summary>Whether durable intent still needs to be projected to Quartz.</summary>
+    public bool ProjectionPending { get; set; }
+
+    /// <summary>UTC user stop intent; null means the current epoch may execute.</summary>
+    public DateTime? StopRequestedAtUtc { get; set; }
+
+    /// <summary>UTC terminal-history deletion intent awaiting external cleanup.</summary>
+    public DateTime? DeletionRequestedAtUtc { get; set; }
+
+    /// <summary>PostgreSQL optimistic concurrency token.</summary>
+    public uint Version { get; private set; }
 }
 
 /// <summary>Constrains bounded enrichment handoff facts retained with an import.</summary>
@@ -93,5 +108,6 @@ public sealed class LocationImportConfiguration : IEntityTypeConfiguration<Locat
         table.HasCheckConstraint("CK_LocationImport_EnrichmentPauseReason",
             "\"EnrichmentPauseReason\" IS NULL OR \"EnrichmentPauseReason\" IN "
             + "('CredentialRequired','NoProviderSelected','ConsentRequired','Unauthorized','VerificationRequired','Exhausted','StaleAuthority')");
+        table.HasCheckConstraint("CK_LocationImport_ExecutionEpoch", "\"ExecutionEpoch\" >= 0");
     });
 }

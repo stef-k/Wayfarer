@@ -10,6 +10,7 @@ using Wayfarer.Models.Enums;
 using Wayfarer.Models.ViewModels;
 using Wayfarer.Models.LocationEnrichment;
 using Wayfarer.Services.LocationEnrichment;
+using Wayfarer.Services.LocationImports;
 
 namespace Wayfarer.Areas.User.Controllers
 {
@@ -25,18 +26,23 @@ namespace Wayfarer.Areas.User.Controllers
         private readonly IWebHostEnvironment _environment;
         private readonly IScheduler        _scheduler;
         private readonly IImportEnrichmentHandoff? _enrichmentHandoff;
+        private readonly ILocationImportLifecycle _importLifecycle;
 
         public LocationImportController(ApplicationDbContext dbContext,
             ILogger<LocationImportController> logger,
             IWebHostEnvironment environment,
             IScheduler scheduler,
             IImportEnrichmentHandoff? enrichmentHandoff = null,
-            IWorkflowScheduleProjection? workflowProjection = null)
+            IWorkflowScheduleProjection? workflowProjection = null,
+            ILocationImportLifecycle? importLifecycle = null)
             : base(logger, dbContext)
         {
             _environment = environment;
             _scheduler = scheduler;
             _enrichmentHandoff = enrichmentHandoff;
+            _importLifecycle = importLifecycle ?? new LocationImportLifecycle(
+                dbContext, scheduler, logger as ILogger<LocationImportLifecycle>
+                    ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<LocationImportLifecycle>.Instance);
         }
 
         /// <summary>
@@ -111,180 +117,43 @@ namespace Wayfarer.Areas.User.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> StartImport(int id)
         {
-            var import = await _dbContext.LocationImports
-                .FirstOrDefaultAsync(x => x.Id == id);
-
-            if (import == null)
-            {
-                SetAlert("Import record not found.", "danger");
-                return RedirectToAction("Index");
-            }
-
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (import.UserId != userId)
+            if (string.IsNullOrWhiteSpace(userId)) return Challenge();
+            var result = await _importLifecycle.StartAsync(userId, id, HttpContext.RequestAborted);
+            SetAlert(result.Code switch
             {
-                SetAlert("Unauthorized access.", "danger");
-                return RedirectToAction("Index");
-            }
-
-            if (import.Status == ImportStatus.InProgress)
-            {
-                SetAlert("Import job is already in progress.", "warning");
-                return RedirectToAction("Index");
-            }
-
-            import.Status = ImportStatus.InProgress;
-            await _dbContext.SaveChangesAsync();
-
-            // Start the Quartz job
-            await StartImportJob(import);
-
-            SetAlert("Import started successfully.");
+                LocationImportCommandCode.Accepted => "Import started successfully.",
+                LocationImportCommandCode.ProjectionPending => "Import accepted and awaiting scheduler recovery.",
+                LocationImportCommandCode.InvalidState => "Import cannot be started in its current state.",
+                _ => "Import record not found."
+            }, result.Succeeded ? "success" : "warning");
             return RedirectToAction("Index");
-        }
-
-        private async Task StartImportJob(LocationImport import)
-        {
-            var jobKey = new JobKey($"LocationImportJob_{import.Id}", ImportJobGroup);
-
-            _logger.LogInformation("Attempting to schedule LocationImportJob for import ID {ImportId}", import.Id);
-
-            var jobDetail = JobBuilder.Create<LocationImportJob>()
-                .WithIdentity(jobKey)
-                .UsingJobData("importId", import.Id.ToString())
-                .StoreDurably()  // Ensures the job is recoverable after a restart
-                .Build();
-
-            var trigger = TriggerBuilder.Create()
-                .WithIdentity($"LocationImportTrigger_{import.Id}", ImportJobGroup)
-                .StartNow()
-                .Build();
-            
-            if (await _scheduler.CheckExists(jobKey))
-            {
-                _logger.LogWarning("Job with key {JobKey} already exists. Deleting existing job before rescheduling.",
-                    jobKey);
-                await _scheduler.DeleteJob(jobKey);
-            }
-
-            await _scheduler.ScheduleJob(jobDetail, trigger);
-            _logger.LogInformation("Successfully scheduled LocationImportJob for import ID {ImportId}", import.Id);
         }
 
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> StopImport(int id)
         {
-            var import = await _dbContext.LocationImports
-                .FirstOrDefaultAsync(x => x.Id == id);
-
-            if (import == null)
-            {
-                SetAlert("Import record not found.", "danger");
-                return RedirectToAction("Index");
-            }
-
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (import.UserId != userId)
-            {
-                SetAlert("Unauthorized access.", "danger");
-                return RedirectToAction("Index");
-            }
-
-            if (import.Status != ImportStatus.InProgress)
-            {
-                SetAlert("No import job is currently in progress to stop.", "warning");
-                return RedirectToAction("Index");
-            }
-
-            // Set status to Stopping
-            import.Status = ImportStatus.Stopping;
-            await _dbContext.SaveChangesAsync();
-
-            // Implement logic to stop the job (e.g., background task cancellation)
-            await StopImportJob(import);
-
-            SetAlert("Import stopping request submitted successfully.");
+            if (string.IsNullOrWhiteSpace(userId)) return Challenge();
+            var result = await _importLifecycle.StopAsync(userId, id, HttpContext.RequestAborted);
+            SetAlert(result.Succeeded ? "Import stopping request submitted successfully." : "No active import was found.",
+                result.Succeeded ? "success" : "warning");
             return RedirectToAction("Index");
-        }
-
-        private async Task StopImportJob(LocationImport import)
-        {
-            var jobKey = new JobKey($"LocationImportJob_{import.Id}", ImportJobGroup);
-
-            _logger.LogInformation("Attempting to stop job with key {JobKey}", jobKey);
-            
-            if (await _scheduler.CheckExists(jobKey))
-            {
-                var job = await _scheduler.GetJobDetail(jobKey);
-
-                // Mark the job status to stopping
-                import.Status = ImportStatus.Stopping;
-                await _dbContext.SaveChangesAsync();
-
-                _logger.LogInformation("Job with key {JobKey} is in progress. Attempting to interrupt it.", jobKey);
-                await _scheduler.Interrupt(jobKey);
-
-                // Optionally, delete the job after interrupting
-                await _scheduler.DeleteJob(jobKey);
-
-                import.Status = ImportStatus.Stopped;
-                await _dbContext.SaveChangesAsync();
-            }
-            else
-            {
-                _logger.LogWarning("Job with key {JobKey} does not exist.", jobKey);
-            }
-
-            SetAlert("Import stopping request submitted successfully.");
         }
 
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Delete(int id)
         {
-            var import = await _dbContext.LocationImports
-                .FirstOrDefaultAsync(x => x.Id == id);
-
-            if (import == null)
-            {
-                SetAlert("Upload record not found.", "danger");
-                return RedirectToAction("Index");
-            }
-
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (import.UserId != userId)
-            {
-                SetAlert("Unauthorized access.", "danger");
-                return RedirectToAction("Index");
-            }
-
-            // Do not allow deletion if the import is currently in progress
-            if (import.Status == ImportStatus.InProgress)
-            {
-                SetAlert("Upload is currently in progress and cannot be canceled or removed.", "warning");
-                return RedirectToAction("Index");
-            }
-
-            try
-            {
-                // Attempt to delete the file if it exists
-                if (System.IO.File.Exists(import.FilePath))
-                {
-                    System.IO.File.Delete(import.FilePath);
-                }
-
-                _dbContext.LocationImports.Remove(import);
-                await _dbContext.SaveChangesAsync();
-
-                SetAlert("Upload record removed successfully.");
-            }
-            catch (Exception ex)
-            {
-                HandleError(ex);
-                SetAlert("An error occurred while deleting the import record.", "danger");
-            }
-
+            if (string.IsNullOrWhiteSpace(userId)) return Challenge();
+            var result = await _importLifecycle.DeleteAsync(userId, id, HttpContext.RequestAborted);
+            SetAlert(result.Code == LocationImportCommandCode.Accepted
+                ? "Upload record removed successfully."
+                : result.Code == LocationImportCommandCode.ExecutionActive
+                    ? "Upload is active or stopping and cannot be removed yet."
+                    : "Upload record not found.", result.Code == LocationImportCommandCode.Accepted ? "success" : "warning");
             return RedirectToAction("Index");
         }
 

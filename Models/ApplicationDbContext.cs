@@ -210,6 +210,12 @@ namespace Wayfarer.Models
                 .Property(li => li.UpdatedAt)
                 .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
+            builder.Entity<LocationImport>()
+                .Property(li => li.Version)
+                .HasColumnName("xmin")
+                .IsRowVersion()
+                .ValueGeneratedOnAddOrUpdate();
+
             builder.Entity<HiddenArea>()
                 .HasOne(h => h.User)
                 .WithMany(u => u.HiddenAreas) // <- You'll need this nav property on ApplicationUser
