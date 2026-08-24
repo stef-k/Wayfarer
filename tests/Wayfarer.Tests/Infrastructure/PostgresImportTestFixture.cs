@@ -44,16 +44,32 @@ public sealed class PostgresImportTestFixture : IAsyncLifetime
     public async Task DisposeAsync()
     {
         if (!IsAvailable) return;
-
-        await using var context = CreateContext();
-        if (_tripIds.Count > 0)
+        var failures = new List<Exception>();
+        await TryCleanupAsync(async () =>
+        {
+            if (_tripIds.Count == 0) return;
+            await using var context = CreateContext();
             await context.Trips.Where(trip => _tripIds.Contains(trip.Id)).ExecuteDeleteAsync();
-        if (_transportProfileIds.Count > 0)
+        }, failures);
+        await TryCleanupAsync(async () =>
+        {
+            if (_transportProfileIds.Count == 0) return;
+            await using var context = CreateContext();
             await context.Set<TransportProfile>().Where(profile => _transportProfileIds.Contains(profile.Id)).ExecuteDeleteAsync();
-        if (_tagIds.Count > 0)
+        }, failures);
+        await TryCleanupAsync(async () =>
+        {
+            if (_tagIds.Count == 0) return;
+            await using var context = CreateContext();
             await context.Tags.Where(tag => _tagIds.Contains(tag.Id)).ExecuteDeleteAsync();
-        if (_userIds.Count > 0)
+        }, failures);
+        await TryCleanupAsync(async () =>
+        {
+            if (_userIds.Count == 0) return;
+            await using var context = CreateContext();
             await context.Users.Where(user => _userIds.Contains(user.Id)).ExecuteDeleteAsync();
+        }, failures);
+        if (failures.Count > 0) throw new AggregateException("PostgreSQL fixture cleanup failed.", failures);
     }
 
     /// <summary>Creates a PostgreSQL context for a test after checking its prerequisite.</summary>
@@ -121,6 +137,12 @@ public sealed class PostgresImportTestFixture : IAsyncLifetime
     {
         if (!IsAvailable)
             throw SkipException.ForSkip($"Set {ConnectionVariable} to the dedicated {RequiredDatabase} database to run relational import tests.");
+    }
+
+    private static async Task TryCleanupAsync(Func<Task> cleanup, ICollection<Exception> failures)
+    {
+        try { await cleanup(); }
+        catch (Exception exception) { failures.Add(exception); }
     }
 }
 
