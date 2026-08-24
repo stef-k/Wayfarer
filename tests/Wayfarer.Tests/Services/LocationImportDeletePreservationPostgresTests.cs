@@ -70,6 +70,9 @@ public sealed class LocationImportDeletePreservationPostgresTests(PostgresImport
         var path = Path.Combine(Path.GetTempPath(), $"wayfarer-511-preserve-{Guid.NewGuid():N}.csv");
         await File.WriteAllTextAsync(path, "fixture");
         var tripId = Guid.NewGuid();
+        var regionId = Guid.NewGuid();
+        var placeId = Guid.NewGuid();
+        var segmentId = Guid.NewGuid();
         fixture.RegisterTrip(tripId);
         await using var db = fixture.CreateContext();
         var storedUser = await db.Users.SingleAsync(item => item.Id == user.Id);
@@ -108,7 +111,19 @@ public sealed class LocationImportDeletePreservationPostgresTests(PostgresImport
                 UserId = user.Id, Product = PersonalProviderProduct.PermanentGeocoding,
                 CycleStart = DateOnly.FromDateTime(DateTime.UtcNow), AdmittedCount = 1
             },
-            new Trip { Id = tripId, UserId = user.Id, Name = "Preserved trip", UpdatedAt = DateTime.UtcNow });
+            new Trip
+            {
+                Id = tripId, UserId = user.Id, Name = "Preserved trip", UpdatedAt = DateTime.UtcNow,
+                Regions =
+                [
+                    new Region
+                    {
+                        Id = regionId, UserId = user.Id, Name = "Preserved region", DisplayOrder = 1,
+                        Places = [new Place { Id = placeId, UserId = user.Id, Name = "Preserved place" }]
+                    }
+                ],
+                Segments = [new Segment { Id = segmentId, UserId = user.Id, Mode = "walk" }]
+            });
         await db.SaveChangesAsync();
         var attempt = new LocationEnrichmentAttempt
         {
@@ -119,7 +134,8 @@ public sealed class LocationImportDeletePreservationPostgresTests(PostgresImport
         };
         db.Add(attempt);
         await db.SaveChangesAsync();
-        return new(user.Id, import.Id, location.Id, profile.Id, attempt.Id, tripId, path);
+        return new(user.Id, import.Id, location.Id, profile.Id, attempt.Id, tripId,
+            regionId, placeId, segmentId, path);
     }
 
     private async Task AssertPreservedAsync(Seed seed, bool importExpected)
@@ -144,6 +160,9 @@ public sealed class LocationImportDeletePreservationPostgresTests(PostgresImport
         Assert.Equal(1, workflow.RetryableDeferredCount);
         Assert.True(await db.LocationEnrichmentAttempts.AnyAsync(item => item.Id == seed.AttemptId));
         Assert.True(await db.Trips.AnyAsync(item => item.Id == seed.TripId));
+        Assert.True(await db.Regions.AnyAsync(item => item.Id == seed.RegionId));
+        Assert.True(await db.Places.AnyAsync(item => item.Id == seed.PlaceId));
+        Assert.True(await db.Segments.AnyAsync(item => item.Id == seed.SegmentId));
     }
 
     private static Mock<IScheduler> Scheduler(HashSet<JobKey> jobs)
@@ -180,5 +199,5 @@ public sealed class LocationImportDeletePreservationPostgresTests(PostgresImport
     }
 
     private sealed record Seed(string UserId, int ImportId, int LocationId, Guid ProfileId,
-        long AttemptId, Guid TripId, string Path);
+        long AttemptId, Guid TripId, Guid RegionId, Guid PlaceId, Guid SegmentId, string Path);
 }
