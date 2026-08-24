@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.EntityFrameworkCore;
 using Moq;
 using NetTopologySuite.Geometries;
 using Quartz;
@@ -99,12 +100,13 @@ public sealed class LocationImportLifecycleContractTests : TestBase
     [Fact]
     public async Task RestartReplacesStaleProjection()
     {
-        await using var db = CreateDbContext();
+        var contexts = new InMemoryFactory();
+        await using var db = contexts.CreateDbContext();
         db.LocationImports.Add(NewImport(ImportStatus.InProgress, epoch: 3));
         await db.SaveChangesAsync();
         var scheduler = Scheduler(jobExists: true, projectedEpoch: 2);
 
-        await Reconciler(db, scheduler.Object).ReconcileAsync();
+        await Reconciler(contexts, scheduler.Object).ReconcileAsync();
 
         scheduler.Verify(item => item.DeleteJob(LocationImportSchedulerKeys.Job(1, 2), default), Times.Once);
         scheduler.Verify(item => item.ScheduleJob(It.IsAny<IJobDetail>(), It.IsAny<ITrigger>(), default), Times.Once);
@@ -170,18 +172,28 @@ public sealed class LocationImportLifecycleContractTests : TestBase
 
     private async Task AssertReconciliationAsync(LocationImport import, ImportStatus expected)
     {
-        await using var db = CreateDbContext();
-        db.LocationImports.Add(import);
-        await db.SaveChangesAsync();
-        await Reconciler(db, Scheduler().Object).ReconcileAsync();
-        Assert.Equal(expected, db.LocationImports.Single().Status);
+        var contexts = new InMemoryFactory();
+        await using (var db = contexts.CreateDbContext())
+        { db.LocationImports.Add(import); await db.SaveChangesAsync(); }
+        await Reconciler(contexts, Scheduler().Object).ReconcileAsync();
+        await using var verification = contexts.CreateDbContext();
+        Assert.Equal(expected, verification.LocationImports.Single().Status);
     }
 
     private static LocationImportLifecycle Owner(ApplicationDbContext db, IScheduler scheduler)
         => new(db, scheduler, NullLogger<LocationImportLifecycle>.Instance);
 
-    private static LocationImportReconciler Reconciler(ApplicationDbContext db, IScheduler scheduler)
-        => new(db, scheduler, NullLogger<LocationImportReconciler>.Instance);
+    private static LocationImportReconciler Reconciler(
+        IDbContextFactory<ApplicationDbContext> contexts, IScheduler scheduler)
+        => new(contexts, scheduler, NullLogger<LocationImportReconciler>.Instance);
+
+    private sealed class InMemoryFactory : IDbContextFactory<ApplicationDbContext>
+    {
+        private readonly DbContextOptions<ApplicationDbContext> options =
+            new DbContextOptionsBuilder<ApplicationDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options;
+        private readonly IServiceProvider services = new ServiceCollection().BuildServiceProvider();
+        public ApplicationDbContext CreateDbContext() => new(options, services);
+    }
 
     private static Mock<IScheduler> Scheduler(bool jobExists = false, int? projectedEpoch = null)
     {

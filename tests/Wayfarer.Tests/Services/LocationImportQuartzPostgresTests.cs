@@ -212,8 +212,7 @@ public sealed class LocationImportQuartzPostgresTests(PostgresImportTestFixture 
 
         internal async Task ReconcileAsync()
         {
-            await using var db = fixture.CreateContext();
-            await new LocationImportReconciler(db, Current,
+            await new LocationImportReconciler(new FixtureContextFactory(fixture), Current,
                 NullLogger<LocationImportReconciler>.Instance).ReconcileAsync();
         }
 
@@ -262,6 +261,12 @@ public sealed class LocationImportQuartzPostgresTests(PostgresImportTestFixture 
             ]);
             await FailureIndependentCleanup.CompleteAsync(null, steps);
         }
+    }
+
+    private sealed class FixtureContextFactory(PostgresImportTestFixture fixture)
+        : IDbContextFactory<ApplicationDbContext>
+    {
+        public ApplicationDbContext CreateDbContext() => fixture.CreateContext();
     }
 
     private sealed class ImportJobFactory(PostgresImportTestFixture fixture, ILocationImportService service) : IJobFactory
