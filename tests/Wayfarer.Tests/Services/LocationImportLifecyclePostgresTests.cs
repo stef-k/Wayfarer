@@ -113,14 +113,133 @@ public sealed class LocationImportLifecyclePostgresTests(PostgresImportTestFixtu
         Assert.Equal(2, (await verification.LocationImports.FindAsync(seed.ImportId))!.ExecutionEpoch);
     }
 
-    private async Task<(string UserId, int ImportId)> SeedAsync()
+    [PostgresFact]
+    public async Task ConcurrentStops_CommitOneIdempotentStopIntent()
+    {
+        var seed = await SeedAsync(ImportStatus.InProgress, epoch: 1);
+        var (scheduler, _) = Scheduler();
+        await using var first = fixture.CreateContext();
+        await using var second = fixture.CreateContext();
+
+        var results = await Task.WhenAll(
+            Owner(first, scheduler.Object).StopAsync(seed.UserId, seed.ImportId),
+            Owner(second, scheduler.Object).StopAsync(seed.UserId, seed.ImportId));
+
+        Assert.All(results, result => Assert.Contains(result.Code,
+            new[] { LocationImportCommandCode.Accepted, LocationImportCommandCode.InvalidState }));
+        await using var verification = fixture.CreateContext();
+        var stored = await verification.LocationImports.FindAsync(seed.ImportId);
+        Assert.Equal(ImportStatus.Stopping, stored!.Status);
+        Assert.NotNull(stored.StopRequestedAtUtc);
+    }
+
+    [PostgresFact]
+    public async Task CompletionCommittedBeforeStop_RemainsCompleted()
+    {
+        var seed = await SeedAsync(ImportStatus.InProgress, epoch: 1);
+        var (scheduler, _) = Scheduler();
+        await using (var worker = fixture.CreateContext())
+            await Owner(worker, scheduler.Object).ConvergeExecutionAsync(
+                seed.ImportId, 1, LocationImportExecutionOutcome.Completed);
+        await using var stop = fixture.CreateContext();
+
+        var result = await Owner(stop, scheduler.Object).StopAsync(seed.UserId, seed.ImportId);
+
+        Assert.Equal(LocationImportCommandCode.InvalidState, result.Code);
+        await using var verification = fixture.CreateContext();
+        Assert.Equal(ImportStatus.Completed, (await verification.LocationImports.FindAsync(seed.ImportId))!.Status);
+    }
+
+    [PostgresFact]
+    public async Task StaleWorkerTerminalWrite_AfterLaterStartCannotOverwriteCurrentEpoch()
+    {
+        var seed = await SeedAsync(ImportStatus.InProgress, epoch: 1);
+        var (scheduler, _) = Scheduler();
+        await using (var completed = fixture.CreateContext())
+            await Owner(completed, scheduler.Object).ConvergeExecutionAsync(
+                seed.ImportId, 1, LocationImportExecutionOutcome.Completed);
+        await using (var restart = fixture.CreateContext())
+            await Owner(restart, scheduler.Object).StartAsync(seed.UserId, seed.ImportId);
+        await using (var stale = fixture.CreateContext())
+            await Owner(stale, scheduler.Object).ConvergeExecutionAsync(
+                seed.ImportId, 1, LocationImportExecutionOutcome.Failed);
+
+        await using var verification = fixture.CreateContext();
+        var stored = await verification.LocationImports.FindAsync(seed.ImportId);
+        Assert.Equal(2, stored!.ExecutionEpoch);
+        Assert.Equal(ImportStatus.InProgress, stored.Status);
+        Assert.Null(stored.ErrorMessage);
+    }
+
+    [PostgresFact]
+    public async Task ConcurrentTerminalDeletes_AreBoundedAndRemoveOnlyImportHistory()
+    {
+        var seed = await SeedAsync(ImportStatus.Completed, filePath: Path.GetTempFileName());
+        var (scheduler, _) = Scheduler();
+        scheduler.Setup(item => item.GetJobKeys(It.IsAny<Quartz.Impl.Matchers.GroupMatcher<JobKey>>(), default))
+            .ReturnsAsync([]);
+        await using var first = fixture.CreateContext();
+        await using var second = fixture.CreateContext();
+
+        var results = await Task.WhenAll(
+            Owner(first, scheduler.Object).DeleteAsync(seed.UserId, seed.ImportId),
+            Owner(second, scheduler.Object).DeleteAsync(seed.UserId, seed.ImportId));
+
+        Assert.All(results, result => Assert.Contains(result.Code,
+            new[] { LocationImportCommandCode.Accepted, LocationImportCommandCode.NotFound }));
+        await using var verification = fixture.CreateContext();
+        Assert.Null(await verification.LocationImports.FindAsync(seed.ImportId));
+        Assert.NotNull(await verification.Users.FindAsync(seed.UserId));
+    }
+
+    [PostgresFact]
+    public async Task QuartzDeleteFailure_RetainsDurableDeletionIntentForRestartRecovery()
+    {
+        var seed = await SeedAsync(ImportStatus.Completed, filePath: Path.GetTempFileName());
+        var (scheduler, _) = Scheduler();
+        scheduler.Setup(item => item.GetJobKeys(It.IsAny<Quartz.Impl.Matchers.GroupMatcher<JobKey>>(), default))
+            .ReturnsAsync([LocationImportSchedulerKeys.Job(seed.ImportId, 1)]);
+        scheduler.Setup(item => item.DeleteJob(It.IsAny<JobKey>(), default))
+            .ThrowsAsync(new SchedulerException("fixture cleanup failure"));
+        await using var db = fixture.CreateContext();
+
+        var result = await Owner(db, scheduler.Object).DeleteAsync(seed.UserId, seed.ImportId);
+
+        Assert.Equal(LocationImportCommandCode.ProjectionPending, result.Code);
+        await using var verification = fixture.CreateContext();
+        var stored = await verification.LocationImports.FindAsync(seed.ImportId);
+        Assert.NotNull(stored!.DeletionRequestedAtUtc);
+        Assert.True(File.Exists(stored.FilePath));
+        File.Delete(stored.FilePath);
+    }
+
+    [PostgresFact]
+    public async Task CrossUserLifecycleCommandsRevealNoImportState()
+    {
+        var seed = await SeedAsync();
+        var other = await fixture.CreateUserAsync();
+        var (scheduler, _) = Scheduler();
+        await using var db = fixture.CreateContext();
+        var owner = Owner(db, scheduler.Object);
+
+        Assert.Equal(LocationImportCommandCode.NotFound,
+            (await owner.StartAsync(other.Id, seed.ImportId)).Code);
+        Assert.Equal(LocationImportCommandCode.NotFound,
+            (await owner.StopAsync(other.Id, seed.ImportId)).Code);
+        Assert.Equal(LocationImportCommandCode.NotFound,
+            (await owner.DeleteAsync(other.Id, seed.ImportId)).Code);
+    }
+
+    private async Task<(string UserId, int ImportId)> SeedAsync(
+        ImportStatus? status = null, int epoch = 0, string filePath = "guarded-upload")
     {
         var user = await fixture.CreateUserAsync();
         await using var db = fixture.CreateContext();
         var import = new LocationImport
         {
-            UserId = user.Id, FilePath = "guarded-upload", FileType = LocationImportFileType.Csv,
-            TotalRecords = 0, LastProcessedIndex = 0, Status = ImportStatus.Stopped
+            UserId = user.Id, FilePath = filePath, FileType = LocationImportFileType.Csv,
+            TotalRecords = 0, LastProcessedIndex = 0, Status = status ?? ImportStatus.Stopped,
+            ExecutionEpoch = epoch
         };
         db.LocationImports.Add(import);
         await db.SaveChangesAsync();
