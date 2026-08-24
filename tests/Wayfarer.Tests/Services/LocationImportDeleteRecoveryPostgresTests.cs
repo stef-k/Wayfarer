@@ -42,12 +42,39 @@ public sealed class LocationImportDeleteRecoveryPostgresTests(PostgresImportTest
 
         scheduler.Setup(item => item.DeleteJob(key, default)).ReturnsAsync(true);
         scheduler.Setup(item => item.GetCurrentlyExecutingJobs(default)).ReturnsAsync([]);
+        scheduler.Setup(item => item.GetJobKeys(
+            It.IsAny<Quartz.Impl.Matchers.GroupMatcher<JobKey>>(), default)).ReturnsAsync([]);
         await reconciler.ReconcileAsync();
         await reconciler.ReconcileAsync();
 
         await using var final = fixture.CreateContext();
         Assert.Null(await final.LocationImports.FindAsync(seed.ImportId));
         Assert.False(File.Exists(seed.Path));
+    }
+
+    [PostgresFact]
+    public async Task NewerProjectionAppearingDuringCleanup_RetainsFileRowAndIntent()
+    {
+        var seed = await SeedAsync(ImportStatus.Completed, epoch: 4);
+        var oldKey = LocationImportSchedulerKeys.Job(seed.ImportId, 4);
+        var newKey = LocationImportSchedulerKeys.Job(seed.ImportId, 5);
+        var calls = 0;
+        var scheduler = Scheduler();
+        scheduler.Setup(item => item.GetJobKeys(
+                It.IsAny<Quartz.Impl.Matchers.GroupMatcher<JobKey>>(), default))
+            .ReturnsAsync(() => Interlocked.Increment(ref calls) == 1 ? [oldKey] : [newKey]);
+        scheduler.Setup(item => item.DeleteJob(oldKey, default)).ReturnsAsync(true);
+
+        await using (var command = fixture.CreateContext())
+        {
+            var result = await Lifecycle(command, scheduler.Object).DeleteAsync(seed.UserId, seed.ImportId);
+            Assert.Equal(LocationImportCommandCode.ProjectionPending, result.Code);
+        }
+
+        await using var verification = fixture.CreateContext();
+        Assert.NotNull((await verification.LocationImports.FindAsync(seed.ImportId))!.DeletionRequestedAtUtc);
+        Assert.True(File.Exists(seed.Path));
+        File.Delete(seed.Path);
     }
 
     [PostgresFact]

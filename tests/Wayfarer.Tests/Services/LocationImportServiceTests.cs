@@ -10,6 +10,8 @@ using Wayfarer.Areas.Api.Controllers;
 using Wayfarer.Models;
 using Wayfarer.Models.Enums;
 using Wayfarer.Parsers;
+using Wayfarer.Services.LocationEnrichment;
+using Wayfarer.Services.LocationImports;
 using Wayfarer.Tests.Infrastructure;
 using Xunit;
 
@@ -20,6 +22,31 @@ namespace Wayfarer.Tests.Services;
 /// </summary>
 public class LocationImportServiceTests : TestBase
 {
+    [Fact]
+    public async Task QueuedWorkerAfterDeletionIntent_PerformsNoImportOrEnrichmentWork()
+    {
+        await using var db = CreateDbContext();
+        var handoff = new Mock<IImportEnrichmentHandoff>();
+        var import = new LocationImport
+        {
+            Id = 511, UserId = "queued-owner", FileType = LocationImportFileType.Csv,
+            FilePath = "missing-queued-upload.csv", Status = ImportStatus.Completed,
+            ExecutionEpoch = 7, TotalRecords = 3, LastProcessedIndex = 2,
+            EnrichmentRequested = true, DeletionRequestedAtUtc = DateTime.UtcNow
+        };
+        db.LocationImports.Add(import);
+        await db.SaveChangesAsync();
+        var service = CreateService(db, out var sse, handoff.Object);
+
+        var outcome = await service.ProcessImportExecution(import.Id, 7, CancellationToken.None);
+
+        Assert.Equal(LocationImportExecutionOutcome.Stale, outcome);
+        Assert.Empty(db.Locations);
+        Assert.Equal(2, db.LocationImports.Single().LastProcessedIndex);
+        Assert.Empty(sse.Messages);
+        handoff.Verify(item => item.EnsureAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
     [Fact]
     public async Task ProcessImport_Skips_WhenNotInProgress()
     {
@@ -94,7 +121,8 @@ public class LocationImportServiceTests : TestBase
         Assert.NotEmpty(sse.Messages);
     }
 
-    private LocationImportService CreateService(ApplicationDbContext db, out FakeSseService sse)
+    private LocationImportService CreateService(
+        ApplicationDbContext db, out FakeSseService sse, IImportEnrichmentHandoff? handoff = null)
     {
         var loggerFactory = NullLoggerFactory.Instance;
         sse = new FakeSseService();
@@ -106,7 +134,8 @@ public class LocationImportServiceTests : TestBase
             reverse,
             NullLogger<LocationImportService>.Instance,
             parserFactory,
-            sse);
+            sse,
+            handoff);
     }
 
     private sealed class FakeSseService : SseService
