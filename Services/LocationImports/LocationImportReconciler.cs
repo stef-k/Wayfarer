@@ -152,7 +152,7 @@ public sealed class LocationImportReconciler(
         {
             return QuartzCleanupResult.Cancelled;
         }
-        catch (SchedulerException exception)
+        catch (SchedulerException)
         {
             logger.LogWarning("Import projection {JobKey} remains for retry.", key);
             return QuartzCleanupResult.SchedulerFailed;
