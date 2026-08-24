@@ -54,7 +54,7 @@ public sealed partial class GeoapifyBackfillConcurrencyPostgresTests
         await SeedAsync(user.Id, null, protection);
         var updateGate = new LocationUpdateGate();
         var handler = new CoordinatedHandler(user.Id, null);
-        var run = Service(protection, handler, updateGate).RunAsync(user.Id);
+        var run = Service(protection, handler, interceptors: [updateGate]).RunAsync(user.Id);
         await handler.FirstUserRequestEntered.WaitAsync(TimeSpan.FromSeconds(10));
         handler.Release();
         await updateGate.Entered.WaitAsync(TimeSpan.FromSeconds(10));
