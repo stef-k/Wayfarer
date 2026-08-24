@@ -15,6 +15,42 @@ namespace Wayfarer.Tests.Services;
 public sealed class LocationImportDeleteRecoveryPostgresTests(PostgresImportTestFixture fixture)
 {
     [PostgresFact]
+    public async Task ReconcilerSchedulerFailure_RetainsFileRowAndIntentUntilRetry()
+    {
+        var seed = await SeedAsync(ImportStatus.Completed, epoch: 4);
+        var key = LocationImportSchedulerKeys.Job(seed.ImportId, 4);
+        var scheduler = Scheduler(key);
+        scheduler.Setup(item => item.GetCurrentlyExecutingJobs(default)).ReturnsAsync([]);
+        scheduler.Setup(item => item.DeleteJob(key, default))
+            .ThrowsAsync(new SchedulerException("fixture scheduler unavailable"));
+
+        await using (var command = fixture.CreateContext())
+        {
+            var result = await Lifecycle(command, scheduler.Object).DeleteAsync(seed.UserId, seed.ImportId);
+            Assert.Equal(LocationImportCommandCode.ProjectionPending, result.Code);
+        }
+
+        var reconciler = new LocationImportReconciler(new FixtureFactory(fixture), scheduler.Object,
+            NullLogger<LocationImportReconciler>.Instance);
+        await reconciler.ReconcileAsync();
+
+        await using (var pending = fixture.CreateContext())
+        {
+            Assert.NotNull((await pending.LocationImports.FindAsync(seed.ImportId))!.DeletionRequestedAtUtc);
+            Assert.True(File.Exists(seed.Path));
+        }
+
+        scheduler.Setup(item => item.DeleteJob(key, default)).ReturnsAsync(true);
+        scheduler.Setup(item => item.GetCurrentlyExecutingJobs(default)).ReturnsAsync([]);
+        await reconciler.ReconcileAsync();
+        await reconciler.ReconcileAsync();
+
+        await using var final = fixture.CreateContext();
+        Assert.Null(await final.LocationImports.FindAsync(seed.ImportId));
+        Assert.False(File.Exists(seed.Path));
+    }
+
+    [PostgresFact]
     public async Task LockedUpload_RetainsIntentThenReconciliationDeletesIdempotently()
     {
         var seed = await SeedAsync(ImportStatus.Completed);
