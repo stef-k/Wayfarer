@@ -101,13 +101,16 @@ public class LocationImport
 /// <summary>Constrains bounded enrichment handoff facts retained with an import.</summary>
 public sealed class LocationImportConfiguration : IEntityTypeConfiguration<LocationImport>
 {
-    public void Configure(EntityTypeBuilder<LocationImport> builder) => builder.ToTable(table =>
+    public void Configure(EntityTypeBuilder<LocationImport> builder)
     {
-        table.HasCheckConstraint("CK_LocationImport_RemainingEnrichment",
-            "\"RemainingEnrichmentCount\" >= 0");
-        table.HasCheckConstraint("CK_LocationImport_EnrichmentPauseReason",
-            "\"EnrichmentPauseReason\" IS NULL OR \"EnrichmentPauseReason\" IN "
-            + "('CredentialRequired','NoProviderSelected','ConsentRequired','Unauthorized','VerificationRequired','Exhausted','StaleAuthority')");
-        table.HasCheckConstraint("CK_LocationImport_ExecutionEpoch", "\"ExecutionEpoch\" >= 0");
-    });
+        builder.Property(item => item.Version).HasColumnName("xmin").IsRowVersion().ValueGeneratedOnAddOrUpdate();
+        builder.ToTable(table =>
+        {
+            table.HasCheckConstraint("CK_LocationImport_RemainingEnrichment", "\"RemainingEnrichmentCount\" >= 0");
+            table.HasCheckConstraint("CK_LocationImport_EnrichmentPauseReason",
+                "\"EnrichmentPauseReason\" IS NULL OR \"EnrichmentPauseReason\" IN "
+                + "('CredentialRequired','NoProviderSelected','ConsentRequired','Unauthorized','VerificationRequired','Exhausted','StaleAuthority')");
+            table.HasCheckConstraint("CK_LocationImport_ExecutionEpoch", "\"ExecutionEpoch\" >= 0");
+        });
+    }
 }
