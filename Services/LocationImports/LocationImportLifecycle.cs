@@ -109,7 +109,7 @@ public sealed class LocationImportLifecycle(
         finally { _commands.Release(); }
 
         try { _ = await scheduler.Interrupt(LocationImportSchedulerKeys.Job(importId, epoch), cancellationToken); }
-        catch (SchedulerException)
+        catch (SchedulerException exception)
         {
             logger.LogWarning(exception, "Import {ImportId} stop interruption remains pending.", importId);
         }
@@ -198,7 +198,7 @@ public sealed class LocationImportLifecycle(
         {
             return QuartzCleanupResult.Cancelled;
         }
-        catch (SchedulerException exception)
+        catch (SchedulerException)
         {
             logger.LogWarning("Import projection cleanup remains pending for {JobKey}.", key);
             return QuartzCleanupResult.SchedulerFailed;
