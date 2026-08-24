@@ -113,7 +113,16 @@ public sealed class LocationImportLifecycle(
 
         var path = import.FilePath;
         import.DeletionRequestedAtUtc ??= DateTime.UtcNow;
-        await db.SaveChangesAsync(cancellationToken);
+        try { await db.SaveChangesAsync(cancellationToken); }
+        catch (DbUpdateConcurrencyException)
+        {
+            db.ChangeTracker.Clear();
+            var current = await OwnedAsync(userId, importId, cancellationToken);
+            if (current is null) return new(LocationImportCommandCode.Accepted);
+            if (current.Status == ImportStatus.InProgress || current.Status == ImportStatus.Stopping)
+                return new(LocationImportCommandCode.ExecutionActive);
+            return new(LocationImportCommandCode.InvalidState);
+        }
         try
         {
             var keys = await scheduler.GetJobKeys(Quartz.Impl.Matchers.GroupMatcher<JobKey>.GroupEquals(LocationImportSchedulerKeys.Group), cancellationToken)
