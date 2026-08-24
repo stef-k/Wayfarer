@@ -34,6 +34,7 @@ namespace Wayfarer.Parsers
         private readonly LocationDataParserFactory _parserFactory;
         private readonly SseService _sse;
         private readonly IImportEnrichmentHandoff? _enrichmentHandoff;
+        private readonly ILocationImportLifecycleObserver _lifecycleObserver;
 
         public LocationImportService(
             ApplicationDbContext context,
@@ -42,12 +43,27 @@ namespace Wayfarer.Parsers
             LocationDataParserFactory parserFactory,
             SseService sse,
             IImportEnrichmentHandoff? enrichmentHandoff = null)
+            : this(context, reverseGeocodingService, logger, parserFactory, sse, enrichmentHandoff,
+                NullLocationImportLifecycleObserver.Instance)
+        {
+        }
+
+        /// <summary>Creates an import worker with a test-controlled, authority-neutral lifecycle observer.</summary>
+        internal LocationImportService(
+            ApplicationDbContext context,
+            ReverseGeocodingService reverseGeocodingService,
+            ILogger<LocationImportService> logger,
+            LocationDataParserFactory parserFactory,
+            SseService sse,
+            IImportEnrichmentHandoff? enrichmentHandoff,
+            ILocationImportLifecycleObserver lifecycleObserver)
         {
             _context = context;
             _logger = logger;
             _parserFactory = parserFactory;
             _sse = sse;
             _enrichmentHandoff = enrichmentHandoff;
+            _lifecycleObserver = lifecycleObserver;
         }
 
         public async Task ProcessImport(int importId, CancellationToken cancellationToken)
@@ -152,6 +168,8 @@ namespace Wayfarer.Parsers
                         return LocationImportExecutionOutcome.Stale;
                     }
                     await _context.SaveChangesAsync(cancellationToken);
+                    await _lifecycleObserver.AfterBatchCommittedAsync(
+                        importId, epoch, processed, cancellationToken);
                     await ReconcileEnrichmentAsync(locationImport, cancellationToken);
 
                     await _sse.BroadcastAsync(

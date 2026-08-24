@@ -11,6 +11,26 @@ public sealed record LocationImportCommandResult(LocationImportCommandCode Code)
 }
 public enum LocationImportExecutionOutcome { Completed, Cancelled, Failed, Stale }
 
+/// <summary>Observes exact import persistence boundaries without granting or bypassing authority.</summary>
+internal interface ILocationImportLifecycleObserver
+{
+    Task AfterBatchCommittedAsync(int importId, int epoch, int processed, CancellationToken token);
+    Task BeforeTerminalPersistenceAsync(
+        int importId, int epoch, LocationImportExecutionOutcome outcome, CancellationToken token);
+}
+
+/// <summary>Leaves production import execution unchanged when no test observer is supplied.</summary>
+internal sealed class NullLocationImportLifecycleObserver : ILocationImportLifecycleObserver
+{
+    internal static readonly NullLocationImportLifecycleObserver Instance = new();
+    private NullLocationImportLifecycleObserver() { }
+    public Task AfterBatchCommittedAsync(int importId, int epoch, int processed, CancellationToken token) =>
+        Task.CompletedTask;
+    public Task BeforeTerminalPersistenceAsync(
+        int importId, int epoch, LocationImportExecutionOutcome outcome, CancellationToken token) =>
+        Task.CompletedTask;
+}
+
 /// <summary>Maps bounded import execution outcomes to operational history values.</summary>
 public static class LocationImportJobOutcome
 {
@@ -37,6 +57,12 @@ public sealed class LocationImportLifecycle(
     private static readonly System.Collections.Concurrent.ConcurrentDictionary<(int ImportId, int Epoch), SemaphoreSlim>
         ProjectionLocks = new();
     private readonly SemaphoreSlim _commands = new(1, 1);
+    private ILocationImportLifecycleObserver _observer = NullLocationImportLifecycleObserver.Instance;
+
+    /// <summary>Creates a lifecycle with a test-controlled, authority-neutral persistence observer.</summary>
+    internal LocationImportLifecycle(ApplicationDbContext db, IScheduler scheduler,
+        ILogger<LocationImportLifecycle> logger, ILocationImportLifecycleObserver observer)
+        : this(db, scheduler, logger) => _observer = observer;
 
     public async Task<LocationImportCommandResult> StartAsync(
         string userId, int importId, CancellationToken cancellationToken = default)
@@ -223,6 +249,7 @@ public sealed class LocationImportLifecycle(
         }
         else return;
         import.ProjectionPending = false;
+        await _observer.BeforeTerminalPersistenceAsync(importId, epoch, outcome, cancellationToken);
         _ = await SaveConvergentlyAsync(cancellationToken);
     }
 
