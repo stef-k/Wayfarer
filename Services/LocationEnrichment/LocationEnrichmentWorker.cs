@@ -89,12 +89,32 @@ public interface IWorkflowScheduleProjection
 
 /// <summary>Loads committed state in a fresh scope before changing Quartz metadata.</summary>
 public sealed class WorkflowScheduleProjection(
-    ApplicationDbContext db, LocationEnrichmentScheduler scheduler) : IWorkflowScheduleProjection
+    IDbContextFactory<ApplicationDbContext> contexts, LocationEnrichmentScheduler scheduler) : IWorkflowScheduleProjection
 {
     public async Task ProjectAsync(string userId, CancellationToken cancellationToken = default)
     {
-        var workflow = await db.LocationEnrichmentWorkflows.AsNoTracking()
+        for (var attempt = 0; attempt < 3; attempt++)
+        {
+            var workflow = await LoadAsync(userId, cancellationToken);
+            await scheduler.EnsureScheduledAsync(workflow, cancellationToken);
+            var current = await LoadAsync(userId, cancellationToken);
+            if (workflow.Epoch == current.Epoch && workflow.State == current.State
+                && workflow.IntentEnabled == current.IntentEnabled
+                && workflow.NextEligibleAtUtc == current.NextEligibleAtUtc) return;
+        }
+        var final = await LoadAsync(userId, cancellationToken);
+        await scheduler.EnsureScheduledAsync(final, cancellationToken);
+        var verified = await LoadAsync(userId, cancellationToken);
+        if (final.Epoch != verified.Epoch || final.State != verified.State
+            || final.IntentEnabled != verified.IntentEnabled
+            || final.NextEligibleAtUtc != verified.NextEligibleAtUtc)
+            throw new InvalidOperationException($"Workflow projection did not converge for user {userId}.");
+    }
+
+    private async Task<LocationEnrichmentWorkflow> LoadAsync(string userId, CancellationToken cancellationToken)
+    {
+        await using var db = await contexts.CreateDbContextAsync(cancellationToken);
+        return await db.LocationEnrichmentWorkflows.AsNoTracking()
             .SingleAsync(item => item.UserId == userId, cancellationToken);
-        await scheduler.EnsureScheduledAsync(workflow, cancellationToken);
     }
 }
