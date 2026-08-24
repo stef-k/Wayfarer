@@ -140,6 +140,11 @@ public sealed class LocationImportLifecycle(
         }
         try
         {
+            var executing = (await scheduler.GetCurrentlyExecutingJobs(cancellationToken))
+                .Select(context => context.JobDetail.Key)
+                .Any(key => key.Group == LocationImportSchedulerKeys.Group
+                    && key.Name.StartsWith($"LocationImportJob_{importId}_", StringComparison.Ordinal));
+            if (executing) return new(LocationImportCommandCode.ProjectionPending);
             var keys = await scheduler.GetJobKeys(Quartz.Impl.Matchers.GroupMatcher<JobKey>.GroupEquals(LocationImportSchedulerKeys.Group), cancellationToken)
                 ?? new HashSet<JobKey>();
             foreach (var key in keys.Where(key => key.Name.StartsWith($"LocationImportJob_{importId}_", StringComparison.Ordinal)))
@@ -170,6 +175,7 @@ public sealed class LocationImportLifecycle(
         db.ChangeTracker.Clear();
         var import = await db.LocationImports.SingleOrDefaultAsync(item => item.Id == importId, cancellationToken);
         if (import is null || import.ExecutionEpoch != epoch) return;
+        if (import.DeletionRequestedAtUtc.HasValue) return;
         if (import.Status == ImportStatus.Stopping || outcome is LocationImportExecutionOutcome.Cancelled)
             import.Status = ImportStatus.Stopped;
         else if (outcome == LocationImportExecutionOutcome.Completed)
