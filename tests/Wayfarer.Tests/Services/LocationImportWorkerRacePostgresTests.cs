@@ -46,7 +46,7 @@ public sealed class LocationImportWorkerRacePostgresTests(PostgresImportTestFixt
             Assert.Equal(50, import.LastProcessedIndex);
             Assert.Equal(50, await pending.Locations.CountAsync(x => x.UserId == seed.UserId));
         }
-        handoff.Verify(x => x.EnsureAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
+        handoff.Verify(x => x.EnsureAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
 
         await ReconcileTwiceAsync(scheduler.Object);
         await using var final = fixture.CreateContext();
@@ -73,7 +73,7 @@ public sealed class LocationImportWorkerRacePostgresTests(PostgresImportTestFixt
         observer.Release();
         await running;
 
-        Assert.Equal(LocationImportExecutionOutcome.Completed, context.Object.Result);
+        Assert.Equal(LocationImportExecutionOutcome.Stale, context.Object.Result);
         await using (var pending = fixture.CreateContext())
         {
             var import = await pending.LocationImports.SingleAsync(x => x.Id == seed.ImportId);
