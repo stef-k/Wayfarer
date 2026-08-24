@@ -89,7 +89,7 @@ public sealed class LocationEnrichmentQuartzPostgresTests(PostgresImportTestFixt
             if (user is not null)
             {
                 await using var cleanup = fixture.CreateContext();
-                await cleanup.LocationEnrichmentWorkflows.Where(item => item.UserId == user.Id).ExecuteDeleteAsync();
+                await cleanup.Users.Where(item => item.Id == user.Id).ExecuteDeleteAsync();
             }
             await ExecuteAsync(admin, "SET search_path TO public");
             await ExecuteAsync(admin, $"DROP SCHEMA IF EXISTS {schema} CASCADE");
