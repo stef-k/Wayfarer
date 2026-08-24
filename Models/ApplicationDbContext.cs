@@ -209,6 +209,14 @@ namespace Wayfarer.Models
             builder.Entity<LocationImport>()
                 .Property(li => li.UpdatedAt)
                 .HasDefaultValueSql("CURRENT_TIMESTAMP");
+            builder.Entity<LocationImport>().ToTable(table =>
+            {
+                table.HasCheckConstraint("CK_LocationImport_RemainingEnrichment",
+                    "\"RemainingEnrichmentCount\" >= 0");
+                table.HasCheckConstraint("CK_LocationImport_EnrichmentPauseReason",
+                    "\"EnrichmentPauseReason\" IS NULL OR \"EnrichmentPauseReason\" IN "
+                    + "('CredentialRequired','NoProviderSelected','ConsentRequired','Unauthorized','VerificationRequired','Exhausted','StaleAuthority')");
+            });
 
             builder.Entity<HiddenArea>()
                 .HasOne(h => h.User)

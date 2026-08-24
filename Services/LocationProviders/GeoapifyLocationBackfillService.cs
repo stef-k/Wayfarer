@@ -2,258 +2,298 @@ using Microsoft.EntityFrameworkCore;
 using Wayfarer.Models;
 using Wayfarer.Models.LocationEnrichment;
 using Wayfarer.Models.LocationProviders;
+using Wayfarer.Areas.Api.Controllers;
 using Wayfarer.Parsers;
 using Wayfarer.Services.LocationEnrichment;
 
 namespace Wayfarer.Services.LocationProviders;
 
-/// <summary>Runs one explicit bounded and resumable Geoapify Location enrichment invocation.</summary>
+/// <summary>Runs a bounded batch under one workflow lease and one durable operation per admitted contact.</summary>
 public sealed class GeoapifyLocationBackfillService(
-    ApplicationDbContext dbContext, ReverseGeocodingService reverseGeocoding,
-    IDbContextFactory<ApplicationDbContext> dbContextFactory) : ILocationEnrichmentBatch
+    IDbContextFactory<ApplicationDbContext> contexts, IServiceScopeFactory scopes,
+    IHttpClientFactory clients, ILogger<BaseApiController> logger,
+    LocationEnrichmentExecutionAuthority executionAuthority) : ILocationEnrichmentBatch
 {
-    /// <summary>Gets the strict maximum records scanned by one invocation.</summary>
     public const int MaximumRecords = 100;
 
-    /// <summary>Runs one user-owned chronological invocation and returns content-free progress.</summary>
-    public async Task<GeoapifyBackfillResult> RunAsync(string userId, int epoch,
+    /// <summary>Routes the retained explicit action through the same durable workflow lease.</summary>
+    public async Task<GeoapifyBackfillResult> RunAsync(string userId,
         CancellationToken cancellationToken = default)
-        => await RunSerializedAsync(userId, epoch, cancellationToken);
-
-    /// <summary>Retains the explicit bounded #502 action without requiring workflow state.</summary>
-    public async Task<GeoapifyBackfillResult> RunAsync(
-        string userId, CancellationToken cancellationToken = default)
-        => await RunSerializedAsync(userId, null, cancellationToken);
-
-    private async Task<GeoapifyBackfillResult> RunSerializedAsync(string userId, int? epoch,
-        CancellationToken cancellationToken)
     {
-        await using var lockOwner = dbContext.Database.IsNpgsql()
-            ? await dbContextFactory.CreateDbContextAsync(cancellationToken) : null;
-        await using var lockTransaction = lockOwner == null
-            ? null : await lockOwner.Database.BeginTransactionAsync(cancellationToken);
-        if (lockOwner != null)
-            _ = await lockOwner.Users.FromSqlInterpolated($$"""
-                SELECT * FROM "AspNetUsers" WHERE "Id" = {{userId}} FOR UPDATE
-                """).AsNoTracking().SingleAsync(cancellationToken);
-
-        try
+        await using var db = await contexts.CreateDbContextAsync(cancellationToken);
+        var workflow = await db.LocationEnrichmentWorkflows.SingleOrDefaultAsync(
+            item => item.UserId == userId, cancellationToken);
+        if (workflow is null)
         {
-            return await RunOperationalAsync(userId, epoch, cancellationToken);
+            var now = await LocationEnrichmentExecutionAuthority.DatabaseUtcNowAsync(db, cancellationToken);
+            workflow = LocationEnrichmentWorkflow.Create(userId, now);
+            workflow.Start(now);
+            db.Add(workflow);
+            await db.SaveChangesAsync(cancellationToken);
         }
-        finally
+        else if (!workflow.IntentEnabled)
         {
-            // This transaction owns only invocation serialization. Operational transactions commit independently.
-            if (lockTransaction != null) await lockTransaction.RollbackAsync(CancellationToken.None);
+            var now = await LocationEnrichmentExecutionAuthority.DatabaseUtcNowAsync(db, cancellationToken);
+            workflow.Start(now);
+            await db.SaveChangesAsync(cancellationToken);
         }
+        return await RunAsync(userId, workflow.Epoch, cancellationToken);
     }
 
-    private async Task<GeoapifyBackfillResult> RunOperationalAsync(
-        string userId, int? epoch, CancellationToken cancellationToken)
+    /// <summary>Acquires the common lease before entering the bounded implementation.</summary>
+    public async Task<GeoapifyBackfillResult> RunAsync(string userId, int epoch,
+        CancellationToken cancellationToken = default)
     {
-        var authority = await LoadAuthorityAsync(userId, cancellationToken);
-        var ids = await LoadCandidateIdsAsync(dbContext, userId, authority, MaximumRecords, cancellationToken);
+        var owner = await executionAuthority.TryAcquireAsync(userId, epoch, cancellationToken);
+        if (!owner.HasValue) return new(0, 0, 0, 0, 0, false);
+        try { return await RunAsync(owner.Value, cancellationToken); }
+        finally { await executionAuthority.TryReleaseAsync(owner.Value, CancellationToken.None); }
+    }
+
+    public async Task<GeoapifyBackfillResult> RunAsync(LocationEnrichmentExecutionLease owner,
+        CancellationToken cancellationToken = default)
+    {
+        var selected = await LoadAuthorityAsync(owner.UserId, cancellationToken);
+        var ids = await LoadCandidateIdsAsync(owner.UserId, selected, MaximumRecords, cancellationToken);
         var scanned = 0; var succeeded = 0; var noResult = 0; var unavailable = 0; var admitted = 0;
-        var exhausted = false;
-        DateTimeOffset? nextEligibleAt = null;
-        var authorityUnavailable = false;
-        var cancellationAfterContact = false;
+        var exhausted = false; var authorityUnavailable = false; DateTimeOffset? next = null;
         foreach (var id in ids)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (epoch.HasValue && !await ExecutionStillCurrentAsync(userId, epoch.Value, cancellationToken)) break;
-            var location = await dbContext.Locations.SingleAsync(
-                item => item.Id == id && item.UserId == userId, cancellationToken);
-            if (!IsWhollyUnenriched(location)) continue;
+            var renewed = await executionAuthority.TryRenewForContactAsync(owner, cancellationToken);
+            if (!renewed.HasValue) break;
+            owner = renewed.Value;
+            var candidate = await LoadCandidateAsync(owner.UserId, id, cancellationToken);
+            if (candidate is null) continue;
             scanned++;
-            var result = await reverseGeocoding.EnrichAsync(userId,
-                location.Coordinates.Y, location.Coordinates.X,
-                ReverseGeocodingIntent.ImportMissingAddress, cancellationToken);
-            if (result.Authority != null) admitted++;
-            if (!epoch.HasValue && result.Category == ReverseGeocodingCategory.CancelledAfterContact)
-                cancellationToken.ThrowIfCancellationRequested();
-            if (epoch.HasValue && !await ExecutionStillCurrentAsync(userId, epoch.Value, CancellationToken.None))
+
+            PersonalProviderAdmission admission;
+            await using (var scope = scopes.CreateAsyncScope())
+                admission = await scope.ServiceProvider.GetRequiredService<PersonalProviderContactGate>()
+                    .AdmitPersistentGeocodingAsync(owner.UserId, cancellationToken);
+            if (!admission.Succeeded)
             {
-                if (result.Authority != null)
-                    await RecordAttemptAsync(userId, location.Id, authority,
-                        ReverseGeocodingResult.Unavailable(ReverseGeocodingCategory.CancelledAfterContact)
-                            with { Authority = result.Authority }, CancellationToken.None);
+                var category = MapAdmission(admission.Category);
+                exhausted = category == ReverseGeocodingCategory.Exhausted;
+                authorityUnavailable = category is ReverseGeocodingCategory.Unauthorized
+                    or ReverseGeocodingCategory.CredentialRequired or ReverseGeocodingCategory.NoProviderSelected
+                    or ReverseGeocodingCategory.VerificationRequired or ReverseGeocodingCategory.ConsentRequired;
+                if (exhausted) next = await LoadBudgetWakeAsync(owner.UserId, cancellationToken);
                 break;
             }
-            if (result.Category == ReverseGeocodingCategory.Exhausted)
-            {
-                exhausted = true;
-                nextEligibleAt = await LoadBudgetWakeAsync(userId, cancellationToken);
-                break;
-            }
-            if (result.Category is ReverseGeocodingCategory.Unauthorized or ReverseGeocodingCategory.CredentialRequired
-                or ReverseGeocodingCategory.NoProviderSelected or ReverseGeocodingCategory.VerificationRequired
-                or ReverseGeocodingCategory.ConsentRequired or ReverseGeocodingCategory.StaleAuthority)
+
+            var operation = await TryClaimAttemptAsync(owner, id, admission.Authority!, cancellationToken);
+            if (!operation.HasValue) continue;
+            admitted++;
+            if (!await executionAuthority.IsCurrentAsync(owner, CancellationToken.None)) break;
+            var transport = new ReverseGeocodingService(
+                clients.CreateClient("LocationEnrichmentProvider"), logger);
+            var result = await transport.ContactAdmittedAsync(admission.Authority!, candidate.Value.Latitude,
+                candidate.Value.Longitude, cancellationToken);
+            var applied = await TryCompleteAttemptAsync(owner, id, operation.Value, result, CancellationToken.None);
+            if (!applied.AuthorityCurrent) break;
+            if (applied.Enriched) succeeded++;
+            else if (result.Category is ReverseGeocodingCategory.InvalidRequest or ReverseGeocodingCategory.InvalidResponse)
+                noResult++;
+            else unavailable++;
+            if (result.Category is ReverseGeocodingCategory.Authorization or ReverseGeocodingCategory.StaleAuthority)
             { authorityUnavailable = true; break; }
-            if (!result.Succeeded)
-            {
-                if (epoch.HasValue)
-                    await RecordAttemptAsync(userId, location.Id, authority, result,
-                        result.Category == ReverseGeocodingCategory.CancelledAfterContact
-                            ? CancellationToken.None : cancellationToken);
-                if (result.Category is ReverseGeocodingCategory.InvalidResponse or ReverseGeocodingCategory.InvalidRequest)
-                    noResult++;
-                else unavailable++;
-                if (result.Category == ReverseGeocodingCategory.Authorization)
-                { authorityUnavailable = true; break; }
-                if (result.Category == ReverseGeocodingCategory.CancelledAfterContact)
-                { cancellationAfterContact = true; break; }
-                continue;
-            }
-            await dbContext.Entry(location).ReloadAsync(cancellationToken);
-            if (!IsWhollyUnenriched(location)) continue;
-            if (result.ApplyTo(location, DateTimeOffset.UtcNow))
-            {
-                await dbContext.SaveChangesAsync(cancellationToken);
-                await dbContext.LocationEnrichmentAttempts.Where(item => item.UserId == userId && item.LocationId == id)
-                    .ExecuteDeleteAsync(CancellationToken.None);
-                succeeded++;
-            }
         }
-        var finalToken = cancellationAfterContact ? CancellationToken.None : cancellationToken;
-        var remaining = await CandidateQuery(dbContext, userId, authority, DateTime.UtcNow)
-            .CountAsync(finalToken);
+
+        await using var finalDb = await contexts.CreateDbContextAsync(CancellationToken.None);
+        var now = await LocationEnrichmentExecutionAuthority.DatabaseUtcNowAsync(finalDb, CancellationToken.None);
+        var remaining = await CandidateQuery(finalDb, owner.UserId, selected, now).CountAsync(CancellationToken.None);
         if (remaining == 0 && !exhausted && !authorityUnavailable)
         {
-            var futureDue = await FutureRetryQuery(dbContext, userId, authority, DateTime.UtcNow)
-                .MinAsync(item => (DateTime?)item.NextAttemptAtUtc, finalToken);
-            if (futureDue.HasValue)
-            {
-                remaining = 1;
-                unavailable = Math.Max(unavailable, 1);
-                nextEligibleAt = new DateTimeOffset(futureDue.Value);
-            }
+            var due = await FutureRetryQuery(finalDb, owner.UserId, selected, now)
+                .MinAsync(item => (DateTime?)item.NextAttemptAtUtc, CancellationToken.None);
+            if (due.HasValue) { remaining = 1; unavailable = Math.Max(unavailable, 1); next = due; }
         }
-        return new(scanned, succeeded, noResult, unavailable, remaining, exhausted, nextEligibleAt,
+        return new(scanned, succeeded, noResult, unavailable, remaining, exhausted, next,
             authorityUnavailable, admitted);
     }
 
-    /// <summary>Loads only stable candidate identities in chronological order.</summary>
-    public static Task<List<int>> LoadCandidateIdsAsync(ApplicationDbContext dbContext, string userId, int limit,
-        CancellationToken cancellationToken = default)
+    private async Task<(double Latitude, double Longitude)?> LoadCandidateAsync(
+        string userId, int id, CancellationToken cancellationToken)
     {
-        if (limit is < 1 or > MaximumRecords) throw new ArgumentOutOfRangeException(nameof(limit));
-        return WhollyUnenriched(dbContext.Locations.Where(item => item.UserId == userId))
-            .OrderBy(item => item.Timestamp).ThenBy(item => item.Id).Select(item => item.Id).Take(limit)
-            .ToListAsync(cancellationToken);
+        await using var db = await contexts.CreateDbContextAsync(cancellationToken);
+        var location = await db.Locations.AsNoTracking().SingleOrDefaultAsync(
+            item => item.UserId == userId && item.Id == id, cancellationToken);
+        return location is not null && IsWhollyUnenriched(location)
+            ? (location.Coordinates.Y, location.Coordinates.X) : null;
     }
 
-    private Task<bool> ExecutionStillCurrentAsync(string userId, int epoch, CancellationToken cancellationToken) =>
-        dbContext.LocationEnrichmentWorkflows.AsNoTracking().AnyAsync(item => item.UserId == userId
-            && item.State == LocationEnrichmentState.Running && item.IntentEnabled && item.Epoch == epoch,
-            cancellationToken);
+    private async Task<Guid?> TryClaimAttemptAsync(LocationEnrichmentExecutionLease owner, int locationId,
+        PersonalProviderAuthoritySnapshot contacted, CancellationToken cancellationToken)
+    {
+        await using var db = await contexts.CreateDbContextAsync(cancellationToken);
+        await using var transaction = db.Database.IsRelational()
+            ? await db.Database.BeginTransactionAsync(cancellationToken) : null;
+        var now = await LocationEnrichmentExecutionAuthority.DatabaseUtcNowAsync(db, cancellationToken);
+        var workflow = await LockWorkflowAsync(db, owner.UserId, cancellationToken);
+        var location = await db.Locations.SingleOrDefaultAsync(item => item.UserId == owner.UserId
+            && item.Id == locationId, cancellationToken);
+        if (workflow?.Epoch != owner.Epoch || !workflow.HasExecutionLease(owner.LeaseId,
+                owner.FencingGeneration, now) || location is null || !IsWhollyUnenriched(location))
+        { if (transaction != null) await transaction.RollbackAsync(cancellationToken); return null; }
+        var attempt = await db.LocationEnrichmentAttempts.SingleOrDefaultAsync(item => item.UserId == owner.UserId
+            && item.LocationId == locationId, cancellationToken) ?? new LocationEnrichmentAttempt
+            { UserId = owner.UserId, LocationId = locationId };
+        if (attempt.Id == 0) db.Add(attempt);
+        var same = attempt.ProviderKey == contacted.ProviderKey
+            && attempt.CredentialGeneration == contacted.CredentialGeneration
+            && attempt.ConfigurationGeneration == contacted.CapabilityGeneration
+            && attempt.SelectionGeneration == contacted.SelectionGeneration;
+        if (!same) attempt.AdmittedAttemptCount = 0;
+        attempt.ProviderKey = contacted.ProviderKey;
+        attempt.CredentialGeneration = contacted.CredentialGeneration;
+        attempt.ConfigurationGeneration = contacted.CapabilityGeneration;
+        attempt.SelectionGeneration = contacted.SelectionGeneration;
+        attempt.AdmittedAttemptCount++;
+        attempt.Outcome = LocationEnrichmentOutcome.RetryableFailure;
+        attempt.LastAttemptAtUtc = now;
+        attempt.NextAttemptAtUtc = now + LocationEnrichmentRetryPolicy.Backoff(attempt.AdmittedAttemptCount);
+        attempt.OperationId = Guid.NewGuid();
+        attempt.OperationFencingGeneration = owner.FencingGeneration;
+        attempt.OperationStartedAtUtc = now;
+        await db.SaveChangesAsync(cancellationToken);
+        if (transaction != null) await transaction.CommitAsync(cancellationToken);
+        return attempt.OperationId;
+    }
 
-    /// <summary>Loads due identities while permanently deferred poison rows cannot consume the batch.</summary>
-    public static Task<List<int>> LoadCandidateIdsAsync(ApplicationDbContext dbContext, string userId,
+    private async Task<(bool AuthorityCurrent, bool Enriched)> TryCompleteAttemptAsync(
+        LocationEnrichmentExecutionLease owner, int locationId, Guid operationId,
+        ReverseGeocodingResult result, CancellationToken cancellationToken)
+    {
+        await using var db = await contexts.CreateDbContextAsync(cancellationToken);
+        await using var transaction = db.Database.IsRelational()
+            ? await db.Database.BeginTransactionAsync(cancellationToken) : null;
+        var now = await LocationEnrichmentExecutionAuthority.DatabaseUtcNowAsync(db, cancellationToken);
+        var workflow = await LockWorkflowAsync(db, owner.UserId, cancellationToken);
+        var attempt = await db.LocationEnrichmentAttempts.SingleOrDefaultAsync(item => item.UserId == owner.UserId
+            && item.LocationId == locationId && item.OperationId == operationId
+            && item.OperationFencingGeneration == owner.FencingGeneration, cancellationToken);
+        if (workflow?.Epoch != owner.Epoch || !workflow.HasExecutionLease(owner.LeaseId,
+                owner.FencingGeneration, now) || attempt is null)
+        { if (transaction != null) await transaction.RollbackAsync(cancellationToken); return (false, false); }
+        attempt.Outcome = MapOutcome(result.Category, attempt.AdmittedAttemptCount);
+        if (attempt.Outcome != LocationEnrichmentOutcome.RetryableFailure) attempt.NextAttemptAtUtc = null;
+        attempt.OperationId = null; attempt.OperationFencingGeneration = null; attempt.OperationStartedAtUtc = null;
+        var enriched = false;
+        if (result.Succeeded)
+        {
+            var location = await db.Locations.SingleAsync(item => item.UserId == owner.UserId
+                && item.Id == locationId, cancellationToken);
+            enriched = IsWhollyUnenriched(location) && result.ApplyTo(location, new(now, TimeSpan.Zero));
+            if (enriched) db.LocationEnrichmentAttempts.Remove(attempt);
+        }
+        await db.SaveChangesAsync(cancellationToken);
+        if (transaction != null) await transaction.CommitAsync(cancellationToken);
+        return (true, enriched);
+    }
+
+    private async Task<List<int>> LoadCandidateIdsAsync(string userId, EnrichmentAuthority authority,
+        int limit, CancellationToken cancellationToken)
+    {
+        await using var db = await contexts.CreateDbContextAsync(cancellationToken);
+        var now = await LocationEnrichmentExecutionAuthority.DatabaseUtcNowAsync(db, cancellationToken);
+        return await CandidateQuery(db, userId, authority, now).Take(limit).ToListAsync(cancellationToken);
+    }
+
+    public static Task<List<int>> LoadCandidateIdsAsync(ApplicationDbContext db, string userId, int limit,
+        CancellationToken cancellationToken = default) => WhollyUnenriched(db.Locations.Where(item => item.UserId == userId))
+        .OrderBy(item => item.Timestamp).ThenBy(item => item.Id).Select(item => item.Id).Take(limit).ToListAsync(cancellationToken);
+
+    public static Task<List<int>> LoadCandidateIdsAsync(ApplicationDbContext db, string userId,
         EnrichmentAuthority authority, int limit, CancellationToken cancellationToken = default)
-    {
-        if (limit is < 1 or > MaximumRecords) throw new ArgumentOutOfRangeException(nameof(limit));
-        return CandidateQuery(dbContext, userId, authority, DateTime.UtcNow).Take(limit).ToListAsync(cancellationToken);
-    }
+        => CandidateQuery(db, userId, authority, DateTime.UtcNow).Take(limit).ToListAsync(cancellationToken);
 
-    private static IQueryable<int> CandidateQuery(ApplicationDbContext dbContext, string userId,
+    internal static IQueryable<int> CandidateQuery(ApplicationDbContext db, string userId,
         EnrichmentAuthority authority, DateTime now)
     {
-        var attempts = dbContext.LocationEnrichmentAttempts.Where(item => item.UserId == userId);
-        return from location in WhollyUnenriched(dbContext.Locations.Where(item => item.UserId == userId))
-                join attempt in attempts on location.Id equals attempt.LocationId into matches
-                from attempt in matches.DefaultIfEmpty()
-                where attempt == null ||
-                    (attempt.Outcome != LocationEnrichmentOutcome.InvalidCoordinates
-                     && attempt.Outcome != LocationEnrichmentOutcome.NoResult
-                     && attempt.Outcome != LocationEnrichmentOutcome.AttemptLimit
-                     && (attempt.ProviderKey != authority.ProviderKey
-                         || attempt.CredentialGeneration != authority.CredentialGeneration
-                         || attempt.ConfigurationGeneration != authority.ConfigurationGeneration
-                         || attempt.SelectionGeneration != authority.SelectionGeneration
-                         || (attempt.AdmittedAttemptCount < 3
-                             && (attempt.NextAttemptAtUtc == null || attempt.NextAttemptAtUtc <= now))))
-                orderby location.Timestamp, location.Id
-                select location.Id;
+        var attempts = db.LocationEnrichmentAttempts.Where(item => item.UserId == userId);
+        return from location in WhollyUnenriched(db.Locations.Where(item => item.UserId == userId))
+            join attempt in attempts on location.Id equals attempt.LocationId into matches
+            from attempt in matches.DefaultIfEmpty()
+            where attempt == null || (attempt.OperationId == null
+                && attempt.Outcome != LocationEnrichmentOutcome.InvalidCoordinates
+                && attempt.Outcome != LocationEnrichmentOutcome.NoResult
+                && attempt.Outcome != LocationEnrichmentOutcome.AttemptLimit
+                && attempt.ProviderKey == authority.ProviderKey
+                && attempt.CredentialGeneration == authority.CredentialGeneration
+                && attempt.ConfigurationGeneration == authority.ConfigurationGeneration
+                && attempt.SelectionGeneration == authority.SelectionGeneration
+                && attempt.AdmittedAttemptCount < 3
+                && (attempt.NextAttemptAtUtc == null || attempt.NextAttemptAtUtc <= now))
+            orderby location.Timestamp, location.Id select location.Id;
     }
 
-    private static IQueryable<LocationEnrichmentAttempt> FutureRetryQuery(ApplicationDbContext dbContext,
+    private static IQueryable<LocationEnrichmentAttempt> FutureRetryQuery(ApplicationDbContext db,
         string userId, EnrichmentAuthority authority, DateTime now) =>
-        from attempt in dbContext.LocationEnrichmentAttempts
-        join location in WhollyUnenriched(dbContext.Locations.Where(item => item.UserId == userId))
+        from attempt in db.LocationEnrichmentAttempts
+        join location in WhollyUnenriched(db.Locations.Where(item => item.UserId == userId))
             on attempt.LocationId equals location.Id
         where attempt.UserId == userId && attempt.ProviderKey == authority.ProviderKey
             && attempt.CredentialGeneration == authority.CredentialGeneration
             && attempt.ConfigurationGeneration == authority.ConfigurationGeneration
             && attempt.SelectionGeneration == authority.SelectionGeneration
             && attempt.Outcome == LocationEnrichmentOutcome.RetryableFailure
-            && attempt.AdmittedAttemptCount < 3 && attempt.NextAttemptAtUtc > now
-        select attempt;
+            && attempt.AdmittedAttemptCount < 3 && attempt.NextAttemptAtUtc > now select attempt;
 
     private async Task<EnrichmentAuthority> LoadAuthorityAsync(string userId, CancellationToken cancellationToken)
     {
-        var selection = await dbContext.PersonalLocationProviderSelections.AsNoTracking()
+        await using var db = await contexts.CreateDbContextAsync(cancellationToken);
+        var selection = await db.PersonalLocationProviderSelections.AsNoTracking()
             .SingleOrDefaultAsync(item => item.UserId == userId, cancellationToken);
         var key = selection?.GeocodingProviderKey ?? string.Empty;
-        var profile = await dbContext.PersonalLocationProviderProfiles.AsNoTracking()
+        var profile = await db.PersonalLocationProviderProfiles.AsNoTracking()
             .SingleOrDefaultAsync(item => item.UserId == userId && item.ProviderKey == key, cancellationToken);
         return new(key, profile?.CredentialGeneration ?? 0, profile?.GeocodingGeneration ?? 0,
             selection?.GeocodingSelectionGeneration ?? 0);
     }
 
-    private async Task RecordAttemptAsync(string userId, int locationId, EnrichmentAuthority selected,
-        ReverseGeocodingResult result, CancellationToken cancellationToken)
-    {
-        var contacted = result.Authority;
-        var authority = contacted == null ? selected : new EnrichmentAuthority(contacted.ProviderKey,
-            contacted.CredentialGeneration, contacted.CapabilityGeneration, contacted.SelectionGeneration);
-        var attempt = await dbContext.LocationEnrichmentAttempts.SingleOrDefaultAsync(
-            item => item.UserId == userId && item.LocationId == locationId,
-            cancellationToken);
-        // The workflow user is the only caller identity; no request payload is retained.
-        attempt ??= new LocationEnrichmentAttempt { UserId = userId, LocationId = locationId };
-        if (attempt.Id == 0) dbContext.Add(attempt);
-        var sameGeneration = attempt.ProviderKey == authority.ProviderKey
-            && attempt.CredentialGeneration == authority.CredentialGeneration
-            && attempt.ConfigurationGeneration == authority.ConfigurationGeneration
-            && attempt.SelectionGeneration == authority.SelectionGeneration;
-        if (!sameGeneration) attempt.AdmittedAttemptCount = 0;
-        attempt.ProviderKey = authority.ProviderKey;
-        attempt.CredentialGeneration = authority.CredentialGeneration;
-        attempt.ConfigurationGeneration = authority.ConfigurationGeneration;
-        attempt.SelectionGeneration = authority.SelectionGeneration;
-        if (contacted != null) attempt.AdmittedAttemptCount++;
-        attempt.LastAttemptAtUtc = DateTime.UtcNow;
-        attempt.Outcome = result.Category switch
-        {
-            ReverseGeocodingCategory.InvalidRequest => LocationEnrichmentOutcome.InvalidCoordinates,
-            ReverseGeocodingCategory.InvalidResponse => LocationEnrichmentOutcome.NoResult,
-            ReverseGeocodingCategory.Authorization or ReverseGeocodingCategory.StaleAuthority
-                => LocationEnrichmentOutcome.AuthorityUnavailable,
-            _ when attempt.AdmittedAttemptCount >= 3 => LocationEnrichmentOutcome.AttemptLimit,
-            _ => LocationEnrichmentOutcome.RetryableFailure
-        };
-        attempt.NextAttemptAtUtc = attempt.Outcome == LocationEnrichmentOutcome.RetryableFailure
-            ? DateTime.UtcNow + LocationEnrichmentRetryPolicy.Backoff(attempt.AdmittedAttemptCount) : null;
-        await dbContext.SaveChangesAsync(CancellationToken.None);
-    }
-
     private async Task<DateTimeOffset?> LoadBudgetWakeAsync(string userId, CancellationToken cancellationToken)
     {
-        var now = dbContext.Database.IsNpgsql()
-            ? await dbContext.Database.SqlQuery<DateTimeOffset>($"SELECT clock_timestamp() AS \"Value\"")
-                .SingleAsync(cancellationToken)
-            : DateTimeOffset.UtcNow;
-        var selection = await dbContext.PersonalLocationProviderSelections.AsNoTracking()
+        await using var db = await contexts.CreateDbContextAsync(cancellationToken);
+        var now = await LocationEnrichmentExecutionAuthority.DatabaseUtcNowAsync(db, cancellationToken);
+        var selection = await db.PersonalLocationProviderSelections.AsNoTracking()
             .SingleOrDefaultAsync(item => item.UserId == userId, cancellationToken);
-        if (selection?.GeocodingProviderKey == "mapbox") return LocationEnrichmentRetryPolicy.MapboxWake(now);
-        var admissions = await dbContext.GeoapifyUsageAdmissions.AsNoTracking()
-            .Where(item => item.UserId == userId && item.AdmittedAt > now.AddHours(-24))
-            .Select(item => item.AdmittedAt).ToListAsync(cancellationToken);
-        return LocationEnrichmentRetryPolicy.TryGeoapifyWake(now, admissions);
+        if (selection?.GeocodingProviderKey == "mapbox")
+            return LocationEnrichmentRetryPolicy.MapboxWake(new(now, TimeSpan.Zero));
+        var admissions = await db.GeoapifyUsageAdmissions.AsNoTracking().Where(item => item.UserId == userId
+            && item.AdmittedAt > now.AddHours(-24)).Select(item => item.AdmittedAt).ToListAsync(cancellationToken);
+        return LocationEnrichmentRetryPolicy.TryGeoapifyWake(new(now, TimeSpan.Zero), admissions);
     }
 
-    /// <summary>Returns whether every enrichment and provenance field is empty.</summary>
+    private static Task<LocationEnrichmentWorkflow?> LockWorkflowAsync(ApplicationDbContext db, string userId,
+        CancellationToken cancellationToken) => db.Database.IsNpgsql()
+        ? db.LocationEnrichmentWorkflows.FromSqlInterpolated($$"""
+            SELECT *, xmin FROM "LocationEnrichmentWorkflows" WHERE "UserId" = {{userId}} FOR UPDATE
+            """).SingleOrDefaultAsync(cancellationToken)
+        : db.LocationEnrichmentWorkflows.SingleOrDefaultAsync(item => item.UserId == userId, cancellationToken);
+
+    private static LocationEnrichmentOutcome MapOutcome(ReverseGeocodingCategory category, int count) => category switch
+    {
+        ReverseGeocodingCategory.Success => LocationEnrichmentOutcome.None,
+        ReverseGeocodingCategory.InvalidRequest => LocationEnrichmentOutcome.InvalidCoordinates,
+        ReverseGeocodingCategory.InvalidResponse => LocationEnrichmentOutcome.NoResult,
+        ReverseGeocodingCategory.Authorization or ReverseGeocodingCategory.StaleAuthority
+            => LocationEnrichmentOutcome.AuthorityUnavailable,
+        _ when count >= 3 => LocationEnrichmentOutcome.AttemptLimit,
+        _ => LocationEnrichmentOutcome.RetryableFailure
+    };
+
+    private static ReverseGeocodingCategory MapAdmission(PersonalProviderAdmissionCategory category) => category switch
+    {
+        PersonalProviderAdmissionCategory.NoProviderSelected => ReverseGeocodingCategory.NoProviderSelected,
+        PersonalProviderAdmissionCategory.ConsentRequired => ReverseGeocodingCategory.ConsentRequired,
+        PersonalProviderAdmissionCategory.Unauthorized => ReverseGeocodingCategory.Unauthorized,
+        PersonalProviderAdmissionCategory.Unverified => ReverseGeocodingCategory.VerificationRequired,
+        PersonalProviderAdmissionCategory.Exhausted => ReverseGeocodingCategory.Exhausted,
+        PersonalProviderAdmissionCategory.CredentialUnavailable => ReverseGeocodingCategory.CredentialRequired,
+        _ => ReverseGeocodingCategory.ProviderUnavailable
+    };
+
     public static bool IsWhollyUnenriched(Location value) => string.IsNullOrWhiteSpace(value.Address)
         && string.IsNullOrWhiteSpace(value.FullAddress) && string.IsNullOrWhiteSpace(value.AddressNumber)
         && string.IsNullOrWhiteSpace(value.StreetName) && string.IsNullOrWhiteSpace(value.PostCode)
@@ -270,20 +310,9 @@ public sealed class GeoapifyLocationBackfillService(
         && value.ReverseGeocodedAt == null);
 }
 
-/// <summary>Creates independent contexts for transaction-scoped backfill lock ownership.</summary>
-public sealed class BackfillLockDbContextFactory(
-    DbContextOptions<ApplicationDbContext> options, IServiceProvider services)
-    : IDbContextFactory<ApplicationDbContext>
-{
-    /// <summary>Creates a context whose connection is never shared with operational persistence.</summary>
-    public ApplicationDbContext CreateDbContext() => new(options, services);
-}
+public sealed record GeoapifyBackfillResult(int Scanned, int Succeeded, int NoResult, int Unavailable,
+    int RemainingEstimate, bool Exhausted, DateTimeOffset? NextEligibleAt = null,
+    bool AuthorityUnavailable = false, int Admitted = 0);
 
-/// <summary>Contains bounded content-free progress for one explicit backfill invocation.</summary>
-public sealed record GeoapifyBackfillResult(
-    int Scanned, int Succeeded, int NoResult, int Unavailable, int RemainingEstimate, bool Exhausted,
-    DateTimeOffset? NextEligibleAt = null, bool AuthorityUnavailable = false, int Admitted = 0);
-
-/// <summary>Contains only bounded provider generation identity used by candidate selection.</summary>
 public sealed record EnrichmentAuthority(string ProviderKey, int CredentialGeneration,
     int ConfigurationGeneration, int SelectionGeneration);

@@ -17,6 +17,9 @@ public sealed class LocationEnrichmentAttempt
     public int AdmittedAttemptCount { get; set; }
     public DateTime LastAttemptAtUtc { get; set; }
     public DateTime? NextAttemptAtUtc { get; set; }
+    public Guid? OperationId { get; set; }
+    public long? OperationFencingGeneration { get; set; }
+    public DateTime? OperationStartedAtUtc { get; set; }
     public LocationEnrichmentWorkflow? Workflow { get; set; }
     public Location? Location { get; set; }
 
@@ -75,6 +78,9 @@ public sealed class LocationEnrichmentAttemptConfiguration : IEntityTypeConfigur
                 "\"ProviderKey\" IN ('', 'geoapify', 'mapbox')");
             table.HasCheckConstraint("CK_LocationEnrichmentAttempt_Outcome",
                 "\"Outcome\" IN ('None','NoCandidates','BudgetExhausted','AuthorityUnavailable','RetryableFailure','InvalidCoordinates','NoResult','AttemptLimit','DataFailure')");
+            table.HasCheckConstraint("CK_LocationEnrichmentAttempt_OperationPair",
+                "(\"OperationId\" IS NULL AND \"OperationFencingGeneration\" IS NULL AND \"OperationStartedAtUtc\" IS NULL) "
+                + "OR (\"OperationId\" IS NOT NULL AND \"OperationFencingGeneration\" > 0 AND \"OperationStartedAtUtc\" IS NOT NULL AND \"NextAttemptAtUtc\" IS NOT NULL)");
         });
     }
 }

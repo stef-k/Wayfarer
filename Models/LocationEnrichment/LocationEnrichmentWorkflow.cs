@@ -19,7 +19,8 @@ public enum LocationEnrichmentOutcome
 }
 
 /// <summary>Opaque, fenced ownership returned by a short relational lease acquisition.</summary>
-public readonly record struct LocationEnrichmentExecutionLease(Guid LeaseId, long FencingGeneration);
+public readonly record struct LocationEnrichmentExecutionLease(
+    string UserId, int Epoch, Guid LeaseId, long FencingGeneration, DateTime ExpiresAtUtc);
 
 /// <summary>PostgreSQL authority for one user-controlled, restart-safe enrichment workflow.</summary>
 public sealed class LocationEnrichmentWorkflow
@@ -220,7 +221,8 @@ public sealed class LocationEnrichmentWorkflow
         State = LocationEnrichmentState.Running;
         NextEligibleAtUtc = null;
         UpdatedAtUtc = nowUtc;
-        return new(ExecutionLeaseId.Value, ExecutionFencingGeneration);
+        return new(UserId, Epoch, ExecutionLeaseId.Value, ExecutionFencingGeneration,
+            ExecutionLeaseExpiresAtUtc.Value);
     }
 
     /// <summary>Renews only the current fenced execution owner.</summary>
@@ -252,6 +254,24 @@ public sealed class LocationEnrichmentWorkflow
         return true;
     }
 
+    /// <summary>Replaces derived progress with one independently reloadable relational snapshot.</summary>
+    public void ReplaceProgress(int processed, int enriched, int skipped, int retryableDeferred,
+        int permanentlyDeferred, int remainingEligible, int failedBatches, DateTime nowUtc)
+    {
+        EnsureUtc(nowUtc);
+        if (processed < 0 || enriched < 0 || skipped < 0 || retryableDeferred < 0
+            || permanentlyDeferred < 0 || remainingEligible < 0 || failedBatches < 0)
+            throw new ArgumentOutOfRangeException(nameof(processed));
+        ProcessedCount = processed;
+        EnrichedCount = enriched;
+        SkippedCount = skipped;
+        RetryableDeferredCount = retryableDeferred;
+        PermanentlyDeferredCount = permanentlyDeferred;
+        RemainingEligibleCount = remainingEligible;
+        FailedBatchCount = failedBatches;
+        UpdatedAtUtc = nowUtc;
+    }
+
     private void InvalidateExecutionLease()
     {
         ExecutionFencingGeneration++;
@@ -267,6 +287,17 @@ public sealed class LocationEnrichmentWorkflow
         State = IntentEnabled ? LocationEnrichmentState.Scheduled : LocationEnrichmentState.PausedByUser;
         NextEligibleAtUtc = IntentEnabled ? nowUtc : null;
         UpdatedAtUtc = nowUtc;
+    }
+
+    /// <summary>Recovers only an absent or database-expired owner and clears its stale lease pair.</summary>
+    public bool TryRecoverExpiredExecution(DateTime nowUtc)
+    {
+        EnsureUtc(nowUtc);
+        if (State != LocationEnrichmentState.Running || ExecutionLeaseExpiresAtUtc > nowUtc) return false;
+        ExecutionLeaseId = null;
+        ExecutionLeaseExpiresAtUtc = null;
+        RecoverRunning(nowUtc);
+        return true;
     }
 
     /// <summary>Persists the next authoritative state after one committed bounded batch.</summary>
@@ -311,7 +342,9 @@ public sealed class LocationEnrichmentWorkflowConfiguration : IEntityTypeConfigu
                 "\"ProcessedCount\" >= 0 AND \"EnrichedCount\" >= 0 AND \"SkippedCount\" >= 0 AND \"RetryableDeferredCount\" >= 0 AND \"PermanentlyDeferredCount\" >= 0 AND \"RemainingEligibleCount\" >= 0 AND \"AdmittedUsageCount\" >= 0 AND \"FailedBatchCount\" >= 0");
             table.HasCheckConstraint("CK_LocationEnrichmentWorkflow_ExecutionFence", "\"ExecutionFencingGeneration\" >= 0");
             table.HasCheckConstraint("CK_LocationEnrichmentWorkflow_ExecutionLeasePair",
-                "(\"ExecutionLeaseId\" IS NULL) = (\"ExecutionLeaseExpiresAtUtc\" IS NULL)");
+                "(\"ExecutionLeaseId\" IS NULL AND \"ExecutionLeaseExpiresAtUtc\" IS NULL) OR "
+                + "(\"ExecutionLeaseId\" IS NOT NULL AND \"ExecutionLeaseExpiresAtUtc\" IS NOT NULL "
+                + "AND \"ExecutionFencingGeneration\" > 0 AND \"State\" = 'Running' AND \"IntentEnabled\")");
             table.HasCheckConstraint("CK_LocationEnrichmentWorkflow_State",
                 "\"State\" IN ('Idle','Scheduled','Running','PausedByUser','PausedByBudget','PausedByAuthority','BackingOff','Completed','Cancelled','Failed')");
             table.HasCheckConstraint("CK_LocationEnrichmentWorkflow_Outcome",

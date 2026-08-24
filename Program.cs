@@ -21,6 +21,7 @@ using Wayfarer.Parsers;
 using Wayfarer.Services;
 using Wayfarer.Services.ExternalRouting;
 using Wayfarer.Services.LocationProviders;
+using Wayfarer.Services.LocationEnrichment;
 using Wayfarer.Swagger;
 using Wayfarer.Util;
 using IPNetwork = System.Net.IPNetwork;
@@ -315,7 +316,7 @@ static void ConfigureDatabase(WebApplicationBuilder builder)
         options.ConfigureWarnings(warnings =>
             warnings.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
     });
-    builder.Services.AddSingleton<IDbContextFactory<ApplicationDbContext>, BackfillLockDbContextFactory>();
+    builder.Services.AddSingleton<IDbContextFactory<ApplicationDbContext>, LocationEnrichmentDbContextFactory>();
 
     // Add exception handling for database-related errors during development
     builder.Services.AddDatabaseDeveloperPageExceptionFilter();
@@ -502,6 +503,7 @@ static void ConfigureServices(WebApplicationBuilder builder)
     builder.Services.AddScoped<LegacyMapboxMigrationService>();
     builder.Services.AddScoped<PersonalProviderContactGate>();
     builder.Services.AddScoped<GeoapifyLocationBackfillService>();
+    builder.Services.AddScoped<LocationEnrichmentExecutionAuthority>();
 
     // IRegistrationService as a transient or singleton service
     builder.Services.AddTransient<IRegistrationService, RegistrationService>();
@@ -535,6 +537,8 @@ static void ConfigureServices(WebApplicationBuilder builder)
     // Reverse geocoding Mapbox service
     // Query-string authentication and coordinates must never enter default HTTP diagnostics.
     builder.Services.AddHttpClient<ReverseGeocodingService>(client => client.Timeout = TimeSpan.FromSeconds(15)).RemoveAllLoggers();
+    builder.Services.AddHttpClient("LocationEnrichmentProvider",
+        client => client.Timeout = LocationEnrichmentExecutionAuthority.ProviderTimeout).RemoveAllLoggers();
     builder.Services.AddHttpClient<GeoapifyVerificationService>(client => client.Timeout = TimeSpan.FromSeconds(15)).RemoveAllLoggers();
 
     // Tile Cache service — typed HttpClient with OSM-compliant headers.

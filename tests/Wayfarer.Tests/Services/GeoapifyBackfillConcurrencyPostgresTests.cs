@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.DependencyInjection;
 using NetTopologySuite.Geometries;
 using Npgsql;
 using Wayfarer.Areas.Api.Controllers;
@@ -10,6 +11,7 @@ using Wayfarer.Models.LocationProviders;
 using Wayfarer.Models.LocationEnrichment;
 using Wayfarer.Parsers;
 using Wayfarer.Services.LocationProviders;
+using Wayfarer.Services.LocationEnrichment;
 using Wayfarer.Tests.Infrastructure;
 using Xunit;
 using Location = Wayfarer.Models.Location;
@@ -56,6 +58,8 @@ public sealed class GeoapifyBackfillConcurrencyPostgresTests(PostgresImportTestF
         var handler = new CoordinatedHandler(user.Id, null);
         await using var run = fixture.CreateContext();
         var task = Service(run, protection, handler).RunAsync(user.Id, epoch);
+        var entered = await Task.WhenAny(handler.FirstUserRequestEntered, task);
+        if (entered == task) await task;
         await handler.FirstUserRequestEntered;
         handler.Release();
         var result = await task;
@@ -118,7 +122,7 @@ public sealed class GeoapifyBackfillConcurrencyPostgresTests(PostgresImportTestF
 
     /// <summary>Proves admitted timeout and provider failure remain charged and release ownership for retry.</summary>
     [PostgresFact]
-    public async Task AdmittedFailuresRetainAdmissionAndAllowRetry()
+    public async Task AdmittedFailuresRetainAdmissionAndDeferImmediateRetry()
     {
         foreach (var outcome in new[] { ContactOutcome.Timeout, ContactOutcome.ProviderFailure })
         {
@@ -135,20 +139,19 @@ public sealed class GeoapifyBackfillConcurrencyPostgresTests(PostgresImportTestF
 
             var retryHandler = new CoordinatedHandler(user.Id, null);
             await using var retryDb = fixture.CreateContext();
-            var retry = Service(retryDb, protection, retryHandler).RunAsync(user.Id);
-            await retryHandler.FirstUserRequestEntered;
-            retryHandler.Release();
-            await retry;
+            await Service(retryDb, protection, retryHandler).RunAsync(user.Id);
 
             await using var verify = fixture.CreateContext();
-            Assert.Equal(2, await verify.Set<GeoapifyUsageAdmission>().CountAsync(item => item.UserId == user.Id));
-            Assert.Equal("geoapify", (await verify.Locations.SingleAsync(item => item.UserId == user.Id)).ReverseGeocodingProvider);
+            Assert.Single(await verify.Set<GeoapifyUsageAdmission>().Where(item => item.UserId == user.Id).ToListAsync());
+            Assert.Equal(0, retryHandler.RequestsFor(user.Id));
+            Assert.True(GeoapifyLocationBackfillService.IsWhollyUnenriched(
+                await verify.Locations.SingleAsync(item => item.UserId == user.Id)));
         }
     }
 
     /// <summary>Proves cancellation after contact retains admission and releases durable ownership.</summary>
     [PostgresFact]
-    public async Task CancellationAfterContactRetainsAdmissionAndAllowsRetry()
+    public async Task CancellationAfterContactRetainsAdmissionAndDefersRetry()
     {
         var user = await fixture.CreateUserAsync();
         var protection = new EphemeralDataProtectionProvider();
@@ -164,7 +167,8 @@ public sealed class GeoapifyBackfillConcurrencyPostgresTests(PostgresImportTestF
             Assert.Equal(1, await duringContact.Set<GeoapifyUsageAdmission>()
                 .CountAsync(item => item.UserId == user.Id));
         cancellation.Cancel();
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => cancelledRun);
+        var cancelled = await cancelledRun;
+        Assert.Equal(1, cancelled.Unavailable);
 
         await using (var verify = fixture.CreateContext())
         {
@@ -177,15 +181,13 @@ public sealed class GeoapifyBackfillConcurrencyPostgresTests(PostgresImportTestF
 
         var retryHandler = new CoordinatedHandler(user.Id, null);
         await using var retryDb = fixture.CreateContext();
-        var retry = Service(retryDb, protection, retryHandler).RunAsync(user.Id);
-        await retryHandler.FirstUserRequestEntered;
-        retryHandler.Release();
-        await retry;
+        await Service(retryDb, protection, retryHandler).RunAsync(user.Id);
 
         await using var final = fixture.CreateContext();
-        Assert.Equal(2, await final.Set<GeoapifyUsageAdmission>().CountAsync(item => item.UserId == user.Id));
-        Assert.Equal(1, retryHandler.RequestsFor(user.Id));
-        Assert.Equal("geoapify", (await final.Locations.SingleAsync(item => item.UserId == user.Id)).ReverseGeocodingProvider);
+        Assert.Single(await final.Set<GeoapifyUsageAdmission>().Where(item => item.UserId == user.Id).ToListAsync());
+        Assert.Equal(0, retryHandler.RequestsFor(user.Id));
+        Assert.True(GeoapifyLocationBackfillService.IsWhollyUnenriched(
+            await final.Locations.SingleAsync(item => item.UserId == user.Id)));
 
         static int handlerRequests(CoordinatedHandler handler, string userId) => handler.RequestsFor(userId);
     }
@@ -217,7 +219,8 @@ public sealed class GeoapifyBackfillConcurrencyPostgresTests(PostgresImportTestF
             secondRun = second.RunAsync(user.Id);
             otherRun = independent.RunAsync(other.Id);
             await handler.OtherUserRequestEntered;
-            await ObserveLockOrDuplicateContactAsync(handler, user.Id);
+            await secondRun;
+            Assert.Equal(1, handler.RequestsFor(user.Id));
         }
         finally
         {
@@ -288,10 +291,23 @@ public sealed class GeoapifyBackfillConcurrencyPostgresTests(PostgresImportTestF
         IDataProtectionProvider protection, CoordinatedHandler handler)
     {
         var credentials = new PersonalProviderCredentialService(protection);
-        var gate = new PersonalProviderContactGate(db, credentials,
-            new LegacyMapboxMigrationService(db, credentials), new ConfigurationBuilder().Build());
-        var reverse = new ReverseGeocodingService(new HttpClient(handler), NullLogger<BaseApiController>.Instance, gate, db);
-        return new GeoapifyLocationBackfillService(db, reverse, new FixtureDbContextFactory(fixture));
+        var contextFactory = new FixtureDbContextFactory(fixture);
+        var services = new ServiceCollection()
+            .AddScoped(_ => fixture.CreateContext())
+            .AddSingleton(credentials)
+            .AddSingleton<IConfiguration>(new ConfigurationBuilder().Build())
+            .AddScoped<LegacyMapboxMigrationService>()
+            .AddScoped<PersonalProviderContactGate>()
+            .BuildServiceProvider();
+        var authority = new LocationEnrichmentExecutionAuthority(contextFactory);
+        return new GeoapifyLocationBackfillService(contextFactory, services.GetRequiredService<IServiceScopeFactory>(),
+            new TestHttpClientFactory(handler), NullLogger<BaseApiController>.Instance, authority);
+    }
+
+    private sealed class TestHttpClientFactory(HttpMessageHandler handler) : IHttpClientFactory
+    {
+        public HttpClient CreateClient(string name) => new(handler, disposeHandler: false)
+        { Timeout = TimeSpan.FromSeconds(15) };
     }
 
     private sealed class FixtureDbContextFactory(PostgresImportTestFixture fixture)

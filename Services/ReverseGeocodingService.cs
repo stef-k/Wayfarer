@@ -225,6 +225,29 @@ namespace Wayfarer.Parsers
             return result with { Authority = authority };
         }
 
+        /// <summary>Contacts only with an already-admitted authority; this transport owns no EF context.</summary>
+        public async Task<ReverseGeocodingResult> ContactAdmittedAsync(
+            PersonalProviderAuthoritySnapshot authority, double latitude, double longitude,
+            CancellationToken cancellationToken = default)
+        {
+            if (!double.IsFinite(latitude) || !double.IsFinite(longitude)
+                || latitude is < -90 or > 90 || longitude is < -180 or > 180)
+                return ReverseGeocodingResult.Unavailable(ReverseGeocodingCategory.InvalidRequest)
+                    with { Authority = authority };
+            try
+            {
+                var result = authority.ProviderKey == "geoapify"
+                    ? await _geoapify.ReverseAsync(latitude, longitude, authority.Credential, cancellationToken)
+                    : await ContactAsync(latitude, longitude, authority.Credential, cancellationToken, false);
+                return result with { Authority = authority };
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                return ReverseGeocodingResult.Unavailable(ReverseGeocodingCategory.CancelledAfterContact)
+                    with { Authority = authority };
+            }
+        }
+
         /// <summary>Performs one explicit Permanent verification contact using fixed non-personal coordinates.</summary>
         public async Task<PersonalProviderVerification> VerifyMapboxPermanentAsync(string userId, CancellationToken cancellationToken = default)
         {

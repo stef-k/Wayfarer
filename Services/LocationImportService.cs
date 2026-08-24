@@ -9,6 +9,7 @@ using Wayfarer.Models;
 using Wayfarer.Models.Enums;
 using Wayfarer.Parsers;
 using Wayfarer.Services.LocationEnrichment;
+using Wayfarer.Services.LocationProviders;
 
 namespace Wayfarer.Parsers
 {
@@ -21,7 +22,6 @@ namespace Wayfarer.Parsers
     {
         private const string SafeProgressEvent = """{"type":"import-state"}""";
         private readonly ApplicationDbContext _context;
-        private readonly ReverseGeocodingService _reverseGeocodingService;
         private readonly ILogger<LocationImportService> _logger;
         private readonly LocationDataParserFactory _parserFactory;
         private readonly SseService _sse;
@@ -36,7 +36,6 @@ namespace Wayfarer.Parsers
             IImportEnrichmentHandoff? enrichmentHandoff = null)
         {
             _context = context;
-            _reverseGeocodingService = reverseGeocodingService;
             _logger = logger;
             _parserFactory = parserFactory;
             _sse = sse;
@@ -59,7 +58,6 @@ namespace Wayfarer.Parsers
                 int processed  = locationImport.LastProcessedIndex;
                 locationImport.TotalRecords = total;
                 const int batchSize = 50;
-                var inlineEnrichmentEnabled = locationImport.EnrichmentRequested;
 
                 while (processed < total)
                 {
@@ -108,36 +106,12 @@ namespace Wayfarer.Parsers
 
                     locationImport.SkippedDuplicates += skippedInBatch;
 
-                    // 3) Reverse‑geocode only non-duplicates that need it
+                    // Enrichment is deliberately not performed inline. Persisted Locations are handed to
+                    // the same leased workflow used by manual and scheduled executions after this commit.
                     if (toInsert.Count > 0)
                     {
-                        foreach (var loc in toInsert)
-                        {
-                            cancellationToken.ThrowIfCancellationRequested();
-
-                            // Only geocode points that lack an address
-                            if (inlineEnrichmentEnabled && string.IsNullOrWhiteSpace(loc.FullAddress))
-                            {
-                                var enrichment = await _reverseGeocodingService.EnrichAsync(locationImport.UserId,
-                                    loc.Coordinates.Y, loc.Coordinates.X, ReverseGeocodingIntent.ImportMissingAddress,
-                                    cancellationToken);
-                                enrichment.ApplyTo(loc, DateTimeOffset.UtcNow);
-                                if (IsRunWideNoContact(enrichment.Category))
-                                {
-                                    inlineEnrichmentEnabled = false;
-                                    locationImport.EnrichmentPauseReason = enrichment.Category.ToString();
-                                }
-                                else
-                                {
-                                    await Task.Delay(200, cancellationToken);
-                                }
-                            }
-                        }
-                    }
-
-                    // Insert only non-duplicates
-                    if (toInsert.Count > 0)
-                    {
+                        if (locationImport.EnrichmentRequested)
+                            locationImport.RemainingEnrichmentCount += toInsert.Count(IsMissingAddress);
                         locationImport.SkippedDuplicates += await LocationImportDeduplicator.InsertAsync(
                             _context, toInsert, locationImport.UserId, cancellationToken);
                     }
@@ -219,6 +193,9 @@ namespace Wayfarer.Parsers
                 }
             }
         }
+
+        private static bool IsMissingAddress(Location location) =>
+            GeoapifyLocationBackfillService.IsWhollyUnenriched(location);
 
         /// <summary>Identifies run-wide authority outcomes after which inline retries cannot succeed.</summary>
         public static bool IsRunWideNoContact(ReverseGeocodingCategory category) => category is

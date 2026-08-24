@@ -1,7 +1,9 @@
 using Wayfarer.Jobs;
+using Wayfarer.Models;
 using Wayfarer.Models.LocationEnrichment;
 using Wayfarer.Services.LocationEnrichment;
 using Wayfarer.Services.LocationProviders;
+using Wayfarer.Parsers;
 using Xunit;
 
 namespace Wayfarer.Tests.Services;
@@ -16,8 +18,9 @@ public sealed class LocationEnrichmentFinalAuthorityTests
         var manual = typeof(GeoapifyLocationBackfillService).GetMethods()
             .Where(method => method.Name == nameof(GeoapifyLocationBackfillService.RunAsync)).ToArray();
 
-        Assert.Contains(scheduled!.GetParameters(), parameter => parameter.ParameterType == typeof(LocationEnrichmentExecutionLease));
-        Assert.All(manual, method => Assert.DoesNotContain(method.GetParameters(), parameter => parameter.ParameterType == typeof(int?)));
+        Assert.Equal(typeof(Task<LocationEnrichmentWorkerOutcome>), scheduled!.ReturnType);
+        Assert.Contains(manual, method => method.GetParameters().FirstOrDefault()?.ParameterType
+            == typeof(LocationEnrichmentExecutionLease));
     }
 
     [Fact]
@@ -25,9 +28,8 @@ public sealed class LocationEnrichmentFinalAuthorityTests
     {
         var dependencies = typeof(GeoapifyLocationBackfillService).GetConstructors().Single().GetParameters();
 
-        Assert.DoesNotContain(dependencies, parameter =>
-            parameter.ParameterType.IsGenericType
-            && parameter.ParameterType.GetGenericTypeDefinition() == typeof(Microsoft.EntityFrameworkCore.IDbContextFactory<>));
+        Assert.DoesNotContain(dependencies, parameter => parameter.ParameterType == typeof(ApplicationDbContext));
+        Assert.DoesNotContain(dependencies, parameter => parameter.ParameterType == typeof(ReverseGeocodingService));
     }
 
     [Fact]

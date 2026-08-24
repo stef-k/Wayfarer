@@ -9,19 +9,40 @@ namespace Wayfarer.Services.LocationEnrichment;
 
 /// <summary>Adapts the existing bounded provider-authority backfill into one Quartz execution.</summary>
 public sealed class LocationEnrichmentWorker(
-    ApplicationDbContext db, ILocationEnrichmentBatch batch, IWorkflowScheduleProjection schedule,
-    SseService? sse = null) : ILocationEnrichmentWorker
+    IDbContextFactory<ApplicationDbContext> contexts, LocationEnrichmentExecutionAuthority authority,
+    ILocationEnrichmentBatch batch, IWorkflowScheduleProjection schedule, SseService? sse = null) : ILocationEnrichmentWorker
 {
-    public async Task RunBatchAsync(string userId, int epoch, CancellationToken cancellationToken)
+    public async Task<LocationEnrichmentWorkerOutcome> RunBatchAsync(
+        string userId, int epoch, CancellationToken cancellationToken)
     {
-        var workflow = await db.LocationEnrichmentWorkflows.SingleAsync(item => item.UserId == userId, cancellationToken);
-        if (workflow.State != LocationEnrichmentState.Running || workflow.Epoch != epoch) return;
-        var result = await batch.RunAsync(userId, epoch, cancellationToken);
-        await db.Entry(workflow).ReloadAsync(CancellationToken.None);
-        if (workflow.State != LocationEnrichmentState.Running || workflow.Epoch != epoch) return;
-        var now = DateTime.UtcNow;
-        workflow.RecordBatch(result.Scanned, result.Succeeded, result.Unavailable, result.NoResult,
-            result.Admitted, now);
+        var owner = await authority.TryAcquireAsync(userId, epoch, cancellationToken);
+        if (!owner.HasValue) return LocationEnrichmentWorkerOutcome.AuthorityUnavailable;
+        GeoapifyBackfillResult result;
+        try { result = await batch.RunAsync(owner.Value, cancellationToken); }
+        catch (OperationCanceledException)
+        {
+            await authority.TryReleaseAsync(owner.Value, CancellationToken.None);
+            return LocationEnrichmentWorkerOutcome.Cancelled;
+        }
+        await using var db = await contexts.CreateDbContextAsync(CancellationToken.None);
+        await using var transaction = db.Database.IsRelational()
+            ? await db.Database.BeginTransactionAsync(CancellationToken.None) : null;
+        var now = await LocationEnrichmentExecutionAuthority.DatabaseUtcNowAsync(db, CancellationToken.None);
+        var workflow = db.Database.IsNpgsql()
+            ? await db.LocationEnrichmentWorkflows.FromSqlInterpolated($$"""
+                SELECT *, xmin FROM "LocationEnrichmentWorkflows" WHERE "UserId" = {{userId}} FOR UPDATE
+                """).SingleAsync(CancellationToken.None)
+            : await db.LocationEnrichmentWorkflows.SingleAsync(item => item.UserId == userId, CancellationToken.None);
+        if (workflow.Epoch != epoch || !workflow.HasExecutionLease(owner.Value.LeaseId,
+                owner.Value.FencingGeneration, now))
+        {
+            if (transaction != null) await transaction.RollbackAsync(CancellationToken.None);
+            return LocationEnrichmentWorkerOutcome.StaleOwner;
+        }
+        workflow.RecordBatch(result.Scanned, result.Succeeded, result.Unavailable, result.NoResult, 0, now);
+        workflow.ReplaceProgress(workflow.ProcessedCount, workflow.EnrichedCount, workflow.SkippedCount,
+            workflow.RetryableDeferredCount, workflow.PermanentlyDeferredCount, result.RemainingEstimate,
+            workflow.FailedBatchCount, now);
         if (result.AuthorityUnavailable)
             workflow.PauseForAuthority(LocationEnrichmentOutcome.AuthorityUnavailable, now);
         else if (result.RemainingEstimate == 0)
@@ -42,17 +63,20 @@ public sealed class LocationEnrichmentWorker(
         }
         else
             workflow.ContinueAs(LocationEnrichmentState.Scheduled, LocationEnrichmentOutcome.None, now, now);
-        await db.SaveChangesAsync(cancellationToken);
+        workflow.TryReleaseExecutionLease(owner.Value.LeaseId, owner.Value.FencingGeneration);
+        await db.SaveChangesAsync(CancellationToken.None);
+        if (transaction != null) await transaction.CommitAsync(CancellationToken.None);
         if (sse is not null)
             await sse.BroadcastAsync($"import-{userId}", "{\"type\":\"enrichment-state\"}");
-        await schedule.ProjectAsync(userId, cancellationToken);
+        await schedule.ProjectAsync(userId, CancellationToken.None);
+        return LocationEnrichmentWorkerOutcome.Completed;
     }
 }
 
 /// <summary>Common bounded primitive implemented by the existing protected backfill owner.</summary>
 public interface ILocationEnrichmentBatch
 {
-    Task<GeoapifyBackfillResult> RunAsync(string userId, int epoch,
+    Task<GeoapifyBackfillResult> RunAsync(LocationEnrichmentExecutionLease owner,
         CancellationToken cancellationToken = default);
 }
 
