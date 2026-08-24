@@ -57,8 +57,15 @@ public sealed class LocationImportLifecycle(
                 import.ErrorMessage = null;
             }
             import.ProjectionPending = true;
-            await SaveConvergentlyAsync(cancellationToken);
-            epoch = import.ExecutionEpoch;
+            if (await SaveConvergentlyAsync(cancellationToken)) epoch = import.ExecutionEpoch;
+            else
+            {
+                var current = await OwnedAsync(userId, importId, cancellationToken);
+                if (current is null) return new(LocationImportCommandCode.NotFound);
+                if (current.DeletionRequestedAtUtc.HasValue || current.Status != ImportStatus.InProgress)
+                    return new(LocationImportCommandCode.InvalidState);
+                epoch = current.ExecutionEpoch;
+            }
         }
         finally { _commands.Release(); }
 
@@ -91,7 +98,13 @@ public sealed class LocationImportLifecycle(
             import.StopRequestedAtUtc ??= DateTime.UtcNow;
             import.ProjectionPending = true;
             epoch = import.ExecutionEpoch;
-            await SaveConvergentlyAsync(cancellationToken);
+            if (!await SaveConvergentlyAsync(cancellationToken))
+            {
+                var current = await OwnedAsync(userId, importId, cancellationToken);
+                if (current is null) return new(LocationImportCommandCode.NotFound);
+                if (current.Status != ImportStatus.Stopping) return new(LocationImportCommandCode.InvalidState);
+                epoch = current.ExecutionEpoch;
+            }
         }
         finally { _commands.Release(); }
 
@@ -158,7 +171,7 @@ public sealed class LocationImportLifecycle(
         }
         else return;
         import.ProjectionPending = false;
-        await SaveConvergentlyAsync(cancellationToken);
+        _ = await SaveConvergentlyAsync(cancellationToken);
     }
 
     private Task<LocationImport?> OwnedAsync(string userId, int importId, CancellationToken token) =>
@@ -193,12 +206,12 @@ public sealed class LocationImportLifecycle(
         var import = await db.LocationImports.SingleOrDefaultAsync(item => item.Id == importId, token);
         if (import is null || import.ExecutionEpoch != epoch || import.Status != ImportStatus.InProgress) return;
         import.ProjectionPending = false;
-        await SaveConvergentlyAsync(token);
+        _ = await SaveConvergentlyAsync(token);
     }
 
-    private async Task SaveConvergentlyAsync(CancellationToken token)
+    private async Task<bool> SaveConvergentlyAsync(CancellationToken token)
     {
-        try { await db.SaveChangesAsync(token); }
-        catch (DbUpdateConcurrencyException) { db.ChangeTracker.Clear(); }
+        try { await db.SaveChangesAsync(token); return true; }
+        catch (DbUpdateConcurrencyException) { db.ChangeTracker.Clear(); return false; }
     }
 }
