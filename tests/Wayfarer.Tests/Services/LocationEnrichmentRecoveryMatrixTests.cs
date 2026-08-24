@@ -69,8 +69,10 @@ public sealed class LocationEnrichmentRecoveryMatrixTests
         Assert.Equal(expectedTriggers, scheduler.Triggers);
 
         scheduler.Mutations = 0;
+        scheduler.MutationLog.Clear();
         await reconciler.ReconcileAsync();
-        Assert.Equal(0, scheduler.Mutations);
+        Assert.True(scheduler.Mutations == 0,
+            $"Unexpected second-run mutations: {string.Join(", ", scheduler.MutationLog)}");
     }
 
     private static LocationEnrichmentWorkflow CreateWorkflow(string scenario, DateTime now)
@@ -101,6 +103,7 @@ public sealed class LocationEnrichmentRecoveryMatrixTests
         internal HashSet<JobKey> Jobs { get; } = [];
         internal HashSet<TriggerKey> Triggers { get; } = [];
         internal int Mutations { get; set; }
+        internal List<string> MutationLog { get; } = [];
 
         internal ProjectionScheduler(LocationEnrichmentWorkflow workflow, string scenario)
         {
@@ -116,14 +119,17 @@ public sealed class LocationEnrichmentRecoveryMatrixTests
             Mock.Setup(item => item.GetTriggerKeys(It.IsAny<GroupMatcher<TriggerKey>>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(() => Triggers.ToHashSet());
             Mock.Setup(item => item.AddJob(It.IsAny<IJobDetail>(), false, It.IsAny<CancellationToken>()))
-                .Callback<IJobDetail, bool, CancellationToken>((detail, _, _) => { Jobs.Add(detail.Key); Mutations++; })
+                .Callback<IJobDetail, bool, CancellationToken>((detail, _, _) =>
+                { Jobs.Add(detail.Key); Mutations++; MutationLog.Add($"add:{detail.Key}"); })
                 .Returns(Task.CompletedTask);
             Mock.Setup(item => item.ScheduleJob(It.IsAny<ITrigger>(), It.IsAny<CancellationToken>()))
                 .Returns<ITrigger, CancellationToken>((trigger, _) =>
-                { Triggers.Add(trigger.Key); Mutations++; return Task.FromResult(DateTimeOffset.UtcNow); });
+                { Triggers.Add(trigger.Key); Mutations++; MutationLog.Add($"schedule:{trigger.Key}");
+                    return Task.FromResult(DateTimeOffset.UtcNow); });
             Mock.Setup(item => item.UnscheduleJob(It.IsAny<TriggerKey>(), It.IsAny<CancellationToken>()))
                 .Returns<TriggerKey, CancellationToken>((key, _) =>
-                { var removed = Triggers.Remove(key); if (removed) Mutations++; return Task.FromResult(removed); });
+                { var removed = Triggers.Remove(key); if (removed) { Mutations++; MutationLog.Add($"unschedule:{key}"); }
+                    return Task.FromResult(removed); });
             Mock.Setup(item => item.Interrupt(It.IsAny<JobKey>(), It.IsAny<CancellationToken>())).ReturnsAsync(false);
         }
     }
