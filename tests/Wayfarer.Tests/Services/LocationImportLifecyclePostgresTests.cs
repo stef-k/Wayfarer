@@ -88,6 +88,31 @@ public sealed class LocationImportLifecyclePostgresTests(PostgresImportTestFixtu
         Assert.Equal(ImportStatus.InProgress, (await verification.LocationImports.FindAsync(seed.ImportId))!.Status);
     }
 
+    [PostgresFact]
+    public async Task StaleStartSave_AfterLaterEpoch_DoesNotProjectObsoleteEpoch()
+    {
+        var seed = await SeedAsync();
+        var (scheduler, schedules) = Scheduler();
+        await using var staleStart = fixture.CreateContext();
+        _ = await staleStart.LocationImports.FindAsync(seed.ImportId);
+        await using (var first = fixture.CreateContext())
+            await Owner(first, scheduler.Object).StartAsync(seed.UserId, seed.ImportId);
+        await using (var completed = fixture.CreateContext())
+            await Owner(completed, scheduler.Object).ConvergeExecutionAsync(
+                seed.ImportId, 1, LocationImportExecutionOutcome.Completed);
+        await using (var later = fixture.CreateContext())
+            await Owner(later, scheduler.Object).StartAsync(seed.UserId, seed.ImportId);
+        schedules.TryRemove(LocationImportSchedulerKeys.Job(seed.ImportId, 1), out _);
+
+        var result = await Owner(staleStart, scheduler.Object).StartAsync(seed.UserId, seed.ImportId);
+
+        Assert.True(result.Succeeded);
+        Assert.DoesNotContain(LocationImportSchedulerKeys.Job(seed.ImportId, 1), schedules.Keys);
+        Assert.Contains(LocationImportSchedulerKeys.Job(seed.ImportId, 2), schedules.Keys);
+        await using var verification = fixture.CreateContext();
+        Assert.Equal(2, (await verification.LocationImports.FindAsync(seed.ImportId))!.ExecutionEpoch);
+    }
+
     private async Task<(string UserId, int ImportId)> SeedAsync()
     {
         var user = await fixture.CreateUserAsync();
