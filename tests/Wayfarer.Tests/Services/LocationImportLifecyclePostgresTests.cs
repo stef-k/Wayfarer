@@ -49,6 +49,45 @@ public sealed class LocationImportLifecyclePostgresTests(PostgresImportTestFixtu
         Assert.Equal(ImportStatus.Stopped, (await verification.LocationImports.FindAsync(seed.ImportId))!.Status);
     }
 
+    [PostgresFact]
+    public async Task StaleStopSave_ReturnsReloadedClassificationAndDoesNotReportFalseSuccess()
+    {
+        var seed = await SeedAsync();
+        var (scheduler, _) = Scheduler();
+        await using var staleStop = fixture.CreateContext();
+        _ = await staleStop.LocationImports.FindAsync(seed.ImportId);
+
+        await using (var start = fixture.CreateContext())
+            Assert.True((await Owner(start, scheduler.Object).StartAsync(seed.UserId, seed.ImportId)).Succeeded);
+
+        var result = await Owner(staleStop, scheduler.Object).StopAsync(seed.UserId, seed.ImportId);
+
+        await using var verification = fixture.CreateContext();
+        var stored = await verification.LocationImports.FindAsync(seed.ImportId);
+        Assert.False(result.Succeeded);
+        Assert.Equal(LocationImportCommandCode.InvalidState, result.Code);
+        Assert.Equal(ImportStatus.InProgress, stored!.Status);
+        Assert.Null(stored.StopRequestedAtUtc);
+    }
+
+    [PostgresFact]
+    public async Task StaleDeleteIntent_ReturnsBoundedClassificationInsteadOfConcurrencyException()
+    {
+        var seed = await SeedAsync();
+        var (scheduler, _) = Scheduler();
+        await using var staleDelete = fixture.CreateContext();
+        _ = await staleDelete.LocationImports.FindAsync(seed.ImportId);
+
+        await using (var start = fixture.CreateContext())
+            Assert.True((await Owner(start, scheduler.Object).StartAsync(seed.UserId, seed.ImportId)).Succeeded);
+
+        var result = await Owner(staleDelete, scheduler.Object).DeleteAsync(seed.UserId, seed.ImportId);
+
+        Assert.Equal(LocationImportCommandCode.ExecutionActive, result.Code);
+        await using var verification = fixture.CreateContext();
+        Assert.Equal(ImportStatus.InProgress, (await verification.LocationImports.FindAsync(seed.ImportId))!.Status);
+    }
+
     private async Task<(string UserId, int ImportId)> SeedAsync()
     {
         var user = await fixture.CreateUserAsync();
