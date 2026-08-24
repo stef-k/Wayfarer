@@ -45,7 +45,8 @@ namespace Wayfarer.Jobs
                     ? await execution.ProcessImportExecution(importId, epoch, ct)
                     : await LegacyExecutionAsync(importId, ct);
                 if (_lifecycle is not null)
-                    await _lifecycle.ConvergeExecutionAsync(importId, epoch, outcome, CancellationToken.None);
+                    outcome = await _lifecycle.ConvergeExecutionAsync(
+                        importId, epoch, outcome, CancellationToken.None);
                 context.Result = outcome;
 
                 _logger.LogInformation("Completed LocationImportJob for ImportId {ImportId}", importId);
@@ -55,8 +56,9 @@ namespace Wayfarer.Jobs
                 // Thrown if your service sees ct.IsCancellationRequested and throws
                 _logger.LogInformation("LocationImportJob for ImportId {ImportId} was cancelled.", importId);
                 if (_lifecycle is not null)
-                    await _lifecycle.ConvergeExecutionAsync(importId, epoch, LocationImportExecutionOutcome.Cancelled, CancellationToken.None);
-                context.Result = LocationImportExecutionOutcome.Cancelled;
+                    context.Result = await _lifecycle.ConvergeExecutionAsync(importId, epoch,
+                        LocationImportExecutionOutcome.Cancelled, CancellationToken.None);
+                else context.Result = LocationImportExecutionOutcome.Cancelled;
             }
             catch (Exception ex)
             {

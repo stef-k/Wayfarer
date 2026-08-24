@@ -47,7 +47,8 @@ public interface ILocationImportLifecycle
     Task<LocationImportCommandResult> StartAsync(string userId, int importId, CancellationToken cancellationToken = default);
     Task<LocationImportCommandResult> StopAsync(string userId, int importId, CancellationToken cancellationToken = default);
     Task<LocationImportCommandResult> DeleteAsync(string userId, int importId, CancellationToken cancellationToken = default);
-    Task ConvergeExecutionAsync(int importId, int epoch, LocationImportExecutionOutcome outcome, CancellationToken cancellationToken = default);
+    Task<LocationImportExecutionOutcome> ConvergeExecutionAsync(int importId, int epoch,
+        LocationImportExecutionOutcome outcome, CancellationToken cancellationToken = default);
 }
 
 /// <summary>Owns short relational lifecycle mutations and projects them only after commit.</summary>
@@ -231,13 +232,14 @@ public sealed class LocationImportLifecycle(
         }
     }
 
-    public async Task ConvergeExecutionAsync(int importId, int epoch, LocationImportExecutionOutcome outcome,
+    public async Task<LocationImportExecutionOutcome> ConvergeExecutionAsync(
+        int importId, int epoch, LocationImportExecutionOutcome outcome,
         CancellationToken cancellationToken = default)
     {
         db.ChangeTracker.Clear();
         var import = await db.LocationImports.SingleOrDefaultAsync(item => item.Id == importId, cancellationToken);
-        if (import is null || import.ExecutionEpoch != epoch) return;
-        if (import.DeletionRequestedAtUtc.HasValue) return;
+        if (import is null || import.ExecutionEpoch != epoch) return LocationImportExecutionOutcome.Stale;
+        if (import.DeletionRequestedAtUtc.HasValue) return LocationImportExecutionOutcome.Stale;
         if (import.Status == ImportStatus.Stopping || outcome is LocationImportExecutionOutcome.Cancelled)
             import.Status = ImportStatus.Stopped;
         else if (outcome == LocationImportExecutionOutcome.Completed)
@@ -247,10 +249,11 @@ public sealed class LocationImportLifecycle(
             import.Status = ImportStatus.Failed;
             import.ErrorMessage = "Import processing failed.";
         }
-        else return;
+        else return LocationImportExecutionOutcome.Stale;
         import.ProjectionPending = false;
         await _observer.BeforeTerminalPersistenceAsync(importId, epoch, outcome, cancellationToken);
-        _ = await SaveConvergentlyAsync(cancellationToken);
+        return await SaveConvergentlyAsync(cancellationToken)
+            ? outcome : LocationImportExecutionOutcome.Stale;
     }
 
     private Task<LocationImport?> OwnedAsync(string userId, int importId, CancellationToken token) =>
