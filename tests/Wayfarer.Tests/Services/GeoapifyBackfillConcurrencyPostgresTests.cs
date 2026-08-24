@@ -200,8 +200,18 @@ public sealed class GeoapifyBackfillConcurrencyPostgresTests(PostgresImportTestF
             var attempt = await mutate.LocationEnrichmentAttempts.SingleAsync(item => item.UserId == user.Id);
             if (mutation == OperationMutation.LeaseId) attempt.OperationLeaseId = Guid.NewGuid();
             else if (mutation == OperationMutation.WorkflowEpoch) attempt.OperationWorkflowEpoch++;
-            else if (mutation == OperationMutation.AttemptNumber) attempt.OperationAttemptNumber++;
-            else if (mutation == OperationMutation.Capability) attempt.Capability = PersonalProviderCapability.Routing;
+            else if (mutation == OperationMutation.AttemptNumber)
+            {
+                attempt.OperationAttemptNumber++;
+                await Assert.ThrowsAsync<DbUpdateException>(() => mutate.SaveChangesAsync());
+                handler.Release(); await run.WaitAsync(TimeSpan.FromSeconds(10)); return;
+            }
+            else if (mutation == OperationMutation.Capability)
+            {
+                attempt.Capability = PersonalProviderCapability.Routing;
+                await Assert.ThrowsAsync<DbUpdateException>(() => mutate.SaveChangesAsync());
+                handler.Release(); await run.WaitAsync(TimeSpan.FromSeconds(10)); return;
+            }
             else if (mutation == OperationMutation.VerificationCredential) attempt.VerificationCredentialGeneration++;
             else attempt.VerificationGeneration++;
             await mutate.SaveChangesAsync();
@@ -271,7 +281,7 @@ public sealed class GeoapifyBackfillConcurrencyPostgresTests(PostgresImportTestF
         await db.SaveChangesAsync();
 
         var ids = await GeoapifyLocationBackfillService.LoadCandidateIdsAsync(db, user.Id,
-            new("geoapify", profile.CredentialGeneration,
+            new("geoapify", PersonalProviderCapability.Geocoding, profile.CredentialGeneration,
                 profile.GeocodingGeneration, 1, profile.Id, profile.GeocodingVerification,
                 profile.GeocodingVerifiedCredentialGeneration, profile.GeocodingVerifiedConfigurationGeneration,
                 null, null, null), 10);
@@ -293,6 +303,7 @@ public sealed class GeoapifyBackfillConcurrencyPostgresTests(PostgresImportTestF
         db.Add(new LocationEnrichmentAttempt
         {
             UserId = user.Id, LocationId = location.Id, ProviderKey = "geoapify",
+            Capability = PersonalProviderCapability.Geocoding,
             CredentialGeneration = 1, ConfigurationGeneration = 1, SelectionGeneration = 1,
             Outcome = LocationEnrichmentOutcome.NoResult, AdmittedAttemptCount = 1,
             LastAttemptAtUtc = DateTime.UtcNow
@@ -300,9 +311,9 @@ public sealed class GeoapifyBackfillConcurrencyPostgresTests(PostgresImportTestF
         await db.SaveChangesAsync();
 
         var superseded = await GeoapifyLocationBackfillService.LoadCandidateIdsAsync(db, user.Id,
-            new("geoapify", 2, 1, 1), 10);
+            new("geoapify", PersonalProviderCapability.Geocoding, 2, 1, 1), 10);
         var sameGeneration = await GeoapifyLocationBackfillService.LoadCandidateIdsAsync(db, user.Id,
-            new("geoapify", 1, 1, 1), 10);
+            new("geoapify", PersonalProviderCapability.Geocoding, 1, 1, 1), 10);
 
         Assert.Contains(location.Id, superseded);
         Assert.DoesNotContain(location.Id, sameGeneration);
