@@ -148,6 +148,7 @@ public sealed class LocationImportQuartzPostgresTests(PostgresImportTestFixture 
         private readonly string schedulerName;
         private readonly List<IScheduler> schedulers = [];
         private readonly List<string> files = [];
+        private readonly List<string> userIds = [];
         private readonly Mock<ILocationImportService> service = new();
         private readonly Mock<ILocationImportExecutionService> execution;
         private IScheduler? current;
@@ -185,6 +186,7 @@ public sealed class LocationImportQuartzPostgresTests(PostgresImportTestFixture 
             int epoch = 0, bool projectionPending = false, bool deletionPending = false)
         {
             var user = await fixture.CreateUserAsync();
+            userIds.Add(user.Id);
             var directory = Path.Combine(Path.GetTempPath(), $"wayfarer-511-{Guid.NewGuid():N}");
             Directory.CreateDirectory(directory);
             var path = Path.Combine(directory, "fixture.csv");
@@ -255,6 +257,7 @@ public sealed class LocationImportQuartzPostgresTests(PostgresImportTestFixture 
             steps.AddRange([
                 .. schedulers.Select((scheduler, index) => ($"scheduler {index} disposal", (Func<Task>)(() => DisposeSchedulerAsync(scheduler)))),
                 ("file cleanup", () => { foreach (var file in files) { if (File.Exists(file)) File.Delete(file); var directory = Path.GetDirectoryName(file)!; if (Directory.Exists(directory)) Directory.Delete(directory); } return Task.CompletedTask; }),
+                ("relational cleanup", async () => { await using var db = fixture.CreateContext(); await db.Users.Where(user => userIds.Contains(user.Id)).ExecuteDeleteAsync(); Assert.Equal(0, await db.LocationImports.CountAsync(item => userIds.Contains(item.UserId))); }),
                 ("Quartz residue", async () => { foreach (var table in new[] { "qrtz_job_details", "qrtz_triggers", "qrtz_fired_triggers", "qrtz_scheduler_state" }) Assert.Equal(0L, await CountAsync(admin, schema, table)); }),
                 ("schema removal", async () => { await ExecuteAsync(admin, "SET search_path TO public"); await ExecuteAsync(admin, $"DROP SCHEMA IF EXISTS {schema} CASCADE"); }),
                 ("admin disposal", () => admin.DisposeAsync().AsTask())
