@@ -23,6 +23,56 @@ namespace Wayfarer.Tests.Services;
 /// <summary>Proves final atomic persistence and complete operation ownership against PostgreSQL.</summary>
 public sealed partial class GeoapifyBackfillConcurrencyPostgresTests
 {
+    /// <summary>Proves binding changes after claim are rejected before any provider HTTP request.</summary>
+    [PostgresTheory(Timeout = 30_000)]
+    [InlineData(PreContactMutation.VerificationBinding)]
+    [InlineData(PreContactMutation.CredentialBinding)]
+    [InlineData(PreContactMutation.MapboxConsentBinding)]
+    public async Task BindingMutationAfterClaimRejectsBeforeProviderContact(PreContactMutation mutation)
+    {
+        var user = await fixture.CreateUserAsync();
+        var protection = new EphemeralDataProtectionProvider();
+        if (mutation == PreContactMutation.MapboxConsentBinding) await SeedMapboxAsync(user.Id, protection);
+        else await SeedAsync(user.Id, null, protection);
+        var handler = new CoordinatedHandler(user.Id, null);
+        var service = Service(protection, handler, async (_, cancellationToken) =>
+        {
+            await using var mutate = fixture.CreateContext();
+            var profile = await mutate.PersonalLocationProviderProfiles.SingleAsync(
+                item => item.UserId == user.Id, cancellationToken);
+            if (mutation == PreContactMutation.VerificationBinding)
+                profile.GeocodingVerifiedCredentialGeneration++;
+            else if (mutation == PreContactMutation.CredentialBinding)
+                new PersonalProviderCredentialService(protection).Replace(profile, "replacement");
+            else
+                profile.ClearPermanentGeocodingConsent();
+            await mutate.SaveChangesAsync(cancellationToken);
+        });
+
+        var result = await service.RunAsync(user.Id).WaitAsync(TimeSpan.FromSeconds(10));
+
+        await using var verify = fixture.CreateContext();
+        var location = await verify.Locations.SingleAsync(item => item.UserId == user.Id);
+        var attempt = await verify.LocationEnrichmentAttempts.SingleAsync(item => item.UserId == user.Id);
+        var workflow = await verify.LocationEnrichmentWorkflows.SingleAsync(item => item.UserId == user.Id);
+        Assert.Equal(0, handler.RequestsFor(user.Id));
+        Assert.Equal(1, result.Admitted);
+        Assert.Equal(0, result.Succeeded);
+        Assert.Equal(0, workflow.EnrichedCount);
+        Assert.True(GeoapifyLocationBackfillService.IsWhollyUnenriched(location));
+        Assert.Null(location.ReverseGeocodingProvider);
+        Assert.Null(location.ReverseGeocodedAt);
+        Assert.NotNull(attempt.OperationId);
+        Assert.Equal(1, attempt.AdmittedAttemptCount);
+        Assert.NotNull(attempt.NextAttemptAtUtc);
+        Assert.Null(workflow.ExecutionLeaseId);
+        Assert.True(workflow.ExecutionFencingGeneration > 0);
+        if (mutation == PreContactMutation.MapboxConsentBinding)
+            Assert.Equal(1, (await verify.MapboxProductMeters.SingleAsync(item => item.UserId == user.Id)).AdmittedCount);
+        else
+            Assert.Single(await verify.GeoapifyUsageAdmissions.Where(item => item.UserId == user.Id).ToListAsync());
+    }
+
     private sealed class LeaseInspectingHandler(PostgresImportTestFixture fixture, string userId) : HttpMessageHandler
     {
         private readonly TaskCompletionSource entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
