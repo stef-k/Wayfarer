@@ -181,10 +181,16 @@ public sealed class GeoapifyBackfillConcurrencyPostgresTests(PostgresImportTestF
             epoch = workflow.Epoch;
             Assert.True(workflow.TryClaim(epoch, DateTime.UtcNow));
             setup.Add(workflow);
+            var profile = await setup.PersonalLocationProviderProfiles.SingleAsync(
+                item => item.UserId == user.Id && item.ProviderKey == "geoapify");
             setup.Add(new LocationEnrichmentAttempt
             {
                 UserId = user.Id, Location = oldest, ProviderKey = "geoapify", CredentialGeneration = 2,
                 ConfigurationGeneration = 1, SelectionGeneration = 1,
+                ProviderProfileId = profile.Id, Capability = PersonalProviderCapability.Geocoding,
+                Verification = profile.GeocodingVerification,
+                VerificationCredentialGeneration = profile.GeocodingVerifiedCredentialGeneration,
+                VerificationGeneration = profile.GeocodingVerifiedConfigurationGeneration,
                 Outcome = LocationEnrichmentOutcome.NoResult, AdmittedAttemptCount = 1,
                 LastAttemptAtUtc = DateTime.UtcNow.AddMinutes(-1)
             });

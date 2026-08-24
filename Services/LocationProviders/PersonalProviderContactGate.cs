@@ -49,7 +49,8 @@ public sealed class PersonalProviderContactGate(
         var snapshot = new PersonalProviderAuthoritySnapshot(userId, authority.ProviderKey!, capability,
             authority.Credential!, authority.CredentialGeneration, authority.CapabilityGeneration,
             authority.SelectionGeneration, authority.ConsentVersion, authority.ConsentedAt,
-            authority.ConsentCredentialGeneration);
+            authority.ConsentCredentialGeneration, authority.ProfileId, authority.Verification,
+            authority.VerifiedCredentialGeneration, authority.VerifiedCapabilityGeneration);
         return new(PersonalProviderAdmissionCategory.Admitted, snapshot, admitted.Usage);
     }
 
@@ -207,6 +208,7 @@ public sealed class PersonalProviderContactGate(
             && current.CapabilityGeneration == snapshot.CapabilityGeneration
             && current.SelectionGeneration == snapshot.SelectionGeneration
             && current.ConsentVersion == snapshot.ConsentVersion
+            && current.ConsentedAt == snapshot.ConsentedAt
             && current.ConsentCredentialGeneration == snapshot.ConsentCredentialGeneration;
     }
 
@@ -245,7 +247,12 @@ public sealed class PersonalProviderContactGate(
             capability == PersonalProviderCapability.Geocoding
                 ? selection!.GeocodingSelectionGeneration : selection!.RoutingSelectionGeneration,
             profile.PermanentGeocodingConsentVersion, profile.PermanentGeocodingConsentedAt,
-            profile.PermanentGeocodingConsentCredentialGeneration);
+            profile.PermanentGeocodingConsentCredentialGeneration, profile.Id,
+            capability == PersonalProviderCapability.Geocoding ? profile.GeocodingVerification : profile.RoutingVerification,
+            capability == PersonalProviderCapability.Geocoding
+                ? profile.GeocodingVerifiedCredentialGeneration : profile.RoutingVerifiedCredentialGeneration,
+            capability == PersonalProviderCapability.Geocoding
+                ? profile.GeocodingVerifiedConfigurationGeneration : profile.RoutingVerifiedConfigurationGeneration);
     }
 
     private async Task<PersonalProviderAdmission> AdmitGeoapifyAsync(
@@ -359,7 +366,9 @@ public sealed class PersonalProviderContactGate(
 
     private sealed record ResolvedAuthority(bool Succeeded, PersonalProviderAdmissionCategory Category,
         string? ProviderKey, string? Credential, int CredentialGeneration, int CapabilityGeneration, int SelectionGeneration,
-        int? ConsentVersion = null, DateTimeOffset? ConsentedAt = null, int? ConsentCredentialGeneration = null)
+        int? ConsentVersion = null, DateTimeOffset? ConsentedAt = null, int? ConsentCredentialGeneration = null,
+        Guid? ProfileId = null, PersonalProviderVerification Verification = PersonalProviderVerification.Unverified,
+        int? VerifiedCredentialGeneration = null, int? VerifiedCapabilityGeneration = null)
     {
         public static ResolvedAuthority Fail(PersonalProviderAdmissionCategory category) => new(false, category, null, null, 0, 0, 0);
     }
@@ -374,12 +383,16 @@ public sealed class PersonalProviderAuthoritySnapshot
 {
     public PersonalProviderAuthoritySnapshot(string userId, string providerKey, PersonalProviderCapability capability,
         string credential, int credentialGeneration, int capabilityGeneration, int selectionGeneration,
-        int? consentVersion = null, DateTimeOffset? consentedAt = null, int? consentCredentialGeneration = null)
+        int? consentVersion = null, DateTimeOffset? consentedAt = null, int? consentCredentialGeneration = null,
+        Guid? profileId = null, PersonalProviderVerification verification = PersonalProviderVerification.Unverified,
+        int? verifiedCredentialGeneration = null, int? verifiedCapabilityGeneration = null)
     {
         UserId = userId; ProviderKey = providerKey; Capability = capability; Credential = credential;
         CredentialGeneration = credentialGeneration; CapabilityGeneration = capabilityGeneration;
         SelectionGeneration = selectionGeneration;
         ConsentVersion = consentVersion; ConsentedAt = consentedAt; ConsentCredentialGeneration = consentCredentialGeneration;
+        ProfileId = profileId; Verification = verification; VerifiedCredentialGeneration = verifiedCredentialGeneration;
+        VerifiedCapabilityGeneration = verifiedCapabilityGeneration;
     }
     public string UserId { get; }
     public string ProviderKey { get; }
@@ -391,6 +404,10 @@ public sealed class PersonalProviderAuthoritySnapshot
     public int? ConsentVersion { get; }
     public DateTimeOffset? ConsentedAt { get; }
     public int? ConsentCredentialGeneration { get; }
+    public Guid? ProfileId { get; }
+    public PersonalProviderVerification Verification { get; }
+    public int? VerifiedCredentialGeneration { get; }
+    public int? VerifiedCapabilityGeneration { get; }
     public override string ToString() => $"PersonalProviderAuthoritySnapshot {{ ProviderKey = {ProviderKey}, Capability = {Capability}, CredentialGeneration = {CredentialGeneration}, CapabilityGeneration = {CapabilityGeneration}, SelectionGeneration = {SelectionGeneration} }}";
 }
 

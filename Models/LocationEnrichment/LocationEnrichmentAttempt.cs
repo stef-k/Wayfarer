@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using Wayfarer.Models.LocationProviders;
 
 namespace Wayfarer.Models.LocationEnrichment;
 
@@ -10,9 +11,17 @@ public sealed class LocationEnrichmentAttempt
     public string UserId { get; set; } = string.Empty;
     public int LocationId { get; set; }
     public string ProviderKey { get; set; } = string.Empty;
+    public Guid? ProviderProfileId { get; set; }
+    public PersonalProviderCapability? Capability { get; set; }
     public int CredentialGeneration { get; set; }
     public int ConfigurationGeneration { get; set; }
     public int SelectionGeneration { get; set; }
+    public PersonalProviderVerification? Verification { get; set; }
+    public int? VerificationCredentialGeneration { get; set; }
+    public int? VerificationGeneration { get; set; }
+    public int? ConsentVersion { get; set; }
+    public DateTimeOffset? ConsentTimestamp { get; set; }
+    public int? ConsentCredentialGeneration { get; set; }
     public LocationEnrichmentOutcome Outcome { get; set; }
     public int AdmittedAttemptCount { get; set; }
     public DateTime LastAttemptAtUtc { get; set; }
@@ -20,6 +29,9 @@ public sealed class LocationEnrichmentAttempt
     public Guid? OperationId { get; set; }
     public long? OperationFencingGeneration { get; set; }
     public DateTime? OperationStartedAtUtc { get; set; }
+    public Guid? OperationLeaseId { get; set; }
+    public int? OperationWorkflowEpoch { get; set; }
+    public int? OperationAttemptNumber { get; set; }
     public LocationEnrichmentWorkflow? Workflow { get; set; }
     public Location? Location { get; set; }
 

@@ -8,8 +8,9 @@ namespace Wayfarer.Services.LocationEnrichment;
 public sealed class LocationEnrichmentExecutionAuthority(IDbContextFactory<ApplicationDbContext> contexts)
 {
     public static readonly TimeSpan ProviderTimeout = TimeSpan.FromSeconds(15);
+    public static readonly TimeSpan ContactSafetyMargin = TimeSpan.FromSeconds(10);
     public static readonly TimeSpan LeaseDuration = TimeSpan.FromSeconds(35);
-    public static readonly TimeSpan MinimumContactLifetime = TimeSpan.FromSeconds(20);
+    public static readonly TimeSpan MinimumContactLifetime = ProviderTimeout + ContactSafetyMargin;
 
     /// <summary>Acquires a current epoch without retaining its context, connection, or transaction.</summary>
     public async Task<LocationEnrichmentExecutionLease?> TryAcquireAsync(
