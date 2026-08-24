@@ -1,6 +1,8 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using Wayfarer.Models.Enums;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Wayfarer.Models;
 
@@ -79,4 +81,17 @@ public class LocationImport
 
     /// <summary>Last bounded estimate of imported rows still eligible for enrichment.</summary>
     public int RemainingEnrichmentCount { get; set; }
+}
+
+/// <summary>Constrains bounded enrichment handoff facts retained with an import.</summary>
+public sealed class LocationImportConfiguration : IEntityTypeConfiguration<LocationImport>
+{
+    public void Configure(EntityTypeBuilder<LocationImport> builder) => builder.ToTable(table =>
+    {
+        table.HasCheckConstraint("CK_LocationImport_RemainingEnrichment",
+            "\"RemainingEnrichmentCount\" >= 0");
+        table.HasCheckConstraint("CK_LocationImport_EnrichmentPauseReason",
+            "\"EnrichmentPauseReason\" IS NULL OR \"EnrichmentPauseReason\" IN "
+            + "('CredentialRequired','NoProviderSelected','ConsentRequired','Unauthorized','VerificationRequired','Exhausted','StaleAuthority')");
+    });
 }
