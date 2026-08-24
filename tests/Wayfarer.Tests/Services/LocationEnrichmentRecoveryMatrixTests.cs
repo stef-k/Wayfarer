@@ -49,8 +49,11 @@ public sealed class LocationEnrichmentRecoveryMatrixTests
             Assert.Equal(originalIntent, final.IntentEnabled);
             Assert.Equal(scenario == "expired-running" ? LocationEnrichmentState.Scheduled : workflow.State,
                 final.State);
-            Assert.Equal(0, final.AdmittedUsageCount);
-            Assert.Equal(0, final.EnrichedCount);
+            Assert.Equal(2, final.AdmittedUsageCount);
+            Assert.Equal(1, final.EnrichedCount);
+            Assert.Equal(3, final.ProcessedCount);
+            Assert.Equal(1, final.RetryableDeferredCount);
+            Assert.Equal(1, final.PermanentlyDeferredCount);
             if (scenario == "expired-running")
             {
                 Assert.Null(final.ExecutionLeaseId);
@@ -125,10 +128,46 @@ public sealed class LocationEnrichmentRecoveryMatrixTests
         Assert.Equal(0, scheduler.Mutations);
     }
 
+    [Fact]
+    public async Task RelationalRecoveryCommitSurvivesProjectionFailureAndNextRunConverges()
+    {
+        var services = new ServiceCollection().BuildServiceProvider();
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options;
+        var now = DateTime.UtcNow;
+        var workflow = LocationEnrichmentWorkflow.Create("projection-failure", now);
+        workflow.Start(now);
+        workflow.TryAcquireExecutionLease(now.AddMinutes(-2), TimeSpan.FromMinutes(1));
+        await using (var seed = new ApplicationDbContext(options, services))
+        { seed.Add(workflow); await seed.SaveChangesAsync(); }
+        var scheduler = new ProjectionScheduler(workflow, "missing-job");
+        scheduler.Mock.Setup(item => item.AddJob(It.IsAny<IJobDetail>(), false, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("projection failed"));
+        var reconciler = new LocationEnrichmentReconciler(new TestContextFactory(options, services),
+            new LocationEnrichmentScheduler(scheduler.Mock.Object), scheduler.Mock.Object);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => reconciler.ReconcileAsync());
+
+        await using (var verify = new ApplicationDbContext(options, services))
+        {
+            var committed = await verify.LocationEnrichmentWorkflows.SingleAsync();
+            Assert.Equal(LocationEnrichmentState.Scheduled, committed.State);
+            Assert.Null(committed.ExecutionLeaseId);
+        }
+        scheduler.Mock.Setup(item => item.AddJob(It.IsAny<IJobDetail>(), false, It.IsAny<CancellationToken>()))
+            .Callback<IJobDetail, bool, CancellationToken>((detail, _, _) => scheduler.Jobs.Add(detail.Key))
+            .Returns(Task.CompletedTask);
+        await reconciler.ReconcileAsync();
+        Assert.Equal([LocationEnrichmentScheduler.JobKey(workflow.SchedulerId)], scheduler.Jobs);
+        Assert.Equal([LocationEnrichmentScheduler.TriggerKey(workflow.SchedulerId, workflow.Epoch)],
+            scheduler.Triggers);
+    }
+
     private static LocationEnrichmentWorkflow CreateWorkflow(string scenario, DateTime now)
     {
         var workflow = LocationEnrichmentWorkflow.Create($"matrix-{scenario}", now);
         workflow.Start(now);
+        workflow.RecordBatch(3, 1, 1, 1, 2, now);
         switch (scenario)
         {
             case "paused-user": workflow.Pause(now); break;
