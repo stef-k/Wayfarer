@@ -11,6 +11,7 @@ public sealed class LocationEnrichmentReconciler(
     ApplicationDbContext db, LocationEnrichmentScheduler schedulerOwner, IScheduler scheduler)
 {
     private const int PageSize = 200;
+    private const int MaximumPagesPerPass = 5;
 
     /// <summary>Recovers running rows, repairs active triggers, and removes orphan jobs without contact.</summary>
     public async Task ReconcileAsync(CancellationToken cancellationToken = default)
@@ -24,14 +25,24 @@ public sealed class LocationEnrichmentReconciler(
         var orphanCandidates = (await scheduler.GetJobKeys(
             GroupMatcher<JobKey>.GroupEquals(LocationEnrichmentScheduler.Group), cancellationToken)).ToHashSet();
         string? afterUserId = null;
-        while (true)
+        for (var pageNumber = 0; pageNumber < MaximumPagesPerPass; pageNumber++)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var page = await db.LocationEnrichmentWorkflows
                 .Where(item => afterUserId == null || string.Compare(item.UserId, afterUserId) > 0)
                 .OrderBy(item => item.UserId).Take(PageSize).ToListAsync(cancellationToken);
             if (page.Count == 0) break;
             foreach (var workflow in page.Where(item => item.State == LocationEnrichmentState.Running))
-                workflow.RecoverRunning(now);
+                workflow.TryRecoverExpiredExecution(now);
+            var expiredOperations = await db.LocationEnrichmentAttempts.Where(item => item.OperationId != null
+                && item.NextAttemptAtUtc <= now).ToListAsync(cancellationToken);
+            foreach (var attempt in expiredOperations)
+            {
+                attempt.OperationId = null;
+                attempt.OperationFencingGeneration = null;
+                attempt.OperationStartedAtUtc = null;
+                attempt.Outcome = LocationEnrichmentOutcome.RetryableFailure;
+            }
             await db.SaveChangesAsync(cancellationToken);
             foreach (var workflow in page)
             {

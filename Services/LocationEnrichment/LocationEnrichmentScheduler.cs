@@ -8,6 +8,7 @@ namespace Wayfarer.Services.LocationEnrichment;
 /// <summary>Projects committed workflow intent into stable, one-shot Quartz metadata.</summary>
 public sealed class LocationEnrichmentScheduler(IScheduler scheduler)
 {
+    public static int MisfireInstruction => Quartz.MisfireInstruction.SimpleTrigger.RescheduleNextWithRemainingCount;
     public const string Group = "LocationEnrichment";
     public static JobKey JobKey(Guid id) => new($"Workflow_{id:N}", Group);
     public static TriggerKey TriggerKey(Guid id, int epoch) => new($"Workflow_{id:N}_{epoch}", Group);
