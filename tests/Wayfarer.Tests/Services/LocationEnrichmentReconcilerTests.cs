@@ -76,21 +76,23 @@ public sealed class LocationEnrichmentReconcilerTests
         }
         await db.SaveChangesAsync();
         using var cancellation = new CancellationTokenSource();
-        var checks = 0;
+        var additions = 0;
         var quartz = new Mock<IScheduler>();
         quartz.Setup(item => item.GetTriggerKeys(It.IsAny<GroupMatcher<TriggerKey>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new HashSet<TriggerKey>());
         quartz.Setup(item => item.GetJobKeys(It.IsAny<GroupMatcher<JobKey>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new HashSet<JobKey>());
-        quartz.Setup(item => item.CheckExists(It.IsAny<JobKey>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(() => { if (Interlocked.Increment(ref checks) == 200) cancellation.Cancel(); return true; });
-        quartz.Setup(item => item.CheckExists(It.IsAny<TriggerKey>(), It.IsAny<CancellationToken>())).ReturnsAsync(true);
+        quartz.Setup(item => item.AddJob(It.IsAny<IJobDetail>(), false, It.IsAny<CancellationToken>()))
+            .Callback(() => { if (Interlocked.Increment(ref additions) == 200) cancellation.Cancel(); })
+            .Returns(Task.CompletedTask);
+        quartz.Setup(item => item.ScheduleJob(It.IsAny<ITrigger>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(DateTimeOffset.UtcNow);
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
             new LocationEnrichmentReconciler(db, new LocationEnrichmentScheduler(quartz.Object), quartz.Object)
                 .ReconcileAsync(cancellation.Token));
 
-        Assert.Equal(200, checks);
+        Assert.Equal(200, additions);
     }
 
     [Fact]
@@ -120,7 +122,9 @@ public sealed class LocationEnrichmentReconcilerTests
 
         quartz.Verify(item => item.GetTriggerKeys(It.IsAny<GroupMatcher<TriggerKey>>(), default), Times.Once);
         quartz.Verify(item => item.GetJobKeys(It.IsAny<GroupMatcher<JobKey>>(), default), Times.Once);
-        quartz.Verify(item => item.CheckExists(It.IsAny<TriggerKey>(), default), Times.Exactly(50));
+        quartz.Verify(item => item.CheckExists(It.IsAny<JobKey>(), default), Times.Never);
+        quartz.Verify(item => item.CheckExists(It.IsAny<TriggerKey>(), default), Times.Never);
+        quartz.Verify(item => item.AddJob(It.IsAny<IJobDetail>(), false, default), Times.Exactly(50));
     }
 
     [Fact]

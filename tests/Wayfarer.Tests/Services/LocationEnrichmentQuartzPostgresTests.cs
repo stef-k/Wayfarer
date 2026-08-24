@@ -41,18 +41,18 @@ public sealed class LocationEnrichmentQuartzPostgresTests(PostgresImportTestFixt
             user = await fixture.CreateUserAsync();
             var workflow = LocationEnrichmentWorkflow.Create(user.Id, DateTime.UtcNow);
             workflow.Start(DateTime.UtcNow);
+            workflow.ContinueAs(LocationEnrichmentState.BackingOff,
+                LocationEnrichmentOutcome.RetryableFailure, DateTime.UtcNow.AddMinutes(-1), DateTime.UtcNow);
             await using (var domain = fixture.CreateContext())
             { domain.Add(workflow); await domain.SaveChangesAsync(); }
 
             await new LocationEnrichmentScheduler(first).EnsureScheduledAsync(workflow);
-            var overdue = TriggerBuilder.Create()
-                .WithIdentity(LocationEnrichmentScheduler.TriggerKey(workflow.SchedulerId, workflow.Epoch))
-                .ForJob(LocationEnrichmentScheduler.JobKey(workflow.SchedulerId))
-                .UsingJobData("epoch", workflow.Epoch.ToString(System.Globalization.CultureInfo.InvariantCulture))
-                .StartAt(DateTimeOffset.UtcNow.AddMinutes(-1))
-                .WithSimpleSchedule(schedule => schedule.WithRepeatCount(0)
-                    .WithMisfireHandlingInstructionFireNow()).Build();
-            await first.RescheduleJob(overdue.Key, overdue);
+            var persisted = Assert.IsAssignableFrom<ISimpleTrigger>(await first.GetTrigger(
+                LocationEnrichmentScheduler.TriggerKey(workflow.SchedulerId, workflow.Epoch)));
+            Assert.Equal(MisfireInstruction.SimpleTrigger.FireNow, persisted.MisfireInstruction);
+            Assert.Equal(workflow.SchedulerId.ToString("N"),
+                (await first.GetJobDetail(LocationEnrichmentScheduler.JobKey(workflow.SchedulerId)))!
+                    .JobDataMap.GetString("workflowId"));
             await first.Shutdown(false);
             first = null;
 
@@ -67,6 +67,8 @@ public sealed class LocationEnrichmentQuartzPostgresTests(PostgresImportTestFixt
             await restarted.Start();
             Assert.Same(fired.Task, await Task.WhenAny(fired.Task, Task.Delay(TimeSpan.FromSeconds(10))));
             Assert.Equal(1, executions);
+            await WaitUntilAsync(async () => !await restarted.CheckExists(
+                LocationEnrichmentScheduler.TriggerKey(workflow.SchedulerId, workflow.Epoch)), TimeSpan.FromSeconds(5));
             await restarted.Shutdown(true);
             restarted = null;
 
@@ -134,5 +136,15 @@ public sealed class LocationEnrichmentQuartzPostgresTests(PostgresImportTestFixt
         await using var command = connection.CreateCommand();
         command.CommandText = sql;
         await command.ExecuteNonQueryAsync();
+    }
+
+    private static async Task WaitUntilAsync(Func<Task<bool>> condition, TimeSpan timeout)
+    {
+        using var cancellation = new CancellationTokenSource(timeout);
+        while (!await condition())
+        {
+            cancellation.Token.ThrowIfCancellationRequested();
+            await Task.Yield();
+        }
     }
 }
