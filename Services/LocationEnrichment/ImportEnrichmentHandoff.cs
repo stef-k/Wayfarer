@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 using Wayfarer.Models;
 using Wayfarer.Models.LocationEnrichment;
 
@@ -59,7 +60,7 @@ public sealed class ImportEnrichmentHandoff(
         workflow.Start(DateTime.UtcNow);
         workflow.PauseForAuthority(LocationEnrichmentOutcome.AuthorityUnavailable, DateTime.UtcNow);
         try { await db.SaveChangesAsync(cancellationToken); }
-        catch (DbUpdateException)
+        catch (DbUpdateException exception) when (IsWorkflowUniqueRace(exception))
         {
             db.ChangeTracker.Clear();
             return;
@@ -84,10 +85,15 @@ public sealed class ImportEnrichmentHandoff(
         }
         workflow.Start(DateTime.UtcNow);
         try { await db.SaveChangesAsync(cancellationToken); }
-        catch (DbUpdateException)
+        catch (DbUpdateException exception) when (IsWorkflowUniqueRace(exception))
         {
             db.ChangeTracker.Clear();
-            return EnrichmentCommandResult.Conflict("concurrent-command");
+            var current = await db.LocationEnrichmentWorkflows.AsNoTracking()
+                .SingleAsync(item => item.UserId == userId, cancellationToken);
+            return current.IntentEnabled && current.State is LocationEnrichmentState.Scheduled
+                or LocationEnrichmentState.Running
+                ? EnrichmentCommandResult.Satisfied("scheduled")
+                : EnrichmentCommandResult.Conflict("concurrent-command");
         }
         try { await projection.ProjectAsync(userId, cancellationToken); }
         catch { return EnrichmentCommandResult.Conflict("scheduling-reconciliation-required"); }
@@ -120,7 +126,7 @@ public sealed class ImportEnrichmentHandoff(
         var workflow = await db.LocationEnrichmentWorkflows.SingleAsync(item => item.UserId == userId, cancellationToken);
         if (!workflow.RetryDeferred(now)) return EnrichmentCommandResult.Conflict("invalid-state");
         try { await db.SaveChangesAsync(cancellationToken); }
-        catch (DbUpdateException)
+        catch (DbUpdateConcurrencyException)
         {
             db.ChangeTracker.Clear();
             return EnrichmentCommandResult.Conflict("concurrent-command");
@@ -188,6 +194,9 @@ public sealed class ImportEnrichmentHandoff(
             => EnrichmentCommandResult.Satisfied("scheduled"),
         _ => EnrichmentCommandResult.Conflict("concurrent-command")
     };
+
+    private static bool IsWorkflowUniqueRace(DbUpdateException exception) =>
+        exception.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation };
 }
 
 /// <summary>Returns bounded command feedback without provider or scheduler internals.</summary>

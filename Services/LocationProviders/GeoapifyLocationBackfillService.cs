@@ -55,7 +55,7 @@ public sealed class GeoapifyLocationBackfillService(
     {
         var selected = await LoadAuthorityAsync(owner.UserId, cancellationToken);
         var ids = await LoadCandidateIdsAsync(owner.UserId, selected, MaximumRecords, cancellationToken);
-        var scanned = 0; var succeeded = 0; var noResult = 0; var unavailable = 0; var admitted = 0;
+        var scanned = 0; var succeeded = 0; var skipped = 0; var noResult = 0; var unavailable = 0; var admitted = 0;
         var exhausted = false; var authorityUnavailable = false; DateTimeOffset? next = null;
         foreach (var id in ids)
         {
@@ -64,7 +64,7 @@ public sealed class GeoapifyLocationBackfillService(
             if (!renewed.HasValue) break;
             owner = renewed.Value;
             var candidate = await LoadCandidateAsync(owner.UserId, id, cancellationToken);
-            if (candidate is null) continue;
+            if (candidate is null) { skipped++; continue; }
             scanned++;
 
             PersonalProviderAdmission admission;
@@ -110,7 +110,7 @@ public sealed class GeoapifyLocationBackfillService(
             if (due.HasValue) { remaining = 1; unavailable = Math.Max(unavailable, 1); next = due; }
         }
         return new(scanned, succeeded, noResult, unavailable, remaining, exhausted, next,
-            authorityUnavailable, admitted);
+            authorityUnavailable, admitted, skipped);
     }
 
     private async Task<(double Latitude, double Longitude)?> LoadCandidateAsync(
@@ -312,7 +312,7 @@ public sealed class GeoapifyLocationBackfillService(
 
 public sealed record GeoapifyBackfillResult(int Scanned, int Succeeded, int NoResult, int Unavailable,
     int RemainingEstimate, bool Exhausted, DateTimeOffset? NextEligibleAt = null,
-    bool AuthorityUnavailable = false, int Admitted = 0);
+    bool AuthorityUnavailable = false, int Admitted = 0, int Skipped = 0, int FailedBatches = 0);
 
 public sealed record EnrichmentAuthority(string ProviderKey, int CredentialGeneration,
     int ConfigurationGeneration, int SelectionGeneration);

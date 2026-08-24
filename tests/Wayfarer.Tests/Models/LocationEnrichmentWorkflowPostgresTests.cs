@@ -3,6 +3,7 @@ using Point = NetTopologySuite.Geometries.Point;
 using Wayfarer.Models;
 using Wayfarer.Models.LocationEnrichment;
 using Wayfarer.Tests.Infrastructure;
+using Wayfarer.Services.LocationEnrichment;
 using Xunit;
 
 namespace Wayfarer.Tests.Models;
@@ -67,5 +68,44 @@ public sealed class LocationEnrichmentWorkflowPostgresTests(PostgresImportTestFi
         await db.SaveChangesAsync();
 
         Assert.True(await db.Locations.AnyAsync(item => item.Id == location.Id));
+    }
+
+    [PostgresFact]
+    public async Task LeaseIsCommittedVisibleAndIndependentPerUser()
+    {
+        var first = await fixture.CreateUserAsync();
+        var second = await fixture.CreateUserAsync();
+        int firstEpoch;
+        int secondEpoch;
+        await using (var setup = fixture.CreateContext())
+        {
+            var firstWorkflow = LocationEnrichmentWorkflow.Create(first.Id, DateTime.UtcNow);
+            firstWorkflow.Start(DateTime.UtcNow);
+            var secondWorkflow = LocationEnrichmentWorkflow.Create(second.Id, DateTime.UtcNow);
+            secondWorkflow.Start(DateTime.UtcNow);
+            firstEpoch = firstWorkflow.Epoch; secondEpoch = secondWorkflow.Epoch;
+            setup.AddRange(firstWorkflow, secondWorkflow);
+            await setup.SaveChangesAsync();
+        }
+        var owner = new LocationEnrichmentExecutionAuthority(new FixtureFactory(fixture));
+
+        var firstLease = await owner.TryAcquireAsync(first.Id, firstEpoch);
+        var losingLease = await owner.TryAcquireAsync(first.Id, firstEpoch);
+        var independentLease = await owner.TryAcquireAsync(second.Id, secondEpoch);
+
+        Assert.NotNull(firstLease);
+        Assert.Null(losingLease);
+        Assert.NotNull(independentLease);
+        await using var observer = fixture.CreateContext();
+        var committed = await observer.LocationEnrichmentWorkflows.AsNoTracking()
+            .SingleAsync(item => item.UserId == first.Id);
+        Assert.Equal(firstLease.Value.LeaseId, committed.ExecutionLeaseId);
+        Assert.True(committed.ExecutionLeaseExpiresAtUtc > DateTime.UtcNow.AddSeconds(15));
+    }
+
+    private sealed class FixtureFactory(PostgresImportTestFixture fixture)
+        : IDbContextFactory<ApplicationDbContext>
+    {
+        public ApplicationDbContext CreateDbContext() => fixture.CreateContext();
     }
 }

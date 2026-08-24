@@ -40,9 +40,10 @@ public sealed class LocationEnrichmentWorker(
             return LocationEnrichmentWorkerOutcome.StaleOwner;
         }
         workflow.RecordBatch(result.Scanned, result.Succeeded, result.Unavailable, result.NoResult, 0, now);
-        workflow.ReplaceProgress(workflow.ProcessedCount, workflow.EnrichedCount, workflow.SkippedCount,
+        workflow.ReplaceProgress(workflow.ProcessedCount, workflow.EnrichedCount,
+            workflow.SkippedCount + result.Skipped,
             workflow.RetryableDeferredCount, workflow.PermanentlyDeferredCount, result.RemainingEstimate,
-            workflow.FailedBatchCount, now);
+            workflow.FailedBatchCount + result.FailedBatches, now);
         if (result.AuthorityUnavailable)
             workflow.PauseForAuthority(LocationEnrichmentOutcome.AuthorityUnavailable, now);
         else if (result.RemainingEstimate == 0)
