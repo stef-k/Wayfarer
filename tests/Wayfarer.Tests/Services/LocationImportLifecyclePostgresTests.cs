@@ -1,6 +1,8 @@
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.EntityFrameworkCore;
 using Moq;
+using Npgsql;
 using Quartz;
 using Wayfarer.Models;
 using Wayfarer.Models.Enums;
@@ -14,6 +16,54 @@ namespace Wayfarer.Tests.Services;
 [Collection(PostgresImportTestCollection.Name)]
 public sealed class LocationImportLifecyclePostgresTests(PostgresImportTestFixture fixture)
 {
+    [PostgresTheory]
+    [InlineData("In Progress", false, false, false)]
+    [InlineData("In Progress", true, false, false)]
+    [InlineData("Stopping", true, true, false)]
+    [InlineData("Stopped", false, false, false)]
+    [InlineData("Stopped", false, true, true)]
+    [InlineData("Completed", false, false, true)]
+    [InlineData("Failed", false, false, false)]
+    public async Task LifecycleConstraint_AcceptsEveryProductionCombination(
+        string status, bool projectionPending, bool stopIntent, bool deletionIntent)
+    {
+        var seed = await SeedAsync();
+        await using var db = fixture.CreateContext();
+
+        await db.Database.ExecuteSqlInterpolatedAsync($"""
+            UPDATE "LocationImports" SET "Status" = {status}, "ExecutionEpoch" = 0,
+            "ProjectionPending" = {projectionPending},
+            "StopRequestedAtUtc" = {stopIntent switch { true => DateTime.UtcNow, false => (DateTime?)null }},
+            "DeletionRequestedAtUtc" = {deletionIntent switch { true => DateTime.UtcNow, false => (DateTime?)null }}
+            WHERE "Id" = {seed.ImportId}
+            """);
+    }
+
+    [PostgresTheory]
+    [InlineData("Unknown", false, false, false)]
+    [InlineData("In Progress", false, true, false)]
+    [InlineData("In Progress", false, false, true)]
+    [InlineData("Stopping", true, false, false)]
+    [InlineData("Stopping", false, true, false)]
+    [InlineData("Stopping", true, true, true)]
+    [InlineData("Stopped", true, false, false)]
+    [InlineData("Completed", false, true, false)]
+    [InlineData("Failed", true, false, false)]
+    public async Task LifecycleConstraint_RejectsMalformedAndUnknownCombinations(
+        string status, bool projectionPending, bool stopIntent, bool deletionIntent)
+    {
+        var seed = await SeedAsync();
+        await using var db = fixture.CreateContext();
+
+        var exception = await Assert.ThrowsAsync<PostgresException>(() => db.Database.ExecuteSqlInterpolatedAsync($"""
+            UPDATE "LocationImports" SET "Status" = {status}, "ProjectionPending" = {projectionPending},
+            "StopRequestedAtUtc" = {stopIntent switch { true => DateTime.UtcNow, false => (DateTime?)null }},
+            "DeletionRequestedAtUtc" = {deletionIntent switch { true => DateTime.UtcNow, false => (DateTime?)null }}
+            WHERE "Id" = {seed.ImportId}
+            """));
+        Assert.Equal(PostgresErrorCodes.CheckViolation, exception.SqlState);
+    }
+
     [PostgresFact]
     public async Task ConcurrentStarts_ConvergeOnOneEpochAndProjection()
     {
@@ -239,7 +289,9 @@ public sealed class LocationImportLifecyclePostgresTests(PostgresImportTestFixtu
         {
             UserId = user.Id, FilePath = filePath, FileType = LocationImportFileType.Csv,
             TotalRecords = 0, LastProcessedIndex = 0, Status = status ?? ImportStatus.Stopped,
-            ExecutionEpoch = epoch
+            ExecutionEpoch = epoch,
+            ProjectionPending = status?.Equals(ImportStatus.Stopping) == true,
+            StopRequestedAtUtc = status?.Equals(ImportStatus.Stopping) == true ? DateTime.UtcNow : null
         };
         db.LocationImports.Add(import);
         await db.SaveChangesAsync();
