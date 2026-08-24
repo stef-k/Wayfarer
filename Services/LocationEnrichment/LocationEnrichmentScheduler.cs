@@ -56,7 +56,7 @@ public sealed class LocationEnrichmentScheduler(IScheduler scheduler)
         }
 
         foreach (var stale in triggerKeys.Where(item => item.Name.StartsWith(prefix, StringComparison.Ordinal)
-            && item != triggerKey))
+            && !item.Equals(triggerKey)))
         {
             await scheduler.UnscheduleJob(stale, cancellationToken);
             knownTriggerKeys?.Remove(stale);
