@@ -203,10 +203,15 @@ public sealed class PersonalProviderContactGate(
         PersonalProviderAuthoritySnapshot snapshot, CancellationToken cancellationToken = default)
     {
         var current = await ResolveAsync(snapshot.UserId, snapshot.Capability, cancellationToken);
-        return current.Succeeded && current.ProviderKey == snapshot.ProviderKey
+        return snapshot.Capability is PersonalProviderCapability.Geocoding or PersonalProviderCapability.Routing
+            && current.Succeeded && current.ProviderKey == snapshot.ProviderKey
+            && current.ProfileId == snapshot.ProfileId
             && current.CredentialGeneration == snapshot.CredentialGeneration
             && current.CapabilityGeneration == snapshot.CapabilityGeneration
             && current.SelectionGeneration == snapshot.SelectionGeneration
+            && current.Verification == snapshot.Verification
+            && current.VerifiedCredentialGeneration == snapshot.VerifiedCredentialGeneration
+            && current.VerifiedCapabilityGeneration == snapshot.VerifiedCapabilityGeneration
             && current.ConsentVersion == snapshot.ConsentVersion
             && current.ConsentedAt == snapshot.ConsentedAt
             && current.ConsentCredentialGeneration == snapshot.ConsentCredentialGeneration;
