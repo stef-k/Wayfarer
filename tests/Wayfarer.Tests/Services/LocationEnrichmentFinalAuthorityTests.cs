@@ -104,4 +104,43 @@ public sealed class LocationEnrichmentFinalAuthorityTests
 
         Assert.NotNull(presentationType);
     }
+
+    [Fact]
+    public void PresentationShowsOnlyStartForIdleWorkflow()
+    {
+        var view = LocationEnrichmentPresentation.Build(null);
+
+        Assert.True(view.Start.Visible);
+        Assert.False(view.Pause.Visible);
+        Assert.False(view.Resume.Visible);
+        Assert.False(view.Cancel.Visible);
+    }
+
+    [Fact]
+    public void PresentationShowsPauseAndCancelForActiveWorkflow()
+    {
+        var workflow = LocationEnrichmentWorkflow.Create("user", DateTime.UtcNow);
+        workflow.Start(DateTime.UtcNow);
+
+        var view = LocationEnrichmentPresentation.Build(workflow);
+
+        Assert.True(view.Pause is { Visible: true, Enabled: true });
+        Assert.True(view.Cancel is { Visible: true, Enabled: true });
+        Assert.False(view.Start.Visible);
+        Assert.False(view.Resume.Visible);
+    }
+
+    [Fact]
+    public void PresentationDisablesResumeWhenProviderAuthorityIsUnavailable()
+    {
+        var workflow = LocationEnrichmentWorkflow.Create("user", DateTime.UtcNow);
+        workflow.Start(DateTime.UtcNow);
+        workflow.Pause(DateTime.UtcNow);
+
+        var view = LocationEnrichmentPresentation.Build(workflow, providerAvailable: false);
+
+        Assert.True(view.Resume.Visible);
+        Assert.False(view.Resume.Enabled);
+        Assert.Equal("Paused by you", view.PausedReason);
+    }
 }

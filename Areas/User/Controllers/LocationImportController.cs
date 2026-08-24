@@ -25,7 +25,6 @@ namespace Wayfarer.Areas.User.Controllers
         private readonly IWebHostEnvironment _environment;
         private readonly IScheduler        _scheduler;
         private readonly IImportEnrichmentHandoff? _enrichmentHandoff;
-        private readonly IWorkflowScheduleProjection? _workflowProjection;
 
         public LocationImportController(ApplicationDbContext dbContext,
             ILogger<LocationImportController> logger,
@@ -38,7 +37,6 @@ namespace Wayfarer.Areas.User.Controllers
             _environment = environment;
             _scheduler = scheduler;
             _enrichmentHandoff = enrichmentHandoff;
-            _workflowProjection = workflowProjection;
         }
 
         /// <summary>
@@ -54,8 +52,9 @@ namespace Wayfarer.Areas.User.Controllers
                 .ToListAsync();
             
             ViewData["UserId"] = userId;
-            ViewData["EnrichmentWorkflow"] = await _dbContext.LocationEnrichmentWorkflows
-                .AsNoTracking().SingleOrDefaultAsync(item => item.UserId == userId);
+            var workflow = await _dbContext.LocationEnrichmentWorkflows.AsNoTracking()
+                .SingleOrDefaultAsync(item => item.UserId == userId);
+            ViewData["EnrichmentPresentation"] = LocationEnrichmentPresentation.Build(workflow);
 
             SetPageTitle("Location Imports");
             return View(imports);
@@ -74,37 +73,18 @@ namespace Wayfarer.Areas.User.Controllers
 
         /// <summary>Persists authenticated pause intent before neutralizing Quartz work.</summary>
         [HttpPost, ValidateAntiForgeryToken]
-        public Task<IActionResult> PauseEnrichment() => ChangeEnrichmentAsync((workflow, now) =>
-        {
-            if (!workflow.TryPause(now, out var reason)) throw new EnrichmentCommandConflictException(reason!);
-        });
+        public Task<IActionResult> PauseEnrichment() => ExecuteEnrichmentAsync(
+            (owner, userId) => owner.PauseAsync(userId));
 
         /// <summary>Idempotently resumes the authenticated user's current nonterminal epoch.</summary>
         [HttpPost, ValidateAntiForgeryToken]
-        public async Task<IActionResult> ResumeEnrichment()
-        {
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (string.IsNullOrWhiteSpace(userId)) return Challenge();
-            var selection = await _dbContext.PersonalLocationProviderSelections.AsNoTracking()
-                .SingleOrDefaultAsync(item => item.UserId == userId);
-            var profile = selection?.GeocodingProviderKey == null ? null
-                : await _dbContext.PersonalLocationProviderProfiles.AsNoTracking().SingleOrDefaultAsync(
-                    item => item.UserId == userId && item.ProviderKey == selection.GeocodingProviderKey);
-            var authorityAvailable = profile is { GeocodingAuthorized: true, RevokedAt: null,
-                GeocodingVerification: Models.LocationProviders.PersonalProviderVerification.Verified }
-                && profile.GeocodingVerifiedCredentialGeneration == profile.CredentialGeneration
-                && profile.GeocodingVerifiedConfigurationGeneration == profile.GeocodingGeneration
-                && (profile.ProviderKey != "mapbox" || profile.HasCurrentPermanentGeocodingConsent());
-            return await ChangeEnrichmentAsync((workflow, now) =>
-            {
-                if (!workflow.TryResume(now, authorityAvailable, out var reason))
-                    throw new EnrichmentCommandConflictException(reason!);
-            });
-        }
+        public Task<IActionResult> ResumeEnrichment() => ExecuteEnrichmentAsync(
+            (owner, userId) => owner.ResumeAsync(userId));
 
         /// <summary>Cancels only enrichment metadata while retaining import and Location data.</summary>
         [HttpPost, ValidateAntiForgeryToken]
-        public Task<IActionResult> CancelEnrichment() => ChangeEnrichmentAsync((workflow, now) => workflow.Cancel(now));
+        public Task<IActionResult> CancelEnrichment() => ExecuteEnrichmentAsync(
+            (owner, userId) => owner.CancelAsync(userId));
 
         /// <summary>Retries deferred work only for the authenticated user's current provider generation.</summary>
         [HttpPost, ValidateAntiForgeryToken]
@@ -117,33 +97,14 @@ namespace Wayfarer.Areas.User.Controllers
             return result.Succeeded ? RedirectToAction(nameof(Index)) : Conflict(result.Code);
         }
 
-        private async Task<IActionResult> ChangeEnrichmentAsync(Action<LocationEnrichmentWorkflow, DateTime> change)
+        private async Task<IActionResult> ExecuteEnrichmentAsync(
+            Func<IImportEnrichmentHandoff, string, Task<EnrichmentCommandResult>> execute)
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (string.IsNullOrWhiteSpace(userId)) return Challenge();
-            var workflow = await _dbContext.LocationEnrichmentWorkflows.SingleOrDefaultAsync(item => item.UserId == userId);
-            if (workflow is not null)
-            {
-                try { change(workflow, DateTime.UtcNow); }
-                catch (EnrichmentCommandConflictException exception) { return Conflict(exception.Code); }
-                try { await _dbContext.SaveChangesAsync(); }
-                catch (DbUpdateConcurrencyException)
-                {
-                    _dbContext.ChangeTracker.Clear();
-                    return Conflict("concurrent-command");
-                }
-                if (_workflowProjection is not null)
-                {
-                    try { await _workflowProjection.ProjectAsync(userId); }
-                    catch { return Conflict("scheduling-reconciliation-required"); }
-                }
-            }
-            return RedirectToAction(nameof(Index));
-        }
-
-        private sealed class EnrichmentCommandConflictException(string code) : Exception
-        {
-            public string Code { get; } = code;
+            if (_enrichmentHandoff is null) return Conflict("control-unavailable");
+            var result = await execute(_enrichmentHandoff, userId);
+            return result.Succeeded ? RedirectToAction(nameof(Index)) : Conflict(result.Code);
         }
 
         [HttpPost]

@@ -160,6 +160,8 @@ public class UserLocationImportControllerTests : TestBase
         env.SetupGet(e => e.WebRootPath).Returns(Path.GetTempPath());
         var scheduler = new Mock<IScheduler>();
         scheduler.Setup(s => s.ScheduleJob(It.IsAny<IJobDetail>(), It.IsAny<ITrigger>(), default)).ReturnsAsync(DateTimeOffset.UtcNow);
+        projection ??= Mock.Of<IWorkflowScheduleProjection>();
+        handoff ??= new ImportEnrichmentHandoff(db, projection);
 
         var controller = new LocationImportController(db, NullLogger<LocationImportController>.Instance,
             env.Object, scheduler.Object, handoff, projection);

@@ -1,5 +1,6 @@
 @using Wayfarer.Models.LocationEnrichment
 @model IEnumerable<Wayfarer.Models.LocationImport>
+@using Wayfarer.Services.LocationEnrichment
 @{
     ViewData["BodyClass"] = "container-fluid";
 }
@@ -168,21 +169,23 @@
     @Html.FrontendViewScripts()
 }
 @{
-    var enrichment = ViewData["EnrichmentWorkflow"] as LocationEnrichmentWorkflow;
+    var enrichment = ViewData["EnrichmentPresentation"] as LocationEnrichmentPresentationModel
+        ?? LocationEnrichmentPresentation.Build(null);
 }
 <section class="card mb-3" aria-labelledby="enrichment-heading">
     <div class="card-body">
         <h2 id="enrichment-heading" class="h5">Missing-address enrichment</h2>
-        <p>State: <strong>@(enrichment?.State.ToString() ?? "Idle")</strong>;
-            processed @(enrichment?.ProcessedCount ?? 0), enriched @(enrichment?.EnrichedCount ?? 0),
-            retryable deferred @(enrichment?.RetryableDeferredCount ?? 0),
-            permanently deferred @(enrichment?.PermanentlyDeferredCount ?? 0).</p>
+        <p>State: <strong>@enrichment.StatusText</strong>;
+            processed @enrichment.Processed, enriched @enrichment.Enriched, skipped @enrichment.Skipped,
+            retryable deferred @enrichment.RetryableDeferred, permanently deferred @enrichment.PermanentlyDeferred,
+            remaining @enrichment.RemainingEligible.</p>
+        @if (enrichment.PausedReason is not null) { <p>@enrichment.PausedReason</p> }
         <div class="d-flex gap-2 flex-wrap">
-            <form asp-action="StartEnrichment" method="post"><button class="btn btn-primary" type="submit">Start</button></form>
-            <form asp-action="PauseEnrichment" method="post"><button class="btn btn-outline-secondary" type="submit">Pause</button></form>
-            <form asp-action="ResumeEnrichment" method="post"><button class="btn btn-outline-primary" type="submit">Resume</button></form>
-            <form asp-action="CancelEnrichment" method="post"><button class="btn btn-outline-danger" type="submit">Cancel</button></form>
-            <form asp-action="RetryDeferredEnrichment" method="post"><button class="btn btn-outline-warning" type="submit">Retry deferred</button></form>
+            @if (enrichment.Start.Visible) { <form asp-action="StartEnrichment" method="post"><button class="btn btn-primary" type="submit" disabled="@(!enrichment.Start.Enabled)">Start</button></form> }
+            @if (enrichment.Pause.Visible) { <form asp-action="PauseEnrichment" method="post"><button class="btn btn-outline-secondary" type="submit" disabled="@(!enrichment.Pause.Enabled)">Pause</button></form> }
+            @if (enrichment.Resume.Visible) { <form asp-action="ResumeEnrichment" method="post"><button class="btn btn-outline-primary" type="submit" disabled="@(!enrichment.Resume.Enabled)">Resume</button></form> }
+            @if (enrichment.Cancel.Visible) { <form asp-action="CancelEnrichment" method="post"><button class="btn btn-outline-danger" type="submit" disabled="@(!enrichment.Cancel.Enabled)">Cancel</button></form> }
+            @if (enrichment.RetryDeferred.Visible) { <form asp-action="RetryDeferredEnrichment" method="post"><button class="btn btn-outline-warning" type="submit" disabled="@(!enrichment.RetryDeferred.Enabled)">Retry deferred</button></form> }
         </div>
     </div>
 </section>

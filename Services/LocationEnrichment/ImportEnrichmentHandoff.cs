@@ -10,12 +10,38 @@ public interface IImportEnrichmentHandoff
     Task EnsureAsync(string userId, CancellationToken cancellationToken = default);
     Task<EnrichmentCommandResult> StartAsync(string userId, CancellationToken cancellationToken = default);
     Task<EnrichmentCommandResult> RetryDeferredAsync(string userId, CancellationToken cancellationToken = default);
+    Task<EnrichmentCommandResult> PauseAsync(string userId, CancellationToken cancellationToken = default);
+    Task<EnrichmentCommandResult> ResumeAsync(string userId, CancellationToken cancellationToken = default);
+    Task<EnrichmentCommandResult> CancelAsync(string userId, CancellationToken cancellationToken = default);
 }
 
 /// <summary>Creates or resumes relational intent before projecting one Quartz trigger.</summary>
 public sealed class ImportEnrichmentHandoff(
     ApplicationDbContext db, IWorkflowScheduleProjection projection) : IImportEnrichmentHandoff
 {
+    public Task<EnrichmentCommandResult> PauseAsync(string userId, CancellationToken cancellationToken = default)
+        => ChangeAsync(userId, (workflow, now) => workflow.TryPause(now, out var reason)
+            ? EnrichmentCommandResult.Applied("paused")
+            : EnrichmentCommandResult.Invalid(reason!), cancellationToken);
+
+    public async Task<EnrichmentCommandResult> ResumeAsync(string userId, CancellationToken cancellationToken = default)
+    {
+        var available = await HasCurrentAuthorityAsync(userId, cancellationToken);
+        return await ChangeAsync(userId, (workflow, now) => workflow.TryResume(now, available, out var reason)
+            ? EnrichmentCommandResult.Applied("scheduled")
+            : reason == "authority-unavailable" ? EnrichmentCommandResult.Authority(reason)
+            : EnrichmentCommandResult.Invalid(reason!), cancellationToken);
+    }
+
+    public Task<EnrichmentCommandResult> CancelAsync(string userId, CancellationToken cancellationToken = default)
+        => ChangeAsync(userId, (workflow, now) =>
+        {
+            if (workflow.State == LocationEnrichmentState.Cancelled)
+                return EnrichmentCommandResult.Satisfied("cancelled");
+            workflow.Cancel(now);
+            return EnrichmentCommandResult.Applied("cancelled");
+        }, cancellationToken);
+
     public async Task EnsureAsync(string userId, CancellationToken cancellationToken = default)
     {
         if (await HasCurrentAuthorityAsync(userId, cancellationToken))
@@ -126,11 +152,58 @@ public sealed class ImportEnrichmentHandoff(
             && (item.Region == null || item.Region == "") && (item.Country == null || item.Country == "")
             && item.ReverseGeocodingProvider == null && item.ReverseGeocodingStorageMode == null
             && item.ReverseGeocodedAt == null, cancellationToken);
+
+    private async Task<EnrichmentCommandResult> ChangeAsync(string userId,
+        Func<LocationEnrichmentWorkflow, DateTime, EnrichmentCommandResult> change,
+        CancellationToken cancellationToken)
+    {
+        var workflow = await db.LocationEnrichmentWorkflows.SingleOrDefaultAsync(
+            item => item.UserId == userId, cancellationToken);
+        if (workflow is null) return EnrichmentCommandResult.Invalid("missing-workflow");
+        var result = change(workflow, DateTime.UtcNow);
+        if (result.Classification is not (LocationEnrichmentCommandResult.Applied
+            or LocationEnrichmentCommandResult.AlreadySatisfied)) return result;
+        try { await db.SaveChangesAsync(cancellationToken); }
+        catch (DbUpdateConcurrencyException)
+        {
+            db.ChangeTracker.Clear();
+            var current = await db.LocationEnrichmentWorkflows.AsNoTracking()
+                .SingleOrDefaultAsync(item => item.UserId == userId, cancellationToken);
+            return current is null ? EnrichmentCommandResult.Conflict("concurrent-command")
+                : ClassifyAfterRace(result.Code, current);
+        }
+        try { await projection.ProjectAsync(userId, cancellationToken); }
+        catch { return EnrichmentCommandResult.Scheduling("scheduling-reconciliation-required"); }
+        return result;
+    }
+
+    private static EnrichmentCommandResult ClassifyAfterRace(string command,
+        LocationEnrichmentWorkflow current) => command switch
+    {
+        "paused" when current.State == LocationEnrichmentState.PausedByUser
+            => EnrichmentCommandResult.Satisfied("paused"),
+        "cancelled" when current.State == LocationEnrichmentState.Cancelled
+            => EnrichmentCommandResult.Satisfied("cancelled"),
+        "scheduled" when current.State == LocationEnrichmentState.Scheduled && current.IntentEnabled
+            => EnrichmentCommandResult.Satisfied("scheduled"),
+        _ => EnrichmentCommandResult.Conflict("concurrent-command")
+    };
 }
 
 /// <summary>Returns bounded command feedback without provider or scheduler internals.</summary>
-public sealed record EnrichmentCommandResult(bool Succeeded, string Code)
+public enum LocationEnrichmentCommandResult
+{ Applied, AlreadySatisfied, Conflict, InvalidTransition, AuthorityUnavailable, SchedulingPending }
+
+/// <summary>Contains a finite classification and bounded user-safe code.</summary>
+public sealed record EnrichmentCommandResult(LocationEnrichmentCommandResult Classification, string Code)
 {
-    public static EnrichmentCommandResult Success(string code) => new(true, code);
-    public static EnrichmentCommandResult Conflict(string code) => new(false, code);
+    public bool Succeeded => Classification is LocationEnrichmentCommandResult.Applied
+        or LocationEnrichmentCommandResult.AlreadySatisfied;
+    public static EnrichmentCommandResult Success(string code) => Applied(code);
+    public static EnrichmentCommandResult Applied(string code) => new(LocationEnrichmentCommandResult.Applied, code);
+    public static EnrichmentCommandResult Satisfied(string code) => new(LocationEnrichmentCommandResult.AlreadySatisfied, code);
+    public static EnrichmentCommandResult Conflict(string code) => new(LocationEnrichmentCommandResult.Conflict, code);
+    public static EnrichmentCommandResult Invalid(string code) => new(LocationEnrichmentCommandResult.InvalidTransition, code);
+    public static EnrichmentCommandResult Authority(string code) => new(LocationEnrichmentCommandResult.AuthorityUnavailable, code);
+    public static EnrichmentCommandResult Scheduling(string code) => new(LocationEnrichmentCommandResult.SchedulingPending, code);
 }
