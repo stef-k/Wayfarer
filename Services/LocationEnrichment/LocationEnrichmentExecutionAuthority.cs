@@ -50,7 +50,14 @@ public sealed class LocationEnrichmentExecutionAuthority(IDbContextFactory<Appli
         if (transaction != null) await transaction.CommitAsync(cancellationToken);
         var renewed = new LocationEnrichmentExecutionLease(owner.UserId, owner.Epoch, owner.LeaseId,
             owner.FencingGeneration, workflow.ExecutionLeaseExpiresAtUtc!.Value);
-        return renewed.ExpiresAtUtc - now >= MinimumContactLifetime ? renewed : null;
+        await using var verify = await contexts.CreateDbContextAsync(cancellationToken);
+        var dispatchNow = await DatabaseUtcNowAsync(verify, cancellationToken);
+        var persisted = await verify.LocationEnrichmentWorkflows.AsNoTracking()
+            .SingleOrDefaultAsync(item => item.UserId == owner.UserId, cancellationToken);
+        return persisted?.Epoch == owner.Epoch
+            && persisted.HasExecutionLease(owner.LeaseId, owner.FencingGeneration, dispatchNow)
+            && persisted.ExecutionLeaseExpiresAtUtc!.Value - dispatchNow >= MinimumContactLifetime
+            ? renewed with { ExpiresAtUtc = persisted.ExecutionLeaseExpiresAtUtc.Value } : null;
     }
 
     /// <summary>Checks the complete fence against database UTC in a disposed short context.</summary>
