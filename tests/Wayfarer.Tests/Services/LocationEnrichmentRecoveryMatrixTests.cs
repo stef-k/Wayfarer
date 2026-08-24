@@ -75,6 +75,56 @@ public sealed class LocationEnrichmentRecoveryMatrixTests
             $"Unexpected second-run mutations: {string.Join(", ", scheduler.MutationLog)}");
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task InFlightAttemptRecoveryHonorsItsDurableDeadline(bool expired)
+    {
+        var services = new ServiceCollection().BuildServiceProvider();
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options;
+        var now = DateTime.UtcNow;
+        var workflow = LocationEnrichmentWorkflow.Create($"attempt-{expired}", now);
+        workflow.Start(now);
+        var operationId = Guid.NewGuid();
+        var leaseId = Guid.NewGuid();
+        var attempt = new LocationEnrichmentAttempt
+        {
+            UserId = workflow.UserId,
+            LocationId = 7,
+            ProviderKey = "geoapify",
+            AdmittedAttemptCount = 1,
+            Outcome = LocationEnrichmentOutcome.None,
+            LastAttemptAtUtc = now.AddMinutes(-2),
+            NextAttemptAtUtc = expired ? now.AddMinutes(-1) : now.AddMinutes(5),
+            OperationId = operationId,
+            OperationLeaseId = leaseId,
+            OperationFencingGeneration = 3,
+            OperationStartedAtUtc = now.AddMinutes(-2),
+            OperationWorkflowEpoch = workflow.Epoch,
+            OperationAttemptNumber = 1
+        };
+        await using (var seed = new ApplicationDbContext(options, services))
+        { seed.AddRange(workflow, attempt); await seed.SaveChangesAsync(); }
+        var scheduler = new ProjectionScheduler(workflow, "missing-job");
+        var reconciler = new LocationEnrichmentReconciler(new TestContextFactory(options, services),
+            new LocationEnrichmentScheduler(scheduler.Mock.Object), scheduler.Mock.Object);
+
+        await reconciler.ReconcileAsync();
+
+        await using var verify = new ApplicationDbContext(options, services);
+        var final = await verify.LocationEnrichmentAttempts.SingleAsync();
+        Assert.Equal(expired ? null : operationId, final.OperationId);
+        Assert.Equal(expired ? null : leaseId, final.OperationLeaseId);
+        Assert.Equal(expired ? null : 3, final.OperationFencingGeneration);
+        Assert.Equal(expired ? LocationEnrichmentOutcome.RetryableFailure : LocationEnrichmentOutcome.None,
+            final.Outcome);
+        scheduler.Mutations = 0;
+        scheduler.MutationLog.Clear();
+        await reconciler.ReconcileAsync();
+        Assert.Equal(0, scheduler.Mutations);
+    }
+
     private static LocationEnrichmentWorkflow CreateWorkflow(string scenario, DateTime now)
     {
         var workflow = LocationEnrichmentWorkflow.Create($"matrix-{scenario}", now);
