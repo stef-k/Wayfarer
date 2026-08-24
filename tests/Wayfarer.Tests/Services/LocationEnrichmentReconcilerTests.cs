@@ -43,7 +43,7 @@ public sealed class LocationEnrichmentReconcilerTests
         quartz.Setup(item => item.UnscheduleJob(It.IsAny<TriggerKey>(), It.IsAny<CancellationToken>()))
             .Returns<TriggerKey, CancellationToken>((key, _) => Task.FromResult(liveTriggers.Remove(key)));
 
-        await new LocationEnrichmentReconciler(db, new LocationEnrichmentScheduler(quartz.Object), quartz.Object)
+        await new LocationEnrichmentReconciler(new TestContextFactory(options, services), new LocationEnrichmentScheduler(quartz.Object), quartz.Object)
             .ReconcileAsync();
 
         Assert.DoesNotContain(triggerKey, liveTriggers);
@@ -73,10 +73,11 @@ public sealed class LocationEnrichmentReconcilerTests
                 return true;
             });
 
-        await new LocationEnrichmentReconciler(db, new LocationEnrichmentScheduler(quartz.Object), quartz.Object)
+        await new LocationEnrichmentReconciler(new TestContextFactory(options, services), new LocationEnrichmentScheduler(quartz.Object), quartz.Object)
             .ReconcileAsync();
 
-        quartz.Verify(item => item.AddJob(It.Is<IJobDetail>(job => job.Key == orphan), false,
+        quartz.Verify(item => item.AddJob(It.Is<IJobDetail>(job => job.Key.Name == orphan.Name
+            && job.Key.Group == orphan.Group), false,
             It.IsAny<CancellationToken>()), Times.Once);
     }
 
@@ -105,7 +106,7 @@ public sealed class LocationEnrichmentReconcilerTests
         quartz.Setup(item => item.AddJob(It.IsAny<IJobDetail>(), false, It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
-        await new LocationEnrichmentReconciler(db, new LocationEnrichmentScheduler(quartz.Object), quartz.Object)
+        await new LocationEnrichmentReconciler(new TestContextFactory(options, services), new LocationEnrichmentScheduler(quartz.Object), quartz.Object)
             .ReconcileAsync();
 
         Assert.InRange(triggers.EnumerationCount, 0, 1);
@@ -135,7 +136,7 @@ public sealed class LocationEnrichmentReconcilerTests
         var protectedJob = LocationEnrichmentScheduler.JobKey(last!.SchedulerId);
         var quartz = SchedulerWithExistingProjection([protectedJob]);
 
-        await new LocationEnrichmentReconciler(db, new LocationEnrichmentScheduler(quartz.Object), quartz.Object)
+        await new LocationEnrichmentReconciler(new TestContextFactory(options, services), new LocationEnrichmentScheduler(quartz.Object), quartz.Object)
             .ReconcileAsync();
 
         quartz.Verify(item => item.DeleteJob(protectedJob, It.IsAny<CancellationToken>()), Times.Never);
@@ -159,7 +160,7 @@ public sealed class LocationEnrichmentReconcilerTests
         var job = LocationEnrichmentScheduler.JobKey(authoritative!.SchedulerId);
         var quartz = SchedulerWithExistingProjection([job]);
 
-        await new LocationEnrichmentReconciler(db, new LocationEnrichmentScheduler(quartz.Object), quartz.Object)
+        await new LocationEnrichmentReconciler(new TestContextFactory(options, services), new LocationEnrichmentScheduler(quartz.Object), quartz.Object)
             .ReconcileAsync();
 
         quartz.Verify(item => item.DeleteJob(job, It.IsAny<CancellationToken>()), Times.Never);
@@ -193,7 +194,7 @@ public sealed class LocationEnrichmentReconcilerTests
             .ReturnsAsync(DateTimeOffset.UtcNow);
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-            new LocationEnrichmentReconciler(db, new LocationEnrichmentScheduler(quartz.Object), quartz.Object)
+            new LocationEnrichmentReconciler(new TestContextFactory(options, services), new LocationEnrichmentScheduler(quartz.Object), quartz.Object)
                 .ReconcileAsync(cancellation.Token));
 
         Assert.Equal(200, additions);
@@ -221,7 +222,7 @@ public sealed class LocationEnrichmentReconcilerTests
         quartz.Setup(item => item.CheckExists(It.IsAny<JobKey>(), default)).ReturnsAsync(true);
         quartz.Setup(item => item.CheckExists(It.IsAny<TriggerKey>(), default)).ReturnsAsync(true);
 
-        await new LocationEnrichmentReconciler(db, new LocationEnrichmentScheduler(quartz.Object), quartz.Object)
+        await new LocationEnrichmentReconciler(new TestContextFactory(options, services), new LocationEnrichmentScheduler(quartz.Object), quartz.Object)
             .ReconcileAsync();
 
         quartz.Verify(item => item.GetTriggerKeys(It.IsAny<GroupMatcher<TriggerKey>>(), default), Times.Once);
@@ -243,7 +244,7 @@ public sealed class LocationEnrichmentReconcilerTests
         cancellation.Cancel();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
-            new LocationEnrichmentReconciler(db, new LocationEnrichmentScheduler(quartz.Object), quartz.Object)
+            new LocationEnrichmentReconciler(new TestContextFactory(options, services), new LocationEnrichmentScheduler(quartz.Object), quartz.Object)
                 .ReconcileAsync(cancellation.Token));
 
         quartz.Verify(item => item.ScheduleJob(It.IsAny<ITrigger>(), It.IsAny<CancellationToken>()), Times.Never);
@@ -272,5 +273,12 @@ public sealed class LocationEnrichmentReconcilerTests
         }
 
         public void ResetEnumerationCount() => EnumerationCount = 0;
+    }
+
+    private sealed class TestContextFactory(
+        DbContextOptions<ApplicationDbContext> options, IServiceProvider services)
+        : IDbContextFactory<ApplicationDbContext>
+    {
+        public ApplicationDbContext CreateDbContext() => new(options, services);
     }
 }
