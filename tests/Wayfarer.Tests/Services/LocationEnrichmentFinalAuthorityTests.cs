@@ -60,6 +60,27 @@ public sealed class LocationEnrichmentFinalAuthorityTests
     }
 
     [Fact]
+    public void ContactLeaseGuaranteeCoversProviderTimeoutAndSafetyMargin()
+    {
+        var explicitSafetyMargin = TimeSpan.FromSeconds(10);
+        Assert.True(LocationEnrichmentExecutionAuthority.MinimumContactLifetime
+            >= TimeSpan.FromSeconds(15) + explicitSafetyMargin);
+    }
+
+    [Fact]
+    public void OperationCarriesCompleteAdmittedAuthorityBindings()
+    {
+        var properties = typeof(LocationEnrichmentAttempt).GetProperties().Select(property => property.Name).ToHashSet();
+        Assert.Contains("ProviderProfileId", properties);
+        Assert.Contains("Capability", properties);
+        Assert.Contains("VerificationGeneration", properties);
+        Assert.Contains("ConsentVersion", properties);
+        Assert.Contains("ConsentTimestamp", properties);
+        Assert.Contains("ConsentCredentialGeneration", properties);
+        Assert.Contains("OperationAttemptNumber", properties);
+    }
+
+    [Fact]
     public void WorkerCannotScheduleWithoutFreshFencedCompletion()
     {
         var result = typeof(ILocationEnrichmentWorker).GetMethod(nameof(ILocationEnrichmentWorker.RunBatchAsync))!.ReturnType;

@@ -22,6 +22,105 @@ namespace Wayfarer.Tests.Services;
 [Collection(PostgresImportTestCollection.Name)]
 public sealed class GeoapifyBackfillConcurrencyPostgresTests(PostgresImportTestFixture fixture)
 {
+    /// <summary>Proves provider authority admitted before contact cannot authorize stale persistence.</summary>
+    [PostgresTheory(Timeout = 30_000)]
+    [InlineData(AuthorityMutation.ReplaceCredential)]
+    [InlineData(AuthorityMutation.RevokeCredential)]
+    [InlineData(AuthorityMutation.ChangeSelection)]
+    [InlineData(AuthorityMutation.ChangeCapabilityGeneration)]
+    public async Task AuthorityMutationDuringContactDiscardsProviderResult(AuthorityMutation mutation)
+    {
+        var user = await fixture.CreateUserAsync();
+        var protection = new EphemeralDataProtectionProvider();
+        await SeedAsync(user.Id, null, protection);
+        var handler = new CoordinatedHandler(user.Id, null);
+        await using var runDb = fixture.CreateContext();
+        var run = Service(runDb, protection, handler).RunAsync(user.Id);
+        await handler.FirstUserRequestEntered;
+
+        await using (var mutate = fixture.CreateContext())
+        {
+            var profile = await mutate.PersonalLocationProviderProfiles
+                .SingleAsync(item => item.UserId == user.Id && item.ProviderKey == "geoapify");
+            var selection = await mutate.PersonalLocationProviderSelections.SingleAsync(item => item.UserId == user.Id);
+            if (mutation == AuthorityMutation.ReplaceCredential)
+                new PersonalProviderCredentialService(protection).Replace(profile, "replacement");
+            else if (mutation == AuthorityMutation.RevokeCredential)
+                new PersonalProviderCredentialService(protection).Revoke(profile);
+            else if (mutation == AuthorityMutation.ChangeSelection)
+                selection.Select(PersonalProviderCapability.Geocoding, null);
+            else
+                profile.SetAuthorization(PersonalProviderCapability.Geocoding, false);
+            await mutate.SaveChangesAsync();
+        }
+
+        handler.Release();
+        var result = await run;
+        await using var verify = fixture.CreateContext();
+        Assert.Equal(0, result.Succeeded);
+        Assert.True(GeoapifyLocationBackfillService.IsWhollyUnenriched(
+            await verify.Locations.SingleAsync(item => item.UserId == user.Id)));
+        Assert.Single(await verify.GeoapifyUsageAdmissions.Where(item => item.UserId == user.Id).ToListAsync());
+        Assert.NotNull((await verify.LocationEnrichmentAttempts.SingleAsync(item => item.UserId == user.Id)).OperationId);
+    }
+
+    /// <summary>Proves a manual edit committed after response inspection wins over scheduled enrichment.</summary>
+    [PostgresFact(Timeout = 30_000)]
+    public async Task ManualEditDuringContactWinsAtomicLocationEligibility()
+    {
+        var user = await fixture.CreateUserAsync();
+        var protection = new EphemeralDataProtectionProvider();
+        await SeedAsync(user.Id, null, protection);
+        var handler = new CoordinatedHandler(user.Id, null);
+        await using var runDb = fixture.CreateContext();
+        var run = Service(runDb, protection, handler).RunAsync(user.Id);
+        await handler.FirstUserRequestEntered;
+        await using (var edit = fixture.CreateContext())
+        {
+            var location = await edit.Locations.SingleAsync(item => item.UserId == user.Id);
+            location.FullAddress = "Manual address";
+            await edit.SaveChangesAsync();
+        }
+        handler.Release();
+        var result = await run;
+
+        await using var verify = fixture.CreateContext();
+        var saved = await verify.Locations.SingleAsync(item => item.UserId == user.Id);
+        Assert.Equal("Manual address", saved.FullAddress);
+        Assert.Null(saved.ReverseGeocodingProvider);
+        Assert.Equal(0, result.Succeeded);
+        Assert.Equal(1, result.Skipped);
+    }
+
+    /// <summary>Proves superseded provider-dependent attempts are reconsidered without reviving permanent same-generation rows.</summary>
+    [PostgresFact]
+    public async Task SupersededAuthorityAttemptIsEligibleButSameGenerationPermanentAttemptIsNot()
+    {
+        var user = await fixture.CreateUserAsync();
+        var protection = new EphemeralDataProtectionProvider();
+        await SeedAsync(user.Id, null, protection);
+        await using var db = fixture.CreateContext();
+        var location = await db.Locations.SingleAsync(item => item.UserId == user.Id);
+        var workflow = LocationEnrichmentWorkflow.Create(user.Id, DateTime.UtcNow);
+        workflow.Start(DateTime.UtcNow);
+        db.Add(workflow);
+        db.Add(new LocationEnrichmentAttempt
+        {
+            UserId = user.Id, LocationId = location.Id, ProviderKey = "geoapify",
+            CredentialGeneration = 1, ConfigurationGeneration = 1, SelectionGeneration = 1,
+            Outcome = LocationEnrichmentOutcome.NoResult, AdmittedAttemptCount = 1,
+            LastAttemptAtUtc = DateTime.UtcNow
+        });
+        await db.SaveChangesAsync();
+
+        var superseded = await GeoapifyLocationBackfillService.LoadCandidateIdsAsync(db, user.Id,
+            new("geoapify", 2, 1, 1), 10);
+        var sameGeneration = await GeoapifyLocationBackfillService.LoadCandidateIdsAsync(db, user.Id,
+            new("geoapify", 1, 1, 1), 10);
+
+        Assert.Contains(location.Id, superseded);
+        Assert.DoesNotContain(location.Id, sameGeneration);
+    }
     [PostgresTheory(Timeout = 30_000)]
     [InlineData(false)]
     [InlineData(true)]
@@ -385,5 +484,6 @@ public sealed class GeoapifyBackfillConcurrencyPostgresTests(PostgresImportTestF
         }
     }
 
+    public enum AuthorityMutation { ReplaceCredential, RevokeCredential, ChangeSelection, ChangeCapabilityGeneration }
     private enum ContactOutcome { Success, Timeout, ProviderFailure }
 }
