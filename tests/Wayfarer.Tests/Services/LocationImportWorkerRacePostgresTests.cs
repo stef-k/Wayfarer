@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Quartz;
@@ -76,19 +77,21 @@ public sealed class LocationImportWorkerRacePostgresTests(PostgresImportTestFixt
         Assert.Equal(LocationImportExecutionOutcome.Stale, context.Object.Result);
         await using (var pending = fixture.CreateContext())
         {
+            await Listener(pending).JobWasExecuted(context.Object, null, CancellationToken.None);
             var import = await pending.LocationImports.SingleAsync(x => x.Id == seed.ImportId);
             Assert.Equal(seed.DeletionAt, import.DeletionRequestedAtUtc);
             Assert.Equal(seed.Epoch, import.ExecutionEpoch);
             Assert.Equal(2, import.LastProcessedIndex);
             Assert.Equal(2, await pending.Locations.CountAsync(x => x.UserId == seed.UserId));
-            Assert.DoesNotContain(pending.JobHistories, x => x.JobName == context.Object.JobDetail.Key.Name
-                && x.Status == "Completed");
+            var history = await pending.JobHistories.SingleAsync(x => x.JobName == context.Object.JobDetail.Key.Name);
+            Assert.Equal("Cancelled", history.Status);
         }
 
         await ReconcileTwiceAsync(scheduler.Object);
         await using var final = fixture.CreateContext();
         Assert.Null(await final.LocationImports.FindAsync(seed.ImportId));
         Assert.Equal(2, await final.Locations.CountAsync(x => x.UserId == seed.UserId));
+        await final.JobHistories.Where(x => x.JobName == context.Object.JobDetail.Key.Name).ExecuteDeleteAsync();
     }
 
     private async Task<Seed> SeedAsync(int count, bool enrichmentRequested)
@@ -154,6 +157,15 @@ public sealed class LocationImportWorkerRacePostgresTests(PostgresImportTestFixt
         context.SetupGet(x => x.CancellationToken).Returns(CancellationToken.None);
         context.SetupProperty(x => x.Result);
         return context;
+    }
+
+    private static JobExecutionListener Listener(ApplicationDbContext db)
+    {
+        var provider = new Mock<IServiceProvider>();
+        provider.Setup(x => x.GetService(typeof(ApplicationDbContext))).Returns(db);
+        provider.Setup(x => x.GetService(typeof(SseService))).Returns(new SseService());
+        var scope = Mock.Of<IServiceScope>(x => x.ServiceProvider == provider.Object);
+        return new JobExecutionListener(Mock.Of<IServiceScopeFactory>(x => x.CreateScope() == scope));
     }
 
     private sealed class BlockingImportObserver(bool blockAfterCommittedBatch = false,
