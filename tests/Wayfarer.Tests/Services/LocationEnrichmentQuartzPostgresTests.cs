@@ -158,6 +158,13 @@ public sealed class LocationEnrichmentQuartzPostgresTests(PostgresImportTestFixt
             { domain.Add(workflow); await domain.SaveChangesAsync(); }
             await new LocationEnrichmentScheduler(writer).EnsureScheduledAsync(workflow);
             var staleKey = LocationEnrichmentScheduler.TriggerKey(workflow.SchedulerId, workflow.Epoch);
+            var staleJob = (await writer.GetJobDetail(
+                LocationEnrichmentScheduler.JobKey(workflow.SchedulerId)))!;
+            Assert.Equal(["schema", "workflowId"], staleJob.JobDataMap.Keys.Cast<string>().OrderBy(item => item));
+            Assert.All(staleJob.JobDataMap.Values.Cast<object>(), value => Assert.IsType<string>(value));
+            var staleTrigger = (await writer.GetTrigger(staleKey))!;
+            Assert.Equal(["epoch"], staleTrigger.JobDataMap.Keys.Cast<string>());
+            Assert.All(staleTrigger.JobDataMap.Values.Cast<object>(), value => Assert.IsType<string>(value));
             await writer.Shutdown(false);
             await using (var domain = fixture.CreateContext())
             {
