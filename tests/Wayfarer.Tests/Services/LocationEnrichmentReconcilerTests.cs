@@ -88,16 +88,16 @@ public sealed class LocationEnrichmentReconcilerTests
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options;
         await using var db = new ApplicationDbContext(options, services);
-        var triggers = new CountingSet<TriggerKey>();
+        var triggerItems = new List<TriggerKey>();
         for (var index = 0; index < 1_001; index++)
         {
             var workflow = LocationEnrichmentWorkflow.Create($"linear-{index:D4}", DateTime.UtcNow);
             workflow.Start(DateTime.UtcNow);
             db.Add(workflow);
-            triggers.Add(LocationEnrichmentScheduler.TriggerKey(workflow.SchedulerId, workflow.Epoch));
+            triggerItems.Add(LocationEnrichmentScheduler.TriggerKey(workflow.SchedulerId, workflow.Epoch));
         }
         await db.SaveChangesAsync();
-        triggers.ResetEnumerationCount();
+        var triggers = new CountingCollection<TriggerKey>(triggerItems);
         var quartz = new Mock<IScheduler>();
         quartz.Setup(item => item.GetTriggerKeys(It.IsAny<GroupMatcher<TriggerKey>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(triggers);
@@ -109,7 +109,9 @@ public sealed class LocationEnrichmentReconcilerTests
         await new LocationEnrichmentReconciler(new TestContextFactory(options, services), new LocationEnrichmentScheduler(quartz.Object), quartz.Object)
             .ReconcileAsync();
 
-        Assert.InRange(triggers.EnumerationCount, 0, 1);
+        Assert.Equal(1, triggers.EnumerationCount);
+        quartz.Verify(item => item.GetTriggerKeys(It.IsAny<GroupMatcher<TriggerKey>>(),
+            It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -262,17 +264,18 @@ public sealed class LocationEnrichmentReconcilerTests
         return quartz;
     }
 
-    private sealed class CountingSet<T> : HashSet<T>
+    private sealed class CountingCollection<T>(IReadOnlyCollection<T> items) : IReadOnlyCollection<T>
     {
         public int EnumerationCount { get; private set; }
+        public int Count => items.Count;
 
-        public new IEnumerator<T> GetEnumerator()
+        public IEnumerator<T> GetEnumerator()
         {
             EnumerationCount++;
-            return base.GetEnumerator();
+            return items.GetEnumerator();
         }
 
-        public void ResetEnumerationCount() => EnumerationCount = 0;
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
     }
 
     private sealed class TestContextFactory(
