@@ -64,6 +64,34 @@ public sealed class GeoapifyBackfillConcurrencyPostgresTests(PostgresImportTestF
         Assert.NotNull((await verify.LocationEnrichmentAttempts.SingleAsync(item => item.UserId == user.Id)).OperationId);
     }
 
+    /// <summary>Proves invalidating admitted Mapbox Permanent consent discards the contacted result.</summary>
+    [PostgresFact(Timeout = 30_000)]
+    public async Task MapboxConsentInvalidationDuringContactDiscardsProviderResult()
+    {
+        var user = await fixture.CreateUserAsync();
+        var protection = new EphemeralDataProtectionProvider();
+        await SeedMapboxAsync(user.Id, protection);
+        var handler = new CoordinatedHandler(user.Id, null);
+        await using var runDb = fixture.CreateContext();
+        var run = Service(runDb, protection, handler).RunAsync(user.Id);
+        await handler.FirstUserRequestEntered;
+        await using (var mutate = fixture.CreateContext())
+        {
+            var profile = await mutate.PersonalLocationProviderProfiles.SingleAsync(
+                item => item.UserId == user.Id && item.ProviderKey == "mapbox");
+            profile.ClearPermanentGeocodingConsent();
+            await mutate.SaveChangesAsync();
+        }
+        handler.Release();
+        var result = await run;
+
+        await using var verify = fixture.CreateContext();
+        Assert.Equal(0, result.Succeeded);
+        Assert.True(GeoapifyLocationBackfillService.IsWhollyUnenriched(
+            await verify.Locations.SingleAsync(item => item.UserId == user.Id)));
+        Assert.Equal(1, (await verify.MapboxProductMeters.SingleAsync(item => item.UserId == user.Id)).AdmittedCount);
+    }
+
     /// <summary>Proves a manual edit committed after response inspection wins over scheduled enrichment.</summary>
     [PostgresFact(Timeout = 30_000)]
     public async Task ManualEditDuringContactWinsAtomicLocationEligibility()
@@ -429,6 +457,25 @@ public sealed class GeoapifyBackfillConcurrencyPostgresTests(PostgresImportTestF
         await db.SaveChangesAsync();
     }
 
+    private async Task SeedMapboxAsync(string userId, IDataProtectionProvider protection)
+    {
+        await using var db = fixture.CreateContext();
+        var profile = PersonalLocationProviderProfile.Create(userId, PersonalLocationProvider.Mapbox);
+        new PersonalProviderCredentialService(protection).Replace(profile, $"key-{userId}");
+        profile.GeocodingAuthorized = true;
+        profile.GrantPermanentGeocodingConsent(DateTimeOffset.UtcNow);
+        new PersonalProviderCredentialService(protection).RecordVerification(profile,
+            PersonalProviderCapability.Geocoding, PersonalProviderVerification.Verified);
+        db.Add(profile);
+        db.Add(new PersonalLocationProviderSelection { UserId = userId, GeocodingProviderKey = "mapbox" });
+        db.Locations.Add(new Location
+        {
+            UserId = userId, Timestamp = DateTime.UtcNow, LocalTimestamp = DateTime.UtcNow,
+            TimeZoneId = "UTC", Coordinates = new Point(20, 10) { SRID = 4326 }
+        });
+        await db.SaveChangesAsync();
+    }
+
     private GeoapifyLocationBackfillService Service(ApplicationDbContext db,
         IDataProtectionProvider protection, CoordinatedHandler handler)
     {
@@ -472,7 +519,10 @@ public sealed class GeoapifyBackfillConcurrencyPostgresTests(PostgresImportTestF
 
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
-            var key = request.RequestUri!.Query.Split("apiKey=", StringSplitOptions.None)[1];
+            var query = request.RequestUri!.Query;
+            var key = query.Contains("apiKey=", StringComparison.Ordinal)
+                ? query.Split("apiKey=", StringSplitOptions.None)[1]
+                : query.Split("access_token=", StringSplitOptions.None)[1];
             var userId = Uri.UnescapeDataString(key)[4..];
             lock (_requests) _requests[userId] = _requests.GetValueOrDefault(userId) + 1;
             if (userId == primaryUserId) _first.TrySetResult();
