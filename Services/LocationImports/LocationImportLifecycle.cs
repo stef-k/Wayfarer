@@ -154,6 +154,12 @@ public sealed class LocationImportLifecycle(
                 if (cleanup is not QuartzCleanupResult.Removed and not QuartzCleanupResult.AlreadyAbsent)
                     return new(LocationImportCommandCode.ProjectionPending);
             }
+            var remaining = await scheduler.GetJobKeys(
+                Quartz.Impl.Matchers.GroupMatcher<JobKey>.GroupEquals(LocationImportSchedulerKeys.Group),
+                cancellationToken) ?? new HashSet<JobKey>();
+            if (remaining.Any(key => key.Name.StartsWith(
+                $"LocationImportJob_{importId}_", StringComparison.Ordinal)))
+                return new(LocationImportCommandCode.ProjectionPending);
             db.ChangeTracker.Clear();
             import = await OwnedAsync(userId, importId, cancellationToken);
             if (import is null) return new(LocationImportCommandCode.Accepted);

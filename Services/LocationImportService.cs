@@ -90,6 +90,12 @@ namespace Wayfarer.Parsers
 
                     // Refresh status in case user clicked "stop"
                     await _context.Entry(locationImport!).ReloadAsync(cancellationToken);
+                    if (locationImport!.Status == ImportStatus.Stopping
+                        && locationImport.ExecutionEpoch == epoch && locationImport.DeletionRequestedAtUtc is null)
+                    {
+                        await ReconcileEnrichmentAsync(locationImport, cancellationToken);
+                        return LocationImportExecutionOutcome.Cancelled;
+                    }
                     if (!HasExecutionAuthority(locationImport, epoch))
                     {
                         return LocationImportExecutionOutcome.Stale;

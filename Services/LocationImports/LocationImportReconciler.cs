@@ -74,6 +74,9 @@ public sealed class LocationImportReconciler(
             var cleanup = await DeleteProjectionAsync(key, projected, token);
             if (cleanup is not QuartzCleanupResult.Removed and not QuartzCleanupResult.AlreadyAbsent) return;
         }
+        var remaining = await scheduler.GetJobKeys(
+            GroupMatcher<JobKey>.GroupEquals(LocationImportSchedulerKeys.Group), token) ?? [];
+        if (remaining.Any(key => TryParseJob(key, out var id, out _) && id == importId)) return;
         await using var db = await contexts.CreateDbContextAsync(token);
         var import = await db.LocationImports.SingleOrDefaultAsync(
             x => x.Id == importId && x.DeletionRequestedAtUtc != null, token);
