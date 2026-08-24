@@ -31,6 +31,10 @@ public sealed partial class GeoapifyBackfillConcurrencyPostgresTests(PostgresImp
     [InlineData(AuthorityMutation.RevokeCredential)]
     [InlineData(AuthorityMutation.ChangeSelection)]
     [InlineData(AuthorityMutation.ChangeCapabilityGeneration)]
+    [InlineData(AuthorityMutation.ChangeVerificationState)]
+    [InlineData(AuthorityMutation.ChangeVerifiedCredentialBinding)]
+    [InlineData(AuthorityMutation.ChangeVerifiedCapabilityBinding)]
+    [InlineData(AuthorityMutation.ChangeProfileIdentity)]
     public async Task AuthorityMutationDuringContactDiscardsProviderResult(AuthorityMutation mutation)
     {
         var user = await fixture.CreateUserAsync();
@@ -52,8 +56,19 @@ public sealed partial class GeoapifyBackfillConcurrencyPostgresTests(PostgresImp
                 new PersonalProviderCredentialService(protection).Revoke(profile);
             else if (mutation == AuthorityMutation.ChangeSelection)
                 selection.Select(PersonalProviderCapability.Geocoding, null);
-            else
+            else if (mutation == AuthorityMutation.ChangeCapabilityGeneration)
                 profile.SetAuthorization(PersonalProviderCapability.Geocoding, false);
+            else if (mutation == AuthorityMutation.ChangeVerificationState)
+                profile.GeocodingVerification = PersonalProviderVerification.Failed;
+            else if (mutation == AuthorityMutation.ChangeVerifiedCredentialBinding)
+                profile.GeocodingVerifiedCredentialGeneration++;
+            else if (mutation == AuthorityMutation.ChangeVerifiedCapabilityBinding)
+                profile.GeocodingVerifiedConfigurationGeneration++;
+            else
+                await mutate.Database.ExecuteSqlInterpolatedAsync($$"""
+                    UPDATE "PersonalLocationProviderProfiles" SET "Id" = {{Guid.NewGuid()}}
+                    WHERE "UserId" = {{user.Id}} AND "ProviderKey" = 'geoapify'
+                    """);
             await mutate.SaveChangesAsync();
         }
 
@@ -576,7 +591,8 @@ public sealed partial class GeoapifyBackfillConcurrencyPostgresTests(PostgresImp
         }
     }
 
-    public enum AuthorityMutation { ReplaceCredential, RevokeCredential, ChangeSelection, ChangeCapabilityGeneration }
+    public enum AuthorityMutation { ReplaceCredential, RevokeCredential, ChangeSelection, ChangeCapabilityGeneration,
+        ChangeVerificationState, ChangeVerifiedCredentialBinding, ChangeVerifiedCapabilityBinding, ChangeProfileIdentity }
     public enum OperationMutation { LeaseId, WorkflowEpoch, AttemptNumber, Capability, VerificationCredential, VerificationCapability }
     private enum ContactOutcome { Success, Timeout, ProviderFailure }
 }
