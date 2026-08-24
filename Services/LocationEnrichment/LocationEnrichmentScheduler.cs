@@ -8,7 +8,7 @@ namespace Wayfarer.Services.LocationEnrichment;
 /// <summary>Projects committed workflow intent into stable, one-shot Quartz metadata.</summary>
 public sealed class LocationEnrichmentScheduler(IScheduler scheduler)
 {
-    public static int MisfireInstruction => Quartz.MisfireInstruction.SimpleTrigger.RescheduleNextWithRemainingCount;
+    public static int MisfireInstruction => Quartz.MisfireInstruction.SimpleTrigger.FireNow;
     public const string Group = "LocationEnrichment";
     public static JobKey JobKey(Guid id) => new($"Workflow_{id:N}", Group);
     public static TriggerKey TriggerKey(Guid id, int epoch) => new($"Workflow_{id:N}_{epoch}", Group);
@@ -59,8 +59,13 @@ public sealed class LocationEnrichmentScheduler(IScheduler scheduler)
         var trigger = TriggerBuilder.Create().WithIdentity(triggerKey).ForJob(jobKey)
             .UsingJobData("epoch", workflow.Epoch.ToString(System.Globalization.CultureInfo.InvariantCulture))
             .StartAt(workflow.NextEligibleAtUtc ?? DateTime.UtcNow)
-            .WithSimpleSchedule(schedule => schedule.WithRepeatCount(0)
-                .WithMisfireHandlingInstructionNextWithRemainingCount()).Build();
+            .WithSimpleSchedule(schedule =>
+            {
+                schedule.WithRepeatCount(0);
+                if (workflow.State == LocationEnrichmentState.Scheduled)
+                    schedule.WithMisfireHandlingInstructionFireNow();
+                else schedule.WithMisfireHandlingInstructionNextWithRemainingCount();
+            }).Build();
         await scheduler.ScheduleJob(trigger, cancellationToken);
         knownTriggerKeys?.Add(triggerKey);
     }

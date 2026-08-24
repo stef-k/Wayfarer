@@ -16,6 +16,7 @@ public sealed class LocationEnrichmentReconciler(
     /// <summary>Recovers running rows, repairs active triggers, and removes orphan jobs without contact.</summary>
     public async Task ReconcileAsync(CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         var now = db.Database.IsNpgsql()
             ? await db.Database.SqlQuery<DateTime>($"SELECT (clock_timestamp() AT TIME ZONE 'UTC') AS \"Value\"")
                 .SingleAsync(cancellationToken)
