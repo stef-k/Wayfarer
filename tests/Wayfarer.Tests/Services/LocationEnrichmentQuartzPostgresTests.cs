@@ -32,12 +32,12 @@ public sealed class LocationEnrichmentQuartzPostgresTests(PostgresImportTestFixt
         IScheduler? reconstructed = null;
         ApplicationUser? user = null;
         Exception? primary = null;
+        var schedulerName = $"Wayfarer507-{Guid.NewGuid():N}";
         try
         {
             await ExecuteAsync(admin, $"SET search_path TO {schema}");
             await QuartzSchemaInstaller.EnsureQuartzTablesExistAsync(admin, CancellationToken.None);
             var builder = new NpgsqlConnectionStringBuilder(persistedConnectionString) { SearchPath = schema };
-            var schedulerName = $"Wayfarer507-{Guid.NewGuid():N}";
             first = await new StdSchedulerFactory(Properties(builder.ConnectionString, schedulerName)).GetScheduler();
             user = await fixture.CreateUserAsync();
             var workflow = LocationEnrichmentWorkflow.Create(user.Id, DateTime.UtcNow);
@@ -61,7 +61,6 @@ public sealed class LocationEnrichmentQuartzPostgresTests(PostgresImportTestFixt
             Assert.Equal("1", persisted.JobDataMap.GetString("epoch"));
             Assert.All(persisted.JobDataMap.Values.Cast<object>(), value => Assert.IsType<string>(value));
             await first.Shutdown(false);
-            first = null;
 
             restarted = await new StdSchedulerFactory(Properties(builder.ConnectionString, schedulerName)).GetScheduler();
             var executions = 0;
@@ -77,7 +76,6 @@ public sealed class LocationEnrichmentQuartzPostgresTests(PostgresImportTestFixt
             await WaitUntilAsync(async () => !await restarted.CheckExists(
                 LocationEnrichmentScheduler.TriggerKey(workflow.SchedulerId, workflow.Epoch)), TimeSpan.FromSeconds(5));
             await restarted.Shutdown(true);
-            restarted = null;
             Assert.Equal(1, executions);
 
             reconstructed = await new StdSchedulerFactory(Properties(builder.ConnectionString, schedulerName)).GetScheduler();
@@ -91,29 +89,43 @@ public sealed class LocationEnrichmentQuartzPostgresTests(PostgresImportTestFixt
             replayWorker.Verify(item => item.RunBatchAsync(It.IsAny<string>(), It.IsAny<int>(),
                 It.IsAny<CancellationToken>()), Times.Never);
             await reconstructed.Shutdown(true);
-            reconstructed = null;
             Assert.Equal(1, executions);
         }
         catch (Exception exception)
         {
             primary = exception;
-            throw;
         }
         finally
         {
-            var cleanupFailures = new List<Exception>();
-            if (first is not null) await TryCleanupAsync(() => first.Shutdown(false), cleanupFailures);
-            if (restarted is not null) await TryCleanupAsync(() => restarted.Shutdown(false), cleanupFailures);
-            if (reconstructed is not null) await TryCleanupAsync(() => reconstructed.Shutdown(false), cleanupFailures);
-            if (user is not null)
-                await TryCleanupAsync(async () =>
+            var cleanupScheduler = await new StdSchedulerFactory(Properties(
+                new NpgsqlConnectionStringBuilder(persistedConnectionString) { SearchPath = schema }.ConnectionString,
+                schedulerName)).GetScheduler();
+            await FailureIndependentCleanup.CompleteAsync(primary,
+            [
+                ("first scheduler shutdown", () => first?.Shutdown(false) ?? Task.CompletedTask),
+                ("restarted scheduler shutdown", () => restarted?.Shutdown(false) ?? Task.CompletedTask),
+                ("reconstructed scheduler shutdown", () => reconstructed?.Shutdown(false) ?? Task.CompletedTask),
+                ("Quartz projection cleanup", async () => { await cleanupScheduler.Clear(); await cleanupScheduler.Shutdown(true); }),
+                ("first scheduler disposal", () => DisposeSchedulerAsync(first)),
+                ("restarted scheduler disposal", () => DisposeSchedulerAsync(restarted)),
+                ("reconstructed scheduler disposal", () => DisposeSchedulerAsync(reconstructed)),
+                ("cleanup scheduler disposal", () => DisposeSchedulerAsync(cleanupScheduler)),
+                ("relational fixture cleanup", async () =>
                 {
+                    if (user is null) return;
                     await using var cleanup = fixture.CreateContext();
                     await cleanup.Users.Where(item => item.Id == user.Id).ExecuteDeleteAsync();
-                }, cleanupFailures);
-            await TryCleanupAsync(() => ExecuteAsync(admin, "SET search_path TO public"), cleanupFailures);
-            await TryCleanupAsync(() => ExecuteAsync(admin, $"DROP SCHEMA IF EXISTS {schema} CASCADE"), cleanupFailures);
-            if (primary is null && cleanupFailures.Count > 0) throw new AggregateException(cleanupFailures);
+                    Assert.Equal(0, await cleanup.LocationEnrichmentWorkflows.CountAsync(item => item.UserId == user.Id));
+                    Assert.Equal(0, await cleanup.LocationEnrichmentAttempts.CountAsync(item => item.UserId == user.Id));
+                }),
+                ("Quartz residue verification", () => AssertQuartzResidueAsync(admin, schema)),
+                ("fixture schema removal", async () =>
+                {
+                    await ExecuteAsync(admin, "SET search_path TO public");
+                    await ExecuteAsync(admin, $"DROP SCHEMA IF EXISTS {schema} CASCADE");
+                    await AssertSchemaRemovedAsync(admin, schema);
+                })
+            ]);
         }
     }
 
@@ -129,12 +141,12 @@ public sealed class LocationEnrichmentQuartzPostgresTests(PostgresImportTestFixt
         var schedulers = new List<IScheduler>();
         ApplicationUser? user = null;
         Exception? primary = null;
+        var schedulerName = $"Wayfarer510-{Guid.NewGuid():N}";
         try
         {
             await ExecuteAsync(admin, $"SET search_path TO {schema}");
             await QuartzSchemaInstaller.EnsureQuartzTablesExistAsync(admin, CancellationToken.None);
             var builder = new NpgsqlConnectionStringBuilder(persistedConnectionString) { SearchPath = schema };
-            var schedulerName = $"Wayfarer510-{Guid.NewGuid():N}";
             var writer = await new StdSchedulerFactory(Properties(builder.ConnectionString, schedulerName)).GetScheduler();
             schedulers.Add(writer);
             user = await fixture.CreateUserAsync();
@@ -147,7 +159,6 @@ public sealed class LocationEnrichmentQuartzPostgresTests(PostgresImportTestFixt
             await new LocationEnrichmentScheduler(writer).EnsureScheduledAsync(workflow);
             var staleKey = LocationEnrichmentScheduler.TriggerKey(workflow.SchedulerId, workflow.Epoch);
             await writer.Shutdown(false);
-            schedulers.Remove(writer);
             await using (var domain = fixture.CreateContext())
             {
                 var current = await domain.LocationEnrichmentWorkflows.SingleAsync(item => item.UserId == user.Id);
@@ -164,7 +175,6 @@ public sealed class LocationEnrichmentQuartzPostgresTests(PostgresImportTestFixt
                 await current.Start();
                 await WaitUntilAsync(async () => !await current.CheckExists(staleKey), TimeSpan.FromSeconds(10));
                 await current.Shutdown(true);
-                schedulers.Remove(current);
                 worker.Verify(item => item.RunBatchAsync(It.IsAny<string>(), It.IsAny<int>(),
                     It.IsAny<CancellationToken>()), Times.Never);
             }
@@ -172,22 +182,37 @@ public sealed class LocationEnrichmentQuartzPostgresTests(PostgresImportTestFixt
         catch (Exception exception)
         {
             primary = exception;
-            throw;
         }
         finally
         {
-            var cleanupFailures = new List<Exception>();
-            foreach (var current in schedulers.ToArray())
-                await TryCleanupAsync(() => current.Shutdown(false), cleanupFailures);
-            if (user is not null)
-                await TryCleanupAsync(async () =>
+            var cleanupScheduler = await new StdSchedulerFactory(Properties(
+                new NpgsqlConnectionStringBuilder(persistedConnectionString) { SearchPath = schema }.ConnectionString,
+                schedulerName)).GetScheduler();
+            var cleanupSteps = schedulers.Select((current, index) =>
+                ($"scheduler {index} shutdown", (Func<Task>)(() => current.Shutdown(false)))).ToList();
+            cleanupSteps.AddRange(
+            [
+                ("Quartz projection cleanup", async () => { await cleanupScheduler.Clear(); await cleanupScheduler.Shutdown(true); }),
+                .. schedulers.Select((current, index) =>
+                    ($"scheduler {index} disposal", (Func<Task>)(() => DisposeSchedulerAsync(current)))),
+                ("cleanup scheduler disposal", () => DisposeSchedulerAsync(cleanupScheduler)),
+                ("relational fixture cleanup", async () =>
                 {
+                    if (user is null) return;
                     await using var cleanup = fixture.CreateContext();
                     await cleanup.Users.Where(item => item.Id == user.Id).ExecuteDeleteAsync();
-                }, cleanupFailures);
-            await TryCleanupAsync(() => ExecuteAsync(admin, "SET search_path TO public"), cleanupFailures);
-            await TryCleanupAsync(() => ExecuteAsync(admin, $"DROP SCHEMA IF EXISTS {schema} CASCADE"), cleanupFailures);
-            if (primary is null && cleanupFailures.Count > 0) throw new AggregateException(cleanupFailures);
+                    Assert.Equal(0, await cleanup.LocationEnrichmentWorkflows.CountAsync(item => item.UserId == user.Id));
+                    Assert.Equal(0, await cleanup.LocationEnrichmentAttempts.CountAsync(item => item.UserId == user.Id));
+                }),
+                ("Quartz residue verification", () => AssertQuartzResidueAsync(admin, schema)),
+                ("fixture schema removal", async () =>
+                {
+                    await ExecuteAsync(admin, "SET search_path TO public");
+                    await ExecuteAsync(admin, $"DROP SCHEMA IF EXISTS {schema} CASCADE");
+                    await AssertSchemaRemovedAsync(admin, schema);
+                })
+            ]);
+            await FailureIndependentCleanup.CompleteAsync(primary, cleanupSteps);
         }
     }
 
@@ -241,9 +266,28 @@ public sealed class LocationEnrichmentQuartzPostgresTests(PostgresImportTestFixt
         }
     }
 
-    private static async Task TryCleanupAsync(Func<Task> cleanup, ICollection<Exception> failures)
+    private static async Task DisposeSchedulerAsync(IScheduler? scheduler)
     {
-        try { await cleanup(); }
-        catch (Exception exception) { failures.Add(exception); }
+        if (scheduler is IAsyncDisposable asyncDisposable) await asyncDisposable.DisposeAsync();
+        else if (scheduler is IDisposable disposable) disposable.Dispose();
+    }
+
+    private static async Task AssertQuartzResidueAsync(NpgsqlConnection connection, string schema)
+    {
+        foreach (var table in new[] { "qrtz_job_details", "qrtz_triggers", "qrtz_fired_triggers", "qrtz_scheduler_state" })
+        {
+            await using var command = connection.CreateCommand();
+            command.CommandText = $"SELECT count(*) FROM {schema}.{table}";
+            var count = (long)(await command.ExecuteScalarAsync())!;
+            Assert.True(count == 0, $"Expected no fixture-owned rows in {table}, found {count}.");
+        }
+    }
+
+    private static async Task AssertSchemaRemovedAsync(NpgsqlConnection connection, string schema)
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT count(*) FROM pg_namespace WHERE nspname = @schema";
+        command.Parameters.AddWithValue("schema", schema);
+        Assert.Equal(0L, (long)(await command.ExecuteScalarAsync())!);
     }
 }
