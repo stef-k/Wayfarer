@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
@@ -70,8 +71,7 @@ namespace Wayfarer.Parsers
         {
             // 0) Load the import record
             var locationImport = await _context.LocationImports.FindAsync(importId);
-            if (locationImport == null || locationImport.Status != ImportStatus.InProgress
-                || (epoch > 0 && locationImport.ExecutionEpoch != epoch))
+            if (!HasExecutionAuthority(locationImport, epoch))
                 return LocationImportExecutionOutcome.Stale;
 
             var fileType  = locationImport.FileType;
@@ -90,25 +90,9 @@ namespace Wayfarer.Parsers
 
                     // Refresh status in case user clicked "stop"
                     await _context.Entry(locationImport!).ReloadAsync(cancellationToken);
-                    if (locationImport == null)
+                    if (!HasExecutionAuthority(locationImport, epoch))
                     {
-                        _logger.LogWarning("Import {ImportId} record disappeared during processing.", importId);
                         return LocationImportExecutionOutcome.Stale;
-                    }
-
-                    if (locationImport.Status == ImportStatus.Stopping)
-                    {
-                        await ReconcileEnrichmentAsync(locationImport, cancellationToken);
-
-                        await _sse.BroadcastAsync(
-                            $"import-{locationImport.UserId}",
-                            SafeProgressEvent
-                        );
-
-                        _logger.LogInformation(
-                            "Import {ImportId} cancelled by user after {Processed} records.",
-                            importId, processed);
-                        return LocationImportExecutionOutcome.Cancelled;
                     }
 
                     // Pull the next chunk
@@ -157,6 +141,10 @@ namespace Wayfarer.Parsers
                     }
 
                     locationImport.LastProcessedIndex = processed;
+                    if (!await HasCurrentExecutionAuthorityAsync(importId, epoch, cancellationToken))
+                    {
+                        return LocationImportExecutionOutcome.Stale;
+                    }
                     await _context.SaveChangesAsync(cancellationToken);
                     await ReconcileEnrichmentAsync(locationImport, cancellationToken);
 
@@ -172,6 +160,8 @@ namespace Wayfarer.Parsers
                 // 5) All done
                 if (locationImport != null)
                 {
+                    if (!await HasCurrentExecutionAuthorityAsync(importId, epoch, cancellationToken))
+                        return LocationImportExecutionOutcome.Stale;
                     await ReconcileEnrichmentAsync(locationImport, cancellationToken);
                     await _sse.BroadcastAsync(
                         $"import-{locationImport.UserId}",
@@ -197,6 +187,11 @@ namespace Wayfarer.Parsers
                 }
                 return LocationImportExecutionOutcome.Cancelled;
             }
+            catch (DbUpdateConcurrencyException)
+            {
+                _context.ChangeTracker.Clear();
+                return LocationImportExecutionOutcome.Stale;
+            }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error occurred while processing import {ImportId}.", importId);
@@ -216,6 +211,19 @@ namespace Wayfarer.Parsers
         private static bool IsMissingAddress(Location location) =>
             GeoapifyLocationBackfillService.IsWhollyUnenriched(location);
 
+        private static bool HasExecutionAuthority(
+            [NotNullWhen(true)] LocationImport? import, int epoch) =>
+            import is not null && import.Status == ImportStatus.InProgress
+            && import.DeletionRequestedAtUtc is null && import.StopRequestedAtUtc is null
+            && (epoch == 0 || import.ExecutionEpoch == epoch);
+
+        private Task<bool> HasCurrentExecutionAuthorityAsync(
+            int importId, int epoch, CancellationToken cancellationToken) =>
+            _context.LocationImports.AsNoTracking().AnyAsync(import => import.Id == importId
+                && import.Status == ImportStatus.InProgress && import.DeletionRequestedAtUtc == null
+                && import.StopRequestedAtUtc == null && (epoch == 0 || import.ExecutionEpoch == epoch),
+                cancellationToken);
+
         /// <summary>Identifies run-wide authority outcomes after which inline retries cannot succeed.</summary>
         public static bool IsRunWideNoContact(ReverseGeocodingCategory category) => category is
             ReverseGeocodingCategory.Exhausted or ReverseGeocodingCategory.NoProviderSelected
@@ -226,6 +234,7 @@ namespace Wayfarer.Parsers
         private async Task ReconcileEnrichmentAsync(LocationImport import, CancellationToken cancellationToken)
         {
             if (!import.EnrichmentRequested || _enrichmentHandoff is null) return;
+            if (!await HasCurrentExecutionAuthorityAsync(import.Id, import.ExecutionEpoch, cancellationToken)) return;
             try { await _enrichmentHandoff.EnsureAsync(import.UserId, cancellationToken); }
             catch (Exception exception)
             {

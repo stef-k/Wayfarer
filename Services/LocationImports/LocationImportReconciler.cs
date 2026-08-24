@@ -64,13 +64,21 @@ public sealed class LocationImportReconciler(
     private async Task FinalizeDeletionAsync(int importId, HashSet<JobKey> projected, HashSet<JobKey> executing,
         CancellationToken token)
     {
+        var authority = await LoadAuthorityAsync(importId, token);
+        if (authority is null || !authority.DeletionRequestedAtUtc.HasValue
+            || authority.Status == ImportStatus.InProgress || authority.Status == ImportStatus.Stopping) return;
         var matching = projected.Where(key => TryParseJob(key, out var id, out _) && id == importId).ToList();
         if (matching.Any(executing.Contains)) return;
-        foreach (var key in matching) await DeleteProjectionAsync(key, projected, token);
+        foreach (var key in matching)
+        {
+            var cleanup = await DeleteProjectionAsync(key, projected, token);
+            if (cleanup is not QuartzCleanupResult.Removed and not QuartzCleanupResult.AlreadyAbsent) return;
+        }
         await using var db = await contexts.CreateDbContextAsync(token);
         var import = await db.LocationImports.SingleOrDefaultAsync(
             x => x.Id == importId && x.DeletionRequestedAtUtc != null, token);
-        if (import is null) return;
+        if (import is null || import.ExecutionEpoch != authority.Epoch
+            || import.Status == ImportStatus.InProgress || import.Status == ImportStatus.Stopping) return;
         if (File.Exists(import.FilePath)) File.Delete(import.FilePath);
         db.LocationImports.Remove(import);
         await db.SaveChangesAsync(token);
@@ -128,10 +136,24 @@ public sealed class LocationImportReconciler(
         await RepairAsync(importId, authority.Epoch, projected, triggers, token);
     }
 
-    private async Task DeleteProjectionAsync(JobKey key, HashSet<JobKey> projected, CancellationToken token)
+    private async Task<QuartzCleanupResult> DeleteProjectionAsync(
+        JobKey key, HashSet<JobKey> projected, CancellationToken token)
     {
-        try { await scheduler.DeleteJob(key, token); projected.Remove(key); }
-        catch (SchedulerException exception) { logger.LogWarning(exception, "Import projection {JobKey} remains for retry.", key); }
+        try
+        {
+            var removed = await scheduler.DeleteJob(key, token);
+            projected.Remove(key);
+            return removed ? QuartzCleanupResult.Removed : QuartzCleanupResult.AlreadyAbsent;
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+            return QuartzCleanupResult.Cancelled;
+        }
+        catch (SchedulerException exception)
+        {
+            logger.LogWarning(exception, "Import projection {JobKey} remains for retry.", key);
+            return QuartzCleanupResult.SchedulerFailed;
+        }
     }
 
     internal static bool TryParseJob(JobKey key, out int importId, out int epoch) =>
@@ -153,4 +175,6 @@ public sealed class LocationImportReconciler(
     }
 
     private sealed record Authority(int Id, int Epoch, ImportStatus Status, DateTime? DeletionRequestedAtUtc);
+
+    private enum QuartzCleanupResult { Removed, AlreadyAbsent, SchedulerFailed, Cancelled }
 }

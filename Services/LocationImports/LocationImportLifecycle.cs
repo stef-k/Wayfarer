@@ -125,6 +125,7 @@ public sealed class LocationImportLifecycle(
             return new(LocationImportCommandCode.ExecutionActive);
 
         var path = import.FilePath;
+        var deletionEpoch = import.ExecutionEpoch;
         import.DeletionRequestedAtUtc ??= DateTime.UtcNow;
         try { await db.SaveChangesAsync(cancellationToken); }
         catch (DbUpdateConcurrencyException)
@@ -148,7 +149,18 @@ public sealed class LocationImportLifecycle(
             var keys = await scheduler.GetJobKeys(Quartz.Impl.Matchers.GroupMatcher<JobKey>.GroupEquals(LocationImportSchedulerKeys.Group), cancellationToken)
                 ?? new HashSet<JobKey>();
             foreach (var key in keys.Where(key => key.Name.StartsWith($"LocationImportJob_{importId}_", StringComparison.Ordinal)))
-                await scheduler.DeleteJob(key, cancellationToken);
+            {
+                var cleanup = await DeleteProjectionAsync(key, cancellationToken);
+                if (cleanup is not QuartzCleanupResult.Removed and not QuartzCleanupResult.AlreadyAbsent)
+                    return new(LocationImportCommandCode.ProjectionPending);
+            }
+            db.ChangeTracker.Clear();
+            import = await OwnedAsync(userId, importId, cancellationToken);
+            if (import is null) return new(LocationImportCommandCode.Accepted);
+            if (!import.DeletionRequestedAtUtc.HasValue || import.ExecutionEpoch != deletionEpoch
+                || import.Status == ImportStatus.InProgress || import.Status == ImportStatus.Stopping)
+                return new(LocationImportCommandCode.ProjectionPending);
+            path = import.FilePath;
             if (File.Exists(path)) File.Delete(path);
             db.LocationImports.Remove(import);
             await db.SaveChangesAsync(cancellationToken);
@@ -167,6 +179,24 @@ public sealed class LocationImportLifecycle(
                 : new(LocationImportCommandCode.InvalidState);
         }
         return new(LocationImportCommandCode.Accepted);
+    }
+
+    private async Task<QuartzCleanupResult> DeleteProjectionAsync(JobKey key, CancellationToken token)
+    {
+        try
+        {
+            return await scheduler.DeleteJob(key, token)
+                ? QuartzCleanupResult.Removed : QuartzCleanupResult.AlreadyAbsent;
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+            return QuartzCleanupResult.Cancelled;
+        }
+        catch (SchedulerException exception)
+        {
+            logger.LogWarning(exception, "Import projection cleanup remains pending for {JobKey}.", key);
+            return QuartzCleanupResult.SchedulerFailed;
+        }
     }
 
     public async Task ConvergeExecutionAsync(int importId, int epoch, LocationImportExecutionOutcome outcome,
@@ -230,4 +260,6 @@ public sealed class LocationImportLifecycle(
         try { await db.SaveChangesAsync(token); return true; }
         catch (DbUpdateConcurrencyException) { db.ChangeTracker.Clear(); return false; }
     }
+
+    private enum QuartzCleanupResult { Removed, AlreadyAbsent, SchedulerFailed, Cancelled }
 }
