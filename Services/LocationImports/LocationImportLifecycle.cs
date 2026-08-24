@@ -140,7 +140,7 @@ public sealed class LocationImportLifecycle(
         }
         try
         {
-            var executing = (await scheduler.GetCurrentlyExecutingJobs(cancellationToken))
+            var executing = (await scheduler.GetCurrentlyExecutingJobs(cancellationToken) ?? [])
                 .Select(context => context.JobDetail.Key)
                 .Any(key => key.Group == LocationImportSchedulerKeys.Group
                     && key.Name.StartsWith($"LocationImportJob_{importId}_", StringComparison.Ordinal));
