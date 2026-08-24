@@ -78,11 +78,15 @@ public sealed class LocationImportDeletePreservationPostgresTests(PostgresImport
         var storedUser = await db.Users.SingleAsync(item => item.Id == user.Id);
         storedUser.IsTimelinePublic = true;
         storedUser.TimelineTitle = "Preserved timeline";
+        var activity = new ActivityType { Name = $"Preserved activity {Guid.NewGuid():N}" };
         var location = new Wayfarer.Models.Location
         {
             UserId = user.Id, Timestamp = DateTime.UtcNow, LocalTimestamp = DateTime.UtcNow,
             TimeZoneId = "UTC", Coordinates = new Point(23.72, 37.98) { SRID = 4326 },
             Source = "import", Address = "Preserved address", FullAddress = "Preserved full address",
+            AddressNumber = "12", StreetName = "Preserved street", PostCode = "10558",
+            Place = "Preserved locality", Region = "Preserved location region", Country = "Greece",
+            ActivityType = activity,
             ReverseGeocodingProvider = "geoapify", ReverseGeocodingStorageMode = "retained",
             ReverseGeocodedAt = DateTimeOffset.UtcNow
         };
@@ -122,7 +126,16 @@ public sealed class LocationImportDeletePreservationPostgresTests(PostgresImport
                         Places = [new Place { Id = placeId, UserId = user.Id, Name = "Preserved place" }]
                     }
                 ],
-                Segments = [new Segment { Id = segmentId, UserId = user.Id, Mode = "walk" }]
+                Segments =
+                [
+                    new Segment
+                    {
+                        Id = segmentId, UserId = user.Id, Mode = "walk",
+                        FromPlaceId = placeId, ToPlaceId = placeId,
+                        RouteGeometry = new LineString(
+                            [new Coordinate(23.72, 37.98), new Coordinate(23.73, 37.99)]) { SRID = 4326 }
+                    }
+                ]
             });
         await db.SaveChangesAsync();
         var attempt = new LocationEnrichmentAttempt
@@ -148,21 +161,36 @@ public sealed class LocationImportDeletePreservationPostgresTests(PostgresImport
         var location = await db.Locations.SingleAsync(item => item.Id == seed.LocationId);
         Assert.Equal("import", location.Source);
         Assert.Equal("Preserved full address", location.FullAddress);
+        Assert.Equal("Preserved address", location.Address);
+        Assert.Equal("12", location.AddressNumber);
+        Assert.Equal("Preserved street", location.StreetName);
+        Assert.Equal("10558", location.PostCode);
+        Assert.Equal("Preserved locality", location.Place);
+        Assert.Equal("Preserved location region", location.Region);
+        Assert.Equal("Greece", location.Country);
+        Assert.NotNull(location.ActivityTypeId);
         Assert.Equal("geoapify", location.ReverseGeocodingProvider);
         Assert.Equal("retained", location.ReverseGeocodingStorageMode);
         Assert.NotNull(location.ReverseGeocodedAt);
         Assert.True(await db.GeoapifyUsageAdmissions.AnyAsync(item => item.UserId == seed.UserId));
         Assert.True(await db.GeoapifyUsageGuards.AnyAsync(item => item.UserId == seed.UserId));
         Assert.True(await db.MapboxProductMeters.AnyAsync(item => item.UserId == seed.UserId));
-        Assert.True(await db.PersonalLocationProviderProfiles.AnyAsync(item => item.Id == seed.ProfileId));
-        Assert.True(await db.PersonalLocationProviderSelections.AnyAsync(item => item.UserId == seed.UserId));
+        var profile = await db.PersonalLocationProviderProfiles.SingleAsync(item => item.Id == seed.ProfileId);
+        Assert.Equal("fixture-protected", profile.ProtectedCredential);
+        Assert.True(profile.GeocodingAuthorized);
+        var selection = await db.PersonalLocationProviderSelections.SingleAsync(item => item.UserId == seed.UserId);
+        Assert.Equal("geoapify", selection.GeocodingProviderKey);
         var workflow = await db.LocationEnrichmentWorkflows.SingleAsync(item => item.UserId == seed.UserId);
         Assert.Equal(1, workflow.RetryableDeferredCount);
         Assert.True(await db.LocationEnrichmentAttempts.AnyAsync(item => item.Id == seed.AttemptId));
         Assert.True(await db.Trips.AnyAsync(item => item.Id == seed.TripId));
         Assert.True(await db.Regions.AnyAsync(item => item.Id == seed.RegionId));
         Assert.True(await db.Places.AnyAsync(item => item.Id == seed.PlaceId));
-        Assert.True(await db.Segments.AnyAsync(item => item.Id == seed.SegmentId));
+        var segment = await db.Segments.SingleAsync(item => item.Id == seed.SegmentId);
+        Assert.Equal(seed.TripId, segment.TripId);
+        Assert.Equal(seed.PlaceId, segment.FromPlaceId);
+        Assert.Equal(seed.PlaceId, segment.ToPlaceId);
+        Assert.NotNull(segment.RouteGeometry);
     }
 
     private static Mock<IScheduler> Scheduler(HashSet<JobKey> jobs)
