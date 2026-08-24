@@ -16,6 +16,10 @@ public sealed class GeoapifyLocationBackfillService(
 {
     public const int MaximumRecords = 100;
 
+    /// <summary>Provides a deterministic test boundary after claim commit and before final authority validation.</summary>
+    internal Func<PersonalProviderAuthoritySnapshot, CancellationToken, Task> BeforeFinalAuthorityValidationAsync
+        { get; init; } = static (_, _) => Task.CompletedTask;
+
     /// <summary>Routes the retained explicit action through the same durable workflow lease.</summary>
     public async Task<GeoapifyBackfillResult> RunAsync(string userId,
         CancellationToken cancellationToken = default)
@@ -82,6 +86,7 @@ public sealed class GeoapifyLocationBackfillService(
             var operation = await TryClaimAttemptAsync(owner, id, admission.Authority!, cancellationToken);
             if (!operation.HasValue) continue;
             admitted++;
+            await BeforeFinalAuthorityValidationAsync(admission.Authority!, cancellationToken);
             await using (var scope = scopes.CreateAsyncScope())
                 if (!await scope.ServiceProvider.GetRequiredService<PersonalProviderContactGate>()
                     .IsCurrentAsync(admission.Authority!, cancellationToken)) break;

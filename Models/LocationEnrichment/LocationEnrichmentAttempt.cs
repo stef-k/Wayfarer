@@ -102,7 +102,7 @@ public sealed class LocationEnrichmentAttemptConfiguration : IEntityTypeConfigur
                 + "AND \"Verification\" = 1 AND \"VerificationCredentialGeneration\" > 0 AND \"VerificationGeneration\" > 0 "
                 + "AND ((\"ProviderKey\" = 'geoapify' AND \"ConsentVersion\" IS NULL AND \"ConsentTimestamp\" IS NULL "
                 + "AND \"ConsentCredentialGeneration\" IS NULL) OR (\"ProviderKey\" = 'mapbox' AND \"ConsentVersion\" > 0 "
-                + "AND \"ConsentTimestamp\" IS NOT NULL AND \"ConsentCredentialGeneration\" > 0)))");
+                + "AND \"ConsentTimestamp\" IS NOT NULL AND \"ConsentCredentialGeneration\" > 0))) IS TRUE");
             table.HasCheckConstraint("CK_LocationEnrichmentAttempt_AuthorityEnums",
                 "(\"Capability\" IS NULL OR \"Capability\" IN (1, 2)) AND (\"Verification\" IS NULL OR \"Verification\" IN (0, 1, 2, 3))");
         });
