@@ -1,0 +1,206 @@
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
+using Moq;
+using Quartz;
+using Wayfarer.Models;
+using Wayfarer.Models.Enums;
+using Wayfarer.Services.LocationImports;
+using Wayfarer.Tests.Infrastructure;
+using Xunit;
+
+namespace Wayfarer.Tests.Services;
+
+/// <summary>Defines the durable convergence contract for location-import commands and recovery.</summary>
+public sealed class LocationImportLifecycleContractTests : TestBase
+{
+    [Fact]
+    public async Task Start_CommitsIntent_WhenSchedulingThrows()
+    {
+        await using var db = CreateDbContext();
+        db.LocationImports.Add(NewImport());
+        await db.SaveChangesAsync();
+        var scheduler = new Mock<IScheduler>();
+        scheduler.Setup(item => item.ScheduleJob(It.IsAny<IJobDetail>(), It.IsAny<ITrigger>(), default))
+            .ThrowsAsync(new SchedulerException("unavailable"));
+
+        var result = await Owner(db, scheduler.Object).StartAsync("owner", 1);
+
+        Assert.Equal(LocationImportCommandCode.ProjectionPending, result.Code);
+        Assert.Equal(ImportStatus.InProgress, db.LocationImports.Single().Status);
+        Assert.True(db.LocationImports.Single().ProjectionPending);
+    }
+
+    [Fact]
+    public async Task ConcurrentStarts_ReuseOneEpochAndProjection()
+    {
+        await using var db = CreateDbContext();
+        db.LocationImports.Add(NewImport());
+        await db.SaveChangesAsync();
+        var scheduler = Scheduler();
+        var owner = Owner(db, scheduler.Object);
+
+        await Task.WhenAll(owner.StartAsync("owner", 1), owner.StartAsync("owner", 1));
+
+        Assert.Equal(1, db.LocationImports.Single().ExecutionEpoch);
+        scheduler.Verify(item => item.ScheduleJob(It.IsAny<IJobDetail>(), It.IsAny<ITrigger>(), default), Times.Once);
+    }
+
+    [Fact]
+    public async Task StartRacingStop_LeavesDurableStopIntent()
+    {
+        await AssertStopIntentAsync(interruptResult: false, jobExists: true);
+    }
+
+    [Fact]
+    public async Task CooperativeStop_RemainsStoppingUntilWorkerAcknowledges()
+    {
+        await AssertStopIntentAsync(interruptResult: true, jobExists: true);
+    }
+
+    [Fact]
+    public async Task InterruptFalse_RemainsStopping()
+    {
+        await AssertStopIntentAsync(interruptResult: false, jobExists: true);
+    }
+
+    [Fact]
+    public async Task MissingJobStop_RemainsRecoverable()
+    {
+        await AssertStopIntentAsync(interruptResult: false, jobExists: false);
+    }
+
+    [Theory]
+    [InlineData(LocationImportExecutionOutcome.Completed)]
+    [InlineData(LocationImportExecutionOutcome.Failed)]
+    public async Task StopWinsTerminalWorkerRace(LocationImportExecutionOutcome outcome)
+    {
+        await using var db = CreateDbContext();
+        db.LocationImports.Add(NewImport(ImportStatus.Stopping, epoch: 4));
+        await db.SaveChangesAsync();
+
+        await Owner(db, Scheduler().Object).ConvergeExecutionAsync(1, 4, outcome);
+
+        Assert.Equal(ImportStatus.Stopped, db.LocationImports.Single().Status);
+    }
+
+    [Fact]
+    public async Task RestartRepairsActiveImportWithMissingProjection()
+    {
+        await AssertReconciliationAsync(NewImport(ImportStatus.InProgress, epoch: 2), ImportStatus.InProgress);
+    }
+
+    [Fact]
+    public async Task RestartFinalizesStoppingImportWithoutExecution()
+    {
+        await AssertReconciliationAsync(NewImport(ImportStatus.Stopping, epoch: 2), ImportStatus.Stopped);
+    }
+
+    [Fact]
+    public async Task RestartReplacesStaleProjection()
+    {
+        await using var db = CreateDbContext();
+        db.LocationImports.Add(NewImport(ImportStatus.InProgress, epoch: 3));
+        await db.SaveChangesAsync();
+        var scheduler = Scheduler(jobExists: true, projectedEpoch: 2);
+
+        await Reconciler(db, scheduler.Object).ReconcileAsync();
+
+        scheduler.Verify(item => item.DeleteJob(LocationImportSchedulerKeys.Job(1, 2), default), Times.Once);
+        scheduler.Verify(item => item.ScheduleJob(It.IsAny<IJobDetail>(), It.IsAny<ITrigger>(), default), Times.Once);
+    }
+
+    [Fact]
+    public async Task DeleteRejectsExecutingOrStoppingImportWithoutDeletingFile()
+    {
+        await using var db = CreateDbContext();
+        var import = NewImport(ImportStatus.Stopping, epoch: 1);
+        import.FilePath = Path.GetTempFileName();
+        db.LocationImports.Add(import);
+        await db.SaveChangesAsync();
+
+        var result = await Owner(db, Scheduler().Object).DeleteAsync("owner", 1);
+
+        Assert.Equal(LocationImportCommandCode.ExecutionActive, result.Code);
+        Assert.True(File.Exists(import.FilePath));
+        File.Delete(import.FilePath);
+    }
+
+    [Theory]
+    [InlineData(LocationImportExecutionOutcome.Cancelled, "Cancelled")]
+    [InlineData(LocationImportExecutionOutcome.Stale, "Cancelled")]
+    [InlineData(LocationImportExecutionOutcome.Completed, "Completed")]
+    [InlineData(LocationImportExecutionOutcome.Failed, "Failed")]
+    public void JobOutcome_MapsToTruthfulHistory(LocationImportExecutionOutcome outcome, string expected)
+        => Assert.Equal(expected, LocationImportJobOutcome.ToHistoryStatus(outcome));
+
+    [Fact]
+    public async Task TerminalConvergencePreservesLocationsAndEnrichmentAdmission()
+    {
+        await using var db = CreateDbContext();
+        var import = NewImport(ImportStatus.Stopping, epoch: 1);
+        import.RemainingEnrichmentCount = 1;
+        db.LocationImports.Add(import);
+        db.Locations.Add(new Location { UserId = "owner", Timestamp = DateTime.UtcNow, Latitude = 1, Longitude = 1 });
+        await db.SaveChangesAsync();
+
+        await Owner(db, Scheduler().Object).ConvergeExecutionAsync(1, 1, LocationImportExecutionOutcome.Cancelled);
+
+        Assert.Single(db.Locations);
+        Assert.Equal(1, db.LocationImports.Single().RemainingEnrichmentCount);
+    }
+
+    private async Task AssertStopIntentAsync(bool interruptResult, bool jobExists)
+    {
+        await using var db = CreateDbContext();
+        db.LocationImports.Add(NewImport(ImportStatus.InProgress, epoch: 1));
+        await db.SaveChangesAsync();
+        var scheduler = Scheduler(jobExists);
+        scheduler.Setup(item => item.Interrupt(It.IsAny<JobKey>(), default)).ReturnsAsync(interruptResult);
+
+        await Owner(db, scheduler.Object).StopAsync("owner", 1);
+
+        Assert.Equal(ImportStatus.Stopping, db.LocationImports.Single().Status);
+        Assert.True(db.LocationImports.Single().StopRequestedAtUtc.HasValue);
+    }
+
+    private async Task AssertReconciliationAsync(LocationImport import, ImportStatus expected)
+    {
+        await using var db = CreateDbContext();
+        db.LocationImports.Add(import);
+        await db.SaveChangesAsync();
+        await Reconciler(db, Scheduler().Object).ReconcileAsync();
+        Assert.Equal(expected, db.LocationImports.Single().Status);
+    }
+
+    private static LocationImportLifecycle Owner(ApplicationDbContext db, IScheduler scheduler)
+        => new(db, scheduler, NullLogger<LocationImportLifecycle>.Instance);
+
+    private static LocationImportReconciler Reconciler(ApplicationDbContext db, IScheduler scheduler)
+        => new(db, scheduler, NullLogger<LocationImportReconciler>.Instance);
+
+    private static Mock<IScheduler> Scheduler(bool jobExists = false, int? projectedEpoch = null)
+    {
+        var scheduler = new Mock<IScheduler>();
+        scheduler.Setup(item => item.CheckExists(It.IsAny<JobKey>(), default)).ReturnsAsync(jobExists);
+        scheduler.Setup(item => item.GetCurrentlyExecutingJobs(default)).ReturnsAsync([]);
+        scheduler.Setup(item => item.GetJobDetail(It.IsAny<JobKey>(), default)).ReturnsAsync(() => projectedEpoch is null
+            ? null
+            : LocationImportSchedulerKeys.BuildJob(1, projectedEpoch.Value));
+        scheduler.Setup(item => item.ScheduleJob(It.IsAny<IJobDetail>(), It.IsAny<ITrigger>(), default))
+            .ReturnsAsync(DateTimeOffset.UtcNow);
+        scheduler.Setup(item => item.DeleteJob(It.IsAny<JobKey>(), default)).ReturnsAsync(true);
+        return scheduler;
+    }
+
+    private static LocationImport NewImport(ImportStatus? status = null, int epoch = 0) => new()
+    {
+        Id = 1,
+        UserId = "owner",
+        FilePath = "upload",
+        FileType = LocationImportFileType.Csv,
+        TotalRecords = 0,
+        LastProcessedIndex = 0,
+        Status = status ?? ImportStatus.Stopped,
+        ExecutionEpoch = epoch
+    };
+}
