@@ -134,7 +134,9 @@ public sealed class LocationImportLifecycle(
             if (current is null) return new(LocationImportCommandCode.Accepted);
             if (current.Status == ImportStatus.InProgress || current.Status == ImportStatus.Stopping)
                 return new(LocationImportCommandCode.ExecutionActive);
-            return new(LocationImportCommandCode.InvalidState);
+            if (!current.DeletionRequestedAtUtc.HasValue) return new(LocationImportCommandCode.InvalidState);
+            import = current;
+            path = current.FilePath;
         }
         try
         {
@@ -150,6 +152,14 @@ public sealed class LocationImportLifecycle(
         {
             logger.LogWarning(exception, "Import {ImportId} deletion remains pending reconciliation.", importId);
             return new(LocationImportCommandCode.ProjectionPending);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            db.ChangeTracker.Clear();
+            var current = await OwnedAsync(userId, importId, cancellationToken);
+            return current is null || current.DeletionRequestedAtUtc.HasValue
+                ? new(LocationImportCommandCode.Accepted)
+                : new(LocationImportCommandCode.InvalidState);
         }
         return new(LocationImportCommandCode.Accepted);
     }
