@@ -82,14 +82,14 @@ public sealed class GeoapifyLocationBackfillService(
             var operation = await TryClaimAttemptAsync(owner, id, admission.Authority!, cancellationToken);
             if (!operation.HasValue) continue;
             admitted++;
-            var renewed = await executionAuthority.TryRenewForContactAsync(owner, cancellationToken);
-            if (!renewed.HasValue) break;
-            owner = renewed.Value;
             await using (var scope = scopes.CreateAsyncScope())
                 if (!await scope.ServiceProvider.GetRequiredService<PersonalProviderContactGate>()
                     .IsCurrentAsync(admission.Authority!, cancellationToken)) break;
             var transport = new ReverseGeocodingService(
                 clients.CreateClient("LocationEnrichmentProvider"), logger);
+            var renewed = await executionAuthority.TryRenewForContactAsync(owner, cancellationToken);
+            if (!renewed.HasValue) break;
+            owner = renewed.Value;
             var result = await transport.ContactAdmittedAsync(admission.Authority!, candidate.Value.Latitude,
                 candidate.Value.Longitude, cancellationToken);
             var applied = await TryCompleteAttemptAsync(owner, id, operation.Value,
@@ -146,6 +146,7 @@ public sealed class GeoapifyLocationBackfillService(
         if (attempt.Id == 0) db.Add(attempt);
         var same = attempt.ProviderKey == contacted.ProviderKey
             && attempt.ProviderProfileId == contacted.ProfileId
+            && attempt.Capability == contacted.Capability
             && attempt.CredentialGeneration == contacted.CredentialGeneration
             && attempt.ConfigurationGeneration == contacted.CapabilityGeneration
             && attempt.SelectionGeneration == contacted.SelectionGeneration
@@ -195,11 +196,23 @@ public sealed class GeoapifyLocationBackfillService(
         var workflow = await LockWorkflowAsync(db, owner.UserId, cancellationToken);
         var selection = await LockSelectionAsync(db, owner.UserId, cancellationToken);
         var profile = await LockProfileAsync(db, owner.UserId, contacted.ProviderKey, cancellationToken);
-        var location = await db.Locations.SingleOrDefaultAsync(item => item.UserId == owner.UserId
-            && item.Id == locationId, cancellationToken);
         var attempt = await db.LocationEnrichmentAttempts.SingleOrDefaultAsync(item => item.UserId == owner.UserId
             && item.LocationId == locationId && item.OperationId == operationId
-            && item.OperationFencingGeneration == owner.FencingGeneration, cancellationToken);
+            && item.OperationLeaseId == owner.LeaseId
+            && item.OperationFencingGeneration == owner.FencingGeneration
+            && item.OperationWorkflowEpoch == owner.Epoch
+            && item.OperationAttemptNumber == item.AdmittedAttemptCount
+            && item.ProviderKey == contacted.ProviderKey && item.ProviderProfileId == contacted.ProfileId
+            && item.Capability == contacted.Capability
+            && item.CredentialGeneration == contacted.CredentialGeneration
+            && item.ConfigurationGeneration == contacted.CapabilityGeneration
+            && item.SelectionGeneration == contacted.SelectionGeneration
+            && item.Verification == contacted.Verification
+            && item.VerificationCredentialGeneration == contacted.VerifiedCredentialGeneration
+            && item.VerificationGeneration == contacted.VerifiedCapabilityGeneration
+            && item.ConsentVersion == contacted.ConsentVersion
+            && item.ConsentTimestamp == contacted.ConsentedAt
+            && item.ConsentCredentialGeneration == contacted.ConsentCredentialGeneration, cancellationToken);
         var authorityCurrent = selection?.GeocodingProviderKey == contacted.ProviderKey
             && selection.GeocodingSelectionGeneration == contacted.SelectionGeneration
             && profile is not null && profile.Id == contacted.ProfileId
@@ -221,10 +234,65 @@ public sealed class GeoapifyLocationBackfillService(
         attempt.OperationLeaseId = null; attempt.OperationWorkflowEpoch = null;
         attempt.OperationAttemptNumber = null;
         var enriched = false;
-        if (result.Succeeded)
+        if (result.Succeeded && result.Value is not null)
         {
-            enriched = location is not null && IsWhollyUnenriched(location)
-                && result.ApplyTo(location, new(now, TimeSpan.Zero));
+            var value = result.Value;
+            var persistedAt = new DateTimeOffset(now, TimeSpan.Zero);
+            var provider = contacted.ProviderKey;
+            var eligibleLocations = WhollyUnenriched(db.Locations.Where(item => item.UserId == owner.UserId
+                && item.Id == locationId)).Where(_ => db.LocationEnrichmentWorkflows.Any(item => item.UserId == owner.UserId
+                && item.Epoch == owner.Epoch && item.IntentEnabled
+                && item.ExecutionLeaseId == owner.LeaseId
+                && item.ExecutionFencingGeneration == owner.FencingGeneration
+                && item.ExecutionLeaseExpiresAtUtc > now)
+                && db.LocationEnrichmentAttempts.Any(item => item.UserId == owner.UserId
+                    && item.LocationId == locationId && item.OperationId == operationId
+                    && item.OperationLeaseId == owner.LeaseId
+                    && item.OperationFencingGeneration == owner.FencingGeneration
+                    && item.OperationWorkflowEpoch == owner.Epoch
+                    && item.OperationAttemptNumber == item.AdmittedAttemptCount
+                    && item.ProviderKey == contacted.ProviderKey && item.ProviderProfileId == contacted.ProfileId
+                    && item.Capability == contacted.Capability
+                    && item.CredentialGeneration == contacted.CredentialGeneration
+                    && item.ConfigurationGeneration == contacted.CapabilityGeneration
+                    && item.SelectionGeneration == contacted.SelectionGeneration
+                    && item.Verification == contacted.Verification
+                    && item.VerificationCredentialGeneration == contacted.VerifiedCredentialGeneration
+                    && item.VerificationGeneration == contacted.VerifiedCapabilityGeneration
+                    && item.ConsentVersion == contacted.ConsentVersion
+                    && item.ConsentTimestamp == contacted.ConsentedAt
+                    && item.ConsentCredentialGeneration == contacted.ConsentCredentialGeneration)
+                && db.PersonalLocationProviderSelections.Any(item => item.UserId == owner.UserId
+                    && item.GeocodingProviderKey == contacted.ProviderKey
+                    && item.GeocodingSelectionGeneration == contacted.SelectionGeneration)
+                && db.PersonalLocationProviderProfiles.Any(item => item.UserId == owner.UserId
+                    && item.Id == contacted.ProfileId && item.ProviderKey == contacted.ProviderKey
+                    && item.RevokedAt == null && item.GeocodingAuthorized
+                    && item.CredentialGeneration == contacted.CredentialGeneration
+                    && item.GeocodingGeneration == contacted.CapabilityGeneration
+                    && item.GeocodingVerification == contacted.Verification
+                    && item.GeocodingVerifiedCredentialGeneration == contacted.VerifiedCredentialGeneration
+                    && item.GeocodingVerifiedConfigurationGeneration == contacted.VerifiedCapabilityGeneration
+                    && (contacted.ProviderKey == "geoapify"
+                        ? contacted.ConsentVersion == null && contacted.ConsentedAt == null
+                            && contacted.ConsentCredentialGeneration == null
+                        : contacted.ProviderKey == "mapbox"
+                            && item.PermanentGeocodingConsentVersion == contacted.ConsentVersion
+                            && item.PermanentGeocodingConsentedAt == contacted.ConsentedAt
+                            && item.PermanentGeocodingConsentCredentialGeneration == contacted.ConsentCredentialGeneration)));
+            enriched = await eligibleLocations.ExecuteUpdateAsync(setters => setters
+                    .SetProperty(item => item.FullAddress, value.FullAddress)
+                    .SetProperty(item => item.Address, value.Address)
+                    .SetProperty(item => item.AddressNumber, value.AddressNumber)
+                    .SetProperty(item => item.StreetName, value.StreetName)
+                    .SetProperty(item => item.PostCode, value.PostCode)
+                    .SetProperty(item => item.Place, value.Place)
+                    .SetProperty(item => item.Region, value.Region)
+                    .SetProperty(item => item.Country, value.Country)
+                    .SetProperty(item => item.ReverseGeocodingProvider, provider)
+                    .SetProperty(item => item.ReverseGeocodingStorageMode,
+                        provider == "geoapify" ? "persistent" : "permanent")
+                    .SetProperty(item => item.ReverseGeocodedAt, persistedAt), cancellationToken) == 1;
             if (enriched) db.LocationEnrichmentAttempts.Remove(attempt);
         }
         await db.SaveChangesAsync(cancellationToken);
@@ -259,6 +327,7 @@ public sealed class GeoapifyLocationBackfillService(
                 && attempt.Outcome != LocationEnrichmentOutcome.InvalidCoordinates
                 && ((attempt.ProviderKey != authority.ProviderKey
                     || attempt.ProviderProfileId != authority.ProfileId
+                    || attempt.Capability != authority.Capability
                     || attempt.CredentialGeneration != authority.CredentialGeneration
                     || attempt.ConfigurationGeneration != authority.ConfigurationGeneration
                     || attempt.SelectionGeneration != authority.SelectionGeneration
@@ -282,6 +351,7 @@ public sealed class GeoapifyLocationBackfillService(
             on attempt.LocationId equals location.Id
         where attempt.UserId == userId && attempt.ProviderKey == authority.ProviderKey
             && attempt.ProviderProfileId == authority.ProfileId
+            && attempt.Capability == authority.Capability
             && attempt.CredentialGeneration == authority.CredentialGeneration
             && attempt.ConfigurationGeneration == authority.ConfigurationGeneration
             && attempt.SelectionGeneration == authority.SelectionGeneration
@@ -302,7 +372,7 @@ public sealed class GeoapifyLocationBackfillService(
         var key = selection?.GeocodingProviderKey ?? string.Empty;
         var profile = await db.PersonalLocationProviderProfiles.AsNoTracking()
             .SingleOrDefaultAsync(item => item.UserId == userId && item.ProviderKey == key, cancellationToken);
-        return new(key, profile?.CredentialGeneration ?? 0, profile?.GeocodingGeneration ?? 0,
+        return new(key, PersonalProviderCapability.Geocoding, profile?.CredentialGeneration ?? 0, profile?.GeocodingGeneration ?? 0,
             selection?.GeocodingSelectionGeneration ?? 0, profile?.Id,
             profile?.GeocodingVerification, profile?.GeocodingVerifiedCredentialGeneration,
             profile?.GeocodingVerifiedConfigurationGeneration, profile?.PermanentGeocodingConsentVersion,
@@ -387,7 +457,7 @@ public sealed record GeoapifyBackfillResult(int Scanned, int Succeeded, int NoRe
     int RemainingEstimate, bool Exhausted, DateTimeOffset? NextEligibleAt = null,
     bool AuthorityUnavailable = false, int Admitted = 0, int Skipped = 0, int FailedBatches = 0);
 
-public sealed record EnrichmentAuthority(string ProviderKey, int CredentialGeneration,
+public sealed record EnrichmentAuthority(string ProviderKey, PersonalProviderCapability Capability, int CredentialGeneration,
     int ConfigurationGeneration, int SelectionGeneration, Guid? ProfileId = null,
     PersonalProviderVerification? Verification = null, int? VerificationCredentialGeneration = null,
     int? VerificationGeneration = null, int? ConsentVersion = null, DateTimeOffset? ConsentTimestamp = null,
