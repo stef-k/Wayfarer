@@ -173,7 +173,7 @@ public sealed class LocationImportLifecycle(
         }
         catch (Exception exception) when (exception is SchedulerException or IOException)
         {
-            logger.LogWarning(exception, "Import {ImportId} deletion remains pending reconciliation.", importId);
+            logger.LogWarning("Import {ImportId} deletion remains pending reconciliation.", importId);
             return new(LocationImportCommandCode.ProjectionPending);
         }
         catch (DbUpdateConcurrencyException)
@@ -200,7 +200,7 @@ public sealed class LocationImportLifecycle(
         }
         catch (SchedulerException exception)
         {
-            logger.LogWarning(exception, "Import projection cleanup remains pending for {JobKey}.", key);
+            logger.LogWarning("Import projection cleanup remains pending for {JobKey}.", key);
             return QuartzCleanupResult.SchedulerFailed;
         }
     }
