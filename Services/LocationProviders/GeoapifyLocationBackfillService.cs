@@ -194,8 +194,10 @@ public sealed class GeoapifyLocationBackfillService(
             ? await db.Database.BeginTransactionAsync(cancellationToken) : null;
         var now = await LocationEnrichmentExecutionAuthority.DatabaseUtcNowAsync(db, cancellationToken);
         var workflow = await LockWorkflowAsync(db, owner.UserId, cancellationToken);
-        var selection = await LockSelectionAsync(db, owner.UserId, cancellationToken);
-        var profile = await LockProfileAsync(db, owner.UserId, contacted.ProviderKey, cancellationToken);
+        var selection = await db.PersonalLocationProviderSelections.AsNoTracking()
+            .SingleOrDefaultAsync(item => item.UserId == owner.UserId, cancellationToken);
+        var profile = await db.PersonalLocationProviderProfiles.AsNoTracking().SingleOrDefaultAsync(
+            item => item.UserId == owner.UserId && item.ProviderKey == contacted.ProviderKey, cancellationToken);
         var attempt = await db.LocationEnrichmentAttempts.SingleOrDefaultAsync(item => item.UserId == owner.UserId
             && item.LocationId == locationId && item.OperationId == operationId
             && item.OperationLeaseId == owner.LeaseId
