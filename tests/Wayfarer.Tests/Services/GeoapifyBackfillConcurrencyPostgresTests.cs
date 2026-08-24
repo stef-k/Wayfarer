@@ -22,6 +22,43 @@ namespace Wayfarer.Tests.Services;
 [Collection(PostgresImportTestCollection.Name)]
 public sealed class GeoapifyBackfillConcurrencyPostgresTests(PostgresImportTestFixture fixture)
 {
+    [PostgresTheory(Timeout = 30_000)]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task PauseOrCancelDuringContactFencesEnrichmentAndRetainsAdmittedAttempt(bool cancel)
+    {
+        var user = await fixture.CreateUserAsync();
+        var protection = new EphemeralDataProtectionProvider();
+        await SeedAsync(user.Id, null, protection);
+        int epoch;
+        await using (var setup = fixture.CreateContext())
+        {
+            var workflow = LocationEnrichmentWorkflow.Create(user.Id, DateTime.UtcNow);
+            workflow.Start(DateTime.UtcNow); epoch = workflow.Epoch;
+            setup.Add(workflow); await setup.SaveChangesAsync();
+        }
+        var handler = new CoordinatedHandler(user.Id, null);
+        await using var runDb = fixture.CreateContext();
+        var run = Service(runDb, protection, handler).RunAsync(user.Id, epoch);
+        await handler.FirstUserRequestEntered;
+        await using (var command = fixture.CreateContext())
+        {
+            var workflow = await command.LocationEnrichmentWorkflows.SingleAsync(item => item.UserId == user.Id);
+            if (cancel) workflow.Cancel(DateTime.UtcNow); else workflow.Pause(DateTime.UtcNow);
+            await command.SaveChangesAsync();
+        }
+        handler.Release();
+        await run;
+
+        await using var verify = fixture.CreateContext();
+        Assert.Single(await verify.GeoapifyUsageAdmissions.Where(item => item.UserId == user.Id).ToListAsync());
+        var attempt = await verify.LocationEnrichmentAttempts.SingleAsync(item => item.UserId == user.Id);
+        Assert.NotNull(attempt.OperationId);
+        Assert.NotNull(attempt.NextAttemptAtUtc);
+        Assert.True(GeoapifyLocationBackfillService.IsWhollyUnenriched(
+            await verify.Locations.SingleAsync(item => item.UserId == user.Id)));
+    }
+
     [PostgresFact(Timeout = 30_000)]
     public async Task ScheduledPoisonRowDoesNotStarveLaterCandidate()
     {
