@@ -106,6 +106,7 @@ public sealed class LocationEnrichmentQuartzPostgresTests(PostgresImportTestFixt
                 Assert.Equal(LocationEnrichmentOutcome.None, attempt.Outcome);
                 Assert.Equal(0, attempt.AdmittedAttemptCount);
             }
+            failedProjection.Verify(item => item.ProjectAsync(user.Id, It.IsAny<CancellationToken>()), Times.Once);
             Assert.False(await first.CheckExists(LocationEnrichmentScheduler.JobKey(workflow.SchedulerId)));
             Assert.False(await first.CheckExists(LocationEnrichmentScheduler.TriggerKey(workflow.SchedulerId, 2)));
             await first.Shutdown(false);
@@ -156,6 +157,10 @@ public sealed class LocationEnrichmentQuartzPostgresTests(PostgresImportTestFixt
             Assert.NotSame(replayed.Task, await Task.WhenAny(replayed.Task, Task.Delay(TimeSpan.FromSeconds(2))));
             replayWorker.Verify(item => item.RunBatchAsync(It.IsAny<string>(), It.IsAny<int>(),
                 It.IsAny<CancellationToken>()), Times.Never);
+            Assert.Single(await reconstructed.GetJobKeys(
+                Quartz.Impl.Matchers.GroupMatcher<JobKey>.GroupEquals(LocationEnrichmentScheduler.Group)));
+            Assert.Empty(await reconstructed.GetTriggerKeys(
+                Quartz.Impl.Matchers.GroupMatcher<TriggerKey>.GroupEquals(LocationEnrichmentScheduler.Group)));
             await reconstructed.Shutdown(true);
             Assert.Equal(1, executions);
             await using var finalVerify = fixture.CreateContext();
