@@ -45,13 +45,13 @@ public sealed class PersonalProviderStatusSnapshotPostgresTests(PostgresImportTe
         PersonalProviderInspection expectedOld;
         await using (var baseline = fixture.CreateContext())
             expectedOld = await Reader(baseline, protection).InspectPersistentGeocodingAsync(user.Id);
-        var gate = new SelectionReadGate();
+        var gate = new AuthorityReadGate(GateTable(drift));
         (int Geoapify, int Mapbox) countsAfterMutation;
         PersonalProviderInspection oldSnapshot;
         await using (var presentation = fixture.CreateContext(gate))
         {
             var running = Reader(presentation, protection).InspectPersistentGeocodingAsync(user.Id);
-            await gate.SelectionRead.WaitAsync(TimeSpan.FromSeconds(10));
+            await gate.AuthorityRead.WaitAsync(TimeSpan.FromSeconds(10));
             await MutateAsync(user.Id, drift, protection);
             countsAfterMutation = await AdmissionCountsAsync(user.Id);
             gate.Release();
@@ -268,6 +268,15 @@ public sealed class PersonalProviderStatusSnapshotPostgresTests(PostgresImportTe
         ProviderDrift.MapboxToGeoapify or ProviderDrift.MapboxConsentInvalidation
         or ProviderDrift.MapboxMeterChanged ? PersonalLocationProvider.Mapbox : PersonalLocationProvider.Geoapify;
 
+    private static string GateTable(ProviderDrift drift) => drift switch
+    {
+        ProviderDrift.GeoapifyToMapbox or ProviderDrift.MapboxToGeoapify
+            or ProviderDrift.SelectionGeneration => "PersonalLocationProviderSelections",
+        ProviderDrift.GeoapifyGuardDisabled or ProviderDrift.GeoapifyLimitBelowUsage => "GeoapifyUsageGuards",
+        ProviderDrift.MapboxMeterChanged => "MapboxProductMeters",
+        _ => "PersonalLocationProviderProfiles"
+    };
+
     private static PersonalProviderStatusReader Reader(
         Wayfarer.Models.ApplicationDbContext db, IDataProtectionProvider protection) => new(new ExistingContextFactory(db),
         new PersonalProviderCredentialService(protection),
@@ -285,20 +294,20 @@ public sealed class PersonalProviderStatusSnapshotPostgresTests(PostgresImportTe
         public ApplicationDbContext CreateDbContext() => fixture.CreateContext();
     }
 
-    private sealed class SelectionReadGate : DbCommandInterceptor
+    private sealed class AuthorityReadGate(string table) : DbCommandInterceptor
     {
-        private readonly TaskCompletionSource selectionRead = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource authorityRead = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private readonly TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        internal Task SelectionRead => selectionRead.Task;
+        internal Task AuthorityRead => authorityRead.Task;
         internal void Release() => release.TrySetResult();
 
         public override async ValueTask<DbDataReader> ReaderExecutedAsync(DbCommand command,
             CommandExecutedEventData eventData, DbDataReader result, CancellationToken cancellationToken = default)
         {
-            if (command.CommandText.Contains("PersonalLocationProviderSelections", StringComparison.Ordinal)
-                && !selectionRead.Task.IsCompleted)
+            if (command.CommandText.Contains(table, StringComparison.Ordinal)
+                && !authorityRead.Task.IsCompleted)
             {
-                selectionRead.TrySetResult();
+                authorityRead.TrySetResult();
                 await release.Task.WaitAsync(cancellationToken);
             }
             return result;
