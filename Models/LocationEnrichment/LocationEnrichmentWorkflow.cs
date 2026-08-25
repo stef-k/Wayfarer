@@ -143,8 +143,8 @@ public sealed class LocationEnrichmentWorkflow
     public bool RetryDeferred(DateTime nowUtc)
     {
         EnsureUtc(nowUtc);
-        if (State is LocationEnrichmentState.Running or LocationEnrichmentState.Scheduled
-            or LocationEnrichmentState.BackingOff or LocationEnrichmentState.PausedByBudget) return false;
+        if (State is not (LocationEnrichmentState.PausedByAuthority
+            or LocationEnrichmentState.Completed or LocationEnrichmentState.Failed)) return false;
         Epoch++;
         IntentEnabled = true;
         State = LocationEnrichmentState.Scheduled;

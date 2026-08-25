@@ -17,7 +17,9 @@ public static class LocationEnrichmentPresentation
         var hasRunnableWork = progress.RunnableRemaining > 0;
         var canStart = restartable && authority.Available && hasRunnableWork;
         var canResume = resumable && authority.Available;
-        var canRetry = !active && authority.Available && progress.DeferredWorkRetryable;
+        var canRetry = workflow?.State is (LocationEnrichmentState.PausedByAuthority
+            or LocationEnrichmentState.Completed or LocationEnrichmentState.Failed)
+            && authority.Available && progress.DeferredWorkRetryable;
         var pausedReason = state switch
         {
             LocationEnrichmentState.PausedByUser => "Paused by you.",

@@ -82,8 +82,9 @@ public sealed class ImportEnrichmentHandoff(
         if (!await progressQuery.HasRunnableAsync(
                 userId, inspection.Binding, inspection.DatabaseNowUtc, cancellationToken))
             return EnrichmentCommandResult.Conflict("no-candidates");
-        var workflow = await db.LocationEnrichmentWorkflows.SingleOrDefaultAsync(
-            item => item.UserId == userId, cancellationToken);
+        await using var transaction = db.Database.IsRelational()
+            ? await db.Database.BeginTransactionAsync(cancellationToken) : null;
+        var workflow = await LockWorkflowAsync(userId, cancellationToken);
         if (workflow is null)
         {
             workflow = LocationEnrichmentWorkflow.Create(userId, DateTime.UtcNow);
@@ -101,6 +102,7 @@ public sealed class ImportEnrichmentHandoff(
                 ? EnrichmentCommandResult.Satisfied("scheduled")
                 : EnrichmentCommandResult.Conflict("concurrent-command");
         }
+        if (transaction != null) await transaction.CommitAsync(cancellationToken);
         try { await projection.ProjectAsync(userId, cancellationToken); }
         catch { return EnrichmentCommandResult.Conflict("scheduling-reconciliation-required"); }
         return EnrichmentCommandResult.Success("scheduled");
@@ -179,9 +181,9 @@ public sealed class ImportEnrichmentHandoff(
             && item.Location.ReverseGeocodingProvider == null
             && item.Location.ReverseGeocodingStorageMode == null && item.Location.ReverseGeocodedAt == null);
 
-    private static bool CanRetryDeferred(LocationEnrichmentWorkflow workflow) => workflow.State is not
-        (LocationEnrichmentState.Running or LocationEnrichmentState.Scheduled
-        or LocationEnrichmentState.BackingOff or LocationEnrichmentState.PausedByBudget);
+    private static bool CanRetryDeferred(LocationEnrichmentWorkflow workflow) => workflow.State is
+        LocationEnrichmentState.PausedByAuthority
+        or LocationEnrichmentState.Completed or LocationEnrichmentState.Failed;
 
     private async Task<int> ResetTrackedAsync(IQueryable<LocationEnrichmentAttempt> eligible,
         PersonalProviderAuthorityBinding authority, DateTime now, CancellationToken cancellationToken)
@@ -243,12 +245,15 @@ public sealed class ImportEnrichmentHandoff(
         Func<LocationEnrichmentWorkflow, DateTime, EnrichmentCommandResult> change,
         CancellationToken cancellationToken)
     {
-        var workflow = await db.LocationEnrichmentWorkflows.SingleOrDefaultAsync(
-            item => item.UserId == userId, cancellationToken);
+        await using var transaction = db.Database.IsRelational()
+            ? await db.Database.BeginTransactionAsync(cancellationToken) : null;
+        var workflow = await LockWorkflowAsync(userId, cancellationToken);
         if (workflow is null) return EnrichmentCommandResult.Invalid("missing-workflow");
-        var result = change(workflow, DateTime.UtcNow);
+        var now = await LocationEnrichmentExecutionAuthority.DatabaseUtcNowAsync(db, cancellationToken);
+        var result = change(workflow, now);
         if (result.Classification is not (LocationEnrichmentCommandResult.Applied
-            or LocationEnrichmentCommandResult.AlreadySatisfied)) return result;
+            or LocationEnrichmentCommandResult.AlreadySatisfied))
+            return await RollbackAsync(transaction, result, cancellationToken);
         try { await db.SaveChangesAsync(cancellationToken); }
         catch (DbUpdateConcurrencyException)
         {
@@ -258,6 +263,7 @@ public sealed class ImportEnrichmentHandoff(
             return current is null ? EnrichmentCommandResult.Conflict("concurrent-command")
                 : ClassifyAfterRace(result.Code, current);
         }
+        if (transaction != null) await transaction.CommitAsync(cancellationToken);
         try { await projection.ProjectAsync(userId, cancellationToken); }
         catch { return EnrichmentCommandResult.Scheduling("scheduling-reconciliation-required"); }
         return result;
