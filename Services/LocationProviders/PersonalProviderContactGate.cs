@@ -6,10 +6,69 @@ using Wayfarer.Models.LocationProviders;
 namespace Wayfarer.Services.LocationProviders;
 
 /// <summary>Owns the lowest shared credential-authority and durable usage-admission seam before provider HTTP.</summary>
+public interface IPersonalProviderInspection
+{
+    Task<PersonalProviderInspection> InspectPersistentGeocodingAsync(
+        string userId, CancellationToken cancellationToken = default);
+}
+
+/// <summary>Owns current provider contact authority and durable admissions.</summary>
 public sealed class PersonalProviderContactGate(
     ApplicationDbContext dbContext, PersonalProviderCredentialService credentials,
-    LegacyMapboxMigrationService legacyMigration, IConfiguration configuration)
+    LegacyMapboxMigrationService legacyMigration, IConfiguration configuration) : IPersonalProviderInspection
 {
+    /// <summary>Reads current persistent-geocoding authority and usage without admitting provider contact.</summary>
+    public async Task<PersonalProviderInspection> InspectPersistentGeocodingAsync(
+        string userId, CancellationToken cancellationToken = default)
+    {
+        var authority = await ResolveAsync(userId, PersonalProviderCapability.Geocoding, cancellationToken);
+        var selection = await dbContext.PersonalLocationProviderSelections.AsNoTracking()
+            .SingleOrDefaultAsync(item => item.UserId == userId, cancellationToken);
+        var providerKey = selection?.GeocodingProviderKey;
+        var now = DateTimeOffset.UtcNow;
+        PersonalProviderUsageStatus? usage = null;
+        var guardEnabled = false;
+        DateTimeOffset? nextAvailable = null;
+
+        if (providerKey == "geoapify")
+        {
+            var guard = await dbContext.GeoapifyUsageGuards.AsNoTracking()
+                .SingleOrDefaultAsync(item => item.UserId == userId, cancellationToken);
+            var limit = guard?.CreditLimit
+                ?? configuration.GetValue("LocationProviders:Geoapify:RollingCreditLimit", 2500);
+            guardEnabled = guard?.Enabled ?? true;
+            var cutoff = now.AddHours(-24);
+            var admissions = await dbContext.GeoapifyUsageAdmissions.AsNoTracking()
+                .Where(item => item.UserId == userId && item.AdmittedAt > cutoff)
+                .OrderBy(item => item.AdmittedAt).ToListAsync(cancellationToken);
+            var used = admissions.Sum(item => item.Credits);
+            if (guardEnabled && used >= limit && admissions.Count > 0)
+                nextAvailable = admissions[0].AdmittedAt.AddHours(24);
+            usage = new(used, limit, "credits", cutoff, null);
+        }
+        else if (providerKey == "mapbox")
+        {
+            var meter = await dbContext.MapboxProductMeters.AsNoTracking().SingleOrDefaultAsync(item =>
+                item.UserId == userId && item.Product == PersonalProviderProduct.PermanentGeocoding,
+                cancellationToken);
+            var limit = meter?.Limit
+                ?? configuration.GetValue("LocationProviders:Mapbox:PermanentGeocodingLimit", 1000);
+            guardEnabled = meter?.Enabled ?? true;
+            var cycle = new DateOnly(now.Year, now.Month, 1);
+            var used = meter?.CycleStart == cycle ? meter.AdmittedCount : 0;
+            if (guardEnabled && used >= limit)
+                nextAvailable = new DateTimeOffset(cycle.AddMonths(1).ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
+            usage = new(used, limit, "contacts", null, cycle);
+        }
+
+        var exhausted = usage != null && guardEnabled && usage.Used >= usage.Limit;
+        return new(authority.Category, providerKey, guardEnabled, exhausted, nextAvailable, usage,
+            authority.Succeeded ? new(authority.ProviderKey!, authority.ProfileId,
+                authority.CredentialGeneration, authority.CapabilityGeneration, authority.SelectionGeneration,
+                authority.Verification, authority.VerifiedCredentialGeneration, authority.VerifiedCapabilityGeneration,
+                authority.ConsentVersion, authority.ConsentedAt, authority.ConsentCredentialGeneration) : null);
+    }
+
     /// <summary>Resolves the selected geocoding provider and admits its exact persistent product cost.</summary>
     public async Task<PersonalProviderAdmission> AdmitPersistentGeocodingAsync(
         string userId, CancellationToken cancellationToken = default)
@@ -418,6 +477,21 @@ public sealed class PersonalProviderAuthoritySnapshot
 
 /// <summary>Contains only bounded usage status.</summary>
 public sealed record PersonalProviderUsageStatus(int Used, int Limit, string Unit, DateTimeOffset? RollingCutoff, DateOnly? CycleStart);
+
+/// <summary>Contains bounded current authority and usage facts without credential material.</summary>
+public sealed record PersonalProviderInspection(PersonalProviderAdmissionCategory Category, string? ProviderKey,
+    bool GuardEnabled, bool Exhausted, DateTimeOffset? NextAvailableAt, PersonalProviderUsageStatus? Usage,
+    PersonalProviderAuthorityBinding? Binding)
+{
+    public bool Available => Category == PersonalProviderAdmissionCategory.Admitted && !Exhausted;
+}
+
+/// <summary>Identifies current durable authority for relational attempt classification.</summary>
+public sealed record PersonalProviderAuthorityBinding(string ProviderKey, Guid? ProfileId,
+    int CredentialGeneration, int CapabilityGeneration, int SelectionGeneration,
+    PersonalProviderVerification Verification, int? VerifiedCredentialGeneration,
+    int? VerifiedCapabilityGeneration, int? ConsentVersion, DateTimeOffset? ConsentedAt,
+    int? ConsentCredentialGeneration);
 
 /// <summary>Returns bounded rejection or admitted server authority.</summary>
 public sealed record PersonalProviderAdmission(PersonalProviderAdmissionCategory Category,

@@ -375,6 +375,8 @@ static void ConfigureQuartz(WebApplicationBuilder builder)
         Wayfarer.Services.LocationEnrichment.WorkflowScheduleProjection>();
     builder.Services.AddScoped<Wayfarer.Services.LocationEnrichment.IImportEnrichmentHandoff,
         Wayfarer.Services.LocationEnrichment.ImportEnrichmentHandoff>();
+    builder.Services.AddScoped<Wayfarer.Services.LocationEnrichment.ILocationEnrichmentPresentationProjector,
+        Wayfarer.Services.LocationEnrichment.LocationEnrichmentPresentationProjector>();
 
     // 2) Build & start the Quartz scheduler
     builder.Services.AddSingleton<IScheduler>(sp =>
@@ -506,6 +508,8 @@ static void ConfigureServices(WebApplicationBuilder builder)
     builder.Services.AddScoped<PersonalProviderCredentialService>();
     builder.Services.AddScoped<LegacyMapboxMigrationService>();
     builder.Services.AddScoped<PersonalProviderContactGate>();
+    builder.Services.AddScoped<IPersonalProviderInspection>(services =>
+        services.GetRequiredService<PersonalProviderContactGate>());
     builder.Services.AddScoped<GeoapifyLocationBackfillService>();
     builder.Services.AddScoped<LocationEnrichmentExecutionAuthority>();
 

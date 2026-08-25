@@ -12,6 +12,7 @@ using Quartz;
 using Wayfarer.Areas.User.Controllers;
 using Wayfarer.Models;
 using Wayfarer.Models.Enums;
+using Wayfarer.Services.LocationEnrichment;
 using Wayfarer.Tests.Infrastructure;
 using Xunit;
 
@@ -172,11 +173,18 @@ public class LocationImportControllerTests : TestBase
 
     private static LocationImportController BuildController(ApplicationDbContext db, ApplicationUser user, IScheduler scheduler)
     {
+        var presentation = new Mock<ILocationEnrichmentPresentationProjector>();
+        presentation.Setup(item => item.ProjectAsync(user.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(LocationEnrichmentPresentation.Build(null,
+                new(null, "Not selected", false, "No geocoding provider is selected.", false,
+                    0, 0, "credits", "No active usage window", null),
+                new(0, 0, 0, false, null)));
         var controller = new LocationImportController(
             db,
             NullLogger<LocationImportController>.Instance,
             Mock.Of<IWebHostEnvironment>(),
             scheduler,
+            presentation.Object,
             contextFactory: new CloningFactory(db));
         var http = new DefaultHttpContext
         {

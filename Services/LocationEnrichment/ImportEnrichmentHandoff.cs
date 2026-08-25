@@ -2,6 +2,8 @@ using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using Wayfarer.Models;
 using Wayfarer.Models.LocationEnrichment;
+using Wayfarer.Models.LocationProviders;
+using Wayfarer.Services.LocationProviders;
 
 namespace Wayfarer.Services.LocationEnrichment;
 
@@ -18,7 +20,8 @@ public interface IImportEnrichmentHandoff
 
 /// <summary>Creates or resumes relational intent before projecting one Quartz trigger.</summary>
 public sealed class ImportEnrichmentHandoff(
-    ApplicationDbContext db, IWorkflowScheduleProjection projection) : IImportEnrichmentHandoff
+    ApplicationDbContext db, IWorkflowScheduleProjection projection,
+    IPersonalProviderInspection providerInspection) : IImportEnrichmentHandoff
 {
     public Task<EnrichmentCommandResult> PauseAsync(string userId, CancellationToken cancellationToken = default)
         => ChangeAsync(userId, (workflow, now) => workflow.TryPause(now, out var reason)
@@ -104,25 +107,22 @@ public sealed class ImportEnrichmentHandoff(
     public async Task<EnrichmentCommandResult> RetryDeferredAsync(
         string userId, CancellationToken cancellationToken = default)
     {
-        var selection = await db.PersonalLocationProviderSelections.AsNoTracking()
-            .SingleOrDefaultAsync(item => item.UserId == userId, cancellationToken);
-        var providerKey = selection?.GeocodingProviderKey;
-        var profile = providerKey == null ? null : await db.PersonalLocationProviderProfiles.AsNoTracking()
-            .SingleOrDefaultAsync(item => item.UserId == userId && item.ProviderKey == providerKey, cancellationToken);
-        if (profile == null || selection == null || !profile.GeocodingAuthorized || profile.RevokedAt != null)
+        var inspection = await providerInspection.InspectPersistentGeocodingAsync(userId, cancellationToken);
+        var authority = inspection.Binding;
+        if (!inspection.Available || authority is null)
             return EnrichmentCommandResult.Conflict("authority-unavailable");
         var attempts = await db.LocationEnrichmentAttempts.Include(item => item.Location)
             .Where(item => item.UserId == userId && (item.Outcome == LocationEnrichmentOutcome.InvalidCoordinates
                 || item.Outcome == LocationEnrichmentOutcome.NoResult
                 || item.Outcome == LocationEnrichmentOutcome.AttemptLimit))
             .ToListAsync(cancellationToken);
-        var eligible = attempts.Where(item => item.Location != null
+        var eligible = attempts.Where(item => IsCurrent(item, authority) && item.Location != null
             && LocationProviders.GeoapifyLocationBackfillService.IsWhollyUnenriched(item.Location)).ToList();
         if (eligible.Count == 0) return EnrichmentCommandResult.Success("nothing-to-retry");
         var now = DateTime.UtcNow;
         foreach (var attempt in eligible)
-            attempt.ResetDeferred(providerKey!, profile.CredentialGeneration, profile.GeocodingGeneration,
-                selection.GeocodingSelectionGeneration, now);
+            attempt.ResetDeferred(authority.ProviderKey, authority.CredentialGeneration,
+                authority.CapabilityGeneration, authority.SelectionGeneration, now);
         var workflow = await db.LocationEnrichmentWorkflows.SingleAsync(item => item.UserId == userId, cancellationToken);
         if (!workflow.RetryDeferred(now)) return EnrichmentCommandResult.Conflict("invalid-state");
         try { await db.SaveChangesAsync(cancellationToken); }
@@ -136,19 +136,21 @@ public sealed class ImportEnrichmentHandoff(
         return EnrichmentCommandResult.Success("scheduled");
     }
 
-    private async Task<bool> HasCurrentAuthorityAsync(string userId, CancellationToken cancellationToken)
-    {
-        var selection = await db.PersonalLocationProviderSelections.AsNoTracking()
-            .SingleOrDefaultAsync(item => item.UserId == userId, cancellationToken);
-        var key = selection?.GeocodingProviderKey;
-        var profile = key == null ? null : await db.PersonalLocationProviderProfiles.AsNoTracking()
-            .SingleOrDefaultAsync(item => item.UserId == userId && item.ProviderKey == key, cancellationToken);
-        return profile is { GeocodingAuthorized: true, RevokedAt: null,
-            GeocodingVerification: Models.LocationProviders.PersonalProviderVerification.Verified }
-            && profile.GeocodingVerifiedCredentialGeneration == profile.CredentialGeneration
-            && profile.GeocodingVerifiedConfigurationGeneration == profile.GeocodingGeneration
-            && (key != "mapbox" || profile.HasCurrentPermanentGeocodingConsent());
-    }
+    private async Task<bool> HasCurrentAuthorityAsync(string userId, CancellationToken cancellationToken) =>
+        (await providerInspection.InspectPersistentGeocodingAsync(userId, cancellationToken)).Available;
+
+    private static bool IsCurrent(LocationEnrichmentAttempt attempt, PersonalProviderAuthorityBinding authority) =>
+        attempt.ProviderKey == authority.ProviderKey && attempt.ProviderProfileId == authority.ProfileId
+        && attempt.Capability == PersonalProviderCapability.Geocoding
+        && attempt.CredentialGeneration == authority.CredentialGeneration
+        && attempt.ConfigurationGeneration == authority.CapabilityGeneration
+        && attempt.SelectionGeneration == authority.SelectionGeneration
+        && attempt.Verification == authority.Verification
+        && attempt.VerificationCredentialGeneration == authority.VerifiedCredentialGeneration
+        && attempt.VerificationGeneration == authority.VerifiedCapabilityGeneration
+        && attempt.ConsentVersion == authority.ConsentVersion
+        && attempt.ConsentTimestamp == authority.ConsentedAt
+        && attempt.ConsentCredentialGeneration == authority.ConsentCredentialGeneration;
 
     private Task<bool> HasCandidateAsync(string userId, CancellationToken cancellationToken) =>
         db.Locations.AnyAsync(item => item.UserId == userId

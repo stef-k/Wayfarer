@@ -27,11 +27,13 @@ namespace Wayfarer.Areas.User.Controllers
         private readonly IScheduler        _scheduler;
         private readonly IImportEnrichmentHandoff? _enrichmentHandoff;
         private readonly ILocationImportLifecycle _importLifecycle;
+        private readonly ILocationEnrichmentPresentationProjector _enrichmentPresentation;
 
         public LocationImportController(ApplicationDbContext dbContext,
             ILogger<LocationImportController> logger,
             IWebHostEnvironment environment,
             IScheduler scheduler,
+            ILocationEnrichmentPresentationProjector enrichmentPresentation,
             IImportEnrichmentHandoff? enrichmentHandoff = null,
             IWorkflowScheduleProjection? workflowProjection = null,
             ILocationImportLifecycle? importLifecycle = null,
@@ -40,6 +42,7 @@ namespace Wayfarer.Areas.User.Controllers
         {
             _environment = environment;
             _scheduler = scheduler;
+            _enrichmentPresentation = enrichmentPresentation;
             _enrichmentHandoff = enrichmentHandoff;
             _importLifecycle = importLifecycle ?? new LocationImportLifecycle(
                 contextFactory ?? throw new ArgumentNullException(nameof(contextFactory)), scheduler,
@@ -54,15 +57,15 @@ namespace Wayfarer.Areas.User.Controllers
         public async Task<IActionResult> Index()
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrWhiteSpace(userId)) return Challenge();
             var imports = await _dbContext.LocationImports
                 .Where(x => x.UserId == userId)
                 .OrderByDescending(x => x.CreatedAt)
                 .ToListAsync();
             
             ViewData["UserId"] = userId;
-            var workflow = await _dbContext.LocationEnrichmentWorkflows.AsNoTracking()
-                .SingleOrDefaultAsync(item => item.UserId == userId);
-            ViewData["EnrichmentPresentation"] = LocationEnrichmentPresentation.Build(workflow);
+            ViewData["EnrichmentPresentation"] = await _enrichmentPresentation.ProjectAsync(
+                userId, HttpContext.RequestAborted);
 
             SetPageTitle("Location Imports");
             return View(imports);

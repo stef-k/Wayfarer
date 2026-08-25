@@ -5,6 +5,7 @@ using Moq;
 using Wayfarer.Models;
 using Wayfarer.Models.LocationEnrichment;
 using Wayfarer.Services.LocationEnrichment;
+using Wayfarer.Services.LocationProviders;
 using Xunit;
 
 namespace Wayfarer.Tests.Services;
@@ -23,7 +24,12 @@ public sealed class LocationImportEnrichmentHandoffTests
         await db.SaveChangesAsync();
         var projection = new Mock<IWorkflowScheduleProjection>();
 
-        await new ImportEnrichmentHandoff(db, projection.Object).EnsureAsync("user");
+        var inspection = new Mock<IPersonalProviderInspection>();
+        inspection.Setup(item => item.InspectPersistentGeocodingAsync("user", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PersonalProviderInspection(PersonalProviderAdmissionCategory.NoProviderSelected,
+                null, false, false, null, null, null));
+
+        await new ImportEnrichmentHandoff(db, projection.Object, inspection.Object).EnsureAsync("user");
 
         var workflow = await db.LocationEnrichmentWorkflows.SingleAsync();
         Assert.Equal(LocationEnrichmentState.PausedByAuthority, workflow.State);

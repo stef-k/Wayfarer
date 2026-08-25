@@ -13,6 +13,7 @@ using Wayfarer.Models.Enums;
 using Wayfarer.Models.ViewModels;
 using Wayfarer.Models.LocationEnrichment;
 using Wayfarer.Services.LocationEnrichment;
+using Wayfarer.Services.LocationProviders;
 using Wayfarer.Tests.Infrastructure;
 using Xunit;
 
@@ -38,6 +39,24 @@ public class UserLocationImportControllerTests : TestBase
         var view = Assert.IsType<ViewResult>(result);
         var model = Assert.IsAssignableFrom<IEnumerable<LocationImport>>(view.Model);
         Assert.Single(model);
+    }
+
+    [Fact]
+    public async Task IndexProjectsAuthorityForAuthenticatedClaimIdentity()
+    {
+        var db = CreateDbContext();
+        var projector = new Mock<ILocationEnrichmentPresentationProjector>();
+        var expected = LocationEnrichmentPresentation.Build(null,
+            new("geoapify", "Geoapify", false, "Provider verification is required.", true,
+                7, 2500, "credits", "rolling 24 hours", null),
+            new(0, 2, 1, true, DateTime.UtcNow.AddHours(1)));
+        projector.Setup(item => item.ProjectAsync("u1", It.IsAny<CancellationToken>())).ReturnsAsync(expected);
+        var controller = BuildController(db, "u1", presentation: projector.Object);
+
+        await controller.Index();
+
+        Assert.Same(expected, controller.ViewData["EnrichmentPresentation"]);
+        projector.Verify(item => item.ProjectAsync("u1", It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -157,17 +176,28 @@ public class UserLocationImportControllerTests : TestBase
     }
 
     private LocationImportController BuildController(ApplicationDbContext db, string userId,
-        IImportEnrichmentHandoff? handoff = null, IWorkflowScheduleProjection? projection = null)
+        IImportEnrichmentHandoff? handoff = null, IWorkflowScheduleProjection? projection = null,
+        ILocationEnrichmentPresentationProjector? presentation = null)
     {
         var env = new Mock<IWebHostEnvironment>();
         env.SetupGet(e => e.WebRootPath).Returns(Path.GetTempPath());
         var scheduler = new Mock<IScheduler>();
         scheduler.Setup(s => s.ScheduleJob(It.IsAny<IJobDetail>(), It.IsAny<ITrigger>(), default)).ReturnsAsync(DateTimeOffset.UtcNow);
         projection ??= Mock.Of<IWorkflowScheduleProjection>();
-        handoff ??= new ImportEnrichmentHandoff(db, projection);
+        var inspection = new Mock<IPersonalProviderInspection>();
+        inspection.Setup(item => item.InspectPersistentGeocodingAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PersonalProviderInspection(PersonalProviderAdmissionCategory.NoProviderSelected,
+                null, false, false, null, null, null));
+        handoff ??= new ImportEnrichmentHandoff(db, projection, inspection.Object);
 
+        var defaultPresentation = new Mock<ILocationEnrichmentPresentationProjector>();
+        defaultPresentation.Setup(item => item.ProjectAsync(userId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(LocationEnrichmentPresentation.Build(null,
+                new(null, "Not selected", false, "No geocoding provider is selected.", false,
+                    0, 0, "credits", "No active usage window", null),
+                new(0, 0, 0, false, null)));
         var controller = new LocationImportController(db, NullLogger<LocationImportController>.Instance,
-            env.Object, scheduler.Object, handoff, projection,
+            env.Object, scheduler.Object, presentation ?? defaultPresentation.Object, handoff, projection,
             contextFactory: new CloningFactory(db));
         controller.ControllerContext = new ControllerContext { HttpContext = BuildHttpContextWithUser(userId) };
         return controller;
