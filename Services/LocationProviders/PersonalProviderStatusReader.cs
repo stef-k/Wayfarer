@@ -16,13 +16,15 @@ public interface IPersonalProviderStatusReader
 
 /// <summary>Projects provider authority and metering from one short consistent relational snapshot.</summary>
 public sealed class PersonalProviderStatusReader(
-    ApplicationDbContext db, PersonalProviderCredentialService credentials, IConfiguration configuration)
+    IDbContextFactory<ApplicationDbContext> contexts,
+    PersonalProviderCredentialService credentials, IConfiguration configuration)
     : IPersonalProviderStatusReader
 {
     /// <inheritdoc />
     public async Task<PersonalProviderInspection> InspectPersistentGeocodingAsync(
         string userId, CancellationToken cancellationToken = default)
     {
+        await using var db = await contexts.CreateDbContextAsync(cancellationToken);
         await using var transaction = db.Database.IsRelational()
             ? await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, cancellationToken) : null;
         var dbNow = await LocationEnrichmentExecutionAuthority.DatabaseUtcNowAsync(db, cancellationToken);
@@ -34,8 +36,8 @@ public sealed class PersonalProviderStatusReader(
         var authority = Resolve(selection, profile, providerKey);
         var status = providerKey switch
         {
-            "geoapify" => await ReadGeoapifyAsync(userId, dbNow, cancellationToken),
-            "mapbox" => await ReadMapboxAsync(userId, dbNow, cancellationToken),
+            "geoapify" => await ReadGeoapifyAsync(db, userId, dbNow, cancellationToken),
+            "mapbox" => await ReadMapboxAsync(db, userId, dbNow, cancellationToken),
             _ => UsageResult.Empty
         };
         if (transaction != null) await transaction.CommitAsync(cancellationToken);
@@ -67,7 +69,7 @@ public sealed class PersonalProviderStatusReader(
     }
 
     private async Task<UsageResult> ReadGeoapifyAsync(
-        string userId, DateTime dbNow, CancellationToken cancellationToken)
+        ApplicationDbContext db, string userId, DateTime dbNow, CancellationToken cancellationToken)
     {
         var guard = await db.GeoapifyUsageGuards.AsNoTracking()
             .SingleOrDefaultAsync(item => item.UserId == userId, cancellationToken);
@@ -85,7 +87,7 @@ public sealed class PersonalProviderStatusReader(
     }
 
     private async Task<UsageResult> ReadMapboxAsync(
-        string userId, DateTime dbNow, CancellationToken cancellationToken)
+        ApplicationDbContext db, string userId, DateTime dbNow, CancellationToken cancellationToken)
     {
         var meter = await db.MapboxProductMeters.AsNoTracking().SingleOrDefaultAsync(item =>
             item.UserId == userId && item.Product == PersonalProviderProduct.PermanentGeocoding, cancellationToken);

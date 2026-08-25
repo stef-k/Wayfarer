@@ -325,6 +325,12 @@ public sealed class PersonalProviderUsagePostgresTests(PostgresImportTestFixture
 
     private static PersonalProviderStatusReader Reader(
         Wayfarer.Models.ApplicationDbContext context, IDataProtectionProvider protection)
-        => new(context, new PersonalProviderCredentialService(protection),
+        => new(new ExistingContextFactory(context), new PersonalProviderCredentialService(protection),
             new ConfigurationBuilder().AddInMemoryCollection().Build());
+
+    private sealed class ExistingContextFactory(ApplicationDbContext context)
+        : IDbContextFactory<ApplicationDbContext>
+    {
+        public ApplicationDbContext CreateDbContext() => context;
+    }
 }

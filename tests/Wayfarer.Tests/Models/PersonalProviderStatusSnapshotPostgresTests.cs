@@ -3,6 +3,10 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Configuration;
+using Moq;
+using NetTopologySuite.Geometries;
+using Wayfarer.Models;
+using Wayfarer.Services.LocationEnrichment;
 using Wayfarer.Models.LocationProviders;
 using Wayfarer.Services.LocationProviders;
 using Wayfarer.Tests.Infrastructure;
@@ -65,6 +69,48 @@ public sealed class PersonalProviderStatusSnapshotPostgresTests(PostgresImportTe
         Assert.Equal(countsAfterMutation, await AdmissionCountsAsync(user.Id));
         Assert.DoesNotContain("snapshot-secret", oldSnapshot.ToString(), StringComparison.Ordinal);
         Assert.DoesNotContain("replacement-secret", freshSnapshot.ToString(), StringComparison.Ordinal);
+    }
+
+    [PostgresFact]
+    public async Task StartAfterRenderedAuthorityDrifts_RevalidatesAndDoesNotActFromStalePage()
+    {
+        fixture.RequireAvailable();
+        var protection = new EphemeralDataProtectionProvider();
+        var user = await fixture.CreateUserAsync();
+        await SeedAsync(user.Id, PersonalLocationProvider.Geoapify, protection);
+        await using (var setup = fixture.CreateContext())
+        {
+            setup.Locations.Add(new Wayfarer.Models.Location
+            {
+                UserId = user.Id, Timestamp = DateTime.UtcNow, LocalTimestamp = DateTime.UtcNow,
+                TimeZoneId = "UTC", Coordinates = new Point(23, 37) { SRID = 4326 }
+            });
+            await setup.SaveChangesAsync();
+        }
+        PersonalProviderInspection rendered;
+        await using (var page = fixture.CreateContext())
+            rendered = await Reader(page, protection).InspectPersistentGeocodingAsync(user.Id);
+        Assert.True(rendered.Available);
+        await using (var mutation = fixture.CreateContext())
+        {
+            var selection = await mutation.PersonalLocationProviderSelections.SingleAsync(x => x.UserId == user.Id);
+            selection.Select(PersonalProviderCapability.Geocoding, null);
+            await mutation.SaveChangesAsync();
+        }
+
+        await using var command = fixture.CreateContext();
+        var projection = new Mock<IWorkflowScheduleProjection>();
+        var result = await new ImportEnrichmentHandoff(command, projection.Object,
+            new PersonalProviderStatusReader(new FixtureFactory(fixture),
+                new PersonalProviderCredentialService(protection),
+                new ConfigurationBuilder().Build()),
+            new LocationEnrichmentProgressQuery(command)).StartAsync(user.Id);
+
+        Assert.Equal(LocationEnrichmentCommandResult.Conflict, result.Classification);
+        Assert.Equal("authority-unavailable", result.Code);
+        Assert.False(await command.LocationEnrichmentWorkflows.AnyAsync(x => x.UserId == user.Id));
+        Assert.Equal(1, await command.GeoapifyUsageAdmissions.CountAsync(x => x.UserId == user.Id));
+        projection.Verify(x => x.ProjectAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     private async Task SeedAsync(string userId, PersonalLocationProvider selected,
@@ -223,9 +269,21 @@ public sealed class PersonalProviderStatusSnapshotPostgresTests(PostgresImportTe
         or ProviderDrift.MapboxMeterChanged ? PersonalLocationProvider.Mapbox : PersonalLocationProvider.Geoapify;
 
     private static PersonalProviderStatusReader Reader(
-        Wayfarer.Models.ApplicationDbContext db, IDataProtectionProvider protection) => new(db,
+        Wayfarer.Models.ApplicationDbContext db, IDataProtectionProvider protection) => new(new ExistingContextFactory(db),
         new PersonalProviderCredentialService(protection),
         new ConfigurationBuilder().AddInMemoryCollection().Build());
+
+    private sealed class ExistingContextFactory(Wayfarer.Models.ApplicationDbContext context)
+        : IDbContextFactory<Wayfarer.Models.ApplicationDbContext>
+    {
+        public Wayfarer.Models.ApplicationDbContext CreateDbContext() => context;
+    }
+
+    private sealed class FixtureFactory(PostgresImportTestFixture fixture)
+        : IDbContextFactory<ApplicationDbContext>
+    {
+        public ApplicationDbContext CreateDbContext() => fixture.CreateContext();
+    }
 
     private sealed class SelectionReadGate : DbCommandInterceptor
     {
