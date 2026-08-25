@@ -41,7 +41,7 @@ test('stream errors and disposal do not reload or retain listeners', () => {
     const source = { close: () => closed++ };
     const refresh = createLocationImportRefresh({ schedule: () => {}, reload: () => reloads++ });
 
-    refresh.connect(() => source, '/api/sse/import');
+    refresh.connect(function FakeEventSource() { return source; }, '/api/sse/import');
     source.onerror();
     refresh.dispose();
 

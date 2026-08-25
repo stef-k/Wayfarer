@@ -25,11 +25,12 @@ public class SseService
         CancellationToken token,
         bool enableHeartbeat = false,
         TimeSpan? heartbeatInterval = null,
-        Func<CancellationToken, Task<IAsyncDisposable?>>? deliveryLease = null)
+        Func<CancellationToken, Task<IAsyncDisposable?>>? deliveryLease = null,
+        Func<string, bool>? deliveryFilter = null)
     {
         response.Headers.Append("Content-Type", "text/event-stream");
         response.Headers.Append("Cache-Control", "no-cache");
-        var client = new ClientConnection(response, HeartbeatPayload, deliveryLease);
+        var client = new ClientConnection(response, HeartbeatPayload, deliveryLease, deliveryFilter);
 
         var subscribers = _channels.GetOrAdd(channel, _ => new List<ClientConnection>());
         lock (subscribers)
@@ -81,6 +82,7 @@ public class SseService
 
         foreach (var client in snapshot)
         {
+            if (!client.Accepts(data)) continue;
             var success = await client.SendIfEligibleAsync(bytes);
             if (!success)
             {
@@ -100,15 +102,20 @@ public class SseService
         private readonly byte[] _heartbeatPayload;
         private readonly SemaphoreSlim _sendLock = new(1, 1);
         private readonly Func<CancellationToken, Task<IAsyncDisposable?>>? _deliveryLease;
+        private readonly Func<string, bool>? _deliveryFilter;
         private Timer? _heartbeatTimer;
         private bool _disposed;
 
-        public ClientConnection(HttpResponse response, byte[] heartbeatPayload, Func<CancellationToken, Task<IAsyncDisposable?>>? deliveryLease)
+        public ClientConnection(HttpResponse response, byte[] heartbeatPayload,
+            Func<CancellationToken, Task<IAsyncDisposable?>>? deliveryLease, Func<string, bool>? deliveryFilter)
         {
             _response = response;
             _heartbeatPayload = heartbeatPayload;
             _deliveryLease = deliveryLease;
+            _deliveryFilter = deliveryFilter;
         }
+
+        public bool Accepts(string data) => _deliveryFilter?.Invoke(data) ?? true;
 
         public void StartHeartbeat(TimeSpan interval)
         {

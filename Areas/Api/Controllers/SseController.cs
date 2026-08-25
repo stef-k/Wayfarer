@@ -17,6 +17,8 @@ namespace Wayfarer.Areas.Api.Controllers;
 [Route("api/sse")]
 public class SseController : Controller
 {
+    private static readonly HashSet<string> ImportReloadHints =
+        ["{\"type\":\"import-state\"}", "{\"type\":\"enrichment-state\"}"];
     private readonly SseService _sse;
     private readonly ApplicationDbContext _db;
     private readonly IGroupTimelineService _timelineService;
@@ -84,7 +86,8 @@ public class SseController : Controller
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (string.IsNullOrWhiteSpace(userId)) return Unauthorized();
-        await _sse.SubscribeAsync($"import-{userId}", Response, ct);
+        await _sse.SubscribeAsync($"import-{userId}", Response, ct,
+            deliveryFilter: data => ImportReloadHints.Contains(data));
         return new EmptyResult();
     }
 

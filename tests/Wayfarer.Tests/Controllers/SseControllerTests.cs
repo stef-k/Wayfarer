@@ -275,6 +275,8 @@ public class SseControllerTests
 
         await sse.BroadcastAsync("import-other", "{\"type\":\"import-state\"}");
         Assert.Empty(((MemoryStream)controller.Response.Body).ToArray());
+        await sse.BroadcastAsync("import-owner", "{\"type\":\"enrichment-state\",\"address\":\"private\"}");
+        Assert.Empty(((MemoryStream)controller.Response.Body).ToArray());
         await sse.BroadcastAsync("import-owner", "{\"type\":\"import-state\"}");
         cts.Cancel();
         await subscription;
@@ -282,6 +284,7 @@ public class SseControllerTests
         var payload = System.Text.Encoding.UTF8.GetString(((MemoryStream)controller.Response.Body).ToArray());
         Assert.Contains("{\"type\":\"import-state\"}", payload, StringComparison.Ordinal);
         Assert.DoesNotContain("other", payload, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("private", payload, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

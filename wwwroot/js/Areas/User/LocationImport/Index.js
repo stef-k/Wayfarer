@@ -1,13 +1,14 @@
-// index.js
+import { createLocationImportRefresh } from './Refresh.js';
+
 document.addEventListener('DOMContentLoaded', () => {
-    // SSE stream
-    const stream = typeof EventSource === 'undefined' ? null : new EventSource('/api/sse/import');
+    const refresh = createLocationImportRefresh({ schedule: window.setTimeout.bind(window),
+        reload: () => window.location.reload() });
+    refresh.connect(globalThis.EventSource, '/api/sse/import');
+    window.addEventListener('pagehide', refresh.dispose, { once: true });
     // grab the antiforgery token
     const antiForgeryToken = document.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
     const cfg = window.__locationImportConfig;
 
-    if (stream) stream.onmessage = (event) => handleStream(event);
-    
     // helper to POST a tiny form
     function postForm(actionUrl, payload) {
         const form = document.createElement('form');
@@ -82,17 +83,6 @@ document.addEventListener('DOMContentLoaded', () => {
  * Parses the incoming Server Send Event payload and updates the correct row with the updated data.
  * @param event
  */
-let refreshQueued = false;
-
-/** Coalesces content-free notifications into one authoritative page reload. */
-const handleStream = (event) => {
-    let payload;
-    try { payload = JSON.parse(event.data); } catch { return; }
-    if (!['import-state', 'enrichment-state'].includes(payload?.type) || refreshQueued) return;
-    refreshQueued = true;
-    window.setTimeout(() => window.location.reload(), 100);
-}
-
 /**
  * Update the row in #locationImport matching filePathValue.
  *
