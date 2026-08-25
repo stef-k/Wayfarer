@@ -173,19 +173,21 @@ Role constants defined in `Util/ApplicationRoles.cs`.
 - Automatic reconnection support
 - Used for: location updates, import progress, job status, visits, invitations
 
-### Group notification streams
+### Legacy group notification streams
 
 ```
 /api/sse/stream/location-update/{userName}
 /api/sse/stream/group-location-update/{groupId}
 /api/sse/stream/visits
 /api/sse/stream/job-status
-/api/sse/stream/invitations
-/api/sse/stream/memberships
+/api/sse/stream/invitation-update/{userId}
+/api/sse/stream/membership-update/{userId}
 ```
 
-Invitation and membership streams notify their own authorized group participants. They do not own,
-authorize, or carry import or enrichment state.
+The invitation and membership URLs above are legacy generic channels used by current web clients.
+The generic endpoint is not authenticated or authorized, and the caller-supplied user ID selects the
+channel. These streams do not own, authorize, or carry import or enrichment state. Their authorization
+boundary requires a separate security follow-up; this enrichment slice does not change their behavior.
 
 ### Protected import and enrichment stream
 

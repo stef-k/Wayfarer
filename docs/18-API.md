@@ -204,19 +204,22 @@ GET/POST /api/location/log-location?lat=37.123&lon=-122.456&token=YOUR_TOKEN
 
 Real-time streaming endpoints for live updates.
 
-### Web App SSE Endpoints
+### Legacy group notification streams
 
 | Endpoint | Description |
 |----------|-------------|
 | `/api/sse/stream/location-update/{userName}` | User location updates |
 | `/api/sse/stream/group-location-update/{groupId}` | Group location updates |
 | `/api/sse/stream/visits` | Visit start/end notifications |
-| `/api/sse/stream/invitations` | Invitation notifications |
-| `/api/sse/stream/memberships` | Group membership changes |
+| `/api/sse/stream/invitation-update/{userId}` | Legacy invitation notifications selected by caller-supplied user ID |
+| `/api/sse/stream/membership-update/{userId}` | Legacy membership notifications selected by caller-supplied user ID |
 | `/api/sse/stream/job-status` | Background job status updates |
-| `/api/sse/import` | Authenticated import/enrichment reload hints for the current user |
 
-`/api/sse/import` derives its protected channel only from the authenticated `NameIdentifier`; callers cannot select a user, import, or workflow channel. This content-free SSE emits only the exact `import-state` and `enrichment-state` hints. Clients reload durable relational state and never treat an event payload as display data. The legacy generic SSE route rejects import and enrichment channel prefixes.
+The legacy invitation and membership streams use the generic endpoint, which is not authenticated or authorized. They are group-notification compatibility channels, not import or enrichment channels. Their authorization boundary requires a separate security follow-up.
+
+### Protected import and enrichment stream
+
+`/api/sse/import` requires authentication and derives its protected channel only from the authenticated `NameIdentifier`; callers cannot select a user, import, or workflow channel. This content-free SSE emits only the exact `import-state` and `enrichment-state` reload hints. Clients reload authoritative relational state and never treat an event payload as display data. The legacy generic SSE route rejects protected import and enrichment channel prefixes.
 
 ### Mobile SSE Endpoints
 
