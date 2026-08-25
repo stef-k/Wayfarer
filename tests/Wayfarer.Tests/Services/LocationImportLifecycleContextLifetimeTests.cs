@@ -159,6 +159,8 @@ public sealed class LocationImportLifecycleContextLifetimeTests
         private int injectConflict;
         private int injectedConflictCount;
         private int nextId;
+        private readonly List<int> createdIds = [];
+        private readonly List<string> events = [];
 
         internal RecordingFactory()
         {
@@ -172,14 +174,14 @@ public sealed class LocationImportLifecycleContextLifetimeTests
 
         internal int Alive => Volatile.Read(ref alive);
         internal int InjectedConflictCount => Volatile.Read(ref injectedConflictCount);
-        internal List<int> CreatedIds { get; } = [];
-        internal List<string> Events { get; } = [];
+        internal List<int> CreatedIds { get { lock (createdIds) return [.. createdIds]; } }
+        internal List<string> Events { get { lock (events) return [.. events]; } }
         internal TaskCompletionSource FirstDisposal { get; private set; } = NewSignal();
 
         public ApplicationDbContext CreateDbContext()
         {
             var id = Interlocked.Increment(ref nextId);
-            lock (CreatedIds) CreatedIds.Add(id);
+            lock (createdIds) createdIds.Add(id);
             var aliveBefore = Interlocked.Increment(ref alive) - 1;
             Record($"create:{id}:{aliveBefore}");
             return new RecordingContext(recordingOptions, services, id, () =>
@@ -199,8 +201,8 @@ public sealed class LocationImportLifecycleContextLifetimeTests
 
         internal void ResetObservation()
         {
-            CreatedIds.Clear();
-            Events.Clear();
+            lock (createdIds) createdIds.Clear();
+            lock (events) events.Clear();
             FirstDisposal = NewSignal();
         }
 
@@ -214,12 +216,12 @@ public sealed class LocationImportLifecycleContextLifetimeTests
 
         internal List<string> SnapshotEvents()
         {
-            lock (Events) return [.. Events];
+            lock (events) return [.. events];
         }
 
         private void Record(string value)
         {
-            lock (Events) Events.Add(value);
+            lock (events) events.Add(value);
         }
 
         private async Task InjectConflictAsync(RecordingContext context, CancellationToken token)
