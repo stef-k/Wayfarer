@@ -61,6 +61,28 @@ public sealed class LocationImportJobHistoryTests : TestBase
     }
 
     [Fact]
+    public async Task FencedProductFailure_PersistsEffectiveCancelledOutcome()
+    {
+        await using var db = CreateDbContext();
+        var service = new Mock<ILocationImportService>();
+        service.As<ILocationImportExecutionService>()
+            .Setup(item => item.ProcessImportExecution(7, 3, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("sensitive failure"));
+        var lifecycle = new Mock<ILocationImportLifecycle>();
+        lifecycle.Setup(item => item.ConvergeExecutionAsync(7, 3, LocationImportExecutionOutcome.Failed,
+                CancellationToken.None))
+            .ReturnsAsync(LocationImportExecutionOutcome.Stale);
+        var context = Context();
+        var job = new LocationImportJob(service.Object, NullLogger<LocationImportJob>.Instance, lifecycle.Object);
+        var failure = await Assert.ThrowsAsync<InvalidOperationException>(() => job.Execute(context.Object));
+
+        await Listener(db).JobWasExecuted(context.Object, new JobExecutionException(failure), CancellationToken.None);
+
+        Assert.Equal(LocationImportExecutionOutcome.Stale, context.Object.Result);
+        Assert.Equal("Cancelled", Assert.Single(db.JobHistories).Status);
+    }
+
+    [Fact]
     public async Task SchedulerCancellation_IsCancelledRatherThanCompleted()
     {
         await using var db = CreateDbContext();
