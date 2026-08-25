@@ -135,8 +135,9 @@ namespace Wayfarer.Parsers
 
                     locationImport.SkippedDuplicates += skippedInBatch;
 
-                    // Enrichment is deliberately not performed inline. Persisted Locations are handed to
-                    // the same leased workflow used by manual and scheduled executions after this commit.
+                    // Enrichment is deliberately not performed inline. A Location is invisible outside this
+                    // context until its insert commits; after that commit the importer never mutates it again.
+                    // Committed blank rows therefore pass directly to the shared leased enrichment workflow.
                     if (toInsert.Count > 0)
                     {
                         if (locationImport.EnrichmentRequested)
@@ -248,12 +249,6 @@ namespace Wayfarer.Parsers
                 cancellationToken);
 
         /// <summary>Identifies run-wide authority outcomes after which inline retries cannot succeed.</summary>
-        public static bool IsRunWideNoContact(ReverseGeocodingCategory category) => category is
-            ReverseGeocodingCategory.Exhausted or ReverseGeocodingCategory.NoProviderSelected
-            or ReverseGeocodingCategory.CredentialRequired or ReverseGeocodingCategory.ConsentRequired
-            or ReverseGeocodingCategory.Unauthorized or ReverseGeocodingCategory.VerificationRequired
-            or ReverseGeocodingCategory.StaleAuthority;
-
         private async Task ReconcileEnrichmentAsync(LocationImport import, CancellationToken cancellationToken)
         {
             if (!import.EnrichmentRequested || _enrichmentHandoff is null) return;
