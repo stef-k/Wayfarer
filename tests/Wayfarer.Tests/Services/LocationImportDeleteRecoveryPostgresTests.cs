@@ -182,8 +182,8 @@ public sealed class LocationImportDeleteRecoveryPostgresTests(PostgresImportTest
         return (user.Id, import.Id, path);
     }
 
-    private static LocationImportLifecycle Lifecycle(ApplicationDbContext db, IScheduler scheduler) =>
-        new(db, scheduler, NullLogger<LocationImportLifecycle>.Instance);
+    private LocationImportLifecycle Lifecycle(ApplicationDbContext db, IScheduler scheduler) =>
+        new(new FixtureFactory(fixture), scheduler, NullLogger<LocationImportLifecycle>.Instance);
 
     private static Mock<IScheduler> Scheduler(JobKey? executing = null)
     {

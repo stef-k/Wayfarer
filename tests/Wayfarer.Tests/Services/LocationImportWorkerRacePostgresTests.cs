@@ -65,7 +65,7 @@ public sealed class LocationImportWorkerRacePostgresTests(PostgresImportTestFixt
         var scheduler = EmptyScheduler();
         await using var workerDb = fixture.CreateContext();
         var service = Service(workerDb, null, observer);
-        var lifecycle = new LocationImportLifecycle(workerDb, scheduler.Object,
+        var lifecycle = new LocationImportLifecycle(new FixtureFactory(fixture), scheduler.Object,
             NullLogger<LocationImportLifecycle>.Instance, observer);
         var job = new LocationImportJob(service, NullLogger<LocationImportJob>.Instance, lifecycle);
         var context = JobContext(seed.ImportId, seed.Epoch);

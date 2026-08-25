@@ -53,7 +53,7 @@ public interface ILocationImportLifecycle
 
 /// <summary>Owns short relational lifecycle mutations and projects them only after commit.</summary>
 public sealed class LocationImportLifecycle(
-    ApplicationDbContext db, IScheduler scheduler, ILogger<LocationImportLifecycle> logger,
+    IDbContextFactory<ApplicationDbContext> contexts, IScheduler scheduler, ILogger<LocationImportLifecycle> logger,
     LocationImportProjectionCoordinator? projectionCoordinator = null) : ILocationImportLifecycle
 {
     private readonly LocationImportProjectionCoordinator projectionCoordinator =
@@ -62,9 +62,9 @@ public sealed class LocationImportLifecycle(
     private ILocationImportLifecycleObserver _observer = NullLocationImportLifecycleObserver.Instance;
 
     /// <summary>Creates a lifecycle with a test-controlled, authority-neutral persistence observer.</summary>
-    internal LocationImportLifecycle(ApplicationDbContext db, IScheduler scheduler,
+    internal LocationImportLifecycle(IDbContextFactory<ApplicationDbContext> contexts, IScheduler scheduler,
         ILogger<LocationImportLifecycle> logger, ILocationImportLifecycleObserver observer)
-        : this(db, scheduler, logger, (LocationImportProjectionCoordinator?)null) => _observer = observer;
+        : this(contexts, scheduler, logger, (LocationImportProjectionCoordinator?)null) => _observer = observer;
 
     public async Task<LocationImportCommandResult> StartAsync(
         string userId, int importId, CancellationToken cancellationToken = default)
@@ -73,7 +73,8 @@ public sealed class LocationImportLifecycle(
         int epoch;
         try
         {
-            var import = await OwnedAsync(userId, importId, cancellationToken);
+            await using var db = await contexts.CreateDbContextAsync(cancellationToken);
+            var import = await OwnedAsync(db, userId, importId, cancellationToken);
             if (import is null) return new(LocationImportCommandCode.NotFound);
             if (import.DeletionRequestedAtUtc.HasValue) return new(LocationImportCommandCode.InvalidState);
             if (import.Status == ImportStatus.Stopping) return new(LocationImportCommandCode.InvalidState);
@@ -85,10 +86,11 @@ public sealed class LocationImportLifecycle(
                 import.ErrorMessage = null;
             }
             import.ProjectionPending = true;
-            if (await SaveConvergentlyAsync(cancellationToken)) epoch = import.ExecutionEpoch;
+            if (await SaveConvergentlyAsync(db, cancellationToken)) epoch = import.ExecutionEpoch;
             else
             {
-                var current = await OwnedAsync(userId, importId, cancellationToken);
+                await using var reload = await contexts.CreateDbContextAsync(cancellationToken);
+                var current = await OwnedAsync(reload, userId, importId, cancellationToken);
                 if (current is null) return new(LocationImportCommandCode.NotFound);
                 if (current.DeletionRequestedAtUtc.HasValue || current.Status != ImportStatus.InProgress)
                     return new(LocationImportCommandCode.InvalidState);
@@ -100,16 +102,12 @@ public sealed class LocationImportLifecycle(
         try
         {
             await using var projection = await projectionCoordinator.AcquireAsync(importId, cancellationToken);
-            db.ChangeTracker.Clear();
-            var authority = await db.LocationImports.AsNoTracking().SingleOrDefaultAsync(x => x.Id == importId,
-                cancellationToken);
+            var authority = await LoadAuthorityAsync(importId, cancellationToken);
             if (authority is null || authority.ExecutionEpoch != epoch || authority.Status != ImportStatus.InProgress
                 || authority.StopRequestedAtUtc.HasValue || authority.DeletionRequestedAtUtc.HasValue)
                 return new(LocationImportCommandCode.InvalidState);
             await EnsureProjectionAsync(importId, epoch, cancellationToken);
-            db.ChangeTracker.Clear();
-            authority = await db.LocationImports.AsNoTracking().SingleOrDefaultAsync(x => x.Id == importId,
-                cancellationToken);
+            authority = await LoadAuthorityAsync(importId, cancellationToken);
             if (authority is null || authority.ExecutionEpoch != epoch || authority.Status != ImportStatus.InProgress
                 || authority.StopRequestedAtUtc.HasValue || authority.DeletionRequestedAtUtc.HasValue)
             {
@@ -133,7 +131,8 @@ public sealed class LocationImportLifecycle(
         await _commands.WaitAsync(cancellationToken);
         try
         {
-            var import = await OwnedAsync(userId, importId, cancellationToken);
+            await using var db = await contexts.CreateDbContextAsync(cancellationToken);
+            var import = await OwnedAsync(db, userId, importId, cancellationToken);
             if (import is null) return new(LocationImportCommandCode.NotFound);
             if (import.DeletionRequestedAtUtc.HasValue) return new(LocationImportCommandCode.InvalidState);
             if (import.Status is not null && import.Status != ImportStatus.InProgress && import.Status != ImportStatus.Stopping)
@@ -142,9 +141,10 @@ public sealed class LocationImportLifecycle(
             import.StopRequestedAtUtc ??= DateTime.UtcNow;
             import.ProjectionPending = true;
             epoch = import.ExecutionEpoch;
-            if (!await SaveConvergentlyAsync(cancellationToken))
+            if (!await SaveConvergentlyAsync(db, cancellationToken))
             {
-                var current = await OwnedAsync(userId, importId, cancellationToken);
+                await using var reload = await contexts.CreateDbContextAsync(cancellationToken);
+                var current = await OwnedAsync(reload, userId, importId, cancellationToken);
                 if (current is null) return new(LocationImportCommandCode.NotFound);
                 if (current.Status != ImportStatus.Stopping) return new(LocationImportCommandCode.InvalidState);
                 epoch = current.ExecutionEpoch;
@@ -167,29 +167,16 @@ public sealed class LocationImportLifecycle(
     public async Task<LocationImportCommandResult> DeleteAsync(
         string userId, int importId, CancellationToken cancellationToken = default)
     {
-        var import = await OwnedAsync(userId, importId, cancellationToken);
-        if (import is null) return new(LocationImportCommandCode.NotFound);
-        if (import.Status == ImportStatus.InProgress || import.Status == ImportStatus.Stopping)
+        var initial = await LoadOwnedAuthorityAsync(userId, importId, cancellationToken);
+        if (initial is null) return new(LocationImportCommandCode.NotFound);
+        if (initial.Status == ImportStatus.InProgress || initial.Status == ImportStatus.Stopping)
             return new(LocationImportCommandCode.ExecutionActive);
-
-        var path = import.FilePath;
-        var deletionEpoch = import.ExecutionEpoch;
-        import.DeletionRequestedAtUtc ??= DateTime.UtcNow;
-        try { await db.SaveChangesAsync(cancellationToken); }
-        catch (DbUpdateConcurrencyException)
-        {
-            db.ChangeTracker.Clear();
-            var current = await OwnedAsync(userId, importId, cancellationToken);
-            if (current is null) return new(LocationImportCommandCode.Accepted);
-            if (current.Status == ImportStatus.InProgress || current.Status == ImportStatus.Stopping)
-                return new(LocationImportCommandCode.ExecutionActive);
-            if (!current.DeletionRequestedAtUtc.HasValue) return new(LocationImportCommandCode.InvalidState);
-            import = current;
-            path = current.FilePath;
-        }
         try
         {
             await using var projection = await projectionCoordinator.AcquireAsync(importId, cancellationToken);
+            var intent = await CommitDeletionIntentAsync(userId, importId, cancellationToken);
+            if (intent.Result is not null) return intent.Result;
+            var deletionEpoch = intent.Authority!.Epoch;
             var executing = (await scheduler.GetCurrentlyExecutingJobs(cancellationToken) ?? [])
                 .Select(context => context.JobDetail.Key)
                 .Any(key => key.Group == LocationImportSchedulerKeys.Group
@@ -209,16 +196,13 @@ public sealed class LocationImportLifecycle(
             if (remaining.Any(key => key.Name.StartsWith(
                 $"LocationImportJob_{importId}_", StringComparison.Ordinal)))
                 return new(LocationImportCommandCode.ProjectionPending);
-            db.ChangeTracker.Clear();
-            import = await OwnedAsync(userId, importId, cancellationToken);
-            if (import is null) return new(LocationImportCommandCode.Accepted);
-            if (!import.DeletionRequestedAtUtc.HasValue || import.ExecutionEpoch != deletionEpoch
-                || import.Status == ImportStatus.InProgress || import.Status == ImportStatus.Stopping)
+            var authority = await LoadOwnedAuthorityAsync(userId, importId, cancellationToken);
+            if (authority is null) return new(LocationImportCommandCode.Accepted);
+            if (!authority.DeletionRequestedAtUtc.HasValue || authority.Epoch != deletionEpoch
+                || authority.Status == ImportStatus.InProgress || authority.Status == ImportStatus.Stopping)
                 return new(LocationImportCommandCode.ProjectionPending);
-            path = import.FilePath;
-            if (File.Exists(path)) File.Delete(path);
-            db.LocationImports.Remove(import);
-            await db.SaveChangesAsync(cancellationToken);
+            if (File.Exists(authority.FilePath)) File.Delete(authority.FilePath);
+            await FinalDeleteAsync(userId, importId, deletionEpoch, cancellationToken);
         }
         catch (Exception exception) when (exception is SchedulerException or IOException)
         {
@@ -227,8 +211,7 @@ public sealed class LocationImportLifecycle(
         }
         catch (DbUpdateConcurrencyException)
         {
-            db.ChangeTracker.Clear();
-            var current = await OwnedAsync(userId, importId, cancellationToken);
+            var current = await LoadOwnedAuthorityAsync(userId, importId, cancellationToken);
             return current is null || current.DeletionRequestedAtUtc.HasValue
                 ? new(LocationImportCommandCode.Accepted)
                 : new(LocationImportCommandCode.InvalidState);
@@ -258,12 +241,17 @@ public sealed class LocationImportLifecycle(
         int importId, int epoch, LocationImportExecutionOutcome outcome,
         CancellationToken cancellationToken = default)
     {
-        db.ChangeTracker.Clear();
-        var import = await db.LocationImports.SingleOrDefaultAsync(item => item.Id == importId, cancellationToken);
-        if (import is null || import.ExecutionEpoch != epoch) return LocationImportExecutionOutcome.Stale;
-        if (import.DeletionRequestedAtUtc.HasValue) return LocationImportExecutionOutcome.Stale;
-        var effectiveOutcome = import.Status == ImportStatus.Stopping
+        var authority = await LoadAuthorityAsync(importId, cancellationToken);
+        if (authority is null || authority.ExecutionEpoch != epoch) return LocationImportExecutionOutcome.Stale;
+        if (authority.DeletionRequestedAtUtc.HasValue) return LocationImportExecutionOutcome.Stale;
+        var effectiveOutcome = authority.Status == ImportStatus.Stopping
             ? LocationImportExecutionOutcome.Cancelled : outcome;
+        await _observer.BeforeTerminalPersistenceAsync(importId, epoch, effectiveOutcome, cancellationToken);
+        await using var db = await contexts.CreateDbContextAsync(cancellationToken);
+        var import = await db.LocationImports.SingleOrDefaultAsync(item => item.Id == importId, cancellationToken);
+        if (import is null || import.ExecutionEpoch != epoch || import.DeletionRequestedAtUtc.HasValue)
+            return LocationImportExecutionOutcome.Stale;
+        if (import.Status == ImportStatus.Stopping) effectiveOutcome = LocationImportExecutionOutcome.Cancelled;
         if (effectiveOutcome is LocationImportExecutionOutcome.Cancelled)
             import.Status = ImportStatus.Stopped;
         else if (effectiveOutcome == LocationImportExecutionOutcome.Completed)
@@ -275,13 +263,60 @@ public sealed class LocationImportLifecycle(
         }
         else return LocationImportExecutionOutcome.Stale;
         import.ProjectionPending = false;
-        await _observer.BeforeTerminalPersistenceAsync(importId, epoch, effectiveOutcome, cancellationToken);
-        return await SaveConvergentlyAsync(cancellationToken)
+        return await SaveConvergentlyAsync(db, cancellationToken)
             ? effectiveOutcome : LocationImportExecutionOutcome.Stale;
     }
 
-    private Task<LocationImport?> OwnedAsync(string userId, int importId, CancellationToken token) =>
+    private static Task<LocationImport?> OwnedAsync(ApplicationDbContext db, string userId, int importId, CancellationToken token) =>
         db.LocationImports.SingleOrDefaultAsync(item => item.Id == importId && item.UserId == userId, token);
+
+    private async Task<LocationImport?> LoadAuthorityAsync(int importId, CancellationToken token)
+    {
+        await using var db = await contexts.CreateDbContextAsync(token);
+        return await db.LocationImports.AsNoTracking().SingleOrDefaultAsync(x => x.Id == importId, token);
+    }
+
+    private async Task<OwnedAuthority?> LoadOwnedAuthorityAsync(string userId, int importId, CancellationToken token)
+    {
+        await using var db = await contexts.CreateDbContextAsync(token);
+        return await db.LocationImports.AsNoTracking().Where(x => x.Id == importId && x.UserId == userId)
+            .Select(x => new OwnedAuthority(x.ExecutionEpoch, x.Status, x.DeletionRequestedAtUtc, x.FilePath))
+            .SingleOrDefaultAsync(token);
+    }
+
+    private async Task<(OwnedAuthority? Authority, LocationImportCommandResult? Result)> CommitDeletionIntentAsync(
+        string userId, int importId, CancellationToken token)
+    {
+        await using var db = await contexts.CreateDbContextAsync(token);
+        var import = await OwnedAsync(db, userId, importId, token);
+        if (import is null) return (null, new(LocationImportCommandCode.NotFound));
+        if (import.Status == ImportStatus.InProgress || import.Status == ImportStatus.Stopping)
+            return (null, new(LocationImportCommandCode.ExecutionActive));
+        import.DeletionRequestedAtUtc ??= DateTime.UtcNow;
+        try { await db.SaveChangesAsync(token); }
+        catch (DbUpdateConcurrencyException)
+        {
+            var current = await LoadOwnedAuthorityAsync(userId, importId, token);
+            if (current is null) return (null, new(LocationImportCommandCode.Accepted));
+            if (current.Status == ImportStatus.InProgress || current.Status == ImportStatus.Stopping)
+                return (null, new(LocationImportCommandCode.ExecutionActive));
+            if (!current.DeletionRequestedAtUtc.HasValue)
+                return (null, new(LocationImportCommandCode.InvalidState));
+            return (current, null);
+        }
+        return (new(import.ExecutionEpoch, import.Status, import.DeletionRequestedAtUtc, import.FilePath), null);
+    }
+
+    private async Task FinalDeleteAsync(string userId, int importId, int epoch, CancellationToken token)
+    {
+        await using var db = await contexts.CreateDbContextAsync(token);
+        var import = await OwnedAsync(db, userId, importId, token);
+        if (import is null) return;
+        if (!import.DeletionRequestedAtUtc.HasValue || import.ExecutionEpoch != epoch
+            || import.Status == ImportStatus.InProgress || import.Status == ImportStatus.Stopping) return;
+        db.LocationImports.Remove(import);
+        await db.SaveChangesAsync(token);
+    }
 
     internal async Task EnsureProjectionAsync(int importId, int epoch, CancellationToken token)
     {
@@ -302,18 +337,21 @@ public sealed class LocationImportLifecycle(
 
     private async Task MarkProjectedAsync(int importId, int epoch, CancellationToken token)
     {
-        db.ChangeTracker.Clear();
+        await using var db = await contexts.CreateDbContextAsync(token);
         var import = await db.LocationImports.SingleOrDefaultAsync(item => item.Id == importId, token);
         if (import is null || import.ExecutionEpoch != epoch || import.Status != ImportStatus.InProgress) return;
         import.ProjectionPending = false;
-        _ = await SaveConvergentlyAsync(token);
+        _ = await SaveConvergentlyAsync(db, token);
     }
 
-    private async Task<bool> SaveConvergentlyAsync(CancellationToken token)
+    private static async Task<bool> SaveConvergentlyAsync(ApplicationDbContext db, CancellationToken token)
     {
         try { await db.SaveChangesAsync(token); return true; }
         catch (DbUpdateConcurrencyException) { db.ChangeTracker.Clear(); return false; }
     }
+
+    private sealed record OwnedAuthority(int Epoch, ImportStatus Status, DateTime? DeletionRequestedAtUtc,
+        string FilePath);
 
     private enum QuartzCleanupResult { Removed, AlreadyAbsent, SchedulerFailed, Cancelled }
 }

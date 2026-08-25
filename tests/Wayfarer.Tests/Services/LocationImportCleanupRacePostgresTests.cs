@@ -36,7 +36,7 @@ public sealed class LocationImportCleanupRacePostgresTests(PostgresImportTestFix
 
         LocationImportCommandResult result;
         await using (var command = fixture.CreateContext())
-            result = await new LocationImportLifecycle(command, scheduler.Object,
+            result = await new LocationImportLifecycle(new FixtureFactory(fixture), scheduler.Object,
                 NullLogger<LocationImportLifecycle>.Instance)
                 .DeleteAsync(seed.UserId, seed.ImportId, cancellation.Token);
 
@@ -92,7 +92,7 @@ public sealed class LocationImportCleanupRacePostgresTests(PostgresImportTestFix
         await queued.Task.WaitAsync(TimeSpan.FromSeconds(10));
         await using (var command = fixture.CreateContext())
         {
-            var result = await new LocationImportLifecycle(command, scheduler.Object,
+            var result = await new LocationImportLifecycle(new FixtureFactory(fixture), scheduler.Object,
                 NullLogger<LocationImportLifecycle>.Instance).DeleteAsync(seed.UserId, seed.ImportId);
             Assert.Equal(LocationImportCommandCode.Accepted, result.Code);
         }

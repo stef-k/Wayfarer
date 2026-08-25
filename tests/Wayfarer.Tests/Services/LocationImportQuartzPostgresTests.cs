@@ -52,7 +52,7 @@ public sealed class LocationImportQuartzPostgresTests(PostgresImportTestFixture 
             failing.Setup(item => item.CheckExists(It.IsAny<JobKey>(), default)).ReturnsAsync(false);
             failing.Setup(item => item.ScheduleJob(It.IsAny<IJobDetail>(), It.IsAny<ITrigger>(), default))
                 .ThrowsAsync(new SchedulerException("fixture projection failure"));
-            var result = await new LocationImportLifecycle(db, failing.Object,
+            var result = await new LocationImportLifecycle(new FixtureContextFactory(fixture), failing.Object,
                 NullLogger<LocationImportLifecycle>.Instance).StartAsync(seed.UserId, seed.ImportId);
             Assert.Equal(LocationImportCommandCode.ProjectionPending, result.Code);
         }
@@ -276,8 +276,8 @@ public sealed class LocationImportQuartzPostgresTests(PostgresImportTestFixture 
     {
         public IJob NewJob(TriggerFiredBundle bundle, IScheduler scheduler)
         {
-            var db = fixture.CreateContext();
-            var lifecycle = new LocationImportLifecycle(db, scheduler, NullLogger<LocationImportLifecycle>.Instance);
+            var lifecycle = new LocationImportLifecycle(new FixtureContextFactory(fixture), scheduler,
+                NullLogger<LocationImportLifecycle>.Instance);
             return new LocationImportJob(service, NullLogger<LocationImportJob>.Instance, lifecycle);
         }
         public void ReturnJob(IJob job) { }

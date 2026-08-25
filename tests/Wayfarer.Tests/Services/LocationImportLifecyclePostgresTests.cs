@@ -298,8 +298,13 @@ public sealed class LocationImportLifecyclePostgresTests(PostgresImportTestFixtu
         return (user.Id, import.Id);
     }
 
-    private static LocationImportLifecycle Owner(ApplicationDbContext db, IScheduler scheduler)
-        => new(db, scheduler, NullLogger<LocationImportLifecycle>.Instance);
+    private LocationImportLifecycle Owner(ApplicationDbContext db, IScheduler scheduler)
+        => new(new FixtureFactory(fixture), scheduler, NullLogger<LocationImportLifecycle>.Instance);
+
+    private sealed class FixtureFactory(PostgresImportTestFixture fixture) : IDbContextFactory<ApplicationDbContext>
+    {
+        public ApplicationDbContext CreateDbContext() => fixture.CreateContext();
+    }
 
     private static (Mock<IScheduler> Scheduler, ConcurrentDictionary<JobKey, byte> Schedules) Scheduler()
     {

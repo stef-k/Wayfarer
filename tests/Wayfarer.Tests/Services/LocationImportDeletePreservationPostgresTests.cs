@@ -28,7 +28,7 @@ public sealed class LocationImportDeletePreservationPostgresTests(PostgresImport
         var scheduler = Scheduler(jobs);
         await using (var command = fixture.CreateContext())
         {
-            var result = await new LocationImportLifecycle(command, scheduler.Object,
+            var result = await new LocationImportLifecycle(new FixtureFactory(fixture), scheduler.Object,
                 NullLogger<LocationImportLifecycle>.Instance).DeleteAsync(seed.UserId, seed.ImportId);
             Assert.Equal(LocationImportCommandCode.Accepted, result.Code);
         }

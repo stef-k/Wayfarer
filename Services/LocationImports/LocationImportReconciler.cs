@@ -108,8 +108,7 @@ public sealed class LocationImportReconciler(
         }
         try
         {
-            await using var db = await contexts.CreateDbContextAsync(token);
-            await new LocationImportLifecycle(db, scheduler, NullLogger<LocationImportLifecycle>.Instance,
+            await new LocationImportLifecycle(contexts, scheduler, NullLogger<LocationImportLifecycle>.Instance,
                     projectionCoordinator)
                 .EnsureProjectionAsync(importId, epoch, token);
             projected.Add(LocationImportSchedulerKeys.Job(importId, epoch));

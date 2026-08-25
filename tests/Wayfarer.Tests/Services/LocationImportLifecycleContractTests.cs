@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Moq;
 using NetTopologySuite.Geometries;
 using Quartz;
@@ -38,6 +39,7 @@ public sealed class LocationImportLifecycleContractTests : TestBase
 
         var result = await Owner(db, scheduler.Object).StartAsync("owner", 1);
 
+        db.ChangeTracker.Clear();
         Assert.Equal(LocationImportCommandCode.ProjectionPending, result.Code);
         Assert.Equal(ImportStatus.InProgress, db.LocationImports.Single().Status);
         Assert.True(db.LocationImports.Single().ProjectionPending);
@@ -54,6 +56,7 @@ public sealed class LocationImportLifecycleContractTests : TestBase
 
         await Task.WhenAll(owner.StartAsync("owner", 1), owner.StartAsync("owner", 1));
 
+        db.ChangeTracker.Clear();
         Assert.Equal(1, db.LocationImports.Single().ExecutionEpoch);
         scheduler.Verify(item => item.ScheduleJob(It.IsAny<IJobDetail>(), It.IsAny<ITrigger>(), default), Times.Once);
     }
@@ -93,6 +96,7 @@ public sealed class LocationImportLifecycleContractTests : TestBase
 
         await Owner(db, Scheduler().Object).ConvergeExecutionAsync(1, 4, outcome);
 
+        db.ChangeTracker.Clear();
         Assert.Equal(ImportStatus.Stopped, db.LocationImports.Single().Status);
     }
 
@@ -177,6 +181,7 @@ public sealed class LocationImportLifecycleContractTests : TestBase
 
         await Owner(db, scheduler.Object).StopAsync("owner", 1);
 
+        db.ChangeTracker.Clear();
         Assert.Equal(ImportStatus.Stopping, db.LocationImports.Single().Status);
         Assert.True(db.LocationImports.Single().StopRequestedAtUtc.HasValue);
     }
@@ -192,7 +197,7 @@ public sealed class LocationImportLifecycleContractTests : TestBase
     }
 
     private static LocationImportLifecycle Owner(ApplicationDbContext db, IScheduler scheduler)
-        => new(db, scheduler, NullLogger<LocationImportLifecycle>.Instance);
+        => new(new CloningFactory(db), scheduler, NullLogger<LocationImportLifecycle>.Instance);
 
     private static LocationImportReconciler Reconciler(
         IDbContextFactory<ApplicationDbContext> contexts, IScheduler scheduler)
@@ -202,6 +207,14 @@ public sealed class LocationImportLifecycleContractTests : TestBase
     {
         private readonly DbContextOptions<ApplicationDbContext> options =
             new DbContextOptionsBuilder<ApplicationDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options;
+        private readonly IServiceProvider services = new ServiceCollection().BuildServiceProvider();
+        public ApplicationDbContext CreateDbContext() => new(options, services);
+    }
+
+    private sealed class CloningFactory(ApplicationDbContext source) : IDbContextFactory<ApplicationDbContext>
+    {
+        private readonly DbContextOptions<ApplicationDbContext> options =
+            Assert.IsType<DbContextOptions<ApplicationDbContext>>(source.GetService<IDbContextOptions>());
         private readonly IServiceProvider services = new ServiceCollection().BuildServiceProvider();
         public ApplicationDbContext CreateDbContext() => new(options, services);
     }

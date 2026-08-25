@@ -34,14 +34,16 @@ namespace Wayfarer.Areas.User.Controllers
             IScheduler scheduler,
             IImportEnrichmentHandoff? enrichmentHandoff = null,
             IWorkflowScheduleProjection? workflowProjection = null,
-            ILocationImportLifecycle? importLifecycle = null)
+            ILocationImportLifecycle? importLifecycle = null,
+            IDbContextFactory<ApplicationDbContext>? contextFactory = null)
             : base(logger, dbContext)
         {
             _environment = environment;
             _scheduler = scheduler;
             _enrichmentHandoff = enrichmentHandoff;
             _importLifecycle = importLifecycle ?? new LocationImportLifecycle(
-                dbContext, scheduler, logger as ILogger<LocationImportLifecycle>
+                contextFactory ?? throw new ArgumentNullException(nameof(contextFactory)), scheduler,
+                logger as ILogger<LocationImportLifecycle>
                     ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<LocationImportLifecycle>.Instance);
         }
 
