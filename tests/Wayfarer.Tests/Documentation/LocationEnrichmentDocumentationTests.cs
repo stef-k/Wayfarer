@@ -6,6 +6,23 @@ namespace Wayfarer.Tests.Documentation;
 public sealed class LocationEnrichmentDocumentationTests
 {
     [Fact]
+    public void CanonicalDocsDescribeOnlyAuthenticatedProtectedImportSseRoute()
+    {
+        var docs = Directory.GetFiles(RepositoryFile("docs"), "*.md")
+            .Select(File.ReadAllText).Append(File.ReadAllText(RepositoryFile("README.md")))
+            .ToArray();
+        var combined = string.Join(Environment.NewLine, docs);
+
+        Assert.DoesNotContain("/api/sse/stream/import-progress", combined, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotMatch(@"/api/sse/stream/(?:[^\s`|)]*(?:import|enrichment)[^\s`|)]*)", combined);
+        Assert.Contains("/api/sse/import", combined, StringComparison.Ordinal);
+        Assert.Contains("authenticated", combined, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("NameIdentifier", combined, StringComparison.Ordinal);
+        Assert.Contains("content-free", combined, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("relational", combined, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void ImportingGuideDoesNotAdvertiseUnavailableRegenerateAction()
     {
         var guide = File.ReadAllText(RepositoryFile("docs", "07-Importing-Exporting.md"));
