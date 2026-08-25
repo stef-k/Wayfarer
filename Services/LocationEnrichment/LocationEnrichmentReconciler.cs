@@ -47,10 +47,10 @@ public sealed class LocationEnrichmentReconciler(
     private async Task<DateTime> ReadDatabaseTimeAsync(CancellationToken cancellationToken)
     {
         await using var db = await contexts.CreateDbContextAsync(cancellationToken);
-        return db.Database.IsNpgsql()
-            ? await db.Database.SqlQuery<DateTime>($"SELECT (clock_timestamp() AT TIME ZONE 'UTC') AS \"Value\"")
-                .SingleAsync(cancellationToken)
-            : DateTime.UtcNow;
+        if (!db.Database.IsNpgsql()) return DateTime.UtcNow;
+        var value = await db.Database.SqlQuery<DateTime>(
+            $"SELECT (clock_timestamp() AT TIME ZONE 'UTC') AS \"Value\"").SingleAsync(cancellationToken);
+        return DateTime.SpecifyKind(value, DateTimeKind.Utc);
     }
 
     private async Task<List<LocationEnrichmentWorkflow>> LoadWorkflowPageAsync(
