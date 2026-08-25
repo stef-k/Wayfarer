@@ -8,7 +8,9 @@ using Moq;
 using Wayfarer.Jobs;
 using Wayfarer.Models;
 using Wayfarer.Models.LocationEnrichment;
+using Wayfarer.Models.LocationProviders;
 using Wayfarer.Services.LocationEnrichment;
+using Wayfarer.Services.LocationProviders;
 using Wayfarer.Tests.Infrastructure;
 using Xunit;
 
@@ -19,7 +21,7 @@ namespace Wayfarer.Tests.Services;
 public sealed class LocationEnrichmentQuartzPostgresTests(PostgresImportTestFixture fixture)
 {
     [PostgresFact(Timeout = 30_000)]
-    public async Task OverdueProductionOneShotExecutesOnceAndDoesNotReplayAfterRestart()
+    public async Task RetryProjectionFailureReconcilesOnceAndDoesNotReplayAfterRestart()
     {
         fixture.RequireAvailable();
         await using var admin = fixture.CreateConnection();
@@ -40,33 +42,99 @@ public sealed class LocationEnrichmentQuartzPostgresTests(PostgresImportTestFixt
             var builder = new NpgsqlConnectionStringBuilder(persistedConnectionString) { SearchPath = schema };
             first = await new StdSchedulerFactory(Properties(builder.ConnectionString, schedulerName)).GetScheduler();
             user = await fixture.CreateUserAsync();
-            var workflow = LocationEnrichmentWorkflow.Create(user.Id, DateTime.UtcNow);
-            workflow.Start(DateTime.UtcNow);
-            workflow.ContinueAs(LocationEnrichmentState.BackingOff,
-                LocationEnrichmentOutcome.RetryableFailure, DateTime.UtcNow.AddMinutes(-1), DateTime.UtcNow);
+            var now = DateTime.UtcNow;
+            var profileId = Guid.NewGuid();
+            var workflow = LocationEnrichmentWorkflow.Create(user.Id, now);
+            workflow.Start(now);
+            workflow.TransitionToTerminal(LocationEnrichmentState.Completed,
+                LocationEnrichmentOutcome.NoCandidates, now);
             await using (var domain = fixture.CreateContext())
-            { domain.Add(workflow); await domain.SaveChangesAsync(); }
+            {
+                var location = new Wayfarer.Models.Location
+                {
+                    UserId = user.Id, Timestamp = now, LocalTimestamp = now, TimeZoneId = "UTC",
+                    Coordinates = new NetTopologySuite.Geometries.Point(23, 37) { SRID = 4326 }
+                };
+                domain.AddRange(workflow, location,
+                    new PersonalLocationProviderSelection
+                    { UserId = user.Id, GeocodingProviderKey = "geoapify", GeocodingSelectionGeneration = 1 },
+                    new PersonalLocationProviderProfile
+                    {
+                        Id = profileId, UserId = user.Id, ProviderKey = "geoapify", ProtectedCredential = "test-only",
+                        CredentialGeneration = 1, GeocodingAuthorized = true, GeocodingGeneration = 1,
+                        GeocodingVerification = PersonalProviderVerification.Verified,
+                        GeocodingVerifiedCredentialGeneration = 1, GeocodingVerifiedConfigurationGeneration = 1
+                    });
+                await domain.SaveChangesAsync();
+                domain.Add(new LocationEnrichmentAttempt
+                {
+                    UserId = user.Id, LocationId = location.Id, ProviderKey = "geoapify", ProviderProfileId = profileId,
+                    Capability = PersonalProviderCapability.Geocoding, CredentialGeneration = 1,
+                    ConfigurationGeneration = 1, SelectionGeneration = 1,
+                    Verification = PersonalProviderVerification.Verified,
+                    VerificationCredentialGeneration = 1, VerificationGeneration = 1,
+                    Outcome = LocationEnrichmentOutcome.NoResult, AdmittedAttemptCount = 1,
+                    LastAttemptAtUtc = now.AddMinutes(-1), NextAttemptAtUtc = now.AddHours(1)
+                });
+                await domain.SaveChangesAsync();
+            }
 
-            await new LocationEnrichmentScheduler(first).EnsureScheduledAsync(workflow);
-            var persisted = Assert.IsAssignableFrom<ISimpleTrigger>(await first.GetTrigger(
-                LocationEnrichmentScheduler.TriggerKey(workflow.SchedulerId, workflow.Epoch)));
-            Assert.Equal(MisfireInstruction.SimpleTrigger.FireNow, persisted.MisfireInstruction);
-            Assert.Equal(workflow.SchedulerId.ToString("N"),
-                (await first.GetJobDetail(LocationEnrichmentScheduler.JobKey(workflow.SchedulerId)))!
-                    .JobDataMap.GetString("workflowId"));
-            var jobMap = (await first.GetJobDetail(LocationEnrichmentScheduler.JobKey(workflow.SchedulerId)))!.JobDataMap;
-            Assert.Equal(["schema", "workflowId"], jobMap.Keys.Cast<string>().OrderBy(item => item));
-            Assert.All(jobMap.Values.Cast<object>(), value => Assert.IsType<string>(value));
-            Assert.Equal("1", jobMap.GetString("schema"));
-            Assert.Equal("1", persisted.JobDataMap.GetString("epoch"));
-            Assert.All(persisted.JobDataMap.Values.Cast<object>(), value => Assert.IsType<string>(value));
+            var inspection = new Mock<IPersonalProviderStatusReader>();
+            inspection.Setup(item => item.InspectPersistentGeocodingAsync(user.Id, It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new PersonalProviderInspection(PersonalProviderAdmissionCategory.Admitted,
+                    "geoapify", true, false, null, new(0, 2500, "credits", null, null),
+                    new("geoapify", profileId, 1, 1, 1, PersonalProviderVerification.Verified, 1, 1,
+                        null, null, null), now));
+            var failedProjection = new Mock<IWorkflowScheduleProjection>();
+            failedProjection.Setup(item => item.ProjectAsync(user.Id, It.IsAny<CancellationToken>()))
+                .ThrowsAsync(new InvalidOperationException("forced initial projection failure"));
+            await using (var commandDb = fixture.CreateContext())
+            {
+                var result = await new ImportEnrichmentHandoff(commandDb, failedProjection.Object,
+                    inspection.Object, new LocationEnrichmentProgressQuery(commandDb)).RetryDeferredAsync(user.Id);
+                Assert.Equal(LocationEnrichmentCommandResult.SchedulingPending, result.Classification);
+            }
+            await using (var verify = fixture.CreateContext())
+            {
+                var committed = await verify.LocationEnrichmentWorkflows.AsNoTracking()
+                    .SingleAsync(item => item.UserId == user.Id);
+                var attempt = await verify.LocationEnrichmentAttempts.AsNoTracking()
+                    .SingleAsync(item => item.UserId == user.Id);
+                Assert.Equal(LocationEnrichmentState.Scheduled, committed.State);
+                Assert.True(committed.IntentEnabled);
+                Assert.Equal(2, committed.Epoch);
+                Assert.Equal(LocationEnrichmentOutcome.None, attempt.Outcome);
+                Assert.Equal(0, attempt.AdmittedAttemptCount);
+            }
+            Assert.False(await first.CheckExists(LocationEnrichmentScheduler.JobKey(workflow.SchedulerId)));
+            Assert.False(await first.CheckExists(LocationEnrichmentScheduler.TriggerKey(workflow.SchedulerId, 2)));
             await first.Shutdown(false);
 
             restarted = await new StdSchedulerFactory(Properties(builder.ConnectionString, schedulerName)).GetScheduler();
+            var contextFactory = new FixtureFactory(fixture);
+            await new LocationEnrichmentReconciler(contextFactory,
+                new LocationEnrichmentScheduler(restarted), restarted).ReconcileAsync();
+            Assert.Single(await restarted.GetJobKeys(
+                Quartz.Impl.Matchers.GroupMatcher<JobKey>.GroupEquals(LocationEnrichmentScheduler.Group)));
+            Assert.Single(await restarted.GetTriggerKeys(
+                Quartz.Impl.Matchers.GroupMatcher<TriggerKey>.GroupEquals(LocationEnrichmentScheduler.Group)));
+
+            var persisted = Assert.IsAssignableFrom<ISimpleTrigger>(await restarted.GetTrigger(
+                LocationEnrichmentScheduler.TriggerKey(workflow.SchedulerId, 2)));
+            Assert.Equal(MisfireInstruction.SimpleTrigger.FireNow, persisted.MisfireInstruction);
+            Assert.Equal(workflow.SchedulerId.ToString("N"),
+                (await restarted.GetJobDetail(LocationEnrichmentScheduler.JobKey(workflow.SchedulerId)))!
+                    .JobDataMap.GetString("workflowId"));
+            var jobMap = (await restarted.GetJobDetail(LocationEnrichmentScheduler.JobKey(workflow.SchedulerId)))!.JobDataMap;
+            Assert.Equal(["schema", "workflowId"], jobMap.Keys.Cast<string>().OrderBy(item => item));
+            Assert.All(jobMap.Values.Cast<object>(), value => Assert.IsType<string>(value));
+            Assert.Equal("1", jobMap.GetString("schema"));
+            Assert.Equal("2", persisted.JobDataMap.GetString("epoch"));
+            Assert.All(persisted.JobDataMap.Values.Cast<object>(), value => Assert.IsType<string>(value));
             var executions = 0;
             var fired = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             var worker = new Mock<ILocationEnrichmentWorker>();
-            worker.Setup(item => item.RunBatchAsync(user.Id, workflow.Epoch, It.IsAny<CancellationToken>()))
+            worker.Setup(item => item.RunBatchAsync(user.Id, 2, It.IsAny<CancellationToken>()))
                 .ReturnsAsync(() => { Interlocked.Increment(ref executions); fired.TrySetResult();
                     return LocationEnrichmentWorkerOutcome.Completed; });
             restarted.JobFactory = new ProductionJobFactory(fixture, worker.Object);
@@ -74,7 +142,7 @@ public sealed class LocationEnrichmentQuartzPostgresTests(PostgresImportTestFixt
             Assert.Same(fired.Task, await Task.WhenAny(fired.Task, Task.Delay(TimeSpan.FromSeconds(10))));
             Assert.Equal(1, executions);
             await WaitUntilAsync(async () => !await restarted.CheckExists(
-                LocationEnrichmentScheduler.TriggerKey(workflow.SchedulerId, workflow.Epoch)), TimeSpan.FromSeconds(5));
+                LocationEnrichmentScheduler.TriggerKey(workflow.SchedulerId, 2)), TimeSpan.FromSeconds(5));
             await restarted.Shutdown(true);
             Assert.Equal(1, executions);
 
@@ -90,6 +158,14 @@ public sealed class LocationEnrichmentQuartzPostgresTests(PostgresImportTestFixt
                 It.IsAny<CancellationToken>()), Times.Never);
             await reconstructed.Shutdown(true);
             Assert.Equal(1, executions);
+            await using var finalVerify = fixture.CreateContext();
+            var finalWorkflow = await finalVerify.LocationEnrichmentWorkflows.AsNoTracking()
+                .SingleAsync(item => item.UserId == user.Id);
+            var finalAttempt = await finalVerify.LocationEnrichmentAttempts.AsNoTracking()
+                .SingleAsync(item => item.UserId == user.Id);
+            Assert.Equal(2, finalWorkflow.Epoch);
+            Assert.Equal(LocationEnrichmentOutcome.None, finalAttempt.Outcome);
+            Assert.Equal(0, finalAttempt.AdmittedAttemptCount);
         }
         catch (Exception exception)
         {
@@ -240,6 +316,12 @@ public sealed class LocationEnrichmentQuartzPostgresTests(PostgresImportTestFixt
             foreach (var db in contexts) db.Dispose();
             contexts.Clear();
         }
+    }
+
+    /// <summary>Reconstructs relational owners independently of persisted scheduler instances.</summary>
+    private sealed class FixtureFactory(PostgresImportTestFixture fixture) : IDbContextFactory<ApplicationDbContext>
+    {
+        public ApplicationDbContext CreateDbContext() => fixture.CreateContext();
     }
 
     private static NameValueCollection Properties(string connectionString, string schedulerName) => new()
