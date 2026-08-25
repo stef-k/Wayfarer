@@ -47,7 +47,8 @@ public sealed class LocationImportFinalProjectionAuthorityTests(PostgresImportTe
                 It.IsAny<CancellationToken>()))
             .Returns(async (IJobDetail job, ITrigger _, CancellationToken token) =>
             {
-                if (job.Key == LocationImportSchedulerKeys.Job(importId, 6))
+                if (job.Key.Name == LocationImportSchedulerKeys.Job(importId, 6).Name
+                    && job.Key.Group == LocationImportSchedulerKeys.Group)
                 {
                     await using var command = fixture.CreateContext();
                     var import = await command.LocationImports.SingleAsync(x => x.Id == importId, token);
