@@ -67,7 +67,7 @@ The application uses ASP.NET Areas for logical separation:
 
 - **Controllers** — HTTP endpoints for MVC and API
 - **Services** — Application logic (imports, exports, geocoding, tiles, SSE)
-- **Parsers** — File format ingestion (JSON, GPX, KML, GeoJSON)
+- **Parsers** — File format ingestion (JSON, GPX, KML, Wayfarer GeoJSON)
 - **Jobs** — Background processing via Quartz
 - **Models** — Domain entities, DTOs, options
 - **Middleware** — Performance logging, dynamic request size

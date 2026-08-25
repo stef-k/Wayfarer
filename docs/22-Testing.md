@@ -232,7 +232,7 @@ Coverage
 - List opt-in cases without executing their infrastructure with `dotnet test tests/Wayfarer.Tests/Wayfarer.Tests.csproj --list-tests --filter "Category=RequiresPlaywright"`, `--filter "Category=RequiresSpatialite"`, or `--filter "FullyQualifiedName~Postgres"`. Listing is discovery evidence only; execute an opt-in selection only after provisioning its documented prerequisite.
 
 Targets
-- Parsers: sample fixtures for GPX/KML/CSV/GeoJSON/Google JSON.
+- Parsers: sample fixtures for GPX/KML/CSV/Wayfarer GeoJSON/Google JSON.
 - Services: `LocationImportService`, `TripExportService`, `ReverseGeocodingService` (mock external calls).
 - Resumable enrichment uses fake HTTP for outcomes, guarded PostgreSQL for admission/attempt fairness and ownership, and the real Quartz ADO store for restart/misfire/reconciliation. Never contact public providers; give concurrency tests explicit timeouts and avoid sleep-based scheduler assertions.
 - API: controller tests using `WebApplicationFactory` and in-memory DB or test containers.
