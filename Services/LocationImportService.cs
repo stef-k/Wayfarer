@@ -222,7 +222,6 @@ namespace Wayfarer.Parsers
                 var li = await _context.LocationImports.FindAsync(importId);
                 if (li != null)
                 {
-                    await ReconcileEnrichmentAsync(li, CancellationToken.None);
                     await _sse.BroadcastAsync(
                         $"import-{li.UserId}",
                         SafeProgressEvent

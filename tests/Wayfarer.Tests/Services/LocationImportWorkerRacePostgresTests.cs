@@ -19,6 +19,73 @@ namespace Wayfarer.Tests.Services;
 [Collection(PostgresImportTestCollection.Name)]
 public sealed class LocationImportWorkerRacePostgresTests(PostgresImportTestFixture fixture)
 {
+    [PostgresTheory]
+    [InlineData(FailureAuthority.Current)]
+    [InlineData(FailureAuthority.Stop)]
+    [InlineData(FailureAuthority.NewEpoch)]
+    public async Task FailureHistory_UsesFreshRelationalAuthority(FailureAuthority change)
+    {
+        await using var seed = await SeedAsync(50, enrichmentRequested: true);
+        var observer = new FailingTerminalObserver();
+        seed.ReleaseGates = observer.ReleaseAll;
+        var handoff = new Mock<IImportEnrichmentHandoff>();
+        var scheduler = EmptyScheduler();
+        await using var workerDb = fixture.CreateContext();
+        var job = new LocationImportJob(Service(workerDb, handoff.Object, observer),
+            NullLogger<LocationImportJob>.Instance,
+            new LocationImportLifecycle(new FixtureFactory(fixture), scheduler.Object,
+                NullLogger<LocationImportLifecycle>.Instance, observer));
+        var context = JobContext(seed.ImportId, seed.Epoch);
+
+        var running = job.Execute(context.Object);
+        await observer.BatchReached.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        observer.ReleaseBatch();
+        await observer.TerminalReached.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        if (change != FailureAuthority.Current)
+        {
+            await using var authority = fixture.CreateContext();
+            var import = await authority.LocationImports.SingleAsync(x => x.Id == seed.ImportId);
+            if (change == FailureAuthority.Stop)
+            {
+                import.Status = ImportStatus.Stopping;
+                import.StopRequestedAtUtc = DateTime.UtcNow;
+                import.ProjectionPending = true;
+            }
+            else
+            {
+                import.ExecutionEpoch++;
+                import.ProjectionPending = false;
+            }
+            await authority.SaveChangesAsync();
+        }
+        observer.ReleaseTerminal();
+        await running;
+
+        await using var verification = fixture.CreateContext();
+        await Listener(verification).JobWasExecuted(context.Object, null, CancellationToken.None);
+        var stored = await verification.LocationImports.AsNoTracking().SingleAsync(x => x.Id == seed.ImportId);
+        var history = await verification.JobHistories.SingleAsync(x => x.JobName == context.Object.JobDetail.Key.Name);
+        if (change == FailureAuthority.Current)
+        {
+            Assert.Equal(LocationImportExecutionOutcome.Failed, context.Object.Result);
+            Assert.Equal(ImportStatus.Failed, stored.Status);
+            Assert.Equal("Failed", history.Status);
+            Assert.Equal("Import processing failed.", stored.ErrorMessage);
+        }
+        else
+        {
+            Assert.True((LocationImportExecutionOutcome)context.Object.Result! is
+                LocationImportExecutionOutcome.Cancelled or LocationImportExecutionOutcome.Stale);
+            Assert.Equal("Cancelled", history.Status);
+            Assert.DoesNotContain("sensitive-worker-detail", stored.ErrorMessage ?? string.Empty);
+            Assert.Equal(change == FailureAuthority.Stop ? seed.Epoch : seed.Epoch + 1, stored.ExecutionEpoch);
+        }
+        Assert.Equal(50, await verification.Locations.CountAsync(x => x.UserId == seed.UserId));
+        Assert.DoesNotContain("sensitive-worker-detail", history.Status);
+        handoff.Verify(x => x.EnsureAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        await verification.JobHistories.Where(x => x.JobName == context.Object.JobDetail.Key.Name).ExecuteDeleteAsync();
+    }
+
     [PostgresFact]
     public async Task DeletionAfterFirstBatch_FencesSecondBatchAndReconcilesDeletion()
     {
@@ -186,6 +253,34 @@ public sealed class LocationImportWorkerRacePostgresTests(PostgresImportTestFixt
             LocationImportExecutionOutcome outcome, CancellationToken token)
         { if (blockBeforeTerminalPersistence) { reached.TrySetResult(); await release.Task.WaitAsync(token); } }
     }
+
+    private sealed class FailingTerminalObserver : ILocationImportLifecycleObserver
+    {
+        private readonly TaskCompletionSource releaseBatch = NewSignal();
+        private readonly TaskCompletionSource releaseTerminal = NewSignal();
+        internal TaskCompletionSource BatchReached { get; } = NewSignal();
+        internal TaskCompletionSource TerminalReached { get; } = NewSignal();
+        internal void ReleaseBatch() => releaseBatch.TrySetResult();
+        internal void ReleaseTerminal() => releaseTerminal.TrySetResult();
+        internal void ReleaseAll() { ReleaseBatch(); ReleaseTerminal(); }
+        public async Task AfterBatchCommittedAsync(int importId, int epoch, int processed, CancellationToken token)
+        {
+            if (processed != 50) return;
+            BatchReached.TrySetResult();
+            await releaseBatch.Task.WaitAsync(token);
+            throw new InvalidOperationException("sensitive-worker-detail");
+        }
+        public async Task BeforeTerminalPersistenceAsync(int importId, int epoch,
+            LocationImportExecutionOutcome outcome, CancellationToken token)
+        {
+            TerminalReached.TrySetResult();
+            await releaseTerminal.Task.WaitAsync(token);
+        }
+        private static TaskCompletionSource NewSignal() =>
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+    }
+
+    public enum FailureAuthority { Current, Stop, NewEpoch }
 
     private sealed class RejectingHandler : HttpMessageHandler
     {
