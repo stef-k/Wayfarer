@@ -199,6 +199,54 @@ public sealed class PersonalProviderUsagePostgresTests(PostgresImportTestFixture
     }
 
     [PostgresFact]
+    public async Task StatusReaderUsesStrictDatabaseClockCutoffAndFiveSecondWakeMargin()
+    {
+        fixture.RequireAvailable();
+        var user = await fixture.CreateUserAsync();
+        var protection = new EphemeralDataProtectionProvider();
+        await SeedVerifiedProfileAsync(user.Id, PersonalLocationProvider.Geoapify,
+            PersonalProviderCapability.Geocoding, protection);
+        await using var context = fixture.CreateContext();
+        context.GeoapifyUsageGuards.Add(new() { UserId = user.Id, Enabled = true, CreditLimit = 2 });
+        await context.SaveChangesAsync();
+        await context.Database.ExecuteSqlInterpolatedAsync($$"""
+            INSERT INTO "GeoapifyUsageAdmissions" ("UserId", "Credits", "Product", "AdmittedAt")
+            VALUES ({{user.Id}}, 100, 1, clock_timestamp() - interval '24 hours'),
+                   ({{user.Id}}, 2, 1, clock_timestamp() - interval '23 hours')
+            """);
+
+        var status = await Reader(context, protection).InspectPersistentGeocodingAsync(user.Id);
+
+        Assert.Equal(2, status.Usage!.Used);
+        Assert.True(status.Exhausted);
+        Assert.Equal(status.DatabaseNowUtc.AddHours(-24), status.Usage.RollingCutoff!.Value.UtcDateTime);
+        Assert.InRange(status.NextAvailableAt!.Value,
+            new DateTimeOffset(status.DatabaseNowUtc.AddHours(1).AddSeconds(4), TimeSpan.Zero),
+            new DateTimeOffset(status.DatabaseNowUtc.AddHours(1).AddSeconds(6), TimeSpan.Zero));
+    }
+
+    [PostgresFact]
+    public async Task StatusReaderUsesDatabaseClockUtcMonthForPermanentMeter()
+    {
+        fixture.RequireAvailable();
+        var user = await fixture.CreateUserAsync();
+        var protection = new EphemeralDataProtectionProvider();
+        await SeedVerifiedProfileAsync(user.Id, PersonalLocationProvider.Mapbox,
+            PersonalProviderCapability.Geocoding, protection);
+        await using var context = fixture.CreateContext();
+        await context.Database.ExecuteSqlInterpolatedAsync($$"""
+            INSERT INTO "MapboxProductMeters" ("UserId", "Product", "Enabled", "Limit", "CycleStart", "AdmittedCount")
+            VALUES ({{user.Id}}, 3, TRUE, 5, date_trunc('month', clock_timestamp() AT TIME ZONE 'UTC')::date, 4)
+            """);
+
+        var status = await Reader(context, protection).InspectPersistentGeocodingAsync(user.Id);
+
+        Assert.Equal(4, status.Usage!.Used);
+        Assert.Equal(new DateOnly(status.DatabaseNowUtc.Year, status.DatabaseNowUtc.Month, 1),
+            status.Usage.CycleStart);
+    }
+
+    [PostgresFact]
     public async Task MapboxVerificationWrite_CannotVerifyReplacementCredential()
     {
         fixture.RequireAvailable();
@@ -274,4 +322,9 @@ public sealed class PersonalProviderUsagePostgresTests(PostgresImportTestFixture
         var config = new ConfigurationBuilder().AddInMemoryCollection().Build();
         return new(context, owner, new LegacyMapboxMigrationService(context, owner), config);
     }
+
+    private static PersonalProviderStatusReader Reader(
+        Wayfarer.Models.ApplicationDbContext context, IDataProtectionProvider protection)
+        => new(context, new PersonalProviderCredentialService(protection),
+            new ConfigurationBuilder().AddInMemoryCollection().Build());
 }
