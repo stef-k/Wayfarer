@@ -27,15 +27,18 @@ public sealed class LocationEnrichmentDocumentationTests
     public void ArchitectureSeparatesGroupAndProtectedImportStreamDomains()
     {
         var architecture = File.ReadAllText(RepositoryFile("docs", "15-Architecture.md"));
-        var groupStart = architecture.IndexOf("### Group notification streams", StringComparison.Ordinal);
+        var groupStart = architecture.IndexOf("### Legacy group notification streams", StringComparison.Ordinal);
         var protectedStart = architecture.IndexOf("### Protected import and enrichment stream", StringComparison.Ordinal);
         var nextSection = architecture.IndexOf("\n---", protectedStart, StringComparison.Ordinal);
 
         Assert.True(groupStart >= 0 && protectedStart > groupStart);
         var group = architecture[groupStart..protectedStart];
         var protectedImport = architecture[protectedStart..nextSection];
-        Assert.Contains("/api/sse/stream/invitations", group, StringComparison.Ordinal);
-        Assert.Contains("/api/sse/stream/memberships", group, StringComparison.Ordinal);
+        Assert.Contains("/api/sse/stream/invitation-update/{userId}", group, StringComparison.Ordinal);
+        Assert.Contains("/api/sse/stream/membership-update/{userId}", group, StringComparison.Ordinal);
+        Assert.DoesNotContain("/api/sse/stream/invitations", architecture, StringComparison.Ordinal);
+        Assert.DoesNotContain("/api/sse/stream/memberships", architecture, StringComparison.Ordinal);
+        Assert.Contains("not authenticated or authorized", group, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("/api/sse/import", group, StringComparison.Ordinal);
         Assert.Contains("do not own", group, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(1, architecture.Split("/api/sse/import", StringSplitOptions.None).Length - 1);
