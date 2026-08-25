@@ -179,6 +179,27 @@ public sealed class LocationEnrichmentRetryAtomicityPostgresTests(PostgresImport
         scenario.Projection.Verify(x => x.ProjectAsync(scenario.UserId, It.IsAny<CancellationToken>()), Times.Once);
     }
 
+    [PostgresFact]
+    public async Task AuthorityGenerationDriftBeforeRetryIsMutationFree()
+    {
+        fixture.RequireAvailable();
+        var scenario = await SeedAsync(LocationEnrichmentState.Completed, LocationEnrichmentOutcome.NoResult);
+        await using (var drift = fixture.CreateContext())
+        {
+            var selection = await drift.PersonalLocationProviderSelections.SingleAsync(x => x.UserId == scenario.UserId);
+            selection.GeocodingSelectionGeneration++;
+            await drift.SaveChangesAsync();
+        }
+        var before = await SnapshotAsync(scenario.UserId);
+
+        var result = await Command(scenario).RetryDeferredAsync(scenario.UserId);
+
+        Assert.Equal(LocationEnrichmentCommandResult.Conflict, result.Classification);
+        Assert.Equal("authority-unavailable", result.Code);
+        Assert.Equal(before, await SnapshotAsync(scenario.UserId));
+        scenario.Projection.Verify(x => x.ProjectAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
     private ImportEnrichmentHandoff Command(Scenario scenario)
     {
         var db = fixture.CreateContext();

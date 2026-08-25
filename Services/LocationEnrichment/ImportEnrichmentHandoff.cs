@@ -94,6 +94,8 @@ public sealed class ImportEnrichmentHandoff(
         try { await db.SaveChangesAsync(cancellationToken); }
         catch (DbUpdateException exception) when (IsWorkflowUniqueRace(exception))
         {
+            if (transaction != null) await transaction.RollbackAsync(CancellationToken.None);
+            if (transaction != null) await transaction.DisposeAsync();
             db.ChangeTracker.Clear();
             var current = await db.LocationEnrichmentWorkflows.AsNoTracking()
                 .SingleAsync(item => item.UserId == userId, cancellationToken);
@@ -103,6 +105,7 @@ public sealed class ImportEnrichmentHandoff(
                 : EnrichmentCommandResult.Conflict("concurrent-command");
         }
         if (transaction != null) await transaction.CommitAsync(cancellationToken);
+        if (transaction != null) await transaction.DisposeAsync();
         try { await projection.ProjectAsync(userId, cancellationToken); }
         catch { return EnrichmentCommandResult.Conflict("scheduling-reconciliation-required"); }
         return EnrichmentCommandResult.Success("scheduled");
@@ -143,10 +146,12 @@ public sealed class ImportEnrichmentHandoff(
                     EnrichmentCommandResult.Conflict("concurrent-command"), cancellationToken);
             await db.SaveChangesAsync(cancellationToken);
             if (transaction != null) await transaction.CommitAsync(cancellationToken);
+            if (transaction != null) await transaction.DisposeAsync();
         }
         catch (DbUpdateConcurrencyException)
         {
             if (transaction != null) await transaction.RollbackAsync(CancellationToken.None);
+            if (transaction != null) await transaction.DisposeAsync();
             db.ChangeTracker.Clear();
             return EnrichmentCommandResult.Conflict("concurrent-command");
         }
@@ -235,6 +240,7 @@ public sealed class ImportEnrichmentHandoff(
         EnrichmentCommandResult result, CancellationToken cancellationToken)
     {
         if (transaction != null) await transaction.RollbackAsync(cancellationToken);
+        if (transaction != null) await transaction.DisposeAsync();
         return result;
     }
 
@@ -257,6 +263,8 @@ public sealed class ImportEnrichmentHandoff(
         try { await db.SaveChangesAsync(cancellationToken); }
         catch (DbUpdateConcurrencyException)
         {
+            if (transaction != null) await transaction.RollbackAsync(CancellationToken.None);
+            if (transaction != null) await transaction.DisposeAsync();
             db.ChangeTracker.Clear();
             var current = await db.LocationEnrichmentWorkflows.AsNoTracking()
                 .SingleOrDefaultAsync(item => item.UserId == userId, cancellationToken);
@@ -264,6 +272,7 @@ public sealed class ImportEnrichmentHandoff(
                 : ClassifyAfterRace(result.Code, current);
         }
         if (transaction != null) await transaction.CommitAsync(cancellationToken);
+        if (transaction != null) await transaction.DisposeAsync();
         try { await projection.ProjectAsync(userId, cancellationToken); }
         catch { return EnrichmentCommandResult.Scheduling("scheduling-reconciliation-required"); }
         return result;

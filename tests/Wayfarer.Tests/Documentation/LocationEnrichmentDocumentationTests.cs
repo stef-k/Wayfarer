@@ -14,7 +14,8 @@ public sealed class LocationEnrichmentDocumentationTests
         var combined = string.Join(Environment.NewLine, docs);
 
         Assert.DoesNotContain("/api/sse/stream/import-progress", combined, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotMatch(@"/api/sse/stream/(?:[^\s`|)]*(?:import|enrichment)[^\s`|)]*)", combined);
+        Assert.DoesNotMatch(@"/api/sse/stream/(?:[^\s`|)]*(?:import|enrichment)[^\s`|)]*)",
+            combined.ToLowerInvariant());
         Assert.Contains("/api/sse/import", combined, StringComparison.Ordinal);
         Assert.Contains("authenticated", combined, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("NameIdentifier", combined, StringComparison.Ordinal);
