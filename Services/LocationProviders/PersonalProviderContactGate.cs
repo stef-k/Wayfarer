@@ -377,4 +377,3 @@ public sealed class PersonalProviderContactGate(
         public static ResolvedAuthority Fail(PersonalProviderAdmissionCategory category) => new(false, category, null, null, 0, 0, 0);
     }
 }
-
