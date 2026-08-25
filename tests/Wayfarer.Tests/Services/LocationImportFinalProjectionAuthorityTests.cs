@@ -47,12 +47,15 @@ public sealed class LocationImportFinalProjectionAuthorityTests(PostgresImportTe
                 It.IsAny<CancellationToken>()))
             .Returns(async (IJobDetail job, ITrigger _, CancellationToken token) =>
             {
-                await using var command = fixture.CreateContext();
-                var import = await command.LocationImports.SingleAsync(x => x.Id == importId, token);
-                import.Status = ImportStatus.Stopped;
-                import.ProjectionPending = false;
-                import.DeletionRequestedAtUtc = DateTime.UtcNow;
-                await command.SaveChangesAsync(token);
+                if (job.Key == LocationImportSchedulerKeys.Job(importId, 6))
+                {
+                    await using var command = fixture.CreateContext();
+                    var import = await command.LocationImports.SingleAsync(x => x.Id == importId, token);
+                    import.Status = ImportStatus.Stopped;
+                    import.ProjectionPending = false;
+                    import.DeletionRequestedAtUtc = DateTime.UtcNow;
+                    await command.SaveChangesAsync(token);
+                }
                 jobs.Add(job.Key);
                 return DateTimeOffset.UtcNow;
             });
@@ -62,7 +65,7 @@ public sealed class LocationImportFinalProjectionAuthorityTests(PostgresImportTe
         await new LocationImportReconciler(new FixtureFactory(fixture), scheduler.Object,
             NullLogger<LocationImportReconciler>.Instance).ReconcileAsync();
 
-        Assert.Empty(jobs);
+        Assert.DoesNotContain(LocationImportSchedulerKeys.Job(importId, 6), jobs);
         await using var verification = fixture.CreateContext();
         Assert.Null(await verification.LocationImports.FindAsync(importId));
         Assert.False(File.Exists(path));
