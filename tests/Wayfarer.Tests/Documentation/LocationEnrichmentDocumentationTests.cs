@@ -24,6 +24,32 @@ public sealed class LocationEnrichmentDocumentationTests
     }
 
     [Fact]
+    public void ArchitectureSeparatesGroupAndProtectedImportStreamDomains()
+    {
+        var architecture = File.ReadAllText(RepositoryFile("docs", "15-Architecture.md"));
+        var groupStart = architecture.IndexOf("### Group notification streams", StringComparison.Ordinal);
+        var protectedStart = architecture.IndexOf("### Protected import and enrichment stream", StringComparison.Ordinal);
+        var nextSection = architecture.IndexOf("\n---", protectedStart, StringComparison.Ordinal);
+
+        Assert.True(groupStart >= 0 && protectedStart > groupStart);
+        var group = architecture[groupStart..protectedStart];
+        var protectedImport = architecture[protectedStart..nextSection];
+        Assert.Contains("/api/sse/stream/invitations", group, StringComparison.Ordinal);
+        Assert.Contains("/api/sse/stream/memberships", group, StringComparison.Ordinal);
+        Assert.DoesNotContain("/api/sse/import", group, StringComparison.Ordinal);
+        Assert.Contains("do not own", group, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(1, architecture.Split("/api/sse/import", StringSplitOptions.None).Length - 1);
+        Assert.Contains("/api/sse/import", protectedImport, StringComparison.Ordinal);
+        Assert.Contains("NameIdentifier", protectedImport, StringComparison.Ordinal);
+        Assert.Contains("import-state", protectedImport, StringComparison.Ordinal);
+        Assert.Contains("enrichment-state", protectedImport, StringComparison.Ordinal);
+        Assert.Contains("relational page reload", protectedImport, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("/api/sse/stream/import-progress", architecture, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("/api/sse/stream/location-update/{userName}", group, StringComparison.Ordinal);
+        Assert.Contains("/api/sse/stream/job-status", group, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void ImportingGuideDoesNotAdvertiseUnavailableRegenerateAction()
     {
         var guide = File.ReadAllText(RepositoryFile("docs", "07-Importing-Exporting.md"));
