@@ -13,6 +13,13 @@ public sealed class LocationImportProjectionCoordinator
     /// <summary>Shared fallback for explicitly constructed lifecycle collaborators.</summary>
     internal static LocationImportProjectionCoordinator Shared { get; } = new();
 
+    /// <summary>Exposes bounded ownership counts to deterministic contract tests.</summary>
+    internal int EntryCount { get { lock (sync) return entries.Count; } }
+    internal int ReferenceCount(int importId)
+    {
+        lock (sync) return entries.TryGetValue(importId, out var entry) ? entry.References : 0;
+    }
+
     /// <summary>Acquires cancellation-aware projection ownership for one exact import.</summary>
     public async ValueTask<IAsyncDisposable> AcquireAsync(int importId, CancellationToken token = default)
     {

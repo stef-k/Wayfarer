@@ -33,16 +33,18 @@ public sealed class LocationImportReconciler(
             {
                 token.ThrowIfCancellationRequested();
                 await using var projection = await projectionCoordinator.AcquireAsync(item.Id, token);
-                var key = LocationImportSchedulerKeys.Job(item.Id, item.Epoch);
-                orphans.Remove(key);
-                if (item.DeletionRequestedAtUtc.HasValue)
-                    await FinalizeDeletionAsync(item.Id, projected, executing, token);
-                else if (item.Status == ImportStatus.InProgress &&
-                    (!projected.Contains(key) || !triggers.Contains(LocationImportSchedulerKeys.Trigger(item.Id, item.Epoch))))
-                    await RepairAsync(item.Id, item.Epoch, projected, triggers, token);
-                else if (item.Status == ImportStatus.Stopping)
-                    await ConvergeStopAsync(item.Id, item.Epoch, key, executing, projected, token);
-                else if (item.Status != ImportStatus.InProgress && projected.Contains(key) && !executing.Contains(key))
+                var authority = await LoadAuthorityAsync(item.Id, token);
+                if (authority is null) continue;
+                var key = LocationImportSchedulerKeys.Job(item.Id, authority.Epoch);
+                orphans.RemoveWhere(candidate => TryParseJob(candidate, out var id, out _) && id == item.Id);
+                if (authority.DeletionRequestedAtUtc.HasValue)
+                    await FinalizeDeletionAsync(authority.Id, projected, executing, token);
+                else if (authority.Status == ImportStatus.InProgress &&
+                    (!projected.Contains(key) || !triggers.Contains(LocationImportSchedulerKeys.Trigger(item.Id, authority.Epoch))))
+                    await RepairAsync(authority.Id, authority.Epoch, projected, triggers, token);
+                else if (authority.Status == ImportStatus.Stopping)
+                    await ConvergeStopAsync(authority.Id, authority.Epoch, key, executing, projected, token);
+                else if (authority.Status != ImportStatus.InProgress && projected.Contains(key) && !executing.Contains(key))
                     await DeleteProjectionAsync(key, projected, token);
             }
             afterId = page[^1].Id;
@@ -87,14 +89,24 @@ public sealed class LocationImportReconciler(
         var remaining = await scheduler.GetJobKeys(
             GroupMatcher<JobKey>.GroupEquals(LocationImportSchedulerKeys.Group), token) ?? [];
         if (remaining.Any(key => TryParseJob(key, out var id, out _) && id == importId)) return;
-        await using var db = await contexts.CreateDbContextAsync(token);
-        var import = await db.LocationImports.SingleOrDefaultAsync(
+        string? path;
+        await using (var db = await contexts.CreateDbContextAsync(token))
+        {
+            path = await db.LocationImports.AsNoTracking()
+                .Where(x => x.Id == importId && x.DeletionRequestedAtUtc != null
+                    && x.ExecutionEpoch == authority.Epoch && x.Status != ImportStatus.InProgress
+                    && x.Status != ImportStatus.Stopping)
+                .Select(x => x.FilePath).SingleOrDefaultAsync(token);
+        }
+        if (path is null) return;
+        if (File.Exists(path)) File.Delete(path);
+        await using var deletion = await contexts.CreateDbContextAsync(token);
+        var import = await deletion.LocationImports.SingleOrDefaultAsync(
             x => x.Id == importId && x.DeletionRequestedAtUtc != null, token);
         if (import is null || import.ExecutionEpoch != authority.Epoch
             || import.Status == ImportStatus.InProgress || import.Status == ImportStatus.Stopping) return;
-        if (File.Exists(import.FilePath)) File.Delete(import.FilePath);
-        db.LocationImports.Remove(import);
-        await db.SaveChangesAsync(token);
+        deletion.LocationImports.Remove(import);
+        await deletion.SaveChangesAsync(token);
     }
 
     private async Task RepairAsync(int importId, int epoch, HashSet<JobKey> projected,
@@ -103,16 +115,14 @@ public sealed class LocationImportReconciler(
         var authority = await LoadAuthorityAsync(importId, token);
         if (!AllowsProjection(authority, epoch))
         {
-            await RemoveMatchingProjectionsAsync(importId, projected, token);
+            await DeleteProjectionAsync(LocationImportSchedulerKeys.Job(importId, epoch), projected, token);
+            if (authority is not null && AllowsProjection(authority, authority.Epoch))
+                await ProjectAsync(importId, authority.Epoch, projected, triggers, token);
             return;
         }
         try
         {
-            await new LocationImportLifecycle(contexts, scheduler, NullLogger<LocationImportLifecycle>.Instance,
-                    projectionCoordinator)
-                .EnsureProjectionAsync(importId, epoch, token);
-            projected.Add(LocationImportSchedulerKeys.Job(importId, epoch));
-            triggers.Add(LocationImportSchedulerKeys.Trigger(importId, epoch));
+            await ProjectAsync(importId, epoch, projected, triggers, token);
         }
         catch (Exception exception) when (exception is SchedulerException or ObjectAlreadyExistsException)
         {
@@ -123,6 +133,8 @@ public sealed class LocationImportReconciler(
         if (!AllowsProjection(authority, epoch))
         {
             await DeleteProjectionAsync(LocationImportSchedulerKeys.Job(importId, epoch), projected, token);
+            if (authority is not null && AllowsProjection(authority, authority.Epoch))
+                await ProjectAsync(importId, authority.Epoch, projected, triggers, token);
             if (authority?.DeletionRequestedAtUtc.HasValue == true)
                 await FinalizeDeletionAsync(importId, projected, [], token);
             return;
@@ -137,13 +149,14 @@ public sealed class LocationImportReconciler(
         }
     }
 
-    private async Task RemoveMatchingProjectionsAsync(
-        int importId, HashSet<JobKey> projected, CancellationToken token)
+    private async Task ProjectAsync(int importId, int epoch, HashSet<JobKey> projected,
+        HashSet<TriggerKey> triggers, CancellationToken token)
     {
-        var inventory = await scheduler.GetJobKeys(
-            GroupMatcher<JobKey>.GroupEquals(LocationImportSchedulerKeys.Group), token) ?? [];
-        foreach (var key in inventory.Where(key => TryParseJob(key, out var id, out _) && id == importId))
-            await DeleteProjectionAsync(key, projected, token);
+        await new LocationImportLifecycle(contexts, scheduler, NullLogger<LocationImportLifecycle>.Instance,
+                projectionCoordinator)
+            .EnsureProjectionAsync(importId, epoch, token);
+        projected.Add(LocationImportSchedulerKeys.Job(importId, epoch));
+        triggers.Add(LocationImportSchedulerKeys.Trigger(importId, epoch));
     }
 
     private static bool AllowsProjection(Authority? authority, int epoch) =>
