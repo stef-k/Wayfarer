@@ -53,17 +53,18 @@ public interface ILocationImportLifecycle
 
 /// <summary>Owns short relational lifecycle mutations and projects them only after commit.</summary>
 public sealed class LocationImportLifecycle(
-    ApplicationDbContext db, IScheduler scheduler, ILogger<LocationImportLifecycle> logger) : ILocationImportLifecycle
+    ApplicationDbContext db, IScheduler scheduler, ILogger<LocationImportLifecycle> logger,
+    LocationImportProjectionCoordinator? projectionCoordinator = null) : ILocationImportLifecycle
 {
-    private static readonly System.Collections.Concurrent.ConcurrentDictionary<(int ImportId, int Epoch), SemaphoreSlim>
-        ProjectionLocks = new();
+    private readonly LocationImportProjectionCoordinator projectionCoordinator =
+        projectionCoordinator ?? LocationImportProjectionCoordinator.Shared;
     private readonly SemaphoreSlim _commands = new(1, 1);
     private ILocationImportLifecycleObserver _observer = NullLocationImportLifecycleObserver.Instance;
 
     /// <summary>Creates a lifecycle with a test-controlled, authority-neutral persistence observer.</summary>
     internal LocationImportLifecycle(ApplicationDbContext db, IScheduler scheduler,
         ILogger<LocationImportLifecycle> logger, ILocationImportLifecycleObserver observer)
-        : this(db, scheduler, logger) => _observer = observer;
+        : this(db, scheduler, logger, (LocationImportProjectionCoordinator?)null) => _observer = observer;
 
     public async Task<LocationImportCommandResult> StartAsync(
         string userId, int importId, CancellationToken cancellationToken = default)
@@ -98,7 +99,23 @@ public sealed class LocationImportLifecycle(
 
         try
         {
+            await using var projection = await projectionCoordinator.AcquireAsync(importId, cancellationToken);
+            db.ChangeTracker.Clear();
+            var authority = await db.LocationImports.AsNoTracking().SingleOrDefaultAsync(x => x.Id == importId,
+                cancellationToken);
+            if (authority is null || authority.ExecutionEpoch != epoch || authority.Status != ImportStatus.InProgress
+                || authority.StopRequestedAtUtc.HasValue || authority.DeletionRequestedAtUtc.HasValue)
+                return new(LocationImportCommandCode.InvalidState);
             await EnsureProjectionAsync(importId, epoch, cancellationToken);
+            db.ChangeTracker.Clear();
+            authority = await db.LocationImports.AsNoTracking().SingleOrDefaultAsync(x => x.Id == importId,
+                cancellationToken);
+            if (authority is null || authority.ExecutionEpoch != epoch || authority.Status != ImportStatus.InProgress
+                || authority.StopRequestedAtUtc.HasValue || authority.DeletionRequestedAtUtc.HasValue)
+            {
+                _ = await scheduler.DeleteJob(LocationImportSchedulerKeys.Job(importId, epoch), cancellationToken);
+                return new(LocationImportCommandCode.InvalidState);
+            }
             await MarkProjectedAsync(importId, epoch, cancellationToken);
             return new(LocationImportCommandCode.Accepted);
         }
@@ -135,7 +152,11 @@ public sealed class LocationImportLifecycle(
         }
         finally { _commands.Release(); }
 
-        try { _ = await scheduler.Interrupt(LocationImportSchedulerKeys.Job(importId, epoch), cancellationToken); }
+        try
+        {
+            await using var projection = await projectionCoordinator.AcquireAsync(importId, cancellationToken);
+            _ = await scheduler.Interrupt(LocationImportSchedulerKeys.Job(importId, epoch), cancellationToken);
+        }
         catch (SchedulerException exception)
         {
             logger.LogWarning(exception, "Import {ImportId} stop interruption remains pending.", importId);
@@ -168,6 +189,7 @@ public sealed class LocationImportLifecycle(
         }
         try
         {
+            await using var projection = await projectionCoordinator.AcquireAsync(importId, cancellationToken);
             var executing = (await scheduler.GetCurrentlyExecutingJobs(cancellationToken) ?? [])
                 .Select(context => context.JobDetail.Key)
                 .Any(key => key.Group == LocationImportSchedulerKeys.Group
@@ -240,20 +262,22 @@ public sealed class LocationImportLifecycle(
         var import = await db.LocationImports.SingleOrDefaultAsync(item => item.Id == importId, cancellationToken);
         if (import is null || import.ExecutionEpoch != epoch) return LocationImportExecutionOutcome.Stale;
         if (import.DeletionRequestedAtUtc.HasValue) return LocationImportExecutionOutcome.Stale;
-        if (import.Status == ImportStatus.Stopping || outcome is LocationImportExecutionOutcome.Cancelled)
+        var effectiveOutcome = import.Status == ImportStatus.Stopping
+            ? LocationImportExecutionOutcome.Cancelled : outcome;
+        if (effectiveOutcome is LocationImportExecutionOutcome.Cancelled)
             import.Status = ImportStatus.Stopped;
-        else if (outcome == LocationImportExecutionOutcome.Completed)
+        else if (effectiveOutcome == LocationImportExecutionOutcome.Completed)
             import.Status = ImportStatus.Completed;
-        else if (outcome == LocationImportExecutionOutcome.Failed)
+        else if (effectiveOutcome == LocationImportExecutionOutcome.Failed)
         {
             import.Status = ImportStatus.Failed;
             import.ErrorMessage = "Import processing failed.";
         }
         else return LocationImportExecutionOutcome.Stale;
         import.ProjectionPending = false;
-        await _observer.BeforeTerminalPersistenceAsync(importId, epoch, outcome, cancellationToken);
+        await _observer.BeforeTerminalPersistenceAsync(importId, epoch, effectiveOutcome, cancellationToken);
         return await SaveConvergentlyAsync(cancellationToken)
-            ? outcome : LocationImportExecutionOutcome.Stale;
+            ? effectiveOutcome : LocationImportExecutionOutcome.Stale;
     }
 
     private Task<LocationImport?> OwnedAsync(string userId, int importId, CancellationToken token) =>
@@ -261,25 +285,19 @@ public sealed class LocationImportLifecycle(
 
     internal async Task EnsureProjectionAsync(int importId, int epoch, CancellationToken token)
     {
-        var gate = ProjectionLocks.GetOrAdd((importId, epoch), _ => new SemaphoreSlim(1, 1));
-        await gate.WaitAsync(token);
-        try
+        var jobKey = LocationImportSchedulerKeys.Job(importId, epoch);
+        var triggerKey = LocationImportSchedulerKeys.Trigger(importId, epoch);
+        if (!await scheduler.CheckExists(jobKey, token))
         {
-            var jobKey = LocationImportSchedulerKeys.Job(importId, epoch);
-            var triggerKey = LocationImportSchedulerKeys.Trigger(importId, epoch);
-            if (!await scheduler.CheckExists(jobKey, token))
+            try
             {
-                try
-                {
-                    await scheduler.ScheduleJob(LocationImportSchedulerKeys.BuildJob(importId, epoch),
-                        LocationImportSchedulerKeys.BuildTrigger(importId, epoch), token);
-                }
-                catch (ObjectAlreadyExistsException) { }
+                await scheduler.ScheduleJob(LocationImportSchedulerKeys.BuildJob(importId, epoch),
+                    LocationImportSchedulerKeys.BuildTrigger(importId, epoch), token);
             }
-            else if (!await scheduler.CheckExists(triggerKey, token))
-                await scheduler.ScheduleJob(LocationImportSchedulerKeys.BuildTrigger(importId, epoch), token);
+            catch (ObjectAlreadyExistsException) { }
         }
-        finally { gate.Release(); }
+        else if (!await scheduler.CheckExists(triggerKey, token))
+            await scheduler.ScheduleJob(LocationImportSchedulerKeys.BuildTrigger(importId, epoch), token);
     }
 
     private async Task MarkProjectedAsync(int importId, int epoch, CancellationToken token)

@@ -50,6 +50,7 @@ public sealed class LocationImportFinalProjectionAuthorityTests(PostgresImportTe
                 await using var command = fixture.CreateContext();
                 var import = await command.LocationImports.SingleAsync(x => x.Id == importId, token);
                 import.Status = ImportStatus.Stopped;
+                import.ProjectionPending = false;
                 import.DeletionRequestedAtUtc = DateTime.UtcNow;
                 await command.SaveChangesAsync(token);
                 jobs.Add(job.Key);

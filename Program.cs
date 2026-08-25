@@ -363,6 +363,7 @@ static void ConfigureQuartz(WebApplicationBuilder builder)
     builder.Services.AddTransient<LocationEnrichmentJob>();
     builder.Services.AddScoped<Wayfarer.Services.LocationEnrichment.LocationEnrichmentScheduler>();
     builder.Services.AddScoped<Wayfarer.Services.LocationEnrichment.LocationEnrichmentReconciler>();
+    builder.Services.AddSingleton<Wayfarer.Services.LocationImports.LocationImportProjectionCoordinator>();
     builder.Services.AddScoped<Wayfarer.Services.LocationImports.LocationImportReconciler>();
     builder.Services.AddScoped<Wayfarer.Services.LocationImports.ILocationImportLifecycle,
         Wayfarer.Services.LocationImports.LocationImportLifecycle>();
