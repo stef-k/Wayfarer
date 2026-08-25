@@ -180,10 +180,16 @@ Role constants defined in `Util/ApplicationRoles.cs`.
 /api/sse/stream/group-location-update/{groupId}
 /api/sse/stream/visits
 /api/sse/stream/job-status
-/api/sse/stream/import-progress
+/api/sse/import
 /api/sse/stream/invitations
 /api/sse/stream/memberships
 ```
+
+`/api/sse/import` requires authentication and derives the protected user channel exclusively from
+the `NameIdentifier` claim. It emits only the exact content-free `import-state` and
+`enrichment-state` reload hints. The generic `/api/sse/stream/...` route cannot subscribe to
+protected import or enrichment prefixes. SSE is presentation-only; a relational page reload is
+authoritative for current import and enrichment state.
 
 ---
 
