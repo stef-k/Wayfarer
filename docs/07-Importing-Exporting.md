@@ -8,7 +8,7 @@ Full recovery needs two manual imports: prepare recovery on the original phone (
 
 For expedited synchronization use **Prepare/suspend → Export → Import into Wayfarer → Resume and reconcile**. Let import reach a terminal result first. Authenticated per-user GUID identity reuses already imported rows; missing rows upload normally. Partial/failed import must be inspected or retried, never followed by queue clearing. Confirmed queue rows become synced and follow ordinary retention.
 
-CSV uses the CSV importer and suits spreadsheets/Python. GeoJSON uses the Wayfarer GeoJSON importer and suits GIS tools. Both carry the portable GUID; editing/removing it can prevent exact reconciliation. Files can contain precise positions/times, Notes, activity/check-in data, device/app/OS/provider/battery metadata, queue diagnostics, and identifiers. Store and transfer them securely, retain them until both histories are verified, then delete unnecessary copies.
+CSV uses the CSV importer and suits spreadsheets/Python. Wayfarer GeoJSON uses the Wayfarer GeoJSON importer and suits GIS tools. Both carry the portable GUID; editing/removing it can prevent exact reconciliation. Files can contain precise positions/times, Notes, activity/check-in data, device/app/OS/provider/battery metadata, queue diagnostics, and identifiers. Store and transfer them securely, retain them until both histories are verified, then delete unnecessary copies.
 
 ---
 
