@@ -26,7 +26,10 @@ public sealed class CsvLocationParser : ILocationDataParser
     }
 
     /// <inheritdoc />
-    public async Task<List<Location>> ParseAsync(Stream fileStream, string userId)
+    public async IAsyncEnumerable<Location> ParseAsync(
+        Stream fileStream,
+        string userId,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         _logger.LogDebug("Parsing CSV location data for user {UserId}.", userId);
 
@@ -38,19 +41,18 @@ public sealed class CsvLocationParser : ILocationDataParser
             PrepareHeaderForMatch = args => args.Header?.Trim() ?? string.Empty
         };
 
-        var locations = new List<Location>();
-
         using var reader = new StreamReader(fileStream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true, leaveOpen: true);
         using var csv = new CsvReader(reader, config);
 
         if (!await csv.ReadAsync() || !csv.ReadHeader())
         {
             _logger.LogWarning("CSV file had no header row.");
-            return locations;
+            yield break;
         }
 
         while (await csv.ReadAsync())
         {
+            cancellationToken.ThrowIfCancellationRequested();
             if (!TryGetRequiredDouble(csv, "Latitude", out var latitude) ||
                 !TryGetRequiredDouble(csv, "Longitude", out var longitude))
             {
@@ -119,11 +121,8 @@ public sealed class CsvLocationParser : ILocationDataParser
                 IdempotencyKey = idempotencyKey
             };
 
-            locations.Add(location);
+            yield return location;
         }
-
-        _logger.LogInformation("Parsed {Count} location rows from CSV.", locations.Count);
-        return locations;
     }
 
     private static string? GetField(CsvReader csv, string field)

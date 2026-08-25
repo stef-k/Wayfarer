@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Threading.Tasks;
 using System.Xml.Linq;
+using System.Xml;
 using Microsoft.Extensions.Logging;
 using Wayfarer.Models;
 using GeoPoint = NetTopologySuite.Geometries.Point;
@@ -24,18 +25,35 @@ public sealed class GpxLocationParser : ILocationDataParser
     }
 
     /// <inheritdoc />
-    public async Task<List<Location>> ParseAsync(Stream fileStream, string userId)
+    public async IAsyncEnumerable<Location> ParseAsync(
+        Stream fileStream,
+        string userId,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         _logger.LogDebug("Parsing GPX data for user {UserId}.", userId);
-
-        var document = await XDocument.LoadAsync(fileStream, LoadOptions.None, default);
-        var gpxRoot = document.Root ?? throw new FormatException("GPX file does not contain a root element.");
-        var gpxNamespace = gpxRoot.Name.Namespace;
-
-        var locations = new List<Location>();
-
-        foreach (var trkpt in gpxRoot.Descendants(gpxNamespace + "trkpt"))
+        using var reader = XmlReader.Create(fileStream, new XmlReaderSettings
         {
+            Async = true,
+            CloseInput = false,
+            DtdProcessing = DtdProcessing.Prohibit
+        });
+        XNamespace? gpxNamespace = null;
+        while (await reader.ReadAsync())
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (reader.NodeType != XmlNodeType.Element) continue;
+            if (gpxNamespace is null)
+            {
+                if (!string.Equals(reader.LocalName, "gpx", StringComparison.OrdinalIgnoreCase))
+                    throw new FormatException("GPX file does not contain a gpx root element.");
+                gpxNamespace = reader.NamespaceURI;
+                continue;
+            }
+            if (!string.Equals(reader.LocalName, "trkpt", StringComparison.Ordinal) ||
+                reader.NamespaceURI != gpxNamespace.NamespaceName) continue;
+            XElement trkpt;
+            using (var subtree = reader.ReadSubtree())
+                trkpt = (XElement)await XElement.LoadAsync(subtree, LoadOptions.None, cancellationToken);
             var latRaw = trkpt.Attribute("lat")?.Value;
             var lonRaw = trkpt.Attribute("lon")?.Value;
 
@@ -112,11 +130,8 @@ public sealed class GpxLocationParser : ILocationDataParser
                 IsCharging = isCharging
             };
 
-            locations.Add(location);
+            yield return location;
         }
-
-        _logger.LogInformation("Parsed {Count} track points from GPX file.", locations.Count);
-        return locations;
     }
 
     private static string? GetExtensionValue(XElement? extensionsElement, string localName)

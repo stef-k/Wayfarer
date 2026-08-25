@@ -375,7 +375,8 @@ public class GpxLocationParserTests
         using var stream = CreateStream(gpx);
 
         // Act & Assert
-        await Assert.ThrowsAsync<System.Xml.XmlException>(() => _parser.ParseAsync(stream, "user1"));
+        await Assert.ThrowsAsync<System.Xml.XmlException>(async () =>
+            await _parser.ParseAsync(stream, "user1"));
     }
 
     [Fact]

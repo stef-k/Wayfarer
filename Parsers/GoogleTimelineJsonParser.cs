@@ -1,5 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using NetTopologySuite.Geometries;
 using Location = Wayfarer.Models.Location;
 
@@ -14,58 +16,68 @@ public class GoogleTimelineJsonParser : ILocationDataParser
         _logger = logger;
     }
 
-    public async Task<List<Location>> ParseAsync(Stream fileStream, string userId)
+    public async IAsyncEnumerable<Location> ParseAsync(
+        Stream fileStream,
+        string userId,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         _logger.LogDebug("Parsing Google Timeline data for user {UserId}.", userId);
-
-        string json = await new StreamReader(fileStream).ReadToEndAsync();
-        var opts = new JsonSerializerOptions {
-            PropertyNameCaseInsensitive = true
-        };
-
-        // 1) Deserialize the top-level wrapper
-        var root = JsonSerializer.Deserialize<Root>(json, opts);
-        if (root?.SemanticSegments == null || root.SemanticSegments.Count == 0)
+        using var text = new StreamReader(fileStream, leaveOpen: true);
+        using var reader = new JsonTextReader(text) { CloseInput = false };
+        while (await reader.ReadAsync(cancellationToken))
         {
-            _logger.LogWarning("No semanticSegments found in JSON.");
-            return new List<Location>();
-        }
-
-        var locations = new List<Location>();
-
-        foreach (var seg in root.SemanticSegments)
-        {
-            // 2) timelinePath (many points)
-            if (seg.TimelinePath != null)
+            if (reader.TokenType != JsonToken.PropertyName ||
+                !string.Equals((string?)reader.Value, "semanticSegments", StringComparison.OrdinalIgnoreCase))
+                continue;
+            if (!await reader.ReadAsync(cancellationToken) || reader.TokenType != JsonToken.StartArray)
+                throw new JsonReaderException("semanticSegments must be an array.");
+            while (await reader.ReadAsync(cancellationToken) && reader.TokenType != JsonToken.EndArray)
             {
-                foreach (var tp in seg.TimelinePath)
+                if (reader.TokenType != JsonToken.StartObject)
+                    throw new JsonReaderException("semanticSegments entries must be objects.");
+                await foreach (var location in ReadSegmentAsync(reader, userId, cancellationToken))
+                    yield return location;
+            }
+            yield break;
+        }
+        _logger.LogWarning("No semanticSegments found in JSON.");
+    }
+
+    private async IAsyncEnumerable<Location> ReadSegmentAsync(
+        JsonTextReader reader,
+        string userId,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        Position? position = null;
+        while (await reader.ReadAsync(cancellationToken) && reader.TokenType != JsonToken.EndObject)
+        {
+            if (reader.TokenType != JsonToken.PropertyName) continue;
+            var name = (string?)reader.Value;
+            if (!await reader.ReadAsync(cancellationToken)) yield break;
+            if (string.Equals(name, "timelinePath", StringComparison.OrdinalIgnoreCase))
+            {
+                if (reader.TokenType != JsonToken.StartArray) continue;
+                while (await reader.ReadAsync(cancellationToken) && reader.TokenType != JsonToken.EndArray)
                 {
-                    if (TryParsePoint(tp.Point ?? string.Empty, out var pt) &&
-                        DateTimeOffset.TryParse(tp.Time, out var when))
-                    {
-                        locations.Add(MakeLocation(userId, pt, when, null, null, null, null));
-                    }
+                    var item = await JObject.LoadAsync(reader, cancellationToken);
+                    var timelinePoint = System.Text.Json.JsonSerializer.Deserialize<TimelinePath>(item.ToString());
+                    if (TryParsePoint(timelinePoint?.Point ?? string.Empty, out var point) &&
+                        DateTimeOffset.TryParse(timelinePoint?.Time, out var timestamp))
+                        yield return MakeLocation(userId, point, timestamp, null, null, null, null);
                 }
             }
-
-            // 3) position (single point)
-            if (seg.Position?.LatLng != null &&
-                TryParsePoint(seg.Position.LatLng, out var p2) &&
-                DateTimeOffset.TryParse(seg.Position.Timestamp, out var when2))
+            else if (string.Equals(name, "position", StringComparison.OrdinalIgnoreCase) &&
+                     reader.TokenType == JsonToken.StartObject)
             {
-                locations.Add(MakeLocation(
-                    userId,
-                    p2,
-                    when2,
-                    seg.Position.AccuracyMeters,
-                    seg.Position.AltitudeMeters,
-                    seg.Position.SpeedMetersPerSecond,
-                    seg.Position.Source));
+                var item = await JObject.LoadAsync(reader, cancellationToken);
+                position = System.Text.Json.JsonSerializer.Deserialize<Position>(item.ToString());
             }
+            else await JToken.ReadFromAsync(reader, cancellationToken);
         }
-
-        _logger.LogInformation("Successfully parsed {Count} locations.", locations.Count);
-        return locations;
+        if (position?.LatLng != null && TryParsePoint(position.LatLng, out var result) &&
+            DateTimeOffset.TryParse(position.Timestamp, out var when))
+            yield return MakeLocation(userId, result, when, position.AccuracyMeters,
+                position.AltitudeMeters, position.SpeedMetersPerSecond, position.Source);
     }
 
     // Helper: build your Domain Location entity
@@ -78,18 +90,19 @@ public class GoogleTimelineJsonParser : ILocationDataParser
         double? speed,
         string? notes)
     {
-        return new Location {
-            UserId         = userId,
-            Timestamp      = timestamp.UtcDateTime,
+        return new Location
+        {
+            UserId = userId,
+            Timestamp = timestamp.UtcDateTime,
             LocalTimestamp = timestamp.UtcDateTime,
-            TimeZoneId     = timestamp.Offset == TimeSpan.Zero
+            TimeZoneId = timestamp.Offset == TimeSpan.Zero
                              ? "UTC"
                              : timestamp.Offset.ToString(),
-            Coordinates    = pt,
-            Accuracy       = accuracy,
-            Altitude       = altitude,
-            Speed          = speed,
-            Notes          = notes
+            Coordinates = pt,
+            Accuracy = accuracy,
+            Altitude = altitude,
+            Speed = speed,
+            Notes = notes
         };
     }
 
@@ -103,38 +116,13 @@ public class GoogleTimelineJsonParser : ILocationDataParser
         if (parts.Length != 2) return false;
 
         // CORRECTED: first element is LATITUDE
-        if (!double.TryParse(parts[0], out double lat))  return false;
+        if (!double.TryParse(parts[0], out double lat)) return false;
         // second element is LONGITUDE
-        if (!double.TryParse(parts[1], out double lng))  return false;
+        if (!double.TryParse(parts[1], out double lng)) return false;
 
         // Point expects (longitude, latitude)
         pt = new Point(lng, lat) { SRID = 4326 };
         return true;
-    }
-
-    // Top-level wrapper
-    private class Root
-    {
-        [JsonPropertyName("semanticSegments")]
-        public List<Segment>? SemanticSegments { get; set; }
-    }
-
-    private class Segment
-    {
-        [JsonPropertyName("timelinePath")]
-        public List<TimelinePath>? TimelinePath { get; set; }
-
-        [JsonPropertyName("position")]
-        public Position? Position { get; set; }
-    }
-
-    private class TimelinePath
-    {
-        [JsonPropertyName("point")]
-        public string? Point { get; set; }
-
-        [JsonPropertyName("time")]
-        public string? Time { get; set; }
     }
 
     private class Position
@@ -156,5 +144,14 @@ public class GoogleTimelineJsonParser : ILocationDataParser
 
         [JsonPropertyName("source")]
         public string? Source { get; set; }
+    }
+
+    private sealed class TimelinePath
+    {
+        [JsonPropertyName("point")]
+        public string? Point { get; set; }
+
+        [JsonPropertyName("time")]
+        public string? Time { get; set; }
     }
 }
