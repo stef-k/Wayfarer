@@ -24,6 +24,10 @@ public sealed class ImportEnrichmentHandoff(
     IPersonalProviderStatusReader providerInspection,
     ILocationEnrichmentProgressQuery progressQuery) : IImportEnrichmentHandoff
 {
+    /// <summary>Test-only coordination point after advisory inspection and before locked validation.</summary>
+    internal Func<CancellationToken, Task> BeforeTransactionalAuthorityValidationAsync { get; set; }
+        = static _ => Task.CompletedTask;
+
     public Task<EnrichmentCommandResult> PauseAsync(string userId, CancellationToken cancellationToken = default)
         => ChangeAsync(userId, (workflow, now) => workflow.TryPause(now, out var reason)
             ? EnrichmentCommandResult.Applied("paused")
@@ -31,11 +35,30 @@ public sealed class ImportEnrichmentHandoff(
 
     public async Task<EnrichmentCommandResult> ResumeAsync(string userId, CancellationToken cancellationToken = default)
     {
-        var available = await HasCurrentAuthorityAsync(userId, cancellationToken);
-        return await ChangeAsync(userId, (workflow, now) => workflow.TryResume(now, available, out var reason)
-            ? EnrichmentCommandResult.Applied("scheduled")
-            : reason == "authority-unavailable" ? EnrichmentCommandResult.Authority(reason)
-            : EnrichmentCommandResult.Invalid(reason!), cancellationToken);
+        var inspection = await providerInspection.InspectPersistentGeocodingAsync(userId, cancellationToken);
+        if (!inspection.Available || inspection.Binding is null)
+            return EnrichmentCommandResult.Authority("authority-unavailable");
+        await BeforeTransactionalAuthorityValidationAsync(cancellationToken);
+        await using var transaction = db.Database.IsRelational()
+            ? await db.Database.BeginTransactionAsync(cancellationToken) : null;
+        var workflow = await LockWorkflowAsync(userId, cancellationToken);
+        if (workflow is null)
+            return await RollbackAsync(transaction, EnrichmentCommandResult.Invalid("missing-workflow"), cancellationToken);
+        if (workflow.State is not (LocationEnrichmentState.PausedByUser or LocationEnrichmentState.PausedByAuthority))
+            return await RollbackAsync(transaction, EnrichmentCommandResult.Invalid("invalid-state"), cancellationToken);
+        if (!await AuthorityIsCurrentAsync(userId, inspection.Binding, cancellationToken))
+            return await RollbackAsync(transaction, EnrichmentCommandResult.Authority("authority-unavailable"), cancellationToken);
+        var now = await LocationEnrichmentExecutionAuthority.DatabaseUtcNowAsync(db, cancellationToken);
+        if (!await progressQuery.HasRunnableAsync(userId, inspection.Binding, now, cancellationToken))
+            return await RollbackAsync(transaction, EnrichmentCommandResult.Conflict("no-candidates"), cancellationToken);
+        if (!workflow.TryResume(now, true, out var reason))
+            return await RollbackAsync(transaction, EnrichmentCommandResult.Invalid(reason!), cancellationToken);
+        await db.SaveChangesAsync(cancellationToken);
+        if (transaction != null) await transaction.CommitAsync(cancellationToken);
+        if (transaction != null) await transaction.DisposeAsync();
+        try { await projection.ProjectAsync(userId, cancellationToken); }
+        catch { return EnrichmentCommandResult.Scheduling("scheduling-reconciliation-required"); }
+        return EnrichmentCommandResult.Applied("scheduled");
     }
 
     public Task<EnrichmentCommandResult> CancelAsync(string userId, CancellationToken cancellationToken = default)
@@ -79,18 +102,25 @@ public sealed class ImportEnrichmentHandoff(
         var inspection = await providerInspection.InspectPersistentGeocodingAsync(userId, cancellationToken);
         if (!inspection.Available || inspection.Binding is null)
             return EnrichmentCommandResult.Conflict("authority-unavailable");
-        if (!await progressQuery.HasRunnableAsync(
-                userId, inspection.Binding, inspection.DatabaseNowUtc, cancellationToken))
-            return EnrichmentCommandResult.Conflict("no-candidates");
+        await BeforeTransactionalAuthorityValidationAsync(cancellationToken);
         await using var transaction = db.Database.IsRelational()
             ? await db.Database.BeginTransactionAsync(cancellationToken) : null;
+        await LockWorkflowCreationAuthorityAsync(userId, cancellationToken);
         var workflow = await LockWorkflowAsync(userId, cancellationToken);
+        if (workflow is { IntentEnabled: true, State: LocationEnrichmentState.Scheduled or LocationEnrichmentState.Running })
+            return await RollbackAsync(transaction, EnrichmentCommandResult.Satisfied("scheduled"), cancellationToken);
+        if (!await AuthorityIsCurrentAsync(userId, inspection.Binding, cancellationToken))
+            return await RollbackAsync(transaction,
+                EnrichmentCommandResult.Authority("authority-unavailable"), cancellationToken);
+        var now = await LocationEnrichmentExecutionAuthority.DatabaseUtcNowAsync(db, cancellationToken);
+        if (!await progressQuery.HasRunnableAsync(userId, inspection.Binding, now, cancellationToken))
+            return await RollbackAsync(transaction, EnrichmentCommandResult.Conflict("no-candidates"), cancellationToken);
         if (workflow is null)
         {
-            workflow = LocationEnrichmentWorkflow.Create(userId, DateTime.UtcNow);
+            workflow = LocationEnrichmentWorkflow.Create(userId, now);
             db.Add(workflow);
         }
-        workflow.Start(DateTime.UtcNow);
+        workflow.Start(now);
         try { await db.SaveChangesAsync(cancellationToken); }
         catch (DbUpdateException exception) when (IsWorkflowUniqueRace(exception))
         {
@@ -210,6 +240,15 @@ public sealed class ImportEnrichmentHandoff(
             """).SingleOrDefaultAsync(cancellationToken)
         : await db.LocationEnrichmentWorkflows.SingleOrDefaultAsync(
             item => item.UserId == userId, cancellationToken);
+
+    /// <summary>Serializes the absent-row workflow creation case on the existing user owner.</summary>
+    private async Task LockWorkflowCreationAuthorityAsync(string userId, CancellationToken cancellationToken)
+    {
+        if (!db.Database.IsNpgsql()) return;
+        _ = await db.Users.FromSqlInterpolated($$"""
+            SELECT * FROM "AspNetUsers" WHERE "Id" = {{userId}} FOR UPDATE
+            """).SingleAsync(cancellationToken);
+    }
 
     private async Task<bool> AuthorityIsCurrentAsync(string userId,
         PersonalProviderAuthorityBinding authority, CancellationToken cancellationToken)
