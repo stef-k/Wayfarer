@@ -114,8 +114,48 @@ public sealed class ImportEnrichmentHandoff(
         var authority = inspection.Binding;
         if (!inspection.Available || authority is null)
             return EnrichmentCommandResult.Conflict("authority-unavailable");
-        var now = inspection.DatabaseNowUtc;
-        var eligible = db.LocationEnrichmentAttempts.Where(item => item.UserId == userId
+        await using var transaction = db.Database.IsRelational()
+            ? await db.Database.BeginTransactionAsync(cancellationToken) : null;
+        try
+        {
+            var workflow = await LockWorkflowAsync(userId, cancellationToken);
+            if (workflow is null || !CanRetryDeferred(workflow))
+                return await RollbackAsync(transaction,
+                    EnrichmentCommandResult.Conflict("invalid-state"), cancellationToken);
+            if (!await AuthorityIsCurrentAsync(userId, authority, cancellationToken))
+                return await RollbackAsync(transaction,
+                    EnrichmentCommandResult.Conflict("authority-unavailable"), cancellationToken);
+            var now = await LocationEnrichmentExecutionAuthority.DatabaseUtcNowAsync(db, cancellationToken);
+            var eligible = EligibleDeferredAttempts(userId, authority);
+            var reset = db.Database.IsRelational()
+                ? await eligible.ExecuteUpdateAsync(setters => setters
+                    .SetProperty(item => item.Outcome, LocationEnrichmentOutcome.None)
+                    .SetProperty(item => item.AdmittedAttemptCount, 0)
+                    .SetProperty(item => item.NextAttemptAtUtc, now), cancellationToken)
+                : await ResetTrackedAsync(eligible, authority, now, cancellationToken);
+            if (reset == 0)
+                return await RollbackAsync(transaction,
+                    EnrichmentCommandResult.Success("nothing-to-retry"), cancellationToken);
+            if (!workflow.RetryDeferred(now))
+                return await RollbackAsync(transaction,
+                    EnrichmentCommandResult.Conflict("concurrent-command"), cancellationToken);
+            await db.SaveChangesAsync(cancellationToken);
+            if (transaction != null) await transaction.CommitAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            if (transaction != null) await transaction.RollbackAsync(CancellationToken.None);
+            db.ChangeTracker.Clear();
+            return EnrichmentCommandResult.Conflict("concurrent-command");
+        }
+        try { await projection.ProjectAsync(userId, cancellationToken); }
+        catch { return EnrichmentCommandResult.Scheduling("scheduling-reconciliation-required"); }
+        return EnrichmentCommandResult.Success("scheduled");
+    }
+
+    private IQueryable<LocationEnrichmentAttempt> EligibleDeferredAttempts(
+        string userId, PersonalProviderAuthorityBinding authority) =>
+        db.LocationEnrichmentAttempts.Where(item => item.UserId == userId
             && item.OperationId == null && (item.Outcome == LocationEnrichmentOutcome.NoResult
                 || item.Outcome == LocationEnrichmentOutcome.AttemptLimit)
             && item.ProviderKey == authority.ProviderKey && item.ProviderProfileId == authority.ProfileId
@@ -138,36 +178,62 @@ public sealed class ImportEnrichmentHandoff(
             && (item.Location.Country == null || item.Location.Country == "")
             && item.Location.ReverseGeocodingProvider == null
             && item.Location.ReverseGeocodingStorageMode == null && item.Location.ReverseGeocodedAt == null);
+
+    private static bool CanRetryDeferred(LocationEnrichmentWorkflow workflow) => workflow.State is not
+        (LocationEnrichmentState.Running or LocationEnrichmentState.Scheduled
+        or LocationEnrichmentState.BackingOff or LocationEnrichmentState.PausedByBudget);
+
+    private async Task<int> ResetTrackedAsync(IQueryable<LocationEnrichmentAttempt> eligible,
+        PersonalProviderAuthorityBinding authority, DateTime now, CancellationToken cancellationToken)
+    {
         var reset = 0;
-        if (db.Database.IsRelational())
-            reset = await eligible.ExecuteUpdateAsync(setters => setters
-                .SetProperty(item => item.Outcome, LocationEnrichmentOutcome.None)
-                .SetProperty(item => item.AdmittedAttemptCount, 0)
-                .SetProperty(item => item.LastAttemptAtUtc, now)
-                .SetProperty(item => item.NextAttemptAtUtc, now), cancellationToken);
-        else
+        await foreach (var attempt in eligible.AsAsyncEnumerable().WithCancellation(cancellationToken))
         {
-            await foreach (var attempt in eligible.AsAsyncEnumerable().WithCancellation(cancellationToken))
-            {
-                attempt.ResetDeferred(authority.ProviderKey, authority.CredentialGeneration,
-                    authority.CapabilityGeneration, authority.SelectionGeneration, now);
-                reset++;
-            }
+            attempt.ResetDeferred(authority.ProviderKey, authority.CredentialGeneration,
+                authority.CapabilityGeneration, authority.SelectionGeneration, now);
+            reset++;
         }
-        if (reset == 0) return EnrichmentCommandResult.Success("nothing-to-retry");
-        if (!await progressQuery.HasRunnableAsync(userId, authority, now, cancellationToken))
-            return EnrichmentCommandResult.Conflict("no-candidates");
-        var workflow = await db.LocationEnrichmentWorkflows.SingleAsync(item => item.UserId == userId, cancellationToken);
-        if (!workflow.RetryDeferred(now)) return EnrichmentCommandResult.Conflict("invalid-state");
-        try { await db.SaveChangesAsync(cancellationToken); }
-        catch (DbUpdateConcurrencyException)
-        {
-            db.ChangeTracker.Clear();
-            return EnrichmentCommandResult.Conflict("concurrent-command");
-        }
-        try { await projection.ProjectAsync(userId, cancellationToken); }
-        catch { return EnrichmentCommandResult.Conflict("scheduling-reconciliation-required"); }
-        return EnrichmentCommandResult.Success("scheduled");
+        return reset;
+    }
+
+    private async Task<LocationEnrichmentWorkflow?> LockWorkflowAsync(
+        string userId, CancellationToken cancellationToken) => db.Database.IsNpgsql()
+        ? await db.LocationEnrichmentWorkflows.FromSqlInterpolated($$"""
+            SELECT *, xmin FROM "LocationEnrichmentWorkflows" WHERE "UserId" = {{userId}} FOR UPDATE
+            """).SingleOrDefaultAsync(cancellationToken)
+        : await db.LocationEnrichmentWorkflows.SingleOrDefaultAsync(
+            item => item.UserId == userId, cancellationToken);
+
+    private async Task<bool> AuthorityIsCurrentAsync(string userId,
+        PersonalProviderAuthorityBinding authority, CancellationToken cancellationToken)
+    {
+        if (!db.Database.IsRelational()) return true;
+        var selection = await db.PersonalLocationProviderSelections.FromSqlInterpolated($$"""
+            SELECT *, xmin FROM "PersonalLocationProviderSelections" WHERE "UserId" = {{userId}} FOR UPDATE
+            """).SingleOrDefaultAsync(cancellationToken);
+        if (selection?.GeocodingProviderKey != authority.ProviderKey
+            || selection.GeocodingSelectionGeneration != authority.SelectionGeneration) return false;
+        var profile = await db.PersonalLocationProviderProfiles.FromSqlInterpolated($$"""
+            SELECT *, xmin FROM "PersonalLocationProviderProfiles"
+            WHERE "UserId" = {{userId}} AND "ProviderKey" = {{authority.ProviderKey}} FOR UPDATE
+            """).SingleOrDefaultAsync(cancellationToken);
+        return profile is not null && profile.Id == authority.ProfileId && profile.RevokedAt is null
+            && profile.GeocodingAuthorized && profile.CredentialGeneration == authority.CredentialGeneration
+            && profile.GeocodingGeneration == authority.CapabilityGeneration
+            && profile.GeocodingVerification == authority.Verification
+            && profile.GeocodingVerifiedCredentialGeneration == authority.VerifiedCredentialGeneration
+            && profile.GeocodingVerifiedConfigurationGeneration == authority.VerifiedCapabilityGeneration
+            && profile.PermanentGeocodingConsentVersion == authority.ConsentVersion
+            && profile.PermanentGeocodingConsentedAt == authority.ConsentedAt
+            && profile.PermanentGeocodingConsentCredentialGeneration == authority.ConsentCredentialGeneration;
+    }
+
+    private static async Task<EnrichmentCommandResult> RollbackAsync(
+        Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction? transaction,
+        EnrichmentCommandResult result, CancellationToken cancellationToken)
+    {
+        if (transaction != null) await transaction.RollbackAsync(cancellationToken);
+        return result;
     }
 
     private async Task<bool> HasCurrentAuthorityAsync(string userId, CancellationToken cancellationToken) =>

@@ -60,7 +60,6 @@ public sealed class LocationEnrichmentAttempt
         SelectionGeneration = selectionGeneration;
         Outcome = LocationEnrichmentOutcome.None;
         AdmittedAttemptCount = 0;
-        LastAttemptAtUtc = nowUtc;
         NextAttemptAtUtc = nowUtc;
     }
 }
