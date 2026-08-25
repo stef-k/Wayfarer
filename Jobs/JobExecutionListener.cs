@@ -55,7 +55,8 @@ namespace Wayfarer.Jobs
             string jobStatus = context.Result is LocationImportExecutionOutcome outcome
                 ? LocationImportJobOutcome.ToHistoryStatus(outcome)
                 : context.JobDetail.JobDataMap["Status"]?.ToString() ?? "Completed";
-            if (jobException != null)
+            if (jobException != null && context.Result is not LocationImportExecutionOutcome.Stale
+                && context.Result is not LocationImportExecutionOutcome.Cancelled)
             {
                 jobStatus = "Failed";
             }

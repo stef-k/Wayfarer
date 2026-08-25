@@ -64,8 +64,9 @@ namespace Wayfarer.Jobs
             {
                 _logger.LogError(ex, "Error in LocationImportJob for ImportId {ImportId}", importId);
                 if (_lifecycle is not null)
-                    await _lifecycle.ConvergeExecutionAsync(importId, epoch, LocationImportExecutionOutcome.Failed, CancellationToken.None);
-                context.Result = LocationImportExecutionOutcome.Failed;
+                    context.Result = await _lifecycle.ConvergeExecutionAsync(importId, epoch,
+                        LocationImportExecutionOutcome.Failed, CancellationToken.None);
+                else context.Result = LocationImportExecutionOutcome.Failed;
                 throw;
             }
         }
