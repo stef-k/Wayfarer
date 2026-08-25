@@ -23,7 +23,7 @@ public sealed class LocationEnrichmentBoundedInspectionContractTests
     {
         var reader = Read("Services", "LocationProviders", "PersonalProviderStatusReader.cs");
 
-        Assert.Equal(1, Count(reader, "clock_timestamp()"));
+        Assert.Equal(1, Count(reader, "DatabaseUtcNowAsync"));
         Assert.DoesNotContain("DateTime.UtcNow", reader);
         Assert.DoesNotContain("DateTimeOffset.UtcNow", reader);
         Assert.Contains("AddSeconds(5)", reader);

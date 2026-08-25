@@ -508,10 +508,10 @@ static void ConfigureServices(WebApplicationBuilder builder)
     builder.Services.AddScoped<PersonalProviderCredentialService>();
     builder.Services.AddScoped<LegacyMapboxMigrationService>();
     builder.Services.AddScoped<PersonalProviderContactGate>();
-    builder.Services.AddScoped<IPersonalProviderInspection>(services =>
-        services.GetRequiredService<PersonalProviderContactGate>());
+    builder.Services.AddScoped<IPersonalProviderStatusReader, PersonalProviderStatusReader>();
     builder.Services.AddScoped<GeoapifyLocationBackfillService>();
     builder.Services.AddScoped<LocationEnrichmentExecutionAuthority>();
+    builder.Services.AddScoped<ILocationEnrichmentProgressQuery, LocationEnrichmentProgressQuery>();
 
     // IRegistrationService as a transient or singleton service
     builder.Services.AddTransient<IRegistrationService, RegistrationService>();

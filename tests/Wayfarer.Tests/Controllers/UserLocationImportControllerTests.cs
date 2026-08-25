@@ -184,11 +184,12 @@ public class UserLocationImportControllerTests : TestBase
         var scheduler = new Mock<IScheduler>();
         scheduler.Setup(s => s.ScheduleJob(It.IsAny<IJobDetail>(), It.IsAny<ITrigger>(), default)).ReturnsAsync(DateTimeOffset.UtcNow);
         projection ??= Mock.Of<IWorkflowScheduleProjection>();
-        var inspection = new Mock<IPersonalProviderInspection>();
+        var inspection = new Mock<IPersonalProviderStatusReader>();
         inspection.Setup(item => item.InspectPersistentGeocodingAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new PersonalProviderInspection(PersonalProviderAdmissionCategory.NoProviderSelected,
                 null, false, false, null, null, null));
-        handoff ??= new ImportEnrichmentHandoff(db, projection, inspection.Object);
+        var progress = new Mock<ILocationEnrichmentProgressQuery>();
+        handoff ??= new ImportEnrichmentHandoff(db, projection, inspection.Object, progress.Object);
 
         var defaultPresentation = new Mock<ILocationEnrichmentPresentationProjector>();
         defaultPresentation.Setup(item => item.ProjectAsync(userId, It.IsAny<CancellationToken>()))

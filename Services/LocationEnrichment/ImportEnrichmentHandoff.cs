@@ -21,7 +21,8 @@ public interface IImportEnrichmentHandoff
 /// <summary>Creates or resumes relational intent before projecting one Quartz trigger.</summary>
 public sealed class ImportEnrichmentHandoff(
     ApplicationDbContext db, IWorkflowScheduleProjection projection,
-    IPersonalProviderInspection providerInspection) : IImportEnrichmentHandoff
+    IPersonalProviderStatusReader providerInspection,
+    ILocationEnrichmentProgressQuery progressQuery) : IImportEnrichmentHandoff
 {
     public Task<EnrichmentCommandResult> PauseAsync(string userId, CancellationToken cancellationToken = default)
         => ChangeAsync(userId, (workflow, now) => workflow.TryPause(now, out var reason)
@@ -75,9 +76,11 @@ public sealed class ImportEnrichmentHandoff(
     public async Task<EnrichmentCommandResult> StartAsync(
         string userId, CancellationToken cancellationToken = default)
     {
-        if (!await HasCurrentAuthorityAsync(userId, cancellationToken))
+        var inspection = await providerInspection.InspectPersistentGeocodingAsync(userId, cancellationToken);
+        if (!inspection.Available || inspection.Binding is null)
             return EnrichmentCommandResult.Conflict("authority-unavailable");
-        if (!await HasCandidateAsync(userId, cancellationToken))
+        if (!await progressQuery.HasRunnableAsync(
+                userId, inspection.Binding, inspection.DatabaseNowUtc, cancellationToken))
             return EnrichmentCommandResult.Conflict("no-candidates");
         var workflow = await db.LocationEnrichmentWorkflows.SingleOrDefaultAsync(
             item => item.UserId == userId, cancellationToken);
@@ -111,18 +114,49 @@ public sealed class ImportEnrichmentHandoff(
         var authority = inspection.Binding;
         if (!inspection.Available || authority is null)
             return EnrichmentCommandResult.Conflict("authority-unavailable");
-        var attempts = await db.LocationEnrichmentAttempts.Include(item => item.Location)
-            .Where(item => item.UserId == userId && (item.Outcome == LocationEnrichmentOutcome.InvalidCoordinates
-                || item.Outcome == LocationEnrichmentOutcome.NoResult
-                || item.Outcome == LocationEnrichmentOutcome.AttemptLimit))
-            .ToListAsync(cancellationToken);
-        var eligible = attempts.Where(item => IsCurrent(item, authority) && item.Location != null
-            && LocationProviders.GeoapifyLocationBackfillService.IsWhollyUnenriched(item.Location)).ToList();
-        if (eligible.Count == 0) return EnrichmentCommandResult.Success("nothing-to-retry");
-        var now = DateTime.UtcNow;
-        foreach (var attempt in eligible)
-            attempt.ResetDeferred(authority.ProviderKey, authority.CredentialGeneration,
-                authority.CapabilityGeneration, authority.SelectionGeneration, now);
+        var now = inspection.DatabaseNowUtc;
+        var eligible = db.LocationEnrichmentAttempts.Where(item => item.UserId == userId
+            && item.OperationId == null && (item.Outcome == LocationEnrichmentOutcome.NoResult
+                || item.Outcome == LocationEnrichmentOutcome.AttemptLimit)
+            && item.ProviderKey == authority.ProviderKey && item.ProviderProfileId == authority.ProfileId
+            && item.Capability == PersonalProviderCapability.Geocoding
+            && item.CredentialGeneration == authority.CredentialGeneration
+            && item.ConfigurationGeneration == authority.CapabilityGeneration
+            && item.SelectionGeneration == authority.SelectionGeneration
+            && item.Verification == authority.Verification
+            && item.VerificationCredentialGeneration == authority.VerifiedCredentialGeneration
+            && item.VerificationGeneration == authority.VerifiedCapabilityGeneration
+            && item.ConsentVersion == authority.ConsentVersion && item.ConsentTimestamp == authority.ConsentedAt
+            && item.ConsentCredentialGeneration == authority.ConsentCredentialGeneration
+            && item.Location != null && (item.Location.Address == null || item.Location.Address == "")
+            && (item.Location.FullAddress == null || item.Location.FullAddress == "")
+            && (item.Location.AddressNumber == null || item.Location.AddressNumber == "")
+            && (item.Location.StreetName == null || item.Location.StreetName == "")
+            && (item.Location.PostCode == null || item.Location.PostCode == "")
+            && (item.Location.Place == null || item.Location.Place == "")
+            && (item.Location.Region == null || item.Location.Region == "")
+            && (item.Location.Country == null || item.Location.Country == "")
+            && item.Location.ReverseGeocodingProvider == null
+            && item.Location.ReverseGeocodingStorageMode == null && item.Location.ReverseGeocodedAt == null);
+        var reset = 0;
+        if (db.Database.IsRelational())
+            reset = await eligible.ExecuteUpdateAsync(setters => setters
+                .SetProperty(item => item.Outcome, LocationEnrichmentOutcome.None)
+                .SetProperty(item => item.AdmittedAttemptCount, 0)
+                .SetProperty(item => item.LastAttemptAtUtc, now)
+                .SetProperty(item => item.NextAttemptAtUtc, now), cancellationToken);
+        else
+        {
+            await foreach (var attempt in eligible.AsAsyncEnumerable().WithCancellation(cancellationToken))
+            {
+                attempt.ResetDeferred(authority.ProviderKey, authority.CredentialGeneration,
+                    authority.CapabilityGeneration, authority.SelectionGeneration, now);
+                reset++;
+            }
+        }
+        if (reset == 0) return EnrichmentCommandResult.Success("nothing-to-retry");
+        if (!await progressQuery.HasRunnableAsync(userId, authority, now, cancellationToken))
+            return EnrichmentCommandResult.Conflict("no-candidates");
         var workflow = await db.LocationEnrichmentWorkflows.SingleAsync(item => item.UserId == userId, cancellationToken);
         if (!workflow.RetryDeferred(now)) return EnrichmentCommandResult.Conflict("invalid-state");
         try { await db.SaveChangesAsync(cancellationToken); }
@@ -138,28 +172,6 @@ public sealed class ImportEnrichmentHandoff(
 
     private async Task<bool> HasCurrentAuthorityAsync(string userId, CancellationToken cancellationToken) =>
         (await providerInspection.InspectPersistentGeocodingAsync(userId, cancellationToken)).Available;
-
-    private static bool IsCurrent(LocationEnrichmentAttempt attempt, PersonalProviderAuthorityBinding authority) =>
-        attempt.ProviderKey == authority.ProviderKey && attempt.ProviderProfileId == authority.ProfileId
-        && attempt.Capability == PersonalProviderCapability.Geocoding
-        && attempt.CredentialGeneration == authority.CredentialGeneration
-        && attempt.ConfigurationGeneration == authority.CapabilityGeneration
-        && attempt.SelectionGeneration == authority.SelectionGeneration
-        && attempt.Verification == authority.Verification
-        && attempt.VerificationCredentialGeneration == authority.VerifiedCredentialGeneration
-        && attempt.VerificationGeneration == authority.VerifiedCapabilityGeneration
-        && attempt.ConsentVersion == authority.ConsentVersion
-        && attempt.ConsentTimestamp == authority.ConsentedAt
-        && attempt.ConsentCredentialGeneration == authority.ConsentCredentialGeneration;
-
-    private Task<bool> HasCandidateAsync(string userId, CancellationToken cancellationToken) =>
-        db.Locations.AnyAsync(item => item.UserId == userId
-            && (item.Address == null || item.Address == "") && (item.FullAddress == null || item.FullAddress == "")
-            && (item.AddressNumber == null || item.AddressNumber == "") && (item.StreetName == null || item.StreetName == "")
-            && (item.PostCode == null || item.PostCode == "") && (item.Place == null || item.Place == "")
-            && (item.Region == null || item.Region == "") && (item.Country == null || item.Country == "")
-            && item.ReverseGeocodingProvider == null && item.ReverseGeocodingStorageMode == null
-            && item.ReverseGeocodedAt == null, cancellationToken);
 
     private async Task<EnrichmentCommandResult> ChangeAsync(string userId,
         Func<LocationEnrichmentWorkflow, DateTime, EnrichmentCommandResult> change,

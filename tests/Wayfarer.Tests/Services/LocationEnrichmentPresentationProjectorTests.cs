@@ -41,7 +41,8 @@ public sealed class LocationEnrichmentPresentationProjectorTests
         }
 
         await using var reload = new ApplicationDbContext(options, services);
-        var projector = new LocationEnrichmentPresentationProjector(reload, Inspector(binding, used: 7));
+        var projector = new LocationEnrichmentPresentationProjector(
+            reload, Inspector(binding, used: 7, now), new LocationEnrichmentProgressQuery(reload));
         var view = await projector.ProjectAsync("projection-user");
 
         Assert.Equal(0, view.RunnableRemaining);
@@ -64,7 +65,8 @@ public sealed class LocationEnrichmentPresentationProjectorTests
         db.AddRange(user, workflow);
         await db.SaveChangesAsync();
 
-        var view = await new LocationEnrichmentPresentationProjector(db, Inspector(Binding(), used: 4))
+        var view = await new LocationEnrichmentPresentationProjector(db,
+                Inspector(Binding(), used: 4, DateTime.UtcNow), new LocationEnrichmentProgressQuery(db))
             .ProjectAsync(user.Id);
 
         Assert.Equal(4, view.ProviderUsage);
@@ -78,12 +80,13 @@ public sealed class LocationEnrichmentPresentationProjectorTests
         return new(options, services);
     }
 
-    private static IPersonalProviderInspection Inspector(PersonalProviderAuthorityBinding binding, int used)
+    private static IPersonalProviderStatusReader Inspector(
+        PersonalProviderAuthorityBinding binding, int used, DateTime now)
     {
-        var mock = new Mock<IPersonalProviderInspection>();
+        var mock = new Mock<IPersonalProviderStatusReader>();
         mock.Setup(item => item.InspectPersistentGeocodingAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new PersonalProviderInspection(PersonalProviderAdmissionCategory.Admitted, "geoapify",
-                true, false, null, new(used, 2500, "credits", DateTimeOffset.UtcNow.AddHours(-24), null), binding));
+                true, false, null, new(used, 2500, "credits", new DateTimeOffset(now.AddHours(-24), TimeSpan.Zero), null), binding, now));
         return mock.Object;
     }
 
