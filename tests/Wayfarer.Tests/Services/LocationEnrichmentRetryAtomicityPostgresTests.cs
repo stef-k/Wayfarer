@@ -15,7 +15,7 @@ namespace Wayfarer.Tests.Services;
 
 /// <summary>Proves deferred Retry owns workflow validation and attempt reset atomically in PostgreSQL.</summary>
 [Collection(PostgresImportTestCollection.Name)]
-public sealed class LocationEnrichmentRetryAtomicityPostgresTests(PostgresImportTestFixture fixture)
+public sealed partial class LocationEnrichmentRetryAtomicityPostgresTests(PostgresImportTestFixture fixture)
 {
     [PostgresTheory]
     [InlineData(LocationEnrichmentState.Running)]
@@ -262,58 +262,6 @@ public sealed class LocationEnrichmentRetryAtomicityPostgresTests(PostgresImport
         Assert.False(after.IntentEnabled);
         Assert.Equal(LocationEnrichmentOutcome.NoResult, after.AttemptOutcome);
         Assert.Equal(1, after.AdmittedAttemptCount);
-        scenario.Projection.Verify(x => x.ProjectAsync(scenario.UserId, It.IsAny<CancellationToken>()), Times.Once);
-    }
-
-    [PostgresFact(Timeout = 20_000)]
-    public async Task WorkerRunningCommitFirstMakesConcurrentRetryMutationFree()
-    {
-        fixture.RequireAvailable();
-        var scenario = await SeedAsync(LocationEnrichmentState.Scheduled, LocationEnrichmentOutcome.NoResult);
-        var workerGate = new WorkflowLockGate(true);
-        var retryGate = new WorkflowLockGate(false);
-        var factory = new InterceptedFactory(fixture, workerGate);
-        var authority = new LocationEnrichmentExecutionAuthority(factory);
-        var worker = authority.TryAcquireAsync(scenario.UserId, 1);
-        await workerGate.Locked.WaitAsync(TimeSpan.FromSeconds(10));
-        await using var retryDb = fixture.CreateContext(retryGate);
-        var retry = Command(scenario, retryDb).RetryDeferredAsync(scenario.UserId);
-        await retryGate.Attempted.WaitAsync(TimeSpan.FromSeconds(10));
-        workerGate.Release();
-
-        var lease = await worker.WaitAsync(TimeSpan.FromSeconds(10));
-        var result = await retry.WaitAsync(TimeSpan.FromSeconds(10));
-        var after = await SnapshotAsync(scenario.UserId);
-
-        Assert.True(lease.HasValue);
-        Assert.Equal("invalid-state", result.Code);
-        Assert.Equal(LocationEnrichmentState.Running, after.State);
-        Assert.Equal(1, after.Epoch);
-        Assert.Equal(lease.Value.LeaseId, after.ExecutionLeaseId);
-        Assert.Equal(LocationEnrichmentOutcome.NoResult, after.AttemptOutcome);
-        scenario.Projection.Verify(x => x.ProjectAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
-    }
-
-    [PostgresFact(Timeout = 20_000)]
-    public async Task RetryCommitFirstLetsWorkerClaimOnlyRetryEpoch()
-    {
-        fixture.RequireAvailable();
-        var scenario = await SeedAsync(LocationEnrichmentState.Completed, LocationEnrichmentOutcome.NoResult);
-        var retry = await Command(scenario).RetryDeferredAsync(scenario.UserId);
-        var authority = new LocationEnrichmentExecutionAuthority(new InterceptedFactory(fixture));
-
-        var stale = await authority.TryAcquireAsync(scenario.UserId, 1);
-        var current = await authority.TryAcquireAsync(scenario.UserId, 2);
-        var after = await SnapshotAsync(scenario.UserId);
-
-        Assert.Equal("scheduled", retry.Code);
-        Assert.Null(stale);
-        Assert.True(current.HasValue);
-        Assert.Equal(LocationEnrichmentState.Running, after.State);
-        Assert.Equal(2, after.Epoch);
-        Assert.Equal(current.Value.LeaseId, after.ExecutionLeaseId);
-        Assert.Equal(LocationEnrichmentOutcome.None, after.AttemptOutcome);
-        Assert.Equal(0, after.AdmittedAttemptCount);
         scenario.Projection.Verify(x => x.ProjectAsync(scenario.UserId, It.IsAny<CancellationToken>()), Times.Once);
     }
 
