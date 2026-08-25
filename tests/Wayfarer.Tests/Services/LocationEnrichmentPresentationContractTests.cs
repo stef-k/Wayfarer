@@ -97,6 +97,8 @@ public sealed class LocationEnrichmentPresentationContractTests
 
     [Theory]
     [InlineData(true, LocationEnrichmentState.Completed, true)]
+    [InlineData(true, LocationEnrichmentState.PausedByUser, true)]
+    [InlineData(true, LocationEnrichmentState.PausedByAuthority, true)]
     [InlineData(false, LocationEnrichmentState.Completed, false)]
     [InlineData(true, LocationEnrichmentState.Running, false)]
     public void RetryDeferredRequiresCurrentEligibleRowsAndRestartableState(

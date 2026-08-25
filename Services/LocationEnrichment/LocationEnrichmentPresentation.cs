@@ -17,7 +17,7 @@ public static class LocationEnrichmentPresentation
         var hasRunnableWork = progress.RunnableRemaining > 0;
         var canStart = restartable && authority.Available && hasRunnableWork;
         var canResume = resumable && authority.Available;
-        var canRetry = restartable && authority.Available && progress.DeferredWorkRetryable;
+        var canRetry = !active && authority.Available && progress.DeferredWorkRetryable;
         var pausedReason = state switch
         {
             LocationEnrichmentState.PausedByUser => "Paused by you.",
@@ -44,7 +44,7 @@ public static class LocationEnrichmentPresentation
             authority.Limit, authority.Unit, authority.WindowDescription,
             authority.NextAvailableAtUtc, progress.DeferredWorkRetryable, noAction,
             Start: new(canStart, canStart),
-            Pause: new(active, active), Resume: new(resumable, canResume),
+            Pause: new(active, active), Resume: new(canResume, canResume),
             Cancel: new(active || resumable, active || resumable), RetryDeferred: new(canRetry, canRetry));
     }
 }

@@ -169,7 +169,7 @@ public sealed class LocationEnrichmentFinalAuthorityTests
                 0, 2500, "credits", "rolling 24 hours", null),
             new(1, 0, 0, false, null));
 
-        Assert.True(view.Resume.Visible);
+        Assert.False(view.Resume.Visible);
         Assert.False(view.Resume.Enabled);
         Assert.Equal("Paused by you.", view.PausedReason);
     }
