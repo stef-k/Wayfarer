@@ -37,17 +37,29 @@ public sealed class LocationProviderSettingsController(
         if (!ModelState.IsValid) return View("Index", await BuildAsync(userId, cancellationToken));
         var provider = ParseProvider(input.ProviderKey);
         var key = PersonalProviderKeys.Key(provider);
-        var profile = await dbContext.PersonalLocationProviderProfiles
-            .SingleOrDefaultAsync(item => item.UserId == userId && item.ProviderKey == key, cancellationToken)
-            ?? PersonalLocationProviderProfile.Create(userId, provider);
+        await using var transaction = dbContext.Database.IsRelational()
+            ? await dbContext.Database.BeginTransactionAsync(cancellationToken) : null;
+        var selection = dbContext.Database.IsNpgsql()
+            ? await dbContext.PersonalLocationProviderSelections.FromSqlInterpolated($$"""
+                SELECT *, xmin FROM "PersonalLocationProviderSelections"
+                WHERE "UserId" = {{userId}} FOR UPDATE
+                """).SingleOrDefaultAsync(cancellationToken)
+            : await dbContext.PersonalLocationProviderSelections.SingleOrDefaultAsync(
+                item => item.UserId == userId, cancellationToken);
+        selection ??= PersonalLocationProviderSelection.Create(userId);
+        if (dbContext.Entry(selection).State == EntityState.Detached) dbContext.Add(selection);
+        var profile = dbContext.Database.IsNpgsql()
+            ? await dbContext.PersonalLocationProviderProfiles.FromSqlInterpolated($$"""
+                SELECT *, xmin FROM "PersonalLocationProviderProfiles"
+                WHERE "UserId" = {{userId}} AND "ProviderKey" = {{key}} FOR UPDATE
+                """).SingleOrDefaultAsync(cancellationToken)
+            : await dbContext.PersonalLocationProviderProfiles.SingleOrDefaultAsync(
+                item => item.UserId == userId && item.ProviderKey == key, cancellationToken);
+        profile ??= PersonalLocationProviderProfile.Create(userId, provider);
         if (dbContext.Entry(profile).State == EntityState.Detached) dbContext.Add(profile);
         if (!string.IsNullOrWhiteSpace(input.ReplacementCredential)) credentials.Replace(profile, input.ReplacementCredential);
         profile.SetAuthorization(PersonalProviderCapability.Geocoding, input.GeocodingAuthorized);
         profile.SetAuthorization(PersonalProviderCapability.Routing, input.RoutingAuthorized);
-
-        var selection = await dbContext.PersonalLocationProviderSelections.SingleOrDefaultAsync(
-            item => item.UserId == userId, cancellationToken) ?? PersonalLocationProviderSelection.Create(userId);
-        if (dbContext.Entry(selection).State == EntityState.Detached) dbContext.Add(selection);
         var geocodingVerified = profile.GeocodingVerification == PersonalProviderVerification.Verified
             && profile.GeocodingVerifiedCredentialGeneration == profile.CredentialGeneration
             && profile.GeocodingVerifiedConfigurationGeneration == profile.GeocodingGeneration;
@@ -62,6 +74,7 @@ public sealed class LocationProviderSettingsController(
             selection.Select(PersonalProviderCapability.Routing, provider);
         else if (selection.RoutingProviderKey == key) selection.Select(PersonalProviderCapability.Routing, null);
         await dbContext.SaveChangesAsync(cancellationToken);
+        if (transaction != null) await transaction.CommitAsync(cancellationToken);
         return RedirectToAction(nameof(Index));
     }
 
