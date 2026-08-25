@@ -100,7 +100,7 @@ public sealed class LocationImportLifecyclePostgresTests(PostgresImportTestFixtu
     }
 
     [PostgresFact]
-    public async Task StaleStopSave_ReturnsReloadedClassificationAndDoesNotReportFalseSuccess()
+    public async Task StopUsesFreshContextAndCommitsAgainstCurrentAuthority()
     {
         var seed = await SeedAsync();
         var (scheduler, _) = Scheduler();
@@ -114,10 +114,10 @@ public sealed class LocationImportLifecyclePostgresTests(PostgresImportTestFixtu
 
         await using var verification = fixture.CreateContext();
         var stored = await verification.LocationImports.FindAsync(seed.ImportId);
-        Assert.False(result.Succeeded);
-        Assert.Equal(LocationImportCommandCode.InvalidState, result.Code);
-        Assert.Equal(ImportStatus.InProgress, stored!.Status);
-        Assert.Null(stored.StopRequestedAtUtc);
+        Assert.True(result.Succeeded);
+        Assert.Equal(LocationImportCommandCode.Accepted, result.Code);
+        Assert.Equal(ImportStatus.Stopping, stored!.Status);
+        Assert.NotNull(stored.StopRequestedAtUtc);
     }
 
     [PostgresFact]
