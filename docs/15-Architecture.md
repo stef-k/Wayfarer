@@ -265,4 +265,6 @@ Trip editing state is owned by the Vue Trip Editor:
 
 Persistent reverse enrichment has one server-side boundary that owns protected authority, consent, verification, selection, provider-native admission, transport, normalization, generation revalidation, and bounded results. Capture/import/Trip callers never receive credentials or choose storage mode.
 
+Missing-address enrichment has one durable workflow per user. Epochs and short execution leases fence stale workers, while restart reconciliation projects relational intent to one-shot Quartz work without holding database resources across provider contact. The import page reads authority, usage, attempts, and progress from durable state; its authenticated NameIdentifier-derived SSE channel carries only content-free reload hints.
+
 Geoapify routing is a distinct adapter behind the existing proposal seam. Administrator configuration plus stable Transport Profile ID resolves a closed provider mode; mapping/configuration version participates in stale-work authority. Explicit acceptance owns durable Segment route provenance, while the dedicated authenticated mobile route endpoint returns but does not persist ad-hoc routes.

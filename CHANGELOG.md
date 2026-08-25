@@ -4,9 +4,11 @@
 
 ### Added
 - Added an explicit resumable per-user missing-address workflow with durable controls, bounded retries, exact provider-budget wakes, restart reconciliation, and authenticated content-free progress (#507).
+- Added provider-aware import-page presentation with ledger-derived usage, exact runnable/future/permanent work counts, accessible state-specific controls, and content-free coalesced reload hints (#512).
 
 ### Changed
 - Location-history uploads now advertise exactly Google Timeline JSON, Wayfarer GeoJSON, CSV, GPX, and location-history KML. Generic GeoJSON is rejected while historical rows retain a bounded unsupported outcome; Trip imports remain separate (#507).
+- The coordinated provider release order remains #502 → #507 → #500.
 
 ## [1.9.3] - 2026-08-22
 

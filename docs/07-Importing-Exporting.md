@@ -19,7 +19,7 @@ CSV uses the CSV importer and suits spreadsheets/Python. GeoJSON uses the Wayfar
 - **GPX** — GPS tracks and waypoints
 - **KML** — Google Earth/Maps format
 - **CSV** — Tabular points with lat/lon (headers required)
-- **Wayfarer GeoJSON** — Wayfarer location-history exports; arbitrary generic GeoJSON is rejected
+- **Wayfarer GeoJSON** — Wayfarer location-history exports; generic GeoJSON is not supported
 - **Google Timeline JSON** — Export from Google location history
 
 ### How Imports Work
@@ -35,7 +35,6 @@ CSV uses the CSV importer and suits spreadsheets/Python. GeoJSON uses the Wayfar
 
 - **Start** — begin or resume processing a stopped/failed import.
 - **Stop** — pause an in-progress import (can resume later).
-- **Regenerate** — reprocess the file from scratch.
 - **Delete** — remove the import and associated uploaded file.
 - Status indicators: InProgress, Completed, Stopped, Failed, Stopping.
 - Large files are processed asynchronously with SSE progress updates.
@@ -47,13 +46,15 @@ CSV uses the CSV importer and suits spreadsheets/Python. GeoJSON uses the Wayfar
 ### Resumable Reverse Geocoding (Optional)
 
 - Configure an authorized and verified personal provider profile before address enrichment. Imports share its remaining guard allowance and preserve retryable source data on exhaustion; see [Personal Location Providers](24-Personal-Location-Providers.md).
-- Without a token, imports still work; address fields stay blank.
+- Without usable current provider authority, imports still work; address fields stay blank.
 - Opt in during upload or use **Start** later. Import completion covers parsing, duplicate filtering, and insertion; enrichment can continue independently for days.
-- Controls are **Start**, **Pause**, **Resume**, **Cancel**, and **Retry deferred**. Retry deferred explicitly overrides poison/no-result deferral under current authority without resetting usage or successes.
+- State- and authority-specific controls are **Start**, **Pause**, **Resume**, **Cancel**, and **Retry deferred**; only meaningful actions are shown and the server revalidates every command. Retry deferred explicitly overrides eligible current-authority poison/no-result deferral without resetting usage or successes.
 - Each Quartz execution contacts at most 100 wholly empty owned candidates in timestamp/ID order. Permanent and not-yet-due attempts are skipped so poison rows cannot starve later Locations.
 - Geoapify geocoding and routing share a rolling pool and wake after the oldest counted admission expires plus five seconds. Mapbox Permanent Geocoding uses the next Wayfarer UTC month boundary plus five seconds.
+- Wayfarer cannot see usage made directly in the external provider account. The displayed usage contains only committed Wayfarer admissions.
 - At the default 2,500-credit guard, 100,000 contacts need 1,000 executions and at least 40 windows—about 39 elapsed days before competition, retries, downtime, and latency.
 - Deleting import history removes only its metadata/file. Locations, enrichment, workflow state, attempts, credentials, and usage remain. Trip imports stay separate and are not rerouted.
+- Cancelling enrichment does not cancel or delete imports, and deleting import history does not delete Locations or enrichment.
 
 ### Metadata Fields
 

@@ -214,7 +214,9 @@ Real-time streaming endpoints for live updates.
 | `/api/sse/stream/invitations` | Invitation notifications |
 | `/api/sse/stream/memberships` | Group membership changes |
 | `/api/sse/stream/job-status` | Background job status updates |
-| `/api/sse/stream/import-progress` | Import progress updates |
+| `/api/sse/import` | Authenticated import/enrichment reload hints for the current user |
+
+`/api/sse/import` derives its protected channel only from the authenticated `NameIdentifier`; callers cannot select a user, import, or workflow channel. This content-free SSE emits only the exact `import-state` and `enrichment-state` hints. Clients reload durable relational state and never treat an event payload as display data. The legacy generic SSE route rejects import and enrichment channel prefixes.
 
 ### Mobile SSE Endpoints
 
