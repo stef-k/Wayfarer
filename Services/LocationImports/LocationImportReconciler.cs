@@ -36,7 +36,7 @@ public sealed class LocationImportReconciler(
                 var authority = await LoadAuthorityAsync(item.Id, token);
                 if (authority is null) continue;
                 var key = LocationImportSchedulerKeys.Job(item.Id, authority.Epoch);
-                orphans.RemoveWhere(candidate => TryParseJob(candidate, out var id, out _) && id == item.Id);
+                orphans.Remove(key);
                 if (authority.DeletionRequestedAtUtc.HasValue)
                     await FinalizeDeletionAsync(authority.Id, projected, executing, token);
                 else if (authority.Status == ImportStatus.InProgress &&

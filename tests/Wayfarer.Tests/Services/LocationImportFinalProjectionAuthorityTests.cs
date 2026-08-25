@@ -84,12 +84,10 @@ public sealed class LocationImportFinalProjectionAuthorityTests(PostgresImportTe
             Assert.Equal([LocationImportSchedulerKeys.Job(importId, 9)], matching);
         }
         else Assert.Empty(matching);
-        var mutations = scheduler.Invocations.Count(x => x.Method.Name is nameof(IScheduler.ScheduleJob)
-            or nameof(IScheduler.DeleteJob));
+        var mutations = CountMutations(scheduler, importId);
         Assert.InRange(mutations, 1, 4);
         await reconciler.ReconcileAsync();
-        Assert.Equal(mutations, scheduler.Invocations.Count(x => x.Method.Name is nameof(IScheduler.ScheduleJob)
-            or nameof(IScheduler.DeleteJob)));
+        Assert.Equal(mutations, CountMutations(scheduler, importId));
         await using (var cleanup = fixture.CreateContext())
             await cleanup.LocationImports.Where(x => x.Id == importId).ExecuteDeleteAsync();
         if (File.Exists(path)) File.Delete(path);
@@ -159,11 +157,9 @@ public sealed class LocationImportFinalProjectionAuthorityTests(PostgresImportTe
         Assert.False(File.Exists(path));
         await using (var final = fixture.CreateContext())
             Assert.Null(await final.LocationImports.FindAsync(importId));
-        var mutations = scheduler.Invocations.Count(x => x.Method.Name is nameof(IScheduler.ScheduleJob)
-            or nameof(IScheduler.DeleteJob));
+        var mutations = CountMutations(scheduler, importId);
         await reconciler.ReconcileAsync();
-        Assert.Equal(mutations, scheduler.Invocations.Count(x => x.Method.Name is nameof(IScheduler.ScheduleJob)
-            or nameof(IScheduler.DeleteJob)));
+        Assert.Equal(mutations, CountMutations(scheduler, importId));
         Assert.Equal(0, coordinator.EntryCount);
     }
 
@@ -260,6 +256,15 @@ public sealed class LocationImportFinalProjectionAuthorityTests(PostgresImportTe
             });
         return scheduler;
     }
+
+    private static int CountMutations(Mock<IScheduler> scheduler, int importId) => scheduler.Invocations.Count(call =>
+        call.Method.Name is nameof(IScheduler.ScheduleJob) or nameof(IScheduler.DeleteJob)
+        && call.Arguments.FirstOrDefault() switch
+        {
+            IJobDetail job => LocationImportReconciler.TryParseJob(job.Key, out var id, out _) && id == importId,
+            JobKey key => LocationImportReconciler.TryParseJob(key, out var id, out _) && id == importId,
+            _ => false
+        });
 
     public enum AuthorityChange { Stopped, StopIntent, DeletionIntent, NewEpoch, RowDeleted, Completed, Failed }
 }
