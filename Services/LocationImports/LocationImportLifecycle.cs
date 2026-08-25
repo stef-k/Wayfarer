@@ -17,6 +17,7 @@ internal interface ILocationImportLifecycleObserver
     Task AfterBatchCommittedAsync(int importId, int epoch, int processed, CancellationToken token);
     Task BeforeTerminalPersistenceAsync(
         int importId, int epoch, LocationImportExecutionOutcome outcome, CancellationToken token);
+    Task BeforeFileDeletionAsync(int importId, string filePath, CancellationToken token) => Task.CompletedTask;
 }
 
 /// <summary>Leaves production import execution unchanged when no test observer is supplied.</summary>
@@ -65,6 +66,12 @@ public sealed class LocationImportLifecycle(
     internal LocationImportLifecycle(IDbContextFactory<ApplicationDbContext> contexts, IScheduler scheduler,
         ILogger<LocationImportLifecycle> logger, ILocationImportLifecycleObserver observer)
         : this(contexts, scheduler, logger, (LocationImportProjectionCoordinator?)null) => _observer = observer;
+
+    /// <summary>Creates a lifecycle with test-controlled coordination and authority-neutral observation.</summary>
+    internal LocationImportLifecycle(IDbContextFactory<ApplicationDbContext> contexts, IScheduler scheduler,
+        ILogger<LocationImportLifecycle> logger, LocationImportProjectionCoordinator projectionCoordinator,
+        ILocationImportLifecycleObserver observer)
+        : this(contexts, scheduler, logger, projectionCoordinator) => _observer = observer;
 
     public async Task<LocationImportCommandResult> StartAsync(
         string userId, int importId, CancellationToken cancellationToken = default)
@@ -201,6 +208,7 @@ public sealed class LocationImportLifecycle(
             if (!authority.DeletionRequestedAtUtc.HasValue || authority.Epoch != deletionEpoch
                 || authority.Status == ImportStatus.InProgress || authority.Status == ImportStatus.Stopping)
                 return new(LocationImportCommandCode.ProjectionPending);
+            await _observer.BeforeFileDeletionAsync(importId, authority.FilePath, cancellationToken);
             if (File.Exists(authority.FilePath)) File.Delete(authority.FilePath);
             await FinalDeleteAsync(userId, importId, deletionEpoch, cancellationToken);
         }
@@ -287,24 +295,28 @@ public sealed class LocationImportLifecycle(
     private async Task<(OwnedAuthority? Authority, LocationImportCommandResult? Result)> CommitDeletionIntentAsync(
         string userId, int importId, CancellationToken token)
     {
-        await using var db = await contexts.CreateDbContextAsync(token);
-        var import = await OwnedAsync(db, userId, importId, token);
-        if (import is null) return (null, new(LocationImportCommandCode.NotFound));
-        if (import.Status == ImportStatus.InProgress || import.Status == ImportStatus.Stopping)
-            return (null, new(LocationImportCommandCode.ExecutionActive));
-        import.DeletionRequestedAtUtc ??= DateTime.UtcNow;
-        try { await db.SaveChangesAsync(token); }
-        catch (DbUpdateConcurrencyException)
         {
-            var current = await LoadOwnedAuthorityAsync(userId, importId, token);
-            if (current is null) return (null, new(LocationImportCommandCode.Accepted));
-            if (current.Status == ImportStatus.InProgress || current.Status == ImportStatus.Stopping)
+            await using var db = await contexts.CreateDbContextAsync(token);
+            var import = await OwnedAsync(db, userId, importId, token);
+            if (import is null) return (null, new(LocationImportCommandCode.NotFound));
+            if (import.Status == ImportStatus.InProgress || import.Status == ImportStatus.Stopping)
                 return (null, new(LocationImportCommandCode.ExecutionActive));
-            if (!current.DeletionRequestedAtUtc.HasValue)
-                return (null, new(LocationImportCommandCode.InvalidState));
-            return (current, null);
+            import.DeletionRequestedAtUtc ??= DateTime.UtcNow;
+            try
+            {
+                await db.SaveChangesAsync(token);
+                return (new(import.ExecutionEpoch, import.Status, import.DeletionRequestedAtUtc, import.FilePath), null);
+            }
+            catch (DbUpdateConcurrencyException) { }
         }
-        return (new(import.ExecutionEpoch, import.Status, import.DeletionRequestedAtUtc, import.FilePath), null);
+
+        var current = await LoadOwnedAuthorityAsync(userId, importId, token);
+        if (current is null) return (null, new(LocationImportCommandCode.Accepted));
+        if (current.Status == ImportStatus.InProgress || current.Status == ImportStatus.Stopping)
+            return (null, new(LocationImportCommandCode.ExecutionActive));
+        if (!current.DeletionRequestedAtUtc.HasValue)
+            return (null, new(LocationImportCommandCode.InvalidState));
+        return (current, null);
     }
 
     private async Task FinalDeleteAsync(string userId, int importId, int epoch, CancellationToken token)

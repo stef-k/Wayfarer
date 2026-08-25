@@ -24,12 +24,14 @@ public sealed class LocationImportLifecycleContextLifetimeTests
             var factory = new RecordingFactory();
             await factory.SeedAsync(Import(path));
             factory.ResetObservation();
-            var observer = new FileBoundaryObserver(factory, path);
+            var coordinator = new LocationImportProjectionCoordinator();
+            var observer = new FileBoundaryObserver(factory, coordinator, path);
             var scheduler = DeleteScheduler(factory);
             var lifecycle = new LocationImportLifecycle(factory, scheduler.Object,
-                NullLogger<LocationImportLifecycle>.Instance, new LocationImportProjectionCoordinator(), observer);
+                NullLogger<LocationImportLifecycle>.Instance, coordinator, observer);
 
             var result = await lifecycle.DeleteAsync("owner", 1);
+            observer.CapturePostFileIds();
 
             Assert.Equal(LocationImportCommandCode.Accepted, result.Code);
             Assert.False(File.Exists(path));
@@ -55,14 +57,17 @@ public sealed class LocationImportLifecycleContextLifetimeTests
             factory.ResetObservation();
             factory.ArmDeletionIntentConflict();
             var scheduler = DeleteScheduler(factory);
-            var observer = new FileBoundaryObserver(factory, path);
+            var coordinator = new LocationImportProjectionCoordinator();
+            var observer = new FileBoundaryObserver(factory, coordinator, path);
             var lifecycle = new LocationImportLifecycle(factory, scheduler.Object,
-                NullLogger<LocationImportLifecycle>.Instance, new LocationImportProjectionCoordinator(), observer);
+                NullLogger<LocationImportLifecycle>.Instance, coordinator, observer);
 
             var result = await lifecycle.DeleteAsync("owner", 1);
+            observer.CapturePostFileIds();
 
             Assert.Equal(LocationImportCommandCode.Accepted, result.Code);
-            var conflict = Assert.Single(factory.Events.Where(value => value.StartsWith("conflict:", StringComparison.Ordinal)));
+            var conflict = Assert.Single(factory.Events,
+                value => value.StartsWith("conflict:", StringComparison.Ordinal));
             var conflictedId = int.Parse(conflict["conflict:".Length..]);
             var reload = factory.Events
                 .SkipWhile(value => value != conflict)
@@ -72,7 +77,7 @@ public sealed class LocationImportLifecycleContextLifetimeTests
             Assert.NotEqual(conflictedId, reloadId);
             Assert.Equal("0", reloadParts[2]);
             Assert.True(factory.Events.IndexOf($"dispose:{conflictedId}") < factory.Events.IndexOf(reload));
-            Assert.DoesNotContain(reloadId, observer.PreFileIds);
+            Assert.Contains(reloadId, observer.PreFileIds);
             Assert.Equal(1, factory.InjectedConflictCount);
             Assert.Equal(0, factory.Alive);
             Assert.Equal(0, await factory.CountImportsAsync());
@@ -266,7 +271,8 @@ public sealed class LocationImportLifecycleContextLifetimeTests
         }
     }
 
-    private sealed class FileBoundaryObserver(RecordingFactory factory, string expectedPath)
+    private sealed class FileBoundaryObserver(RecordingFactory factory,
+        LocationImportProjectionCoordinator coordinator, string expectedPath)
         : ILocationImportLifecycleObserver
     {
         internal List<int> PreFileIds { get; private set; } = [];
@@ -278,6 +284,7 @@ public sealed class LocationImportLifecycleContextLifetimeTests
             Assert.Equal(1, importId);
             Assert.Equal(expectedPath, filePath);
             Assert.Equal(0, factory.Alive);
+            Assert.Equal(1, coordinator.ReferenceCount(importId));
             EventsAtBoundary = factory.SnapshotEvents();
             PreFileIds = [.. factory.CreatedIds];
             return Task.CompletedTask;
