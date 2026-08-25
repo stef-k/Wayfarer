@@ -2,6 +2,7 @@ import { createLocationImportRefresh } from './Refresh.js';
 
 document.addEventListener('DOMContentLoaded', () => {
     const refresh = createLocationImportRefresh({ schedule: window.setTimeout.bind(window),
+        cancel: window.clearTimeout.bind(window),
         reload: () => window.location.reload() });
     refresh.connect(globalThis.EventSource, '/api/sse/import');
     window.addEventListener('pagehide', refresh.dispose, { once: true });
