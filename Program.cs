@@ -308,7 +308,7 @@ static void ConfigureDatabase(WebApplicationBuilder builder)
     //     options.UseNpgsql(connectionString, x => x.UseNetTopologySuite()));
 
     // use a pool of db connections instead of spawning a new per request
-    builder.Services.AddDbContextPool<ApplicationDbContext>(options =>
+    builder.Services.AddPooledDbContextFactory<ApplicationDbContext>(options =>
     {
         options.UseNpgsql(connectionString, x => x.UseNetTopologySuite());
         // Suppress pending model changes warning - EF Core sometimes detects false positives
@@ -316,6 +316,8 @@ static void ConfigureDatabase(WebApplicationBuilder builder)
         options.ConfigureWarnings(warnings =>
             warnings.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
     });
+    builder.Services.AddScoped(provider =>
+        provider.GetRequiredService<IDbContextFactory<ApplicationDbContext>>().CreateDbContext());
     builder.Services.AddSingleton<IDbContextFactory<ApplicationDbContext>, LocationEnrichmentDbContextFactory>();
 
     // Add exception handling for database-related errors during development

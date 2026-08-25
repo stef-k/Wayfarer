@@ -9,6 +9,7 @@ internal static class LocationImportDeduplicator
     public static async Task<(List<Location> ToInsert, int Skipped)> FilterAsync(
         ApplicationDbContext context,
         List<Location> batch,
+        IReadOnlySet<Guid> batchKeys,
         string userId,
         ILogger logger,
         CancellationToken cancellationToken)
@@ -16,28 +17,22 @@ internal static class LocationImportDeduplicator
         if (batch.Count == 0)
             return (batch, 0);
 
-        var minTimestamp = batch.Min(location => location.Timestamp).AddSeconds(-2);
-        var maxTimestamp = batch.Max(location => location.Timestamp).AddSeconds(2);
-        var existing = await context.Locations
-            .Where(location => location.UserId == userId &&
-                location.Timestamp >= minTimestamp && location.Timestamp <= maxTimestamp)
-            .Select(location => new { location.Timestamp, location.Coordinates })
-            .ToListAsync(cancellationToken);
-        var seenKeys = (await context.Locations
-            .Where(location => location.UserId == userId && location.IdempotencyKey.HasValue)
+        var keys = batchKeys.ToArray();
+        var seenKeys = (await context.Locations.AsNoTracking()
+            .Where(location => location.UserId == userId && location.IdempotencyKey.HasValue &&
+                keys.Contains(location.IdempotencyKey.Value))
             .Select(location => location.IdempotencyKey!.Value)
             .ToListAsync(cancellationToken)).ToHashSet();
 
         var toInsert = new List<Location>();
+        var acceptedLegacy = new List<Location>();
         var skipped = 0;
         foreach (var location in batch)
         {
             var duplicate = location.IdempotencyKey.HasValue
                 ? !seenKeys.Add(location.IdempotencyKey.Value)
-                : existing.Any(candidate =>
-                    Math.Abs((candidate.Timestamp - location.Timestamp).TotalSeconds) <= 1 &&
-                    DistanceMeters(candidate.Coordinates.X, candidate.Coordinates.Y,
-                        location.Coordinates.X, location.Coordinates.Y) <= 10);
+                : acceptedLegacy.Any(candidate => IsLegacyDuplicate(candidate, location)) ||
+                  await IsPersistedLegacyDuplicateAsync(context, userId, location, cancellationToken);
             if (duplicate)
             {
                 skipped++;
@@ -46,10 +41,30 @@ internal static class LocationImportDeduplicator
             else
             {
                 toInsert.Add(location);
+                if (!location.IdempotencyKey.HasValue) acceptedLegacy.Add(location);
             }
         }
 
         return (toInsert, skipped);
+    }
+
+    private static bool IsLegacyDuplicate(Location candidate, Location location) =>
+        Math.Abs((candidate.Timestamp - location.Timestamp).TotalSeconds) <= 1 &&
+        DistanceMeters(candidate.Coordinates.X, candidate.Coordinates.Y,
+            location.Coordinates.X, location.Coordinates.Y) <= 10;
+
+    private static async Task<bool> IsPersistedLegacyDuplicateAsync(
+        ApplicationDbContext context, string userId, Location location, CancellationToken cancellationToken)
+    {
+        var candidates = context.Locations.AsNoTracking().Where(candidate =>
+            candidate.UserId == userId &&
+            candidate.Timestamp >= location.Timestamp.AddSeconds(-1) &&
+            candidate.Timestamp <= location.Timestamp.AddSeconds(1));
+        if (context.Database.IsRelational())
+            return await candidates.AnyAsync(candidate =>
+                candidate.Coordinates.Distance(location.Coordinates) <= 10, cancellationToken);
+        return (await candidates.ToListAsync(cancellationToken)).Any(candidate =>
+            IsLegacyDuplicate(candidate, location));
     }
 
     public static async Task<int> InsertAsync(
