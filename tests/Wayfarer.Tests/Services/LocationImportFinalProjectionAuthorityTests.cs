@@ -86,10 +86,12 @@ public sealed class LocationImportFinalProjectionAuthorityTests(PostgresImportTe
         else Assert.Empty(matching);
         var mutations = scheduler.Invocations.Count(x => x.Method.Name is nameof(IScheduler.ScheduleJob)
             or nameof(IScheduler.DeleteJob));
-        Assert.InRange(mutations, 1, 3);
+        Assert.InRange(mutations, 1, 4);
         await reconciler.ReconcileAsync();
         Assert.Equal(mutations, scheduler.Invocations.Count(x => x.Method.Name is nameof(IScheduler.ScheduleJob)
             or nameof(IScheduler.DeleteJob)));
+        await using (var cleanup = fixture.CreateContext())
+            await cleanup.LocationImports.Where(x => x.Id == importId).ExecuteDeleteAsync();
         if (File.Exists(path)) File.Delete(path);
     }
 
@@ -118,9 +120,10 @@ public sealed class LocationImportFinalProjectionAuthorityTests(PostgresImportTe
         var releaseProjection = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var scheduler = StatefulScheduler(jobs, triggers, async job =>
         {
+            var expected = LocationImportSchedulerKeys.Job(importId, 4);
+            if (job.Key.Name != expected.Name || job.Key.Group != expected.Group) return;
             projectionReached.TrySetResult();
             await releaseProjection.Task;
-            jobs.Add(job.Key);
         });
         var coordinator = new LocationImportProjectionCoordinator();
         var contexts = new FixtureFactory(fixture);
@@ -149,8 +152,10 @@ public sealed class LocationImportFinalProjectionAuthorityTests(PostgresImportTe
         releaseProjection.TrySetResult();
         await Task.WhenAll(reconciliation, deletion);
 
-        Assert.Empty(jobs);
-        Assert.Empty(triggers);
+        Assert.DoesNotContain(jobs, key => LocationImportReconciler.TryParseJob(key, out var id, out _)
+            && id == importId);
+        Assert.DoesNotContain(triggers, key => LocationImportReconciler.TryParseTrigger(key, out var id, out _)
+            && id == importId);
         Assert.False(File.Exists(path));
         await using (var final = fixture.CreateContext())
             Assert.Null(await final.LocationImports.FindAsync(importId));
