@@ -16,6 +16,17 @@ namespace Wayfarer.Tests.Services;
 public sealed class LocationImportLifecycleContractTests : TestBase
 {
     [Fact]
+    public void Lifecycle_DependsOnContextFactory_NotScopedContext()
+    {
+        var constructor = Assert.Single(typeof(LocationImportLifecycle).GetConstructors());
+
+        Assert.Contains(constructor.GetParameters(), parameter =>
+            parameter.ParameterType == typeof(IDbContextFactory<ApplicationDbContext>));
+        Assert.DoesNotContain(constructor.GetParameters(), parameter =>
+            parameter.ParameterType == typeof(ApplicationDbContext));
+    }
+
+    [Fact]
     public async Task Start_CommitsIntent_WhenSchedulingThrows()
     {
         await using var db = CreateDbContext();
