@@ -50,3 +50,53 @@ test('stream errors and disposal do not reload or retain listeners', () => {
     assert.equal(source.onmessage, null);
     assert.equal(source.onerror, null);
 });
+
+test('dispose cancels an accepted pending reload and a stale callback no-ops', () => {
+    const timers = [];
+    const cancelled = [];
+    let reloads = 0;
+    const refresh = createLocationImportRefresh({
+        schedule: callback => { timers.push(callback); return 17; },
+        cancel: handle => cancelled.push(handle),
+        reload: () => reloads++
+    });
+
+    refresh.accept({ data: '{"type":"enrichment-state"}' });
+    refresh.dispose();
+    timers[0]();
+
+    assert.deepEqual(cancelled, [17]);
+    assert.equal(reloads, 0);
+});
+
+test('dispose after a hint burst cancels the single coalesced reload', () => {
+    let schedules = 0;
+    let cancellations = 0;
+    const refresh = createLocationImportRefresh({
+        schedule: () => { schedules++; return 9; },
+        cancel: handle => { assert.equal(handle, 9); cancellations++; },
+        reload: () => assert.fail('disposed coordinator must not reload')
+    });
+
+    refresh.accept({ data: '{"type":"import-state"}' });
+    refresh.accept({ data: '{"type":"enrichment-state"}' });
+    refresh.dispose();
+    refresh.dispose();
+
+    assert.equal(schedules, 1);
+    assert.equal(cancellations, 1);
+});
+
+test('dispose before a hint and unavailable EventSource remain inert', () => {
+    let schedules = 0;
+    const refresh = createLocationImportRefresh({
+        schedule: () => schedules++, cancel: () => {}, reload: () => {}
+    });
+
+    refresh.connect(undefined, '/api/sse/import');
+    refresh.dispose();
+    refresh.accept({ data: '{"type":"import-state"}' });
+
+    assert.equal(refresh.connected, false);
+    assert.equal(schedules, 0);
+});

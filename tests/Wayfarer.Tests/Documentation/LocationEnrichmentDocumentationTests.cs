@@ -26,6 +26,28 @@ public sealed class LocationEnrichmentDocumentationTests
         Assert.Contains("#502 → #507 → #500", docs);
     }
 
+    [Fact]
+    public void AcceptedLocationHistoryFormatListsNameWayfarerGeoJsonPrecisely()
+    {
+        var ambiguousLists = new[]
+        {
+            "GPX/KML/CSV/GeoJSON",
+            "JSON, GPX, KML, GeoJSON"
+        };
+        var files = Directory.GetFiles(RepositoryFile("docs"), "*.md")
+            .Append(RepositoryFile("README.md"));
+
+        foreach (var file in files)
+        {
+            var text = File.ReadAllText(file);
+            foreach (var ambiguous in ambiguousLists)
+                Assert.DoesNotContain(ambiguous, text, StringComparison.OrdinalIgnoreCase);
+        }
+
+        Assert.Contains("Wayfarer GeoJSON", File.ReadAllText(RepositoryFile("docs", "01-Getting-Started.md")));
+        Assert.Contains("Wayfarer GeoJSON", File.ReadAllText(RepositoryFile("docs", "15-Architecture.md")));
+    }
+
     private static string RepositoryFile(params string[] parts) => Path.GetFullPath(
         Path.Combine([AppContext.BaseDirectory, "..", "..", "..", "..", "..", .. parts]));
 }
