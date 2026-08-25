@@ -22,8 +22,9 @@ public sealed class LocationImportWorkerRacePostgresTests(PostgresImportTestFixt
     [PostgresFact]
     public async Task DeletionAfterFirstBatch_FencesSecondBatchAndReconcilesDeletion()
     {
-        var seed = await SeedAsync(51, enrichmentRequested: true);
+        await using var seed = await SeedAsync(51, enrichmentRequested: true);
         var observer = new BlockingImportObserver(blockAfterCommittedBatch: true);
+        seed.ReleaseGates = observer.Release;
         var handoff = new Mock<IImportEnrichmentHandoff>();
         var scheduler = EmptyScheduler();
         LocationImportExecutionOutcome outcome;
@@ -58,8 +59,9 @@ public sealed class LocationImportWorkerRacePostgresTests(PostgresImportTestFixt
     [PostgresFact]
     public async Task DeletionAtTerminalPersistence_FencesCompletionAndHistoryThenReconcilesIdempotently()
     {
-        var seed = await SeedAsync(2, enrichmentRequested: false);
+        await using var seed = await SeedAsync(2, enrichmentRequested: false);
         var observer = new BlockingImportObserver(blockBeforeTerminalPersistence: true);
+        seed.ReleaseGates = observer.Release;
         var scheduler = EmptyScheduler();
         await using var workerDb = fixture.CreateContext();
         var service = Service(workerDb, null, observer);
@@ -97,7 +99,10 @@ public sealed class LocationImportWorkerRacePostgresTests(PostgresImportTestFixt
     private async Task<Seed> SeedAsync(int count, bool enrichmentRequested)
     {
         var user = await fixture.CreateUserAsync();
-        var directory = Path.Combine(Path.GetTempPath(), $"wayfarer-511-worker-{Guid.NewGuid():N}");
+        var root = Path.Combine(Path.GetTempPath(), "wayfarer-511-worker-races");
+        Directory.CreateDirectory(root);
+        var baseline = Directory.GetDirectories(root).Select(DirectorySnapshot.Capture).ToArray();
+        var directory = Path.Combine(root, Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
         var path = Path.Combine(directory, "locations.csv");
         var rows = Enumerable.Range(0, count).Select(index =>
@@ -112,8 +117,8 @@ public sealed class LocationImportWorkerRacePostgresTests(PostgresImportTestFixt
         };
         db.LocationImports.Add(import);
         await db.SaveChangesAsync();
-        return new(user.Id, import.Id, import.ExecutionEpoch, path,
-            new DateTime(2026, 8, 24, 12, 0, 0, DateTimeKind.Utc));
+        return new Seed(user.Id, import.Id, import.ExecutionEpoch, path,
+            new DateTime(2026, 8, 24, 12, 0, 0, DateTimeKind.Utc), root, directory, baseline);
     }
 
     private async Task CommitDeletionIntentAsync(Seed seed, int expectedProgress)
@@ -195,5 +200,42 @@ public sealed class LocationImportWorkerRacePostgresTests(PostgresImportTestFixt
             Task.FromResult(CreateDbContext());
     }
 
-    private sealed record Seed(string UserId, int ImportId, int Epoch, string Path, DateTime DeletionAt);
+    private sealed class Seed(string userId, int importId, int epoch, string path, DateTime deletionAt,
+        string root, string directory, DirectorySnapshot[] baseline) : IAsyncDisposable
+    {
+        public string UserId { get; } = userId;
+        public int ImportId { get; } = importId;
+        public int Epoch { get; } = epoch;
+        public string Path { get; } = path;
+        public DateTime DeletionAt { get; } = deletionAt;
+        internal Action? ReleaseGates { get; set; }
+
+        public ValueTask DisposeAsync()
+        {
+            ReleaseGates?.Invoke();
+            var resolvedRoot = System.IO.Path.GetFullPath(root) + System.IO.Path.DirectorySeparatorChar;
+            var resolvedDirectory = System.IO.Path.GetFullPath(directory);
+            Assert.StartsWith(resolvedRoot, resolvedDirectory + System.IO.Path.DirectorySeparatorChar,
+                StringComparison.OrdinalIgnoreCase);
+            if (Directory.Exists(resolvedDirectory)) Directory.Delete(resolvedDirectory, recursive: true);
+            Assert.Equal(baseline.Length, Directory.GetDirectories(root).Length);
+            Assert.All(baseline, snapshot => snapshot.AssertUnchanged());
+            return ValueTask.CompletedTask;
+        }
+    }
+
+    private sealed record DirectorySnapshot(string Path, DateTime LastWriteUtc, long FileBytes)
+    {
+        internal static DirectorySnapshot Capture(string path) => new(path,
+            Directory.GetLastWriteTimeUtc(path), Directory.GetFiles(path, "*", SearchOption.AllDirectories)
+                .Sum(file => new FileInfo(file).Length));
+
+        internal void AssertUnchanged()
+        {
+            Assert.True(Directory.Exists(Path));
+            Assert.Equal(LastWriteUtc, Directory.GetLastWriteTimeUtc(Path));
+            Assert.Equal(FileBytes, Directory.GetFiles(Path, "*", SearchOption.AllDirectories)
+                .Sum(file => new FileInfo(file).Length));
+        }
+    }
 }

@@ -25,6 +25,7 @@ public sealed class LocationImportCleanupRacePostgresTests(PostgresImportTestFix
     public async Task QuartzCleanupCancellation_RetainsDeletionIntentAndRetryConverges(bool removeOneFirst)
     {
         var seed = await SeedCompletedAsync();
+        var commandStarted = DateTime.UtcNow;
         var keys = new HashSet<JobKey>
         {
             LocationImportSchedulerKeys.Job(seed.ImportId, 3),
@@ -41,10 +42,12 @@ public sealed class LocationImportCleanupRacePostgresTests(PostgresImportTestFix
 
         Assert.Equal(LocationImportCommandCode.ProjectionPending, result.Code);
         Assert.Equal(removeOneFirst ? 1 : 2, keys.Count);
+        DateTime deletionAt;
         await using (var pending = fixture.CreateContext())
         {
-            Assert.Equal(seed.DeletionAt.Date, (await pending.LocationImports.FindAsync(seed.ImportId))!
-                .DeletionRequestedAtUtc!.Value.Date);
+            deletionAt = (await pending.LocationImports.FindAsync(seed.ImportId))!.DeletionRequestedAtUtc!.Value;
+            Assert.Equal(DateTimeKind.Utc, deletionAt.Kind);
+            Assert.InRange(deletionAt, commandStarted, DateTime.UtcNow);
             Assert.True(File.Exists(seed.Path));
         }
 
@@ -131,8 +134,7 @@ public sealed class LocationImportCleanupRacePostgresTests(PostgresImportTestFix
         db.Add(import);
         if (withProtectedLocation) db.Add(location);
         await db.SaveChangesAsync();
-        return new(user.Id, import.Id, import.ExecutionEpoch, path, location.Id,
-            new DateTime(2026, 8, 24, 13, 0, 0, DateTimeKind.Utc));
+        return new(user.Id, import.Id, import.ExecutionEpoch, path, location.Id);
     }
 
     private static Mock<IScheduler> CancellableScheduler(HashSet<JobKey> keys,
@@ -194,6 +196,5 @@ public sealed class LocationImportCleanupRacePostgresTests(PostgresImportTestFix
             Task.FromResult(CreateDbContext());
     }
 
-    private sealed record Seed(string UserId, int ImportId, int Epoch, string Path, int LocationId,
-        DateTime DeletionAt);
+    private sealed record Seed(string UserId, int ImportId, int Epoch, string Path, int LocationId);
 }
