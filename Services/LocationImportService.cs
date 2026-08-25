@@ -277,12 +277,31 @@ public sealed class LocationImportService : ILocationImportService, ILocationImp
     {
         private readonly DbContextOptions<ApplicationDbContext> _options;
         private readonly IServiceProvider _services = new ServiceCollection().BuildServiceProvider();
+        private readonly ApplicationDbContext _source;
 
         internal CloningContextFactory(ApplicationDbContext source)
         {
+            _source = source;
             _options = (DbContextOptions<ApplicationDbContext>)source.GetService<IDbContextOptions>();
         }
 
-        public ApplicationDbContext CreateDbContext() => new(_options, _services);
+        public ApplicationDbContext CreateDbContext() => new RefreshingContext(_options, _services,
+            () => _source.ChangeTracker.Clear());
+
+        private sealed class RefreshingContext(DbContextOptions<ApplicationDbContext> options,
+            IServiceProvider services, Action disposed) : ApplicationDbContext(options, services)
+        {
+            private int reported;
+            public override void Dispose()
+            {
+                if (Interlocked.Exchange(ref reported, 1) == 0) disposed();
+                base.Dispose();
+            }
+            public override async ValueTask DisposeAsync()
+            {
+                if (Interlocked.Exchange(ref reported, 1) == 0) disposed();
+                await base.DisposeAsync();
+            }
+        }
     }
 }

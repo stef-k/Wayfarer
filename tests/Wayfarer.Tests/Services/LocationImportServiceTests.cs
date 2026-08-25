@@ -40,7 +40,6 @@ public class LocationImportServiceTests : TestBase
         var service = CreateService(db, sse: out var sse);
 
         await service.ProcessImport(import.Id, CancellationToken.None);
-        db.ChangeTracker.Clear();
 
         Assert.Empty(db.Locations);
         Assert.Empty(sse.Messages);
@@ -78,7 +77,6 @@ public class LocationImportServiceTests : TestBase
         try
         {
             await service.ProcessImport(import.Id, CancellationToken.None);
-            db.ChangeTracker.Clear();
         }
         finally
         {
@@ -167,7 +165,6 @@ public class LocationImportServiceTests : TestBase
         try
         {
             await service.ProcessImport(import.Id, CancellationToken.None);
-            db.ChangeTracker.Clear();
         }
         finally
         {
@@ -215,7 +212,6 @@ public class LocationImportServiceTests : TestBase
         try
         {
             await service.ProcessImport(import.Id, CancellationToken.None);
-            db.ChangeTracker.Clear();
         }
         finally
         {
@@ -254,7 +250,6 @@ public class LocationImportServiceTests : TestBase
 
         var service1 = CreateService(db, sse: out _);
         await service1.ProcessImport(import1.Id, CancellationToken.None);
-        db.ChangeTracker.Clear();
 
         Assert.Equal(2, db.Locations.Count());
         Assert.Equal(0, db.LocationImports.Single(li => li.Id == 20).SkippedDuplicates);
@@ -278,7 +273,6 @@ public class LocationImportServiceTests : TestBase
         try
         {
             await service2.ProcessImport(import2.Id, CancellationToken.None);
-            db.ChangeTracker.Clear();
         }
         finally
         {
@@ -336,7 +330,6 @@ public class LocationImportServiceTests : TestBase
         try
         {
             await service.ProcessImport(import.Id, CancellationToken.None);
-            db.ChangeTracker.Clear();
         }
         finally
         {
@@ -391,7 +384,6 @@ public class LocationImportServiceTests : TestBase
         try
         {
             await service.ProcessImport(import.Id, CancellationToken.None);
-            db.ChangeTracker.Clear();
         }
         finally
         {
@@ -447,7 +439,6 @@ public class LocationImportServiceTests : TestBase
         try
         {
             await service.ProcessImport(import.Id, CancellationToken.None);
-            db.ChangeTracker.Clear();
         }
         finally
         {
@@ -503,7 +494,6 @@ public class LocationImportServiceTests : TestBase
         try
         {
             await service.ProcessImport(import.Id, CancellationToken.None);
-            db.ChangeTracker.Clear();
         }
         finally
         {
@@ -558,7 +548,6 @@ public class LocationImportServiceTests : TestBase
         try
         {
             await service.ProcessImport(import.Id, CancellationToken.None);
-            db.ChangeTracker.Clear();
         }
         finally
         {
@@ -613,7 +602,6 @@ public class LocationImportServiceTests : TestBase
         try
         {
             await service.ProcessImport(import.Id, CancellationToken.None);
-            db.ChangeTracker.Clear();
         }
         finally
         {
@@ -668,7 +656,6 @@ public class LocationImportServiceTests : TestBase
         try
         {
             await service.ProcessImport(import.Id, CancellationToken.None);
-            db.ChangeTracker.Clear();
         }
         finally
         {
