@@ -3,6 +3,9 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Quartz;
@@ -56,6 +59,7 @@ public class LocationImportControllerTests : TestBase
         var redirect = Assert.IsType<RedirectToActionResult>(result);
         Assert.Equal("Index", redirect.ActionName);
         scheduler.Verify(s => s.ScheduleJob(It.IsAny<IJobDetail>(), It.IsAny<ITrigger>(), It.IsAny<CancellationToken>()), Times.Once);
+        db.ChangeTracker.Clear();
         Assert.Equal(ImportStatus.InProgress, db.LocationImports.Single(i => i.Id == 10).Status);
     }
 
@@ -111,6 +115,7 @@ public class LocationImportControllerTests : TestBase
         var redirect = Assert.IsType<RedirectToActionResult>(result);
         Assert.Equal("Index", redirect.ActionName);
         scheduler.Verify(s => s.Interrupt(It.IsAny<JobKey>(), It.IsAny<CancellationToken>()), Times.Once);
+        db.ChangeTracker.Clear();
         Assert.Equal(ImportStatus.Stopping, db.LocationImports.Single(i => i.Id == 20).Status);
     }
 
@@ -171,7 +176,8 @@ public class LocationImportControllerTests : TestBase
             db,
             NullLogger<LocationImportController>.Instance,
             Mock.Of<IWebHostEnvironment>(),
-            scheduler);
+            scheduler,
+            contextFactory: new CloningFactory(db));
         var http = new DefaultHttpContext
         {
             User = new ClaimsPrincipal(new ClaimsIdentity(new[]
@@ -183,6 +189,14 @@ public class LocationImportControllerTests : TestBase
         controller.ControllerContext = new ControllerContext { HttpContext = http };
         controller.TempData = new TempDataDictionary(http, Mock.Of<ITempDataProvider>());
         return controller;
+    }
+
+    private sealed class CloningFactory(ApplicationDbContext source) : IDbContextFactory<ApplicationDbContext>
+    {
+        private readonly DbContextOptions<ApplicationDbContext> options =
+            Assert.IsType<DbContextOptions<ApplicationDbContext>>(source.GetService<IDbContextOptions>());
+        private readonly IServiceProvider services = new ServiceCollection().BuildServiceProvider();
+        public ApplicationDbContext CreateDbContext() => new(options, services);
     }
 
     [Fact]
@@ -265,6 +279,7 @@ public class LocationImportControllerTests : TestBase
 
         var redirect = Assert.IsType<RedirectToActionResult>(result);
         scheduler.Verify(s => s.Interrupt(It.IsAny<JobKey>(), It.IsAny<CancellationToken>()), Times.Once);
+        db.ChangeTracker.Clear();
         Assert.Equal(ImportStatus.Stopping, db.LocationImports.Single(i => i.Id == 26).Status);
     }
 

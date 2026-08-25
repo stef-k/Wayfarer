@@ -1,6 +1,9 @@
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Quartz;
@@ -164,8 +167,17 @@ public class UserLocationImportControllerTests : TestBase
         handoff ??= new ImportEnrichmentHandoff(db, projection);
 
         var controller = new LocationImportController(db, NullLogger<LocationImportController>.Instance,
-            env.Object, scheduler.Object, handoff, projection);
+            env.Object, scheduler.Object, handoff, projection,
+            contextFactory: new CloningFactory(db));
         controller.ControllerContext = new ControllerContext { HttpContext = BuildHttpContextWithUser(userId) };
         return controller;
+    }
+
+    private sealed class CloningFactory(ApplicationDbContext source) : IDbContextFactory<ApplicationDbContext>
+    {
+        private readonly DbContextOptions<ApplicationDbContext> options =
+            Assert.IsType<DbContextOptions<ApplicationDbContext>>(source.GetService<IDbContextOptions>());
+        private readonly IServiceProvider services = new ServiceCollection().BuildServiceProvider();
+        public ApplicationDbContext CreateDbContext() => new(options, services);
     }
 }
