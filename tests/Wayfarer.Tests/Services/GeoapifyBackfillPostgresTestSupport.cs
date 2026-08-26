@@ -98,7 +98,7 @@ public sealed partial class GeoapifyBackfillConcurrencyPostgresTests
         var credentials = new PersonalProviderCredentialService(protection);
         var contextFactory = new FixtureDbContextFactory(fixture, interceptors);
         var services = new ServiceCollection()
-            .AddScoped(_ => fixture.CreateContext())
+            .AddScoped(_ => fixture.CreateContext(interceptors))
             .AddSingleton(credentials)
             .AddSingleton<IConfiguration>(new ConfigurationBuilder().Build())
             .AddScoped<LegacyMapboxMigrationService>()
@@ -198,13 +198,13 @@ public sealed partial class GeoapifyBackfillConcurrencyPostgresTests
         public void ReleaseLocation() => releaseLocation.TrySetResult();
         public void ReleaseAuthorityRead() => releaseAuthorityRead.TrySetResult();
 
-        public override async ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(DbCommand command,
+        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(DbCommand command,
             CommandEventData eventData, InterceptionResult<DbDataReader> result,
             CancellationToken cancellationToken = default)
         {
             if (IsSelection(command) && command.CommandText.Contains("FOR UPDATE", StringComparison.OrdinalIgnoreCase))
                 selectionLockAttempt.TrySetResult();
-            return result;
+            return ValueTask.FromResult(result);
         }
 
         public override async ValueTask<DbDataReader> ReaderExecutedAsync(DbCommand command,

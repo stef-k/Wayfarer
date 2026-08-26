@@ -25,17 +25,19 @@ public sealed class PersonalProviderContactGate(
     internal async Task<PersonalProviderAdmission> AdmitPreparedPersistentGeocodingAsync(
         string userId, CancellationToken cancellationToken = default)
     {
-        var selection = await dbContext.Set<PersonalLocationProviderSelection>().AsNoTracking()
-            .SingleOrDefaultAsync(item => item.UserId == userId, cancellationToken);
+        var selection = await LockSelectionAsync(userId, cancellationToken);
         var product = selection?.GeocodingProviderKey switch
         {
             "geoapify" => PersonalProviderProduct.Geocoding,
             "mapbox" => PersonalProviderProduct.PermanentGeocoding,
             _ => (PersonalProviderProduct?)null
         };
-        return product.HasValue
-            ? await AdmitResolvedAsync(userId, PersonalProviderCapability.Geocoding, product.Value, 1, cancellationToken)
-            : PersonalProviderAdmission.Rejected(PersonalProviderAdmissionCategory.NoProviderSelected);
+        if (!product.HasValue)
+            return PersonalProviderAdmission.Rejected(PersonalProviderAdmissionCategory.NoProviderSelected);
+        var profile = await LockProfileAsync(userId, selection!.GeocodingProviderKey!, cancellationToken);
+        var authority = Resolve(selection, profile, PersonalProviderCapability.Geocoding);
+        return await AdmitAuthorityAsync(userId, PersonalProviderCapability.Geocoding,
+            product.Value, 1, authority, cancellationToken);
     }
 
     /// <summary>Resolves current authority and durably admits the caller's validated provider-native cost.</summary>
@@ -56,6 +58,13 @@ public sealed class PersonalProviderContactGate(
     {
 
         var authority = await ResolveAsync(userId, capability, cancellationToken);
+        return await AdmitAuthorityAsync(userId, capability, product, cost, authority, cancellationToken);
+    }
+
+    private async Task<PersonalProviderAdmission> AdmitAuthorityAsync(string userId,
+        PersonalProviderCapability capability, PersonalProviderProduct product, int cost,
+        ResolvedAuthority authority, CancellationToken cancellationToken)
+    {
         if (!authority.Succeeded) return PersonalProviderAdmission.Rejected(authority.Category);
         if (!ProductMatches(authority.ProviderKey!, capability, product))
             return PersonalProviderAdmission.Rejected(PersonalProviderAdmissionCategory.UnsupportedProduct);
@@ -249,6 +258,17 @@ public sealed class PersonalProviderContactGate(
 
         var profile = await dbContext.Set<PersonalLocationProviderProfile>().AsNoTracking()
             .SingleOrDefaultAsync(item => item.UserId == userId && item.ProviderKey == providerKey, cancellationToken);
+        return Resolve(selection, profile, capability);
+    }
+
+    private ResolvedAuthority Resolve(PersonalLocationProviderSelection? selection,
+        PersonalLocationProviderProfile? profile, PersonalProviderCapability capability)
+    {
+        var providerKey = capability == PersonalProviderCapability.Geocoding
+            ? selection?.GeocodingProviderKey : selection?.RoutingProviderKey;
+        if (providerKey == null) return ResolvedAuthority.Fail(PersonalProviderAdmissionCategory.NoProviderSelected);
+        if (providerKey is not ("geoapify" or "mapbox"))
+            return ResolvedAuthority.Fail(PersonalProviderAdmissionCategory.UnsupportedProvider);
         if (profile == null || profile.RevokedAt != null || !profile.IsAuthorized(capability))
             return ResolvedAuthority.Fail(PersonalProviderAdmissionCategory.Unauthorized);
         var read = credentials.Read(profile);
@@ -278,6 +298,23 @@ public sealed class PersonalProviderContactGate(
             capability == PersonalProviderCapability.Geocoding
                 ? profile.GeocodingVerifiedConfigurationGeneration : profile.RoutingVerifiedConfigurationGeneration);
     }
+
+    private Task<PersonalLocationProviderSelection?> LockSelectionAsync(
+        string userId, CancellationToken cancellationToken) => dbContext.Database.IsNpgsql()
+        ? dbContext.Set<PersonalLocationProviderSelection>().FromSqlInterpolated($$"""
+            SELECT *, xmin FROM "PersonalLocationProviderSelections" WHERE "UserId" = {{userId}} FOR UPDATE
+            """).SingleOrDefaultAsync(cancellationToken)
+        : dbContext.Set<PersonalLocationProviderSelection>()
+            .SingleOrDefaultAsync(item => item.UserId == userId, cancellationToken);
+
+    private Task<PersonalLocationProviderProfile?> LockProfileAsync(
+        string userId, string providerKey, CancellationToken cancellationToken) => dbContext.Database.IsNpgsql()
+        ? dbContext.Set<PersonalLocationProviderProfile>().FromSqlInterpolated($$"""
+            SELECT *, xmin FROM "PersonalLocationProviderProfiles"
+            WHERE "UserId" = {{userId}} AND "ProviderKey" = {{providerKey}} FOR UPDATE
+            """).SingleOrDefaultAsync(cancellationToken)
+        : dbContext.Set<PersonalLocationProviderProfile>().SingleOrDefaultAsync(
+            item => item.UserId == userId && item.ProviderKey == providerKey, cancellationToken);
 
     private async Task<PersonalProviderAdmission> AdmitGeoapifyAsync(
         string userId, PersonalProviderProduct product, int credits, CancellationToken cancellationToken)

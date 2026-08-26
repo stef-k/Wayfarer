@@ -135,10 +135,56 @@ public sealed class GeoapifyLocationBackfillService(
     private async Task<AdmissionBoundary> TryAdmitAndClaimAsync(LocationEnrichmentExecutionLease owner,
         int locationId, CancellationToken cancellationToken)
     {
+        var classification = await TryClassifyInvalidCoordinatesAsync(owner, locationId, cancellationToken);
+        if (!classification.Valid) return classification.Boundary;
+        await using (var scope = scopes.CreateAsyncScope())
+            await scope.ServiceProvider.GetRequiredService<PersonalProviderContactGate>()
+                .PreparePersistentGeocodingAsync(owner.UserId, cancellationToken);
+        return await TryAdmitPreparedAndClaimAsync(owner, locationId, cancellationToken);
+    }
+
+    /// <summary>Classifies invalid work without resolving or mutating any provider authority.</summary>
+    private async Task<(bool Valid, AdmissionBoundary Boundary)> TryClassifyInvalidCoordinatesAsync(
+        LocationEnrichmentExecutionLease owner, int locationId, CancellationToken cancellationToken)
+    {
+        await using var db = await contexts.CreateDbContextAsync(cancellationToken);
+        await using var transaction = db.Database.IsRelational()
+            ? await db.Database.BeginTransactionAsync(cancellationToken) : null;
+        var now = await LocationEnrichmentExecutionAuthority.DatabaseUtcNowAsync(db, cancellationToken);
+        var workflow = await LockWorkflowAsync(db, owner.UserId, cancellationToken);
+        var location = db.Database.IsNpgsql()
+            ? await db.Locations.FromSqlInterpolated($$"""
+                SELECT * FROM "Locations" WHERE "UserId" = {{owner.UserId}} AND "Id" = {{locationId}} FOR UPDATE
+                """).SingleOrDefaultAsync(cancellationToken)
+            : await db.Locations.SingleOrDefaultAsync(item => item.UserId == owner.UserId
+                && item.Id == locationId, cancellationToken);
+        if (workflow?.Epoch != owner.Epoch || !workflow.HasExecutionLease(owner.LeaseId,
+                owner.FencingGeneration, now) || location is null || !IsWhollyUnenriched(location))
+        {
+            if (transaction != null) await transaction.RollbackAsync(cancellationToken);
+            return default;
+        }
+        var latitude = location.Coordinates.Y;
+        var longitude = location.Coordinates.X;
+        if (ReverseGeocodingService.HasValidCoordinates(latitude, longitude))
+        {
+            if (transaction != null) await transaction.CommitAsync(cancellationToken);
+            return (true, default);
+        }
+        var invalid = await ClassifyInvalidAsync(db, owner.UserId, locationId, latitude, longitude, cancellationToken);
+        if (invalid is null)
+        { if (transaction != null) await transaction.RollbackAsync(cancellationToken); return default; }
+        if (transaction != null) await transaction.CommitAsync(cancellationToken);
+        return (false, invalid.Value);
+    }
+
+    /// <summary>Revalidates and admits prepared provider authority in one fresh short transaction.</summary>
+    private async Task<AdmissionBoundary> TryAdmitPreparedAndClaimAsync(LocationEnrichmentExecutionLease owner,
+        int locationId, CancellationToken cancellationToken)
+    {
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var gate = scope.ServiceProvider.GetRequiredService<PersonalProviderContactGate>();
-        await gate.PreparePersistentGeocodingAsync(owner.UserId, cancellationToken);
         await using var transaction = db.Database.IsRelational()
             ? await db.Database.BeginTransactionAsync(cancellationToken) : null;
         var now = await LocationEnrichmentExecutionAuthority.DatabaseUtcNowAsync(db, cancellationToken);
@@ -156,17 +202,12 @@ public sealed class GeoapifyLocationBackfillService(
         var longitude = location.Coordinates.X;
         if (!ReverseGeocodingService.HasValidCoordinates(latitude, longitude))
         {
-            var invalidAttempt = await LockAttemptAsync(db, owner.UserId, locationId, cancellationToken);
-            if (invalidAttempt?.OperationId != null)
+            var invalid = await ClassifyInvalidAsync(db, owner.UserId, locationId,
+                latitude, longitude, cancellationToken);
+            if (invalid is null)
             { if (transaction != null) await transaction.RollbackAsync(cancellationToken); return default; }
-            invalidAttempt ??= new LocationEnrichmentAttempt { UserId = owner.UserId, LocationId = locationId };
-            if (invalidAttempt.Id == 0) db.Add(invalidAttempt);
-            invalidAttempt.Outcome = LocationEnrichmentOutcome.InvalidCoordinates;
-            invalidAttempt.NextAttemptAtUtc = null;
-            ClearOperation(invalidAttempt);
-            await db.SaveChangesAsync(cancellationToken);
             if (transaction != null) await transaction.CommitAsync(cancellationToken);
-            return new(null, null, latitude, longitude, true);
+            return invalid.Value;
         }
         var admission = await gate.AdmitPreparedPersistentGeocodingAsync(owner.UserId, cancellationToken);
         if (!admission.Succeeded)
@@ -216,6 +257,20 @@ public sealed class GeoapifyLocationBackfillService(
         await db.SaveChangesAsync(cancellationToken);
         if (transaction != null) await transaction.CommitAsync(cancellationToken);
         return new(admission, attempt.OperationId, latitude, longitude, false);
+    }
+
+    private static async Task<AdmissionBoundary?> ClassifyInvalidAsync(ApplicationDbContext db,
+        string userId, int locationId, double latitude, double longitude, CancellationToken cancellationToken)
+    {
+        var attempt = await LockAttemptAsync(db, userId, locationId, cancellationToken);
+        if (attempt?.OperationId != null) return null;
+        attempt ??= new LocationEnrichmentAttempt { UserId = userId, LocationId = locationId };
+        if (attempt.Id == 0) db.Add(attempt);
+        attempt.Outcome = LocationEnrichmentOutcome.InvalidCoordinates;
+        attempt.NextAttemptAtUtc = null;
+        ClearOperation(attempt);
+        await db.SaveChangesAsync(cancellationToken);
+        return new(null, null, latitude, longitude, true);
     }
 
     private async Task<(bool AuthorityCurrent, bool Enriched)> TryCompleteAttemptAsync(
@@ -455,22 +510,6 @@ public sealed class GeoapifyLocationBackfillService(
             SELECT *, xmin FROM "LocationEnrichmentWorkflows" WHERE "UserId" = {{userId}} FOR UPDATE
             """).SingleOrDefaultAsync(cancellationToken)
         : db.LocationEnrichmentWorkflows.SingleOrDefaultAsync(item => item.UserId == userId, cancellationToken);
-
-    private static Task<PersonalLocationProviderSelection?> LockSelectionAsync(ApplicationDbContext db,
-        string userId, CancellationToken cancellationToken) => db.Database.IsNpgsql()
-        ? db.PersonalLocationProviderSelections.FromSqlInterpolated($$"""
-            SELECT *, xmin FROM "PersonalLocationProviderSelections" WHERE "UserId" = {{userId}} FOR UPDATE
-            """).SingleOrDefaultAsync(cancellationToken)
-        : db.PersonalLocationProviderSelections.SingleOrDefaultAsync(item => item.UserId == userId, cancellationToken);
-
-    private static Task<PersonalLocationProviderProfile?> LockProfileAsync(ApplicationDbContext db,
-        string userId, string providerKey, CancellationToken cancellationToken) => db.Database.IsNpgsql()
-        ? db.PersonalLocationProviderProfiles.FromSqlInterpolated($$"""
-            SELECT *, xmin FROM "PersonalLocationProviderProfiles"
-            WHERE "UserId" = {{userId}} AND "ProviderKey" = {{providerKey}} FOR UPDATE
-            """).SingleOrDefaultAsync(cancellationToken)
-        : db.PersonalLocationProviderProfiles.SingleOrDefaultAsync(item => item.UserId == userId
-            && item.ProviderKey == providerKey, cancellationToken);
 
     private static LocationEnrichmentOutcome MapOutcome(ReverseGeocodingCategory category, int count) => category switch
     {
