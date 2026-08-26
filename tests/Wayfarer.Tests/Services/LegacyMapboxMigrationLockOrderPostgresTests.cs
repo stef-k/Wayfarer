@@ -54,13 +54,20 @@ public sealed class LegacyMapboxMigrationLockOrderPostgresTests(PostgresImportTe
             GeocodingAuthorized = true
         }, default);
         await Task.WhenAll(migrate, save).WaitAsync(TimeSpan.FromSeconds(10));
+        var migrationResult = await migrate;
 
         await using var verify = fixture.CreateContext();
         var profile = await verify.PersonalLocationProviderProfiles.SingleAsync(
             item => item.UserId == user.Id && item.ProviderKey == "mapbox");
         var legacy = await verify.ApiTokens.IgnoreQueryFilters().Where(item => item.UserId == user.Id).ToListAsync();
         Assert.Equal("settings-mapbox-key", settingsCredentials.Read(profile).Credential);
-        Assert.Empty(legacy);
+        if (migrationResult.State == LegacyMapboxMigrationState.Migrated)
+            Assert.Empty(legacy);
+        else
+        {
+            Assert.Equal(LegacyMapboxMigrationState.Conflict, migrationResult.State);
+            Assert.Equal("legacy-mapbox-key", Assert.Single(legacy).Token);
+        }
         Assert.NotNull(await verify.PersonalLocationProviderSelections.SingleOrDefaultAsync(item => item.UserId == user.Id));
     }
 
@@ -95,7 +102,7 @@ public sealed class LegacyMapboxMigrationLockOrderPostgresTests(PostgresImportTe
             DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result,
             CancellationToken cancellationToken = default)
         {
-            if (IsSelectionLock(command))
+            if (IsSelectionQuery(command))
             {
                 gate.MigrationSelectionRequested.TrySetResult();
                 if (gate.MigrationFirstLock.Task.IsCompleted)
@@ -154,8 +161,11 @@ public sealed class LegacyMapboxMigrationLockOrderPostgresTests(PostgresImportTe
     }
 
     private static bool IsSelectionLock(DbCommand command) =>
-        command.CommandText.Contains("PersonalLocationProviderSelections", StringComparison.Ordinal)
+        IsSelectionQuery(command)
         && command.CommandText.Contains("FOR UPDATE", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsSelectionQuery(DbCommand command) =>
+        command.CommandText.Contains("PersonalLocationProviderSelections", StringComparison.Ordinal);
 
     private static bool IsProfileLock(DbCommand command) =>
         command.CommandText.Contains("PersonalLocationProviderProfiles", StringComparison.Ordinal)
