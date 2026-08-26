@@ -256,6 +256,8 @@ namespace Wayfarer.Areas.User.Controllers
             var uploadDirectory = Path.Combine(_environment.ContentRootPath, "Uploads", "Temp");
             string? filePath = null;
             var stagedFileCreated = false;
+            var committed = false;
+            LocationImport importRecord;
 
             try
             {
@@ -268,7 +270,7 @@ namespace Wayfarer.Areas.User.Controllers
                     await model.File.CopyToAsync(stream);
                 }
 
-                var importRecord = new LocationImport
+                importRecord = new LocationImport
                 {
                     UserId = userId,
                     FileType = model.FileType.Value,
@@ -285,12 +287,9 @@ namespace Wayfarer.Areas.User.Controllers
 
                 _dbContext.LocationImports.Add(importRecord);
                 await _dbContext.SaveChangesAsync();
-
-                _logger.LogInformation("Location import upload staged; code {Code}; import {ImportId}.",
-                    "location-import-upload-staged", importRecord.Id);
-                SetAlert("File uploaded successfully and is pending import.");
+                committed = true;
             }
-            catch (Exception)
+            catch (Exception) when (!committed)
             {
                 _logger.LogError("Location import upload failed; code {Code}.",
                     "location-import-upload-failed");
@@ -305,6 +304,26 @@ namespace Wayfarer.Areas.User.Controllers
                 }
                 SetAlert("An unexpected error occurred. Please try again later.", "danger");
                 return RedirectToAction("Index");
+            }
+
+            // Relational persistence is authoritative; presentation diagnostics are best effort.
+            try
+            {
+                _logger.LogInformation("Location import upload staged; code {Code}; import {ImportId}.",
+                    "location-import-upload-staged", importRecord.Id);
+            }
+            catch (Exception)
+            {
+                // A diagnostic sink cannot invalidate the committed row and staged file.
+            }
+
+            try
+            {
+                SetAlert("File uploaded successfully and is pending import.");
+            }
+            catch (Exception)
+            {
+                // The durable import list remains authoritative when banner storage fails.
             }
 
             return RedirectToAction("Index");
