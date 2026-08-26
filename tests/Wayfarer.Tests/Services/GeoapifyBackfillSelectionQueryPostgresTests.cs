@@ -1,17 +1,122 @@
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
+using NetTopologySuite.Geometries;
+using Wayfarer.Models;
 using Wayfarer.Models.LocationEnrichment;
 using Wayfarer.Models.LocationProviders;
 using Wayfarer.Services.LocationEnrichment;
 using Wayfarer.Services.LocationProviders;
 using Wayfarer.Tests.Infrastructure;
 using Xunit;
+using Location = Wayfarer.Models.Location;
 
 namespace Wayfarer.Tests.Services;
 
 /// <summary>Proves PostgreSQL capability eligibility and candidate-selection query contracts.</summary>
 public sealed partial class GeoapifyBackfillConcurrencyPostgresTests
 {
+    /// <summary>Proves invalid committed coordinates are classified without provider admission or contact.</summary>
+    [PostgresTheory]
+    [InlineData(20, double.NaN)]
+    [InlineData(double.PositiveInfinity, 10)]
+    public async Task InvalidCoordinatesAreClassifiedBeforeProviderAdmission(double longitude, double latitude)
+    {
+        var user = await fixture.CreateUserAsync();
+        var protection = new EphemeralDataProtectionProvider();
+        await SeedAsync(user.Id, null, protection);
+        await using (var arrange = fixture.CreateContext())
+        {
+            var location = await arrange.Locations.SingleAsync(item => item.UserId == user.Id);
+            location.Coordinates = new Point(longitude, latitude) { SRID = 4326 };
+            await arrange.SaveChangesAsync();
+        }
+        var handler = new CoordinatedHandler(user.Id, null);
+        handler.Release();
+
+        var result = await Service(protection, handler).RunAsync(user.Id);
+
+        await using var verify = fixture.CreateContext();
+        var attempt = await verify.LocationEnrichmentAttempts.SingleAsync(item => item.UserId == user.Id);
+        Assert.Equal(LocationEnrichmentOutcome.InvalidCoordinates, attempt.Outcome);
+        Assert.Equal(0, result.Admitted);
+        Assert.Equal(0, attempt.AdmittedAttemptCount);
+        Assert.Null(attempt.NextAttemptAtUtc);
+        Assert.Null(attempt.OperationId);
+        Assert.Null(attempt.OperationLeaseId);
+        Assert.Null(attempt.OperationFencingGeneration);
+        Assert.Null(attempt.OperationStartedAtUtc);
+        Assert.Null(attempt.OperationWorkflowEpoch);
+        Assert.Null(attempt.OperationAttemptNumber);
+        Assert.Empty(await verify.GeoapifyUsageAdmissions.Where(item => item.UserId == user.Id).ToListAsync());
+        Assert.Empty(await verify.MapboxProductMeters.Where(item => item.UserId == user.Id).ToListAsync());
+        Assert.Equal(0, handler.RequestsFor(user.Id));
+        var preserved = (await verify.Locations.SingleAsync(item => item.UserId == user.Id)).Coordinates;
+        Assert.Equal(longitude, preserved.X);
+        Assert.Equal(latitude, preserved.Y);
+    }
+
+    /// <summary>Proves local invalidity is classified without selected provider authority.</summary>
+    [PostgresFact]
+    public async Task InvalidCoordinatesAreClassifiedWhenProviderAuthorityIsUnavailable()
+    {
+        var user = await fixture.CreateUserAsync();
+        var protection = new EphemeralDataProtectionProvider();
+        await SeedAsync(user.Id, null, protection);
+        await using (var arrange = fixture.CreateContext())
+        {
+            var location = await arrange.Locations.SingleAsync(item => item.UserId == user.Id);
+            location.Coordinates = new Point(double.PositiveInfinity, 10) { SRID = 4326 };
+            arrange.PersonalLocationProviderSelections.Remove(
+                await arrange.PersonalLocationProviderSelections.SingleAsync(item => item.UserId == user.Id));
+            await arrange.SaveChangesAsync();
+        }
+        var handler = new CoordinatedHandler(user.Id, null);
+
+        var result = await Service(protection, handler).RunAsync(user.Id);
+
+        await using var verify = fixture.CreateContext();
+        Assert.Equal(LocationEnrichmentOutcome.InvalidCoordinates,
+            (await verify.LocationEnrichmentAttempts.SingleAsync(item => item.UserId == user.Id)).Outcome);
+        Assert.False(result.AuthorityUnavailable);
+        Assert.Equal(0, result.Admitted);
+        Assert.Empty(await verify.GeoapifyUsageAdmissions.Where(item => item.UserId == user.Id).ToListAsync());
+        Assert.Equal(0, handler.RequestsFor(user.Id));
+    }
+
+    /// <summary>Proves an oldest invalid row does not consume budget or starve a later valid row.</summary>
+    [PostgresFact]
+    public async Task OldestInvalidCoordinatesDoNotStarveLaterValidCandidateAtBudgetBoundary()
+    {
+        var user = await fixture.CreateUserAsync();
+        var protection = new EphemeralDataProtectionProvider();
+        await SeedAsync(user.Id, null, protection);
+        await using (var arrange = fixture.CreateContext())
+        {
+            var invalid = await arrange.Locations.SingleAsync(item => item.UserId == user.Id);
+            invalid.Timestamp = DateTime.UtcNow.AddMinutes(-1);
+            invalid.Coordinates = new Point(20, double.NaN) { SRID = 4326 };
+            arrange.GeoapifyUsageGuards.Single(item => item.UserId == user.Id).CreditLimit = 1;
+            arrange.Locations.Add(new Location
+            {
+                UserId = user.Id, Timestamp = DateTime.UtcNow, LocalTimestamp = DateTime.UtcNow,
+                TimeZoneId = "UTC", Coordinates = new Point(20, 10) { SRID = 4326 }
+            });
+            await arrange.SaveChangesAsync();
+        }
+        var handler = new CoordinatedHandler(user.Id, null);
+        handler.Release();
+
+        var result = await Service(protection, handler).RunAsync(user.Id);
+
+        await using var verify = fixture.CreateContext();
+        var invalidAttempt = await verify.LocationEnrichmentAttempts.SingleAsync(item => item.UserId == user.Id);
+        Assert.Equal(LocationEnrichmentOutcome.InvalidCoordinates, invalidAttempt.Outcome);
+        Assert.Equal(1, result.Admitted);
+        Assert.Equal(1, result.Succeeded);
+        Assert.Single(await verify.GeoapifyUsageAdmissions.Where(item => item.UserId == user.Id).ToListAsync());
+        Assert.Equal(1, handler.RequestsFor(user.Id));
+    }
+
     /// <summary>Proves superseded provider-dependent attempts are reconsidered without reviving permanent same-generation rows.</summary>
     [PostgresFact]
     public async Task SupersededAuthorityAttemptIsEligibleButSameGenerationPermanentAttemptIsNot()
