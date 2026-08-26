@@ -60,7 +60,12 @@ public sealed class CsvLocationParser : ILocationDataParser
                 continue;
             }
 
-            var timestampUtc = ParseTimestampUtc(GetField(csv, "TimestampUtc"));
+            if (!TryParseTimestampUtc(GetField(csv, "TimestampUtc"), out var timestampUtc))
+            {
+                _logger.LogWarning("Skipping CSV record due to invalid timestamp at row {Row}.",
+                    csv.Context?.Parser?.Row ?? 0);
+                continue;
+            }
             var localTimestamp = ParseLocalTimestamp(GetField(csv, "LocalTimestamp"), timestampUtc);
             var timeZoneId = GetField(csv, "TimeZoneId");
 
@@ -196,22 +201,25 @@ public sealed class CsvLocationParser : ILocationDataParser
         return double.TryParse(raw, NumberStyles.Float | NumberStyles.AllowThousands, ParsingCulture, out value);
     }
 
-    private static DateTime ParseTimestampUtc(string? rawTimestamp)
+    private static bool TryParseTimestampUtc(string? rawTimestamp, out DateTime timestampUtc)
     {
         if (!string.IsNullOrWhiteSpace(rawTimestamp) &&
             DateTimeOffset.TryParse(rawTimestamp, ParsingCulture, DateTimeStyles.RoundtripKind, out var dto))
         {
-            return dto.UtcDateTime;
+            timestampUtc = dto.UtcDateTime;
+            return true;
         }
 
         if (!string.IsNullOrWhiteSpace(rawTimestamp) &&
             DateTime.TryParse(rawTimestamp, ParsingCulture,
                 DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var parsed))
         {
-            return DateTime.SpecifyKind(parsed, DateTimeKind.Utc);
+            timestampUtc = DateTime.SpecifyKind(parsed, DateTimeKind.Utc);
+            return true;
         }
 
-        return DateTime.UtcNow;
+        timestampUtc = default;
+        return false;
     }
 
     private static DateTime ParseLocalTimestamp(string? rawTimestamp, DateTime fallbackUtc)

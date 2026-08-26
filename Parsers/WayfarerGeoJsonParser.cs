@@ -42,7 +42,7 @@ namespace Wayfarer.Parsers
         {
             _logger.LogDebug("Parsing Wayfarer-exported GeoJSON for user {UserId}.", userId);
             using var text = new StreamReader(fileStream, Encoding.UTF8, false, leaveOpen: true);
-            using var json = new JsonTextReader(text) { CloseInput = false };
+            using var json = new JsonTextReader(text) { CloseInput = false, MaxDepth = null };
             var isFeatureCollection = false;
             while (await json.ReadAsync(cancellationToken))
             {
@@ -56,7 +56,7 @@ namespace Wayfarer.Parsers
                 }
                 if (!string.Equals(property, "features", StringComparison.OrdinalIgnoreCase))
                 {
-                    await JToken.ReadFromAsync(json, cancellationToken);
+                    await JsonReaderSkip.SkipValueAsync(json, cancellationToken);
                     continue;
                 }
                 if (!isFeatureCollection)
@@ -105,7 +105,11 @@ namespace Wayfarer.Parsers
                     // 3) Extract attributes with null guards
                     var tsUtcString = getString("TimestampUtc");
                     var tzId = getString("TimeZoneId") ?? "UTC";
-                    var tsUtc = ParseTimestampUtc(tsUtcString);
+                    if (!TryParseTimestampUtc(tsUtcString, out var tsUtc))
+                    {
+                        _logger.LogWarning("Skipping GeoJSON feature due to a missing or invalid timestamp.");
+                        continue;
+                    }
 
                     var localTsString = getString("LocalTimestamp");
                     var localTs = ParseLocalTimestamp(localTsString, tsUtc);
@@ -189,22 +193,25 @@ namespace Wayfarer.Parsers
         /// Converts a timestamp string from the export into a UTC <see cref="DateTime"/>.
         /// </summary>
         /// <param name="rawTimestamp">ISO-8601 timestamp, ideally with an explicit offset.</param>
-        private static DateTime ParseTimestampUtc(string? rawTimestamp)
+        private static bool TryParseTimestampUtc(string? rawTimestamp, out DateTime timestampUtc)
         {
             if (!string.IsNullOrWhiteSpace(rawTimestamp) &&
                 DateTimeOffset.TryParse(rawTimestamp, ParsingCulture, DateTimeStyles.RoundtripKind, out var dto))
             {
-                return dto.UtcDateTime;
+                timestampUtc = dto.UtcDateTime;
+                return true;
             }
 
             if (!string.IsNullOrWhiteSpace(rawTimestamp) &&
                 DateTime.TryParse(rawTimestamp, ParsingCulture,
                     DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var parsed))
             {
-                return DateTime.SpecifyKind(parsed, DateTimeKind.Utc);
+                timestampUtc = DateTime.SpecifyKind(parsed, DateTimeKind.Utc);
+                return true;
             }
 
-            return DateTime.UtcNow;
+            timestampUtc = default;
+            return false;
         }
 
         /// <summary>

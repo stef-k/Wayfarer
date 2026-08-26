@@ -1,5 +1,6 @@
 using System.Text;
 using Microsoft.Extensions.Logging.Abstractions;
+using Newtonsoft.Json;
 using Wayfarer.Parsers;
 using Xunit;
 
@@ -30,6 +31,42 @@ public sealed class BoundedImportFinalGapTests
 
         Assert.DoesNotContain("JToken.ReadFromAsync", google, StringComparison.Ordinal);
         Assert.DoesNotContain("JToken.ReadFromAsync", geoJson, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task RequiredTimestamp_InvalidRecordsAreSkippedByEveryAffectedFormat()
+    {
+        var cases = new (ILocationDataParser Parser, string Input)[]
+        {
+            (new CsvLocationParser(NullLogger<CsvLocationParser>.Instance),
+                "Latitude,Longitude,TimestampUtc\r\n40.1,22.2,bad\r\n"),
+            (new GpxLocationParser(NullLogger<GpxLocationParser>.Instance),
+                "<gpx xmlns=\"http://www.topografix.com/GPX/1/1\"><trk><trkseg>" +
+                "<trkpt lat=\"40.1\" lon=\"22.2\"><time>bad</time></trkpt></trkseg></trk></gpx>"),
+            (new KmlLocationParser(NullLogger<KmlLocationParser>.Instance),
+                "<kml xmlns=\"http://www.opengis.net/kml/2.2\"><Placemark>" +
+                "<name>bad</name><Point><coordinates>22.2,40.1</coordinates></Point></Placemark></kml>"),
+            (new WayfarerGeoJsonParser(NullLogger<WayfarerGeoJsonParser>.Instance),
+                "{\"type\":\"FeatureCollection\",\"features\":[{\"type\":\"Feature\"," +
+                "\"geometry\":{\"type\":\"Point\",\"coordinates\":[22.2,40.1]}," +
+                "\"properties\":{\"TimestampUtc\":\"bad\"}}]}")
+        };
+
+        foreach (var (parser, input) in cases)
+            Assert.Empty(await ParseAsync(parser, input));
+    }
+
+    [Fact]
+    public async Task IgnoredJsonValue_NestedPayloadIsSkippedAndTruncationThrows()
+    {
+        var nested = string.Concat(Enumerable.Repeat("[{\"ignored\":", 250)) + "0" +
+            string.Concat(Enumerable.Repeat("}]", 250));
+        var input = "{\"unknown\":" + nested +
+            ",\"type\":\"FeatureCollection\",\"features\":[]}";
+        var parser = new WayfarerGeoJsonParser(NullLogger<WayfarerGeoJsonParser>.Instance);
+
+        Assert.Empty(await ParseAsync(parser, input));
+        await Assert.ThrowsAsync<JsonReaderException>(() => ParseAsync(parser, "{\"unknown\":[{}"));
     }
 
     private static async Task<List<Wayfarer.Models.Location>> ParseAsync(

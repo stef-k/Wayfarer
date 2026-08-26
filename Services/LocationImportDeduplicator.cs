@@ -62,7 +62,7 @@ internal static class LocationImportDeduplicator
             candidate.Timestamp <= location.Timestamp.AddSeconds(1));
         if (context.Database.IsRelational())
             return await candidates.AnyAsync(candidate =>
-                candidate.Coordinates.Distance(location.Coordinates) <= 10, cancellationToken);
+                candidate.Coordinates.IsWithinDistance(location.Coordinates, 10), cancellationToken);
         return (await candidates.ToListAsync(cancellationToken)).Any(candidate =>
             IsLegacyDuplicate(candidate, location));
     }

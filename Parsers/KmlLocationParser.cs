@@ -97,7 +97,11 @@ public sealed class KmlLocationParser : ILocationDataParser
             var batteryLevel = ParseNullableInt(ReadDataValue(extendedData, namespaceToUse, "BatteryLevel"));
             var isCharging = ParseNullableBool(ReadDataValue(extendedData, namespaceToUse, "IsCharging"));
 
-            var timestampUtc = ParseTimestampUtc(timestampRaw);
+            if (!TryParseTimestampUtc(timestampRaw, out var timestampUtc))
+            {
+                _logger.LogWarning("Skipping KML placemark due to a missing or invalid timestamp.");
+                continue;
+            }
             var localTimestamp = ParseLocalTimestamp(localTimestampRaw, timestampUtc);
             var chosenAltitude = altitudeOverride ?? altitudeFromCoordinate;
 
@@ -220,22 +224,25 @@ public sealed class KmlLocationParser : ILocationDataParser
             : null;
     }
 
-    private static DateTime ParseTimestampUtc(string? rawTimestamp)
+    private static bool TryParseTimestampUtc(string? rawTimestamp, out DateTime timestampUtc)
     {
         if (!string.IsNullOrWhiteSpace(rawTimestamp) &&
             DateTimeOffset.TryParse(rawTimestamp, ParsingCulture, DateTimeStyles.RoundtripKind, out var dto))
         {
-            return dto.UtcDateTime;
+            timestampUtc = dto.UtcDateTime;
+            return true;
         }
 
         if (!string.IsNullOrWhiteSpace(rawTimestamp) &&
             DateTime.TryParse(rawTimestamp, ParsingCulture,
                 DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var parsed))
         {
-            return DateTime.SpecifyKind(parsed, DateTimeKind.Utc);
+            timestampUtc = DateTime.SpecifyKind(parsed, DateTimeKind.Utc);
+            return true;
         }
 
-        return DateTime.UtcNow;
+        timestampUtc = default;
+        return false;
     }
 
     private static DateTime ParseLocalTimestamp(string? rawTimestamp, DateTime fallbackUtc)

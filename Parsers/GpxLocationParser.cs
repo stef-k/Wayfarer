@@ -93,7 +93,11 @@ public sealed class GpxLocationParser : ILocationDataParser
             var batteryLevel = ParseNullableInt(GetExtensionValue(extensions, "batteryLevel"));
             var isCharging = ParseNullableBool(GetExtensionValue(extensions, "isCharging"));
 
-            var timestampUtc = ParseTimestampUtc(timestampUtcRaw);
+            if (!TryParseTimestampUtc(timestampUtcRaw, out var timestampUtc))
+            {
+                _logger.LogWarning("Skipping GPX track point due to a missing or invalid timestamp.");
+                continue;
+            }
             var localTimestamp = ParseLocalTimestamp(localTimestampRaw, timestampUtc);
 
             var location = new Location
@@ -181,22 +185,25 @@ public sealed class GpxLocationParser : ILocationDataParser
             : null;
     }
 
-    private static DateTime ParseTimestampUtc(string? rawTimestamp)
+    private static bool TryParseTimestampUtc(string? rawTimestamp, out DateTime timestampUtc)
     {
         if (!string.IsNullOrWhiteSpace(rawTimestamp) &&
             DateTimeOffset.TryParse(rawTimestamp, ParsingCulture, DateTimeStyles.RoundtripKind, out var dto))
         {
-            return dto.UtcDateTime;
+            timestampUtc = dto.UtcDateTime;
+            return true;
         }
 
         if (!string.IsNullOrWhiteSpace(rawTimestamp) &&
             DateTime.TryParse(rawTimestamp, ParsingCulture,
                 DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var parsed))
         {
-            return DateTime.SpecifyKind(parsed, DateTimeKind.Utc);
+            timestampUtc = DateTime.SpecifyKind(parsed, DateTimeKind.Utc);
+            return true;
         }
 
-        return DateTime.UtcNow;
+        timestampUtc = default;
+        return false;
     }
 
     private static DateTime ParseLocalTimestamp(string? rawTimestamp, DateTime fallbackUtc)

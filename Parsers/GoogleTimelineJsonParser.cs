@@ -23,7 +23,7 @@ public class GoogleTimelineJsonParser : ILocationDataParser
     {
         _logger.LogDebug("Parsing Google Timeline data for user {UserId}.", userId);
         using var text = new StreamReader(fileStream, leaveOpen: true);
-        using var reader = new JsonTextReader(text) { CloseInput = false };
+        using var reader = new JsonTextReader(text) { CloseInput = false, MaxDepth = null };
         while (await reader.ReadAsync(cancellationToken))
         {
             if (reader.TokenType != JsonToken.PropertyName ||
@@ -72,7 +72,7 @@ public class GoogleTimelineJsonParser : ILocationDataParser
                 var item = await JObject.LoadAsync(reader, cancellationToken);
                 position = System.Text.Json.JsonSerializer.Deserialize<Position>(item.ToString());
             }
-            else await JToken.ReadFromAsync(reader, cancellationToken);
+            else await JsonReaderSkip.SkipValueAsync(reader, cancellationToken);
         }
         if (position?.LatLng != null && TryParsePoint(position.LatLng, out var result) &&
             DateTimeOffset.TryParse(position.Timestamp, out var when))
@@ -153,5 +153,23 @@ public class GoogleTimelineJsonParser : ILocationDataParser
 
         [JsonPropertyName("time")]
         public string? Time { get; set; }
+    }
+}
+
+/// <summary>Skips one JSON value without retaining its object graph.</summary>
+internal static class JsonReaderSkip
+{
+    internal static async Task SkipValueAsync(JsonReader reader, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (reader.TokenType is not (JsonToken.StartArray or JsonToken.StartObject)) return;
+        var depth = 1;
+        while (depth > 0)
+        {
+            if (!await reader.ReadAsync(cancellationToken))
+                throw new JsonReaderException("Unexpected end of JSON while skipping a value.");
+            if (reader.TokenType is JsonToken.StartArray or JsonToken.StartObject) depth++;
+            else if (reader.TokenType is JsonToken.EndArray or JsonToken.EndObject) depth--;
+        }
     }
 }

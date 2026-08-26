@@ -516,7 +516,7 @@ public class WayfarerGeoJsonParserTests
     }
 
     [Fact]
-    public async Task ParseAsync_UsesCurrentTimeForMissingTimestamp()
+    public async Task ParseAsync_MissingTimestamp_SkipsFeature()
     {
         // Arrange - no timestamp at all
         var geoJson = @"{
@@ -531,13 +531,10 @@ public class WayfarerGeoJsonParserTests
         }";
 
         // Act
-        var before = DateTime.UtcNow.AddSeconds(-1);
         var result = await _parser.ParseAsync(ToStream(geoJson), "user-123");
-        var after = DateTime.UtcNow.AddSeconds(1);
 
         // Assert
-        Assert.Single(result);
-        Assert.True(result[0].Timestamp >= before && result[0].Timestamp <= after);
+        Assert.Empty(result);
     }
 
     #endregion

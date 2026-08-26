@@ -72,6 +72,11 @@ namespace Wayfarer.Models
                 .IsUnique()
                 .HasDatabaseName("IX_Location_UserId_IdempotencyKey");
 
+            // Bound legacy no-key duplicate candidates before the spatial index check.
+            builder.Entity<Location>()
+                .HasIndex(l => new { l.UserId, l.Timestamp })
+                .HasDatabaseName("IX_Location_UserId_Timestamp");
+
             builder.Entity<ApiToken>()
                 .Property(at => at.UserId)
                 .IsRequired();

@@ -120,7 +120,8 @@ public sealed class LocationImportService : ILocationImportService, ILocationImp
                 batch.Add(location);
                 if (batch.Count < BatchSize) continue;
                 var outcome = await PersistBatchAsync(snapshot, epoch, batch, processed, cancellationToken);
-                if (outcome != LocationImportExecutionOutcome.Completed) return outcome;
+                if (outcome != LocationImportExecutionOutcome.Completed)
+                    return await HandleBatchOutcomeAsync(snapshot, outcome, cancellationToken);
                 processed += batch.Count;
                 batch.Clear();
                 await AfterBatchAsync(snapshot, epoch, processed, cancellationToken);
@@ -128,7 +129,8 @@ public sealed class LocationImportService : ILocationImportService, ILocationImp
             if (batch.Count > 0)
             {
                 var outcome = await PersistBatchAsync(snapshot, epoch, batch, processed, cancellationToken);
-                if (outcome != LocationImportExecutionOutcome.Completed) return outcome;
+                if (outcome != LocationImportExecutionOutcome.Completed)
+                    return await HandleBatchOutcomeAsync(snapshot, outcome, cancellationToken);
                 processed += batch.Count;
                 await AfterBatchAsync(snapshot, epoch, processed, cancellationToken);
             }
@@ -179,13 +181,16 @@ public sealed class LocationImportService : ILocationImportService, ILocationImp
         LocationImportSnapshot snapshot, int epoch, List<Location> batch, int processed, CancellationToken token)
     {
         await using var context = await _contexts.CreateDbContextAsync(token);
+        await using var transaction = context.Database.IsRelational()
+            ? await context.Database.BeginTransactionAsync(token) : null;
+        if (context.Database.IsNpgsql())
+            _ = await context.Users.FromSqlInterpolated($$"""
+                SELECT * FROM "AspNetUsers" WHERE "Id" = {{snapshot.UserId}} FOR UPDATE
+                """).SingleAsync(token);
         var import = await context.LocationImports.SingleOrDefaultAsync(item => item.Id == snapshot.Id, token);
         if (import is not null && import.Status == ImportStatus.Stopping && import.ExecutionEpoch == epoch &&
             import.DeletionRequestedAtUtc is null)
-        {
-            await ReconcileEnrichmentAsync(snapshot, token);
             return LocationImportExecutionOutcome.Cancelled;
-        }
         if (!HasExecutionAuthority(import, epoch)) return LocationImportExecutionOutcome.Stale;
         await ResolveActivityTypesAsync(context, batch, token);
         var batchKeys = batch.Where(item => item.IdempotencyKey.HasValue)
@@ -210,7 +215,16 @@ public sealed class LocationImportService : ILocationImportService, ILocationImp
             item.StopRequestedAtUtc == null && (epoch == 0 || item.ExecutionEpoch == epoch), token))
             return LocationImportExecutionOutcome.Stale;
         await context.SaveChangesAsync(token);
+        if (transaction is not null) await transaction.CommitAsync(token);
         return LocationImportExecutionOutcome.Completed;
+    }
+
+    private async Task<LocationImportExecutionOutcome> HandleBatchOutcomeAsync(
+        LocationImportSnapshot snapshot, LocationImportExecutionOutcome outcome, CancellationToken token)
+    {
+        if (outcome == LocationImportExecutionOutcome.Cancelled)
+            await ReconcileEnrichmentAsync(snapshot, token);
+        return outcome;
     }
 
     private async Task AfterBatchAsync(LocationImportSnapshot snapshot, int epoch, int processed, CancellationToken token)
