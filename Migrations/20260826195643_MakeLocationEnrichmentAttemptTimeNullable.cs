@@ -15,12 +15,6 @@ namespace Wayfarer.Migrations
                 name: "CK_LocationEnrichmentAttempt_OperationPair",
                 table: "LocationEnrichmentAttempts");
 
-            migrationBuilder.Sql("""
-                UPDATE "LocationEnrichmentAttempts"
-                SET "LastAttemptAtUtc" = TIMESTAMPTZ '1970-01-01 00:00:00+00'
-                WHERE "LastAttemptAtUtc" IS NULL;
-                """);
-
             migrationBuilder.AlterColumn<DateTime>(
                 name: "LastAttemptAtUtc",
                 table: "LocationEnrichmentAttempts",
@@ -41,6 +35,12 @@ namespace Wayfarer.Migrations
             migrationBuilder.DropCheckConstraint(
                 name: "CK_LocationEnrichmentAttempt_OperationPair",
                 table: "LocationEnrichmentAttempts");
+
+            migrationBuilder.Sql("""
+                UPDATE "LocationEnrichmentAttempts"
+                SET "LastAttemptAtUtc" = TIMESTAMPTZ '1970-01-01 00:00:00+00'
+                WHERE "LastAttemptAtUtc" IS NULL;
+                """);
 
             migrationBuilder.AlterColumn<DateTime>(
                 name: "LastAttemptAtUtc",
