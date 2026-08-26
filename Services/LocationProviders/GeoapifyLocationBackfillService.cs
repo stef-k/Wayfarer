@@ -152,24 +152,18 @@ public sealed class GeoapifyLocationBackfillService(
         if (workflow?.Epoch != owner.Epoch || !workflow.HasExecutionLease(owner.LeaseId,
                 owner.FencingGeneration, now) || location is null || !IsWhollyUnenriched(location))
         { if (transaction != null) await transaction.RollbackAsync(cancellationToken); return default; }
-        var attempt = db.Database.IsNpgsql()
-            ? await db.LocationEnrichmentAttempts.FromSqlInterpolated($$"""
-                SELECT * FROM "LocationEnrichmentAttempts"
-                WHERE "UserId" = {{owner.UserId}} AND "LocationId" = {{locationId}} FOR UPDATE
-                """).SingleOrDefaultAsync(cancellationToken)
-            : await db.LocationEnrichmentAttempts.SingleOrDefaultAsync(item => item.UserId == owner.UserId
-                && item.LocationId == locationId, cancellationToken);
         var latitude = location.Coordinates.Y;
         var longitude = location.Coordinates.X;
         if (!ReverseGeocodingService.HasValidCoordinates(latitude, longitude))
         {
-            if (attempt?.OperationId != null)
+            var invalidAttempt = await LockAttemptAsync(db, owner.UserId, locationId, cancellationToken);
+            if (invalidAttempt?.OperationId != null)
             { if (transaction != null) await transaction.RollbackAsync(cancellationToken); return default; }
-            attempt ??= new LocationEnrichmentAttempt { UserId = owner.UserId, LocationId = locationId };
-            if (attempt.Id == 0) db.Add(attempt);
-            attempt.Outcome = LocationEnrichmentOutcome.InvalidCoordinates;
-            attempt.NextAttemptAtUtc = null;
-            ClearOperation(attempt);
+            invalidAttempt ??= new LocationEnrichmentAttempt { UserId = owner.UserId, LocationId = locationId };
+            if (invalidAttempt.Id == 0) db.Add(invalidAttempt);
+            invalidAttempt.Outcome = LocationEnrichmentOutcome.InvalidCoordinates;
+            invalidAttempt.NextAttemptAtUtc = null;
+            ClearOperation(invalidAttempt);
             await db.SaveChangesAsync(cancellationToken);
             if (transaction != null) await transaction.CommitAsync(cancellationToken);
             return new(null, null, latitude, longitude, true);
@@ -181,6 +175,7 @@ public sealed class GeoapifyLocationBackfillService(
             return new(admission, null, latitude, longitude, false);
         }
         var contacted = admission.Authority!;
+        var attempt = await LockAttemptAsync(db, owner.UserId, locationId, cancellationToken);
         attempt ??= new LocationEnrichmentAttempt { UserId = owner.UserId, LocationId = locationId };
         if (attempt.Id == 0) db.Add(attempt);
         var same = attempt.ProviderKey == contacted.ProviderKey
@@ -349,6 +344,15 @@ public sealed class GeoapifyLocationBackfillService(
         attempt.OperationId = null; attempt.OperationFencingGeneration = null; attempt.OperationStartedAtUtc = null;
         attempt.OperationLeaseId = null; attempt.OperationWorkflowEpoch = null; attempt.OperationAttemptNumber = null;
     }
+
+    private static Task<LocationEnrichmentAttempt?> LockAttemptAsync(ApplicationDbContext db, string userId,
+        int locationId, CancellationToken cancellationToken) => db.Database.IsNpgsql()
+        ? db.LocationEnrichmentAttempts.FromSqlInterpolated($$"""
+            SELECT * FROM "LocationEnrichmentAttempts"
+            WHERE "UserId" = {{userId}} AND "LocationId" = {{locationId}} FOR UPDATE
+            """).SingleOrDefaultAsync(cancellationToken)
+        : db.LocationEnrichmentAttempts.SingleOrDefaultAsync(item => item.UserId == userId
+            && item.LocationId == locationId, cancellationToken);
 
     private readonly record struct AdmissionBoundary(PersonalProviderAdmission? Admission, Guid? OperationId,
         double Latitude, double Longitude, bool InvalidCoordinates);
