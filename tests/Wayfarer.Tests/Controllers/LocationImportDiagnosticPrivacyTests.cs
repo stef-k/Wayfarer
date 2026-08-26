@@ -82,6 +82,34 @@ public sealed class LocationImportDiagnosticPrivacyTests : TestBase
     }
 
     [Fact]
+    public async Task UploadSuccessLoggerFailurePreservesCommittedImportAndStagedFile()
+    {
+        using var root = new TemporaryDirectory("committed-upload-507");
+        var db = CreateDbContext();
+        var logger = new ThrowingUploadSuccessLogger();
+        var controller = BuildController(db, root.Path, logger, UserSentinel);
+        await using var content = new MemoryStream("Latitude,Longitude"u8.ToArray());
+        var file = new FormFile(content, 0, content.Length, "file", FileSentinel);
+
+        var result = await controller.Upload(new LocationImportUploadViewModel
+        {
+            File = file,
+            FileType = LocationImportFileType.Csv
+        });
+
+        var redirect = Assert.IsType<RedirectToActionResult>(result);
+        Assert.Equal("Index", redirect.ActionName);
+        var import = Assert.Single(db.LocationImports);
+        var stagedFile = Assert.Single(Directory.EnumerateFiles(Path.Combine(root.Path, "Uploads", "Temp")));
+        Assert.Equal(stagedFile, import.FilePath);
+        Assert.True(File.Exists(import.FilePath));
+        Assert.DoesNotContain(logger.Entries, entry => entry.Message.Contains("upload failed", StringComparison.Ordinal));
+        Assert.DoesNotContain(logger.Entries, entry => entry.Message.Contains("cleanup failed", StringComparison.Ordinal));
+        Assert.All(logger.Entries, entry => AssertPrivateTextAbsent(entry, root.Path));
+        Assert.NotEqual("An unexpected error occurred. Please try again later.", controller.TempData["AlertMessage"]);
+    }
+
+    [Fact]
     public async Task WorkerMissingFileAndSchedulingFailureEmitOnlyBoundedDiagnostics()
     {
         using var root = new TemporaryDirectory("private-directory-507");
@@ -196,7 +224,15 @@ public sealed class LocationImportDiagnosticPrivacyTests : TestBase
         var environment = new Mock<IWebHostEnvironment>();
         environment.SetupGet(item => item.ContentRootPath).Returns(contentRoot);
         var loggerFactory = LoggerFactory.Create(builder => builder.AddProvider(logs));
-        var controller = new LocationImportController(db, loggerFactory.CreateLogger<LocationImportController>(),
+        return BuildController(db, contentRoot, loggerFactory.CreateLogger<LocationImportController>(), userId);
+    }
+
+    private LocationImportController BuildController(ApplicationDbContext db, string contentRoot,
+        ILogger<LocationImportController> logger, string userId)
+    {
+        var environment = new Mock<IWebHostEnvironment>();
+        environment.SetupGet(item => item.ContentRootPath).Returns(contentRoot);
+        var controller = new LocationImportController(db, logger,
             environment.Object, Mock.Of<IScheduler>(),
             Mock.Of<ILocationEnrichmentPresentationProjector>(), importLifecycle: Mock.Of<ILocationImportLifecycle>());
         var identity = new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, userId)], "test");
@@ -206,6 +242,34 @@ public sealed class LocationImportDiagnosticPrivacyTests : TestBase
         };
         controller.TempData = new TempDataDictionary(controller.HttpContext, Mock.Of<ITempDataProvider>());
         return controller;
+    }
+
+    /// <summary>Fails only the success diagnostic while retaining bounded later entries for assertions.</summary>
+    private sealed class ThrowingUploadSuccessLogger : ILogger<LocationImportController>
+    {
+        private readonly List<TestLogProvider.TestLogEntry> entries = [];
+
+        internal IReadOnlyList<TestLogProvider.TestLogEntry> Entries => entries;
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            var message = formatter(state, exception);
+            if (message.Contains("Location import upload staged", StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException(ExceptionSentinel);
+            }
+
+            var fields = state is IEnumerable<KeyValuePair<string, object?>> structuredState
+                ? structuredState.Where(field => field.Key != "{OriginalFormat}")
+                    .ToDictionary(field => field.Key, field => field.Value)
+                : new Dictionary<string, object?>();
+            entries.Add(new(logLevel, nameof(LocationImportController), eventId, fields, message, exception));
+        }
     }
 
     private LocationImportService BuildService(ApplicationDbContext db, TestLogProvider logs,
