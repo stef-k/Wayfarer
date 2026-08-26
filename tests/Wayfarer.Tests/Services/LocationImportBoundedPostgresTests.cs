@@ -19,6 +19,75 @@ namespace Wayfarer.Tests.Services;
 public sealed class LocationImportBoundedPostgresTests(PostgresImportTestFixture fixture)
 {
     [PostgresFact]
+    public async Task KeyedExternalWriterAfterPrecheck_RetainsWinnerAndPersistsRestOfBatch()
+    {
+        var user = await fixture.CreateUserAsync();
+        var conflictingKey = Guid.NewGuid();
+        var otherKey = Guid.NewGuid();
+        var path = Path.Combine(Path.GetTempPath(), $"keyed-conflict-{Guid.NewGuid():N}.csv");
+        try
+        {
+            await File.WriteAllTextAsync(path,
+                "Latitude,Longitude,TimestampUtc,IdempotencyKey\r\n" +
+                $"40.1,22.2,2026-08-25T00:00:00Z,{conflictingKey:D}\r\n" +
+                $"40.2,22.3,2026-08-25T00:00:01Z,{otherKey:D}\r\n");
+            int importId;
+            int externalLocationId;
+            await using (var seed = fixture.CreateContext())
+            {
+                var import = new LocationImport
+                {
+                    UserId = user.Id, FilePath = path, FileType = LocationImportFileType.Csv,
+                    Status = ImportStatus.InProgress, ExecutionEpoch = 0,
+                    TotalRecords = 0, LastProcessedIndex = 0
+                };
+                seed.LocationImports.Add(import);
+                var externalCandidate = Location(user.Id, null, 10_000);
+                externalCandidate.Source = "external-pending";
+                seed.Locations.Add(externalCandidate);
+                await seed.SaveChangesAsync();
+                importId = import.Id;
+                externalLocationId = externalCandidate.Id;
+            }
+
+            var externalCommitted = false;
+            var interceptor = new KeyPrecheckInterceptor(async () =>
+            {
+                await using var external = fixture.CreateContext();
+                var winner = await external.Locations.SingleAsync(item => item.Id == externalLocationId);
+                winner.IdempotencyKey = conflictingKey;
+                winner.Source = "external-winner";
+                await external.SaveChangesAsync();
+                externalCommitted = true;
+            });
+            var service = new LocationImportService(new FixtureFactory(fixture, interceptor, disableAutoSavepoints: true),
+                new ReverseGeocodingService(new HttpClient(), NullLogger<BaseApiController>.Instance),
+                NullLogger<LocationImportService>.Instance,
+                new LocationDataParserFactory(NullLoggerFactory.Instance), new SseService());
+
+            await service.ProcessImport(importId, CancellationToken.None);
+
+            Assert.True(externalCommitted);
+            await using var verification = fixture.CreateContext();
+            var locations = await verification.Locations.Where(item => item.UserId == user.Id).ToListAsync();
+            Assert.Equal(2, locations.Count);
+            Assert.Single(locations, item => item.IdempotencyKey == conflictingKey &&
+                item.Source == "external-winner");
+            Assert.Single(locations, item => item.IdempotencyKey == otherKey);
+            var completed = await verification.LocationImports.SingleAsync(item => item.Id == importId);
+            Assert.Equal(ImportStatus.Completed, completed.Status);
+            Assert.Equal(2, completed.TotalRecords);
+            Assert.Equal(2, completed.LastProcessedIndex);
+            Assert.Equal(1, completed.SkippedDuplicates);
+            Assert.Equal(0, completed.RemainingEnrichmentCount);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [PostgresFact]
     public async Task LegacyNoKeyLookup_UsesIndexableBoundedSpatialPredicate()
     {
         var user = await fixture.CreateUserAsync();
@@ -241,9 +310,31 @@ public sealed class LocationImportBoundedPostgresTests(PostgresImportTestFixture
         }
     }
 
-    private sealed class FixtureFactory(PostgresImportTestFixture fixture)
+    private sealed class FixtureFactory(PostgresImportTestFixture fixture, IInterceptor? interceptor = null,
+        bool disableAutoSavepoints = false)
         : IDbContextFactory<ApplicationDbContext>
     {
-        public ApplicationDbContext CreateDbContext() => fixture.CreateContext();
+        public ApplicationDbContext CreateDbContext()
+        {
+            var context = interceptor is null ? fixture.CreateContext() : fixture.CreateContext(interceptor);
+            context.Database.AutoSavepointsEnabled = !disableAutoSavepoints;
+            return context;
+        }
+    }
+
+    private sealed class KeyPrecheckInterceptor(Func<Task> afterPrecheck) : DbCommandInterceptor
+    {
+        private int invoked;
+
+        public override async ValueTask<DbDataReader> ReaderExecutedAsync(
+            DbCommand command, CommandExecutedEventData eventData, DbDataReader result,
+            CancellationToken cancellationToken = default)
+        {
+            if (command.CommandText.Contains("IdempotencyKey", StringComparison.Ordinal) &&
+                command.CommandText.Contains("Locations", StringComparison.Ordinal) &&
+                Interlocked.Exchange(ref invoked, 1) == 0)
+                await afterPrecheck();
+            return result;
+        }
     }
 }
