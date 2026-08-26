@@ -254,13 +254,14 @@ namespace Wayfarer.Areas.User.Controllers
             }
 
             var uploadDirectory = Path.Combine(_environment.ContentRootPath, "Uploads", "Temp");
-            Directory.CreateDirectory(uploadDirectory);
-            var serverExtension = model.FileType.Value.GetAllowedExtensions().First();
-            var filePath = Path.Combine(uploadDirectory, $"{Guid.NewGuid():N}{serverExtension}");
+            string? filePath = null;
             var stagedFileCreated = false;
 
             try
             {
+                Directory.CreateDirectory(uploadDirectory);
+                var serverExtension = model.FileType.Value.GetAllowedExtensions().First();
+                filePath = Path.Combine(uploadDirectory, $"{Guid.NewGuid():N}{serverExtension}");
                 using (var stream = new FileStream(filePath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
                 {
                     stagedFileCreated = true;
@@ -293,7 +294,7 @@ namespace Wayfarer.Areas.User.Controllers
             {
                 _logger.LogError("Location import upload failed; code {Code}.",
                     "location-import-upload-failed");
-                if (stagedFileCreated)
+                if (stagedFileCreated && filePath is not null)
                 {
                     try { if (System.IO.File.Exists(filePath)) System.IO.File.Delete(filePath); }
                     catch (Exception)
