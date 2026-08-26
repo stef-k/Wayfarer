@@ -16,6 +16,30 @@ namespace Wayfarer.Tests.Services;
 public sealed class LocationImportBoundedPostgresTests(PostgresImportTestFixture fixture)
 {
     [PostgresFact]
+    public async Task LegacyNoKeyLookup_UsesIndexableBoundedSpatialPredicate()
+    {
+        var user = await fixture.CreateUserAsync();
+        await using (var seed = fixture.CreateContext())
+        {
+            seed.Locations.AddRange(Enumerable.Range(0, 500)
+                .Select(index => Location(user.Id, null, index)));
+            await seed.SaveChangesAsync();
+        }
+
+        var commands = new List<string>();
+        await using var context = fixture.CreateContext(new LegacyLookupRecorder(commands));
+        var batch = new List<Location> { Location(user.Id, null, 1_000) };
+
+        var result = await LocationImportDeduplicator.FilterAsync(
+            context, batch, new HashSet<Guid>(), user.Id, NullLogger.Instance, CancellationToken.None);
+
+        Assert.Single(result.ToInsert);
+        var sql = Assert.Single(commands);
+        Assert.Contains("ST_DWithin", sql, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("ST_Distance", sql, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [PostgresFact]
     public async Task KeyedBatches_QueryOnlyBatchKeysAndBoundTrackingAsHistoryGrows()
     {
         var user = await fixture.CreateUserAsync();
@@ -56,7 +80,7 @@ public sealed class LocationImportBoundedPostgresTests(PostgresImportTestFixture
         Assert.All(trackerSizes, size => Assert.InRange(size, 0, 50));
     }
 
-    private static Location Location(string userId, Guid key, int seconds) => new()
+    private static Location Location(string userId, Guid? key, int seconds) => new()
     {
         UserId = userId,
         IdempotencyKey = key,
@@ -99,6 +123,20 @@ public sealed class LocationImportBoundedPostgresTests(PostgresImportTestFixture
             var literalKeys = Regex.Matches(command.CommandText,
                 "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}").Count;
             shapes.Add(new(command.CommandText, parameterKeys + literalKeys));
+        }
+    }
+
+    private sealed class LegacyLookupRecorder(List<string> commands) : DbCommandInterceptor
+    {
+        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+            DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result,
+            CancellationToken cancellationToken = default)
+        {
+            if (command.CommandText.Contains("Coordinates", StringComparison.Ordinal) &&
+                command.CommandText.Contains("Timestamp", StringComparison.Ordinal) &&
+                command.CommandText.TrimStart().StartsWith("SELECT", StringComparison.OrdinalIgnoreCase))
+                commands.Add(command.CommandText);
+            return ValueTask.FromResult(result);
         }
     }
 }
