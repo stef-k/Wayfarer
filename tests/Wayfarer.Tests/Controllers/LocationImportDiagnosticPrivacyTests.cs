@@ -82,6 +82,38 @@ public sealed class LocationImportDiagnosticPrivacyTests : TestBase
     }
 
     [Fact]
+    public async Task UploadPreCommitFailureCleansExactStagedFileBeforeThrowingDiagnostics()
+    {
+        using var root = new TemporaryDirectory("precommit-cleanup-order-507");
+        var uploadDirectory = Path.Combine(root.Path, "Uploads", "Temp");
+        Directory.CreateDirectory(uploadDirectory);
+        var preservedFile = Path.Combine(uploadDirectory, "fixture-owned-preserved.csv");
+        await File.WriteAllTextAsync(preservedFile, "preserve");
+        var db = CreateDbContext();
+        var logger = new ThrowingPreCommitLogger(uploadDirectory, preservedFile);
+        var controller = BuildController(db, root.Path, logger, UserSentinel);
+        var file = new Mock<IFormFile>();
+        file.SetupGet(item => item.FileName).Returns(FileSentinel);
+        file.SetupGet(item => item.Length).Returns(10);
+        file.Setup(item => item.CopyToAsync(It.IsAny<Stream>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException(ExceptionSentinel));
+
+        var result = await controller.Upload(new LocationImportUploadViewModel
+        {
+            File = file.Object,
+            FileType = LocationImportFileType.Csv
+        });
+
+        var redirect = Assert.IsType<RedirectToActionResult>(result);
+        Assert.Equal("Index", redirect.ActionName);
+        Assert.Empty(db.LocationImports);
+        Assert.Equal([preservedFile], Directory.EnumerateFiles(uploadDirectory));
+        Assert.Equal(1, logger.PrimaryFailureAttempts);
+        Assert.Equal(1, logger.AlertAttempts);
+        Assert.All(logger.Entries, entry => AssertPrivateTextAbsent(entry, root.Path));
+    }
+
+    [Fact]
     public async Task UploadSuccessLoggerFailurePreservesCommittedImportAndStagedFile()
     {
         using var root = new TemporaryDirectory("committed-upload-507");
@@ -269,6 +301,45 @@ public sealed class LocationImportDiagnosticPrivacyTests : TestBase
                     .ToDictionary(field => field.Key, field => field.Value)
                 : new Dictionary<string, object?>();
             entries.Add(new(logLevel, nameof(LocationImportController), eventId, fields, message, exception));
+        }
+    }
+
+    /// <summary>Throws from failure diagnostics after verifying request-local cleanup already completed.</summary>
+    private sealed class ThrowingPreCommitLogger(string uploadDirectory, string preservedFile)
+        : ILogger<LocationImportController>
+    {
+        private readonly List<TestLogProvider.TestLogEntry> entries = [];
+
+        internal IReadOnlyList<TestLogProvider.TestLogEntry> Entries => entries;
+        internal int PrimaryFailureAttempts { get; private set; }
+        internal int AlertAttempts { get; private set; }
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            var message = formatter(state, exception);
+            var fields = state is IEnumerable<KeyValuePair<string, object?>> structuredState
+                ? structuredState.Where(field => field.Key != "{OriginalFormat}")
+                    .ToDictionary(field => field.Key, field => field.Value)
+                : new Dictionary<string, object?>();
+            entries.Add(new(logLevel, nameof(LocationImportController), eventId, fields, message, exception));
+
+            if (message.Contains("Location import upload failed", StringComparison.Ordinal))
+            {
+                PrimaryFailureAttempts++;
+                Assert.Equal([preservedFile], Directory.EnumerateFiles(uploadDirectory));
+                throw new InvalidOperationException("bounded primary logger failure");
+            }
+
+            if (message.Contains("Alert:", StringComparison.Ordinal))
+            {
+                AlertAttempts++;
+                throw new InvalidOperationException("bounded alert logger failure");
+            }
         }
     }
 
