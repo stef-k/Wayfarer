@@ -74,6 +74,22 @@ public sealed class LocationEnrichmentDocumentationTests
     }
 
     [Fact]
+    public void CanonicalDocsDescribeLocationImportAsScheduledOnly()
+    {
+        var docs = string.Join('\n', Directory.GetFiles(RepositoryFile("docs"), "*.md")
+            .Select(File.ReadAllText).Append(File.ReadAllText(RepositoryFile("README.md"))));
+
+        Assert.DoesNotContain("Optional reverse geocoding during import", docs, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Parse batches → Optional reverse geocoding → DB insert", docs,
+            StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("later inline checks", docs, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("200 ms delay", docs, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Location import performs no provider credential resolution, provider admission, " +
+            "reverse-geocoding HTTP, inline enrichment, or per-record enrichment delay.", docs,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void AcceptedLocationHistoryFormatListsNameWayfarerGeoJsonPrecisely()
     {
         var ambiguousLists = new[]
