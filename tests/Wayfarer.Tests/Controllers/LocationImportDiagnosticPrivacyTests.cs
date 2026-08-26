@@ -114,6 +114,54 @@ public sealed class LocationImportDiagnosticPrivacyTests : TestBase
     }
 
     [Fact]
+    public async Task UploadCleanupAndDiagnosticFailuresPreservePrimaryBoundedRedirect()
+    {
+        using var root = new TemporaryDirectory("precommit-cleanup-failure-507");
+        var db = CreateDbContext();
+        var logger = new ThrowingFailureSinksLogger();
+        var controller = BuildController(db, root.Path, logger, UserSentinel);
+        string? stagedFile = null;
+        var file = new Mock<IFormFile>();
+        file.SetupGet(item => item.FileName).Returns(FileSentinel);
+        file.SetupGet(item => item.Length).Returns(10);
+        file.Setup(item => item.CopyToAsync(It.IsAny<Stream>(), It.IsAny<CancellationToken>()))
+            .Callback<Stream, CancellationToken>((stream, _) =>
+            {
+                stagedFile = Assert.IsType<FileStream>(stream).Name;
+                stream.Dispose();
+                File.SetAttributes(stagedFile, FileAttributes.ReadOnly);
+            })
+            .ThrowsAsync(new InvalidOperationException(ExceptionSentinel));
+
+        try
+        {
+            var result = await controller.Upload(new LocationImportUploadViewModel
+            {
+                File = file.Object,
+                FileType = LocationImportFileType.Csv
+            });
+
+            var redirect = Assert.IsType<RedirectToActionResult>(result);
+            Assert.Equal("Index", redirect.ActionName);
+            Assert.Empty(db.LocationImports);
+            Assert.NotNull(stagedFile);
+            Assert.True(File.Exists(stagedFile));
+            Assert.Equal(1, logger.PrimaryFailureAttempts);
+            Assert.Equal(1, logger.CleanupFailureAttempts);
+            Assert.Equal(1, logger.AlertAttempts);
+            Assert.All(logger.Entries, entry => AssertPrivateTextAbsent(entry, root.Path));
+        }
+        finally
+        {
+            if (stagedFile is not null && File.Exists(stagedFile))
+            {
+                File.SetAttributes(stagedFile, FileAttributes.Normal);
+                File.Delete(stagedFile);
+            }
+        }
+    }
+
+    [Fact]
     public async Task UploadSuccessLoggerFailurePreservesCommittedImportAndStagedFile()
     {
         using var root = new TemporaryDirectory("committed-upload-507");
@@ -340,6 +388,51 @@ public sealed class LocationImportDiagnosticPrivacyTests : TestBase
                 AlertAttempts++;
                 throw new InvalidOperationException("bounded alert logger failure");
             }
+        }
+    }
+
+    /// <summary>Throws independently from every pre-commit diagnostic and presentation log phase.</summary>
+    private sealed class ThrowingFailureSinksLogger : ILogger<LocationImportController>
+    {
+        private readonly List<TestLogProvider.TestLogEntry> entries = [];
+
+        internal IReadOnlyList<TestLogProvider.TestLogEntry> Entries => entries;
+        internal int PrimaryFailureAttempts { get; private set; }
+        internal int CleanupFailureAttempts { get; private set; }
+        internal int AlertAttempts { get; private set; }
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception,
+            Func<TState, Exception?, string> formatter)
+        {
+            var message = formatter(state, exception);
+            var fields = state is IEnumerable<KeyValuePair<string, object?>> structuredState
+                ? structuredState.Where(field => field.Key != "{OriginalFormat}")
+                    .ToDictionary(field => field.Key, field => field.Value)
+                : new Dictionary<string, object?>();
+            entries.Add(new(logLevel, nameof(LocationImportController), eventId, fields, message, exception));
+
+            if (message.Contains("Location import upload cleanup failed", StringComparison.Ordinal))
+            {
+                CleanupFailureAttempts++;
+            }
+            else if (message.Contains("Location import upload failed", StringComparison.Ordinal))
+            {
+                PrimaryFailureAttempts++;
+            }
+            else if (message.Contains("Alert:", StringComparison.Ordinal))
+            {
+                AlertAttempts++;
+            }
+            else
+            {
+                return;
+            }
+
+            throw new InvalidOperationException("bounded diagnostic sink failure");
         }
     }
 

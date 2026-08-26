@@ -291,18 +291,48 @@ namespace Wayfarer.Areas.User.Controllers
             }
             catch (Exception) when (!committed)
             {
-                _logger.LogError("Location import upload failed; code {Code}.",
-                    "location-import-upload-failed");
+                var cleanupFailed = false;
                 if (stagedFileCreated && filePath is not null)
                 {
                     try { if (System.IO.File.Exists(filePath)) System.IO.File.Delete(filePath); }
                     catch (Exception)
                     {
+                        cleanupFailed = true;
+                    }
+                }
+
+                try
+                {
+                    _logger.LogError("Location import upload failed; code {Code}.",
+                        "location-import-upload-failed");
+                }
+                catch (Exception)
+                {
+                    // Diagnostics are best effort after request-local consistency restoration.
+                }
+
+                if (cleanupFailed)
+                {
+                    try
+                    {
                         _logger.LogWarning("Location import upload cleanup failed; code {Code}.",
                             "location-import-upload-cleanup-failed");
                     }
+                    catch (Exception)
+                    {
+                        // A cleanup diagnostic cannot replace the primary upload failure.
+                    }
                 }
-                SetAlert("An unexpected error occurred. Please try again later.", "danger");
+
+                try
+                {
+                    SetAlert("An unexpected error occurred. Please try again later.", "danger");
+                }
+                catch (Exception)
+                {
+                    // Presentation storage cannot replace cleanup or bounded redirect behavior.
+                }
+
                 return RedirectToAction("Index");
             }
 
