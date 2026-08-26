@@ -247,7 +247,7 @@ namespace Wayfarer.Parsers
         }
 
         /// <summary>Returns whether coordinates are finite and within the WGS 84 latitude/longitude bounds.</summary>
-        public static bool HasValidCoordinates(double latitude, double longitude) => double.IsFinite(latitude)
+        internal static bool HasValidCoordinates(double latitude, double longitude) => double.IsFinite(latitude)
             && double.IsFinite(longitude) && latitude is >= -90 and <= 90 && longitude is >= -180 and <= 180;
 
         /// <summary>Performs one explicit Permanent verification contact using fixed non-personal coordinates.</summary>
