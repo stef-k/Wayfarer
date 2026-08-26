@@ -170,7 +170,7 @@ public sealed partial class GeoapifyBackfillConcurrencyPostgresTests
             CommandExecutedEventData eventData, DbDataReader result,
             CancellationToken cancellationToken = default)
         {
-            if (command.CommandText.Contains("FROM \"Locations\"", StringComparison.Ordinal)
+            if (command.CommandText.Contains("\"Locations\"", StringComparison.Ordinal)
                 && command.CommandText.Contains("LIMIT 2", StringComparison.Ordinal)
                 && !command.CommandText.Contains("FOR UPDATE", StringComparison.Ordinal)
                 && Interlocked.Exchange(ref gated, 1) == 0)
@@ -180,6 +180,55 @@ public sealed partial class GeoapifyBackfillConcurrencyPostgresTests
             }
             return result;
         }
+    }
+
+    /// <summary>Coordinates a settings-owned selection row with the worker's authoritative admission read.</summary>
+    private sealed class AdmissionAuthorityGate : DbCommandInterceptor
+    {
+        private readonly TaskCompletionSource locationLocked = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource releaseLocation = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource unlockedSelectionRead = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource selectionLockAttempt = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource releaseAuthorityRead = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private int locationGated;
+        private int authorityGated;
+        public Task LocationLocked => locationLocked.Task;
+        public Task UnlockedSelectionRead => unlockedSelectionRead.Task;
+        public Task SelectionLockAttempt => selectionLockAttempt.Task;
+        public void ReleaseLocation() => releaseLocation.TrySetResult();
+        public void ReleaseAuthorityRead() => releaseAuthorityRead.TrySetResult();
+
+        public override async ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(DbCommand command,
+            CommandEventData eventData, InterceptionResult<DbDataReader> result,
+            CancellationToken cancellationToken = default)
+        {
+            if (IsSelection(command) && command.CommandText.Contains("FOR UPDATE", StringComparison.OrdinalIgnoreCase))
+                selectionLockAttempt.TrySetResult();
+            return result;
+        }
+
+        public override async ValueTask<DbDataReader> ReaderExecutedAsync(DbCommand command,
+            CommandExecutedEventData eventData, DbDataReader result, CancellationToken cancellationToken = default)
+        {
+            if (command.CommandText.Contains("FROM \"Locations\"", StringComparison.Ordinal)
+                && command.CommandText.Contains("LIMIT 2", StringComparison.Ordinal)
+                && !command.CommandText.Contains("FOR UPDATE", StringComparison.Ordinal)
+                && Interlocked.Exchange(ref locationGated, 1) == 0)
+            {
+                locationLocked.TrySetResult();
+                await releaseLocation.Task.WaitAsync(cancellationToken);
+            }
+            else if (IsSelection(command) && !command.CommandText.Contains("FOR UPDATE", StringComparison.OrdinalIgnoreCase)
+                && Volatile.Read(ref locationGated) != 0 && Interlocked.Exchange(ref authorityGated, 1) == 0)
+            {
+                unlockedSelectionRead.TrySetResult();
+                await releaseAuthorityRead.Task.WaitAsync(cancellationToken);
+            }
+            return result;
+        }
+
+        private static bool IsSelection(DbCommand command) =>
+            command.CommandText.Contains("PersonalLocationProviderSelections", StringComparison.Ordinal);
     }
 
     private sealed class CoordinatedHandler(

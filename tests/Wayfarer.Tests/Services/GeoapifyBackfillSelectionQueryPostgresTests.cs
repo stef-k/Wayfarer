@@ -130,6 +130,89 @@ public sealed partial class GeoapifyBackfillConcurrencyPostgresTests
         Assert.Equal(0, handler.RequestsFor(user.Id));
     }
 
+    /// <summary>Proves invalid coordinates cannot trigger legacy provider preparation or credential authority.</summary>
+    [PostgresFact]
+    public async Task InvalidCoordinatesDoNotPrepareLegacyMapboxAuthority()
+    {
+        var user = await fixture.CreateUserAsync();
+        var protection = new EphemeralDataProtectionProvider();
+        await using (var arrange = fixture.CreateContext())
+        {
+            var trackedUser = await arrange.Users.SingleAsync(item => item.Id == user.Id);
+            arrange.ApiTokens.Add(new ApiToken
+            {
+                Name = "Mapbox", Token = "legacy-mapbox-key", UserId = user.Id, User = trackedUser
+            });
+            arrange.Locations.Add(new Location
+            {
+                UserId = user.Id, Timestamp = DateTime.UtcNow, LocalTimestamp = DateTime.UtcNow,
+                TimeZoneId = "UTC", Coordinates = new Point(double.PositiveInfinity, 10) { SRID = 4326 }
+            });
+            await arrange.SaveChangesAsync();
+        }
+        var handler = new CoordinatedHandler(user.Id, null);
+
+        var result = await Service(protection, handler).RunAsync(user.Id);
+
+        await using var verify = fixture.CreateContext();
+        var attempt = await verify.LocationEnrichmentAttempts.SingleAsync(item => item.UserId == user.Id);
+        Assert.Equal(LocationEnrichmentOutcome.InvalidCoordinates, attempt.Outcome);
+        Assert.Equal(0, attempt.AdmittedAttemptCount);
+        Assert.Null(attempt.LastAttemptAtUtc);
+        Assert.Null(attempt.OperationId);
+        Assert.False(result.AuthorityUnavailable);
+        Assert.Equal(0, result.Admitted);
+        Assert.Empty(await verify.PersonalLocationProviderProfiles.Where(item => item.UserId == user.Id).ToListAsync());
+        Assert.Empty(await verify.PersonalLocationProviderSelections.Where(item => item.UserId == user.Id).ToListAsync());
+        Assert.Single(await verify.ApiTokens.IgnoreQueryFilters().Where(item => item.UserId == user.Id
+            && item.Name == "Mapbox" && item.Token == "legacy-mapbox-key").ToListAsync());
+        Assert.Empty(await verify.GeoapifyUsageAdmissions.Where(item => item.UserId == user.Id).ToListAsync());
+        Assert.Empty(await verify.MapboxProductMeters.Where(item => item.UserId == user.Id).ToListAsync());
+        Assert.Equal(0, handler.RequestsFor(user.Id));
+    }
+
+    /// <summary>Proves a settings transaction already owning selection authority serializes before admission.</summary>
+    [PostgresFact(Timeout = 20_000)]
+    public async Task SelectionChangeOwningRowBeforeAuthorityAcquisitionPreventsAdmission()
+    {
+        var user = await fixture.CreateUserAsync();
+        var protection = new EphemeralDataProtectionProvider();
+        await SeedAsync(user.Id, null, protection);
+        var gate = new AdmissionAuthorityGate();
+        var handler = new CoordinatedHandler(user.Id, null);
+        handler.Release();
+
+        var run = Service(protection, handler, interceptors: gate).RunAsync(user.Id);
+        await gate.LocationLocked.WaitAsync(TimeSpan.FromSeconds(10));
+        await using var settings = fixture.CreateContext();
+        await using var transaction = await settings.Database.BeginTransactionAsync();
+        var selection = await settings.PersonalLocationProviderSelections
+            .FromSqlInterpolated($$"""
+                SELECT *, xmin FROM "PersonalLocationProviderSelections"
+                WHERE "UserId" = {{user.Id}} FOR UPDATE
+                """).SingleAsync();
+        selection.Select(PersonalProviderCapability.Geocoding, null);
+        await settings.SaveChangesAsync();
+        gate.ReleaseLocation();
+
+        var observation = await Task.WhenAny(gate.UnlockedSelectionRead, gate.SelectionLockAttempt)
+            .WaitAsync(TimeSpan.FromSeconds(10));
+        await transaction.CommitAsync();
+        gate.ReleaseAuthorityRead();
+        var result = await run.WaitAsync(TimeSpan.FromSeconds(10));
+
+        await using var verify = fixture.CreateContext();
+        var attempt = await verify.LocationEnrichmentAttempts.SingleOrDefaultAsync(item => item.UserId == user.Id);
+        Assert.True(observation == gate.SelectionLockAttempt || observation == gate.UnlockedSelectionRead);
+        Assert.True(result.AuthorityUnavailable);
+        Assert.Equal(0, result.Admitted);
+        Assert.True(attempt is null || attempt.AdmittedAttemptCount == 0);
+        Assert.True(attempt is null || attempt.OperationId == null);
+        Assert.Empty(await verify.GeoapifyUsageAdmissions.Where(item => item.UserId == user.Id).ToListAsync());
+        Assert.Empty(await verify.MapboxProductMeters.Where(item => item.UserId == user.Id).ToListAsync());
+        Assert.Equal(0, handler.RequestsFor(user.Id));
+    }
+
     /// <summary>Proves an oldest invalid row does not consume budget or starve a later valid row.</summary>
     [PostgresFact]
     public async Task OldestInvalidCoordinatesDoNotStarveLaterValidCandidateAtBudgetBoundary()
