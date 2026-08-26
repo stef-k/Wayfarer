@@ -24,11 +24,16 @@ public sealed partial class GeoapifyBackfillConcurrencyPostgresTests
         var user = await fixture.CreateUserAsync();
         var protection = new EphemeralDataProtectionProvider();
         await SeedAsync(user.Id, null, protection);
+        double committedLongitude;
+        double committedLatitude;
         await using (var arrange = fixture.CreateContext())
         {
             var location = await arrange.Locations.SingleAsync(item => item.UserId == user.Id);
             location.Coordinates = new Point(longitude, latitude) { SRID = 4326 };
             await arrange.SaveChangesAsync();
+            await arrange.Entry(location).ReloadAsync();
+            committedLongitude = location.Coordinates.X;
+            committedLatitude = location.Coordinates.Y;
         }
         var handler = new CoordinatedHandler(user.Id, null);
         handler.Release();
@@ -51,8 +56,8 @@ public sealed partial class GeoapifyBackfillConcurrencyPostgresTests
         Assert.Empty(await verify.MapboxProductMeters.Where(item => item.UserId == user.Id).ToListAsync());
         Assert.Equal(0, handler.RequestsFor(user.Id));
         var preserved = (await verify.Locations.SingleAsync(item => item.UserId == user.Id)).Coordinates;
-        Assert.Equal(longitude, preserved.X);
-        Assert.Equal(latitude, preserved.Y);
+        Assert.Equal(committedLongitude, preserved.X);
+        Assert.Equal(committedLatitude, preserved.Y);
     }
 
     /// <summary>Proves local invalidity is classified without selected provider authority.</summary>

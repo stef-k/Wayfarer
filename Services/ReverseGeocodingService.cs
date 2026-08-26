@@ -197,8 +197,7 @@ namespace Wayfarer.Parsers
         public async Task<ReverseGeocodingResult> EnrichAsync(string userId, double latitude, double longitude,
             ReverseGeocodingIntent intent, CancellationToken cancellationToken = default)
         {
-            if (_contactGate == null || !double.IsFinite(latitude) || !double.IsFinite(longitude)
-                || latitude is < -90 or > 90 || longitude is < -180 or > 180)
+            if (_contactGate == null || !HasValidCoordinates(latitude, longitude))
                 return ReverseGeocodingResult.Unavailable(ReverseGeocodingCategory.InvalidRequest);
             var admission = await _contactGate.AdmitPersistentGeocodingAsync(userId, cancellationToken);
             if (!admission.Succeeded) return ReverseGeocodingResult.Unavailable(MapAdmission(admission.Category));
@@ -230,8 +229,7 @@ namespace Wayfarer.Parsers
             PersonalProviderAuthoritySnapshot authority, double latitude, double longitude,
             CancellationToken cancellationToken = default)
         {
-            if (!double.IsFinite(latitude) || !double.IsFinite(longitude)
-                || latitude is < -90 or > 90 || longitude is < -180 or > 180)
+            if (!HasValidCoordinates(latitude, longitude))
                 return ReverseGeocodingResult.Unavailable(ReverseGeocodingCategory.InvalidRequest)
                     with { Authority = authority };
             try
@@ -247,6 +245,10 @@ namespace Wayfarer.Parsers
                     with { Authority = authority };
             }
         }
+
+        /// <summary>Returns whether coordinates are finite and within the WGS 84 latitude/longitude bounds.</summary>
+        public static bool HasValidCoordinates(double latitude, double longitude) => double.IsFinite(latitude)
+            && double.IsFinite(longitude) && latitude is >= -90 and <= 90 && longitude is >= -180 and <= 180;
 
         /// <summary>Performs one explicit Permanent verification contact using fixed non-personal coordinates.</summary>
         public async Task<PersonalProviderVerification> VerifyMapboxPermanentAsync(string userId, CancellationToken cancellationToken = default)

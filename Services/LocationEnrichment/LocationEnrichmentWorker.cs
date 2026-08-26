@@ -39,7 +39,8 @@ public sealed class LocationEnrichmentWorker(
             if (transaction != null) await transaction.RollbackAsync(CancellationToken.None);
             return LocationEnrichmentWorkerOutcome.StaleOwner;
         }
-        workflow.RecordBatch(result.Scanned, result.Succeeded, result.Unavailable, result.NoResult, 0, now);
+        workflow.RecordBatch(result.Scanned, result.Succeeded, result.Unavailable,
+            result.NoResult + result.PermanentlyDeferred, 0, now);
         workflow.ReplaceProgress(workflow.ProcessedCount, workflow.EnrichedCount,
             workflow.SkippedCount + result.Skipped,
             workflow.RetryableDeferredCount, workflow.PermanentlyDeferredCount, result.RemainingEstimate,
