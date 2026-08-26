@@ -370,7 +370,7 @@ public sealed partial class LocationEnrichmentRetryAtomicityPostgresTests(Postgr
         Mock<IWorkflowScheduleProjection> Projection);
     private sealed record Snapshot(LocationEnrichmentState State, int Epoch, bool IntentEnabled,
         LocationEnrichmentOutcome WorkflowOutcome, DateTime? NextEligibleAtUtc, DateTime UpdatedAtUtc,
-        LocationEnrichmentOutcome AttemptOutcome, int AdmittedAttemptCount, DateTime LastAttemptAtUtc,
+        LocationEnrichmentOutcome AttemptOutcome, int AdmittedAttemptCount, DateTime? LastAttemptAtUtc,
         DateTime? NextAttemptAtUtc, Guid? OperationId, Guid? ExecutionLeaseId,
         long ExecutionFencingGeneration, int ProcessedCount, int AdmittedUsageCount);
 

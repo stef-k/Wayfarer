@@ -13,6 +13,18 @@ public sealed class PersonalProviderContactGate(
     public async Task<PersonalProviderAdmission> AdmitPersistentGeocodingAsync(
         string userId, CancellationToken cancellationToken = default)
     {
+        await PreparePersistentGeocodingAsync(userId, cancellationToken);
+        return await AdmitPreparedPersistentGeocodingAsync(userId, cancellationToken);
+    }
+
+    /// <summary>Completes legacy preparation before a caller enters an authoritative admission transaction.</summary>
+    internal Task PreparePersistentGeocodingAsync(string userId, CancellationToken cancellationToken = default) =>
+        legacyMigration.MigrateAsync(userId, cancellationToken);
+
+    /// <summary>Uses the existing admission policy inside a caller-owned relational transaction.</summary>
+    internal async Task<PersonalProviderAdmission> AdmitPreparedPersistentGeocodingAsync(
+        string userId, CancellationToken cancellationToken = default)
+    {
         var selection = await dbContext.Set<PersonalLocationProviderSelection>().AsNoTracking()
             .SingleOrDefaultAsync(item => item.UserId == userId, cancellationToken);
         var product = selection?.GeocodingProviderKey switch
@@ -22,7 +34,7 @@ public sealed class PersonalProviderContactGate(
             _ => (PersonalProviderProduct?)null
         };
         return product.HasValue
-            ? await AdmitAsync(userId, PersonalProviderCapability.Geocoding, product.Value, 1, cancellationToken)
+            ? await AdmitResolvedAsync(userId, PersonalProviderCapability.Geocoding, product.Value, 1, cancellationToken)
             : PersonalProviderAdmission.Rejected(PersonalProviderAdmissionCategory.NoProviderSelected);
     }
 
@@ -34,6 +46,14 @@ public sealed class PersonalProviderContactGate(
         if (cost <= 0) return PersonalProviderAdmission.Rejected(PersonalProviderAdmissionCategory.InvalidCost);
         if (capability == PersonalProviderCapability.Geocoding)
             await legacyMigration.MigrateAsync(userId, cancellationToken);
+
+        return await AdmitResolvedAsync(userId, capability, product, cost, cancellationToken);
+    }
+
+    private async Task<PersonalProviderAdmission> AdmitResolvedAsync(string userId,
+        PersonalProviderCapability capability, PersonalProviderProduct product, int cost,
+        CancellationToken cancellationToken)
+    {
 
         var authority = await ResolveAsync(userId, capability, cancellationToken);
         if (!authority.Succeeded) return PersonalProviderAdmission.Rejected(authority.Category);
@@ -262,7 +282,7 @@ public sealed class PersonalProviderContactGate(
     private async Task<PersonalProviderAdmission> AdmitGeoapifyAsync(
         string userId, PersonalProviderProduct product, int credits, CancellationToken cancellationToken)
     {
-        await using var transaction = dbContext.Database.IsRelational()
+        await using var transaction = dbContext.Database.IsRelational() && dbContext.Database.CurrentTransaction == null
             ? await dbContext.Database.BeginTransactionAsync(cancellationToken) : null;
         var guard = await LockGeoapifyGuardAsync(userId, cancellationToken);
         var now = dbContext.Database.IsNpgsql()
@@ -312,7 +332,7 @@ public sealed class PersonalProviderContactGate(
     private async Task<PersonalProviderAdmission> AdmitMapboxAsync(
         string userId, PersonalProviderProduct product, int cost, CancellationToken cancellationToken)
     {
-        await using var transaction = dbContext.Database.IsRelational()
+        await using var transaction = dbContext.Database.IsRelational() && dbContext.Database.CurrentTransaction == null
             ? await dbContext.Database.BeginTransactionAsync(cancellationToken) : null;
         var meter = await LockMapboxMeterAsync(userId, product, cancellationToken);
         var today = dbContext.Database.IsNpgsql()

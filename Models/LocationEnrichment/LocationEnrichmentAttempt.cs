@@ -24,7 +24,7 @@ public sealed class LocationEnrichmentAttempt
     public int? ConsentCredentialGeneration { get; set; }
     public LocationEnrichmentOutcome Outcome { get; set; }
     public int AdmittedAttemptCount { get; set; }
-    public DateTime LastAttemptAtUtc { get; set; }
+    public DateTime? LastAttemptAtUtc { get; set; }
     public DateTime? NextAttemptAtUtc { get; set; }
     public Guid? OperationId { get; set; }
     public long? OperationFencingGeneration { get; set; }
@@ -94,6 +94,7 @@ public sealed class LocationEnrichmentAttemptConfiguration : IEntityTypeConfigur
                 + "AND \"OperationStartedAtUtc\" IS NULL AND \"OperationWorkflowEpoch\" IS NULL AND \"OperationAttemptNumber\" IS NULL) OR ("
                 + "\"OperationId\" IS NOT NULL AND \"OperationLeaseId\" IS NOT NULL AND \"OperationFencingGeneration\" > 0 "
                 + "AND \"OperationStartedAtUtc\" IS NOT NULL AND \"OperationWorkflowEpoch\" >= 0 "
+                + "AND \"LastAttemptAtUtc\" IS NOT NULL "
                 + "AND \"OperationAttemptNumber\" > 0 AND \"OperationAttemptNumber\" = \"AdmittedAttemptCount\" "
                 + "AND \"NextAttemptAtUtc\" IS NOT NULL AND \"ProviderProfileId\" IS NOT NULL "
                 + "AND \"Capability\" = 1 AND \"ProviderKey\" IN ('geoapify', 'mapbox') "

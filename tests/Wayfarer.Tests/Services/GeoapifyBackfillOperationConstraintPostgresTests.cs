@@ -46,6 +46,7 @@ public sealed partial class GeoapifyBackfillConcurrencyPostgresTests
     [InlineData("\"OperationFencingGeneration\" = 0", false)]
     [InlineData("\"OperationAttemptNumber\" = NULL", false)]
     [InlineData("\"OperationAttemptNumber\" = 0", false)]
+    [InlineData("\"LastAttemptAtUtc\" = NULL", false)]
     [InlineData("\"Capability\" = NULL", false)]
     [InlineData("\"Capability\" = 2", false)]
     [InlineData("\"ProviderProfileId\" = NULL", false)]
