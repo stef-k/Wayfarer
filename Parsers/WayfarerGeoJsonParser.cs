@@ -40,7 +40,6 @@ namespace Wayfarer.Parsers
             string userId,
             [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
-            _logger.LogDebug("Parsing Wayfarer-exported GeoJSON for user {UserId}.", userId);
             using var text = new StreamReader(fileStream, Encoding.UTF8, false, leaveOpen: true);
             using var json = new JsonTextReader(text) { CloseInput = false, MaxDepth = null };
             var isFeatureCollection = false;

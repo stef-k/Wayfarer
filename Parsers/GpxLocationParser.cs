@@ -30,7 +30,6 @@ public sealed class GpxLocationParser : ILocationDataParser
         string userId,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        _logger.LogDebug("Parsing GPX data for user {UserId}.", userId);
         using var reader = XmlReader.Create(fileStream, new XmlReaderSettings
         {
             Async = true,
@@ -59,7 +58,8 @@ public sealed class GpxLocationParser : ILocationDataParser
 
             if (!TryParseDouble(latRaw, out var latitude) || !TryParseDouble(lonRaw, out var longitude))
             {
-                _logger.LogWarning("Skipping GPX track point due to invalid coordinates: lat={LatRaw}, lon={LonRaw}.", latRaw, lonRaw);
+                _logger.LogWarning("Skipping GPX track point; code {Code}.",
+                    "location-import-invalid-coordinate");
                 continue;
             }
 

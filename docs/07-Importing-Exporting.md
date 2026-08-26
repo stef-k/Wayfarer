@@ -45,7 +45,9 @@ CSV uses the CSV importer and suits spreadsheets/Python. Wayfarer GeoJSON uses t
 
 ### Resumable Reverse Geocoding (Optional)
 
-- Configure an authorized and verified personal provider profile before address enrichment. Imports share its remaining guard allowance and preserve retryable source data on exhaustion; see [Personal Location Providers](24-Personal-Location-Providers.md).
+- Configure an authorized and verified personal provider profile before scheduled address enrichment. The
+  separate enrichment workflow shares its remaining guard allowance and preserves retryable candidates on
+  exhaustion; see [Personal Location Providers](24-Personal-Location-Providers.md).
 - Without usable current provider authority, imports still work; address fields stay blank.
 - Opt in during upload or use **Start** later. Import completion covers parsing, duplicate filtering, and insertion; enrichment can continue independently for days.
 - State- and authority-specific controls are **Start**, **Pause**, **Resume**, **Cancel**, and **Retry deferred**; only meaningful actions are shown and the server revalidates every command. Retry deferred explicitly overrides eligible current-authority poison/no-result deferral without resetting usage or successes.
@@ -55,6 +57,8 @@ CSV uses the CSV importer and suits spreadsheets/Python. Wayfarer GeoJSON uses t
 - At the default 2,500-credit guard, 100,000 contacts need 1,000 executions and at least 40 windows—about 39 elapsed days before competition, retries, downtime, and latency.
 - Deleting import history removes only its metadata/file. Locations, enrichment, workflow state, attempts, credentials, and usage remain. Trip imports stay separate and are not rerouted.
 - Cancelling enrichment does not cancel or delete imports, and deleting import history does not delete Locations or enrichment.
+
+Location import performs no provider credential resolution, provider admission, reverse-geocoding HTTP, inline enrichment, or per-record enrichment delay. It parses incrementally, deduplicates, commits each Location batch and progress, then reconciles the optional workflow. Committed blank rows feed that separate opted-in Quartz workflow; imported/manual address fields and provenance are preserved.
 
 ### Metadata Fields
 

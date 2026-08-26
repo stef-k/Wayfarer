@@ -9,7 +9,7 @@ public sealed record LocationImportCommandResult(LocationImportCommandCode Code)
 {
     public bool Succeeded => Code is LocationImportCommandCode.Accepted or LocationImportCommandCode.ProjectionPending;
 }
-public enum LocationImportExecutionOutcome { Completed, Cancelled, Failed, Stale }
+public enum LocationImportExecutionOutcome { Completed, Cancelled, Failed, StagedFileUnavailable, Stale }
 
 /// <summary>Observes exact import persistence boundaries without granting or bypassing authority.</summary>
 internal interface ILocationImportLifecycleObserver
@@ -38,7 +38,7 @@ public static class LocationImportJobOutcome
     public static string ToHistoryStatus(LocationImportExecutionOutcome outcome) => outcome switch
     {
         LocationImportExecutionOutcome.Completed => "Completed",
-        LocationImportExecutionOutcome.Failed => "Failed",
+        LocationImportExecutionOutcome.Failed or LocationImportExecutionOutcome.StagedFileUnavailable => "Failed",
         _ => "Cancelled"
     };
 }
@@ -126,7 +126,8 @@ public sealed class LocationImportLifecycle(
         }
         catch (Exception exception) when (exception is SchedulerException or ObjectAlreadyExistsException)
         {
-            logger.LogWarning(exception, "Import {ImportId} epoch {Epoch} remains pending Quartz projection.", importId, epoch);
+            logger.LogWarning("Location import scheduling requires reconciliation; code {Code}; " +
+                "import {ImportId}; epoch {Epoch}.", "location-import-scheduling-reconciliation-required", importId, epoch);
             return new(LocationImportCommandCode.ProjectionPending);
         }
     }
@@ -164,9 +165,10 @@ public sealed class LocationImportLifecycle(
             await using var projection = await projectionCoordinator.AcquireAsync(importId, cancellationToken);
             _ = await scheduler.Interrupt(LocationImportSchedulerKeys.Job(importId, epoch), cancellationToken);
         }
-        catch (SchedulerException exception)
+        catch (SchedulerException)
         {
-            logger.LogWarning(exception, "Import {ImportId} stop interruption remains pending.", importId);
+            logger.LogWarning("Location import stop requires reconciliation; code {Code}; import {ImportId}.",
+                "location-import-stop-reconciliation-required", importId);
         }
         return new(LocationImportCommandCode.Accepted);
     }
@@ -264,10 +266,12 @@ public sealed class LocationImportLifecycle(
             import.Status = ImportStatus.Stopped;
         else if (effectiveOutcome == LocationImportExecutionOutcome.Completed)
             import.Status = ImportStatus.Completed;
-        else if (effectiveOutcome == LocationImportExecutionOutcome.Failed)
+        else if (effectiveOutcome is LocationImportExecutionOutcome.Failed or
+            LocationImportExecutionOutcome.StagedFileUnavailable)
         {
             import.Status = ImportStatus.Failed;
-            import.ErrorMessage = "Import processing failed.";
+            import.ErrorMessage = effectiveOutcome == LocationImportExecutionOutcome.StagedFileUnavailable
+                ? "Import staged file unavailable." : "Import processing failed.";
         }
         else return LocationImportExecutionOutcome.Stale;
         import.ProjectionPending = false;

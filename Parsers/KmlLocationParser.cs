@@ -31,7 +31,6 @@ public sealed class KmlLocationParser : ILocationDataParser
         string userId,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        _logger.LogDebug("Parsing KML data for user {UserId}.", userId);
         using var reader = XmlReader.Create(fileStream, new XmlReaderSettings
         {
             Async = true,
@@ -64,7 +63,8 @@ public sealed class KmlLocationParser : ILocationDataParser
             var coordinatesRaw = pointElement.Element(namespaceToUse + "coordinates")?.Value;
             if (!TryParsePoint(coordinatesRaw, out var geometry, out var altitudeFromCoordinate))
             {
-                _logger.LogWarning("Skipping Placemark with invalid coordinate payload: {Coordinates}.", coordinatesRaw);
+                _logger.LogWarning("Skipping KML placemark; code {Code}.",
+                    "location-import-invalid-coordinate");
                 continue;
             }
 

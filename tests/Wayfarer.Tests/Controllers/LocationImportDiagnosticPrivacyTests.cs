@@ -143,6 +143,36 @@ public sealed class LocationImportDiagnosticPrivacyTests : TestBase
         Assert.Contains(logs.Entries, entry => entry.Message.Contains("location-import-enrichment-reconciliation-required"));
     }
 
+    [Fact]
+    public async Task WorkerProcessingFailurePersistsAndLogsOnlyBoundedCategory()
+    {
+        using var root = new TemporaryDirectory("private-directory-507");
+        var filePath = Path.Combine(root.Path, FileSentinel);
+        await File.WriteAllTextAsync(filePath, "private parser payload");
+        await using var exclusive = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.None);
+        var db = CreateDbContext();
+        db.LocationImports.Add(new LocationImport
+        {
+            Id = 509,
+            UserId = UserSentinel,
+            FileType = LocationImportFileType.Csv,
+            FilePath = filePath,
+            Status = ImportStatus.InProgress,
+            TotalRecords = 0,
+            LastProcessedIndex = 0
+        });
+        await db.SaveChangesAsync();
+        var logs = new TestLogProvider();
+
+        await BuildService(db, logs, null).ProcessImport(509, CancellationToken.None);
+
+        var import = Assert.Single(db.LocationImports);
+        Assert.Equal(ImportStatus.Failed, import.Status);
+        Assert.Equal("Import processing failed.", import.ErrorMessage);
+        Assert.All(logs.Entries, entry => AssertPrivateTextAbsent(entry, root.Path));
+        Assert.Contains(logs.Entries, entry => entry.Message.Contains("location-import-processing-failed"));
+    }
+
     private static void AssertPrivateTextAbsent(TestLogProvider.TestLogEntry entry, string privateDirectory)
     {
         Assert.Null(entry.Exception);

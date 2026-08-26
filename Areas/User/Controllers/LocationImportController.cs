@@ -253,20 +253,17 @@ namespace Wayfarer.Areas.User.Controllers
                 return RedirectToAction("Index", "Home", new { area = "" });
             }
 
-            var timestamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss");
-            var randomString = Guid.NewGuid().ToString("N").Substring(0, 6);
-            var uniqueFileName = $"{model.FileType}_{userId}_Timestamp_{timestamp}__{randomString}";
-
             var uploadDirectory = Path.Combine(_environment.ContentRootPath, "Uploads", "Temp");
             Directory.CreateDirectory(uploadDirectory);
-
-            var filePath = Path.Combine(uploadDirectory, uniqueFileName);
-            _logger.LogInformation($"Uploading {uniqueFileName} to {uploadDirectory} with file path {filePath}");
+            var serverExtension = model.FileType.Value.GetAllowedExtensions().First();
+            var filePath = Path.Combine(uploadDirectory, $"{Guid.NewGuid():N}{serverExtension}");
+            var stagedFileCreated = false;
 
             try
             {
-                using (var stream = new FileStream(filePath, FileMode.Create))
+                using (var stream = new FileStream(filePath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
                 {
+                    stagedFileCreated = true;
                     await model.File.CopyToAsync(stream);
                 }
 
@@ -288,11 +285,24 @@ namespace Wayfarer.Areas.User.Controllers
                 _dbContext.LocationImports.Add(importRecord);
                 await _dbContext.SaveChangesAsync();
 
+                _logger.LogInformation("Location import upload staged; code {Code}; import {ImportId}.",
+                    "location-import-upload-staged", importRecord.Id);
                 SetAlert("File uploaded successfully and is pending import.");
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                HandleError(ex);
+                _logger.LogError("Location import upload failed; code {Code}.",
+                    "location-import-upload-failed");
+                if (stagedFileCreated)
+                {
+                    try { if (System.IO.File.Exists(filePath)) System.IO.File.Delete(filePath); }
+                    catch (Exception)
+                    {
+                        _logger.LogWarning("Location import upload cleanup failed; code {Code}.",
+                            "location-import-upload-cleanup-failed");
+                    }
+                }
+                SetAlert("An unexpected error occurred. Please try again later.", "danger");
                 return RedirectToAction("Index");
             }
 

@@ -60,9 +60,10 @@ namespace Wayfarer.Jobs
                         LocationImportExecutionOutcome.Cancelled, CancellationToken.None);
                 else context.Result = LocationImportExecutionOutcome.Cancelled;
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                _logger.LogError(ex, "Error in LocationImportJob for ImportId {ImportId}", importId);
+                _logger.LogError("Location import job failed; code {Code}; import {ImportId}.",
+                    "location-import-job-failed", importId);
                 if (_lifecycle is not null)
                     context.Result = await _lifecycle.ConvergeExecutionAsync(importId, epoch,
                         LocationImportExecutionOutcome.Failed, CancellationToken.None);

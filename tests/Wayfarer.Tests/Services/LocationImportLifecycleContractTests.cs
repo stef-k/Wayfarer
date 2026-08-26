@@ -88,6 +88,7 @@ public sealed class LocationImportLifecycleContractTests : TestBase
     [Theory]
     [InlineData(LocationImportExecutionOutcome.Completed)]
     [InlineData(LocationImportExecutionOutcome.Failed)]
+    [InlineData(LocationImportExecutionOutcome.StagedFileUnavailable)]
     public async Task StopWinsTerminalWorkerRace(LocationImportExecutionOutcome outcome)
     {
         await using var db = CreateDbContext();
@@ -148,6 +149,7 @@ public sealed class LocationImportLifecycleContractTests : TestBase
     [InlineData(LocationImportExecutionOutcome.Stale, "Cancelled")]
     [InlineData(LocationImportExecutionOutcome.Completed, "Completed")]
     [InlineData(LocationImportExecutionOutcome.Failed, "Failed")]
+    [InlineData(LocationImportExecutionOutcome.StagedFileUnavailable, "Failed")]
     public void JobOutcome_MapsToTruthfulHistory(LocationImportExecutionOutcome outcome, string expected)
         => Assert.Equal(expected, LocationImportJobOutcome.ToHistoryStatus(outcome));
 

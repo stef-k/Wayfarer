@@ -126,7 +126,8 @@ public sealed class LocationImportReconciler(
         }
         catch (Exception exception) when (exception is SchedulerException or ObjectAlreadyExistsException)
         {
-            logger.LogWarning(exception, "Import {ImportId} projection repair remains pending.", importId);
+            logger.LogWarning("Location import projection repair remains pending; code {Code}; import {ImportId}.",
+                "location-import-projection-reconciliation-required", importId);
             return;
         }
         authority = await LoadAuthorityAsync(importId, token);

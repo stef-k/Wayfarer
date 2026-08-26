@@ -81,11 +81,12 @@ The application uses ASP.NET Areas for logical separation:
 
 ```
 Upload → LocationImport row → Quartz job → LocationImportService
-       → Parse batches → Optional reverse geocoding → DB insert
+       → Parse incrementally → Deduplicate → Commit Location batch/progress
+       → Reconcile optional enrichment workflow
        → SSE progress updates
 ```
 
-Optional missing-address work then converges separately:
+Optional missing-address work executes separately:
 
 ```text
 owned eligible Locations → LocationEnrichmentWorkflow → stable Quartz job/one-shot trigger
@@ -93,6 +94,9 @@ owned eligible Locations → LocationEnrichmentWorkflow → stable Quartz job/on
 ```
 
 Import and enrichment completion are independent. PostgreSQL owns intent, eligibility, attempts, counters, and admissions; Quartz owns durable wake delivery. One active scheduler is supported unless clustering is explicitly configured and proven.
+Location import resolves no provider credentials, performs no provider admission or reverse-geocoding HTTP,
+and applies no inline enrichment or per-record enrichment delay. Committed blank Locations become candidates
+for the separate opted-in scheduled workflow; imported/manual address fields and provenance remain authoritative.
 
 ### Trip Export
 

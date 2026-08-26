@@ -8,6 +8,7 @@
 
 ### Changed
 - Location-history uploads now advertise exactly Google Timeline JSON, Wayfarer GeoJSON, CSV, GPX, and location-history KML. Generic GeoJSON is rejected while historical rows retain a bounded unsupported outcome; Trip imports remain separate (#507).
+- Location import now uses opaque staging names and bounded diagnostic/error codes, and its documentation reflects that imports commit independently before the separate opted-in scheduled enrichment workflow (#507).
 - The coordinated provider release order remains #502 → #507 → #500.
 
 ## [1.9.3] - 2026-08-22

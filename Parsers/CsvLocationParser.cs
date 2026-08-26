@@ -31,7 +31,6 @@ public sealed class CsvLocationParser : ILocationDataParser
         string userId,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        _logger.LogDebug("Parsing CSV location data for user {UserId}.", userId);
 
         var config = new CsvConfiguration(ParsingCulture)
         {

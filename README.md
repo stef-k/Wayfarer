@@ -29,7 +29,7 @@ If you expose Wayfarer publicly, you are responsible for:
 - **Record locations** via mobile app GPS, manual check-ins, or API.
 * **Import history** from Google Timeline JSON, Wayfarer GeoJSON, CSV, GPX, and location-history KML. Generic GeoJSON is not accepted as a new history upload.
 * **Import deduplication** prevents duplicate entries automatically.
-* **Resumable missing-address enrichment** is an explicit, user-controlled Quartz workflow with state- and authority-specific Start, Pause, Resume, Cancel, and Retry deferred controls. Only meaningful actions render, the server revalidates commands, import completion remains independent, and imported data is preserved while enrichment waits.
+* **Resumable missing-address enrichment** is an explicit, user-controlled Quartz workflow with state- and authority-specific Start, Pause, Resume, Cancel, and Retry deferred controls. Location import commits independently and performs no inline provider work; committed blank rows feed the separate opted-in workflow while imported/manual data remains preserved.
 * **Metadata preservation** — accuracy, speed, altitude, heading tracked per location.
 * **Export locations** to GeoJSON, KML, CSV, or GPX formats with full metadata.
 * **Personal location providers** support storage-authorized Geoapify geocoding/routing and Mapbox Permanent Geocoding through protected credentials, independent capability verification/selection, and provider-native guards; capture continues when enrichment is paused. See the [personal provider guide](docs/24-Personal-Location-Providers.md).

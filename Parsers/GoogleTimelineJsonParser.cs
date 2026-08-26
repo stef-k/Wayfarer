@@ -21,7 +21,6 @@ public class GoogleTimelineJsonParser : ILocationDataParser
         string userId,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        _logger.LogDebug("Parsing Google Timeline data for user {UserId}.", userId);
         using var text = new StreamReader(fileStream, leaveOpen: true);
         using var reader = new JsonTextReader(text) { CloseInput = false, MaxDepth = null };
         while (await reader.ReadAsync(cancellationToken))

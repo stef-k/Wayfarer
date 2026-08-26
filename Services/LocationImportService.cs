@@ -83,10 +83,13 @@ public sealed class LocationImportService : ILocationImportService, ILocationImp
         import.Status = outcome switch
         {
             LocationImportExecutionOutcome.Completed => ImportStatus.Completed,
-            LocationImportExecutionOutcome.Failed => ImportStatus.Failed,
+            LocationImportExecutionOutcome.Failed or LocationImportExecutionOutcome.StagedFileUnavailable =>
+                ImportStatus.Failed,
             _ => ImportStatus.Stopped
         };
-        if (outcome == LocationImportExecutionOutcome.Failed) import.ErrorMessage = "Import processing failed.";
+        if (outcome is LocationImportExecutionOutcome.Failed or LocationImportExecutionOutcome.StagedFileUnavailable)
+            import.ErrorMessage = outcome == LocationImportExecutionOutcome.StagedFileUnavailable
+                ? "Import staged file unavailable." : "Import processing failed.";
         await context.SaveChangesAsync(CancellationToken.None);
     }
 
@@ -110,7 +113,7 @@ public sealed class LocationImportService : ILocationImportService, ILocationImp
                 return LocationImportExecutionOutcome.Stale;
             var processed = snapshot.LastProcessedIndex;
             var batch = new List<Location>(BatchSize);
-            await using var stream = File.OpenRead(snapshot.FilePath);
+            await using var stream = OpenStagedFile(snapshot.FilePath);
             var parser = _parserFactory.GetParser(snapshot.FileType);
             var ordinal = 0;
             await foreach (var location in parser.ParseAsync(stream, snapshot.UserId, cancellationToken))
@@ -148,10 +151,18 @@ public sealed class LocationImportService : ILocationImportService, ILocationImp
             await _sse.BroadcastAsync($"import-{snapshot.UserId}", SafeProgressEvent);
             return LocationImportExecutionOutcome.Cancelled;
         }
-        catch (DbUpdateConcurrencyException) { return LocationImportExecutionOutcome.Stale; }
-        catch (Exception exception)
+        catch (StagedFileUnavailableException)
         {
-            _logger.LogError(exception, "Error occurred while processing import {ImportId}.", importId);
+            _logger.LogError("Location import failed; code {Code}; import {ImportId}.",
+                "location-import-file-unavailable", importId);
+            await _sse.BroadcastAsync($"import-{snapshot.UserId}", SafeProgressEvent);
+            return LocationImportExecutionOutcome.StagedFileUnavailable;
+        }
+        catch (DbUpdateConcurrencyException) { return LocationImportExecutionOutcome.Stale; }
+        catch (Exception)
+        {
+            _logger.LogError("Location import failed; code {Code}; import {ImportId}.",
+                "location-import-processing-failed", importId);
             await _sse.BroadcastAsync($"import-{snapshot.UserId}", SafeProgressEvent);
             return LocationImportExecutionOutcome.Failed;
         }
@@ -159,9 +170,9 @@ public sealed class LocationImportService : ILocationImportService, ILocationImp
 
     private async Task<int> CountLocationsAsync(LocationImportSnapshot snapshot, CancellationToken token)
     {
-        if (!File.Exists(snapshot.FilePath)) throw new FileNotFoundException($"Import file not found at: {snapshot.FilePath}");
+        if (!File.Exists(snapshot.FilePath)) throw new StagedFileUnavailableException();
         var count = 0;
-        await using var stream = File.OpenRead(snapshot.FilePath);
+        await using var stream = OpenStagedFile(snapshot.FilePath);
         await foreach (var unused in _parserFactory.GetParser(snapshot.FileType)
             .ParseAsync(stream, snapshot.UserId, token)) count++;
         return count;
@@ -271,14 +282,25 @@ public sealed class LocationImportService : ILocationImportService, ILocationImp
                 import.ExecutionEpoch == snapshot.ExecutionEpoch, token)) return;
         }
         try { await _enrichmentHandoff.EnsureAsync(snapshot.UserId, token); }
-        catch (Exception exception)
+        catch (Exception)
         {
-            _logger.LogWarning(exception, "Enrichment scheduling requires reconciliation after import {ImportId}.", snapshot.Id);
+            _logger.LogWarning("Location import enrichment handoff requires reconciliation; code {Code}; " +
+                "import {ImportId}.", "location-import-enrichment-reconciliation-required", snapshot.Id);
         }
     }
 
     private static bool IsMissingAddress(Location location) =>
         GeoapifyLocationBackfillService.IsWhollyUnenriched(location);
+
+    /// <summary>Opens durable file authority while translating path-bearing absence exceptions.</summary>
+    private static FileStream OpenStagedFile(string filePath)
+    {
+        try { return File.OpenRead(filePath); }
+        catch (Exception exception) when (exception is FileNotFoundException or DirectoryNotFoundException)
+        {
+            throw new StagedFileUnavailableException();
+        }
+    }
 
     private static bool HasExecutionAuthority([NotNullWhen(true)] LocationImport? import, int epoch) =>
         import is not null && import.Status == ImportStatus.InProgress && import.DeletionRequestedAtUtc is null &&
@@ -286,6 +308,9 @@ public sealed class LocationImportService : ILocationImportService, ILocationImp
 
     private sealed record LocationImportSnapshot(int Id, string UserId, string FilePath,
         LocationImportFileType FileType, int LastProcessedIndex, int ExecutionEpoch);
+
+    /// <summary>Classifies absent staged authority without carrying its private path.</summary>
+    private sealed class StagedFileUnavailableException : Exception;
 
     private sealed class CloningContextFactory : IDbContextFactory<ApplicationDbContext>
     {

@@ -20,6 +20,7 @@ public sealed class LocationImportJobHistoryTests : TestBase
     [InlineData(LocationImportExecutionOutcome.Cancelled, "Cancelled")]
     [InlineData(LocationImportExecutionOutcome.Stale, "Cancelled")]
     [InlineData(LocationImportExecutionOutcome.Failed, "Failed")]
+    [InlineData(LocationImportExecutionOutcome.StagedFileUnavailable, "Failed")]
     public async Task ProductionOutcome_SurvivesJobAndListenerScope(
         LocationImportExecutionOutcome outcome, string expected)
     {
