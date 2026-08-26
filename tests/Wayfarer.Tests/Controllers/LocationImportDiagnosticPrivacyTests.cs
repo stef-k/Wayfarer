@@ -30,6 +30,7 @@ public sealed class LocationImportDiagnosticPrivacyTests : TestBase
     private const string FileSentinel = "private-history-507.csv";
     private const string ExceptionSentinel =
         "private-error C:\\private-507 https://provider.invalid?key=credential-507 payload=provider-secret-507";
+    private const string DiagnosticSinkSentinel = "private-diagnostic-sink-error-507";
 
     [Fact]
     public async Task UploadUsesOpaqueBasenameAndLogsOnlyPersistedImportIdentity()
@@ -294,6 +295,7 @@ public sealed class LocationImportDiagnosticPrivacyTests : TestBase
         Assert.DoesNotContain(FileSentinel, value, StringComparison.Ordinal);
         Assert.DoesNotContain(privateDirectory, value, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain(ExceptionSentinel, value, StringComparison.Ordinal);
+        Assert.DoesNotContain(DiagnosticSinkSentinel, value, StringComparison.Ordinal);
         Assert.DoesNotContain("credential-507", value, StringComparison.Ordinal);
         Assert.DoesNotContain("provider-secret-507", value, StringComparison.Ordinal);
     }
@@ -380,13 +382,13 @@ public sealed class LocationImportDiagnosticPrivacyTests : TestBase
             {
                 PrimaryFailureAttempts++;
                 Assert.Equal([preservedFile], Directory.EnumerateFiles(uploadDirectory));
-                throw new InvalidOperationException("bounded primary logger failure");
+                throw new InvalidOperationException(DiagnosticSinkSentinel);
             }
 
             if (message.Contains("Alert:", StringComparison.Ordinal))
             {
                 AlertAttempts++;
-                throw new InvalidOperationException("bounded alert logger failure");
+                throw new InvalidOperationException(DiagnosticSinkSentinel);
             }
         }
     }
@@ -432,7 +434,7 @@ public sealed class LocationImportDiagnosticPrivacyTests : TestBase
                 return;
             }
 
-            throw new InvalidOperationException("bounded diagnostic sink failure");
+            throw new InvalidOperationException(DiagnosticSinkSentinel);
         }
     }
 
