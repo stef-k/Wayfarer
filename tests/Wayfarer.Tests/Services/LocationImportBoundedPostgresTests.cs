@@ -4,8 +4,11 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Logging.Abstractions;
 using GeoPoint = NetTopologySuite.Geometries.Point;
+using Wayfarer.Areas.Api.Controllers;
 using Wayfarer.Models;
+using Wayfarer.Models.Enums;
 using Wayfarer.Parsers;
+using Wayfarer.Services.LocationImports;
 using Wayfarer.Tests.Infrastructure;
 using Xunit;
 
@@ -78,6 +81,53 @@ public sealed class LocationImportBoundedPostgresTests(PostgresImportTestFixture
 
         Assert.Contains("IX_Location_UserId_Timestamp", timePlan, StringComparison.Ordinal);
         Assert.Contains("IX_Location_Coordinates", spatialPlan, StringComparison.Ordinal);
+    }
+
+    [PostgresFact]
+    public async Task ConcurrentNoKeyReplay_ConvergesToOnePersistedLocation()
+    {
+        var user = await fixture.CreateUserAsync();
+        var paths = Enumerable.Range(0, 2)
+            .Select(_ => Path.Combine(Path.GetTempPath(), $"no-key-replay-{Guid.NewGuid():N}.csv"))
+            .ToArray();
+        try
+        {
+            foreach (var path in paths)
+                await File.WriteAllTextAsync(path,
+                    "Latitude,Longitude,TimestampUtc\r\n40.1,22.2,2026-08-25T00:00:00Z\r\n");
+            int[] importIds;
+            await using (var seed = fixture.CreateContext())
+            {
+                var imports = paths.Select(path => new LocationImport
+                {
+                    UserId = user.Id, FilePath = path, FileType = LocationImportFileType.Csv,
+                    Status = ImportStatus.InProgress, ExecutionEpoch = 7,
+                    TotalRecords = 0, LastProcessedIndex = 0
+                }).ToArray();
+                seed.LocationImports.AddRange(imports);
+                await seed.SaveChangesAsync();
+                importIds = imports.Select(item => item.Id).ToArray();
+            }
+            var service = new LocationImportService(new FixtureFactory(fixture),
+                new ReverseGeocodingService(new HttpClient(), NullLogger<BaseApiController>.Instance),
+                NullLogger<LocationImportService>.Instance,
+                new LocationDataParserFactory(NullLoggerFactory.Instance), new SseService());
+
+            var outcomes = await Task.WhenAll(importIds.Select(id =>
+                service.ProcessImportExecution(id, 7, CancellationToken.None)));
+
+            Assert.All(outcomes, outcome => Assert.Equal(LocationImportExecutionOutcome.Completed, outcome));
+            await using var verification = fixture.CreateContext();
+            Assert.Equal(1, await verification.Locations.CountAsync(item => item.UserId == user.Id));
+            var completedImports = await verification.LocationImports
+                .Where(item => importIds.Contains(item.Id)).ToListAsync();
+            Assert.Equal(2, completedImports.Sum(item => item.LastProcessedIndex));
+            Assert.Equal(1, completedImports.Sum(item => item.SkippedDuplicates));
+        }
+        finally
+        {
+            foreach (var path in paths) File.Delete(path);
+        }
     }
 
     private static async Task<string> ExplainAsync(DbConnection connection, string sql)
@@ -189,5 +239,11 @@ public sealed class LocationImportBoundedPostgresTests(PostgresImportTestFixture
                 commands.Add(command.CommandText);
             return ValueTask.FromResult(result);
         }
+    }
+
+    private sealed class FixtureFactory(PostgresImportTestFixture fixture)
+        : IDbContextFactory<ApplicationDbContext>
+    {
+        public ApplicationDbContext CreateDbContext() => fixture.CreateContext();
     }
 }
