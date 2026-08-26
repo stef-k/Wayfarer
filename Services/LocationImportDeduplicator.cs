@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 using Wayfarer.Models;
 
 namespace Wayfarer.Parsers;
@@ -80,29 +81,55 @@ internal static class LocationImportDeduplicator
             await context.SaveChangesAsync(cancellationToken);
         }
 
-        var reused = 0;
-        foreach (var location in locations.Where(location => location.IdempotencyKey.HasValue))
+        var keyed = locations.Where(location => location.IdempotencyKey.HasValue).ToList();
+        if (keyed.Count == 0) return 0;
+        var transaction = context.Database.CurrentTransaction;
+        if (transaction is null || !context.Database.IsNpgsql())
         {
-            context.Locations.Add(location);
+            context.Locations.AddRange(keyed);
+            await context.SaveChangesAsync(cancellationToken);
+            return 0;
+        }
+
+        const string savepoint = "before_keyed_location_insert";
+        var remaining = keyed;
+        var reused = 0;
+        while (remaining.Count > 0)
+        {
+            await transaction.CreateSavepointAsync(savepoint, cancellationToken);
+            context.Locations.AddRange(remaining);
             try
             {
                 await context.SaveChangesAsync(cancellationToken);
+                await transaction.ReleaseSavepointAsync(savepoint, cancellationToken);
+                break;
             }
-            catch (DbUpdateException)
+            catch (DbUpdateException exception) when (IsKeyedLocationConflict(exception))
             {
-                context.Entry(location).State = EntityState.Detached;
-                if (!await context.Locations.AsNoTracking().AnyAsync(candidate =>
-                    candidate.UserId == userId && candidate.IdempotencyKey == location.IdempotencyKey,
-                    cancellationToken))
-                {
-                    throw;
-                }
-                reused++;
+                await transaction.RollbackToSavepointAsync(savepoint, cancellationToken);
+                foreach (var location in remaining)
+                    context.Entry(location).State = EntityState.Detached;
+
+                var keys = remaining.Select(location => location.IdempotencyKey!.Value).ToArray();
+                var winners = (await context.Locations.AsNoTracking()
+                    .Where(location => location.UserId == userId && location.IdempotencyKey.HasValue &&
+                        keys.Contains(location.IdempotencyKey.Value))
+                    .Select(location => location.IdempotencyKey!.Value)
+                    .ToListAsync(cancellationToken)).ToHashSet();
+                if (winners.Count == 0) throw;
+                reused += winners.Count;
+                remaining = remaining.Where(location => !winners.Contains(location.IdempotencyKey!.Value)).ToList();
+                await transaction.ReleaseSavepointAsync(savepoint, cancellationToken);
             }
         }
 
         return reused;
     }
+
+    private static bool IsKeyedLocationConflict(DbUpdateException exception) =>
+        exception.InnerException is PostgresException postgres &&
+        postgres.SqlState == PostgresErrorCodes.UniqueViolation &&
+        postgres.ConstraintName == "IX_Location_UserId_IdempotencyKey";
 
     private static double DistanceMeters(double lon1, double lat1, double lon2, double lat2)
     {

@@ -32,7 +32,6 @@ public sealed class LocationImportBoundedPostgresTests(PostgresImportTestFixture
                 $"40.1,22.2,2026-08-25T00:00:00Z,{conflictingKey:D}\r\n" +
                 $"40.2,22.3,2026-08-25T00:00:01Z,{otherKey:D}\r\n");
             int importId;
-            int externalLocationId;
             await using (var seed = fixture.CreateContext())
             {
                 var import = new LocationImport
@@ -42,21 +41,17 @@ public sealed class LocationImportBoundedPostgresTests(PostgresImportTestFixture
                     TotalRecords = 0, LastProcessedIndex = 0
                 };
                 seed.LocationImports.Add(import);
-                var externalCandidate = Location(user.Id, null, 10_000);
-                externalCandidate.Source = "external-pending";
-                seed.Locations.Add(externalCandidate);
                 await seed.SaveChangesAsync();
                 importId = import.Id;
-                externalLocationId = externalCandidate.Id;
             }
 
             var externalCommitted = false;
             var interceptor = new KeyPrecheckInterceptor(async () =>
             {
                 await using var external = fixture.CreateContext();
-                var winner = await external.Locations.SingleAsync(item => item.Id == externalLocationId);
-                winner.IdempotencyKey = conflictingKey;
+                var winner = Location(user.Id, conflictingKey, 10_000);
                 winner.Source = "external-winner";
+                external.Locations.Add(winner);
                 await external.SaveChangesAsync();
                 externalCommitted = true;
             });

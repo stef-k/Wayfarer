@@ -183,7 +183,7 @@ public sealed class LocationImportService : ILocationImportService, ILocationImp
         await using var context = await _contexts.CreateDbContextAsync(token);
         await using var transaction = context.Database.IsRelational()
             ? await context.Database.BeginTransactionAsync(token) : null;
-        if (context.Database.IsNpgsql())
+        if (context.Database.IsNpgsql() && batch.Any(location => !location.IdempotencyKey.HasValue))
             _ = await context.Users.FromSqlInterpolated($$"""
                 SELECT * FROM "AspNetUsers" WHERE "Id" = {{snapshot.UserId}} FOR UPDATE
                 """).SingleAsync(token);
