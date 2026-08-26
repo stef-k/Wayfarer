@@ -157,6 +157,31 @@ public sealed partial class GeoapifyBackfillConcurrencyPostgresTests
         }
     }
 
+    /// <summary>Pauses after the advisory Location read so an independent context can commit a mutation.</summary>
+    private sealed class CandidateReadGate : DbCommandInterceptor
+    {
+        private readonly TaskCompletionSource entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private int gated;
+        public Task Entered => entered.Task;
+        public void Release() => release.TrySetResult();
+
+        public override async ValueTask<DbDataReader> ReaderExecutedAsync(DbCommand command,
+            CommandExecutedEventData eventData, DbDataReader result,
+            CancellationToken cancellationToken = default)
+        {
+            if (command.CommandText.Contains("FROM \"Locations\"", StringComparison.Ordinal)
+                && command.CommandText.Contains("LIMIT 2", StringComparison.Ordinal)
+                && !command.CommandText.Contains("FOR UPDATE", StringComparison.Ordinal)
+                && Interlocked.Exchange(ref gated, 1) == 0)
+            {
+                entered.TrySetResult();
+                await release.Task.WaitAsync(cancellationToken);
+            }
+            return result;
+        }
+    }
+
     private sealed class CoordinatedHandler(
         string primaryUserId, string? otherUserId, ContactOutcome outcome = ContactOutcome.Success) : HttpMessageHandler
     {

@@ -43,6 +43,7 @@ public sealed partial class GeoapifyBackfillConcurrencyPostgresTests
         await using var verify = fixture.CreateContext();
         var attempt = await verify.LocationEnrichmentAttempts.SingleAsync(item => item.UserId == user.Id);
         Assert.Equal(LocationEnrichmentOutcome.InvalidCoordinates, attempt.Outcome);
+        Assert.Null(attempt.LastAttemptAtUtc);
         Assert.Equal(0, result.Admitted);
         Assert.Equal(0, attempt.AdmittedAttemptCount);
         Assert.Null(attempt.NextAttemptAtUtc);
@@ -58,6 +59,42 @@ public sealed partial class GeoapifyBackfillConcurrencyPostgresTests
         var preserved = (await verify.Locations.SingleAsync(item => item.UserId == user.Id)).Coordinates;
         Assert.Equal(committedLongitude, preserved.X);
         Assert.Equal(committedLatitude, preserved.Y);
+    }
+
+    /// <summary>Proves a coordinate mutation committed after discovery is authoritative before admission.</summary>
+    [PostgresFact]
+    public async Task CoordinatesInvalidatedAfterCandidateReadAreClassifiedBeforeAdmission()
+    {
+        var user = await fixture.CreateUserAsync();
+        var protection = new EphemeralDataProtectionProvider();
+        await SeedAsync(user.Id, null, protection);
+        var gate = new CandidateReadGate();
+        var handler = new CoordinatedHandler(user.Id, null);
+        handler.Release();
+
+        var run = Service(protection, handler, interceptors: gate).RunAsync(user.Id);
+        await gate.Entered.WaitAsync(TimeSpan.FromSeconds(10));
+        await using (var mutation = fixture.CreateContext())
+        {
+            var location = await mutation.Locations.SingleAsync(item => item.UserId == user.Id);
+            location.Coordinates = new Point(double.PositiveInfinity, 10) { SRID = 4326 };
+            await mutation.SaveChangesAsync();
+        }
+        gate.Release();
+        var result = await run;
+
+        await using var verify = fixture.CreateContext();
+        var attempt = await verify.LocationEnrichmentAttempts.SingleAsync(item => item.UserId == user.Id);
+        Assert.Equal(LocationEnrichmentOutcome.InvalidCoordinates, attempt.Outcome);
+        Assert.Equal(0, result.Admitted);
+        Assert.Equal(0, attempt.AdmittedAttemptCount);
+        Assert.Null(attempt.OperationId);
+        Assert.Empty(await verify.GeoapifyUsageAdmissions.Where(item => item.UserId == user.Id).ToListAsync());
+        Assert.Empty(await verify.MapboxProductMeters.Where(item => item.UserId == user.Id).ToListAsync());
+        Assert.Equal(0, handler.RequestsFor(user.Id));
+        var coordinates = (await verify.Locations.SingleAsync(item => item.UserId == user.Id)).Coordinates;
+        Assert.True(double.IsPositiveInfinity(coordinates.X));
+        Assert.Equal(10, coordinates.Y);
     }
 
     /// <summary>Proves local invalidity is classified without selected provider authority.</summary>
