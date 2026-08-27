@@ -351,11 +351,13 @@ public class InvitationServiceTests : TestBase
         var inv = await invites.InviteUserAsync(g.Id, owner.Id, user.Id, null, null);
 
         // Act
-        await invites.RevokeAsync(inv.Id, owner.Id);
+        var result = await invites.RevokeAsync(inv.Id, owner.Id);
 
         // Assert
         var reloaded = await db.GroupInvitations.FirstAsync(i => i.Id == inv.Id);
         Assert.Equal(GroupInvitation.InvitationStatuses.Revoked, reloaded.Status);
+        Assert.Equal(g.Id, result.GroupId);
+        Assert.Equal(user.Id, result.InviteeUserId);
     }
 
     [Fact]

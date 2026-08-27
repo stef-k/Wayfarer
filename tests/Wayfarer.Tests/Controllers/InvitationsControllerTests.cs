@@ -5,6 +5,7 @@ using Wayfarer.Areas.Api.Controllers;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos;
 using Wayfarer.Services;
+using Wayfarer.Parsers;
 using Wayfarer.Tests.Infrastructure;
 using Xunit;
 
@@ -21,12 +22,13 @@ public class InvitationsControllerTests : TestBase
     /// <param name="db">The database context.</param>
     /// <param name="userId">The authenticated user ID.</param>
     /// <returns>A configured InvitationsController instance.</returns>
-    private InvitationsController CreateController(ApplicationDbContext db, string userId)
+    private InvitationsController CreateController(ApplicationDbContext db, string userId, SseService? sse = null)
     {
         var controller = new InvitationsController(
             db,
             new InvitationService(db),
-            new NullLogger<InvitationsController>());
+            new NullLogger<InvitationsController>(),
+            sse ?? new SseService());
         return ConfigureControllerWithUser(controller, userId);
     }
 
@@ -70,7 +72,8 @@ public class InvitationsControllerTests : TestBase
         var g = await gs.CreateGroupAsync(owner.Id, "G2", null);
         var inv = await isvc.InviteUserAsync(g.Id, owner.Id, user.Id, null, null);
 
-        var ctrl = CreateController(db, user.Id);
+        var sse = new RecordingSseService();
+        var ctrl = CreateController(db, user.Id, sse);
 
         // Act
         var resp = await ctrl.Accept(inv.Id, CancellationToken.None);
@@ -78,6 +81,8 @@ public class InvitationsControllerTests : TestBase
         // Assert
         var ok = Assert.IsType<OkObjectResult>(resp);
         Assert.True(await db.GroupMembers.AnyAsync(m => m.GroupId == g.Id && m.UserId == user.Id));
+        Assert.Contains(($"group-notifications-{user.Id}", SseService.InvitationStateHint), sse.Messages);
+        Assert.Contains(($"group-notifications-{user.Id}", SseService.MembershipStateHint), sse.Messages);
     }
 
     [Fact]
@@ -128,7 +133,8 @@ public class InvitationsControllerTests : TestBase
 
         var gs = new GroupService(db);
         var group = await gs.CreateGroupAsync(owner.Id, "TestGroup", null);
-        var ctrl = CreateController(db, owner.Id);
+        var sse = new RecordingSseService();
+        var ctrl = CreateController(db, owner.Id, sse);
 
         var resp = await ctrl.Create(new InvitationCreateRequest
         {
@@ -138,6 +144,7 @@ public class InvitationsControllerTests : TestBase
 
         var ok = Assert.IsType<OkObjectResult>(resp);
         Assert.True(await db.GroupInvitations.AnyAsync(i => i.GroupId == group.Id && i.InviteeUserId == invitee.Id));
+        Assert.Contains(($"group-notifications-{invitee.Id}", SseService.InvitationStateHint), sse.Messages);
     }
 
     [Fact]
@@ -214,13 +221,15 @@ public class InvitationsControllerTests : TestBase
         var group = await gs.CreateGroupAsync(owner.Id, "TestGroup", null);
         var inv = await isvc.InviteUserAsync(group.Id, owner.Id, user.Id, null, null);
 
-        var ctrl = CreateController(db, user.Id);
+        var sse = new RecordingSseService();
+        var ctrl = CreateController(db, user.Id, sse);
 
         var resp = await ctrl.Decline(inv.Id, CancellationToken.None);
 
         var ok = Assert.IsType<OkObjectResult>(resp);
         var declined = await db.GroupInvitations.FirstAsync(i => i.Id == inv.Id);
         Assert.Equal(GroupInvitation.InvitationStatuses.Declined, declined.Status);
+        Assert.Contains(($"group-notifications-{user.Id}", SseService.InvitationStateHint), sse.Messages);
     }
 
     [Fact]
@@ -235,6 +244,16 @@ public class InvitationsControllerTests : TestBase
         var resp = await ctrl.Decline(Guid.NewGuid(), CancellationToken.None);
 
         Assert.IsType<NotFoundResult>(resp);
+    }
+
+    private sealed class RecordingSseService : SseService
+    {
+        public List<(string Channel, string Data)> Messages { get; } = [];
+        public override Task BroadcastAsync(string channel, string data)
+        {
+            Messages.Add((channel, data));
+            return Task.CompletedTask;
+        }
     }
 
     [Fact]

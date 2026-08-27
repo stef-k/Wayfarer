@@ -197,6 +197,9 @@ public class GroupMembershipSseBroadcastsTests
 
         Assert.Equal("member-left", root.GetProperty("type").GetString());
         Assert.Equal(memberId, root.GetProperty("userId").GetString());
+        Assert.Contains(sse.Messages, message =>
+            message.Channel == $"group-notifications-{memberId}"
+            && message.Data == SseService.MembershipStateHint);
     }
 
     [Fact]
@@ -277,5 +280,8 @@ public class GroupMembershipSseBroadcastsTests
 
         Assert.Equal("member-removed", root.GetProperty("type").GetString());
         Assert.Equal(memberId, root.GetProperty("userId").GetString());
+        Assert.Contains(sse.Messages, message =>
+            message.Channel == $"group-notifications-{memberId}"
+            && message.Data == SseService.MembershipStateHint);
     }
 }

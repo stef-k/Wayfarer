@@ -70,3 +70,10 @@ Uploads & Secrets
 Persistent reverse geocoding never exposes credentials to callers. Provider URLs, coordinates, addresses, and payloads are excluded from application diagnostics; provider exceptions are translated to bounded categories inside the shared boundary. Mapbox Permanent contact requires explicit current consent, authorization, verification, selection, and meter admission.
 
 Import/enrichment commands derive ownership only from authenticated `NameIdentifier` and require antiforgery validation. Their SSE endpoint derives its channel from that claim; the anonymous generic stream rejects all `import` and `enrichment` prefixes. Content-free events are reload hints only. Filenames, per-Location timestamps, coordinates, addresses, credentials, provider URLs/payloads, stack traces, filesystem paths, and raw exceptions are not emitted or retained as workflow errors.
+
+Per-user group notifications follow the same claim-owned boundary at `/api/sse/group-notifications`.
+The endpoint accepts no user or channel identifier, subscribes only to `group-notifications-{NameIdentifier}`,
+and permits only exact content-free `invitation-state` and `membership-state` hints. Generic invitation and
+membership notification prefixes are rejected case-insensitively. These hints never contain user, group,
+invitation, action, or presentation fields; clients reload authenticated durable state. This restriction does
+not alter the detailed events available on membership-authorized `/api/sse/group/{groupId}` streams.

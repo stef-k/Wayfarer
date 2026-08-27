@@ -153,13 +153,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   try {
     await refresh();
     el.tbody?.addEventListener('click', onClick);
-    // Live refresh via SSE when invites change
-    try {
-      if (window.__currentUserId && typeof EventSource !== 'undefined') {
-        const es = new EventSource(`/api/sse/stream/invitation-update/${window.__currentUserId}`);
-        es.onmessage = async () => { await refresh(); };
-      }
-    } catch { /* ignore */ }
+    const reloadInvitations = event => render(Array.isArray(event.detail) ? event.detail : []);
+    document.addEventListener('wayfarer:invitation-state', reloadInvitations);
+    window.addEventListener('pagehide', () => {
+      document.removeEventListener('wayfarer:invitation-state', reloadInvitations);
+      el.tbody?.removeEventListener('click', onClick);
+    }, { once: true });
   } catch (e) {
     if (wayfarer.showAlert) wayfarer.showAlert('danger', e.message || 'Failed to load invitations.');
   }

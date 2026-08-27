@@ -11,6 +11,12 @@ namespace Wayfarer.Parsers;
 /// </summary>
 public class SseService
 {
+    /// <summary>Exact reload hint for authenticated invitation state.</summary>
+    public const string InvitationStateHint = "{\"type\":\"invitation-state\"}";
+
+    /// <summary>Exact reload hint for authenticated membership state.</summary>
+    public const string MembershipStateHint = "{\"type\":\"membership-state\"}";
+
     private static readonly byte[] HeartbeatPayload = Encoding.UTF8.GetBytes(":\n\n");
 
     // channel name -> list of active client streams
@@ -93,6 +99,33 @@ public class SseService
 
                 client.Dispose();
             }
+        }
+    }
+
+    /// <summary>Publishes a content-free reload hint to the affected user's server-owned channel.</summary>
+    public Task BroadcastGroupNotificationAsync(string userId, string hint) =>
+        BroadcastAsync($"group-notifications-{userId}", hint);
+
+    /// <summary>Publishes independent best-effort group and optional private revocation hints.</summary>
+    public async Task BroadcastInvitationRevocationAsync(Guid groupId, string? inviteeUserId, string groupEvent)
+    {
+        try
+        {
+            await BroadcastAsync($"group-{groupId}", groupEvent);
+        }
+        catch
+        {
+            // Durable revocation remains authoritative when presentation transport fails.
+        }
+
+        if (string.IsNullOrEmpty(inviteeUserId)) return;
+        try
+        {
+            await BroadcastGroupNotificationAsync(inviteeUserId, InvitationStateHint);
+        }
+        catch
+        {
+            // Attempted independently so one transport cannot suppress the other.
         }
     }
 

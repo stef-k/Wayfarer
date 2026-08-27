@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Wayfarer.Areas.User.Controllers;
 using Wayfarer.Models;
 using Wayfarer.Services;
+using Wayfarer.Parsers;
 using Wayfarer.Tests.Infrastructure;
 using Xunit;
 
@@ -32,7 +33,7 @@ public class UserGroupsControllerTests : TestBase
         var ok = Assert.IsType<OkObjectResult>(result);
         Assert.True((bool)ok.Value!.GetType().GetProperty("success")!.GetValue(ok.Value)!);
         Assert.Single(db.GroupInvitations);
-        Assert.NotEmpty(sse.Channels); // broadcast invoked
+        Assert.Contains(($"group-notifications-{invitee.Id}", SseService.InvitationStateHint), sse.Messages);
     }
 
     [Fact]
@@ -68,7 +69,8 @@ public class UserGroupsControllerTests : TestBase
             Status = GroupMember.MembershipStatuses.Active
         });
         await db.SaveChangesAsync();
-        var controller = BuildController(db, owner, new FakeSseService());
+        var sse = new FakeSseService();
+        var controller = BuildController(db, owner, sse);
 
         var result = await controller.RemoveMemberAjax(group.Id, member.Id);
 
@@ -76,6 +78,7 @@ public class UserGroupsControllerTests : TestBase
         Assert.True((bool)ok.Value!.GetType().GetProperty("success")!.GetValue(ok.Value)!);
         var membership = await db.GroupMembers.SingleAsync(m => m.UserId == member.Id && m.GroupId == group.Id);
         Assert.NotEqual(GroupMember.MembershipStatuses.Active, membership.Status);
+        Assert.Contains(($"group-notifications-{member.Id}", SseService.MembershipStateHint), sse.Messages);
     }
 
     [Fact]
@@ -86,16 +89,82 @@ public class UserGroupsControllerTests : TestBase
         var invitee = TestDataFixtures.CreateUser(id: "invitee");
         db.Users.AddRange(owner, invitee);
         var group = await SeedGroupWithOwnerAsync(db, owner);
+        var callerGroup = await SeedGroupWithOwnerAsync(db, owner);
         var invService = new InvitationService(db);
         var invite = await invService.InviteUserAsync(group.Id, owner.Id, invitee.Id, null, null);
-        var controller = BuildController(db, owner, new FakeSseService());
+        var sse = new FakeSseService();
+        var controller = BuildController(db, owner, sse);
 
-        var result = await controller.RevokeInviteAjax(group.Id, invite.Id);
+        var result = await controller.RevokeInviteAjax(callerGroup.Id, invite.Id);
 
         var ok = Assert.IsType<OkObjectResult>(result);
         Assert.True((bool)ok.Value!.GetType().GetProperty("success")!.GetValue(ok.Value)!);
         var pending = await db.GroupInvitations.SingleAsync(i => i.Id == invite.Id);
         Assert.Equal(GroupInvitation.InvitationStatuses.Revoked, pending.Status);
+        Assert.Contains(($"group-notifications-{invitee.Id}", SseService.InvitationStateHint), sse.Messages);
+        Assert.Contains(sse.Messages, message => message.Channel == $"group-{group.Id}");
+        Assert.DoesNotContain(sse.Messages, message => message.Channel == $"group-{callerGroup.Id}");
+    }
+
+    [Fact]
+    public async Task RevokeInviteAjax_UsesAuthoritativeInvitationGroupForAuthorizationAndPublication()
+    {
+        var db = CreateDbContext();
+        var ownerA = TestDataFixtures.CreateUser(id: "owner-a");
+        var ownerB = TestDataFixtures.CreateUser(id: "owner-b");
+        var invitee = TestDataFixtures.CreateUser(id: "invitee-b");
+        db.Users.AddRange(ownerA, ownerB, invitee);
+        var suppliedGroup = await SeedGroupWithOwnerAsync(db, ownerA);
+        var authoritativeGroup = await SeedGroupWithOwnerAsync(db, ownerB);
+        var invite = await new InvitationService(db).InviteUserAsync(authoritativeGroup.Id, ownerB.Id, invitee.Id, null, null);
+        var sse = new FakeSseService();
+        var controller = BuildController(db, ownerB, sse);
+
+        var result = await controller.RevokeInviteAjax(suppliedGroup.Id, invite.Id);
+
+        Assert.IsType<OkObjectResult>(result);
+        Assert.Equal(GroupInvitation.InvitationStatuses.Revoked, (await db.GroupInvitations.FindAsync(invite.Id))!.Status);
+        Assert.Contains(sse.Messages, message => message.Channel == $"group-{authoritativeGroup.Id}");
+        Assert.DoesNotContain(sse.Messages, message => message.Channel == $"group-{suppliedGroup.Id}");
+    }
+
+    [Fact]
+    public async Task RevokeInviteAjax_UnauthorizedForAuthoritativeGroupDoesNotMutateOrPublish()
+    {
+        var db = CreateDbContext();
+        var caller = TestDataFixtures.CreateUser(id: "caller");
+        var owner = TestDataFixtures.CreateUser(id: "owner");
+        var invitee = TestDataFixtures.CreateUser(id: "invitee");
+        db.Users.AddRange(caller, owner, invitee);
+        var callerGroup = await SeedGroupWithOwnerAsync(db, caller);
+        var authoritativeGroup = await SeedGroupWithOwnerAsync(db, owner);
+        var invite = await new InvitationService(db).InviteUserAsync(authoritativeGroup.Id, owner.Id, invitee.Id, null, null);
+        var sse = new FakeSseService();
+        var controller = BuildController(db, caller, sse);
+
+        var result = await controller.RevokeInviteAjax(callerGroup.Id, invite.Id);
+
+        Assert.Equal(StatusCodes.Status403Forbidden, Assert.IsType<ObjectResult>(result).StatusCode);
+        Assert.Equal(GroupInvitation.InvitationStatuses.Pending, (await db.GroupInvitations.FindAsync(invite.Id))!.Status);
+        Assert.Empty(sse.Messages);
+    }
+
+    [Fact]
+    public async Task RevokeInviteAjax_MutationFailureUsesBoundedResponse()
+    {
+        var db = CreateDbContext();
+        var owner = TestDataFixtures.CreateUser(id: "owner");
+        var invitee = TestDataFixtures.CreateUser(id: "invitee");
+        db.Users.AddRange(owner, invitee);
+        var group = await SeedGroupWithOwnerAsync(db, owner);
+        var invite = await new InvitationService(db).InviteUserAsync(group.Id, owner.Id, invitee.Id, null, null);
+        await new InvitationService(db).RevokeAsync(invite.Id, owner.Id);
+
+        var result = Assert.IsType<BadRequestObjectResult>(
+            await BuildController(db, owner, new FakeSseService()).RevokeInviteAjax(group.Id, invite.Id));
+        var message = Assert.IsType<string>(result.Value!.GetType().GetProperty("message")!.GetValue(result.Value));
+
+        Assert.Equal("Unable to revoke invitation.", message);
     }
 
     [Fact]
@@ -154,10 +223,10 @@ public class UserGroupsControllerTests : TestBase
 
     private sealed class FakeSseService : Wayfarer.Parsers.SseService
     {
-        public List<string> Channels { get; } = new();
+        public List<(string Channel, string Data)> Messages { get; } = [];
         public override Task BroadcastAsync(string channel, string data)
         {
-            Channels.Add(channel);
+            Messages.Add((channel, data));
             return Task.CompletedTask;
         }
     }

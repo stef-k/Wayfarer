@@ -100,13 +100,10 @@ public class InvitationsController : ControllerBase
         try
         {
             var inv = await _invites.InviteUserAsync(req.GroupId, CurrentUserId, req.InviteeUserId, req.InviteeEmail, req.ExpiresAt, ct);
-            // get group name for richer payloads
-            var group = await _db.Groups.AsNoTracking().FirstOrDefaultAsync(g => g.Id == inv.GroupId, ct);
-            var gname = group?.Name;
-            // Notify invitee if known
+            // Notify a known invitee to reload authenticated durable state.
             if (!string.IsNullOrEmpty(inv.InviteeUserId))
             {
-                await _sse.BroadcastAsync($"invitation-update-{inv.InviteeUserId}", JsonSerializer.Serialize(new { action = "created", id = inv.Id, groupId = inv.GroupId, groupName = gname }));
+                await _sse.BroadcastGroupNotificationAsync(inv.InviteeUserId, SseService.InvitationStateHint);
             }
             // Inform managers of new pending invite (consolidated group channel)
             await _sse.BroadcastAsync($"group-{inv.GroupId}", JsonSerializer.Serialize(GroupSseEventDto.InviteCreated(inv.Id)));
@@ -143,11 +140,8 @@ public class InvitationsController : ControllerBase
         try
         {
             await _invites.AcceptAsync(inv.Token, CurrentUserId, ct);
-            var group = await _db.Groups.AsNoTracking().FirstOrDefaultAsync(g => g.Id == inv.GroupId, ct);
-            var gname = group?.Name;
-            // Per-user notifications (unchanged)
-            await _sse.BroadcastAsync($"invitation-update-{CurrentUserId}", JsonSerializer.Serialize(new { action = "accepted", id, groupId = inv.GroupId, groupName = gname }));
-            await _sse.BroadcastAsync($"membership-update-{CurrentUserId}", JsonSerializer.Serialize(new { action = "joined", groupId = inv.GroupId, groupName = gname }));
+            await _sse.BroadcastGroupNotificationAsync(CurrentUserId, SseService.InvitationStateHint);
+            await _sse.BroadcastGroupNotificationAsync(CurrentUserId, SseService.MembershipStateHint);
             // Consolidated group channel
             await _sse.BroadcastAsync($"group-{inv.GroupId}", JsonSerializer.Serialize(GroupSseEventDto.MemberJoined(CurrentUserId, id)));
             return Ok(new { message = "Accepted" });
@@ -182,8 +176,7 @@ public class InvitationsController : ControllerBase
         try
         {
             await _invites.DeclineAsync(inv.Token, CurrentUserId, ct);
-            // Per-user notification (unchanged)
-            await _sse.BroadcastAsync($"invitation-update-{CurrentUserId}", JsonSerializer.Serialize(new { action = "declined", id }));
+            await _sse.BroadcastGroupNotificationAsync(CurrentUserId, SseService.InvitationStateHint);
             // Consolidated group channel
             await _sse.BroadcastAsync($"group-{inv.GroupId}", JsonSerializer.Serialize(GroupSseEventDto.InviteDeclined(CurrentUserId, id)));
             return Ok(new { message = "Declined" });

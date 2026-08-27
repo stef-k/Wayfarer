@@ -19,6 +19,8 @@ public class SseController : Controller
 {
     private static readonly HashSet<string> ImportReloadHints =
         ["{\"type\":\"import-state\"}", "{\"type\":\"enrichment-state\"}"];
+    private static readonly HashSet<string> GroupNotificationReloadHints =
+        [SseService.InvitationStateHint, SseService.MembershipStateHint];
     private readonly SseService _sse;
     private readonly ApplicationDbContext _db;
     private readonly IGroupTimelineService _timelineService;
@@ -46,10 +48,7 @@ public class SseController : Controller
     [HttpGet("stream/{type}/{id}")]
     public async Task Stream(string type, string id, CancellationToken ct)
     {
-        if (type.Equals("import", StringComparison.OrdinalIgnoreCase)
-            || type.StartsWith("import-", StringComparison.OrdinalIgnoreCase)
-            || type.Equals("enrichment", StringComparison.OrdinalIgnoreCase)
-            || type.StartsWith("enrichment-", StringComparison.OrdinalIgnoreCase))
+        if (IsProtectedGenericStreamType(type))
         {
             Response.StatusCode = StatusCodes.Status404NotFound;
             return;
@@ -88,6 +87,27 @@ public class SseController : Controller
         if (string.IsNullOrWhiteSpace(userId)) return Unauthorized();
         await _sse.SubscribeAsync($"import-{userId}", Response, ct,
             deliveryFilter: data => ImportReloadHints.Contains(data));
+        return new EmptyResult();
+    }
+
+    /// <summary>Identifies server-owned channel families that generic callers cannot select.</summary>
+    private static bool IsProtectedGenericStreamType(string type)
+    {
+        string[] protectedTypes = ["import", "enrichment", "invitation-update", "membership-update", "group-notifications"];
+        return protectedTypes.Any(protectedType =>
+            type.Equals(protectedType, StringComparison.OrdinalIgnoreCase)
+            || type.StartsWith($"{protectedType}-", StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>Subscribes only to the authenticated caller's content-free group notification channel.</summary>
+    [Authorize]
+    [HttpGet("group-notifications")]
+    public async Task<IActionResult> SubscribeToGroupNotificationsAsync(CancellationToken ct)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrWhiteSpace(userId)) return Unauthorized();
+        await _sse.SubscribeAsync($"group-notifications-{userId}", Response, ct,
+            deliveryFilter: data => GroupNotificationReloadHints.Contains(data));
         return new EmptyResult();
     }
 

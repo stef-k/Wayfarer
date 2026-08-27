@@ -177,21 +177,22 @@ Role constants defined in `Util/ApplicationRoles.cs`.
 - Automatic reconnection support
 - Used for: location updates, import progress, job status, visits, invitations
 
-### Legacy group notification streams
+### Public, group-specific, and protected notification streams
 
 ```
 /api/sse/stream/location-update/{userName}
-/api/sse/stream/group-location-update/{groupId}
 /api/sse/stream/visits
 /api/sse/stream/job-status
-/api/sse/stream/invitation-update/{userId}
-/api/sse/stream/membership-update/{userId}
+/api/sse/group/{groupId}
+/api/sse/group-notifications
 ```
 
-The invitation and membership URLs above are legacy generic channels used by current web clients.
-The generic endpoint is not authenticated or authorized, and the caller-supplied user ID selects the
-channel. These streams do not own, authorize, or carry import or enrichment state. Their authorization
-boundary requires a separate security follow-up; this enrichment slice does not change their behavior.
+Public live timelines and unrelated public generic streams retain their existing eligibility rules.
+`/api/sse/group/{groupId}` is authenticated and authorizes current membership before delivering detailed
+group events. `/api/sse/group-notifications` is authenticated, derives its per-user channel only from
+`NameIdentifier`, and accepts only the exact content-free `invitation-state` and `membership-state` hints.
+The generic route rejects invitation and membership notification prefixes. Clients treat hints only as
+signals to reload authenticated invitation, activity, and joined-group state.
 
 ### Protected import and enrichment stream
 

@@ -450,17 +450,11 @@ public class GroupsController : ControllerBase
         if (CurrentUserId is null) return Unauthorized();
         try
         {
-            // Capture group name before leave operation in case auto-delete triggers
-            var group = await _db.Groups.AsNoTracking().FirstOrDefaultAsync(g => g.Id == groupId, ct);
-            var gname = group?.Name;
-
             await _groups.LeaveGroupAsync(groupId, CurrentUserId, ct);
             // Consolidated group channel
             await _sse.BroadcastAsync($"group-{groupId}",
                 JsonSerializer.Serialize(GroupSseEventDto.MemberLeft(CurrentUserId)));
-            // Per-user membership notification (unchanged)
-            await _sse.BroadcastAsync($"membership-update-{CurrentUserId}",
-                JsonSerializer.Serialize(new { action = "left", groupId, groupName = gname }));
+            await _sse.BroadcastGroupNotificationAsync(CurrentUserId, SseService.MembershipStateHint);
             return Ok(new { message = "Left group" });
         }
         catch (KeyNotFoundException)
@@ -485,17 +479,11 @@ public class GroupsController : ControllerBase
         if (CurrentUserId is null) return Unauthorized();
         try
         {
-            // Capture group name before remove operation in case auto-delete triggers
-            var group = await _db.Groups.AsNoTracking().FirstOrDefaultAsync(g => g.Id == groupId, ct);
-            var gname = group?.Name;
-
             await _groups.RemoveMemberAsync(groupId, CurrentUserId, userId, ct);
             // Consolidated group channel
             await _sse.BroadcastAsync($"group-{groupId}",
                 JsonSerializer.Serialize(GroupSseEventDto.MemberRemoved(userId)));
-            // Per-user membership notification (unchanged)
-            await _sse.BroadcastAsync($"membership-update-{userId}",
-                JsonSerializer.Serialize(new { action = "removed", groupId, groupName = gname }));
+            await _sse.BroadcastGroupNotificationAsync(userId, SseService.MembershipStateHint);
             return Ok(new { message = "Member removed" });
         }
         catch (KeyNotFoundException)

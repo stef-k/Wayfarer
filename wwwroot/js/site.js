@@ -1,3 +1,5 @@
+import { createGroupNotificationRefresh, reloadGroupNotificationState } from './groupNotifications.js';
+
 window.wayfarer = window.wayfarer || {};
 
 function hideAlert() {
@@ -143,11 +145,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Pending invitations badge updater (authenticated users only)
     const invitesBadge = document.getElementById('userInvitesBadge');
-    const updateInvitesBadge = async () => {
-        if (!invitesBadge || !isAuthenticated) return;
+    const updateInvitesBadge = async (loadedInvites = null, signal = null) => {
+        if (!invitesBadge || !isAuthenticated || signal?.aborted) return;
         try {
-            const res = await fetch('/api/invitations');
-            const list = res.ok ? await res.json() : [];
+            const res = loadedInvites === null ? await fetch('/api/invitations', { signal }) : null;
+            if (signal?.aborted) return;
+            const list = loadedInvites ?? (res.ok ? await res.json() : []);
+            if (signal?.aborted) return;
             const count = Array.isArray(list) ? list.length : 0;
             invitesBadge.textContent = count;
             invitesBadge.classList.toggle('d-none', count === 0);
@@ -168,12 +172,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // User offline check for pending invitations: compare with last stored list (authenticated users only)
-    const checkPendingInvitesDiff = async () => {
-        if (!isAuthenticated) return;
+    const checkPendingInvitesDiff = async (loadedInvites = null, signal = null) => {
+        if (!isAuthenticated || signal?.aborted) return;
         try {
-            const res = await fetch('/api/invitations');
-            if (!res.ok) return;
-            const cur = await res.json();
+            const res = loadedInvites === null ? await fetch('/api/invitations', { signal }) : null;
+            if (signal?.aborted || (res && !res.ok)) return;
+            const cur = loadedInvites ?? await res.json();
+            if (signal?.aborted) return;
             const invites = Array.isArray(cur) ? cur.map(x => ({ id: x.id, groupName: x.groupName || '' })) : [];
             const prevRaw = localStorage.getItem('user.pending.invites');
             const prev = prevRaw ? JSON.parse(prevRaw) : [];
@@ -193,12 +198,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Manager: show recent activity digest + badge if present (authenticated managers only)
     const mgrBadge = document.getElementById('managerGroupsBadge');
-    const updateManagerActivity = async () => {
-        if (!mgrBadge || !isAuthenticated) return; // only on pages where Manager menu is present
+    const updateManagerActivity = async (signal = null) => {
+        if (!mgrBadge || !isAuthenticated || signal?.aborted) return; // only on pages where Manager menu is present
         try {
-            const res = await fetch('/api/groups/managed/activity?sinceHours=24');
-            if (!res.ok) return; // not a manager or not authorized
+            const res = await fetch('/api/groups/managed/activity?sinceHours=24', { signal });
+            if (signal?.aborted || !res.ok) return; // not a manager or not authorized
             const data = await res.json();
+            if (signal?.aborted) return;
             const items = (data && Array.isArray(data.items)) ? data.items : [];
             const lastSeenRaw = localStorage.getItem('manager.activity.lastSeenAt');
             const lastSeen = lastSeenRaw ? new Date(lastSeenRaw) : null;
@@ -230,53 +236,17 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     } catch { /* ignore */ }
 
-    // Optional SSE to refresh badge in real-time
-    // Skip invitation SSE on Invitations page (it has its own handler to avoid duplicates)
-    const isInvitationsPage = location.pathname.toLowerCase().includes('/user/invitations');
-    try {
-        if (window.__currentUserId && typeof EventSource !== 'undefined') {
-            // Invitations channel: alert on every new invite (skip on Invitations page)
-            if (!isInvitationsPage) {
-                const esInv = new EventSource(`/api/sse/stream/invitation-update/${window.__currentUserId}`);
-                esInv.onmessage = (evt) => {
-                    updateInvitesBadge();
-                    let g = '';
-                    try { const d = evt && evt.data ? JSON.parse(evt.data) : null; if (d && d.groupName) g = ` for ${d.groupName}`; } catch {}
-                    if (typeof showAlert === 'function') showAlert('info', `You received a new invitation${g}. Open User → Invitations.`);
-                };
-            }
-
-            // Membership channel: removal/left/joined alerts
-            const esMem = new EventSource(`/api/sse/stream/membership-update/${window.__currentUserId}`);
-            esMem.onmessage = (evt) => {
-                try {
-                    const data = evt && evt.data ? JSON.parse(evt.data) : null;
-                    if (!data || !data.action) return;
-                    if (data.action === 'removed') {
-                        const g = data.groupName ? ` ${data.groupName}` : '';
-                        if (typeof showAlert === 'function') showAlert('warning', `You were removed from group${g}.`);
-                    } else if (data.action === 'left') {
-                        const g = data.groupName ? ` ${data.groupName}` : '';
-                        if (typeof showAlert === 'function') showAlert('secondary', `You left group${g}.`);
-                    } else if (data.action === 'joined') {
-                        const g = data.groupName ? ` ${data.groupName}` : '';
-                        if (typeof showAlert === 'function') showAlert('success', `You joined group${g}.`);
-                    }
-                } catch { /* ignore parse errors */ }
-            };
-        }
-    } catch { /* ignore SSE errors */ }
-
     // User offline check: server-driven activity digest (authenticated users only)
     // Session guard prevents showing same notifications multiple times per session
-    const checkUserActivityDigest = async () => {
-        if (!isAuthenticated || sessionStorage.getItem('user.activity.notified') === '1') return;
+    const checkUserActivityDigest = async (forceReload = false, signal = null) => {
+        if (signal?.aborted || !isAuthenticated || (!forceReload && sessionStorage.getItem('user.activity.notified') === '1')) return;
         try {
             const lastSeenRaw = localStorage.getItem('user.activity.lastSeenAt');
             const lastSeen = lastSeenRaw ? new Date(lastSeenRaw) : null;
-            const res = await fetch('/api/users/activity?sinceHours=24');
-            if (!res.ok) return;
+            const res = await fetch('/api/users/activity?sinceHours=24', { signal });
+            if (signal?.aborted || !res.ok) return;
             const data = await res.json();
+            if (signal?.aborted) return;
             if (data) {
                 let invites = Array.isArray(data.invites) ? data.invites : [];
                 let joined  = Array.isArray(data.joined) ? data.joined : [];
@@ -310,12 +280,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Client-side fallback: compare joined count on session start (authenticated users only)
-    const checkJoinedGroups = async () => {
-        if (!isAuthenticated) return;
+    const checkJoinedGroups = async (signal = null) => {
+        if (!isAuthenticated || signal?.aborted) return;
         try {
-            const res = await fetch('/api/groups?scope=joined');
-            if (!res.ok) return;
+            const res = await fetch('/api/groups?scope=joined', { signal });
+            if (signal?.aborted || !res.ok) return;
             const list = await res.json();
+            if (signal?.aborted) return;
             const joined = Array.isArray(list) ? list.map(x => ({ id: x.id, name: x.name })) : [];
             const prevRaw = localStorage.getItem('user.joined.groups');
             const prev = prevRaw ? JSON.parse(prevRaw) : [];
@@ -334,6 +305,26 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     if (isAuthenticated) {
         checkJoinedGroups();
+    }
+
+    // One protected stream supplies content-free hints; durable endpoints own presentation.
+    if (isAuthenticated) {
+        const notifications = createGroupNotificationRefresh({
+            reload: (types, signal) => reloadGroupNotificationState(types, signal, {
+                fetch,
+                updateInvitesBadge,
+                checkPendingInvitesDiff,
+                dispatchInvitationState: invitations => {
+                    if (!signal.aborted) document.dispatchEvent(
+                        new CustomEvent('wayfarer:invitation-state', { detail: invitations }));
+                },
+                checkUserActivityDigest,
+                checkJoinedGroups,
+                updateManagerActivity
+            })
+        });
+        notifications.connect(globalThis.EventSource);
+        window.addEventListener('pagehide', () => notifications.dispose(), { once: true });
     }
 
     // Note: checkPendingInvitesDiff() is already called at line 170

@@ -1,0 +1,196 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { createGroupNotificationRefresh, reloadGroupNotificationState } from '../../wwwroot/js/groupNotifications.js';
+
+test('exact invitation and membership hints coalesce to one durable reload', () => {
+    const timers = [];
+    const reloads = [];
+    const refresh = createGroupNotificationRefresh({
+        schedule: callback => timers.push(callback),
+        reload: types => reloads.push([...types].sort())
+    });
+
+    refresh.accept({ data: '{"type":"invitation-state"}' });
+    refresh.accept({ data: '{"type":"membership-state"}' });
+    assert.equal(timers.length, 1);
+    timers[0]();
+    assert.deepEqual(reloads, [['invitation-state', 'membership-state']]);
+});
+
+test('malformed additional-field unrelated and content-bearing events are ignored', () => {
+    let scheduled = 0;
+    const refresh = createGroupNotificationRefresh({ schedule: () => scheduled++, reload: () => {} });
+
+    for (const data of ['bad', '[]', '{}', '{"type":"other"}',
+        '{"type":"invitation-state","groupId":"private"}',
+        '{"type":"membership-state","action":"removed"}']) refresh.accept({ data });
+
+    assert.equal(scheduled, 0);
+});
+
+test('connection uses only the protected server-owned URL', () => {
+    let url = null;
+    const source = { close() {} };
+    const refresh = createGroupNotificationRefresh({ reload: () => {} });
+
+    refresh.connect(function FakeEventSource(value) { url = value; return source; });
+
+    assert.equal(url, '/api/sse/group-notifications');
+    assert.equal(refresh.connected, true);
+});
+
+test('dispose closes listeners and cancels a pending callback', () => {
+    const timers = [];
+    const cancelled = [];
+    let closed = 0;
+    let reloads = 0;
+    const source = { close: () => closed++ };
+    const refresh = createGroupNotificationRefresh({
+        schedule: callback => { timers.push(callback); return 7; },
+        cancel: handle => cancelled.push(handle),
+        reload: () => reloads++
+    });
+    refresh.connect(function FakeEventSource() { return source; });
+    source.onmessage({ data: '{"type":"invitation-state"}' });
+
+    refresh.dispose();
+    timers[0]();
+
+    assert.deepEqual(cancelled, [7]);
+    assert.equal(closed, 1);
+    assert.equal(source.onmessage, null);
+    assert.equal(source.onerror, null);
+    assert.equal(reloads, 0);
+});
+
+test('a burst during an in-flight reload queues one non-overlapping follow-up', async () => {
+    const timers = [];
+    const completions = [];
+    const calls = [];
+    const refresh = createGroupNotificationRefresh({
+        schedule: callback => { timers.push(callback); return timers.length; },
+        reload: types => {
+            calls.push([...types]);
+            return new Promise(resolve => completions.push(resolve));
+        }
+    });
+
+    refresh.accept({ data: '{"type":"invitation-state"}' });
+    timers.shift()();
+    refresh.accept({ data: '{"type":"membership-state"}' });
+    refresh.accept({ data: '{"type":"membership-state"}' });
+    assert.equal(timers.length, 0);
+    assert.equal(calls.length, 1);
+
+    completions.shift()();
+    await Promise.resolve();
+    await Promise.resolve();
+    assert.equal(timers.length, 1);
+    timers.shift()();
+    assert.deepEqual(calls, [['invitation-state'], ['membership-state']]);
+    completions.shift()();
+});
+
+test('dispose aborts an active reload and prevents all later mutation', async () => {
+    const timers = [];
+    let release;
+    const mutations = { badge: 0, storage: 0, alert: 0, event: 0 };
+    const entered = Promise.withResolvers();
+    const completed = Promise.withResolvers();
+    const refresh = createGroupNotificationRefresh({
+        schedule: callback => { timers.push(callback); return timers.length; },
+        reload: async (_types, signal) => {
+            entered.resolve();
+            await new Promise(resolve => { release = resolve; });
+            if (!signal.aborted) Object.keys(mutations).forEach(key => mutations[key]++);
+            completed.resolve();
+        }
+    });
+
+    refresh.accept({ data: '{"type":"invitation-state"}' });
+    timers.shift()();
+    await entered.promise;
+    refresh.accept({ data: '{"type":"membership-state"}' });
+
+    refresh.dispose();
+    release();
+    await completed.promise;
+    await Promise.resolve();
+
+    assert.deepEqual(mutations, { badge: 0, storage: 0, alert: 0, event: 0 });
+    assert.equal(timers.length, 0);
+});
+
+test('production reload callback stays inert when fetch resolves normally after disposal', async () => {
+    const timers = [];
+    const entered = Promise.withResolvers();
+    const completedFetch = Promise.withResolvers();
+    const mutations = { dom: 0, storage: 0, alert: 0, event: 0 };
+    let fetches = 0;
+    const unhandled = [];
+    const onUnhandled = reason => unhandled.push(reason);
+    process.on('unhandledRejection', onUnhandled);
+    const dependencies = {
+        fetch: (_url, { signal }) => {
+            fetches++;
+            entered.resolve(signal);
+            return completedFetch.promise;
+        },
+        updateInvitesBadge: () => mutations.dom++,
+        checkPendingInvitesDiff: () => mutations.alert++,
+        dispatchInvitationState: () => mutations.event++,
+        checkUserActivityDigest: () => mutations.storage++,
+        checkJoinedGroups: () => mutations.dom++,
+        updateManagerActivity: () => mutations.dom++
+    };
+    const refresh = createGroupNotificationRefresh({
+        schedule: callback => { timers.push(callback); return timers.length; },
+        reload: (types, signal) => reloadGroupNotificationState(types, signal, dependencies)
+    });
+
+    refresh.accept({ data: '{"type":"invitation-state"}' });
+    timers.shift()();
+    const signal = await entered.promise;
+    refresh.accept({ data: '{"type":"membership-state"}' });
+    refresh.dispose();
+    completedFetch.resolve({ ok: true, json: async () => [{ id: 'late' }] });
+    await new Promise(resolve => setImmediate(resolve));
+    process.off('unhandledRejection', onUnhandled);
+
+    assert.equal(signal.aborted, true);
+    assert.equal(fetches, 1);
+    assert.deepEqual(mutations, { dom: 0, storage: 0, alert: 0, event: 0 });
+    assert.equal(timers.length, 0);
+    assert.deepEqual(unhandled, []);
+});
+
+test('production reload callback consumes native AbortError', async () => {
+    const controller = new AbortController();
+    const dependencies = {
+        fetch: () => Promise.reject(new DOMException('aborted', 'AbortError')),
+        updateInvitesBadge: () => assert.fail('must remain inert'),
+        checkPendingInvitesDiff: () => assert.fail('must remain inert'),
+        dispatchInvitationState: () => assert.fail('must remain inert'),
+        checkUserActivityDigest: () => assert.fail('must remain inert'),
+        checkJoinedGroups: () => assert.fail('must remain inert'),
+        updateManagerActivity: () => assert.fail('must remain inert')
+    };
+
+    await assert.doesNotReject(reloadGroupNotificationState(
+        new Set(['invitation-state']), controller.signal, dependencies));
+});
+
+test('unexpected synchronous reload failure is contained and disposal stays final', async () => {
+    const timers = [];
+    const refresh = createGroupNotificationRefresh({
+        schedule: callback => { timers.push(callback); return timers.length; },
+        reload: () => { throw new Error('unexpected reload failure'); }
+    });
+
+    refresh.accept({ data: '{"type":"membership-state"}' });
+    timers.shift()();
+    refresh.dispose();
+    await new Promise(resolve => setImmediate(resolve));
+
+    assert.equal(timers.length, 0);
+});
