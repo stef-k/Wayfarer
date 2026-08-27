@@ -1,4 +1,5 @@
 using System.Net;
+using Wayfarer.Models;
 using Wayfarer.Services.ExternalRouting;
 using Xunit;
 
@@ -17,6 +18,22 @@ public sealed class GeoapifyRoutingAdapterTests
         Assert.Contains("details=instruction_details&type=balanced&traffic=free_flow", request);
         Assert.Contains("intermediate_waypoint_mode=stopover", request);
         Assert.EndsWith("apiKey=secret%20value", request);
+    }
+
+    [Fact]
+    public async Task MoreThanTwentyFiveGeoapifyAnchorsFailBeforeExecutionOrAdmission()
+    {
+        var client = new ProviderRouteClient(null!, null!, null!, null!);
+        var execution = new ResolvedRoutingProviderExecution(
+            new RoutingProviderConfiguration { AdapterType = RoutingAdapterType.Geoapify }, "drive", "secret",
+            RoutingProviderSelectionMode.Personal, 1, 1, 1, 1, 1, "Geoapify", null, null, "owner");
+        var anchors = Enumerable.Range(0, 26).Select(index => new RouteCoordinate(index, 10)).ToArray();
+
+        var result = await client.RouteAsync(execution, anchors,
+            _ => throw new InvalidOperationException("Authority admission must not run."), CancellationToken.None);
+
+        Assert.False(result.Succeeded);
+        Assert.Equal("routing-cost-invalid", result.ErrorCode);
     }
 
     [Fact]
@@ -66,8 +83,8 @@ public sealed class GeoapifyRoutingAdapterTests
 
     [Theory]
     [InlineData("\"from_index\":0,\"to_index\":1", "\"from_index\":1,\"to_index\":1")]
-    [InlineData("\"from_index\":1,\"to_index\":2", "\"from_index\":2,\"to_index\":1")]
-    [InlineData("\"from_index\":1,\"to_index\":2", "\"from_index\":1,\"to_index\":3")]
+    [InlineData("\"from_index\":0,\"to_index\":1", "\"from_index\":1,\"to_index\":0")]
+    [InlineData("\"from_index\":0,\"to_index\":1", "\"from_index\":0,\"to_index\":2")]
     public async Task InvalidOrDiscontinuousLegRelativeStepFailsClosed(string current, string mutation)
     {
         using var response = Response(SingleLegJson.Replace(current, mutation, StringComparison.Ordinal));
@@ -76,8 +93,19 @@ public sealed class GeoapifyRoutingAdapterTests
         Assert.False(result.Succeeded);
     }
 
+    [Fact]
+    public async Task DiscontinuousLegRelativeStepsFailClosed()
+    {
+        using var response = Response(MultiLegJson.Replace(
+            "\"from_index\":1,\"to_index\":2", "\"from_index\":0,\"to_index\":2", StringComparison.Ordinal));
+        var result = await GeoapifyRoutingAdapter.ParseAsync(response,
+            [new(20, 10), new(21, 11), new(22, 12)]);
+
+        Assert.False(result.Succeeded);
+    }
+
     [Theory]
-    [InlineData("\"distance\":1234,\"time\":321,\"geometry\"", "\"distance\":1234.0100001,\"time\":321,\"geometry\"")]
+    [InlineData("\"distance\":1234,\"time\":321,\"distance_units\"", "\"distance\":1234.0100001,\"time\":321,\"distance_units\"")]
     [InlineData("\"distance\":1234,\"time\":321,\"steps\"", "\"distance\":1234.0100001,\"time\":321,\"steps\"")]
     public async Task ContradictoryTotalsBeyondSpecifiedToleranceFailClosed(string current, string mutation)
     {
@@ -96,6 +124,21 @@ public sealed class GeoapifyRoutingAdapterTests
 
         Assert.True(result.Succeeded);
         Assert.Empty(result.Instructions);
+    }
+
+    [Fact]
+    public async Task ZeroLengthDestinationStepRemainsNormalized()
+    {
+        var destination = """
+            ,{"instruction":{"text":"Destination","type":"Destination"},
+            "from_index":1,"to_index":1,"distance":0,"time":0}
+            """;
+        using var response = Response(SingleLegJson.Replace("]}]}]}", $"{destination}]}}]}}]}}", StringComparison.Ordinal));
+
+        var result = await GeoapifyRoutingAdapter.ParseAsync(response, [new(20, 10), new(21, 11)]);
+
+        Assert.True(result.Succeeded);
+        Assert.Equal(new RouteInstruction("Destination", "Destination", 1, 1, 0, 0), result.Instructions[1]);
     }
 
     private static HttpResponseMessage Response(string json) =>

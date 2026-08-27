@@ -90,6 +90,18 @@ public sealed class MobileRoutingServiceAuthorityTests : TestBase
         Assert.True(route.Succeeded);
         Assert.Equal("geoapify", route.Provider);
         Assert.Equal("persistent", route.StorageMode);
+        Assert.Equal([new(20, 10), new(20.5, 10.5), new(21, 11)], route.Geometry);
+        Assert.Equal(42.5, route.DistanceMetres);
+        Assert.Equal(12.25, route.DurationSeconds);
+        Assert.Equal(new RouteInstruction("Continue", "Straight", 0, 2, 42.5, 12.25),
+            Assert.Single(route.Instructions!));
+        Assert.Equal([new(20, 10), new(21, 11)], route.MatchPoints);
+        Assert.NotNull(route.GeneratedAt);
+        Assert.Equal(provider.Id, route.ProviderConfigurationId);
+        Assert.Equal(transport.Id, route.TransportProfileId);
+        Assert.Contains($"{provider.Id:N}:2:{transport.Id:N}", route.MappingIdentity);
+        Assert.Equal(["Powered by Geoapify", "© OpenStreetMap contributors"],
+            route.Attribution!.Select(item => item.Text));
         Assert.Equal(1, client.Requests);
     }
 
@@ -101,7 +113,9 @@ public sealed class MobileRoutingServiceAuthorityTests : TestBase
             CancellationToken cancellationToken)
         {
             Requests++;
-            return Task.FromResult(new OsrmRouteResult(true, requestedAnchors, requestedAnchors, null));
+            return Task.FromResult(new OsrmRouteResult(true,
+                [requestedAnchors[0], new(20.5, 10.5), requestedAnchors[1]], requestedAnchors, null,
+                42.5, 12.25, [new("Continue", "Straight", 0, 2, 42.5, 12.25)]));
         }
     }
 
@@ -109,6 +123,6 @@ public sealed class MobileRoutingServiceAuthorityTests : TestBase
     {
         public ProviderRouteValidationResult Validate(IReadOnlyList<RouteCoordinate> requestedAnchors,
             OsrmRouteResult providerRoute, CancellationToken cancellationToken) =>
-            new(true, requestedAnchors, Enumerable.Range(0, requestedAnchors.Count).ToArray(), null);
+            new(true, providerRoute.Geometry, [0, providerRoute.Geometry.Count - 1], null);
     }
 }
