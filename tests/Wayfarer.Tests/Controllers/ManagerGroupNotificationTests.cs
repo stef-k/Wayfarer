@@ -60,11 +60,40 @@ public sealed class ManagerGroupNotificationTests : TestBase
         Assert.Empty(sse.Messages);
     }
 
+    /// <summary>Each Manager revoke owner emits one private hint after durable revocation.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RevokePublishesOneProtectedInvitationHint(bool ajax)
+    {
+        var db = CreateDbContext();
+        var owner = TestDataFixtures.CreateUser(id: "manager");
+        var invitee = TestDataFixtures.CreateUser(id: "invitee");
+        db.Users.AddRange(owner, invitee);
+        var groupService = new GroupService(db);
+        var group = await groupService.CreateGroupAsync(owner.Id, "Group", null);
+        var invitationService = new InvitationService(db);
+        var invitation = await invitationService.InviteUserAsync(group.Id, owner.Id, invitee.Id, null, null);
+        var sse = new RecordingSseService();
+        var controller = BuildController(db, owner.Id, groupService, invitationService, sse);
+
+        if (ajax) await controller.RevokeInviteAjax(group.Id, invitation.Id);
+        else await controller.RevokeInvite(group.Id, invitation.Id);
+
+        var notification = Assert.Single(sse.Messages, message => message.Channel.StartsWith("group-notifications-"));
+        Assert.Equal(($"group-notifications-{invitee.Id}", SseService.InvitationStateHint), notification);
+    }
+
     private static GroupsController BuildController(
         ApplicationDbContext db, string userId, IGroupService groupService, RecordingSseService sse)
+        => BuildController(db, userId, groupService, new InvitationService(db), sse);
+
+    private static GroupsController BuildController(
+        ApplicationDbContext db, string userId, IGroupService groupService,
+        IInvitationService invitationService, RecordingSseService sse)
     {
         var controller = new GroupsController(
-            NullLogger<BaseController>.Instance, db, groupService, new InvitationService(db), sse);
+            NullLogger<BaseController>.Instance, db, groupService, invitationService, sse);
         var http = BuildHttpContextWithUser(userId);
         controller.ControllerContext = new ControllerContext { HttpContext = http };
         controller.TempData = new TempDataDictionary(http, Mock.Of<ITempDataProvider>());

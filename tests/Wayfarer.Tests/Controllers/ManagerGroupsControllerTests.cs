@@ -482,8 +482,7 @@ public class ManagerGroupsControllerTests : TestBase
                 Status = GroupMember.MembershipStatuses.Active
             });
         await db.SaveChangesAsync();
-        var sse = new RecordingSseService();
-        var controller = BuildController(db, owner.Id, sse);
+        var controller = BuildController(db, owner.Id);
 
         var result = await controller.RemoveMember(group.Id, member.Id);
 
@@ -520,15 +519,13 @@ public class ManagerGroupsControllerTests : TestBase
         });
         db.GroupInvitations.Add(invite);
         await db.SaveChangesAsync();
-        var sse = new RecordingSseService();
-        var controller = BuildController(db, owner.Id, sse);
+        var controller = BuildController(db, owner.Id);
 
         var result = await controller.RevokeInvite(group.Id, invite.Id);
 
         var redirect = Assert.IsType<RedirectToActionResult>(result);
         var revoked = await db.GroupInvitations.FindAsync(invite.Id);
         Assert.Equal(GroupInvitation.InvitationStatuses.Revoked, revoked!.Status);
-        Assert.Contains(($"group-notifications-{invitee.Id}", SseService.InvitationStateHint), sse.Messages);
     }
 
     [Fact]
@@ -658,8 +655,7 @@ public class ManagerGroupsControllerTests : TestBase
         });
         db.GroupInvitations.Add(invite);
         await db.SaveChangesAsync();
-        var sse = new RecordingSseService();
-        var controller = BuildController(db, owner.Id, sse);
+        var controller = BuildController(db, owner.Id);
 
         var result = await controller.RevokeInviteAjax(group.Id, invite.Id);
 
@@ -667,7 +663,6 @@ public class ManagerGroupsControllerTests : TestBase
         var payload = ok.Value!;
         var success = (bool)payload.GetType().GetProperty("success")!.GetValue(payload)!;
         Assert.True(success);
-        Assert.Contains(($"group-notifications-{invitee.Id}", SseService.InvitationStateHint), sse.Messages);
     }
 
     [Fact]
@@ -695,23 +690,12 @@ public class ManagerGroupsControllerTests : TestBase
         Assert.Equal(group, view.ViewData["Group"]);
     }
 
-    private GroupsController BuildController(ApplicationDbContext db, string userId, SseService? sse = null)
+    private GroupsController BuildController(ApplicationDbContext db, string userId)
     {
-        var controller = new GroupsController(NullLogger<BaseController>.Instance, db, new GroupService(db), new InvitationService(db), sse ?? new SseService());
+        var controller = new GroupsController(NullLogger<BaseController>.Instance, db, new GroupService(db), new InvitationService(db));
         var httpContext = BuildHttpContextWithUser(userId);
         controller.ControllerContext = new ControllerContext { HttpContext = httpContext };
         controller.TempData = new TempDataDictionary(httpContext, Mock.Of<ITempDataProvider>());
         return controller;
-    }
-
-    private sealed class RecordingSseService : SseService
-    {
-        public List<(string Channel, string Data)> Messages { get; } = [];
-
-        public override Task BroadcastAsync(string channel, string data)
-        {
-            Messages.Add((channel, data));
-            return Task.CompletedTask;
-        }
     }
 }
