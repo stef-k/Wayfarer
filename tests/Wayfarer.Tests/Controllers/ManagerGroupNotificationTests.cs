@@ -117,6 +117,33 @@ public sealed class ManagerGroupNotificationTests : TestBase
             (await db.GroupInvitations.SingleAsync(item => item.Id == invitation.Id)).Status);
     }
 
+    /// <summary>Form revocation publishes and redirects using the invitation's authoritative group.</summary>
+    [Fact]
+    public async Task RevokeFormUsesAuthoritativeGroupForPublicationAndRedirect()
+    {
+        var db = CreateDbContext();
+        var owner = TestDataFixtures.CreateUser(id: "manager");
+        var otherOwner = TestDataFixtures.CreateUser(id: "other-manager");
+        var invitee = TestDataFixtures.CreateUser(id: "invitee");
+        db.Users.AddRange(owner, otherOwner, invitee);
+        var groupService = new GroupService(db);
+        var authoritativeGroup = await groupService.CreateGroupAsync(owner.Id, "Authoritative", null);
+        var suppliedGroup = await groupService.CreateGroupAsync(otherOwner.Id, "Supplied", null);
+        var invitationService = new InvitationService(db);
+        var invitation = await invitationService.InviteUserAsync(
+            authoritativeGroup.Id, owner.Id, invitee.Id, null, null);
+        var sse = new RecordingSseService();
+
+        var result = await BuildController(db, owner.Id, groupService, invitationService, sse)
+            .RevokeInvite(suppliedGroup.Id, invitation.Id);
+
+        Assert.Contains(sse.Messages, message => message.Channel == $"group-{authoritativeGroup.Id}");
+        Assert.DoesNotContain(sse.Messages, message => message.Channel == $"group-{suppliedGroup.Id}");
+        var redirect = Assert.IsType<RedirectToActionResult>(result);
+        Assert.Equal(authoritativeGroup.Id, Assert.IsType<Guid>(redirect.RouteValues!["groupId"]));
+        Assert.NotEqual(suppliedGroup.Id, redirect.RouteValues["groupId"]);
+    }
+
     /// <summary>Failed mutation publishes nothing; post-commit transport failures retain truthful success.</summary>
     [Fact]
     public async Task RevokePublicationRespectsCommitBoundary()
