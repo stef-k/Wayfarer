@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createGroupNotificationRefresh } from '../../wwwroot/js/groupNotifications.js';
+import { createGroupNotificationRefresh, reloadGroupNotificationState } from '../../wwwroot/js/groupNotifications.js';
 
 test('exact invitation and membership hints coalesce to one durable reload', () => {
     const timers = [];
@@ -118,5 +118,43 @@ test('dispose aborts an active reload and prevents all later mutation', async ()
     await Promise.resolve();
 
     assert.deepEqual(mutations, { badge: 0, storage: 0, alert: 0, event: 0 });
+    assert.equal(timers.length, 0);
+});
+
+test('production reload callback consumes native abort without mutations or another reload', async () => {
+    const timers = [];
+    const entered = Promise.withResolvers();
+    const rejected = Promise.withResolvers();
+    const mutations = { dom: 0, storage: 0, alert: 0, event: 0 };
+    let fetches = 0;
+    const dependencies = {
+        fetch: (_url, { signal }) => {
+            fetches++;
+            entered.resolve(signal);
+            return rejected.promise;
+        },
+        updateInvitesBadge: () => mutations.dom++,
+        checkPendingInvitesDiff: () => mutations.alert++,
+        dispatchInvitationState: () => mutations.event++,
+        checkUserActivityDigest: () => mutations.storage++,
+        checkJoinedGroups: () => mutations.dom++,
+        updateManagerActivity: () => mutations.dom++
+    };
+    const refresh = createGroupNotificationRefresh({
+        schedule: callback => { timers.push(callback); return timers.length; },
+        reload: (types, signal) => reloadGroupNotificationState(types, signal, dependencies)
+    });
+
+    refresh.accept({ data: '{"type":"invitation-state"}' });
+    timers.shift()();
+    const signal = await entered.promise;
+    refresh.accept({ data: '{"type":"membership-state"}' });
+    refresh.dispose();
+    rejected.reject(new DOMException('The operation was aborted.', 'AbortError'));
+    await new Promise(resolve => setImmediate(resolve));
+
+    assert.equal(signal.aborted, true);
+    assert.equal(fetches, 1);
+    assert.deepEqual(mutations, { dom: 0, storage: 0, alert: 0, event: 0 });
     assert.equal(timers.length, 0);
 });

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Wayfarer.Areas.Manager.Controllers;
@@ -84,6 +85,70 @@ public sealed class ManagerGroupNotificationTests : TestBase
         Assert.Equal(($"group-notifications-{invitee.Id}", SseService.InvitationStateHint), notification);
     }
 
+    /// <summary>Revoke routes only from durable invitation authority and skips email-only private hints.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RevokeUsesAuthoritativeGroupAndOptionalInvitee(bool hasInvitee)
+    {
+        var db = CreateDbContext();
+        var owner = TestDataFixtures.CreateUser(id: "manager");
+        var invitee = TestDataFixtures.CreateUser(id: "invitee");
+        db.Users.AddRange(owner, invitee);
+        var groupService = new GroupService(db);
+        var authoritativeGroup = await groupService.CreateGroupAsync(owner.Id, "Authoritative", null);
+        var callerGroup = await groupService.CreateGroupAsync(owner.Id, "Caller", null);
+        var invitationService = new InvitationService(db);
+        var invitation = await invitationService.InviteUserAsync(
+            authoritativeGroup.Id, owner.Id, hasInvitee ? invitee.Id : null,
+            hasInvitee ? null : "email-only@example.test", null);
+        var sse = new RecordingSseService();
+
+        var result = await BuildController(db, owner.Id, groupService, invitationService, sse)
+            .RevokeInviteAjax(callerGroup.Id, invitation.Id);
+
+        Assert.IsType<OkObjectResult>(result);
+        Assert.Contains(sse.Messages, message => message.Channel == $"group-{authoritativeGroup.Id}");
+        Assert.DoesNotContain(sse.Messages, message => message.Channel == $"group-{callerGroup.Id}");
+        Assert.Equal(hasInvitee ? 1 : 0,
+            sse.Messages.Count(message => message.Channel.StartsWith("group-notifications-", StringComparison.Ordinal)));
+        Assert.Equal(GroupInvitation.InvitationStatuses.Revoked,
+            (await db.GroupInvitations.SingleAsync(item => item.Id == invitation.Id)).Status);
+    }
+
+    /// <summary>Failed mutation publishes nothing; post-commit transport failures retain truthful success.</summary>
+    [Fact]
+    public async Task RevokePublicationRespectsCommitBoundary()
+    {
+        var db = CreateDbContext();
+        var owner = TestDataFixtures.CreateUser(id: "manager");
+        var invitee = TestDataFixtures.CreateUser(id: "invitee");
+        db.Users.AddRange(owner, invitee);
+        var groupService = new GroupService(db);
+        var group = await groupService.CreateGroupAsync(owner.Id, "Group", null);
+        var invitationService = new InvitationService(db);
+        var invitation = await invitationService.InviteUserAsync(group.Id, owner.Id, invitee.Id, null, null);
+        await invitationService.RevokeAsync(invitation.Id, owner.Id);
+        var failedSse = new RecordingSseService();
+
+        var failed = await BuildController(db, owner.Id, groupService, invitationService, failedSse)
+            .RevokeInviteAjax(group.Id, invitation.Id);
+
+        Assert.IsType<BadRequestObjectResult>(failed);
+        Assert.Empty(failedSse.Messages);
+
+        var committed = await invitationService.InviteUserAsync(group.Id, owner.Id, invitee.Id, null, null);
+        var throwingSse = new RecordingSseService(throwOnEveryBroadcast: true);
+        var successful = await BuildController(db, owner.Id, groupService, invitationService, throwingSse)
+            .RevokeInviteAjax(group.Id, committed.Id);
+
+        Assert.IsType<OkObjectResult>(successful);
+        Assert.Equal(2, throwingSse.Attempts);
+        Assert.Equal(GroupInvitation.InvitationStatuses.Revoked,
+            (await db.GroupInvitations.SingleAsync(item => item.Id == committed.Id)).Status);
+        Assert.DoesNotContain("transport diagnostic", successful.ToString(), StringComparison.Ordinal);
+    }
+
     private static GroupsController BuildController(
         ApplicationDbContext db, string userId, IGroupService groupService, RecordingSseService sse)
         => BuildController(db, userId, groupService, new InvitationService(db), sse);
@@ -102,9 +167,14 @@ public sealed class ManagerGroupNotificationTests : TestBase
 
     private sealed class RecordingSseService : SseService
     {
+        private readonly bool _throwOnEveryBroadcast;
+        public RecordingSseService(bool throwOnEveryBroadcast = false) => _throwOnEveryBroadcast = throwOnEveryBroadcast;
         public List<(string Channel, string Data)> Messages { get; } = [];
+        public int Attempts { get; private set; }
         public override Task BroadcastAsync(string channel, string data)
         {
+            Attempts++;
+            if (_throwOnEveryBroadcast) throw new InvalidOperationException("transport diagnostic");
             Messages.Add((channel, data));
             return Task.CompletedTask;
         }
