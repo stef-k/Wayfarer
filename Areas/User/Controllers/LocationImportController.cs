@@ -324,14 +324,7 @@ namespace Wayfarer.Areas.User.Controllers
                     }
                 }
 
-                try
-                {
-                    SetAlert("An unexpected error occurred. Please try again later.", "danger");
-                }
-                catch (Exception)
-                {
-                    // Presentation storage cannot replace cleanup or bounded redirect behavior.
-                }
+                TrySetUploadFailureAlert();
 
                 return RedirectToAction("Index");
             }
@@ -357,6 +350,40 @@ namespace Wayfarer.Areas.User.Controllers
             }
 
             return RedirectToAction("Index");
+        }
+
+        /// <summary>Attempts bounded upload-failure diagnostics and presentation independently.</summary>
+        private void TrySetUploadFailureAlert()
+        {
+            const string message = "An unexpected error occurred. Please try again later.";
+            const string alertType = "danger";
+
+            try
+            {
+                _logger.LogInformation("Alert: {Message} ({Type})", message, alertType);
+            }
+            catch (Exception)
+            {
+                // Alert diagnostics cannot suppress the available presentation sink.
+            }
+
+            try
+            {
+                TempData["AlertMessage"] = message;
+            }
+            catch (Exception)
+            {
+                // Presentation storage cannot replace cleanup or bounded redirect behavior.
+            }
+
+            try
+            {
+                TempData["AlertType"] = alertType;
+            }
+            catch (Exception)
+            {
+                // Each presentation value remains independently best effort.
+            }
         }
     }
 }
