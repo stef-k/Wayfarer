@@ -147,7 +147,24 @@ public sealed class ManagerGroupNotificationTests : TestBase
         Assert.Equal(2, throwingSse.Attempts);
         Assert.Equal(GroupInvitation.InvitationStatuses.Revoked,
             (await db.GroupInvitations.SingleAsync(item => item.Id == committed.Id)).Status);
-        Assert.DoesNotContain("transport diagnostic", successful.ToString(), StringComparison.Ordinal);
+        Assert.True((bool)Assert.IsType<OkObjectResult>(successful).Value!.GetType()
+            .GetProperty("success")!.GetValue(((OkObjectResult)successful).Value)!);
+    }
+
+    /// <summary>Form revoke failures expose only the bounded alert contract.</summary>
+    [Fact]
+    public async Task RevokeFailureUsesBoundedAlert()
+    {
+        var invitationService = new Mock<IInvitationService>();
+        invitationService.Setup(service => service.RevokeAsync(It.IsAny<Guid>(), "manager", It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("sensitive persistence detail"));
+        var controller = BuildController(CreateDbContext(), "manager", Mock.Of<IGroupService>(),
+            invitationService.Object, new RecordingSseService());
+
+        await controller.RevokeInvite(Guid.NewGuid(), Guid.NewGuid());
+
+        Assert.Equal("Unable to revoke invitation.", controller.TempData["AlertMessage"]);
+        Assert.Equal("danger", controller.TempData["AlertType"]);
     }
 
     private static GroupsController BuildController(

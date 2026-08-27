@@ -9,6 +9,7 @@ test('shipped site initialization opens one protected authenticated stream', asy
         addEventListener() {},
         wayfarer: {}
     };
+    globalThis.wayfarer = globalThis.window.wayfarer;
     globalThis.document = {
         body: {},
         documentElement: { getAttribute: () => 'light', setAttribute() {} },

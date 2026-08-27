@@ -150,6 +150,24 @@ public class UserGroupsControllerTests : TestBase
     }
 
     [Fact]
+    public async Task RevokeInviteAjax_MutationFailureUsesBoundedResponse()
+    {
+        var db = CreateDbContext();
+        var owner = TestDataFixtures.CreateUser(id: "owner");
+        var invitee = TestDataFixtures.CreateUser(id: "invitee");
+        db.Users.AddRange(owner, invitee);
+        var group = await SeedGroupWithOwnerAsync(db, owner);
+        var invite = await new InvitationService(db).InviteUserAsync(group.Id, owner.Id, invitee.Id, null, null);
+        await new InvitationService(db).RevokeAsync(invite.Id, owner.Id);
+
+        var result = Assert.IsType<BadRequestObjectResult>(
+            await BuildController(db, owner, new FakeSseService()).RevokeInviteAjax(group.Id, invite.Id));
+        var message = Assert.IsType<string>(result.Value!.GetType().GetProperty("message")!.GetValue(result.Value));
+
+        Assert.Equal("Unable to revoke invitation.", message);
+    }
+
+    [Fact]
     public async Task Members_ForNonOwner_ReturnsForbid()
     {
         var db = CreateDbContext();

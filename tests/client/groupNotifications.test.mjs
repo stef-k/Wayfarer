@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createGroupNotificationRefresh, initializeGroupNotifications, reloadGroupNotificationState } from '../../wwwroot/js/groupNotifications.js';
+import { createGroupNotificationRefresh, reloadGroupNotificationState } from '../../wwwroot/js/groupNotifications.js';
 
 test('exact invitation and membership hints coalesce to one durable reload', () => {
     const timers = [];
@@ -37,21 +37,6 @@ test('connection uses only the protected server-owned URL', () => {
 
     assert.equal(url, '/api/sse/group-notifications');
     assert.equal(refresh.connected, true);
-});
-
-test('shipped authenticated initialization connects exactly once when EventSource is available', () => {
-    const urls = [];
-    const listeners = [];
-    const notifications = initializeGroupNotifications({
-        isAuthenticated: true,
-        EventSourceType: function FakeEventSource(url) { urls.push(url); return { close() {} }; },
-        addPagehideListener: callback => listeners.push(callback),
-        reload: () => {}
-    });
-
-    assert.deepEqual(urls, ['/api/sse/group-notifications']);
-    assert.equal(listeners.length, 1);
-    assert.equal(notifications.connected, true);
 });
 
 test('dispose closes listeners and cancels a pending callback', () => {
@@ -142,6 +127,9 @@ test('production reload callback stays inert when fetch resolves normally after 
     const completedFetch = Promise.withResolvers();
     const mutations = { dom: 0, storage: 0, alert: 0, event: 0 };
     let fetches = 0;
+    const unhandled = [];
+    const onUnhandled = reason => unhandled.push(reason);
+    process.on('unhandledRejection', onUnhandled);
     const dependencies = {
         fetch: (_url, { signal }) => {
             fetches++;
@@ -167,11 +155,29 @@ test('production reload callback stays inert when fetch resolves normally after 
     refresh.dispose();
     completedFetch.resolve({ ok: true, json: async () => [{ id: 'late' }] });
     await new Promise(resolve => setImmediate(resolve));
+    process.off('unhandledRejection', onUnhandled);
 
     assert.equal(signal.aborted, true);
     assert.equal(fetches, 1);
     assert.deepEqual(mutations, { dom: 0, storage: 0, alert: 0, event: 0 });
     assert.equal(timers.length, 0);
+    assert.deepEqual(unhandled, []);
+});
+
+test('production reload callback consumes native AbortError', async () => {
+    const controller = new AbortController();
+    const dependencies = {
+        fetch: () => Promise.reject(new DOMException('aborted', 'AbortError')),
+        updateInvitesBadge: () => assert.fail('must remain inert'),
+        checkPendingInvitesDiff: () => assert.fail('must remain inert'),
+        dispatchInvitationState: () => assert.fail('must remain inert'),
+        checkUserActivityDigest: () => assert.fail('must remain inert'),
+        checkJoinedGroups: () => assert.fail('must remain inert'),
+        updateManagerActivity: () => assert.fail('must remain inert')
+    };
+
+    await assert.doesNotReject(reloadGroupNotificationState(
+        new Set(['invitation-state']), controller.signal, dependencies));
 });
 
 test('unexpected synchronous reload failure is contained and disposal stays final', async () => {

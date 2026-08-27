@@ -239,18 +239,18 @@ public class GroupsController : BaseController
         if (actorId == null) return Unauthorized();
         try
         {
-            var isOwner = await _dbContext.GroupMembers.AsNoTracking()
-                .AnyAsync(m => m.GroupId == groupId && m.UserId == actorId! && m.Role == GroupMember.Roles.Owner && m.Status == GroupMember.MembershipStatuses.Active);
-            if (!isOwner) return StatusCode(403, new { success = false, message = "Forbidden" });
-
             var revocation = await _invitationService.RevokeAsync(inviteId, actorId);
             await _sse.BroadcastInvitationRevocationAsync(revocation.GroupId, revocation.InviteeUserId,
                 JsonSerializer.Serialize(GroupSseEventDto.InviteRevoked(inviteId)));
             return Ok(new { success = true, inviteId });
         }
-        catch (Exception ex)
+        catch (UnauthorizedAccessException)
         {
-            return BadRequest(new { success = false, message = ex.Message });
+            return StatusCode(403, new { success = false, message = "Forbidden" });
+        }
+        catch (Exception)
+        {
+            return BadRequest(new { success = false, message = "Unable to revoke invitation." });
         }
     }
 

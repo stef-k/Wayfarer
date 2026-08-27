@@ -3,26 +3,31 @@
  * Events are content-free hints; callers reload authenticated durable state.
  */
 export const reloadGroupNotificationState = async (types, signal, dependencies) => {
-    const reloads = [];
-    if (types.has('invitation-state')) {
-        reloads.push(dependencies.fetch('/api/invitations', { signal }).then(async response => {
+    try {
+        if (signal.aborted) return;
+        if (types.has('invitation-state')) {
+            const response = await dependencies.fetch('/api/invitations', { signal });
             if (signal.aborted || !response.ok) return;
             const invitations = await response.json();
             if (signal.aborted) return;
-            await Promise.all([
-                dependencies.updateInvitesBadge(invitations, signal),
-                dependencies.checkPendingInvitesDiff(invitations, signal)
-            ]);
-            if (!signal.aborted) dependencies.dispatchInvitationState(invitations);
-        }));
+            await dependencies.updateInvitesBadge(invitations, signal);
+            if (signal.aborted) return;
+            await dependencies.checkPendingInvitesDiff(invitations, signal);
+            if (signal.aborted) return;
+            dependencies.dispatchInvitationState(invitations);
+        }
+        if (signal.aborted) return;
+        if (types.has('membership-state')) {
+            await dependencies.checkUserActivityDigest(true, signal);
+            if (signal.aborted) return;
+            await dependencies.checkJoinedGroups(signal);
+            if (signal.aborted) return;
+            await dependencies.updateManagerActivity(signal);
+            if (signal.aborted) return;
+        }
+    } catch (error) {
+        if (error?.name === 'AbortError') return;
     }
-    if (types.has('membership-state')) {
-        reloads.push(
-            dependencies.checkUserActivityDigest(true, signal),
-            dependencies.checkJoinedGroups(signal),
-            dependencies.updateManagerActivity(signal));
-    }
-    await Promise.all(reloads);
 };
 
 export const createGroupNotificationRefresh = ({

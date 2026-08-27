@@ -194,9 +194,9 @@ namespace Wayfarer.Areas.Manager.Controllers;
         {
             return Forbid();
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            SetAlert(ex.Message, "danger");
+            SetAlert("Unable to revoke invitation.", "danger");
         }
         return RedirectToAction(nameof(Members), new { groupId });
     }
@@ -305,9 +305,9 @@ namespace Wayfarer.Areas.Manager.Controllers;
         {
             return StatusCode(403, new { success = false, message = "Forbidden" });
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            return BadRequest(new { success = false, message = ex.Message });
+            return BadRequest(new { success = false, message = "Unable to revoke invitation." });
         }
     }
 

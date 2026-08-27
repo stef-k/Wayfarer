@@ -236,26 +236,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     } catch { /* ignore */ }
 
-    // One protected stream supplies content-free hints; durable endpoints own presentation.
-    try {
-        if (isAuthenticated) {
-            const notifications = createGroupNotificationRefresh({
-                reload: (types, signal) => reloadGroupNotificationState(types, signal, {
-                    fetch,
-                    updateInvitesBadge,
-                    checkPendingInvitesDiff,
-                    dispatchInvitationState: invitations => document.dispatchEvent(
-                        new CustomEvent('wayfarer:invitation-state', { detail: invitations })),
-                    checkUserActivityDigest,
-                    checkJoinedGroups,
-                    updateManagerActivity
-                })
-            });
-            notifications.connect(globalThis.EventSource);
-            window.addEventListener('pagehide', () => notifications.dispose(), { once: true });
-        }
-    } catch { /* ignore SSE errors */ }
-
     // User offline check: server-driven activity digest (authenticated users only)
     // Session guard prevents showing same notifications multiple times per session
     const checkUserActivityDigest = async (forceReload = false, signal = null) => {
@@ -325,6 +305,26 @@ document.addEventListener('DOMContentLoaded', () => {
     };
     if (isAuthenticated) {
         checkJoinedGroups();
+    }
+
+    // One protected stream supplies content-free hints; durable endpoints own presentation.
+    if (isAuthenticated) {
+        const notifications = createGroupNotificationRefresh({
+            reload: (types, signal) => reloadGroupNotificationState(types, signal, {
+                fetch,
+                updateInvitesBadge,
+                checkPendingInvitesDiff,
+                dispatchInvitationState: invitations => {
+                    if (!signal.aborted) document.dispatchEvent(
+                        new CustomEvent('wayfarer:invitation-state', { detail: invitations }));
+                },
+                checkUserActivityDigest,
+                checkJoinedGroups,
+                updateManagerActivity
+            })
+        });
+        notifications.connect(globalThis.EventSource);
+        window.addEventListener('pagehide', () => notifications.dispose(), { once: true });
     }
 
     // Note: checkPendingInvitesDiff() is already called at line 170

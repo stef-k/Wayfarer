@@ -289,13 +289,14 @@ public class SseControllerTests
     }
 
     [Theory]
-    [InlineData("group-notifications")]
-    [InlineData("GROUP-NOTIFICATIONS")]
-    [InlineData("Group-Notifications-extra")]
-    public async Task Stream_RejectsProtectedGroupNotificationAliasesBeforeSubscription(string type)
+    [InlineData("group-notifications", false)]
+    [InlineData("GROUP-NOTIFICATIONS", true)]
+    [InlineData("Group-Notifications-extra", true)]
+    public async Task Stream_RejectsProtectedGroupNotificationAliasesBeforeSubscription(string type, bool authenticated)
     {
         using var db = CreateDb();
-        var controller = CreateController(db, Mock.Of<IGroupTimelineService>(), CreateUser("caller"));
+        var controller = CreateController(db, Mock.Of<IGroupTimelineService>(),
+            authenticated ? CreateUser("caller") : null);
 
         await controller.Stream(type, "victim", CancellationToken.None);
 
