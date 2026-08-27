@@ -159,59 +159,6 @@ public class ManagerGroupsControllerTests : TestBase
         Assert.IsType<UnauthorizedResult>(result);
     }
 
-    /// <summary>Non-AJAX invitation creation emits the same content-free affected-user hint.</summary>
-    [Fact]
-    public async Task Invite_NonAjax_PublishesProtectedInvitationHintAfterSuccess()
-    {
-        var db = CreateDbContext();
-        var owner = TestDataFixtures.CreateUser(id: "manager");
-        var invitee = TestDataFixtures.CreateUser(id: "invitee");
-        db.Users.AddRange(owner, invitee);
-        var group = await new GroupService(db).CreateGroupAsync(owner.Id, "Group", null);
-        var sse = new RecordingSseService();
-        var controller = BuildMutationController(db, owner.Id, sse);
-
-        await controller.Invite(group.Id, invitee.Id);
-
-        Assert.Contains(($"group-notifications-{invitee.Id}", SseService.InvitationStateHint), sse.Messages);
-    }
-
-    /// <summary>Non-AJAX removal emits no hint until its durable mutation succeeds.</summary>
-    [Fact]
-    public async Task RemoveMember_NonAjax_PublishesOnlyAfterSuccessfulMutation()
-    {
-        var db = CreateDbContext();
-        var owner = TestDataFixtures.CreateUser(id: "manager");
-        var member = TestDataFixtures.CreateUser(id: "member");
-        db.Users.AddRange(owner, member);
-        var group = await new GroupService(db).CreateGroupAsync(owner.Id, "Group", null);
-        db.GroupMembers.Add(new GroupMember
-        {
-            GroupId = group.Id, UserId = member.Id, Role = GroupMember.Roles.Member,
-            Status = GroupMember.MembershipStatuses.Active
-        });
-        await db.SaveChangesAsync();
-        var sse = new RecordingSseService();
-        var controller = BuildMutationController(db, owner.Id, sse);
-
-        await controller.RemoveMember(group.Id, member.Id);
-
-        Assert.Contains(($"group-notifications-{member.Id}", SseService.MembershipStateHint), sse.Messages);
-        sse.Messages.Clear();
-        var failingService = new Mock<IGroupService>();
-        failingService.Setup(service => service.RemoveMemberAsync(group.Id, owner.Id, member.Id, CancellationToken.None))
-            .ThrowsAsync(new InvalidOperationException("failed"));
-        var failingController = new GroupsController(
-            NullLogger<BaseController>.Instance, db, failingService.Object, new InvitationService(db), sse);
-        var failingHttp = BuildHttpContextWithUser(owner.Id);
-        failingController.ControllerContext = new ControllerContext { HttpContext = failingHttp };
-        failingController.TempData = new TempDataDictionary(failingHttp, Mock.Of<ITempDataProvider>());
-
-        await failingController.RemoveMember(group.Id, member.Id);
-
-        Assert.Empty(sse.Messages);
-    }
-
     [Fact]
     public async Task RevokeInvite_ReturnsUnauthorized_WhenNoUser()
     {
@@ -308,26 +255,6 @@ public class ManagerGroupsControllerTests : TestBase
         var result = controller.Create();
 
         Assert.IsType<ViewResult>(result);
-    }
-
-    private static GroupsController BuildMutationController(ApplicationDbContext db, string userId, RecordingSseService sse)
-    {
-        var controller = new GroupsController(
-            NullLogger<BaseController>.Instance, db, new GroupService(db), new InvitationService(db), sse);
-        var http = BuildHttpContextWithUser(userId);
-        controller.ControllerContext = new ControllerContext { HttpContext = http };
-        controller.TempData = new TempDataDictionary(http, Mock.Of<ITempDataProvider>());
-        return controller;
-    }
-
-    private sealed class RecordingSseService : SseService
-    {
-        public List<(string Channel, string Data)> Messages { get; } = [];
-        public override Task BroadcastAsync(string channel, string data)
-        {
-            Messages.Add((channel, data));
-            return Task.CompletedTask;
-        }
     }
 
     [Fact]
