@@ -124,6 +124,8 @@ public sealed class LocationImportDiagnosticPrivacyTests : TestBase
         var logger = new ThrowingFailureSinksLogger();
         var controller = BuildController(db, root.Path, logger, UserSentinel);
         string? stagedFile = null;
+        FileAttributes? originalFileAttributes = null;
+        UnixFileMode? originalDirectoryMode = null;
         var file = new Mock<IFormFile>();
         file.SetupGet(item => item.FileName).Returns(FileSentinel);
         file.SetupGet(item => item.Length).Returns(10);
@@ -132,7 +134,18 @@ public sealed class LocationImportDiagnosticPrivacyTests : TestBase
             {
                 stagedFile = Assert.IsType<FileStream>(stream).Name;
                 stream.Dispose();
-                File.SetAttributes(stagedFile, FileAttributes.ReadOnly);
+                if (OperatingSystem.IsWindows())
+                {
+                    originalFileAttributes = File.GetAttributes(stagedFile);
+                    File.SetAttributes(stagedFile, originalFileAttributes.Value | FileAttributes.ReadOnly);
+                }
+                else
+                {
+                    var directory = Path.GetDirectoryName(stagedFile)!;
+                    originalDirectoryMode = File.GetUnixFileMode(directory);
+                    File.SetUnixFileMode(directory, originalDirectoryMode.Value &
+                        ~(UnixFileMode.UserWrite | UnixFileMode.GroupWrite | UnixFileMode.OtherWrite));
+                }
             })
             .ThrowsAsync(new InvalidOperationException(ExceptionSentinel));
 
@@ -156,9 +169,12 @@ public sealed class LocationImportDiagnosticPrivacyTests : TestBase
         }
         finally
         {
+            if (!OperatingSystem.IsWindows() && originalDirectoryMode.HasValue && stagedFile is not null)
+                File.SetUnixFileMode(Path.GetDirectoryName(stagedFile)!, originalDirectoryMode.Value);
             if (stagedFile is not null && File.Exists(stagedFile))
             {
-                File.SetAttributes(stagedFile, FileAttributes.Normal);
+                if (originalFileAttributes.HasValue)
+                    File.SetAttributes(stagedFile, originalFileAttributes.Value);
                 File.Delete(stagedFile);
             }
         }
