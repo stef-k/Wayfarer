@@ -204,18 +204,22 @@ GET/POST /api/location/log-location?lat=37.123&lon=-122.456&token=YOUR_TOKEN
 
 Real-time streaming endpoints for live updates.
 
-### Legacy group notification streams
+### Web SSE endpoints
 
 | Endpoint | Description |
 |----------|-------------|
 | `/api/sse/stream/location-update/{userName}` | User location updates |
-| `/api/sse/stream/group-location-update/{groupId}` | Group location updates |
 | `/api/sse/stream/visits` | Visit start/end notifications |
-| `/api/sse/stream/invitation-update/{userId}` | Legacy invitation notifications selected by caller-supplied user ID |
-| `/api/sse/stream/membership-update/{userId}` | Legacy membership notifications selected by caller-supplied user ID |
 | `/api/sse/stream/job-status` | Background job status updates |
+| `/api/sse/group/{groupId}` | Authenticated, membership-authorized detailed group events |
+| `/api/sse/group-notifications` | Authenticated per-user invitation/membership reload hints |
 
-The legacy invitation and membership streams use the generic endpoint, which is not authenticated or authorized. They are group-notification compatibility channels, not import or enrichment channels. Their authorization boundary requires a separate security follow-up.
+`/api/sse/group-notifications` accepts no caller-selected identifier. It derives channel ownership from
+`NameIdentifier` and delivers only `{"type":"invitation-state"}` or `{"type":"membership-state"}`.
+Clients reload `GET /api/invitations`, `GET /api/users/activity?sinceHours=24`, and
+`GET /api/groups?scope=joined` for authorized presentation details. The generic route rejects legacy
+invitation and membership notification types case-insensitively. Public timeline, unrelated generic,
+group-specific, admin, and mobile streams retain their separate contracts.
 
 ### Protected import and enrichment stream
 

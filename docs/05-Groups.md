@@ -82,11 +82,16 @@ Once in a group, members can:
 
 ### SSE Channels
 
-Groups receive real-time updates through dedicated SSE channels:
+Authenticated group members receive detailed group-page updates through `/api/sse/group/{groupId}`:
 
 - **Location updates** — member position changes
 - **Membership changes** — members joining/leaving
 - **Visit notifications** — when members visit planned places
+
+Per-user invitation and membership notifications use `/api/sse/group-notifications`. Its exact
+`invitation-state` and `membership-state` payloads are content-free reload hints, not presentation data.
+Badges, invitation rows, group names, and recent join/leave/removal messages are derived only after
+reloading the authenticated invitation, activity, and joined-group endpoints.
 
 ---
 

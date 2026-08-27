@@ -19,6 +19,8 @@ public class SseController : Controller
 {
     private static readonly HashSet<string> ImportReloadHints =
         ["{\"type\":\"import-state\"}", "{\"type\":\"enrichment-state\"}"];
+    private static readonly HashSet<string> GroupNotificationReloadHints =
+        [SseService.InvitationStateHint, SseService.MembershipStateHint];
     private readonly SseService _sse;
     private readonly ApplicationDbContext _db;
     private readonly IGroupTimelineService _timelineService;
@@ -49,7 +51,11 @@ public class SseController : Controller
         if (type.Equals("import", StringComparison.OrdinalIgnoreCase)
             || type.StartsWith("import-", StringComparison.OrdinalIgnoreCase)
             || type.Equals("enrichment", StringComparison.OrdinalIgnoreCase)
-            || type.StartsWith("enrichment-", StringComparison.OrdinalIgnoreCase))
+            || type.StartsWith("enrichment-", StringComparison.OrdinalIgnoreCase)
+            || type.Equals("invitation-update", StringComparison.OrdinalIgnoreCase)
+            || type.StartsWith("invitation-update-", StringComparison.OrdinalIgnoreCase)
+            || type.Equals("membership-update", StringComparison.OrdinalIgnoreCase)
+            || type.StartsWith("membership-update-", StringComparison.OrdinalIgnoreCase))
         {
             Response.StatusCode = StatusCodes.Status404NotFound;
             return;
@@ -88,6 +94,18 @@ public class SseController : Controller
         if (string.IsNullOrWhiteSpace(userId)) return Unauthorized();
         await _sse.SubscribeAsync($"import-{userId}", Response, ct,
             deliveryFilter: data => ImportReloadHints.Contains(data));
+        return new EmptyResult();
+    }
+
+    /// <summary>Subscribes only to the authenticated caller's content-free group notification channel.</summary>
+    [Authorize]
+    [HttpGet("group-notifications")]
+    public async Task<IActionResult> SubscribeToGroupNotificationsAsync(CancellationToken ct)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrWhiteSpace(userId)) return Unauthorized();
+        await _sse.SubscribeAsync($"group-notifications-{userId}", Response, ct,
+            deliveryFilter: data => GroupNotificationReloadHints.Contains(data));
         return new EmptyResult();
     }
 

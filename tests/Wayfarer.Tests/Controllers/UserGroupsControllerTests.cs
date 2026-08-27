@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Wayfarer.Areas.User.Controllers;
 using Wayfarer.Models;
 using Wayfarer.Services;
+using Wayfarer.Parsers;
 using Wayfarer.Tests.Infrastructure;
 using Xunit;
 
@@ -32,7 +33,7 @@ public class UserGroupsControllerTests : TestBase
         var ok = Assert.IsType<OkObjectResult>(result);
         Assert.True((bool)ok.Value!.GetType().GetProperty("success")!.GetValue(ok.Value)!);
         Assert.Single(db.GroupInvitations);
-        Assert.NotEmpty(sse.Channels); // broadcast invoked
+        Assert.Contains(($"group-notifications-{invitee.Id}", SseService.InvitationStateHint), sse.Messages);
     }
 
     [Fact]
@@ -68,7 +69,8 @@ public class UserGroupsControllerTests : TestBase
             Status = GroupMember.MembershipStatuses.Active
         });
         await db.SaveChangesAsync();
-        var controller = BuildController(db, owner, new FakeSseService());
+        var sse = new FakeSseService();
+        var controller = BuildController(db, owner, sse);
 
         var result = await controller.RemoveMemberAjax(group.Id, member.Id);
 
@@ -76,6 +78,7 @@ public class UserGroupsControllerTests : TestBase
         Assert.True((bool)ok.Value!.GetType().GetProperty("success")!.GetValue(ok.Value)!);
         var membership = await db.GroupMembers.SingleAsync(m => m.UserId == member.Id && m.GroupId == group.Id);
         Assert.NotEqual(GroupMember.MembershipStatuses.Active, membership.Status);
+        Assert.Contains(($"group-notifications-{member.Id}", SseService.MembershipStateHint), sse.Messages);
     }
 
     [Fact]
@@ -154,10 +157,10 @@ public class UserGroupsControllerTests : TestBase
 
     private sealed class FakeSseService : Wayfarer.Parsers.SseService
     {
-        public List<string> Channels { get; } = new();
+        public List<(string Channel, string Data)> Messages { get; } = [];
         public override Task BroadcastAsync(string channel, string data)
         {
-            Channels.Add(channel);
+            Messages.Add((channel, data));
             return Task.CompletedTask;
         }
     }

@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos;
 using Microsoft.Extensions.DependencyInjection;
+using Wayfarer.Parsers;
 using Wayfarer.Services;
 
 namespace Wayfarer.Areas.Manager.Controllers;
@@ -134,7 +135,9 @@ namespace Wayfarer.Areas.Manager.Controllers;
                 SetAlert("Please select a user to invite.", "danger");
                 return RedirectToAction(nameof(Members), new { groupId });
             }
-            await _invitationService.InviteUserAsync(groupId, userId, inviteeUserId, null, null);
+            var invitation = await _invitationService.InviteUserAsync(groupId, userId, inviteeUserId, null, null);
+            if (!string.IsNullOrEmpty(invitation.InviteeUserId))
+                await _sse.BroadcastGroupNotificationAsync(invitation.InviteeUserId, SseService.InvitationStateHint);
             SetAlert("Invitation sent.");
         }
         catch (UnauthorizedAccessException)
@@ -157,6 +160,7 @@ namespace Wayfarer.Areas.Manager.Controllers;
         try
         {
             await _groupService.RemoveMemberAsync(groupId, actorId, userId);
+            await _sse.BroadcastGroupNotificationAsync(userId, SseService.MembershipStateHint);
             SetAlert("Member removed.");
         }
         catch (UnauthorizedAccessException)
@@ -240,12 +244,9 @@ namespace Wayfarer.Areas.Manager.Controllers;
         try
         {
             var inv = await _invitationService.InviteUserAsync(groupId, actorId, inviteeUserId, null, null);
-            // SSE: notify invitee (if known) and managers; include group name
-            var group = await _dbContext.Groups.AsNoTracking().FirstOrDefaultAsync(g => g.Id == groupId);
-            var gname = group?.Name;
             if (!string.IsNullOrEmpty(inv.InviteeUserId))
             {
-                await _sse.BroadcastAsync($"invitation-update-{inv.InviteeUserId}", System.Text.Json.JsonSerializer.Serialize(new { action = "created", id = inv.Id, groupId = groupId, groupName = gname }));
+                await _sse.BroadcastGroupNotificationAsync(inv.InviteeUserId, SseService.InvitationStateHint);
             }
             await _sse.BroadcastAsync($"group-{groupId}", JsonSerializer.Serialize(GroupSseEventDto.InviteCreated(inv.Id)));
             return Ok(new { success = true, invite = new { id = inv.Id, inviteeUserId = inv.InviteeUserId, createdAt = inv.CreatedAt } });
@@ -270,9 +271,7 @@ namespace Wayfarer.Areas.Manager.Controllers;
         {
             await _groupService.RemoveMemberAsync(groupId, actorId, userId);
             await _sse.BroadcastAsync($"group-{groupId}", JsonSerializer.Serialize(GroupSseEventDto.MemberRemoved(userId)));
-            var group = await _dbContext.Groups.AsNoTracking().FirstOrDefaultAsync(g => g.Id == groupId);
-            var gname = group?.Name;
-            await _sse.BroadcastAsync($"membership-update-{userId}", System.Text.Json.JsonSerializer.Serialize(new { action = "removed", groupId, groupName = gname }));
+            await _sse.BroadcastGroupNotificationAsync(userId, SseService.MembershipStateHint);
             return Ok(new { success = true, userId });
         }
         catch (UnauthorizedAccessException)

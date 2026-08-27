@@ -1,3 +1,5 @@
+import { createGroupNotificationRefresh } from './groupNotifications.js';
+
 window.wayfarer = window.wayfarer || {};
 
 function hideAlert() {
@@ -230,47 +232,30 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     } catch { /* ignore */ }
 
-    // Optional SSE to refresh badge in real-time
-    // Skip invitation SSE on Invitations page (it has its own handler to avoid duplicates)
-    const isInvitationsPage = location.pathname.toLowerCase().includes('/user/invitations');
+    // One protected stream supplies content-free hints; durable endpoints own presentation.
     try {
-        if (window.__currentUserId && typeof EventSource !== 'undefined') {
-            // Invitations channel: alert on every new invite (skip on Invitations page)
-            if (!isInvitationsPage) {
-                const esInv = new EventSource(`/api/sse/stream/invitation-update/${window.__currentUserId}`);
-                esInv.onmessage = (evt) => {
+        if (isAuthenticated) {
+            const notifications = createGroupNotificationRefresh({ reload: types => {
+                if (types.has('invitation-state')) {
                     updateInvitesBadge();
-                    let g = '';
-                    try { const d = evt && evt.data ? JSON.parse(evt.data) : null; if (d && d.groupName) g = ` for ${d.groupName}`; } catch {}
-                    if (typeof showAlert === 'function') showAlert('info', `You received a new invitation${g}. Open User → Invitations.`);
-                };
-            }
-
-            // Membership channel: removal/left/joined alerts
-            const esMem = new EventSource(`/api/sse/stream/membership-update/${window.__currentUserId}`);
-            esMem.onmessage = (evt) => {
-                try {
-                    const data = evt && evt.data ? JSON.parse(evt.data) : null;
-                    if (!data || !data.action) return;
-                    if (data.action === 'removed') {
-                        const g = data.groupName ? ` ${data.groupName}` : '';
-                        if (typeof showAlert === 'function') showAlert('warning', `You were removed from group${g}.`);
-                    } else if (data.action === 'left') {
-                        const g = data.groupName ? ` ${data.groupName}` : '';
-                        if (typeof showAlert === 'function') showAlert('secondary', `You left group${g}.`);
-                    } else if (data.action === 'joined') {
-                        const g = data.groupName ? ` ${data.groupName}` : '';
-                        if (typeof showAlert === 'function') showAlert('success', `You joined group${g}.`);
-                    }
-                } catch { /* ignore parse errors */ }
-            };
+                    checkPendingInvitesDiff();
+                    document.dispatchEvent(new CustomEvent('wayfarer:invitation-state'));
+                }
+                if (types.has('membership-state')) {
+                    checkUserActivityDigest(true);
+                    checkJoinedGroups();
+                    updateManagerActivity();
+                }
+            }});
+            notifications.connect(globalThis.EventSource);
+            window.addEventListener('pagehide', () => notifications.dispose(), { once: true });
         }
     } catch { /* ignore SSE errors */ }
 
     // User offline check: server-driven activity digest (authenticated users only)
     // Session guard prevents showing same notifications multiple times per session
-    const checkUserActivityDigest = async () => {
-        if (!isAuthenticated || sessionStorage.getItem('user.activity.notified') === '1') return;
+    const checkUserActivityDigest = async (forceReload = false) => {
+        if (!isAuthenticated || (!forceReload && sessionStorage.getItem('user.activity.notified') === '1')) return;
         try {
             const lastSeenRaw = localStorage.getItem('user.activity.lastSeenAt');
             const lastSeen = lastSeenRaw ? new Date(lastSeenRaw) : null;

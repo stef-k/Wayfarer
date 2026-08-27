@@ -4,6 +4,7 @@ using System.IO;
 using System.Reflection;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -297,6 +298,17 @@ public class SseControllerTests
         var result = await controller.SubscribeToGroupNotificationsAsync(CancellationToken.None);
 
         Assert.IsType<UnauthorizedResult>(result);
+    }
+
+    /// <summary>The route is authenticated and exposes no caller-selected authority parameter.</summary>
+    [Fact]
+    public void GroupNotificationStreamRouteRequiresAuthenticationAndOnlyCancellation()
+    {
+        var method = typeof(SseController).GetMethod(nameof(SseController.SubscribeToGroupNotificationsAsync))!;
+
+        Assert.NotNull(method.GetCustomAttribute<AuthorizeAttribute>());
+        Assert.Equal("group-notifications", method.GetCustomAttribute<HttpGetAttribute>()!.Template);
+        Assert.Collection(method.GetParameters(), parameter => Assert.Equal(typeof(CancellationToken), parameter.ParameterType));
     }
 
     /// <summary>The protected stream derives its channel and accepts only exact reload hints.</summary>

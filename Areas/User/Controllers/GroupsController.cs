@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos;
 using Microsoft.Extensions.DependencyInjection;
+using Wayfarer.Parsers;
 using Wayfarer.Services;
 
 namespace Wayfarer.Areas.User.Controllers;
@@ -181,11 +182,9 @@ public class GroupsController : BaseController
         try
         {
             var inv = await _invitationService.InviteUserAsync(groupId, actorId, inviteeUserId, null, null);
-            var group = await _dbContext.Groups.AsNoTracking().FirstOrDefaultAsync(g => g.Id == groupId);
-            var gname = group?.Name;
             if (!string.IsNullOrEmpty(inv.InviteeUserId))
             {
-                await _sse.BroadcastAsync($"invitation-update-{inv.InviteeUserId}", System.Text.Json.JsonSerializer.Serialize(new { action = "created", id = inv.Id, groupId = groupId, groupName = gname }));
+                await _sse.BroadcastGroupNotificationAsync(inv.InviteeUserId, SseService.InvitationStateHint);
             }
             await _sse.BroadcastAsync($"group-{groupId}", JsonSerializer.Serialize(GroupSseEventDto.InviteCreated(inv.Id)));
             return Ok(new { success = true, invite = new { id = inv.Id, inviteeUserId = inv.InviteeUserId, createdAt = inv.CreatedAt } });
@@ -223,9 +222,7 @@ public class GroupsController : BaseController
 
             await _groupService.RemoveMemberAsync(groupId, actorId!, userIdNonNull);
             await _sse.BroadcastAsync($"group-{groupId}", JsonSerializer.Serialize(GroupSseEventDto.MemberRemoved(userIdNonNull)));
-            var group = await _dbContext.Groups.AsNoTracking().FirstOrDefaultAsync(g => g.Id == groupId);
-            var gname = group?.Name;
-            await _sse.BroadcastAsync($"membership-update-{userIdNonNull}", System.Text.Json.JsonSerializer.Serialize(new { action = "removed", groupId, groupName = gname }));
+            await _sse.BroadcastGroupNotificationAsync(userIdNonNull, SseService.MembershipStateHint);
             return Ok(new { success = true, userId = userIdNonNull });
         }
         catch (Exception ex)
