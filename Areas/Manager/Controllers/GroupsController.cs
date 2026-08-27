@@ -186,7 +186,15 @@ namespace Wayfarer.Areas.Manager.Controllers;
         if (actorId == null) return Unauthorized();
         try
         {
+            var inviteeUserId = await _dbContext.GroupInvitations.AsNoTracking()
+                .Where(invitation => invitation.Id == inviteId)
+                .Select(invitation => invitation.InviteeUserId)
+                .SingleOrDefaultAsync();
             await _invitationService.RevokeAsync(inviteId, actorId);
+            if (!string.IsNullOrEmpty(inviteeUserId))
+            {
+                await _sse.BroadcastGroupNotificationAsync(inviteeUserId, SseService.InvitationStateHint);
+            }
             SetAlert("Invitation revoked.");
         }
         catch (UnauthorizedAccessException)
@@ -296,7 +304,15 @@ namespace Wayfarer.Areas.Manager.Controllers;
         if (actorId == null) return Unauthorized();
         try
         {
+            var inviteeUserId = await _dbContext.GroupInvitations.AsNoTracking()
+                .Where(invitation => invitation.Id == inviteId)
+                .Select(invitation => invitation.InviteeUserId)
+                .SingleOrDefaultAsync();
             await _invitationService.RevokeAsync(inviteId, actorId);
+            if (!string.IsNullOrEmpty(inviteeUserId))
+            {
+                await _sse.BroadcastGroupNotificationAsync(inviteeUserId, SseService.InvitationStateHint);
+            }
             // Consolidated group channel
             await _sse.BroadcastAsync($"group-{groupId}", JsonSerializer.Serialize(GroupSseEventDto.InviteRevoked(inviteId)));
             return Ok(new { success = true, inviteId });

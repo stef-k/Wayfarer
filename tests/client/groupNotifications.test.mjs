@@ -94,16 +94,16 @@ test('a burst during an in-flight reload queues one non-overlapping follow-up', 
 test('dispose aborts an active reload and prevents all later mutation', async () => {
     const timers = [];
     let release;
-    let mutations = 0;
-    let subsequentReloads = 0;
+    const mutations = { badge: 0, storage: 0, alert: 0, event: 0 };
     const entered = Promise.withResolvers();
+    const completed = Promise.withResolvers();
     const refresh = createGroupNotificationRefresh({
         schedule: callback => { timers.push(callback); return timers.length; },
         reload: async (_types, signal) => {
             entered.resolve();
             await new Promise(resolve => { release = resolve; });
-            if (signal.aborted) return;
-            mutations++;
+            if (!signal.aborted) Object.keys(mutations).forEach(key => mutations[key]++);
+            completed.resolve();
         }
     });
 
@@ -114,10 +114,9 @@ test('dispose aborts an active reload and prevents all later mutation', async ()
 
     refresh.dispose();
     release();
+    await completed.promise;
     await Promise.resolve();
-    await Promise.resolve();
-    subsequentReloads = timers.length;
 
-    assert.equal(mutations, 0);
-    assert.equal(subsequentReloads, 0);
+    assert.deepEqual(mutations, { badge: 0, storage: 0, alert: 0, event: 0 });
+    assert.equal(timers.length, 0);
 });

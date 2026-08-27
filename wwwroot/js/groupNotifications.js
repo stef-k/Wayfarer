@@ -10,6 +10,7 @@ export const createGroupNotificationRefresh = ({
     let source = null;
     let pending = null;
     let inFlight = null;
+    let activeReload = null;
     let disposed = false;
     const types = new Set();
 
@@ -32,7 +33,10 @@ export const createGroupNotificationRefresh = ({
             if (disposed) return;
             const acceptedTypes = new Set(types);
             types.clear();
-            inFlight = Promise.resolve(reload(acceptedTypes)).finally(() => {
+            const controller = new AbortController();
+            activeReload = controller;
+            inFlight = Promise.resolve(reload(acceptedTypes, controller.signal)).finally(() => {
+                if (activeReload === controller) activeReload = null;
                 inFlight = null;
                 if (!disposed && types.size > 0) queueReload();
             });
@@ -52,6 +56,8 @@ export const createGroupNotificationRefresh = ({
         if (pending !== null) cancel(pending);
         pending = null;
         types.clear();
+        activeReload?.abort();
+        activeReload = null;
         if (source) {
             source.onmessage = null;
             source.onerror = null;

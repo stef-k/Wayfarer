@@ -243,7 +243,15 @@ public class GroupsController : BaseController
                 .AnyAsync(m => m.GroupId == groupId && m.UserId == actorId! && m.Role == GroupMember.Roles.Owner && m.Status == GroupMember.MembershipStatuses.Active);
             if (!isOwner) return StatusCode(403, new { success = false, message = "Forbidden" });
 
+            var inviteeUserId = await _dbContext.GroupInvitations.AsNoTracking()
+                .Where(invitation => invitation.Id == inviteId)
+                .Select(invitation => invitation.InviteeUserId)
+                .SingleOrDefaultAsync();
             await _invitationService.RevokeAsync(inviteId, actorId);
+            if (!string.IsNullOrEmpty(inviteeUserId))
+            {
+                await _sse.BroadcastGroupNotificationAsync(inviteeUserId, SseService.InvitationStateHint);
+            }
             // Consolidated group channel
             await _sse.BroadcastAsync($"group-{groupId}", JsonSerializer.Serialize(GroupSseEventDto.InviteRevoked(inviteId)));
             return Ok(new { success = true, inviteId });
