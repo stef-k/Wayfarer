@@ -86,7 +86,7 @@ public class StartupTests
         services.AddSingleton<IConfiguration>(configuration);
 
         // Add EF Core with in-memory database (avoids PostgreSQL dependency)
-        services.AddDbContext<ApplicationDbContext>(options =>
+        services.AddDbContextFactory<ApplicationDbContext>(options =>
             options.UseInMemoryDatabase("StartupTest"));
 
         // Add Identity

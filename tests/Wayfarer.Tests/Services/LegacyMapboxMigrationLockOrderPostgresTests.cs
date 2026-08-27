@@ -25,50 +25,69 @@ public sealed class LegacyMapboxMigrationLockOrderPostgresTests(PostgresImportTe
     {
         fixture.RequireAvailable();
         var user = await fixture.CreateUserAsync();
-        var protection = new EphemeralDataProtectionProvider();
-        await SeedAsync(user.Id);
-        var gate = new ReverseAcquisitionGate();
-        await using var migrationContext = fixture.CreateContext(new MigrationLockInterceptor(gate));
-        await using var settingsContext = fixture.CreateContext(new SettingsLockInterceptor(gate));
-        var migrationCredentials = new PersonalProviderCredentialService(protection);
-        var settingsCredentials = new PersonalProviderCredentialService(protection);
-        var migration = new LegacyMapboxMigrationService(migrationContext, migrationCredentials);
-        var controller = new LocationProviderSettingsController(
-            settingsContext, settingsCredentials, null!, null!)
+        Exception? primary = null;
+        try
         {
-            ControllerContext = new ControllerContext
+            var protection = new EphemeralDataProtectionProvider();
+            await SeedAsync(user.Id);
+            var gate = new ReverseAcquisitionGate();
+            await using var migrationContext = fixture.CreateContext(new MigrationLockInterceptor(gate));
+            await using var settingsContext = fixture.CreateContext(new SettingsLockInterceptor(gate));
+            var migrationCredentials = new PersonalProviderCredentialService(protection);
+            var settingsCredentials = new PersonalProviderCredentialService(protection);
+            var migration = new LegacyMapboxMigrationService(migrationContext, migrationCredentials);
+            var controller = new LocationProviderSettingsController(
+                settingsContext, settingsCredentials, null!, null!)
             {
-                HttpContext = new DefaultHttpContext
+                ControllerContext = new ControllerContext
                 {
-                    User = new ClaimsPrincipal(new ClaimsIdentity(
-                        [new Claim(ClaimTypes.NameIdentifier, user.Id)], "test"))
+                    HttpContext = new DefaultHttpContext
+                    {
+                        User = new ClaimsPrincipal(new ClaimsIdentity(
+                            [new Claim(ClaimTypes.NameIdentifier, user.Id)], "test"))
+                    }
                 }
+            };
+
+            var migrate = migration.MigrateAsync(user.Id);
+            var save = controller.SaveProfile(new LocationProviderProfileInput
+            {
+                ProviderKey = "mapbox",
+                ReplacementCredential = "settings-mapbox-key",
+                GeocodingAuthorized = true
+            }, default);
+            await Task.WhenAll(migrate, save).WaitAsync(TimeSpan.FromSeconds(10));
+            var migrationResult = await migrate;
+
+            await using var verify = fixture.CreateContext();
+            var profile = await verify.PersonalLocationProviderProfiles.SingleAsync(
+                item => item.UserId == user.Id && item.ProviderKey == "mapbox");
+            var legacy = await verify.ApiTokens.IgnoreQueryFilters().Where(item => item.UserId == user.Id).ToListAsync();
+            Assert.Equal("settings-mapbox-key", settingsCredentials.Read(profile).Credential);
+            if (migrationResult.State == LegacyMapboxMigrationState.Migrated)
+                Assert.Empty(legacy);
+            else
+            {
+                Assert.Equal(LegacyMapboxMigrationState.Conflict, migrationResult.State);
+                Assert.Equal("legacy-mapbox-key", Assert.Single(legacy).Token);
             }
-        };
-
-        var migrate = migration.MigrateAsync(user.Id);
-        var save = controller.SaveProfile(new LocationProviderProfileInput
-        {
-            ProviderKey = "mapbox",
-            ReplacementCredential = "settings-mapbox-key",
-            GeocodingAuthorized = true
-        }, default);
-        await Task.WhenAll(migrate, save).WaitAsync(TimeSpan.FromSeconds(10));
-        var migrationResult = await migrate;
-
-        await using var verify = fixture.CreateContext();
-        var profile = await verify.PersonalLocationProviderProfiles.SingleAsync(
-            item => item.UserId == user.Id && item.ProviderKey == "mapbox");
-        var legacy = await verify.ApiTokens.IgnoreQueryFilters().Where(item => item.UserId == user.Id).ToListAsync();
-        Assert.Equal("settings-mapbox-key", settingsCredentials.Read(profile).Credential);
-        if (migrationResult.State == LegacyMapboxMigrationState.Migrated)
-            Assert.Empty(legacy);
-        else
-        {
-            Assert.Equal(LegacyMapboxMigrationState.Conflict, migrationResult.State);
-            Assert.Equal("legacy-mapbox-key", Assert.Single(legacy).Token);
+            Assert.NotNull(await verify.PersonalLocationProviderSelections.SingleOrDefaultAsync(item => item.UserId == user.Id));
         }
-        Assert.NotNull(await verify.PersonalLocationProviderSelections.SingleOrDefaultAsync(item => item.UserId == user.Id));
+        catch (Exception exception)
+        {
+            primary = exception;
+        }
+        finally
+        {
+            await FailureIndependentCleanup.CompleteAsync(primary,
+            [
+                ("relational fixture cleanup", async () =>
+                {
+                    await using var cleanup = fixture.CreateContext();
+                    await cleanup.Users.Where(item => item.Id == user.Id).ExecuteDeleteAsync();
+                })
+            ]);
+        }
     }
 
     private async Task SeedAsync(string userId)
