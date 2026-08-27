@@ -287,6 +287,47 @@ public class SseControllerTests
         Assert.DoesNotContain("private", payload, StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>Missing claim identity cannot own a protected notification channel.</summary>
+    [Fact]
+    public async Task GroupNotificationStreamWithoutAuthenticatedIdentityIsUnauthorized()
+    {
+        using var db = CreateDb();
+        var controller = CreateController(db, Mock.Of<IGroupTimelineService>());
+
+        var result = await controller.SubscribeToGroupNotificationsAsync(CancellationToken.None);
+
+        Assert.IsType<UnauthorizedResult>(result);
+    }
+
+    /// <summary>The protected stream derives its channel and accepts only exact reload hints.</summary>
+    [Fact(Timeout = 10_000)]
+    public async Task GroupNotificationStreamDeliversOnlySameUserExactContentFreeEvents()
+    {
+        using var db = CreateDb();
+        var sse = new SseService();
+        var controller = CreateController(db, Mock.Of<IGroupTimelineService>(), CreateUser("owner"), sse);
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var subscription = controller.SubscribeToGroupNotificationsAsync(cts.Token);
+        while (!controller.Response.Headers.ContainsKey("Content-Type"))
+            await Task.Yield();
+
+        await sse.BroadcastAsync("group-notifications-other", "{\"type\":\"invitation-state\"}");
+        await sse.BroadcastAsync("group-notifications-owner", "{\"type\":\"invitation-state\",\"groupId\":\"private\"}");
+        await sse.BroadcastAsync("group-notifications-owner", "{\"type\":\"unrelated\"}");
+        Assert.Empty(((MemoryStream)controller.Response.Body).ToArray());
+        await sse.BroadcastAsync("group-notifications-owner", "{\"type\":\"invitation-state\"}");
+        await sse.BroadcastAsync("group-notifications-owner", "{\"type\":\"membership-state\"}");
+        cts.Cancel();
+        await subscription;
+
+        var payload = System.Text.Encoding.UTF8.GetString(((MemoryStream)controller.Response.Body).ToArray());
+        Assert.Contains("{\"type\":\"invitation-state\"}", payload, StringComparison.Ordinal);
+        Assert.Contains("{\"type\":\"membership-state\"}", payload, StringComparison.Ordinal);
+        Assert.DoesNotContain("other", payload, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("private", payload, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("unrelated", payload, StringComparison.OrdinalIgnoreCase);
+    }
+
     [Fact]
     public async Task LegacyCallerSelectedImportChannelIsRejected()
     {
@@ -303,6 +344,10 @@ public class SseControllerTests
     [InlineData("import-other")]
     [InlineData("enrichment")]
     [InlineData("enrichment-other")]
+    [InlineData("invitation-update")]
+    [InlineData("Invitation-Update-other")]
+    [InlineData("membership-update")]
+    [InlineData("MEMBERSHIP-UPDATE-other")]
     public async Task LegacyGenericRouteRejectsEverySensitiveChannelPrefix(string type)
     {
         using var db = CreateDb();
