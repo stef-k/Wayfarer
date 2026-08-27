@@ -261,11 +261,11 @@ public class InvitationService : IInvitationService
     /// <param name="invitationId">The invitation ID to revoke.</param>
     /// <param name="actorUserId">The user revoking the invitation (must be Owner or Manager).</param>
     /// <param name="ct">Cancellation token.</param>
-    /// <returns>The affected invitee's authoritative user ID after the revocation commits.</returns>
+    /// <returns>The authoritative group and optional invitee identities after the revocation commits.</returns>
     /// <exception cref="KeyNotFoundException">Thrown when invitation is not found.</exception>
     /// <exception cref="InvalidOperationException">Thrown when invitation is not pending.</exception>
     /// <exception cref="UnauthorizedAccessException">Thrown when the actor lacks required permissions.</exception>
-    public async Task<string> RevokeAsync(Guid invitationId, string actorUserId, CancellationToken ct = default)
+    public async Task<InvitationRevocation> RevokeAsync(Guid invitationId, string actorUserId, CancellationToken ct = default)
     {
         await using var transaction = await _db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, ct);
 
@@ -284,7 +284,7 @@ public class InvitationService : IInvitationService
             await AddAuditAsync(actorUserId, "InviteRevoke", $"Revoked invite {inv.Id}", ct);
             await _db.SaveChangesAsync(ct);
             await transaction.CommitAsync(ct);
-            return inv.InviteeUserId!;
+            return new InvitationRevocation(inv.GroupId, inv.InviteeUserId);
         }
         catch (Exception)
         {

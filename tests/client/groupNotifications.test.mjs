@@ -158,3 +158,18 @@ test('production reload callback consumes native abort without mutations or anot
     assert.deepEqual(mutations, { dom: 0, storage: 0, alert: 0, event: 0 });
     assert.equal(timers.length, 0);
 });
+
+test('unexpected synchronous reload failure is contained and disposal stays final', async () => {
+    const timers = [];
+    const refresh = createGroupNotificationRefresh({
+        schedule: callback => { timers.push(callback); return timers.length; },
+        reload: () => { throw new Error('unexpected reload failure'); }
+    });
+
+    refresh.accept({ data: '{"type":"membership-state"}' });
+    timers.shift()();
+    refresh.dispose();
+    await new Promise(resolve => setImmediate(resolve));
+
+    assert.equal(timers.length, 0);
+});

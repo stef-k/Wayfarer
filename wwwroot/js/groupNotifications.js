@@ -2,6 +2,29 @@
  * Owns the single protected per-user group-notification stream for a page.
  * Events are content-free hints; callers reload authenticated durable state.
  */
+export const reloadGroupNotificationState = async (types, signal, dependencies) => {
+    const reloads = [];
+    if (types.has('invitation-state')) {
+        reloads.push(dependencies.fetch('/api/invitations', { signal }).then(async response => {
+            if (signal.aborted || !response.ok) return;
+            const invitations = await response.json();
+            if (signal.aborted) return;
+            await Promise.all([
+                dependencies.updateInvitesBadge(invitations, signal),
+                dependencies.checkPendingInvitesDiff(invitations, signal)
+            ]);
+            if (!signal.aborted) dependencies.dispatchInvitationState(invitations);
+        }));
+    }
+    if (types.has('membership-state')) {
+        reloads.push(
+            dependencies.checkUserActivityDigest(true, signal),
+            dependencies.checkJoinedGroups(signal),
+            dependencies.updateManagerActivity(signal));
+    }
+    await Promise.all(reloads);
+};
+
 export const createGroupNotificationRefresh = ({
     schedule = callback => setTimeout(callback, 100),
     cancel = handle => clearTimeout(handle),
@@ -35,7 +58,7 @@ export const createGroupNotificationRefresh = ({
             types.clear();
             const controller = new AbortController();
             activeReload = controller;
-            inFlight = Promise.resolve(reload(acceptedTypes, controller.signal)).finally(() => {
+            inFlight = Promise.resolve().then(() => reload(acceptedTypes, controller.signal)).catch(() => {}).finally(() => {
                 if (activeReload === controller) activeReload = null;
                 inFlight = null;
                 if (!disposed && types.size > 0) queueReload();

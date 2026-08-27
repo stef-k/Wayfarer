@@ -94,6 +94,8 @@ public class ManagerGroupsAjaxControllerTests : TestBase
         var db = CreateDbContext();
         var groupService = new Mock<IGroupService>();
         var inviteService = new Mock<IInvitationService>();
+        inviteService.Setup(service => service.RevokeAsync(inviteId, "manager-ajax", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new InvitationRevocation(groupId, null));
         var controller = BuildController(db, groupService, inviteService);
 
         var result = await controller.RevokeInviteAjax(groupId, inviteId);

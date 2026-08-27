@@ -186,7 +186,8 @@ namespace Wayfarer.Areas.Manager.Controllers;
         if (actorId == null) return Unauthorized();
         try
         {
-            await _sse.BroadcastGroupNotificationAsync(await _invitationService.RevokeAsync(inviteId, actorId), SseService.InvitationStateHint);
+            var revocation = await _invitationService.RevokeAsync(inviteId, actorId);
+            await PublishRevocationAsync(revocation, inviteId);
             SetAlert("Invitation revoked.");
         }
         catch (UnauthorizedAccessException)
@@ -296,9 +297,8 @@ namespace Wayfarer.Areas.Manager.Controllers;
         if (actorId == null) return Unauthorized();
         try
         {
-            await _sse.BroadcastGroupNotificationAsync(await _invitationService.RevokeAsync(inviteId, actorId), SseService.InvitationStateHint);
-            // Consolidated group channel
-            await _sse.BroadcastAsync($"group-{groupId}", JsonSerializer.Serialize(GroupSseEventDto.InviteRevoked(inviteId)));
+            var revocation = await _invitationService.RevokeAsync(inviteId, actorId);
+            await PublishRevocationAsync(revocation, inviteId);
             return Ok(new { success = true, inviteId });
         }
         catch (UnauthorizedAccessException)
@@ -308,6 +308,30 @@ namespace Wayfarer.Areas.Manager.Controllers;
         catch (Exception ex)
         {
             return BadRequest(new { success = false, message = ex.Message });
+        }
+    }
+
+    /// <summary>Best-effort presentation hints use only identities returned after durable revocation.</summary>
+    private async Task PublishRevocationAsync(InvitationRevocation revocation, Guid invitationId)
+    {
+        try
+        {
+            await _sse.BroadcastAsync($"group-{revocation.GroupId}",
+                JsonSerializer.Serialize(GroupSseEventDto.InviteRevoked(invitationId)));
+        }
+        catch
+        {
+            _logger.LogWarning("Group invitation revoke notification failed (code: revoke-group-publish).");
+        }
+
+        if (string.IsNullOrEmpty(revocation.InviteeUserId)) return;
+        try
+        {
+            await _sse.BroadcastGroupNotificationAsync(revocation.InviteeUserId, SseService.InvitationStateHint);
+        }
+        catch
+        {
+            _logger.LogWarning("Group invitation revoke notification failed (code: revoke-private-publish).");
         }
     }
 

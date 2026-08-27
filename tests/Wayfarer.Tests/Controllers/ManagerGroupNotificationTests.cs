@@ -83,6 +83,7 @@ public sealed class ManagerGroupNotificationTests : TestBase
 
         var notification = Assert.Single(sse.Messages, message => message.Channel.StartsWith("group-notifications-"));
         Assert.Equal(($"group-notifications-{invitee.Id}", SseService.InvitationStateHint), notification);
+        Assert.Contains(sse.Messages, message => message.Channel == $"group-{group.Id}");
     }
 
     /// <summary>Revoke routes only from durable invitation authority and skips email-only private hints.</summary>

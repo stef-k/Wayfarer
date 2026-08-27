@@ -89,18 +89,21 @@ public class UserGroupsControllerTests : TestBase
         var invitee = TestDataFixtures.CreateUser(id: "invitee");
         db.Users.AddRange(owner, invitee);
         var group = await SeedGroupWithOwnerAsync(db, owner);
+        var callerGroup = await SeedGroupWithOwnerAsync(db, owner);
         var invService = new InvitationService(db);
         var invite = await invService.InviteUserAsync(group.Id, owner.Id, invitee.Id, null, null);
         var sse = new FakeSseService();
         var controller = BuildController(db, owner, sse);
 
-        var result = await controller.RevokeInviteAjax(group.Id, invite.Id);
+        var result = await controller.RevokeInviteAjax(callerGroup.Id, invite.Id);
 
         var ok = Assert.IsType<OkObjectResult>(result);
         Assert.True((bool)ok.Value!.GetType().GetProperty("success")!.GetValue(ok.Value)!);
         var pending = await db.GroupInvitations.SingleAsync(i => i.Id == invite.Id);
         Assert.Equal(GroupInvitation.InvitationStatuses.Revoked, pending.Status);
         Assert.Contains(($"group-notifications-{invitee.Id}", SseService.InvitationStateHint), sse.Messages);
+        Assert.Contains(sse.Messages, message => message.Channel == $"group-{group.Id}");
+        Assert.DoesNotContain(sse.Messages, message => message.Channel == $"group-{callerGroup.Id}");
     }
 
     [Fact]

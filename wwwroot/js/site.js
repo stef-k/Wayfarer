@@ -1,4 +1,4 @@
-import { createGroupNotificationRefresh } from './groupNotifications.js';
+import { createGroupNotificationRefresh, reloadGroupNotificationState } from './groupNotifications.js';
 
 window.wayfarer = window.wayfarer || {};
 
@@ -239,24 +239,18 @@ document.addEventListener('DOMContentLoaded', () => {
     // One protected stream supplies content-free hints; durable endpoints own presentation.
     try {
         if (isAuthenticated) {
-            const notifications = createGroupNotificationRefresh({ reload: async (types, signal) => {
-                const reloads = [];
-                if (types.has('invitation-state')) {
-                    reloads.push(fetch('/api/invitations', { signal }).then(async response => {
-                        if (signal.aborted || !response.ok) return;
-                        const invitations = await response.json();
-                        if (signal.aborted) return;
-                        await Promise.all([updateInvitesBadge(invitations, signal), checkPendingInvitesDiff(invitations, signal)]);
-                        if (signal.aborted) return;
-                        document.dispatchEvent(new CustomEvent('wayfarer:invitation-state', { detail: invitations }));
-                    }));
-                }
-                if (types.has('membership-state')) {
-                    reloads.push(checkUserActivityDigest(true, signal), checkJoinedGroups(signal), updateManagerActivity(signal));
-                }
-                await Promise.all(reloads);
-                if (signal.aborted) return;
-            }});
+            const notifications = createGroupNotificationRefresh({
+                reload: (types, signal) => reloadGroupNotificationState(types, signal, {
+                    fetch,
+                    updateInvitesBadge,
+                    checkPendingInvitesDiff,
+                    dispatchInvitationState: invitations => document.dispatchEvent(
+                        new CustomEvent('wayfarer:invitation-state', { detail: invitations })),
+                    checkUserActivityDigest,
+                    checkJoinedGroups,
+                    updateManagerActivity
+                })
+            });
             notifications.connect(globalThis.EventSource);
             window.addEventListener('pagehide', () => notifications.dispose(), { once: true });
         }
