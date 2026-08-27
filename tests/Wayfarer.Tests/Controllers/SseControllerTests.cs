@@ -288,6 +288,21 @@ public class SseControllerTests
         Assert.DoesNotContain("private", payload, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Theory]
+    [InlineData("group-notifications")]
+    [InlineData("GROUP-NOTIFICATIONS")]
+    [InlineData("Group-Notifications-extra")]
+    public async Task Stream_RejectsProtectedGroupNotificationAliasesBeforeSubscription(string type)
+    {
+        using var db = CreateDb();
+        var controller = CreateController(db, Mock.Of<IGroupTimelineService>(), CreateUser("caller"));
+
+        await controller.Stream(type, "victim", CancellationToken.None);
+
+        Assert.Equal(StatusCodes.Status404NotFound, controller.Response.StatusCode);
+        Assert.NotEqual("text/event-stream", controller.Response.ContentType);
+    }
+
     /// <summary>Missing claim identity cannot own a protected notification channel.</summary>
     [Fact]
     public async Task GroupNotificationStreamWithoutAuthenticatedIdentityIsUnauthorized()

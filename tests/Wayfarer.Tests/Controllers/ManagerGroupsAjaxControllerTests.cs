@@ -104,6 +104,21 @@ public class ManagerGroupsAjaxControllerTests : TestBase
         Assert.True((bool)ok.Value!.GetType().GetProperty("success")!.GetValue(ok.Value)!);
     }
 
+    [Fact]
+    public async Task RevokeInviteAjax_DoesNotExposeMutationExceptionMessage()
+    {
+        var inviteId = Guid.NewGuid();
+        var inviteService = new Mock<IInvitationService>();
+        inviteService.Setup(service => service.RevokeAsync(inviteId, "manager-ajax", It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("sensitive persistence detail"));
+        var controller = BuildController(CreateDbContext(), new Mock<IGroupService>(), inviteService);
+
+        var result = Assert.IsType<BadRequestObjectResult>(await controller.RevokeInviteAjax(Guid.NewGuid(), inviteId));
+        var message = Assert.IsType<string>(result.Value!.GetType().GetProperty("message")!.GetValue(result.Value));
+
+        Assert.Equal("Unable to revoke invitation.", message);
+    }
+
     private static GroupsController BuildController(ApplicationDbContext db, Mock<IGroupService> groupService,
         Mock<IInvitationService> inviteService, SseService? sse = null)
     {

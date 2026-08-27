@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createGroupNotificationRefresh, reloadGroupNotificationState } from '../../wwwroot/js/groupNotifications.js';
+import { createGroupNotificationRefresh, initializeGroupNotifications, reloadGroupNotificationState } from '../../wwwroot/js/groupNotifications.js';
 
 test('exact invitation and membership hints coalesce to one durable reload', () => {
     const timers = [];
@@ -37,6 +37,21 @@ test('connection uses only the protected server-owned URL', () => {
 
     assert.equal(url, '/api/sse/group-notifications');
     assert.equal(refresh.connected, true);
+});
+
+test('shipped authenticated initialization connects exactly once when EventSource is available', () => {
+    const urls = [];
+    const listeners = [];
+    const notifications = initializeGroupNotifications({
+        isAuthenticated: true,
+        EventSourceType: function FakeEventSource(url) { urls.push(url); return { close() {} }; },
+        addPagehideListener: callback => listeners.push(callback),
+        reload: () => {}
+    });
+
+    assert.deepEqual(urls, ['/api/sse/group-notifications']);
+    assert.equal(listeners.length, 1);
+    assert.equal(notifications.connected, true);
 });
 
 test('dispose closes listeners and cancels a pending callback', () => {
@@ -121,17 +136,17 @@ test('dispose aborts an active reload and prevents all later mutation', async ()
     assert.equal(timers.length, 0);
 });
 
-test('production reload callback consumes native abort without mutations or another reload', async () => {
+test('production reload callback stays inert when fetch resolves normally after disposal', async () => {
     const timers = [];
     const entered = Promise.withResolvers();
-    const rejected = Promise.withResolvers();
+    const completedFetch = Promise.withResolvers();
     const mutations = { dom: 0, storage: 0, alert: 0, event: 0 };
     let fetches = 0;
     const dependencies = {
         fetch: (_url, { signal }) => {
             fetches++;
             entered.resolve(signal);
-            return rejected.promise;
+            return completedFetch.promise;
         },
         updateInvitesBadge: () => mutations.dom++,
         checkPendingInvitesDiff: () => mutations.alert++,
@@ -150,7 +165,7 @@ test('production reload callback consumes native abort without mutations or anot
     const signal = await entered.promise;
     refresh.accept({ data: '{"type":"membership-state"}' });
     refresh.dispose();
-    rejected.reject(new DOMException('The operation was aborted.', 'AbortError'));
+    completedFetch.resolve({ ok: true, json: async () => [{ id: 'late' }] });
     await new Promise(resolve => setImmediate(resolve));
 
     assert.equal(signal.aborted, true);
