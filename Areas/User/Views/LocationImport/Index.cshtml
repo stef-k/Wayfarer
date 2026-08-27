@@ -182,6 +182,8 @@
             <dt class="col-sm-4">Provider</dt><dd class="col-sm-8">@enrichment.ProviderDisplayName</dd>
             <dt class="col-sm-4">Provider availability</dt><dd class="col-sm-8">@enrichment.ProviderAvailabilitySummary</dd>
             <dt class="col-sm-4">Wayfarer usage</dt><dd class="col-sm-8">@enrichment.ProviderUsage of @enrichment.ProviderLimit @enrichment.UsageUnit; @enrichment.UsageWindowDescription. Guard/meter @(enrichment.GuardEnabled ? "enabled" : "disabled").</dd>
+            @if (enrichment.ProviderNextAvailableAtUtc.HasValue)
+            { <dt class="col-sm-4">Provider capacity returns</dt><dd class="col-sm-8"><time datetime="@enrichment.ProviderNextAvailableAtUtc.Value.ToString("O")">@enrichment.ProviderNextAvailableAtUtc.Value.ToString("yyyy-MM-dd HH:mm 'UTC'")</time></dd> }
             <dt class="col-sm-4">Processed candidates</dt><dd class="col-sm-8">@enrichment.Processed</dd>
             <dt class="col-sm-4">Enriched</dt><dd class="col-sm-8">@enrichment.Enriched</dd>
             <dt class="col-sm-4">Skipped</dt><dd class="col-sm-8">@enrichment.Skipped</dd>
