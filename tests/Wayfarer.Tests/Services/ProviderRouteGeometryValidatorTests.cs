@@ -95,6 +95,21 @@ public sealed class ProviderRouteGeometryValidatorTests
         Assert.Equal(anchors, result.WaypointIndices!.Select(index => result.Geometry![index]).ToArray());
     }
 
+    /// <summary>Proves structural identity selects the provider leg boundary rather than an earlier equal coordinate.</summary>
+    [Fact]
+    public void Validate_StructuralWaypointIdentity_IgnoresEarlierEqualCoordinate()
+    {
+        RouteCoordinate[] anchors = [new(20, 10), new(21, 11), new(22, 12)];
+        RouteCoordinate[] geometry = [anchors[0], anchors[1], new(21.5, 11.5), anchors[1], anchors[2]];
+        var route = WithStructuralIndices(new OsrmRouteResult(true, geometry, anchors, null), [0, 3, 4]);
+
+        var result = _validator.Validate(anchors, route, CancellationToken.None);
+
+        Assert.True(result.Succeeded);
+        Assert.Equal([0, 3, 4], result.WaypointIndices);
+        Assert.Equal(anchors, result.WaypointIndices!.Select(index => result.Geometry![index]).ToArray());
+    }
+
     [Theory]
     [MemberData(nameof(MalformedStructuralIndices))]
     public void Validate_RejectsMalformedStructuralIndices(IReadOnlyList<int> indices)
