@@ -244,36 +244,13 @@ public class GroupsController : BaseController
             if (!isOwner) return StatusCode(403, new { success = false, message = "Forbidden" });
 
             var revocation = await _invitationService.RevokeAsync(inviteId, actorId);
-            await PublishRevocationAsync(revocation, inviteId);
+            await _sse.BroadcastInvitationRevocationAsync(revocation.GroupId, revocation.InviteeUserId,
+                JsonSerializer.Serialize(GroupSseEventDto.InviteRevoked(inviteId)));
             return Ok(new { success = true, inviteId });
         }
         catch (Exception ex)
         {
             return BadRequest(new { success = false, message = ex.Message });
-        }
-    }
-
-    /// <summary>Best-effort presentation hints use only identities returned after durable revocation.</summary>
-    private async Task PublishRevocationAsync(InvitationRevocation revocation, Guid invitationId)
-    {
-        try
-        {
-            await _sse.BroadcastAsync($"group-{revocation.GroupId}",
-                JsonSerializer.Serialize(GroupSseEventDto.InviteRevoked(invitationId)));
-        }
-        catch
-        {
-            _logger.LogWarning("Group invitation revoke notification failed (code: revoke-group-publish).");
-        }
-
-        if (string.IsNullOrEmpty(revocation.InviteeUserId)) return;
-        try
-        {
-            await _sse.BroadcastGroupNotificationAsync(revocation.InviteeUserId, SseService.InvitationStateHint);
-        }
-        catch
-        {
-            _logger.LogWarning("Group invitation revoke notification failed (code: revoke-private-publish).");
         }
     }
 

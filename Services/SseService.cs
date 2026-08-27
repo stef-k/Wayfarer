@@ -106,6 +106,29 @@ public class SseService
     public Task BroadcastGroupNotificationAsync(string userId, string hint) =>
         BroadcastAsync($"group-notifications-{userId}", hint);
 
+    /// <summary>Publishes independent best-effort group and optional private revocation hints.</summary>
+    public async Task BroadcastInvitationRevocationAsync(Guid groupId, string? inviteeUserId, string groupEvent)
+    {
+        try
+        {
+            await BroadcastAsync($"group-{groupId}", groupEvent);
+        }
+        catch
+        {
+            // Durable revocation remains authoritative when presentation transport fails.
+        }
+
+        if (string.IsNullOrEmpty(inviteeUserId)) return;
+        try
+        {
+            await BroadcastGroupNotificationAsync(inviteeUserId, InvitationStateHint);
+        }
+        catch
+        {
+            // Attempted independently so one transport cannot suppress the other.
+        }
+    }
+
     private sealed class ClientConnection : IDisposable
     {
         private readonly HttpResponse _response;
