@@ -58,7 +58,12 @@ export const createGroupNotificationRefresh = ({
             types.clear();
             const controller = new AbortController();
             activeReload = controller;
-            inFlight = Promise.resolve().then(() => reload(acceptedTypes, controller.signal)).catch(() => {}).finally(() => {
+            try {
+                inFlight = Promise.resolve(reload(acceptedTypes, controller.signal));
+            } catch {
+                inFlight = Promise.resolve();
+            }
+            inFlight = inFlight.catch(() => {}).finally(() => {
                 if (activeReload === controller) activeReload = null;
                 inFlight = null;
                 if (!disposed && types.size > 0) queueReload();
