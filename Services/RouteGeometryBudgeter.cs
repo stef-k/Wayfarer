@@ -41,7 +41,8 @@ public static class RouteGeometryBudgeter
         ValidateSource(coordinates, protectedIndices);
 
         if (coordinates.Count <= SimplificationTrigger)
-            return new(coordinates.Select(Copy).ToArray(), false, 0d, 0d, coordinates.Count);
+            return new(coordinates.Select(Copy).ToArray(), false, 0d, 0d, coordinates.Count,
+                Enumerable.Range(0, coordinates.Count).ToArray());
 
         var prepared = Prepare(coordinates, protectedIndices);
         var first = Simplify(prepared, 1d, work, cancellationToken);
@@ -73,8 +74,10 @@ public static class RouteGeometryBudgeter
             throw new RouteGeometryBudgetException(
                 "generic_kml_geometry_budget_unsatisfied",
                 "A route cannot be reduced safely to the supported size.");
-        Revalidate(coordinates, protectedIndices, prepared, selected, deviation);
-        return new(selected.Coordinates.Select(Copy).ToArray(), true, selected.ToleranceMetres, deviation, coordinates.Count);
+        var retainedSourceIndices = selected.OriginalIndices.Select(index => prepared.OriginalIndices[index]).ToArray();
+        Revalidate(coordinates, protectedIndices, selected, retainedSourceIndices, deviation);
+        return new(selected.Coordinates.Select(Copy).ToArray(), true, selected.ToleranceMetres, deviation,
+            coordinates.Count, retainedSourceIndices);
     }
 
     private static void ValidateSource(IReadOnlyList<Coordinate> coordinates, IReadOnlyCollection<int> protectedIndices)
@@ -196,16 +199,19 @@ public static class RouteGeometryBudgeter
     private static void Revalidate(
         IReadOnlyList<Coordinate> source,
         IReadOnlyCollection<int> protectedIndices,
-        PreparedRoute prepared,
         Candidate selected,
+        IReadOnlyList<int> retainedSourceIndices,
         double deviation)
     {
         if (selected.Coordinates.Count < 2 || selected.Coordinates.Count > MaximumPersistedCoordinates
             || deviation > MaximumDeviationMetres + 1e-9
+            || retainedSourceIndices.Count != selected.Coordinates.Count
+            || !StrictlyIncreasing(retainedSourceIndices)
             || !EqualPosition(source[0], selected.Coordinates[0])
             || !EqualPosition(source[^1], selected.Coordinates[^1]))
             throw Unsatisfied();
-        var retainedSourceIndices = selected.OriginalIndices.Select(index => prepared.OriginalIndices[index]).ToHashSet();
+        for (var index = 0; index < retainedSourceIndices.Count; index++)
+            if (!EqualPosition(source[retainedSourceIndices[index]], selected.Coordinates[index])) throw Unsatisfied();
         if (protectedIndices.Any(index => !retainedSourceIndices.Contains(index))) throw Unsatisfied();
         if (EqualPosition(source[0], source[^1])
             && (!EqualPosition(selected.Coordinates[0], selected.Coordinates[^1])
@@ -263,6 +269,8 @@ public static class RouteGeometryBudgeter
         second.Y == -first.Y
         && (Math.Abs(first.Y) == 90d || Math.Abs(NormalizeDegrees(second.X - first.X)) == 180d);
     private static bool EqualPosition(Coordinate first, Coordinate second) => first.X == second.X && first.Y == second.Y;
+    private static bool StrictlyIncreasing(IReadOnlyList<int> values) =>
+        values.Zip(values.Skip(1), (first, second) => second > first).All(value => value);
     private static double DegreesToRadians(double degrees) => degrees * Math.PI / 180d;
     private static double NormalizeDegrees(double degrees)
     {
@@ -324,7 +332,8 @@ public sealed record RouteGeometryBudgetResult(
     bool WasSimplified,
     double ToleranceMetres,
     double MaximumDeviationMetres,
-    int OriginalCoordinateCount);
+    int OriginalCoordinateCount,
+    IReadOnlyList<int> SourceIndices);
 
 /// <summary>Represents one stable generic route geometry budget failure.</summary>
 public sealed class RouteGeometryBudgetException : Exception

@@ -107,6 +107,8 @@ public sealed class ProviderRouteGeometryValidatorTests
 
         Assert.True(result.Succeeded);
         Assert.Equal([0, 3, 4], result.WaypointIndices);
+        Assert.Equal(anchors[1], result.Geometry![1]);
+        Assert.DoesNotContain(1, result.WaypointIndices!);
         Assert.Equal(anchors, result.WaypointIndices!.Select(index => result.Geometry![index]).ToArray());
     }
 

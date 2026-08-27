@@ -71,9 +71,11 @@ public sealed class ProviderRouteGeometryValidator : IProviderRouteGeometryValid
             var source = geometry.Select(item => new Coordinate(item.Longitude, item.Latitude)).ToArray();
             var budgeted = RouteGeometryBudgeter.Budget(source, protectedIndices, cancellationToken);
             var result = budgeted.Coordinates.Select(item => new RouteCoordinate(item.X, item.Y)).ToArray();
-            var indices = RecalculateIndices(result, anchors);
-            if (indices == null || result.Length > RouteGeometryBudgeter.MaximumPersistedCoordinates
-                || !StrictlyIncreasing(indices)) return ProviderRouteValidationResult.Failure("provider-route-budget-unsatisfied");
+            var indices = MapProtectedIndices(budgeted.SourceIndices, protectedIndices);
+            if (indices == null || budgeted.SourceIndices.Count != result.Length
+                || result.Length > RouteGeometryBudgeter.MaximumPersistedCoordinates || !StrictlyIncreasing(indices)
+                || indices.Where((outputIndex, anchorIndex) => result[outputIndex] != anchors[anchorIndex]).Any())
+                return ProviderRouteValidationResult.Failure("provider-route-budget-unsatisfied");
             return new ProviderRouteValidationResult(true, result, indices, null);
         }
         catch (RouteGeometryBudgetException) { return ProviderRouteValidationResult.Failure("provider-route-budget-unsatisfied"); }
@@ -103,22 +105,20 @@ public sealed class ProviderRouteGeometryValidator : IProviderRouteGeometryValid
         return inserted;
     }
 
-    private static int[]? RecalculateIndices(IReadOnlyList<RouteCoordinate> geometry, IReadOnlyList<RouteCoordinate> anchors)
+    private static int[]? MapProtectedIndices(
+        IReadOnlyList<int> retainedSourceIndices, IReadOnlyList<int> protectedSourceIndices)
     {
-        var result = new int[anchors.Count];
-        var searchFrom = 0;
-        for (var anchorIndex = 0; anchorIndex < anchors.Count; anchorIndex++)
+        if (!StrictlyIncreasing(retainedSourceIndices)) return null;
+        var result = new int[protectedSourceIndices.Count];
+        var outputIndex = 0;
+        for (var protectedIndex = 0; protectedIndex < protectedSourceIndices.Count; protectedIndex++)
         {
-            var match = -1;
-            for (var index = searchFrom; index < geometry.Count; index++)
-            {
-                if (geometry[index] != anchors[anchorIndex]) continue;
-                match = index;
-                break;
-            }
-            if (match < 0) return null;
-            result[anchorIndex] = match;
-            searchFrom = match + 1;
+            while (outputIndex < retainedSourceIndices.Count
+                   && retainedSourceIndices[outputIndex] < protectedSourceIndices[protectedIndex]) outputIndex++;
+            if (outputIndex >= retainedSourceIndices.Count
+                || retainedSourceIndices[outputIndex] != protectedSourceIndices[protectedIndex]) return null;
+            result[protectedIndex] = outputIndex;
+            outputIndex++;
         }
         return result;
     }
