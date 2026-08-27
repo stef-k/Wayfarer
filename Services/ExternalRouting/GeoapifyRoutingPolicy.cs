@@ -44,6 +44,15 @@ public static class GeoapifyRouteCost
     };
 }
 
+/// <summary>Applies provider-specific anchor limits after authoritative provider resolution.</summary>
+public static class RoutingProviderAnchorPolicy
+{
+    /// <summary>Returns a bounded provider input error without admitting generation or provider budgets.</summary>
+    public static string? Validate(ResolvedRoutingProviderExecution execution, IReadOnlyList<RouteCoordinate> anchors) =>
+        execution.Provider.AdapterType == RoutingAdapterType.Geoapify && anchors.Count > 25
+            ? "routing-cost-invalid" : null;
+}
+
 /// <summary>Identifies bounded mapping resolution without inferring from display text.</summary>
 public enum ProviderTransportProfileCategory { Supported, Unmapped, Unsupported }
 

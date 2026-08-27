@@ -22,6 +22,9 @@ public sealed class ProviderRouteGeometryValidator : IProviderRouteGeometryValid
                 return ProviderRouteValidationResult.Failure("provider-waypoints-incompatible");
 
         var geometry = providerRoute.Geometry.ToList();
+        if (providerRoute.StructuralWaypointIndices is { } structuralIndices)
+            return ValidateStructuralAnchors(anchors, providerRoute, geometry, structuralIndices, cancellationToken);
+
         var protectedIndices = new List<int>(anchors.Count) { 0 };
         if (DistanceMetres(providerRoute.Waypoints[0], geometry[0]) > AnchorToleranceMetres
             || DistanceMetres(providerRoute.Waypoints[^1], geometry[^1]) > AnchorToleranceMetres)
@@ -37,6 +40,32 @@ public sealed class ProviderRouteGeometryValidator : IProviderRouteGeometryValid
         protectedIndices.Add(geometry.Count - 1);
         if (!StrictlyIncreasing(protectedIndices)) return ProviderRouteValidationResult.Failure("provider-anchor-order-invalid");
 
+        return Budget(anchors, geometry, protectedIndices, cancellationToken);
+    }
+
+    private static ProviderRouteValidationResult ValidateStructuralAnchors(
+        IReadOnlyList<RouteCoordinate> anchors, OsrmRouteResult providerRoute, List<RouteCoordinate> geometry,
+        IReadOnlyList<int> indices, CancellationToken cancellationToken)
+    {
+        if (indices.Count != anchors.Count || indices.Count < 2 || indices[0] != 0
+            || indices[^1] != geometry.Count - 1 || !StrictlyIncreasing(indices)
+            || indices.Any(index => index < 0 || index >= geometry.Count))
+            return ProviderRouteValidationResult.Failure("provider-route-invalid");
+        for (var anchorIndex = 0; anchorIndex < anchors.Count; anchorIndex++)
+        {
+            var coordinate = geometry[indices[anchorIndex]];
+            if (DistanceMetres(coordinate, providerRoute.Waypoints[anchorIndex]) > AnchorToleranceMetres
+                || DistanceMetres(coordinate, anchors[anchorIndex]) > AnchorToleranceMetres)
+                return ProviderRouteValidationResult.Failure("provider-route-invalid");
+            geometry[indices[anchorIndex]] = anchors[anchorIndex];
+        }
+        return Budget(anchors, geometry, indices, cancellationToken);
+    }
+
+    private static ProviderRouteValidationResult Budget(
+        IReadOnlyList<RouteCoordinate> anchors, IReadOnlyList<RouteCoordinate> geometry,
+        IReadOnlyList<int> protectedIndices, CancellationToken cancellationToken)
+    {
         try
         {
             var source = geometry.Select(item => new Coordinate(item.Longitude, item.Latitude)).ToArray();

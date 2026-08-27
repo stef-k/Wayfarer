@@ -88,7 +88,7 @@ public static class GeoapifyRoutingAdapter
             }
             if (!TotalsAgree(legDistances, distance) || !TotalsAgree(legDurations, duration))
                 return Invalid();
-            return new(true, points, anchors.ToArray(), null, distance, duration, instructions);
+            return new(true, points, anchors.ToArray(), null, distance, duration, instructions, anchorIndices);
         }
         catch (Exception exception) when (exception is JsonException or InvalidOperationException)
         { return Invalid(); }

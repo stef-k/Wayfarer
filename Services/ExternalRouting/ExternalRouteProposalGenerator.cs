@@ -65,6 +65,8 @@ public sealed class ExternalRouteProposalGenerator
     {
         var context = await LoadContextAsync(userId, tripId, segmentId, aggregateConcurrencyToken, operationToken);
         if (!context.Succeeded) return ExternalRouteGenerationResult.Failure(context.ErrorCode!);
+        if (RoutingProviderAnchorPolicy.Validate(context.Execution!, context.Anchors!) is { } anchorError)
+            return ExternalRouteGenerationResult.Failure(anchorError);
         if (!_budgets!.TryAdmitUserGeneration(userId))
             return ExternalRouteGenerationResult.Failure("routing-budget-exhausted");
 

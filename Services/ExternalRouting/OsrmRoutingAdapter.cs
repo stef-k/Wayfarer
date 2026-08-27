@@ -102,7 +102,8 @@ public readonly record struct RouteCoordinate(double Longitude, double Latitude)
 public sealed record OsrmRouteResult(
     bool Succeeded, IReadOnlyList<RouteCoordinate> Geometry, IReadOnlyList<RouteCoordinate> Waypoints, string? ErrorCode,
     double? DistanceMetres = null, double? DurationSeconds = null,
-    IReadOnlyList<RouteInstruction>? RouteInstructions = null)
+    IReadOnlyList<RouteInstruction>? RouteInstructions = null,
+    IReadOnlyList<int>? StructuralWaypointIndices = null)
 {
     /// <summary>Gets normalized instructions or an empty list for providers that do not supply them.</summary>
     public IReadOnlyList<RouteInstruction> Instructions => RouteInstructions ?? [];

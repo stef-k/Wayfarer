@@ -60,7 +60,7 @@ public sealed class GeoapifyRoutingAdapterTests
         Assert.Equal([new(20, 10), new(20.5, 10.5), new(21, 11), new(21.5, 11.5), new(22, 12)], result.Geometry);
         Assert.Equal(1, result.Geometry.Count(point => point == new RouteCoordinate(21, 11)));
         Assert.Equal([new(20, 10), new(21, 11), new(22, 12)], result.Waypoints);
-        Assert.Equal([0, 2, 4], StructuralIndices(result));
+        Assert.Equal([0, 2, 4], result.StructuralWaypointIndices);
         Assert.Equal(30, result.DistanceMetres);
         Assert.Equal(10, result.DurationSeconds);
         Assert.Equal([
@@ -144,10 +144,6 @@ public sealed class GeoapifyRoutingAdapterTests
 
     private static HttpResponseMessage Response(string json) =>
         new(HttpStatusCode.OK) { Content = new StringContent(json) };
-
-    private static IReadOnlyList<int>? StructuralIndices(OsrmRouteResult result) =>
-        result.GetType().GetProperty("StructuralWaypointIndices")?.GetValue(result) as IReadOnlyList<int>
-        ?? throw new Xunit.Sdk.XunitException("The provider-neutral structural waypoint contract is missing.");
 
     private const string SingleLegJson = """
         {"results":[{"distance":1234,"time":321,"distance_units":"meters","geometry":[[[20,10],[21,11]]],

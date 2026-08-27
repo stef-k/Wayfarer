@@ -128,10 +128,5 @@ public sealed class ProviderRouteGeometryValidatorTests
     };
 
     private static OsrmRouteResult WithStructuralIndices(OsrmRouteResult route, IReadOnlyList<int> indices)
-    {
-        var property = route.GetType().GetProperty("StructuralWaypointIndices")
-            ?? throw new Xunit.Sdk.XunitException("The provider-neutral structural waypoint contract is missing.");
-        property.SetValue(route, indices);
-        return route;
-    }
+        => route with { StructuralWaypointIndices = indices };
 }
