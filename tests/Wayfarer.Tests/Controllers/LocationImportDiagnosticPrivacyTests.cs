@@ -111,6 +111,8 @@ public sealed class LocationImportDiagnosticPrivacyTests : TestBase
         Assert.Equal([preservedFile], Directory.EnumerateFiles(uploadDirectory));
         Assert.Equal(1, logger.PrimaryFailureAttempts);
         Assert.Equal(1, logger.AlertAttempts);
+        Assert.Equal(("An unexpected error occurred. Please try again later.", "danger"),
+            (controller.TempData["AlertMessage"], controller.TempData["AlertType"]));
         Assert.All(logger.Entries, entry => AssertPrivateTextAbsent(entry, root.Path));
     }
 
