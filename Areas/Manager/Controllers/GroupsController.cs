@@ -186,8 +186,8 @@ namespace Wayfarer.Areas.Manager.Controllers;
         if (actorId == null) return Unauthorized();
         try
         {
-            var revocation = await _invitationService.RevokeAsync(inviteId, actorId);
-            await _sse.BroadcastInvitationRevocationAsync(revocation.GroupId, revocation.InviteeUserId, JsonSerializer.Serialize(GroupSseEventDto.InviteRevoked(inviteId)));
+            (groupId, var inviteeUserId) = await _invitationService.RevokeAsync(inviteId, actorId);
+            await _sse.BroadcastInvitationRevocationAsync(groupId, inviteeUserId, JsonSerializer.Serialize(GroupSseEventDto.InviteRevoked(inviteId)));
             SetAlert("Invitation revoked.");
         }
         catch (UnauthorizedAccessException)
