@@ -36,6 +36,22 @@ public sealed class LocationImportEnrichmentRenderingTests
         Assert.DoesNotContain("Coordinates", source);
     }
 
+    [Fact]
+    public void ProviderCapacityReturnUsesItsOwnConditionalSemanticUtcRow()
+    {
+        var source = File.ReadAllText(ViewPath());
+        var providerReturn = new DateTime(2026, 9, 1, 0, 0, 0, DateTimeKind.Utc);
+        DateTime? nextAttempt = null;
+
+        Assert.Equal("2026-09-01T00:00:00.0000000Z", providerReturn.ToString("O"));
+        Assert.Equal("2026-09-01 00:00 UTC", providerReturn.ToString("yyyy-MM-dd HH:mm 'UTC'"));
+        Assert.Null(nextAttempt);
+        Assert.Contains("@if (enrichment.ProviderNextAvailableAtUtc.HasValue)", source);
+        Assert.Contains("<dt class=\"col-sm-4\">Provider capacity returns</dt>", source);
+        Assert.Contains("<time datetime=\"@enrichment.ProviderNextAvailableAtUtc.Value.ToString(\"O\")\">", source);
+        Assert.Contains("@enrichment.ProviderNextAvailableAtUtc.Value.ToString(\"yyyy-MM-dd HH:mm 'UTC'\")", source);
+    }
+
     private static string ViewPath() => Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,
         "..", "..", "..", "..", "..", "Areas", "User", "Views", "LocationImport", "Index.cshtml"));
 }
