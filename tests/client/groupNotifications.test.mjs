@@ -90,3 +90,34 @@ test('a burst during an in-flight reload queues one non-overlapping follow-up', 
     assert.deepEqual(calls, [['invitation-state'], ['membership-state']]);
     completions.shift()();
 });
+
+test('dispose aborts an active reload and prevents all later mutation', async () => {
+    const timers = [];
+    let release;
+    let mutations = 0;
+    let subsequentReloads = 0;
+    const entered = Promise.withResolvers();
+    const refresh = createGroupNotificationRefresh({
+        schedule: callback => { timers.push(callback); return timers.length; },
+        reload: async (_types, signal) => {
+            entered.resolve();
+            await new Promise(resolve => { release = resolve; });
+            if (signal.aborted) return;
+            mutations++;
+        }
+    });
+
+    refresh.accept({ data: '{"type":"invitation-state"}' });
+    timers.shift()();
+    await entered.promise;
+    refresh.accept({ data: '{"type":"membership-state"}' });
+
+    refresh.dispose();
+    release();
+    await Promise.resolve();
+    await Promise.resolve();
+    subsequentReloads = timers.length;
+
+    assert.equal(mutations, 0);
+    assert.equal(subsequentReloads, 0);
+});

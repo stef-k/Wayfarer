@@ -91,7 +91,8 @@ public class UserGroupsControllerTests : TestBase
         var group = await SeedGroupWithOwnerAsync(db, owner);
         var invService = new InvitationService(db);
         var invite = await invService.InviteUserAsync(group.Id, owner.Id, invitee.Id, null, null);
-        var controller = BuildController(db, owner, new FakeSseService());
+        var sse = new FakeSseService();
+        var controller = BuildController(db, owner, sse);
 
         var result = await controller.RevokeInviteAjax(group.Id, invite.Id);
 
@@ -99,6 +100,7 @@ public class UserGroupsControllerTests : TestBase
         Assert.True((bool)ok.Value!.GetType().GetProperty("success")!.GetValue(ok.Value)!);
         var pending = await db.GroupInvitations.SingleAsync(i => i.Id == invite.Id);
         Assert.Equal(GroupInvitation.InvitationStatuses.Revoked, pending.Status);
+        Assert.Contains(($"group-notifications-{invitee.Id}", SseService.InvitationStateHint), sse.Messages);
     }
 
     [Fact]
