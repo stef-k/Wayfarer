@@ -250,4 +250,66 @@ public class SseControllerTests
         Assert.IsType<EmptyResult>(result);
         Assert.Equal("text/event-stream", controller.HttpContext.Response.Headers["Content-Type"].ToString());
     }
+
+    [Fact]
+    public async Task ImportStreamWithoutAuthenticatedIdentityIsUnauthorized()
+    {
+        using var db = CreateDb();
+        var controller = CreateController(db, Mock.Of<IGroupTimelineService>());
+
+        var result = await controller.SubscribeToImportAsync(CancellationToken.None);
+
+        Assert.IsType<UnauthorizedResult>(result);
+    }
+
+    [Fact(Timeout = 10_000)]
+    public async Task ImportStreamDeliversOnlySameUserContentFreeEvent()
+    {
+        using var db = CreateDb();
+        var sse = new SseService();
+        var controller = CreateController(db, Mock.Of<IGroupTimelineService>(), CreateUser("owner"), sse);
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var subscription = controller.SubscribeToImportAsync(cts.Token);
+        while (!controller.Response.Headers.ContainsKey("Content-Type"))
+            await Task.Yield();
+
+        await sse.BroadcastAsync("import-other", "{\"type\":\"import-state\"}");
+        Assert.Empty(((MemoryStream)controller.Response.Body).ToArray());
+        await sse.BroadcastAsync("import-owner", "{\"type\":\"enrichment-state\",\"address\":\"private\"}");
+        Assert.Empty(((MemoryStream)controller.Response.Body).ToArray());
+        await sse.BroadcastAsync("import-owner", "{\"type\":\"import-state\"}");
+        cts.Cancel();
+        await subscription;
+
+        var payload = System.Text.Encoding.UTF8.GetString(((MemoryStream)controller.Response.Body).ToArray());
+        Assert.Contains("{\"type\":\"import-state\"}", payload, StringComparison.Ordinal);
+        Assert.DoesNotContain("other", payload, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("private", payload, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task LegacyCallerSelectedImportChannelIsRejected()
+    {
+        using var db = CreateDb();
+        var controller = CreateController(db, Mock.Of<IGroupTimelineService>(), CreateUser("owner"));
+
+        await controller.Stream("import", "other-user", CancellationToken.None);
+
+        Assert.Equal(StatusCodes.Status404NotFound, controller.Response.StatusCode);
+    }
+
+    [Theory]
+    [InlineData("import")]
+    [InlineData("import-other")]
+    [InlineData("enrichment")]
+    [InlineData("enrichment-other")]
+    public async Task LegacyGenericRouteRejectsEverySensitiveChannelPrefix(string type)
+    {
+        using var db = CreateDb();
+        var controller = CreateController(db, Mock.Of<IGroupTimelineService>());
+
+        await controller.Stream(type, "foreign-user", CancellationToken.None);
+
+        Assert.Equal(StatusCodes.Status404NotFound, controller.Response.StatusCode);
+    }
 }

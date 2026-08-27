@@ -931,7 +931,222 @@ namespace Wayfarer.Migrations
                         .IsUnique()
                         .HasDatabaseName("IX_Location_UserId_IdempotencyKey");
 
+                    b.HasIndex("UserId", "Timestamp")
+                        .HasDatabaseName("IX_Location_UserId_Timestamp");
+
                     b.ToTable("Locations");
+                });
+
+            modelBuilder.Entity("Wayfarer.Models.LocationEnrichment.LocationEnrichmentAttempt", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<int>("AdmittedAttemptCount")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("Capability")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ConfigurationGeneration")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("ConsentCredentialGeneration")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset?>("ConsentTimestamp")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("ConsentVersion")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("CredentialGeneration")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("LastAttemptAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("LocationId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("NextAttemptAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("OperationAttemptNumber")
+                        .HasColumnType("integer");
+
+                    b.Property<long?>("OperationFencingGeneration")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid?>("OperationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("OperationLeaseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("OperationStartedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("OperationWorkflowEpoch")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Outcome")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("ProviderKey")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<Guid?>("ProviderProfileId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("SelectionGeneration")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<int?>("Verification")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("VerificationCredentialGeneration")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("VerificationGeneration")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId", "LocationId")
+                        .IsUnique();
+
+                    b.HasIndex("UserId", "NextAttemptAtUtc");
+
+                    b.ToTable("LocationEnrichmentAttempts", t =>
+                        {
+                            t.HasCheckConstraint("CK_LocationEnrichmentAttempt_AuthorityEnums", "(\"Capability\" IS NULL OR \"Capability\" IN (1, 2)) AND (\"Verification\" IS NULL OR \"Verification\" IN (0, 1, 2, 3))");
+
+                            t.HasCheckConstraint("CK_LocationEnrichmentAttempt_Count", "\"AdmittedAttemptCount\" >= 0 AND \"AdmittedAttemptCount\" <= 3");
+
+                            t.HasCheckConstraint("CK_LocationEnrichmentAttempt_Generations", "\"CredentialGeneration\" >= 0 AND \"ConfigurationGeneration\" >= 0 AND \"SelectionGeneration\" >= 0");
+
+                            t.HasCheckConstraint("CK_LocationEnrichmentAttempt_OperationPair", "(\"OperationId\" IS NULL AND \"OperationLeaseId\" IS NULL AND \"OperationFencingGeneration\" IS NULL AND \"OperationStartedAtUtc\" IS NULL AND \"OperationWorkflowEpoch\" IS NULL AND \"OperationAttemptNumber\" IS NULL) OR (\"OperationId\" IS NOT NULL AND \"OperationLeaseId\" IS NOT NULL AND \"OperationFencingGeneration\" > 0 AND \"OperationStartedAtUtc\" IS NOT NULL AND \"OperationWorkflowEpoch\" >= 0 AND \"LastAttemptAtUtc\" IS NOT NULL AND \"OperationAttemptNumber\" > 0 AND \"OperationAttemptNumber\" = \"AdmittedAttemptCount\" AND \"NextAttemptAtUtc\" IS NOT NULL AND \"ProviderProfileId\" IS NOT NULL AND \"Capability\" = 1 AND \"ProviderKey\" IN ('geoapify', 'mapbox') AND \"CredentialGeneration\" > 0 AND \"ConfigurationGeneration\" > 0 AND \"SelectionGeneration\" > 0 AND \"Verification\" = 1 AND \"VerificationCredentialGeneration\" > 0 AND \"VerificationGeneration\" > 0 AND ((\"ProviderKey\" = 'geoapify' AND \"ConsentVersion\" IS NULL AND \"ConsentTimestamp\" IS NULL AND \"ConsentCredentialGeneration\" IS NULL) OR (\"ProviderKey\" = 'mapbox' AND \"ConsentVersion\" > 0 AND \"ConsentTimestamp\" IS NOT NULL AND \"ConsentCredentialGeneration\" > 0))) IS TRUE");
+
+                            t.HasCheckConstraint("CK_LocationEnrichmentAttempt_Outcome", "\"Outcome\" IN ('None','NoCandidates','BudgetExhausted','AuthorityUnavailable','RetryableFailure','InvalidCoordinates','NoResult','AttemptLimit','DataFailure')");
+
+                            t.HasCheckConstraint("CK_LocationEnrichmentAttempt_Provider", "\"ProviderKey\" IN ('', 'geoapify', 'mapbox')");
+                        });
+                });
+
+            modelBuilder.Entity("Wayfarer.Models.LocationEnrichment.LocationEnrichmentWorkflow", b =>
+                {
+                    b.Property<string>("UserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<int>("AdmittedUsageCount")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("CompletedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("EnrichedCount")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Epoch")
+                        .HasColumnType("integer");
+
+                    b.Property<long>("ExecutionFencingGeneration")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("ExecutionLeaseExpiresAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ExecutionLeaseId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("FailedBatchCount")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("IntentEnabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("NextEligibleAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Outcome")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<int>("PermanentlyDeferredCount")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ProcessedCount")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("RemainingEligibleCount")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("RetryableDeferredCount")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("SchedulerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("SkippedCount")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("StartedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<uint>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
+                    b.HasKey("UserId");
+
+                    b.HasIndex("SchedulerId")
+                        .IsUnique();
+
+                    b.HasIndex("State", "NextEligibleAtUtc")
+                        .HasDatabaseName("IX_LocationEnrichmentWorkflow_Due");
+
+                    b.ToTable("LocationEnrichmentWorkflows", t =>
+                        {
+                            t.HasCheckConstraint("CK_LocationEnrichmentWorkflow_Counters", "\"ProcessedCount\" >= 0 AND \"EnrichedCount\" >= 0 AND \"SkippedCount\" >= 0 AND \"RetryableDeferredCount\" >= 0 AND \"PermanentlyDeferredCount\" >= 0 AND \"RemainingEligibleCount\" >= 0 AND \"AdmittedUsageCount\" >= 0 AND \"FailedBatchCount\" >= 0");
+
+                            t.HasCheckConstraint("CK_LocationEnrichmentWorkflow_Epoch", "\"Epoch\" >= 0");
+
+                            t.HasCheckConstraint("CK_LocationEnrichmentWorkflow_ExecutionFence", "\"ExecutionFencingGeneration\" >= 0");
+
+                            t.HasCheckConstraint("CK_LocationEnrichmentWorkflow_ExecutionLeasePair", "(\"ExecutionLeaseId\" IS NULL AND \"ExecutionLeaseExpiresAtUtc\" IS NULL) OR (\"ExecutionLeaseId\" IS NOT NULL AND \"ExecutionLeaseExpiresAtUtc\" IS NOT NULL AND \"ExecutionFencingGeneration\" > 0 AND \"State\" = 'Running' AND \"IntentEnabled\")");
+
+                            t.HasCheckConstraint("CK_LocationEnrichmentWorkflow_Outcome", "\"Outcome\" IN ('None','NoCandidates','BudgetExhausted','AuthorityUnavailable','RetryableFailure','InvalidCoordinates','NoResult','AttemptLimit','DataFailure')");
+
+                            t.HasCheckConstraint("CK_LocationEnrichmentWorkflow_State", "\"State\" IN ('Idle','Scheduled','Running','PausedByUser','PausedByBudget','PausedByAuthority','BackingOff','Completed','Cancelled','Failed')");
+                        });
                 });
 
             modelBuilder.Entity("Wayfarer.Models.LocationImport", b =>
@@ -947,8 +1162,24 @@ namespace Wayfarer.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasDefaultValueSql("CURRENT_TIMESTAMP");
 
+                    b.Property<DateTime?>("DeletionRequestedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("EnrichmentPauseReason")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<bool>("EnrichmentRequested")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("EnrichmentRequestedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("ErrorMessage")
                         .HasColumnType("text");
+
+                    b.Property<int>("ExecutionEpoch")
+                        .HasColumnType("integer");
 
                     b.Property<string>("FilePath")
                         .IsRequired()
@@ -963,12 +1194,21 @@ namespace Wayfarer.Migrations
                     b.Property<int>("LastProcessedIndex")
                         .HasColumnType("integer");
 
+                    b.Property<bool>("ProjectionPending")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("RemainingEnrichmentCount")
+                        .HasColumnType("integer");
+
                     b.Property<int>("SkippedDuplicates")
                         .HasColumnType("integer");
 
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<DateTime?>("StopRequestedAtUtc")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<int>("TotalRecords")
                         .HasColumnType("integer");
@@ -982,11 +1222,26 @@ namespace Wayfarer.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<uint>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
+
                     b.HasKey("Id");
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("LocationImports");
+                    b.ToTable("LocationImports", t =>
+                        {
+                            t.HasCheckConstraint("CK_LocationImport_EnrichmentPauseReason", "\"EnrichmentPauseReason\" IS NULL OR \"EnrichmentPauseReason\" IN ('CredentialRequired','NoProviderSelected','ConsentRequired','Unauthorized','VerificationRequired','Exhausted','StaleAuthority')");
+
+                            t.HasCheckConstraint("CK_LocationImport_ExecutionEpoch", "\"ExecutionEpoch\" >= 0");
+
+                            t.HasCheckConstraint("CK_LocationImport_LifecycleState", "((\"Status\" = 'In Progress' AND \"StopRequestedAtUtc\" IS NULL AND \"DeletionRequestedAtUtc\" IS NULL) OR (\"Status\" = 'Stopping' AND \"StopRequestedAtUtc\" IS NOT NULL AND \"DeletionRequestedAtUtc\" IS NULL AND \"ProjectionPending\") OR (\"Status\" = 'Stopped' AND NOT \"ProjectionPending\") OR (\"Status\" IN ('Completed','Failed') AND \"StopRequestedAtUtc\" IS NULL AND NOT \"ProjectionPending\")) IS TRUE");
+
+                            t.HasCheckConstraint("CK_LocationImport_RemainingEnrichment", "\"RemainingEnrichmentCount\" >= 0");
+                        });
                 });
 
             modelBuilder.Entity("Wayfarer.Models.LocationProviders.GeoapifyUsageAdmission", b =>
@@ -2106,6 +2361,37 @@ namespace Wayfarer.Migrations
                     b.Navigation("ActivityType");
                 });
 
+            modelBuilder.Entity("Wayfarer.Models.LocationEnrichment.LocationEnrichmentAttempt", b =>
+                {
+                    b.HasOne("Wayfarer.Models.LocationEnrichment.LocationEnrichmentWorkflow", "Workflow")
+                        .WithMany("Attempts")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Wayfarer.Models.Location", "Location")
+                        .WithMany()
+                        .HasForeignKey("UserId", "LocationId")
+                        .HasPrincipalKey("UserId", "Id")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Location");
+
+                    b.Navigation("Workflow");
+                });
+
+            modelBuilder.Entity("Wayfarer.Models.LocationEnrichment.LocationEnrichmentWorkflow", b =>
+                {
+                    b.HasOne("Wayfarer.Models.ApplicationUser", "User")
+                        .WithOne()
+                        .HasForeignKey("Wayfarer.Models.LocationEnrichment.LocationEnrichmentWorkflow", "UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("Wayfarer.Models.LocationImport", b =>
                 {
                     b.HasOne("Wayfarer.Models.ApplicationUser", "User")
@@ -2359,6 +2645,11 @@ namespace Wayfarer.Migrations
                     b.Navigation("Invitations");
 
                     b.Navigation("Members");
+                });
+
+            modelBuilder.Entity("Wayfarer.Models.LocationEnrichment.LocationEnrichmentWorkflow", b =>
+                {
+                    b.Navigation("Attempts");
                 });
 
             modelBuilder.Entity("Wayfarer.Models.Region", b =>

@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Xml.Linq;
+using System.Xml;
 using Microsoft.Extensions.Logging;
 using Wayfarer.Models;
 using GeoPoint = NetTopologySuite.Geometries.Point;
@@ -25,18 +26,34 @@ public sealed class KmlLocationParser : ILocationDataParser
     }
 
     /// <inheritdoc />
-    public async Task<List<Location>> ParseAsync(Stream fileStream, string userId)
+    public async IAsyncEnumerable<Location> ParseAsync(
+        Stream fileStream,
+        string userId,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        _logger.LogDebug("Parsing KML data for user {UserId}.", userId);
-
-        var document = await XDocument.LoadAsync(fileStream, LoadOptions.None, default);
-        var root = document.Root ?? throw new FormatException("KML file does not contain a root element.");
-        var namespaceToUse = root.Name.Namespace == XNamespace.None ? KmlNamespace : root.Name.Namespace;
-
-        var locations = new List<Location>();
-
-        foreach (var placemark in root.Descendants(namespaceToUse + "Placemark"))
+        using var reader = XmlReader.Create(fileStream, new XmlReaderSettings
         {
+            Async = true,
+            CloseInput = false,
+            DtdProcessing = DtdProcessing.Prohibit
+        });
+        XNamespace? namespaceToUse = null;
+        while (await reader.ReadAsync())
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (reader.NodeType != XmlNodeType.Element) continue;
+            if (namespaceToUse is null)
+            {
+                if (!string.Equals(reader.LocalName, "kml", StringComparison.OrdinalIgnoreCase))
+                    throw new FormatException("KML file does not contain a kml root element.");
+                namespaceToUse = string.IsNullOrEmpty(reader.NamespaceURI) ? KmlNamespace : reader.NamespaceURI;
+                continue;
+            }
+            if (!string.Equals(reader.LocalName, "Placemark", StringComparison.Ordinal) ||
+                reader.NamespaceURI != namespaceToUse.NamespaceName) continue;
+            XElement placemark;
+            using (var subtree = reader.ReadSubtree())
+                placemark = (XElement)await XElement.LoadAsync(subtree, LoadOptions.None, cancellationToken);
             var pointElement = placemark.Element(namespaceToUse + "Point");
             if (pointElement == null)
             {
@@ -46,7 +63,8 @@ public sealed class KmlLocationParser : ILocationDataParser
             var coordinatesRaw = pointElement.Element(namespaceToUse + "coordinates")?.Value;
             if (!TryParsePoint(coordinatesRaw, out var geometry, out var altitudeFromCoordinate))
             {
-                _logger.LogWarning("Skipping Placemark with invalid coordinate payload: {Coordinates}.", coordinatesRaw);
+                _logger.LogWarning("Skipping KML placemark; code {Code}.",
+                    "location-import-invalid-coordinate");
                 continue;
             }
 
@@ -79,7 +97,11 @@ public sealed class KmlLocationParser : ILocationDataParser
             var batteryLevel = ParseNullableInt(ReadDataValue(extendedData, namespaceToUse, "BatteryLevel"));
             var isCharging = ParseNullableBool(ReadDataValue(extendedData, namespaceToUse, "IsCharging"));
 
-            var timestampUtc = ParseTimestampUtc(timestampRaw);
+            if (!TryParseTimestampUtc(timestampRaw, out var timestampUtc))
+            {
+                _logger.LogWarning("Skipping KML placemark due to a missing or invalid timestamp.");
+                continue;
+            }
             var localTimestamp = ParseLocalTimestamp(localTimestampRaw, timestampUtc);
             var chosenAltitude = altitudeOverride ?? altitudeFromCoordinate;
 
@@ -117,11 +139,8 @@ public sealed class KmlLocationParser : ILocationDataParser
                 IsCharging = isCharging
             };
 
-            locations.Add(location);
+            yield return location;
         }
-
-        _logger.LogInformation("Parsed {Count} placemarks into locations.", locations.Count);
-        return locations;
     }
 
     private static string? ReadDataValue(XElement? extendedData, XNamespace ns, string name)
@@ -205,22 +224,25 @@ public sealed class KmlLocationParser : ILocationDataParser
             : null;
     }
 
-    private static DateTime ParseTimestampUtc(string? rawTimestamp)
+    private static bool TryParseTimestampUtc(string? rawTimestamp, out DateTime timestampUtc)
     {
         if (!string.IsNullOrWhiteSpace(rawTimestamp) &&
             DateTimeOffset.TryParse(rawTimestamp, ParsingCulture, DateTimeStyles.RoundtripKind, out var dto))
         {
-            return dto.UtcDateTime;
+            timestampUtc = dto.UtcDateTime;
+            return true;
         }
 
         if (!string.IsNullOrWhiteSpace(rawTimestamp) &&
             DateTime.TryParse(rawTimestamp, ParsingCulture,
                 DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var parsed))
         {
-            return DateTime.SpecifyKind(parsed, DateTimeKind.Utc);
+            timestampUtc = DateTime.SpecifyKind(parsed, DateTimeKind.Utc);
+            return true;
         }
 
-        return DateTime.UtcNow;
+        timestampUtc = default;
+        return false;
     }
 
     private static DateTime ParseLocalTimestamp(string? rawTimestamp, DateTime fallbackUtc)

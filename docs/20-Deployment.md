@@ -589,6 +589,12 @@ sudo fail2ban-client status wayfarer-nginx-login
 
 ## Security Checklist
 
+### Resumable enrichment deployment and rollback
+
+Deploy #507 after #502 and before #500 in the #505 release order. Run database migrations and Quartz schema validation before scheduler startup. The supported topology has one active Quartz scheduler; do not run multiple active schedulers until clustering is explicitly configured and validated. After restart, active workflows should have one stable job/current trigger and paused or terminal workflows no live trigger.
+
+Before rollback, stop the scheduler and back up PostgreSQL plus the Data Protection key ring. Removing the additive workflow/attempt migrations removes scheduling metadata only. Never delete imported Locations, successful enrichment/provenance, protected credentials, Geoapify admissions, Mapbox meters, or import data as rollback cleanup.
+
 - [ ] Changed default admin password
 - [ ] Database user has strong password
 - [ ] HTTPS is enabled (Let's Encrypt)

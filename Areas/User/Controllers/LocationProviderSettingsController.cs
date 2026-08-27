@@ -7,6 +7,7 @@ using Wayfarer.Models;
 using Wayfarer.Models.LocationProviders;
 using Wayfarer.Services.LocationProviders;
 using Wayfarer.Parsers;
+using Wayfarer.Services.LocationEnrichment;
 
 namespace Wayfarer.Areas.User.Controllers;
 
@@ -16,7 +17,7 @@ public sealed class LocationProviderSettingsController(
     ApplicationDbContext dbContext, PersonalProviderCredentialService credentials,
     LegacyMapboxMigrationService migration, ReverseGeocodingService reverseGeocoding,
     GeoapifyVerificationService? geoapifyVerification = null,
-    GeoapifyLocationBackfillService? geoapifyBackfill = null) : Controller
+    IImportEnrichmentHandoff? enrichmentCommands = null) : Controller
 {
     /// <summary>Displays masked provider authority and provider-native usage status.</summary>
     public async Task<IActionResult> Index(CancellationToken cancellationToken)
@@ -36,17 +37,29 @@ public sealed class LocationProviderSettingsController(
         if (!ModelState.IsValid) return View("Index", await BuildAsync(userId, cancellationToken));
         var provider = ParseProvider(input.ProviderKey);
         var key = PersonalProviderKeys.Key(provider);
-        var profile = await dbContext.PersonalLocationProviderProfiles
-            .SingleOrDefaultAsync(item => item.UserId == userId && item.ProviderKey == key, cancellationToken)
-            ?? PersonalLocationProviderProfile.Create(userId, provider);
+        await using var transaction = dbContext.Database.IsRelational()
+            ? await dbContext.Database.BeginTransactionAsync(cancellationToken) : null;
+        var selection = dbContext.Database.IsNpgsql()
+            ? await dbContext.PersonalLocationProviderSelections.FromSqlInterpolated($$"""
+                SELECT *, xmin FROM "PersonalLocationProviderSelections"
+                WHERE "UserId" = {{userId}} FOR UPDATE
+                """).SingleOrDefaultAsync(cancellationToken)
+            : await dbContext.PersonalLocationProviderSelections.SingleOrDefaultAsync(
+                item => item.UserId == userId, cancellationToken);
+        selection ??= PersonalLocationProviderSelection.Create(userId);
+        if (dbContext.Entry(selection).State == EntityState.Detached) dbContext.Add(selection);
+        var profile = dbContext.Database.IsNpgsql()
+            ? await dbContext.PersonalLocationProviderProfiles.FromSqlInterpolated($$"""
+                SELECT *, xmin FROM "PersonalLocationProviderProfiles"
+                WHERE "UserId" = {{userId}} AND "ProviderKey" = {{key}} FOR UPDATE
+                """).SingleOrDefaultAsync(cancellationToken)
+            : await dbContext.PersonalLocationProviderProfiles.SingleOrDefaultAsync(
+                item => item.UserId == userId && item.ProviderKey == key, cancellationToken);
+        profile ??= PersonalLocationProviderProfile.Create(userId, provider);
         if (dbContext.Entry(profile).State == EntityState.Detached) dbContext.Add(profile);
         if (!string.IsNullOrWhiteSpace(input.ReplacementCredential)) credentials.Replace(profile, input.ReplacementCredential);
         profile.SetAuthorization(PersonalProviderCapability.Geocoding, input.GeocodingAuthorized);
         profile.SetAuthorization(PersonalProviderCapability.Routing, input.RoutingAuthorized);
-
-        var selection = await dbContext.PersonalLocationProviderSelections.SingleOrDefaultAsync(
-            item => item.UserId == userId, cancellationToken) ?? PersonalLocationProviderSelection.Create(userId);
-        if (dbContext.Entry(selection).State == EntityState.Detached) dbContext.Add(selection);
         var geocodingVerified = profile.GeocodingVerification == PersonalProviderVerification.Verified
             && profile.GeocodingVerifiedCredentialGeneration == profile.CredentialGeneration
             && profile.GeocodingVerifiedConfigurationGeneration == profile.GeocodingGeneration;
@@ -61,6 +74,7 @@ public sealed class LocationProviderSettingsController(
             selection.Select(PersonalProviderCapability.Routing, provider);
         else if (selection.RoutingProviderKey == key) selection.Select(PersonalProviderCapability.Routing, null);
         await dbContext.SaveChangesAsync(cancellationToken);
+        if (transaction != null) await transaction.CommitAsync(cancellationToken);
         return RedirectToAction(nameof(Index));
     }
 
@@ -111,10 +125,11 @@ public sealed class LocationProviderSettingsController(
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (userId == null) return Challenge();
-        if (geoapifyBackfill == null) return RedirectToAction(nameof(Index));
-        var result = await geoapifyBackfill.RunAsync(userId, cancellationToken);
-        TempData["ProviderStatus"] = $"Backfill scanned {result.Scanned}, enriched {result.Succeeded}, no result {result.NoResult}, unavailable {result.Unavailable}, remaining {result.RemainingEstimate}."
-            + (result.Exhausted ? " The rolling safety guard is exhausted; retry after admitted credits age out." : string.Empty);
+        if (enrichmentCommands == null) return RedirectToAction(nameof(Index));
+        var result = await enrichmentCommands.StartAsync(userId, cancellationToken);
+        TempData["ProviderStatus"] = result.Succeeded
+            ? "Missing-address enrichment is scheduled through the durable workflow."
+            : $"Missing-address enrichment was not started: {result.Code}.";
         return RedirectToAction(nameof(Index));
     }
 

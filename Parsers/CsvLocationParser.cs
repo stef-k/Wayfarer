@@ -26,9 +26,11 @@ public sealed class CsvLocationParser : ILocationDataParser
     }
 
     /// <inheritdoc />
-    public async Task<List<Location>> ParseAsync(Stream fileStream, string userId)
+    public async IAsyncEnumerable<Location> ParseAsync(
+        Stream fileStream,
+        string userId,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        _logger.LogDebug("Parsing CSV location data for user {UserId}.", userId);
 
         var config = new CsvConfiguration(ParsingCulture)
         {
@@ -38,19 +40,18 @@ public sealed class CsvLocationParser : ILocationDataParser
             PrepareHeaderForMatch = args => args.Header?.Trim() ?? string.Empty
         };
 
-        var locations = new List<Location>();
-
         using var reader = new StreamReader(fileStream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true, leaveOpen: true);
         using var csv = new CsvReader(reader, config);
 
         if (!await csv.ReadAsync() || !csv.ReadHeader())
         {
             _logger.LogWarning("CSV file had no header row.");
-            return locations;
+            yield break;
         }
 
         while (await csv.ReadAsync())
         {
+            cancellationToken.ThrowIfCancellationRequested();
             if (!TryGetRequiredDouble(csv, "Latitude", out var latitude) ||
                 !TryGetRequiredDouble(csv, "Longitude", out var longitude))
             {
@@ -58,7 +59,12 @@ public sealed class CsvLocationParser : ILocationDataParser
                 continue;
             }
 
-            var timestampUtc = ParseTimestampUtc(GetField(csv, "TimestampUtc"));
+            if (!TryParseTimestampUtc(GetField(csv, "TimestampUtc"), out var timestampUtc))
+            {
+                _logger.LogWarning("Skipping CSV record due to invalid timestamp at row {Row}.",
+                    csv.Context?.Parser?.Row ?? 0);
+                continue;
+            }
             var localTimestamp = ParseLocalTimestamp(GetField(csv, "LocalTimestamp"), timestampUtc);
             var timeZoneId = GetField(csv, "TimeZoneId");
 
@@ -119,11 +125,8 @@ public sealed class CsvLocationParser : ILocationDataParser
                 IdempotencyKey = idempotencyKey
             };
 
-            locations.Add(location);
+            yield return location;
         }
-
-        _logger.LogInformation("Parsed {Count} location rows from CSV.", locations.Count);
-        return locations;
     }
 
     private static string? GetField(CsvReader csv, string field)
@@ -197,22 +200,25 @@ public sealed class CsvLocationParser : ILocationDataParser
         return double.TryParse(raw, NumberStyles.Float | NumberStyles.AllowThousands, ParsingCulture, out value);
     }
 
-    private static DateTime ParseTimestampUtc(string? rawTimestamp)
+    private static bool TryParseTimestampUtc(string? rawTimestamp, out DateTime timestampUtc)
     {
         if (!string.IsNullOrWhiteSpace(rawTimestamp) &&
             DateTimeOffset.TryParse(rawTimestamp, ParsingCulture, DateTimeStyles.RoundtripKind, out var dto))
         {
-            return dto.UtcDateTime;
+            timestampUtc = dto.UtcDateTime;
+            return true;
         }
 
         if (!string.IsNullOrWhiteSpace(rawTimestamp) &&
             DateTime.TryParse(rawTimestamp, ParsingCulture,
                 DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out var parsed))
         {
-            return DateTime.SpecifyKind(parsed, DateTimeKind.Utc);
+            timestampUtc = DateTime.SpecifyKind(parsed, DateTimeKind.Utc);
+            return true;
         }
 
-        return DateTime.UtcNow;
+        timestampUtc = default;
+        return false;
     }
 
     private static DateTime ParseLocalTimestamp(string? rawTimestamp, DateTime fallbackUtc)

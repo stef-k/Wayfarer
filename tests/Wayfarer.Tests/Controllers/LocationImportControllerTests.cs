@@ -3,12 +3,16 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Quartz;
 using Wayfarer.Areas.User.Controllers;
 using Wayfarer.Models;
 using Wayfarer.Models.Enums;
+using Wayfarer.Services.LocationEnrichment;
 using Wayfarer.Tests.Infrastructure;
 using Xunit;
 
@@ -56,6 +60,7 @@ public class LocationImportControllerTests : TestBase
         var redirect = Assert.IsType<RedirectToActionResult>(result);
         Assert.Equal("Index", redirect.ActionName);
         scheduler.Verify(s => s.ScheduleJob(It.IsAny<IJobDetail>(), It.IsAny<ITrigger>(), It.IsAny<CancellationToken>()), Times.Once);
+        db.ChangeTracker.Clear();
         Assert.Equal(ImportStatus.InProgress, db.LocationImports.Single(i => i.Id == 10).Status);
     }
 
@@ -94,7 +99,7 @@ public class LocationImportControllerTests : TestBase
     }
 
     [Fact]
-    public async Task StopImport_TransitionsToStopped()
+    public async Task StopImport_PersistsStoppingUntilWorkerConverges()
     {
         var db = CreateDbContext();
         var user = TestDataFixtures.CreateUser(id: "u1", username: "alice");
@@ -111,7 +116,8 @@ public class LocationImportControllerTests : TestBase
         var redirect = Assert.IsType<RedirectToActionResult>(result);
         Assert.Equal("Index", redirect.ActionName);
         scheduler.Verify(s => s.Interrupt(It.IsAny<JobKey>(), It.IsAny<CancellationToken>()), Times.Once);
-        Assert.Equal(ImportStatus.Stopped, db.LocationImports.Single(i => i.Id == 20).Status);
+        db.ChangeTracker.Clear();
+        Assert.Equal(ImportStatus.Stopping, db.LocationImports.Single(i => i.Id == 20).Status);
     }
 
     [Fact]
@@ -167,11 +173,19 @@ public class LocationImportControllerTests : TestBase
 
     private static LocationImportController BuildController(ApplicationDbContext db, ApplicationUser user, IScheduler scheduler)
     {
+        var presentation = new Mock<ILocationEnrichmentPresentationProjector>();
+        presentation.Setup(item => item.ProjectAsync(user.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(LocationEnrichmentPresentation.Build(null,
+                new(null, "Not selected", false, "No geocoding provider is selected.", false,
+                    0, 0, "credits", "No active usage window", null),
+                new(0, 0, 0, false, null)));
         var controller = new LocationImportController(
             db,
             NullLogger<LocationImportController>.Instance,
             Mock.Of<IWebHostEnvironment>(),
-            scheduler);
+            scheduler,
+            presentation.Object,
+            contextFactory: new CloningFactory(db));
         var http = new DefaultHttpContext
         {
             User = new ClaimsPrincipal(new ClaimsIdentity(new[]
@@ -183,6 +197,14 @@ public class LocationImportControllerTests : TestBase
         controller.ControllerContext = new ControllerContext { HttpContext = http };
         controller.TempData = new TempDataDictionary(http, Mock.Of<ITempDataProvider>());
         return controller;
+    }
+
+    private sealed class CloningFactory(ApplicationDbContext source) : IDbContextFactory<ApplicationDbContext>
+    {
+        private readonly DbContextOptions<ApplicationDbContext> options =
+            Assert.IsType<DbContextOptions<ApplicationDbContext>>(source.GetService<IDbContextOptions>());
+        private readonly IServiceProvider services = new ServiceCollection().BuildServiceProvider();
+        public ApplicationDbContext CreateDbContext() => new(options, services);
     }
 
     [Fact]
@@ -201,7 +223,7 @@ public class LocationImportControllerTests : TestBase
     }
 
     [Fact]
-    public async Task StartImport_DeletesExistingJob_BeforeRescheduling()
+    public async Task StartImport_ReusesExistingCurrentProjection()
     {
         var db = CreateDbContext();
         var user = TestDataFixtures.CreateUser(id: "u1");
@@ -214,8 +236,8 @@ public class LocationImportControllerTests : TestBase
 
         var result = await controller.StartImport(15);
 
-        scheduler.Verify(s => s.DeleteJob(It.IsAny<JobKey>(), It.IsAny<CancellationToken>()), Times.Once);
-        scheduler.Verify(s => s.ScheduleJob(It.IsAny<IJobDetail>(), It.IsAny<ITrigger>(), It.IsAny<CancellationToken>()), Times.Once);
+        scheduler.Verify(s => s.DeleteJob(It.IsAny<JobKey>(), It.IsAny<CancellationToken>()), Times.Never);
+        scheduler.Verify(s => s.ScheduleJob(It.IsAny<IJobDetail>(), It.IsAny<ITrigger>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -264,7 +286,9 @@ public class LocationImportControllerTests : TestBase
         var result = await controller.StopImport(26);
 
         var redirect = Assert.IsType<RedirectToActionResult>(result);
-        scheduler.Verify(s => s.Interrupt(It.IsAny<JobKey>(), It.IsAny<CancellationToken>()), Times.Never);
+        scheduler.Verify(s => s.Interrupt(It.IsAny<JobKey>(), It.IsAny<CancellationToken>()), Times.Once);
+        db.ChangeTracker.Clear();
+        Assert.Equal(ImportStatus.Stopping, db.LocationImports.Single(i => i.Id == 26).Status);
     }
 
     [Fact]

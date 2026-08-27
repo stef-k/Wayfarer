@@ -8,7 +8,7 @@ Full recovery needs two manual imports: prepare recovery on the original phone (
 
 For expedited synchronization use **Prepare/suspend → Export → Import into Wayfarer → Resume and reconcile**. Let import reach a terminal result first. Authenticated per-user GUID identity reuses already imported rows; missing rows upload normally. Partial/failed import must be inspected or retried, never followed by queue clearing. Confirmed queue rows become synced and follow ordinary retention.
 
-CSV uses the CSV importer and suits spreadsheets/Python. GeoJSON uses the Wayfarer GeoJSON importer and suits GIS tools. Both carry the portable GUID; editing/removing it can prevent exact reconciliation. Files can contain precise positions/times, Notes, activity/check-in data, device/app/OS/provider/battery metadata, queue diagnostics, and identifiers. Store and transfer them securely, retain them until both histories are verified, then delete unnecessary copies.
+CSV uses the CSV importer and suits spreadsheets/Python. Wayfarer GeoJSON uses the Wayfarer GeoJSON importer and suits GIS tools. Both carry the portable GUID; editing/removing it can prevent exact reconciliation. Files can contain precise positions/times, Notes, activity/check-in data, device/app/OS/provider/battery metadata, queue diagnostics, and identifiers. Store and transfer them securely, retain them until both histories are verified, then delete unnecessary copies.
 
 ---
 
@@ -19,7 +19,7 @@ CSV uses the CSV importer and suits spreadsheets/Python. GeoJSON uses the Wayfar
 - **GPX** — GPS tracks and waypoints
 - **KML** — Google Earth/Maps format
 - **CSV** — Tabular points with lat/lon (headers required)
-- **GeoJSON** — Features and geometry collections
+- **Wayfarer GeoJSON** — Wayfarer location-history exports; generic GeoJSON is not supported
 - **Google Timeline JSON** — Export from Google location history
 
 ### How Imports Work
@@ -28,14 +28,13 @@ CSV uses the CSV importer and suits spreadsheets/Python. GeoJSON uses the Wayfar
 - A background job parses your file in batches.
 - **Deduplication** — imports automatically detect and skip duplicate locations based on timestamp and coordinates within a small tolerance.
 - **Metadata preservation** — accuracy, speed, altitude, heading, and source fields are imported when available.
-- If reverse geocoding is configured (per-user token), missing addresses are enriched.
+- Missing addresses are enriched only after explicit upload opt-in or a later **Start** command, and only while current provider authority permits contact.
 - Progress updates show status and last imported record.
 
 ### Import Controls
 
 - **Start** — begin or resume processing a stopped/failed import.
 - **Stop** — pause an in-progress import (can resume later).
-- **Regenerate** — reprocess the file from scratch.
 - **Delete** — remove the import and associated uploaded file.
 - Status indicators: InProgress, Completed, Stopped, Failed, Stopping.
 - Large files are processed asynchronously with SSE progress updates.
@@ -44,10 +43,22 @@ CSV uses the CSV importer and suits spreadsheets/Python. GeoJSON uses the Wayfar
 
 ![Import History](images/location-imports.JPG)
 
-### Reverse Geocoding (Optional)
+### Resumable Reverse Geocoding (Optional)
 
-- Configure an authorized and verified personal provider profile before address enrichment. Imports share its remaining guard allowance and preserve retryable source data on exhaustion; see [Personal Location Providers](24-Personal-Location-Providers.md).
-- Without a token, imports still work; address fields stay blank.
+- Configure an authorized and verified personal provider profile before scheduled address enrichment. The
+  separate enrichment workflow shares its remaining guard allowance and preserves retryable candidates on
+  exhaustion; see [Personal Location Providers](24-Personal-Location-Providers.md).
+- Without usable current provider authority, imports still work; address fields stay blank.
+- Opt in during upload or use **Start** later. Import completion covers parsing, duplicate filtering, and insertion; enrichment can continue independently for days.
+- State- and authority-specific controls are **Start**, **Pause**, **Resume**, **Cancel**, and **Retry deferred**; only meaningful actions are shown and the server revalidates every command. Retry deferred explicitly overrides eligible current-authority poison/no-result deferral without resetting usage or successes.
+- Each Quartz execution contacts at most 100 wholly empty owned candidates in timestamp/ID order. Permanent and not-yet-due attempts are skipped so poison rows cannot starve later Locations.
+- Geoapify geocoding and routing share a rolling pool and wake after the oldest counted admission expires plus five seconds. Mapbox Permanent Geocoding uses the next Wayfarer UTC month boundary plus five seconds.
+- Wayfarer cannot see usage made directly in the external provider account. The displayed usage contains only committed Wayfarer admissions.
+- At the default 2,500-credit guard, 100,000 contacts need 1,000 executions and at least 40 windows—about 39 elapsed days before competition, retries, downtime, and latency.
+- Deleting import history removes only its metadata/file. Locations, enrichment, workflow state, attempts, credentials, and usage remain. Trip imports stay separate and are not rerouted.
+- Cancelling enrichment does not cancel or delete imports, and deleting import history does not delete Locations or enrichment.
+
+Location import performs no provider credential resolution, provider admission, reverse-geocoding HTTP, inline enrichment, or per-record enrichment delay. It parses incrementally, deduplicates, commits each Location batch and progress, then reconciles the optional workflow. Committed blank rows feed that separate opted-in Quartz workflow; imported/manual address fields and provenance are preserved.
 
 ### Metadata Fields
 
@@ -129,4 +140,4 @@ Wayfarer-native KML schema v2 preserves ordered From/Via/To Place identity, wayp
 Legacy Wayfarer KML v1 remains supported. Its `DurationMin` value is treated as an intentional Manual duration; absence defaults to Automatic. Imported distance is recalculated by the server from the effective route, and existing public/export duration minutes continue to use `TimeSpan.TotalMinutes`, so whole-second values retain fractional-minute precision.
 
 Generic KML and GeoJSON remain geometry-only interchange formats. They do not infer semantic saved-Place waypoints, and generic route coordinates are imported exactly without dense-route simplification. Dense generic-route simplification is deferred to #425; external route generation is deferred to #426.
-Imports with supplied addresses retain those values with unknown provenance. Missing-address enrichment is optional and uses the shared admitted persistent-provider boundary; unavailable providers do not stop accepted imports. There is no automatic enrichment queue. The authenticated Geoapify action processes at most 100 wholly unenriched owned Locations chronologically per invocation and resumes from remaining domain state.
+Imports with supplied addresses retain those values with unknown provenance. Missing-address enrichment is optional and uses the shared admitted persistent-provider boundary; unavailable providers do not stop accepted imports. Explicit upload opt-in creates durable relational intent projected to Quartz one-shot continuations. Each execution processes at most 100 wholly unenriched owned Locations chronologically and resumes from remaining domain state; import completion remains independent.

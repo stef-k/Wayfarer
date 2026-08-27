@@ -14,6 +14,7 @@ using Wayfarer.Jobs;
 using Wayfarer.Models;
 using Wayfarer.Parsers;
 using Wayfarer.Services;
+using Wayfarer.Services.LocationImports;
 using Wayfarer.Tests.Infrastructure;
 using Xunit;
 
@@ -189,6 +190,27 @@ public class JobTests : TestBase
         Assert.Equal("importJob", history.JobName);
         Assert.Equal("Completed", history.Status);
         Assert.True(history.LastRunTime.HasValue);
+    }
+
+    [Theory]
+    [InlineData(LocationImportExecutionOutcome.Cancelled)]
+    [InlineData(LocationImportExecutionOutcome.Stale)]
+    public async Task JobExecutionListener_RecordsImportCancellationTruth(LocationImportExecutionOutcome outcome)
+    {
+        var db = CreateDbContext();
+        var provider = new Mock<IServiceProvider>();
+        provider.Setup(item => item.GetService(typeof(ApplicationDbContext))).Returns(db);
+        provider.Setup(item => item.GetService(typeof(SseService))).Returns(new SseService());
+        var scope = Mock.Of<IServiceScope>(item => item.ServiceProvider == provider.Object);
+        var listener = new JobExecutionListener(Mock.Of<IServiceScopeFactory>(item => item.CreateScope() == scope));
+        var context = new Mock<IJobExecutionContext>();
+        context.SetupGet(item => item.JobDetail).Returns(
+            JobBuilder.Create<LocationImportJob>().WithIdentity("cancelled-import", "Imports").Build());
+        context.SetupGet(item => item.Result).Returns(outcome);
+
+        await listener.JobWasExecuted(context.Object, null, CancellationToken.None);
+
+        Assert.Equal("Cancelled", Assert.Single(db.JobHistories).Status);
     }
 
     #region VisitCleanupJob Tests

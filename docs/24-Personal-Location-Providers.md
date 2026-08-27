@@ -37,7 +37,7 @@ The settings workflow is deliberately ordered: configure a masked credential, ac
 
 Wayfarer's meter counts only Wayfarer contacts. Other applications or tokens can consume the Mapbox account allowance. A disabled guard can incur charges. With no eligible provider, consent, verification, selection, or remaining budget, capture, imports, Trips, Places, Timeline, exports, and synchronization continue without new enrichment. Provider failures preserve submitted/manual and prior enrichment.
 
-Historical rows have unknown nullable provenance because they may contain Temporary Mapbox output, imports, or manual edits; this release does not delete or reclassify them. New successful Mapbox enrichment records `mapbox`, `permanent`, and its UTC persistence time. There is no automatic retry or pending queue. [#502](https://github.com/stef-k/Wayfarer/issues/502) owns the same-release explicit bounded backfill after Geoapify becomes available.
+Historical rows have unknown nullable provenance because they may contain Temporary Mapbox output, imports, or manual edits; this release does not delete or reclassify them. New successful Mapbox enrichment records `mapbox`, `permanent`, and its UTC persistence time. Issue #507 adds an explicitly opted-in relational enrichment workflow over #502's bounded admission seam; provider changes never grant consent or silently start work.
 
 ## Geoapify persistent geocoding and routing
 
@@ -45,7 +45,7 @@ Create a Geoapify account and a dedicated Wayfarer API key, then use the ordered
 
 Geoapify's Free plan was documented as 3,000 credits per 24 hours when retrieved on 2026-08-23. Wayfarer's enabled default is a conservative 2,500-credit rolling 24-hour safety window shared by geocoding and routing. Wayfarer cannot observe other account/key use or a provider reset timezone. Walk/bicycle routing admits one credit per consecutive waypoint pair; motorcycle/drive/bus conservatively admit 21 per pair. Every retry is admitted separately and admitted failures count. A disabled guard still records use and can risk paid usage or suspension.
 
-Successful reverse geocoding stores normalized fields with `geoapify`, `persistent`, and UTC provenance. The explicit user action scans at most 100 owned wholly unenriched Locations chronologically; it never overwrites any manual/imported/existing field, stops on exhaustion, and resumes from still-unenriched domain state without a queue.
+Successful reverse geocoding stores normalized fields with `geoapify`, `persistent`, and UTC provenance. The explicit user action schedules a durable Quartz workflow that scans at most 100 owned wholly unenriched Locations chronologically per execution; it never overwrites any manual/imported/existing field, stops on exhaustion, and resumes from still-unenriched domain state. The workflow stores bounded attempt authority rather than provider payloads or Location content in a queue.
 
 Administrators enable a fixed-endpoint Geoapify routing configuration and map stable Wayfarer Transport Profile IDs with a closed dropdown: Not mapped, Walk, Bicycle, Motorcycle, Drive, or Bus. Display labels have no routing meaning: `WALK`, `walk`, `Walking`, localized labels, and custom labels are never matched automatically. Renaming a profile preserves its mapping; changing/removing a mapping advances configuration authority and invalidates stale proposals. Mapbox mappings remain separate under #500.
 
@@ -55,7 +55,7 @@ Only explicit Trip Editor acceptance persists a Geoapify route. Stored geometry,
 
 Geoapify states that request data, headers, IP, and timestamps are used for access, usage, and statistics, and that successful-request data is generally retained no longer than 24 hours. Coordinates, routes, and addresses travel server-to-provider/CDNs. Wayfarer does not log credentials, authenticated URLs, coordinates, returned addresses, geometry, instructions, or raw payloads.
 
-Issue #505 owns the coordinated release: #502 precedes #500, PostgreSQL and the Data Protection key ring are backed up together, backend deploys first, family accounts are configured explicitly after deployment, and Mobile publishes only after API/device acceptance. No provider is selected automatically and #502 must not be deployed publicly by itself.
+Issue #505 owns the coordinated release: #502 → #507 → #500, PostgreSQL and the Data Protection key ring are backed up together, backend deploys first, family accounts are configured explicitly after deployment, and Mobile publishes only after API/device acceptance. No provider is selected automatically and #502 must not be deployed publicly by itself.
 
 Official policy sources retrieved 2026-08-23: [Geocoding v6 API and storage](https://docs.mapbox.com/api/search/geocoding/), [Temporary versus Permanent](https://docs.mapbox.com/help/dive-deeper/understand-temporary-vs-permanent-geocoding/), [pricing](https://www.mapbox.com/pricing/), and [attribution guidance](https://docs.mapbox.com/help/dive-deeper/attribution/).
 
@@ -72,5 +72,13 @@ Wayfarer counts only contacts it admits. Cached/stored reuse and pre-HTTP reject
 ## Exhaustion, imports, privacy, and recovery
 
 Exhaustion stops new provider contact and recovers automatically as rolling credits expire, a product cycle advances, or a guard is raised/disabled. Source records remain retryable and historical data remains available. Imports and backfills use the same remaining pool and receive no catch-up burst.
+
+## Resumable workflow authority
+
+One retained workflow per user owns intent, epoch, state, progress, due time, an expiring execution lease with a monotonically advancing fence, and compact generation-bound attempts. Quartz owns one stable durable job and one current one-shot trigger; stale epochs no-op and startup reconciliation repairs scheduling metadata. The supported deployment runs one active scheduler because clustering is not configured. Wayfarer's relational lease/fence is product execution authority and short provider-ledger transactions remain admission authority; neither a database resource nor scheduler lock spans provider HTTP.
+
+Processed, enriched, and skipped are cumulative committed outcomes. Retryable and permanent deferred counts describe committed attempt outcomes; failed batches count committed batch failures. Runnable remaining is recomputed from current wholly-unenriched, due eligibility, and next attempt is the earliest future retry. Displayed provider credits come from the provider admission ledger, not an invented workflow counter.
+
+Transient 429, timeout, network, and 503 outcomes use deterministic backoff and no more than three admitted attempts per provider generation. Invalid coordinates and unusable results defer until **Retry deferred**. Attempts contain bounded identities, generations, outcomes, counts, and times only—never coordinates, addresses, credentials, URLs, payloads, or exception text.
 
 Provider contact discloses coordinates and may disclose route inputs to the selected provider. Query-string authentication may be provider-required, but complete URIs, credentials, coordinates, returned addresses, request/response payloads, and imported content are excluded from Wayfarer logs and diagnostics. Revoke a provider key at both Wayfarer and the provider account when compromise is suspected; revocation does not delete historical data.

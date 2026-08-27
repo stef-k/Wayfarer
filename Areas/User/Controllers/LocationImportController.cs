@@ -8,6 +8,9 @@ using Wayfarer.Jobs;
 using Wayfarer.Models;
 using Wayfarer.Models.Enums;
 using Wayfarer.Models.ViewModels;
+using Wayfarer.Models.LocationEnrichment;
+using Wayfarer.Services.LocationEnrichment;
+using Wayfarer.Services.LocationImports;
 
 namespace Wayfarer.Areas.User.Controllers
 {
@@ -22,15 +25,29 @@ namespace Wayfarer.Areas.User.Controllers
 
         private readonly IWebHostEnvironment _environment;
         private readonly IScheduler        _scheduler;
+        private readonly IImportEnrichmentHandoff? _enrichmentHandoff;
+        private readonly ILocationImportLifecycle _importLifecycle;
+        private readonly ILocationEnrichmentPresentationProjector _enrichmentPresentation;
 
         public LocationImportController(ApplicationDbContext dbContext,
             ILogger<LocationImportController> logger,
             IWebHostEnvironment environment,
-            IScheduler scheduler)
+            IScheduler scheduler,
+            ILocationEnrichmentPresentationProjector enrichmentPresentation,
+            IImportEnrichmentHandoff? enrichmentHandoff = null,
+            IWorkflowScheduleProjection? workflowProjection = null,
+            ILocationImportLifecycle? importLifecycle = null,
+            IDbContextFactory<ApplicationDbContext>? contextFactory = null)
             : base(logger, dbContext)
         {
             _environment = environment;
             _scheduler = scheduler;
+            _enrichmentPresentation = enrichmentPresentation;
+            _enrichmentHandoff = enrichmentHandoff;
+            _importLifecycle = importLifecycle ?? new LocationImportLifecycle(
+                contextFactory ?? throw new ArgumentNullException(nameof(contextFactory)), scheduler,
+                logger as ILogger<LocationImportLifecycle>
+                    ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<LocationImportLifecycle>.Instance);
         }
 
         /// <summary>
@@ -40,203 +57,125 @@ namespace Wayfarer.Areas.User.Controllers
         public async Task<IActionResult> Index()
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrWhiteSpace(userId)) return Challenge();
             var imports = await _dbContext.LocationImports
                 .Where(x => x.UserId == userId)
                 .OrderByDescending(x => x.CreatedAt)
                 .ToListAsync();
             
             ViewData["UserId"] = userId;
+            ViewData["EnrichmentPresentation"] = await _enrichmentPresentation.ProjectAsync(
+                userId, HttpContext.RequestAborted);
 
             SetPageTitle("Location Imports");
             return View(imports);
+        }
+
+        /// <summary>Starts or idempotently reuses the authenticated user's one enrichment workflow.</summary>
+        [HttpPost, ValidateAntiForgeryToken]
+        public async Task<IActionResult> StartEnrichment()
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrWhiteSpace(userId)) return Challenge();
+            if (_enrichmentHandoff is null) return Conflict("control-unavailable");
+            var result = await _enrichmentHandoff.StartAsync(userId);
+            return result.Succeeded ? RedirectToAction(nameof(Index)) : Conflict(result.Code);
+        }
+
+        /// <summary>Persists authenticated pause intent before neutralizing Quartz work.</summary>
+        [HttpPost, ValidateAntiForgeryToken]
+        public Task<IActionResult> PauseEnrichment() => ExecuteEnrichmentAsync(
+            (owner, userId) => owner.PauseAsync(userId));
+
+        /// <summary>Idempotently resumes the authenticated user's current nonterminal epoch.</summary>
+        [HttpPost, ValidateAntiForgeryToken]
+        public Task<IActionResult> ResumeEnrichment() => ExecuteEnrichmentAsync(
+            (owner, userId) => owner.ResumeAsync(userId));
+
+        /// <summary>Cancels only enrichment metadata while retaining import and Location data.</summary>
+        [HttpPost, ValidateAntiForgeryToken]
+        public Task<IActionResult> CancelEnrichment() => ExecuteEnrichmentAsync(
+            (owner, userId) => owner.CancelAsync(userId));
+
+        /// <summary>Retries deferred work only for the authenticated user's current provider generation.</summary>
+        [HttpPost, ValidateAntiForgeryToken]
+        public async Task<IActionResult> RetryDeferredEnrichment()
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrWhiteSpace(userId)) return Challenge();
+            if (_enrichmentHandoff is null) return Conflict("control-unavailable");
+            var result = await _enrichmentHandoff.RetryDeferredAsync(userId);
+            return result.Succeeded ? RedirectToAction(nameof(Index)) : Conflict(result.Code);
+        }
+
+        private async Task<IActionResult> ExecuteEnrichmentAsync(
+            Func<IImportEnrichmentHandoff, string, Task<EnrichmentCommandResult>> execute)
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrWhiteSpace(userId)) return Challenge();
+            if (_enrichmentHandoff is null) return Conflict("control-unavailable");
+            var result = await execute(_enrichmentHandoff, userId);
+            return result.Succeeded ? RedirectToAction(nameof(Index)) : Conflict(result.Code);
         }
 
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> StartImport(int id)
         {
-            var import = await _dbContext.LocationImports
-                .FirstOrDefaultAsync(x => x.Id == id);
-
-            if (import == null)
-            {
-                SetAlert("Import record not found.", "danger");
-                return RedirectToAction("Index");
-            }
-
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (import.UserId != userId)
+            if (string.IsNullOrWhiteSpace(userId)) return Challenge();
+            var result = await _importLifecycle.StartAsync(userId, id, HttpContext.RequestAborted);
+            SetAlert(result.Code switch
             {
-                SetAlert("Unauthorized access.", "danger");
-                return RedirectToAction("Index");
-            }
-
-            if (import.Status == ImportStatus.InProgress)
-            {
-                SetAlert("Import job is already in progress.", "warning");
-                return RedirectToAction("Index");
-            }
-
-            import.Status = ImportStatus.InProgress;
-            await _dbContext.SaveChangesAsync();
-
-            // Start the Quartz job
-            await StartImportJob(import);
-
-            SetAlert("Import started successfully.");
+                LocationImportCommandCode.Accepted => "Import started successfully.",
+                LocationImportCommandCode.ProjectionPending => "Import accepted and awaiting scheduler recovery.",
+                LocationImportCommandCode.InvalidState => "Import cannot be started in its current state.",
+                _ => "Import record not found."
+            }, result.Succeeded ? "success" : "warning");
             return RedirectToAction("Index");
-        }
-
-        private async Task StartImportJob(LocationImport import)
-        {
-            var jobKey = new JobKey($"LocationImportJob_{import.Id}", ImportJobGroup);
-
-            _logger.LogInformation("Attempting to schedule LocationImportJob for import ID {ImportId}", import.Id);
-
-            var jobDetail = JobBuilder.Create<LocationImportJob>()
-                .WithIdentity(jobKey)
-                .UsingJobData("importId", import.Id.ToString())
-                .StoreDurably()  // Ensures the job is recoverable after a restart
-                .Build();
-
-            var trigger = TriggerBuilder.Create()
-                .WithIdentity($"LocationImportTrigger_{import.Id}", ImportJobGroup)
-                .StartNow()
-                .Build();
-            
-            if (await _scheduler.CheckExists(jobKey))
-            {
-                _logger.LogWarning("Job with key {JobKey} already exists. Deleting existing job before rescheduling.",
-                    jobKey);
-                await _scheduler.DeleteJob(jobKey);
-            }
-
-            await _scheduler.ScheduleJob(jobDetail, trigger);
-            _logger.LogInformation("Successfully scheduled LocationImportJob for import ID {ImportId}", import.Id);
         }
 
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> StopImport(int id)
         {
-            var import = await _dbContext.LocationImports
-                .FirstOrDefaultAsync(x => x.Id == id);
-
-            if (import == null)
-            {
-                SetAlert("Import record not found.", "danger");
-                return RedirectToAction("Index");
-            }
-
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (import.UserId != userId)
-            {
-                SetAlert("Unauthorized access.", "danger");
-                return RedirectToAction("Index");
-            }
-
-            if (import.Status != ImportStatus.InProgress)
-            {
-                SetAlert("No import job is currently in progress to stop.", "warning");
-                return RedirectToAction("Index");
-            }
-
-            // Set status to Stopping
-            import.Status = ImportStatus.Stopping;
-            await _dbContext.SaveChangesAsync();
-
-            // Implement logic to stop the job (e.g., background task cancellation)
-            await StopImportJob(import);
-
-            SetAlert("Import stopping request submitted successfully.");
+            if (string.IsNullOrWhiteSpace(userId)) return Challenge();
+            var result = await _importLifecycle.StopAsync(userId, id, HttpContext.RequestAborted);
+            SetAlert(result.Succeeded ? "Import stopping request submitted successfully." : "No active import was found.",
+                result.Succeeded ? "success" : "warning");
             return RedirectToAction("Index");
-        }
-
-        private async Task StopImportJob(LocationImport import)
-        {
-            var jobKey = new JobKey($"LocationImportJob_{import.Id}", ImportJobGroup);
-
-            _logger.LogInformation("Attempting to stop job with key {JobKey}", jobKey);
-            
-            if (await _scheduler.CheckExists(jobKey))
-            {
-                var job = await _scheduler.GetJobDetail(jobKey);
-
-                // Mark the job status to stopping
-                import.Status = ImportStatus.Stopping;
-                await _dbContext.SaveChangesAsync();
-
-                _logger.LogInformation("Job with key {JobKey} is in progress. Attempting to interrupt it.", jobKey);
-                await _scheduler.Interrupt(jobKey);
-
-                // Optionally, delete the job after interrupting
-                await _scheduler.DeleteJob(jobKey);
-
-                import.Status = ImportStatus.Stopped;
-                await _dbContext.SaveChangesAsync();
-            }
-            else
-            {
-                _logger.LogWarning("Job with key {JobKey} does not exist.", jobKey);
-            }
-
-            SetAlert("Import stopping request submitted successfully.");
         }
 
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Delete(int id)
         {
-            var import = await _dbContext.LocationImports
-                .FirstOrDefaultAsync(x => x.Id == id);
-
-            if (import == null)
-            {
-                SetAlert("Upload record not found.", "danger");
-                return RedirectToAction("Index");
-            }
-
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (import.UserId != userId)
-            {
-                SetAlert("Unauthorized access.", "danger");
-                return RedirectToAction("Index");
-            }
-
-            // Do not allow deletion if the import is currently in progress
-            if (import.Status == ImportStatus.InProgress)
-            {
-                SetAlert("Upload is currently in progress and cannot be canceled or removed.", "warning");
-                return RedirectToAction("Index");
-            }
-
-            try
-            {
-                // Attempt to delete the file if it exists
-                if (System.IO.File.Exists(import.FilePath))
-                {
-                    System.IO.File.Delete(import.FilePath);
-                }
-
-                _dbContext.LocationImports.Remove(import);
-                await _dbContext.SaveChangesAsync();
-
-                SetAlert("Upload record removed successfully.");
-            }
-            catch (Exception ex)
-            {
-                HandleError(ex);
-                SetAlert("An error occurred while deleting the import record.", "danger");
-            }
-
+            if (string.IsNullOrWhiteSpace(userId)) return Challenge();
+            var result = await _importLifecycle.DeleteAsync(userId, id, HttpContext.RequestAborted);
+            SetAlert(result.Code == LocationImportCommandCode.Accepted
+                ? "Upload record removed successfully."
+                : result.Code == LocationImportCommandCode.ExecutionActive
+                    ? "Upload is active or stopping and cannot be removed yet."
+                    : "Upload record not found.", result.Code == LocationImportCommandCode.Accepted ? "success" : "warning");
             return RedirectToAction("Index");
         }
 
         [HttpGet]
         public IActionResult Upload()
         {
+            PrepareUploadView();
+            SetPageTitle("Upload File");
+            return View(new LocationImportUploadViewModel());
+        }
+
+        /// <summary>Builds upload choices for GET and validation rerenders.</summary>
+        private void PrepareUploadView()
+        {
             var fileTypes = Enum.GetValues(typeof(LocationImportFileType))
                 .Cast<LocationImportFileType>()
+                .Where(fileType => fileType.IsSupportedUpload())
                 .Select(fileType => new SelectListItem
                 {
                     Value = fileType.ToString(),
@@ -249,15 +188,21 @@ namespace Wayfarer.Areas.User.Controllers
 
             var acceptedExtensions = Enum.GetValues(typeof(LocationImportFileType))
                 .Cast<LocationImportFileType>()
+                .Where(fileType => fileType.IsSupportedUpload())
                 .SelectMany(fileType => fileType.GetAllowedExtensions())
                 .Distinct(StringComparer.OrdinalIgnoreCase);
             ViewBag.AcceptedExtensions = string.Join(",", acceptedExtensions);
 
             var uploadSettings = _dbContext.ApplicationSettings.OrderBy(s => s.Id).FirstOrDefault();
             ViewBag.UploadLimit = (uploadSettings?.UploadSizeLimitMB ?? ApplicationSettings.DefaultUploadSizeLimitMB).ToString();
+        }
 
+        /// <summary>Preserves the submitted model and required view data after validation failure.</summary>
+        private ViewResult InvalidUpload(LocationImportUploadViewModel model)
+        {
+            PrepareUploadView();
             SetPageTitle("Upload File");
-            return View(new LocationImportUploadViewModel());
+            return View("Upload", model);
         }
 
         [HttpPost]
@@ -266,19 +211,26 @@ namespace Wayfarer.Areas.User.Controllers
         {
             if (!ModelState.IsValid)
             {
-                return RedirectToAction("Upload");
+                return InvalidUpload(model);
             }
 
             if (model.File == null || model.File.Length == 0)
             {
                 ModelState.AddModelError("", "Please select a valid file.");
-                return View("Upload", model);
+                return InvalidUpload(model);
             }
 
             if (!model.FileType.HasValue)
             {
                 ModelState.AddModelError(nameof(model.FileType), "Please select a valid file type.");
-                return View("Upload", model);
+                return InvalidUpload(model);
+            }
+
+            if (!model.FileType.Value.IsSupportedUpload())
+            {
+                ModelState.AddModelError(nameof(model.FileType),
+                    "Generic GeoJSON is not a supported location-history format. Select Wayfarer GeoJSON for Wayfarer exports.");
+                return InvalidUpload(model);
             }
 
             var extension = Path.GetExtension(model.File.FileName);
@@ -286,12 +238,12 @@ namespace Wayfarer.Areas.User.Controllers
             {
                 ModelState.AddModelError(nameof(model.File),
                     $"Invalid file extension '{extension}'. Allowed: {string.Join(", ", model.FileType.Value.GetAllowedExtensions())}");
-                return View("Upload", model);
+                return InvalidUpload(model);
             }
 
             if (!ValidateModelState())
             {
-                return View("Upload", model);
+                return InvalidUpload(model);
             }
 
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -301,24 +253,24 @@ namespace Wayfarer.Areas.User.Controllers
                 return RedirectToAction("Index", "Home", new { area = "" });
             }
 
-            var timestamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss");
-            var randomString = Guid.NewGuid().ToString("N").Substring(0, 6);
-            var uniqueFileName = $"{model.FileType}_{userId}_Timestamp_{timestamp}__{randomString}";
-
             var uploadDirectory = Path.Combine(_environment.ContentRootPath, "Uploads", "Temp");
-            Directory.CreateDirectory(uploadDirectory);
-
-            var filePath = Path.Combine(uploadDirectory, uniqueFileName);
-            _logger.LogInformation($"Uploading {uniqueFileName} to {uploadDirectory} with file path {filePath}");
+            string? filePath = null;
+            var stagedFileCreated = false;
+            var committed = false;
+            LocationImport importRecord;
 
             try
             {
-                using (var stream = new FileStream(filePath, FileMode.Create))
+                Directory.CreateDirectory(uploadDirectory);
+                var serverExtension = model.FileType.Value.GetAllowedExtensions().First();
+                filePath = Path.Combine(uploadDirectory, $"{Guid.NewGuid():N}{serverExtension}");
+                using (var stream = new FileStream(filePath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
                 {
+                    stagedFileCreated = true;
                     await model.File.CopyToAsync(stream);
                 }
 
-                var importRecord = new LocationImport
+                importRecord = new LocationImport
                 {
                     UserId = userId,
                     FileType = model.FileType.Value,
@@ -329,20 +281,109 @@ namespace Wayfarer.Areas.User.Controllers
                     TotalRecords = 0,
                     Status = ImportStatus.Stopped,
                     ErrorMessage = null
+                    ,EnrichmentRequested = model.EnrichmentRequested
+                    ,EnrichmentRequestedAtUtc = model.EnrichmentRequested ? DateTime.UtcNow : null
                 };
 
                 _dbContext.LocationImports.Add(importRecord);
                 await _dbContext.SaveChangesAsync();
-
-                SetAlert("File uploaded successfully and is pending import.");
+                committed = true;
             }
-            catch (Exception ex)
+            catch (Exception) when (!committed)
             {
-                HandleError(ex);
+                var cleanupFailed = false;
+                if (stagedFileCreated && filePath is not null)
+                {
+                    try { if (System.IO.File.Exists(filePath)) System.IO.File.Delete(filePath); }
+                    catch (Exception)
+                    {
+                        cleanupFailed = true;
+                    }
+                }
+
+                try
+                {
+                    _logger.LogError("Location import upload failed; code {Code}.",
+                        "location-import-upload-failed");
+                }
+                catch (Exception)
+                {
+                    // Diagnostics are best effort after request-local consistency restoration.
+                }
+
+                if (cleanupFailed)
+                {
+                    try
+                    {
+                        _logger.LogWarning("Location import upload cleanup failed; code {Code}.",
+                            "location-import-upload-cleanup-failed");
+                    }
+                    catch (Exception)
+                    {
+                        // A cleanup diagnostic cannot replace the primary upload failure.
+                    }
+                }
+
+                TrySetUploadFailureAlert();
+
                 return RedirectToAction("Index");
             }
 
+            // Relational persistence is authoritative; presentation diagnostics are best effort.
+            try
+            {
+                _logger.LogInformation("Location import upload staged; code {Code}; import {ImportId}.",
+                    "location-import-upload-staged", importRecord.Id);
+            }
+            catch (Exception)
+            {
+                // A diagnostic sink cannot invalidate the committed row and staged file.
+            }
+
+            try
+            {
+                SetAlert("File uploaded successfully and is pending import.");
+            }
+            catch (Exception)
+            {
+                // The durable import list remains authoritative when banner storage fails.
+            }
+
             return RedirectToAction("Index");
+        }
+
+        /// <summary>Attempts bounded upload-failure diagnostics and presentation independently.</summary>
+        private void TrySetUploadFailureAlert()
+        {
+            const string message = "An unexpected error occurred. Please try again later.";
+            const string alertType = "danger";
+
+            try
+            {
+                _logger.LogInformation("Alert: {Message} ({Type})", message, alertType);
+            }
+            catch (Exception)
+            {
+                // Alert diagnostics cannot suppress the available presentation sink.
+            }
+
+            try
+            {
+                TempData["AlertMessage"] = message;
+            }
+            catch (Exception)
+            {
+                // Presentation storage cannot replace cleanup or bounded redirect behavior.
+            }
+
+            try
+            {
+                TempData["AlertType"] = alertType;
+            }
+            catch (Exception)
+            {
+                // Each presentation value remains independently best effort.
+            }
         }
     }
 }

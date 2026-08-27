@@ -15,6 +15,7 @@ public sealed class LegacyMapboxMigrationService(
         await using var transaction = dbContext.Database.IsRelational()
             ? await dbContext.Database.BeginTransactionAsync(cancellationToken) : null;
 
+        var selection = await LockSelectionAsync(userId, cancellationToken);
         var profile = await LockProfileAsync(userId, cancellationToken);
         var legacyRows = await LockLegacyRowsAsync(userId, cancellationToken);
         var values = legacyRows.Select(item => item.Token!.Trim()).Distinct(StringComparer.Ordinal).ToArray();
@@ -27,7 +28,7 @@ public sealed class LegacyMapboxMigrationService(
             else if (profile?.LegacyMigrationState == LegacyMapboxMigrationState.Migrated
                      && !profile.HasCurrentPermanentGeocodingConsent()
                      && profile.GeocodingVerification == PersonalProviderVerification.Unverified)
-                await ClearEarlierMigrationSelectionAsync(userId, cancellationToken);
+                await ClearEarlierMigrationSelectionAsync(selection);
             if (profile != null) await dbContext.SaveChangesAsync(cancellationToken);
             return await CompleteAsync(new(profile?.LegacyMigrationState ?? LegacyMapboxMigrationState.None, 0,
                 profile != null && credentials.Read(profile).Succeeded), transaction, cancellationToken);
@@ -56,13 +57,13 @@ public sealed class LegacyMapboxMigrationService(
             }
             if (!string.Equals(protectedRead.Credential, values[0], StringComparison.Ordinal))
                 return await PreserveConflictAsync(profile, userId, transaction, cancellationToken);
-            await EnsureGeocodingAuthorityAsync(profile, userId, cancellationToken);
+            await EnsureGeocodingAuthorityAsync(profile, selection);
         }
         else
         {
             credentials.Replace(profile, values[0]);
             profile.SetAuthorization(PersonalProviderCapability.Routing, false);
-            await EnsureGeocodingAuthorityAsync(profile, userId, cancellationToken);
+            await EnsureGeocodingAuthorityAsync(profile, selection);
             await dbContext.SaveChangesAsync(cancellationToken);
             var protectedRead = credentials.Read(profile);
             if (!protectedRead.Succeeded || !string.Equals(protectedRead.Credential, values[0], StringComparison.Ordinal))
@@ -80,13 +81,22 @@ public sealed class LegacyMapboxMigrationService(
         return await CompleteAsync(new(profile.LegacyMigrationState, retired, true), transaction, cancellationToken);
     }
 
-    private async Task ClearEarlierMigrationSelectionAsync(string userId, CancellationToken cancellationToken)
+    private static Task ClearEarlierMigrationSelectionAsync(PersonalLocationProviderSelection? selection)
     {
-        var selection = await dbContext.Set<PersonalLocationProviderSelection>()
-            .SingleOrDefaultAsync(item => item.UserId == userId, cancellationToken);
         if (selection?.GeocodingProviderKey == "mapbox")
             selection.Select(PersonalProviderCapability.Geocoding, null);
+        return Task.CompletedTask;
     }
+
+    private Task<PersonalLocationProviderSelection?> LockSelectionAsync(
+        string userId, CancellationToken cancellationToken) =>
+        dbContext.Database.IsNpgsql()
+            ? dbContext.Set<PersonalLocationProviderSelection>().FromSqlInterpolated($$"""
+                SELECT *, xmin FROM "PersonalLocationProviderSelections"
+                WHERE "UserId" = {{userId}} FOR UPDATE
+                """).SingleOrDefaultAsync(cancellationToken)
+            : dbContext.Set<PersonalLocationProviderSelection>().SingleOrDefaultAsync(
+                item => item.UserId == userId, cancellationToken);
 
     private Task<PersonalLocationProviderProfile?> LockProfileAsync(string userId, CancellationToken cancellationToken) =>
         dbContext.Database.IsNpgsql()
@@ -97,15 +107,14 @@ public sealed class LegacyMapboxMigrationService(
             : dbContext.Set<PersonalLocationProviderProfile>().SingleOrDefaultAsync(
                 item => item.UserId == userId && item.ProviderKey == "mapbox", cancellationToken);
 
-    private async Task EnsureGeocodingAuthorityAsync(
-        PersonalLocationProviderProfile profile, string userId, CancellationToken cancellationToken)
+    private static Task EnsureGeocodingAuthorityAsync(
+        PersonalLocationProviderProfile profile, PersonalLocationProviderSelection? selection)
     {
         profile.SetAuthorization(PersonalProviderCapability.Geocoding, true);
         profile.ClearPermanentGeocodingConsent();
-        var selection = await dbContext.Set<PersonalLocationProviderSelection>()
-            .SingleOrDefaultAsync(item => item.UserId == userId, cancellationToken);
         if (selection?.GeocodingProviderKey == "mapbox")
             selection.Select(PersonalProviderCapability.Geocoding, null);
+        return Task.CompletedTask;
     }
 
     private async Task<List<ApiToken>> LockLegacyRowsAsync(string userId, CancellationToken cancellationToken)

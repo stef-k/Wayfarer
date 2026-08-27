@@ -34,7 +34,7 @@ Core Concepts
 First Steps
 1) Review account profile and change your password.
 2) Explore Timeline or Trips from the menu.
-3) If you have historical data, see Importing Data to upload GPX/KML/CSV/GeoJSON/Google exports.
+3) If you have historical data, see Importing Data to upload GPX/KML/CSV/Wayfarer GeoJSON/Google exports.
 4) Optional: Install and connect the companion mobile app for live location updates.
 5) If you'll self‑host, see "Install & Self‑Hosting" next.
 

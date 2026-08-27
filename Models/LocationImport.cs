@@ -1,6 +1,8 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using Wayfarer.Models.Enums;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Wayfarer.Models;
 
@@ -66,4 +68,57 @@ public class LocationImport
     /// Count of locations skipped during import due to deduplication.
     /// </summary>
     public int SkippedDuplicates { get; set; }
+
+    /// <summary>Whether this import may hand remaining enrichment to the user's durable workflow.</summary>
+    public bool EnrichmentRequested { get; set; }
+
+    /// <summary>UTC time at which the user explicitly opted into durable enrichment.</summary>
+    public DateTime? EnrichmentRequestedAtUtc { get; set; }
+
+    /// <summary>Bounded reason why inline enrichment stopped while import persistence continued.</summary>
+    [MaxLength(32)]
+    public string? EnrichmentPauseReason { get; set; }
+
+    /// <summary>Last bounded estimate of imported rows still eligible for enrichment.</summary>
+    public int RemainingEnrichmentCount { get; set; }
+
+    /// <summary>Monotonic authority generation embedded in the Quartz projection.</summary>
+    public int ExecutionEpoch { get; set; }
+
+    /// <summary>Whether durable intent still needs to be projected to Quartz.</summary>
+    public bool ProjectionPending { get; set; }
+
+    /// <summary>UTC user stop intent; null means the current epoch may execute.</summary>
+    public DateTime? StopRequestedAtUtc { get; set; }
+
+    /// <summary>UTC terminal-history deletion intent awaiting external cleanup.</summary>
+    public DateTime? DeletionRequestedAtUtc { get; set; }
+
+    /// <summary>PostgreSQL optimistic concurrency token.</summary>
+    public uint Version { get; private set; }
+}
+
+/// <summary>Constrains bounded enrichment handoff facts retained with an import.</summary>
+public sealed class LocationImportConfiguration : IEntityTypeConfiguration<LocationImport>
+{
+    public void Configure(EntityTypeBuilder<LocationImport> builder)
+    {
+        builder.Property(item => item.Version).HasColumnName("xmin").IsRowVersion().ValueGeneratedOnAddOrUpdate();
+        builder.ToTable(table =>
+        {
+            table.HasCheckConstraint("CK_LocationImport_RemainingEnrichment", "\"RemainingEnrichmentCount\" >= 0");
+            table.HasCheckConstraint("CK_LocationImport_EnrichmentPauseReason",
+                "\"EnrichmentPauseReason\" IS NULL OR \"EnrichmentPauseReason\" IN "
+                + "('CredentialRequired','NoProviderSelected','ConsentRequired','Unauthorized','VerificationRequired','Exhausted','StaleAuthority')");
+            table.HasCheckConstraint("CK_LocationImport_ExecutionEpoch", "\"ExecutionEpoch\" >= 0");
+            table.HasCheckConstraint("CK_LocationImport_LifecycleState",
+                "((\"Status\" = 'In Progress' AND \"StopRequestedAtUtc\" IS NULL "
+                + "AND \"DeletionRequestedAtUtc\" IS NULL) OR "
+                + "(\"Status\" = 'Stopping' AND \"StopRequestedAtUtc\" IS NOT NULL "
+                + "AND \"DeletionRequestedAtUtc\" IS NULL AND \"ProjectionPending\") OR "
+                + "(\"Status\" = 'Stopped' AND NOT \"ProjectionPending\") OR "
+                + "(\"Status\" IN ('Completed','Failed') AND \"StopRequestedAtUtc\" IS NULL "
+                + "AND NOT \"ProjectionPending\")) IS TRUE");
+        });
+    }
 }

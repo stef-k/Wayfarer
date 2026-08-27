@@ -1,11 +1,10 @@
 using Microsoft.EntityFrameworkCore;
-using System.Text.Json.Serialization;
 using Wayfarer.Models;
 using Wayfarer.Models.LocationProviders;
 
 namespace Wayfarer.Services.LocationProviders;
 
-/// <summary>Owns the lowest shared credential-authority and durable usage-admission seam before provider HTTP.</summary>
+/// <summary>Owns current provider contact authority and durable admissions.</summary>
 public sealed class PersonalProviderContactGate(
     ApplicationDbContext dbContext, PersonalProviderCredentialService credentials,
     LegacyMapboxMigrationService legacyMigration, IConfiguration configuration)
@@ -14,17 +13,31 @@ public sealed class PersonalProviderContactGate(
     public async Task<PersonalProviderAdmission> AdmitPersistentGeocodingAsync(
         string userId, CancellationToken cancellationToken = default)
     {
-        var selection = await dbContext.Set<PersonalLocationProviderSelection>().AsNoTracking()
-            .SingleOrDefaultAsync(item => item.UserId == userId, cancellationToken);
+        await PreparePersistentGeocodingAsync(userId, cancellationToken);
+        return await AdmitPreparedPersistentGeocodingAsync(userId, cancellationToken);
+    }
+
+    /// <summary>Completes legacy preparation before a caller enters an authoritative admission transaction.</summary>
+    internal Task PreparePersistentGeocodingAsync(string userId, CancellationToken cancellationToken = default) =>
+        legacyMigration.MigrateAsync(userId, cancellationToken);
+
+    /// <summary>Uses the existing admission policy inside a caller-owned relational transaction.</summary>
+    internal async Task<PersonalProviderAdmission> AdmitPreparedPersistentGeocodingAsync(
+        string userId, CancellationToken cancellationToken = default)
+    {
+        var selection = await LockSelectionAsync(userId, cancellationToken);
         var product = selection?.GeocodingProviderKey switch
         {
             "geoapify" => PersonalProviderProduct.Geocoding,
             "mapbox" => PersonalProviderProduct.PermanentGeocoding,
             _ => (PersonalProviderProduct?)null
         };
-        return product.HasValue
-            ? await AdmitAsync(userId, PersonalProviderCapability.Geocoding, product.Value, 1, cancellationToken)
-            : PersonalProviderAdmission.Rejected(PersonalProviderAdmissionCategory.NoProviderSelected);
+        if (!product.HasValue)
+            return PersonalProviderAdmission.Rejected(PersonalProviderAdmissionCategory.NoProviderSelected);
+        var profile = await LockProfileAsync(userId, selection!.GeocodingProviderKey!, cancellationToken);
+        var authority = Resolve(selection, profile, PersonalProviderCapability.Geocoding);
+        return await AdmitAuthorityAsync(userId, PersonalProviderCapability.Geocoding,
+            product.Value, 1, authority, cancellationToken);
     }
 
     /// <summary>Resolves current authority and durably admits the caller's validated provider-native cost.</summary>
@@ -36,7 +49,22 @@ public sealed class PersonalProviderContactGate(
         if (capability == PersonalProviderCapability.Geocoding)
             await legacyMigration.MigrateAsync(userId, cancellationToken);
 
+        return await AdmitResolvedAsync(userId, capability, product, cost, cancellationToken);
+    }
+
+    private async Task<PersonalProviderAdmission> AdmitResolvedAsync(string userId,
+        PersonalProviderCapability capability, PersonalProviderProduct product, int cost,
+        CancellationToken cancellationToken)
+    {
+
         var authority = await ResolveAsync(userId, capability, cancellationToken);
+        return await AdmitAuthorityAsync(userId, capability, product, cost, authority, cancellationToken);
+    }
+
+    private async Task<PersonalProviderAdmission> AdmitAuthorityAsync(string userId,
+        PersonalProviderCapability capability, PersonalProviderProduct product, int cost,
+        ResolvedAuthority authority, CancellationToken cancellationToken)
+    {
         if (!authority.Succeeded) return PersonalProviderAdmission.Rejected(authority.Category);
         if (!ProductMatches(authority.ProviderKey!, capability, product))
             return PersonalProviderAdmission.Rejected(PersonalProviderAdmissionCategory.UnsupportedProduct);
@@ -49,7 +77,8 @@ public sealed class PersonalProviderContactGate(
         var snapshot = new PersonalProviderAuthoritySnapshot(userId, authority.ProviderKey!, capability,
             authority.Credential!, authority.CredentialGeneration, authority.CapabilityGeneration,
             authority.SelectionGeneration, authority.ConsentVersion, authority.ConsentedAt,
-            authority.ConsentCredentialGeneration);
+            authority.ConsentCredentialGeneration, authority.ProfileId, authority.Verification,
+            authority.VerifiedCredentialGeneration, authority.VerifiedCapabilityGeneration);
         return new(PersonalProviderAdmissionCategory.Admitted, snapshot, admitted.Usage);
     }
 
@@ -202,11 +231,17 @@ public sealed class PersonalProviderContactGate(
         PersonalProviderAuthoritySnapshot snapshot, CancellationToken cancellationToken = default)
     {
         var current = await ResolveAsync(snapshot.UserId, snapshot.Capability, cancellationToken);
-        return current.Succeeded && current.ProviderKey == snapshot.ProviderKey
+        return snapshot.Capability is PersonalProviderCapability.Geocoding or PersonalProviderCapability.Routing
+            && current.Succeeded && current.ProviderKey == snapshot.ProviderKey
+            && current.ProfileId == snapshot.ProfileId
             && current.CredentialGeneration == snapshot.CredentialGeneration
             && current.CapabilityGeneration == snapshot.CapabilityGeneration
             && current.SelectionGeneration == snapshot.SelectionGeneration
+            && current.Verification == snapshot.Verification
+            && current.VerifiedCredentialGeneration == snapshot.VerifiedCredentialGeneration
+            && current.VerifiedCapabilityGeneration == snapshot.VerifiedCapabilityGeneration
             && current.ConsentVersion == snapshot.ConsentVersion
+            && current.ConsentedAt == snapshot.ConsentedAt
             && current.ConsentCredentialGeneration == snapshot.ConsentCredentialGeneration;
     }
 
@@ -223,6 +258,17 @@ public sealed class PersonalProviderContactGate(
 
         var profile = await dbContext.Set<PersonalLocationProviderProfile>().AsNoTracking()
             .SingleOrDefaultAsync(item => item.UserId == userId && item.ProviderKey == providerKey, cancellationToken);
+        return Resolve(selection, profile, capability);
+    }
+
+    private ResolvedAuthority Resolve(PersonalLocationProviderSelection? selection,
+        PersonalLocationProviderProfile? profile, PersonalProviderCapability capability)
+    {
+        var providerKey = capability == PersonalProviderCapability.Geocoding
+            ? selection?.GeocodingProviderKey : selection?.RoutingProviderKey;
+        if (providerKey == null) return ResolvedAuthority.Fail(PersonalProviderAdmissionCategory.NoProviderSelected);
+        if (providerKey is not ("geoapify" or "mapbox"))
+            return ResolvedAuthority.Fail(PersonalProviderAdmissionCategory.UnsupportedProvider);
         if (profile == null || profile.RevokedAt != null || !profile.IsAuthorized(capability))
             return ResolvedAuthority.Fail(PersonalProviderAdmissionCategory.Unauthorized);
         var read = credentials.Read(profile);
@@ -245,13 +291,35 @@ public sealed class PersonalProviderContactGate(
             capability == PersonalProviderCapability.Geocoding
                 ? selection!.GeocodingSelectionGeneration : selection!.RoutingSelectionGeneration,
             profile.PermanentGeocodingConsentVersion, profile.PermanentGeocodingConsentedAt,
-            profile.PermanentGeocodingConsentCredentialGeneration);
+            profile.PermanentGeocodingConsentCredentialGeneration, profile.Id,
+            capability == PersonalProviderCapability.Geocoding ? profile.GeocodingVerification : profile.RoutingVerification,
+            capability == PersonalProviderCapability.Geocoding
+                ? profile.GeocodingVerifiedCredentialGeneration : profile.RoutingVerifiedCredentialGeneration,
+            capability == PersonalProviderCapability.Geocoding
+                ? profile.GeocodingVerifiedConfigurationGeneration : profile.RoutingVerifiedConfigurationGeneration);
     }
+
+    private Task<PersonalLocationProviderSelection?> LockSelectionAsync(
+        string userId, CancellationToken cancellationToken) => dbContext.Database.IsNpgsql()
+        ? dbContext.Set<PersonalLocationProviderSelection>().FromSqlInterpolated($$"""
+            SELECT *, xmin FROM "PersonalLocationProviderSelections" WHERE "UserId" = {{userId}} FOR UPDATE
+            """).SingleOrDefaultAsync(cancellationToken)
+        : dbContext.Set<PersonalLocationProviderSelection>()
+            .SingleOrDefaultAsync(item => item.UserId == userId, cancellationToken);
+
+    private Task<PersonalLocationProviderProfile?> LockProfileAsync(
+        string userId, string providerKey, CancellationToken cancellationToken) => dbContext.Database.IsNpgsql()
+        ? dbContext.Set<PersonalLocationProviderProfile>().FromSqlInterpolated($$"""
+            SELECT *, xmin FROM "PersonalLocationProviderProfiles"
+            WHERE "UserId" = {{userId}} AND "ProviderKey" = {{providerKey}} FOR UPDATE
+            """).SingleOrDefaultAsync(cancellationToken)
+        : dbContext.Set<PersonalLocationProviderProfile>().SingleOrDefaultAsync(
+            item => item.UserId == userId && item.ProviderKey == providerKey, cancellationToken);
 
     private async Task<PersonalProviderAdmission> AdmitGeoapifyAsync(
         string userId, PersonalProviderProduct product, int credits, CancellationToken cancellationToken)
     {
-        await using var transaction = dbContext.Database.IsRelational()
+        await using var transaction = dbContext.Database.IsRelational() && dbContext.Database.CurrentTransaction == null
             ? await dbContext.Database.BeginTransactionAsync(cancellationToken) : null;
         var guard = await LockGeoapifyGuardAsync(userId, cancellationToken);
         var now = dbContext.Database.IsNpgsql()
@@ -301,7 +369,7 @@ public sealed class PersonalProviderContactGate(
     private async Task<PersonalProviderAdmission> AdmitMapboxAsync(
         string userId, PersonalProviderProduct product, int cost, CancellationToken cancellationToken)
     {
-        await using var transaction = dbContext.Database.IsRelational()
+        await using var transaction = dbContext.Database.IsRelational() && dbContext.Database.CurrentTransaction == null
             ? await dbContext.Database.BeginTransactionAsync(cancellationToken) : null;
         var meter = await LockMapboxMeterAsync(userId, product, cancellationToken);
         var today = dbContext.Database.IsNpgsql()
@@ -359,48 +427,10 @@ public sealed class PersonalProviderContactGate(
 
     private sealed record ResolvedAuthority(bool Succeeded, PersonalProviderAdmissionCategory Category,
         string? ProviderKey, string? Credential, int CredentialGeneration, int CapabilityGeneration, int SelectionGeneration,
-        int? ConsentVersion = null, DateTimeOffset? ConsentedAt = null, int? ConsentCredentialGeneration = null)
+        int? ConsentVersion = null, DateTimeOffset? ConsentedAt = null, int? ConsentCredentialGeneration = null,
+        Guid? ProfileId = null, PersonalProviderVerification Verification = PersonalProviderVerification.Unverified,
+        int? VerifiedCredentialGeneration = null, int? VerifiedCapabilityGeneration = null)
     {
         public static ResolvedAuthority Fail(PersonalProviderAdmissionCategory category) => new(false, category, null, null, 0, 0, 0);
     }
-}
-
-/// <summary>Identifies bounded admission outcomes safe for diagnostics.</summary>
-public enum PersonalProviderAdmissionCategory
-{ Admitted, InvalidCost, NoProviderSelected, UnsupportedProvider, UnsupportedProduct, Unauthorized, Unverified, ConsentRequired, CredentialUnavailable, Exhausted }
-
-/// <summary>Contains server-internal immutable contact authority; it must never be serialized.</summary>
-public sealed class PersonalProviderAuthoritySnapshot
-{
-    public PersonalProviderAuthoritySnapshot(string userId, string providerKey, PersonalProviderCapability capability,
-        string credential, int credentialGeneration, int capabilityGeneration, int selectionGeneration,
-        int? consentVersion = null, DateTimeOffset? consentedAt = null, int? consentCredentialGeneration = null)
-    {
-        UserId = userId; ProviderKey = providerKey; Capability = capability; Credential = credential;
-        CredentialGeneration = credentialGeneration; CapabilityGeneration = capabilityGeneration;
-        SelectionGeneration = selectionGeneration;
-        ConsentVersion = consentVersion; ConsentedAt = consentedAt; ConsentCredentialGeneration = consentCredentialGeneration;
-    }
-    public string UserId { get; }
-    public string ProviderKey { get; }
-    public PersonalProviderCapability Capability { get; }
-    [JsonIgnore] public string Credential { get; }
-    public int CredentialGeneration { get; }
-    public int CapabilityGeneration { get; }
-    public int SelectionGeneration { get; }
-    public int? ConsentVersion { get; }
-    public DateTimeOffset? ConsentedAt { get; }
-    public int? ConsentCredentialGeneration { get; }
-    public override string ToString() => $"PersonalProviderAuthoritySnapshot {{ ProviderKey = {ProviderKey}, Capability = {Capability}, CredentialGeneration = {CredentialGeneration}, CapabilityGeneration = {CapabilityGeneration}, SelectionGeneration = {SelectionGeneration} }}";
-}
-
-/// <summary>Contains only bounded usage status.</summary>
-public sealed record PersonalProviderUsageStatus(int Used, int Limit, string Unit, DateTimeOffset? RollingCutoff, DateOnly? CycleStart);
-
-/// <summary>Returns bounded rejection or admitted server authority.</summary>
-public sealed record PersonalProviderAdmission(PersonalProviderAdmissionCategory Category,
-    PersonalProviderAuthoritySnapshot? Authority, PersonalProviderUsageStatus? Usage)
-{
-    public bool Succeeded => Category == PersonalProviderAdmissionCategory.Admitted;
-    public static PersonalProviderAdmission Rejected(PersonalProviderAdmissionCategory category, PersonalProviderUsageStatus? usage = null) => new(category, null, usage);
 }

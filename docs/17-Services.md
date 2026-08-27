@@ -17,8 +17,9 @@ This document covers the key services, file parsers, and background jobs in the 
 - **Key File**: `Services/LocationService.cs`
 
 ### LocationImportService
-- Batch parses uploaded location files (JSON, GPX, KML).
-- Optional reverse geocoding during import.
+- Incrementally parses uploaded Google Timeline JSON, Wayfarer GeoJSON, CSV, GPX, and location-history KML files.
+- Deduplicates and commits Location batches and durable progress independently of enrichment.
+- Reconciles opted-in blank rows into the separate scheduled enrichment workflow without contacting a provider.
 - Persists `Location` records to database.
 - Publishes SSE progress updates during import.
 - **Key File**: `Services/LocationImportService.cs`
@@ -240,7 +241,7 @@ Geoapify reverse geocoding and routing use separate cohesive adapters with fixed
 
 ### Error Handling
 
-- Batch processing; failures mark `LocationImport.Status` and log a truncated error message for diagnosis.
+- Batch processing failures mark `LocationImport.Status` and retain only a bounded product-safe error category.
 
 ---
 
@@ -264,8 +265,17 @@ Wayfarer uses Quartz.NET for background job scheduling and execution.
 - **Features**:
   - Progress tracking via SSE.
   - Supports cancellation via `CancellationToken`.
-  - Processes JSON (Google Timeline), GPX, and KML files.
+  - Processes Google Timeline JSON, Wayfarer GeoJSON, CSV, GPX, and the existing location-history KML schema. Generic GeoJSON remains rejected.
 - **Key File**: `Jobs/LocationImportJob.cs`
+
+#### LocationEnrichmentJob
+
+- Runs one user-owned batch of at most 100 contacts through the existing provider admission authority.
+- Uses a stable durable job, epoch-bound one-shot trigger, non-replay misfire handling, and startup reconciliation. Relational state commits before Quartz projection, so scheduling failures remain repairable.
+- Import parsing/insertion is separate and never checks provider authority, admits provider use, contacts a
+  provider, enriches inline, or delays per record. Committed blank rows feed this scheduled workflow after
+  each durable import batch.
+- Long downtime causes one current-state execution, not replay of missed batches. Shutdown preserves committed Locations, admissions, attempts, counters, and intent.
 
 #### VisitCleanupJob
 - **Purpose**: Cleans up stale visit data globally.

@@ -10,7 +10,7 @@ Are trips and timelines public by default?
 - No. Both are private by default. You must explicitly make a trip or your timeline public.
 
 What data formats can I import/export?
-- Import: GPX, KML, CSV, GeoJSON, Google Timeline JSON.
+- Import: Google Timeline JSON, Wayfarer GeoJSON, CSV, GPX, and location-history KML. Generic GeoJSON is not supported.
 - Export: GeoJSON, CSV, GPX, KML (timeline) and PDF/KML for trips.
 
 How do I join a group?

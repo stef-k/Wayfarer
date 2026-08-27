@@ -1,4 +1,6 @@
+@using Wayfarer.Models.LocationEnrichment
 @model IEnumerable<Wayfarer.Models.LocationImport>
+@using Wayfarer.Services.LocationEnrichment
 @{
     ViewData["BodyClass"] = "container-fluid";
 }
@@ -166,3 +168,44 @@
 @section Scripts {
     @Html.FrontendViewScripts()
 }
+@{
+    var enrichment = ViewData["EnrichmentPresentation"] as LocationEnrichmentPresentationModel
+        ?? throw new InvalidOperationException("Enrichment presentation was not projected.");
+}
+<section class="card mb-3" aria-labelledby="enrichment-heading">
+    <div class="card-body">
+        <h2 id="enrichment-heading" class="h5">Missing-address enrichment</h2>
+        <p class="small">Importing may finish before enrichment. Imported Locations remain safe if enrichment is paused,
+            cancelled, or fails, and large histories may take days. Cancelling enrichment does not cancel or delete imports.</p>
+        <dl class="row" aria-label="Durable enrichment status">
+            <dt class="col-sm-4">Workflow state</dt><dd class="col-sm-8">@enrichment.StatusText</dd>
+            <dt class="col-sm-4">Provider</dt><dd class="col-sm-8">@enrichment.ProviderDisplayName</dd>
+            <dt class="col-sm-4">Provider availability</dt><dd class="col-sm-8">@enrichment.ProviderAvailabilitySummary</dd>
+            <dt class="col-sm-4">Wayfarer usage</dt><dd class="col-sm-8">@enrichment.ProviderUsage of @enrichment.ProviderLimit @enrichment.UsageUnit; @enrichment.UsageWindowDescription. Guard/meter @(enrichment.GuardEnabled ? "enabled" : "disabled").</dd>
+            @if (enrichment.ProviderNextAvailableAtUtc.HasValue)
+            { <dt class="col-sm-4">Provider capacity returns</dt><dd class="col-sm-8"><time datetime="@enrichment.ProviderNextAvailableAtUtc.Value.ToString("O")">@enrichment.ProviderNextAvailableAtUtc.Value.ToString("yyyy-MM-dd HH:mm 'UTC'")</time></dd> }
+            <dt class="col-sm-4">Processed candidates</dt><dd class="col-sm-8">@enrichment.Processed</dd>
+            <dt class="col-sm-4">Enriched</dt><dd class="col-sm-8">@enrichment.Enriched</dd>
+            <dt class="col-sm-4">Skipped</dt><dd class="col-sm-8">@enrichment.Skipped</dd>
+            <dt class="col-sm-4">Runnable now</dt><dd class="col-sm-8">@enrichment.RunnableRemaining</dd>
+            <dt class="col-sm-4">Retryable later</dt><dd class="col-sm-8">@enrichment.FutureDue</dd>
+            <dt class="col-sm-4">Permanently deferred</dt><dd class="col-sm-8">@enrichment.PermanentlyDeferred</dd>
+            <dt class="col-sm-4">Failed batches</dt><dd class="col-sm-8">@enrichment.FailedBatches</dd>
+            <dt class="col-sm-4">Last outcome</dt><dd class="col-sm-8">@enrichment.LastOutcome</dd>
+            @if (enrichment.NextAttemptAtUtc.HasValue)
+            { <dt class="col-sm-4">Next attempt</dt><dd class="col-sm-8"><time datetime="@enrichment.NextAttemptAtUtc.Value.ToString("O")">@enrichment.NextAttemptAtUtc.Value.ToString("yyyy-MM-dd HH:mm 'UTC'")</time></dd> }
+        </dl>
+        <p class="small">Geoapify geocoding and routing share Wayfarer's rolling pool; usage elsewhere in your
+            provider account is not visible here. Mapbox Permanent requires separate consent and uses Wayfarer's
+            independent monthly meter. Deleting import history does not delete Locations or enrichment.</p>
+        <p id="enrichment-status" role="status">@(enrichment.PausedReason ?? enrichment.NoActionReason
+            ?? "Choose an available enrichment action.")</p>
+        <div class="d-flex gap-2 flex-wrap" aria-label="Enrichment actions">
+            @if (enrichment.Start.Visible) { <form asp-action="StartEnrichment" method="post"><button class="btn btn-primary" type="submit" aria-describedby="enrichment-status">Start enrichment</button></form> }
+            @if (enrichment.Pause.Visible) { <form asp-action="PauseEnrichment" method="post"><button class="btn btn-outline-secondary" type="submit" aria-describedby="enrichment-status">Pause enrichment</button></form> }
+            @if (enrichment.Resume.Visible) { <form asp-action="ResumeEnrichment" method="post"><button class="btn btn-outline-primary" type="submit" aria-describedby="enrichment-status" disabled="@(!enrichment.Resume.Enabled)">Resume enrichment</button></form> }
+            @if (enrichment.Cancel.Visible) { <form asp-action="CancelEnrichment" method="post"><button class="btn btn-outline-danger" type="submit" aria-describedby="enrichment-status">Cancel enrichment</button></form> }
+            @if (enrichment.RetryDeferred.Visible) { <form asp-action="RetryDeferredEnrichment" method="post"><button class="btn btn-outline-warning" type="submit" aria-describedby="enrichment-status">Retry deferred enrichment</button></form> }
+        </div>
+    </div>
+</section>

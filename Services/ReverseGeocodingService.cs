@@ -197,24 +197,58 @@ namespace Wayfarer.Parsers
         public async Task<ReverseGeocodingResult> EnrichAsync(string userId, double latitude, double longitude,
             ReverseGeocodingIntent intent, CancellationToken cancellationToken = default)
         {
-            if (_contactGate == null || !double.IsFinite(latitude) || !double.IsFinite(longitude)
-                || latitude is < -90 or > 90 || longitude is < -180 or > 180)
+            if (_contactGate == null || !HasValidCoordinates(latitude, longitude))
                 return ReverseGeocodingResult.Unavailable(ReverseGeocodingCategory.InvalidRequest);
             var admission = await _contactGate.AdmitPersistentGeocodingAsync(userId, cancellationToken);
             if (!admission.Succeeded) return ReverseGeocodingResult.Unavailable(MapAdmission(admission.Category));
             var authority = admission.Authority!;
             if (!await _contactGate.IsCurrentAsync(authority, cancellationToken))
                 return ReverseGeocodingResult.Unavailable(ReverseGeocodingCategory.StaleAuthority);
-            var result = authority.ProviderKey == "geoapify"
-                ? await _geoapify.ReverseAsync(latitude, longitude, authority.Credential, cancellationToken)
-                : await ContactAsync(latitude, longitude, authority.Credential, cancellationToken, false);
+            ReverseGeocodingResult result;
+            try
+            {
+                result = authority.ProviderKey == "geoapify"
+                    ? await _geoapify.ReverseAsync(latitude, longitude, authority.Credential, cancellationToken)
+                    : await ContactAsync(latitude, longitude, authority.Credential, cancellationToken, false);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                return ReverseGeocodingResult.Unavailable(ReverseGeocodingCategory.CancelledAfterContact)
+                    with { Authority = authority };
+            }
             if (result.Category == ReverseGeocodingCategory.Authorization && authority.ProviderKey == "mapbox")
                 await RecordMapboxAuthorizationFailureAsync(userId, cancellationToken);
-            if (!result.Succeeded) return result;
+            if (!result.Succeeded) return result with { Authority = authority };
             if (!await _contactGate.IsCurrentAsync(authority, cancellationToken))
                 return ReverseGeocodingResult.Unavailable(ReverseGeocodingCategory.StaleAuthority);
             return result with { Authority = authority };
         }
+
+        /// <summary>Contacts only with an already-admitted authority; this transport owns no EF context.</summary>
+        public async Task<ReverseGeocodingResult> ContactAdmittedAsync(
+            PersonalProviderAuthoritySnapshot authority, double latitude, double longitude,
+            CancellationToken cancellationToken = default)
+        {
+            if (!HasValidCoordinates(latitude, longitude))
+                return ReverseGeocodingResult.Unavailable(ReverseGeocodingCategory.InvalidRequest)
+                    with { Authority = authority };
+            try
+            {
+                var result = authority.ProviderKey == "geoapify"
+                    ? await _geoapify.ReverseAsync(latitude, longitude, authority.Credential, cancellationToken)
+                    : await ContactAsync(latitude, longitude, authority.Credential, cancellationToken, false);
+                return result with { Authority = authority };
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                return ReverseGeocodingResult.Unavailable(ReverseGeocodingCategory.CancelledAfterContact)
+                    with { Authority = authority };
+            }
+        }
+
+        /// <summary>Returns whether coordinates are finite and within the WGS 84 latitude/longitude bounds.</summary>
+        internal static bool HasValidCoordinates(double latitude, double longitude) => double.IsFinite(latitude)
+            && double.IsFinite(longitude) && latitude is >= -90 and <= 90 && longitude is >= -180 and <= 180;
 
         /// <summary>Performs one explicit Permanent verification contact using fixed non-personal coordinates.</summary>
         public async Task<PersonalProviderVerification> VerifyMapboxPermanentAsync(string userId, CancellationToken cancellationToken = default)
@@ -379,7 +413,7 @@ namespace Wayfarer.Parsers
 
     /// <summary>Identifies bounded outcomes safe for callers and diagnostics.</summary>
     public enum ReverseGeocodingCategory
-    { Success, InvalidRequest, CredentialRequired, NoProviderSelected, ConsentRequired, Unauthorized, VerificationRequired, Exhausted, Authorization, RateLimited, ProviderUnavailable, InvalidResponse, StaleAuthority }
+    { Success, InvalidRequest, CredentialRequired, NoProviderSelected, ConsentRequired, Unauthorized, VerificationRequired, Exhausted, Authorization, RateLimited, ProviderUnavailable, InvalidResponse, StaleAuthority, CancelledAfterContact }
 
     /// <summary>Contains normalized fields and internal generation-bound persistence authority.</summary>
     public sealed record ReverseGeocodingResult(ReverseGeocodingCategory Category, ReverseLocationResults? Value,

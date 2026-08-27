@@ -21,6 +21,7 @@ using Wayfarer.Parsers;
 using Wayfarer.Services;
 using Wayfarer.Services.ExternalRouting;
 using Wayfarer.Services.LocationProviders;
+using Wayfarer.Services.LocationEnrichment;
 using Wayfarer.Swagger;
 using Wayfarer.Util;
 using IPNetwork = System.Net.IPNetwork;
@@ -307,7 +308,7 @@ static void ConfigureDatabase(WebApplicationBuilder builder)
     //     options.UseNpgsql(connectionString, x => x.UseNetTopologySuite()));
 
     // use a pool of db connections instead of spawning a new per request
-    builder.Services.AddDbContextPool<ApplicationDbContext>(options =>
+    builder.Services.AddPooledDbContextFactory<ApplicationDbContext>(options =>
     {
         options.UseNpgsql(connectionString, x => x.UseNetTopologySuite());
         // Suppress pending model changes warning - EF Core sometimes detects false positives
@@ -315,7 +316,9 @@ static void ConfigureDatabase(WebApplicationBuilder builder)
         options.ConfigureWarnings(warnings =>
             warnings.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
     });
-    builder.Services.AddSingleton<IDbContextFactory<ApplicationDbContext>, BackfillLockDbContextFactory>();
+    builder.Services.AddScoped(provider =>
+        provider.GetRequiredService<IDbContextFactory<ApplicationDbContext>>().CreateDbContext());
+    builder.Services.AddSingleton<IDbContextFactory<ApplicationDbContext>, LocationEnrichmentDbContextFactory>();
 
     // Add exception handling for database-related errors during development
     builder.Services.AddDatabaseDeveloperPageExceptionFilter();
@@ -359,6 +362,23 @@ static void ConfigureQuartz(WebApplicationBuilder builder)
     builder.Services.AddSingleton<IJobFactory, ScopedJobFactory>();
     builder.Services.AddScoped<IJobListener, JobExecutionListener>();
     builder.Services.AddTransient<LocationImportJob>();
+    builder.Services.AddTransient<LocationEnrichmentJob>();
+    builder.Services.AddScoped<Wayfarer.Services.LocationEnrichment.LocationEnrichmentScheduler>();
+    builder.Services.AddScoped<Wayfarer.Services.LocationEnrichment.LocationEnrichmentReconciler>();
+    builder.Services.AddSingleton<Wayfarer.Services.LocationImports.LocationImportProjectionCoordinator>();
+    builder.Services.AddScoped<Wayfarer.Services.LocationImports.LocationImportReconciler>();
+    builder.Services.AddScoped<Wayfarer.Services.LocationImports.ILocationImportLifecycle,
+        Wayfarer.Services.LocationImports.LocationImportLifecycle>();
+    builder.Services.AddScoped<Wayfarer.Services.LocationEnrichment.ILocationEnrichmentBatch,
+        Wayfarer.Services.LocationProviders.GeoapifyLocationBackfillService>();
+    builder.Services.AddScoped<Wayfarer.Jobs.ILocationEnrichmentWorker,
+        Wayfarer.Services.LocationEnrichment.LocationEnrichmentWorker>();
+    builder.Services.AddScoped<Wayfarer.Services.LocationEnrichment.IWorkflowScheduleProjection,
+        Wayfarer.Services.LocationEnrichment.WorkflowScheduleProjection>();
+    builder.Services.AddScoped<Wayfarer.Services.LocationEnrichment.IImportEnrichmentHandoff,
+        Wayfarer.Services.LocationEnrichment.ImportEnrichmentHandoff>();
+    builder.Services.AddScoped<Wayfarer.Services.LocationEnrichment.ILocationEnrichmentPresentationProjector,
+        Wayfarer.Services.LocationEnrichment.LocationEnrichmentPresentationProjector>();
 
     // 2) Build & start the Quartz scheduler
     builder.Services.AddSingleton<IScheduler>(sp =>
@@ -383,8 +403,6 @@ static void ConfigureQuartz(WebApplicationBuilder builder)
         scheduler.JobFactory = sp.GetRequiredService<IJobFactory>();
         using var scope = sp.CreateScope();
         scheduler.ListenerManager.AddJobListener(scope.ServiceProvider.GetRequiredService<IJobListener>());
-
-        scheduler.Start().Wait();
 
         // Schedule maintenance jobs once if missing
         var logJobKey = new JobKey("LogCleanupJob", "Maintenance");
@@ -492,7 +510,10 @@ static void ConfigureServices(WebApplicationBuilder builder)
     builder.Services.AddScoped<PersonalProviderCredentialService>();
     builder.Services.AddScoped<LegacyMapboxMigrationService>();
     builder.Services.AddScoped<PersonalProviderContactGate>();
+    builder.Services.AddScoped<IPersonalProviderStatusReader, PersonalProviderStatusReader>();
     builder.Services.AddScoped<GeoapifyLocationBackfillService>();
+    builder.Services.AddScoped<LocationEnrichmentExecutionAuthority>();
+    builder.Services.AddScoped<ILocationEnrichmentProgressQuery, LocationEnrichmentProgressQuery>();
 
     // IRegistrationService as a transient or singleton service
     builder.Services.AddTransient<IRegistrationService, RegistrationService>();
@@ -526,6 +547,8 @@ static void ConfigureServices(WebApplicationBuilder builder)
     // Reverse geocoding Mapbox service
     // Query-string authentication and coordinates must never enter default HTTP diagnostics.
     builder.Services.AddHttpClient<ReverseGeocodingService>(client => client.Timeout = TimeSpan.FromSeconds(15)).RemoveAllLoggers();
+    builder.Services.AddHttpClient("LocationEnrichmentProvider",
+        client => client.Timeout = LocationEnrichmentExecutionAuthority.ProviderTimeout).RemoveAllLoggers();
     builder.Services.AddHttpClient<GeoapifyVerificationService>(client => client.Timeout = TimeSpan.FromSeconds(15)).RemoveAllLoggers();
 
     // Tile Cache service — typed HttpClient with OSM-compliant headers.

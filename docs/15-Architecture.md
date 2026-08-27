@@ -67,7 +67,7 @@ The application uses ASP.NET Areas for logical separation:
 
 - **Controllers** — HTTP endpoints for MVC and API
 - **Services** — Application logic (imports, exports, geocoding, tiles, SSE)
-- **Parsers** — File format ingestion (JSON, GPX, KML, GeoJSON)
+- **Parsers** — File format ingestion (JSON, GPX, KML, Wayfarer GeoJSON)
 - **Jobs** — Background processing via Quartz
 - **Models** — Domain entities, DTOs, options
 - **Middleware** — Performance logging, dynamic request size
@@ -81,9 +81,22 @@ The application uses ASP.NET Areas for logical separation:
 
 ```
 Upload → LocationImport row → Quartz job → LocationImportService
-       → Parse batches → Optional reverse geocoding → DB insert
+       → Parse incrementally → Deduplicate → Commit Location batch/progress
+       → Reconcile optional enrichment workflow
        → SSE progress updates
 ```
+
+Optional missing-address work executes separately:
+
+```text
+owned eligible Locations → LocationEnrichmentWorkflow → stable Quartz job/one-shot trigger
+  → bounded worker → provider admission ledger/meter → attempt or enrichment
+```
+
+Import and enrichment completion are independent. PostgreSQL owns intent, eligibility, attempts, counters, and admissions; Quartz owns durable wake delivery. One active scheduler is supported unless clustering is explicitly configured and proven.
+Location import resolves no provider credentials, performs no provider admission or reverse-geocoding HTTP,
+and applies no inline enrichment or per-record enrichment delay. Committed blank Locations become candidates
+for the separate opted-in scheduled workflow; imported/manual address fields and provenance remain authoritative.
 
 ### Trip Export
 
@@ -164,17 +177,29 @@ Role constants defined in `Util/ApplicationRoles.cs`.
 - Automatic reconnection support
 - Used for: location updates, import progress, job status, visits, invitations
 
-### SSE Channels
+### Legacy group notification streams
 
 ```
 /api/sse/stream/location-update/{userName}
 /api/sse/stream/group-location-update/{groupId}
 /api/sse/stream/visits
 /api/sse/stream/job-status
-/api/sse/stream/import-progress
-/api/sse/stream/invitations
-/api/sse/stream/memberships
+/api/sse/stream/invitation-update/{userId}
+/api/sse/stream/membership-update/{userId}
 ```
+
+The invitation and membership URLs above are legacy generic channels used by current web clients.
+The generic endpoint is not authenticated or authorized, and the caller-supplied user ID selects the
+channel. These streams do not own, authorize, or carry import or enrichment state. Their authorization
+boundary requires a separate security follow-up; this enrichment slice does not change their behavior.
+
+### Protected import and enrichment stream
+
+`/api/sse/import` requires authentication and derives the protected user channel exclusively from
+the `NameIdentifier` claim. It emits only the exact content-free `import-state` and
+`enrichment-state` reload hints. The generic `/api/sse/stream/...` route cannot subscribe to
+protected import or enrichment prefixes. SSE is presentation-only; a relational page reload is
+authoritative for current import and enrichment state.
 
 ---
 
@@ -255,5 +280,7 @@ Trip editing state is owned by the Vue Trip Editor:
 - Public/private visibility controls
 
 Persistent reverse enrichment has one server-side boundary that owns protected authority, consent, verification, selection, provider-native admission, transport, normalization, generation revalidation, and bounded results. Capture/import/Trip callers never receive credentials or choose storage mode.
+
+Missing-address enrichment has one durable workflow per user. Epochs and short execution leases fence stale workers, while restart reconciliation projects relational intent to one-shot Quartz work without holding database resources across provider contact. The import page reads authority, usage, attempts, and progress from durable state; its authenticated NameIdentifier-derived SSE channel carries only content-free reload hints.
 
 Geoapify routing is a distinct adapter behind the existing proposal seam. Administrator configuration plus stable Transport Profile ID resolves a closed provider mode; mapping/configuration version participates in stale-work authority. Explicit acceptance owns durable Segment route provenance, while the dedicated authenticated mobile route endpoint returns but does not persist ad-hoc routes.

@@ -2,7 +2,7 @@
 
 For unreadable protected credentials, legacy Mapbox conflicts, exhaustion, guard recovery, and key-ring restore, see [Personal Location Providers](24-Personal-Location-Providers.md).
 
-If Mapbox is configured but paused, complete each distinct step shown in settings: Permanent consent, generic geocoding authorization, explicit verification, active selection, and available Permanent meter capacity. Capture/import remains usable while paused and retains existing enrichment. Verification and provider failures are safe to retry explicitly; no automatic queue is implied.
+If Mapbox is configured but paused, complete each distinct step shown in settings: Permanent consent, generic geocoding authorization, explicit verification, active selection, and available Permanent meter capacity. Capture/import remains usable while paused and retains existing enrichment. An explicitly opted-in enrichment workflow resumes through bounded Quartz one-shot continuations only after current authority is restored; provider configuration alone never infers consent.
 
 For Geoapify route suggestions, an unmapped Wayfarer Transport Profile requires an administrator mapping; an unsupported mapping requires one of the closed Geoapify modes. Temporary failures and rolling-credit exhaustion never clear accepted geometry. Wayfarer does not fall back to Mapbox, public OSRM, or another provider.
 
@@ -16,6 +16,8 @@ Maps Not Loading
 - **403 "Referrer is required"**: Configure `AllowedHosts=wayfarer.example.com` for one hostname or `AllowedHosts=wayfarer.example.com;www.wayfarer.example.com` for several. Entries are semicolon-separated exact public DNS hostnames; wildcards, IP literals, localhost/private names, ports, and URL schemes are invalid. Also configure `Application:ContactEmail` for the User-Agent contact identity; it does not configure Referer.
 
 Imports Fail or Hang
+
+If imported data completed while addresses remain blank, inspect the separate enrichment state. **PausedByAuthority** requires correcting selection/credential/consent/verification and then Resume; **PausedByBudget** retains the provider-specific wake; **BackingOff** waits for retry. Use **Retry deferred** only to reconsider deterministic poison/no-result rows. Restart is safe: reconciliation repairs the current one-shot trigger without replaying completed batches.
 - Verify file format/size and required fields.
 - Refresh to see progress; if still failing, ask admin to review logs.
 

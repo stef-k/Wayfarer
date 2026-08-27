@@ -10,4 +10,7 @@ public class LocationImportUploadViewModel
     
     [Required(ErrorMessage = "Please select a valid file type.")]
     public LocationImportFileType? FileType { get; set; }
+
+    /// <summary>Whether remaining blank-address Locations should continue through the durable workflow.</summary>
+    public bool EnrichmentRequested { get; set; }
 }

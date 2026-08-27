@@ -67,10 +67,11 @@ namespace Wayfarer.Models
                 .HasDatabaseName("IX_Location_Coordinates");
 
             // Enforce per-user idempotency key uniqueness for location retries.
-            builder.Entity<Location>()
-                .HasIndex(l => new { l.UserId, l.IdempotencyKey })
-                .IsUnique()
-                .HasDatabaseName("IX_Location_UserId_IdempotencyKey");
+            builder.Entity<Location>().HasIndex(l => new { l.UserId, l.IdempotencyKey })
+                .IsUnique().HasDatabaseName("IX_Location_UserId_IdempotencyKey");
+
+            builder.Entity<Location>().HasIndex(l => new { l.UserId, l.Timestamp })
+                .HasDatabaseName("IX_Location_UserId_Timestamp"); // Bounds legacy candidates before ST_DWithin.
 
             builder.Entity<ApiToken>()
                 .Property(at => at.UserId)

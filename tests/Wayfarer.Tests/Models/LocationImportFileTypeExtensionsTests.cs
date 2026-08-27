@@ -1,5 +1,7 @@
 using System.Linq;
 using Wayfarer.Models.Enums;
+using Wayfarer.Parsers;
+using Microsoft.Extensions.Logging;
 using Xunit;
 
 namespace Wayfarer.Tests.Models;
@@ -13,7 +15,6 @@ public class LocationImportFileTypeExtensionsTests
     [InlineData(LocationImportFileType.GoogleTimeline, ".json")]
     [InlineData(LocationImportFileType.WayfarerGeoJson, ".geojson")]
     [InlineData(LocationImportFileType.Gpx, ".gpx")]
-    [InlineData(LocationImportFileType.GeoJson, ".json")]
     [InlineData(LocationImportFileType.Kml, ".kml")]
     [InlineData(LocationImportFileType.Csv, ".csv")]
     public void GetAllowedExtensions_ReturnsExpected(LocationImportFileType type, string expected)
@@ -47,5 +48,21 @@ public class LocationImportFileTypeExtensionsTests
         var result = LocationImportFileType.Csv.IsExtensionValid(".kml");
 
         Assert.False(result);
+    }
+
+    [Fact]
+    public void GenericGeoJsonHasNoAcceptedNewUploadExtensions()
+        => Assert.Empty(LocationImportFileType.GeoJson.GetAllowedExtensions());
+
+    [Fact]
+    public void HistoricalGenericGeoJsonCannotBeMisclassifiedAsWayfarerGeoJson()
+    {
+        using var factory = LoggerFactory.Create(_ => { });
+        var parsers = new LocationDataParserFactory(factory);
+
+        var exception = Assert.Throws<NotSupportedException>(() =>
+            parsers.GetParser(LocationImportFileType.GeoJson));
+
+        Assert.Contains("Unsupported import file type", exception.Message, StringComparison.Ordinal);
     }
 }

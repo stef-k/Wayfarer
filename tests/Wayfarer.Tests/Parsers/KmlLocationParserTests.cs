@@ -76,7 +76,7 @@ public class KmlLocationParserTests
         // Arrange
         var kml = $@"{KmlHeader}
 <Document>
-    <Placemark>
+    <Placemark><name>2024-01-15T10:30:00Z</name>
         <Point>
             <coordinates>-74.0060,40.7128,125.5</coordinates>
         </Point>
@@ -99,7 +99,7 @@ public class KmlLocationParserTests
         // Arrange
         var kml = $@"{KmlHeader}
 <Document>
-    <Placemark>
+    <Placemark><name>2024-01-15T10:30:00Z</name>
         <description>Test notes</description>
         <Point>
             <coordinates>-0.1278,51.5074,25.3</coordinates>
@@ -155,13 +155,13 @@ public class KmlLocationParserTests
         // Arrange
         var kml = $@"{KmlHeader}
 <Document>
-    <Placemark>
+    <Placemark><name>2024-01-15T10:30:00Z</name>
         <Point><coordinates>-74.0060,40.7128,0</coordinates></Point>
     </Placemark>
-    <Placemark>
+    <Placemark><name>2024-01-15T10:30:00Z</name>
         <Point><coordinates>-73.9855,40.7580,0</coordinates></Point>
     </Placemark>
-    <Placemark>
+    <Placemark><name>2024-01-15T10:30:00Z</name>
         <Point><coordinates>-73.9776,40.7614,0</coordinates></Point>
     </Placemark>
 </Document>
@@ -181,10 +181,10 @@ public class KmlLocationParserTests
         // Arrange - Placemark with LineString instead of Point
         var kml = $@"{KmlHeader}
 <Document>
-    <Placemark>
+    <Placemark><name>2024-01-15T10:30:00Z</name>
         <LineString><coordinates>-74.0060,40.7128,0</coordinates></LineString>
     </Placemark>
-    <Placemark>
+    <Placemark><name>2024-01-15T10:30:00Z</name>
         <Point><coordinates>-73.9855,40.7580,0</coordinates></Point>
     </Placemark>
 </Document>
@@ -204,10 +204,10 @@ public class KmlLocationParserTests
         // Arrange
         var kml = $@"{KmlHeader}
 <Document>
-    <Placemark>
+    <Placemark><name>2024-01-15T10:30:00Z</name>
         <Point><coordinates>invalid</coordinates></Point>
     </Placemark>
-    <Placemark>
+    <Placemark><name>2024-01-15T10:30:00Z</name>
         <Point><coordinates>-73.9855,40.7580,0</coordinates></Point>
     </Placemark>
 </Document>
@@ -227,7 +227,7 @@ public class KmlLocationParserTests
         // Arrange - Southern hemisphere
         var kml = $@"{KmlHeader}
 <Document>
-    <Placemark>
+    <Placemark><name>2024-01-15T10:30:00Z</name>
         <Point><coordinates>151.2093,-33.8688,0</coordinates></Point>
     </Placemark>
 </Document>
@@ -249,7 +249,7 @@ public class KmlLocationParserTests
         // Arrange
         var kml = $@"{KmlHeader}
 <Document>
-    <Placemark>
+    <Placemark><name>2024-01-15T10:30:00Z</name>
         <Point><coordinates>-74.0060,40.7128,0</coordinates></Point>
     </Placemark>
 </Document>
@@ -270,7 +270,7 @@ public class KmlLocationParserTests
         // Arrange - Altitude in ExtendedData should override coordinate altitude
         var kml = $@"{KmlHeader}
 <Document>
-    <Placemark>
+    <Placemark><name>2024-01-15T10:30:00Z</name>
         <Point><coordinates>-74.0060,40.7128,50.0</coordinates></Point>
         <ExtendedData>
             <Data name=""Altitude""><value>100.0</value></Data>
@@ -294,7 +294,7 @@ public class KmlLocationParserTests
         // Arrange
         var kml = $@"{KmlHeader}
 <Document>
-    <Placemark>
+    <Placemark><name>2024-01-15T10:30:00Z</name>
         <Point><coordinates>-74.0060,40.7128,0</coordinates></Point>
         <ExtendedData>
             <Data name=""Address""><value>My Address</value></Data>
@@ -319,7 +319,7 @@ public class KmlLocationParserTests
         // Arrange - Notes from description when not in ExtendedData
         var kml = $@"{KmlHeader}
 <Document>
-    <Placemark>
+    <Placemark><name>2024-01-15T10:30:00Z</name>
         <description>Description notes</description>
         <Point><coordinates>-74.0060,40.7128,0</coordinates></Point>
     </Placemark>
@@ -346,7 +346,7 @@ public class KmlLocationParserTests
         {
             var lat = 40.0 + (i * 0.001);
             var lng = -74.0 + (i * 0.001);
-            sb.Append($@"<Placemark><Point><coordinates>{lng},{lat},0</coordinates></Point></Placemark>");
+            sb.Append($@"<Placemark><name>2024-01-15T10:30:00Z</name><Point><coordinates>{lng},{lat},0</coordinates></Point></Placemark>");
         }
         sb.Append("</Document>");
         sb.Append(KmlFooter);
@@ -365,7 +365,7 @@ public class KmlLocationParserTests
         // Arrange
         var kml = $@"{KmlHeader}
 <Document>
-    <Placemark>
+    <Placemark><name>2024-01-15T10:30:00Z</name>
         <Point><coordinates>-74.0060,40.7128,0</coordinates></Point>
         <ExtendedData>
             <Data name=""TimestampUtc""><value>2024-01-15T10:30:00Z</value></Data>
@@ -390,11 +390,11 @@ public class KmlLocationParserTests
         var kml = $@"{KmlHeader}
 <Document>
     <Folder>
-        <Placemark>
+        <Placemark><name>2024-01-15T10:30:00Z</name>
             <Point><coordinates>-74.0060,40.7128,0</coordinates></Point>
         </Placemark>
         <Folder>
-            <Placemark>
+            <Placemark><name>2024-01-15T10:30:00Z</name>
                 <Point><coordinates>-73.9855,40.7580,0</coordinates></Point>
             </Placemark>
         </Folder>
@@ -416,7 +416,7 @@ public class KmlLocationParserTests
         // Arrange
         var kml = $@"{KmlHeader}
 <Document>
-    <Placemark>
+    <Placemark><name>2024-01-15T10:30:00Z</name>
         <Point><coordinates>-74.0060,40.7128</coordinates></Point>
     </Placemark>
 </Document>
@@ -437,7 +437,7 @@ public class KmlLocationParserTests
         // Arrange - Include all metadata fields including Source for roundtrip support
         var kml = $@"{KmlHeader}
 <Document>
-    <Placemark>
+    <Placemark><name>2024-01-15T10:30:00Z</name>
         <Point><coordinates>-74.0060,40.7128,0</coordinates></Point>
         <ExtendedData>
             <Data name=""TimestampUtc""><value>2024-01-15T10:30:00Z</value></Data>

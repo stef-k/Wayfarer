@@ -10,7 +10,6 @@ namespace Wayfarer.Models.Enums
             [LocationImportFileType.GoogleTimeline] = new[] { ".json" },
             [LocationImportFileType.WayfarerGeoJson] = new[] { ".geojson", ".json" },
             [LocationImportFileType.Gpx] = new[] { ".gpx" },
-            [LocationImportFileType.GeoJson] = new[] { ".geojson", ".json" },
             [LocationImportFileType.Kml] = new[] { ".kml" },
             [LocationImportFileType.Csv] = new[] { ".csv" }
         };
@@ -27,5 +26,10 @@ namespace Wayfarer.Models.Enums
             return GetAllowedExtensions(fileType)
                 .Contains(extension, StringComparer.OrdinalIgnoreCase);
         }
+
+        /// <summary>Returns whether new location-history uploads support this exact schema.</summary>
+        public static bool IsSupportedUpload(this LocationImportFileType fileType)
+            => fileType is LocationImportFileType.GoogleTimeline or LocationImportFileType.WayfarerGeoJson
+                or LocationImportFileType.Gpx or LocationImportFileType.Kml or LocationImportFileType.Csv;
     }
 }
