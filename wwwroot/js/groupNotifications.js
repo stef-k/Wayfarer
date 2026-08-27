@@ -9,6 +9,7 @@ export const createGroupNotificationRefresh = ({
 }) => {
     let source = null;
     let pending = null;
+    let inFlight = null;
     let disposed = false;
     const types = new Set();
 
@@ -21,13 +22,20 @@ export const createGroupNotificationRefresh = ({
         if (keys.length !== 1 || keys[0] !== 'type') return;
         if (data.type !== 'invitation-state' && data.type !== 'membership-state') return;
         types.add(data.type);
-        if (pending !== null) return;
+        if (pending !== null || inFlight !== null) return;
+        queueReload();
+    };
+
+    const queueReload = () => {
         pending = schedule(() => {
             pending = null;
             if (disposed) return;
             const acceptedTypes = new Set(types);
             types.clear();
-            reload(acceptedTypes);
+            inFlight = Promise.resolve(reload(acceptedTypes)).finally(() => {
+                inFlight = null;
+                if (!disposed && types.size > 0) queueReload();
+            });
         });
     };
 

@@ -153,7 +153,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   try {
     await refresh();
     el.tbody?.addEventListener('click', onClick);
-    const reloadInvitations = () => { void refresh(); };
+    const reloadInvitations = event => render(Array.isArray(event.detail) ? event.detail : []);
     document.addEventListener('wayfarer:invitation-state', reloadInvitations);
     window.addEventListener('pagehide', () => {
       document.removeEventListener('wayfarer:invitation-state', reloadInvitations);

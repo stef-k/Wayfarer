@@ -62,3 +62,31 @@ test('dispose closes listeners and cancels a pending callback', () => {
     assert.equal(source.onerror, null);
     assert.equal(reloads, 0);
 });
+
+test('a burst during an in-flight reload queues one non-overlapping follow-up', async () => {
+    const timers = [];
+    const completions = [];
+    const calls = [];
+    const refresh = createGroupNotificationRefresh({
+        schedule: callback => { timers.push(callback); return timers.length; },
+        reload: types => {
+            calls.push([...types]);
+            return new Promise(resolve => completions.push(resolve));
+        }
+    });
+
+    refresh.accept({ data: '{"type":"invitation-state"}' });
+    timers.shift()();
+    refresh.accept({ data: '{"type":"membership-state"}' });
+    refresh.accept({ data: '{"type":"membership-state"}' });
+    assert.equal(timers.length, 0);
+    assert.equal(calls.length, 1);
+
+    completions.shift()();
+    await Promise.resolve();
+    await Promise.resolve();
+    assert.equal(timers.length, 1);
+    timers.shift()();
+    assert.deepEqual(calls, [['invitation-state'], ['membership-state']]);
+    completions.shift()();
+});

@@ -145,11 +145,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Pending invitations badge updater (authenticated users only)
     const invitesBadge = document.getElementById('userInvitesBadge');
-    const updateInvitesBadge = async () => {
+    const updateInvitesBadge = async (loadedInvites = null) => {
         if (!invitesBadge || !isAuthenticated) return;
         try {
-            const res = await fetch('/api/invitations');
-            const list = res.ok ? await res.json() : [];
+            const res = loadedInvites === null ? await fetch('/api/invitations') : null;
+            const list = loadedInvites ?? (res.ok ? await res.json() : []);
             const count = Array.isArray(list) ? list.length : 0;
             invitesBadge.textContent = count;
             invitesBadge.classList.toggle('d-none', count === 0);
@@ -170,12 +170,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // User offline check for pending invitations: compare with last stored list (authenticated users only)
-    const checkPendingInvitesDiff = async () => {
+    const checkPendingInvitesDiff = async (loadedInvites = null) => {
         if (!isAuthenticated) return;
         try {
-            const res = await fetch('/api/invitations');
-            if (!res.ok) return;
-            const cur = await res.json();
+            const res = loadedInvites === null ? await fetch('/api/invitations') : null;
+            if (res && !res.ok) return;
+            const cur = loadedInvites ?? await res.json();
             const invites = Array.isArray(cur) ? cur.map(x => ({ id: x.id, groupName: x.groupName || '' })) : [];
             const prevRaw = localStorage.getItem('user.pending.invites');
             const prev = prevRaw ? JSON.parse(prevRaw) : [];
@@ -235,17 +235,20 @@ document.addEventListener('DOMContentLoaded', () => {
     // One protected stream supplies content-free hints; durable endpoints own presentation.
     try {
         if (isAuthenticated) {
-            const notifications = createGroupNotificationRefresh({ reload: types => {
+            const notifications = createGroupNotificationRefresh({ reload: async types => {
+                const reloads = [];
                 if (types.has('invitation-state')) {
-                    updateInvitesBadge();
-                    checkPendingInvitesDiff();
-                    document.dispatchEvent(new CustomEvent('wayfarer:invitation-state'));
+                    reloads.push(fetch('/api/invitations').then(async response => {
+                        if (!response.ok) return;
+                        const invitations = await response.json();
+                        await Promise.all([updateInvitesBadge(invitations), checkPendingInvitesDiff(invitations)]);
+                        document.dispatchEvent(new CustomEvent('wayfarer:invitation-state', { detail: invitations }));
+                    }));
                 }
                 if (types.has('membership-state')) {
-                    checkUserActivityDigest(true);
-                    checkJoinedGroups();
-                    updateManagerActivity();
+                    reloads.push(checkUserActivityDigest(true), checkJoinedGroups(), updateManagerActivity());
                 }
+                await Promise.all(reloads);
             }});
             notifications.connect(globalThis.EventSource);
             window.addEventListener('pagehide', () => notifications.dispose(), { once: true });
