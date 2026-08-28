@@ -16,7 +16,8 @@ public sealed class GeoapifyReverseGeocodingAdapterTests
         const string json = """
             {"type":"FeatureCollection","features":[{"type":"Feature","properties":{
             "formatted":"12 Main Street, Town","address_line1":"12 Main Street","housenumber":"12",
-            "street":"Main Street","postcode":"12345","city":"Town","state":"Region","country":"Country"}}]}
+            "street":"Main Street","postcode":"12345","city":"Town","state":"Region","country":"Country",
+            "name":"  Tokyo Tower  ","result_type":"AMENITY"}}]}
             """;
         var handler = new FakeHandler(json);
         var adapter = new GeoapifyReverseGeocodingAdapter(new HttpClient(handler));
@@ -32,9 +33,29 @@ public sealed class GeoapifyReverseGeocodingAdapterTests
         Assert.Equal("Town", result.Value.Place);
         Assert.Equal("Region", result.Value.Region);
         Assert.Equal("Country", result.Value.Country);
+        Assert.Equal("Tokyo Tower", result.Value.ResolvedFeatureName);
+        Assert.Equal("amenity", result.Value.ResolvedFeatureType);
         Assert.Equal("api.geoapify.com", handler.Uri!.Host);
         Assert.Equal("/v1/geocode/reverse", handler.Uri.AbsolutePath);
         Assert.Contains("format=geojson&lang=en&limit=1", handler.Uri.Query, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("123", "\"amenity\"")]
+    [InlineData("\"bad\\u0001name\"", "\"amenity\"")]
+    [InlineData("\"Name\"", "\"unknown\"")]
+    [InlineData("\"Name\"", "\"restaurant\"")]
+    public async Task MalformedOptionalMetadataDoesNotRejectValidAddress(string name, string resultType)
+    {
+        var json = "{\"type\":\"FeatureCollection\",\"features\":[{\"type\":\"Feature\",\"properties\":{"+
+            "\"formatted\":\"12 Main Street, Town\",\"name\":" + name + ",\"result_type\":" + resultType + "}}]}";
+
+        var result = await new GeoapifyReverseGeocodingAdapter(new HttpClient(new FakeHandler(json)))
+            .ReverseAsync(10, 20, "secret");
+
+        Assert.True(result.Succeeded);
+        Assert.Null(result.Value!.ResolvedFeatureName);
+        Assert.Null(result.Value.ResolvedFeatureType);
     }
 
     [Theory]
