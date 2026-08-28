@@ -16,6 +16,33 @@ namespace Wayfarer.Tests.Services;
 /// <summary>Proves the shared clone coordinator's canonical mapping and failure boundaries.</summary>
 public sealed class TripCloneCoordinatorTests : TestBase
 {
+    /// <summary>Copies only coherent persisted enrichment tuples without changing source Places.</summary>
+    [Fact]
+    public async Task CloneAsync_NormalizesEveryPersistedPlaceEnrichmentTuple()
+    {
+        var db = CreateDbContext();
+        var owner = TestDataFixtures.CreateUser(id: "owner");
+        var destination = TestDataFixtures.CreateUser(id: "destination");
+        db.Users.AddRange(owner, destination);
+        var source = TestDataFixtures.CreateTrip(owner, "Tuple clone", isPublic: true);
+        var region = RegionWithPlaces(source, owner.Id, out var places);
+        source.Regions = [region];
+        SetTuple(places[0], null, null, "mapbox", "permanent");
+        SetTuple(places[1], "Tokyo Tower", "building", "geoapify", "persistent");
+        SetTuple(places[2], "Loose metadata", "building", "mapbox", "persistent");
+        db.Trips.Add(source);
+        await db.SaveChangesAsync();
+
+        var result = await new TripCloneCoordinator(db).CloneAsync(source.Id, destination.Id);
+
+        db.ChangeTracker.Clear();
+        var clone = await LoadTripAggregateAsync(db, result.ClonedTripId!.Value);
+        var cloned = clone.Regions.Single().Places.OrderBy(place => place.Name).ToArray();
+        Assert.Equal((null, null, "mapbox", "permanent"), Tuple(cloned[0]));
+        Assert.Equal(("Tokyo Tower", "building", "geoapify", "persistent"), Tuple(cloned[1]));
+        Assert.Equal((null, null, null, null), Tuple(cloned[2]));
+        Assert.Equal(("Loose metadata", "building", "mapbox", "persistent"), Tuple(places[2]));
+    }
     /// <summary>Composes persisted A-B-C and A-B-A state through projection, clone, and native interchange.</summary>
     [Fact]
     public async Task CloneAsync_PreservesCanonicalWaypointAggregateStates()
@@ -246,4 +273,17 @@ public sealed class TripCloneCoordinatorTests : TestBase
 
     /// <summary>Creates a readable stream for native KML import.</summary>
     private static MemoryStream Stream(string value) => new(Encoding.UTF8.GetBytes(value));
+
+    private static void SetTuple(Place place, string? name, string? type, string provider, string mode)
+    {
+        place.ResolvedFeatureName = name;
+        place.ResolvedFeatureType = type;
+        place.AddressEnrichmentProvider = provider;
+        place.AddressEnrichmentStorageMode = mode;
+        place.AddressEnrichedAt = new DateTimeOffset(2026, 8, 28, 12, 0, 0, TimeSpan.Zero);
+    }
+
+    private static (string?, string?, string?, string?) Tuple(Place place) =>
+        (place.ResolvedFeatureName, place.ResolvedFeatureType,
+            place.AddressEnrichmentProvider, place.AddressEnrichmentStorageMode);
 }
