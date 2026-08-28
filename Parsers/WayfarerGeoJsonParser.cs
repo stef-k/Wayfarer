@@ -42,7 +42,12 @@ namespace Wayfarer.Parsers
             [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
             using var text = new StreamReader(fileStream, Encoding.UTF8, false, leaveOpen: true);
-            using var json = new JsonTextReader(text) { CloseInput = false, MaxDepth = null };
+            using var json = new JsonTextReader(text)
+            {
+                CloseInput = false,
+                MaxDepth = null,
+                DateParseHandling = DateParseHandling.None
+            };
             var isFeatureCollection = false;
             while (await json.ReadAsync(cancellationToken))
             {
@@ -77,12 +82,13 @@ namespace Wayfarer.Parsers
                     if (feat?.Geometry is not Point pt) continue;
 
                     var attrs = feat.Attributes;
+                    var rawProperties = featureJson["properties"] as JObject;
 
                     // helper to safely get a string attribute
                     string? getString(string key)
-                        => attrs.Exists(key) && attrs[key] != null
-                            ? attrs[key]!.ToString()
-                            : null;
+                        => rawProperties?.GetValue(key, StringComparison.Ordinal)?.Type == JTokenType.String
+                            ? rawProperties[key]!.Value<string>()
+                            : attrs.Exists(key) && attrs[key] != null ? attrs[key]!.ToString() : null;
 
                     // helper to safely get a double? attribute
                     double? getDouble(string key)
