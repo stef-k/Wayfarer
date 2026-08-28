@@ -21,7 +21,8 @@ public sealed class LocationEnrichmentTupleImportTests
             Assert.Equal((null, null, provider, storageMode),
                 (location.ResolvedFeatureName, location.ResolvedFeatureType,
                     location.ReverseGeocodingProvider, location.ReverseGeocodingStorageMode));
-            Assert.NotNull(location.ReverseGeocodedAt);
+            Assert.Equal(new DateTimeOffset(2026, 8, 28, 12, 0, 0, TimeSpan.Zero),
+                location.ReverseGeocodedAt);
         }
     }
 

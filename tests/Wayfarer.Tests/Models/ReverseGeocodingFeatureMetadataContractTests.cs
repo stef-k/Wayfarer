@@ -33,6 +33,32 @@ public sealed class ReverseGeocodingFeatureMetadataContractTests
         Assert.Equal(default, invalid);
     }
 
+    /// <summary>Proves explicit timezone designators preserve their instant and normalize to UTC.</summary>
+    [Theory]
+    [InlineData("2026-08-28T12:00:00Z", "2026-08-28T12:00:00+00:00")]
+    [InlineData("2026-08-28T15:00:00+03:00", "2026-08-28T12:00:00+00:00")]
+    public void ImportedTupleAcceptsOnlyExplicitOffsetsAndNormalizesToUtc(
+        string timestamp, string expectedTimestamp)
+    {
+        var normalized = ResolvedFeatureMetadata.NormalizeImported(
+            "Tower", "building", "geoapify", "persistent", timestamp);
+
+        Assert.Equal(DateTimeOffset.Parse(expectedTimestamp), normalized.EnrichedAt);
+        Assert.Equal(TimeSpan.Zero, normalized.EnrichedAt?.Offset);
+    }
+
+    /// <summary>Proves missing or malformed offsets clear the complete imported tuple.</summary>
+    [Theory]
+    [InlineData("2026-08-28T12:00:00")]
+    [InlineData("2026-08-28T12:00:00+03:7x")]
+    public void ImportedTupleRejectsTimestampsWithoutValidExplicitOffsets(string timestamp)
+    {
+        var normalized = ResolvedFeatureMetadata.NormalizeImported(
+            "Tower", "building", "geoapify", "persistent", timestamp);
+
+        Assert.Equal(default, normalized);
+    }
+
     /// <summary>Proves valid provenance is independent from optional feature metadata.</summary>
     [Fact]
     public void ImportedTuplePreservesValidMetadataFreeMapboxProvenance()
