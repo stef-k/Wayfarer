@@ -239,6 +239,7 @@ Targets
 
 Guidelines
 - Keep tests focused and deterministic.
+- Ordinary correctness tests may use bounded timeouts as deadlock guards, but must not assert hosted-runner wall-clock scheduling or latency as product correctness. Put performance measurements in a separately controlled benchmark or performance workflow.
 - Avoid real secrets and external network calls in tests.
 
 # Segment measurement provider tests
