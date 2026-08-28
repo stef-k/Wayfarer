@@ -11,6 +11,7 @@ using NetTopologySuite.IO;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using Wayfarer.Models;
+using Wayfarer.Services.LocationProviders;
 using Wayfarer.Models.Enums;
 using Location = Wayfarer.Models.Location;
 
@@ -125,6 +126,10 @@ namespace Wayfarer.Parsers
                     var place = getString("Place");
                     var region = getString("Region");
                     var country = getString("Country");
+                    var feature = ResolvedFeatureMetadata.NormalizeImported(
+                        getString("ResolvedFeatureName"), getString("ResolvedFeatureType"),
+                        getString("ReverseGeocodingProvider"), getString("ReverseGeocodingStorageMode"),
+                        getString("ReverseGeocodedAt"));
                     var notes = getString("Notes");
 
                     // Extract metadata fields
@@ -162,6 +167,11 @@ namespace Wayfarer.Parsers
                         Place = place,
                         Region = region,
                         Country = country,
+                        ResolvedFeatureName = feature.Name,
+                        ResolvedFeatureType = feature.Type,
+                        ReverseGeocodingProvider = feature.Provider,
+                        ReverseGeocodingStorageMode = feature.StorageMode,
+                        ReverseGeocodedAt = feature.EnrichedAt,
 
                         // Metadata fields
                         Source = source,

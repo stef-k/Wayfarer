@@ -383,6 +383,8 @@ public sealed class GeoapifyLocationBackfillService(
                     .SetProperty(item => item.Place, value.Place)
                     .SetProperty(item => item.Region, value.Region)
                     .SetProperty(item => item.Country, value.Country)
+                    .SetProperty(item => item.ResolvedFeatureName, value.ResolvedFeatureName)
+                    .SetProperty(item => item.ResolvedFeatureType, value.ResolvedFeatureType)
                     .SetProperty(item => item.ReverseGeocodingProvider, provider)
                     .SetProperty(item => item.ReverseGeocodingStorageMode,
                         provider == "geoapify" ? "persistent" : "permanent")

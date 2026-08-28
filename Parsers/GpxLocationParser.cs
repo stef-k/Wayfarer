@@ -6,6 +6,7 @@ using System.Xml.Linq;
 using System.Xml;
 using Microsoft.Extensions.Logging;
 using Wayfarer.Models;
+using Wayfarer.Services.LocationProviders;
 using GeoPoint = NetTopologySuite.Geometries.Point;
 
 namespace Wayfarer.Parsers;
@@ -80,6 +81,10 @@ public sealed class GpxLocationParser : ILocationDataParser
             var place = GetExtensionValue(extensions, "place");
             var region = GetExtensionValue(extensions, "region");
             var country = GetExtensionValue(extensions, "country");
+            var feature = ResolvedFeatureMetadata.NormalizeImported(
+                GetExtensionValue(extensions, "resolvedFeatureName"), GetExtensionValue(extensions, "resolvedFeatureType"),
+                GetExtensionValue(extensions, "reverseGeocodingProvider"), GetExtensionValue(extensions, "reverseGeocodingStorageMode"),
+                GetExtensionValue(extensions, "reverseGeocodedAt"));
             var notes = GetExtensionValue(extensions, "notes");
             // Metadata fields
             var source = GetExtensionValue(extensions, "source");
@@ -118,6 +123,11 @@ public sealed class GpxLocationParser : ILocationDataParser
                 Place = place,
                 Region = region,
                 Country = country,
+                ResolvedFeatureName = feature.Name,
+                ResolvedFeatureType = feature.Type,
+                ReverseGeocodingProvider = feature.Provider,
+                ReverseGeocodingStorageMode = feature.StorageMode,
+                ReverseGeocodedAt = feature.EnrichedAt,
                 Notes = notes,
                 ImportedActivityName = string.IsNullOrWhiteSpace(activityName) ? null : activityName,
                 ActivityType = null!,

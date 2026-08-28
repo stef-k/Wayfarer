@@ -70,9 +70,14 @@ public sealed class GeoapifyReverseGeocodingAdapter(HttpClient httpClient)
             StreetName = street ?? string.Empty, PostCode = Read(properties, "postcode") ?? string.Empty,
             Place = First(properties, "city", "town", "village", "municipality", "county"),
             Region = First(properties, "state", "state_district", "county"),
-            Country = Read(properties, "country") ?? string.Empty
+            Country = Read(properties, "country") ?? string.Empty,
+            ResolvedFeatureName = ResolvedFeatureMetadata.NormalizeName(ReadOptionalString(properties, "name")),
+            ResolvedFeatureType = ResolvedFeatureMetadata.NormalizeGeoapifyType(ReadOptionalString(properties, "result_type"))
         });
     }
+
+    private static string? ReadOptionalString(JsonElement properties, string name) =>
+        properties.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
 
     private static string? Read(JsonElement properties, string name)
     {

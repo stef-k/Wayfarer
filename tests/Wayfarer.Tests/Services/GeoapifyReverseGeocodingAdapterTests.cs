@@ -41,11 +41,12 @@ public sealed class GeoapifyReverseGeocodingAdapterTests
     }
 
     [Theory]
-    [InlineData("123", "\"amenity\"")]
-    [InlineData("\"bad\\u0001name\"", "\"amenity\"")]
-    [InlineData("\"Name\"", "\"unknown\"")]
-    [InlineData("\"Name\"", "\"restaurant\"")]
-    public async Task MalformedOptionalMetadataDoesNotRejectValidAddress(string name, string resultType)
+    [InlineData("123", "\"amenity\"", null, "amenity")]
+    [InlineData("\"bad\\u0001name\"", "\"amenity\"", null, "amenity")]
+    [InlineData("\"Name\"", "\"unknown\"", "Name", null)]
+    [InlineData("\"Name\"", "\"restaurant\"", "Name", null)]
+    public async Task MalformedOptionalMetadataDoesNotRejectValidAddress(
+        string name, string resultType, string? expectedName, string? expectedType)
     {
         var json = "{\"type\":\"FeatureCollection\",\"features\":[{\"type\":\"Feature\",\"properties\":{"+
             "\"formatted\":\"12 Main Street, Town\",\"name\":" + name + ",\"result_type\":" + resultType + "}}]}";
@@ -54,8 +55,8 @@ public sealed class GeoapifyReverseGeocodingAdapterTests
             .ReverseAsync(10, 20, "secret");
 
         Assert.True(result.Succeeded);
-        Assert.Null(result.Value!.ResolvedFeatureName);
-        Assert.Null(result.Value.ResolvedFeatureType);
+        Assert.Equal(expectedName, result.Value!.ResolvedFeatureName);
+        Assert.Equal(expectedType, result.Value.ResolvedFeatureType);
     }
 
     [Theory]

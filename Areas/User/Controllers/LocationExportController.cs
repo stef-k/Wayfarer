@@ -63,6 +63,11 @@ public class LocationExportController : Controller
                 { "Place", loc.Place },
                 { "Region", loc.Region },
                 { "Country", loc.Country },
+                { "ResolvedFeatureName", loc.ResolvedFeatureName },
+                { "ResolvedFeatureType", loc.ResolvedFeatureType },
+                { "ReverseGeocodingProvider", loc.ReverseGeocodingProvider },
+                { "ReverseGeocodingStorageMode", loc.ReverseGeocodingStorageMode },
+                { "ReverseGeocodedAt", loc.ReverseGeocodedAt },
                 { "Notes", loc.Notes },
                 // Metadata fields
                 { "Source", loc.Source },
@@ -119,6 +124,11 @@ public class LocationExportController : Controller
             Place = l.Place,
             Region = l.Region,
             Country = l.Country,
+            l.ResolvedFeatureName,
+            l.ResolvedFeatureType,
+            l.ReverseGeocodingProvider,
+            l.ReverseGeocodingStorageMode,
+            l.ReverseGeocodedAt,
             Notes = l.Notes,
             // Metadata fields
             l.Source,
@@ -173,6 +183,11 @@ public class LocationExportController : Controller
                    || !string.IsNullOrWhiteSpace(loc.Place)
                    || !string.IsNullOrWhiteSpace(loc.Region)
                    || !string.IsNullOrWhiteSpace(loc.Country)
+                   || !string.IsNullOrWhiteSpace(loc.ResolvedFeatureName)
+                   || !string.IsNullOrWhiteSpace(loc.ResolvedFeatureType)
+                   || !string.IsNullOrWhiteSpace(loc.ReverseGeocodingProvider)
+                   || !string.IsNullOrWhiteSpace(loc.ReverseGeocodingStorageMode)
+                   || loc.ReverseGeocodedAt.HasValue
                    || loc.Accuracy.HasValue
                    || loc.Speed.HasValue
                    || !string.IsNullOrWhiteSpace(loc.ActivityType?.Name)
@@ -230,6 +245,11 @@ public class LocationExportController : Controller
                     WriteGpxExtension(xw, "place", loc.Place);
                     WriteGpxExtension(xw, "region", loc.Region);
                     WriteGpxExtension(xw, "country", loc.Country);
+                    WriteGpxExtension(xw, "resolvedFeatureName", loc.ResolvedFeatureName);
+                    WriteGpxExtension(xw, "resolvedFeatureType", loc.ResolvedFeatureType);
+                    WriteGpxExtension(xw, "reverseGeocodingProvider", loc.ReverseGeocodingProvider);
+                    WriteGpxExtension(xw, "reverseGeocodingStorageMode", loc.ReverseGeocodingStorageMode);
+                    WriteGpxExtension(xw, "reverseGeocodedAt", loc.ReverseGeocodedAt?.ToUniversalTime().ToString("O"));
                     WriteGpxExtension(xw, "notes", loc.Notes);
                     // Metadata fields
                     WriteGpxExtension(xw, "source", loc.Source);
@@ -314,6 +334,11 @@ public class LocationExportController : Controller
                 WriteKmlData(xw, "Place", loc.Place);
                 WriteKmlData(xw, "Region", loc.Region);
                 WriteKmlData(xw, "Country", loc.Country);
+                WriteKmlData(xw, "ResolvedFeatureName", loc.ResolvedFeatureName);
+                WriteKmlData(xw, "ResolvedFeatureType", loc.ResolvedFeatureType);
+                WriteKmlData(xw, "ReverseGeocodingProvider", loc.ReverseGeocodingProvider);
+                WriteKmlData(xw, "ReverseGeocodingStorageMode", loc.ReverseGeocodingStorageMode);
+                WriteKmlData(xw, "ReverseGeocodedAt", loc.ReverseGeocodedAt?.ToUniversalTime().ToString("O"));
                 // Metadata fields
                 WriteKmlData(xw, "Source", loc.Source);
                 WriteKmlData(xw, "IsUserInvoked", loc.IsUserInvoked?.ToString());

@@ -106,7 +106,7 @@ namespace Wayfarer.Parsers
                     PostCode = l.PostCode,
                     Place = l.Place,
                     Region = l.Region,
-                    Country = l.Country,
+                    Country = l.Country, ResolvedFeatureName = l.ResolvedFeatureName, ResolvedFeatureType = l.ResolvedFeatureType,
                     Notes = l.Notes,
                     IsLatestLocation = false,
                     LocationTimeThresholdMinutes = locationTimeThreshold
@@ -269,7 +269,7 @@ namespace Wayfarer.Parsers
                 PostCode = l.PostCode,
                 Place = l.Place,
                 Region = l.Region,
-                Country = l.Country,
+                Country = l.Country, ResolvedFeatureName = l.ResolvedFeatureName, ResolvedFeatureType = l.ResolvedFeatureType,
                 Notes = l.Notes,
                 IsLatestLocation = false,
                 LocationTimeThresholdMinutes = locationTimeThreshold
@@ -463,7 +463,7 @@ namespace Wayfarer.Parsers
                     PostCode = l.PostCode,
                     Place = l.Place,
                     Region = l.Region,
-                    Country = l.Country,
+                    Country = l.Country, ResolvedFeatureName = l.ResolvedFeatureName, ResolvedFeatureType = l.ResolvedFeatureType,
                     Notes = l.Notes,
                     IsLatestLocation = dayLatestLocationId.HasValue && l.Id == dayLatestLocationId.Value,
                     LocationTimeThresholdMinutes = locationTimeThreshold
@@ -552,7 +552,7 @@ namespace Wayfarer.Parsers
                 PostCode = l.PostCode,
                 Place = l.Place,
                 Region = l.Region,
-                Country = l.Country,
+                Country = l.Country, ResolvedFeatureName = l.ResolvedFeatureName, ResolvedFeatureType = l.ResolvedFeatureType,
                 Notes = l.Notes,
                 IsLatestLocation = latestLocationId.HasValue && l.Id == latestLocationId.Value,
                 LocationTimeThresholdMinutes = locationTimeThreshold

@@ -168,6 +168,8 @@ public static class EditorTripStateMapper
             place.Name,
             place.Notes ?? string.Empty,
             place.Address ?? string.Empty,
+            place.ResolvedFeatureName,
+            place.ResolvedFeatureType,
             ToCoordinate(place.Location),
             string.IsNullOrWhiteSpace(place.IconName) ? "marker" : place.IconName,
             string.IsNullOrWhiteSpace(place.MarkerColor) ? "bg-blue" : place.MarkerColor,

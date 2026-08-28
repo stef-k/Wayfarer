@@ -18,7 +18,10 @@ public sealed record WayfarerKmlRegion(
 /// <summary>Detached Place transport data.</summary>
 public sealed record WayfarerKmlPlace(
     Guid Id, string Name, int DisplayOrder, string? Notes, string? IconName,
-    string? MarkerColor, string? Address, Point? Location);
+    string? MarkerColor, string? Address, Point? Location,
+    string? ResolvedFeatureName = null, string? ResolvedFeatureType = null,
+    string? AddressEnrichmentProvider = null, string? AddressEnrichmentStorageMode = null,
+    DateTimeOffset? AddressEnrichedAt = null);
 
 /// <summary>Detached Area transport data.</summary>
 public sealed record WayfarerKmlArea(

@@ -25,6 +25,10 @@ public class PublicLocationDto
     public string? Place { get; set; }
     public string? Region { get; set; }
     public string? Country { get; set; }
+    /// <summary>Optional provider-returned detected feature name.</summary>
+    public string? ResolvedFeatureName { get; set; }
+    /// <summary>Optional normalized detected feature type.</summary>
+    public string? ResolvedFeatureType { get; set; }
     public string? Notes { get; set; }
 
     // Additional fields

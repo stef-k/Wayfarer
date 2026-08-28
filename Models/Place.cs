@@ -45,6 +45,10 @@ public class Place
 
     /// <summary>Optional street address of the place.</summary>
     public string? Address { get; set; }
+    /// <summary>Optional named feature returned with the retained reverse-geocoding result.</summary>
+    [System.ComponentModel.DataAnnotations.MaxLength(500)] public string? ResolvedFeatureName { get; set; }
+    /// <summary>Optional normalized provider-neutral feature type.</summary>
+    [System.ComponentModel.DataAnnotations.MaxLength(32)] public string? ResolvedFeatureType { get; set; }
     /// <summary>Provider that supplied the retained address enrichment.</summary>
     [System.ComponentModel.DataAnnotations.MaxLength(24)] public string? AddressEnrichmentProvider { get; set; }
     /// <summary>Provider storage mode governing the retained address enrichment.</summary>

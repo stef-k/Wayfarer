@@ -172,6 +172,8 @@ namespace Wayfarer.Parsers
         public string PostCode { get; set; } = string.Empty;
         public string? Region { get; set; }
         public string Country { get; set; } = string.Empty;
+        public string? ResolvedFeatureName { get; set; }
+        public string? ResolvedFeatureType { get; set; }
     }
 
 
@@ -432,6 +434,8 @@ namespace Wayfarer.Parsers
             location.AddressNumber = Value.AddressNumber; location.StreetName = Value.StreetName;
             location.PostCode = Value.PostCode; location.Place = Value.Place;
             location.Region = Value.Region; location.Country = Value.Country;
+            location.ResolvedFeatureName = Value.ResolvedFeatureName;
+            location.ResolvedFeatureType = Value.ResolvedFeatureType;
             var provider = Authority?.ProviderKey ?? "mapbox";
             location.ReverseGeocodingProvider = provider;
             location.ReverseGeocodingStorageMode = provider == "geoapify" ? "persistent" : "permanent";

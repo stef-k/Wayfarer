@@ -8,6 +8,7 @@ using CsvHelper;
 using CsvHelper.Configuration;
 using Microsoft.Extensions.Logging;
 using Wayfarer.Models;
+using Wayfarer.Services.LocationProviders;
 using GeoPoint = NetTopologySuite.Geometries.Point;
 
 namespace Wayfarer.Parsers;
@@ -88,6 +89,10 @@ public sealed class CsvLocationParser : ILocationDataParser
             var batteryLevel = GetNullableInt(csv, "BatteryLevel");
             var isCharging = GetNullableBool(csv, "IsCharging");
             var idempotencyKey = ParseOptionalGuid(GetField(csv, "IdempotencyKey"));
+            var feature = ResolvedFeatureMetadata.NormalizeImported(
+                GetField(csv, "ResolvedFeatureName"), GetField(csv, "ResolvedFeatureType"),
+                GetField(csv, "ReverseGeocodingProvider"), GetField(csv, "ReverseGeocodingStorageMode"),
+                GetField(csv, "ReverseGeocodedAt"));
 
             var location = new Location
             {
@@ -107,6 +112,11 @@ public sealed class CsvLocationParser : ILocationDataParser
                 Place = GetField(csv, "Place"),
                 Region = GetField(csv, "Region"),
                 Country = GetField(csv, "Country"),
+                ResolvedFeatureName = feature.Name,
+                ResolvedFeatureType = feature.Type,
+                ReverseGeocodingProvider = feature.Provider,
+                ReverseGeocodingStorageMode = feature.StorageMode,
+                ReverseGeocodedAt = feature.EnrichedAt,
                 Notes = notes,
                 ImportedActivityName = string.IsNullOrWhiteSpace(activityName) ? null : activityName,
                 ActivityType = null!,

@@ -256,6 +256,8 @@ public class GroupTimelineService : IGroupTimelineService
             Place = location.Place,
             Region = location.Region,
             Country = location.Country,
+            ResolvedFeatureName = location.ResolvedFeatureName,
+            ResolvedFeatureType = location.ResolvedFeatureType,
             Notes = location.Notes,
             IsLatestLocation = true,
             LocationTimeThresholdMinutes = threshold

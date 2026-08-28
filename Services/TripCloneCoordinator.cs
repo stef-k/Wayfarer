@@ -113,7 +113,12 @@ public sealed class TripCloneCoordinator(ApplicationDbContext dbContext)
                     Id = placeId, UserId = destinationUserId, RegionId = region.Id,
                     Name = sourcePlace.Name, Location = CopyPoint(sourcePlace.Location), Notes = sourcePlace.Notes,
                     DisplayOrder = sourcePlace.DisplayOrder, IconName = sourcePlace.IconName,
-                    MarkerColor = sourcePlace.MarkerColor, Address = sourcePlace.Address
+                    MarkerColor = sourcePlace.MarkerColor, Address = sourcePlace.Address,
+                    ResolvedFeatureName = sourcePlace.ResolvedFeatureName,
+                    ResolvedFeatureType = sourcePlace.ResolvedFeatureType,
+                    AddressEnrichmentProvider = sourcePlace.AddressEnrichmentProvider,
+                    AddressEnrichmentStorageMode = sourcePlace.AddressEnrichmentStorageMode,
+                    AddressEnrichedAt = sourcePlace.AddressEnrichedAt
                 });
             }
             foreach (var sourceArea in sourceRegion.Areas)

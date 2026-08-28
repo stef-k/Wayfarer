@@ -3,6 +3,7 @@ using System.Xml;
 using System.Xml.Linq;
 using NetTopologySuite.Geometries;
 using Wayfarer.Models;
+using Wayfarer.Services.LocationProviders;
 using Wayfarer.Services;
 
 namespace Wayfarer.Parsers;
@@ -120,9 +121,14 @@ public static class WayfarerKmlParser
     private static WayfarerKmlPlace ParsePlace(XElement owner, int version)
     {
         var coordinate = owner.Element(Kml + "Point")?.Element(Kml + "coordinates")?.Value;
+        var feature = ResolvedFeatureMetadata.NormalizeImported(
+            Scalar(owner, "ResolvedFeatureName"), Scalar(owner, "ResolvedFeatureType"),
+            Scalar(owner, "AddressEnrichmentProvider"), Scalar(owner, "AddressEnrichmentStorageMode"),
+            Scalar(owner, "AddressEnrichedAt"));
         return new(RequiredGuid(owner, "PlaceId"), owner.Element(Kml + "name")?.Value ?? "Place",
             OptionalInt(owner, "DisplayOrder") ?? 0, Scalar(owner, "NotesHtml"), Scalar(owner, "IconName"),
-            Scalar(owner, "MarkerColor"), Scalar(owner, "Address"), string.IsNullOrWhiteSpace(coordinate) ? null : ParsePoint(coordinate));
+            Scalar(owner, "MarkerColor"), Scalar(owner, "Address"), string.IsNullOrWhiteSpace(coordinate) ? null : ParsePoint(coordinate),
+            feature.Name, feature.Type, feature.Provider, feature.StorageMode, feature.EnrichedAt);
     }
 
     private static WayfarerKmlArea ParseArea(XElement owner, int version)
@@ -173,7 +179,9 @@ public static class WayfarerKmlParser
             DisplayOrder = region.DisplayOrder, Notes = region.Notes, Center = region.Center,
             Places = region.Places.Select(place => new Place { Id = place.Id, RegionId = region.Id, Name = place.Name,
                 DisplayOrder = place.DisplayOrder, Notes = place.Notes, IconName = place.IconName, MarkerColor = place.MarkerColor,
-                Address = place.Address, Location = place.Location }).ToList(),
+                Address = place.Address, Location = place.Location, ResolvedFeatureName = place.ResolvedFeatureName,
+                ResolvedFeatureType = place.ResolvedFeatureType, AddressEnrichmentProvider = place.AddressEnrichmentProvider,
+                AddressEnrichmentStorageMode = place.AddressEnrichmentStorageMode, AddressEnrichedAt = place.AddressEnrichedAt }).ToList(),
             Areas = region.Areas.Select(area => new Area { Id = area.Id, RegionId = region.Id, Name = area.Name,
                 DisplayOrder = area.DisplayOrder, Notes = area.Notes, FillHex = area.FillHex,
                 Geometry = area.Geometry ?? throw new FormatException("Area geometry is required.") }).ToList() }).ToList();

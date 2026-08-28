@@ -705,6 +705,8 @@ return Ok(dto);
             Notes = place.Notes,
             DisplayOrder = place.DisplayOrder,
             IconName = place.IconName,
+            ResolvedFeatureName = place.ResolvedFeatureName,
+            ResolvedFeatureType = place.ResolvedFeatureType,
             MarkerColor = place.MarkerColor,
             Address = place.Address,
             Location = place.Location != null
@@ -784,6 +786,8 @@ return Ok(dto);
             Notes = place.Notes,
             DisplayOrder = place.DisplayOrder,
             IconName = place.IconName,
+            ResolvedFeatureName = place.ResolvedFeatureName,
+            ResolvedFeatureType = place.ResolvedFeatureType,
             MarkerColor = place.MarkerColor,
             Address = place.Address,
             Location = place.Location != null

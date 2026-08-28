@@ -88,7 +88,7 @@ public sealed class TripEditorPlaceMutationService
         };
         var address = await ResolveAddressAsync(userId, place.Id, parsed.Value.Address, parsed.Value.Location, parsed.Value.ReverseGeocode, cancellationToken);
         place.Address = address.Value;
-        ApplyAddressProvenance(place, address.ProviderKey);
+        ApplyAddressEnrichment(place, address);
 
         _dbContext.Places.Add(place);
         await _dbContext.SaveChangesAsync(cancellationToken);
@@ -135,8 +135,10 @@ public sealed class TripEditorPlaceMutationService
         }
 
         var manualAddressReplaced = !string.Equals(place.Address, update.Address?.Trim() ?? string.Empty, StringComparison.Ordinal);
+        var coordinatesReplaced = !CoordinatesEqual(
+            place.Location == null ? null : new EditorCoordinateDto(place.Location.Y, place.Location.X), update.Location);
         var address = await ResolveAddressAsync(userId, place.Id, update.Address, update.Location, update.ReverseGeocode, cancellationToken);
-        if (address.ProviderKey != null || manualAddressReplaced) ApplyAddressProvenance(place, address.ProviderKey);
+        if (address.ProviderKey != null || manualAddressReplaced || coordinatesReplaced) ApplyAddressEnrichment(place, address);
         var lifecycle = await _lifecycle.UpdatePlaceAsync(
             tripId,
             placeId,
@@ -311,7 +313,8 @@ public sealed class TripEditorPlaceMutationService
             : (null, errors);
     }
 
-    private async Task<(string Value, IReadOnlyList<EditorWarningDto> Warnings, string? ProviderKey)> ResolveAddressAsync(
+    private async Task<(string Value, IReadOnlyList<EditorWarningDto> Warnings, string? ProviderKey,
+        string? FeatureName, string? FeatureType)> ResolveAddressAsync(
         string userId,
         Guid placeId,
         string? manualAddress,
@@ -322,23 +325,28 @@ public sealed class TripEditorPlaceMutationService
         var fallback = manualAddress?.Trim() ?? string.Empty;
         if (!reverseGeocode || location == null)
         {
-            return (fallback, Array.Empty<EditorWarningDto>(), null);
+            return (fallback, Array.Empty<EditorWarningDto>(), null, null, null);
         }
         var result = await _reverseGeocodingService.EnrichAsync(userId, location.Latitude, location.Longitude,
             ReverseGeocodingIntent.PlaceAddress, cancellationToken);
         var address = result.Value == null ? null
             : string.IsNullOrWhiteSpace(result.Value.FullAddress) ? result.Value.Address : result.Value.FullAddress;
         return string.IsNullOrWhiteSpace(address)
-            ? (fallback, ReverseGeocodeWarning(placeId), null)
-            : (address.Trim(), Array.Empty<EditorWarningDto>(), result.Authority?.ProviderKey ?? "mapbox");
+            ? (fallback, ReverseGeocodeWarning(placeId), null, null, null)
+            : (address.Trim(), Array.Empty<EditorWarningDto>(), result.Authority?.ProviderKey ?? "mapbox",
+                result.Value!.ResolvedFeatureName, result.Value.ResolvedFeatureType);
     }
 
-    private static void ApplyAddressProvenance(Place place, string? providerKey)
+    private static void ApplyAddressEnrichment(Place place,
+        (string Value, IReadOnlyList<EditorWarningDto> Warnings, string? ProviderKey, string? FeatureName, string? FeatureType) result)
     {
+        var providerKey = result.ProviderKey;
         place.AddressEnrichmentProvider = providerKey;
         place.AddressEnrichmentStorageMode = providerKey == "geoapify" ? "persistent"
             : providerKey == "mapbox" ? "permanent" : null;
         place.AddressEnrichedAt = providerKey != null ? DateTimeOffset.UtcNow : null;
+        place.ResolvedFeatureName = providerKey != null ? result.FeatureName : null;
+        place.ResolvedFeatureType = providerKey != null ? result.FeatureType : null;
     }
 
     private static IReadOnlyList<EditorWarningDto> ReverseGeocodeWarning(Guid placeId) =>

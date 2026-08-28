@@ -72,7 +72,11 @@ public static class TripWayfarerKmlExporter
             ("PlaceId", GuidText(place.Id)), ("RegionId", GuidText(regionId)),
             ("DisplayOrder", Number(place.DisplayOrder)), ("NotesHtml", place.Notes ?? ""),
             ("IconName", place.IconName ?? ""), ("MarkerColor", place.MarkerColor ?? ""),
-            ("Address", place.Address ?? ""));
+            ("Address", place.Address ?? ""), ("ResolvedFeatureName", place.ResolvedFeatureName ?? ""),
+            ("ResolvedFeatureType", place.ResolvedFeatureType ?? ""),
+            ("AddressEnrichmentProvider", place.AddressEnrichmentProvider ?? ""),
+            ("AddressEnrichmentStorageMode", place.AddressEnrichmentStorageMode ?? ""),
+            ("AddressEnrichedAt", place.AddressEnrichedAt?.ToUniversalTime().ToString("O") ?? ""));
         if (place.Location is not null)
             placemark.Add(new XElement(Kml + "Point", new XElement(Kml + "coordinates", CoordinateText(place.Location.Coordinate))));
         return placemark;

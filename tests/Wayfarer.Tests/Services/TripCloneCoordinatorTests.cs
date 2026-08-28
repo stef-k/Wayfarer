@@ -26,6 +26,12 @@ public sealed class TripCloneCoordinatorTests : TestBase
         db.Users.AddRange(owner, destination);
         var source = TestDataFixtures.CreateTrip(owner, "Canonical clone", isPublic: true);
         var region = RegionWithPlaces(source, owner.Id, out var places);
+        places[0].Address = "Tokyo Tower, Tokyo";
+        places[0].ResolvedFeatureName = "Tokyo Tower";
+        places[0].ResolvedFeatureType = "building";
+        places[0].AddressEnrichmentProvider = "geoapify";
+        places[0].AddressEnrichmentStorageMode = "persistent";
+        places[0].AddressEnrichedAt = new DateTimeOffset(2026, 8, 28, 12, 0, 0, TimeSpan.Zero);
         var customGeometry = Line((0, 0), (0.5, 0.25), (1, 1), (2, 2));
         var profile = await db.Set<TransportProfile>().SingleAsync(item => item.Key == "walk");
         profile.IsActive = false;
@@ -73,6 +79,9 @@ public sealed class TripCloneCoordinatorTests : TestBase
         Assert.NotNull(custom.EstimatedDistanceKm);
         Assert.NotNull(loop.EstimatedDistanceKm);
         Assert.Equal(3, clonedPlaces.Count);
+        Assert.Equal(("Tokyo Tower", "building", "geoapify", "persistent"),
+            (clonedPlaces["A"].ResolvedFeatureName, clonedPlaces["A"].ResolvedFeatureType,
+                clonedPlaces["A"].AddressEnrichmentProvider, clonedPlaces["A"].AddressEnrichmentStorageMode));
         AssertComposition(custom, expectedCustom: true, expectedTrail: "A → B → C", expectedRoutePoints: 4, db);
         AssertComposition(loop, expectedCustom: false, expectedTrail: "A → B → A", expectedRoutePoints: 3, db);
 
@@ -85,6 +94,9 @@ public sealed class TripCloneCoordinatorTests : TestBase
         var importedCustom = imported.Segments.Single(item => item.RouteGeometry != null);
         var importedLoop = imported.Segments.Single(item => item.RouteGeometry == null);
         Assert.Equal(3, importedPlaces.Count);
+        Assert.Equal(("Tokyo Tower", "building", "geoapify", "persistent"),
+            (importedPlaces["A"].ResolvedFeatureName, importedPlaces["A"].ResolvedFeatureType,
+                importedPlaces["A"].AddressEnrichmentProvider, importedPlaces["A"].AddressEnrichmentStorageMode));
         Assert.Equal((importedPlaces["A"].Id, importedPlaces["B"].Id, importedPlaces["C"].Id),
             (importedCustom.FromPlaceId, Assert.Single(importedCustom.Waypoints).PlaceId, importedCustom.ToPlaceId));
         Assert.Equal(importedPlaces["A"].Id, importedLoop.FromPlaceId);

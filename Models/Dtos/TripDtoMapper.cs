@@ -87,6 +87,8 @@ public static class TripDtoMapper
             Name = place.Name,
             Notes = place.Notes,
             Address = place.Address,
+            ResolvedFeatureName = place.ResolvedFeatureName,
+            ResolvedFeatureType = place.ResolvedFeatureType,
             IconName = place.IconName,
             MarkerColor = place.MarkerColor,
             DisplayOrder = place.DisplayOrder,

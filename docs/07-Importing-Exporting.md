@@ -137,6 +137,8 @@ This enables full roundtrip: export from Wayfarer, then reimport without losing 
 
 Wayfarer-native KML schema v2 preserves ordered From/Via/To Place identity, waypoint route indices, custom-versus-fallback route state, transport profile, effective measurement, and explicit Automatic/Manual duration provenance. Native imports validate the complete aggregate before applying it, and creating a new trip remaps every Place identity consistently, including one shared identity for both endpoints of a closed loop. The same complete remapping is used by both trip-clone entry points.
 
+Wayfarer location-history GeoJSON, CSV, GPX, and KML preserve optional detected feature name/type only with a valid reverse-geocoding provider, storage mode, and timestamp tuple. Older files remain compatible; invalid or incomplete provenance causes the optional tuple to be discarded. Native Trip KML applies the same rule to Place address enrichment. Generic KML, Google My Maps, and Google Timeline inputs do not gain this provider-metadata contract.
+
 Legacy Wayfarer KML v1 remains supported. Its `DurationMin` value is treated as an intentional Manual duration; absence defaults to Automatic. Imported distance is recalculated by the server from the effective route, and existing public/export duration minutes continue to use `TimeSpan.TotalMinutes`, so whole-second values retain fractional-minute precision.
 
 Generic KML and GeoJSON remain geometry-only interchange formats. They do not infer semantic saved-Place waypoints, and generic route coordinates are imported exactly without dense-route simplification. Dense generic-route simplification is deferred to #425; external route generation is deferred to #426.
