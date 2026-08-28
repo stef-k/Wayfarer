@@ -13,12 +13,18 @@ export function placePopupHtml(place: EditorPlace, regionName: string | null | u
     '<div class="trip-editor-place-popup__body">',
     place.location ? `<div class="trip-editor-place-popup__meta"><span>Lat:</span> ${formatCoordinate(place.location.latitude)} <span>Lon:</span> ${formatCoordinate(place.location.longitude)}</div>` : '',
     place.address ? `<div class="trip-editor-place-popup__meta"><span>Address:</span> ${escapeHtml(place.address)}</div>` : '',
+    place.resolvedFeatureName ? `<div class="trip-editor-place-popup__meta"><span>Detected place:</span> ${escapeHtml(place.resolvedFeatureName)}</div>` : '',
+    place.resolvedFeatureType ? `<div class="trip-editor-place-popup__meta"><span>Feature type:</span> ${escapeHtml(titleCase(place.resolvedFeatureType))}</div>` : '',
     visitSummaryHtml(place),
     notesHtml ? `<div class="trip-editor-place-popup__notes"><span>Notes:</span><div>${notesHtml}</div></div>` : '',
     '</div>',
     '<div class="trip-editor-place-popup__footer">Click marker to select this place</div>',
     '</div>'
   ].join('');
+}
+
+function titleCase(value: string): string {
+  return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
 function visitSummaryHtml(place: EditorPlace): string {

@@ -77,6 +77,8 @@ export interface EditorPlace {
   name: string;
   notesHtml: string;
   address: string;
+  resolvedFeatureName?: string | null;
+  resolvedFeatureType?: string | null;
   location: EditorCoordinate | null;
   iconName: string;
   markerColor: string;
