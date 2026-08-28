@@ -279,7 +279,7 @@ public sealed class TileCachePhase3Tests
     public async Task ControlledColdViewport_CompletesProgressivelyWithinDerivedCeiling()
     {
         const int tileCount = 24;
-        var transport = new GatedRecordingTransport();
+        var transport = new GatedRecordingTransport(stallAfterReleaseUntilCancellation: true);
         await using var harness = new TileCacheTestHarness(transport.Handler);
         var requests = Enumerable.Range(0, tileCount)
             .Select(x => RequestTileAsync(harness, 5, x, 1))
@@ -301,11 +301,14 @@ public sealed class TileCachePhase3Tests
             Assert.Equal(TileWorkScheduler.PerClientConcurrency + 1, transport.EnteredCount);
             Assert.Equal(TileWorkScheduler.PerClientConcurrency, transport.MaxActiveCount);
 
+            throw new Xunit.Sdk.XunitException("Injected primary failure for cleanup-order evidence.");
+
             transport.ReleaseAll();
             var outcomes = await Task.WhenAll(requests).WaitAsync(TimeSpan.FromSeconds(10));
 
             Assert.Equal(tileCount, transport.EnteredCount);
             Assert.All(outcomes, outcome => Assert.Equal(StatusCodes.Status200OK, outcome.StatusCode));
+            Assert.Equal(TileWorkScheduler.PerClientConcurrency, transport.MaxActiveCount);
         }
         finally
         {
@@ -375,10 +378,12 @@ public sealed class TileCachePhase3Tests
         private int _enteredCount;
         private int _activeCount;
         private int _maxActiveCount;
+        private readonly bool _stallAfterReleaseUntilCancellation;
 
         /// <summary>Initializes the recording handler used by the real tile-cache transport path.</summary>
-        public GatedRecordingTransport()
+        public GatedRecordingTransport(bool stallAfterReleaseUntilCancellation = false)
         {
+            _stallAfterReleaseUntilCancellation = stallAfterReleaseUntilCancellation;
             Handler = new RecordingTileHandler(HandleAsync);
         }
 
@@ -471,6 +476,11 @@ public sealed class TileCachePhase3Tests
             try
             {
                 await gate.Task.WaitAsync(cancellationToken);
+                if (_stallAfterReleaseUntilCancellation)
+                {
+                    await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+                }
+
                 return PngResponse([1, 2, 3, 4]);
             }
             finally
