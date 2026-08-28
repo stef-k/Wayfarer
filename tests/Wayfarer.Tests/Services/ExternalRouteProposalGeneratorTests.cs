@@ -1,8 +1,10 @@
 using Microsoft.AspNetCore.DataProtection;
 using NetTopologySuite.Geometries;
 using Wayfarer.Models;
+using Wayfarer.Models.LocationProviders;
 using Wayfarer.Services;
 using Wayfarer.Services.ExternalRouting;
+using Wayfarer.Services.LocationProviders;
 using Wayfarer.Tests.Infrastructure;
 using Xunit;
 
@@ -124,6 +126,58 @@ public sealed class ExternalRouteProposalGeneratorTests : TestBase
         Assert.True(contexts.TryRead(result.Proposal!.ProtectedContext, out var binding));
         Assert.Equal(RoutingProviderSelectionMode.Personal, binding!.ProviderSelectionMode);
         Assert.Equal(configuration.ConfigurationVersion, binding.UserRoutingConfigurationVersion);
+    }
+
+    [Fact]
+    public async Task Generate_OversizedGeoapifyRouteRejectsBeforeUserBudgetOrProviderContact()
+    {
+        var db = CreateDbContext();
+        var protection = new EphemeralDataProtectionProvider();
+        var fixture = AddFixture(db, enabled: true);
+        var provider = db.Set<RoutingProviderConfiguration>().Single();
+        provider.AdapterType = RoutingAdapterType.Geoapify;
+        provider.DisplayName = "Geoapify";
+        provider.BaseEndpoint = "https://api.geoapify.com/";
+        provider.ProfileMappings.Single().OsrmProfile = "drive";
+        var personalCredentials = new PersonalProviderCredentialService(protection);
+        var personal = PersonalLocationProviderProfile.Create(fixture.UserId, PersonalLocationProvider.Geoapify);
+        personalCredentials.Replace(personal, "secret");
+        personal.RoutingAuthorized = true;
+        personal.RoutingVerification = PersonalProviderVerification.Verified;
+        personal.RoutingVerifiedCredentialGeneration = personal.CredentialGeneration;
+        personal.RoutingVerifiedConfigurationGeneration = personal.RoutingGeneration;
+        db.AddRange(personal, new PersonalLocationProviderSelection
+        {
+            UserId = fixture.UserId, RoutingProviderKey = "geoapify"
+        });
+        for (var index = 1; index <= 23; index++)
+        {
+            var place = new Place
+            {
+                Id = Guid.NewGuid(), UserId = fixture.UserId, Name = $"Via {index}",
+                Location = Point(23.75 + index / 10000d, 37.95 + index / 10000d)
+            };
+            db.Set<Place>().Add(place);
+            fixture.Segment.Waypoints.Add(new SegmentWaypoint
+            {
+                Segment = fixture.Segment, SegmentId = fixture.Segment.Id, Place = place, PlaceId = place.Id, Position = index
+            });
+        }
+        db.SaveChanges();
+        var tokens = new SegmentAggregateTokenService(protection);
+        var client = new StubClient(fixture.Anchors);
+        var budgets = new RoutingRequestBudget();
+        var generator = new ExternalRouteProposalGenerator(db, tokens, client, new StubValidator(fixture.Anchors),
+            new ExternalRouteProposalContextService(protection), budgets,
+            new AuthoritativeRoutingProviderResolver(db, new(protection), new(protection), personalCredentials));
+
+        var result = await generator.GenerateAsync(fixture.UserId, fixture.TripId, fixture.Segment.Id,
+            tokens.Issue(fixture.UserId, fixture.TripId, fixture.Segment.Id, fixture.Segment.RowVersion), CancellationToken.None);
+
+        Assert.False(result.Succeeded);
+        Assert.Equal("routing-cost-invalid", result.ErrorCode);
+        Assert.Equal(0, client.Requests);
+        Assert.All(Enumerable.Range(0, 5), _ => Assert.True(budgets.TryAdmitUserGeneration(fixture.UserId)));
     }
 
     private static Fixture AddFixture(ApplicationDbContext db, bool enabled)

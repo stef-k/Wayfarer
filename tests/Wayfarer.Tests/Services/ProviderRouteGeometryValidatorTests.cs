@@ -76,4 +76,74 @@ public sealed class ProviderRouteGeometryValidatorTests
         Assert.True(result.Geometry!.Count <= 1000);
         Assert.Equal(anchors, result.WaypointIndices!.Select(index => result.Geometry[index]).ToArray());
     }
+
+    [Fact]
+    public async Task Validate_UsesGeoapifyLegBoundaryWhenIntermediateAnchorIsRevisited()
+    {
+        const string json = """
+            {"results":[{"distance":30,"time":10,"geometry":[[[20,10],[20.5,10.5],[21,11]],[[21,11],[21,11],[22,12]]],
+            "legs":[{"distance":10,"time":4,"steps":[{"from_index":0,"to_index":2,"distance":10,"time":4}]},
+            {"distance":20,"time":6,"steps":[{"from_index":0,"to_index":2,"distance":20,"time":6}]}]}]}
+            """;
+        using var response = new HttpResponseMessage(System.Net.HttpStatusCode.OK) { Content = new StringContent(json) };
+        RouteCoordinate[] anchors = [new(20, 10), new(21, 11), new(22, 12)];
+        var route = await GeoapifyRoutingAdapter.ParseAsync(response, anchors);
+
+        var result = _validator.Validate(anchors, route, CancellationToken.None);
+
+        Assert.True(result.Succeeded);
+        Assert.Equal(anchors, result.WaypointIndices!.Select(index => result.Geometry![index]).ToArray());
+    }
+
+    /// <summary>Proves structural identity selects the provider leg boundary rather than an earlier equal coordinate.</summary>
+    [Fact]
+    public void Validate_StructuralWaypointIdentity_IgnoresEarlierEqualCoordinate()
+    {
+        RouteCoordinate[] anchors = [new(20, 10), new(21, 11), new(22, 12)];
+        RouteCoordinate[] geometry = [anchors[0], anchors[1], new(21.5, 11.5), anchors[1], anchors[2]];
+        var route = WithStructuralIndices(new OsrmRouteResult(true, geometry, anchors, null), [0, 3, 4]);
+
+        var result = _validator.Validate(anchors, route, CancellationToken.None);
+
+        Assert.True(result.Succeeded);
+        Assert.Equal([0, 3, 4], result.WaypointIndices);
+        Assert.Equal(anchors[1], result.Geometry![1]);
+        Assert.DoesNotContain(1, result.WaypointIndices!);
+        Assert.Equal(anchors, result.WaypointIndices!.Select(index => result.Geometry![index]).ToArray());
+    }
+
+    [Theory]
+    [MemberData(nameof(MalformedStructuralIndices))]
+    public void Validate_RejectsMalformedStructuralIndices(IReadOnlyList<int> indices)
+    {
+        RouteCoordinate[] anchors = [new(0, 0), new(0.01, 0.01), new(0.02, 0.02)];
+        var route = WithStructuralIndices(new OsrmRouteResult(true, anchors, anchors, null), indices);
+
+        var result = _validator.Validate(anchors, route, CancellationToken.None);
+
+        Assert.False(result.Succeeded);
+        Assert.Equal("provider-route-invalid", result.ErrorCode);
+    }
+
+    [Fact]
+    public void Validate_ResultWithoutStructuralIndicesRetainsAmbiguityRejection()
+    {
+        RouteCoordinate[] anchors = [new(0, 0), new(0.01, 0.01), new(0.02, 0.02)];
+        RouteCoordinate[] geometry = [anchors[0], anchors[1], anchors[1], anchors[2]];
+
+        var result = _validator.Validate(anchors, new OsrmRouteResult(true, geometry, anchors, null), CancellationToken.None);
+
+        Assert.False(result.Succeeded);
+        Assert.Equal("provider-anchor-ambiguous", result.ErrorCode);
+    }
+
+    public static TheoryData<IReadOnlyList<int>> MalformedStructuralIndices => new()
+    {
+        new[] { 0, 2 },
+        new[] { 0, 2, 1 },
+        new[] { 0, 1, 3 }
+    };
+
+    private static OsrmRouteResult WithStructuralIndices(OsrmRouteResult route, IReadOnlyList<int> indices)
+        => route with { StructuralWaypointIndices = indices };
 }

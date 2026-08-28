@@ -22,6 +22,9 @@ public sealed class ProviderRouteGeometryValidator : IProviderRouteGeometryValid
                 return ProviderRouteValidationResult.Failure("provider-waypoints-incompatible");
 
         var geometry = providerRoute.Geometry.ToList();
+        if (providerRoute.StructuralWaypointIndices is { } structuralIndices)
+            return ValidateStructuralAnchors(anchors, providerRoute, geometry, structuralIndices, cancellationToken);
+
         var protectedIndices = new List<int>(anchors.Count) { 0 };
         if (DistanceMetres(providerRoute.Waypoints[0], geometry[0]) > AnchorToleranceMetres
             || DistanceMetres(providerRoute.Waypoints[^1], geometry[^1]) > AnchorToleranceMetres)
@@ -37,14 +40,42 @@ public sealed class ProviderRouteGeometryValidator : IProviderRouteGeometryValid
         protectedIndices.Add(geometry.Count - 1);
         if (!StrictlyIncreasing(protectedIndices)) return ProviderRouteValidationResult.Failure("provider-anchor-order-invalid");
 
+        return Budget(anchors, geometry, protectedIndices, cancellationToken);
+    }
+
+    private static ProviderRouteValidationResult ValidateStructuralAnchors(
+        IReadOnlyList<RouteCoordinate> anchors, OsrmRouteResult providerRoute, List<RouteCoordinate> geometry,
+        IReadOnlyList<int> indices, CancellationToken cancellationToken)
+    {
+        if (indices.Count != anchors.Count || indices.Count < 2 || indices[0] != 0
+            || indices[^1] != geometry.Count - 1 || !StrictlyIncreasing(indices)
+            || indices.Any(index => index < 0 || index >= geometry.Count))
+            return ProviderRouteValidationResult.Failure("provider-route-invalid");
+        for (var anchorIndex = 0; anchorIndex < anchors.Count; anchorIndex++)
+        {
+            var coordinate = geometry[indices[anchorIndex]];
+            if (DistanceMetres(coordinate, providerRoute.Waypoints[anchorIndex]) > AnchorToleranceMetres
+                || DistanceMetres(coordinate, anchors[anchorIndex]) > AnchorToleranceMetres)
+                return ProviderRouteValidationResult.Failure("provider-route-invalid");
+            geometry[indices[anchorIndex]] = anchors[anchorIndex];
+        }
+        return Budget(anchors, geometry, indices, cancellationToken);
+    }
+
+    private static ProviderRouteValidationResult Budget(
+        IReadOnlyList<RouteCoordinate> anchors, IReadOnlyList<RouteCoordinate> geometry,
+        IReadOnlyList<int> protectedIndices, CancellationToken cancellationToken)
+    {
         try
         {
             var source = geometry.Select(item => new Coordinate(item.Longitude, item.Latitude)).ToArray();
             var budgeted = RouteGeometryBudgeter.Budget(source, protectedIndices, cancellationToken);
             var result = budgeted.Coordinates.Select(item => new RouteCoordinate(item.X, item.Y)).ToArray();
-            var indices = RecalculateIndices(result, anchors);
-            if (indices == null || result.Length > RouteGeometryBudgeter.MaximumPersistedCoordinates
-                || !StrictlyIncreasing(indices)) return ProviderRouteValidationResult.Failure("provider-route-budget-unsatisfied");
+            var indices = MapProtectedIndices(budgeted.SourceIndices, protectedIndices);
+            if (indices == null || budgeted.SourceIndices.Count != result.Length
+                || result.Length > RouteGeometryBudgeter.MaximumPersistedCoordinates || !StrictlyIncreasing(indices)
+                || indices.Where((outputIndex, anchorIndex) => result[outputIndex] != anchors[anchorIndex]).Any())
+                return ProviderRouteValidationResult.Failure("provider-route-budget-unsatisfied");
             return new ProviderRouteValidationResult(true, result, indices, null);
         }
         catch (RouteGeometryBudgetException) { return ProviderRouteValidationResult.Failure("provider-route-budget-unsatisfied"); }
@@ -74,22 +105,20 @@ public sealed class ProviderRouteGeometryValidator : IProviderRouteGeometryValid
         return inserted;
     }
 
-    private static int[]? RecalculateIndices(IReadOnlyList<RouteCoordinate> geometry, IReadOnlyList<RouteCoordinate> anchors)
+    private static int[]? MapProtectedIndices(
+        IReadOnlyList<int> retainedSourceIndices, IReadOnlyList<int> protectedSourceIndices)
     {
-        var result = new int[anchors.Count];
-        var searchFrom = 0;
-        for (var anchorIndex = 0; anchorIndex < anchors.Count; anchorIndex++)
+        if (!StrictlyIncreasing(retainedSourceIndices)) return null;
+        var result = new int[protectedSourceIndices.Count];
+        var outputIndex = 0;
+        for (var protectedIndex = 0; protectedIndex < protectedSourceIndices.Count; protectedIndex++)
         {
-            var match = -1;
-            for (var index = searchFrom; index < geometry.Count; index++)
-            {
-                if (geometry[index] != anchors[anchorIndex]) continue;
-                match = index;
-                break;
-            }
-            if (match < 0) return null;
-            result[anchorIndex] = match;
-            searchFrom = match + 1;
+            while (outputIndex < retainedSourceIndices.Count
+                   && retainedSourceIndices[outputIndex] < protectedSourceIndices[protectedIndex]) outputIndex++;
+            if (outputIndex >= retainedSourceIndices.Count
+                || retainedSourceIndices[outputIndex] != protectedSourceIndices[protectedIndex]) return null;
+            result[protectedIndex] = outputIndex;
+            outputIndex++;
         }
         return result;
     }

@@ -8,7 +8,7 @@ namespace Wayfarer.Services.ExternalRouting;
 public static class GeoapifyRoutingAdapter
 {
     private const int MaximumPoints = 10_000;
-    private const int MaximumInstructions = 5_000;
+    private const int MaximumSteps = 5_000;
 
     /// <summary>Builds an exact bounded routing request from a validated closed mode.</summary>
     public static string BuildRelativeRequest(string mode, IReadOnlyList<RouteCoordinate> coordinates, string credential)
@@ -36,41 +36,59 @@ public static class GeoapifyRoutingAdapter
             if (!root.TryGetProperty("results", out var results) || results.ValueKind != JsonValueKind.Array
                 || results.GetArrayLength() != 1) return Invalid();
             var route = results[0];
-            if (!Number(route, "distance", out var distance) || !Number(route, "time", out var duration)
-                || duration > TimeSpan.FromDays(365).TotalSeconds
-                || !route.TryGetProperty("geometry", out var geometry)
-                || !geometry.TryGetProperty("type", out var type) || type.GetString() != "LineString"
-                || !geometry.TryGetProperty("coordinates", out var coordinates)
-                || ParseCoordinates(coordinates) is not { Count: >= 2 } points || points.Count > MaximumPoints
+            if (anchors.Count is < 2 or > 25
+                || !Number(route, "distance", out var distance) || !Number(route, "time", out var duration)
+                || !ValidDistanceUnits(route)
+                || !route.TryGetProperty("geometry", out var geometry) || geometry.ValueKind != JsonValueKind.Array
+                || geometry.GetArrayLength() != anchors.Count - 1
                 || !route.TryGetProperty("legs", out var legs) || legs.ValueKind != JsonValueKind.Array
                 || legs.GetArrayLength() != anchors.Count - 1) return Invalid();
-            if (!Close(points[0], anchors[0]) || !Close(points[^1], anchors[^1])) return Invalid();
-            var anchorIndices = MapAnchors(points, anchors);
-            if (anchorIndices == null) return Invalid();
+
+            var points = new List<RouteCoordinate>();
+            var legPoints = new List<IReadOnlyList<RouteCoordinate>>();
+            var offsets = new int[geometry.GetArrayLength()];
+            var anchorIndices = new int[anchors.Count];
+            anchorIndices[0] = 0;
+            for (var legIndex = 0; legIndex < geometry.GetArrayLength(); legIndex++)
+            {
+                if (ParseCoordinates(geometry[legIndex]) is not { Count: >= 2 } line) return Invalid();
+                offsets[legIndex] = legIndex == 0 ? 0 : points.Count - 1;
+                if (legIndex == 0) points.AddRange(line);
+                else
+                {
+                    if (!Close(points[^1], line[0])) return Invalid();
+                    points.AddRange(line.Skip(1));
+                }
+                if (points.Count > MaximumPoints) return Invalid();
+                legPoints.Add(line);
+                anchorIndices[legIndex + 1] = offsets[legIndex] + line.Count - 1;
+            }
+            if (!MapAnchors(points, anchors, anchorIndices)) return Invalid();
+
             var instructions = new List<RouteInstruction>();
             var legDistances = new List<double>();
             var legDurations = new List<double>();
-            var legIndex = 0;
-            foreach (var leg in legs.EnumerateArray())
+            var stepCount = 0;
+            for (var legIndex = 0; legIndex < legs.GetArrayLength(); legIndex++)
             {
+                var leg = legs[legIndex];
                 if (!Number(leg, "distance", out var legDistance) || !Number(leg, "time", out var legDuration)
                     || !leg.TryGetProperty("steps", out var steps) || steps.ValueKind != JsonValueKind.Array) return Invalid();
-                var legInstructions = new List<RouteInstruction>();
+                var parsedSteps = new List<ParsedStep>();
                 foreach (var step in steps.EnumerateArray())
                 {
-                    if (instructions.Count == MaximumInstructions || !TryInstruction(step, out var instruction)) return Invalid();
-                    legInstructions.Add(instruction!);
-                    instructions.Add(instruction!);
+                    if (++stepCount > MaximumSteps
+                        || !TryStep(step, legPoints[legIndex].Count, offsets[legIndex], out var parsed)) return Invalid();
+                    parsedSteps.Add(parsed);
+                    if (parsed.Instruction != null) instructions.Add(parsed.Instruction);
                 }
-                if (!ValidateLeg(legInstructions, anchorIndices[legIndex], anchorIndices[legIndex + 1],
-                        points.Count, legDistance, legDuration)) return Invalid();
+                if (!ValidateLeg(parsedSteps, legPoints[legIndex].Count, legDistance, legDuration)) return Invalid();
                 legDistances.Add(legDistance);
                 legDurations.Add(legDuration);
-                legIndex++;
             }
-            if (instructions.Count == 0 || !TotalsAgree(legDistances, distance) || !TotalsAgree(legDurations, duration))
+            if (!TotalsAgree(legDistances, distance) || !TotalsAgree(legDurations, duration))
                 return Invalid();
-            return new(true, points, anchors.ToArray(), null, distance, duration, instructions);
+            return new(true, points, anchors.ToArray(), null, distance, duration, instructions, anchorIndices);
         }
         catch (Exception exception) when (exception is JsonException or InvalidOperationException)
         { return Invalid(); }
@@ -91,18 +109,38 @@ public static class GeoapifyRoutingAdapter
         return result;
     }
 
-    private static bool TryInstruction(JsonElement step, out RouteInstruction? value)
+    private static bool TryStep(JsonElement step, int legPointCount, int offset, out ParsedStep value)
+    {
+        value = default;
+        if (!step.TryGetProperty("from_index", out var from) || !from.TryGetInt32(out var fromIndex)
+            || !step.TryGetProperty("to_index", out var to) || !to.TryGetInt32(out var toIndex)
+            || fromIndex < 0 || fromIndex > toIndex || toIndex >= legPointCount
+            || !Number(step, "distance", out var distance) || !Number(step, "time", out var duration)
+            || !TryInstruction(step, offset + fromIndex, offset + toIndex, distance, duration, out var instruction))
+            return false;
+        value = new(fromIndex, toIndex, distance, duration, instruction);
+        return true;
+    }
+
+    private static bool TryInstruction(JsonElement step, int fromIndex, int toIndex, double distance,
+        double duration, out RouteInstruction? value)
     {
         value = null;
-        if (!step.TryGetProperty("instruction", out var instruction)
-            || !instruction.TryGetProperty("text", out var text) || string.IsNullOrWhiteSpace(text.GetString())
-            || !instruction.TryGetProperty("type", out var type) || string.IsNullOrWhiteSpace(type.GetString())
-            || !step.TryGetProperty("from_index", out var from) || !from.TryGetInt32(out var fromIndex) || fromIndex < 0
-            || !step.TryGetProperty("to_index", out var to) || !to.TryGetInt32(out var toIndex) || toIndex < fromIndex
-            || !Number(step, "distance", out var distance) || !Number(step, "time", out var duration)) return false;
-        value = new(text.GetString()!.Trim()[..Math.Min(500, text.GetString()!.Trim().Length)],
-            type.GetString()!.Trim()[..Math.Min(80, type.GetString()!.Trim().Length)],
-            fromIndex, toIndex, distance, duration);
+        if (!step.TryGetProperty("instruction", out var instruction) || instruction.ValueKind == JsonValueKind.Null)
+            return true;
+        if (instruction.ValueKind != JsonValueKind.Object) return false;
+        if (!instruction.TryGetProperty("text", out var text) || text.ValueKind == JsonValueKind.Null) return true;
+        if (text.ValueKind != JsonValueKind.String) return false;
+        var normalizedText = text.GetString()?.Trim();
+        if (string.IsNullOrWhiteSpace(normalizedText)) return true;
+        var normalizedType = "None";
+        if (instruction.TryGetProperty("type", out var type) && type.ValueKind != JsonValueKind.Null)
+        {
+            if (type.ValueKind != JsonValueKind.String) return false;
+            if (!string.IsNullOrWhiteSpace(type.GetString())) normalizedType = type.GetString()!.Trim();
+        }
+        value = new(normalizedText[..Math.Min(500, normalizedText.Length)],
+            normalizedType[..Math.Min(80, normalizedType.Length)], fromIndex, toIndex, distance, duration);
         return true;
     }
 
@@ -117,40 +155,48 @@ public static class GeoapifyRoutingAdapter
         Math.Abs(first.Longitude - second.Longitude) <= 0.00025
         && Math.Abs(first.Latitude - second.Latitude) <= 0.00025;
 
-    private static int[]? MapAnchors(IReadOnlyList<RouteCoordinate> points, IReadOnlyList<RouteCoordinate> anchors)
+    private static bool ValidDistanceUnits(JsonElement route)
     {
-        var indices = new int[anchors.Count];
-        for (var anchorIndex = 0; anchorIndex < anchors.Count; anchorIndex++)
-        {
-            var matches = Enumerable.Range(0, points.Count).Where(index => Close(points[index], anchors[anchorIndex])).ToArray();
-            if (matches.Length != 1 || anchorIndex > 0 && matches[0] <= indices[anchorIndex - 1]) return null;
-            indices[anchorIndex] = matches[0];
-        }
-        return indices[0] == 0 && indices[^1] == points.Count - 1 ? indices : null;
+        if (!route.TryGetProperty("distance_units", out var units)) return true;
+        return units.ValueKind == JsonValueKind.String
+            && string.Equals(units.GetString(), "meters", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static bool ValidateLeg(IReadOnlyList<RouteInstruction> steps, int legStart, int legEnd,
-        int pointCount, double legDistance, double legDuration)
+    private static bool MapAnchors(IReadOnlyList<RouteCoordinate> points, IReadOnlyList<RouteCoordinate> anchors,
+        IReadOnlyList<int> indices)
     {
-        if (steps.Count == 0 || steps[0].FromIndex != legStart || steps[^1].ToIndex != legEnd) return false;
+        for (var anchorIndex = 0; anchorIndex < anchors.Count; anchorIndex++)
+        {
+            if (indices[anchorIndex] < 0 || indices[anchorIndex] >= points.Count
+                || !Close(points[indices[anchorIndex]], anchors[anchorIndex])
+                || anchorIndex > 0 && indices[anchorIndex] <= indices[anchorIndex - 1]) return false;
+        }
+        return indices[0] == 0 && indices[^1] == points.Count - 1;
+    }
+
+    private static bool ValidateLeg(IReadOnlyList<ParsedStep> steps, int legPointCount,
+        double legDistance, double legDuration)
+    {
+        if (steps.Count == 0 || steps[0].FromIndex != 0 || steps[^1].ToIndex != legPointCount - 1) return false;
         for (var index = 0; index < steps.Count; index++)
         {
             var step = steps[index];
-            if (step.FromIndex < legStart || step.ToIndex > legEnd || step.ToIndex >= pointCount
-                || index > 0 && step.FromIndex != steps[index - 1].ToIndex) return false;
+            if (index > 0 && step.FromIndex != steps[index - 1].ToIndex) return false;
         }
         return TotalsAgree(steps.Select(step => step.DistanceMetres), legDistance)
             && TotalsAgree(steps.Select(step => step.DurationSeconds), legDuration);
     }
 
-    // Geoapify reports decimal metrics; half of the final displayed hundredth per summed value bounds rounding drift.
+    /// <summary>Applies the issue contract's scale-aware absolute tolerance without changing provider metrics.</summary>
     private static bool TotalsAgree(IEnumerable<double> parts, double total)
     {
-        var values = parts.ToArray();
-        var sum = values.Sum();
-        var tolerance = (values.Length + 1) * 0.005 + 1e-9;
+        var sum = parts.Sum();
+        var tolerance = Math.Max(0.01, 1e-9 * Math.Max(Math.Abs(sum), Math.Abs(total)));
         return double.IsFinite(sum) && Math.Abs(sum - total) <= tolerance;
     }
+
+    private readonly record struct ParsedStep(int FromIndex, int ToIndex, double DistanceMetres,
+        double DurationSeconds, RouteInstruction? Instruction);
 
     private static OsrmRouteResult Invalid() => OsrmRouteResult.Invalid("provider-response-invalid");
 }

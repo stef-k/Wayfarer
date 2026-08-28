@@ -20,6 +20,8 @@ public sealed class ProviderRouteClient(
         if (execution.PersonalProviderUserId == null || execution.Credential == null
             || !GeoapifyRouteCost.TryParse(execution.Profile, out var mode))
             return OsrmRouteResult.Invalid("unsupported-transport-profile");
+        if (anchors.Count is < 2 or > 25 || anchors.Any(anchor => !anchor.IsValid))
+            return OsrmRouteResult.Invalid("routing-cost-invalid");
         int cost;
         try { cost = GeoapifyRouteCost.Calculate(mode, anchors.Count); }
         catch (Exception exception) when (exception is ArgumentOutOfRangeException or OverflowException)

@@ -20,6 +20,7 @@ public sealed class RouteGeometryBudgeterTests
         Assert.False(result.WasSimplified);
         Assert.Equal(source.Length, result.Coordinates.Count);
         Assert.Equal(source.Select(CoordinatePair), result.Coordinates.Select(CoordinatePair));
+        Assert.Equal(Enumerable.Range(0, source.Length), result.SourceIndices);
     }
 
     /// <summary>Proves oversized deterministic input is reduced to the fixed preferred target.</summary>
@@ -81,7 +82,12 @@ public sealed class RouteGeometryBudgeterTests
         var result = RouteGeometryBudgeter.Budget(
             source, [0, protectedIndex, source.Length - 1], CancellationToken.None);
 
-        Assert.Contains(CoordinatePair(source[protectedIndex]), result.Coordinates.Select(CoordinatePair));
+        var outputIndex = Assert.Single(result.SourceIndices.Select((sourceIndex, index) => (sourceIndex, index)),
+            item => item.sourceIndex == protectedIndex).index;
+        Assert.True(result.WasSimplified);
+        Assert.Equal(result.Coordinates.Count, result.SourceIndices.Count);
+        Assert.True(result.SourceIndices.Zip(result.SourceIndices.Skip(1), (first, second) => second > first).All(value => value));
+        Assert.Equal(CoordinatePair(source[protectedIndex]), CoordinatePair(result.Coordinates[outputIndex]));
     }
 
     /// <summary>Proves an exact oversized loop retains both endpoint occurrences and a distinct pivot.</summary>
