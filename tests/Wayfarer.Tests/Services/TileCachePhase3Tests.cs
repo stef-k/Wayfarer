@@ -1,4 +1,5 @@
 using System.Net;
+using System.Runtime.ExceptionServices;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
@@ -276,14 +277,17 @@ public sealed class TileCachePhase3Tests
 
     /// <summary>A cold viewport admits another provider contact whenever one client slot is released.</summary>
     [Fact]
-    public async Task ControlledColdViewport_CompletesProgressivelyWithinDerivedCeiling()
+    public async Task ControlledColdViewport_AdmitsQueuedWorkAsClientSlotsComplete()
     {
         const int tileCount = 24;
-        var transport = new GatedRecordingTransport(stallAfterReleaseUntilCancellation: true);
-        await using var harness = new TileCacheTestHarness(transport.Handler);
+        var transport = new GatedRecordingTransport();
+        var harness = new TileCacheTestHarness(transport.Handler);
         var requests = Enumerable.Range(0, tileCount)
             .Select(x => RequestTileAsync(harness, 5, x, 1))
             .ToArray();
+        ExceptionDispatchInfo? primaryFailure = null;
+        Exception? cleanupFailure = null;
+        var harnessDisposed = false;
 
         try
         {
@@ -301,14 +305,16 @@ public sealed class TileCachePhase3Tests
             Assert.Equal(TileWorkScheduler.PerClientConcurrency + 1, transport.EnteredCount);
             Assert.Equal(TileWorkScheduler.PerClientConcurrency, transport.MaxActiveCount);
 
-            throw new Xunit.Sdk.XunitException("Injected primary failure for cleanup-order evidence.");
-
             transport.ReleaseAll();
             var outcomes = await Task.WhenAll(requests).WaitAsync(TimeSpan.FromSeconds(10));
 
             Assert.Equal(tileCount, transport.EnteredCount);
             Assert.All(outcomes, outcome => Assert.Equal(StatusCodes.Status200OK, outcome.StatusCode));
             Assert.Equal(TileWorkScheduler.PerClientConcurrency, transport.MaxActiveCount);
+        }
+        catch (Exception exception)
+        {
+            primaryFailure = ExceptionDispatchInfo.Capture(exception);
         }
         finally
         {
@@ -317,9 +323,73 @@ public sealed class TileCachePhase3Tests
             {
                 await Task.WhenAll(requests).WaitAsync(TimeSpan.FromSeconds(10));
             }
-            finally
+            catch (Exception)
+            {
+                try
+                {
+                    await harness.DisposeAsync();
+                    harnessDisposed = true;
+                }
+                catch (Exception exception)
+                {
+                    cleanupFailure = exception;
+                }
+
+                try
+                {
+                    await ObserveRequestCompletionAsync(requests, TimeSpan.FromSeconds(10));
+                }
+                catch (Exception exception)
+                {
+                    cleanupFailure ??= exception;
+                }
+            }
+
+            if (!harnessDisposed)
+            {
+                try
+                {
+                    await harness.DisposeAsync();
+                    harnessDisposed = true;
+                }
+                catch (Exception exception)
+                {
+                    cleanupFailure ??= exception;
+                }
+            }
+
+            if (harnessDisposed)
             {
                 transport.Dispose();
+            }
+        }
+
+        primaryFailure?.Throw();
+        if (cleanupFailure is not null)
+        {
+            ExceptionDispatchInfo.Capture(cleanupFailure).Throw();
+        }
+    }
+
+    /// <summary>Bounds cleanup while observing every completed request outcome.</summary>
+    private static async Task ObserveRequestCompletionAsync(
+        Task<LocalTileOutcome>[] requests,
+        TimeSpan timeout)
+    {
+        try
+        {
+            await Task.WhenAll(requests).WaitAsync(timeout);
+        }
+        catch (Exception)
+        {
+            if (requests.Any(request => !request.IsCompleted))
+            {
+                throw new TimeoutException("Tile requests remained incomplete after scheduler drainage.");
+            }
+
+            foreach (var request in requests)
+            {
+                _ = request.Exception;
             }
         }
     }
@@ -378,12 +448,10 @@ public sealed class TileCachePhase3Tests
         private int _enteredCount;
         private int _activeCount;
         private int _maxActiveCount;
-        private readonly bool _stallAfterReleaseUntilCancellation;
 
         /// <summary>Initializes the recording handler used by the real tile-cache transport path.</summary>
-        public GatedRecordingTransport(bool stallAfterReleaseUntilCancellation = false)
+        public GatedRecordingTransport()
         {
-            _stallAfterReleaseUntilCancellation = stallAfterReleaseUntilCancellation;
             Handler = new RecordingTileHandler(HandleAsync);
         }
 
@@ -476,11 +544,6 @@ public sealed class TileCachePhase3Tests
             try
             {
                 await gate.Task.WaitAsync(cancellationToken);
-                if (_stallAfterReleaseUntilCancellation)
-                {
-                    await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
-                }
-
                 return PngResponse([1, 2, 3, 4]);
             }
             finally
