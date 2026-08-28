@@ -285,9 +285,9 @@ public sealed class TileCachePhase3Tests
         var requests = Enumerable.Range(0, tileCount)
             .Select(x => RequestTileAsync(harness, 5, x, 1))
             .ToArray();
+        var aggregateRequest = Task.WhenAll(requests);
         ExceptionDispatchInfo? primaryFailure = null;
         Exception? cleanupFailure = null;
-        var harnessDisposed = false;
 
         try
         {
@@ -306,7 +306,7 @@ public sealed class TileCachePhase3Tests
             Assert.Equal(TileWorkScheduler.PerClientConcurrency, transport.MaxActiveCount);
 
             transport.ReleaseAll();
-            var outcomes = await Task.WhenAll(requests).WaitAsync(TimeSpan.FromSeconds(10));
+            var outcomes = await aggregateRequest.WaitAsync(TimeSpan.FromSeconds(10));
 
             Assert.Equal(tileCount, transport.EnteredCount);
             Assert.All(outcomes, outcome => Assert.Equal(StatusCodes.Status200OK, outcome.StatusCode));
@@ -321,46 +321,29 @@ public sealed class TileCachePhase3Tests
             transport.ReleaseAll();
             try
             {
-                await Task.WhenAll(requests).WaitAsync(TimeSpan.FromSeconds(10));
+                await aggregateRequest.WaitAsync(TimeSpan.FromSeconds(10));
             }
-            catch (Exception)
+            catch (Exception exception)
             {
-                try
-                {
-                    await harness.DisposeAsync();
-                    harnessDisposed = true;
-                }
-                catch (Exception exception)
-                {
-                    cleanupFailure = exception;
-                }
-
-                try
-                {
-                    await ObserveRequestCompletionAsync(requests, TimeSpan.FromSeconds(10));
-                }
-                catch (Exception exception)
-                {
-                    cleanupFailure ??= exception;
-                }
+                cleanupFailure = exception;
             }
 
-            if (!harnessDisposed)
+            try
             {
-                try
-                {
-                    await harness.DisposeAsync();
-                    harnessDisposed = true;
-                }
-                catch (Exception exception)
-                {
-                    cleanupFailure ??= exception;
-                }
+                await harness.DisposeAsync();
+            }
+            catch (Exception exception)
+            {
+                cleanupFailure ??= exception;
             }
 
-            if (harnessDisposed)
+            try
             {
-                transport.Dispose();
+                await ObserveRequestCompletionAsync(aggregateRequest, TimeSpan.FromSeconds(10));
+            }
+            catch (Exception exception)
+            {
+                cleanupFailure ??= exception;
             }
         }
 
@@ -373,24 +356,26 @@ public sealed class TileCachePhase3Tests
 
     /// <summary>Bounds cleanup while observing every completed request outcome.</summary>
     private static async Task ObserveRequestCompletionAsync(
-        Task<LocalTileOutcome>[] requests,
+        Task aggregateRequest,
         TimeSpan timeout)
     {
         try
         {
-            await Task.WhenAll(requests).WaitAsync(timeout);
+            await aggregateRequest.WaitAsync(timeout);
+        }
+        catch (TimeoutException)
+        {
+            if (aggregateRequest.IsFaulted)
+            {
+                _ = aggregateRequest.Exception;
+            }
+
+            throw;
         }
         catch (Exception)
         {
-            if (requests.Any(request => !request.IsCompleted))
-            {
-                throw new TimeoutException("Tile requests remained incomplete after scheduler drainage.");
-            }
-
-            foreach (var request in requests)
-            {
-                _ = request.Exception;
-            }
+            _ = aggregateRequest.Exception;
+            throw;
         }
     }
 
@@ -436,7 +421,7 @@ public sealed class TileCachePhase3Tests
     }
 
     /// <summary>Records provider-contact admission and holds each contact behind a test-owned gate.</summary>
-    private sealed class GatedRecordingTransport : IDisposable
+    private sealed class GatedRecordingTransport
     {
         private readonly object _sync = new();
         private readonly Queue<TaskCompletionSource> _completionGates = new();
@@ -500,13 +485,6 @@ public sealed class TileCachePhase3Tests
             {
                 gate.TrySetResult();
             }
-        }
-
-        /// <inheritdoc />
-        public void Dispose()
-        {
-            ReleaseAll();
-            Handler.Dispose();
         }
 
         /// <summary>Records entry, awaits its completion gate, and returns cacheable tile bytes.</summary>
