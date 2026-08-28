@@ -22,17 +22,26 @@ public static class ResolvedFeatureMetadata
     public static ResolvedFeatureTuple NormalizeImported(
         string? name, string? type, string? provider, string? storageMode, string? timestamp)
     {
-        var normalizedProvider = provider?.Trim().ToLowerInvariant();
-        var normalizedMode = storageMode?.Trim().ToLowerInvariant();
         var hasTimestamp = DateTimeOffset.TryParse(timestamp, System.Globalization.CultureInfo.InvariantCulture,
             System.Globalization.DateTimeStyles.RoundtripKind, out var parsedAt);
-        var validProvenance = hasTimestamp && (normalizedProvider == "geoapify" && normalizedMode == "persistent"
+        return NormalizePersisted(name, type, provider, storageMode,
+            hasTimestamp ? parsedAt.ToUniversalTime() : null);
+    }
+
+    /// <summary>Authenticates and normalizes one persisted enrichment tuple.</summary>
+    public static ResolvedFeatureTuple NormalizePersisted(
+        string? name, string? type, string? provider, string? storageMode, DateTimeOffset? enrichedAt)
+    {
+        var normalizedProvider = provider?.Trim().ToLowerInvariant();
+        var normalizedMode = storageMode?.Trim().ToLowerInvariant();
+        var validProvenance = enrichedAt.HasValue
+            && (normalizedProvider == "geoapify" && normalizedMode == "persistent"
                 || normalizedProvider == "mapbox" && normalizedMode == "permanent");
         if (!validProvenance) return default;
         var normalizedName = NormalizeName(name);
         var normalizedType = NormalizeGeoapifyType(type);
-        if (normalizedName == null && normalizedType == null) return default;
-        return new(normalizedName, normalizedType, normalizedProvider, normalizedMode, parsedAt.ToUniversalTime());
+        return new(normalizedName, normalizedType, normalizedProvider, normalizedMode,
+            enrichedAt.GetValueOrDefault().ToUniversalTime());
     }
 
     private static string? Normalize(string? value, int maximumLength)
