@@ -1,4 +1,5 @@
 using System.Net;
+using System.Runtime.ExceptionServices;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
@@ -8,7 +9,6 @@ using Wayfarer.Models;
 using Wayfarer.Parsers;
 using Wayfarer.Services;
 using Xunit;
-using Xunit.Abstractions;
 
 namespace Wayfarer.Tests.Services;
 
@@ -18,14 +18,6 @@ namespace Wayfarer.Tests.Services;
 [Collection("OutboundBudget")]
 public sealed class TileCachePhase3Tests
 {
-    private readonly ITestOutputHelper _output;
-
-    /// <summary>Creates a fixture that records deterministic performance evidence.</summary>
-    public TileCachePhase3Tests(ITestOutputHelper output)
-    {
-        _output = output;
-    }
-
     /// <summary>One follower may leave without cancelling shared transport owned by another waiter.</summary>
     [Fact]
     public async Task FollowerCancellation_PreservesSharedWork_AndLastWaiterRemovesFlight()
@@ -283,41 +275,108 @@ public sealed class TileCachePhase3Tests
         Assert.NotEqual(osm.Bytes, custom.Bytes);
     }
 
-    /// <summary>A 24-tile Interactive viewport completes through concurrency without local rate delay.</summary>
+    /// <summary>A cold viewport admits another provider contact whenever one client slot is released.</summary>
     [Fact]
-    public async Task ControlledColdViewport_CompletesProgressivelyWithinDerivedCeiling()
+    public async Task ControlledColdViewport_AdmitsQueuedWorkAsClientSlotsComplete()
     {
         const int tileCount = 24;
-        var latency = TimeSpan.FromMilliseconds(100);
-        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-        var upstream = new RecordingTileHandler(
-            async (_, cancellationToken) =>
+        var transport = new GatedRecordingTransport();
+        var harness = new TileCacheTestHarness(transport.Handler);
+        var requests = Enumerable.Range(0, tileCount)
+            .Select(x => RequestTileAsync(harness, 5, x, 1))
+            .ToArray();
+        var aggregateRequest = Task.WhenAll(requests);
+        ExceptionDispatchInfo? primaryFailure = null;
+        Exception? cleanupFailure = null;
+
+        try
+        {
+            await transport.SixEntered.WaitAsync(TimeSpan.FromSeconds(5));
+
+            Assert.Equal(TileWorkScheduler.PerClientConcurrency, transport.EnteredCount);
+            Assert.Equal(TileWorkScheduler.PerClientConcurrency, transport.ActiveCount);
+            Assert.Equal(TileWorkScheduler.PerClientConcurrency, transport.MaxActiveCount);
+            Assert.False(transport.SeventhEntered.IsCompleted);
+            Assert.True(TileWorkScheduler.HasQueuedForeground);
+
+            transport.ReleaseOne();
+            await transport.SeventhEntered.WaitAsync(TimeSpan.FromSeconds(5));
+
+            Assert.Equal(TileWorkScheduler.PerClientConcurrency + 1, transport.EnteredCount);
+            Assert.Equal(TileWorkScheduler.PerClientConcurrency, transport.MaxActiveCount);
+
+            transport.ReleaseAll();
+            var outcomes = await aggregateRequest.WaitAsync(TimeSpan.FromSeconds(10));
+
+            Assert.Equal(tileCount, transport.EnteredCount);
+            Assert.All(outcomes, outcome => Assert.Equal(StatusCodes.Status200OK, outcome.StatusCode));
+            Assert.Equal(TileWorkScheduler.PerClientConcurrency, transport.MaxActiveCount);
+        }
+        catch (Exception exception)
+        {
+            primaryFailure = ExceptionDispatchInfo.Capture(exception);
+        }
+        finally
+        {
+            transport.ReleaseAll();
+            try
             {
-                await Task.Delay(latency, cancellationToken);
-                return PngResponse([1, 2, 3, 4]);
-            },
-            () => stopwatch.Elapsed);
-        await using var harness = new TileCacheTestHarness(upstream);
+                await aggregateRequest.WaitAsync(TimeSpan.FromSeconds(10));
+            }
+            catch (Exception exception)
+            {
+                cleanupFailure = exception;
+            }
 
-        var outcomes = await Task.WhenAll(
-            Enumerable.Range(0, tileCount)
-                .Select(x => RequestTileAsync(harness, 5, x, 1)));
-        stopwatch.Stop();
-        var starts = upstream.Requests.Select(request => request.StartTime).Order().ToArray();
-        var derivedCeiling = TimeSpan.FromSeconds(6.6);
+            try
+            {
+                await harness.DisposeAsync();
+            }
+            catch (Exception exception)
+            {
+                cleanupFailure ??= exception;
+            }
 
-        Assert.All(outcomes, outcome => Assert.Equal(StatusCodes.Status200OK, outcome.StatusCode));
-        Assert.Equal(tileCount, starts.Length);
-        Assert.All(starts, start => Assert.True(start < TimeSpan.FromSeconds(1)));
-        Assert.True(stopwatch.Elapsed <= derivedCeiling + TimeSpan.FromSeconds(2));
-        _output.WriteLine(
-            "N={0}, mode=Interactive, concurrency=6, L={2}ms, queue={3}, ceiling={4:F1}s, actual={5:F3}s",
-            tileCount,
-            TileCacheService.OutboundBudget.BurstCapacity,
-            latency.TotalMilliseconds,
-            TileWorkScheduler.ForegroundQueueCapacity,
-            derivedCeiling.TotalSeconds,
-            stopwatch.Elapsed.TotalSeconds);
+            try
+            {
+                await ObserveRequestCompletionAsync(aggregateRequest, TimeSpan.FromSeconds(10));
+            }
+            catch (Exception exception)
+            {
+                cleanupFailure ??= exception;
+            }
+        }
+
+        primaryFailure?.Throw();
+        if (cleanupFailure is not null)
+        {
+            ExceptionDispatchInfo.Capture(cleanupFailure).Throw();
+        }
+    }
+
+    /// <summary>Bounds cleanup while observing every completed request outcome.</summary>
+    private static async Task ObserveRequestCompletionAsync(
+        Task aggregateRequest,
+        TimeSpan timeout)
+    {
+        try
+        {
+            await aggregateRequest.WaitAsync(timeout);
+        }
+        catch (TimeoutException)
+        {
+            if (aggregateRequest.IsFaulted)
+            {
+                _ = aggregateRequest.Exception;
+            }
+
+            throw;
+        }
+        catch (Exception)
+        {
+            _ = aggregateRequest.Exception;
+            throw;
+        }
     }
 
     /// <summary>Executes one controller request in an independent service scope.</summary>
@@ -359,6 +418,120 @@ public sealed class TileCachePhase3Tests
         response.Headers.CacheControl =
             new System.Net.Http.Headers.CacheControlHeaderValue { MaxAge = TimeSpan.FromHours(1) };
         return response;
+    }
+
+    /// <summary>Records provider-contact admission and holds each contact behind a test-owned gate.</summary>
+    private sealed class GatedRecordingTransport
+    {
+        private readonly object _sync = new();
+        private readonly Queue<TaskCompletionSource> _completionGates = new();
+        private readonly TaskCompletionSource _sixEntered =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource _seventhEntered =
+            new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private bool _releaseAll;
+        private int _enteredCount;
+        private int _activeCount;
+        private int _maxActiveCount;
+
+        /// <summary>Initializes the recording handler used by the real tile-cache transport path.</summary>
+        public GatedRecordingTransport()
+        {
+            Handler = new RecordingTileHandler(HandleAsync);
+        }
+
+        /// <summary>Gets the handler injected into the tile-cache test harness.</summary>
+        public RecordingTileHandler Handler { get; }
+
+        /// <summary>Completes when the client's full six-contact allowance has entered.</summary>
+        public Task SixEntered => _sixEntered.Task;
+
+        /// <summary>Completes when progressive admission permits the seventh contact to enter.</summary>
+        public Task SeventhEntered => _seventhEntered.Task;
+
+        /// <summary>Gets the number of contacts that have entered the transport.</summary>
+        public int EnteredCount { get { lock (_sync) return _enteredCount; } }
+
+        /// <summary>Gets the number of contacts currently held by the transport.</summary>
+        public int ActiveCount { get { lock (_sync) return _activeCount; } }
+
+        /// <summary>Gets the greatest number of simultaneously active contacts.</summary>
+        public int MaxActiveCount { get { lock (_sync) return _maxActiveCount; } }
+
+        /// <summary>Releases exactly one currently active contact.</summary>
+        public void ReleaseOne()
+        {
+            TaskCompletionSource gate;
+            lock (_sync)
+            {
+                gate = _completionGates.Dequeue();
+            }
+
+            gate.TrySetResult();
+        }
+
+        /// <summary>Releases every active and future contact so cleanup cannot strand work.</summary>
+        public void ReleaseAll()
+        {
+            TaskCompletionSource[] gates;
+            lock (_sync)
+            {
+                _releaseAll = true;
+                gates = _completionGates.ToArray();
+                _completionGates.Clear();
+            }
+
+            foreach (var gate in gates)
+            {
+                gate.TrySetResult();
+            }
+        }
+
+        /// <summary>Records entry, awaits its completion gate, and returns cacheable tile bytes.</summary>
+        private async Task<HttpResponseMessage> HandleAsync(
+            HttpRequestMessage request,
+            CancellationToken cancellationToken)
+        {
+            _ = request;
+            var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            lock (_sync)
+            {
+                _enteredCount++;
+                _activeCount++;
+                _maxActiveCount = Math.Max(_maxActiveCount, _activeCount);
+                if (!_releaseAll)
+                {
+                    _completionGates.Enqueue(gate);
+                }
+                else
+                {
+                    gate.TrySetResult();
+                }
+
+                if (_enteredCount == TileWorkScheduler.PerClientConcurrency)
+                {
+                    _sixEntered.TrySetResult();
+                }
+
+                if (_enteredCount == TileWorkScheduler.PerClientConcurrency + 1)
+                {
+                    _seventhEntered.TrySetResult();
+                }
+            }
+
+            try
+            {
+                await gate.Task.WaitAsync(cancellationToken);
+                return PngResponse([1, 2, 3, 4]);
+            }
+            finally
+            {
+                lock (_sync)
+                {
+                    _activeCount--;
+                }
+            }
+        }
     }
 
     /// <summary>Captures local status and successful response bytes.</summary>

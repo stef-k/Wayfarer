@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using System.Diagnostics;
 using System.Net;
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
@@ -64,36 +63,6 @@ public sealed class TileCacheColdCacheBaselineTests
         Assert.Equal(500d, report.LongestPeriodWithoutProgressMilliseconds);
         Assert.All(outcomes.Where(outcome => outcome.StatusCode == 503),
             outcome => Assert.Equal(TilesController.BudgetRetryAfterSeconds, outcome.RetryAfterSeconds));
-    }
-
-    /// <summary>
-    /// Broadly characterizes real production-budget progress with actual fake latency and no public network.
-    /// </summary>
-    [Fact]
-    public async Task InteractiveBudget_UsesConcurrencyWithoutRateTokenDelay()
-    {
-        const int productionPathTileCount = 24;
-        var stopwatch = Stopwatch.StartNew();
-        var upstream = new RecordingTileHandler(
-            async (_, cancellationToken) =>
-            {
-                await Task.Delay(ModeledUpstreamLatency, cancellationToken);
-                return PngResponse();
-            },
-            () => stopwatch.Elapsed);
-        using var harness = new TileCacheTestHarness(upstream);
-
-        var outcomes = await Task.WhenAll(
-            Enumerable.Range(0, productionPathTileCount)
-                .Select(tileX => RequestTileAsync(harness, tileX)));
-        var starts = upstream.Requests
-            .Select(request => request.StartTime)
-            .OrderBy(start => start)
-            .ToArray();
-        Assert.Equal(productionPathTileCount, outcomes.Length);
-        Assert.All(outcomes, outcome => Assert.Equal(StatusCodes.Status200OK, outcome.StatusCode));
-        Assert.Equal(productionPathTileCount, starts.Length);
-        Assert.All(starts, start => Assert.True(start < TimeSpan.FromSeconds(1)));
     }
 
     /// <summary>Runs one isolated controller request and captures its local status and Retry-After.</summary>
