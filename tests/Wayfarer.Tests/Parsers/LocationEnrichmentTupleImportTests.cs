@@ -9,6 +9,42 @@ namespace Wayfarer.Tests.Parsers;
 /// <summary>Proves every Location-history format applies the shared enrichment tuple contract.</summary>
 public sealed class LocationEnrichmentTupleImportTests
 {
+    /// <summary>GeoJSON tuple fields accept only strings without coercing other JSON values.</summary>
+    [Theory]
+    [InlineData("ResolvedFeatureName", "42", true)]
+    [InlineData("ResolvedFeatureName", "{}", true)]
+    [InlineData("ResolvedFeatureName", "true", true)]
+    [InlineData("ResolvedFeatureName", "[]", true)]
+    [InlineData("ReverseGeocodingProvider", "true", false)]
+    public async Task GeoJsonTreatsNonStringTupleFieldsAsAbsent(
+        string property, string rawValue, bool provenanceSurvives)
+    {
+        var input = $$$"""
+            {"type":"FeatureCollection","features":[{"type":"Feature",
+            "geometry":{"type":"Point","coordinates":[22.2,40.1]},
+            "properties":{"TimestampUtc":"2026-08-28T13:00:00Z",
+            "ResolvedFeatureName":"Tower","ResolvedFeatureType":"building",
+            "ReverseGeocodingProvider":"geoapify","ReverseGeocodingStorageMode":"persistent",
+            "ReverseGeocodedAt":"2026-08-28T12:00:00Z","{{{property}}}":{{{rawValue}}}}}]}
+            """;
+        var parser = new WayfarerGeoJsonParser(NullLogger<WayfarerGeoJsonParser>.Instance);
+
+        var location = Assert.Single(await ParseAsync(parser, input));
+
+        if (provenanceSurvives)
+        {
+            Assert.Equal(("geoapify", "persistent"),
+                (location.ReverseGeocodingProvider, location.ReverseGeocodingStorageMode));
+            Assert.Null(location.ResolvedFeatureName);
+        }
+        else
+        {
+            Assert.Equal((null, null, null),
+                (location.ReverseGeocodingProvider, location.ReverseGeocodingStorageMode,
+                    location.ReverseGeocodedAt));
+        }
+    }
+
     /// <summary>Preserves valid metadata-free provenance across every Location-history format.</summary>
     [Theory]
     [InlineData("mapbox", "permanent")]
