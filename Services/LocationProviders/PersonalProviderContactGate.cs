@@ -4,10 +4,18 @@ using Wayfarer.Models.LocationProviders;
 
 namespace Wayfarer.Services.LocationProviders;
 
+/// <summary>Minimal authority and admission seam for personal provider contacts.</summary>
+public interface IPersonalProviderContactGate
+{
+    Task<PersonalProviderAdmission> AdmitAsync(string userId, PersonalProviderCapability capability,
+        PersonalProviderProduct product, int cost, CancellationToken cancellationToken = default);
+    Task<bool> IsCurrentAsync(PersonalProviderAuthoritySnapshot snapshot, CancellationToken cancellationToken = default);
+}
+
 /// <summary>Owns current provider contact authority and durable admissions.</summary>
 public sealed class PersonalProviderContactGate(
     ApplicationDbContext dbContext, PersonalProviderCredentialService credentials,
-    LegacyMapboxMigrationService legacyMigration, IConfiguration configuration)
+    LegacyMapboxMigrationService legacyMigration, IConfiguration configuration) : IPersonalProviderContactGate
 {
     /// <summary>Resolves the selected geocoding provider and admits its exact persistent product cost.</summary>
     public async Task<PersonalProviderAdmission> AdmitPersistentGeocodingAsync(

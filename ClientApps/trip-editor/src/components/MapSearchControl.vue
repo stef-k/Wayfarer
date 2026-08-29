@@ -6,6 +6,7 @@ import type { EditorGeocodeSearchResult, EditorRegion, EditorTripState, Guid } f
 
 const props = defineProps<{
   activeTarget: EditorTarget | null;
+  antiforgeryToken: string;
   completedAddRequestId: number | null;
   editorEndpoint: string;
   state: EditorTripState;
@@ -121,11 +122,13 @@ const submitSearch = async (): Promise<void> => {
   submittedQuery.value = submitted;
   status.value = 'loading';
   errorText.value = null;
+  attribution.value = null;
+  results.value = [];
   selectedResultId.value = null;
   emit('clearPreview');
 
   try {
-    const response = await searchGeocode(props.editorEndpoint, submitted, limit.value, searchController.signal);
+    const response = await searchGeocode(props.editorEndpoint, submitted, limit.value, props.antiforgeryToken, searchController.signal);
     if (searchController.signal.aborted || sequence !== requestSequence) {
       return;
     }
@@ -243,7 +246,16 @@ onUnmounted(() => {
         <span>{{ result.address || result.displayName }}</span>
         <small>{{ resultMeta(result) || 'geocode result' }} · {{ roundedCoordinate(result.latitude) }}, {{ roundedCoordinate(result.longitude) }}</small>
       </button>
-      <small v-if="attribution" class="trip-editor-map-search__attribution">{{ attribution }}</small>
+      <small v-if="attribution" class="trip-editor-map-search__attribution">
+        <template v-if="results[0]?.provider === 'geoapify'">
+          <a href="https://www.geoapify.com/" target="_blank" rel="noopener noreferrer">Powered by Geoapify</a>;
+          data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a>.
+        </template>
+        <template v-else>
+          Search by <a href="https://nominatim.org/" target="_blank" rel="noopener noreferrer">Nominatim</a>;
+          data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a>.
+        </template>
+      </small>
     </div>
 
     <div v-if="selectedResult" class="trip-editor-map-search__add-panel">

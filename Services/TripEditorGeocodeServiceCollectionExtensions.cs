@@ -17,7 +17,7 @@ public static class TripEditorGeocodeServiceCollectionExtensions
         services.AddSingleton<ITripEditorGeocodeClock, SystemTripEditorGeocodeClock>();
         services.AddSingleton<TripEditorGeocodeRateLimiter>();
         services.AddScoped<ITripEditorGeocodeSearchService, TripEditorGeocodeSearchService>();
-        services.AddHttpClient<ITripEditorGeocodeProvider, NominatimTripEditorGeocodeProvider>()
+        services.AddHttpClient<NominatimTripEditorGeocodeProvider>()
             .ConfigureHttpClient((sp, client) =>
             {
                 var options = sp.GetRequiredService<IOptions<TripEditorGeocodeOptions>>().Value;
@@ -34,7 +34,10 @@ public static class TripEditorGeocodeServiceCollectionExtensions
                 {
                     client.DefaultRequestHeaders.Referrer = referer;
                 }
-            });
+            }).RemoveAllLoggers();
+        services.AddHttpClient<GeoapifyTripEditorGeocodeProvider>(client =>
+            client.Timeout = TimeSpan.FromSeconds(Math.Max(1, configuration.GetValue("TripEditorGeocode:TimeoutSeconds", 5))))
+            .RemoveAllLoggers();
 
         return services;
     }

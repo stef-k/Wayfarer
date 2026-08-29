@@ -102,7 +102,7 @@ test.describe('Trip Editor map geocode search', () => {
     });
     await routeGeocode(page, async route => {
       proxyCalls += 1;
-      const query = new URL(route.request().url()).searchParams.get('q') ?? '';
+      const query = geocodeBody(route).query;
       if (proxyCalls === 1) {
         resolveFirstRequest();
         await new Promise<void>(release => {
@@ -224,7 +224,7 @@ test.describe('Trip Editor map geocode search', () => {
   test('map search accepts normalized response query echoes without dropping current results', async ({ page }) => {
     await signIn(page);
     await routeGeocode(page, async route => {
-      const query = new URL(route.request().url()).searchParams.get('q') ?? '';
+      const query = geocodeBody(route).query;
       const normalized = query.trim().split(/\s+/u).join(' ').toLowerCase();
       await fulfillGeocode(route, [result(`Result for ${normalized}`)], normalized);
     });
@@ -460,11 +460,16 @@ async function pageHeight(page: Page): Promise<number> {
 }
 
 async function routeGeocode(page: Page, handler: (route: Route) => Promise<void>): Promise<void> {
-  await page.route(geocodePath, handler);
+  await page.route(geocodePath, async route => {
+    expect(route.request().method()).toBe('POST');
+    expect(route.request().headers()['requestverificationtoken']).toBeTruthy();
+    expect(new URL(route.request().url()).search).toBe('');
+    await handler(route);
+  });
 }
 
 async function fulfillGeocode(route: Route, results: unknown[], query?: string): Promise<void> {
-  const echoedQuery = query ?? new URL(route.request().url()).searchParams.get('q') ?? '';
+  const echoedQuery = query ?? geocodeBody(route).query;
   // Mocked geocode responses prove proxy/search UI behavior; saved place CRUD needs a real create-place pairing.
   await route.fulfill({
     status: 200,
@@ -475,6 +480,10 @@ async function fulfillGeocode(route: Route, results: unknown[], query?: string):
       results
     })
   });
+}
+
+function geocodeBody(route: Route): { query: string; limit: number } {
+  return route.request().postDataJSON() as { query: string; limit: number };
 }
 
 function result(name: string): unknown {

@@ -117,12 +117,14 @@ export const searchGeocode = async (
   endpoint: string,
   query: string,
   limit: number,
+  antiforgeryToken: string,
   signal?: AbortSignal
 ): Promise<EditorGeocodeSearchResponse> => {
-  const url = `${endpoint}/geocode/search?q=${encodeURIComponent(query)}&limit=${encodeURIComponent(String(limit))}`;
-  const response = await fetch(url, {
-    headers: { Accept: 'application/json' },
+  const response = await fetch(`${endpoint}/geocode/search`, {
+    method: 'POST',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json', RequestVerificationToken: antiforgeryToken },
     credentials: 'same-origin',
+    body: JSON.stringify({ query, limit }),
     signal
   });
 

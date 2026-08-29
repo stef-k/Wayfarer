@@ -107,7 +107,7 @@ async function routeGeocode(page: Page, name: string): Promise<void> {
 }
 
 async function fulfillGeocode(route: Route, name: string): Promise<void> {
-  const query = new URL(route.request().url()).searchParams.get('q') ?? '';
+  const query = (route.request().postDataJSON() as { query: string }).query;
   await route.fulfill({
     status: 200,
     contentType: 'application/json',

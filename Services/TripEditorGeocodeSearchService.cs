@@ -6,6 +6,8 @@ using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using Wayfarer.Models.Dtos.Editor;
 using Wayfarer.Models.Options;
+using Wayfarer.Models.LocationProviders;
+using Wayfarer.Services.LocationProviders;
 
 namespace Wayfarer.Services;
 
@@ -24,7 +26,7 @@ public interface ITripEditorGeocodeProvider
 public interface ITripEditorGeocodeSearchService
 {
     /// <summary>Searches through the configured provider with local cache and rate limiting.</summary>
-    Task<TripEditorGeocodeSearchOutcome> SearchAsync(string query, int limit, CancellationToken cancellationToken);
+    Task<TripEditorGeocodeSearchOutcome> SearchAsync(string userId, string query, int limit, CancellationToken cancellationToken);
 }
 
 /// <summary>
@@ -82,29 +84,112 @@ public sealed class TripEditorGeocodeRateLimiter
 /// </summary>
 public sealed class TripEditorGeocodeSearchService : ITripEditorGeocodeSearchService
 {
-    private readonly ITripEditorGeocodeProvider _provider;
+    private readonly ITripEditorGeocodeProvider _nominatim;
+    private readonly GeoapifyTripEditorGeocodeProvider? _geoapify;
+    private readonly IPersonalProviderStatusReader? _statusReader;
+    private readonly IPersonalProviderContactGate? _contactGate;
     private readonly IMemoryCache _cache;
     private readonly TripEditorGeocodeRateLimiter _rateLimiter;
     private readonly TripEditorGeocodeOptions _options;
 
     /// <summary>Initializes the cached/rate-limited geocode search service.</summary>
     public TripEditorGeocodeSearchService(
-        ITripEditorGeocodeProvider provider,
+        NominatimTripEditorGeocodeProvider nominatim,
+        GeoapifyTripEditorGeocodeProvider geoapify,
+        IPersonalProviderStatusReader statusReader,
+        IPersonalProviderContactGate contactGate,
         IMemoryCache cache,
         TripEditorGeocodeRateLimiter rateLimiter,
         IOptions<TripEditorGeocodeOptions> options)
     {
-        _provider = provider;
+        _nominatim = nominatim;
+        _geoapify = geoapify;
+        _statusReader = statusReader;
+        _contactGate = contactGate;
         _cache = cache;
         _rateLimiter = rateLimiter;
         _options = options.Value;
     }
 
+    /// <summary>Initializes the Nominatim-only seam retained for focused fallback tests.</summary>
+    public TripEditorGeocodeSearchService(
+        ITripEditorGeocodeProvider provider, IMemoryCache cache,
+        TripEditorGeocodeRateLimiter rateLimiter, IOptions<TripEditorGeocodeOptions> options)
+    {
+        _nominatim = provider;
+        _cache = cache;
+        _rateLimiter = rateLimiter;
+        _options = options.Value;
+    }
+
+    /// <summary>Searches the Nominatim fallback directly for existing provider-bound regression tests.</summary>
+    public Task<TripEditorGeocodeSearchOutcome> SearchAsync(
+        string query, int limit, CancellationToken cancellationToken) =>
+        SearchNominatimAsync(NormalizeQuery(query), limit, cancellationToken);
+
     /// <inheritdoc />
-    public async Task<TripEditorGeocodeSearchOutcome> SearchAsync(string query, int limit, CancellationToken cancellationToken)
+    public async Task<TripEditorGeocodeSearchOutcome> SearchAsync(string userId, string query, int limit, CancellationToken cancellationToken)
     {
         var normalized = NormalizeQuery(query);
-        var cacheKey = $"trip-editor-geocode:{normalized}:{limit}";
+        var inspection = await _statusReader!.InspectPersistentGeocodingAsync(userId, cancellationToken);
+        if (inspection.ProviderKey == null || inspection.ProviderKey == "mapbox")
+        {
+            return await SearchNominatimAsync(normalized, limit, cancellationToken);
+        }
+
+        if (inspection.ProviderKey != "geoapify" || inspection.Category != PersonalProviderAdmissionCategory.Admitted || inspection.Binding == null)
+        {
+            return TripEditorGeocodeSearchOutcome.Failure(TripEditorGeocodeSearchStatus.ProviderUnavailable);
+        }
+
+        if (inspection.Exhausted)
+        {
+            return await SearchNominatimAsync(normalized, limit, cancellationToken);
+        }
+
+        var binding = inspection.Binding;
+        var cacheKey = BuildGeoapifyCacheKey(userId, normalized, limit, binding);
+        if (_cache.TryGetValue(cacheKey, out EditorGeocodeSearchResponseDto? cached) && cached != null)
+        {
+            var current = await _statusReader.InspectPersistentGeocodingAsync(userId, cancellationToken);
+            return current.Category == PersonalProviderAdmissionCategory.Admitted && current.Binding == binding
+                ? TripEditorGeocodeSearchOutcome.Success(cached)
+                : TripEditorGeocodeSearchOutcome.Failure(TripEditorGeocodeSearchStatus.ProviderUnavailable);
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        var admission = await _contactGate!.AdmitAsync(userId, PersonalProviderCapability.Geocoding,
+            PersonalProviderProduct.Geocoding, 1, cancellationToken);
+        if (admission.Category == PersonalProviderAdmissionCategory.Exhausted)
+        {
+            return await SearchNominatimAsync(normalized, limit, cancellationToken);
+        }
+
+        if (!admission.Succeeded || admission.Authority == null || !Matches(binding, admission.Authority)
+            || !await _contactGate.IsCurrentAsync(admission.Authority, cancellationToken))
+        {
+            return TripEditorGeocodeSearchOutcome.Failure(TripEditorGeocodeSearchStatus.ProviderUnavailable);
+        }
+
+        var providerResult = await _geoapify!.SearchAsync(normalized, limit, admission.Authority.Credential, cancellationToken);
+        if (providerResult.Status != TripEditorGeocodeProviderStatus.Success || providerResult.Response == null)
+        {
+            return MapFailure(providerResult.Status);
+        }
+
+        if (!await _contactGate.IsCurrentAsync(admission.Authority, cancellationToken))
+        {
+            return TripEditorGeocodeSearchOutcome.Failure(TripEditorGeocodeSearchStatus.ProviderUnavailable);
+        }
+
+        _cache.Set(cacheKey, providerResult.Response, CacheLifetime());
+        return TripEditorGeocodeSearchOutcome.Success(providerResult.Response);
+    }
+
+    private async Task<TripEditorGeocodeSearchOutcome> SearchNominatimAsync(
+        string normalized, int limit, CancellationToken cancellationToken)
+    {
+        var cacheKey = $"trip-editor-geocode:nominatim:jsonv2:en:{normalized}:{limit}";
         if (_cache.TryGetValue(cacheKey, out EditorGeocodeSearchResponseDto? cached) && cached != null)
         {
             return TripEditorGeocodeSearchOutcome.Success(cached);
@@ -116,23 +201,38 @@ public sealed class TripEditorGeocodeSearchService : ITripEditorGeocodeSearchSer
             return TripEditorGeocodeSearchOutcome.Failure(TripEditorGeocodeSearchStatus.LocalRateLimited);
         }
 
-        var providerResult = await _provider.SearchAsync(normalized, limit, cancellationToken);
+        var providerResult = await _nominatim.SearchAsync(normalized, limit, cancellationToken);
         if (providerResult.Status != TripEditorGeocodeProviderStatus.Success || providerResult.Response == null)
         {
-            return TripEditorGeocodeSearchOutcome.Failure(providerResult.Status switch
-            {
-                TripEditorGeocodeProviderStatus.RateLimited => TripEditorGeocodeSearchStatus.ProviderRateLimited,
-                TripEditorGeocodeProviderStatus.Timeout => TripEditorGeocodeSearchStatus.ProviderTimeout,
-                TripEditorGeocodeProviderStatus.Unavailable => TripEditorGeocodeSearchStatus.ProviderUnavailable,
-                TripEditorGeocodeProviderStatus.Malformed => TripEditorGeocodeSearchStatus.ProviderMalformed,
-                _ => TripEditorGeocodeSearchStatus.ProviderUnavailable
-            });
+            return MapFailure(providerResult.Status);
         }
 
-        var ttl = TimeSpan.FromSeconds(Math.Max(1, _options.CacheSeconds));
-        _cache.Set(cacheKey, providerResult.Response, ttl);
+        _cache.Set(cacheKey, providerResult.Response, CacheLifetime());
         return TripEditorGeocodeSearchOutcome.Success(providerResult.Response);
     }
+
+    private TimeSpan CacheLifetime() => TimeSpan.FromSeconds(Math.Max(1, _options.CacheSeconds));
+
+    private static TripEditorGeocodeSearchOutcome MapFailure(TripEditorGeocodeProviderStatus status) =>
+        TripEditorGeocodeSearchOutcome.Failure(status switch
+        {
+            TripEditorGeocodeProviderStatus.RateLimited => TripEditorGeocodeSearchStatus.ProviderRateLimited,
+            TripEditorGeocodeProviderStatus.Timeout => TripEditorGeocodeSearchStatus.ProviderTimeout,
+            TripEditorGeocodeProviderStatus.Malformed => TripEditorGeocodeSearchStatus.ProviderMalformed,
+            _ => TripEditorGeocodeSearchStatus.ProviderUnavailable
+        });
+
+    private static bool Matches(PersonalProviderAuthorityBinding binding, PersonalProviderAuthoritySnapshot snapshot) =>
+        binding.ProviderKey == snapshot.ProviderKey && binding.ProfileId == snapshot.ProfileId
+        && binding.CredentialGeneration == snapshot.CredentialGeneration
+        && binding.CapabilityGeneration == snapshot.CapabilityGeneration
+        && binding.SelectionGeneration == snapshot.SelectionGeneration
+        && binding.Verification == snapshot.Verification
+        && binding.VerifiedCredentialGeneration == snapshot.VerifiedCredentialGeneration
+        && binding.VerifiedCapabilityGeneration == snapshot.VerifiedCapabilityGeneration;
+
+    private static string BuildGeoapifyCacheKey(string userId, string query, int limit, PersonalProviderAuthorityBinding binding) =>
+        $"trip-editor-geocode:{userId}:geoapify:json:en:{query}:{limit}:{binding.ProfileId}:{binding.CredentialGeneration}:{binding.CapabilityGeneration}:{binding.SelectionGeneration}:{binding.Verification}:{binding.VerifiedCredentialGeneration}:{binding.VerifiedCapabilityGeneration}";
 
     private static string NormalizeQuery(string query) =>
         string.Join(' ', query.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries)).ToLowerInvariant();
@@ -143,6 +243,7 @@ public sealed class TripEditorGeocodeSearchService : ITripEditorGeocodeSearchSer
 /// </summary>
 public sealed class NominatimTripEditorGeocodeProvider : ITripEditorGeocodeProvider
 {
+    private const int ResponseLimit = 256 * 1024;
     private const string DefaultUserAgent = "Wayfarer/1.0";
     private const string ProviderName = "nominatim";
     private const string Attribution = "Data © OpenStreetMap contributors, ODbL 1.0.";
@@ -190,6 +291,11 @@ public sealed class NominatimTripEditorGeocodeProvider : ITripEditorGeocodeProvi
             if (!response.IsSuccessStatusCode)
             {
                 return TripEditorGeocodeProviderResult.Failure(TripEditorGeocodeProviderStatus.Unavailable);
+            }
+
+            if (response.Content.Headers.ContentLength > ResponseLimit)
+            {
+                return TripEditorGeocodeProviderResult.Failure(TripEditorGeocodeProviderStatus.Malformed);
             }
 
             await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
@@ -246,17 +352,18 @@ public sealed class NominatimTripEditorGeocodeProvider : ITripEditorGeocodeProvi
         }
 
         var results = new List<EditorGeocodeSearchResultDto>();
-        foreach (var element in document.RootElement.EnumerateArray())
+        foreach (var element in document.RootElement.EnumerateArray().Take(6))
         {
             var displayName = RequiredString(element, "display_name");
             var latitude = double.Parse(RequiredString(element, "lat"), CultureInfo.InvariantCulture);
             var longitude = double.Parse(RequiredString(element, "lon"), CultureInfo.InvariantCulture);
-            if (!double.IsFinite(latitude) || !double.IsFinite(longitude))
+            if (!double.IsFinite(latitude) || latitude is < -90 or > 90
+                || !double.IsFinite(longitude) || longitude is < -180 or > 180)
             {
                 throw new FormatException("Nominatim coordinates must be finite.");
             }
 
-            var name = OptionalString(element, "name") ?? displayName.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? displayName;
+            var name = OptionalString(element, "name", 512) ?? displayName.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? displayName;
             var id = OptionalString(element, "place_id") ??
                 string.Join(':', new[] { OptionalString(element, "osm_type"), OptionalString(element, "osm_id") }.Where(value => !string.IsNullOrWhiteSpace(value)));
             results.Add(new EditorGeocodeSearchResultDto(
@@ -265,8 +372,8 @@ public sealed class NominatimTripEditorGeocodeProvider : ITripEditorGeocodeProvi
                 name,
                 displayName,
                 BuildAddress(element) ?? displayName,
-                OptionalString(element, "category"),
-                OptionalString(element, "type"),
+                OptionalString(element, "category", 128),
+                OptionalString(element, "type", 128),
                 latitude,
                 longitude));
         }
@@ -290,12 +397,17 @@ public sealed class NominatimTripEditorGeocodeProvider : ITripEditorGeocodeProvi
     }
 
     private static string RequiredString(JsonElement element, string propertyName) =>
-        OptionalString(element, propertyName) ?? throw new JsonException($"Nominatim result missing {propertyName}.");
+        OptionalString(element, propertyName, 512) ?? throw new JsonException($"Nominatim result missing {propertyName}.");
 
-    private static string? OptionalString(JsonElement element, string propertyName) =>
-        element.TryGetProperty(propertyName, out var value) && value.ValueKind != JsonValueKind.Null
-            ? value.ToString()
-            : null;
+    private static string? OptionalString(JsonElement element, string propertyName, int maximum = 512)
+    {
+        if (!element.TryGetProperty(propertyName, out var value) || value.ValueKind == JsonValueKind.Null) return null;
+        if (value.ValueKind is not (JsonValueKind.String or JsonValueKind.Number))
+            throw new JsonException("Unexpected Nominatim field shape.");
+        var text = value.ToString().Trim();
+        if (string.IsNullOrWhiteSpace(text)) return null;
+        return text.Length <= maximum ? text : text[..maximum];
+    }
 }
 
 /// <summary>Status returned by an external geocode provider.</summary>
