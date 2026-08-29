@@ -62,6 +62,31 @@ public sealed class LocationEnrichmentTupleImportTests
         }
     }
 
+    /// <summary>Rejects unauthenticated Mapbox feature metadata without discarding valid import provenance.</summary>
+    [Fact]
+    public async Task KmlMapboxFeatureMetadataIsClearedWhileProvenanceSurvives()
+    {
+        const string input = """
+            <kml xmlns="http://www.opengis.net/kml/2.2"><Document><Placemark><ExtendedData>
+            <Data name="TimestampUtc"><value>2026-08-28T13:00:00Z</value></Data>
+            <Data name="ResolvedFeatureName"><value>Supplied landmark</value></Data>
+            <Data name="ResolvedFeatureType"><value>building</value></Data>
+            <Data name="ReverseGeocodingProvider"><value>mapbox</value></Data>
+            <Data name="ReverseGeocodingStorageMode"><value>permanent</value></Data>
+            <Data name="ReverseGeocodedAt"><value>2026-08-28T12:00:00Z</value></Data>
+            </ExtendedData><Point><coordinates>22.2,40.1</coordinates></Point></Placemark></Document></kml>
+            """;
+
+        var location = Assert.Single(await ParseAsync(
+            new KmlLocationParser(NullLogger<KmlLocationParser>.Instance), input));
+
+        Assert.Equal((null, null, "mapbox", "permanent"),
+            (location.ResolvedFeatureName, location.ResolvedFeatureType,
+                location.ReverseGeocodingProvider, location.ReverseGeocodingStorageMode));
+        Assert.Equal(new DateTimeOffset(2026, 8, 28, 12, 0, 0, TimeSpan.Zero),
+            location.ReverseGeocodedAt);
+    }
+
     private static IEnumerable<(ILocationDataParser Parser, string Input)> Cases(string provider, string storageMode)
     {
         yield return (new CsvLocationParser(NullLogger<CsvLocationParser>.Instance),

@@ -72,6 +72,20 @@ public sealed class GeoapifyReverseGeocodingAdapterTests
         Assert.Null(result.Authority);
     }
 
+    /// <summary>Contains a non-string GeoJSON envelope type as a bounded invalid response.</summary>
+    [Fact]
+    public async Task NonStringEnvelopeTypeReturnsInvalidResponse()
+    {
+        const string json = """{"type":42,"features":[]}""";
+
+        var result = await new GeoapifyReverseGeocodingAdapter(new HttpClient(new FakeHandler(json)))
+            .ReverseAsync(10, 20, "secret");
+
+        Assert.False(result.Succeeded);
+        Assert.Equal(ReverseGeocodingCategory.InvalidResponse, result.Category);
+        Assert.Null(result.Authority);
+    }
+
     private sealed class FakeHandler(string json) : HttpMessageHandler
     {
         public Uri? Uri { get; private set; }
