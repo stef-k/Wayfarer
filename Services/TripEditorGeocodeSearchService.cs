@@ -298,11 +298,11 @@ public sealed class NominatimTripEditorGeocodeProvider : ITripEditorGeocodeProvi
                 return TripEditorGeocodeProviderResult.Failure(TripEditorGeocodeProviderStatus.Malformed);
             }
 
-            await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+            var payload = await ReadBoundedAsync(response.Content, cancellationToken);
             return TripEditorGeocodeProviderResult.Success(new EditorGeocodeSearchResponseDto(
                 query,
                 Attribution,
-                await ParseResultsAsync(stream, cancellationToken)));
+                ParseResults(payload)));
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -343,9 +343,24 @@ public sealed class NominatimTripEditorGeocodeProvider : ITripEditorGeocodeProvi
         return builder.Uri;
     }
 
-    private static async Task<IReadOnlyList<EditorGeocodeSearchResultDto>> ParseResultsAsync(Stream stream, CancellationToken cancellationToken)
+    private static async Task<byte[]> ReadBoundedAsync(HttpContent content, CancellationToken cancellationToken)
     {
-        using var document = await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken);
+        await using var stream = await content.ReadAsStreamAsync(cancellationToken);
+        using var buffer = new MemoryStream();
+        var chunk = new byte[8192];
+        while (true)
+        {
+            var read = await stream.ReadAsync(chunk.AsMemory(), cancellationToken);
+            if (read == 0) break;
+            if (buffer.Length + read > ResponseLimit) throw new JsonException("Response exceeds the bounded size.");
+            buffer.Write(chunk, 0, read);
+        }
+        return buffer.ToArray();
+    }
+
+    private static IReadOnlyList<EditorGeocodeSearchResultDto> ParseResults(byte[] payload)
+    {
+        using var document = JsonDocument.Parse(payload);
         if (document.RootElement.ValueKind != JsonValueKind.Array)
         {
             throw new JsonException("Nominatim search response must be an array.");
@@ -354,6 +369,8 @@ public sealed class NominatimTripEditorGeocodeProvider : ITripEditorGeocodeProvi
         var results = new List<EditorGeocodeSearchResultDto>();
         foreach (var element in document.RootElement.EnumerateArray().Take(6))
         {
+            if (element.ValueKind != JsonValueKind.Object)
+                throw new JsonException("Nominatim result must be an object.");
             var displayName = RequiredString(element, "display_name");
             var latitude = double.Parse(RequiredString(element, "lat"), CultureInfo.InvariantCulture);
             var longitude = double.Parse(RequiredString(element, "lon"), CultureInfo.InvariantCulture);

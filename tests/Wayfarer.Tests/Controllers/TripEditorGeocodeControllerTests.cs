@@ -26,6 +26,8 @@ public sealed class TripEditorGeocodeControllerTests : TestBase
         Assert.NotNull(method);
         Assert.NotNull(method!.GetCustomAttributes(typeof(HttpPostAttribute), inherit: true).SingleOrDefault());
         Assert.NotNull(method.GetCustomAttributes(typeof(ValidateAntiForgeryTokenAttribute), inherit: true).SingleOrDefault());
+        var sizeLimit = Assert.Single(method.GetCustomAttributes(typeof(RequestSizeLimitAttribute), inherit: true));
+        Assert.Equal(1024, ((Microsoft.AspNetCore.Http.Metadata.IRequestSizeLimitMetadata)sizeLimit).MaxRequestBodySize);
         Assert.Empty(method.GetCustomAttributes(typeof(HttpGetAttribute), inherit: true));
     }
 

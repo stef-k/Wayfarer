@@ -320,6 +320,7 @@ public sealed partial class TripEditorController : ControllerBase
     /// </summary>
     [HttpPost("geocode/search")]
     [ValidateAntiForgeryToken]
+    [RequestSizeLimit(1024)]
     public async Task<IActionResult> SearchGeocode(Guid tripId, CancellationToken cancellationToken)
     {
         var authFailure = RequireEditorUser(out var userId);

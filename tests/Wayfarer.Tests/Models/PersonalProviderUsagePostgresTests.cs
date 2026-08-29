@@ -1,8 +1,13 @@
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Options;
+using System.Net;
 using Wayfarer.Models;
 using Wayfarer.Models.LocationProviders;
+using Wayfarer.Models.Options;
+using Wayfarer.Services;
 using Wayfarer.Services.LocationProviders;
 using Wayfarer.Tests.Infrastructure;
 using Xunit;
@@ -98,14 +103,21 @@ public sealed class PersonalProviderUsagePostgresTests(PostgresImportTestFixture
 
         await using var firstContext = fixture.CreateContext();
         await using var secondContext = fixture.CreateContext();
-        var first = Gate(firstContext, protection).AdmitAsync(user.Id, PersonalProviderCapability.Geocoding,
-            PersonalProviderProduct.Geocoding, 1);
-        var second = Gate(secondContext, protection).AdmitAsync(user.Id, PersonalProviderCapability.Geocoding,
-            PersonalProviderProduct.Geocoding, 1);
+        var firstGeoapify = new CountingHandler("""{"results":[{"place_id":"first","formatted":"Athens","lat":37.98,"lon":23.72}]}""");
+        var secondGeoapify = new CountingHandler("""{"results":[{"place_id":"second","formatted":"Athens","lat":37.98,"lon":23.72}]}""");
+        var firstNominatim = new CountingHandler("[]");
+        var secondNominatim = new CountingHandler("[]");
+        var first = SearchService(fixture, firstContext, protection, firstGeoapify, firstNominatim)
+            .SearchAsync(user.Id, "athens", 6, CancellationToken.None);
+        var second = SearchService(fixture, secondContext, protection, secondGeoapify, secondNominatim)
+            .SearchAsync(user.Id, "athens", 6, CancellationToken.None);
         var results = await Task.WhenAll(first, second);
 
-        Assert.Single(results, item => item.Succeeded);
-        Assert.Single(results, item => item.Category == PersonalProviderAdmissionCategory.Exhausted);
+        Assert.All(results, item => Assert.Equal(TripEditorGeocodeSearchStatus.Success, item.Status));
+        Assert.Single(results, item => item.Response!.Attribution.Contains("Geoapify", StringComparison.Ordinal));
+        Assert.Single(results, item => !item.Response!.Attribution.Contains("Geoapify", StringComparison.Ordinal));
+        Assert.Equal(1, firstGeoapify.Calls + secondGeoapify.Calls);
+        Assert.Equal(1, firstNominatim.Calls + secondNominatim.Calls);
         await using var verify = fixture.CreateContext();
         Assert.Equal(1, await verify.GeoapifyUsageAdmissions.Where(item => item.UserId == user.Id).SumAsync(item => item.Credits));
     }
@@ -323,6 +335,18 @@ public sealed class PersonalProviderUsagePostgresTests(PostgresImportTestFixture
         return new(context, owner, new LegacyMapboxMigrationService(context, owner), config);
     }
 
+    private static TripEditorGeocodeSearchService SearchService(PostgresImportTestFixture fixture, ApplicationDbContext context,
+        IDataProtectionProvider protection, HttpMessageHandler geoapify, HttpMessageHandler nominatim)
+    {
+        var options = Options.Create(new TripEditorGeocodeOptions());
+        return new(new NominatimTripEditorGeocodeProvider(new HttpClient(nominatim), options),
+            new GeoapifyTripEditorGeocodeProvider(new HttpClient(geoapify)),
+            new PersonalProviderStatusReader(new FixtureContextFactory(fixture),
+                new PersonalProviderCredentialService(protection), new ConfigurationBuilder().AddInMemoryCollection().Build()),
+            Gate(context, protection), new MemoryCache(new MemoryCacheOptions()),
+            new TripEditorGeocodeRateLimiter(new FixedClock()), options);
+    }
+
     private static PersonalProviderStatusReader Reader(
         Wayfarer.Models.ApplicationDbContext context, IDataProtectionProvider protection)
         => new(new ExistingContextFactory(context), new PersonalProviderCredentialService(protection),
@@ -333,4 +357,20 @@ public sealed class PersonalProviderUsagePostgresTests(PostgresImportTestFixture
     {
         public ApplicationDbContext CreateDbContext() => context;
     }
+
+    private sealed class FixtureContextFactory(PostgresImportTestFixture fixture)
+        : IDbContextFactory<ApplicationDbContext>
+    {
+        public ApplicationDbContext CreateDbContext() => fixture.CreateContext();
+    }
+
+    private sealed class CountingHandler(string payload) : HttpMessageHandler
+    {
+        public int Calls { get; private set; }
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        { Calls++; return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(payload) }); }
+    }
+
+    private sealed class FixedClock : ITripEditorGeocodeClock
+    { public DateTimeOffset UtcNow => new(2026, 8, 29, 0, 0, 0, TimeSpan.Zero); }
 }
