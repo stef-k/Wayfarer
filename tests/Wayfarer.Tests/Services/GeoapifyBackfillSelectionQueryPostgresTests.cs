@@ -245,6 +245,11 @@ public sealed partial class GeoapifyBackfillConcurrencyPostgresTests
         Assert.Equal(1, result.Succeeded);
         Assert.Single(await verify.GeoapifyUsageAdmissions.Where(item => item.UserId == user.Id).ToListAsync());
         Assert.Equal(1, handler.RequestsFor(user.Id));
+        var enriched = await verify.Locations.SingleAsync(item => item.UserId == user.Id
+            && item.ResolvedFeatureName != null);
+        Assert.Equal(("Tokyo Tower", "building", "geoapify", "persistent"),
+            (enriched.ResolvedFeatureName, enriched.ResolvedFeatureType,
+                enriched.ReverseGeocodingProvider, enriched.ReverseGeocodingStorageMode));
     }
 
     /// <summary>Proves superseded provider-dependent attempts are reconsidered without reviving permanent same-generation rows.</summary>

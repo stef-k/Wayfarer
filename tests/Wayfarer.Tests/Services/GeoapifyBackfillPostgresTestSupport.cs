@@ -260,7 +260,8 @@ public sealed partial class GeoapifyBackfillConcurrencyPostgresTests
             return new(System.Net.HttpStatusCode.OK)
             {
                 Content = new StringContent("""
-                    {"type":"FeatureCollection","features":[{"properties":{"formatted":"Address","address_line1":"Address"}}]}
+                    {"type":"FeatureCollection","features":[{"properties":{"formatted":"Address","address_line1":"Address",
+                    "name":"Tokyo Tower","result_type":"building"}}]}
                     """)
             };
         }
