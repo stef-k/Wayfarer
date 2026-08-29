@@ -114,8 +114,31 @@ public sealed class PostgresMigrationFixtureOwnershipTests
 
         Assert.Equal("PostgreSQL migration test database initialization failed.", failure.Message);
         Assert.Null(failure.InnerException);
+        Assert.Equal("Cleanup also failed.", failure.Data["PostgresMigrationCleanup"]);
         Assert.Equal([operations.CreatedDatabase], operations.CleanupTargets);
         await fixture.DisposeAsync();
+    }
+
+    /// <summary>Proves the final create seam rejects an invalid disposable name before database access.</summary>
+    [Fact]
+    public async Task CreateDatabaseAsync_RejectsInvalidDisposableNameBeforeMutation()
+    {
+        var operations = new NpgsqlMigrationDatabaseOperations();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => operations.CreateDatabaseAsync(
+            "Host=fixture.test;Port=5432;Database=postgres;Username=fixture",
+            "wayfarer_import_tests", CancellationToken.None));
+    }
+
+    /// <summary>Proves the final create seam rejects a non-maintenance database before database access.</summary>
+    [Fact]
+    public async Task CreateDatabaseAsync_RejectsInvalidMaintenanceDatabaseBeforeMutation()
+    {
+        var operations = new NpgsqlMigrationDatabaseOperations();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => operations.CreateDatabaseAsync(
+            "Host=fixture.test;Port=5432;Database=wayfarer_import_tests;Username=fixture",
+            $"{PostgresMigrationTestFixture.DatabasePrefix}{Guid.NewGuid():N}", CancellationToken.None));
     }
 
     /// <summary>Proves cancellation remains primary while cleanup uses a non-cancelled path.</summary>
