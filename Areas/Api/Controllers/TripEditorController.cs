@@ -553,11 +553,6 @@ public sealed partial class TripEditorController : ControllerBase
             errors["limit"] = new[] { "Limit must be at least 1." };
         }
 
-        if (limit.HasValue && limit.Value > maxLimit)
-        {
-            errors["limit"] = new[] { $"Limit must be at most {maxLimit}." };
-        }
-
         clampedLimit = Math.Clamp(limit ?? maxLimit, 1, maxLimit);
         return errors;
     }

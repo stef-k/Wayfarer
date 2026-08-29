@@ -76,6 +76,7 @@ public sealed class GeoapifyTripEditorGeocodeProvider(HttpClient httpClient)
             throw new JsonException("Unexpected Geoapify response shape.");
 
         var normalized = new List<EditorGeocodeSearchResultDto>();
+        var identifiers = new TripEditorGeocodeResultIdentifierNormalizer(Provider);
         foreach (var item in results.EnumerateArray().Take(Math.Clamp(requestedLimit, 1, 6)))
         {
             if (item.ValueKind != JsonValueKind.Object) throw new JsonException("Unexpected Geoapify result shape.");
@@ -88,7 +89,7 @@ public sealed class GeoapifyTripEditorGeocodeProvider(HttpClient httpClient)
             var name = OptionalString(item, "name", 512) ?? display.Split(',', 2)[0].Trim();
             var placeId = OptionalString(item, "place_id", 256)
                 ?? $"{latitude.ToString("R", CultureInfo.InvariantCulture)}:{longitude.ToString("R", CultureInfo.InvariantCulture)}";
-            normalized.Add(new($"{Provider}:{placeId}", Provider, name, display,
+            normalized.Add(new(identifiers.Next(placeId), Provider, name, display,
                 BuildAddress(item) ?? display, OptionalString(item, "category", 128),
                 OptionalString(item, "result_type", 128), latitude, longitude));
         }

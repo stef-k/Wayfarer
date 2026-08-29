@@ -367,6 +367,7 @@ public sealed class NominatimTripEditorGeocodeProvider : ITripEditorGeocodeProvi
         }
 
         var results = new List<EditorGeocodeSearchResultDto>();
+        var identifiers = new TripEditorGeocodeResultIdentifierNormalizer(ProviderName);
         foreach (var element in document.RootElement.EnumerateArray().Take(6))
         {
             if (element.ValueKind != JsonValueKind.Object)
@@ -383,8 +384,11 @@ public sealed class NominatimTripEditorGeocodeProvider : ITripEditorGeocodeProvi
             var name = OptionalString(element, "name", 512) ?? displayName.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? displayName;
             var id = OptionalString(element, "place_id") ??
                 string.Join(':', new[] { OptionalString(element, "osm_type"), OptionalString(element, "osm_id") }.Where(value => !string.IsNullOrWhiteSpace(value)));
+            var identity = string.IsNullOrWhiteSpace(id)
+                ? $"{latitude.ToString(CultureInfo.InvariantCulture)}:{longitude.ToString(CultureInfo.InvariantCulture)}"
+                : id;
             results.Add(new EditorGeocodeSearchResultDto(
-                string.IsNullOrWhiteSpace(id) ? $"{ProviderName}:{latitude.ToString(CultureInfo.InvariantCulture)}:{longitude.ToString(CultureInfo.InvariantCulture)}" : $"{ProviderName}:{id}",
+                identifiers.Next(identity),
                 ProviderName,
                 name,
                 displayName,
@@ -424,6 +428,43 @@ public sealed class NominatimTripEditorGeocodeProvider : ITripEditorGeocodeProvi
         var text = value.ToString().Trim();
         if (string.IsNullOrWhiteSpace(text)) return null;
         return text.Length <= maximum ? text : text[..maximum];
+    }
+}
+
+/// <summary>Builds deterministic, provider-namespaced identifiers unique within one ordered response.</summary>
+internal sealed class TripEditorGeocodeResultIdentifierNormalizer
+{
+    private const int MaximumLength = 256;
+    private readonly string _prefix;
+    private readonly Dictionary<string, int> _occurrences = new(StringComparer.Ordinal);
+    private readonly HashSet<string> _published = new(StringComparer.Ordinal);
+
+    /// <summary>Initializes an identifier normalizer for one provider response.</summary>
+    public TripEditorGeocodeResultIdentifierNormalizer(string provider)
+    {
+        _prefix = $"{provider}:";
+    }
+
+    /// <summary>Returns the next bounded identifier, adding a stable occurrence suffix when needed.</summary>
+    public string Next(string providerIdentity)
+    {
+        var available = MaximumLength - _prefix.Length;
+        var boundedIdentity = providerIdentity[..Math.Min(providerIdentity.Length, available)];
+        var baseIdentifier = $"{_prefix}{boundedIdentity}";
+        var occurrence = _occurrences.TryGetValue(baseIdentifier, out var previous) ? previous + 1 : 1;
+
+        while (true)
+        {
+            var suffix = occurrence == 1 ? string.Empty : $":{occurrence.ToString(CultureInfo.InvariantCulture)}";
+            var candidate = $"{baseIdentifier[..Math.Min(baseIdentifier.Length, MaximumLength - suffix.Length)]}{suffix}";
+            if (_published.Add(candidate))
+            {
+                _occurrences[baseIdentifier] = occurrence;
+                return candidate;
+            }
+
+            occurrence++;
+        }
     }
 }
 
