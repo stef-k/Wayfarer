@@ -21,7 +21,7 @@ public sealed class LocationEnrichmentTupleImportTests
             Assert.Equal((null, null, provider, storageMode),
                 (location.ResolvedFeatureName, location.ResolvedFeatureType,
                     location.ReverseGeocodingProvider, location.ReverseGeocodingStorageMode));
-            Assert.Equal(new DateTimeOffset(2026, 8, 28, 12, 0, 0, TimeSpan.Zero),
+            Assert.Equal(new DateTimeOffset(2026, 8, 27, 21, 30, 0, TimeSpan.Zero),
                 location.ReverseGeocodedAt);
         }
     }
@@ -30,13 +30,13 @@ public sealed class LocationEnrichmentTupleImportTests
     {
         yield return (new CsvLocationParser(NullLogger<CsvLocationParser>.Instance),
             "Latitude,Longitude,TimestampUtc,ReverseGeocodingProvider,ReverseGeocodingStorageMode,ReverseGeocodedAt\r\n" +
-            $"40.1,22.2,2026-08-28T13:00:00Z,{provider},{storageMode},2026-08-28T12:00:00Z\r\n");
+            $"40.1,22.2,2026-08-28T13:00:00Z,{provider},{storageMode},2026-08-28T00:30:00+03:00\r\n");
         yield return (new GpxLocationParser(NullLogger<GpxLocationParser>.Instance), $$"""
             <gpx xmlns="http://www.topografix.com/GPX/1/1" xmlns:wayfarer="https://wayfarer.app/schemas/gpx"><trk><trkseg>
             <trkpt lat="40.1" lon="22.2"><time>2026-08-28T13:00:00Z</time><extensions>
             <wayfarer:reverseGeocodingProvider>{{provider}}</wayfarer:reverseGeocodingProvider>
             <wayfarer:reverseGeocodingStorageMode>{{storageMode}}</wayfarer:reverseGeocodingStorageMode>
-            <wayfarer:reverseGeocodedAt>2026-08-28T12:00:00Z</wayfarer:reverseGeocodedAt>
+            <wayfarer:reverseGeocodedAt>2026-08-28T00:30:00+03:00</wayfarer:reverseGeocodedAt>
             </extensions></trkpt></trkseg></trk></gpx>
             """);
         yield return (new KmlLocationParser(NullLogger<KmlLocationParser>.Instance), $$"""
@@ -44,13 +44,13 @@ public sealed class LocationEnrichmentTupleImportTests
             <Data name="TimestampUtc"><value>2026-08-28T13:00:00Z</value></Data>
             <Data name="ReverseGeocodingProvider"><value>{{provider}}</value></Data>
             <Data name="ReverseGeocodingStorageMode"><value>{{storageMode}}</value></Data>
-            <Data name="ReverseGeocodedAt"><value>2026-08-28T12:00:00Z</value></Data>
+            <Data name="ReverseGeocodedAt"><value>2026-08-28T00:30:00+03:00</value></Data>
             </ExtendedData><Point><coordinates>22.2,40.1</coordinates></Point></Placemark></Document></kml>
             """);
         yield return (new WayfarerGeoJsonParser(NullLogger<WayfarerGeoJsonParser>.Instance), $$$"""
             {"type":"FeatureCollection","features":[{"type":"Feature","geometry":{"type":"Point","coordinates":[22.2,40.1]},
             "properties":{"TimestampUtc":"2026-08-28T13:00:00Z","ReverseGeocodingProvider":"{{{provider}}}",
-            "ReverseGeocodingStorageMode":"{{{storageMode}}}","ReverseGeocodedAt":"2026-08-28T12:00:00Z"}}]}
+            "ReverseGeocodingStorageMode":"{{{storageMode}}}","ReverseGeocodedAt":"2026-08-28T00:30:00+03:00"}}]}
             """);
     }
 

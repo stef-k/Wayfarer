@@ -152,6 +152,42 @@ public class WayfarerGeoJsonParserTests
 
     #region Attribute Parsing Tests
 
+    /// <summary>Tuple fields accept only JSON strings without coercing other JSON values.</summary>
+    [Theory]
+    [InlineData("ResolvedFeatureName", "42", true)]
+    [InlineData("ResolvedFeatureName", "{}", true)]
+    [InlineData("ResolvedFeatureName", "true", true)]
+    [InlineData("ResolvedFeatureName", "[]", true)]
+    [InlineData("ReverseGeocodingProvider", "true", false)]
+    public async Task ParseAsync_TreatsNonStringEnrichmentTupleFieldsAsAbsent(
+        string property, string rawValue, bool provenanceSurvives)
+    {
+        var geoJson = $$$"""
+            {"type":"FeatureCollection","features":[{"type":"Feature",
+            "geometry":{"type":"Point","coordinates":[22.2,40.1]},
+            "properties":{"TimestampUtc":"2026-08-28T13:00:00Z",
+            "ResolvedFeatureName":"Tower","ResolvedFeatureType":"building",
+            "ReverseGeocodingProvider":"geoapify","ReverseGeocodingStorageMode":"persistent",
+            "ReverseGeocodedAt":"2026-08-28T12:00:00Z","{{{property}}}":{{{rawValue}}}}}]}
+            """;
+
+        var location = Assert.Single(await _parser.ParseAsync(ToStream(geoJson), "owner"));
+
+        if (provenanceSurvives)
+        {
+            Assert.Equal(("geoapify", "persistent"),
+                (location.ReverseGeocodingProvider, location.ReverseGeocodingStorageMode));
+            Assert.Null(property == "ResolvedFeatureName"
+                ? location.ResolvedFeatureName : location.ResolvedFeatureType);
+        }
+        else
+        {
+            Assert.Equal((null, null, null),
+                (location.ReverseGeocodingProvider, location.ReverseGeocodingStorageMode,
+                    location.ReverseGeocodedAt));
+        }
+    }
+
     [Fact]
     public async Task ParseAsync_ParsesAllAttributes()
     {

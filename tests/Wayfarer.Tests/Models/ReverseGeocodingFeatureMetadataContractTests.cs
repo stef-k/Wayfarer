@@ -36,7 +36,8 @@ public sealed class ReverseGeocodingFeatureMetadataContractTests
     /// <summary>Proves explicit timezone designators preserve their instant and normalize to UTC.</summary>
     [Theory]
     [InlineData("2026-08-28T12:00:00Z", "2026-08-28T12:00:00+00:00")]
-    [InlineData("2026-08-28T15:00:00+03:00", "2026-08-28T12:00:00+00:00")]
+    [InlineData("2026-08-28T00:30:00+03:00", "2026-08-27T21:30:00+00:00")]
+    [InlineData("2026-08-28T23:30:00-02:00", "2026-08-29T01:30:00+00:00")]
     public void ImportedTupleAcceptsOnlyExplicitOffsetsAndNormalizesToUtc(
         string timestamp, string expectedTimestamp)
     {
@@ -51,6 +52,10 @@ public sealed class ReverseGeocodingFeatureMetadataContractTests
     [Theory]
     [InlineData("2026-08-28T12:00:00")]
     [InlineData("2026-08-28T12:00:00+03:7x")]
+    [InlineData("2026-08-28Z")]
+    [InlineData("2026-08-28+03:00")]
+    [InlineData("2026-08-28T12:00:00Z ")]
+    [InlineData(" 2026-08-28T12:00:00Z")]
     public void ImportedTupleRejectsTimestampsWithoutValidExplicitOffsets(string timestamp)
     {
         var normalized = ResolvedFeatureMetadata.NormalizeImported(
