@@ -13,6 +13,8 @@ public sealed class PostgresMigrationTestFixture : IAsyncLifetime
 {
     private const string InitializationFailureMessage = "PostgreSQL migration test database initialization failed.";
     private const string CleanupFailureMessage = "PostgreSQL migration test database cleanup failed.";
+    private const string CleanupDiagnosticKey = "PostgresMigrationCleanup";
+    private const string CleanupDiagnosticValue = "Cleanup also failed.";
     private const string ConnectionVariable = "WAYFARER_TEST_POSTGRES_CONNECTION";
     private const string PersistentDatabase = "wayfarer_import_tests";
     private const string MaintenanceDatabase = "postgres";
@@ -22,6 +24,8 @@ public sealed class PostgresMigrationTestFixture : IAsyncLifetime
         .AddEntityFrameworkNpgsql()
         .BuildServiceProvider();
     private readonly IPostgresMigrationDatabaseOperations _operations;
+    private string? _sourceConnectionString;
+    private string? _disposableConnectionString;
     private string? _connectionString;
     private string? _maintenanceConnectionString;
     private string? _ownedDatabase;
@@ -59,14 +63,15 @@ public sealed class PostgresMigrationTestFixture : IAsyncLifetime
         try
         {
             source = new NpgsqlConnectionStringBuilder(value);
-            ValidateSource(source);
+            ValidatePersistentSource(source);
             await _operations.ValidateServerAsync(source.ConnectionString, cancellationToken);
+            _sourceConnectionString = source.ConnectionString;
         }
         catch (OperationCanceledException) { throw; }
         catch (Exception) { throw new InvalidOperationException(InitializationFailureMessage); }
 
         _ownedDatabase = $"{DatabasePrefix}{Guid.NewGuid():N}";
-        ValidateGeneratedName(_ownedDatabase);
+        ValidateGeneratedDatabaseName(_ownedDatabase);
         var maintenance = new NpgsqlConnectionStringBuilder(source.ConnectionString)
         {
             Database = MaintenanceDatabase,
@@ -78,24 +83,30 @@ public sealed class PostgresMigrationTestFixture : IAsyncLifetime
             Database = _ownedDatabase,
             Pooling = false
         };
+        _disposableConnectionString = disposable.ConnectionString;
 
         try
         {
-            await _operations.CreateDatabaseAsync(_maintenanceConnectionString, _ownedDatabase, cancellationToken);
+            await _operations.CreateDatabaseAsync(
+                source.ConnectionString, _maintenanceConnectionString, _ownedDatabase, cancellationToken);
             _connectionString = disposable.ConnectionString;
             await _operations.MigrateAsync(_connectionString, cancellationToken);
         }
         catch (OperationCanceledException)
         {
             _primaryFailureOccurred = true;
-            await TryDropAfterPrimaryFailureAsync();
-            throw;
+            var failure = new OperationCanceledException(cancellationToken);
+            if (!await TryDropAfterPrimaryFailureAsync())
+                failure.Data[CleanupDiagnosticKey] = CleanupDiagnosticValue;
+            throw failure;
         }
         catch (Exception)
         {
             _primaryFailureOccurred = true;
-            await TryDropAfterPrimaryFailureAsync();
-            throw new InvalidOperationException(InitializationFailureMessage);
+            var failure = new InvalidOperationException(InitializationFailureMessage);
+            if (!await TryDropAfterPrimaryFailureAsync())
+                failure.Data[CleanupDiagnosticKey] = CleanupDiagnosticValue;
+            throw failure;
         }
     }
 
@@ -108,6 +119,8 @@ public sealed class PostgresMigrationTestFixture : IAsyncLifetime
         finally
         {
             _connectionString = null;
+            _sourceConnectionString = null;
+            _disposableConnectionString = null;
             _maintenanceConnectionString = null;
             _ownedDatabase = null;
             _primaryFailureOccurred = false;
@@ -156,13 +169,13 @@ public sealed class PostgresMigrationTestFixture : IAsyncLifetime
     /// <summary>Fails closed unless cleanup targets the exact valid fixture-owned name.</summary>
     internal static void ValidateCleanupTarget(string ownedDatabase, string targetDatabase)
     {
-        ValidateGeneratedName(ownedDatabase);
-        ValidateGeneratedName(targetDatabase);
+        ValidateGeneratedDatabaseName(ownedDatabase);
+        ValidateGeneratedDatabaseName(targetDatabase);
         if (!string.Equals(ownedDatabase, targetDatabase, StringComparison.Ordinal))
             throw new InvalidOperationException("Migration fixture cleanup target is not owned by this fixture.");
     }
 
-    private static void ValidateSource(NpgsqlConnectionStringBuilder source)
+    internal static void ValidatePersistentSource(NpgsqlConnectionStringBuilder source)
     {
         if (!string.Equals(source.Database, PersistentDatabase, StringComparison.Ordinal))
             throw new InvalidOperationException($"{ConnectionVariable} must name exactly {PersistentDatabase}.");
@@ -170,7 +183,7 @@ public sealed class PostgresMigrationTestFixture : IAsyncLifetime
             throw new InvalidOperationException("The PostgreSQL test connection must identify an expected server and port.");
     }
 
-    private static void ValidateGeneratedName(string databaseName)
+    internal static void ValidateGeneratedDatabaseName(string databaseName)
     {
         if (!databaseName.StartsWith(DatabasePrefix, StringComparison.Ordinal)
             || databaseName.Length != DatabasePrefix.Length + 32
@@ -179,10 +192,10 @@ public sealed class PostgresMigrationTestFixture : IAsyncLifetime
             throw new InvalidOperationException("Migration fixture database name failed its safety guard.");
     }
 
-    private async Task TryDropAfterPrimaryFailureAsync()
+    private async Task<bool> TryDropAfterPrimaryFailureAsync()
     {
-        try { await DropOwnedDatabaseAsync(CancellationToken.None); }
-        catch (Exception) { }
+        try { await DropOwnedDatabaseAsync(CancellationToken.None); return true; }
+        catch (Exception) { return false; }
     }
 
     private async Task DropOwnedDatabaseAsync(CancellationToken cancellationToken)
@@ -191,7 +204,7 @@ public sealed class PostgresMigrationTestFixture : IAsyncLifetime
         var target = _ownedDatabase;
         ValidateCleanupTarget(_ownedDatabase, target);
         await _operations.DropDatabaseAsync(
-            _maintenanceConnectionString, target, _connectionString, cancellationToken);
+            _sourceConnectionString!, _maintenanceConnectionString, target, _disposableConnectionString!, cancellationToken);
         _connectionString = null;
         _ownedDatabase = null;
     }
@@ -201,9 +214,11 @@ public sealed class PostgresMigrationTestFixture : IAsyncLifetime
 internal interface IPostgresMigrationDatabaseOperations
 {
     Task ValidateServerAsync(string connectionString, CancellationToken cancellationToken);
-    Task CreateDatabaseAsync(string maintenanceConnectionString, string databaseName, CancellationToken cancellationToken);
+    Task CreateDatabaseAsync(string sourceConnectionString, string maintenanceConnectionString,
+        string databaseName, CancellationToken cancellationToken);
     Task MigrateAsync(string connectionString, CancellationToken cancellationToken);
-    Task DropDatabaseAsync(string maintenanceConnectionString, string databaseName, string? disposableConnectionString, CancellationToken cancellationToken);
+    Task DropDatabaseAsync(string sourceConnectionString, string maintenanceConnectionString,
+        string ownedDatabase, string disposableConnectionString, CancellationToken cancellationToken);
 }
 
 /// <summary>Performs guarded PostgreSQL administrative work for the disposable fixture.</summary>
@@ -221,8 +236,10 @@ internal sealed class NpgsqlMigrationDatabaseOperations : IPostgresMigrationData
             throw new InvalidOperationException("Unexpected PostgreSQL test server.");
     }
 
-    public async Task CreateDatabaseAsync(string maintenanceConnectionString, string databaseName, CancellationToken cancellationToken)
+    public async Task CreateDatabaseAsync(string sourceConnectionString, string maintenanceConnectionString,
+        string databaseName, CancellationToken cancellationToken)
     {
+        ValidateMutationBoundary(sourceConnectionString, maintenanceConnectionString, databaseName);
         await using var connection = new NpgsqlConnection(maintenanceConnectionString);
         await connection.OpenAsync(cancellationToken);
         await using var command = connection.CreateCommand();
@@ -247,29 +264,50 @@ internal sealed class NpgsqlMigrationDatabaseOperations : IPostgresMigrationData
     }
 
     public async Task DropDatabaseAsync(
-        string maintenanceConnectionString, string databaseName, string? disposableConnectionString,
-        CancellationToken cancellationToken)
+        string sourceConnectionString, string maintenanceConnectionString, string ownedDatabase,
+        string disposableConnectionString, CancellationToken cancellationToken)
     {
-        if (disposableConnectionString is not null)
-            NpgsqlConnection.ClearPool(new NpgsqlConnection(disposableConnectionString));
+        ValidateMutationBoundary(sourceConnectionString, maintenanceConnectionString, ownedDatabase, disposableConnectionString);
+        NpgsqlConnection.ClearPool(new NpgsqlConnection(disposableConnectionString));
         await using var connection = new NpgsqlConnection(maintenanceConnectionString);
         await connection.OpenAsync(cancellationToken);
         await using (var terminate = connection.CreateCommand())
         {
             terminate.CommandText = "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = @database AND pid <> pg_backend_pid()";
-            terminate.Parameters.AddWithValue("database", databaseName);
+            terminate.Parameters.AddWithValue("database", ownedDatabase);
             await terminate.ExecuteNonQueryAsync(cancellationToken);
         }
         await using var drop = connection.CreateCommand();
-        drop.CommandText = $"DROP DATABASE IF EXISTS {QuoteIdentifier(databaseName)}";
+        drop.CommandText = $"DROP DATABASE IF EXISTS {QuoteIdentifier(ownedDatabase)}";
         await drop.ExecuteNonQueryAsync(cancellationToken);
+    }
+
+    private static void ValidateMutationBoundary(string sourceConnectionString,
+        string maintenanceConnectionString, string databaseName, string? disposableConnectionString = null)
+    {
+        PostgresMigrationTestFixture.ValidateGeneratedDatabaseName(databaseName);
+        var source = new NpgsqlConnectionStringBuilder(sourceConnectionString);
+        var maintenance = new NpgsqlConnectionStringBuilder(maintenanceConnectionString);
+        PostgresMigrationTestFixture.ValidatePersistentSource(source);
+        if (disposableConnectionString is not null)
+        {
+            var disposable = new NpgsqlConnectionStringBuilder(disposableConnectionString);
+            if (!string.Equals(disposable.Database, databaseName, StringComparison.Ordinal)
+                || !string.Equals(disposable.Host, source.Host, StringComparison.Ordinal)
+                || disposable.Port != source.Port)
+                throw new InvalidOperationException("Migration fixture disposable connection is not owned by this fixture.");
+        }
+        if (!string.Equals(maintenance.Database, "postgres", StringComparison.Ordinal)
+            || !string.Equals(maintenance.Host, source.Host, StringComparison.Ordinal)
+            || maintenance.Port != source.Port)
+            throw new InvalidOperationException("Migration fixture maintenance connection failed its safety guard.");
     }
 
     private static string QuoteIdentifier(string databaseName) => new NpgsqlCommandBuilder().QuoteIdentifier(databaseName);
 }
 
 /// <summary>Serializes tests sharing one disposable migration-history database.</summary>
-[CollectionDefinition(Name, DisableParallelization = true)]
+[CollectionDefinition(Name)]
 public sealed class PostgresMigrationTestCollection : ICollectionFixture<PostgresMigrationTestFixture>
 {
     /// <summary>Stable collection name for destructive migration-history tests.</summary>

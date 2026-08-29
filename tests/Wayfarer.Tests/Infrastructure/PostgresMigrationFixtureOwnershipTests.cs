@@ -124,10 +124,15 @@ public sealed class PostgresMigrationFixtureOwnershipTests
     public async Task CreateDatabaseAsync_RejectsInvalidDisposableNameBeforeMutation()
     {
         var operations = new NpgsqlMigrationDatabaseOperations();
+        const string source = "Host=fixture.test;Port=5432;Database=wayfarer_import_tests;Username=fixture";
+        const string maintenance = "Host=fixture.test;Port=5432;Database=postgres;Username=fixture";
+        const string invalid = "wayfarer_import_tests";
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => operations.CreateDatabaseAsync(
-            "Host=fixture.test;Port=5432;Database=postgres;Username=fixture",
-            "wayfarer_import_tests", CancellationToken.None));
+            source, maintenance, invalid, CancellationToken.None));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => operations.DropDatabaseAsync(
+            source, maintenance, invalid,
+            $"Host=fixture.test;Port=5432;Database={invalid};Username=fixture", CancellationToken.None));
     }
 
     /// <summary>Proves the final create seam rejects a non-maintenance database before database access.</summary>
@@ -135,22 +140,66 @@ public sealed class PostgresMigrationFixtureOwnershipTests
     public async Task CreateDatabaseAsync_RejectsInvalidMaintenanceDatabaseBeforeMutation()
     {
         var operations = new NpgsqlMigrationDatabaseOperations();
+        var owned = $"{PostgresMigrationTestFixture.DatabasePrefix}{Guid.NewGuid():N}";
+        const string source = "Host=fixture.test;Port=5432;Database=wayfarer_import_tests;Username=fixture";
+        const string maintenance = "Host=fixture.test;Port=5432;Database=wayfarer_import_tests;Username=fixture";
+        var disposable = $"Host=fixture.test;Port=5432;Database={owned};Username=fixture";
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => operations.CreateDatabaseAsync(
+            source, maintenance, owned, CancellationToken.None));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => operations.DropDatabaseAsync(
+            source, maintenance, owned, disposable, CancellationToken.None));
+    }
+
+    /// <summary>Proves altered maintenance endpoints fail before create or cleanup database access.</summary>
+    [Theory]
+    [InlineData("other.test", 5432)]
+    [InlineData("fixture.test", 5433)]
+    public async Task DatabaseMutations_RejectAlteredMaintenanceEndpointBeforeMutation(string host, int port)
+    {
+        var operations = new NpgsqlMigrationDatabaseOperations();
+        var owned = $"{PostgresMigrationTestFixture.DatabasePrefix}{Guid.NewGuid():N}";
+        const string source = "Host=fixture.test;Port=5432;Database=wayfarer_import_tests;Username=fixture";
+        var maintenance = $"Host={host};Port={port};Database=postgres;Username=fixture";
+        var disposable = $"Host=fixture.test;Port=5432;Database={owned};Username=fixture";
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            operations.CreateDatabaseAsync(source, maintenance, owned, CancellationToken.None));
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            operations.DropDatabaseAsync(source, maintenance, owned, disposable, CancellationToken.None));
+    }
+
+    /// <summary>Proves cleanup rejects a disposable connection that does not identify the owned database.</summary>
+    [Fact]
+    public async Task DropDatabaseAsync_RejectsAlteredOwnedDatabaseBeforeMutation()
+    {
+        var operations = new NpgsqlMigrationDatabaseOperations();
+        var owned = $"{PostgresMigrationTestFixture.DatabasePrefix}{Guid.NewGuid():N}";
+        var altered = $"{PostgresMigrationTestFixture.DatabasePrefix}{Guid.NewGuid():N}";
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => operations.DropDatabaseAsync(
             "Host=fixture.test;Port=5432;Database=wayfarer_import_tests;Username=fixture",
-            $"{PostgresMigrationTestFixture.DatabasePrefix}{Guid.NewGuid():N}", CancellationToken.None));
+            "Host=fixture.test;Port=5432;Database=postgres;Username=fixture", owned,
+            $"Host=fixture.test;Port=5432;Database={altered};Username=fixture", CancellationToken.None));
     }
 
     /// <summary>Proves cancellation remains primary while cleanup uses a non-cancelled path.</summary>
     [Fact]
     public async Task CancellationAfterOwnership_CleansOwnedDatabaseAndRemainsCancellation()
     {
-        var operations = new RecordingMigrationDatabaseOperations { MigrationFailure = new OperationCanceledException("raw cancellation") };
+        var operations = new RecordingMigrationDatabaseOperations
+        {
+            MigrationFailure = new OperationCanceledException("raw cancellation"),
+            CleanupFailure = new("password=secret; DROP DATABASE")
+        };
         await using var fixture = new PostgresMigrationTestFixture(operations);
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+        var failure = await Assert.ThrowsAnyAsync<OperationCanceledException>(
             () => fixture.InitializeAsync(new CancellationToken(canceled: true)));
 
+        Assert.DoesNotContain("raw cancellation", failure.Message, StringComparison.Ordinal);
+        Assert.Null(failure.InnerException);
+        Assert.Equal("Cleanup also failed.", failure.Data["PostgresMigrationCleanup"]);
         Assert.Equal([operations.CreatedDatabase], operations.CleanupTargets);
         Assert.All(operations.CleanupTokens, token => Assert.False(token.IsCancellationRequested));
     }
@@ -180,7 +229,8 @@ public sealed class PostgresMigrationFixtureOwnershipTests
 
         public Task ValidateServerAsync(string connectionString, CancellationToken cancellationToken) => Task.CompletedTask;
 
-        public Task CreateDatabaseAsync(string maintenanceConnectionString, string databaseName, CancellationToken cancellationToken)
+        public Task CreateDatabaseAsync(string sourceConnectionString, string maintenanceConnectionString,
+            string databaseName, CancellationToken cancellationToken)
         {
             CreateCount++;
             CreatedDatabase = databaseName;
@@ -191,8 +241,8 @@ public sealed class PostgresMigrationFixtureOwnershipTests
             MigrationFailure is null ? Task.CompletedTask : Task.FromException(MigrationFailure);
 
         public Task DropDatabaseAsync(
-            string maintenanceConnectionString, string databaseName, string? disposableConnectionString,
-            CancellationToken cancellationToken)
+            string sourceConnectionString, string maintenanceConnectionString, string databaseName,
+            string disposableConnectionString, CancellationToken cancellationToken)
         {
             CleanupTargets.Add(databaseName);
             CleanupTokens.Add(cancellationToken);

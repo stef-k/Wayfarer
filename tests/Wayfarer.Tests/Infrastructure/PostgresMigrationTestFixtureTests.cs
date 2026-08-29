@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Npgsql;
+using System.Runtime.ExceptionServices;
 using Xunit;
 
 namespace Wayfarer.Tests.Infrastructure;
@@ -42,14 +43,28 @@ public sealed class PostgresMigrationTestFixtureTests(PostgresMigrationTestFixtu
         fixture.RequireAvailable();
         await using var context = fixture.CreateContext();
         var migrator = context.GetService<IMigrator>();
+        Exception? primary = null;
 
-        for (var cycle = 0; cycle < 2; cycle++)
+        try
         {
-            await migrator.MigrateAsync(PreviousMigration);
-            await migrator.MigrateAsync();
-        }
+            for (var cycle = 0; cycle < 2; cycle++)
+            {
+                await migrator.MigrateAsync(PreviousMigration);
+                await migrator.MigrateAsync();
+            }
 
-        Assert.Empty(await context.Database.GetPendingMigrationsAsync());
+            Assert.Empty(await context.Database.GetPendingMigrationsAsync());
+        }
+        catch (Exception failure) { primary = failure; }
+        finally
+        {
+            try { await migrator.MigrateAsync(); }
+            catch when (primary is not null)
+            {
+                primary.Data["PostgresMigrationRestore"] = "Latest migration restoration also failed.";
+            }
+        }
+        if (primary is not null) ExceptionDispatchInfo.Capture(primary).Throw();
     }
 
     /// <summary>Proves disposable migration cycles cannot alter persistent migration or attribute history.</summary>
@@ -60,10 +75,24 @@ public sealed class PostgresMigrationTestFixtureTests(PostgresMigrationTestFixtu
         fixture.RequireAvailable();
         await using var context = fixture.CreateContext();
         var migrator = context.GetService<IMigrator>();
-        await migrator.MigrateAsync(PreviousMigration);
-        await migrator.MigrateAsync();
+        Exception? primary = null;
 
-        Assert.Equal(before, await ReadPersistentSnapshotAsync());
+        try
+        {
+            await migrator.MigrateAsync(PreviousMigration);
+            await migrator.MigrateAsync();
+            Assert.Equal(before, await ReadPersistentSnapshotAsync());
+        }
+        catch (Exception failure) { primary = failure; }
+        finally
+        {
+            try { await migrator.MigrateAsync(); }
+            catch when (primary is not null)
+            {
+                primary.Data["PostgresMigrationRestore"] = "Latest migration restoration also failed.";
+            }
+        }
+        if (primary is not null) ExceptionDispatchInfo.Capture(primary).Throw();
     }
 
     /// <summary>Proves cleanup fails closed when its target is not the fixture-owned database.</summary>
