@@ -339,6 +339,7 @@ function normalize(value: string): string {
           <MapSearchControl
             v-if="mobileDrawerActive && !isMapWorkActive"
             :active-target="editorSurface.activeTarget.value"
+            :antiforgery-token="antiforgeryToken"
             :completed-add-request-id="completedSearchAddRequestId ?? null"
             :editor-endpoint="editorEndpoint"
             :state="state"

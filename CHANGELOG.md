@@ -3,6 +3,7 @@
 ## Unreleased
 
 ### Added
+- Added explicit-submit Trip Editor place search through a user's active personal Geoapify authority, sharing the existing geocoding-credit allowance, using free authority-bound cache hits, and falling back to attributed public Nominatim only for no/Mapbox selection or exhausted Geoapify allowance while invalid active authority fails closed (#526).
 - Added an explicit resumable per-user missing-address workflow with durable controls, bounded retries, exact provider-budget wakes, restart reconciliation, and authenticated content-free progress (#507).
 - Added provider-aware import-page presentation with ledger-derived usage, exact runnable/future/permanent work counts, accessible state-specific controls, and content-free coalesced reload hints (#512).
 - Added optional provider-returned named feature metadata for reverse-geocoded Locations and Trip Places, displayed separately while preserving retained addresses and user-authored labels; this is not nearby-place discovery (#518).

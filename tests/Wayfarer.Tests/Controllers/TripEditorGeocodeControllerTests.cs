@@ -19,12 +19,26 @@ namespace Wayfarer.Tests.Controllers;
 public sealed class TripEditorGeocodeControllerTests : TestBase
 {
     [Fact]
+    public void SearchGeocodeUsesAntiforgeryProtectedPost()
+    {
+        var method = typeof(TripEditorController).GetMethod(nameof(TripEditorController.SearchGeocode));
+
+        Assert.NotNull(method);
+        Assert.NotNull(method!.GetCustomAttributes(typeof(HttpPostAttribute), inherit: true).SingleOrDefault());
+        Assert.NotNull(method.GetCustomAttributes(typeof(ValidateAntiForgeryTokenAttribute), inherit: true).SingleOrDefault());
+        var sizeLimit = Assert.Single(method.GetCustomAttributes(typeof(RequestSizeLimitAttribute), inherit: true));
+        Assert.Equal(1024, ((Microsoft.AspNetCore.Http.Metadata.IRequestSizeLimitMetadata)sizeLimit).MaxRequestBodySize);
+        Assert.Empty(method.GetCustomAttributes(typeof(HttpGetAttribute), inherit: true));
+    }
+
+    [Fact]
     public async Task SearchGeocodeRequiresAuthenticatedEditorUser()
     {
         using var db = CreateDbContext();
         var controller = BuildController(db, new FakeGeocodeSearchService());
 
-        var result = await controller.SearchGeocode(Guid.NewGuid(), "athens", null, CancellationToken.None);
+        SetSearchBody(controller, "athens", null);
+        var result = await controller.SearchGeocode(Guid.NewGuid(), CancellationToken.None);
 
         Assert.IsType<UnauthorizedResult>(result);
     }
@@ -37,7 +51,8 @@ public sealed class TripEditorGeocodeControllerTests : TestBase
         var controller = BuildController(db, new FakeGeocodeSearchService());
         ConfigureControllerWithUserRole(controller, "other-user");
 
-        var result = await controller.SearchGeocode(trip.Id, "athens", null, CancellationToken.None);
+        SetSearchBody(controller, "athens", null);
+        var result = await controller.SearchGeocode(trip.Id, CancellationToken.None);
 
         var status = Assert.IsType<StatusCodeResult>(result);
         Assert.Equal(StatusCodes.Status403Forbidden, status.StatusCode);
@@ -54,7 +69,8 @@ public sealed class TripEditorGeocodeControllerTests : TestBase
         var controller = BuildController(db, new FakeGeocodeSearchService());
         ConfigureControllerWithUserRole(controller, "owner-user");
 
-        var result = await controller.SearchGeocode(trip.Id, query, null, CancellationToken.None);
+        SetSearchBody(controller, query, null);
+        var result = await controller.SearchGeocode(trip.Id, CancellationToken.None);
 
         Assert.Contains("q", AssertValidationProblem(result).Errors.Keys);
     }
@@ -67,7 +83,8 @@ public sealed class TripEditorGeocodeControllerTests : TestBase
         var controller = BuildController(db, new FakeGeocodeSearchService());
         ConfigureControllerWithUserRole(controller, "owner-user");
 
-        var result = await controller.SearchGeocode(trip.Id, "ab", null, CancellationToken.None);
+        SetSearchBody(controller, "ab", null);
+        var result = await controller.SearchGeocode(trip.Id, CancellationToken.None);
 
         Assert.Contains("q", AssertValidationProblem(result).Errors.Keys);
     }
@@ -80,13 +97,19 @@ public sealed class TripEditorGeocodeControllerTests : TestBase
         var controller = BuildController(db, new FakeGeocodeSearchService());
         ConfigureControllerWithUserRole(controller, "owner-user");
 
-        var result = await controller.SearchGeocode(trip.Id, "athens", 0, CancellationToken.None);
+        SetSearchBody(controller, "athens", 0);
+        var result = await controller.SearchGeocode(trip.Id, CancellationToken.None);
 
         Assert.Contains("limit", AssertValidationProblem(result).Errors.Keys);
     }
 
-    [Fact]
-    public async Task SearchGeocodeClampsLimitToEditorLimit()
+    [Theory]
+    [InlineData(null, 6)]
+    [InlineData(1, 1)]
+    [InlineData(6, 6)]
+    [InlineData(7, 6)]
+    [InlineData(int.MaxValue, 6)]
+    public async Task SearchGeocodeNormalizesLimitBeforeServiceInvocation(int? requestedLimit, int expectedLimit)
     {
         using var db = CreateDbContext();
         var trip = SeedTrip(db, "owner-user");
@@ -94,10 +117,30 @@ public sealed class TripEditorGeocodeControllerTests : TestBase
         var controller = BuildController(db, service);
         ConfigureControllerWithUserRole(controller, "owner-user");
 
-        var result = await controller.SearchGeocode(trip.Id, "athens", 99, CancellationToken.None);
+        SetSearchBody(controller, "athens", requestedLimit);
+        var result = await controller.SearchGeocode(trip.Id, CancellationToken.None);
 
         Assert.IsType<OkObjectResult>(result);
-        Assert.Equal(6, service.LastLimit);
+        Assert.Equal(1, service.CallCount);
+        Assert.Equal(expectedLimit, service.LastLimit);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public async Task SearchGeocodeRejectsLimitBelowMinimumBeforeServiceInvocation(int requestedLimit)
+    {
+        using var db = CreateDbContext();
+        var trip = SeedTrip(db, "owner-user");
+        var service = new FakeGeocodeSearchService();
+        var controller = BuildController(db, service);
+        ConfigureControllerWithUserRole(controller, "owner-user");
+
+        SetSearchBody(controller, "athens", requestedLimit);
+        var result = await controller.SearchGeocode(trip.Id, CancellationToken.None);
+
+        Assert.Contains("limit", AssertValidationProblem(result).Errors.Keys);
+        Assert.Equal(0, service.CallCount);
     }
 
     [Fact]
@@ -112,7 +155,8 @@ public sealed class TripEditorGeocodeControllerTests : TestBase
         var controller = BuildController(db, service);
         ConfigureControllerWithUserRole(controller, "owner-user");
 
-        var result = await controller.SearchGeocode(trip.Id, "missing", null, CancellationToken.None);
+        SetSearchBody(controller, "missing", null);
+        var result = await controller.SearchGeocode(trip.Id, CancellationToken.None);
 
         var response = Assert.IsType<EditorGeocodeSearchResponseDto>(Assert.IsType<OkObjectResult>(result).Value);
         Assert.Empty(response.Results);
@@ -133,7 +177,8 @@ public sealed class TripEditorGeocodeControllerTests : TestBase
         var controller = BuildController(db, service);
         ConfigureControllerWithUserRole(controller, "owner-user");
 
-        var result = await controller.SearchGeocode(trip.Id, "athens", null, CancellationToken.None);
+        SetSearchBody(controller, "athens", null);
+        var result = await controller.SearchGeocode(trip.Id, CancellationToken.None);
 
         var status = Assert.IsType<StatusCodeResult>(result);
         Assert.Equal(expectedStatus, status.StatusCode);
@@ -149,7 +194,8 @@ public sealed class TripEditorGeocodeControllerTests : TestBase
         var controller = BuildController(db, service);
         ConfigureControllerWithUserRole(controller, "owner-user");
 
-        await Assert.ThrowsAsync<TaskCanceledException>(() => controller.SearchGeocode(trip.Id, "athens", null, cancellation.Token));
+        SetSearchBody(controller, "athens", null);
+        await Assert.ThrowsAsync<TaskCanceledException>(() => controller.SearchGeocode(trip.Id, cancellation.Token));
     }
 
     private static TripEditorController BuildController(ApplicationDbContext db, ITripEditorGeocodeSearchService geocodeSearch)
@@ -178,6 +224,13 @@ public sealed class TripEditorGeocodeControllerTests : TestBase
         };
     }
 
+    private static void SetSearchBody(ControllerBase controller, string? query, int? limit)
+    {
+        controller.ControllerContext.HttpContext ??= new DefaultHttpContext();
+        var json = System.Text.Json.JsonSerializer.Serialize(new { query, limit });
+        controller.Request.Body = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(json));
+    }
+
     private static ValidationProblemDetails AssertValidationProblem(IActionResult result)
     {
         var badRequest = Assert.IsType<BadRequestObjectResult>(result);
@@ -196,6 +249,7 @@ public sealed class TripEditorGeocodeControllerTests : TestBase
     private sealed class FakeGeocodeSearchService : ITripEditorGeocodeSearchService
     {
         public int LastLimit { get; private set; }
+        public int CallCount { get; private set; }
 
         public TripEditorGeocodeSearchOutcome Outcome { get; init; } =
             TripEditorGeocodeSearchOutcome.Success(new EditorGeocodeSearchResponseDto("athens", "Data source", new[]
@@ -203,8 +257,9 @@ public sealed class TripEditorGeocodeControllerTests : TestBase
                 new EditorGeocodeSearchResultDto("nominatim:1", "nominatim", "Athens", "Athens, Greece", "Greece", "place", "city", 37.9838, 23.7275)
             }));
 
-        public Task<TripEditorGeocodeSearchOutcome> SearchAsync(string query, int limit, CancellationToken cancellationToken)
+        public Task<TripEditorGeocodeSearchOutcome> SearchAsync(string userId, string query, int limit, CancellationToken cancellationToken)
         {
+            CallCount += 1;
             LastLimit = limit;
             return Task.FromResult(Outcome);
         }
@@ -219,7 +274,7 @@ public sealed class TripEditorGeocodeControllerTests : TestBase
             _cancellation = cancellation;
         }
 
-        public Task<TripEditorGeocodeSearchOutcome> SearchAsync(string query, int limit, CancellationToken cancellationToken)
+        public Task<TripEditorGeocodeSearchOutcome> SearchAsync(string userId, string query, int limit, CancellationToken cancellationToken)
         {
             _cancellation.Cancel();
             throw new TaskCanceledException("Caller canceled geocode search.");

@@ -185,9 +185,52 @@ public sealed class TripEditorGeocodeSearchServiceTests
     }
 
     [Fact]
+    public async Task NominatimProviderBoundsCompleteIdentifiersAndPreservesDuplicateSuffixes()
+    {
+        var sourceId = new string('9', 512);
+        var provider = BuildNominatimProvider($$"""
+        [
+          {"place_id":"{{sourceId}}","display_name":"First","lat":"1","lon":"2"},
+          {"place_id":"{{sourceId}}","display_name":"Second","lat":"3","lon":"4"}
+        ]
+        """);
+
+        var result = await provider.SearchAsync("athens", 6, CancellationToken.None);
+        var items = result.Response!.Results;
+
+        Assert.All(items, item => Assert.InRange(item.Id.Length, 1, 256));
+        Assert.All(items, item => Assert.StartsWith("nominatim:", item.Id));
+        Assert.EndsWith(":2", items[1].Id);
+        Assert.NotEqual(items[0].Id, items[1].Id);
+    }
+
+    [Fact]
     public async Task NominatimProviderMapsMalformedPayload()
     {
         var provider = BuildNominatimProvider("""{ "not": "an array" }""");
+
+        var result = await provider.SearchAsync("athens", 6, CancellationToken.None);
+
+        Assert.Equal(TripEditorGeocodeProviderStatus.Malformed, result.Status);
+    }
+
+    [Fact]
+    public async Task NominatimProviderRejectsNonObjectResult()
+    {
+        var provider = BuildNominatimProvider("[9]");
+
+        var result = await provider.SearchAsync("athens", 6, CancellationToken.None);
+
+        Assert.Equal(TripEditorGeocodeProviderStatus.Malformed, result.Status);
+    }
+
+    [Fact]
+    public async Task NominatimProviderRejectsOversizedBodyWithoutContentLength()
+    {
+        var content = new StreamContent(new MemoryStream(Encoding.UTF8.GetBytes(new string('x', 256 * 1024 + 1))));
+        content.Headers.ContentLength = null;
+        var provider = new NominatimTripEditorGeocodeProvider(
+            new HttpClient(new ContentHandler(content)), Options.Create(new TripEditorGeocodeOptions()));
 
         var result = await provider.SearchAsync("athens", 6, CancellationToken.None);
 
@@ -295,5 +338,11 @@ public sealed class TripEditorGeocodeSearchServiceTests
             _cancellation.Cancel();
             throw new TaskCanceledException("Caller canceled request.");
         }
+    }
+
+    private sealed class ContentHandler(HttpContent content) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+            Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = content });
     }
 }

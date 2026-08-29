@@ -30,6 +30,8 @@ Trips are **private by default**; you can make them public to share with others.
 
 ## Regions and Places
 
+Trip Editor map search runs only when you explicitly submit the search form; it does not search while you type. A current active personal Geoapify geocoding selection supplies attributed results when its shared allowance permits, while the disclosed public Nominatim fallback covers no selection, Mapbox selection, or exhausted Geoapify allowance. Manual Place entry remains available.
+
 - Add a **Region** to organize related places.
 - Add **Places** as points with:
   - Coordinates (lat/lon)

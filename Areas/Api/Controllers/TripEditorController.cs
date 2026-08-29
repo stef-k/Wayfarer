@@ -318,8 +318,10 @@ public sealed partial class TripEditorController : ControllerBase
     /// <summary>
     /// Searches public geocoding through the authenticated Trip Editor backend proxy.
     /// </summary>
-    [HttpGet("geocode/search")]
-    public async Task<IActionResult> SearchGeocode(Guid tripId, [FromQuery(Name = "q")] string? query, [FromQuery] int? limit, CancellationToken cancellationToken)
+    [HttpPost("geocode/search")]
+    [ValidateAntiForgeryToken]
+    [RequestSizeLimit(1024)]
+    public async Task<IActionResult> SearchGeocode(Guid tripId, CancellationToken cancellationToken)
     {
         var authFailure = RequireEditorUser(out var userId);
         if (authFailure != null)
@@ -342,8 +344,19 @@ public sealed partial class TripEditorController : ControllerBase
             return StatusCode(StatusCodes.Status403Forbidden);
         }
 
-        var normalizedQuery = query?.Trim() ?? string.Empty;
-        var validationErrors = ValidateGeocodeSearch(normalizedQuery, limit, BuildOptions().Limits.NominatimSearchLimit, out var clampedLimit);
+        EditorGeocodeSearchRequestDto? request;
+        try
+        {
+            request = await JsonSerializer.DeserializeAsync<EditorGeocodeSearchRequestDto>(
+                Request.Body, new JsonSerializerOptions(JsonSerializerDefaults.Web), cancellationToken);
+        }
+        catch (JsonException)
+        {
+            return ValidationError(new Dictionary<string, string[]> { ["request"] = new[] { "Search request must be valid JSON." } });
+        }
+
+        var normalizedQuery = NormalizeGeocodeQuery(request?.Query);
+        var validationErrors = ValidateGeocodeSearch(normalizedQuery, request?.Limit, BuildOptions().Limits.NominatimSearchLimit, out var clampedLimit);
         if (validationErrors.Count > 0)
         {
             return ValidationError(validationErrors);
@@ -354,7 +367,7 @@ public sealed partial class TripEditorController : ControllerBase
             return StatusCode(StatusCodes.Status503ServiceUnavailable);
         }
 
-        var outcome = await _geocodeSearch.SearchAsync(normalizedQuery, clampedLimit, cancellationToken);
+        var outcome = await _geocodeSearch.SearchAsync(userId!, normalizedQuery, clampedLimit, cancellationToken);
         return outcome.Status switch
         {
             TripEditorGeocodeSearchStatus.Success => Ok(outcome.Response),
@@ -530,6 +543,10 @@ public sealed partial class TripEditorController : ControllerBase
         {
             errors["q"] = new[] { "Search query must be at least 3 characters." };
         }
+        else if (query.Length > 200)
+        {
+            errors["q"] = new[] { "Search query must be at most 200 characters." };
+        }
 
         if (limit.HasValue && limit.Value < 1)
         {
@@ -539,5 +556,8 @@ public sealed partial class TripEditorController : ControllerBase
         clampedLimit = Math.Clamp(limit ?? maxLimit, 1, maxLimit);
         return errors;
     }
+
+    private static string NormalizeGeocodeQuery(string? query) =>
+        string.Join(' ', (query ?? string.Empty).Trim().Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
 
 }

@@ -661,7 +661,7 @@ async function routeGeocode(page: Page): Promise<void> {
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
-        query: new URL(route.request().url()).searchParams.get('q') ?? '',
+        query: (route.request().postDataJSON() as { query: string }).query,
         attribution: 'Drawer search attribution',
         results: [{
           id: 'drawer:search-place',

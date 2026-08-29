@@ -605,6 +605,7 @@ function focusStatusText(result: FocusActiveEntityResult, target: { kind: string
         <MapSearchControl
           v-if="!isMapWorkActive && !mobileDrawerActive"
           :active-target="activeEditorTarget"
+          :antiforgery-token="props.config.antiforgeryToken"
           :completed-add-request-id="completedSearchAddRequestId"
           :editor-endpoint="props.config.editorEndpoint"
           :state="state"

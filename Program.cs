@@ -510,6 +510,7 @@ static void ConfigureServices(WebApplicationBuilder builder)
     builder.Services.AddScoped<PersonalProviderCredentialService>();
     builder.Services.AddScoped<LegacyMapboxMigrationService>();
     builder.Services.AddScoped<PersonalProviderContactGate>();
+    builder.Services.AddScoped<IPersonalProviderContactGate>(sp => sp.GetRequiredService<PersonalProviderContactGate>());
     builder.Services.AddScoped<IPersonalProviderStatusReader, PersonalProviderStatusReader>();
     builder.Services.AddScoped<GeoapifyLocationBackfillService>();
     builder.Services.AddScoped<LocationEnrichmentExecutionAuthority>();

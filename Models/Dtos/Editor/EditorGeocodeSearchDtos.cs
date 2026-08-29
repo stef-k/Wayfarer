@@ -1,5 +1,8 @@
 namespace Wayfarer.Models.Dtos.Editor;
 
+/// <summary>Bounded same-origin request for an explicit Trip Editor map search.</summary>
+public sealed record EditorGeocodeSearchRequestDto(string? Query, int? Limit);
+
 /// <summary>
 /// Search response returned by the Trip Editor geocode proxy.
 /// </summary>
