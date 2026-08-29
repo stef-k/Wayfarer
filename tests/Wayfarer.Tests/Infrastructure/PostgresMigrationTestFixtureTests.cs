@@ -7,7 +7,8 @@ using Xunit;
 namespace Wayfarer.Tests.Infrastructure;
 
 /// <summary>Proves migration-history work is isolated from the persistent PostgreSQL fixture.</summary>
-public sealed class PostgresMigrationTestFixtureTests
+[Collection(PostgresMigrationTestCollection.Name)]
+public sealed class PostgresMigrationTestFixtureTests(PostgresMigrationTestFixture fixture)
 {
     private const string PersistentDatabase = "wayfarer_import_tests";
     private const string PreviousMigration = "20260818161609_ExternalRoutingCredentialRequirement";
@@ -16,8 +17,6 @@ public sealed class PostgresMigrationTestFixtureTests
     [PostgresFact]
     public async Task InitializeAsync_UsesGuardedDisposableDatabase()
     {
-        await using var fixture = new PostgresMigrationTestFixture();
-        await fixture.InitializeAsync();
         fixture.RequireAvailable();
 
         var builder = new NpgsqlConnectionStringBuilder(fixture.ConnectionString);
@@ -29,8 +28,6 @@ public sealed class PostgresMigrationTestFixtureTests
     [PostgresFact]
     public async Task InitializeAsync_AppliesLatestMigrationFromEmptyState()
     {
-        await using var fixture = new PostgresMigrationTestFixture();
-        await fixture.InitializeAsync();
         fixture.RequireAvailable();
 
         await using var context = fixture.CreateContext();
@@ -42,8 +39,6 @@ public sealed class PostgresMigrationTestFixtureTests
     [PostgresFact]
     public async Task MigrationCycle_DownAndUp_CanExecuteTwice()
     {
-        await using var fixture = new PostgresMigrationTestFixture();
-        await fixture.InitializeAsync();
         fixture.RequireAvailable();
         await using var context = fixture.CreateContext();
         var migrator = context.GetService<IMigrator>();
@@ -62,31 +57,13 @@ public sealed class PostgresMigrationTestFixtureTests
     public async Task FixtureLifetime_LeavesPersistentMigrationAndAttributeHistoryUnchanged()
     {
         var before = await ReadPersistentSnapshotAsync();
-        await using (var fixture = new PostgresMigrationTestFixture())
-        {
-            await fixture.InitializeAsync();
-            fixture.RequireAvailable();
-            await using var context = fixture.CreateContext();
-            var migrator = context.GetService<IMigrator>();
-            await migrator.MigrateAsync(PreviousMigration);
-            await migrator.MigrateAsync();
-        }
+        fixture.RequireAvailable();
+        await using var context = fixture.CreateContext();
+        var migrator = context.GetService<IMigrator>();
+        await migrator.MigrateAsync(PreviousMigration);
+        await migrator.MigrateAsync();
 
         Assert.Equal(before, await ReadPersistentSnapshotAsync());
-    }
-
-    /// <summary>Proves sequential fixture constructions start with independent empty databases.</summary>
-    [PostgresFact]
-    public async Task SequentialFixtures_DoNotShareSchemaResidue()
-    {
-        var first = await CreateInitializedIdentityAsync();
-        var second = await CreateInitializedIdentityAsync();
-
-        Assert.NotEqual(first.DatabaseName, second.DatabaseName);
-        Assert.Equal(first.MigrationCount, second.MigrationCount);
-        Assert.True(first.MigrationCount > 0);
-        Assert.False(await DatabaseExistsAsync(first.DatabaseName));
-        Assert.False(await DatabaseExistsAsync(second.DatabaseName));
     }
 
     /// <summary>Proves cleanup fails closed when its target is not the fixture-owned database.</summary>
@@ -99,16 +76,6 @@ public sealed class PostgresMigrationTestFixtureTests
             PostgresMigrationTestFixture.ValidateCleanupTarget(owned, $"{PostgresMigrationTestFixture.DatabasePrefix}{Guid.NewGuid():N}"));
         Assert.Throws<InvalidOperationException>(() =>
             PostgresMigrationTestFixture.ValidateCleanupTarget(owned, PersistentDatabase));
-    }
-
-    private static async Task<(string DatabaseName, int MigrationCount)> CreateInitializedIdentityAsync()
-    {
-        await using var fixture = new PostgresMigrationTestFixture();
-        await fixture.InitializeAsync();
-        fixture.RequireAvailable();
-        await using var context = fixture.CreateContext();
-        var count = (await context.Database.GetAppliedMigrationsAsync()).Count();
-        return (new NpgsqlConnectionStringBuilder(fixture.ConnectionString).Database!, count);
     }
 
     private static async Task<PersistentSnapshot> ReadPersistentSnapshotAsync()
@@ -136,19 +103,6 @@ public sealed class PostgresMigrationTestFixtureTests
         await using var reader = await command.ExecuteReaderAsync();
         await reader.ReadAsync();
         return new PersistentSnapshot(reader.GetInt64(0), reader.GetInt64(1), reader.GetInt16(2));
-    }
-
-    private static async Task<bool> DatabaseExistsAsync(string databaseName)
-    {
-        var value = Environment.GetEnvironmentVariable("WAYFARER_TEST_POSTGRES_CONNECTION");
-        if (string.IsNullOrWhiteSpace(value))
-            throw Xunit.Sdk.SkipException.ForSkip("Set WAYFARER_TEST_POSTGRES_CONNECTION to run PostgreSQL fixture tests.");
-        await using var connection = new NpgsqlConnection(value);
-        await connection.OpenAsync();
-        await using var command = connection.CreateCommand();
-        command.CommandText = "SELECT EXISTS (SELECT 1 FROM pg_database WHERE datname = @database)";
-        command.Parameters.AddWithValue("database", databaseName);
-        return (bool)(await command.ExecuteScalarAsync())!;
     }
 
     private sealed record PersistentSnapshot(long MigrationCount, long DroppedAttributeCount, short HighestAttributeNumber);

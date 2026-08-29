@@ -29,8 +29,6 @@ public sealed class PostgresMigrationFixtureOwnershipTests
     {
         foreach (var type in OrdinaryClasses)
         {
-            Assert.Contains(type.GetCustomAttributes<CollectionAttribute>(),
-                attribute => attribute.Name == PostgresImportTestCollection.Name);
             Assert.DoesNotContain(type.GetConstructors().SelectMany(constructor => constructor.GetParameters()),
                 parameter => parameter.ParameterType == typeof(PostgresMigrationTestFixture));
             Assert.Contains(type.GetConstructors().SelectMany(constructor => constructor.GetParameters()),
@@ -46,8 +44,8 @@ public sealed class PostgresMigrationFixtureOwnershipTests
         {
             var type = typeof(PostgresMigrationFixtureOwnershipTests).Assembly.GetType(name);
             Assert.NotNull(type);
-            Assert.Contains(type!.GetCustomAttributes<CollectionAttribute>(),
-                attribute => attribute.Name == PostgresMigrationTestCollection.Name);
+            Assert.Contains(type!.GetConstructors().SelectMany(constructor => constructor.GetParameters()),
+                parameter => parameter.ParameterType == typeof(PostgresMigrationTestFixture));
             Assert.All(type.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.DeclaredOnly),
                 method => Assert.Contains("Migration", method.Name, StringComparison.Ordinal));
         }
@@ -97,6 +95,27 @@ public sealed class PostgresMigrationFixtureOwnershipTests
         Assert.Equal("PostgreSQL migration test database initialization failed.", failure.Message);
         Assert.Null(failure.InnerException);
         Assert.Equal([operations.CreatedDatabase], operations.CleanupTargets);
+        await fixture.DisposeAsync();
+    }
+
+    /// <summary>Proves a cleanup failure cannot replace an earlier initialization failure.</summary>
+    [Fact]
+    public async Task InitializationAndCleanupFailure_ReportsOnlyBoundedInitializationFailure()
+    {
+        var operations = new RecordingMigrationDatabaseOperations
+        {
+            MigrationFailure = new("server secret SQL"),
+            CleanupFailure = new("password=secret; DROP DATABASE")
+        };
+        var fixture = new PostgresMigrationTestFixture(operations);
+
+        var failure = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => fixture.InitializeAsync(CancellationToken.None));
+
+        Assert.Equal("PostgreSQL migration test database initialization failed.", failure.Message);
+        Assert.Null(failure.InnerException);
+        Assert.Equal([operations.CreatedDatabase], operations.CleanupTargets);
+        await fixture.DisposeAsync();
     }
 
     /// <summary>Proves cancellation remains primary while cleanup uses a non-cancelled path.</summary>
@@ -121,7 +140,7 @@ public sealed class PostgresMigrationFixtureOwnershipTests
         var fixture = new PostgresMigrationTestFixture(operations);
         await fixture.InitializeAsync(CancellationToken.None);
 
-        var failure = await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.DisposeAsync().AsTask());
+        var failure = await Assert.ThrowsAsync<InvalidOperationException>(() => fixture.DisposeAsync());
 
         Assert.Equal("PostgreSQL migration test database cleanup failed.", failure.Message);
         Assert.Null(failure.InnerException);

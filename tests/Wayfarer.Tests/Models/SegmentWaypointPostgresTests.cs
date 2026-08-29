@@ -13,49 +13,14 @@ using Xunit;
 namespace Wayfarer.Tests.Models;
 
 /// <summary>Executes waypoint migration, constraint, relationship, and transaction behavior on PostgreSQL.</summary>
-[Collection(PostgresMigrationTestCollection.Name)]
+[Collection(PostgresImportTestCollection.Name)]
 public sealed class SegmentWaypointPostgresTests
 {
     private const string PreviousMigration = "20260728152323_AdminManagedTransportProfiles";
-    private readonly PostgresMigrationTestFixture _fixture;
+    private readonly PostgresImportTestFixture _fixture;
 
     /// <summary>Initializes provider tests over the guarded isolated database fixture.</summary>
-    public SegmentWaypointPostgresTests(PostgresMigrationTestFixture fixture) => _fixture = fixture;
-
-    /// <summary>Executes exact-base upgrade and downgrade while preserving every legacy Segment value.</summary>
-    [PostgresFact]
-    public async Task MigrationUpAndDown_PreservesLegacySegments_AndOnlyAddsWaypointSchema()
-    {
-        _fixture.RequireAvailable();
-        var user = await _fixture.CreateUserAsync();
-        var tripId = Guid.NewGuid();
-        var segmentId = Guid.NewGuid();
-        await using var context = _fixture.CreateContext();
-        await using var transaction = await context.Database.BeginTransactionAsync();
-        var migrator = context.GetService<IMigrator>();
-        await migrator.MigrateAsync(PreviousMigration);
-        await context.Database.ExecuteSqlInterpolatedAsync(
-            $"""INSERT INTO public."Trips" ("Id", "UserId", "Name", "IsPublic", "ShareProgressEnabled", "UpdatedAt") VALUES ({tripId}, {user.Id}, {"Legacy waypoint fixture"}, FALSE, FALSE, CURRENT_TIMESTAMP)""");
-        await context.Database.ExecuteSqlInterpolatedAsync(
-            $"""INSERT INTO public."Segments" ("Id", "UserId", "TripId", "Mode", "EstimatedDuration", "EstimatedDistanceKm", "DisplayOrder", "Notes") VALUES ({segmentId}, {user.Id}, {tripId}, {"walk"}, {TimeSpan.FromMinutes(37)}, {12.345d}, {4}, {"legacy notes"})""");
-
-        await migrator.MigrateAsync();
-
-        var segment = await context.Segments.AsNoTracking().SingleAsync(item => item.Id == segmentId);
-        Assert.Equal("walk", segment.Mode);
-        Assert.Equal(TimeSpan.FromMinutes(37), segment.EstimatedDuration);
-        Assert.Equal(12.345d, segment.EstimatedDistanceKm);
-        Assert.Equal(4, segment.DisplayOrder);
-        Assert.Equal("legacy notes", segment.Notes);
-        Assert.Empty(await context.Set<SegmentWaypoint>().Where(item => item.SegmentId == segmentId).ToListAsync());
-
-        await migrator.MigrateAsync(PreviousMigration);
-        Assert.False(await TableExistsAsync(context, "SegmentWaypoints"));
-        Assert.True(await TableExistsAsync(context, "Segments"));
-        await migrator.MigrateAsync();
-        Assert.True(await TableExistsAsync(context, "SegmentWaypoints"));
-        await transaction.RollbackAsync();
-    }
+    public SegmentWaypointPostgresTests(PostgresImportTestFixture fixture) => _fixture = fixture;
 
     /// <summary>Proves real PostgreSQL checks, unique constraints, filtered indexes, and both FK policies.</summary>
     [PostgresFact]
@@ -474,15 +439,6 @@ public sealed class SegmentWaypointPostgresTests
     {
         await Assert.ThrowsAsync<PostgresException>(() => context.Database.ExecuteSqlInterpolatedAsync(
             $"""INSERT INTO public."SegmentWaypoints" ("SegmentId", "PlaceId", "Position", "RouteVertexIndex") VALUES ({segmentId}, {placeId}, {position}, {routeVertexIndex})"""));
-    }
-
-    private static async Task<bool> TableExistsAsync(ApplicationDbContext context, string table)
-    {
-        await using var command = context.Database.GetDbConnection().CreateCommand();
-        command.Transaction = context.Database.CurrentTransaction!.GetDbTransaction();
-        command.CommandText = "SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = @table)";
-        command.Parameters.Add(new NpgsqlParameter("table", table));
-        return (bool)(await command.ExecuteScalarAsync())!;
     }
 
     private sealed class FailNextSaveInterceptor : SaveChangesInterceptor

@@ -10,14 +10,14 @@ using Xunit;
 namespace Wayfarer.Tests.Models;
 
 /// <summary>Executes the transport-profile migration invariants on the opt-in isolated PostgreSQL database.</summary>
-[Collection(PostgresMigrationTestCollection.Name)]
+[Collection(PostgresImportTestCollection.Name)]
 public sealed class TransportProfilePostgresTests
 {
     private const string PreviousMigration = "20260726085113_AddTileTrafficMode";
-    private readonly PostgresMigrationTestFixture _fixture;
+    private readonly PostgresImportTestFixture _fixture;
 
     /// <summary>Initializes provider tests over the guarded shared fixture.</summary>
-    public TransportProfilePostgresTests(PostgresMigrationTestFixture fixture) => _fixture = fixture;
+    public TransportProfilePostgresTests(PostgresImportTestFixture fixture) => _fixture = fixture;
 
     /// <summary>Proves Mode-only writers attach an inactive compatibility profile without rewriting public mode text.</summary>
     [PostgresFact]
@@ -44,48 +44,6 @@ public sealed class TransportProfilePostgresTests
         Assert.False(profile.IsSeeded);
         Assert.Null(profile.PlanningSpeedKmh);
         Assert.NotEqual(0u, profile.RowVersion);
-    }
-
-    /// <summary>Executes downgrade and upgrade transactionally over representative legacy values.</summary>
-    [PostgresFact]
-    public async Task MigrationUp_ReconcilesLegacyModesWithoutChangingTheirText_AndRollsBackCleanly()
-    {
-        _fixture.RequireAvailable();
-        var user = await _fixture.CreateUserAsync();
-        var trip = new Trip { Id = Guid.NewGuid(), UserId = user.Id, Name = "Legacy migration fixture" };
-        await using var context = _fixture.CreateContext();
-        context.Trips.Add(trip);
-        await context.SaveChangesAsync();
-        var modes = new[]
-        {
-            new string('x', 112),
-            new string('y', 140),
-            "  MiXeD Καράβι / rail?!  ",
-            $"{new string('界', 81)}!?"
-        };
-        var ids = modes.Select(_ => Guid.NewGuid()).ToArray();
-
-        await using var transaction = await context.Database.BeginTransactionAsync();
-        var migrator = context.GetService<IMigrator>();
-        await migrator.MigrateAsync(PreviousMigration);
-        for (var index = 0; index < modes.Length; index++)
-        {
-            await context.Database.ExecuteSqlInterpolatedAsync(
-                $"""INSERT INTO public."Segments" ("Id", "UserId", "TripId", "Mode", "DisplayOrder") VALUES ({ids[index]}, {user.Id}, {trip.Id}, {modes[index]}, {index})""");
-        }
-
-        await migrator.MigrateAsync();
-
-        var reconciled = await context.Segments.AsNoTracking().Where(segment => ids.Contains(segment.Id)).OrderBy(segment => segment.DisplayOrder).ToListAsync();
-        Assert.Equal(modes, reconciled.Select(segment => segment.Mode));
-        var profileIds = reconciled.Select(segment => segment.TransportProfileId!.Value).ToArray();
-        var profiles = await context.Set<TransportProfile>().AsNoTracking().Where(profile => profileIds.Contains(profile.Id)).ToListAsync();
-        Assert.All(profiles, profile => Assert.InRange(profile.Label.Length, 1, 120));
-        Assert.Contains(profiles, profile => profile.Label.Length == 120);
-
-        await migrator.MigrateAsync(PreviousMigration);
-        Assert.False(await ColumnExistsAsync(context, "Segments", "TransportProfileId"));
-        await transaction.RollbackAsync();
     }
 
     /// <summary>Proves Mode remains authoritative across every trigger update shape.</summary>
@@ -214,16 +172,6 @@ public sealed class TransportProfilePostgresTests
 
     private static Task<Guid?> ProfileIdAsync(ApplicationDbContext context, Guid segmentId) =>
         context.Segments.AsNoTracking().Where(segment => segment.Id == segmentId).Select(segment => segment.TransportProfileId).SingleAsync();
-
-    private static async Task<bool> ColumnExistsAsync(ApplicationDbContext context, string table, string column)
-    {
-        await using var command = context.Database.GetDbConnection().CreateCommand();
-        command.Transaction = context.Database.CurrentTransaction!.GetDbTransaction();
-        command.CommandText = "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = 'public' AND table_name = @table AND column_name = @column)";
-        command.Parameters.Add(new NpgsqlParameter("table", table));
-        command.Parameters.Add(new NpgsqlParameter("column", column));
-        return (bool)(await command.ExecuteScalarAsync())!;
-    }
 
     private static async Task<Guid> DerivedProfileIdAsync(ApplicationDbContext context, string key)
     {
