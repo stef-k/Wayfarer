@@ -19,6 +19,17 @@ namespace Wayfarer.Tests.Controllers;
 public sealed class TripEditorGeocodeControllerTests : TestBase
 {
     [Fact]
+    public void SearchGeocodeUsesAntiforgeryProtectedPost()
+    {
+        var method = typeof(TripEditorController).GetMethod(nameof(TripEditorController.SearchGeocode));
+
+        Assert.NotNull(method);
+        Assert.NotNull(method!.GetCustomAttributes(typeof(HttpPostAttribute), inherit: true).SingleOrDefault());
+        Assert.NotNull(method.GetCustomAttributes(typeof(ValidateAntiForgeryTokenAttribute), inherit: true).SingleOrDefault());
+        Assert.Empty(method.GetCustomAttributes(typeof(HttpGetAttribute), inherit: true));
+    }
+
+    [Fact]
     public async Task SearchGeocodeRequiresAuthenticatedEditorUser()
     {
         using var db = CreateDbContext();
