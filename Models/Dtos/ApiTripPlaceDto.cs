@@ -9,5 +9,9 @@ public class ApiTripPlaceDto
     public string? IconName { get; set; }
     public string? MarkerColor { get; set; }
     public string? Address { get; set; }
+    /// <summary>Optional detected feature name retained from reverse geocoding.</summary>
+    public string? ResolvedFeatureName { get; set; }
+    /// <summary>Optional normalized detected feature type.</summary>
+    public string? ResolvedFeatureType { get; set; }
     public double[]? Location { get; set; }  // [lon, lat]
 }

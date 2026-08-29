@@ -64,6 +64,57 @@ public sealed class WayfarerKmlParserTests
         Assert.Throws<FormatException>(() => Parse(kml));
     }
 
+    /// <summary>Preserves provenance written before optional feature metadata was added to native Trip KML.</summary>
+    [Fact]
+    public void ClassifyAndParse_LegacyMetadataFreePlace_PreservesProvenance()
+    {
+        var kml = $"""
+            <kml xmlns="http://www.opengis.net/kml/2.2"><Document><ExtendedData>
+            <Data name="TripId"><value>{Guid.NewGuid():D}</value></Data></ExtendedData>
+            <Folder><name>Region</name><ExtendedData><Data name="RegionId"><value>{Guid.NewGuid():D}</value></Data></ExtendedData>
+            <Placemark><name>Place</name><ExtendedData>
+            <Data name="PlaceId"><value>{Guid.NewGuid():D}</value></Data>
+            <Data name="AddressEnrichmentProvider"><value>geoapify</value></Data>
+            <Data name="AddressEnrichmentStorageMode"><value>persistent</value></Data>
+            <Data name="AddressEnrichedAt"><value>2026-08-28T12:00:00Z</value></Data>
+            </ExtendedData><Point><coordinates>22.2,40.1</coordinates></Point></Placemark></Folder>
+            </Document></kml>
+            """;
+
+        var place = Assert.Single(Assert.Single(Parse(kml).Document!.Regions).Places);
+
+        Assert.Equal((null, null, "geoapify", "persistent"),
+            (place.ResolvedFeatureName, place.ResolvedFeatureType,
+                place.AddressEnrichmentProvider, place.AddressEnrichmentStorageMode));
+    }
+
+    /// <summary>Rejects unauthenticated Mapbox feature metadata without discarding valid Place provenance.</summary>
+    [Fact]
+    public void ClassifyAndParse_MapboxFeatureMetadata_ClearsFeatureFieldsAndPreservesProvenance()
+    {
+        var kml = $"""
+            <kml xmlns="http://www.opengis.net/kml/2.2"><Document><ExtendedData>
+            <Data name="TripId"><value>{Guid.NewGuid():D}</value></Data></ExtendedData>
+            <Folder><name>Region</name><ExtendedData><Data name="RegionId"><value>{Guid.NewGuid():D}</value></Data></ExtendedData>
+            <Placemark><name>Place</name><ExtendedData>
+            <Data name="PlaceId"><value>{Guid.NewGuid():D}</value></Data>
+            <Data name="ResolvedFeatureName"><value>Supplied landmark</value></Data>
+            <Data name="ResolvedFeatureType"><value>building</value></Data>
+            <Data name="AddressEnrichmentProvider"><value>mapbox</value></Data>
+            <Data name="AddressEnrichmentStorageMode"><value>permanent</value></Data>
+            <Data name="AddressEnrichedAt"><value>2026-08-28T12:00:00Z</value></Data>
+            </ExtendedData><Point><coordinates>22.2,40.1</coordinates></Point></Placemark></Folder>
+            </Document></kml>
+            """;
+
+        var place = Assert.Single(Assert.Single(Parse(kml).Document!.Regions).Places);
+
+        Assert.Equal((null, null, "mapbox", "permanent"),
+            (place.ResolvedFeatureName, place.ResolvedFeatureType,
+                place.AddressEnrichmentProvider, place.AddressEnrichmentStorageMode));
+        Assert.Equal(new DateTimeOffset(2026, 8, 28, 12, 0, 0, TimeSpan.Zero), place.AddressEnrichedAt);
+    }
+
     private static (WayfarerKmlKind Kind, WayfarerKmlDocument? Document) Parse(string kml)
     {
         using var stream = new MemoryStream(Encoding.UTF8.GetBytes(kml));

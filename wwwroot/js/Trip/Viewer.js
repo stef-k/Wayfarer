@@ -3,8 +3,6 @@
  * -----------------------------------------------------------
  *  • region / place PNG markers
  *  • segment polylines  + visibility
- *  • sliding legend + sliding “details” pane
- *  • Google-Maps & Wikipedia helpers
  */
 
 import {
@@ -19,7 +17,8 @@ import {
     getSegmentPolyline,
     canvasRenderer
 } from './tripViewerHelpers.js';
-import {createViewerSegmentPresentationController} from './viewerSegmentPresentationController.js';
+
+import {createViewerSegmentPresentationController} from './viewerSegmentPresentationController.js'; import {encodeFeatureText} from '../util/feature-metadata.js';
 import {
     generateWikipediaLinkHtml,
     initWikipediaPopovers,
@@ -258,6 +257,7 @@ const init = () => {
             region: d.regionId,
             regionName: d.regionName,
             address: d.placeAddress,
+            resolvedFeatureName: d.placeResolvedFeatureName, resolvedFeatureType: d.placeResolvedFeatureType,
             notes,
             visitCount: parseInt(d.placeVisitCount, 10) || 0
         });
@@ -440,6 +440,7 @@ const init = () => {
     <p class="mb-1"><strong>Lat:</strong> ${(+d.placeLat).toFixed(5)}
        &nbsp;<strong>Lon:</strong> ${(+d.placeLon).toFixed(5)}</p>
     ${d.placeAddress ? `<p class="mb-1"><strong>Address:</strong> ${d.placeAddress}</p>` : ''}
+    ${d.placeResolvedFeatureName ? `<p class="mb-1"><strong>Detected place:</strong> ${encodeFeatureText(d.placeResolvedFeatureName)}</p>` : ''}${d.placeResolvedFeatureType ? `<p class="mb-1"><strong>Feature type:</strong> ${encodeFeatureText(d.placeResolvedFeatureType.charAt(0).toUpperCase() + d.placeResolvedFeatureType.slice(1))}</p>` : ''}
 
     ${!isHtmlEmpty(notesHtml) ? `
        <div class="border py-2 px-1 mt-3 rounded overflow-auto trip-notes rich-notes-content" >

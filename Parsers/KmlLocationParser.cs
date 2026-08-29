@@ -7,6 +7,7 @@ using System.Xml.Linq;
 using System.Xml;
 using Microsoft.Extensions.Logging;
 using Wayfarer.Models;
+using Wayfarer.Services.LocationProviders;
 using GeoPoint = NetTopologySuite.Geometries.Point;
 
 namespace Wayfarer.Parsers;
@@ -83,6 +84,12 @@ public sealed class KmlLocationParser : ILocationDataParser
             var place = ReadDataValue(extendedData, namespaceToUse, "Place");
             var region = ReadDataValue(extendedData, namespaceToUse, "Region");
             var country = ReadDataValue(extendedData, namespaceToUse, "Country");
+            var feature = ResolvedFeatureMetadata.NormalizeImported(
+                ReadDataValue(extendedData, namespaceToUse, "ResolvedFeatureName"),
+                ReadDataValue(extendedData, namespaceToUse, "ResolvedFeatureType"),
+                ReadDataValue(extendedData, namespaceToUse, "ReverseGeocodingProvider"),
+                ReadDataValue(extendedData, namespaceToUse, "ReverseGeocodingStorageMode"),
+                ReadDataValue(extendedData, namespaceToUse, "ReverseGeocodedAt"));
             var activityName = ReadDataValue(extendedData, namespaceToUse, "Activity");
             var notes = ReadDataValue(extendedData, namespaceToUse, "Notes") ?? placemark.Element(namespaceToUse + "description")?.Value;
             // Metadata fields
@@ -123,6 +130,11 @@ public sealed class KmlLocationParser : ILocationDataParser
                 Place = place,
                 Region = region,
                 Country = country,
+                ResolvedFeatureName = feature.Name,
+                ResolvedFeatureType = feature.Type,
+                ReverseGeocodingProvider = feature.Provider,
+                ReverseGeocodingStorageMode = feature.StorageMode,
+                ReverseGeocodedAt = feature.EnrichedAt,
                 Notes = notes,
                 ImportedActivityName = string.IsNullOrWhiteSpace(activityName) ? null : activityName,
                 ActivityType = null!,

@@ -785,6 +785,8 @@ public class LocationController : BaseApiController
                 Place = location.Place,
                 Region = location.Region,
                 Country = location.Country,
+                ResolvedFeatureName = location.ResolvedFeatureName,
+                ResolvedFeatureType = location.ResolvedFeatureType,
                 Notes = location.Notes,
 
                 // true if this was the most recent event in *absolute* time
@@ -1022,6 +1024,11 @@ public class LocationController : BaseApiController
             // Reverse geocode only through the admitted persistent-enrichment boundary.
             if (coordsUpdated)
             {
+                location.ReverseGeocodingProvider = null;
+                location.ReverseGeocodingStorageMode = null;
+                location.ReverseGeocodedAt = null;
+                location.ResolvedFeatureName = null;
+                location.ResolvedFeatureType = null;
                 var enrichment = await _reverseGeocodingService.EnrichAsync(user.Id, location.Coordinates.Y,
                     location.Coordinates.X, ReverseGeocodingIntent.LocationCoordinateRefresh, HttpContext.RequestAborted);
                 anyChange |= enrichment.ApplyTo(location, DateTimeOffset.UtcNow);

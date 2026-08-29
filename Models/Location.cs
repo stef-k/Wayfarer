@@ -46,6 +46,10 @@ namespace Wayfarer.Models
         public string? Place { get; set; }
         public string? Region { get; set; }
         public string? Country { get; set; }
+        /// <summary>Optional named feature returned with the retained reverse-geocoding result.</summary>
+        [MaxLength(500)] public string? ResolvedFeatureName { get; set; }
+        /// <summary>Optional normalized provider-neutral feature type.</summary>
+        [MaxLength(32)] public string? ResolvedFeatureType { get; set; }
         /// <summary>Provider that supplied the retained reverse-geocoding enrichment.</summary>
         [MaxLength(24)] public string? ReverseGeocodingProvider { get; set; }
         /// <summary>Provider storage mode governing the retained enrichment.</summary>

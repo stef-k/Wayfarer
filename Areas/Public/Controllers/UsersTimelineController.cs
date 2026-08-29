@@ -176,6 +176,8 @@ namespace Wayfarer.Areas.Public.Controllers
                     Place = location.Place,
                     Region = location.Region,
                     Country = location.Country,
+                    ResolvedFeatureName = location.ResolvedFeatureName,
+                    ResolvedFeatureType = location.ResolvedFeatureType,
                     Notes = location.Notes,
 
                     // User's latest location unrelated from filtered zoom & viewport but based on threshold

@@ -2,6 +2,7 @@ using System.Data;
 using Microsoft.EntityFrameworkCore;
 using NetTopologySuite.Geometries;
 using Wayfarer.Models;
+using Wayfarer.Services.LocationProviders;
 using Wayfarer.Util;
 
 namespace Wayfarer.Services;
@@ -108,12 +109,21 @@ public sealed class TripCloneCoordinator(ApplicationDbContext dbContext)
                 var placeId = Guid.NewGuid();
                 if (!placeMap.TryAdd(sourcePlace.Id, placeId))
                     throw new InvalidOperationException("A source Place identity was loaded more than once.");
+                var enrichment = ResolvedFeatureMetadata.NormalizePersisted(
+                    sourcePlace.ResolvedFeatureName, sourcePlace.ResolvedFeatureType,
+                    sourcePlace.AddressEnrichmentProvider, sourcePlace.AddressEnrichmentStorageMode,
+                    sourcePlace.AddressEnrichedAt);
                 region.Places.Add(new Place
                 {
                     Id = placeId, UserId = destinationUserId, RegionId = region.Id,
                     Name = sourcePlace.Name, Location = CopyPoint(sourcePlace.Location), Notes = sourcePlace.Notes,
                     DisplayOrder = sourcePlace.DisplayOrder, IconName = sourcePlace.IconName,
-                    MarkerColor = sourcePlace.MarkerColor, Address = sourcePlace.Address
+                    MarkerColor = sourcePlace.MarkerColor, Address = sourcePlace.Address,
+                    ResolvedFeatureName = enrichment.Name,
+                    ResolvedFeatureType = enrichment.Type,
+                    AddressEnrichmentProvider = enrichment.Provider,
+                    AddressEnrichmentStorageMode = enrichment.StorageMode,
+                    AddressEnrichedAt = enrichment.EnrichedAt
                 });
             }
             foreach (var sourceArea in sourceRegion.Areas)

@@ -382,11 +382,21 @@ namespace Wayfarer.Areas.User.Controllers
             location.Altitude = model.Altitude;
             var manualAddressChanged = !string.Equals(location.Address, model.Address, StringComparison.Ordinal);
             location.Address = model.Address;
+            if (coordinatesChanged)
+            {
+                location.ReverseGeocodingProvider = null;
+                location.ReverseGeocodingStorageMode = null;
+                location.ReverseGeocodedAt = null;
+                location.ResolvedFeatureName = null;
+                location.ResolvedFeatureType = null;
+            }
             if (manualAddressChanged && !string.IsNullOrWhiteSpace(model.Address))
             {
                 location.ReverseGeocodingProvider = null;
                 location.ReverseGeocodingStorageMode = null;
                 location.ReverseGeocodedAt = null;
+                location.ResolvedFeatureName = null;
+                location.ResolvedFeatureType = null;
             }
             location.LocalTimestamp = DateTime.SpecifyKind(utc, DateTimeKind.Utc);
             location.TimeZoneId =

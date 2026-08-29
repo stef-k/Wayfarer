@@ -175,6 +175,8 @@ export const addPlaceMarker = (map, id, [lat, lon], opts = {}) => {
         lat,
         lon,
         address: opts.address,
+        resolvedFeatureName: opts.resolvedFeatureName,
+        resolvedFeatureType: opts.resolvedFeatureType,
         notes: opts.notes,
         regionName: opts.regionName
     });

@@ -50,6 +50,10 @@ internal static class WayfarerKmlAggregateMapper
                     Id = placeIds[sourcePlace.Id], RegionId = region.Id, Region = region, UserId = userId,
                     Name = sourcePlace.Name, DisplayOrder = sourcePlace.DisplayOrder, Notes = sourcePlace.Notes,
                     IconName = sourcePlace.IconName, MarkerColor = sourcePlace.MarkerColor, Address = sourcePlace.Address,
+                    ResolvedFeatureName = sourcePlace.ResolvedFeatureName, ResolvedFeatureType = sourcePlace.ResolvedFeatureType,
+                    AddressEnrichmentProvider = sourcePlace.AddressEnrichmentProvider,
+                    AddressEnrichmentStorageMode = sourcePlace.AddressEnrichmentStorageMode,
+                    AddressEnrichedAt = sourcePlace.AddressEnrichedAt,
                     Location = Copy(sourcePlace.Location)
                 };
                 region.Places.Add(place);

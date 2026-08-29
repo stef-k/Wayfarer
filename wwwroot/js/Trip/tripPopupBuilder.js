@@ -9,6 +9,9 @@
  * Maximum characters for notes preview before truncation
  */
 const MAX_NOTES_LENGTH = 150;
+const encodeText = value => String(value).replace(/[&<>"']/g, character => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+}[character]));
 
 /**
  * Truncates HTML notes to a reasonable preview length.
@@ -69,7 +72,7 @@ const TOOLTIP_FOOTER = `<div class="popup-footer"><i class="bi bi-hand-index"></
  * @param {string} [place.regionName] - Optional region name
  * @returns {string} - HTML content for tooltip
  */
-export const buildPlacePopup = ({ name, lat, lon, address, notes, regionName }) => {
+export const buildPlacePopup = ({ name, lat, lon, address, notes, regionName, resolvedFeatureName, resolvedFeatureType }) => {
     const notesPreview = truncateNotes(notes);
     const hasNotes = notesPreview.length > 0;
 
@@ -93,6 +96,13 @@ export const buildPlacePopup = ({ name, lat, lon, address, notes, regionName }) 
     // Address if available
     if (address) {
         html += `<div class="popup-address"><span class="text-muted">Address:</span> ${address}</div>`;
+    }
+    if (resolvedFeatureName) {
+        html += `<div><span class="text-muted">Detected place:</span> ${encodeText(resolvedFeatureName)}</div>`;
+    }
+    if (resolvedFeatureType) {
+        const featureType = resolvedFeatureType.charAt(0).toUpperCase() + resolvedFeatureType.slice(1);
+        html += `<div><span class="text-muted">Feature type:</span> ${encodeText(featureType)}</div>`;
     }
 
     // Notes preview if available

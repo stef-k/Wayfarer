@@ -185,6 +185,8 @@ public class GroupsController : ControllerBase
             Place = t.Loc.Place,
             Region = t.Loc.Region,
             Country = t.Loc.Country,
+            ResolvedFeatureName = t.Loc.ResolvedFeatureName,
+            ResolvedFeatureType = t.Loc.ResolvedFeatureType,
             Notes = t.Loc.Notes,
             IsLatestLocation = true,
             LocationTimeThresholdMinutes = locationTimeThreshold

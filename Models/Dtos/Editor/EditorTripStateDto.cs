@@ -87,6 +87,8 @@ public sealed record EditorPlaceDto(
     string Name,
     string NotesHtml,
     string Address,
+    string? ResolvedFeatureName,
+    string? ResolvedFeatureType,
     EditorCoordinateDto? Location,
     string IconName,
     string MarkerColor,

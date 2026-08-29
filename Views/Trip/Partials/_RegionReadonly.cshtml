@@ -80,6 +80,8 @@
                             data-place-id="@p.Id"
                             data-place-name="@p.Name"
                             data-place-address="@p.Address"
+                            data-place-resolved-feature-name="@p.ResolvedFeatureName"
+                            data-place-resolved-feature-type="@p.ResolvedFeatureType"
                             data-place-icon="@iconName"
                             data-place-color="@bgClass"
                             data-region-id="@Model.Id"
@@ -106,7 +108,17 @@
                                     <span class="sidebar-visit-badge" title="@(visitCount == 1 ? "Visited" : $"Visited {visitCount} times")">@(visitCount == 1 ? "✓" : visitCount)</span>
                                 }
                             </span>
-                            <span class="flex-grow-1 itinerary-place-label">@ItineraryPresentation.Label(placeIndex + 1, p.Name)</span>
+                            <span class="flex-grow-1 itinerary-place-label">
+                                @ItineraryPresentation.Label(placeIndex + 1, p.Name)
+                                @if (!string.IsNullOrWhiteSpace(p.ResolvedFeatureName))
+                                {
+                                    <small class="d-block text-muted">Detected place: @p.ResolvedFeatureName</small>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(p.ResolvedFeatureType))
+                                {
+                                    <small class="d-block text-muted">Feature type: @System.Globalization.CultureInfo.InvariantCulture.TextInfo.ToTitleCase(p.ResolvedFeatureType)</small>
+                                }
+                            </span>
 
                             @if (HtmlHelpers.HasVisibleContent(p.Notes))
                             {
