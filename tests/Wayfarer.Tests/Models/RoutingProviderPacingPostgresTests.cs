@@ -12,8 +12,8 @@ using Xunit;
 namespace Wayfarer.Tests.Models;
 
 /// <summary>Proves the complete provider pacing persistence contract on guarded PostgreSQL.</summary>
-[Collection(PostgresEnvironmentEvidenceTestCollection.Name)]
-public sealed class RoutingProviderPacingPostgresTests(PostgresImportTestFixture fixture)
+[Collection(PostgresMigrationTestCollection.Name)]
+public sealed class RoutingProviderPacingPostgresTests(PostgresMigrationTestFixture fixture)
 {
     private const string PreviousMigration = "20260818161609_ExternalRoutingCredentialRequirement";
 
