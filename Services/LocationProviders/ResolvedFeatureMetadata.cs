@@ -1,8 +1,15 @@
+using System.Globalization;
+using System.Text.RegularExpressions;
+
 namespace Wayfarer.Services.LocationProviders;
 
 /// <summary>Normalizes optional provider-returned named-feature metadata at persistence boundaries.</summary>
 public static class ResolvedFeatureMetadata
 {
+    private static readonly Regex ImportedTimestampGrammar = new(
+        @"\A[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]{1,7})?(?:Z|[+-][0-9]{2}:[0-9]{2})\z",
+        RegexOptions.CultureInvariant);
+
     private static readonly HashSet<string> GeoapifyTypes = new(StringComparer.Ordinal)
     {
         "amenity", "building", "street", "suburb", "district", "postcode", "city", "county", "state", "country"
@@ -22,11 +29,10 @@ public static class ResolvedFeatureMetadata
     public static ResolvedFeatureTuple NormalizeImported(
         string? name, string? type, string? provider, string? storageMode, string? timestamp)
     {
-        var normalizedTimestamp = timestamp?.Trim();
         var parsedAt = default(DateTimeOffset);
-        var hasTimestamp = HasExplicitOffset(normalizedTimestamp)
-            && DateTimeOffset.TryParse(normalizedTimestamp, System.Globalization.CultureInfo.InvariantCulture,
-                System.Globalization.DateTimeStyles.None, out parsedAt);
+        var hasTimestamp = timestamp != null && ImportedTimestampGrammar.IsMatch(timestamp)
+            && DateTimeOffset.TryParseExact(timestamp, "yyyy-MM-dd'T'HH:mm:ss.FFFFFFFK",
+                CultureInfo.InvariantCulture, DateTimeStyles.None, out parsedAt);
         return NormalizePersisted(name, type, provider, storageMode,
             hasTimestamp ? parsedAt.ToUniversalTime() : null);
     }
@@ -52,18 +58,6 @@ public static class ResolvedFeatureMetadata
         var trimmed = value?.Trim();
         return string.IsNullOrEmpty(trimmed) || trimmed.Length > maximumLength || trimmed.Any(char.IsControl)
             ? null : trimmed;
-    }
-
-    /// <summary>Returns whether the timestamp ends in a UTC or numeric timezone designator.</summary>
-    private static bool HasExplicitOffset(string? value)
-    {
-        if (string.IsNullOrEmpty(value)) return false;
-        if (value.EndsWith('Z')) return true;
-        if (value.Length < 6) return false;
-        var offset = value.AsSpan(value.Length - 6);
-        return (offset[0] is '+' or '-') && offset[3] == ':'
-            && char.IsAsciiDigit(offset[1]) && char.IsAsciiDigit(offset[2])
-            && char.IsAsciiDigit(offset[4]) && char.IsAsciiDigit(offset[5]);
     }
 }
 

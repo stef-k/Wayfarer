@@ -90,6 +90,11 @@ namespace Wayfarer.Parsers
                             ? rawProperties[key]!.Value<string>()
                             : attrs.Exists(key) && attrs[key] != null ? attrs[key]!.ToString() : null;
 
+                    // Imported enrichment tuples accept only raw JSON string scalars.
+                    string? getTupleString(string key)
+                        => rawProperties?.GetValue(key, StringComparison.Ordinal) is { Type: JTokenType.String } token
+                            ? token.Value<string>() : null;
+
                     // helper to safely get a double? attribute
                     double? getDouble(string key)
                         => attrs.Exists(key) && attrs[key] != null
@@ -133,9 +138,9 @@ namespace Wayfarer.Parsers
                     var region = getString("Region");
                     var country = getString("Country");
                     var feature = ResolvedFeatureMetadata.NormalizeImported(
-                        getString("ResolvedFeatureName"), getString("ResolvedFeatureType"),
-                        getString("ReverseGeocodingProvider"), getString("ReverseGeocodingStorageMode"),
-                        getString("ReverseGeocodedAt"));
+                        getTupleString("ResolvedFeatureName"), getTupleString("ResolvedFeatureType"),
+                        getTupleString("ReverseGeocodingProvider"), getTupleString("ReverseGeocodingStorageMode"),
+                        getTupleString("ReverseGeocodedAt"));
                     var notes = getString("Notes");
 
                     // Extract metadata fields
