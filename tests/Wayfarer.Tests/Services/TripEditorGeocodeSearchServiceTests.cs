@@ -185,6 +185,26 @@ public sealed class TripEditorGeocodeSearchServiceTests
     }
 
     [Fact]
+    public async Task NominatimProviderBoundsCompleteIdentifiersAndPreservesDuplicateSuffixes()
+    {
+        var sourceId = new string('9', 512);
+        var provider = BuildNominatimProvider($$"""
+        [
+          {"place_id":"{{sourceId}}","display_name":"First","lat":"1","lon":"2"},
+          {"place_id":"{{sourceId}}","display_name":"Second","lat":"3","lon":"4"}
+        ]
+        """);
+
+        var result = await provider.SearchAsync("athens", 6, CancellationToken.None);
+        var items = result.Response!.Results;
+
+        Assert.All(items, item => Assert.InRange(item.Id.Length, 1, 256));
+        Assert.All(items, item => Assert.StartsWith("nominatim:", item.Id));
+        Assert.EndsWith(":2", items[1].Id);
+        Assert.NotEqual(items[0].Id, items[1].Id);
+    }
+
+    [Fact]
     public async Task NominatimProviderMapsMalformedPayload()
     {
         var provider = BuildNominatimProvider("""{ "not": "an array" }""");

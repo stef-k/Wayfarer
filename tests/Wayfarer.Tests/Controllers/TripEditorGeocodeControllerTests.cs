@@ -103,8 +103,13 @@ public sealed class TripEditorGeocodeControllerTests : TestBase
         Assert.Contains("limit", AssertValidationProblem(result).Errors.Keys);
     }
 
-    [Fact]
-    public async Task SearchGeocodeRejectsLimitAboveEditorLimit()
+    [Theory]
+    [InlineData(null, 6)]
+    [InlineData(1, 1)]
+    [InlineData(6, 6)]
+    [InlineData(7, 6)]
+    [InlineData(int.MaxValue, 6)]
+    public async Task SearchGeocodeNormalizesLimitBeforeServiceInvocation(int? requestedLimit, int expectedLimit)
     {
         using var db = CreateDbContext();
         var trip = SeedTrip(db, "owner-user");
@@ -112,7 +117,26 @@ public sealed class TripEditorGeocodeControllerTests : TestBase
         var controller = BuildController(db, service);
         ConfigureControllerWithUserRole(controller, "owner-user");
 
-        SetSearchBody(controller, "athens", 99);
+        SetSearchBody(controller, "athens", requestedLimit);
+        var result = await controller.SearchGeocode(trip.Id, CancellationToken.None);
+
+        Assert.IsType<OkObjectResult>(result);
+        Assert.Equal(1, service.CallCount);
+        Assert.Equal(expectedLimit, service.LastLimit);
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public async Task SearchGeocodeRejectsLimitBelowMinimumBeforeServiceInvocation(int requestedLimit)
+    {
+        using var db = CreateDbContext();
+        var trip = SeedTrip(db, "owner-user");
+        var service = new FakeGeocodeSearchService();
+        var controller = BuildController(db, service);
+        ConfigureControllerWithUserRole(controller, "owner-user");
+
+        SetSearchBody(controller, "athens", requestedLimit);
         var result = await controller.SearchGeocode(trip.Id, CancellationToken.None);
 
         Assert.Contains("limit", AssertValidationProblem(result).Errors.Keys);
