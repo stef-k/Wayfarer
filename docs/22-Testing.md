@@ -46,6 +46,13 @@ $env:WAYFARER_TEST_POSTGRES_CONNECTION = $testConnection
 - The guarded fixture parses the connection with Npgsql and rejects every database name other than exactly `wayfarer_import_tests`; let that fixture remain the final safety authority instead of echoing or reparsing credentials in shell output.
 - Repository runs that need complete isolation may still use the disposable cluster pattern in `tools/run-407-waypoint-browser.ps1`, but that is an exceptional cross-layer fixture, not the default answer to a missing process variable.
 
+Disposable Migration-History Database
+- Ordinary row-level and concurrency PostgreSQL tests continue to use the persistent `wayfarer_import_tests` fixture. Tests grouped in `PostgreSQL migration history` use one empty disposable database per collection fixture because they migrate the real schema down and up.
+- The disposable owner derives its server and credentials from `WAYFARER_TEST_POSTGRES_CONNECTION`. The source must connect to PostgreSQL 17 and name exactly `wayfarer_import_tests`; the role must be allowed to create databases and enable the `postgis` and `citext` extensions required by the real EF migration history.
+- Every disposable name is generated internally as `wayfarer_migration_tests_<32-hex-guid>`. Create, session termination, and drop operations validate that exact prefix and suffix and reject `wayfarer_import_tests`, `wayfarer`, `postgres`, `template0`, and `template1`. Identifiers are quoted with Npgsql, while session termination uses a database-name parameter.
+- The fixture instance retains the only cleanup authority. It closes fixture contexts, clears its connection pool, terminates sessions only for its exact retained name, and drops only that database. Initialization cleanup preserves the primary failure and retains bounded cleanup diagnostics.
+- A retained disposable database indicates interrupted or failed cleanup. Diagnose it with a read-only catalog query for names beginning with the full `wayfarer_migration_tests_` prefix and inspect active sessions for that exact name. Do not use wildcard deletion, enumerate-and-drop scripts, or recreate `wayfarer_import_tests`; remove a retained database only after confirming its complete guarded name and ownership.
+
 Trip Editor Browser Preflight
 - Decide the evidence class before starting:
   1. Use client/component tests when the claim is state transitions, races, cancellation, or reactivity.

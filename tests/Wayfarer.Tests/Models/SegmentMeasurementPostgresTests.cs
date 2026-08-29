@@ -11,8 +11,8 @@ using Xunit;
 namespace Wayfarer.Tests.Models;
 
 /// <summary>Executes issue 405 migration and profile reconciliation against guarded PostgreSQL/PostGIS.</summary>
-[Collection(PostgresImportTestCollection.Name)]
-public sealed class SegmentMeasurementPostgresTests(PostgresImportTestFixture fixture)
+[Collection(PostgresMigrationTestCollection.Name)]
+public sealed class SegmentMeasurementPostgresTests(PostgresMigrationTestFixture fixture)
 {
     private const string PreviousMigration = "20260802085255_AddSegmentWaypoints";
 
@@ -34,7 +34,6 @@ public sealed class SegmentMeasurementPostgresTests(PostgresImportTestFixture fi
         var unknownMode = $"unknown-{Guid.NewGuid():N}";
         var nullSpeedProfileId = Guid.NewGuid();
         var inactiveSpeedProfileId = Guid.NewGuid();
-        fixture.RegisterTrip(tripId);
         await using var context = fixture.CreateContext();
         var migrator = context.GetService<IMigrator>();
         await migrator.MigrateAsync(PreviousMigration);
@@ -46,8 +45,6 @@ public sealed class SegmentMeasurementPostgresTests(PostgresImportTestFixture fi
             $"""INSERT INTO public."Segments" ("Id", "UserId", "TripId", "Mode", "EstimatedDuration", "EstimatedDistanceKm", "DisplayOrder", "Notes") VALUES ({automaticId}, {user.Id}, {tripId}, {"walk"}, {null as TimeSpan?}, {7.654d}, {2}, {"automatic"})""");
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"""INSERT INTO public."TransportProfiles" ("Id", "Key", "Label", "Category", "PlanningSpeedKmh", "SortOrder", "IsActive", "IsSeeded") VALUES ({nullSpeedProfileId}, {"fixture-null-speed"}, {"Null speed"}, {"Test"}, {null as double?}, {901}, TRUE, FALSE), ({inactiveSpeedProfileId}, {"fixture-inactive-speed"}, {"Inactive speed"}, {"Test"}, {12d}, {902}, FALSE, FALSE)""");
-        fixture.RegisterTransportProfile(nullSpeedProfileId);
-        fixture.RegisterTransportProfile(inactiveSpeedProfileId);
         await context.Database.ExecuteSqlInterpolatedAsync(
             $"""
             INSERT INTO public."Segments" ("Id", "UserId", "TripId", "Mode", "EstimatedDuration", "EstimatedDistanceKm", "RouteGeometry", "DisplayOrder", "Notes") VALUES
@@ -100,8 +97,6 @@ public sealed class SegmentMeasurementPostgresTests(PostgresImportTestFixture fi
         var user = await fixture.CreateUserAsync();
         var tripId = Guid.NewGuid();
         var profileId = Guid.NewGuid();
-        fixture.RegisterTrip(tripId);
-        fixture.RegisterTransportProfile(profileId);
         await using (var seed = fixture.CreateContext())
         {
             var trip = new Trip { Id = tripId, UserId = user.Id, Name = "Profile measurement fixture" };

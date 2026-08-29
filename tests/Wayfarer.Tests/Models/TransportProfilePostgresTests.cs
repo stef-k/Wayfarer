@@ -10,14 +10,14 @@ using Xunit;
 namespace Wayfarer.Tests.Models;
 
 /// <summary>Executes the transport-profile migration invariants on the opt-in isolated PostgreSQL database.</summary>
-[Collection(PostgresImportTestCollection.Name)]
+[Collection(PostgresMigrationTestCollection.Name)]
 public sealed class TransportProfilePostgresTests
 {
     private const string PreviousMigration = "20260726085113_AddTileTrafficMode";
-    private readonly PostgresImportTestFixture _fixture;
+    private readonly PostgresMigrationTestFixture _fixture;
 
     /// <summary>Initializes provider tests over the guarded shared fixture.</summary>
-    public TransportProfilePostgresTests(PostgresImportTestFixture fixture) => _fixture = fixture;
+    public TransportProfilePostgresTests(PostgresMigrationTestFixture fixture) => _fixture = fixture;
 
     /// <summary>Proves Mode-only writers attach an inactive compatibility profile without rewriting public mode text.</summary>
     [PostgresFact]
@@ -28,7 +28,6 @@ public sealed class TransportProfilePostgresTests
         var trip = new Trip { Id = Guid.NewGuid(), UserId = user.Id, Name = "Transport profile fixture" };
         var mode = $"Legacy Mode {Guid.NewGuid():N}";
         var segment = new Segment { Id = Guid.NewGuid(), Trip = trip, TripId = trip.Id, UserId = user.Id, Mode = mode };
-        _fixture.RegisterTrip(trip.Id);
 
         await using (var context = _fixture.CreateContext())
         {
@@ -40,7 +39,6 @@ public sealed class TransportProfilePostgresTests
         await using var verification = _fixture.CreateContext();
         var stored = await verification.Segments.AsNoTracking().SingleAsync(item => item.Id == segment.Id);
         var profile = await verification.Set<TransportProfile>().AsNoTracking().SingleAsync(item => item.Id == stored.TransportProfileId);
-        _fixture.RegisterTransportProfile(profile.Id);
         Assert.Equal(mode, stored.Mode);
         Assert.False(profile.IsActive);
         Assert.False(profile.IsSeeded);
@@ -55,7 +53,6 @@ public sealed class TransportProfilePostgresTests
         _fixture.RequireAvailable();
         var user = await _fixture.CreateUserAsync();
         var trip = new Trip { Id = Guid.NewGuid(), UserId = user.Id, Name = "Legacy migration fixture" };
-        _fixture.RegisterTrip(trip.Id);
         await using var context = _fixture.CreateContext();
         context.Trips.Add(trip);
         await context.SaveChangesAsync();
@@ -99,7 +96,6 @@ public sealed class TransportProfilePostgresTests
         var user = await _fixture.CreateUserAsync();
         var trip = new Trip { Id = Guid.NewGuid(), UserId = user.Id, Name = "Trigger fixture" };
         var segment = new Segment { Id = Guid.NewGuid(), Trip = trip, TripId = trip.Id, UserId = user.Id, Mode = "walk" };
-        _fixture.RegisterTrip(trip.Id);
         await using var context = _fixture.CreateContext();
         context.AddRange(trip, segment);
         await context.SaveChangesAsync();
@@ -134,8 +130,6 @@ public sealed class TransportProfilePostgresTests
         var mode = $"Concurrent unknown {Guid.NewGuid():N}";
         var firstTrip = new Trip { Id = Guid.NewGuid(), UserId = firstUser.Id, Name = "First concurrency fixture" };
         var secondTrip = new Trip { Id = Guid.NewGuid(), UserId = secondUser.Id, Name = "Second concurrency fixture" };
-        _fixture.RegisterTrip(firstTrip.Id);
-        _fixture.RegisterTrip(secondTrip.Id);
         await using var first = _fixture.CreateContext();
         await using var second = _fixture.CreateContext();
         first.Add(new Segment { Id = Guid.NewGuid(), Trip = firstTrip, TripId = firstTrip.Id, UserId = firstUser.Id, Mode = mode });
@@ -147,7 +141,6 @@ public sealed class TransportProfilePostgresTests
         var segments = await verification.Segments.Where(item => item.TripId == firstTrip.Id || item.TripId == secondTrip.Id).ToListAsync();
         var profileId = Assert.Single(segments.Select(item => item.TransportProfileId).Distinct());
         var profile = await verification.Set<TransportProfile>().SingleAsync(item => item.Id == profileId);
-        _fixture.RegisterTransportProfile(profile.Id);
     }
 
     /// <summary>Proves the restrictive FK and real xmin token reject unsafe mutations.</summary>
@@ -159,8 +152,6 @@ public sealed class TransportProfilePostgresTests
         var trip = new Trip { Id = Guid.NewGuid(), UserId = user.Id, Name = "Provider invariant fixture" };
         var profile = new TransportProfile { Id = Guid.NewGuid(), Key = $"fixture-{Guid.NewGuid():N}", Label = "Fixture", Category = "Test" };
         var segment = new Segment { Id = Guid.NewGuid(), Trip = trip, TripId = trip.Id, UserId = user.Id, Mode = profile.Key, TransportProfileId = profile.Id };
-        _fixture.RegisterTrip(trip.Id);
-        _fixture.RegisterTransportProfile(profile.Id);
         await using (var seed = _fixture.CreateContext())
         {
             seed.AddRange(profile, trip, segment);
@@ -195,8 +186,6 @@ public sealed class TransportProfilePostgresTests
             Id = derivedId, Key = $"collision-holder-{Guid.NewGuid():N}", Label = "Collision holder", Category = "Test"
         };
         var trip = new Trip { Id = Guid.NewGuid(), UserId = user.Id, Name = "Collision fixture" };
-        _fixture.RegisterTransportProfile(collidingProfile.Id);
-        _fixture.RegisterTrip(trip.Id);
         context.AddRange(collidingProfile, trip);
         await context.SaveChangesAsync();
         context.Add(new Segment { Id = Guid.NewGuid(), TripId = trip.Id, UserId = user.Id, Mode = mode });

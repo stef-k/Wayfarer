@@ -13,14 +13,14 @@ using Xunit;
 namespace Wayfarer.Tests.Models;
 
 /// <summary>Executes waypoint migration, constraint, relationship, and transaction behavior on PostgreSQL.</summary>
-[Collection(PostgresImportTestCollection.Name)]
+[Collection(PostgresMigrationTestCollection.Name)]
 public sealed class SegmentWaypointPostgresTests
 {
     private const string PreviousMigration = "20260728152323_AdminManagedTransportProfiles";
-    private readonly PostgresImportTestFixture _fixture;
+    private readonly PostgresMigrationTestFixture _fixture;
 
     /// <summary>Initializes provider tests over the guarded isolated database fixture.</summary>
-    public SegmentWaypointPostgresTests(PostgresImportTestFixture fixture) => _fixture = fixture;
+    public SegmentWaypointPostgresTests(PostgresMigrationTestFixture fixture) => _fixture = fixture;
 
     /// <summary>Executes exact-base upgrade and downgrade while preserving every legacy Segment value.</summary>
     [PostgresFact]
@@ -30,7 +30,6 @@ public sealed class SegmentWaypointPostgresTests
         var user = await _fixture.CreateUserAsync();
         var tripId = Guid.NewGuid();
         var segmentId = Guid.NewGuid();
-        _fixture.RegisterTrip(tripId);
         await using var context = _fixture.CreateContext();
         await using var transaction = await context.Database.BeginTransactionAsync();
         var migrator = context.GetService<IMigrator>();
@@ -448,7 +447,6 @@ public sealed class SegmentWaypointPostgresTests
         }).ToArray();
         trip.Regions.Add(region);
         foreach (var place in places) region.Places.Add(place);
-        _fixture.RegisterTrip(trip.Id);
         await using var context = _fixture.CreateContext();
         context.Trips.Add(trip);
         Guid? foreignPlaceId = null;
@@ -460,7 +458,6 @@ public sealed class SegmentWaypointPostgresTests
             foreignTrip.Regions.Add(foreignRegion);
             foreignRegion.Places.Add(foreign);
             context.Trips.Add(foreignTrip);
-            _fixture.RegisterTrip(foreignTrip.Id);
             foreignPlaceId = foreign.Id;
         }
         await context.SaveChangesAsync();

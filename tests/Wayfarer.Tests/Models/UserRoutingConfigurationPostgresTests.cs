@@ -17,8 +17,8 @@ using Xunit;
 namespace Wayfarer.Tests.Models;
 
 /// <summary>Proves retained personal-routing relational authority on guarded PostgreSQL.</summary>
-[Collection(PostgresEnvironmentEvidenceTestCollection.Name)]
-public sealed class UserRoutingConfigurationPostgresTests(PostgresImportTestFixture fixture)
+[Collection(PostgresMigrationTestCollection.Name)]
+public sealed class UserRoutingConfigurationPostgresTests(PostgresMigrationTestFixture fixture)
 {
     private const string PreviousMigration = "20260819102433_RoutingProviderMinimumInterval";
 
@@ -376,7 +376,7 @@ public sealed class UserRoutingConfigurationPostgresTests(PostgresImportTestFixt
     }
 
     private static async Task CleanupRoutingFixtureAsync(
-        PostgresImportTestFixture fixture, string userId, Guid providerId, SettingsSnapshot? snapshot)
+        PostgresMigrationTestFixture fixture, string userId, Guid providerId, SettingsSnapshot? snapshot)
     {
         await using var cleanup = fixture.CreateContext();
         cleanup.ChangeTracker.Clear();
