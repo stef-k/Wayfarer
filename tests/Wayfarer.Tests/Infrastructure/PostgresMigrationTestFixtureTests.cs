@@ -85,6 +85,8 @@ public sealed class PostgresMigrationTestFixtureTests
         Assert.NotEqual(first.DatabaseName, second.DatabaseName);
         Assert.Equal(first.MigrationCount, second.MigrationCount);
         Assert.True(first.MigrationCount > 0);
+        Assert.False(await DatabaseExistsAsync(first.DatabaseName));
+        Assert.False(await DatabaseExistsAsync(second.DatabaseName));
     }
 
     /// <summary>Proves cleanup fails closed when its target is not the fixture-owned database.</summary>
@@ -134,6 +136,19 @@ public sealed class PostgresMigrationTestFixtureTests
         await using var reader = await command.ExecuteReaderAsync();
         await reader.ReadAsync();
         return new PersistentSnapshot(reader.GetInt64(0), reader.GetInt64(1), reader.GetInt16(2));
+    }
+
+    private static async Task<bool> DatabaseExistsAsync(string databaseName)
+    {
+        var value = Environment.GetEnvironmentVariable("WAYFARER_TEST_POSTGRES_CONNECTION");
+        if (string.IsNullOrWhiteSpace(value))
+            throw Xunit.Sdk.SkipException.ForSkip("Set WAYFARER_TEST_POSTGRES_CONNECTION to run PostgreSQL fixture tests.");
+        await using var connection = new NpgsqlConnection(value);
+        await connection.OpenAsync();
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT EXISTS (SELECT 1 FROM pg_database WHERE datname = @database)";
+        command.Parameters.AddWithValue("database", databaseName);
+        return (bool)(await command.ExecuteScalarAsync())!;
     }
 
     private sealed record PersistentSnapshot(long MigrationCount, long DroppedAttributeCount, short HighestAttributeNumber);
