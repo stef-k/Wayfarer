@@ -47,8 +47,8 @@ public static class ResolvedFeatureMetadata
             && (normalizedProvider == "geoapify" && normalizedMode == "persistent"
                 || normalizedProvider == "mapbox" && normalizedMode == "permanent");
         if (!validProvenance) return default;
-        var normalizedName = NormalizeName(name);
-        var normalizedType = NormalizeGeoapifyType(type);
+        var normalizedName = normalizedProvider == "geoapify" ? NormalizeName(name) : null;
+        var normalizedType = normalizedProvider == "geoapify" ? NormalizeGeoapifyType(type) : null;
         return new(normalizedName, normalizedType, normalizedProvider, normalizedMode,
             enrichedAt.GetValueOrDefault().ToUniversalTime());
     }

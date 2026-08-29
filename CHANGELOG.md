@@ -5,11 +5,12 @@
 ### Added
 - Added an explicit resumable per-user missing-address workflow with durable controls, bounded retries, exact provider-budget wakes, restart reconciliation, and authenticated content-free progress (#507).
 - Added provider-aware import-page presentation with ledger-derived usage, exact runnable/future/permanent work counts, accessible state-specific controls, and content-free coalesced reload hints (#512).
+- Added optional provider-returned named feature metadata for reverse-geocoded Locations and Trip Places, displayed separately while preserving retained addresses and user-authored labels; this is not nearby-place discovery (#518).
 
 ### Changed
 - Location-history uploads now advertise exactly Google Timeline JSON, Wayfarer GeoJSON, CSV, GPX, and location-history KML. Generic GeoJSON is rejected while historical rows retain a bounded unsupported outcome; Trip imports remain separate (#507).
 - Location import now uses opaque staging names and bounded diagnostic/error codes, and its documentation reflects that imports commit independently before the separate opted-in scheduled enrichment workflow (#507).
-- The coordinated provider release order remains #502 → #507 → #500.
+- The coordinated provider release order remains #502 → #507 → #517 → #518 → #500.
 
 ## [1.9.3] - 2026-08-22
 

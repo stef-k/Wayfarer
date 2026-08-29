@@ -50,7 +50,8 @@ public sealed class GeoapifyReverseGeocodingAdapter(HttpClient httpClient)
     private static ReverseGeocodingResult Parse(JsonElement root)
     {
         if (root.ValueKind != JsonValueKind.Object
-            || !root.TryGetProperty("type", out var type) || type.GetString() != "FeatureCollection"
+            || !root.TryGetProperty("type", out var type) || type.ValueKind != JsonValueKind.String
+            || type.GetString() != "FeatureCollection"
             || !root.TryGetProperty("features", out var features) || features.ValueKind != JsonValueKind.Array
             || features.GetArrayLength() == 0 || features[0].ValueKind != JsonValueKind.Object
             || !features[0].TryGetProperty("properties", out var properties)
