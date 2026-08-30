@@ -37,10 +37,16 @@ public sealed class MobileRoutingProfileDiscoveryService(
                 || snapshot.Stamp != current.Stamp)
                 return MobileRoutingProfileDiscovery.Failure("temporarily-unavailable");
 
-            var profiles = snapshot.Profiles.Select(item => new MobileRoutingProfile(
-                item.TransportProfileId, item.DisplayName, item.ModeKey, item.Category)).ToArray();
-            var projection = new MobileRoutingDiscoveryCatalogProjection("available", profiles);
-            return new("available", DiscoveryCatalogIdentity.Compute(projection), profiles);
+            var profiles = Project(snapshot.Profiles);
+            var catalogIdentity = DiscoveryCatalogIdentity.Compute(
+                new MobileRoutingDiscoveryCatalogProjection("available", profiles));
+            var currentProfiles = Project(current.Profiles);
+            var currentCatalogIdentity = DiscoveryCatalogIdentity.Compute(
+                new MobileRoutingDiscoveryCatalogProjection("available", currentProfiles));
+            if (!string.Equals(catalogIdentity, currentCatalogIdentity, StringComparison.Ordinal))
+                return MobileRoutingProfileDiscovery.Failure("temporarily-unavailable");
+
+            return new("available", catalogIdentity, profiles);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -113,6 +119,11 @@ public sealed class MobileRoutingProfileDiscoveryService(
         if (snapshot.UserConfiguration.SelectedProviderConfigurationId.HasValue) return true;
         return providerCredentials.Read(snapshot.Provider!).Succeeded;
     }
+
+    /// <summary>Creates the canonical public chooser projection from one coherent database snapshot.</summary>
+    private static MobileRoutingProfile[] Project(IReadOnlyList<MobileRoutingDiscoveryProfile> profiles) =>
+        profiles.Select(item => new MobileRoutingProfile(
+            item.TransportProfileId, item.DisplayName, item.ModeKey, item.Category)).ToArray();
 
     private async Task<IReadOnlyList<MobileRoutingDiscoveryProfile>> EligibleAsync(
         Guid providerId, CancellationToken cancellationToken)
