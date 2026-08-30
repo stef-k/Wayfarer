@@ -1,4 +1,5 @@
 using Wayfarer.Areas.Api.Controllers;
+using Wayfarer.Services.ExternalRouting;
 using System.Text.Json;
 using Xunit;
 
@@ -35,7 +36,7 @@ public sealed class MobileRoutingContractTests
         Assert.NotNull(typeof(MobileRouteRequest).GetProperty("SelectedProfileAuthorityIdentity"));
         var route = typeof(Wayfarer.Services.ExternalRouting.MobileRoutingService).GetMethods()
             .Single(method => method.Name == "RouteAsync"
-                && method.GetParameters().Any(parameter => parameter.ParameterType == typeof(string)));
+                && method.GetParameters().Any(parameter => parameter.Name == "selectedProfileAuthorityIdentity"));
 
         Assert.Contains(route.GetParameters(), parameter => parameter.Name == "selectedProfileAuthorityIdentity");
     }
@@ -50,21 +51,21 @@ public sealed class MobileRoutingContractTests
 
     [Theory]
     [InlineData("{\"origin\":{},\"destination\":{}}", null)]
-    [InlineData("{\"origin\":{},\"destination\":{},\"authorityIdentity\":null}", null)]
-    [InlineData("{\"origin\":{},\"destination\":{},\"authorityIdentity\":42}", "!invalid")]
-    [InlineData("{\"origin\":{},\"destination\":{},\"authorityIdentity\":{}}", "!invalid")]
+    [InlineData("{\"origin\":{},\"destination\":{},\"selectedProfileAuthorityIdentity\":null}", null)]
+    [InlineData("{\"origin\":{},\"destination\":{},\"selectedProfileAuthorityIdentity\":42}", "!invalid")]
+    [InlineData("{\"origin\":{},\"destination\":{},\"selectedProfileAuthorityIdentity\":{}}", "!invalid")]
     public void RequestBindingKeepsLegacyNullAndCollapsesNonStringIdentity(string json, string? expected)
     {
         var request = JsonSerializer.Deserialize<MobileRouteRequest>(json, JsonOptions);
 
-        Assert.Equal(expected, request!.AuthorityIdentity);
+        Assert.Equal(expected, request!.SelectedProfileAuthorityIdentity);
     }
 
     [Fact]
     public void IdentityInputBoundRejectsExactSixtyFourAndOverWithoutTrimming()
     {
-        Assert.False(Wayfarer.Services.ExternalRouting.MobileRoutingAuthorityIdentity.IsValid(new string('a', 64)));
-        Assert.False(Wayfarer.Services.ExternalRouting.MobileRoutingAuthorityIdentity.IsValid(new string('a', 65)));
+        Assert.False(SelectedProfileAuthorityIdentity.IsValid(new string('a', 64)));
+        Assert.False(DiscoveryCatalogIdentity.IsValid(new string('a', 65)));
     }
 
     [Fact]

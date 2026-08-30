@@ -28,7 +28,7 @@ public sealed class MobileRoutingProfileDiscoveryTests : TestBase
         Assert.Equal(2, result.Profiles.Count);
         Assert.Equal(first.Id, result.Profiles[0].TransportProfileId);
         Assert.Equal(["Alpha", "Zulu"], result.Profiles.Select(item => item.DisplayName));
-        Assert.True(MobileRoutingAuthorityIdentity.IsValid(result.AuthorityIdentity));
+        Assert.True(DiscoveryCatalogIdentity.IsValid(result.DiscoveryCatalogIdentity));
         Assert.Equal(1, reads);
     }
 
@@ -46,7 +46,7 @@ public sealed class MobileRoutingProfileDiscoveryTests : TestBase
 
         Assert.Equal(outcome, result.Outcome);
         Assert.Equal(returned, result.Profiles.Count);
-        Assert.Equal(outcome == "available", result.AuthorityIdentity is not null);
+        Assert.Equal(outcome == "available", result.DiscoveryCatalogIdentity is not null);
     }
 
     [Fact]
@@ -66,7 +66,7 @@ public sealed class MobileRoutingProfileDiscoveryTests : TestBase
 
         Assert.Equal("temporarily-unavailable", result.Outcome);
         Assert.Empty(result.Profiles);
-        Assert.Null(result.AuthorityIdentity);
+        Assert.Null(result.DiscoveryCatalogIdentity);
     }
 
     [Fact]
@@ -79,7 +79,7 @@ public sealed class MobileRoutingProfileDiscoveryTests : TestBase
 
         Assert.Equal("no-eligible-profiles", result.Outcome);
         Assert.Empty(result.Profiles);
-        Assert.Null(result.AuthorityIdentity);
+        Assert.Null(result.DiscoveryCatalogIdentity);
     }
 
     [Fact]
@@ -107,7 +107,7 @@ public sealed class MobileRoutingProfileDiscoveryTests : TestBase
 
         Assert.Equal("temporarily-unavailable", result.Outcome);
         Assert.Empty(result.Profiles);
-        Assert.Null(result.AuthorityIdentity);
+        Assert.Null(result.DiscoveryCatalogIdentity);
     }
 
     [Fact]
@@ -137,7 +137,7 @@ public sealed class MobileRoutingProfileDiscoveryTests : TestBase
 
         Assert.Equal("temporarily-unavailable", result.Outcome);
         Assert.Empty(result.Profiles);
-        Assert.Null(result.AuthorityIdentity);
+        Assert.Null(result.DiscoveryCatalogIdentity);
     }
 
     private ApplicationDbContext Db { get; set; } = null!;

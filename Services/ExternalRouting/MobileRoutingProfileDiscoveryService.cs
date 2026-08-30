@@ -18,16 +18,6 @@ public sealed class MobileRoutingProfileDiscoveryService(
     /// <summary>Provides a controlled counter seam for protected-readability tests.</summary>
     internal Func<bool>? CredentialReadOverride { get; set; }
 
-    /// <summary>Freshly verifies one accepted complete catalog and requested-profile membership.</summary>
-    public async Task<bool> IsAuthorityIdentityCurrentAsync(string userId, Guid transportProfileId,
-        string authorityIdentity, CancellationToken cancellationToken)
-    {
-        var current = await DiscoverAsync(userId, cancellationToken);
-        return current.Outcome == "available"
-            && string.Equals(current.AuthorityIdentity, authorityIdentity, StringComparison.Ordinal)
-            && current.Profiles.Any(item => item.TransportProfileId == transportProfileId);
-    }
-
     /// <summary>Discovers the complete current eligible profile set for an authenticated active user.</summary>
     public async Task<MobileRoutingProfileDiscovery> DiscoverAsync(string userId, CancellationToken cancellationToken)
     {
@@ -35,24 +25,22 @@ public sealed class MobileRoutingProfileDiscoveryService(
         {
             var snapshot = await LoadCoherentAsync(userId, cancellationToken);
             if (snapshot.Outcome != "available") return MobileRoutingProfileDiscovery.Failure(snapshot.Outcome);
-            if (snapshot.Projection!.Profiles.Count > 100)
+            if (snapshot.Profiles!.Count > 100)
                 return MobileRoutingProfileDiscovery.Failure("profile-limit-exceeded");
 
             var readable = ReadCredential(snapshot);
             if (!readable) return MobileRoutingProfileDiscovery.Failure("authority-unavailable");
-            var projection = snapshot.Projection with { CredentialReadable = true };
             await AfterCredentialReadAsync(cancellationToken);
             dbContext.ChangeTracker.Clear();
             var current = await LoadCoherentAsync(userId, cancellationToken);
-            if (current.Outcome != "available" || current.Projection is null
-                || current.Projection.Profiles.Count > 100
-                || MobileRoutingAuthorityIdentity.Compute(projection)
-                    != MobileRoutingAuthorityIdentity.Compute(current.Projection with { CredentialReadable = true }))
+            if (current.Outcome != "available" || current.Profiles is null || current.Profiles.Count > 100
+                || snapshot.Stamp != current.Stamp)
                 return MobileRoutingProfileDiscovery.Failure("temporarily-unavailable");
 
-            var profiles = projection.Profiles.Select(item => new MobileRoutingProfile(
-                item.TransportProfileId, item.Label, item.Key, item.Category)).ToArray();
-            return new("available", MobileRoutingAuthorityIdentity.Compute(projection), profiles);
+            var profiles = snapshot.Profiles.Select(item => new MobileRoutingProfile(
+                item.TransportProfileId, item.DisplayName, item.ModeKey, item.Category)).ToArray();
+            var projection = new MobileRoutingDiscoveryCatalogProjection("available", profiles);
+            return new("available", DiscoveryCatalogIdentity.Compute(projection), profiles);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -108,13 +96,10 @@ public sealed class MobileRoutingProfileDiscoveryService(
             return DiscoverySnapshot.Failure("authority-unavailable");
         var profiles = await EligibleAsync(provider.Id, cancellationToken);
         if (profiles.Count == 0) return DiscoverySnapshot.Failure("no-eligible-profiles");
-        return new("available", new(settings.ExternalRouteGenerationEnabled, settings.ExternalRouteGenerationVersion,
-            0x01, personal.ProviderKey, selection.RoutingSelectionGeneration, personal.Id, personal.RoutingAuthorized,
-            personal.RoutingGeneration, personal.CredentialGeneration, (int)personal.RoutingVerification,
-            personal.RoutingVerifiedCredentialGeneration, personal.RoutingVerifiedConfigurationGeneration,
-            null, null, null, null, null, null, false, provider.Id, provider.Enabled, (int)provider.AdapterType,
-            provider.ConfigurationVersion, provider.VerifiedConfigurationVersion, (int)provider.PersonalRoutingAccess,
-            profiles), provider, null, personal);
+        var stamp = new DiscoveryAuthorityStamp(settings.ExternalRouteGenerationVersion,
+            selection.RoutingSelectionGeneration, personal.RoutingGeneration, personal.CredentialGeneration,
+            provider.Id, provider.ConfigurationVersion, provider.VerifiedConfigurationVersion);
+        return new("available", profiles, stamp, provider, null, personal);
     }
 
     private bool ReadCredential(DiscoverySnapshot snapshot)
@@ -129,40 +114,44 @@ public sealed class MobileRoutingProfileDiscoveryService(
         return providerCredentials.Read(snapshot.Provider!).Succeeded;
     }
 
-    private async Task<IReadOnlyList<MobileRoutingAuthorityProfile>> EligibleAsync(
+    private async Task<IReadOnlyList<MobileRoutingDiscoveryProfile>> EligibleAsync(
         Guid providerId, CancellationToken cancellationToken)
     {
         var candidates = await EligibleQuery(providerId)
             .ToArrayAsync(cancellationToken);
         return candidates
-            .OrderBy(item => item.SortOrder).ThenBy(item => item.Label, StringComparer.Ordinal)
-            .ThenBy(item => item.Key, StringComparer.Ordinal).ThenBy(item => item.TransportProfileId, GuidNetworkComparer.Instance)
+            .OrderBy(item => item.SortOrder).ThenBy(item => item.DisplayName, StringComparer.Ordinal)
+            .ThenBy(item => item.ModeKey, StringComparer.Ordinal).ThenBy(item => item.TransportProfileId, GuidNetworkComparer.Instance)
             .ToArray();
     }
 
     /// <summary>Builds the production database-bounded eligible profile projection.</summary>
-    internal IQueryable<MobileRoutingAuthorityProfile> EligibleQuery(Guid providerId) =>
+    internal IQueryable<MobileRoutingDiscoveryProfile> EligibleQuery(Guid providerId) =>
         dbContext.Set<RoutingProviderProfileMapping>().AsNoTracking()
             .Where(item => item.RoutingProviderConfigurationId == providerId && item.TransportProfile.IsActive)
             .Where(item => item.OsrmProfile == "walk" || item.OsrmProfile == "bicycle"
                 || item.OsrmProfile == "motorcycle" || item.OsrmProfile == "drive" || item.OsrmProfile == "bus")
             .OrderBy(item => item.TransportProfile.SortOrder).ThenBy(item => item.TransportProfile.Label)
             .ThenBy(item => item.TransportProfile.Key).ThenBy(item => item.TransportProfileId)
-            .Select(item => new MobileRoutingAuthorityProfile(item.TransportProfileId, true,
-                item.TransportProfile.SortOrder, item.TransportProfile.Label, item.TransportProfile.Key,
-                item.TransportProfile.Category))
+            .Select(item => new MobileRoutingDiscoveryProfile(item.TransportProfileId, item.TransportProfile.Label,
+                item.TransportProfile.Key, item.TransportProfile.Category, item.TransportProfile.SortOrder))
             .Take(101);
 
-    private sealed record DiscoverySnapshot(string Outcome, MobileRoutingAuthorityProjection? Projection,
+    private sealed record DiscoverySnapshot(string Outcome, IReadOnlyList<MobileRoutingDiscoveryProfile>? Profiles,
+        DiscoveryAuthorityStamp? Stamp,
         RoutingProviderConfiguration? Provider, UserRoutingConfiguration? UserConfiguration,
         PersonalLocationProviderProfile? PersonalProfile)
     {
-        public static DiscoverySnapshot Failure(string outcome) => new(outcome, null, null, null, null);
+        public static DiscoverySnapshot Failure(string outcome) => new(outcome, null, null, null, null, null);
     }
+
+    private sealed record DiscoveryAuthorityStamp(int FeatureGeneration, int SelectionGeneration,
+        int RoutingGeneration, int CredentialGeneration, Guid ProviderId, int ProviderGeneration,
+        int? ProviderVerifiedGeneration);
 }
 
 /// <summary>Contains a bounded discovery outcome and complete provider-neutral choices.</summary>
-public sealed record MobileRoutingProfileDiscovery(string Outcome, string? AuthorityIdentity,
+public sealed record MobileRoutingProfileDiscovery(string Outcome, string? DiscoveryCatalogIdentity,
     IReadOnlyList<MobileRoutingProfile> Profiles)
 {
     /// <summary>Creates a non-available result with no partial authority.</summary>
@@ -171,6 +160,10 @@ public sealed record MobileRoutingProfileDiscovery(string Outcome, string? Autho
 
 /// <summary>Contains one provider-neutral eligible transport profile choice.</summary>
 public sealed record MobileRoutingProfile(Guid TransportProfileId, string DisplayName, string ModeKey, string Category);
+
+/// <summary>Contains SQL-projected ordering state that never enters the public DTO.</summary>
+internal sealed record MobileRoutingDiscoveryProfile(Guid TransportProfileId, string DisplayName,
+    string ModeKey, string Category, int SortOrder);
 
 /// <summary>Orders GUIDs by RFC-4122 network bytes.</summary>
 internal sealed class GuidNetworkComparer : IComparer<Guid>

@@ -19,22 +19,30 @@ public sealed class MobileRoutingService(
     internal Func<CancellationToken, Task> BeforeRoutePublicationAsync { get; set; } = _ => Task.CompletedTask;
 
     /// <summary>Projects a no-contact capability for one stable Wayfarer transport profile.</summary>
-    public async Task<MobileRoutingCapability> CapabilityAsync(
-        string userId, Guid transportProfileId, CancellationToken cancellationToken)
+    public Task<MobileRoutingCapability> CapabilityAsync(string userId, Guid transportProfileId,
+        CancellationToken cancellationToken) => CapabilityAsync(userId, transportProfileId, null, cancellationToken);
+
+    /// <summary>Confirms a discovery choice and returns its selected executable authority.</summary>
+    public async Task<MobileRoutingCapability> CapabilityAsync(string userId, Guid transportProfileId,
+        string? discoveryCatalogIdentity, CancellationToken cancellationToken)
     {
-        var authority = await discovery.DiscoverAsync(userId, cancellationToken);
-        if (authority.Outcome != "available" || authority.AuthorityIdentity is null
-            || authority.Profiles.All(item => item.TransportProfileId != transportProfileId))
-            return UnavailableCapability(transportProfileId, null);
+        if (discoveryCatalogIdentity is not null)
+        {
+            var catalog = await discovery.DiscoverAsync(userId, cancellationToken);
+            if (catalog.Outcome != "available" || catalog.DiscoveryCatalogIdentity != discoveryCatalogIdentity
+                || catalog.Profiles.All(item => item.TransportProfileId != transportProfileId))
+                return ChangedCatalogCapability(transportProfileId);
+        }
         var resolution = await resolver.ResolveAsync(userId, transportProfileId, cancellationToken);
         if (resolution.Execution == null)
-            return new(MapOutcome(resolution.ErrorCode), transportProfileId, null, null, null, null, null, null);
+            return new(MapOutcome(resolution.ErrorCode), transportProfileId, null, null, null, null, null,
+                discoveryCatalogIdentity, null);
         var execution = resolution.Execution;
+        var selectedIdentity = ComputeSelectedIdentity(userId, transportProfileId, execution);
         await AfterCapabilityResolutionAsync(cancellationToken);
         if (!MobileRoutingExecutionEligibility.IsSupported(execution, userId)
-            || !await discovery.IsAuthorityIdentityCurrentAsync(
-                userId, transportProfileId, authority.AuthorityIdentity, cancellationToken))
-            return UnavailableCapability(transportProfileId, null);
+            || !await SelectedAuthorityCurrentAsync(userId, transportProfileId, selectedIdentity, cancellationToken))
+            return UnavailableCapability(transportProfileId);
         var guard = await dbContext.GeoapifyUsageGuards.AsNoTracking()
             .SingleOrDefaultAsync(item => item.UserId == userId, cancellationToken);
         var cutoff = DateTimeOffset.UtcNow.AddHours(-24);
@@ -42,9 +50,11 @@ public sealed class MobileRoutingService(
             .Where(item => item.UserId == userId && item.AdmittedAt > cutoff)
             .SumAsync(item => (int?)item.Credits, cancellationToken) ?? 0;
         if (guard is { Enabled: true } && used >= guard.CreditLimit)
-            return new("exhausted", transportProfileId, null, null, null, null, null, authority.AuthorityIdentity);
+            return new("exhausted", transportProfileId, null, null, null, null, null,
+                discoveryCatalogIdentity, selectedIdentity);
         return new("available", transportProfileId, "geoapify", execution.Provider.Id,
-            MappingIdentity(execution, transportProfileId), "persistent", Attributions(), authority.AuthorityIdentity);
+            MappingIdentity(execution, transportProfileId), "persistent", Attributions(),
+            discoveryCatalogIdentity, selectedIdentity);
     }
 
     /// <summary>Generates one validated provider-neutral route and never mutates Trip Editor or domain state.</summary>
@@ -54,47 +64,43 @@ public sealed class MobileRoutingService(
 
     /// <summary>Generates one route with an optional pre-admission discovery authority fence.</summary>
     public async Task<MobileRouteServiceResult> RouteAsync(string userId, Guid transportProfileId,
-        IReadOnlyList<RouteCoordinate> points, string? authorityIdentity, CancellationToken cancellationToken)
+        IReadOnlyList<RouteCoordinate> points, string? selectedProfileAuthorityIdentity, CancellationToken cancellationToken)
     {
         if (points.Count is < 2 or > 5 || points.Any(point => !point.IsValid)
             || points.Zip(points.Skip(1), (first, second) => first == second).Any(equal => equal))
             return MobileRouteServiceResult.Failure("invalid-request");
-        if (authorityIdentity is not null)
-        {
-            var authority = await discovery.DiscoverAsync(userId, cancellationToken);
-            if (authority.Outcome != "available" || authority.AuthorityIdentity != authorityIdentity
-                || authority.Profiles.All(item => item.TransportProfileId != transportProfileId))
-                return MobileRouteServiceResult.Failure("authority-changed");
-        }
         var resolution = await resolver.ResolveAsync(userId, transportProfileId, cancellationToken);
         if (resolution.Execution == null) return MobileRouteServiceResult.Failure(MapOutcome(resolution.ErrorCode));
         if (!MobileRoutingExecutionEligibility.IsSupported(resolution.Execution, userId))
             return MobileRouteServiceResult.Failure("no-provider-selected");
+        var execution = resolution.Execution;
+        if (selectedProfileAuthorityIdentity is not null
+            && ComputeSelectedIdentity(userId, transportProfileId, execution) != selectedProfileAuthorityIdentity)
+            return MobileRouteServiceResult.Failure("authority-changed");
         await AfterRouteResolutionAsync(cancellationToken);
-        if (authorityIdentity is not null && !await discovery.IsAuthorityIdentityCurrentAsync(
-            userId, transportProfileId, authorityIdentity, cancellationToken))
+        if (selectedProfileAuthorityIdentity is not null && !await SelectedAuthorityCurrentAsync(
+            userId, transportProfileId, selectedProfileAuthorityIdentity, cancellationToken))
             return MobileRouteServiceResult.Failure("authority-changed");
         if (!budgets.TryAdmitUserGeneration(userId)) return MobileRouteServiceResult.Failure("rate-limited");
-        var execution = resolution.Execution;
-        if (authorityIdentity is not null && !await discovery.IsAuthorityIdentityCurrentAsync(
-            userId, transportProfileId, authorityIdentity, cancellationToken))
+        if (selectedProfileAuthorityIdentity is not null && !await SelectedAuthorityCurrentAsync(
+            userId, transportProfileId, selectedProfileAuthorityIdentity, cancellationToken))
             return MobileRouteServiceResult.Failure("authority-changed");
         var route = await routeClient.RouteAsync(execution, points,
-            token => CompleteAuthorityCurrentAsync(
-                userId, transportProfileId, execution, authorityIdentity, token), cancellationToken);
+            token => CompleteAuthorityCurrentAsync(userId, transportProfileId, execution,
+                selectedProfileAuthorityIdentity, token), cancellationToken);
         if (!route.Succeeded)
-            return MobileRouteServiceResult.Failure(authorityIdentity is not null
+            return MobileRouteServiceResult.Failure(selectedProfileAuthorityIdentity is not null
                 && route.ErrorCode == "configuration-changed" ? "authority-changed" : MapOutcome(route.ErrorCode));
         var validated = geometryValidator.Validate(points, route, cancellationToken);
         if (!validated.Succeeded) return MobileRouteServiceResult.Failure("invalid-response");
         await BeforeRoutePublicationAsync(cancellationToken);
         if (!await CompleteAuthorityCurrentAsync(
-            userId, transportProfileId, execution, authorityIdentity, cancellationToken))
-            return MobileRouteServiceResult.Failure(authorityIdentity is null ? "configuration-changed" : "authority-changed");
+            userId, transportProfileId, execution, selectedProfileAuthorityIdentity, cancellationToken))
+            return MobileRouteServiceResult.Failure(selectedProfileAuthorityIdentity is null ? "configuration-changed" : "authority-changed");
         return new(true, "available", validated.Geometry!, route.DistanceMetres, route.DurationSeconds,
             route.Instructions, clock.GetUtcNow(), "geoapify", execution.Provider.Id,
             MappingIdentity(execution, transportProfileId), transportProfileId, points,
-            Attributions(), "persistent", authorityIdentity);
+            Attributions(), "persistent", selectedProfileAuthorityIdentity);
     }
 
     private async Task<bool> AuthorityCurrentAsync(string userId, Guid profileId,
@@ -108,16 +114,36 @@ public sealed class MobileRoutingService(
     }
 
     private async Task<bool> CompleteAuthorityCurrentAsync(string userId, Guid profileId,
-        ResolvedRoutingProviderExecution expected, string? authorityIdentity, CancellationToken cancellationToken) =>
+        ResolvedRoutingProviderExecution expected, string? selectedProfileAuthorityIdentity, CancellationToken cancellationToken) =>
         await AuthorityCurrentAsync(userId, profileId, expected, cancellationToken)
-        && (authorityIdentity is null || await discovery.IsAuthorityIdentityCurrentAsync(
-            userId, profileId, authorityIdentity, cancellationToken));
+        && (selectedProfileAuthorityIdentity is null || await SelectedAuthorityCurrentAsync(
+            userId, profileId, selectedProfileAuthorityIdentity, cancellationToken));
+
+    private async Task<bool> SelectedAuthorityCurrentAsync(string userId, Guid profileId,
+        string expectedIdentity, CancellationToken cancellationToken)
+    {
+        var current = (await resolver.ResolveAsync(userId, profileId, cancellationToken)).Execution;
+        return current != null && MobileRoutingExecutionEligibility.IsSupported(current, userId)
+            && ComputeSelectedIdentity(userId, profileId, current) == expectedIdentity;
+    }
+
+    private static string ComputeSelectedIdentity(string userId, Guid profileId,
+        ResolvedRoutingProviderExecution execution) => SelectedProfileAuthorityIdentity.Compute(new(
+            userId, execution.FeatureStateGeneration, (int)execution.SelectionMode, execution.Provider.Id,
+            (int)execution.Provider.AdapterType, execution.Provider.Enabled, execution.ProviderConfigurationVersion,
+            execution.ProviderRowVersion, execution.UserConfigurationVersion, execution.UserRowVersion,
+            profileId, execution.Profile, !string.IsNullOrEmpty(execution.Credential),
+            execution.AuthoritySelectionGeneration, execution.RoutingAuthorized, execution.RoutingVerification,
+            execution.VerifiedCredentialGeneration, execution.VerifiedRoutingGeneration,
+            execution.ProviderVerifiedConfigurationVersion));
 
     private static string MappingIdentity(ResolvedRoutingProviderExecution execution, Guid profileId) =>
         $"{execution.Provider.Id:N}:{execution.ProviderConfigurationVersion}:{profileId:N}";
 
-    private static MobileRoutingCapability UnavailableCapability(Guid profileId, string? authorityIdentity) =>
-        new("no-provider-selected", profileId, null, null, null, null, null, authorityIdentity);
+    private static MobileRoutingCapability UnavailableCapability(Guid profileId) =>
+        new("no-provider-selected", profileId, null, null, null, null, null, null, null);
+    private static MobileRoutingCapability ChangedCatalogCapability(Guid profileId) =>
+        new("catalog-changed", profileId, null, null, null, null, null, null, null);
 
     private static IReadOnlyList<MobileRouteAttribution> Attributions() =>
     [
@@ -144,7 +170,8 @@ public sealed class MobileRoutingService(
 /// <summary>Contains no-contact mobile capability state and safe matching authority.</summary>
 public sealed record MobileRoutingCapability(string Outcome, Guid TransportProfileId, string? Provider,
     Guid? ProviderConfigurationId, string? MappingIdentity, string? StorageMode,
-    IReadOnlyList<MobileRouteAttribution>? Attribution, string? AuthorityIdentity);
+    IReadOnlyList<MobileRouteAttribution>? Attribution, string? DiscoveryCatalogIdentity,
+    string? SelectedProfileAuthorityIdentity);
 
 /// <summary>Contains one safe linked attribution entry.</summary>
 public sealed record MobileRouteAttribution(string Text, string Url);
@@ -155,7 +182,7 @@ public sealed record MobileRouteServiceResult(bool Succeeded, string Outcome,
     IReadOnlyList<RouteInstruction>? Instructions = null, DateTimeOffset? GeneratedAt = null, string? Provider = null,
     Guid? ProviderConfigurationId = null, string? MappingIdentity = null, Guid? TransportProfileId = null,
     IReadOnlyList<RouteCoordinate>? MatchPoints = null, IReadOnlyList<MobileRouteAttribution>? Attribution = null,
-    string? StorageMode = null, string? AuthorityIdentity = null)
+    string? StorageMode = null, string? SelectedProfileAuthorityIdentity = null)
 {
     public static MobileRouteServiceResult Failure(string outcome) => new(false, outcome);
 }
