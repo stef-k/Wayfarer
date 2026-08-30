@@ -69,6 +69,27 @@ public sealed class MobileRoutingProfileDiscoveryTests : TestBase
         Assert.Null(result.DiscoveryCatalogIdentity);
     }
 
+    /// <summary>Chooser projection drift after the protected read cannot publish the earlier catalog.</summary>
+    [Fact]
+    public async Task ChooserProjectionDriftAfterReadReturnsNoCatalogOrIdentity()
+    {
+        var (service, provider) = CreateConfiguredService();
+        AddProfile(provider, "a", "Alpha", "walking", 0);
+        var second = AddProfile(provider, "b", "Bravo", "cycling", 1);
+        await Db.SaveChangesAsync();
+        service.AfterCredentialReadAsync = async token =>
+        {
+            second.Label = "Beta";
+            await Db.SaveChangesAsync(token);
+        };
+
+        var result = await service.DiscoverAsync("owner", default);
+
+        Assert.Equal("temporarily-unavailable", result.Outcome);
+        Assert.Empty(result.Profiles);
+        Assert.Null(result.DiscoveryCatalogIdentity);
+    }
+
     [Fact]
     public async Task ZeroEligibleProfilesReturnsBoundedEmptyOutcome()
     {
