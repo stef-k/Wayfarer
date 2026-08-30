@@ -1,5 +1,6 @@
 using System.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Wayfarer.Models;
 using Wayfarer.Models.LocationProviders;
 using Wayfarer.Services.LocationProviders;
@@ -9,12 +10,23 @@ namespace Wayfarer.Services.ExternalRouting;
 /// <summary>Loads one bounded, provider-neutral Mobile routing catalog without provider contact or admission.</summary>
 public sealed class MobileRoutingProfileDiscoveryService(
     ApplicationDbContext dbContext, RoutingProviderCredentialService providerCredentials,
-    UserRoutingCredentialService userCredentials, PersonalProviderCredentialService personalCredentials)
+    UserRoutingCredentialService userCredentials, PersonalProviderCredentialService personalCredentials,
+    ILogger<MobileRoutingProfileDiscoveryService>? logger = null)
 {
     /// <summary>Provides a controlled seam for authority-drift tests after the single protected read.</summary>
     internal Func<CancellationToken, Task> AfterCredentialReadAsync { get; set; } = _ => Task.CompletedTask;
     /// <summary>Provides a controlled counter seam for protected-readability tests.</summary>
     internal Func<bool>? CredentialReadOverride { get; set; }
+
+    /// <summary>Freshly verifies one accepted complete catalog and requested-profile membership.</summary>
+    public async Task<bool> IsAuthorityIdentityCurrentAsync(string userId, Guid transportProfileId,
+        string authorityIdentity, CancellationToken cancellationToken)
+    {
+        var current = await DiscoverAsync(userId, cancellationToken);
+        return current.Outcome == "available"
+            && string.Equals(current.AuthorityIdentity, authorityIdentity, StringComparison.Ordinal)
+            && current.Profiles.Any(item => item.TransportProfileId == transportProfileId);
+    }
 
     /// <summary>Discovers the complete current eligible profile set for an authenticated active user.</summary>
     public async Task<MobileRoutingProfileDiscovery> DiscoverAsync(string userId, CancellationToken cancellationToken)
@@ -42,9 +54,14 @@ public sealed class MobileRoutingProfileDiscoveryService(
                 item.TransportProfileId, item.Label, item.Key, item.Category)).ToArray();
             return new("available", MobileRoutingAuthorityIdentity.Compute(projection), profiles);
         }
-        catch (Exception exception) when (exception is InvalidOperationException or OperationCanceledException)
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            if (exception is OperationCanceledException && cancellationToken.IsCancellationRequested) throw;
+            throw;
+        }
+        catch (Exception)
+        {
+            logger?.LogWarning(new EventId(52801, "MobileRoutingDiscoveryUnavailable"),
+                "Mobile routing discovery failed locally.");
             return MobileRoutingProfileDiscovery.Failure("temporarily-unavailable");
         }
     }
@@ -68,7 +85,7 @@ public sealed class MobileRoutingProfileDiscoveryService(
             .SingleOrDefaultAsync(item => item.UserId == userId, cancellationToken);
         if (selection?.RoutingProviderKey == "geoapify")
             return await LoadPersonalProviderAsync(userId, settings, selection, cancellationToken);
-        return await LoadConfiguredProviderAsync(userId, settings, cancellationToken);
+        return DiscoverySnapshot.Failure("no-authority");
     }
 
     private async Task<DiscoverySnapshot> LoadPersonalProviderAsync(string userId, ApplicationSettings settings,
@@ -83,14 +100,13 @@ public sealed class MobileRoutingProfileDiscoveryService(
             || personal.RoutingVerifiedConfigurationGeneration != personal.RoutingGeneration)
             return DiscoverySnapshot.Failure("authority-unavailable");
         var providers = await dbContext.Set<RoutingProviderConfiguration>().AsNoTracking()
-            .Include(item => item.ProfileMappings).ThenInclude(item => item.TransportProfile)
             .Where(item => item.AdapterType == RoutingAdapterType.Geoapify && item.Enabled)
-            .ToListAsync(cancellationToken);
+            .Take(2).ToListAsync(cancellationToken);
         if (providers.Count != 1) return DiscoverySnapshot.Failure("temporarily-unavailable");
         var provider = providers[0];
         if (provider.VerifiedConfigurationVersion != provider.ConfigurationVersion)
             return DiscoverySnapshot.Failure("authority-unavailable");
-        var profiles = Eligible(provider);
+        var profiles = await EligibleAsync(provider.Id, cancellationToken);
         if (profiles.Count == 0) return DiscoverySnapshot.Failure("no-eligible-profiles");
         return new("available", new(settings.ExternalRouteGenerationEnabled, settings.ExternalRouteGenerationVersion,
             0x01, personal.ProviderKey, selection.RoutingSelectionGeneration, personal.Id, personal.RoutingAuthorized,
@@ -99,41 +115,6 @@ public sealed class MobileRoutingProfileDiscoveryService(
             null, null, null, null, null, null, false, provider.Id, provider.Enabled, (int)provider.AdapterType,
             provider.ConfigurationVersion, provider.VerifiedConfigurationVersion, (int)provider.PersonalRoutingAccess,
             profiles), provider, null, personal);
-    }
-
-    private async Task<DiscoverySnapshot> LoadConfiguredProviderAsync(string userId, ApplicationSettings settings,
-        CancellationToken cancellationToken)
-    {
-        var user = await dbContext.Set<UserRoutingConfiguration>().AsNoTracking()
-            .SingleOrDefaultAsync(item => item.UserId == userId, cancellationToken);
-        if (user == null) return DiscoverySnapshot.Failure("no-authority");
-        var personal = user.SelectedProviderConfigurationId.HasValue;
-        var providerId = user.SelectedProviderConfigurationId ?? settings.ActiveRoutingProviderConfigurationId;
-        if (!providerId.HasValue) return DiscoverySnapshot.Failure("no-authority");
-        var provider = await dbContext.Set<RoutingProviderConfiguration>().AsNoTracking()
-            .Include(item => item.ProfileMappings).ThenInclude(item => item.TransportProfile)
-            .SingleOrDefaultAsync(item => item.Id == providerId, cancellationToken);
-        if (provider == null || !provider.Enabled || provider.VerifiedConfigurationVersion != provider.ConfigurationVersion)
-            return DiscoverySnapshot.Failure("authority-unavailable");
-        if (personal && !PersonalRoutingEligibility.Evaluate(provider).Eligible)
-            return DiscoverySnapshot.Failure("authority-unavailable");
-        if (personal && provider.PersonalRoutingAccess == PersonalRoutingAccess.CredentialFree
-            && (user.CredentialPresent || user.CredentialCiphertext != null || user.VerificationStatus != null
-                || user.VerifiedUserConfigurationVersion != null || user.VerifiedProviderConfigurationVersion != null))
-            return DiscoverySnapshot.Failure("authority-unavailable");
-        if (personal && provider.PersonalRoutingAccess == PersonalRoutingAccess.CredentialRequired
-            && (!user.CredentialPresent || user.VerifiedUserConfigurationVersion != user.ConfigurationVersion
-                || user.VerifiedProviderConfigurationVersion != provider.ConfigurationVersion
-                || user.VerificationStatus != "verified"))
-            return DiscoverySnapshot.Failure("authority-unavailable");
-        var profiles = Eligible(provider);
-        if (profiles.Count == 0) return DiscoverySnapshot.Failure("no-eligible-profiles");
-        return new("available", new(settings.ExternalRouteGenerationEnabled, settings.ExternalRouteGenerationVersion,
-            0x02, null, null, null, null, null, null, null, null, null,
-            user.SelectedProviderConfigurationId, user.ConfigurationVersion, user.CredentialPresent,
-            user.VerifiedUserConfigurationVersion, user.VerifiedProviderConfigurationVersion, user.VerificationStatus,
-            false, provider.Id, provider.Enabled, (int)provider.AdapterType, provider.ConfigurationVersion,
-            provider.VerifiedConfigurationVersion, (int)provider.PersonalRoutingAccess, profiles), provider, user, null);
     }
 
     private bool ReadCredential(DiscoverySnapshot snapshot)
@@ -148,16 +129,29 @@ public sealed class MobileRoutingProfileDiscoveryService(
         return providerCredentials.Read(snapshot.Provider!).Succeeded;
     }
 
-    private static IReadOnlyList<MobileRoutingAuthorityProfile> Eligible(RoutingProviderConfiguration provider) =>
-        provider.ProfileMappings.Where(item => item.TransportProfile is { IsActive: true })
-            .Where(item => ProviderTransportProfileResolver.Resolve(provider, item.TransportProfile).Category
-                == ProviderTransportProfileCategory.Supported)
+    private async Task<IReadOnlyList<MobileRoutingAuthorityProfile>> EligibleAsync(
+        Guid providerId, CancellationToken cancellationToken)
+    {
+        var candidates = await EligibleQuery(providerId)
+            .ToArrayAsync(cancellationToken);
+        return candidates
+            .OrderBy(item => item.SortOrder).ThenBy(item => item.Label, StringComparer.Ordinal)
+            .ThenBy(item => item.Key, StringComparer.Ordinal).ThenBy(item => item.TransportProfileId, GuidNetworkComparer.Instance)
+            .ToArray();
+    }
+
+    /// <summary>Builds the production database-bounded eligible profile projection.</summary>
+    internal IQueryable<MobileRoutingAuthorityProfile> EligibleQuery(Guid providerId) =>
+        dbContext.Set<RoutingProviderProfileMapping>().AsNoTracking()
+            .Where(item => item.RoutingProviderConfigurationId == providerId && item.TransportProfile.IsActive)
+            .Where(item => item.OsrmProfile == "walk" || item.OsrmProfile == "bicycle"
+                || item.OsrmProfile == "motorcycle" || item.OsrmProfile == "drive" || item.OsrmProfile == "bus")
+            .OrderBy(item => item.TransportProfile.SortOrder).ThenBy(item => item.TransportProfile.Label)
+            .ThenBy(item => item.TransportProfile.Key).ThenBy(item => item.TransportProfileId)
             .Select(item => new MobileRoutingAuthorityProfile(item.TransportProfileId, true,
                 item.TransportProfile.SortOrder, item.TransportProfile.Label, item.TransportProfile.Key,
                 item.TransportProfile.Category))
-            .OrderBy(item => item.SortOrder).ThenBy(item => item.Label, StringComparer.Ordinal)
-            .ThenBy(item => item.Key, StringComparer.Ordinal).ThenBy(item => item.TransportProfileId, GuidNetworkComparer.Instance)
-            .Take(101).ToArray();
+            .Take(101);
 
     private sealed record DiscoverySnapshot(string Outcome, MobileRoutingAuthorityProjection? Projection,
         RoutingProviderConfiguration? Provider, UserRoutingConfiguration? UserConfiguration,

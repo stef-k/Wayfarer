@@ -11,13 +11,25 @@ public static class MobileRoutingAuthorityIdentity
     private static readonly byte[] Domain = Encoding.ASCII.GetBytes("Wayfarer.MobileRoutingAuthority");
 
     /// <summary>Returns whether a supplied identity has the exact current wire syntax.</summary>
-    public static bool IsValid(string? value) => value is { Length: 46 }
-        && value.StartsWith("v1.", StringComparison.Ordinal)
-        && value.AsSpan(3).IndexOfAnyExcept("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_") < 0;
+    public static bool IsValid(string? value)
+    {
+        if (value is not { Length: 46 } || value.Length > 64
+            || !value.StartsWith("v1.", StringComparison.Ordinal)
+            || value.AsSpan(3).IndexOfAnyExcept("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_") >= 0)
+            return false;
+        Span<byte> decoded = stackalloc byte[32];
+        if (!Convert.TryFromBase64String(value[3..].Replace('-', '+').Replace('_', '/') + "=", decoded, out var written)
+            || written != decoded.Length)
+            return false;
+        return string.Equals(value[3..], Base64Url(decoded), StringComparison.Ordinal);
+    }
 
     /// <summary>Computes the opaque v1 identity for one complete authority projection.</summary>
     public static string Compute(MobileRoutingAuthorityProjection value) =>
-        "v1." + Convert.ToBase64String(SHA256.HashData(Encode(value))).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+        "v1." + Base64Url(SHA256.HashData(Encode(value)));
+
+    private static string Base64Url(ReadOnlySpan<byte> value) =>
+        Convert.ToBase64String(value).TrimEnd('=').Replace('+', '-').Replace('/', '_');
 
     /// <summary>Encodes canonical v1 bytes. Exposed internally for literal vector verification.</summary>
     internal static byte[] Encode(MobileRoutingAuthorityProjection value)

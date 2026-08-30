@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.DataProtection;
 using Wayfarer.Models;
+using Wayfarer.Models.LocationProviders;
 using Wayfarer.Services.ExternalRouting;
 using Wayfarer.Services.LocationProviders;
 using Wayfarer.Tests.Infrastructure;
@@ -84,7 +85,7 @@ public sealed class MobileRoutingProfileDiscoveryTests : TestBase
     [Fact]
     public async Task ServerDefaultRejectedByMobileIsNotAdvertised()
     {
-        var (service, provider) = CreateConfiguredService();
+        var (service, provider) = CreateConfiguredService(serverDefault: true);
         AddProfile(provider, "walk", "Walk", "walking", 0);
         await Db.SaveChangesAsync();
 
@@ -109,22 +110,70 @@ public sealed class MobileRoutingProfileDiscoveryTests : TestBase
         Assert.Null(result.AuthorityIdentity);
     }
 
+    [Fact]
+    public async Task CallerCancellationPropagates()
+    {
+        var (service, provider) = CreateConfiguredService();
+        AddProfile(provider, "walk", "Walk", "walking", 0);
+        await Db.SaveChangesAsync();
+        using var cancellation = new CancellationTokenSource();
+        service.AfterCredentialReadAsync = token =>
+        {
+            cancellation.Cancel();
+            return Task.FromCanceled(token);
+        };
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => service.DiscoverAsync("owner", cancellation.Token));
+    }
+
+    [Fact]
+    public async Task DisposedDatabaseFailureIsBounded()
+    {
+        var (service, _) = CreateConfiguredService();
+        Db.Dispose();
+
+        var result = await service.DiscoverAsync("owner", default);
+
+        Assert.Equal("temporarily-unavailable", result.Outcome);
+        Assert.Empty(result.Profiles);
+        Assert.Null(result.AuthorityIdentity);
+    }
+
     private ApplicationDbContext Db { get; set; } = null!;
 
-    private (MobileRoutingProfileDiscoveryService Service, RoutingProviderConfiguration Provider) CreateConfiguredService()
+    private (MobileRoutingProfileDiscoveryService Service, RoutingProviderConfiguration Provider) CreateConfiguredService(
+        bool serverDefault = false)
     {
         Db = CreateDbContext();
         var provider = new RoutingProviderConfiguration
         {
-            Id = Guid.NewGuid(), DisplayName = "Routing", AdapterType = RoutingAdapterType.OsrmCompatible,
+            Id = Guid.NewGuid(), DisplayName = "Routing", AdapterType = serverDefault
+                ? RoutingAdapterType.OsrmCompatible : RoutingAdapterType.Geoapify,
             Enabled = true, BaseEndpoint = "https://routing.example", ConfigurationVersion = 3,
             VerifiedConfigurationVersion = 3, PersonalRoutingAccess = PersonalRoutingAccess.Disabled
         };
-        Db.AddRange(provider, UserRoutingConfiguration.CreateServerDefault("owner"),
-            new ApplicationSettings { Id = 1, ExternalRouteGenerationEnabled = true,
-                ExternalRouteGenerationVersion = 7, ActiveRoutingProviderConfigurationId = provider.Id });
         var protection = new EphemeralDataProtectionProvider();
-        return (new(Db, new(protection), new(protection), new PersonalProviderCredentialService(protection)), provider);
+        var personalCredentials = new PersonalProviderCredentialService(protection);
+        Db.Add(provider);
+        if (serverDefault)
+        {
+            Db.Add(UserRoutingConfiguration.CreateServerDefault("owner"));
+        }
+        else
+        {
+            var personal = PersonalLocationProviderProfile.Create("owner", PersonalLocationProvider.Geoapify);
+            personalCredentials.Replace(personal, "secret");
+            personal.RoutingAuthorized = true;
+            personal.RoutingVerification = PersonalProviderVerification.Verified;
+            personal.RoutingVerifiedCredentialGeneration = personal.CredentialGeneration;
+            personal.RoutingVerifiedConfigurationGeneration = personal.RoutingGeneration;
+            Db.AddRange(personal,
+                new PersonalLocationProviderSelection { UserId = "owner", RoutingProviderKey = "geoapify" });
+        }
+        Db.Add(new ApplicationSettings { Id = 1, ExternalRouteGenerationEnabled = true,
+            ExternalRouteGenerationVersion = 7, ActiveRoutingProviderConfigurationId = serverDefault ? provider.Id : null });
+        return (new(Db, new(protection), new(protection), personalCredentials), provider);
     }
 
     private TransportProfile AddProfile(RoutingProviderConfiguration provider, string key, string label,
@@ -137,7 +186,7 @@ public sealed class MobileRoutingProfileDiscoveryTests : TestBase
         var mapping = new RoutingProviderProfileMapping
         {
             RoutingProviderConfigurationId = provider.Id, RoutingProviderConfiguration = provider,
-            TransportProfileId = profile.Id, TransportProfile = profile, OsrmProfile = "driving"
+            TransportProfileId = profile.Id, TransportProfile = profile, OsrmProfile = "walk"
         };
         provider.ProfileMappings.Add(mapping);
         Db.Add(profile);

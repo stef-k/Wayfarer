@@ -148,10 +148,37 @@ public sealed class MobileRoutingServiceAuthorityTests : TestBase
         var client = new RevalidatingClient(async token =>
         {
             profiles[1].Label = "Changed";
+            db.Update(profiles[1]);
             await db.SaveChangesAsync(token);
         });
         var service = new MobileRoutingService(db, resolver, client, new AcceptingValidator(), new(), discovery);
         var authority = await discovery.DiscoverAsync("owner", default);
+
+        service.AfterCapabilityResolutionAsync = async token =>
+        {
+            profiles[1].Label = "Capability changed";
+            db.Update(profiles[1]);
+            await db.SaveChangesAsync(token);
+        };
+        var capability = await service.CapabilityAsync("owner", profiles[0].Id, default);
+        Assert.Equal("no-provider-selected", capability.Outcome);
+        Assert.Null(capability.AuthorityIdentity);
+        Assert.Null(capability.Provider);
+        service.AfterCapabilityResolutionAsync = _ => Task.CompletedTask;
+        authority = await discovery.DiscoverAsync("owner", default);
+
+        service.AfterRouteResolutionAsync = async token =>
+        {
+            profiles[1].Label = "Pre-admission changed";
+            db.Update(profiles[1]);
+            await db.SaveChangesAsync(token);
+        };
+        var preAdmission = await service.RouteAsync("owner", profiles[0].Id, [new(20, 10), new(21, 11)],
+            authority.AuthorityIdentity, default);
+        Assert.Equal("authority-changed", preAdmission.Outcome);
+        Assert.Equal(0, client.Requests);
+        service.AfterRouteResolutionAsync = _ => Task.CompletedTask;
+        authority = await discovery.DiscoverAsync("owner", default);
 
         var route = await service.RouteAsync("owner", profiles[0].Id, [new(20, 10), new(21, 11)],
             authority.AuthorityIdentity, default);
@@ -159,19 +186,34 @@ public sealed class MobileRoutingServiceAuthorityTests : TestBase
         Assert.False(route.Succeeded);
         Assert.Equal("authority-changed", route.Outcome);
         Assert.Equal(1, client.Requests);
+
+        var finalClient = new RecordingClient();
+        var finalService = new MobileRoutingService(db, resolver, finalClient, new AcceptingValidator(), new(), discovery);
+        authority = await discovery.DiscoverAsync("owner", default);
+        finalService.BeforeRoutePublicationAsync = async token =>
+        {
+            profiles[1].Label = "Final changed";
+            db.Update(profiles[1]);
+            await db.SaveChangesAsync(token);
+        };
+        var final = await finalService.RouteAsync("owner", profiles[0].Id, [new(20, 10), new(21, 11)],
+            authority.AuthorityIdentity, default);
+        Assert.Equal("authority-changed", final.Outcome);
+        Assert.Equal(1, finalClient.Requests);
     }
 
     private sealed class RecordingClient : IOsrmRouteClient
     {
         public int Requests { get; private set; }
-        public Task<OsrmRouteResult> RouteAsync(ResolvedRoutingProviderExecution execution,
+        public async Task<OsrmRouteResult> RouteAsync(ResolvedRoutingProviderExecution execution,
             IReadOnlyList<RouteCoordinate> requestedAnchors, Func<CancellationToken, Task<bool>> validateAuthority,
             CancellationToken cancellationToken)
         {
             Requests++;
-            return Task.FromResult(new OsrmRouteResult(true,
+            if (!await validateAuthority(cancellationToken)) return OsrmRouteResult.Invalid("configuration-changed");
+            return new OsrmRouteResult(true,
                 [requestedAnchors[0], new(20.5, 10.5), requestedAnchors[1]], requestedAnchors, null,
-                42.5, 12.25, [new("Continue", "Straight", 0, 2, 42.5, 12.25)]));
+                42.5, 12.25, [new("Continue", "Straight", 0, 2, 42.5, 12.25)]);
         }
     }
 
