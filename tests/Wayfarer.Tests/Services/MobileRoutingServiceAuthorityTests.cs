@@ -115,6 +115,52 @@ public sealed class MobileRoutingServiceAuthorityTests : TestBase
         Assert.Equal(1, client.Requests);
     }
 
+    [Fact]
+    public async Task DifferentEligibleProfileDriftDuringContactInvalidatesCompleteCatalog()
+    {
+        var db = CreateDbContext();
+        var profiles = db.Set<TransportProfile>().Take(2).ToArray();
+        var provider = new RoutingProviderConfiguration
+        {
+            Id = Guid.NewGuid(), DisplayName = "Geoapify", AdapterType = RoutingAdapterType.Geoapify,
+            Enabled = true, BaseEndpoint = "https://api.geoapify.com/", ConfigurationVersion = 2,
+            VerifiedConfigurationVersion = 2
+        };
+        foreach (var profile in profiles)
+            provider.ProfileMappings.Add(new RoutingProviderProfileMapping
+            {
+                RoutingProviderConfigurationId = provider.Id, TransportProfileId = profile.Id, OsrmProfile = "walk"
+            });
+        var protection = new EphemeralDataProtectionProvider();
+        var credentials = new PersonalProviderCredentialService(protection);
+        var personal = PersonalLocationProviderProfile.Create("owner", PersonalLocationProvider.Geoapify);
+        credentials.Replace(personal, "secret");
+        personal.RoutingAuthorized = true;
+        personal.RoutingVerification = PersonalProviderVerification.Verified;
+        personal.RoutingVerifiedCredentialGeneration = personal.CredentialGeneration;
+        personal.RoutingVerifiedConfigurationGeneration = personal.RoutingGeneration;
+        db.AddRange(provider, personal,
+            new PersonalLocationProviderSelection { UserId = "owner", RoutingProviderKey = "geoapify" });
+        db.ApplicationSettings.Add(new ApplicationSettings { Id = 1, ExternalRouteGenerationEnabled = true });
+        await db.SaveChangesAsync();
+        var resolver = new AuthoritativeRoutingProviderResolver(db, new(protection), new(protection), credentials);
+        var discovery = new MobileRoutingProfileDiscoveryService(db, new(protection), new(protection), credentials);
+        var client = new RevalidatingClient(async token =>
+        {
+            profiles[1].Label = "Changed";
+            await db.SaveChangesAsync(token);
+        });
+        var service = new MobileRoutingService(db, resolver, client, new AcceptingValidator(), new(), discovery);
+        var authority = await discovery.DiscoverAsync("owner", default);
+
+        var route = await service.RouteAsync("owner", profiles[0].Id, [new(20, 10), new(21, 11)],
+            authority.AuthorityIdentity, default);
+
+        Assert.False(route.Succeeded);
+        Assert.Equal("authority-changed", route.Outcome);
+        Assert.Equal(1, client.Requests);
+    }
+
     private sealed class RecordingClient : IOsrmRouteClient
     {
         public int Requests { get; private set; }
@@ -134,5 +180,21 @@ public sealed class MobileRoutingServiceAuthorityTests : TestBase
         public ProviderRouteValidationResult Validate(IReadOnlyList<RouteCoordinate> requestedAnchors,
             OsrmRouteResult providerRoute, CancellationToken cancellationToken) =>
             new(true, providerRoute.Geometry, [0, providerRoute.Geometry.Count - 1], null);
+    }
+
+    private sealed class RevalidatingClient(Func<CancellationToken, Task> beforeValidation) : IOsrmRouteClient
+    {
+        public int Requests { get; private set; }
+
+        public async Task<OsrmRouteResult> RouteAsync(ResolvedRoutingProviderExecution execution,
+            IReadOnlyList<RouteCoordinate> requestedAnchors, Func<CancellationToken, Task<bool>> validateAuthority,
+            CancellationToken cancellationToken)
+        {
+            Requests++;
+            await beforeValidation(cancellationToken);
+            if (!await validateAuthority(cancellationToken)) return OsrmRouteResult.Invalid("configuration-changed");
+            return new(true, [requestedAnchors[0], requestedAnchors[1]], requestedAnchors, null,
+                42.5, 12.25, [new("Continue", "Straight", 0, 1, 42.5, 12.25)]);
+        }
     }
 }

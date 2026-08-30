@@ -47,4 +47,12 @@ public sealed class MobileRoutingAuthorityIdentityTests
     [InlineData("v1.pSJHONZRBMqqqYGEUcFHN0YNg3aoeWUOeE4rNUA351=", false)]
     public void SyntaxValidationIsExact(string value, bool expected) =>
         Assert.Equal(expected, MobileRoutingAuthorityIdentity.IsValid(value));
+
+    [Fact]
+    public void SyntaxValidationRejectsNonCanonicalTrailingBits()
+    {
+        const string nonCanonical = "v1.AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAB";
+
+        Assert.False(MobileRoutingAuthorityIdentity.IsValid(nonCanonical));
+    }
 }

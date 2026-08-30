@@ -81,6 +81,34 @@ public sealed class MobileRoutingProfileDiscoveryTests : TestBase
         Assert.Null(result.AuthorityIdentity);
     }
 
+    [Fact]
+    public async Task ServerDefaultRejectedByMobileIsNotAdvertised()
+    {
+        var (service, provider) = CreateConfiguredService();
+        AddProfile(provider, "walk", "Walk", "walking", 0);
+        await Db.SaveChangesAsync();
+
+        var result = await service.DiscoverAsync("owner", default);
+
+        Assert.Equal("no-authority", result.Outcome);
+        Assert.Empty(result.Profiles);
+    }
+
+    [Fact]
+    public async Task UnexpectedProtectedReadFailureIsBounded()
+    {
+        var (service, provider) = CreateConfiguredService();
+        AddProfile(provider, "walk", "Walk", "walking", 0);
+        await Db.SaveChangesAsync();
+        service.CredentialReadOverride = () => throw new Exception("sensitive diagnostic");
+
+        var result = await service.DiscoverAsync("owner", default);
+
+        Assert.Equal("temporarily-unavailable", result.Outcome);
+        Assert.Empty(result.Profiles);
+        Assert.Null(result.AuthorityIdentity);
+    }
+
     private ApplicationDbContext Db { get; set; } = null!;
 
     private (MobileRoutingProfileDiscoveryService Service, RoutingProviderConfiguration Provider) CreateConfiguredService()
