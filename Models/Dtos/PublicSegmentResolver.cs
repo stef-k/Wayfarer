@@ -61,6 +61,7 @@ public static class PublicSegmentResolver
             EstimatedDurationMinutes = segment.EstimatedDuration?.TotalMinutes,
             Notes = segment.Notes,
             DisplayOrder = segment.DisplayOrder,
+            TransportProfileId = segment.TransportProfileId,
             FromPlaceId = segment.FromPlaceId,
             ToPlaceId = segment.ToPlaceId,
             RouteJson = routeResolution.RouteJson,

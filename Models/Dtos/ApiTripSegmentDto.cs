@@ -15,6 +15,8 @@ public class ApiTripSegmentDto
     public string? Notes { get; set; }
     /// <summary>Gets or sets the public display order.</summary>
     public int DisplayOrder { get; set; }
+    /// <summary>Gets the nullable current Segment transport-profile selection identity.</summary>
+    public Guid? TransportProfileId { get; init; }
 
     /// <summary>Gets or sets the optional starting Place identity.</summary>
     public Guid? FromPlaceId { get; set; }

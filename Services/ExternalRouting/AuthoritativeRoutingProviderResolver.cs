@@ -31,6 +31,7 @@ public sealed class AuthoritativeRoutingProviderResolver(
             .SingleOrDefaultAsync(item => item.UserId == userId, cancellationToken);
         if (personalSelection?.RoutingProviderKey == "geoapify")
             return await ResolveGeoapifyAsync(userId, transportProfileId, settings.ExternalRouteGenerationVersion,
+                personalSelection.RoutingSelectionGeneration,
                 requirePersonalVerification, cancellationToken);
         var userConfiguration = await dbContext.Set<UserRoutingConfiguration>().AsNoTracking()
             .SingleOrDefaultAsync(item => item.UserId == userId, cancellationToken);
@@ -52,7 +53,7 @@ public sealed class AuthoritativeRoutingProviderResolver(
     }
 
     private async Task<RoutingProviderResolutionResult> ResolveGeoapifyAsync(
-        string userId, Guid transportProfileId, int featureVersion, bool requireVerification,
+        string userId, Guid transportProfileId, int featureVersion, int selectionGeneration, bool requireVerification,
         CancellationToken cancellationToken)
     {
         if (personalCredentials == null)
@@ -90,7 +91,9 @@ public sealed class AuthoritativeRoutingProviderResolver(
             new(operational, mapping.NativeMode!, credential.Credential, RoutingProviderSelectionMode.Personal,
                 profile.RoutingGeneration, (uint)profile.CredentialGeneration, provider.ConfigurationVersion,
                 provider.RowVersion, featureVersion, provider.DisplayName, provider.ExternalCoordinateDisclosure,
-                provider.Attribution, userId));
+                provider.Attribution, userId, selectionGeneration, profile.RoutingAuthorized,
+                (int)profile.RoutingVerification, profile.RoutingVerifiedCredentialGeneration,
+                profile.RoutingVerifiedConfigurationGeneration, provider.VerifiedConfigurationVersion));
     }
 
     private RoutingProviderResolutionResult ResolvePersonal(
@@ -195,7 +198,10 @@ public sealed record ResolvedRoutingProviderExecution(
     RoutingProviderSelectionMode SelectionMode, int UserConfigurationVersion, uint UserRowVersion,
     int ProviderConfigurationVersion, uint ProviderRowVersion, int FeatureStateGeneration,
     string DisplayName, string? Disclosure, string? Attribution,
-    string? PersonalProviderUserId = null);
+    string? PersonalProviderUserId = null, int AuthoritySelectionGeneration = 0,
+    bool RoutingAuthorized = false, int RoutingVerification = 0,
+    int? VerifiedCredentialGeneration = null, int? VerifiedRoutingGeneration = null,
+    int? ProviderVerifiedConfigurationVersion = null);
 
 /// <summary>Identifies the provider selection bound into protected proposals.</summary>
 public enum RoutingProviderSelectionMode { ServerDefault, Personal }

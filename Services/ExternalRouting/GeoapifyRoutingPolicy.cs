@@ -53,6 +53,18 @@ public static class RoutingProviderAnchorPolicy
             ? "routing-cost-invalid" : null;
 }
 
+/// <summary>Owns the current Mobile execution authority accepted by capability and route generation.</summary>
+public static class MobileRoutingExecutionEligibility
+{
+    /// <summary>Returns whether execution is the authenticated user's supported personal Geoapify authority.</summary>
+    public static bool IsSupported(ResolvedRoutingProviderExecution execution, string userId) =>
+        execution.Provider.AdapterType == RoutingAdapterType.Geoapify
+        && execution.SelectionMode == RoutingProviderSelectionMode.Personal
+        && execution.PersonalProviderUserId == userId
+        && !string.IsNullOrWhiteSpace(execution.Provider.BaseEndpoint)
+        && GeoapifyRouteCost.TryParse(execution.Profile, out _);
+}
+
 /// <summary>Identifies bounded mapping resolution without inferring from display text.</summary>
 public enum ProviderTransportProfileCategory { Supported, Unmapped, Unsupported }
 

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Added authenticated provider-neutral Mobile routing profile discovery with separate `DiscoveryCatalogIdentity` choice confirmation and `SelectedProfileAuthorityIdentity` route fencing, plus nullable current Segment transport-profile identity as the undeployed backend prerequisite for unimplemented WayfarerMobile #260 (#528).
+
 ### Added
 - Added explicit-submit Trip Editor place search through a user's active personal Geoapify authority, sharing the existing geocoding-credit allowance, using free authority-bound cache hits, and falling back to attributed public Nominatim only for no/Mapbox selection or exhausted Geoapify allowance while invalid active authority fails closed (#526).
 - Added an explicit resumable per-user missing-address workflow with durable controls, bounded retries, exact provider-budget wakes, restart reconciliation, and authenticated content-free progress (#507).

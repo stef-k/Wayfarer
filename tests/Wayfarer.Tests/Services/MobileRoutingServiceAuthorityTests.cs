@@ -36,7 +36,9 @@ public sealed class MobileRoutingServiceAuthorityTests : TestBase
         var protection = new EphemeralDataProtectionProvider();
         var resolver = new AuthoritativeRoutingProviderResolver(db, new(protection), new(protection));
         var client = new RecordingClient();
-        var service = new MobileRoutingService(db, resolver, client, new AcceptingValidator(), new());
+        var discovery = new MobileRoutingProfileDiscoveryService(db, new(protection), new(protection),
+            new PersonalProviderCredentialService(protection));
+        var service = new MobileRoutingService(db, resolver, client, new AcceptingValidator(), new(), discovery);
 
         var capability = await service.CapabilityAsync("owner", profile.Id, default);
         var route = await service.RouteAsync("owner", profile.Id, [new(20, 10), new(21, 11)], default);
@@ -61,10 +63,11 @@ public sealed class MobileRoutingServiceAuthorityTests : TestBase
             Enabled = true, BaseEndpoint = "https://api.geoapify.com/", ConfigurationVersion = 2,
             VerifiedConfigurationVersion = 2
         };
-        provider.ProfileMappings.Add(new RoutingProviderProfileMapping
+        var mapping = new RoutingProviderProfileMapping
         {
             RoutingProviderConfigurationId = provider.Id, TransportProfileId = transport.Id, OsrmProfile = "walk"
-        });
+        };
+        provider.ProfileMappings.Add(mapping);
         var protection = new EphemeralDataProtectionProvider();
         var credentials = new PersonalProviderCredentialService(protection);
         var personal = PersonalLocationProviderProfile.Create("owner", PersonalLocationProvider.Geoapify);
@@ -79,12 +82,20 @@ public sealed class MobileRoutingServiceAuthorityTests : TestBase
         await db.SaveChangesAsync();
         var resolver = new AuthoritativeRoutingProviderResolver(db, new(protection), new(protection), credentials);
         var client = new RecordingClient();
-        var service = new MobileRoutingService(db, resolver, client, new AcceptingValidator(), new());
+        var discovery = new MobileRoutingProfileDiscoveryService(db, new(protection), new(protection), credentials);
+        var service = new MobileRoutingService(db, resolver, client, new AcceptingValidator(), new(), discovery);
 
         var capability = await service.CapabilityAsync("owner", transport.Id, default);
-        var route = await service.RouteAsync("owner", transport.Id, [new(20, 10), new(21, 11)], default);
+        var stale = await service.RouteAsync("owner", transport.Id, [new(20, 10), new(21, 11)],
+            "v1.pSJHONZRBMqqqYGEUcFHN0YNg3aoeWUOeE4rNUA351o", default);
+        Assert.Equal(0, client.Requests);
+        var route = await service.RouteAsync("owner", transport.Id, [new(20, 10), new(21, 11)],
+            capability.SelectedProfileAuthorityIdentity, default);
 
         Assert.Equal("available", capability.Outcome);
+        Assert.NotNull(capability.SelectedProfileAuthorityIdentity);
+        Assert.Equal("authority-changed", stale.Outcome);
+        Assert.Equal(capability.SelectedProfileAuthorityIdentity, route.SelectedProfileAuthorityIdentity);
         Assert.Equal("geoapify", capability.Provider);
         Assert.Equal("persistent", capability.StorageMode);
         Assert.True(route.Succeeded);
@@ -103,19 +114,109 @@ public sealed class MobileRoutingServiceAuthorityTests : TestBase
         Assert.Equal(["Powered by Geoapify", "© OpenStreetMap contributors"],
             route.Attribution!.Select(item => item.Text));
         Assert.Equal(1, client.Requests);
+
+        client.BeforeValidationAsync = async token =>
+        {
+            mapping.OsrmProfile = "bicycle";
+            db.Update(mapping);
+            await db.SaveChangesAsync(token);
+        };
+        var duringContact = await service.RouteAsync("owner", transport.Id, [new(20, 10), new(21, 11)],
+            capability.SelectedProfileAuthorityIdentity, default);
+        Assert.Equal("authority-changed", duringContact.Outcome);
+        Assert.Equal(2, client.Requests);
+
+        client.BeforeValidationAsync = _ => Task.CompletedTask;
+        var currentCapability = await service.CapabilityAsync("owner", transport.Id, default);
+        service.BeforeRoutePublicationAsync = async token =>
+        {
+            provider.ConfigurationVersion++;
+            provider.VerifiedConfigurationVersion = provider.ConfigurationVersion;
+            db.Update(provider);
+            await db.SaveChangesAsync(token);
+        };
+        var beforePublication = await service.RouteAsync("owner", transport.Id, [new(20, 10), new(21, 11)],
+            currentCapability.SelectedProfileAuthorityIdentity, default);
+        Assert.Equal("authority-changed", beforePublication.Outcome);
+        Assert.Equal(3, client.Requests);
+    }
+
+    [Fact]
+    public async Task UnrelatedProfilePresentationDriftDoesNotInvalidateSelectedProfile()
+    {
+        var db = CreateDbContext();
+        var profiles = db.Set<TransportProfile>().Take(2).ToArray();
+        var provider = new RoutingProviderConfiguration
+        {
+            Id = Guid.NewGuid(), DisplayName = "Geoapify", AdapterType = RoutingAdapterType.Geoapify,
+            Enabled = true, BaseEndpoint = "https://api.geoapify.com/", ConfigurationVersion = 2,
+            VerifiedConfigurationVersion = 2
+        };
+        foreach (var profile in profiles)
+            provider.ProfileMappings.Add(new RoutingProviderProfileMapping
+            {
+                RoutingProviderConfigurationId = provider.Id, TransportProfileId = profile.Id, OsrmProfile = "walk"
+            });
+        var protection = new EphemeralDataProtectionProvider();
+        var credentials = new PersonalProviderCredentialService(protection);
+        var personal = PersonalLocationProviderProfile.Create("owner", PersonalLocationProvider.Geoapify);
+        credentials.Replace(personal, "secret");
+        personal.RoutingAuthorized = true;
+        personal.RoutingVerification = PersonalProviderVerification.Verified;
+        personal.RoutingVerifiedCredentialGeneration = personal.CredentialGeneration;
+        personal.RoutingVerifiedConfigurationGeneration = personal.RoutingGeneration;
+        db.AddRange(provider, personal,
+            new PersonalLocationProviderSelection { UserId = "owner", RoutingProviderKey = "geoapify" });
+        db.ApplicationSettings.Add(new ApplicationSettings { Id = 1, ExternalRouteGenerationEnabled = true });
+        await db.SaveChangesAsync();
+        var resolver = new AuthoritativeRoutingProviderResolver(db, new(protection), new(protection), credentials);
+        var discovery = new MobileRoutingProfileDiscoveryService(db, new(protection), new(protection), credentials);
+        var client = new RecordingClient();
+        var service = new MobileRoutingService(db, resolver, client, new AcceptingValidator(), new(), discovery);
+        var catalog = await discovery.DiscoverAsync("owner", default);
+
+        profiles[1].Label = "Stale choice";
+        db.Update(profiles[1]);
+        await db.SaveChangesAsync();
+        var staleCapability = await service.CapabilityAsync(
+            "owner", profiles[0].Id, catalog.DiscoveryCatalogIdentity, default);
+        Assert.Equal("catalog-changed", staleCapability.Outcome);
+        Assert.Null(staleCapability.DiscoveryCatalogIdentity);
+        Assert.Null(staleCapability.SelectedProfileAuthorityIdentity);
+
+        catalog = await discovery.DiscoverAsync("owner", default);
+        var capability = await service.CapabilityAsync(
+            "owner", profiles[0].Id, catalog.DiscoveryCatalogIdentity, default);
+
+        profiles[1].Label = "Changed";
+        profiles[1].SortOrder--;
+        db.Update(profiles[1]);
+        await db.SaveChangesAsync();
+
+        var route = await service.RouteAsync("owner", profiles[0].Id, [new(20, 10), new(21, 11)],
+            capability.SelectedProfileAuthorityIdentity, default);
+
+        Assert.Equal(catalog.DiscoveryCatalogIdentity, capability.DiscoveryCatalogIdentity);
+        Assert.NotNull(capability.SelectedProfileAuthorityIdentity);
+        Assert.True(route.Succeeded);
+        Assert.Equal("available", route.Outcome);
+        Assert.Equal(1, client.Requests);
     }
 
     private sealed class RecordingClient : IOsrmRouteClient
     {
         public int Requests { get; private set; }
-        public Task<OsrmRouteResult> RouteAsync(ResolvedRoutingProviderExecution execution,
+        public Func<CancellationToken, Task> BeforeValidationAsync { get; set; } = _ => Task.CompletedTask;
+        public async Task<OsrmRouteResult> RouteAsync(ResolvedRoutingProviderExecution execution,
             IReadOnlyList<RouteCoordinate> requestedAnchors, Func<CancellationToken, Task<bool>> validateAuthority,
             CancellationToken cancellationToken)
         {
             Requests++;
-            return Task.FromResult(new OsrmRouteResult(true,
+            await BeforeValidationAsync(cancellationToken);
+            if (!await validateAuthority(cancellationToken)) return OsrmRouteResult.Invalid("configuration-changed");
+            return new OsrmRouteResult(true,
                 [requestedAnchors[0], new(20.5, 10.5), requestedAnchors[1]], requestedAnchors, null,
-                42.5, 12.25, [new("Continue", "Straight", 0, 2, 42.5, 12.25)]));
+                42.5, 12.25, [new("Continue", "Straight", 0, 2, 42.5, 12.25)]);
         }
     }
 
@@ -124,5 +225,21 @@ public sealed class MobileRoutingServiceAuthorityTests : TestBase
         public ProviderRouteValidationResult Validate(IReadOnlyList<RouteCoordinate> requestedAnchors,
             OsrmRouteResult providerRoute, CancellationToken cancellationToken) =>
             new(true, providerRoute.Geometry, [0, providerRoute.Geometry.Count - 1], null);
+    }
+
+    private sealed class RevalidatingClient(Func<CancellationToken, Task> beforeValidation) : IOsrmRouteClient
+    {
+        public int Requests { get; private set; }
+
+        public async Task<OsrmRouteResult> RouteAsync(ResolvedRoutingProviderExecution execution,
+            IReadOnlyList<RouteCoordinate> requestedAnchors, Func<CancellationToken, Task<bool>> validateAuthority,
+            CancellationToken cancellationToken)
+        {
+            Requests++;
+            await beforeValidation(cancellationToken);
+            if (!await validateAuthority(cancellationToken)) return OsrmRouteResult.Invalid("configuration-changed");
+            return new(true, [requestedAnchors[0], requestedAnchors[1]], requestedAnchors, null,
+                42.5, 12.25, [new("Continue", "Straight", 0, 1, 42.5, 12.25)]);
+        }
     }
 }

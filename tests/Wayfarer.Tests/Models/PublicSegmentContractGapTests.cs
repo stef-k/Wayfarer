@@ -14,6 +14,22 @@ public sealed class PublicSegmentContractGapTests : TestBase
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     [Fact]
+    public void PublicSegmentDto_ProjectsCurrentTransportProfileIdentity()
+    {
+        var currentProfileId = Guid.NewGuid();
+        var retainedProfileId = Guid.NewGuid();
+        var db = CreateDbContext();
+        var segment = LoadJourney(db, route: null);
+        segment.TransportProfileId = currentProfileId;
+        segment.RouteTransportProfileId = retainedProfileId;
+
+        var resolution = PublicSegmentResolver.Resolve(segment, segment.TripId, db);
+
+        Assert.Equal(currentProfileId, resolution.Segment!.TransportProfileId);
+        Assert.Equal(retainedProfileId, resolution.Segment.RouteTransportProfileId);
+    }
+
+    [Fact]
     public void PublicSegmentDto_ContainsAdditiveWaypointContract()
     {
         var json = JsonSerializer.Serialize(new ApiTripSegmentDto(), JsonOptions);
@@ -43,7 +59,7 @@ public sealed class PublicSegmentContractGapTests : TestBase
 
         using var document = JsonDocument.Parse(JsonSerializer.Serialize(dto, JsonOptions));
         Assert.Equal(
-            ["id", "mode", "estimatedDistanceKm", "estimatedDurationMinutes", "notes", "displayOrder",
+            ["id", "mode", "estimatedDistanceKm", "estimatedDurationMinutes", "notes", "displayOrder", "transportProfileId",
                 "fromPlaceId", "toPlaceId", "routeJson", "waypoints", "hasCustomRoute",
                 "routeInstructionsJson", "routeProvider", "routeProviderConfigurationId",
                 "routeProviderConfigurationVersion", "routeTransportProfileId", "routeGeneratedAt",
