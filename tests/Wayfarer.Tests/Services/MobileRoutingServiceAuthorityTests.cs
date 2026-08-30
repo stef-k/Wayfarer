@@ -116,7 +116,7 @@ public sealed class MobileRoutingServiceAuthorityTests : TestBase
     }
 
     [Fact]
-    public async Task DifferentEligibleProfileDriftDuringContactInvalidatesCompleteCatalog()
+    public async Task UnrelatedProfilePresentationDriftDoesNotInvalidateSelectedProfile()
     {
         var db = CreateDbContext();
         var profiles = db.Set<TransportProfile>().Take(2).ToArray();
@@ -183,8 +183,8 @@ public sealed class MobileRoutingServiceAuthorityTests : TestBase
         var route = await service.RouteAsync("owner", profiles[0].Id, [new(20, 10), new(21, 11)],
             authority.AuthorityIdentity, default);
 
-        Assert.False(route.Succeeded);
-        Assert.Equal("authority-changed", route.Outcome);
+        Assert.True(route.Succeeded);
+        Assert.Equal("available", route.Outcome);
         Assert.Equal(1, client.Requests);
 
         var finalClient = new RecordingClient();
@@ -198,7 +198,7 @@ public sealed class MobileRoutingServiceAuthorityTests : TestBase
         };
         var final = await finalService.RouteAsync("owner", profiles[0].Id, [new(20, 10), new(21, 11)],
             authority.AuthorityIdentity, default);
-        Assert.Equal("authority-changed", final.Outcome);
+        Assert.Equal("available", final.Outcome);
         Assert.Equal(1, finalClient.Requests);
     }
 

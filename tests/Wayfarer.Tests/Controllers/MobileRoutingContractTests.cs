@@ -18,22 +18,34 @@ public sealed class MobileRoutingContractTests
     }
 
     [Fact]
-    public void RouteRequestAcceptsOptionalDiscoveryAuthorityIdentity()
+    public void DtosExposeSeparateCatalogAndSelectedAuthorityIdentities()
     {
-        var property = typeof(MobileRouteRequest).GetProperty("AuthorityIdentity");
+        var discovery = typeof(Wayfarer.Services.ExternalRouting.MobileRoutingProfileDiscovery)
+            .GetProperty("DiscoveryCatalogIdentity");
+        var capability = typeof(Wayfarer.Services.ExternalRouting.MobileRoutingCapability);
 
-        Assert.NotNull(property);
-        Assert.Equal(typeof(string), property.PropertyType);
+        Assert.NotNull(discovery);
+        Assert.NotNull(capability.GetProperty("DiscoveryCatalogIdentity"));
+        Assert.NotNull(capability.GetProperty("SelectedProfileAuthorityIdentity"));
     }
 
     [Fact]
-    public void RouteServiceOwnsPreAdmissionDiscoveryIdentityFence()
+    public void RouteRequestAndServiceUseSelectedProfileAuthorityIdentity()
     {
+        Assert.NotNull(typeof(MobileRouteRequest).GetProperty("SelectedProfileAuthorityIdentity"));
         var route = typeof(Wayfarer.Services.ExternalRouting.MobileRoutingService).GetMethods()
             .Single(method => method.Name == "RouteAsync"
-                && method.GetParameters().Any(parameter => parameter.Name == "authorityIdentity"));
+                && method.GetParameters().Any(parameter => parameter.ParameterType == typeof(string)));
 
-        Assert.Contains(route!.GetParameters(), parameter => parameter.Name == "authorityIdentity");
+        Assert.Contains(route.GetParameters(), parameter => parameter.Name == "selectedProfileAuthorityIdentity");
+    }
+
+    [Fact]
+    public void CapabilityAcceptsDiscoveryCatalogIdentityBeforeReturningMetadata()
+    {
+        var capability = typeof(MobileRoutingController).GetMethod("Capability");
+
+        Assert.Contains(capability!.GetParameters(), parameter => parameter.Name == "discoveryCatalogIdentity");
     }
 
     [Theory]
@@ -92,7 +104,7 @@ public sealed class MobileRoutingContractTests
         var profile = typeof(Wayfarer.Services.ExternalRouting.MobileRoutingProfile).GetProperties()
             .Select(property => property.Name).ToArray();
 
-        Assert.Equal(["Outcome", "AuthorityIdentity", "Profiles"], top);
+        Assert.Equal(["Outcome", "DiscoveryCatalogIdentity", "Profiles"], top);
         Assert.Equal(["TransportProfileId", "DisplayName", "ModeKey", "Category"], profile);
         Assert.DoesNotContain(top.Concat(profile), name => name.Contains("Credential", StringComparison.Ordinal)
             || name.Contains("Endpoint", StringComparison.Ordinal) || name.Contains("Native", StringComparison.Ordinal)
