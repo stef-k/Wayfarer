@@ -16,9 +16,17 @@ public sealed class PublicSegmentContractGapTests : TestBase
     [Fact]
     public void PublicSegmentDto_ProjectsCurrentTransportProfileIdentity()
     {
-        var property = typeof(ApiTripSegmentDto).GetProperty("TransportProfileId");
+        var currentProfileId = Guid.NewGuid();
+        var retainedProfileId = Guid.NewGuid();
+        var db = CreateDbContext();
+        var segment = LoadJourney(db, route: null);
+        segment.TransportProfileId = currentProfileId;
+        segment.RouteTransportProfileId = retainedProfileId;
 
-        Assert.NotNull(property);
+        var resolution = PublicSegmentResolver.Resolve(segment, segment.TripId, db);
+
+        Assert.Equal(currentProfileId, resolution.Segment!.TransportProfileId);
+        Assert.Equal(retainedProfileId, resolution.Segment.RouteTransportProfileId);
     }
 
     [Fact]
@@ -51,7 +59,7 @@ public sealed class PublicSegmentContractGapTests : TestBase
 
         using var document = JsonDocument.Parse(JsonSerializer.Serialize(dto, JsonOptions));
         Assert.Equal(
-            ["id", "mode", "estimatedDistanceKm", "estimatedDurationMinutes", "notes", "displayOrder",
+            ["id", "mode", "estimatedDistanceKm", "estimatedDurationMinutes", "notes", "displayOrder", "transportProfileId",
                 "fromPlaceId", "toPlaceId", "routeJson", "waypoints", "hasCustomRoute",
                 "routeInstructionsJson", "routeProvider", "routeProviderConfigurationId",
                 "routeProviderConfigurationVersion", "routeTransportProfileId", "routeGeneratedAt",

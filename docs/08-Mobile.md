@@ -84,7 +84,7 @@ This is not cross-platform waypoint parity. Semantic Via identity, offline waypo
 - Default: OpenStreetMap tiles via your Wayfarer server.
 - Configurable tile server URL.
 - Respect usage policies of tile providers.
-- WayfarerMobile never receives personal provider credentials. Authenticated `/api/mobile/routing/capability/{transportProfileId}` and `/api/mobile/routing/route` resolve provider and mapping server-side and return validated neutral results, stable matching identities, storage authority, and linked attribution. Missing capability leaves saved Segment geometry and Direct guidance available; see [Personal Location Providers](24-Personal-Location-Providers.md) and Mobile #253.
+- WayfarerMobile never receives personal provider credentials. Authenticated `/api/mobile/routing/profiles` discovers current provider-neutral profile GUIDs without provider contact or credit use. Capability and route responses additively carry the same opaque authority fence; legacy route requests may omit it. Public Segments expose nullable current `transportProfileId` separately from retained route provenance. This backend contract (#528) is only a prerequisite for Mobile #260; it does not implement the Mobile selection UI. Missing routing capability leaves saved Segment geometry and Direct guidance available; see [Personal Location Providers](24-Personal-Location-Providers.md).
 
 ---
 

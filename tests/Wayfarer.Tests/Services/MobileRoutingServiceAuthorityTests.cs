@@ -36,7 +36,9 @@ public sealed class MobileRoutingServiceAuthorityTests : TestBase
         var protection = new EphemeralDataProtectionProvider();
         var resolver = new AuthoritativeRoutingProviderResolver(db, new(protection), new(protection));
         var client = new RecordingClient();
-        var service = new MobileRoutingService(db, resolver, client, new AcceptingValidator(), new());
+        var discovery = new MobileRoutingProfileDiscoveryService(db, new(protection), new(protection),
+            new PersonalProviderCredentialService(protection));
+        var service = new MobileRoutingService(db, resolver, client, new AcceptingValidator(), new(), discovery);
 
         var capability = await service.CapabilityAsync("owner", profile.Id, default);
         var route = await service.RouteAsync("owner", profile.Id, [new(20, 10), new(21, 11)], default);
@@ -79,12 +81,20 @@ public sealed class MobileRoutingServiceAuthorityTests : TestBase
         await db.SaveChangesAsync();
         var resolver = new AuthoritativeRoutingProviderResolver(db, new(protection), new(protection), credentials);
         var client = new RecordingClient();
-        var service = new MobileRoutingService(db, resolver, client, new AcceptingValidator(), new());
+        var discovery = new MobileRoutingProfileDiscoveryService(db, new(protection), new(protection), credentials);
+        var service = new MobileRoutingService(db, resolver, client, new AcceptingValidator(), new(), discovery);
 
         var capability = await service.CapabilityAsync("owner", transport.Id, default);
-        var route = await service.RouteAsync("owner", transport.Id, [new(20, 10), new(21, 11)], default);
+        var stale = await service.RouteAsync("owner", transport.Id, [new(20, 10), new(21, 11)],
+            "v1.pSJHONZRBMqqqYGEUcFHN0YNg3aoeWUOeE4rNUA351o", default);
+        Assert.Equal(0, client.Requests);
+        var route = await service.RouteAsync("owner", transport.Id, [new(20, 10), new(21, 11)],
+            capability.AuthorityIdentity, default);
 
         Assert.Equal("available", capability.Outcome);
+        Assert.NotNull(capability.AuthorityIdentity);
+        Assert.Equal("authority-changed", stale.Outcome);
+        Assert.Equal(capability.AuthorityIdentity, route.AuthorityIdentity);
         Assert.Equal("geoapify", capability.Provider);
         Assert.Equal("persistent", capability.StorageMode);
         Assert.True(route.Succeeded);

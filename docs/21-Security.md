@@ -19,6 +19,7 @@ API Tokens
 - **Wayfarer API tokens** (used for mobile app and API authentication) are stored as SHA-256 hashes—never in plain text. If the database is compromised, the tokens cannot be recovered or reused.
 - Tokens are shown **only once** when created or regenerated. Users must copy and store them securely.
 - **Personal provider credentials** are protected with purpose-, provider-, and user-bound Data Protection and are never redisplayed or sent to mobile. Key-ring backup, filesystem protection, privacy disclosure, and legacy migration are documented in [Personal Location Providers](24-Personal-Location-Providers.md).
+- Mobile routing discovery exposes only provider-neutral profile metadata and an opaque equality-only authority identity. The identity hashes no credentials, secret material, protected endpoints, provider-native modes, quota state, or raw generations; discovery and stale-identity failures make no provider contact and emit only bounded outcomes.
 - **Geoapify query authentication** stays inside diagnostic-suppressed clients. Credentials, authenticated URLs, coordinates, addresses, geometry, instructions, and raw payloads are excluded from logs and DTOs; adapters translate transport exceptions to bounded product categories.
 - Rotate API tokens regularly and revoke any that may have been exposed.
 

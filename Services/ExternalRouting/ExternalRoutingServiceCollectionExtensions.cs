@@ -34,6 +34,7 @@ public static class ExternalRoutingServiceCollectionExtensions
         services.AddScoped<ExternalRouteProposalAcceptanceService>();
         services.AddScoped<ExternalRoutingCapabilityProjector>();
         services.AddScoped<MobileRoutingService>();
+        services.AddScoped<MobileRoutingProfileDiscoveryService>();
         return services;
     }
 }
