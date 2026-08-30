@@ -7,6 +7,31 @@ namespace Wayfarer.Tests.Controllers;
 public sealed class MobileRoutingContractTests
 {
     [Fact]
+    public void ControllerExposesAuthenticatedProfileDiscoveryOwner()
+    {
+        var action = typeof(MobileRoutingController).GetMethod("Profiles");
+
+        Assert.NotNull(action);
+    }
+
+    [Fact]
+    public void RouteRequestAcceptsOptionalDiscoveryAuthorityIdentity()
+    {
+        var property = typeof(MobileRouteRequest).GetProperty("AuthorityIdentity");
+
+        Assert.NotNull(property);
+        Assert.Equal(typeof(string), property.PropertyType);
+    }
+
+    [Fact]
+    public void RouteServiceOwnsPreAdmissionDiscoveryIdentityFence()
+    {
+        var route = typeof(Wayfarer.Services.ExternalRouting.MobileRoutingService).GetMethod("RouteAsync");
+
+        Assert.Contains(route!.GetParameters(), parameter => parameter.Name == "authorityIdentity");
+    }
+
+    [Fact]
     public void RequestAcceptsStableProfileAndBoundedCoordinatesButNoProviderAuthority()
     {
         var names = typeof(MobileRouteRequest).GetProperties().Select(property => property.Name).ToHashSet();

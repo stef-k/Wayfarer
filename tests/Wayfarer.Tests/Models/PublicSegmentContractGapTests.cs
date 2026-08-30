@@ -14,6 +14,14 @@ public sealed class PublicSegmentContractGapTests : TestBase
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     [Fact]
+    public void PublicSegmentDto_ProjectsCurrentTransportProfileIdentity()
+    {
+        var property = typeof(ApiTripSegmentDto).GetProperty("TransportProfileId");
+
+        Assert.NotNull(property);
+    }
+
+    [Fact]
     public void PublicSegmentDto_ContainsAdditiveWaypointContract()
     {
         var json = JsonSerializer.Serialize(new ApiTripSegmentDto(), JsonOptions);
