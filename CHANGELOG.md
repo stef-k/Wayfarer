@@ -1,20 +1,32 @@
 # CHANGELOG
 
-## Unreleased
-
-- Fixed concurrent creation of the same inactive compatibility transport profile so Segment inserts reuse one database identity without weakening deterministic collision detection.
-- Added authenticated provider-neutral Mobile routing profile discovery with separate `DiscoveryCatalogIdentity` chooser confirmation through capability and `SelectedProfileAuthorityIdentity` execution/publication fencing, plus nullable current Segment transport-profile identity. Selected-authority drift blocks unsafe routing while unrelated catalog presentation changes do not cancel a confirmed route (#528).
+## [1.9.4] - 2026-08-31
 
 ### Added
-- Added explicit-submit Trip Editor place search through a user's active personal Geoapify authority, sharing the existing geocoding-credit allowance, using free authority-bound cache hits, and falling back to attributed public Nominatim only for no/Mapbox selection or exhausted Geoapify allowance while invalid active authority fails closed (#526).
-- Added an explicit resumable per-user missing-address workflow with durable controls, bounded retries, exact provider-budget wakes, restart reconciliation, and authenticated content-free progress (#507).
-- Added provider-aware import-page presentation with ledger-derived usage, exact runnable/future/permanent work counts, accessible state-specific controls, and content-free coalesced reload hints (#512).
-- Added optional provider-returned named feature metadata for reverse-geocoded Locations and Trip Places, displayed separately while preserving retained addresses and user-authored labels; this is not nearby-place discovery (#518).
+- Added protected per-user location-provider profiles with explicit credential verification, independent geocoding and routing selection, revocation, provider-neutral status, and shared bounded usage admission. Legacy Mapbox credentials migrate without exposing or deleting them, but remain inactive until explicitly authorized and selected (#499).
+- Added explicitly authorized Mapbox Permanent Geocoding for persistent Location and Place enrichment. Consent is bound to the verified credential generation, accepted results retain provider and storage provenance, and incomplete or changed authority fails closed without blocking tracking, synchronization, imports, Trips, or existing enrichment (#501).
+- Added personal Geoapify reverse geocoding and persistent enrichment, plus provider-neutral routed geometry with stable profile mappings, accepted-route provenance, Geoapify/OpenStreetMap attribution, and storage-authorized offline reuse. Geocoding and routing share one guarded per-user allowance, and failed or invalid responses cannot replace retained accepted data (#502).
+- Added durable Quartz-backed enrichment workflows for large location-history imports, with bounded batches, Start/Pause/Resume/Cancel/Retry controls, allowance-aware wake-up, authenticated progress, restart reconciliation, and privacy-safe diagnostics. Import completion remains separate from explicitly opted-in enrichment (#507).
+- Added explicit-submit Trip Editor place search through the active personal Geoapify authority. Provider contact consumes the shared allowance, authority-bound cache reuse is free, and visibly attributed public Nominatim fallback is limited to authorized no-selection, Mapbox-selection, or exhausted-Geoapify cases; invalid active Geoapify authority fails closed (#526).
+- Added optional provider-returned named feature metadata for reverse-geocoded Locations and Trip Places, preserving authenticated provenance and supported import, export, clone, API, and presentation round trips. It remains separate from retained addresses and user-authored labels and does not perform nearby-place discovery (#518).
+- Added authenticated, provider-neutral Mobile routing-profile discovery with catalog identity through chooser and capability confirmation, selected-profile execution authority, and separate current Segment profile identity. Discovery contacts no provider, consumes no credit, and remains compatible with released Mobile clients; Mobile-side retained-route ownership is released separately (#528).
 
 ### Changed
-- Location-history uploads now advertise exactly Google Timeline JSON, Wayfarer GeoJSON, CSV, GPX, and location-history KML. Generic GeoJSON is rejected while historical rows retain a bounded unsupported outcome; Trip imports remain separate (#507).
-- Location import now uses opaque staging names and bounded diagnostic/error codes, and its documentation reflects that imports commit independently before the separate opted-in scheduled enrichment workflow (#507).
-- Completed the coordinated provider behavior for protected credentials, bounded enrichment, imported metadata provenance, and authenticated Mobile routing discovery; production deployment remains pending.
+- Location-history imports now stream and persist bounded batches for Google Timeline JSON, Wayfarer GeoJSON, CSV, GPX, and location-history KML, with durable replay/deduplication, restart recovery, deletion fencing, opaque staging names, and bounded diagnostics. Unsupported generic GeoJSON is rejected, while Trip import remains a separate workflow (#507).
+- Geoapify routing now parses documented per-leg geometry, translates step indices across flattened legs, preserves structural waypoint provenance, and rejects oversized or structurally invalid proposals before usage admission or provider contact (#517).
+- New additive migrations introduce protected provider profiles and usage state, Mapbox consent/provenance, Geoapify accepted-route provenance, durable enrichment/import lifecycle authority, optional feature metadata, and concurrency-safe compatibility-profile creation. Deployments must preserve and restore PostgreSQL together with the matching Data Protection key ring and apply the ordered migrations before scheduler startup; production deployment and migration remain pending (#499, #501, #502, #507, #518, #505).
+- Provider contact, persistent storage, billing admission, and attribution are explicit authority boundaries: credentials alone grant no contact or storage permission; admitted external contacts remain charged after timeout or failure; Geoapify/OpenStreetMap and Nominatim attribution remains visible where their results are used (#499, #501, #502, #526).
+- Finalized durable provider, import/enrichment, Mobile-routing, migration, deployment, backup/restore, and rollback guidance for the backend-first rollout. GitHub release publication, deployment, production migration, and the released-Mobile compatibility smoke remain pending separate authorization (#505).
+
+### Fixed
+- Corrected protected group invitation and membership notifications to use authenticated per-user streams with content-free reload hints, authoritative revocation, bounded reloads, and no caller-selected or cross-user channel disclosure (#514).
+- Corrected concurrent same-key compatibility transport-profile creation so Segment inserts reuse one deterministic database identity, while deterministic UUID collisions belonging to a different normalized key remain rejected (#505).
+
+### Security
+- Isolated personal provider credentials behind the retained Data Protection authority, masked them across user and administrative surfaces, removed query/key-bearing provider URI logging, and required explicit current authority before provider contact or publication (#499, #501, #502, #526, #528).
+- Hardened import, enrichment, routing, and notification diagnostics and progress channels so credentials, raw provider responses, coordinate-bearing URLs, personal search text, staging names, and cross-user state are not disclosed (#507, #514).
+
+## Unreleased
 
 ## [1.9.3] - 2026-08-22
 
