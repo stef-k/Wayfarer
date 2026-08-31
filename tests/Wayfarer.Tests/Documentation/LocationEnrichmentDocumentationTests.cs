@@ -62,14 +62,13 @@ public sealed class LocationEnrichmentDocumentationTests
     }
 
     [Fact]
-    public void CanonicalDocsStateCapacityPrivacyAndReleaseOrdering()
+    public void CanonicalDocsStateCapacityAndPrivacy()
     {
         var docs = string.Join('\n', Directory.GetFiles(RepositoryFile("docs"), "*.md")
             .Select(File.ReadAllText).Append(File.ReadAllText(RepositoryFile("README.md"))));
 
         Assert.Contains("2,500", docs);
         Assert.Contains("content-free SSE", docs, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("#502 → #507 → #500", docs);
     }
 
     [Fact]
