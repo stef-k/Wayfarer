@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Fixed concurrent creation of the same inactive compatibility transport profile so Segment inserts reuse one database identity without weakening deterministic collision detection.
 - Added authenticated provider-neutral Mobile routing profile discovery with separate `DiscoveryCatalogIdentity` chooser confirmation through capability and `SelectedProfileAuthorityIdentity` execution/publication fencing, plus nullable current Segment transport-profile identity. Selected-authority drift blocks unsafe routing while unrelated catalog presentation changes do not cancel a confirmed route (#528).
 
 ### Added

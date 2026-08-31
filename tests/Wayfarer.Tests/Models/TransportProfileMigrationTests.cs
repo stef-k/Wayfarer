@@ -48,6 +48,26 @@ public sealed class TransportProfileMigrationTests : TestBase
         Assert.DoesNotContain("SET \"Mode\"", sql);
     }
 
+    /// <summary>Proves the corrective migration handles either deterministic conflict and restores the prior function on downgrade.</summary>
+    [Fact]
+    public void ConcurrentCompatibilityCorrection_ReplacesAndRestoresOnlyTheTriggerFunction()
+    {
+        var migration = new CorrectConcurrentCompatibilityProfileCreation();
+        var up = Operations(migration, "Up");
+        var down = Operations(migration, "Down");
+        var upSql = Assert.Single(up.OfType<SqlOperation>()).Sql;
+        var downSql = Assert.Single(down.OfType<SqlOperation>()).Sql;
+
+        Assert.Contains("CREATE OR REPLACE FUNCTION public.\"SetSegmentTransportProfile\"", upSql);
+        Assert.Contains("ON CONFLICT DO NOTHING", upSql);
+        Assert.Contains("IF resolved_id IS NULL THEN", upSql);
+        Assert.Contains("USING ERRCODE = '23505'", upSql);
+        Assert.DoesNotContain("ON CONFLICT (\"Key\")", upSql);
+        Assert.Contains("CREATE OR REPLACE FUNCTION public.\"SetSegmentTransportProfile\"", downSql);
+        Assert.Contains("ON CONFLICT (\"Key\") DO NOTHING", downSql);
+        Assert.DoesNotContain("USING ERRCODE = '23505'", downSql);
+    }
+
     private static List<MigrationOperation> Operations()
     {
         var migration = new AdminManagedTransportProfiles();
@@ -55,6 +75,13 @@ public sealed class TransportProfileMigrationTests : TestBase
         typeof(AdminManagedTransportProfiles)
             .GetMethod("Up", BindingFlags.Instance | BindingFlags.NonPublic)!
             .Invoke(migration, [builder]);
+        return builder.Operations;
+    }
+
+    private static List<MigrationOperation> Operations(Migration migration, string method)
+    {
+        var builder = new MigrationBuilder("Npgsql.EntityFrameworkCore.PostgreSQL");
+        migration.GetType().GetMethod(method, BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(migration, [builder]);
         return builder.Operations;
     }
 }
