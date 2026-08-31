@@ -66,7 +66,7 @@ The WayfarerMobile companion app connects to your self-hosted Wayfarer server fo
 
 Waypoint authoring and semantic Via navigation are currently web-first. The additive public trip fields keep existing field types unchanged, and effective waypoint-bearing geometry remains available to older mobile clients, so representative older clients can degrade to their existing From/To route display. Mobile notes-only updates do not replace or erase the server-owned waypoint aggregate.
 
-This is not cross-platform waypoint parity. Semantic Via identity, offline waypoint fidelity, and waypoint-aware navigation remain owned by WayfarerMobile #236/#237. External route generation (#426) is also deferred.
+This is not cross-platform waypoint parity. The mobile app does not currently provide semantic Via identity, offline waypoint fidelity, or waypoint-aware navigation. External route generation is not currently supported from this trip view.
 
 ---
 
@@ -84,7 +84,9 @@ This is not cross-platform waypoint parity. Semantic Via identity, offline waypo
 - Default: OpenStreetMap tiles via your Wayfarer server.
 - Configurable tile server URL.
 - Respect usage policies of tile providers.
-- WayfarerMobile never receives personal provider credentials. Authenticated `/api/mobile/routing/profiles` discovers current provider-neutral profile GUIDs without provider contact or credit use. `DiscoveryCatalogIdentity` confirms the displayed choice only through successful capability selection; capability then returns a `SelectedProfileAuthorityIdentity` that fences the selected profile's route execution and publication. Unrelated catalog edits do not cancel a confirmed route, while selected execution-authority changes do. Legacy requests may omit these additive identities. Public Segments expose nullable current `transportProfileId` separately from retained route provenance. This undeployed backend contract (#528) is only a prerequisite; Mobile #260 remains unimplemented. Missing routing capability leaves saved Segment geometry and Direct guidance available; see [Personal Location Providers](24-Personal-Location-Providers.md).
+- WayfarerMobile never receives personal routing-provider credentials and contacts only its configured Wayfarer server for hosted routing. Authenticated provider-neutral discovery presents the server's available routing profiles without provider contact or credit use. Catalog identity confirms the displayed chooser state through capability selection; capability then supplies the selected profile's execution authority. A change to that selected authority blocks unsafe route execution or publication, while unrelated catalog presentation changes do not cancel a confirmed route.
+- Saved Segment geometry remains authoritative. When no saved geometry is available, matching validated Wayfarer guidance may be retained locally and reused offline, and users can explicitly request a fresh Wayfarer route. Direct guidance remains explicitly selectable and network-free. Public OSRM and direct routing-provider fallback are not used.
+- Missing or unavailable routing remains local to navigation: it does not invalidate authentication or synchronization, and saved Segment geometry and Direct guidance remain available. Hosted routing and bounded retained/offline routing become available in production when the coordinated backend and mobile release is deployed and published; see [Personal Location Providers](24-Personal-Location-Providers.md).
 
 ---
 

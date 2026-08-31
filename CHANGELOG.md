@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Added authenticated provider-neutral Mobile routing profile discovery with separate `DiscoveryCatalogIdentity` choice confirmation and `SelectedProfileAuthorityIdentity` route fencing, plus nullable current Segment transport-profile identity as the undeployed backend prerequisite for unimplemented WayfarerMobile #260 (#528).
+- Added authenticated provider-neutral Mobile routing profile discovery with separate `DiscoveryCatalogIdentity` chooser confirmation through capability and `SelectedProfileAuthorityIdentity` execution/publication fencing, plus nullable current Segment transport-profile identity. Selected-authority drift blocks unsafe routing while unrelated catalog presentation changes do not cancel a confirmed route (#528).
 
 ### Added
 - Added explicit-submit Trip Editor place search through a user's active personal Geoapify authority, sharing the existing geocoding-credit allowance, using free authority-bound cache hits, and falling back to attributed public Nominatim only for no/Mapbox selection or exhausted Geoapify allowance while invalid active authority fails closed (#526).
@@ -13,7 +13,7 @@
 ### Changed
 - Location-history uploads now advertise exactly Google Timeline JSON, Wayfarer GeoJSON, CSV, GPX, and location-history KML. Generic GeoJSON is rejected while historical rows retain a bounded unsupported outcome; Trip imports remain separate (#507).
 - Location import now uses opaque staging names and bounded diagnostic/error codes, and its documentation reflects that imports commit independently before the separate opted-in scheduled enrichment workflow (#507).
-- The coordinated provider release order remains #502 → #507 → #517 → #518 → #500.
+- Completed the coordinated provider behavior for protected credentials, bounded enrichment, imported metadata provenance, and authenticated Mobile routing discovery; production deployment remains pending.
 
 ## [1.9.3] - 2026-08-22
 
