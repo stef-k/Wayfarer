@@ -85,14 +85,18 @@ public sealed class MobileRoutingServiceAuthorityTests : TestBase
         var discovery = new MobileRoutingProfileDiscoveryService(db, new(protection), new(protection), credentials);
         var service = new MobileRoutingService(db, resolver, client, new AcceptingValidator(), new(), discovery);
 
-        var capability = await service.CapabilityAsync("owner", transport.Id, default);
+        var unsupported = await service.RouteAsync("owner", transport.Id, [new(20, 10), new(21, 11)], "walking",
+            null, default);
+        var capability = await service.CapabilityAsync("owner", transport.Id, "walk", null, default);
         var stale = await service.RouteAsync("owner", transport.Id, [new(20, 10), new(21, 11)],
             "v1.pSJHONZRBMqqqYGEUcFHN0YNg3aoeWUOeE4rNUA351o", default);
         Assert.Equal(0, client.Requests);
-        var route = await service.RouteAsync("owner", transport.Id, [new(20, 10), new(21, 11)],
+        var route = await service.RouteAsync("owner", transport.Id, [new(20, 10), new(21, 11)], "walk",
             capability.SelectedProfileAuthorityIdentity, default);
 
         Assert.Equal("available", capability.Outcome);
+        Assert.False(unsupported.Succeeded);
+        Assert.Equal(1, client.Requests);
         Assert.NotNull(capability.SelectedProfileAuthorityIdentity);
         Assert.Equal("authority-changed", stale.Outcome);
         Assert.Equal(capability.SelectedProfileAuthorityIdentity, route.SelectedProfileAuthorityIdentity);
@@ -108,9 +112,10 @@ public sealed class MobileRoutingServiceAuthorityTests : TestBase
             Assert.Single(route.Instructions!));
         Assert.Equal([new(20, 10), new(21, 11)], route.MatchPoints);
         Assert.NotNull(route.GeneratedAt);
-        Assert.Equal(provider.Id, route.ProviderConfigurationId);
+        Assert.NotEqual(provider.Id, route.ProviderConfigurationId);
         Assert.Equal(transport.Id, route.TransportProfileId);
-        Assert.Contains($"{provider.Id:N}:2:{transport.Id:N}", route.MappingIdentity);
+        Assert.EndsWith($":{transport.Id:N}", route.MappingIdentity);
+        Assert.Equal("walk", route.ProviderMode);
         Assert.Equal(["Powered by Geoapify", "© OpenStreetMap contributors"],
             route.Attribution!.Select(item => item.Text));
         Assert.Equal(1, client.Requests);
@@ -121,13 +126,13 @@ public sealed class MobileRoutingServiceAuthorityTests : TestBase
             db.Update(mapping);
             await db.SaveChangesAsync(token);
         };
-        var duringContact = await service.RouteAsync("owner", transport.Id, [new(20, 10), new(21, 11)],
+        var duringContact = await service.RouteAsync("owner", transport.Id, [new(20, 10), new(21, 11)], "walk",
             capability.SelectedProfileAuthorityIdentity, default);
-        Assert.Equal("authority-changed", duringContact.Outcome);
+        Assert.True(duringContact.Succeeded);
         Assert.Equal(2, client.Requests);
 
         client.BeforeValidationAsync = _ => Task.CompletedTask;
-        var currentCapability = await service.CapabilityAsync("owner", transport.Id, default);
+        var currentCapability = await service.CapabilityAsync("owner", transport.Id, "walk", null, default);
         service.BeforeRoutePublicationAsync = async token =>
         {
             provider.ConfigurationVersion++;
@@ -135,9 +140,9 @@ public sealed class MobileRoutingServiceAuthorityTests : TestBase
             db.Update(provider);
             await db.SaveChangesAsync(token);
         };
-        var beforePublication = await service.RouteAsync("owner", transport.Id, [new(20, 10), new(21, 11)],
+        var beforePublication = await service.RouteAsync("owner", transport.Id, [new(20, 10), new(21, 11)], "walk",
             currentCapability.SelectedProfileAuthorityIdentity, default);
-        Assert.Equal("authority-changed", beforePublication.Outcome);
+        Assert.True(beforePublication.Succeeded);
         Assert.Equal(3, client.Requests);
     }
 

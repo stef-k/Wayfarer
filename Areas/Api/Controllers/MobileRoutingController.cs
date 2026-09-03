@@ -24,7 +24,8 @@ public sealed class MobileRoutingController(
     /// <summary>Returns no-contact capability for one stable Wayfarer transport profile identity.</summary>
     [HttpGet("capability/{transportProfileId:guid}")]
     public async Task<IActionResult> Capability(Guid transportProfileId,
-        [FromQuery] string? discoveryCatalogIdentity, CancellationToken cancellationToken)
+        [FromQuery] string? discoveryCatalogIdentity, [FromQuery] string? providerMode,
+        CancellationToken cancellationToken)
     {
         var (user, error) = await EnsureAuthenticatedUserAsync(cancellationToken);
         if (error != null) return error;
@@ -32,7 +33,7 @@ public sealed class MobileRoutingController(
             return BadRequest(new MobileRoutingCapability("invalid-request", transportProfileId,
                 null, null, null, null, null, null, null));
         return Ok(await routing.CapabilityAsync(
-            user!.Id, transportProfileId, discoveryCatalogIdentity, cancellationToken));
+            user!.Id, transportProfileId, providerMode, discoveryCatalogIdentity, cancellationToken));
     }
 
     /// <summary>Generates one bounded provider-neutral route without mutating server domain state.</summary>
@@ -48,7 +49,7 @@ public sealed class MobileRoutingController(
         var points = new[] { request.Origin }.Concat(request.Anchors).Concat([request.Destination])
             .Select(item => new RouteCoordinate(item.Longitude, item.Latitude)).ToArray();
         var result = await routing.RouteAsync(user!.Id, request.TransportProfileId, points,
-            request.SelectedProfileAuthorityIdentity, cancellationToken);
+            request.ProviderMode, request.SelectedProfileAuthorityIdentity, cancellationToken);
         return Ok(MobileRouteResponse.From(result));
     }
 }
@@ -60,6 +61,8 @@ public sealed class MobileRouteRequest
     public required MobileRouteCoordinate Origin { get; set; }
     public required MobileRouteCoordinate Destination { get; set; }
     public IReadOnlyList<MobileRouteCoordinate> Anchors { get; set; } = [];
+    /// <summary>Gets or sets the additive explicit provider-native mode; null invokes released-client compatibility.</summary>
+    public string? ProviderMode { get; set; }
     /// <summary>Gets or sets the optional exact selected execution-authority fence.</summary>
     [JsonConverter(typeof(RoutingIdentityJsonConverter))]
     public string? SelectedProfileAuthorityIdentity { get; set; }
@@ -75,12 +78,13 @@ public sealed record MobileRouteResponse(bool Succeeded, string Outcome, IReadOn
     DateTimeOffset? GeneratedAt, string? Provider, Guid? ProviderConfigurationId, string? MappingIdentity,
     Guid? TransportProfileId, IReadOnlyList<RouteCoordinate>? MatchPoints,
     IReadOnlyList<MobileRouteAttribution>? Attribution, string? StorageMode,
-    string? SelectedProfileAuthorityIdentity)
+    string? SelectedProfileAuthorityIdentity, string? ProviderMode = null)
 {
     public static MobileRouteResponse From(MobileRouteServiceResult value) => new(value.Succeeded, value.Outcome,
         value.Geometry, value.DistanceMetres, value.DurationSeconds, value.Instructions, value.GeneratedAt,
         value.Provider, value.ProviderConfigurationId, value.MappingIdentity, value.TransportProfileId,
-        value.MatchPoints, value.Attribution, value.StorageMode, value.SelectedProfileAuthorityIdentity);
+        value.MatchPoints, value.Attribution, value.StorageMode, value.SelectedProfileAuthorityIdentity,
+        value.ProviderMode);
     public static MobileRouteResponse Failure(string outcome) => From(MobileRouteServiceResult.Failure(outcome));
 }
 

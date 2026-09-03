@@ -9,14 +9,34 @@ public sealed class LocationProviderSettingsViewModel
     public IReadOnlyList<LocationProviderProfileViewModel> Profiles { get; init; } = [];
     public string? ActiveGeocodingProvider { get; init; }
     public string? ActiveRoutingProvider { get; init; }
+    public string GeocodingStatus { get; init; } = "No provider selected. Verify a credential, then choose it.";
+    public string RoutingStatus { get; init; } = "No provider selected. Verify Geoapify, then choose it.";
     public LegacyMapboxMigrationState LegacyMigrationState { get; init; }
+}
+
+/// <summary>Accepts a credential replacement without changing provider choice implicitly.</summary>
+public sealed class LocationProviderCredentialInput
+{
+    [Required, RegularExpression("geoapify|mapbox")] public string ProviderKey { get; set; } = string.Empty;
+    [Required, DataType(DataType.Password), StringLength(2048), RegularExpression(@"^[^\s\p{Cc}]*$",
+        ErrorMessage = "Credentials cannot contain whitespace or control characters.")]
+    public string ReplacementCredential { get; set; } = string.Empty;
+}
+
+/// <summary>Accepts one capability-oriented provider choice.</summary>
+public sealed class LocationProviderChoiceInput
+{
+    [Required, RegularExpression("Geocoding|Routing")] public string Capability { get; set; } = string.Empty;
+    [RegularExpression("|geoapify|mapbox")] public string ProviderKey { get; set; } = string.Empty;
 }
 
 /// <summary>Presents bounded profile, capability, and provider-native usage state.</summary>
 public sealed record LocationProviderProfileViewModel(
     string ProviderKey, string DisplayName, bool CredentialConfigured, string Mask,
     bool GeocodingAuthorized, PersonalProviderVerification GeocodingVerification,
+    bool GeocodingEligible, string GeocodingBlockingStatus,
     bool RoutingAuthorized, PersonalProviderVerification RoutingVerification,
+    bool RoutingEligible, string RoutingBlockingStatus,
     bool GuardEnabled, int Limit, int Used, string Unit, string WindowExplanation, bool Exhausted,
     bool? DirectionsGuardEnabled = null, int? DirectionsLimit = null, int? DirectionsUsed = null,
     bool PermanentConsentCurrent = false, int? PermanentConsentVersion = null,

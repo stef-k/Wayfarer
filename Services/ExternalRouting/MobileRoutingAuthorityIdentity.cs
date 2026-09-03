@@ -60,6 +60,9 @@ public static class DiscoveryCatalogIdentity
             writer.Guid(0x20, profile.TransportProfileId); writer.String(0x21, profile.DisplayName);
             writer.String(0x22, profile.ModeKey); writer.String(0x23, profile.Category);
         }
+        writer.Count(0x12, value.Modes.Count);
+        foreach (var mode in value.Modes)
+        { writer.String(0x24, mode.Key); writer.String(0x25, mode.Label); }
         return writer.ToArray();
     }
 }
@@ -88,7 +91,11 @@ public static class SelectedProfileAuthorityIdentity
     }
 }
 
-public sealed record MobileRoutingDiscoveryCatalogProjection(string Outcome, IReadOnlyList<MobileRoutingProfile> Profiles);
+public sealed record MobileRoutingDiscoveryCatalogProjection(string Outcome, IReadOnlyList<MobileRoutingProfile> Profiles,
+    IReadOnlyList<ProviderDirectionsMode>? ProviderModes = null)
+{
+    public IReadOnlyList<ProviderDirectionsMode> Modes => ProviderModes ?? [];
+}
 public sealed record MobileRoutingSelectedProfileAuthorityProjection(string UserId, int FeatureGeneration,
     int SelectionMode, Guid ProviderId, int Adapter, bool ProviderEnabled, int ProviderConfigurationVersion,
     uint ProviderRowVersion, int UserConfigurationVersion, uint UserRowVersion, Guid TransportProfileId,

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onUnmounted, watch } from 'vue';
+import { computed, onUnmounted, ref, watch } from 'vue';
 import { acceptExternalRouteProposal, ExternalRouteProposalError, generateExternalRouteProposal } from '../api/tripEditorApi';
 import { confirm } from '../composables/useConfirmDialog';
 import type { AcceptedExternalRouteProposal, EditorSegment, ExternalRouteProposal, Guid } from '../types';
@@ -23,7 +23,8 @@ const emit = defineEmits<{
 
 const proposalStore = createSegmentRouteProposalStore();
 const states = proposalStore.states;
-const proposalContextKey = computed(() => `${props.draftTransportProfileId ?? ''}:${props.draftMode}`);
+const selectedProviderMode = ref('');
+const proposalContextKey = computed(() => `${props.draftTransportProfileId ?? ''}:${props.draftMode}:${selectedProviderMode.value}`);
 const acceptanceContext = computed<RouteAcceptanceContext>(() => JSON.parse(props.draftContextKey));
 const state = computed(() => states[props.segment.id] ??= proposalStore.get(props.segment.id, proposalContextKey.value));
 const capability = computed(() => props.segment.externalRouting ?? null);
@@ -31,7 +32,10 @@ const actionLabel = computed(() => props.draftHasRoute ? 'Replace with routed pa
 const profileChanged = computed(() => props.draftMode !== props.segment.mode);
 
 watch(() => props.segment.id, (segmentId, previousId) => {
-  if (previousId) proposalStore.invalidateAcceptance(previousId);
+  if (previousId) {
+    proposalStore.invalidateAcceptance(previousId);
+    selectedProviderMode.value = '';
+  }
   emit('previewChanged', proposalStore.get(segmentId, proposalContextKey.value).proposal);
 }, { immediate: true });
 watch(() => props.draftContextKey, (value, previous) => {
@@ -46,7 +50,7 @@ watch(proposalContextKey, profileKey => {
 
 /** Starts only an explicit user-authorized provider request for this Segment. */
 async function generate(): Promise<void> {
-  if (!capability.value?.available || profileChanged.value || state.value.generating) return;
+  if (!capability.value?.available || !selectedProviderMode.value || profileChanged.value || state.value.generating) return;
   if (props.draftHasRoute && !(await confirm({
     title: 'Replace current route?', message: 'Generate a proposal without changing the current draft until you accept it.',
     confirmLabel: 'Generate replacement', cancelLabel: 'Keep current route', variant: 'warning'
@@ -58,7 +62,8 @@ async function generate(): Promise<void> {
   emit('previewChanged', null);
   try {
     const proposal = await generateExternalRouteProposal(
-      props.tripId, segmentId, props.antiforgeryToken, props.segment.aggregateConcurrencyToken, controller.signal);
+      props.tripId, segmentId, props.antiforgeryToken, props.segment.aggregateConcurrencyToken,
+      selectedProviderMode.value, controller.signal);
     if (proposalStore.complete(segmentId, requestId, proposal)) emit('previewChanged', proposal);
   } catch (error) {
     const message = controller.signal.aborted
@@ -91,6 +96,7 @@ async function accept(): Promise<void> {
 function discard(): void {
   proposalStore.discard(props.segment.id);
   emit('previewChanged', null);
+  selectedProviderMode.value = '';
 }
 
 function boundedMessage(error: unknown): string {
@@ -112,7 +118,7 @@ onUnmounted(() => {
 <template>
   <section v-if="capability?.available" class="border rounded p-2 mt-3" aria-labelledby="external-route-heading">
     <h3 id="external-route-heading" class="fs-6">External routed path</h3>
-    <p class="small mb-1"><strong>{{ capability.providerDisplayName }}</strong> · {{ capability.mappedProfileLabel }}</p>
+    <p class="small mb-1"><strong>{{ capability.providerDisplayName }}</strong></p>
     <p class="small mb-1">{{ capability.disclosure }}</p>
     <p v-if="capability.attribution?.includes('Powered by Geoapify')" class="small text-muted mb-2">
       <a href="https://www.geoapify.com/" rel="follow">Powered by Geoapify</a> ·
@@ -120,7 +126,13 @@ onUnmounted(() => {
     </p>
     <p v-else-if="capability.attribution" class="small text-muted mb-2">{{ capability.attribution }}</p>
     <p v-if="profileChanged" class="small text-warning">Save the transport-profile change before generating a new proposal.</p>
-    <button v-if="!state.proposal" type="button" class="btn btn-outline-info btn-sm" :disabled="state.generating || profileChanged" @click="generate">
+    <label :for="`provider-mode-${segment.id}`" class="form-label small">Directions mode</label>
+    <select :id="`provider-mode-${segment.id}`" v-model="selectedProviderMode" class="form-select form-select-sm mb-2">
+      <option value="">Choose a mode</option>
+      <option v-for="mode in capability.modes" :key="mode.key" :value="mode.key">{{ mode.label }}</option>
+    </select>
+    <p class="small text-muted">This choice does not change the Segment transport profile.</p>
+    <button v-if="!state.proposal" type="button" class="btn btn-outline-info btn-sm" :disabled="state.generating || profileChanged || !selectedProviderMode" @click="generate">
       {{ state.generating ? 'Generating…' : actionLabel }}
     </button>
     <button v-if="state.generating" type="button" class="btn btn-outline-secondary btn-sm ms-2" @click="discard">Cancel generation</button>

@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Wayfarer.Services.LocationProviders;
 
 namespace Wayfarer.Services.ExternalRouting;
 
@@ -35,6 +36,7 @@ public static class ExternalRoutingServiceCollectionExtensions
         services.AddScoped<ExternalRoutingCapabilityProjector>();
         services.AddScoped<MobileRoutingService>();
         services.AddScoped<MobileRoutingProfileDiscoveryService>();
+        services.AddScoped<PersonalProviderSetupService>();
         return services;
     }
 }

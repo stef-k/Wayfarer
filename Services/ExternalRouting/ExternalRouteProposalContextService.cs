@@ -60,7 +60,8 @@ public sealed record ExternalRouteProposalBinding(
     string AggregateConcurrencyToken, RoutingProviderSelectionMode ProviderSelectionMode = RoutingProviderSelectionMode.ServerDefault,
     int UserRoutingConfigurationVersion = 1, double? DistanceMetres = null, double? DurationSeconds = null,
     IReadOnlyList<RouteInstruction>? Instructions = null, string? ProviderKey = null, string? MappingMode = null,
-    DateTimeOffset? GeneratedAt = null, string? Attribution = null, string? StorageMode = null);
+    DateTimeOffset? GeneratedAt = null, string? Attribution = null, string? StorageMode = null,
+    int AuthoritySelectionGeneration = 0, uint AuthorityCredentialGeneration = 0);
 
 /// <summary>Returns the protected context and its initial ten-minute expiry.</summary>
 public sealed record ProtectedProposalContext(string Token, DateTimeOffset ExpiresAt);

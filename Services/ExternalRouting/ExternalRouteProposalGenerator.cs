@@ -41,8 +41,15 @@ public sealed class ExternalRouteProposalGenerator
     }
 
     /// <summary>Reloads every authoritative input and returns a non-persisted immutable proposal.</summary>
+    public Task<ExternalRouteGenerationResult> GenerateAsync(
+        string userId, Guid tripId, Guid segmentId, string aggregateConcurrencyToken,
+        CancellationToken cancellationToken) =>
+        GenerateAsync(userId, tripId, segmentId, aggregateConcurrencyToken, null, cancellationToken);
+
+    /// <summary>Reloads authoritative inputs for one explicitly selected provider-native mode.</summary>
     public async Task<ExternalRouteGenerationResult> GenerateAsync(
-        string userId, Guid tripId, Guid segmentId, string aggregateConcurrencyToken, CancellationToken cancellationToken)
+        string userId, Guid tripId, Guid segmentId, string aggregateConcurrencyToken, string? providerMode,
+        CancellationToken cancellationToken)
     {
         using var operationTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         using var operationTimer = _timeProvider.CreateTimer(
@@ -50,7 +57,7 @@ public sealed class ExternalRouteProposalGenerator
         try
         {
             var result = await GenerateCoreAsync(
-                userId, tripId, segmentId, aggregateConcurrencyToken, operationTimeout.Token);
+                userId, tripId, segmentId, aggregateConcurrencyToken, providerMode, operationTimeout.Token);
             return operationTimeout.IsCancellationRequested && !cancellationToken.IsCancellationRequested
                 ? ExternalRouteGenerationResult.Failure("routing-timeout") : result;
         }
@@ -61,9 +68,12 @@ public sealed class ExternalRouteProposalGenerator
     }
 
     private async Task<ExternalRouteGenerationResult> GenerateCoreAsync(
-        string userId, Guid tripId, Guid segmentId, string aggregateConcurrencyToken, CancellationToken operationToken)
+        string userId, Guid tripId, Guid segmentId, string aggregateConcurrencyToken, string? providerMode,
+        CancellationToken operationToken)
     {
-        var context = await LoadContextAsync(userId, tripId, segmentId, aggregateConcurrencyToken, operationToken);
+        if (providerMode != null && !ProviderDirectionsCatalog.TryParse("geoapify", providerMode, out _))
+            return ExternalRouteGenerationResult.Failure("unsupported-provider-mode");
+        var context = await LoadContextAsync(userId, tripId, segmentId, aggregateConcurrencyToken, providerMode, operationToken);
         if (!context.Succeeded) return ExternalRouteGenerationResult.Failure(context.ErrorCode!);
         if (RoutingProviderAnchorPolicy.Validate(context.Execution!, context.Anchors!) is { } anchorError)
             return ExternalRouteGenerationResult.Failure(anchorError);
@@ -71,12 +81,12 @@ public sealed class ExternalRouteProposalGenerator
             return ExternalRouteGenerationResult.Failure("routing-budget-exhausted");
 
         var providerResult = await _client!.RouteAsync(context.Execution!, context.Anchors!,
-            token => IsCurrentAsync(context, userId, tripId, segmentId, aggregateConcurrencyToken, token), operationToken);
+            token => IsCurrentAsync(context, userId, tripId, segmentId, aggregateConcurrencyToken, providerMode, token), operationToken);
         if (!providerResult.Succeeded) return ExternalRouteGenerationResult.Failure(providerResult.ErrorCode!);
         var validated = _geometryValidator!.Validate(context.Anchors!, providerResult, operationToken);
         if (!validated.Succeeded) return ExternalRouteGenerationResult.Failure(validated.ErrorCode!);
 
-        var finalContext = await LoadContextAsync(userId, tripId, segmentId, aggregateConcurrencyToken, operationToken);
+        var finalContext = await LoadContextAsync(userId, tripId, segmentId, aggregateConcurrencyToken, providerMode, operationToken);
         if (!finalContext.Succeeded || finalContext.Fingerprint != context.Fingerprint
             || finalContext.TransportProfileId != context.TransportProfileId
             || !SameAuthority(finalContext.Execution, context.Execution))
@@ -94,7 +104,8 @@ public sealed class ExternalRouteProposalGenerator
             context.Execution.Profile, _timeProvider.GetUtcNow(),
             context.Execution.Provider.AdapterType == RoutingAdapterType.Geoapify
                 ? "Powered by Geoapify|© OpenStreetMap contributors" : context.Execution.Attribution,
-            context.Execution.Provider.AdapterType == RoutingAdapterType.Geoapify ? "persistent" : null);
+            context.Execution.Provider.AdapterType == RoutingAdapterType.Geoapify ? "persistent" : null,
+            context.Execution.AuthoritySelectionGeneration, context.Execution.UserRowVersion);
         var protectedContext = _proposalContexts!.Issue(binding);
         var proposal = new ExternalRouteProposalDto(proposalId, segmentId, validated.Geometry!, validated.WaypointIndices!,
             protectedContext.Token, protectedContext.ExpiresAt, providerResult.DistanceMetres,
@@ -106,15 +117,16 @@ public sealed class ExternalRouteProposalGenerator
 
     private async Task<bool> IsCurrentAsync(
         GenerationContext original, string userId, Guid tripId, Guid segmentId, string aggregateToken,
-        CancellationToken cancellationToken)
+        string? providerMode, CancellationToken cancellationToken)
     {
-        var current = await LoadContextAsync(userId, tripId, segmentId, aggregateToken, cancellationToken);
+        var current = await LoadContextAsync(userId, tripId, segmentId, aggregateToken, providerMode, cancellationToken);
         return current.Succeeded && SameAuthority(current.Execution, original.Execution)
             && current.TransportProfileId == original.TransportProfileId && current.Fingerprint == original.Fingerprint;
     }
 
     private async Task<GenerationContext> LoadContextAsync(
-        string userId, Guid tripId, Guid segmentId, string aggregateToken, CancellationToken cancellationToken)
+        string userId, Guid tripId, Guid segmentId, string aggregateToken, string? providerMode,
+        CancellationToken cancellationToken)
     {
         var segment = await _dbContext!.Set<Segment>().AsNoTracking()
             .Include(item => item.FromPlace).Include(item => item.ToPlace)
@@ -128,7 +140,9 @@ public sealed class ExternalRouteProposalGenerator
         if (!await _dbContext.Set<TransportProfile>().AsNoTracking()
             .AnyAsync(item => item.Id == transportProfileId && item.IsActive, cancellationToken))
             return GenerationContext.Failure("routing-profile-unavailable");
-        var resolution = await _resolver!.ResolveAsync(userId, transportProfileId, cancellationToken);
+        var resolution = providerMode == null
+            ? await _resolver!.ResolveAsync(userId, transportProfileId, cancellationToken)
+            : await _resolver!.ResolveNativeAsync(userId, providerMode, cancellationToken);
         if (resolution.Execution == null) return GenerationContext.Failure(resolution.ErrorCode ?? "external-routing-unavailable");
         var places = new[] { segment.FromPlace }.Concat(segment.Waypoints.OrderBy(item => item.Position).Select(item => item.Place))
             .Concat([segment.ToPlace]).ToArray();
@@ -147,7 +161,12 @@ public sealed class ExternalRouteProposalGenerator
         && first.UserConfigurationVersion == second.UserConfigurationVersion
         && first.UserRowVersion == second.UserRowVersion
         && first.FeatureStateGeneration == second.FeatureStateGeneration
-        && first.Profile == second.Profile;
+        && first.Profile == second.Profile
+        && first.AuthoritySelectionGeneration == second.AuthoritySelectionGeneration
+        && first.RoutingAuthorized == second.RoutingAuthorized
+        && first.RoutingVerification == second.RoutingVerification
+        && first.VerifiedCredentialGeneration == second.VerifiedCredentialGeneration
+        && first.VerifiedRoutingGeneration == second.VerifiedRoutingGeneration;
 
     private sealed record GenerationContext(
         bool Succeeded, string? ErrorCode, ResolvedRoutingProviderExecution? Execution = null,

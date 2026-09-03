@@ -13,20 +13,11 @@ public sealed class ExternalRoutingCapabilityProjector(AuthoritativeRoutingProvi
         var results = new Dictionary<Guid, EditorExternalRoutingCapabilityDto>();
         foreach (var segment in segments)
         {
-            if (segment.TransportProfileId is not { } profileId)
-            {
-                results[segment.Id] = Unavailable("The selected transport profile is unavailable.");
-                continue;
-            }
-            var resolution = await resolver.ResolveAsync(userId, profileId, cancellationToken);
+            var modes = ProviderDirectionsCatalog.For("geoapify");
+            var resolution = await resolver.ResolveNativeAsync(userId, modes[0].Key, cancellationToken);
             if (resolution.Execution == null)
             {
-                results[segment.Id] = Unavailable(resolution.ErrorCode switch
-                {
-                    "unmapped-transport-profile" => "Route suggestions are not configured for this transport profile.",
-                    "unsupported-transport-profile" => "This routing provider does not support the mapped transport mode.",
-                    _ => "Route suggestions are temporarily unavailable."
-                });
+                results[segment.Id] = Unavailable("Route suggestions are unavailable until Geoapify directions is verified and selected.");
                 continue;
             }
             if (segment.FromPlace?.Location == null || segment.ToPlace?.Location == null
@@ -37,7 +28,7 @@ public sealed class ExternalRoutingCapabilityProjector(AuthoritativeRoutingProvi
             }
             var execution = resolution.Execution;
             results[segment.Id] = new EditorExternalRoutingCapabilityDto(true, null, execution.DisplayName,
-                execution.Profile, execution.Disclosure, execution.Attribution);
+                null, execution.Disclosure, execution.Attribution, modes);
         }
         return results;
     }

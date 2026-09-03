@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Wayfarer.Services.ExternalRouting;
 
 namespace Wayfarer.Models.Dtos.Editor;
 
@@ -133,7 +134,11 @@ public sealed record EditorSegmentDto(
 /// <summary>Safe per-Segment external-routing capability without endpoint or configuration details.</summary>
 public sealed record EditorExternalRoutingCapabilityDto(
     bool Available, string? UnavailableReason, string? ProviderDisplayName, string? MappedProfileLabel,
-    string? Disclosure, string? Attribution);
+    string? Disclosure, string? Attribution, IReadOnlyList<ProviderDirectionsMode>? ProviderModes = null)
+{
+    /// <summary>Gets the current closed provider-native modes.</summary>
+    public IReadOnlyList<ProviderDirectionsMode> Modes => ProviderModes ?? [];
+}
 
 /// <summary>Tag DTO used by the editor state.</summary>
 public sealed record EditorTagDto(Guid Id, string Name, string Slug);

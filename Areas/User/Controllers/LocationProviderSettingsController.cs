@@ -17,7 +17,8 @@ public sealed class LocationProviderSettingsController(
     ApplicationDbContext dbContext, PersonalProviderCredentialService credentials,
     LegacyMapboxMigrationService migration, ReverseGeocodingService reverseGeocoding,
     GeoapifyVerificationService? geoapifyVerification = null,
-    IImportEnrichmentHandoff? enrichmentCommands = null) : Controller
+    IImportEnrichmentHandoff? enrichmentCommands = null,
+    PersonalProviderSetupService? setup = null) : Controller
 {
     /// <summary>Displays masked provider authority and provider-native usage status.</summary>
     public async Task<IActionResult> Index(CancellationToken cancellationToken)
@@ -35,46 +36,36 @@ public sealed class LocationProviderSettingsController(
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (userId == null) return Challenge();
         if (!ModelState.IsValid) return View("Index", await BuildAsync(userId, cancellationToken));
-        var provider = ParseProvider(input.ProviderKey);
-        var key = PersonalProviderKeys.Key(provider);
-        await using var transaction = dbContext.Database.IsRelational()
-            ? await dbContext.Database.BeginTransactionAsync(cancellationToken) : null;
-        var selection = dbContext.Database.IsNpgsql()
-            ? await dbContext.PersonalLocationProviderSelections.FromSqlInterpolated($$"""
-                SELECT *, xmin FROM "PersonalLocationProviderSelections"
-                WHERE "UserId" = {{userId}} FOR UPDATE
-                """).SingleOrDefaultAsync(cancellationToken)
-            : await dbContext.PersonalLocationProviderSelections.SingleOrDefaultAsync(
-                item => item.UserId == userId, cancellationToken);
-        selection ??= PersonalLocationProviderSelection.Create(userId);
-        if (dbContext.Entry(selection).State == EntityState.Detached) dbContext.Add(selection);
-        var profile = dbContext.Database.IsNpgsql()
-            ? await dbContext.PersonalLocationProviderProfiles.FromSqlInterpolated($$"""
-                SELECT *, xmin FROM "PersonalLocationProviderProfiles"
-                WHERE "UserId" = {{userId}} AND "ProviderKey" = {{key}} FOR UPDATE
-                """).SingleOrDefaultAsync(cancellationToken)
-            : await dbContext.PersonalLocationProviderProfiles.SingleOrDefaultAsync(
-                item => item.UserId == userId && item.ProviderKey == key, cancellationToken);
-        profile ??= PersonalLocationProviderProfile.Create(userId, provider);
-        if (dbContext.Entry(profile).State == EntityState.Detached) dbContext.Add(profile);
-        if (!string.IsNullOrWhiteSpace(input.ReplacementCredential)) credentials.Replace(profile, input.ReplacementCredential);
-        profile.SetAuthorization(PersonalProviderCapability.Geocoding, input.GeocodingAuthorized);
-        profile.SetAuthorization(PersonalProviderCapability.Routing, input.RoutingAuthorized);
-        var geocodingVerified = profile.GeocodingVerification == PersonalProviderVerification.Verified
-            && profile.GeocodingVerifiedCredentialGeneration == profile.CredentialGeneration
-            && profile.GeocodingVerifiedConfigurationGeneration == profile.GeocodingGeneration;
-        if (input.ActiveForGeocoding && input.GeocodingAuthorized && geocodingVerified
-            && (provider != PersonalLocationProvider.Mapbox || profile.HasCurrentPermanentGeocodingConsent()))
-            selection.Select(PersonalProviderCapability.Geocoding, provider);
-        else if (selection.GeocodingProviderKey == key) selection.Select(PersonalProviderCapability.Geocoding, null);
-        var routingVerified = profile.RoutingVerification == PersonalProviderVerification.Verified
-            && profile.RoutingVerifiedCredentialGeneration == profile.CredentialGeneration
-            && profile.RoutingVerifiedConfigurationGeneration == profile.RoutingGeneration;
-        if (input.ActiveForRouting && input.RoutingAuthorized && routingVerified)
-            selection.Select(PersonalProviderCapability.Routing, provider);
-        else if (selection.RoutingProviderKey == key) selection.Select(PersonalProviderCapability.Routing, null);
-        await dbContext.SaveChangesAsync(cancellationToken);
-        if (transaction != null) await transaction.CommitAsync(cancellationToken);
+        if (setup != null && !string.IsNullOrWhiteSpace(input.ReplacementCredential))
+            await setup.ReplaceCredentialAsync(
+                userId, ParseProvider(input.ProviderKey), input.ReplacementCredential, cancellationToken);
+        return RedirectToAction(nameof(Index));
+    }
+
+    /// <summary>Replaces one credential and disables its selections without provider contact.</summary>
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> SaveCredential(LocationProviderCredentialInput input, CancellationToken cancellationToken)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId == null) return Challenge();
+        if (!ModelState.IsValid || setup == null) return View("Index", await BuildAsync(userId, cancellationToken));
+        await setup.ReplaceCredentialAsync(userId, ParseProvider(input.ProviderKey), input.ReplacementCredential, cancellationToken);
+        TempData["ProviderStatus"] = "Credential replaced. Verify and select each capability again.";
+        return RedirectToAction(nameof(Index));
+    }
+
+    /// <summary>Applies one capability provider choice without contacting a provider.</summary>
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> ChooseProvider(LocationProviderChoiceInput input, CancellationToken cancellationToken)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId == null) return Challenge();
+        if (!ModelState.IsValid || setup == null) return View("Index", await BuildAsync(userId, cancellationToken));
+        var capability = Enum.Parse<PersonalProviderCapability>(input.Capability);
+        var provider = string.IsNullOrEmpty(input.ProviderKey) ? (PersonalLocationProvider?)null : ParseProvider(input.ProviderKey);
+        var result = await setup.ChooseAsync(userId, capability, provider, cancellationToken);
+        TempData["ProviderStatus"] = result == ProviderChoiceResult.Success
+            ? $"{capability} provider choice saved." : "Verify this provider for the capability before selecting it.";
         return RedirectToAction(nameof(Index));
     }
 
@@ -100,6 +91,9 @@ public sealed class LocationProviderSettingsController(
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (userId == null) return Challenge();
+        if (setup == null || !await setup.AuthorizeVerificationAsync(userId, PersonalLocationProvider.Mapbox,
+            PersonalProviderCapability.Geocoding, cancellationToken))
+        { TempData["ProviderStatus"] = "Configure a readable credential and current Permanent acknowledgements before verification."; return RedirectToAction(nameof(Index)); }
         TempData["ProviderStatus"] = await reverseGeocoding.VerifyMapboxPermanentAsync(userId, cancellationToken) switch
         { PersonalProviderVerification.Verified => "Mapbox Permanent Geocoding verified. Activate it explicitly to begin enrichment.", PersonalProviderVerification.Failed => "Mapbox rejected Permanent Geocoding authorization.", _ => "Mapbox Permanent Geocoding verification is unavailable; no stored data was changed." };
         return RedirectToAction(nameof(Index));
@@ -111,6 +105,11 @@ public sealed class LocationProviderSettingsController(
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (userId == null) return Challenge();
+        if (capability is not (PersonalProviderCapability.Geocoding or PersonalProviderCapability.Routing))
+        { TempData["ProviderStatus"] = "Choose geocoding or directions to verify."; return RedirectToAction(nameof(Index)); }
+        if (setup == null || !await setup.AuthorizeVerificationAsync(
+            userId, PersonalLocationProvider.Geoapify, capability, cancellationToken))
+        { TempData["ProviderStatus"] = "Configure a readable Geoapify credential before verification."; return RedirectToAction(nameof(Index)); }
         var result = geoapifyVerification == null
             ? new GeoapifyVerificationOutcome(PersonalProviderVerification.Unavailable, GeoapifyVerificationCategory.TemporaryFailure)
             : capability == PersonalProviderCapability.Geocoding
@@ -175,7 +174,8 @@ public sealed class LocationProviderSettingsController(
         return RedirectToAction(nameof(Index));
     }
 
-    private async Task<LocationProviderSettingsViewModel> BuildAsync(string userId, CancellationToken cancellationToken)
+    /// <summary>Builds executable eligibility and masked status without provider contact or mutation.</summary>
+    internal async Task<LocationProviderSettingsViewModel> BuildAsync(string userId, CancellationToken cancellationToken)
     {
         var profiles = await dbContext.PersonalLocationProviderProfiles.AsNoTracking()
             .Where(item => item.UserId == userId).ToListAsync(cancellationToken);
@@ -188,43 +188,86 @@ public sealed class LocationProviderSettingsController(
         var meters = await dbContext.MapboxProductMeters.AsNoTracking().Where(item => item.UserId == userId).ToListAsync(cancellationToken);
         var views = new[] { PersonalLocationProvider.Geoapify, PersonalLocationProvider.Mapbox }.Select(provider =>
             BuildProfile(provider, profiles, geoGuard, geoUsed, meters)).ToArray();
+        var activeGeocoding = selection?.GeocodingProviderKey;
+        var activeRouting = selection?.RoutingProviderKey;
         return new()
         {
-            Profiles = views, ActiveGeocodingProvider = selection?.GeocodingProviderKey,
-            ActiveRoutingProvider = selection?.RoutingProviderKey,
+            Profiles = views, ActiveGeocodingProvider = activeGeocoding,
+            ActiveRoutingProvider = activeRouting,
+            GeocodingStatus = SelectionStatus(activeGeocoding, views, PersonalProviderCapability.Geocoding),
+            RoutingStatus = SelectionStatus(activeRouting, views, PersonalProviderCapability.Routing),
             LegacyMigrationState = profiles.SingleOrDefault(item => item.ProviderKey == "mapbox")?.LegacyMigrationState ?? LegacyMapboxMigrationState.None
         };
     }
 
-    private static LocationProviderProfileViewModel BuildProfile(PersonalLocationProvider provider,
+    private LocationProviderProfileViewModel BuildProfile(PersonalLocationProvider provider,
         IReadOnlyCollection<PersonalLocationProviderProfile> profiles, GeoapifyUsageGuard? geoGuard, int geoUsed,
         IReadOnlyCollection<MapboxProductMeter> meters)
     {
         var key = PersonalProviderKeys.Key(provider);
         var profile = profiles.SingleOrDefault(item => item.ProviderKey == key);
+        var readable = profile != null && credentials.Read(profile).Succeeded;
+        var geocoding = PersonalProviderEligibility.Evaluate(
+            profile, provider, PersonalProviderCapability.Geocoding, readable);
+        var routing = PersonalProviderEligibility.Evaluate(
+            profile, provider, PersonalProviderCapability.Routing, readable);
         if (provider == PersonalLocationProvider.Geoapify)
         {
             var limit = geoGuard?.CreditLimit ?? 2500;
-            return new(key, "Geoapify", profile?.ProtectedCredential != null && profile.RevokedAt == null, "••••••••••••••••",
-                profile?.GeocodingAuthorized == true, profile?.GeocodingVerification ?? 0,
-                profile?.RoutingAuthorized == true, profile?.RoutingVerification ?? 0,
+            return new(key, "Geoapify", readable, "••••••••••••••••",
+                profile?.GeocodingAuthorized == true, CurrentVerification(profile, PersonalProviderCapability.Geocoding),
+                geocoding.Eligible, geocoding.Status,
+                profile?.RoutingAuthorized == true, CurrentVerification(profile, PersonalProviderCapability.Routing),
+                routing.Eligible, routing.Status,
                 geoGuard?.Enabled ?? true, limit, geoUsed, "credits",
                 "Wayfarer rolling 24-hour shared geocoding/routing window", (geoGuard?.Enabled ?? true) && geoUsed >= limit);
         }
         var permanent = meters.SingleOrDefault(item => item.Product == PersonalProviderProduct.PermanentGeocoding);
         var directions = meters.SingleOrDefault(item => item.Product == PersonalProviderProduct.Directions);
-        return new(key, "Mapbox", profile?.ProtectedCredential != null && profile.RevokedAt == null, "••••••••••••••••",
-            profile?.GeocodingAuthorized == true, profile?.GeocodingVerification ?? 0,
-            profile?.RoutingAuthorized == true, profile?.RoutingVerification ?? 0,
+        return new(key, "Mapbox", readable, "••••••••••••••••",
+            profile?.GeocodingAuthorized == true, CurrentVerification(profile, PersonalProviderCapability.Geocoding),
+            geocoding.Eligible, geocoding.Status,
+            profile?.RoutingAuthorized == true, CurrentVerification(profile, PersonalProviderCapability.Routing),
+            routing.Eligible, routing.Status,
             permanent?.Enabled ?? true, permanent?.Limit ?? 1000, permanent?.AdmittedCount ?? 0, "Permanent Geocoding contacts",
             "Wayfarer UTC calendar-month Permanent Geocoding safety cycle", permanent?.Enabled == true && permanent.AdmittedCount >= permanent.Limit,
             directions?.Enabled ?? true, directions?.Limit ?? 1000, directions?.AdmittedCount ?? 0,
             profile?.HasCurrentPermanentGeocodingConsent() == true, profile?.PermanentGeocodingConsentVersion,
-            profile?.PermanentGeocodingConsentedAt, MapboxPausedReason(profile, permanent), permanent?.CycleStart);
+            profile?.PermanentGeocodingConsentedAt, MapboxPausedReason(profile, permanent, geocoding), permanent?.CycleStart);
     }
 
-    private static string? MapboxPausedReason(PersonalLocationProviderProfile? profile, MapboxProductMeter? meter) => profile switch
-    { null or { ProtectedCredential: null } => "Credential required", { GeocodingAuthorized: false } => "Geocoding authorization required", _ when !profile.HasCurrentPermanentGeocodingConsent() => "Permanent consent required", { GeocodingVerification: not PersonalProviderVerification.Verified } => "Permanent verification required", _ when meter?.Enabled == true && meter.AdmittedCount >= meter.Limit => "Permanent meter exhausted", _ => null };
+    private static string SelectionStatus(string? selectedProvider,
+        IReadOnlyCollection<LocationProviderProfileViewModel> profiles, PersonalProviderCapability capability)
+    {
+        if (selectedProvider == null) return capability == PersonalProviderCapability.Geocoding
+            ? "No provider selected. Verify a credential, then choose it."
+            : "No provider selected. Verify Geoapify, then choose it.";
+        var profile = profiles.SingleOrDefault(item => item.ProviderKey == selectedProvider);
+        var eligible = capability == PersonalProviderCapability.Geocoding
+            ? profile?.GeocodingEligible == true : profile?.RoutingEligible == true;
+        if (eligible) return $"Ready with {selectedProvider}.";
+        var blocking = capability == PersonalProviderCapability.Geocoding
+            ? profile?.GeocodingBlockingStatus : profile?.RoutingBlockingStatus;
+        return blocking ?? "Blocked. Replace the credential and verify again.";
+    }
+
+    private static PersonalProviderVerification CurrentVerification(
+        PersonalLocationProviderProfile? profile, PersonalProviderCapability capability)
+    {
+        if (profile == null) return PersonalProviderVerification.Unverified;
+        return capability == PersonalProviderCapability.Geocoding
+            && profile.GeocodingVerifiedCredentialGeneration == profile.CredentialGeneration
+            && profile.GeocodingVerifiedConfigurationGeneration == profile.GeocodingGeneration
+            ? profile.GeocodingVerification
+            : capability == PersonalProviderCapability.Routing
+              && profile.RoutingVerifiedCredentialGeneration == profile.CredentialGeneration
+              && profile.RoutingVerifiedConfigurationGeneration == profile.RoutingGeneration
+                ? profile.RoutingVerification : PersonalProviderVerification.Unverified;
+    }
+
+    private static string? MapboxPausedReason(PersonalLocationProviderProfile? profile, MapboxProductMeter? meter,
+        PersonalProviderEligibilityResult eligibility) => profile switch
+    { _ when !eligibility.Eligible => eligibility.Status, _ when meter?.Enabled == true && meter.AdmittedCount >= meter.Limit => "Permanent meter exhausted", _ => null };
 
     private static PersonalLocationProvider ParseProvider(string key) => key switch
     { "geoapify" => PersonalLocationProvider.Geoapify, "mapbox" => PersonalLocationProvider.Mapbox, _ => throw new ArgumentOutOfRangeException(nameof(key)) };
