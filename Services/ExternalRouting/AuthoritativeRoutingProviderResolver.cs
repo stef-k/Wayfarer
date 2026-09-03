@@ -22,6 +22,29 @@ public sealed class AuthoritativeRoutingProviderResolver(
         return await ResolvePersonalGeoapifyAsync(userId, nativeMode!, cancellationToken);
     }
 
+    /// <summary>Resolves an explicit native mode from a caller-owned, locked personal-authority snapshot.</summary>
+    public RoutingProviderResolutionResult ResolveLockedNative(
+        PersonalLocationProviderSelection? selection, PersonalLocationProviderProfile? profile, string? nativeMode)
+    {
+        if (!ProviderDirectionsCatalog.TryParse("geoapify", nativeMode, out _))
+            return RoutingProviderResolutionResult.Unavailable("unsupported-provider-mode");
+        if (selection?.RoutingProviderKey != "geoapify")
+            return RoutingProviderResolutionResult.Unavailable("no-provider-selected");
+        if (personalCredentials == null)
+            return RoutingProviderResolutionResult.Unavailable("personal-credential-unavailable");
+        if (profile == null || profile.UserId != selection.UserId || profile.ProviderKey != "geoapify"
+            || profile.RevokedAt != null || !profile.RoutingAuthorized)
+            return RoutingProviderResolutionResult.Unavailable("unauthorized");
+        if (profile.RoutingVerification != PersonalProviderVerification.Verified
+            || profile.RoutingVerifiedCredentialGeneration != profile.CredentialGeneration
+            || profile.RoutingVerifiedConfigurationGeneration != profile.RoutingGeneration)
+            return RoutingProviderResolutionResult.Unavailable("verification-required");
+        var credential = personalCredentials.Read(profile);
+        if (!credential.Succeeded)
+            return RoutingProviderResolutionResult.Unavailable("personal-credential-unavailable");
+        return ResolvedPersonalGeoapify(selection, profile, nativeMode!, credential.Credential!);
+    }
+
     /// <summary>Resolves the released-Mobile omitted-mode compatibility path from an exact built-in key.</summary>
     public async Task<RoutingProviderResolutionResult> ResolveReleasedMobileAsync(
         string userId, Guid transportProfileId, CancellationToken cancellationToken)
@@ -53,6 +76,13 @@ public sealed class AuthoritativeRoutingProviderResolver(
         var credential = personalCredentials.Read(profile);
         if (!credential.Succeeded)
             return RoutingProviderResolutionResult.Unavailable("personal-credential-unavailable");
+        return ResolvedPersonalGeoapify(selection, profile, nativeMode, credential.Credential!);
+    }
+
+    private static RoutingProviderResolutionResult ResolvedPersonalGeoapify(
+        PersonalLocationProviderSelection selection, PersonalLocationProviderProfile profile,
+        string nativeMode, string credential)
+    {
         var provider = new RoutingProviderConfiguration
         {
             Id = GeoapifyAuthorityId,
@@ -71,10 +101,10 @@ public sealed class AuthoritativeRoutingProviderResolver(
             MaxConcurrency = 2
         };
         return new(RoutingProviderResolutionOutcome.ResolvedPersonal, null, false,
-            new(provider, nativeMode, credential.Credential, RoutingProviderSelectionMode.Personal,
+            new(provider, nativeMode, credential, RoutingProviderSelectionMode.Personal,
                 profile.RoutingGeneration, (uint)profile.CredentialGeneration, 1, 0,
                 ProviderDirectionsCatalog.AuthorityVersion,
-                provider.DisplayName, provider.ExternalCoordinateDisclosure, provider.Attribution, userId,
+                provider.DisplayName, provider.ExternalCoordinateDisclosure, provider.Attribution, selection.UserId,
                 selection.RoutingSelectionGeneration, profile.RoutingAuthorized, (int)profile.RoutingVerification,
                 profile.RoutingVerifiedCredentialGeneration, profile.RoutingVerifiedConfigurationGeneration, 1));
     }

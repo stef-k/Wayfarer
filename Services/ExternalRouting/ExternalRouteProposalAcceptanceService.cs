@@ -5,6 +5,7 @@ using Npgsql;
 using NetTopologySuite.Geometries;
 using System.Text.Json;
 using Wayfarer.Models;
+using Wayfarer.Models.LocationProviders;
 
 namespace Wayfarer.Services.ExternalRouting;
 
@@ -72,7 +73,7 @@ public sealed class ExternalRouteProposalAcceptanceService
             && !await LegacyAuthorityCurrentAsync(userId, binding, relational, cancellationToken))
             return ExternalRouteAcceptanceResult.Failure("route-proposal-stale");
         var resolution = binding.ProviderKey == "geoapify"
-            ? await _resolver.ResolveNativeAsync(userId, binding.MappingMode, cancellationToken)
+            ? await ResolveLockedGeoapifyAsync(userId, binding.MappingMode, cancellationToken)
             : await _resolver.ResolveAsync(userId, binding.TransportProfileId, cancellationToken);
         var execution = resolution.Execution;
         if (execution == null || execution.SelectionMode != binding.ProviderSelectionMode
@@ -134,6 +135,29 @@ public sealed class ExternalRouteProposalAcceptanceService
             new AcceptedExternalRouteProposalDto(proposalId, segmentId, geometry, waypointIndices,
                 binding.DistanceMetres, binding.DurationSeconds, binding.Instructions, binding.ProviderKey,
                 binding.Attribution, binding.StorageMode, aggregateConcurrencyToken));
+    }
+
+    /// <summary>Locks personal routing selection before its selected profile and resolves only those locked rows.</summary>
+    private async Task<RoutingProviderResolutionResult> ResolveLockedGeoapifyAsync(
+        string userId, string? nativeMode, CancellationToken cancellationToken)
+    {
+        var selection = _dbContext.Database.IsNpgsql()
+            ? await _dbContext.Set<PersonalLocationProviderSelection>().FromSqlInterpolated($$"""
+                SELECT *, xmin FROM "PersonalLocationProviderSelections"
+                WHERE "UserId" = {{userId}} FOR UPDATE
+                """).SingleOrDefaultAsync(cancellationToken)
+            : await _dbContext.Set<PersonalLocationProviderSelection>()
+                .SingleOrDefaultAsync(item => item.UserId == userId, cancellationToken);
+        if (selection?.RoutingProviderKey != "geoapify")
+            return RoutingProviderResolutionResult.Unavailable("no-provider-selected");
+        var profile = _dbContext.Database.IsNpgsql()
+            ? await _dbContext.Set<PersonalLocationProviderProfile>().FromSqlInterpolated($$"""
+                SELECT *, xmin FROM "PersonalLocationProviderProfiles"
+                WHERE "UserId" = {{userId}} AND "ProviderKey" = {{selection.RoutingProviderKey}} FOR UPDATE
+                """).SingleOrDefaultAsync(cancellationToken)
+            : await _dbContext.Set<PersonalLocationProviderProfile>().SingleOrDefaultAsync(
+                item => item.UserId == userId && item.ProviderKey == selection.RoutingProviderKey, cancellationToken);
+        return _resolver.ResolveLockedNative(selection, profile, nativeMode);
     }
 
     private async Task<bool> LegacyAuthorityCurrentAsync(string userId, ExternalRouteProposalBinding binding,
