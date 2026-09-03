@@ -311,7 +311,9 @@ public sealed class ExternalRouteProposalAcceptanceTests : TestBase
                 MappingMode = "walk",
                 GeneratedAt = DateTimeOffset.Parse("2026-08-18T12:00:00Z"),
                 Attribution = "Powered by Geoapify|© OpenStreetMap contributors",
-                StorageMode = "persistent"
+                StorageMode = "persistent",
+                AuthoritySelectionGeneration = personalSelection!.RoutingSelectionGeneration,
+                AuthorityCredentialGeneration = (uint)personalProfile.CredentialGeneration
             };
         var token = contexts.Issue(binding).Token;
         db.ChangeTracker.Clear();

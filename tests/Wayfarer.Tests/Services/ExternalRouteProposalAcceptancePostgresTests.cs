@@ -234,7 +234,8 @@ public sealed class ExternalRouteProposalAcceptancePostgresTests(PostgresImportT
             RoutingProviderSelectionMode.Personal, profile.RoutingGeneration, 1234, 300,
             [new RouteInstruction("Continue", "straight", 0, 3, 1234, 300)], "geoapify", "walk",
             DateTimeOffset.Parse("2026-09-03T12:00:00Z"),
-            "Powered by Geoapify|© OpenStreetMap contributors", "persistent");
+            "Powered by Geoapify|© OpenStreetMap contributors", "persistent",
+            selection.RoutingSelectionGeneration, (uint)profile.CredentialGeneration);
         return new(seed.UserId, seed.TripId, segment.Id, geometry, indices, binding,
             contexts.Issue(binding).Token, aggregateTokens, contexts);
     }

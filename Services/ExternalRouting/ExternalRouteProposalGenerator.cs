@@ -104,7 +104,8 @@ public sealed class ExternalRouteProposalGenerator
             context.Execution.Profile, _timeProvider.GetUtcNow(),
             context.Execution.Provider.AdapterType == RoutingAdapterType.Geoapify
                 ? "Powered by Geoapify|© OpenStreetMap contributors" : context.Execution.Attribution,
-            context.Execution.Provider.AdapterType == RoutingAdapterType.Geoapify ? "persistent" : null);
+            context.Execution.Provider.AdapterType == RoutingAdapterType.Geoapify ? "persistent" : null,
+            context.Execution.AuthoritySelectionGeneration, context.Execution.UserRowVersion);
         var protectedContext = _proposalContexts!.Issue(binding);
         var proposal = new ExternalRouteProposalDto(proposalId, segmentId, validated.Geometry!, validated.WaypointIndices!,
             protectedContext.Token, protectedContext.ExpiresAt, providerResult.DistanceMetres,

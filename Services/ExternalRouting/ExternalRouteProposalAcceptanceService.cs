@@ -80,7 +80,10 @@ public sealed class ExternalRouteProposalAcceptanceService
             || execution.UserConfigurationVersion != binding.UserRoutingConfigurationVersion
             || execution.Provider.Id != binding.ProviderId
             || execution.ProviderConfigurationVersion != binding.ProviderConfigurationVersion
-            || execution.FeatureStateGeneration != binding.FeatureStateGeneration)
+            || execution.FeatureStateGeneration != binding.FeatureStateGeneration
+            || binding.ProviderKey == "geoapify"
+            && (execution.AuthoritySelectionGeneration != binding.AuthoritySelectionGeneration
+                || execution.UserRowVersion != binding.AuthorityCredentialGeneration))
             return ExternalRouteAcceptanceResult.Failure("route-proposal-stale");
 
         var profile = await _dbContext.Set<TransportProfile>().AsNoTracking()
