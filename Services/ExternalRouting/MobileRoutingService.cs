@@ -173,8 +173,9 @@ public sealed class MobileRoutingService(
 
     private static string MapOutcome(string? code) => code switch
     {
-        "external-routing-disabled" or "personal-provider-unavailable" or "user-routing-unavailable" => "no-provider-selected",
-        "unmapped-transport-profile" => "unmapped-transport-profile",
+        "external-routing-disabled" or "personal-provider-unavailable" or "user-routing-unavailable"
+            or "no-provider-selected" => "no-provider-selected",
+        "unmapped-transport-profile" => "no-provider-selected",
         "unsupported-transport-profile" => "unsupported-transport-profile",
         "unauthorized" => "unauthorized",
         "verification-required" => "verification-required",

@@ -1,5 +1,9 @@
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
+using Wayfarer.Areas.Api.Controllers;
 using Wayfarer.Models;
 using Wayfarer.Models.LocationProviders;
 using Wayfarer.Services.ExternalRouting;
@@ -48,6 +52,40 @@ public sealed class ProviderAuthorityStepOneTests : TestBase
         profile.Category = "car";
 
         Assert.False(ReleasedMobileDirectionsCompatibility.TryMap(profile, out _));
+    }
+
+    [Fact]
+    public async Task WebProposalRequest_RequiresExplicitModeBeforeGeneration()
+    {
+        var controller = new ExternalRouteProposalsController(
+            new ExternalRouteProposalGenerator(() => new ApplicationSettings { ExternalRouteGenerationEnabled = true }))
+        {
+            ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext
+            {
+                User = new ClaimsPrincipal(new ClaimsIdentity(
+                    [new Claim(ClaimTypes.NameIdentifier, "user")], "test"))
+            } }
+        };
+
+        var result = await controller.Generate(Guid.NewGuid(), Guid.NewGuid(),
+            new ExternalRouteGenerationRequest("token"), default);
+
+        var rejected = Assert.IsType<UnprocessableEntityObjectResult>(result);
+        Assert.Equal("provider-mode-required", Assert.IsType<ExternalRouteErrorDto>(rejected.Value).Code);
+    }
+
+    [Fact]
+    public void ProviderSettingsView_DoesNotExposeInternalAuthorizationOrActivationCheckboxes()
+    {
+        var source = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "Areas", "User", "Views",
+            "LocationProviderSettings", "Index.cshtml"));
+
+        Assert.DoesNotContain("GeocodingAuthorized", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("RoutingAuthorized", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("ActiveForGeocoding", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("ActiveForRouting", source, StringComparison.Ordinal);
+        Assert.Contains("ChooseProvider", source, StringComparison.Ordinal);
+
     }
 
     [Fact]
@@ -111,4 +149,12 @@ public sealed class ProviderAuthorityStepOneTests : TestBase
 
     private static TransportProfile Profile(string key) => new()
     { Id = Guid.NewGuid(), Key = key, Label = key, Category = "other", IsActive = true };
+
+    private static string FindRepositoryRoot()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory != null && !File.Exists(Path.Combine(directory.FullName, "Wayfarer.csproj")))
+            directory = directory.Parent;
+        return directory?.FullName ?? throw new DirectoryNotFoundException("Repository root not found.");
+    }
 }

@@ -15,12 +15,12 @@ public sealed class PersonalProviderSetupService(
         var key = PersonalProviderKeys.Key(provider);
         await using var transaction = dbContext.Database.IsRelational()
             ? await dbContext.Database.BeginTransactionAsync(cancellationToken) : null;
-        var profile = await ProfileAsync(userId, key, cancellationToken)
-            ?? PersonalLocationProviderProfile.Create(userId, provider);
-        if (dbContext.Entry(profile).State == EntityState.Detached) dbContext.Add(profile);
         var selection = await SelectionAsync(userId, cancellationToken)
             ?? PersonalLocationProviderSelection.Create(userId);
         if (dbContext.Entry(selection).State == EntityState.Detached) dbContext.Add(selection);
+        var profile = await ProfileAsync(userId, key, cancellationToken)
+            ?? PersonalLocationProviderProfile.Create(userId, provider);
+        if (dbContext.Entry(profile).State == EntityState.Detached) dbContext.Add(profile);
         credentials.Replace(profile, credential);
         profile.SetAuthorization(PersonalProviderCapability.Geocoding, false);
         profile.SetAuthorization(PersonalProviderCapability.Routing, false);
@@ -34,12 +34,15 @@ public sealed class PersonalProviderSetupService(
     public async Task<bool> AuthorizeVerificationAsync(string userId, PersonalLocationProvider provider,
         PersonalProviderCapability capability, CancellationToken cancellationToken)
     {
+        await using var transaction = dbContext.Database.IsRelational()
+            ? await dbContext.Database.BeginTransactionAsync(cancellationToken) : null;
         var profile = await ProfileAsync(userId, PersonalProviderKeys.Key(provider), cancellationToken);
         if (profile == null || !credentials.Read(profile).Succeeded
             || provider == PersonalLocationProvider.Mapbox && capability == PersonalProviderCapability.Geocoding
-                && !profile.HasCurrentPermanentGeocodingConsent()) return false;
+            && !profile.HasCurrentPermanentGeocodingConsent()) return false;
         profile.SetAuthorization(capability, true);
         await dbContext.SaveChangesAsync(cancellationToken);
+        if (transaction != null) await transaction.CommitAsync(cancellationToken);
         return true;
     }
 
@@ -76,7 +79,9 @@ public sealed class PersonalProviderSetupService(
     }
 
     private static bool Eligible(PersonalLocationProviderProfile? profile, PersonalLocationProvider provider,
-        PersonalProviderCapability capability) => profile != null && profile.RevokedAt == null
+        PersonalProviderCapability capability) => !(provider == PersonalLocationProvider.Mapbox
+            && capability == PersonalProviderCapability.Routing)
+        && profile != null && profile.RevokedAt == null
         && profile.IsAuthorized(capability)
         && (provider != PersonalLocationProvider.Mapbox || capability != PersonalProviderCapability.Geocoding
             || profile.HasCurrentPermanentGeocodingConsent())
@@ -89,12 +94,22 @@ public sealed class PersonalProviderSetupService(
               && profile.RoutingVerifiedConfigurationGeneration == profile.RoutingGeneration);
 
     private Task<PersonalLocationProviderProfile?> ProfileAsync(string userId, string providerKey,
-        CancellationToken cancellationToken) => dbContext.Set<PersonalLocationProviderProfile>()
-        .SingleOrDefaultAsync(item => item.UserId == userId && item.ProviderKey == providerKey, cancellationToken);
+        CancellationToken cancellationToken) => dbContext.Database.IsNpgsql()
+        ? dbContext.Set<PersonalLocationProviderProfile>().FromSqlInterpolated($$"""
+            SELECT *, xmin FROM "PersonalLocationProviderProfiles"
+            WHERE "UserId" = {{userId}} AND "ProviderKey" = {{providerKey}} FOR UPDATE
+            """).SingleOrDefaultAsync(cancellationToken)
+        : dbContext.Set<PersonalLocationProviderProfile>()
+            .SingleOrDefaultAsync(item => item.UserId == userId && item.ProviderKey == providerKey, cancellationToken);
 
     private Task<PersonalLocationProviderSelection?> SelectionAsync(string userId,
-        CancellationToken cancellationToken) => dbContext.Set<PersonalLocationProviderSelection>()
-        .SingleOrDefaultAsync(item => item.UserId == userId, cancellationToken);
+        CancellationToken cancellationToken) => dbContext.Database.IsNpgsql()
+        ? dbContext.Set<PersonalLocationProviderSelection>().FromSqlInterpolated($$"""
+            SELECT *, xmin FROM "PersonalLocationProviderSelections"
+            WHERE "UserId" = {{userId}} FOR UPDATE
+            """).SingleOrDefaultAsync(cancellationToken)
+        : dbContext.Set<PersonalLocationProviderSelection>()
+            .SingleOrDefaultAsync(item => item.UserId == userId, cancellationToken);
 }
 
 /// <summary>Identifies a bounded provider-choice transition outcome.</summary>

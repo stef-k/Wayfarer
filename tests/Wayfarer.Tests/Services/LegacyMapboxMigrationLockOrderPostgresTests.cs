@@ -37,7 +37,8 @@ public sealed class LegacyMapboxMigrationLockOrderPostgresTests(PostgresImportTe
             var settingsCredentials = new PersonalProviderCredentialService(protection);
             var migration = new LegacyMapboxMigrationService(migrationContext, migrationCredentials);
             var controller = new LocationProviderSettingsController(
-                settingsContext, settingsCredentials, null!, null!)
+                settingsContext, settingsCredentials, null!, null!,
+                setup: new PersonalProviderSetupService(settingsContext, settingsCredentials))
             {
                 ControllerContext = new ControllerContext
                 {

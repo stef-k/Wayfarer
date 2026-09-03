@@ -36,12 +36,12 @@ public sealed class AuthoritativeRoutingProviderResolver(
     private async Task<RoutingProviderResolutionResult> ResolvePersonalGeoapifyAsync(
         string userId, string nativeMode, CancellationToken cancellationToken)
     {
-        if (personalCredentials == null)
-            return RoutingProviderResolutionResult.Unavailable("personal-credential-unavailable");
         var selection = await dbContext.Set<PersonalLocationProviderSelection>().AsNoTracking()
             .SingleOrDefaultAsync(item => item.UserId == userId, cancellationToken);
         if (selection?.RoutingProviderKey != "geoapify")
             return RoutingProviderResolutionResult.Unavailable("no-provider-selected");
+        if (personalCredentials == null)
+            return RoutingProviderResolutionResult.Unavailable("personal-credential-unavailable");
         var profile = await dbContext.Set<PersonalLocationProviderProfile>().AsNoTracking()
             .SingleOrDefaultAsync(item => item.UserId == userId && item.ProviderKey == "geoapify", cancellationToken);
         if (profile == null || profile.RevokedAt != null || !profile.RoutingAuthorized)
@@ -72,7 +72,8 @@ public sealed class AuthoritativeRoutingProviderResolver(
         };
         return new(RoutingProviderResolutionOutcome.ResolvedPersonal, null, false,
             new(provider, nativeMode, credential.Credential, RoutingProviderSelectionMode.Personal,
-                profile.RoutingGeneration, (uint)profile.CredentialGeneration, 1, 0, 0,
+                profile.RoutingGeneration, (uint)profile.CredentialGeneration, 1, 0,
+                ProviderDirectionsCatalog.AuthorityVersion,
                 provider.DisplayName, provider.ExternalCoordinateDisclosure, provider.Attribution, userId,
                 selection.RoutingSelectionGeneration, profile.RoutingAuthorized, (int)profile.RoutingVerification,
                 profile.RoutingVerifiedCredentialGeneration, profile.RoutingVerifiedConfigurationGeneration, 1));

@@ -36,46 +36,9 @@ public sealed class LocationProviderSettingsController(
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (userId == null) return Challenge();
         if (!ModelState.IsValid) return View("Index", await BuildAsync(userId, cancellationToken));
-        var provider = ParseProvider(input.ProviderKey);
-        var key = PersonalProviderKeys.Key(provider);
-        await using var transaction = dbContext.Database.IsRelational()
-            ? await dbContext.Database.BeginTransactionAsync(cancellationToken) : null;
-        var selection = dbContext.Database.IsNpgsql()
-            ? await dbContext.PersonalLocationProviderSelections.FromSqlInterpolated($$"""
-                SELECT *, xmin FROM "PersonalLocationProviderSelections"
-                WHERE "UserId" = {{userId}} FOR UPDATE
-                """).SingleOrDefaultAsync(cancellationToken)
-            : await dbContext.PersonalLocationProviderSelections.SingleOrDefaultAsync(
-                item => item.UserId == userId, cancellationToken);
-        selection ??= PersonalLocationProviderSelection.Create(userId);
-        if (dbContext.Entry(selection).State == EntityState.Detached) dbContext.Add(selection);
-        var profile = dbContext.Database.IsNpgsql()
-            ? await dbContext.PersonalLocationProviderProfiles.FromSqlInterpolated($$"""
-                SELECT *, xmin FROM "PersonalLocationProviderProfiles"
-                WHERE "UserId" = {{userId}} AND "ProviderKey" = {{key}} FOR UPDATE
-                """).SingleOrDefaultAsync(cancellationToken)
-            : await dbContext.PersonalLocationProviderProfiles.SingleOrDefaultAsync(
-                item => item.UserId == userId && item.ProviderKey == key, cancellationToken);
-        profile ??= PersonalLocationProviderProfile.Create(userId, provider);
-        if (dbContext.Entry(profile).State == EntityState.Detached) dbContext.Add(profile);
-        if (!string.IsNullOrWhiteSpace(input.ReplacementCredential)) credentials.Replace(profile, input.ReplacementCredential);
-        profile.SetAuthorization(PersonalProviderCapability.Geocoding, input.GeocodingAuthorized);
-        profile.SetAuthorization(PersonalProviderCapability.Routing, input.RoutingAuthorized);
-        var geocodingVerified = profile.GeocodingVerification == PersonalProviderVerification.Verified
-            && profile.GeocodingVerifiedCredentialGeneration == profile.CredentialGeneration
-            && profile.GeocodingVerifiedConfigurationGeneration == profile.GeocodingGeneration;
-        if (input.ActiveForGeocoding && input.GeocodingAuthorized && geocodingVerified
-            && (provider != PersonalLocationProvider.Mapbox || profile.HasCurrentPermanentGeocodingConsent()))
-            selection.Select(PersonalProviderCapability.Geocoding, provider);
-        else if (selection.GeocodingProviderKey == key) selection.Select(PersonalProviderCapability.Geocoding, null);
-        var routingVerified = profile.RoutingVerification == PersonalProviderVerification.Verified
-            && profile.RoutingVerifiedCredentialGeneration == profile.CredentialGeneration
-            && profile.RoutingVerifiedConfigurationGeneration == profile.RoutingGeneration;
-        if (input.ActiveForRouting && input.RoutingAuthorized && routingVerified)
-            selection.Select(PersonalProviderCapability.Routing, provider);
-        else if (selection.RoutingProviderKey == key) selection.Select(PersonalProviderCapability.Routing, null);
-        await dbContext.SaveChangesAsync(cancellationToken);
-        if (transaction != null) await transaction.CommitAsync(cancellationToken);
+        if (setup != null && !string.IsNullOrWhiteSpace(input.ReplacementCredential))
+            await setup.ReplaceCredentialAsync(
+                userId, ParseProvider(input.ProviderKey), input.ReplacementCredential, cancellationToken);
         return RedirectToAction(nameof(Index));
     }
 
@@ -142,6 +105,8 @@ public sealed class LocationProviderSettingsController(
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (userId == null) return Challenge();
+        if (capability is not (PersonalProviderCapability.Geocoding or PersonalProviderCapability.Routing))
+        { TempData["ProviderStatus"] = "Choose geocoding or directions to verify."; return RedirectToAction(nameof(Index)); }
         if (setup == null || !await setup.AuthorizeVerificationAsync(
             userId, PersonalLocationProvider.Geoapify, capability, cancellationToken))
         { TempData["ProviderStatus"] = "Configure a readable Geoapify credential before verification."; return RedirectToAction(nameof(Index)); }

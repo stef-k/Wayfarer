@@ -5,6 +5,8 @@ namespace Wayfarer.Services.ExternalRouting;
 /// <summary>Owns the closed provider-native directions modes exposed by Wayfarer.</summary>
 public static class ProviderDirectionsCatalog
 {
+    /// <summary>Advances whenever executable provider-mode authority changes.</summary>
+    public const int AuthorityVersion = 1;
     private static readonly ProviderDirectionsMode[] GeoapifyModes =
     [
         new("walk", "Walk"),

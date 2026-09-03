@@ -71,9 +71,9 @@ public sealed class ExternalRouteProposalGenerator
         string userId, Guid tripId, Guid segmentId, string aggregateConcurrencyToken, string? providerMode,
         CancellationToken operationToken)
     {
-        if (!ProviderDirectionsCatalog.TryParse("geoapify", providerMode, out _))
-            return ExternalRouteGenerationResult.Failure("provider-mode-required");
-        var context = await LoadContextAsync(userId, tripId, segmentId, aggregateConcurrencyToken, providerMode!, operationToken);
+        if (providerMode != null && !ProviderDirectionsCatalog.TryParse("geoapify", providerMode, out _))
+            return ExternalRouteGenerationResult.Failure("unsupported-provider-mode");
+        var context = await LoadContextAsync(userId, tripId, segmentId, aggregateConcurrencyToken, providerMode, operationToken);
         if (!context.Succeeded) return ExternalRouteGenerationResult.Failure(context.ErrorCode!);
         if (RoutingProviderAnchorPolicy.Validate(context.Execution!, context.Anchors!) is { } anchorError)
             return ExternalRouteGenerationResult.Failure(anchorError);
@@ -81,12 +81,12 @@ public sealed class ExternalRouteProposalGenerator
             return ExternalRouteGenerationResult.Failure("routing-budget-exhausted");
 
         var providerResult = await _client!.RouteAsync(context.Execution!, context.Anchors!,
-            token => IsCurrentAsync(context, userId, tripId, segmentId, aggregateConcurrencyToken, providerMode!, token), operationToken);
+            token => IsCurrentAsync(context, userId, tripId, segmentId, aggregateConcurrencyToken, providerMode, token), operationToken);
         if (!providerResult.Succeeded) return ExternalRouteGenerationResult.Failure(providerResult.ErrorCode!);
         var validated = _geometryValidator!.Validate(context.Anchors!, providerResult, operationToken);
         if (!validated.Succeeded) return ExternalRouteGenerationResult.Failure(validated.ErrorCode!);
 
-        var finalContext = await LoadContextAsync(userId, tripId, segmentId, aggregateConcurrencyToken, providerMode!, operationToken);
+        var finalContext = await LoadContextAsync(userId, tripId, segmentId, aggregateConcurrencyToken, providerMode, operationToken);
         if (!finalContext.Succeeded || finalContext.Fingerprint != context.Fingerprint
             || finalContext.TransportProfileId != context.TransportProfileId
             || !SameAuthority(finalContext.Execution, context.Execution))
@@ -116,7 +116,7 @@ public sealed class ExternalRouteProposalGenerator
 
     private async Task<bool> IsCurrentAsync(
         GenerationContext original, string userId, Guid tripId, Guid segmentId, string aggregateToken,
-        string providerMode, CancellationToken cancellationToken)
+        string? providerMode, CancellationToken cancellationToken)
     {
         var current = await LoadContextAsync(userId, tripId, segmentId, aggregateToken, providerMode, cancellationToken);
         return current.Succeeded && SameAuthority(current.Execution, original.Execution)
@@ -124,7 +124,7 @@ public sealed class ExternalRouteProposalGenerator
     }
 
     private async Task<GenerationContext> LoadContextAsync(
-        string userId, Guid tripId, Guid segmentId, string aggregateToken, string providerMode,
+        string userId, Guid tripId, Guid segmentId, string aggregateToken, string? providerMode,
         CancellationToken cancellationToken)
     {
         var segment = await _dbContext!.Set<Segment>().AsNoTracking()
@@ -139,7 +139,9 @@ public sealed class ExternalRouteProposalGenerator
         if (!await _dbContext.Set<TransportProfile>().AsNoTracking()
             .AnyAsync(item => item.Id == transportProfileId && item.IsActive, cancellationToken))
             return GenerationContext.Failure("routing-profile-unavailable");
-        var resolution = await _resolver!.ResolveNativeAsync(userId, providerMode, cancellationToken);
+        var resolution = providerMode == null
+            ? await _resolver!.ResolveAsync(userId, transportProfileId, cancellationToken)
+            : await _resolver!.ResolveNativeAsync(userId, providerMode, cancellationToken);
         if (resolution.Execution == null) return GenerationContext.Failure(resolution.ErrorCode ?? "external-routing-unavailable");
         var places = new[] { segment.FromPlace }.Concat(segment.Waypoints.OrderBy(item => item.Position).Select(item => item.Place))
             .Concat([segment.ToPlace]).ToArray();

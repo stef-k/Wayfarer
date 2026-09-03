@@ -28,6 +28,8 @@ public sealed class ExternalRouteProposalsController : ControllerBase
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (string.IsNullOrWhiteSpace(userId)) return Unauthorized();
+        if (request.ProviderMode == null)
+            return UnprocessableEntity(new ExternalRouteErrorDto("provider-mode-required"));
         var result = await _generator.GenerateAsync(userId, tripId, segmentId,
             request.AggregateConcurrencyToken, request.ProviderMode, cancellationToken);
         if (result.Succeeded) return Ok(result.Proposal);

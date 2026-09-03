@@ -14,9 +14,9 @@ public sealed class MobileRoutingAuthorityIdentityTests
             [new(Guid.Parse("10213243-5465-7687-98a9-bacbdcedfe0f"), "Walk", "walk", "walking")]);
         var bytes = DiscoveryCatalogIdentity.Encode(projection);
 
-        Assert.Equal("57617966617265722e4d6f62696c65526f7574696e67446973636f76657279436174616c6f6700011000000009617661696c61626c65110000000120102132435465768798a9bacbdcedfe0f210000000457616c6b220000000477616c6b230000000777616c6b696e67", Convert.ToHexString(bytes).ToLowerInvariant());
-        Assert.Equal("9e0384292dcfb8400f3d8ba677e622677887e4e30c77bca3a3b0e908b327047c", Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant());
-        Assert.Equal("v1.ngOEKS3PuEAPPYumd-YiZ3iH5OMMd7yjo7DpCLMnBHw", DiscoveryCatalogIdentity.Compute(projection));
+        Assert.Equal("57617966617265722e4d6f62696c65526f7574696e67446973636f76657279436174616c6f6700011000000009617661696c61626c65110000000120102132435465768798a9bacbdcedfe0f210000000457616c6b220000000477616c6b230000000777616c6b696e671200000000", Convert.ToHexString(bytes).ToLowerInvariant());
+        Assert.Equal("96fa84cbbbdaee4a27bf0540f595d5be392d0745b4a9a59e7349be57c0a7be5f", Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant());
+        Assert.Equal("v1.lvqEy7va7konvwVA9ZXVvjktB0W0qaWec0m-V8Cnvl8", DiscoveryCatalogIdentity.Compute(projection));
     }
 
     [Fact]
