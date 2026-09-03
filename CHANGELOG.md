@@ -28,6 +28,9 @@
 
 ## Unreleased
 
+### Fixed
+- Corrected explicit Geoapify capability verification to use meaningful public probes, the production routing response contract, bounded response reads, safe actionable outcomes, and truthful local Wayfarer-admission accounting (#537).
+
 ## [1.9.3] - 2026-08-22
 
 ### Fixed

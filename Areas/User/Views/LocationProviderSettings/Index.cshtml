@@ -83,7 +83,7 @@
         <div class="col-auto"><button class="btn btn-outline-primary" type="submit">Save Directions guard</button></div>
     </form>
     }
-    <p class="mt-3"><strong>Guard:</strong> @(profile.GuardEnabled ? "enabled" : "disabled") — @profile.Used / @profile.Limit @profile.Unit. @profile.WindowExplanation. @(profile.Exhausted ? "New contacts are paused; stored data remains available." : "")</p>
+    <p class="mt-3"><strong>@(profile.ProviderKey == "geoapify" ? "Local Wayfarer-admitted usage" : "Guard"):</strong> @(profile.GuardEnabled ? "enabled" : "disabled") — @profile.Used / @profile.Limit @profile.Unit. @profile.WindowExplanation. @(profile.Exhausted ? "New contacts are paused; stored data remains available." : "")</p>
     <form asp-action="SaveGuard" method="post" class="row g-2">
         <input name="GuardKey" value="@(profile.ProviderKey == "geoapify" ? "geoapify" : "mapbox-permanent")" type="hidden" />
         <div class="col-auto form-check"><input name="Enabled" value="true" type="checkbox" class="form-check-input" checked="@profile.GuardEnabled" /><label class="form-check-label">Guard enabled</label></div>
