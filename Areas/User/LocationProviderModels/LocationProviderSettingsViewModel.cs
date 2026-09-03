@@ -12,6 +12,22 @@ public sealed class LocationProviderSettingsViewModel
     public LegacyMapboxMigrationState LegacyMigrationState { get; init; }
 }
 
+/// <summary>Accepts a credential replacement without changing provider choice implicitly.</summary>
+public sealed class LocationProviderCredentialInput
+{
+    [Required, RegularExpression("geoapify|mapbox")] public string ProviderKey { get; set; } = string.Empty;
+    [Required, DataType(DataType.Password), StringLength(2048), RegularExpression(@"^[^\s\p{Cc}]*$",
+        ErrorMessage = "Credentials cannot contain whitespace or control characters.")]
+    public string ReplacementCredential { get; set; } = string.Empty;
+}
+
+/// <summary>Accepts one capability-oriented provider choice.</summary>
+public sealed class LocationProviderChoiceInput
+{
+    [Required, RegularExpression("Geocoding|Routing")] public string Capability { get; set; } = string.Empty;
+    [RegularExpression("|geoapify|mapbox")] public string ProviderKey { get; set; } = string.Empty;
+}
+
 /// <summary>Presents bounded profile, capability, and provider-native usage state.</summary>
 public sealed record LocationProviderProfileViewModel(
     string ProviderKey, string DisplayName, bool CredentialConfigured, string Mask,

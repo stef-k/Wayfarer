@@ -11,6 +11,73 @@ public sealed class AuthoritativeRoutingProviderResolver(
     UserRoutingCredentialService userCredentials,
     PersonalProviderCredentialService? personalCredentials = null)
 {
+    private static readonly Guid GeoapifyAuthorityId = Guid.Parse("5bde15a4-984c-4daa-912d-9fa59a166ec3");
+
+    /// <summary>Resolves one explicit provider-native mode from personal authority only.</summary>
+    public async Task<RoutingProviderResolutionResult> ResolveNativeAsync(
+        string userId, string? nativeMode, CancellationToken cancellationToken)
+    {
+        if (!ProviderDirectionsCatalog.TryParse("geoapify", nativeMode, out _))
+            return RoutingProviderResolutionResult.Unavailable("unsupported-provider-mode");
+        return await ResolvePersonalGeoapifyAsync(userId, nativeMode!, cancellationToken);
+    }
+
+    /// <summary>Resolves the released-Mobile omitted-mode compatibility path from an exact built-in key.</summary>
+    public async Task<RoutingProviderResolutionResult> ResolveReleasedMobileAsync(
+        string userId, Guid transportProfileId, CancellationToken cancellationToken)
+    {
+        var profile = await dbContext.Set<TransportProfile>().AsNoTracking()
+            .SingleOrDefaultAsync(item => item.Id == transportProfileId && item.IsActive, cancellationToken);
+        if (profile == null || !ReleasedMobileDirectionsCompatibility.TryMap(profile, out var nativeMode))
+            return RoutingProviderResolutionResult.Unavailable("unmapped-transport-profile");
+        return await ResolvePersonalGeoapifyAsync(userId, nativeMode, cancellationToken);
+    }
+
+    private async Task<RoutingProviderResolutionResult> ResolvePersonalGeoapifyAsync(
+        string userId, string nativeMode, CancellationToken cancellationToken)
+    {
+        if (personalCredentials == null)
+            return RoutingProviderResolutionResult.Unavailable("personal-credential-unavailable");
+        var selection = await dbContext.Set<PersonalLocationProviderSelection>().AsNoTracking()
+            .SingleOrDefaultAsync(item => item.UserId == userId, cancellationToken);
+        if (selection?.RoutingProviderKey != "geoapify")
+            return RoutingProviderResolutionResult.Unavailable("no-provider-selected");
+        var profile = await dbContext.Set<PersonalLocationProviderProfile>().AsNoTracking()
+            .SingleOrDefaultAsync(item => item.UserId == userId && item.ProviderKey == "geoapify", cancellationToken);
+        if (profile == null || profile.RevokedAt != null || !profile.RoutingAuthorized)
+            return RoutingProviderResolutionResult.Unavailable("unauthorized");
+        if (profile.RoutingVerification != PersonalProviderVerification.Verified
+            || profile.RoutingVerifiedCredentialGeneration != profile.CredentialGeneration
+            || profile.RoutingVerifiedConfigurationGeneration != profile.RoutingGeneration)
+            return RoutingProviderResolutionResult.Unavailable("verification-required");
+        var credential = personalCredentials.Read(profile);
+        if (!credential.Succeeded)
+            return RoutingProviderResolutionResult.Unavailable("personal-credential-unavailable");
+        var provider = new RoutingProviderConfiguration
+        {
+            Id = GeoapifyAuthorityId,
+            DisplayName = "Geoapify",
+            AdapterType = RoutingAdapterType.Geoapify,
+            BaseEndpoint = "https://api.geoapify.com/",
+            Enabled = true,
+            Attribution = "Powered by Geoapify|© OpenStreetMap contributors",
+            ExternalCoordinateDisclosure = "Route coordinates are sent to Geoapify.",
+            ConfigurationVersion = 1,
+            VerifiedConfigurationVersion = 1,
+            GenerationTimeoutSeconds = 30,
+            ResponseSizeLimitBytes = 2_000_000,
+            RequestsPerMinute = 60,
+            MinimumIntervalMilliseconds = 0,
+            MaxConcurrency = 2
+        };
+        return new(RoutingProviderResolutionOutcome.ResolvedPersonal, null, false,
+            new(provider, nativeMode, credential.Credential, RoutingProviderSelectionMode.Personal,
+                profile.RoutingGeneration, (uint)profile.CredentialGeneration, 1, 0, 0,
+                provider.DisplayName, provider.ExternalCoordinateDisclosure, provider.Attribution, userId,
+                selection.RoutingSelectionGeneration, profile.RoutingAuthorized, (int)profile.RoutingVerification,
+                profile.RoutingVerifiedCredentialGeneration, profile.RoutingVerifiedConfigurationGeneration, 1));
+    }
+
     /// <summary>Resolves the authenticated user's current mode for one active transport profile.</summary>
     public async Task<RoutingProviderResolutionResult> ResolveAsync(
         string userId, Guid transportProfileId, CancellationToken cancellationToken)

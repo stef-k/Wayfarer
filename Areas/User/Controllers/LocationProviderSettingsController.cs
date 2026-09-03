@@ -17,7 +17,8 @@ public sealed class LocationProviderSettingsController(
     ApplicationDbContext dbContext, PersonalProviderCredentialService credentials,
     LegacyMapboxMigrationService migration, ReverseGeocodingService reverseGeocoding,
     GeoapifyVerificationService? geoapifyVerification = null,
-    IImportEnrichmentHandoff? enrichmentCommands = null) : Controller
+    IImportEnrichmentHandoff? enrichmentCommands = null,
+    PersonalProviderSetupService? setup = null) : Controller
 {
     /// <summary>Displays masked provider authority and provider-native usage status.</summary>
     public async Task<IActionResult> Index(CancellationToken cancellationToken)
@@ -78,6 +79,33 @@ public sealed class LocationProviderSettingsController(
         return RedirectToAction(nameof(Index));
     }
 
+    /// <summary>Replaces one credential and disables its selections without provider contact.</summary>
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> SaveCredential(LocationProviderCredentialInput input, CancellationToken cancellationToken)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId == null) return Challenge();
+        if (!ModelState.IsValid || setup == null) return View("Index", await BuildAsync(userId, cancellationToken));
+        await setup.ReplaceCredentialAsync(userId, ParseProvider(input.ProviderKey), input.ReplacementCredential, cancellationToken);
+        TempData["ProviderStatus"] = "Credential replaced. Verify and select each capability again.";
+        return RedirectToAction(nameof(Index));
+    }
+
+    /// <summary>Applies one capability provider choice without contacting a provider.</summary>
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> ChooseProvider(LocationProviderChoiceInput input, CancellationToken cancellationToken)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId == null) return Challenge();
+        if (!ModelState.IsValid || setup == null) return View("Index", await BuildAsync(userId, cancellationToken));
+        var capability = Enum.Parse<PersonalProviderCapability>(input.Capability);
+        var provider = string.IsNullOrEmpty(input.ProviderKey) ? (PersonalLocationProvider?)null : ParseProvider(input.ProviderKey);
+        var result = await setup.ChooseAsync(userId, capability, provider, cancellationToken);
+        TempData["ProviderStatus"] = result == ProviderChoiceResult.Success
+            ? $"{capability} provider choice saved." : "Verify this provider for the capability before selecting it.";
+        return RedirectToAction(nameof(Index));
+    }
+
     /// <summary>Records explicit Mapbox Permanent Geocoding consent after every acknowledgement validates.</summary>
     [HttpPost, ValidateAntiForgeryToken]
     public async Task<IActionResult> ConsentMapboxPermanent(MapboxPermanentConsentInput input, CancellationToken cancellationToken)
@@ -100,6 +128,9 @@ public sealed class LocationProviderSettingsController(
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (userId == null) return Challenge();
+        if (setup == null || !await setup.AuthorizeVerificationAsync(userId, PersonalLocationProvider.Mapbox,
+            PersonalProviderCapability.Geocoding, cancellationToken))
+        { TempData["ProviderStatus"] = "Configure a readable credential and current Permanent acknowledgements before verification."; return RedirectToAction(nameof(Index)); }
         TempData["ProviderStatus"] = await reverseGeocoding.VerifyMapboxPermanentAsync(userId, cancellationToken) switch
         { PersonalProviderVerification.Verified => "Mapbox Permanent Geocoding verified. Activate it explicitly to begin enrichment.", PersonalProviderVerification.Failed => "Mapbox rejected Permanent Geocoding authorization.", _ => "Mapbox Permanent Geocoding verification is unavailable; no stored data was changed." };
         return RedirectToAction(nameof(Index));
@@ -111,6 +142,9 @@ public sealed class LocationProviderSettingsController(
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (userId == null) return Challenge();
+        if (setup == null || !await setup.AuthorizeVerificationAsync(
+            userId, PersonalLocationProvider.Geoapify, capability, cancellationToken))
+        { TempData["ProviderStatus"] = "Configure a readable Geoapify credential before verification."; return RedirectToAction(nameof(Index)); }
         var result = geoapifyVerification == null
             ? new GeoapifyVerificationOutcome(PersonalProviderVerification.Unavailable, GeoapifyVerificationCategory.TemporaryFailure)
             : capability == PersonalProviderCapability.Geocoding
@@ -206,21 +240,35 @@ public sealed class LocationProviderSettingsController(
         {
             var limit = geoGuard?.CreditLimit ?? 2500;
             return new(key, "Geoapify", profile?.ProtectedCredential != null && profile.RevokedAt == null, "••••••••••••••••",
-                profile?.GeocodingAuthorized == true, profile?.GeocodingVerification ?? 0,
-                profile?.RoutingAuthorized == true, profile?.RoutingVerification ?? 0,
+                profile?.GeocodingAuthorized == true, CurrentVerification(profile, PersonalProviderCapability.Geocoding),
+                profile?.RoutingAuthorized == true, CurrentVerification(profile, PersonalProviderCapability.Routing),
                 geoGuard?.Enabled ?? true, limit, geoUsed, "credits",
                 "Wayfarer rolling 24-hour shared geocoding/routing window", (geoGuard?.Enabled ?? true) && geoUsed >= limit);
         }
         var permanent = meters.SingleOrDefault(item => item.Product == PersonalProviderProduct.PermanentGeocoding);
         var directions = meters.SingleOrDefault(item => item.Product == PersonalProviderProduct.Directions);
         return new(key, "Mapbox", profile?.ProtectedCredential != null && profile.RevokedAt == null, "••••••••••••••••",
-            profile?.GeocodingAuthorized == true, profile?.GeocodingVerification ?? 0,
-            profile?.RoutingAuthorized == true, profile?.RoutingVerification ?? 0,
+            profile?.GeocodingAuthorized == true, CurrentVerification(profile, PersonalProviderCapability.Geocoding),
+            profile?.RoutingAuthorized == true, CurrentVerification(profile, PersonalProviderCapability.Routing),
             permanent?.Enabled ?? true, permanent?.Limit ?? 1000, permanent?.AdmittedCount ?? 0, "Permanent Geocoding contacts",
             "Wayfarer UTC calendar-month Permanent Geocoding safety cycle", permanent?.Enabled == true && permanent.AdmittedCount >= permanent.Limit,
             directions?.Enabled ?? true, directions?.Limit ?? 1000, directions?.AdmittedCount ?? 0,
             profile?.HasCurrentPermanentGeocodingConsent() == true, profile?.PermanentGeocodingConsentVersion,
             profile?.PermanentGeocodingConsentedAt, MapboxPausedReason(profile, permanent), permanent?.CycleStart);
+    }
+
+    private static PersonalProviderVerification CurrentVerification(
+        PersonalLocationProviderProfile? profile, PersonalProviderCapability capability)
+    {
+        if (profile == null) return PersonalProviderVerification.Unverified;
+        return capability == PersonalProviderCapability.Geocoding
+            && profile.GeocodingVerifiedCredentialGeneration == profile.CredentialGeneration
+            && profile.GeocodingVerifiedConfigurationGeneration == profile.GeocodingGeneration
+            ? profile.GeocodingVerification
+            : capability == PersonalProviderCapability.Routing
+              && profile.RoutingVerifiedCredentialGeneration == profile.CredentialGeneration
+              && profile.RoutingVerifiedConfigurationGeneration == profile.RoutingGeneration
+                ? profile.RoutingVerification : PersonalProviderVerification.Unverified;
     }
 
     private static string? MapboxPausedReason(PersonalLocationProviderProfile? profile, MapboxProductMeter? meter) => profile switch

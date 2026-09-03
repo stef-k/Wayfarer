@@ -49,6 +49,7 @@ export interface EditorExternalRoutingCapability {
   unavailableReason: string | null;
   providerDisplayName: string | null;
   mappedProfileLabel: string | null;
+  modes: Array<{ key: string; label: string }>;
   disclosure: string | null;
   attribution: string | null;
 }

@@ -29,7 +29,7 @@ public sealed class ExternalRouteProposalsController : ControllerBase
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (string.IsNullOrWhiteSpace(userId)) return Unauthorized();
         var result = await _generator.GenerateAsync(userId, tripId, segmentId,
-            request.AggregateConcurrencyToken, cancellationToken);
+            request.AggregateConcurrencyToken, request.ProviderMode, cancellationToken);
         if (result.Succeeded) return Ok(result.Proposal);
         return result.ErrorCode switch
         {
@@ -59,7 +59,7 @@ public sealed class ExternalRouteProposalsController : ControllerBase
 }
 
 /// <summary>Contains the only browser-supplied generation input.</summary>
-public sealed record ExternalRouteGenerationRequest(string AggregateConcurrencyToken);
+public sealed record ExternalRouteGenerationRequest(string AggregateConcurrencyToken, string? ProviderMode = null);
 
 /// <summary>Contains one bounded Wayfarer-owned route error code.</summary>
 public sealed record ExternalRouteErrorDto(string Code);

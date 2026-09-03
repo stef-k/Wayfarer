@@ -13,8 +13,8 @@
     <p><strong>Credential:</strong> @(profile.CredentialConfigured ? profile.Mask + " (configured)" : "not configured")</p>
     @if (profile.ProviderKey == "mapbox")
     {
-    <form asp-action="SaveProfile" method="post">
-        <input name="ProviderKey" value="mapbox" type="hidden" /><input name="GeocodingAuthorized" value="@profile.GeocodingAuthorized" type="hidden" /><input name="RoutingAuthorized" value="@profile.RoutingAuthorized" type="hidden" /><input name="ActiveForGeocoding" value="@(Model.ActiveGeocodingProvider == "mapbox")" type="hidden" /><input name="ActiveForRouting" value="@(Model.ActiveRoutingProvider == "mapbox")" type="hidden" />
+    <form asp-action="SaveCredential" method="post">
+        <input name="ProviderKey" value="mapbox" type="hidden" />
         <label for="mapbox-credential" class="form-label">Replacement credential</label><input id="mapbox-credential" name="ReplacementCredential" type="password" autocomplete="new-password" class="form-control" />
         <div class="form-text">Leave blank to retain the masked credential. Replacement clears Permanent consent and verification.</div>
         <button class="btn btn-outline-primary mt-2" type="submit">Save credential</button>
@@ -30,42 +30,18 @@
         <div class="form-check"><input id="external-ack" name="ExternalUsageAcknowledged" value="true" type="checkbox" class="form-check-input" /><label for="external-ack" class="form-check-label">Other applications or tokens may consume the same account allowance.</label></div>
         <button class="btn btn-outline-primary mt-2" type="submit">Record Permanent consent</button>
     </form>
-    <form asp-action="SaveProfile" method="post" class="mt-3">
-        <input name="ProviderKey" value="mapbox" type="hidden" /><input name="RoutingAuthorized" value="@profile.RoutingAuthorized" type="hidden" /><input name="ActiveForGeocoding" value="@(Model.ActiveGeocodingProvider == "mapbox")" type="hidden" /><input name="ActiveForRouting" value="@(Model.ActiveRoutingProvider == "mapbox")" type="hidden" />
-        <div class="form-check"><input id="mapbox-geocoding-authorized" name="GeocodingAuthorized" value="true" type="checkbox" class="form-check-input" checked="@profile.GeocodingAuthorized" /><label for="mapbox-geocoding-authorized" class="form-check-label">Authorize Mapbox geocoding</label></div>
-        <button class="btn btn-outline-primary mt-2" type="submit">Save authorization</button>
-    </form>
     <h3 class="h5 mt-3">Permanent Geocoding verification</h3>
     <p>State: <strong>@profile.GeocodingVerification</strong>. This makes one admitted, potentially billable Permanent request using fixed non-personal coordinates and does not activate Mapbox.</p>
     <form asp-action="VerifyMapboxPermanent" method="post"><button class="btn btn-outline-primary" type="submit">Verify Mapbox Permanent Geocoding</button></form>
-    <form asp-action="SaveProfile" method="post" class="mt-3">
-        <input name="ProviderKey" value="mapbox" type="hidden" /><input name="GeocodingAuthorized" value="@profile.GeocodingAuthorized" type="hidden" /><input name="RoutingAuthorized" value="@profile.RoutingAuthorized" type="hidden" /><input name="ActiveForRouting" value="@(Model.ActiveRoutingProvider == "mapbox")" type="hidden" />
-        <div class="form-check"><input id="mapbox-active-geocoding" name="ActiveForGeocoding" value="true" type="checkbox" class="form-check-input" checked="@(Model.ActiveGeocodingProvider == "mapbox")" /><label for="mapbox-active-geocoding" class="form-check-label">Select Mapbox for new persistent geocoding</label></div>
-        <button class="btn btn-outline-primary mt-2" type="submit">Save selection</button>
-    </form>
     }
     else
     {
-    <form asp-action="SaveProfile" method="post">
+    <form asp-action="SaveCredential" method="post">
         <input name="ProviderKey" value="@profile.ProviderKey" type="hidden" />
         <label class="form-label">Replacement credential</label><input name="ReplacementCredential" type="password" autocomplete="new-password" class="form-control" />
-        <div class="form-text">Leave blank to retain this profile's credential. Switching never deletes credentials.</div>
-        <div class="form-check mt-3"><input name="GeocodingAuthorized" value="true" type="checkbox" class="form-check-input" checked="@profile.GeocodingAuthorized" /><label class="form-check-label">Authorize geocoding (@profile.GeocodingVerification)</label></div>
-        <div class="form-check"><input name="RoutingAuthorized" value="true" type="checkbox" class="form-check-input" checked="@profile.RoutingAuthorized" /><label class="form-check-label">Authorize routing (@profile.RoutingVerification)</label></div>
-        <div class="form-check"><input name="ActiveForGeocoding" value="true" type="checkbox" class="form-check-input" checked="@(Model.ActiveGeocodingProvider == profile.ProviderKey)" /><label class="form-check-label">Active for geocoding</label></div>
-        <div class="form-check"><input name="ActiveForRouting" value="true" type="checkbox" class="form-check-input" checked="@(Model.ActiveRoutingProvider == profile.ProviderKey)" /><label class="form-check-label">Active for routing</label></div>
-        <button class="btn btn-primary mt-2" type="submit">Save profile and selection</button>
+        <div class="form-text">Replacement disables both capabilities until each is verified and selected again.</div>
+        <button class="btn btn-primary mt-2" type="submit">Replace credential</button>
     </form>
-    <div class="mt-3" aria-label="Geoapify capability verification">
-        <form asp-action="VerifyGeoapify" method="post" class="d-inline">
-            <input name="capability" value="Geocoding" type="hidden" />
-            <button class="btn btn-outline-primary" type="submit">Verify Geoapify geocoding</button>
-        </form>
-        <form asp-action="VerifyGeoapify" method="post" class="d-inline">
-            <input name="capability" value="Routing" type="hidden" />
-            <button class="btn btn-outline-primary" type="submit">Verify Geoapify routing</button>
-        </form>
-    </div>
     <p class="mt-3">Backfill processes at most 100 of your wholly unenriched Locations in chronological order. Existing, manual, and imported enrichment is preserved.</p>
     <form asp-action="BackfillGeoapify" method="post">
         <button class="btn btn-outline-primary" type="submit">Backfill up to 100 Locations</button>
@@ -94,4 +70,43 @@
     { <form asp-action="Revoke" method="post" class="mt-3"><input name="providerKey" value="@profile.ProviderKey" type="hidden" /><label><input name="confirmed" value="true" type="checkbox" /> Confirm revocation; coordinates, addresses, Trips, Places, imports, and synchronization data are preserved.</label> <button class="btn btn-danger" type="submit">Revoke</button></form> }
 </div></section>
 }
+@{
+    var geoapify = Model.Profiles.Single(profile => profile.ProviderKey == "geoapify");
+    var mapbox = Model.Profiles.Single(profile => profile.ProviderKey == "mapbox");
+}
+<section class="card mb-4"><div class="card-body">
+    <h2 class="h4">Geocoding</h2>
+    <p><strong>Credential status:</strong> Geoapify @(geoapify.CredentialConfigured ? "configured" : "not configured"); Mapbox @(mapbox.CredentialConfigured ? "configured" : "not configured").</p>
+    <p>Verify makes exactly one admitted setup contact. Mapbox also requires current Permanent Geocoding acknowledgements.</p>
+    <div class="mb-3">
+        <form asp-action="VerifyGeoapify" method="post" class="d-inline"><input name="capability" value="Geocoding" type="hidden" /><button class="btn btn-outline-primary" type="submit">Verify Geoapify geocoding</button></form>
+        <form asp-action="VerifyMapboxPermanent" method="post" class="d-inline"><button class="btn btn-outline-primary" type="submit">Verify Mapbox Permanent Geocoding</button></form>
+    </div>
+    <form asp-action="ChooseProvider" method="post">
+        <input name="Capability" value="Geocoding" type="hidden" />
+        <label for="geocoding-provider" class="form-label">Provider</label>
+        <select id="geocoding-provider" name="ProviderKey" class="form-select">
+            <option value="" selected="@(Model.ActiveGeocodingProvider == null)">No provider</option>
+            @if (geoapify.GeocodingVerification == Wayfarer.Models.LocationProviders.PersonalProviderVerification.Verified) { <option value="geoapify" selected="@(Model.ActiveGeocodingProvider == "geoapify")">Geoapify</option> }
+            @if (mapbox.GeocodingVerification == Wayfarer.Models.LocationProviders.PersonalProviderVerification.Verified && mapbox.PermanentConsentCurrent) { <option value="mapbox" selected="@(Model.ActiveGeocodingProvider == "mapbox")">Mapbox Permanent Geocoding</option> }
+        </select>
+        <button class="btn btn-primary mt-2" type="submit">Save geocoding provider</button>
+    </form>
+    <p class="mt-2"><strong>State:</strong> @(Model.ActiveGeocodingProvider == null ? "No provider selected. Verify a credential, then choose it." : $"Ready with {Model.ActiveGeocodingProvider}.")</p>
+</div></section>
+<section class="card mb-4"><div class="card-body">
+    <h2 class="h4">Directions</h2>
+    <p><strong>Credential status:</strong> Geoapify @(geoapify.CredentialConfigured ? "configured" : "not configured"). Mapbox Directions is not implemented and is not offered.</p>
+    <form asp-action="VerifyGeoapify" method="post"><input name="capability" value="Routing" type="hidden" /><button class="btn btn-outline-primary" type="submit">Verify Geoapify directions</button></form>
+    <form asp-action="ChooseProvider" method="post" class="mt-3">
+        <input name="Capability" value="Routing" type="hidden" />
+        <label for="directions-provider" class="form-label">Provider</label>
+        <select id="directions-provider" name="ProviderKey" class="form-select">
+            <option value="" selected="@(Model.ActiveRoutingProvider == null)">No provider</option>
+            @if (geoapify.RoutingVerification == Wayfarer.Models.LocationProviders.PersonalProviderVerification.Verified) { <option value="geoapify" selected="@(Model.ActiveRoutingProvider == "geoapify")">Geoapify</option> }
+        </select>
+        <button class="btn btn-primary mt-2" type="submit">Save directions provider</button>
+    </form>
+    <p class="mt-2"><strong>State:</strong> @(Model.ActiveRoutingProvider == null ? "No provider selected. Verify Geoapify, then choose it." : "Ready with Geoapify.")</p>
+</div></section>
 <p>Cache and stored-result reuse costs no new credit. Exhaustion pauses new contacts without deleting source or historical data. Disabling a guard may incur paid usage. Imports and backfills share the same remaining allowance.</p>
