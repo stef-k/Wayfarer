@@ -195,7 +195,7 @@ public sealed class LocationProviderSettingsController(
         };
     }
 
-    private static LocationProviderProfileViewModel BuildProfile(PersonalLocationProvider provider,
+    private LocationProviderProfileViewModel BuildProfile(PersonalLocationProvider provider,
         IReadOnlyCollection<PersonalLocationProviderProfile> profiles, GeoapifyUsageGuard? geoGuard, int geoUsed,
         IReadOnlyCollection<MapboxProductMeter> meters)
     {
@@ -204,7 +204,7 @@ public sealed class LocationProviderSettingsController(
         if (provider == PersonalLocationProvider.Geoapify)
         {
             var limit = geoGuard?.CreditLimit ?? 2500;
-            return new(key, "Geoapify", profile?.ProtectedCredential != null && profile.RevokedAt == null, "••••••••••••••••",
+            return new(key, "Geoapify", profile != null && credentials.Read(profile).Succeeded, "••••••••••••••••",
                 profile?.GeocodingAuthorized == true, CurrentVerification(profile, PersonalProviderCapability.Geocoding),
                 profile?.RoutingAuthorized == true, CurrentVerification(profile, PersonalProviderCapability.Routing),
                 geoGuard?.Enabled ?? true, limit, geoUsed, "credits",
@@ -212,7 +212,7 @@ public sealed class LocationProviderSettingsController(
         }
         var permanent = meters.SingleOrDefault(item => item.Product == PersonalProviderProduct.PermanentGeocoding);
         var directions = meters.SingleOrDefault(item => item.Product == PersonalProviderProduct.Directions);
-        return new(key, "Mapbox", profile?.ProtectedCredential != null && profile.RevokedAt == null, "••••••••••••••••",
+        return new(key, "Mapbox", profile != null && credentials.Read(profile).Succeeded, "••••••••••••••••",
             profile?.GeocodingAuthorized == true, CurrentVerification(profile, PersonalProviderCapability.Geocoding),
             profile?.RoutingAuthorized == true, CurrentVerification(profile, PersonalProviderCapability.Routing),
             permanent?.Enabled ?? true, permanent?.Limit ?? 1000, permanent?.AdmittedCount ?? 0, "Permanent Geocoding contacts",

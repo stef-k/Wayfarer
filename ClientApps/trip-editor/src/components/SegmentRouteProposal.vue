@@ -32,7 +32,10 @@ const actionLabel = computed(() => props.draftHasRoute ? 'Replace with routed pa
 const profileChanged = computed(() => props.draftMode !== props.segment.mode);
 
 watch(() => props.segment.id, (segmentId, previousId) => {
-  if (previousId) proposalStore.invalidateAcceptance(previousId);
+  if (previousId) {
+    proposalStore.invalidateAcceptance(previousId);
+    selectedProviderMode.value = '';
+  }
   emit('previewChanged', proposalStore.get(segmentId, proposalContextKey.value).proposal);
 }, { immediate: true });
 watch(() => props.draftContextKey, (value, previous) => {
@@ -93,6 +96,7 @@ async function accept(): Promise<void> {
 function discard(): void {
   proposalStore.discard(props.segment.id);
   emit('previewChanged', null);
+  selectedProviderMode.value = '';
 }
 
 function boundedMessage(error: unknown): string {
