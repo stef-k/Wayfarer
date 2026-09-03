@@ -162,6 +162,28 @@ public sealed class GeoapifyStageOneContractTests
     }
 
     [Fact]
+    public async Task ProviderTimeoutIsActionableAndRemainsAdmitted()
+    {
+        await using var scenario = await VerificationScenario.CreateAsync(nameof(ProviderTimeoutIsActionableAndRemainsAdmitted));
+
+        var result = await scenario.Service(new TimeoutHandler()).VerifyRoutingAsync(scenario.Profile.UserId);
+
+        Assert.Equal(GeoapifyVerificationCategory.TemporaryFailure, result.Category);
+        Assert.Equal(1, await scenario.Db.GeoapifyUsageAdmissions.SumAsync(item => item.Credits));
+    }
+
+    [Fact]
+    public async Task IncompatibleRoutingGeometryIsRejectedThroughProductionParser()
+    {
+        await using var scenario = await VerificationScenario.CreateAsync(nameof(IncompatibleRoutingGeometryIsRejectedThroughProductionParser));
+        var incompatible = ValidRouteJson.Replace("[[[2.3522219,48.856614]", "{\"type\":\"LineString\",\"coordinates\":[[2.3522219,48.856614]", StringComparison.Ordinal);
+
+        var result = await scenario.Service(new RecordingHandler(incompatible)).VerifyRoutingAsync(scenario.Profile.UserId);
+
+        Assert.Equal(GeoapifyVerificationCategory.InvalidResponse, result.Category);
+    }
+
+    [Fact]
     public void PresentationMapsOnlyBoundedOutcomeDetail()
     {
         var message = LocationProviderSettingsController.GeoapifyVerificationMessage(
@@ -348,6 +370,13 @@ public sealed class GeoapifyStageOneContractTests
             source.Cancel();
             return Task.FromCanceled<HttpResponseMessage>(cancellationToken);
         }
+    }
+
+    /// <summary>Models a provider timeout while the caller remains connected.</summary>
+    private sealed class TimeoutHandler : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken) =>
+            Task.FromException<HttpResponseMessage>(new TaskCanceledException("fake timeout"));
     }
 
     /// <summary>Proves advertised oversize rejection without allowing a content read.</summary>
