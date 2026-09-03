@@ -165,10 +165,12 @@ public sealed class PersonalProviderContactGate(
     {
         var profile = await dbContext.Set<PersonalLocationProviderProfile>().AsNoTracking()
             .SingleOrDefaultAsync(item => item.UserId == userId && item.ProviderKey == "geoapify", cancellationToken);
-        if (profile == null || !profile.IsAuthorized(capability))
+        if (profile == null)
             return PersonalProviderAdmission.Rejected(PersonalProviderAdmissionCategory.Unauthorized);
         if (profile.RevokedAt != null)
             return PersonalProviderAdmission.Rejected(PersonalProviderAdmissionCategory.CredentialUnavailable);
+        if (!profile.IsAuthorized(capability))
+            return PersonalProviderAdmission.Rejected(PersonalProviderAdmissionCategory.Unauthorized);
         var read = credentials.Read(profile);
         if (!read.Succeeded)
             return PersonalProviderAdmission.Rejected(PersonalProviderAdmissionCategory.CredentialUnavailable);
