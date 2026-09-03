@@ -3,6 +3,7 @@ using System.Net;
 using System.Text.Json;
 using Wayfarer.Models;
 using Wayfarer.Models.LocationProviders;
+using Wayfarer.Services.ExternalRouting;
 
 namespace Wayfarer.Services.LocationProviders;
 
@@ -12,56 +13,65 @@ public sealed class GeoapifyVerificationService(
 {
     private readonly ApplicationDbContext authorityContext = dbContext;
     private const int ResponseLimit = 262_144;
+    // Public points beside Paris Hotel de Ville provide a stable land address and short walkable street segment.
+    private static readonly RouteCoordinate GeocodingProbe = new(2.3522219, 48.856614);
+    private static readonly RouteCoordinate[] RoutingProbe =
+        [GeocodingProbe, new(2.353222, 48.856817)];
 
     /// <summary>Verifies the fixed non-personal reverse-geocoding request.</summary>
-    public Task<PersonalProviderVerification> VerifyGeocodingAsync(
+    public Task<GeoapifyVerificationOutcome> VerifyGeocodingAsync(
         string userId, CancellationToken cancellationToken = default) => VerifyAsync(
             userId, PersonalProviderCapability.Geocoding, BuildGeocodingUri, ValidateGeocoding, cancellationToken);
 
     /// <summary>Verifies the fixed non-personal one-pair walk routing request.</summary>
-    public Task<PersonalProviderVerification> VerifyRoutingAsync(
+    public Task<GeoapifyVerificationOutcome> VerifyRoutingAsync(
         string userId, CancellationToken cancellationToken = default) => VerifyAsync(
             userId, PersonalProviderCapability.Routing, BuildRoutingUri, ValidateRouting, cancellationToken);
 
-    private async Task<PersonalProviderVerification> VerifyAsync(string userId, PersonalProviderCapability capability,
-        Func<string, Uri> uriFactory, Func<JsonElement, bool> validator, CancellationToken cancellationToken)
+    private async Task<GeoapifyVerificationOutcome> VerifyAsync(string userId, PersonalProviderCapability capability,
+        Func<string, Uri> uriFactory, Func<byte[], CancellationToken, Task<bool>> validator, CancellationToken cancellationToken)
     {
         var admission = await contactGate.AdmitGeoapifyVerificationAsync(userId, capability, cancellationToken);
         if (!admission.Succeeded || admission.Authority == null)
-            return PersonalProviderVerification.Unavailable;
+            return GeoapifyVerificationOutcome.PreContact(admission.Category);
         var authority = admission.Authority;
         if (!IsTrackedAuthorityCurrent(authority)
             || !await contactGate.IsGeoapifyVerificationCurrentAsync(authority, cancellationToken))
-            return PersonalProviderVerification.Unavailable;
+            return GeoapifyVerificationOutcome.AuthorityChanged();
 
         var result = PersonalProviderVerification.Unavailable;
+        var category = GeoapifyVerificationCategory.TemporaryFailure;
         try
         {
             using var request = new HttpRequestMessage(HttpMethod.Get, uriFactory(authority.Credential));
             using var response = await httpClient.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
             if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
-                result = PersonalProviderVerification.Failed;
-            else if (response.IsSuccessStatusCode && response.Content.Headers.ContentLength <= ResponseLimit)
+            { result = PersonalProviderVerification.Failed; category = GeoapifyVerificationCategory.ProviderRejected; }
+            else if ((int)response.StatusCode == 429)
+                category = GeoapifyVerificationCategory.RateLimited;
+            else if (response.IsSuccessStatusCode)
             {
-                var bytes = await response.Content.ReadAsByteArrayAsync(cancellationToken);
-                if (bytes.Length <= ResponseLimit)
+                var bytes = await ReadBoundedAsync(response.Content, cancellationToken);
+                if (bytes != null)
                 {
-                    using var document = JsonDocument.Parse(bytes);
-                    result = validator(document.RootElement)
+                    result = await validator(bytes, cancellationToken)
                         ? PersonalProviderVerification.Verified : PersonalProviderVerification.Unavailable;
+                    category = result == PersonalProviderVerification.Verified
+                        ? GeoapifyVerificationCategory.Verified : GeoapifyVerificationCategory.InvalidResponse;
                 }
+                else category = GeoapifyVerificationCategory.InvalidResponse;
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
         catch (HttpRequestException) { }
         catch (TaskCanceledException) { }
-        catch (JsonException) { }
+        catch (JsonException) { category = GeoapifyVerificationCategory.InvalidResponse; }
 
         if (!IsTrackedAuthorityCurrent(authority)
             || !await contactGate.IsGeoapifyVerificationCurrentAsync(authority, cancellationToken))
-            return PersonalProviderVerification.Unavailable;
+            return GeoapifyVerificationOutcome.AuthorityChanged();
         return await contactGate.TryRecordGeoapifyVerificationAsync(authority, result, cancellationToken)
-            ? result : PersonalProviderVerification.Unavailable;
+            ? new(result, category) : GeoapifyVerificationOutcome.AuthorityChanged();
     }
 
     private bool IsTrackedAuthorityCurrent(PersonalProviderAuthoritySnapshot authority)
@@ -75,63 +85,70 @@ public sealed class GeoapifyVerificationService(
     }
 
     private static Uri BuildGeocodingUri(string credential) => new(
-        "https://api.geoapify.com/v1/geocode/reverse?lat=0&lon=0&format=geojson&lang=en&limit=1&apiKey="
+        $"https://api.geoapify.com/v1/geocode/reverse?lat={GeocodingProbe.Latitude.ToString("R", CultureInfo.InvariantCulture)}&lon={GeocodingProbe.Longitude.ToString("R", CultureInfo.InvariantCulture)}&format=geojson&lang=en&limit=1&apiKey="
         + Uri.EscapeDataString(credential));
 
     private static Uri BuildRoutingUri(string credential) => new(
-        "https://api.geoapify.com/v1/routing?waypoints=0,0%7C0,0.01&mode=walk&format=json&lang=en"
-        + "&details=instruction_details&type=balanced&traffic=free_flow&apiKey=" + Uri.EscapeDataString(credential));
+        "https://api.geoapify.com/" + GeoapifyRoutingAdapter.BuildRelativeRequest("walk", RoutingProbe, credential));
 
-    private static bool ValidateGeocoding(JsonElement root) => root.ValueKind == JsonValueKind.Object
-        && root.TryGetProperty("type", out var type) && type.GetString() == "FeatureCollection"
-        && root.TryGetProperty("features", out var features) && features.ValueKind == JsonValueKind.Array;
-
-    private static bool ValidateRouting(JsonElement root)
+    private static Task<bool> ValidateGeocoding(byte[] bytes, CancellationToken cancellationToken)
     {
-        if (!root.TryGetProperty("results", out var results) || results.ValueKind != JsonValueKind.Array
-            || results.GetArrayLength() != 1) return false;
-        var route = results[0];
-        if (!NonNegativeFinite(route, "distance") || !NonNegativeFinite(route, "time")
-            || !route.TryGetProperty("legs", out var legs) || legs.ValueKind != JsonValueKind.Array
-            || legs.GetArrayLength() != 1 || !ValidateGeometry(route)) return false;
-        var leg = legs[0];
-        return leg.TryGetProperty("steps", out var steps) && steps.ValueKind == JsonValueKind.Array
-            && steps.GetArrayLength() > 0 && steps.EnumerateArray().All(ValidateStep);
+        using var document = JsonDocument.Parse(bytes);
+        var root = document.RootElement;
+        var valid = root.ValueKind == JsonValueKind.Object
+            && root.TryGetProperty("type", out var type) && type.ValueKind == JsonValueKind.String
+            && type.GetString() == "FeatureCollection"
+            && root.TryGetProperty("features", out var features) && features.ValueKind == JsonValueKind.Array
+            && features.GetArrayLength() > 0 && features[0].ValueKind == JsonValueKind.Object
+            && features[0].TryGetProperty("properties", out var properties) && properties.ValueKind == JsonValueKind.Object
+            && HasText(properties, "formatted", "address_line1");
+        return Task.FromResult(valid);
     }
 
-    private static bool ValidateGeometry(JsonElement route)
+    private static async Task<bool> ValidateRouting(byte[] bytes, CancellationToken cancellationToken)
     {
-        if (!route.TryGetProperty("geometry", out var geometry)
-            || !geometry.TryGetProperty("type", out var type) || type.GetString() != "LineString"
-            || !geometry.TryGetProperty("coordinates", out var points) || points.ValueKind != JsonValueKind.Array
-            || points.GetArrayLength() < 2) return false;
-        var parsed = points.EnumerateArray().Select(ParsePoint).ToArray();
-        return parsed.All(point => point.HasValue)
-            && Close(parsed[0]!.Value, (0d, 0d)) && Close(parsed[^1]!.Value, (0.01d, 0d));
+        using var response = new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(bytes) };
+        return (await GeoapifyRoutingAdapter.ParseAsync(response, RoutingProbe, cancellationToken)).Succeeded;
     }
 
-    private static (double Longitude, double Latitude)? ParsePoint(JsonElement point)
+    private static bool HasText(JsonElement properties, params string[] names) => names.Any(name =>
+        properties.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.String
+        && !string.IsNullOrWhiteSpace(value.GetString()));
+
+    private static async Task<byte[]?> ReadBoundedAsync(HttpContent content, CancellationToken cancellationToken)
     {
-        if (point.ValueKind != JsonValueKind.Array || point.GetArrayLength() < 2
-            || !point[0].TryGetDouble(out var longitude) || !point[1].TryGetDouble(out var latitude)
-            || !double.IsFinite(longitude) || !double.IsFinite(latitude)
-            || longitude is < -180 or > 180 || latitude is < -90 or > 90) return null;
-        return (longitude, latitude);
+        if (content.Headers.ContentLength > ResponseLimit) return null;
+        await using var source = await content.ReadAsStreamAsync(cancellationToken);
+        using var destination = new MemoryStream();
+        var buffer = new byte[8192];
+        while (destination.Length <= ResponseLimit)
+        {
+            var read = await source.ReadAsync(buffer.AsMemory(0,
+                (int)Math.Min(buffer.Length, ResponseLimit + 1L - destination.Length)), cancellationToken);
+            if (read == 0) return destination.ToArray();
+            destination.Write(buffer, 0, read);
+        }
+        return null;
     }
+}
 
-    private static bool ValidateStep(JsonElement step) => NonNegativeFinite(step, "distance")
-        && NonNegativeFinite(step, "time")
-        && step.TryGetProperty("from_index", out var from) && from.TryGetInt32(out var fromIndex) && fromIndex >= 0
-        && step.TryGetProperty("to_index", out var to) && to.TryGetInt32(out var toIndex) && toIndex > fromIndex
-        && step.TryGetProperty("instruction", out var instruction) && instruction.ValueKind == JsonValueKind.Object
-        && instruction.TryGetProperty("text", out var text) && !string.IsNullOrWhiteSpace(text.GetString())
-        && instruction.TryGetProperty("type", out var type) && !string.IsNullOrWhiteSpace(type.GetString());
+/// <summary>Identifies safe request-local Geoapify verification detail.</summary>
+public enum GeoapifyVerificationCategory
+{ Verified, AuthorizationDisabled, CredentialUnavailable, GuardExhausted, ProviderRejected, RateLimited, TemporaryFailure, InvalidResponse, AuthorityChanged }
 
-    private static bool NonNegativeFinite(JsonElement value, string property) =>
-        value.TryGetProperty(property, out var number) && number.TryGetDouble(out var parsed)
-        && double.IsFinite(parsed) && parsed >= 0;
+/// <summary>Combines bounded persisted state with non-persisted actionable detail.</summary>
+public sealed record GeoapifyVerificationOutcome(PersonalProviderVerification Verification, GeoapifyVerificationCategory Category)
+{
+    /// <summary>Maps a rejection that occurred before provider contact.</summary>
+    public static GeoapifyVerificationOutcome PreContact(PersonalProviderAdmissionCategory category) => new(
+        PersonalProviderVerification.Unverified, category switch
+        {
+            PersonalProviderAdmissionCategory.CredentialUnavailable => GeoapifyVerificationCategory.CredentialUnavailable,
+            PersonalProviderAdmissionCategory.Exhausted => GeoapifyVerificationCategory.GuardExhausted,
+            _ => GeoapifyVerificationCategory.AuthorizationDisabled
+        });
 
-    private static bool Close((double Longitude, double Latitude) actual, (double Longitude, double Latitude) expected) =>
-        Math.Abs(actual.Longitude - expected.Longitude) <= 0.00001
-        && Math.Abs(actual.Latitude - expected.Latitude) <= 0.00001;
+    /// <summary>Returns a fail-closed stale-authority result.</summary>
+    public static GeoapifyVerificationOutcome AuthorityChanged() =>
+        new(PersonalProviderVerification.Unavailable, GeoapifyVerificationCategory.AuthorityChanged);
 }

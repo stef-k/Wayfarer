@@ -111,11 +111,12 @@ public sealed class LocationProviderSettingsController(
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (userId == null) return Challenge();
-        var result = geoapifyVerification == null ? PersonalProviderVerification.Unavailable
+        var result = geoapifyVerification == null
+            ? new GeoapifyVerificationOutcome(PersonalProviderVerification.Unavailable, GeoapifyVerificationCategory.TemporaryFailure)
             : capability == PersonalProviderCapability.Geocoding
                 ? await geoapifyVerification.VerifyGeocodingAsync(userId, cancellationToken)
                 : await geoapifyVerification.VerifyRoutingAsync(userId, cancellationToken);
-        TempData["ProviderStatus"] = $"Geoapify {capability.ToString().ToLowerInvariant()} verification: {result}. No provider was selected automatically.";
+        TempData["ProviderStatus"] = GeoapifyVerificationMessage(capability, result);
         return RedirectToAction(nameof(Index));
     }
 
@@ -227,4 +228,22 @@ public sealed class LocationProviderSettingsController(
 
     private static PersonalLocationProvider ParseProvider(string key) => key switch
     { "geoapify" => PersonalLocationProvider.Geoapify, "mapbox" => PersonalLocationProvider.Mapbox, _ => throw new ArgumentOutOfRangeException(nameof(key)) };
+
+    /// <summary>Maps bounded request-local verification detail to credential-free presentation.</summary>
+    internal static string GeoapifyVerificationMessage(PersonalProviderCapability capability, GeoapifyVerificationOutcome outcome)
+    {
+        var detail = outcome.Category switch
+        {
+            GeoapifyVerificationCategory.Verified => "verified successfully",
+            GeoapifyVerificationCategory.AuthorizationDisabled => "authorization is not enabled",
+            GeoapifyVerificationCategory.CredentialUnavailable => "the credential is missing, revoked, or unreadable",
+            GeoapifyVerificationCategory.GuardExhausted => "the local Wayfarer usage guard is exhausted",
+            GeoapifyVerificationCategory.ProviderRejected => "the provider rejected the credential or capability",
+            GeoapifyVerificationCategory.RateLimited => "the provider rejected the request because of rate or allowance limits",
+            GeoapifyVerificationCategory.TemporaryFailure => "the provider or network is temporarily unavailable",
+            GeoapifyVerificationCategory.InvalidResponse => "the provider response was invalid or incompatible",
+            _ => "authority changed while verification was in progress"
+        };
+        return $"Geoapify {capability.ToString().ToLowerInvariant()} verification {detail}. No provider was selected automatically.";
+    }
 }
