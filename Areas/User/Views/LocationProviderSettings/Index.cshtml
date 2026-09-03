@@ -15,8 +15,8 @@
     {
     <form asp-action="SaveCredential" method="post">
         <input name="ProviderKey" value="mapbox" type="hidden" />
-        <label for="mapbox-credential" class="form-label">Replacement credential</label><input id="mapbox-credential" name="ReplacementCredential" type="password" autocomplete="new-password" class="form-control" />
-        <div class="form-text">Leave blank to retain the masked credential. Replacement clears Permanent consent and verification.</div>
+        <label for="mapbox-credential" class="form-label">Replacement credential</label><input id="mapbox-credential" name="ReplacementCredential" type="password" autocomplete="new-password" class="form-control" required />
+        <div class="form-text">Submit only to replace the credential. Replacement clears consent, verification, and active selections.</div>
         <button class="btn btn-outline-primary mt-2" type="submit">Save credential</button>
     </form>
     <h3 class="h5 mt-3">Permanent Geocoding consent</h3>
@@ -38,7 +38,7 @@
     {
     <form asp-action="SaveCredential" method="post">
         <input name="ProviderKey" value="@profile.ProviderKey" type="hidden" />
-        <label class="form-label">Replacement credential</label><input name="ReplacementCredential" type="password" autocomplete="new-password" class="form-control" />
+        <label class="form-label">Replacement credential</label><input name="ReplacementCredential" type="password" autocomplete="new-password" class="form-control" required />
         <div class="form-text">Replacement disables both capabilities until each is verified and selected again.</div>
         <button class="btn btn-primary mt-2" type="submit">Replace credential</button>
     </form>
