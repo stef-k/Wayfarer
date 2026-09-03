@@ -149,6 +149,21 @@ public sealed class GeoapifyStageOneContractTests
     }
 
     [Fact]
+    public async Task RevokedCredentialIsDistinguishedBeforeContact()
+    {
+        await using var scenario = await VerificationScenario.CreateAsync(nameof(RevokedCredentialIsDistinguishedBeforeContact));
+        scenario.RevokeCredential();
+        await scenario.Db.SaveChangesAsync();
+        var handler = new RecordingHandler(ValidGeocodingJson);
+
+        var result = await scenario.Service(handler).VerifyGeocodingAsync(scenario.Profile.UserId);
+
+        Assert.Equal(GeoapifyVerificationCategory.CredentialUnavailable, result.Category);
+        Assert.Empty(handler.Requests);
+        Assert.Empty(scenario.Db.GeoapifyUsageAdmissions);
+    }
+
+    [Fact]
     public async Task CallerCancellationRemainsCancellationAfterAdmission()
     {
         await using var scenario = await VerificationScenario.CreateAsync(nameof(CallerCancellationRemainsCancellationAfterAdmission));
@@ -404,6 +419,7 @@ public sealed class GeoapifyStageOneContractTests
         private VerificationScenario(ApplicationDbContext db, PersonalProviderCredentialService credentials,
             PersonalLocationProviderProfile profile) => (Db, this.credentials, Profile) = (db, credentials, profile);
         public GeoapifyVerificationService Service(HttpMessageHandler handler) => CreateVerificationService(Db, credentials, handler);
+        public void RevokeCredential() => credentials.Revoke(Profile);
         public static async Task<VerificationScenario> CreateAsync(string name)
         {
             var db = CreateDb(name);
