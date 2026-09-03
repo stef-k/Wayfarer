@@ -9,6 +9,8 @@ public sealed class LocationProviderSettingsViewModel
     public IReadOnlyList<LocationProviderProfileViewModel> Profiles { get; init; } = [];
     public string? ActiveGeocodingProvider { get; init; }
     public string? ActiveRoutingProvider { get; init; }
+    public string GeocodingStatus { get; init; } = "No provider selected. Verify a credential, then choose it.";
+    public string RoutingStatus { get; init; } = "No provider selected. Verify Geoapify, then choose it.";
     public LegacyMapboxMigrationState LegacyMigrationState { get; init; }
 }
 
@@ -32,7 +34,9 @@ public sealed class LocationProviderChoiceInput
 public sealed record LocationProviderProfileViewModel(
     string ProviderKey, string DisplayName, bool CredentialConfigured, string Mask,
     bool GeocodingAuthorized, PersonalProviderVerification GeocodingVerification,
+    bool GeocodingEligible, string GeocodingBlockingStatus,
     bool RoutingAuthorized, PersonalProviderVerification RoutingVerification,
+    bool RoutingEligible, string RoutingBlockingStatus,
     bool GuardEnabled, int Limit, int Used, string Unit, string WindowExplanation, bool Exhausted,
     bool? DirectionsGuardEnabled = null, int? DirectionsLimit = null, int? DirectionsUsed = null,
     bool PermanentConsentCurrent = false, int? PermanentConsentVersion = null,

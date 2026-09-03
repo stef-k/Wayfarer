@@ -44,7 +44,8 @@ public sealed class ExternalRouteProposalAcceptanceService
             var result = await ValidateAuthorityAsync(
                 userId, tripId, segmentId, proposalId, geometry, waypointIndices, binding, cancellationToken);
             if (result.Succeeded
-                && (!_proposalContexts.TryRead(protectedContext, out var finalBinding) || finalBinding != binding))
+                && (!_proposalContexts.TryRead(protectedContext, out var finalBinding)
+                    || !SameBinding(binding, finalBinding)))
                 result = ExternalRouteAcceptanceResult.Failure("route-proposal-invalid-or-expired");
             if (transaction != null) await transaction.CommitAsync(cancellationToken);
             return result;
@@ -56,6 +57,13 @@ public sealed class ExternalRouteProposalAcceptanceService
             return ExternalRouteAcceptanceResult.Failure("route-proposal-stale");
         }
     }
+
+    /// <summary>Compares every protected member while treating deserialized instructions as values.</summary>
+    private static bool SameBinding(ExternalRouteProposalBinding expected, ExternalRouteProposalBinding? actual) =>
+        actual != null
+        && expected with { Instructions = null } == actual with { Instructions = null }
+        && (expected.Instructions == null) == (actual.Instructions == null)
+        && (expected.Instructions?.SequenceEqual(actual.Instructions!) ?? true);
 
     private async Task<ExternalRouteAcceptanceResult> ValidateAuthorityAsync(
         string userId, Guid tripId, Guid segmentId, Guid proposalId, IReadOnlyList<RouteCoordinate> geometry,

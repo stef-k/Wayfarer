@@ -174,7 +174,8 @@ public sealed class LocationProviderSettingsController(
         return RedirectToAction(nameof(Index));
     }
 
-    private async Task<LocationProviderSettingsViewModel> BuildAsync(string userId, CancellationToken cancellationToken)
+    /// <summary>Builds executable eligibility and masked status without provider contact or mutation.</summary>
+    internal async Task<LocationProviderSettingsViewModel> BuildAsync(string userId, CancellationToken cancellationToken)
     {
         var profiles = await dbContext.PersonalLocationProviderProfiles.AsNoTracking()
             .Where(item => item.UserId == userId).ToListAsync(cancellationToken);
@@ -187,10 +188,14 @@ public sealed class LocationProviderSettingsController(
         var meters = await dbContext.MapboxProductMeters.AsNoTracking().Where(item => item.UserId == userId).ToListAsync(cancellationToken);
         var views = new[] { PersonalLocationProvider.Geoapify, PersonalLocationProvider.Mapbox }.Select(provider =>
             BuildProfile(provider, profiles, geoGuard, geoUsed, meters)).ToArray();
+        var activeGeocoding = selection?.GeocodingProviderKey;
+        var activeRouting = selection?.RoutingProviderKey;
         return new()
         {
-            Profiles = views, ActiveGeocodingProvider = selection?.GeocodingProviderKey,
-            ActiveRoutingProvider = selection?.RoutingProviderKey,
+            Profiles = views, ActiveGeocodingProvider = activeGeocoding,
+            ActiveRoutingProvider = activeRouting,
+            GeocodingStatus = SelectionStatus(activeGeocoding, views, PersonalProviderCapability.Geocoding),
+            RoutingStatus = SelectionStatus(activeRouting, views, PersonalProviderCapability.Routing),
             LegacyMigrationState = profiles.SingleOrDefault(item => item.ProviderKey == "mapbox")?.LegacyMigrationState ?? LegacyMapboxMigrationState.None
         };
     }
@@ -201,25 +206,49 @@ public sealed class LocationProviderSettingsController(
     {
         var key = PersonalProviderKeys.Key(provider);
         var profile = profiles.SingleOrDefault(item => item.ProviderKey == key);
+        var readable = profile != null && credentials.Read(profile).Succeeded;
+        var geocoding = PersonalProviderEligibility.Evaluate(
+            profile, provider, PersonalProviderCapability.Geocoding, readable);
+        var routing = PersonalProviderEligibility.Evaluate(
+            profile, provider, PersonalProviderCapability.Routing, readable);
         if (provider == PersonalLocationProvider.Geoapify)
         {
             var limit = geoGuard?.CreditLimit ?? 2500;
-            return new(key, "Geoapify", profile != null && credentials.Read(profile).Succeeded, "••••••••••••••••",
+            return new(key, "Geoapify", readable, "••••••••••••••••",
                 profile?.GeocodingAuthorized == true, CurrentVerification(profile, PersonalProviderCapability.Geocoding),
+                geocoding.Eligible, geocoding.Status,
                 profile?.RoutingAuthorized == true, CurrentVerification(profile, PersonalProviderCapability.Routing),
+                routing.Eligible, routing.Status,
                 geoGuard?.Enabled ?? true, limit, geoUsed, "credits",
                 "Wayfarer rolling 24-hour shared geocoding/routing window", (geoGuard?.Enabled ?? true) && geoUsed >= limit);
         }
         var permanent = meters.SingleOrDefault(item => item.Product == PersonalProviderProduct.PermanentGeocoding);
         var directions = meters.SingleOrDefault(item => item.Product == PersonalProviderProduct.Directions);
-        return new(key, "Mapbox", profile != null && credentials.Read(profile).Succeeded, "••••••••••••••••",
+        return new(key, "Mapbox", readable, "••••••••••••••••",
             profile?.GeocodingAuthorized == true, CurrentVerification(profile, PersonalProviderCapability.Geocoding),
+            geocoding.Eligible, geocoding.Status,
             profile?.RoutingAuthorized == true, CurrentVerification(profile, PersonalProviderCapability.Routing),
+            routing.Eligible, routing.Status,
             permanent?.Enabled ?? true, permanent?.Limit ?? 1000, permanent?.AdmittedCount ?? 0, "Permanent Geocoding contacts",
             "Wayfarer UTC calendar-month Permanent Geocoding safety cycle", permanent?.Enabled == true && permanent.AdmittedCount >= permanent.Limit,
             directions?.Enabled ?? true, directions?.Limit ?? 1000, directions?.AdmittedCount ?? 0,
             profile?.HasCurrentPermanentGeocodingConsent() == true, profile?.PermanentGeocodingConsentVersion,
-            profile?.PermanentGeocodingConsentedAt, MapboxPausedReason(profile, permanent), permanent?.CycleStart);
+            profile?.PermanentGeocodingConsentedAt, MapboxPausedReason(profile, permanent, geocoding), permanent?.CycleStart);
+    }
+
+    private static string SelectionStatus(string? selectedProvider,
+        IReadOnlyCollection<LocationProviderProfileViewModel> profiles, PersonalProviderCapability capability)
+    {
+        if (selectedProvider == null) return capability == PersonalProviderCapability.Geocoding
+            ? "No provider selected. Verify a credential, then choose it."
+            : "No provider selected. Verify Geoapify, then choose it.";
+        var profile = profiles.SingleOrDefault(item => item.ProviderKey == selectedProvider);
+        var eligible = capability == PersonalProviderCapability.Geocoding
+            ? profile?.GeocodingEligible == true : profile?.RoutingEligible == true;
+        if (eligible) return $"Ready with {selectedProvider}.";
+        var blocking = capability == PersonalProviderCapability.Geocoding
+            ? profile?.GeocodingBlockingStatus : profile?.RoutingBlockingStatus;
+        return blocking ?? "Blocked. Replace the credential and verify again.";
     }
 
     private static PersonalProviderVerification CurrentVerification(
@@ -236,8 +265,9 @@ public sealed class LocationProviderSettingsController(
                 ? profile.RoutingVerification : PersonalProviderVerification.Unverified;
     }
 
-    private static string? MapboxPausedReason(PersonalLocationProviderProfile? profile, MapboxProductMeter? meter) => profile switch
-    { null or { ProtectedCredential: null } => "Credential required", { GeocodingAuthorized: false } => "Geocoding authorization required", _ when !profile.HasCurrentPermanentGeocodingConsent() => "Permanent consent required", { GeocodingVerification: not PersonalProviderVerification.Verified } => "Permanent verification required", _ when meter?.Enabled == true && meter.AdmittedCount >= meter.Limit => "Permanent meter exhausted", _ => null };
+    private static string? MapboxPausedReason(PersonalLocationProviderProfile? profile, MapboxProductMeter? meter,
+        PersonalProviderEligibilityResult eligibility) => profile switch
+    { _ when !eligibility.Eligible => eligibility.Status, _ when meter?.Enabled == true && meter.AdmittedCount >= meter.Limit => "Permanent meter exhausted", _ => null };
 
     private static PersonalLocationProvider ParseProvider(string key) => key switch
     { "geoapify" => PersonalLocationProvider.Geoapify, "mapbox" => PersonalLocationProvider.Mapbox, _ => throw new ArgumentOutOfRangeException(nameof(key)) };

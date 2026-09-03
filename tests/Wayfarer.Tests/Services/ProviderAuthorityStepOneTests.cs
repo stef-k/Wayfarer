@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using Wayfarer.Areas.Api.Controllers;
+using Wayfarer.Areas.User.Controllers;
 using Wayfarer.Models;
 using Wayfarer.Models.LocationProviders;
 using Wayfarer.Services.ExternalRouting;
@@ -85,6 +86,10 @@ public sealed class ProviderAuthorityStepOneTests : TestBase
         Assert.DoesNotContain("ActiveForGeocoding", source, StringComparison.Ordinal);
         Assert.DoesNotContain("ActiveForRouting", source, StringComparison.Ordinal);
         Assert.Contains("ChooseProvider", source, StringComparison.Ordinal);
+        Assert.Contains("for=\"geoapify-credential\"", source, StringComparison.Ordinal);
+        Assert.Contains("id=\"geoapify-credential\"", source, StringComparison.Ordinal);
+        Assert.Contains("mapbox-directions-guard-enabled", source, StringComparison.Ordinal);
+        Assert.Contains("{profile.ProviderKey}-guard-enabled", source, StringComparison.Ordinal);
 
     }
 
@@ -145,6 +150,94 @@ public sealed class ProviderAuthorityStepOneTests : TestBase
         Assert.Null(selection.GeocodingProviderKey);
         Assert.Null(selection.RoutingProviderKey);
         Assert.Equal("new", credentials.Read(profile).Credential);
+    }
+
+    [Fact]
+    public async Task SetupChoice_RejectsVerifiedButUnreadableCredentialWithoutMutation()
+    {
+        await using var db = CreateDbContext();
+        var storedCredentials = new PersonalProviderCredentialService(new EphemeralDataProtectionProvider());
+        var profile = VerifiedGeoapify("user", storedCredentials);
+        db.Add(profile);
+        await db.SaveChangesAsync();
+        db.ChangeTracker.Clear();
+        var setup = new PersonalProviderSetupService(db,
+            new PersonalProviderCredentialService(new EphemeralDataProtectionProvider()));
+
+        var result = await setup.ChooseAsync("user", PersonalProviderCapability.Routing,
+            PersonalLocationProvider.Geoapify, default);
+
+        Assert.Equal(ProviderChoiceResult.NotVerified, result);
+        Assert.Empty(db.PersonalLocationProviderSelections);
+        Assert.False(db.ChangeTracker.HasChanges());
+    }
+
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, true)]
+    public async Task SettingsProjection_BlocksSelectedUnreadableOrRevokedGeoapifyAuthority(
+        bool revoked, bool useMatchingProtector)
+    {
+        await using var db = CreateDbContext();
+        var storedCredentials = new PersonalProviderCredentialService(new EphemeralDataProtectionProvider());
+        var presentationCredentials = useMatchingProtector
+            ? storedCredentials : new PersonalProviderCredentialService(new EphemeralDataProtectionProvider());
+        var profile = VerifiedGeoapify("user", storedCredentials);
+        if (revoked) profile.RevokedAt = DateTimeOffset.UtcNow;
+        var selection = PersonalLocationProviderSelection.Create("user");
+        selection.Select(PersonalProviderCapability.Geocoding, PersonalLocationProvider.Geoapify);
+        selection.Select(PersonalProviderCapability.Routing, PersonalLocationProvider.Geoapify);
+        db.AddRange(profile, selection);
+        await db.SaveChangesAsync();
+        db.ChangeTracker.Clear();
+        var controller = new LocationProviderSettingsController(db, presentationCredentials,
+            new LegacyMapboxMigrationService(db, presentationCredentials), null!);
+
+        var model = await controller.BuildAsync("user", default);
+
+        var geoapify = Assert.Single(model.Profiles, item => item.ProviderKey == "geoapify");
+        Assert.False(geoapify.GeocodingEligible);
+        Assert.False(geoapify.RoutingEligible);
+        Assert.Contains("Replace the credential and verify again", model.GeocodingStatus);
+        Assert.Contains("Replace the credential and verify again", model.RoutingStatus);
+        Assert.False(db.ChangeTracker.HasChanges());
+    }
+
+    [Fact]
+    public async Task SettingsProjection_OffersReadableCurrentVerifiedGeoapifyAsReady()
+    {
+        await using var db = CreateDbContext();
+        var credentials = new PersonalProviderCredentialService(new EphemeralDataProtectionProvider());
+        var profile = VerifiedGeoapify("user", credentials);
+        var selection = PersonalLocationProviderSelection.Create("user");
+        selection.Select(PersonalProviderCapability.Geocoding, PersonalLocationProvider.Geoapify);
+        selection.Select(PersonalProviderCapability.Routing, PersonalLocationProvider.Geoapify);
+        db.AddRange(profile, selection);
+        await db.SaveChangesAsync();
+        db.ChangeTracker.Clear();
+        var controller = new LocationProviderSettingsController(db, credentials,
+            new LegacyMapboxMigrationService(db, credentials), null!);
+
+        var model = await controller.BuildAsync("user", default);
+
+        var geoapify = Assert.Single(model.Profiles, item => item.ProviderKey == "geoapify");
+        Assert.True(geoapify.GeocodingEligible);
+        Assert.True(geoapify.RoutingEligible);
+        Assert.Equal("Ready with geoapify.", model.GeocodingStatus);
+        Assert.Equal("Ready with geoapify.", model.RoutingStatus);
+        Assert.False(db.ChangeTracker.HasChanges());
+    }
+
+    private static PersonalLocationProviderProfile VerifiedGeoapify(
+        string userId, PersonalProviderCredentialService credentials)
+    {
+        var profile = PersonalLocationProviderProfile.Create(userId, PersonalLocationProvider.Geoapify);
+        credentials.Replace(profile, "credential");
+        profile.SetAuthorization(PersonalProviderCapability.Geocoding, true);
+        profile.SetAuthorization(PersonalProviderCapability.Routing, true);
+        credentials.RecordVerification(profile, PersonalProviderCapability.Geocoding, PersonalProviderVerification.Verified);
+        credentials.RecordVerification(profile, PersonalProviderCapability.Routing, PersonalProviderVerification.Verified);
+        return profile;
     }
 
     private static TransportProfile Profile(string key) => new()

@@ -38,7 +38,7 @@
     {
     <form asp-action="SaveCredential" method="post">
         <input name="ProviderKey" value="@profile.ProviderKey" type="hidden" />
-        <label class="form-label">Replacement credential</label><input name="ReplacementCredential" type="password" autocomplete="new-password" class="form-control" required />
+        <label for="geoapify-credential" class="form-label">Replacement credential</label><input id="geoapify-credential" name="ReplacementCredential" type="password" autocomplete="new-password" class="form-control" required />
         <div class="form-text">Replacement disables both capabilities until each is verified and selected again.</div>
         <button class="btn btn-primary mt-2" type="submit">Replace credential</button>
     </form>
@@ -54,16 +54,16 @@
     <p class="mt-3"><strong>Directions guard:</strong> @(profile.DirectionsGuardEnabled == true ? "enabled" : "disabled") — @profile.DirectionsUsed / @profile.DirectionsLimit contacts. Separate Wayfarer UTC calendar-month safety cycle.</p>
     <form asp-action="SaveGuard" method="post" class="row g-2">
         <input name="GuardKey" value="mapbox-directions" type="hidden" />
-        <div class="col-auto form-check"><input name="Enabled" value="true" type="checkbox" class="form-check-input" checked="@profile.DirectionsGuardEnabled" /><label class="form-check-label">Directions guard enabled</label></div>
-        <div class="col-auto"><input name="Limit" value="@profile.DirectionsLimit" type="number" min="0" class="form-control" aria-label="Directions limit" /></div>
+        <div class="col-auto form-check"><input id="mapbox-directions-guard-enabled" name="Enabled" value="true" type="checkbox" class="form-check-input" checked="@profile.DirectionsGuardEnabled" /><label for="mapbox-directions-guard-enabled" class="form-check-label">Directions guard enabled</label></div>
+        <div class="col-auto"><label for="mapbox-directions-guard-limit" class="visually-hidden">Directions limit</label><input id="mapbox-directions-guard-limit" name="Limit" value="@profile.DirectionsLimit" type="number" min="0" class="form-control" /></div>
         <div class="col-auto"><button class="btn btn-outline-primary" type="submit">Save Directions guard</button></div>
     </form>
     }
     <p class="mt-3"><strong>@(profile.ProviderKey == "geoapify" ? "Local Wayfarer-admitted usage" : "Guard"):</strong> @(profile.GuardEnabled ? "enabled" : "disabled") — @profile.Used / @profile.Limit @profile.Unit. @profile.WindowExplanation. @(profile.Exhausted ? "New contacts are paused; stored data remains available." : "")</p>
     <form asp-action="SaveGuard" method="post" class="row g-2">
         <input name="GuardKey" value="@(profile.ProviderKey == "geoapify" ? "geoapify" : "mapbox-permanent")" type="hidden" />
-        <div class="col-auto form-check"><input name="Enabled" value="true" type="checkbox" class="form-check-input" checked="@profile.GuardEnabled" /><label class="form-check-label">Guard enabled</label></div>
-        <div class="col-auto"><input name="Limit" value="@profile.Limit" type="number" min="0" class="form-control" aria-label="Provider-native limit" /></div>
+        <div class="col-auto form-check"><input id="@($"{profile.ProviderKey}-guard-enabled")" name="Enabled" value="true" type="checkbox" class="form-check-input" checked="@profile.GuardEnabled" /><label for="@($"{profile.ProviderKey}-guard-enabled")" class="form-check-label">Guard enabled</label></div>
+        <div class="col-auto"><label for="@($"{profile.ProviderKey}-guard-limit")" class="visually-hidden">Provider-native limit</label><input id="@($"{profile.ProviderKey}-guard-limit")" name="Limit" value="@profile.Limit" type="number" min="0" class="form-control" /></div>
         <div class="col-auto"><button class="btn btn-outline-primary" type="submit">Save guard</button></div>
     </form>
     @if (profile.CredentialConfigured)
@@ -87,12 +87,12 @@
         <label for="geocoding-provider" class="form-label">Provider</label>
         <select id="geocoding-provider" name="ProviderKey" class="form-select">
             <option value="" selected="@(Model.ActiveGeocodingProvider == null)">No provider</option>
-            @if (geoapify.GeocodingVerification == Wayfarer.Models.LocationProviders.PersonalProviderVerification.Verified) { <option value="geoapify" selected="@(Model.ActiveGeocodingProvider == "geoapify")">Geoapify</option> }
-            @if (mapbox.GeocodingVerification == Wayfarer.Models.LocationProviders.PersonalProviderVerification.Verified && mapbox.PermanentConsentCurrent) { <option value="mapbox" selected="@(Model.ActiveGeocodingProvider == "mapbox")">Mapbox Permanent Geocoding</option> }
+            @if (geoapify.GeocodingEligible) { <option value="geoapify" selected="@(Model.ActiveGeocodingProvider == "geoapify")">Geoapify</option> }
+            @if (mapbox.GeocodingEligible) { <option value="mapbox" selected="@(Model.ActiveGeocodingProvider == "mapbox")">Mapbox Permanent Geocoding</option> }
         </select>
         <button class="btn btn-primary mt-2" type="submit">Save geocoding provider</button>
     </form>
-    <p class="mt-2"><strong>State:</strong> @(Model.ActiveGeocodingProvider == null ? "No provider selected. Verify a credential, then choose it." : $"Ready with {Model.ActiveGeocodingProvider}.")</p>
+    <p class="mt-2"><strong>State:</strong> @Model.GeocodingStatus</p>
 </div></section>
 <section class="card mb-4"><div class="card-body">
     <h2 class="h4">Directions</h2>
@@ -103,10 +103,10 @@
         <label for="directions-provider" class="form-label">Provider</label>
         <select id="directions-provider" name="ProviderKey" class="form-select">
             <option value="" selected="@(Model.ActiveRoutingProvider == null)">No provider</option>
-            @if (geoapify.RoutingVerification == Wayfarer.Models.LocationProviders.PersonalProviderVerification.Verified) { <option value="geoapify" selected="@(Model.ActiveRoutingProvider == "geoapify")">Geoapify</option> }
+            @if (geoapify.RoutingEligible) { <option value="geoapify" selected="@(Model.ActiveRoutingProvider == "geoapify")">Geoapify</option> }
         </select>
         <button class="btn btn-primary mt-2" type="submit">Save directions provider</button>
     </form>
-    <p class="mt-2"><strong>State:</strong> @(Model.ActiveRoutingProvider == null ? "No provider selected. Verify Geoapify, then choose it." : "Ready with Geoapify.")</p>
+    <p class="mt-2"><strong>State:</strong> @Model.RoutingStatus</p>
 </div></section>
 <p>Cache and stored-result reuse costs no new credit. Exhaustion pauses new contacts without deleting source or historical data. Disabling a guard may incur paid usage. Imports and backfills share the same remaining allowance.</p>

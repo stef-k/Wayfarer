@@ -54,9 +54,9 @@ public sealed class PersonalProviderSetupService(
             ? await dbContext.Database.BeginTransactionAsync(cancellationToken) : null;
         var selection = await SelectionAsync(userId, cancellationToken)
             ?? PersonalLocationProviderSelection.Create(userId);
-        if (dbContext.Entry(selection).State == EntityState.Detached) dbContext.Add(selection);
         if (provider == null)
         {
+            if (dbContext.Entry(selection).State == EntityState.Detached) dbContext.Add(selection);
             var currentKey = capability == PersonalProviderCapability.Geocoding
                 ? selection.GeocodingProviderKey : selection.RoutingProviderKey;
             if (currentKey != null)
@@ -70,28 +70,16 @@ public sealed class PersonalProviderSetupService(
             return ProviderChoiceResult.Success;
         }
         var profile = await ProfileAsync(userId, PersonalProviderKeys.Key(provider.Value), cancellationToken);
-        if (!Eligible(profile, provider.Value, capability)) return ProviderChoiceResult.NotVerified;
+        var readable = profile != null && credentials.Read(profile).Succeeded;
+        if (!PersonalProviderEligibility.Evaluate(profile, provider.Value, capability, readable).Eligible)
+            return ProviderChoiceResult.NotVerified;
+        if (dbContext.Entry(selection).State == EntityState.Detached) dbContext.Add(selection);
         profile!.SetAuthorization(capability, true);
         selection.Select(capability, provider);
         await dbContext.SaveChangesAsync(cancellationToken);
         if (transaction != null) await transaction.CommitAsync(cancellationToken);
         return ProviderChoiceResult.Success;
     }
-
-    private static bool Eligible(PersonalLocationProviderProfile? profile, PersonalLocationProvider provider,
-        PersonalProviderCapability capability) => !(provider == PersonalLocationProvider.Mapbox
-            && capability == PersonalProviderCapability.Routing)
-        && profile != null && profile.RevokedAt == null
-        && profile.IsAuthorized(capability)
-        && (provider != PersonalLocationProvider.Mapbox || capability != PersonalProviderCapability.Geocoding
-            || profile.HasCurrentPermanentGeocodingConsent())
-        && (capability == PersonalProviderCapability.Geocoding
-            ? profile.GeocodingVerification == PersonalProviderVerification.Verified
-              && profile.GeocodingVerifiedCredentialGeneration == profile.CredentialGeneration
-              && profile.GeocodingVerifiedConfigurationGeneration == profile.GeocodingGeneration
-            : profile.RoutingVerification == PersonalProviderVerification.Verified
-              && profile.RoutingVerifiedCredentialGeneration == profile.CredentialGeneration
-              && profile.RoutingVerifiedConfigurationGeneration == profile.RoutingGeneration);
 
     private Task<PersonalLocationProviderProfile?> ProfileAsync(string userId, string providerKey,
         CancellationToken cancellationToken) => dbContext.Database.IsNpgsql()
@@ -114,3 +102,35 @@ public sealed class PersonalProviderSetupService(
 
 /// <summary>Identifies a bounded provider-choice transition outcome.</summary>
 public enum ProviderChoiceResult { Success, NotVerified }
+
+/// <summary>Projects executable personal-provider authority for setup and presentation.</summary>
+public static class PersonalProviderEligibility
+{
+    private const string ReplaceCredential = "Blocked. Replace the credential and verify again.";
+
+    /// <summary>Evaluates one capability without contacting a provider or changing stored state.</summary>
+    public static PersonalProviderEligibilityResult Evaluate(PersonalLocationProviderProfile? profile,
+        PersonalLocationProvider provider, PersonalProviderCapability capability, bool credentialReadable)
+    {
+        if (profile == null || profile.RevokedAt != null || !credentialReadable)
+            return new(false, ReplaceCredential);
+        if (provider == PersonalLocationProvider.Mapbox && capability == PersonalProviderCapability.Routing)
+            return new(false, "Blocked. Mapbox Directions is not available.");
+        if (!profile.IsAuthorized(capability))
+            return new(false, "Blocked. Enable and verify this capability again.");
+        if (provider == PersonalLocationProvider.Mapbox && capability == PersonalProviderCapability.Geocoding
+            && !profile.HasCurrentPermanentGeocodingConsent())
+            return new(false, "Blocked. Renew Permanent Geocoding consent and verify again.");
+        var verified = capability == PersonalProviderCapability.Geocoding
+            ? profile.GeocodingVerification == PersonalProviderVerification.Verified
+              && profile.GeocodingVerifiedCredentialGeneration == profile.CredentialGeneration
+              && profile.GeocodingVerifiedConfigurationGeneration == profile.GeocodingGeneration
+            : profile.RoutingVerification == PersonalProviderVerification.Verified
+              && profile.RoutingVerifiedCredentialGeneration == profile.CredentialGeneration
+              && profile.RoutingVerifiedConfigurationGeneration == profile.RoutingGeneration;
+        return verified ? new(true, "Ready.") : new(false, "Blocked. Verify this capability again.");
+    }
+}
+
+/// <summary>Contains eligibility and a bounded actionable presentation status.</summary>
+public sealed record PersonalProviderEligibilityResult(bool Eligible, string Status);

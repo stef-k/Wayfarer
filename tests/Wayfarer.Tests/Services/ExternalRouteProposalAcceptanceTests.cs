@@ -1,9 +1,13 @@
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.EntityFrameworkCore;
 using NetTopologySuite.Geometries;
+using System.Text.Json;
 using Wayfarer.Areas.Admin.Models;
 using Wayfarer.Models;
+using Wayfarer.Models.LocationProviders;
 using Wayfarer.Services;
 using Wayfarer.Services.ExternalRouting;
+using Wayfarer.Services.LocationProviders;
 using Wayfarer.Tests.Infrastructure;
 using Xunit;
 
@@ -24,6 +28,37 @@ public sealed class ExternalRouteProposalAcceptanceTests : TestBase
         Assert.Equal(fixture.Geometry, result.Proposal!.Geometry);
         Assert.Null(fixture.Segment.RouteGeometry);
         Assert.False(fixture.Db.ChangeTracker.HasChanges());
+    }
+
+    [Fact]
+    public async Task Accept_ValidGeoapifyProposalPersistsInstructionsAndPlanningProvenance()
+    {
+        RouteInstruction[] instructions = [new("Turn right", "right", 0, 1, 120, 30)];
+        var fixture = CreateFixture(geoapifyInstructions: instructions);
+
+        var result = await fixture.Service.AcceptAsync(fixture.UserId, fixture.TripId, fixture.Segment.Id,
+            fixture.ProposalId, fixture.Geometry, fixture.Indices, fixture.Token, CancellationToken.None);
+
+        Assert.True(result.Succeeded);
+        var segment = await fixture.Db.Set<Segment>().SingleAsync(item => item.Id == fixture.Segment.Id);
+        Assert.Equal(instructions, JsonSerializer.Deserialize<RouteInstruction[]>(segment.RouteInstructionsJson!));
+        Assert.Equal(fixture.Segment.TransportProfileId, segment.RouteTransportProfileId);
+        Assert.Equal("geoapify", segment.RouteProvider);
+        Assert.Equal("walk", segment.RouteMappingMode);
+        Assert.Equal("persistent", segment.RouteStorageMode);
+    }
+
+    [Fact]
+    public async Task Accept_ValidGeoapifyProposalPreservesEmptyInstructionList()
+    {
+        var fixture = CreateFixture(geoapifyInstructions: []);
+
+        var result = await fixture.Service.AcceptAsync(fixture.UserId, fixture.TripId, fixture.Segment.Id,
+            fixture.ProposalId, fixture.Geometry, fixture.Indices, fixture.Token, CancellationToken.None);
+
+        Assert.True(result.Succeeded);
+        var segment = await fixture.Db.Set<Segment>().SingleAsync(item => item.Id == fixture.Segment.Id);
+        Assert.Empty(JsonSerializer.Deserialize<RouteInstruction[]>(segment.RouteInstructionsJson!)!);
     }
 
     [Fact]
@@ -146,7 +181,7 @@ public sealed class ExternalRouteProposalAcceptanceTests : TestBase
             { TransportProfileId = item.TransportProfileId, OsrmProfile = item.OsrmProfile }).ToList()
     };
 
-    private Fixture CreateFixture(bool personal = false)
+    private Fixture CreateFixture(bool personal = false, IReadOnlyList<RouteInstruction>? geoapifyInstructions = null)
     {
         const string userId = "owner";
         var db = CreateDbContext();
@@ -195,15 +230,46 @@ public sealed class ExternalRouteProposalAcceptanceTests : TestBase
         var proposalId = Guid.NewGuid();
         var aggregateToken = aggregateTokens.Issue(userId, tripId, segment.Id, segment.RowVersion);
         var places = new Place?[] { from, via, to };
+        PersonalProviderCredentialService? personalCredentials = null;
+        PersonalLocationProviderProfile? personalProfile = null;
+        PersonalLocationProviderSelection? personalSelection = null;
+        if (geoapifyInstructions != null)
+        {
+            personalCredentials = new PersonalProviderCredentialService(dataProtection);
+            personalProfile = PersonalLocationProviderProfile.Create(userId, PersonalLocationProvider.Geoapify);
+            personalCredentials.Replace(personalProfile, "geoapify-secret");
+            personalProfile.SetAuthorization(PersonalProviderCapability.Routing, true);
+            personalCredentials.RecordVerification(personalProfile, PersonalProviderCapability.Routing,
+                PersonalProviderVerification.Verified);
+            personalSelection = PersonalLocationProviderSelection.Create(userId);
+            personalSelection.Select(PersonalProviderCapability.Routing, PersonalLocationProvider.Geoapify);
+            db.AddRange(personalProfile, personalSelection);
+            db.SaveChanges();
+        }
         var binding = new ExternalRouteProposalBinding(
             proposalId, tripId, segment.Id, userId, ExternalRouteProposalContextService.GeometryHash(geometry, indices),
             ExternalRouteAnchorFingerprint.Compute(places, geometry), profile.Id, provider.Id, 3, 2, aggregateToken,
             personal ? RoutingProviderSelectionMode.Personal : RoutingProviderSelectionMode.ServerDefault,
             userConfiguration.ConfigurationVersion);
+        if (geoapifyInstructions != null)
+            binding = binding with
+            {
+                ProviderId = Guid.Parse("5bde15a4-984c-4daa-912d-9fa59a166ec3"),
+                ProviderConfigurationVersion = 1,
+                FeatureStateGeneration = ProviderDirectionsCatalog.AuthorityVersion,
+                ProviderSelectionMode = RoutingProviderSelectionMode.Personal,
+                UserRoutingConfigurationVersion = personalProfile!.RoutingGeneration,
+                Instructions = geoapifyInstructions,
+                ProviderKey = "geoapify",
+                MappingMode = "walk",
+                Attribution = "Powered by Geoapify|© OpenStreetMap contributors",
+                StorageMode = "persistent"
+            };
         var token = contexts.Issue(binding).Token;
         db.ChangeTracker.Clear();
         var resolver = new AuthoritativeRoutingProviderResolver(db,
-            new RoutingProviderCredentialService(dataProtection), new UserRoutingCredentialService(dataProtection));
+            new RoutingProviderCredentialService(dataProtection), new UserRoutingCredentialService(dataProtection),
+            personalCredentials);
         return new Fixture(db, new ExternalRouteProposalAcceptanceService(db, aggregateTokens, contexts, resolver), time,
             userId, tripId, segment, proposalId, geometry, indices, token);
     }
