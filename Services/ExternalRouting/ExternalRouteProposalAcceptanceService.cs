@@ -42,12 +42,9 @@ public sealed class ExternalRouteProposalAcceptanceService
         try
         {
             var result = await ValidateAuthorityAsync(
-                userId, tripId, segmentId, proposalId, geometry, waypointIndices, binding, cancellationToken);
-            if (result.Succeeded
-                && (!_proposalContexts.TryRead(protectedContext, out var finalBinding)
-                    || !SameBinding(binding, finalBinding)))
-                result = ExternalRouteAcceptanceResult.Failure("route-proposal-invalid-or-expired");
-            if (transaction != null) await transaction.CommitAsync(cancellationToken);
+                userId, tripId, segmentId, proposalId, geometry, waypointIndices, protectedContext, binding,
+                cancellationToken);
+            if (result.Succeeded && transaction != null) await transaction.CommitAsync(cancellationToken);
             return result;
         }
         catch (PostgresException exception) when (exception.SqlState == PostgresErrorCodes.SerializationFailure)
@@ -67,7 +64,8 @@ public sealed class ExternalRouteProposalAcceptanceService
 
     private async Task<ExternalRouteAcceptanceResult> ValidateAuthorityAsync(
         string userId, Guid tripId, Guid segmentId, Guid proposalId, IReadOnlyList<RouteCoordinate> geometry,
-        IReadOnlyList<int> waypointIndices, ExternalRouteProposalBinding binding, CancellationToken cancellationToken)
+        IReadOnlyList<int> waypointIndices, string protectedContext, ExternalRouteProposalBinding binding,
+        CancellationToken cancellationToken)
     {
         var relational = _dbContext.Database.IsRelational();
         if (binding.ProviderKey != "geoapify"
@@ -107,6 +105,10 @@ public sealed class ExternalRouteProposalAcceptanceService
         if (ExternalRouteAnchorFingerprint.Compute(places!, anchors) != binding.AnchorFingerprint
             || waypointIndices.Where((index, anchorIndex) => geometry[index] != anchors[anchorIndex]).Any())
             return ExternalRouteAcceptanceResult.Failure("route-proposal-stale");
+
+        if (!_proposalContexts.TryRead(protectedContext, out var finalBinding)
+            || !SameBinding(binding, finalBinding))
+            return ExternalRouteAcceptanceResult.Failure("route-proposal-invalid-or-expired");
 
         var aggregateConcurrencyToken = binding.AggregateConcurrencyToken;
         if (binding.ProviderKey == "geoapify" && binding.StorageMode == "persistent")
