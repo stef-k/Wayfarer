@@ -1,5 +1,5 @@
 using System.Net;
-using Wayfarer.Models;
+using Wayfarer.Models.LocationProviders;
 using Wayfarer.Services.ExternalRouting;
 using Xunit;
 
@@ -23,10 +23,11 @@ public sealed class GeoapifyRoutingAdapterTests
     [Fact]
     public async Task MoreThanTwentyFiveGeoapifyAnchorsFailBeforeExecutionOrAdmission()
     {
-        var client = new ProviderRouteClient(null!, null!, null!, null!);
+        var client = new ProviderRouteClient(null!, null!, null!);
         var execution = new ResolvedRoutingProviderExecution(
-            new RoutingProviderConfiguration { AdapterType = RoutingAdapterType.Geoapify }, "drive", "secret",
-            RoutingProviderSelectionMode.Personal, 1, 1, 1, 1, 1, "Geoapify", null, null, "owner");
+            "geoapify", Guid.NewGuid(), "drive", "secret", "owner", 1, 1, 1, true,
+            PersonalProviderVerification.Verified, 1, 1, 1, "Geoapify", "Coordinates are sent.",
+            "Powered by Geoapify", 30, 2_000_000, 60, 0, 2);
         var anchors = Enumerable.Range(0, 26).Select(index => new RouteCoordinate(index, 10)).ToArray();
 
         var result = await client.RouteAsync(execution, anchors,

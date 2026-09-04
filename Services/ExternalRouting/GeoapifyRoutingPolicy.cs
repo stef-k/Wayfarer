@@ -1,5 +1,3 @@
-using Wayfarer.Models;
-
 namespace Wayfarer.Services.ExternalRouting;
 
 /// <summary>Identifies the closed initial Geoapify routing-mode catalog.</summary>
@@ -49,7 +47,7 @@ public static class RoutingProviderAnchorPolicy
 {
     /// <summary>Returns a bounded provider input error without admitting generation or provider budgets.</summary>
     public static string? Validate(ResolvedRoutingProviderExecution execution, IReadOnlyList<RouteCoordinate> anchors) =>
-        execution.Provider.AdapterType == RoutingAdapterType.Geoapify && anchors.Count > 25
+        execution.ProviderKey == "geoapify" && anchors.Count > 25
             ? "routing-cost-invalid" : null;
 }
 
@@ -58,42 +56,7 @@ public static class MobileRoutingExecutionEligibility
 {
     /// <summary>Returns whether execution is the authenticated user's supported personal Geoapify authority.</summary>
     public static bool IsSupported(ResolvedRoutingProviderExecution execution, string userId) =>
-        execution.Provider.AdapterType == RoutingAdapterType.Geoapify
-        && execution.SelectionMode == RoutingProviderSelectionMode.Personal
+        execution.ProviderKey == "geoapify"
         && execution.PersonalProviderUserId == userId
-        && !string.IsNullOrWhiteSpace(execution.Provider.BaseEndpoint)
         && GeoapifyRouteCost.TryParse(execution.Profile, out _);
-}
-
-/// <summary>Identifies bounded mapping resolution without inferring from display text.</summary>
-public enum ProviderTransportProfileCategory { Supported, Unmapped, Unsupported }
-
-/// <summary>Contains safe stable mapping authority for provider work.</summary>
-public sealed record ProviderTransportProfileResolution(
-    ProviderTransportProfileCategory Category, string? NativeMode, string? Authority);
-
-/// <summary>Resolves only explicit provider-configuration plus stable-profile mappings.</summary>
-public static class ProviderTransportProfileResolver
-{
-    /// <summary>Resolves one exact mapping and validates it against the selected adapter catalog.</summary>
-    public static ProviderTransportProfileResolution Resolve(
-        RoutingProviderConfiguration configuration, TransportProfile profile)
-    {
-        var mapping = configuration.ProfileMappings.SingleOrDefault(item => item.TransportProfileId == profile.Id);
-        if (mapping == null)
-            return new(ProviderTransportProfileCategory.Unmapped, null, null);
-        var nativeMode = mapping.ProviderNativeMode;
-        var supported = configuration.AdapterType switch
-        {
-            RoutingAdapterType.Geoapify => GeoapifyRouteCost.TryParse(nativeMode, out _),
-            RoutingAdapterType.MapboxDirections => nativeMode is "mapbox/driving" or "mapbox/driving-traffic"
-                or "mapbox/walking" or "mapbox/cycling",
-            RoutingAdapterType.OsrmCompatible => !string.IsNullOrWhiteSpace(nativeMode),
-            _ => false
-        };
-        if (!supported)
-            return new(ProviderTransportProfileCategory.Unsupported, null, null);
-        var authority = $"{configuration.Id:N}:{configuration.ConfigurationVersion}:{profile.Id:N}:{nativeMode}";
-        return new(ProviderTransportProfileCategory.Supported, nativeMode, authority);
-    }
 }

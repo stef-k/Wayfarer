@@ -58,8 +58,7 @@ public sealed class ProviderAuthorityStepOneTests : TestBase
     [Fact]
     public async Task WebProposalRequest_RequiresExplicitModeBeforeGeneration()
     {
-        var controller = new ExternalRouteProposalsController(
-            new ExternalRouteProposalGenerator(() => new ApplicationSettings { ExternalRouteGenerationEnabled = true }))
+        var controller = new ExternalRouteProposalsController(null!)
         {
             ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext
             {

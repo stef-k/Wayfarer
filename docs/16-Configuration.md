@@ -81,10 +81,10 @@ Uploads
 - Upload staging directory defaults under `Uploads/Temp/` (path visible in Admin Settings). Ensure writable by the app.
 
 Reverse Geocoding (Per‑User)
-- `DataProtection:KeyRingPath` is the persistent key authority for Identity and protected administrator/personal provider credentials. The supported systemd deployment explicitly retains its existing `/home/wayfarer/.aspnet/DataProtection-Keys` authority; backup requirements are in [Personal Location Providers](24-Personal-Location-Providers.md).
+- `DataProtection:KeyRingPath` is the persistent key authority for Identity and protected personal-provider credentials. The supported systemd deployment explicitly retains its existing `/home/wayfarer/.aspnet/DataProtection-Keys` authority; backup requirements are in [Personal Location Providers](24-Personal-Location-Providers.md).
 - `LocationProviders:Geoapify:RollingCreditLimit` defaults to 2,500 credits. `LocationProviders:Mapbox:PermanentGeocodingLimit` and `LocationProviders:Mapbox:DirectionsLimit` configure separate Wayfarer safety counters. Mapbox retained geocoding also requires explicit versioned Permanent consent, verification, and selection; disabling a guard may incur charges.
 
-Geoapify uses one rolling pool across persistent reverse geocoding and routing. The 2,500 default retains headroom below the 3,000-credit Free-plan context retrieved 2026-08-23; Wayfarer cannot observe external account use or infer a provider reset timezone. Administrators configure the fixed Geoapify adapter and closed stable-ID transport mappings, never a user key.
+Geoapify uses one rolling pool across persistent reverse geocoding and routing. The 2,500 default retains headroom below the 3,000-credit Free-plan context retrieved 2026-08-23; Wayfarer cannot observe external account use or infer a provider reset timezone. The adapter, supported modes, and safety bounds are application policy; users supply and explicitly authorize their own protected credentials.
 
 Resumable enrichment has a fixed 100-contact execution bound. Geoapify wakes at the oldest admission inside the strict PostgreSQL-time 24-hour window plus five seconds; Mapbox Permanent wakes at the next Wayfarer UTC month boundary plus five seconds. Retry backoff and budget wakes remain distinct. There is no separate queue, scheduler, polling interval, or provider reset-timezone setting.
 

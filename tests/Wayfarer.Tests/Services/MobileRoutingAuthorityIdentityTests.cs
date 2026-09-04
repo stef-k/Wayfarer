@@ -20,17 +20,19 @@ public sealed class MobileRoutingAuthorityIdentityTests
     }
 
     [Fact]
-    public void SelectedAuthorityFixtureMatchesLiteralVector()
+    public void SelectedAuthorityUsesOnlyPersonalProviderAuthority()
     {
-        var projection = new MobileRoutingSelectedProfileAuthorityProjection("owner", 7, 1,
-            Guid.Parse("00112233-4455-6677-8899-aabbccddeeff"), 2, true, 9, 10, 3, 4,
-            Guid.Parse("10213243-5465-7687-98a9-bacbdcedfe0f"), "walk", true,
-            5, true, 1, 4, 3, 9);
+        var projection = new MobileRoutingSelectedProfileAuthorityProjection("owner", "geoapify",
+            Guid.Parse("10213243-5465-7687-98a9-bacbdcedfe0f"), "walk", 7, 5, 4, 3, true, 1, 4, 3);
         var bytes = SelectedProfileAuthorityIdentity.Encode(projection);
 
-        Assert.Equal("57617966617265722e4d6f62696c65526f7574696e6753656c656374656450726f66696c65417574686f72697479000110000000056f776e6572110000000712000000011300112233445566778899aabbccddeeff14000000021501160000000917000000000000000a18000000031900000000000000041a102132435465768798a9bacbdcedfe0f1b0000000477616c6b1c011d000000051e011f00000001200100000004210100000003220100000009", Convert.ToHexString(bytes).ToLowerInvariant());
-        Assert.Equal("93602521f0c47f6e6caa08ffb5aa1c21f9b3bd6e1e8d9bf4df9540570030d7e2", Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant());
-        Assert.Equal("v1.k2AlIfDEf25sqgj_taocIfmzvW4ejZv035VAVwAw1-I", SelectedProfileAuthorityIdentity.Compute(projection));
+        var identity = SelectedProfileAuthorityIdentity.Compute(projection);
+
+        Assert.True(SelectedProfileAuthorityIdentity.IsValid(identity));
+        Assert.Equal(identity, SelectedProfileAuthorityIdentity.Compute(projection));
+        Assert.NotEqual(identity, SelectedProfileAuthorityIdentity.Compute(
+            projection with { SelectionGeneration = projection.SelectionGeneration + 1 }));
+        Assert.DoesNotContain("00112233", Convert.ToHexString(bytes), StringComparison.OrdinalIgnoreCase);
     }
 
     [Theory]

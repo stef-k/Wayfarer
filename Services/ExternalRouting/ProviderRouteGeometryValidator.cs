@@ -10,7 +10,7 @@ public sealed class ProviderRouteGeometryValidator : IProviderRouteGeometryValid
 
     /// <inheritdoc />
     public ProviderRouteValidationResult Validate(
-        IReadOnlyList<RouteCoordinate> anchors, OsrmRouteResult providerRoute, CancellationToken cancellationToken)
+        IReadOnlyList<RouteCoordinate> anchors, ProviderRouteResult providerRoute, CancellationToken cancellationToken)
     {
         if (!providerRoute.Succeeded || anchors.Count is < 2 or > 50
             || providerRoute.Waypoints.Count != anchors.Count || providerRoute.Geometry.Count is < 2 or > 100000
@@ -44,7 +44,7 @@ public sealed class ProviderRouteGeometryValidator : IProviderRouteGeometryValid
     }
 
     private static ProviderRouteValidationResult ValidateStructuralAnchors(
-        IReadOnlyList<RouteCoordinate> anchors, OsrmRouteResult providerRoute, List<RouteCoordinate> geometry,
+        IReadOnlyList<RouteCoordinate> anchors, ProviderRouteResult providerRoute, List<RouteCoordinate> geometry,
         IReadOnlyList<int> indices, CancellationToken cancellationToken)
     {
         if (indices.Count != anchors.Count || indices.Count < 2 || indices[0] != 0

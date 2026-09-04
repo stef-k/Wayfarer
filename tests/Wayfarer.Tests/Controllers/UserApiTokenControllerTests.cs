@@ -72,41 +72,6 @@ public class UserApiTokenControllerTests : TestBase
     }
 
     [Fact]
-    public async Task StoreThirdPartyToken_RejectsDuplicateName()
-    {
-        var db = CreateDbContext();
-        var user = TestDataFixtures.CreateUser(id: "u1", username: "alice");
-        db.Users.Add(user);
-        db.ApiTokens.Add(new ApiToken { UserId = user.Id, User = user, Name = "mapbox", Token = "t1", CreatedAt = DateTime.UtcNow });
-        await db.SaveChangesAsync();
-        var controller = BuildController(db, user);
-
-        var result = await controller.StoreThirdPartyToken("Mapbox", "new-token");
-
-        var redirect = Assert.IsType<RedirectToActionResult>(result);
-        Assert.Equal("Index", redirect.ActionName);
-        Assert.Equal("LocationProviderSettings", redirect.ControllerName);
-        Assert.Equal(1, db.ApiTokens.IgnoreQueryFilters().Count(t => t.UserId == user.Id));
-    }
-
-    [Fact]
-    public async Task StoreThirdPartyToken_RoutesMapboxToProtectedProviderSettings()
-    {
-        var db = CreateDbContext();
-        var user = TestDataFixtures.CreateUser(id: "u1", username: "alice");
-        db.Users.Add(user);
-        await db.SaveChangesAsync();
-        var controller = BuildController(db, user);
-
-        var result = await controller.StoreThirdPartyToken("Mapbox", "third");
-
-        var redirect = Assert.IsType<RedirectToActionResult>(result);
-        Assert.Equal("Index", redirect.ActionName);
-        Assert.Equal("LocationProviderSettings", redirect.ControllerName);
-        Assert.Empty(db.ApiTokens.IgnoreQueryFilters().Where(t => t.UserId == user.Id));
-    }
-
-    [Fact]
     public async Task Regenerate_ReturnsJsonWithToken()
     {
         var db = CreateDbContext();

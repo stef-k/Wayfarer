@@ -24,10 +24,10 @@ public static class GeoapifyRoutingAdapter
     }
 
     /// <summary>Parses exactly one complete route and validates every input anchor.</summary>
-    public static async Task<OsrmRouteResult> ParseAsync(HttpResponseMessage response,
+    public static async Task<ProviderRouteResult> ParseAsync(HttpResponseMessage response,
         IReadOnlyList<RouteCoordinate> anchors, CancellationToken cancellationToken = default)
     {
-        if (!response.IsSuccessStatusCode) return OsrmRouteResult.Invalid("provider-http-failure");
+        if (!response.IsSuccessStatusCode) return ProviderRouteResult.Invalid("provider-http-failure");
         try
         {
             await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
@@ -198,5 +198,5 @@ public static class GeoapifyRoutingAdapter
     private readonly record struct ParsedStep(int FromIndex, int ToIndex, double DistanceMetres,
         double DurationSeconds, RouteInstruction? Instruction);
 
-    private static OsrmRouteResult Invalid() => OsrmRouteResult.Invalid("provider-response-invalid");
+    private static ProviderRouteResult Invalid() => ProviderRouteResult.Invalid("provider-response-invalid");
 }

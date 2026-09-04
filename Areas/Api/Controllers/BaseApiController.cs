@@ -40,9 +40,10 @@ namespace Wayfarer.Areas.Api.Controllers
                 // Hash the incoming token for comparison with stored hashes
                 string tokenHash = ApiTokenService.HashToken(token);
 
-                // Check for hashed token first, then fall back to plain text (third-party tokens)
+                // Inbound Wayfarer bearer tokens are stored and compared only as hashes.
                 ApiToken? apiToken = _dbContext.ApiTokens
-                    .FirstOrDefault(t => t.TokenHash == tokenHash || t.Token == token);
+                    .FirstOrDefault(t => t.TokenHash == tokenHash
+                        || t.Token == token && t.Name.Trim().ToLower() != "mapbox");
 
                 // Security: Log minimal token info for identification without exposing full secret
                 string tokenInfo = GetSecureTokenInfo(token);

@@ -15,7 +15,7 @@ public sealed class ExternalRoutingCapabilityProjectorTests : TestBase
     [Fact]
     public async Task DisabledLegacyFeatureDoesNotVetoPersonalProviderModes()
     {
-        var fixture = CreateFixture(enabled: false);
+        var fixture = CreateFixture();
 
         var capability = (await CreateProjector(fixture)
             .ProjectAsync(fixture.UserId, [fixture.Segment], CancellationToken.None))[fixture.Segment.Id];
@@ -28,7 +28,7 @@ public sealed class ExternalRoutingCapabilityProjectorTests : TestBase
     [Fact]
     public async Task SupportedSegmentProjectsOnlySafeUxFields()
     {
-        var fixture = CreateFixture(enabled: true);
+        var fixture = CreateFixture();
 
         var capability = (await CreateProjector(fixture)
             .ProjectAsync(fixture.UserId, [fixture.Segment], CancellationToken.None))[fixture.Segment.Id];
@@ -42,7 +42,7 @@ public sealed class ExternalRoutingCapabilityProjectorTests : TestBase
             capability.MappedProfileLabel, capability.Disclosure, capability.Attribution));
     }
 
-    private Fixture CreateFixture(bool enabled)
+    private Fixture CreateFixture()
     {
         var db = CreateDbContext();
         var profile = db.Set<TransportProfile>().First();
@@ -53,19 +53,8 @@ public sealed class ExternalRoutingCapabilityProjectorTests : TestBase
             Id = Guid.NewGuid(), FromPlace = from, FromPlaceId = from.Id, ToPlace = to, ToPlaceId = to.Id,
             TransportProfileId = profile.Id
         };
-        var provider = new RoutingProviderConfiguration
-        {
-            Id = Guid.NewGuid(), DisplayName = "OSRM instance", BaseEndpoint = "https://routing.example",
-            Enabled = true, ConfigurationVersion = 2, VerifiedConfigurationVersion = 2,
-            ExternalCoordinateDisclosure = "Coordinates leave Wayfarer.", Attribution = "Routing data attribution"
-        };
-        provider.ProfileMappings.Add(new RoutingProviderProfileMapping
-        {
-            RoutingProviderConfigurationId = provider.Id, TransportProfileId = profile.Id, OsrmProfile = "driving"
-        });
         db.Set<Place>().AddRange(from, to);
         db.Set<Segment>().Add(segment);
-        db.Set<RoutingProviderConfiguration>().Add(provider);
         var protection = new EphemeralDataProtectionProvider();
         var personalCredentials = new PersonalProviderCredentialService(protection);
         var personal = PersonalLocationProviderProfile.Create("owner", PersonalLocationProvider.Geoapify);
@@ -76,10 +65,6 @@ public sealed class ExternalRoutingCapabilityProjectorTests : TestBase
         personal.RoutingVerifiedConfigurationGeneration = personal.RoutingGeneration;
         db.AddRange(personal, new PersonalLocationProviderSelection
         { UserId = "owner", RoutingProviderKey = "geoapify" });
-        db.ApplicationSettings.Add(new ApplicationSettings
-        {
-            Id = 1, ExternalRouteGenerationEnabled = enabled, ActiveRoutingProviderConfigurationId = provider.Id
-        });
         db.SaveChanges();
         return new Fixture(db, segment, "owner", protection);
     }
@@ -87,7 +72,6 @@ public sealed class ExternalRoutingCapabilityProjectorTests : TestBase
     private static ExternalRoutingCapabilityProjector CreateProjector(Fixture fixture)
     {
         var resolver = new AuthoritativeRoutingProviderResolver(fixture.Db,
-            new RoutingProviderCredentialService(fixture.Protection), new UserRoutingCredentialService(fixture.Protection),
             new PersonalProviderCredentialService(fixture.Protection));
         return new ExternalRoutingCapabilityProjector(resolver);
     }

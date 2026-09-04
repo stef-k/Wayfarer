@@ -50,18 +50,6 @@ public static class DataProtectionAuthority
             if (!personal.Read(profile).Succeeded)
                 throw new InvalidOperationException("A protected personal provider credential is unreadable with the configured key authority.");
 
-        var adminOwner = scope.ServiceProvider.GetRequiredService<RoutingProviderCredentialService>();
-        foreach (var configuration in await db.Set<RoutingProviderConfiguration>().AsNoTracking()
-                     .Where(item => item.CredentialCiphertext != null).ToListAsync(cancellationToken))
-            if (!adminOwner.Read(configuration).Succeeded)
-                throw new InvalidOperationException("A protected administrator routing credential is unreadable with the configured key authority.");
-
-        var userOwner = scope.ServiceProvider.GetRequiredService<UserRoutingCredentialService>();
-        foreach (var configuration in await db.Set<UserRoutingConfiguration>().AsNoTracking()
-                     .Where(item => item.CredentialCiphertext != null && item.SelectedProviderConfigurationId != null).ToListAsync(cancellationToken))
-            if (!userOwner.Unprotect(configuration.UserId, configuration.SelectedProviderConfigurationId!.Value,
-                    configuration.CredentialCiphertext).Succeeded)
-                throw new InvalidOperationException("A protected personal routing credential is unreadable with the configured key authority.");
     }
 }
 

@@ -7,10 +7,9 @@ namespace Wayfarer.Services.ExternalRouting;
 /// <summary>Registers the bounded external-routing slice without growing application startup orchestration.</summary>
 public static class ExternalRoutingServiceCollectionExtensions
 {
-    /// <summary>Adds routing endpoint policy, OSRM, verification, proposal, and acceptance responsibilities.</summary>
+    /// <summary>Adds personal-provider routing, proposal, and acceptance responsibilities.</summary>
     public static IServiceCollection AddExternalRouting(this IServiceCollection services, IConfiguration configuration)
     {
-        services.Configure<RoutingOutboundOptions>(configuration.GetSection("ExternalRouting:Outbound"));
         services.AddSingleton<IRoutingDnsResolver, RoutingDnsResolver>();
         services.AddSingleton<RoutingEndpointPolicy>();
         services.AddSingleton<RoutingPinnedTransport>();
@@ -20,16 +19,8 @@ public static class ExternalRoutingServiceCollectionExtensions
         services.AddSingleton<RoutingProviderPacer>();
         services.AddScoped<RoutingAttemptCoordinator>();
         services.AddSingleton<IProviderRouteGeometryValidator, ProviderRouteGeometryValidator>();
-        services.AddScoped<RoutingProviderCredentialService>();
-        services.AddScoped<UserRoutingCredentialService>();
-        services.AddScoped<UserRoutingConfigurationService>();
         services.AddScoped<AuthoritativeRoutingProviderResolver>();
-        services.AddScoped<PersonalRoutingVerificationService>();
-        services.AddScoped<OsrmRouteClient>();
-        services.AddScoped<IOsrmRouteClient, ProviderRouteClient>();
-        services.AddScoped<IRoutingProviderVerifier, RoutingProviderVerifier>();
-        services.AddScoped<RoutingProviderActivationService>();
-        services.AddScoped<RoutingProviderAdministrationService>();
+        services.AddScoped<IProviderRouteClient, ProviderRouteClient>();
         services.AddScoped<ExternalRouteProposalContextService>();
         services.AddScoped<ExternalRouteProposalGenerator>();
         services.AddScoped<ExternalRouteProposalAcceptanceService>();

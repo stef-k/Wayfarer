@@ -39,17 +39,6 @@ public sealed class RoutingBoundedExecutorTests
     }
 
     [Fact]
-    public void DeploymentAllowlist_PermitsExactSelfHostedHttpHostAndCidr()
-    {
-        var policy = Policy(new RoutingSelfHostedAllowlistEntry("osrm.internal", "10.20.0.0/16", true));
-
-        var decision = policy.Validate(new Uri("http://osrm.internal"), [IPAddress.Parse("10.20.1.7")]);
-
-        Assert.True(decision.Allowed);
-        Assert.Equal(IPAddress.Parse("10.20.1.7"), decision.SelectedAddress);
-    }
-
-    [Fact]
     public async Task Executor_PinsValidatedAddressAndReturnsBoundedJson()
     {
         var address = IPAddress.Parse("8.8.8.8");
@@ -242,8 +231,7 @@ public sealed class RoutingBoundedExecutorTests
         Assert.DoesNotContain("secret", result.ToString(), StringComparison.OrdinalIgnoreCase);
     }
 
-    private static RoutingEndpointPolicy Policy(params RoutingSelfHostedAllowlistEntry[] entries) =>
-        new(Options.Create(new RoutingOutboundOptions { SelfHostedAllowlist = [.. entries] }));
+    private static RoutingEndpointPolicy Policy() => new();
 
     private static HttpResponseMessage Response(string body) => new(HttpStatusCode.OK)
     { Content = new StringContent(body, Encoding.UTF8, "application/json") };

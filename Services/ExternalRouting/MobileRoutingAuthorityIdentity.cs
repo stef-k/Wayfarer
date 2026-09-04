@@ -77,16 +77,13 @@ public static class SelectedProfileAuthorityIdentity
     internal static byte[] Encode(MobileRoutingSelectedProfileAuthorityProjection value)
     {
         var writer = new MobileRoutingCanonicalWriter(Domain);
-        writer.String(0x10, value.UserId); writer.Int32(0x11, value.FeatureGeneration);
-        writer.Int32(0x12, value.SelectionMode); writer.Guid(0x13, value.ProviderId);
-        writer.Int32(0x14, value.Adapter); writer.Bool(0x15, value.ProviderEnabled);
-        writer.Int32(0x16, value.ProviderConfigurationVersion); writer.Int64(0x17, value.ProviderRowVersion);
-        writer.Int32(0x18, value.UserConfigurationVersion); writer.Int64(0x19, value.UserRowVersion);
-        writer.Guid(0x1a, value.TransportProfileId); writer.String(0x1b, value.NativeMode);
-        writer.Bool(0x1c, value.CredentialReadable);
-        writer.Int32(0x1d, value.SelectionGeneration); writer.Bool(0x1e, value.RoutingAuthorized);
-        writer.Int32(0x1f, value.RoutingVerification); writer.NullableInt32(0x20, value.VerifiedCredentialGeneration);
-        writer.NullableInt32(0x21, value.VerifiedRoutingGeneration); writer.NullableInt32(0x22, value.ProviderVerifiedGeneration);
+        writer.String(0x10, value.UserId); writer.String(0x11, value.ProviderKey);
+        writer.Guid(0x12, value.TransportProfileId); writer.String(0x13, value.NativeMode);
+        writer.Int32(0x14, value.CatalogVersion); writer.Int32(0x15, value.SelectionGeneration);
+        writer.Int32(0x16, value.CredentialGeneration); writer.Int32(0x17, value.RoutingGeneration);
+        writer.Bool(0x18, value.RoutingAuthorized); writer.Int32(0x19, value.RoutingVerification);
+        writer.NullableInt32(0x1a, value.VerifiedCredentialGeneration);
+        writer.NullableInt32(0x1b, value.VerifiedRoutingGeneration);
         return writer.ToArray();
     }
 }
@@ -96,9 +93,7 @@ public sealed record MobileRoutingDiscoveryCatalogProjection(string Outcome, IRe
 {
     public IReadOnlyList<ProviderDirectionsMode> Modes => ProviderModes ?? [];
 }
-public sealed record MobileRoutingSelectedProfileAuthorityProjection(string UserId, int FeatureGeneration,
-    int SelectionMode, Guid ProviderId, int Adapter, bool ProviderEnabled, int ProviderConfigurationVersion,
-    uint ProviderRowVersion, int UserConfigurationVersion, uint UserRowVersion, Guid TransportProfileId,
-    string NativeMode, bool CredentialReadable, int SelectionGeneration, bool RoutingAuthorized,
-    int RoutingVerification, int? VerifiedCredentialGeneration, int? VerifiedRoutingGeneration,
-    int? ProviderVerifiedGeneration);
+public sealed record MobileRoutingSelectedProfileAuthorityProjection(
+    string UserId, string ProviderKey, Guid TransportProfileId, string NativeMode, int CatalogVersion,
+    int SelectionGeneration, int CredentialGeneration, int RoutingGeneration, bool RoutingAuthorized,
+    int RoutingVerification, int? VerifiedCredentialGeneration, int? VerifiedRoutingGeneration);

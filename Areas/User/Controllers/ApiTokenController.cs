@@ -80,49 +80,6 @@ namespace Wayfarer.Areas.User.Controllers
         }
         
         /// <summary>
-        /// Store a third-party token for the current user
-        /// </summary>
-        /// <param name="name">Name of third party service</param>
-        /// <param name="token">Token</param>
-        /// <returns></returns>
-        [HttpPost]
-        [ValidateAntiForgeryToken]
-        public async Task<IActionResult> StoreThirdPartyToken(string thirdPartyServiceName, string thirdPartyToken)
-        {
-            string? userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-
-            if (string.IsNullOrEmpty(userId))
-            {
-                SetAlert("User not authenticated.", "danger");
-                return RedirectToAction("Index", "Home", new { area = "" });
-            }
-            if (Wayfarer.Models.LocationProviders.PersonalProviderKeys.IsLegacyMapbox(thirdPartyServiceName))
-            {
-                SetAlert("Configure Mapbox under Personal location providers; provider credentials are protected there.", "warning");
-                return RedirectToAction("Index", "LocationProviderSettings");
-            }
-
-            // Check if token exists for current user before creating it
-            bool exists = await _dbContext.ApiTokens.AnyAsync(t =>
-                t.UserId == userId &&
-                (t.Name.Trim().ToLower() == thirdPartyServiceName.Trim().ToLower() ||
-                 t.Name.Trim().ToLower().Contains(thirdPartyServiceName.Trim().ToLower()))
-            );
-
-            if (exists)
-            {
-                SetAlert("This API Token name exists, please regenerate it or create an API Token with a different name!", "warning");
-                return RedirectToAction("Index");
-            }
-
-            // Store the new token
-            ApiToken newToken = await _apiTokenService.StoreThirdPartyToken(userId, thirdPartyServiceName.Trim(), thirdPartyToken.Trim());
-
-            SetAlert("API token created successfully!", "success");  // Example of using SetAlert from BaseController
-            return RedirectToAction("Index");
-        }
-
-        /// <summary>
         /// Regenerates the API token for the specified token name.
         /// Returns JSON for AJAX requests with the new token (shown once only).
         /// </summary>

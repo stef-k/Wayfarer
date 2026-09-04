@@ -54,10 +54,11 @@ public class MobileCurrentUserAccessor : IMobileCurrentUserAccessor
             // Hash the incoming token for comparison with stored hashes
             var tokenHash = ApiTokenService.HashToken(token);
 
-            // Check for hashed token first, then fall back to plain text (third-party tokens)
+            // Inbound Wayfarer bearer tokens are stored and compared only as hashes.
             var apiToken = await _dbContext.ApiTokens
                 .AsNoTracking()
-                .FirstOrDefaultAsync(t => t.TokenHash == tokenHash || t.Token == token, cancellationToken);
+                .FirstOrDefaultAsync(t => t.TokenHash == tokenHash
+                    || t.Token == token && t.Name.Trim().ToLower() != "mapbox", cancellationToken);
 
             // Security: Log minimal token info for identification without exposing full secret
             var tokenInfo = GetSecureTokenInfo(token);

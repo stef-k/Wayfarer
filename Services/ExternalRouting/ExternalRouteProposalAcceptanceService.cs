@@ -69,21 +69,16 @@ public sealed class ExternalRouteProposalAcceptanceService
         CancellationToken cancellationToken)
     {
         var relational = _dbContext.Database.IsRelational();
-        if (binding.ProviderKey != "geoapify"
-            && !await LegacyAuthorityCurrentAsync(userId, binding, relational, cancellationToken))
+        if (binding.ProviderKey != "geoapify")
             return ExternalRouteAcceptanceResult.Failure("route-proposal-stale");
-        var resolution = binding.ProviderKey == "geoapify"
-            ? await ResolveLockedGeoapifyAsync(userId, binding.MappingMode, cancellationToken)
-            : await _resolver.ResolveAsync(userId, binding.TransportProfileId, cancellationToken);
+        var resolution = await ResolveLockedGeoapifyAsync(userId, binding.MappingMode, cancellationToken);
         var execution = resolution.Execution;
-        if (execution == null || execution.SelectionMode != binding.ProviderSelectionMode
-            || execution.UserConfigurationVersion != binding.UserRoutingConfigurationVersion
-            || execution.Provider.Id != binding.ProviderId
-            || execution.ProviderConfigurationVersion != binding.ProviderConfigurationVersion
-            || execution.FeatureStateGeneration != binding.FeatureStateGeneration
-            || binding.ProviderKey == "geoapify"
-            && (execution.AuthoritySelectionGeneration != binding.AuthoritySelectionGeneration
-                || execution.UserRowVersion != binding.AuthorityCredentialGeneration))
+        if (execution == null || execution.ProviderKey != binding.ProviderKey
+            || execution.Profile != binding.MappingMode
+            || execution.AuthoritySelectionGeneration != binding.AuthoritySelectionGeneration
+            || execution.CredentialGeneration != binding.AuthorityCredentialGeneration
+            || execution.RoutingGeneration != binding.AuthorityRoutingGeneration
+            || execution.CatalogVersion != binding.CatalogVersion)
             return ExternalRouteAcceptanceResult.Failure("route-proposal-stale");
 
         var profile = await _dbContext.Set<TransportProfile>().AsNoTracking()
@@ -161,37 +156,6 @@ public sealed class ExternalRouteProposalAcceptanceService
             : await _dbContext.Set<PersonalLocationProviderProfile>().SingleOrDefaultAsync(
                 item => item.UserId == userId && item.ProviderKey == selection.RoutingProviderKey, cancellationToken);
         return _resolver.ResolveLockedNative(selection, profile, nativeMode);
-    }
-
-    private async Task<bool> LegacyAuthorityCurrentAsync(string userId, ExternalRouteProposalBinding binding,
-        bool relational, CancellationToken cancellationToken)
-    {
-        if (relational)
-            await _dbContext.Database.ExecuteSqlRawAsync(
-                "SELECT 1 FROM \"ApplicationSettings\" WHERE \"Id\" = 1 FOR UPDATE", cancellationToken);
-        var settings = await _dbContext.ApplicationSettings.AsNoTracking()
-            .SingleOrDefaultAsync(item => item.Id == 1, cancellationToken);
-        if (settings?.ExternalRouteGenerationEnabled != true
-            || settings.ExternalRouteGenerationVersion != binding.FeatureStateGeneration
-            || binding.ProviderSelectionMode == RoutingProviderSelectionMode.ServerDefault
-                && settings.ActiveRoutingProviderConfigurationId != binding.ProviderId) return false;
-        if (relational)
-        {
-            await _dbContext.Database.ExecuteSqlInterpolatedAsync(
-                $"SELECT 1 FROM \"RoutingProviderConfigurations\" WHERE \"Id\" = {binding.ProviderId} FOR UPDATE",
-                cancellationToken);
-            await _dbContext.Database.ExecuteSqlInterpolatedAsync(
-                $"SELECT 1 FROM \"UserRoutingConfigurations\" WHERE \"UserId\" = {userId} FOR UPDATE",
-                cancellationToken);
-        }
-        var provider = await _dbContext.Set<RoutingProviderConfiguration>().AsNoTracking()
-            .SingleOrDefaultAsync(item => item.Id == binding.ProviderId, cancellationToken);
-        if (provider is not { Enabled: true }
-            || provider.ConfigurationVersion != binding.ProviderConfigurationVersion
-            || provider.VerifiedConfigurationVersion != provider.ConfigurationVersion) return false;
-        return await _dbContext.Set<RoutingProviderProfileMapping>().AsNoTracking()
-            .AnyAsync(item => item.RoutingProviderConfigurationId == binding.ProviderId
-                && item.TransportProfileId == binding.TransportProfileId, cancellationToken);
     }
 
     private static bool GeometryShapeValid(IReadOnlyList<RouteCoordinate> geometry, IReadOnlyList<int> indices) =>

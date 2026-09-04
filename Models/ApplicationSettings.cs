@@ -29,21 +29,6 @@ public class ApplicationSettings
     [Key]
     public int Id { get; set; } = 1;
 
-    /// <summary>Gets or sets whether external route proposal generation is enabled globally.</summary>
-    public bool ExternalRouteGenerationEnabled { get; set; }
-
-    /// <summary>Gets or sets the monotonic feature-state generation bound into pending proposals.</summary>
-    public int ExternalRouteGenerationVersion { get; set; } = 1;
-
-    /// <summary>Gets or sets the single globally selected routing provider configuration.</summary>
-    public Guid? ActiveRoutingProviderConfigurationId { get; set; }
-
-    /// <summary>Gets or sets the selected routing provider navigation.</summary>
-    public RoutingProviderConfiguration? ActiveRoutingProviderConfiguration { get; set; }
-
-    /// <summary>Gets the PostgreSQL optimistic concurrency token for atomic global changes.</summary>
-    public uint RowVersion { get; private set; }
-
     [Required]
     [Range(1, 1440, ErrorMessage = "Time threshold must be between 1 and 1440 minutes (24 hours).")]
     public int LocationTimeThresholdMinutes { get; set; } = 5;
