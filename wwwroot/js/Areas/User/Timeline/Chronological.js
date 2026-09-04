@@ -534,7 +534,7 @@ const showDetailedStats = async (statType) => {
         const result = await response.json();
 
         if (!result.success) {
-            throw new Error(result.message || 'Failed to fetch detailed stats');
+            throw new Error('Detailed statistics request failed');
         }
 
         const detailedStats = result.stats;
@@ -564,8 +564,7 @@ const showDetailedStats = async (statType) => {
             });
         });
 
-    } catch (error) {
-        console.error('Error fetching detailed stats:', error);
+    } catch {
         wayfarer.showAlert('danger', 'Failed to load detailed statistics. Please try again.');
     }
 };

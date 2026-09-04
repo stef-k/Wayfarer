@@ -13,5 +13,7 @@ test('both Timeline views use the Wayfarer alert for detailed-statistics failure
     assert.match(source,
       /wayfarer\.showAlert\('danger', 'Failed to load detailed statistics\. Please try again\.'\)/);
     assert.doesNotMatch(source, /alert\('Failed to load detailed statistics/);
+    assert.doesNotMatch(source, /Error fetching detailed stats/);
+    assert.doesNotMatch(source, /Error \$\{response\.status\}: \$\{await response\.text\(\)\}/);
   }
 });
