@@ -16,8 +16,19 @@ public sealed class DeploymentScriptTests
             @"(?m)^[^#\r\n]*\bdotnet\s+ef\s+database\s+update\b[^\r\n]*$");
 
         Assert.NotEmpty(migrationCommands);
-        Assert.All(migrationCommands, command => Assert.Contains(
-            "--context Wayfarer.Models.ApplicationDbContext", command.Value, StringComparison.Ordinal));
+        Assert.All(migrationCommands, command =>
+        {
+            var arguments = Regex.Matches(command.Value, @"\S+")
+                .Select(match => match.Value)
+                .ToArray();
+            var contextIndex = Assert.Single(arguments
+                .Select((argument, index) => (argument, index))
+                .Where(item => item.argument == "--context")
+                .Select(item => item.index));
+
+            Assert.True(contextIndex + 1 < arguments.Length, "The --context argument must have a value.");
+            Assert.Equal("Wayfarer.Models.ApplicationDbContext", arguments[contextIndex + 1]);
+        });
     }
 
     private static string RepositoryFile(params string[] parts) => Path.GetFullPath(
