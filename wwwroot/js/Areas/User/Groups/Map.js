@@ -1,5 +1,6 @@
 import { addZoomLevelControl } from '../../../map-utils.js';
 import { createTileLayer } from '../../../retryTileLayer.js';
+import { featurePrecisionNotice } from '../../../util/feature-metadata.js';
 import {
   formatViewerAndSourceTimes,
   currentDateInputValue,
@@ -674,7 +675,7 @@ import {
       + `<div class=\"col-6\"><strong>Recorded local time:</strong>${timestamps.recorded}</div>`
       + `</div>`
       + `<div class=\"row mb-2\">`
-      + `${location.resolvedFeatureName ? `<div class=\"col-12\"><strong>Detected place:</strong> ${escapeHtml(location.resolvedFeatureName)}</div>` : ''}${location.resolvedFeatureType ? `<div class=\"col-12\"><strong>Feature type:</strong> ${escapeHtml(location.resolvedFeatureType.charAt(0).toUpperCase() + location.resolvedFeatureType.slice(1))}</div>` : ''}<div class=\"col-12\"><strong>Address:</strong> <span>${location.fullAddress || location.address || location.place || '<i class=\"bi bi-patch-question\" title=\"No available data for Address\"></i>'}</span>${googleMapsLink(location)}</div>`
+      + `${location.resolvedFeatureName ? `<div class=\"col-12\"><strong>Detected place:</strong> ${escapeHtml(location.resolvedFeatureName)}</div>` : ''}${featurePrecisionNotice(location.resolvedFeatureType) ? `<div class=\"col-12\" role=\"note\">${featurePrecisionNotice(location.resolvedFeatureType)}</div>` : ''}<div class=\"col-12\"><strong>Address:</strong> <span>${location.fullAddress || location.address || location.place || '<i class=\"bi bi-patch-question\" title=\"No available data for Address\"></i>'}</span>${googleMapsLink(location)}</div>`
       + `</div>`
       + `<div class=\"row mb-2\">`
       + `<div class=\"col-6\"><strong>Latitude:</strong> <span class=\"fw-bold text-primary\">${location.coordinates.latitude}</span></div>`
