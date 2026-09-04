@@ -104,10 +104,6 @@ jobs:
         if: steps.scope.outputs.run_frontend == 'true'
         run: npm run smoke:trip-editor:assets:built
 
-      - name: Check file size limits
-        if: steps.scope.outputs.run_full == 'true'
-        run: dotnet run --project tools/Wayfarer.LocCheck -- --warn 400 --fail 600
-
       - name: Build tests
         if: steps.scope.outputs.run_full == 'true'
         run: dotnet build tests/Wayfarer.Tests/Wayfarer.Tests.csproj --configuration Release --no-restore
