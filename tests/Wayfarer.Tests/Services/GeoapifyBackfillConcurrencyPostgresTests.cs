@@ -143,30 +143,7 @@ public sealed partial class GeoapifyBackfillConcurrencyPostgresTests(PostgresImp
     {
         var user = await fixture.CreateUserAsync();
         var protection = new EphemeralDataProtectionProvider();
-        await SeedAsync(user.Id, null, protection);
-        await using (var setup = fixture.CreateContext())
-        {
-            var profile = await setup.PersonalLocationProviderProfiles.SingleAsync(
-                item => item.UserId == user.Id && item.ProviderKey == "geoapify");
-            var selection = await setup.PersonalLocationProviderSelections.SingleAsync(item => item.UserId == user.Id);
-            var location = await setup.Locations.SingleAsync(item => item.UserId == user.Id);
-            location.Address = "Keep this address";
-            location.Country = "Greece";
-            location.ReverseGeocodingProvider = "geoapify";
-            location.ReverseGeocodingStorageMode = "persistent";
-            location.ReverseGeocodedAt = DateTimeOffset.UtcNow.AddDays(-1);
-            var binding = new PersonalProviderAuthorityBinding("geoapify", profile.Id,
-                profile.CredentialGeneration, profile.GeocodingGeneration,
-                selection.GeocodingSelectionGeneration, profile.GeocodingVerification,
-                profile.GeocodingVerifiedCredentialGeneration,
-                profile.GeocodingVerifiedConfigurationGeneration, null, null, null);
-            var workflow = LocationEnrichmentWorkflow.Create(user.Id, DateTime.UtcNow);
-            workflow.Start(DateTime.UtcNow);
-            var attempt = new LocationEnrichmentAttempt { UserId = user.Id, Location = location };
-            attempt.PrepareRepair(binding, DateTime.UtcNow);
-            setup.AddRange(workflow, attempt);
-            await setup.SaveChangesAsync();
-        }
+        await SeedIncompleteRepairAsync(user.Id, protection);
         var handler = new CoordinatedHandler(user.Id, null);
         var run = Service(protection, handler).RunAsync(user.Id);
         await handler.FirstUserRequestEntered.WaitAsync(TimeSpan.FromSeconds(10));
@@ -181,6 +158,31 @@ public sealed partial class GeoapifyBackfillConcurrencyPostgresTests(PostgresImp
         Assert.Equal("Alexandroupolis", saved.Place);
         Assert.Equal("Greece", saved.Country);
         Assert.Empty(await verify.LocationEnrichmentAttempts.Where(item => item.UserId == user.Id).ToListAsync());
+    }
+
+    [PostgresFact(Timeout = 30_000)]
+    public async Task LocalityFreeRepairIsTerminalAndDoesNotContactAgain()
+    {
+        var user = await fixture.CreateUserAsync();
+        var protection = new EphemeralDataProtectionProvider();
+        await SeedIncompleteRepairAsync(user.Id, protection);
+        var firstHandler = new CoordinatedHandler(user.Id, null, includeLocality: false);
+        var firstRun = Service(protection, firstHandler).RunAsync(user.Id);
+        await firstHandler.FirstUserRequestEntered.WaitAsync(TimeSpan.FromSeconds(10));
+        firstHandler.Release();
+
+        var first = await firstRun.WaitAsync(TimeSpan.FromSeconds(10));
+        var secondHandler = new CoordinatedHandler(user.Id, null, includeLocality: false);
+        var second = await Service(protection, secondHandler).RunAsync(user.Id)
+            .WaitAsync(TimeSpan.FromSeconds(10));
+
+        await using var verify = fixture.CreateContext();
+        var attempt = await verify.LocationEnrichmentAttempts.SingleAsync(item => item.UserId == user.Id);
+        Assert.Equal(1, first.NoResult);
+        Assert.Equal(0, first.Skipped);
+        Assert.Equal(LocationEnrichmentOutcome.NoResult, attempt.Outcome);
+        Assert.Equal(0, secondHandler.RequestsFor(user.Id));
+        Assert.Equal(0, second.Admitted);
     }
 
     [PostgresTheory(Timeout = 30_000)]

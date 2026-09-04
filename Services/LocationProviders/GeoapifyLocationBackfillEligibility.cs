@@ -106,6 +106,7 @@ public sealed partial class GeoapifyLocationBackfillService
         && value.ReverseGeocodingProvider == "geoapify"
         && value.ReverseGeocodingStorageMode == "persistent" && value.ReverseGeocodedAt.HasValue
         && (!string.IsNullOrWhiteSpace(value.Address) || !string.IsNullOrWhiteSpace(value.FullAddress)
+            || !string.IsNullOrWhiteSpace(value.AddressNumber)
             || !string.IsNullOrWhiteSpace(value.StreetName) || !string.IsNullOrWhiteSpace(value.PostCode)
             || !string.IsNullOrWhiteSpace(value.Region) || !string.IsNullOrWhiteSpace(value.Country));
 
@@ -122,6 +123,7 @@ public sealed partial class GeoapifyLocationBackfillService
         && value.ReverseGeocodingStorageMode == "persistent" && value.ReverseGeocodedAt != null
         && ((value.Address != null && value.Address.Trim() != "")
             || (value.FullAddress != null && value.FullAddress.Trim() != "")
+            || (value.AddressNumber != null && value.AddressNumber.Trim() != "")
             || (value.StreetName != null && value.StreetName.Trim() != "")
             || (value.PostCode != null && value.PostCode.Trim() != "")
             || (value.Region != null && value.Region.Trim() != "")

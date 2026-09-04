@@ -21,7 +21,7 @@ public sealed class LocationEnrichmentProgressQueryPostgresTests(PostgresImportT
         await using var db = fixture.CreateContext();
         var now = DateTimeOffset.UtcNow;
         db.Locations.AddRange(
-            Partial(user.Id, "geoapify", "persistent", now),
+            Partial(user.Id, "geoapify", "persistent", now, addressNumberOnly: true),
             Partial(user.Id, null, null, null),
             Partial(user.Id, "mapbox", "permanent", now),
             Partial(user.Id, "geoapify", "persistent", now, place: "Alexandroupolis"));
@@ -76,11 +76,12 @@ public sealed class LocationEnrichmentProgressQueryPostgresTests(PostgresImportT
         1, 1, 1, PersonalProviderVerification.Verified, 1, 1, null, null, null);
 
     private static Location Partial(string userId, string? provider, string? storage,
-        DateTimeOffset? resolvedAt, string? place = null) => new()
+        DateTimeOffset? resolvedAt, string? place = null, bool addressNumberOnly = false) => new()
     {
         UserId = userId, Timestamp = DateTime.UtcNow, LocalTimestamp = DateTime.UtcNow,
-        TimeZoneId = "UTC", Coordinates = new Point(25, 40) { SRID = 4326 }, Address = "Known address",
-        Country = "Greece", Place = place, ReverseGeocodingProvider = provider,
+        TimeZoneId = "UTC", Coordinates = new Point(25, 40) { SRID = 4326 },
+        Address = addressNumberOnly ? null : "Known address", AddressNumber = addressNumberOnly ? "12" : null,
+        Country = addressNumberOnly ? null : "Greece", Place = place, ReverseGeocodingProvider = provider,
         ReverseGeocodingStorageMode = storage, ReverseGeocodedAt = resolvedAt
     };
 

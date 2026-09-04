@@ -36,7 +36,7 @@ public sealed class LocationEnrichmentBoundedInspectionContractTests
 
         Assert.Contains("ILocationEnrichmentProgressQuery", handoff);
         Assert.DoesNotContain("private Task<bool> HasCandidateAsync", handoff);
-        Assert.Contains("Take(RepairCommandLimit).ToListAsync", handoff);
+        Assert.Contains("LIMIT {{RepairCommandLimit}} FOR UPDATE", handoff);
     }
 
     private static int Count(string value, string fragment) =>

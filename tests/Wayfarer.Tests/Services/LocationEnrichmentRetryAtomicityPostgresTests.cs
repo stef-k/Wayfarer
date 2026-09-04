@@ -118,6 +118,44 @@ public sealed partial class LocationEnrichmentRetryAtomicityPostgresTests(Postgr
         Assert.Equal(inspection.Binding.SelectionGeneration, repaired.SelectionGeneration);
     }
 
+    [PostgresFact(Timeout = 20_000)]
+    public async Task ManualPlaceEditCommittingBeforeRepairLockIsNotReportedOrScheduled()
+    {
+        var scenario = await SeedAsync(LocationEnrichmentState.Completed, LocationEnrichmentOutcome.NoResult);
+        int locationId;
+        await using (var setup = fixture.CreateContext())
+        {
+            var attemptedIds = setup.LocationEnrichmentAttempts.Where(item => item.UserId == scenario.UserId)
+                .Select(item => item.LocationId);
+            var location = await setup.Locations.SingleAsync(item => item.UserId == scenario.UserId
+                && !attemptedIds.Contains(item.Id));
+            locationId = location.Id;
+            location.AddressNumber = "12";
+            location.ReverseGeocodingProvider = "geoapify";
+            location.ReverseGeocodingStorageMode = "persistent";
+            location.ReverseGeocodedAt = DateTimeOffset.UtcNow;
+            await setup.SaveChangesAsync();
+        }
+        await using var edit = fixture.CreateContext();
+        await using var editTransaction = await edit.Database.BeginTransactionAsync();
+        var edited = await edit.Locations.SingleAsync(item => item.Id == locationId);
+        edited.Place = "Manual city";
+        await edit.SaveChangesAsync();
+        var gate = new RepairLocationLockGate();
+        await using var repairDb = fixture.CreateContext(gate);
+        var repair = Command(scenario, repairDb).RepairIncompleteAsync(scenario.UserId);
+        await gate.Attempted.WaitAsync(TimeSpan.FromSeconds(10));
+
+        await editTransaction.CommitAsync();
+        var result = await repair.WaitAsync(TimeSpan.FromSeconds(10));
+
+        await using var verify = fixture.CreateContext();
+        Assert.Equal("nothing-to-repair", result.Code);
+        Assert.Equal("Manual city", (await verify.Locations.SingleAsync(item => item.Id == locationId)).Place);
+        Assert.DoesNotContain(await verify.LocationEnrichmentAttempts.Where(item => item.UserId == scenario.UserId)
+            .ToListAsync(), item => item.LocationId == locationId);
+    }
+
     [PostgresFact]
     public async Task TwoConcurrentRetriesResetAndAdvanceExactlyOnce()
     {
@@ -496,5 +534,22 @@ public sealed partial class LocationEnrichmentRetryAtomicityPostgresTests(Postgr
         private static bool IsWorkflowLock(DbCommand command) =>
             command.CommandText.Contains("LocationEnrichmentWorkflows", StringComparison.Ordinal)
             && command.CommandText.Contains("FOR UPDATE", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>Observes the production incomplete-Location row-lock attempt without delaying it.</summary>
+    private sealed class RepairLocationLockGate : DbCommandInterceptor
+    {
+        private readonly TaskCompletionSource attempted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public Task Attempted => attempted.Task;
+
+        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(DbCommand command,
+            CommandEventData eventData, InterceptionResult<DbDataReader> result,
+            CancellationToken cancellationToken = default)
+        {
+            if (command.CommandText.Contains("FROM \"Locations\"", StringComparison.Ordinal)
+                && command.CommandText.Contains("FOR UPDATE", StringComparison.OrdinalIgnoreCase))
+                attempted.TrySetResult();
+            return ValueTask.FromResult(result);
+        }
     }
 }

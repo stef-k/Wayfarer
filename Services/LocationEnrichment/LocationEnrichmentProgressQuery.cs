@@ -110,7 +110,8 @@ public sealed class LocationEnrichmentProgressQuery(ApplicationDbContext db) : I
             && value.ReverseGeocodingStorageMode == "persistent"
             && value.ReverseGeocodedAt != null
             && ((value.Address != null && value.Address.Trim() != "")
-                || (value.FullAddress != null && value.FullAddress.Trim() != "")
+            || (value.FullAddress != null && value.FullAddress.Trim() != "")
+            || (value.AddressNumber != null && value.AddressNumber.Trim() != "")
                 || (value.StreetName != null && value.StreetName.Trim() != "")
                 || (value.PostCode != null && value.PostCode.Trim() != "")
                 || (value.Region != null && value.Region.Trim() != "")

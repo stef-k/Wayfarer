@@ -100,6 +100,7 @@ public sealed partial class GeoapifyLocationBackfillService(
                 boundary.Latitude, boundary.Longitude, admission.Authority!, result, CancellationToken.None);
             if (!applied.AuthorityCurrent) break;
             if (applied.Enriched) succeeded++;
+            else if (applied.NoResult) noResult++;
             else if (result.Succeeded) skipped++;
             else if (result.Category is ReverseGeocodingCategory.InvalidRequest or ReverseGeocodingCategory.InvalidResponse)
                 noResult++;
@@ -275,7 +276,7 @@ public sealed partial class GeoapifyLocationBackfillService(
         return new(null, null, latitude, longitude, true);
     }
 
-    private async Task<(bool AuthorityCurrent, bool Enriched)> TryCompleteAttemptAsync(
+    private async Task<(bool AuthorityCurrent, bool Enriched, bool NoResult)> TryCompleteAttemptAsync(
         LocationEnrichmentExecutionLease owner, int locationId, Guid operationId,
         double latitude, double longitude,
         PersonalProviderAuthoritySnapshot contacted, ReverseGeocodingResult result,
@@ -324,7 +325,7 @@ public sealed partial class GeoapifyLocationBackfillService(
         var incompleteRepair = location is not null && IsIncompleteGeoapify(location);
         if (workflow?.Epoch != owner.Epoch || !workflow.HasExecutionLease(owner.LeaseId,
                 owner.FencingGeneration, now) || attempt is null || !authorityCurrent)
-        { if (transaction != null) await transaction.RollbackAsync(cancellationToken); return (false, false); }
+        { if (transaction != null) await transaction.RollbackAsync(cancellationToken); return (false, false, false); }
         attempt.Outcome = result.Succeeded && incompleteRepair && string.IsNullOrWhiteSpace(result.Value?.Place)
             ? LocationEnrichmentOutcome.NoResult : MapOutcome(result.Category, attempt.AdmittedAttemptCount);
         if (attempt.Outcome != LocationEnrichmentOutcome.RetryableFailure) attempt.NextAttemptAtUtc = null;
@@ -332,6 +333,7 @@ public sealed partial class GeoapifyLocationBackfillService(
         attempt.OperationLeaseId = null; attempt.OperationWorkflowEpoch = null;
         attempt.OperationAttemptNumber = null;
         var enriched = false;
+        var repairNoResult = false;
         if (result.Succeeded && result.Value is not null)
         {
             var value = result.Value;
@@ -406,6 +408,7 @@ public sealed partial class GeoapifyLocationBackfillService(
                             ? value.ResolvedFeatureType : item.ResolvedFeatureType)
                     .SetProperty(item => item.ReverseGeocodedAt, persistedAt), cancellationToken) == 1;
                 enriched = updated && !string.IsNullOrWhiteSpace(value.Place);
+                repairNoResult = updated && !enriched;
             }
             else
             {
@@ -430,7 +433,7 @@ public sealed partial class GeoapifyLocationBackfillService(
         }
         await db.SaveChangesAsync(cancellationToken);
         if (transaction != null) await transaction.CommitAsync(cancellationToken);
-        return (true, enriched);
+        return (true, enriched, repairNoResult);
     }
 
     private static void ClearOperation(LocationEnrichmentAttempt attempt)

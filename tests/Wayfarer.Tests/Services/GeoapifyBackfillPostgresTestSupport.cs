@@ -71,6 +71,33 @@ public sealed partial class GeoapifyBackfillConcurrencyPostgresTests
         await db.SaveChangesAsync();
     }
 
+    /// <summary>Creates explicit current-authority repair intent for one partial Geoapify Location.</summary>
+    private async Task SeedIncompleteRepairAsync(string userId, IDataProtectionProvider protection)
+    {
+        await SeedAsync(userId, null, protection);
+        await using var setup = fixture.CreateContext();
+        var profile = await setup.PersonalLocationProviderProfiles.SingleAsync(
+            item => item.UserId == userId && item.ProviderKey == "geoapify");
+        var selection = await setup.PersonalLocationProviderSelections.SingleAsync(item => item.UserId == userId);
+        var location = await setup.Locations.SingleAsync(item => item.UserId == userId);
+        location.Address = "Keep this address";
+        location.Country = "Greece";
+        location.ReverseGeocodingProvider = "geoapify";
+        location.ReverseGeocodingStorageMode = "persistent";
+        location.ReverseGeocodedAt = DateTimeOffset.UtcNow.AddDays(-1);
+        var binding = new PersonalProviderAuthorityBinding("geoapify", profile.Id,
+            profile.CredentialGeneration, profile.GeocodingGeneration,
+            selection.GeocodingSelectionGeneration, profile.GeocodingVerification,
+            profile.GeocodingVerifiedCredentialGeneration,
+            profile.GeocodingVerifiedConfigurationGeneration, null, null, null);
+        var workflow = LocationEnrichmentWorkflow.Create(userId, DateTime.UtcNow);
+        workflow.Start(DateTime.UtcNow);
+        var attempt = new LocationEnrichmentAttempt { UserId = userId, Location = location };
+        attempt.PrepareRepair(binding, DateTime.UtcNow);
+        setup.AddRange(workflow, attempt);
+        await setup.SaveChangesAsync();
+    }
+
     private async Task SeedMapboxAsync(string userId, IDataProtectionProvider protection)
     {
         await using var db = fixture.CreateContext();
@@ -231,8 +258,8 @@ public sealed partial class GeoapifyBackfillConcurrencyPostgresTests
             command.CommandText.Contains("PersonalLocationProviderSelections", StringComparison.Ordinal);
     }
 
-    private sealed class CoordinatedHandler(
-        string primaryUserId, string? otherUserId, ContactOutcome outcome = ContactOutcome.Success) : HttpMessageHandler
+    private sealed class CoordinatedHandler(string primaryUserId, string? otherUserId,
+        ContactOutcome outcome = ContactOutcome.Success, bool includeLocality = true) : HttpMessageHandler
     {
         private readonly TaskCompletionSource _first = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private readonly TaskCompletionSource _other = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -257,12 +284,12 @@ public sealed partial class GeoapifyBackfillConcurrencyPostgresTests
             if (outcome == ContactOutcome.Timeout) throw new TaskCanceledException();
             if (outcome == ContactOutcome.ProviderFailure)
                 return new(System.Net.HttpStatusCode.ServiceUnavailable);
+            var locality = includeLocality ? "\"city\":\"Alexandroupolis\"," : string.Empty;
             return new(System.Net.HttpStatusCode.OK)
             {
-                Content = new StringContent("""
-                    {"type":"FeatureCollection","features":[{"properties":{"formatted":"Address","address_line1":"Address",
-                    "name":"Tokyo Tower","city":"Alexandroupolis","result_type":"building"}}]}
-                    """)
+                Content = new StringContent("{\"type\":\"FeatureCollection\",\"features\":[{\"properties\":"
+                    + "{\"formatted\":\"Address\",\"address_line1\":\"Address\",\"name\":\"Tokyo Tower\","
+                    + locality + "\"result_type\":\"building\"}}]}")
             };
         }
     }

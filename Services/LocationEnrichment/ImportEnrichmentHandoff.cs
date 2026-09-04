@@ -209,9 +209,26 @@ public sealed class ImportEnrichmentHandoff(
         if (!await AuthorityIsCurrentAsync(userId, authority, cancellationToken))
             return await RollbackAsync(transaction, EnrichmentCommandResult.Authority("authority-unavailable"), cancellationToken);
         var now = await LocationEnrichmentExecutionAuthority.DatabaseUtcNowAsync(db, cancellationToken);
-        var locations = await LocationEnrichmentProgressQuery.IncompleteGeoapifyLocations(db, userId)
-            .OrderBy(item => item.Timestamp).ThenBy(item => item.Id).Select(item => item.Id)
-            .Take(RepairCommandLimit).ToListAsync(cancellationToken);
+        var eligibleLocations = LocationEnrichmentProgressQuery.IncompleteGeoapifyLocations(db, userId)
+            .OrderBy(item => item.Timestamp).ThenBy(item => item.Id).Take(RepairCommandLimit);
+        var locations = db.Database.IsNpgsql()
+            ? await db.Locations.FromSqlInterpolated($$"""
+                SELECT * FROM "Locations"
+                WHERE "UserId" = {{userId}}
+                  AND ("Place" IS NULL OR btrim("Place") = '')
+                  AND "ReverseGeocodingProvider" = 'geoapify'
+                  AND "ReverseGeocodingStorageMode" = 'persistent'
+                  AND "ReverseGeocodedAt" IS NOT NULL
+                  AND (("Address" IS NOT NULL AND btrim("Address") <> '')
+                    OR ("FullAddress" IS NOT NULL AND btrim("FullAddress") <> '')
+                    OR ("AddressNumber" IS NOT NULL AND btrim("AddressNumber") <> '')
+                    OR ("StreetName" IS NOT NULL AND btrim("StreetName") <> '')
+                    OR ("PostCode" IS NOT NULL AND btrim("PostCode") <> '')
+                    OR ("Region" IS NOT NULL AND btrim("Region") <> '')
+                    OR ("Country" IS NOT NULL AND btrim("Country") <> ''))
+                ORDER BY "Timestamp", "Id" LIMIT {{RepairCommandLimit}} FOR UPDATE
+                """).Select(item => item.Id).ToListAsync(cancellationToken)
+            : await eligibleLocations.Select(item => item.Id).ToListAsync(cancellationToken);
         if (locations.Count == 0)
             return await RollbackAsync(transaction, EnrichmentCommandResult.Satisfied("nothing-to-repair"), cancellationToken);
         var existing = await db.LocationEnrichmentAttempts.Where(item => item.UserId == userId
