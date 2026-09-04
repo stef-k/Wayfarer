@@ -58,14 +58,15 @@ public sealed class LocationEnrichmentPresentationContractTests
     }
 
     [Fact]
-    public void ProgressKeepsRunnableFutureAndPermanentWorkDistinct()
+    public void ProgressKeepsRunnableFutureManualAndInvalidWorkDistinct()
     {
         var view = LocationEnrichmentPresentation.Build(null, Authority(),
-            Progress(runnable: 2, future: 3, permanent: 4));
+            Progress(runnable: 2, future: 3, manualRetry: 2, cannotRetry: 2));
 
         Assert.Equal(2, view.RunnableRemaining);
         Assert.Equal(3, view.FutureDue);
-        Assert.Equal(4, view.PermanentlyDeferred);
+        Assert.Equal(2, view.ManualRetryAvailable);
+        Assert.Equal(2, view.CannotBeRetried);
         Assert.Equal(9, view.TotalOutstanding);
     }
 
@@ -106,7 +107,7 @@ public sealed class LocationEnrichmentPresentationContractTests
         bool currentEligible, LocationEnrichmentState state, bool expected)
     {
         var view = LocationEnrichmentPresentation.Build(Workflow(state), Authority(),
-            Progress(permanent: 1, retryDeferred: currentEligible));
+            Progress(manualRetry: currentEligible ? 1 : 0));
 
         Assert.Equal(expected, view.RetryDeferred is { Visible: true, Enabled: true });
     }
@@ -117,8 +118,8 @@ public sealed class LocationEnrichmentPresentationContractTests
             "credits", "rolling 24 hours", null);
 
     private static LocationEnrichmentProgressPresentation Progress(int runnable = 0, int future = 0,
-        int permanent = 0, bool retryDeferred = false, DateTime? next = null) =>
-        new(runnable, future, permanent, retryDeferred, next);
+        int manualRetry = 0, int cannotRetry = 0, DateTime? next = null) =>
+        new(runnable, future, manualRetry, cannotRetry, next);
 
     private static LocationEnrichmentWorkflow Workflow(LocationEnrichmentState state, DateTime? next = null)
     {

@@ -45,8 +45,9 @@ public sealed partial class LocationEnrichmentRetryAtomicityPostgresTests(Postgr
 
         var result = await Command(scenario).RetryDeferredAsync(scenario.UserId);
 
-        Assert.Equal(LocationEnrichmentCommandResult.Applied, result.Classification);
+        Assert.Equal(LocationEnrichmentCommandResult.AlreadySatisfied, result.Classification);
         Assert.Equal("nothing-to-retry", result.Code);
+        Assert.Equal(0, result.AffectedCount);
         Assert.Equal(before, await SnapshotAsync(scenario.UserId));
         scenario.Projection.Verify(x => x.ProjectAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
@@ -63,6 +64,7 @@ public sealed partial class LocationEnrichmentRetryAtomicityPostgresTests(Postgr
 
         Assert.Equal(LocationEnrichmentCommandResult.Applied, result.Classification);
         Assert.Equal("scheduled", result.Code);
+        Assert.Equal(1, result.AffectedCount);
         Assert.Equal(before.Epoch + 1, after.Epoch);
         Assert.Equal(LocationEnrichmentState.Scheduled, after.State);
         Assert.True(after.IntentEnabled);

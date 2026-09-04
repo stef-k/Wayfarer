@@ -31,6 +31,9 @@
 
 ## Unreleased
 
+### Fixed
+- Missing-address enrichment now distinguishes rows available for explicit retry from invalid-coordinate rows, reports the exact accepted retry count, and provides durable feedback when no rows remain eligible (#550).
+
 ## [1.9.4] - 2026-08-31
 
 ### Added

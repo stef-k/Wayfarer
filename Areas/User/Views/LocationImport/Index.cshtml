@@ -184,13 +184,14 @@
             <dt class="col-sm-4">Wayfarer usage</dt><dd class="col-sm-8">@enrichment.ProviderUsage of @enrichment.ProviderLimit @enrichment.UsageUnit; @enrichment.UsageWindowDescription. Guard/meter @(enrichment.GuardEnabled ? "enabled" : "disabled").</dd>
             @if (enrichment.ProviderNextAvailableAtUtc.HasValue)
             { <dt class="col-sm-4">Provider capacity returns</dt><dd class="col-sm-8"><time datetime="@enrichment.ProviderNextAvailableAtUtc.Value.ToString("O")">@enrichment.ProviderNextAvailableAtUtc.Value.ToString("yyyy-MM-dd HH:mm 'UTC'")</time></dd> }
-            <dt class="col-sm-4">Processed candidates</dt><dd class="col-sm-8">@enrichment.Processed</dd>
-            <dt class="col-sm-4">Enriched</dt><dd class="col-sm-8">@enrichment.Enriched</dd>
-            <dt class="col-sm-4">Skipped</dt><dd class="col-sm-8">@enrichment.Skipped</dd>
+            <dt class="col-sm-4">Processed candidates (cumulative)</dt><dd class="col-sm-8">@enrichment.Processed</dd>
+            <dt class="col-sm-4">Enriched (cumulative)</dt><dd class="col-sm-8">@enrichment.Enriched</dd>
+            <dt class="col-sm-4">Skipped (cumulative)</dt><dd class="col-sm-8">@enrichment.Skipped</dd>
             <dt class="col-sm-4">Runnable now</dt><dd class="col-sm-8">@enrichment.RunnableRemaining</dd>
             <dt class="col-sm-4">Retryable later</dt><dd class="col-sm-8">@enrichment.FutureDue</dd>
-            <dt class="col-sm-4">Permanently deferred</dt><dd class="col-sm-8">@enrichment.PermanentlyDeferred</dd>
-            <dt class="col-sm-4">Failed batches</dt><dd class="col-sm-8">@enrichment.FailedBatches</dd>
+            <dt class="col-sm-4">Manual retry available</dt><dd class="col-sm-8">@enrichment.ManualRetryAvailable</dd>
+            <dt class="col-sm-4">Cannot be retried</dt><dd class="col-sm-8">@enrichment.CannotBeRetried</dd>
+            <dt class="col-sm-4">Failed batches (cumulative)</dt><dd class="col-sm-8">@enrichment.FailedBatches</dd>
             <dt class="col-sm-4">Last outcome</dt><dd class="col-sm-8">@enrichment.LastOutcome</dd>
             @if (enrichment.NextAttemptAtUtc.HasValue)
             { <dt class="col-sm-4">Next attempt</dt><dd class="col-sm-8"><time datetime="@enrichment.NextAttemptAtUtc.Value.ToString("O")">@enrichment.NextAttemptAtUtc.Value.ToString("yyyy-MM-dd HH:mm 'UTC'")</time></dd> }
@@ -205,7 +206,7 @@
             @if (enrichment.Pause.Visible) { <form asp-action="PauseEnrichment" method="post"><button class="btn btn-outline-secondary" type="submit" aria-describedby="enrichment-status">Pause enrichment</button></form> }
             @if (enrichment.Resume.Visible) { <form asp-action="ResumeEnrichment" method="post"><button class="btn btn-outline-primary" type="submit" aria-describedby="enrichment-status" disabled="@(!enrichment.Resume.Enabled)">Resume enrichment</button></form> }
             @if (enrichment.Cancel.Visible) { <form asp-action="CancelEnrichment" method="post"><button class="btn btn-outline-danger" type="submit" aria-describedby="enrichment-status">Cancel enrichment</button></form> }
-            @if (enrichment.RetryDeferred.Visible) { <form asp-action="RetryDeferredEnrichment" method="post"><button class="btn btn-outline-warning" type="submit" aria-describedby="enrichment-status">Retry deferred enrichment</button></form> }
+            @if (enrichment.RetryDeferred.Visible) { <form asp-action="RetryDeferredEnrichment" method="post"><button class="btn btn-outline-warning" type="submit" aria-describedby="enrichment-status">Retry deferred enrichment</button><div class="form-text">Retrying may consume additional provider credits.</div></form> }
         </div>
     </div>
 </section>

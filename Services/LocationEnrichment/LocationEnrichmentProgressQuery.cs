@@ -22,7 +22,7 @@ public sealed class LocationEnrichmentProgressQuery(ApplicationDbContext db) : I
     public async Task<LocationEnrichmentProgressPresentation> ProjectAsync(string userId,
         PersonalProviderAuthorityBinding? authority, DateTime dbNow, CancellationToken cancellationToken = default)
     {
-        if (authority is null) return new(0, 0, 0, false, null);
+        if (authority is null) return new(0, 0, 0, 0, null);
         var rows = Rows(userId, authority);
         var runnable = await rows.CountAsync(row => row.Attempt == null || (row.Attempt.OperationId == null
             && row.Attempt.Outcome != LocationEnrichmentOutcome.InvalidCoordinates
@@ -33,19 +33,14 @@ public sealed class LocationEnrichmentProgressQuery(ApplicationDbContext db) : I
         var future = await rows.CountAsync(row => row.Attempt != null && row.Current
             && row.Attempt.OperationId == null && row.Attempt.Outcome == LocationEnrichmentOutcome.RetryableFailure
             && row.Attempt.AdmittedAttemptCount < 3 && row.Attempt.NextAttemptAtUtc > dbNow, cancellationToken);
-        var permanent = await rows.CountAsync(row => row.Attempt != null && row.Attempt.OperationId == null
-            && (row.Attempt.Outcome == LocationEnrichmentOutcome.InvalidCoordinates
-                || (row.Current && (row.Attempt.Outcome == LocationEnrichmentOutcome.NoResult
-                    || row.Attempt.Outcome == LocationEnrichmentOutcome.AttemptLimit
-                    || row.Attempt.AdmittedAttemptCount >= 3))), cancellationToken);
+        var manualRetry = await ManuallyRetryableAttempts(db, userId, authority).CountAsync(cancellationToken);
+        var cannotRetry = await rows.CountAsync(row => row.Attempt != null && row.Attempt.OperationId == null
+            && row.Attempt.Outcome == LocationEnrichmentOutcome.InvalidCoordinates, cancellationToken);
         var next = await rows.Where(row => row.Attempt != null && row.Current
                 && row.Attempt.OperationId == null && row.Attempt.Outcome == LocationEnrichmentOutcome.RetryableFailure
                 && row.Attempt.AdmittedAttemptCount < 3 && row.Attempt.NextAttemptAtUtc > dbNow)
             .MinAsync(row => row.Attempt!.NextAttemptAtUtc, cancellationToken);
-        var retryable = await rows.AnyAsync(row => row.Attempt != null && row.Current
-            && row.Attempt.OperationId == null && (row.Attempt.Outcome == LocationEnrichmentOutcome.NoResult
-                || row.Attempt.Outcome == LocationEnrichmentOutcome.AttemptLimit), cancellationToken);
-        return new(runnable, future, permanent, retryable, next);
+        return new(runnable, future, manualRetry, cannotRetry, next);
     }
 
     /// <inheritdoc />
@@ -79,6 +74,27 @@ public sealed class LocationEnrichmentProgressQuery(ApplicationDbContext db) : I
                 && attempt.ConsentTimestamp == authority.ConsentedAt
                 && attempt.ConsentCredentialGeneration == authority.ConsentCredentialGeneration
         };
+
+    /// <summary>Owns the exact current-authority rows offered and reset by explicit manual retry.</summary>
+    internal static IQueryable<LocationEnrichmentAttempt> ManuallyRetryableAttempts(
+        ApplicationDbContext context, string userId, PersonalProviderAuthorityBinding authority) =>
+        from attempt in context.LocationEnrichmentAttempts
+        join location in WhollyUnenriched(context.Locations.Where(item => item.UserId == userId))
+            on new { attempt.UserId, Id = attempt.LocationId } equals new { location.UserId, location.Id }
+        where attempt.UserId == userId && attempt.OperationId == null
+            && (attempt.Outcome == LocationEnrichmentOutcome.NoResult
+                || attempt.Outcome == LocationEnrichmentOutcome.AttemptLimit)
+            && attempt.ProviderKey == authority.ProviderKey && attempt.ProviderProfileId == authority.ProfileId
+            && attempt.Capability == PersonalProviderCapability.Geocoding
+            && attempt.CredentialGeneration == authority.CredentialGeneration
+            && attempt.ConfigurationGeneration == authority.CapabilityGeneration
+            && attempt.SelectionGeneration == authority.SelectionGeneration
+            && attempt.Verification == authority.Verification
+            && attempt.VerificationCredentialGeneration == authority.VerifiedCredentialGeneration
+            && attempt.VerificationGeneration == authority.VerifiedCapabilityGeneration
+            && attempt.ConsentVersion == authority.ConsentVersion && attempt.ConsentTimestamp == authority.ConsentedAt
+            && attempt.ConsentCredentialGeneration == authority.ConsentCredentialGeneration
+        select attempt;
 
     /// <summary>Constrains every address, context, and provenance field used by enrichment.</summary>
     internal static IQueryable<Location> WhollyUnenriched(IQueryable<Location> query) => query.Where(value =>

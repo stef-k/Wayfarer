@@ -15,7 +15,7 @@ namespace Wayfarer.Tests.Services;
 public sealed class LocationEnrichmentPresentationProjectorTests
 {
     [Fact]
-    public async Task FreshContextProjectsFutureDueAndPermanentRowsExactly()
+    public async Task FreshContextProjectsFutureManualAndInvalidRowsExactly()
     {
         var database = Guid.NewGuid().ToString();
         using var services = new ServiceCollection().AddEntityFrameworkInMemoryDatabase().BuildServiceProvider();
@@ -27,11 +27,13 @@ public sealed class LocationEnrichmentPresentationProjectorTests
         {
             var user = TestDataFixtures.CreateUser(id: "projection-user");
             var future = TestDataFixtures.CreateLocation(user);
-            var permanent = TestDataFixtures.CreateLocation(user);
-            seed.AddRange(user, future, permanent);
+            var manual = TestDataFixtures.CreateLocation(user);
+            var invalid = TestDataFixtures.CreateLocation(user);
+            seed.AddRange(user, future, manual, invalid);
             await seed.SaveChangesAsync();
             seed.AddRange(Attempt(future.Id, binding, LocationEnrichmentOutcome.RetryableFailure, now.AddHours(2)),
-                Attempt(permanent.Id, binding, LocationEnrichmentOutcome.NoResult, null));
+                Attempt(manual.Id, binding, LocationEnrichmentOutcome.NoResult, null),
+                Attempt(invalid.Id, binding, LocationEnrichmentOutcome.InvalidCoordinates, null));
             var workflow = LocationEnrichmentWorkflow.Create(user.Id, now);
             workflow.Start(now);
             workflow.ContinueAs(LocationEnrichmentState.BackingOff,
@@ -47,7 +49,8 @@ public sealed class LocationEnrichmentPresentationProjectorTests
 
         Assert.Equal(0, view.RunnableRemaining);
         Assert.Equal(1, view.FutureDue);
-        Assert.Equal(1, view.PermanentlyDeferred);
+        Assert.Equal(1, view.ManualRetryAvailable);
+        Assert.Equal(1, view.CannotBeRetried);
         Assert.True(view.DeferredWorkRetryable);
         Assert.Equal(7, view.ProviderUsage);
         Assert.NotNull(view.NextAttemptAtUtc);
