@@ -1,5 +1,28 @@
 # CHANGELOG
 
+## [1.9.8] - 2026-09-04
+
+### Added
+- Location editing now supports manual correction of all eight address fields in a responsive expandable section, with custom Wayfarer feedback and protection against concurrent provider updates (#560).
+- Added a link to the Wayfarer GitHub project in the shared footer (#560).
+
+### Fixed
+- Incomplete Geoapify-enriched Locations can now be explicitly repaired without overwriting existing address values; the import workflow reports these rows separately from permanently deferred failures (#559).
+- Missing-address enrichment distinguishes rows available for explicit retry from invalid-coordinate rows, reports the accepted retry count, and explains when no rows remain eligible (#550).
+- Map and Trip popups retain meaningful detected-place names while replacing technical reverse-geocoding feature types with plain-language address-precision guidance for broad results (#551).
+- Missing-address enrichment shows intermediate committed progress through its authenticated SSE refresh channel (#554).
+- Detailed country, region, and city statistics tolerate partial address hierarchies on both Timeline views and report failures through Wayfarer's custom alert surface (#557).
+
+### Changed
+- Replaced the repository LOC checker with pinned Agent Code Guard, preserving current legacy file allowances through a non-increasing ratchet and checking source and Markdown in CI (#523).
+- Made the PostgreSQL location-index regression test deterministic (#542).
+
+### Upgrade notes
+- No new database migration is introduced relative to 1.9.7. Preserve the PostgreSQL database and matching Data Protection key ring when upgrading.
+- Manual changes to address fields clear provider attribution; unchanged addresses retain it. Changing coordinates clears old address fields unless explicitly changed in the same save.
+
+## Unreleased
+
 ## [1.9.7] - 2026-09-04
 
 ### Fixed
@@ -28,18 +51,6 @@
 ### Upgrade notes
 - Before upgrading, back up PostgreSQL and the matching complete Data Protection key ring. Apply migrations before starting the new scheduler/application.
 - Rollback across the routing-authority retirement migration requires restoration of the compatible pre-upgrade database and its matching key ring; deploying older binaries alone cannot reconstruct deleted credentials, templates, mappings, selections, or global configuration.
-
-## Unreleased
-
-- Replaced the repository LOC checker with pinned Agent Code Guard, preserving current legacy file allowances through a non-increasing ratchet and checking source and Markdown in CI (#523).
-
-### Fixed
-- Location editing now supports safe manual correction of complete address details, clears stale provider provenance when values or coordinates change, and adds the project GitHub link to the shared footer (#560).
-- Incomplete Geoapify-enriched Locations can now be explicitly repaired without overwriting existing address values; the import workflow reports these rows separately from permanently deferred failures (#559).
-- Missing-address enrichment now distinguishes rows available for explicit retry from invalid-coordinate rows, reports the exact accepted retry count, and provides durable feedback when no rows remain eligible (#550).
-- Map and Trip popups now keep meaningful detected-place names while replacing technical reverse-geocoding feature types with plain-language address-precision guidance only for broad results (#551).
-- Missing-address enrichment now exposes intermediate committed progress through its existing authenticated SSE refresh channel by using smaller durable workflow checkpoints (#554).
-- Detailed country, region, and city statistics now tolerate partial address hierarchies on both Timeline views and report failures through Wayfarer's custom alert surface (#557).
 
 ## [1.9.4] - 2026-08-31
 
