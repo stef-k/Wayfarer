@@ -35,6 +35,5 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\Wayfarer.csproj" />
-    <ProjectReference Include="..\..\tools\Wayfarer.LocCheck\Wayfarer.LocCheck.csproj" />
   </ItemGroup>
 </Project>

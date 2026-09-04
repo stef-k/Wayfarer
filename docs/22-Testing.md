@@ -1,6 +1,25 @@
 # Testing
 
-Approach
+## Code Guard
+
+Install the published distribution with `pipx install agent-code-guard==0.3.1` (or an isolated Python virtual environment), then run `code-guard --version` and `code-guard doctor --json`. Doctor must report healthy installation, configuration, Git, skill, and parser providers.
+
+Normal agent work uses `code-guard . --changed-only --json --json-mode compact`. Before completion, inspect the complete branch with `code-guard . --base-ref main --ci`. Outside Git, pass exact edited paths. `code-guard . --ci` is a deliberate full audit. Code Guard complements compilers, tests, linters, security checks, and design review.
+
+PASS exits 0. REVIEW exits 1 normally and 0 with `--ci`; inspect each changed-code finding and justify it or improve cohesion. FAIL exits 2; INCOMPLETE and tool/configuration errors exit 3 and block completion. Doctor has its own status: healthy exits 0, unhealthy exits 1, invocation/internal errors exit 3. Do not suppress unsuccessful exits. Load only bundled guidance identified by `requiredPolicies`.
+
+The six guards remain enabled at shipped thresholds. LOC above 400 triggers review and above 600 fails for new files; exactly 400 passes and exactly 600 reviews. The review-level ratchet in `.agent-tools/code-guard.loc-baseline.json` was generated from current source during adoption. It records exact nonblank LOC allowances only for files above 400, preserving legacy sizes while rejecting growth. Unlike the retired historical allowance, reductions already made before adoption are retained. New files remain subject to the hard cap.
+
+Normal analysis never changes the ratchet. `code-guard . --create-loc-baseline` is a one-time adoption operation; do not recreate the file to accept growth. Use `code-guard . --update-loc-baseline` only to lower or prune allowances after genuine reductions. Review the resulting diff; increases require an explicit policy decision.
+
+`.agent-tools/code-guard.config.json` excludes generated migrations, `*.Designer.cs`, `*.g.cs`, `*.generated.cs`, minified JS/CSS, vendored `wwwroot/lib`, generated `wwwroot/dist` and `wwwroot/vite`, and the existing Chrome/Image/Tile/Mbtile/OsmPbf/Routing caches, Logs, and Uploads. These are all-guard boundaries; project-owned source/tests receive every supported guard. Built-in exclusions also omit build outputs, dependency directories, and local scratch artifacts.
+
+CI installs exactly 0.3.1 in an isolated Python 3.12 environment, verifies the version and doctor, and checks the event's exact PR base SHA with `--base-ref "$BASE_SHA" --ci`. Checkout retains full history. This gate runs even for documentation-only PRs; REVIEW remains visible, while FAIL/INCOMPLETE/tool errors fail the required `test` job.
+
+Find the version-matched agent skill with `code-guard --skill-path`. Activate that path where supported, or use `code-guard --export-skill <empty-target>` for the platform's global skill directory. Never overwrite a non-empty export; verify its `.agent-code-guard-version` marker matches 0.3.1. Global skill files are separate from repository commits. No hooks or compatibility runners are required.
+
+## Testing approach
+
 - Add xUnit tests under `tests/Wayfarer.Tests` (recommended structure).
 - Focus on Services and Parsers for unit tests; add integration tests for critical flows (imports, trip exports, API auth).
 

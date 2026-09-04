@@ -31,6 +31,8 @@
 
 ## Unreleased
 
+- Replaced the repository LOC checker with pinned Agent Code Guard, preserving current legacy file allowances through a non-increasing ratchet and checking source and Markdown in CI (#523).
+
 ### Fixed
 - Location editing now supports safe manual correction of complete address details, clears stale provider provenance when values or coordinates change, and adds the project GitHub link to the shared footer (#560).
 - Incomplete Geoapify-enriched Locations can now be explicitly repaired without overwriting existing address values; the import workflow reports these rows separately from permanently deferred failures (#559).

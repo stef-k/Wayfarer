@@ -16,6 +16,27 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Setup Python for Code Guard
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Code Guard
+        run: |
+          python -m venv "${{ runner.temp }}/code-guard"
+          "${{ runner.temp }}/code-guard/bin/python" -m pip install agent-code-guard==0.3.1
+          echo "${{ runner.temp }}/code-guard/bin" >> "$GITHUB_PATH"
+
+      - name: Verify Code Guard installation
+        run: |
+          code-guard --version
+          code-guard doctor --json
+
+      - name: Check maintainability
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: code-guard . --base-ref "$BASE_SHA" --ci
+
       - name: Detect documentation-only changes
         id: scope
         shell: bash
@@ -82,10 +103,6 @@ jobs:
       - name: Validate built Trip Editor assets
         if: steps.scope.outputs.run_frontend == 'true'
         run: npm run smoke:trip-editor:assets:built
-
-      - name: Check file size limits
-        if: steps.scope.outputs.run_full == 'true'
-        run: dotnet run --project tools/Wayfarer.LocCheck -- --warn 400 --fail 600
 
       - name: Build tests
         if: steps.scope.outputs.run_full == 'true'

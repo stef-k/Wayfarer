@@ -28,7 +28,7 @@
 - `dotnet run` – run locally (loads `appsettings.Development.json` if present).
 - `dotnet watch run` – hot‑reload during development.
 - Admin CLI: `dotnet run -- reset-password <username> <new-password>`.
-- LOC policy check after implementation edits: `dotnet run --project tools/Wayfarer.LocCheck -- --warn 400 --fail 600`.
+- Maintainability check: `code-guard . --changed-only --json --json-mode compact` (Agent Code Guard 0.3.1).
 
 ## Coding Style & Naming Conventions
 
@@ -54,17 +54,13 @@
 
 ## Validation & PR Readiness
 
-- New and changed source files are subject to the LOC policy check: warn at 400 counted LOC and hard fail above 600 counted LOC. Existing legacy files are grandfathered by `tools/Wayfarer.LocCheck/loc-baseline.json`, but should not grow past baseline.
-- After any implementation edit, run `dotnet run --project tools/Wayfarer.LocCheck -- --warn 400 --fail 600`; summarize warnings and split files or request an explicit exception for failures.
-- LOC checker interpretation:
-  - 600 counted LOC is a hard cap unless the user explicitly approves an exception.
-  - 400 counted LOC is a review trigger, not an automatic refactor command.
-  - When a changed/new file warns, inspect whether the file is still cohesive and single-responsibility.
-  - Decide whether the extra size is justified by necessary orchestration/simple structure, or whether the file is mixing separable responsibilities.
-  - Consider likely near-term growth from upcoming slices before accepting a warning.
-  - Split only when it improves responsibility boundaries or reduces meaningful complexity.
-  - Do not split purely to satisfy the number if the split adds indirection without design benefit.
-  - Report the decision as either "warning accepted with justification" or "split performed because ...".
+- Use the installed Code Guard skill and repository configuration after meaningful supported source or Markdown edits: `code-guard . --changed-only --json --json-mode compact`.
+- Before completion, cover the complete branch change with `code-guard . --base-ref main --ci`; outside Git, pass the exact edited files. Full scans are deliberate audits.
+- PASS continues normally. REVIEW requires inspection and a concise design justification or a genuine improvement, not automatic refactoring. FAIL, INCOMPLETE, and tool/configuration errors block completion unless an applicable explicit exception covers the finding; retain completed evidence.
+- Load only the bundled policy guidance named in `requiredPolicies`. Report accepted reviews and the final result.
+- All six guards retain shipped thresholds. LOC above 400 triggers review; above 600 fails unless covered by the committed non-increasing allowance. Exactly 400 passes and exactly 600 reviews.
+- `.agent-tools/code-guard.loc-baseline.json` records existing files above 400 LOC at adoption. Normal analysis never updates it; explicit updates may only lower/prune allowances. Growth beyond a recorded allowance fails.
+- Never game metrics with mechanical splitting, meaningless helpers, compressed formatting, added exclusions, changed thresholds, disabled guards, or baseline changes. See [Testing](docs/22-Testing.md#code-guard) for installation, exclusions, and CI behavior.
 - When validation fails, classify each failure as either a current-branch regression or an out-of-scope pre-existing/cross-slice failure.
 - Also classify fixture/environment failures separately; never convert them into product blockers without a production counterexample.
 - Fix current-branch regressions before declaring a branch PR-ready.
