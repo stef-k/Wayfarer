@@ -1,3 +1,5 @@
+import { encodeFeatureText as encodeText, featurePrecisionNotice } from '../util/feature-metadata.js';
+
 /**
  * tripPopupBuilder.js - Shared tooltip content builders for Trip views
  * Used by: Trip Edit, User Trip View, Public Trip View
@@ -9,9 +11,6 @@
  * Maximum characters for notes preview before truncation
  */
 const MAX_NOTES_LENGTH = 150;
-const encodeText = value => String(value).replace(/[&<>"']/g, character => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-}[character]));
 
 /**
  * Truncates HTML notes to a reasonable preview length.
@@ -100,10 +99,8 @@ export const buildPlacePopup = ({ name, lat, lon, address, notes, regionName, re
     if (resolvedFeatureName) {
         html += `<div><span class="text-muted">Detected place:</span> ${encodeText(resolvedFeatureName)}</div>`;
     }
-    if (resolvedFeatureType) {
-        const featureType = resolvedFeatureType.charAt(0).toUpperCase() + resolvedFeatureType.slice(1);
-        html += `<div><span class="text-muted">Feature type:</span> ${encodeText(featureType)}</div>`;
-    }
+    const precision = featurePrecisionNotice(resolvedFeatureType);
+    if (precision) html += `<div role="note">${precision}</div>`;
 
     // Notes preview if available
     if (hasNotes) {
