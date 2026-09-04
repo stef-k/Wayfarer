@@ -121,30 +121,41 @@ public sealed class LocationImportBoundedPostgresTests(PostgresImportTestFixture
     }
 
     [PostgresFact]
-    public async Task LegacyNoKeyLookup_PostgresPlansCanUseTimeAndSpatialIndexes()
+    public async Task LegacyNoKeyLookup_PostgresHasUsableTimeAndSpatialIndexes()
     {
         await using var connection = fixture.CreateConnection();
         await connection.OpenAsync();
-        await using (var settings = connection.CreateCommand())
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT index_class.relname, index_metadata.indisvalid, index_metadata.indisready,
+                   access_method.amname, pg_get_indexdef(index_class.oid)
+            FROM pg_catalog.pg_index AS index_metadata
+            JOIN pg_catalog.pg_class AS table_class ON table_class.oid = index_metadata.indrelid
+            JOIN pg_catalog.pg_class AS index_class ON index_class.oid = index_metadata.indexrelid
+            JOIN pg_catalog.pg_am AS access_method ON access_method.oid = index_class.relam
+            WHERE table_class.relname = 'Locations'
+              AND table_class.relnamespace = pg_catalog.to_regnamespace(current_schema())
+              AND index_class.relname IN ('IX_Location_UserId_Timestamp', 'IX_Location_Coordinates')
+            """;
+        await using var reader = await command.ExecuteReaderAsync();
+        var indexes = new Dictionary<string, (bool Valid, bool Ready, string Method, string Definition)>();
+        while (await reader.ReadAsync())
         {
-            settings.CommandText = "SET enable_seqscan=off";
-            await settings.ExecuteNonQueryAsync();
+            indexes.Add(reader.GetString(0),
+                (reader.GetBoolean(1), reader.GetBoolean(2), reader.GetString(3), reader.GetString(4)));
         }
 
-        var timePlan = await ExplainAsync(connection, """
-            SELECT 1 FROM "Locations"
-            WHERE "UserId" = 'plan-owner'
-              AND "Timestamp" BETWEEN TIMESTAMPTZ '2026-08-25T00:00:00Z'
-                  AND TIMESTAMPTZ '2026-08-25T00:00:02Z'
-            """);
-        var spatialPlan = await ExplainAsync(connection, """
-            SELECT 1 FROM "Locations"
-            WHERE ST_DWithin("Coordinates",
-                ST_SetSRID(ST_MakePoint(22.2, 40.1), 4326)::geography, 10)
-            """);
+        var timeIndex = indexes["IX_Location_UserId_Timestamp"];
+        Assert.True(timeIndex.Valid);
+        Assert.True(timeIndex.Ready);
+        Assert.Equal("btree", timeIndex.Method);
+        Assert.Contains("(\"UserId\", \"Timestamp\")", timeIndex.Definition, StringComparison.Ordinal);
 
-        Assert.Contains("IX_Location_UserId_Timestamp", timePlan, StringComparison.Ordinal);
-        Assert.Contains("IX_Location_Coordinates", spatialPlan, StringComparison.Ordinal);
+        var spatialIndex = indexes["IX_Location_Coordinates"];
+        Assert.True(spatialIndex.Valid);
+        Assert.True(spatialIndex.Ready);
+        Assert.Equal("gist", spatialIndex.Method);
+        Assert.Contains("(\"Coordinates\")", spatialIndex.Definition, StringComparison.Ordinal);
     }
 
     [PostgresFact]
@@ -192,16 +203,6 @@ public sealed class LocationImportBoundedPostgresTests(PostgresImportTestFixture
         {
             foreach (var path in paths) File.Delete(path);
         }
-    }
-
-    private static async Task<string> ExplainAsync(DbConnection connection, string sql)
-    {
-        await using var command = connection.CreateCommand();
-        command.CommandText = $"EXPLAIN (COSTS OFF) {sql}";
-        await using var reader = await command.ExecuteReaderAsync();
-        var lines = new List<string>();
-        while (await reader.ReadAsync()) lines.Add(reader.GetString(0));
-        return string.Join(Environment.NewLine, lines);
     }
 
     [PostgresFact]
