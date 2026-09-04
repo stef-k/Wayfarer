@@ -42,9 +42,9 @@
         <div class="form-text">Replacement disables both capabilities until each is reverified; saved provider choices remain selected.</div>
         <button class="btn btn-primary mt-2" type="submit">Replace credential</button>
     </form>
-    <p class="mt-3">Backfill processes at most 100 of your wholly unenriched Locations in chronological order. Existing, manual, and imported enrichment is preserved.</p>
+    <p class="mt-3">Backfill processes your wholly unenriched Locations in chronological order and commits progress after at most 10 candidates. Existing, manual, and imported enrichment is preserved.</p>
     <form asp-action="BackfillGeoapify" method="post">
-        <button class="btn btn-outline-primary" type="submit">Backfill up to 100 Locations</button>
+        <button class="btn btn-outline-primary" type="submit">Start backfill</button>
     </form>
     }
     @if (profile.ProviderKey == "mapbox")

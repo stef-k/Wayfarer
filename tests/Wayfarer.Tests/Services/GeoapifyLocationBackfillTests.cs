@@ -20,10 +20,11 @@ public sealed class GeoapifyLocationBackfillTests
         var manual = Location("user", -2); manual.Place = "Manual"; db.Locations.Add(manual);
         await db.SaveChangesAsync();
 
-        var candidates = await GeoapifyLocationBackfillService.LoadCandidateIdsAsync(db, "user", 100);
+        var candidates = await GeoapifyLocationBackfillService.LoadCandidateIdsAsync(
+            db, "user", GeoapifyLocationBackfillService.MaximumRecords);
 
-        Assert.Equal(100, candidates.Count);
-        Assert.Equal(Enumerable.Range(0, 100).Select(index => index + 1), candidates);
+        Assert.Equal(10, candidates.Count);
+        Assert.Equal(Enumerable.Range(0, 10).Select(index => index + 1), candidates);
     }
 
     [Fact]
