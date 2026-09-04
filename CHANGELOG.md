@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## [1.9.7] - 2026-09-04
+
+### Fixed
+- Restored durable Geoapify geocoding and directions provider selection, corrected validation placement, and accepted bounded provider snapping and documented routing response semantics in verification, Trip routing, and Mobile routing.
+
 ## [1.9.6] - 2026-09-04
 
 ### Fixed
@@ -25,9 +30,6 @@
 - Rollback across the routing-authority retirement migration requires restoration of the compatible pre-upgrade database and its matching key ring; deploying older binaries alone cannot reconstruct deleted credentials, templates, mappings, selections, or global configuration.
 
 ## Unreleased
-
-### Fixed
-- Provider selection forms now accept only exact supported provider keys without ambiguous empty-alternative validation, and Geoapify routing accepts bounded provider snapping, step coverage, and metric rounding differences.
 
 ## [1.9.4] - 2026-08-31
 
