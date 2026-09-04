@@ -60,9 +60,11 @@ public sealed class LocationProviderSettingsController(
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (userId == null) return Challenge();
+        var capabilityValid = TryParseCapability(input.Capability, out var capability);
+        var providerValid = TryParseOptionalProvider(input.ProviderKey, out var provider);
+        if (!capabilityValid || !providerValid)
+            ModelState.AddModelError(string.Empty, "Choose a supported capability and provider.");
         if (!ModelState.IsValid || setup == null) return View("Index", await BuildAsync(userId, cancellationToken));
-        var capability = Enum.Parse<PersonalProviderCapability>(input.Capability);
-        var provider = string.IsNullOrEmpty(input.ProviderKey) ? (PersonalLocationProvider?)null : ParseProvider(input.ProviderKey);
         var result = await setup.ChooseAsync(userId, capability, provider, cancellationToken);
         TempData["ProviderStatus"] = result == ProviderChoiceResult.Success
             ? $"{capability} provider choice saved." : "Verify this provider for the capability before selecting it.";
@@ -271,6 +273,30 @@ public sealed class LocationProviderSettingsController(
 
     private static PersonalLocationProvider ParseProvider(string key) => key switch
     { "geoapify" => PersonalLocationProvider.Geoapify, "mapbox" => PersonalLocationProvider.Mapbox, _ => throw new ArgumentOutOfRangeException(nameof(key)) };
+
+    /// <summary>Accepts only the two capability values posted by this settings page.</summary>
+    private static bool TryParseCapability(string value, out PersonalProviderCapability capability)
+    {
+        capability = value switch
+        {
+            "Geocoding" => PersonalProviderCapability.Geocoding,
+            "Routing" => PersonalProviderCapability.Routing,
+            _ => default
+        };
+        return value is "Geocoding" or "Routing";
+    }
+
+    /// <summary>Accepts no provider or one exact supported provider key.</summary>
+    private static bool TryParseOptionalProvider(string value, out PersonalLocationProvider? provider)
+    {
+        provider = value switch
+        {
+            "geoapify" => PersonalLocationProvider.Geoapify,
+            "mapbox" => PersonalLocationProvider.Mapbox,
+            _ => null
+        };
+        return string.IsNullOrEmpty(value) || provider != null;
+    }
 
     /// <summary>Maps bounded request-local verification detail to credential-free presentation.</summary>
     internal static string GeoapifyVerificationMessage(PersonalProviderCapability capability, GeoapifyVerificationOutcome outcome)

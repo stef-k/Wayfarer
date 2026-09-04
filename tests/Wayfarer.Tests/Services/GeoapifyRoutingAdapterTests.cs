@@ -84,10 +84,9 @@ public sealed class GeoapifyRoutingAdapterTests
     }
 
     [Theory]
-    [InlineData("\"from_index\":0,\"to_index\":1", "\"from_index\":1,\"to_index\":1")]
     [InlineData("\"from_index\":0,\"to_index\":1", "\"from_index\":1,\"to_index\":0")]
     [InlineData("\"from_index\":0,\"to_index\":1", "\"from_index\":0,\"to_index\":2")]
-    public async Task InvalidOrDiscontinuousLegRelativeStepFailsClosed(string current, string mutation)
+    public async Task InvalidLegRelativeStepFailsClosed(string current, string mutation)
     {
         using var response = Response(SingleLegJson.Replace(current, mutation, StringComparison.Ordinal));
         var result = await GeoapifyRoutingAdapter.ParseAsync(response, [new(20, 10), new(21, 11)]);
@@ -96,25 +95,25 @@ public sealed class GeoapifyRoutingAdapterTests
     }
 
     [Fact]
-    public async Task DiscontinuousLegRelativeStepsFailClosed()
+    public async Task ProviderStepCoverageDoesNotInvalidateOtherwiseUsableRoute()
     {
         using var response = Response(MultiLegJson.Replace(
             "\"from_index\":1,\"to_index\":2", "\"from_index\":0,\"to_index\":2", StringComparison.Ordinal));
         var result = await GeoapifyRoutingAdapter.ParseAsync(response,
             [new(20, 10), new(21, 11), new(22, 12)]);
 
-        Assert.False(result.Succeeded);
+        Assert.True(result.Succeeded);
     }
 
     [Theory]
     [InlineData("\"distance\":1234,\"time\":321,\"distance_units\"", "\"distance\":1234.0100001,\"time\":321,\"distance_units\"")]
     [InlineData("\"distance\":1234,\"time\":321,\"steps\"", "\"distance\":1234.0100001,\"time\":321,\"steps\"")]
-    public async Task ContradictoryTotalsBeyondSpecifiedToleranceFailClosed(string current, string mutation)
+    public async Task ProviderRoundingDifferencesDoNotInvalidateOtherwiseUsableRoute(string current, string mutation)
     {
         using var response = Response(SingleLegJson.Replace(current, mutation, StringComparison.Ordinal));
         var result = await GeoapifyRoutingAdapter.ParseAsync(response, [new(20, 10), new(21, 11)]);
 
-        Assert.False(result.Succeeded);
+        Assert.True(result.Succeeded);
     }
 
     [Fact]

@@ -26,6 +26,9 @@
 
 ## Unreleased
 
+### Fixed
+- Provider selection forms now accept only exact supported provider keys without ambiguous empty-alternative validation, and Geoapify routing accepts bounded provider snapping, step coverage, and metric rounding differences.
+
 ## [1.9.4] - 2026-08-31
 
 ### Added

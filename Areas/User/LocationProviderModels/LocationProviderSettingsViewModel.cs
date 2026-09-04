@@ -17,7 +17,7 @@ public sealed class LocationProviderSettingsViewModel
 /// <summary>Accepts a credential replacement without changing provider choice implicitly.</summary>
 public sealed class LocationProviderCredentialInput
 {
-    [Required, RegularExpression("geoapify|mapbox")] public string ProviderKey { get; set; } = string.Empty;
+    [Required, RegularExpression("^(?:geoapify|mapbox)$")] public string ProviderKey { get; set; } = string.Empty;
     [Required, DataType(DataType.Password), StringLength(2048), RegularExpression(@"^[^\s\p{Cc}]*$",
         ErrorMessage = "Credentials cannot contain whitespace or control characters.")]
     public string ReplacementCredential { get; set; } = string.Empty;
@@ -26,8 +26,8 @@ public sealed class LocationProviderCredentialInput
 /// <summary>Accepts one capability-oriented provider choice.</summary>
 public sealed class LocationProviderChoiceInput
 {
-    [Required, RegularExpression("Geocoding|Routing")] public string Capability { get; set; } = string.Empty;
-    [RegularExpression("|geoapify|mapbox")] public string ProviderKey { get; set; } = string.Empty;
+    [Required, RegularExpression("^(?:Geocoding|Routing)$")] public string Capability { get; set; } = string.Empty;
+    [StringLength(32)] public string ProviderKey { get; set; } = string.Empty;
 }
 
 /// <summary>Presents bounded profile, capability, and provider-native usage state.</summary>
@@ -45,7 +45,7 @@ public sealed record LocationProviderProfileViewModel(
 /// <summary>Accepts explicit profile replacement/authorization and independent selection.</summary>
 public sealed class LocationProviderProfileInput
 {
-    [Required, RegularExpression("geoapify|mapbox")] public string ProviderKey { get; set; } = string.Empty;
+    [Required, RegularExpression("^(?:geoapify|mapbox)$")] public string ProviderKey { get; set; } = string.Empty;
     [DataType(DataType.Password), StringLength(2048), RegularExpression(@"^[^\s\p{Cc}]*$",
         ErrorMessage = "Credentials cannot contain whitespace or control characters.")]
     public string? ReplacementCredential { get; set; }
@@ -58,7 +58,7 @@ public sealed class LocationProviderProfileInput
 /// <summary>Accepts one bounded provider-native guard setting.</summary>
 public sealed class LocationProviderGuardInput
 {
-    [Required, RegularExpression("geoapify|mapbox-permanent|mapbox-directions")] public string GuardKey { get; set; } = string.Empty;
+    [Required, RegularExpression("^(?:geoapify|mapbox-permanent|mapbox-directions)$")] public string GuardKey { get; set; } = string.Empty;
     public bool Enabled { get; set; }
     [Range(0, 10_000_000)] public int Limit { get; set; }
 }
