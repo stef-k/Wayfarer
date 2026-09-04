@@ -307,7 +307,7 @@ internal sealed class NpgsqlMigrationDatabaseOperations : IPostgresMigrationData
 }
 
 /// <summary>Serializes tests sharing one disposable migration-history database.</summary>
-[CollectionDefinition(Name)]
+[CollectionDefinition(Name, DisableParallelization = true)]
 public sealed class PostgresMigrationTestCollection : ICollectionFixture<PostgresMigrationTestFixture>
 {
     /// <summary>Stable collection name for destructive migration-history tests.</summary>

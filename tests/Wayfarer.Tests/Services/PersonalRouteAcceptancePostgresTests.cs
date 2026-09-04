@@ -90,18 +90,12 @@ public sealed class PersonalRouteAcceptancePostgresTests(PostgresMigrationTestFi
                     if (mutation.GetDbTransaction().Connection is not null)
                         await mutation.RollbackAsync(CancellationToken.None);
                 }
-                catch (Exception cleanupFailure)
-                {
-                    primary.Data["MutationRollback"] = cleanupFailure.ToString();
-                }
+                catch (Exception) { }
 
                 if (acceptanceTask.IsCompleted)
                 {
                     try { await acceptanceTask; }
-                    catch (Exception cleanupFailure)
-                    {
-                        primary.Data["AcceptanceObservation"] = cleanupFailure.ToString();
-                    }
+                    catch (Exception) { }
                 }
             }
         }
