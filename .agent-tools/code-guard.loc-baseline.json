@@ -1,0 +1,403 @@
+{
+  "version": 1,
+  "loc": {
+    "files": [
+      {
+        "path": "Areas/Admin/Controllers/LogsController.cs",
+        "allowedLoc": 467
+      },
+      {
+        "path": "Areas/Admin/Controllers/SettingsController.cs",
+        "allowedLoc": 499
+      },
+      {
+        "path": "Areas/Admin/Controllers/TransportProfileController.cs",
+        "allowedLoc": 407
+      },
+      {
+        "path": "Areas/Admin/Controllers/UsersController.cs",
+        "allowedLoc": 469
+      },
+      {
+        "path": "Areas/Admin/Views/Settings/Index.cshtml",
+        "allowedLoc": 894
+      },
+      {
+        "path": "Areas/Api/Controllers/GroupsController.cs",
+        "allowedLoc": 457
+      },
+      {
+        "path": "Areas/Api/Controllers/LocationController.cs",
+        "allowedLoc": 1291
+      },
+      {
+        "path": "Areas/Api/Controllers/TripEditorController.cs",
+        "allowedLoc": 493
+      },
+      {
+        "path": "Areas/Api/Controllers/TripsController.cs",
+        "allowedLoc": 1384
+      },
+      {
+        "path": "Areas/Manager/Controllers/GroupsController.cs",
+        "allowedLoc": 411
+      },
+      {
+        "path": "Areas/Manager/Controllers/UsersController.cs",
+        "allowedLoc": 433
+      },
+      {
+        "path": "Areas/Public/Controllers/TripViewerController.cs",
+        "allowedLoc": 637
+      },
+      {
+        "path": "Areas/User/Controllers/LocationController.cs",
+        "allowedLoc": 597
+      },
+      {
+        "path": "ClientApps/trip-editor/src/App.vue",
+        "allowedLoc": 551
+      },
+      {
+        "path": "ClientApps/trip-editor/src/components/MetadataEditor.vue",
+        "allowedLoc": 440
+      },
+      {
+        "path": "ClientApps/trip-editor/src/components/RegionManager.vue",
+        "allowedLoc": 516
+      },
+      {
+        "path": "ClientApps/trip-editor/src/components/RegionPlaceList.vue",
+        "allowedLoc": 445
+      },
+      {
+        "path": "ClientApps/trip-editor/src/components/SegmentManager.vue",
+        "allowedLoc": 599
+      },
+      {
+        "path": "ClientApps/trip-editor/src/map/leafletAdapter.ts",
+        "allowedLoc": 543
+      },
+      {
+        "path": "ClientApps/trip-editor/src/styles.css",
+        "allowedLoc": 567
+      },
+      {
+        "path": "ClientApps/trip-editor/src/types.ts",
+        "allowedLoc": 416
+      },
+      {
+        "path": "Models/ApplicationDbContext.cs",
+        "allowedLoc": 465
+      },
+      {
+        "path": "Models/ApplicationDbContextSeed.cs",
+        "allowedLoc": 444
+      },
+      {
+        "path": "Models/Dtos/BackfillDtos.cs",
+        "allowedLoc": 524
+      },
+      {
+        "path": "Program.cs",
+        "allowedLoc": 710
+      },
+      {
+        "path": "Services/GroupService.cs",
+        "allowedLoc": 532
+      },
+      {
+        "path": "Services/LocationProviders/GeoapifyLocationBackfillService.cs",
+        "allowedLoc": 513
+      },
+      {
+        "path": "Services/LocationProviders/PersonalProviderContactGate.cs",
+        "allowedLoc": 415
+      },
+      {
+        "path": "Services/LocationService.cs",
+        "allowedLoc": 567
+      },
+      {
+        "path": "Services/PlaceRegionLifecycleService.cs",
+        "allowedLoc": 519
+      },
+      {
+        "path": "Services/PlaceVisitDetectionService.cs",
+        "allowedLoc": 498
+      },
+      {
+        "path": "Services/SegmentRouteReconciler.cs",
+        "allowedLoc": 501
+      },
+      {
+        "path": "Services/TileCacheService.cs",
+        "allowedLoc": 2009
+      },
+      {
+        "path": "Services/TileOutboundBudget.cs",
+        "allowedLoc": 486
+      },
+      {
+        "path": "Services/TileWorkScheduler.cs",
+        "allowedLoc": 488
+      },
+      {
+        "path": "Services/TripEditorGeocodeSearchService.cs",
+        "allowedLoc": 450
+      },
+      {
+        "path": "Services/TripEditorSegmentMutationService.cs",
+        "allowedLoc": 449
+      },
+      {
+        "path": "Services/TripExportService.cs",
+        "allowedLoc": 534
+      },
+      {
+        "path": "Services/VisitBackfillService.cs",
+        "allowedLoc": 1315
+      },
+      {
+        "path": "Views/Trip/Viewer.cshtml",
+        "allowedLoc": 934
+      },
+      {
+        "path": "deployment/install.sh",
+        "allowedLoc": 715
+      },
+      {
+        "path": "tests/Wayfarer.Tests/Controllers/AdminLogsControllerTests.cs",
+        "allowedLoc": 427
+      },
+      {
+        "path": "tests/Wayfarer.Tests/Controllers/AdminTransportProfileControllerTests.cs",
+        "allowedLoc": 415
+      },
+      {
+        "path": "tests/Wayfarer.Tests/Controllers/AdminUsersControllerTests.cs",
+        "allowedLoc": 496
+      },
+      {
+        "path": "tests/Wayfarer.Tests/Controllers/ApiLocationControllerTests.cs",
+        "allowedLoc": 588
+      },
+      {
+        "path": "tests/Wayfarer.Tests/Controllers/ApiTripsControllerTests.cs",
+        "allowedLoc": 1530
+      },
+      {
+        "path": "tests/Wayfarer.Tests/Controllers/LocationControllerTests.cs",
+        "allowedLoc": 538
+      },
+      {
+        "path": "tests/Wayfarer.Tests/Controllers/LocationImportDiagnosticPrivacyTests.cs",
+        "allowedLoc": 430
+      },
+      {
+        "path": "tests/Wayfarer.Tests/Controllers/ManagerGroupsControllerTests.cs",
+        "allowedLoc": 599
+      },
+      {
+        "path": "tests/Wayfarer.Tests/Controllers/ManagerUsersControllerTests.cs",
+        "allowedLoc": 664
+      },
+      {
+        "path": "tests/Wayfarer.Tests/Controllers/TilesControllerTests.cs",
+        "allowedLoc": 453
+      },
+      {
+        "path": "tests/Wayfarer.Tests/Controllers/TripControllerTests.cs",
+        "allowedLoc": 541
+      },
+      {
+        "path": "tests/Wayfarer.Tests/Controllers/TripEditorControllerTests.cs",
+        "allowedLoc": 489
+      },
+      {
+        "path": "tests/Wayfarer.Tests/Models/PlaceRegionLifecyclePostgresTests.cs",
+        "allowedLoc": 404
+      },
+      {
+        "path": "tests/Wayfarer.Tests/Models/SegmentMeasurementConcurrencyPostgresTests.cs",
+        "allowedLoc": 411
+      },
+      {
+        "path": "tests/Wayfarer.Tests/Models/SegmentWaypointPostgresTests.cs",
+        "allowedLoc": 462
+      },
+      {
+        "path": "tests/Wayfarer.Tests/Parsers/GoogleMyMapsKmlParserTests.cs",
+        "allowedLoc": 475
+      },
+      {
+        "path": "tests/Wayfarer.Tests/Parsers/KmlLocationParserTests.cs",
+        "allowedLoc": 421
+      },
+      {
+        "path": "tests/Wayfarer.Tests/Parsers/TripWayfarerKmlExporterTests.cs",
+        "allowedLoc": 405
+      },
+      {
+        "path": "tests/Wayfarer.Tests/Parsers/WayfarerGeoJsonParserTests.cs",
+        "allowedLoc": 609
+      },
+      {
+        "path": "tests/Wayfarer.Tests/Services/GeoapifyBackfillConcurrencyPostgresTests.cs",
+        "allowedLoc": 412
+      },
+      {
+        "path": "tests/Wayfarer.Tests/Services/GroupServiceTests.cs",
+        "allowedLoc": 954
+      },
+      {
+        "path": "tests/Wayfarer.Tests/Services/LocationEnrichmentRetryAtomicityPostgresTests.cs",
+        "allowedLoc": 500
+      },
+      {
+        "path": "tests/Wayfarer.Tests/Services/LocationImportServiceTests.cs",
+        "allowedLoc": 590
+      },
+      {
+        "path": "tests/Wayfarer.Tests/Services/LocationServiceTests.cs",
+        "allowedLoc": 425
+      },
+      {
+        "path": "tests/Wayfarer.Tests/Services/MobileCurrentUserAccessorTests.cs",
+        "allowedLoc": 547
+      },
+      {
+        "path": "tests/Wayfarer.Tests/Services/TileCachePhase3ProductionReviewTests.cs",
+        "allowedLoc": 540
+      },
+      {
+        "path": "tests/Wayfarer.Tests/Services/TileCachePhase3Tests.cs",
+        "allowedLoc": 480
+      },
+      {
+        "path": "tests/Wayfarer.Tests/Services/TileCacheServiceStaleRefreshTests.cs",
+        "allowedLoc": 422
+      },
+      {
+        "path": "tests/Wayfarer.Tests/Services/TileCacheServiceTests.cs",
+        "allowedLoc": 997
+      },
+      {
+        "path": "tests/Wayfarer.Tests/Services/TripExportServiceTests.cs",
+        "allowedLoc": 680
+      },
+      {
+        "path": "tests/Wayfarer.Tests/Services/TripImportServiceTests.cs",
+        "allowedLoc": 551
+      },
+      {
+        "path": "tests/Wayfarer.Tests/Views/TileAttributionLayoutRenderingTests.cs",
+        "allowedLoc": 454
+      },
+      {
+        "path": "tests/e2e/trip-editor/tripEditor.spec.ts",
+        "allowedLoc": 407
+      },
+      {
+        "path": "tests/e2e/trip-editor/tripEditorAreaEditing.spec.ts",
+        "allowedLoc": 423
+      },
+      {
+        "path": "tests/e2e/trip-editor/tripEditorIconSelector.spec.ts",
+        "allowedLoc": 552
+      },
+      {
+        "path": "tests/e2e/trip-editor/tripEditorMapNavigation.spec.ts",
+        "allowedLoc": 439
+      },
+      {
+        "path": "tests/e2e/trip-editor/tripEditorMapSearch.spec.ts",
+        "allowedLoc": 514
+      },
+      {
+        "path": "tests/e2e/trip-editor/tripEditorMarkerParity.spec.ts",
+        "allowedLoc": 600
+      },
+      {
+        "path": "tests/e2e/trip-editor/tripEditorMobileDrawer.spec.ts",
+        "allowedLoc": 600
+      },
+      {
+        "path": "tests/e2e/trip-editor/tripEditorPlaceCoordinateMapWork.spec.ts",
+        "allowedLoc": 569
+      },
+      {
+        "path": "tests/e2e/trip-editor/tripEditorRealCrudContracts.spec.ts",
+        "allowedLoc": 586
+      },
+      {
+        "path": "tests/e2e/trip-editor/tripEditorRichNotes.spec.ts",
+        "allowedLoc": 598
+      },
+      {
+        "path": "tests/e2e/trip-editor/tripEditorVisualPolish.spec.ts",
+        "allowedLoc": 468
+      },
+      {
+        "path": "tests/e2e/trip-editor/tripEditorWaypointAggregateContracts.spec.ts",
+        "allowedLoc": 520
+      },
+      {
+        "path": "wwwroot/css/site.css",
+        "allowedLoc": 1981
+      },
+      {
+        "path": "wwwroot/js/Areas/Manager/Groups/Map.js",
+        "allowedLoc": 682
+      },
+      {
+        "path": "wwwroot/js/Areas/Public/TripViewer/Index.js",
+        "allowedLoc": 610
+      },
+      {
+        "path": "wwwroot/js/Areas/Public/UsersTimeline/Embed.js",
+        "allowedLoc": 480
+      },
+      {
+        "path": "wwwroot/js/Areas/Public/UsersTimeline/Timeline.js",
+        "allowedLoc": 470
+      },
+      {
+        "path": "wwwroot/js/Areas/User/Groups/Map.js",
+        "allowedLoc": 690
+      },
+      {
+        "path": "wwwroot/js/Areas/User/Location/AllLocations.js",
+        "allowedLoc": 444
+      },
+      {
+        "path": "wwwroot/js/Areas/User/Location/Index.js",
+        "allowedLoc": 694
+      },
+      {
+        "path": "wwwroot/js/Areas/User/Timeline/Chronological.js",
+        "allowedLoc": 885
+      },
+      {
+        "path": "wwwroot/js/Areas/User/Timeline/Index.js",
+        "allowedLoc": 666
+      },
+      {
+        "path": "wwwroot/js/Areas/User/Trip/Index.js",
+        "allowedLoc": 1550
+      },
+      {
+        "path": "wwwroot/js/Areas/User/Visit/Index.js",
+        "allowedLoc": 523
+      },
+      {
+        "path": "wwwroot/js/Trip/Viewer.js",
+        "allowedLoc": 711
+      },
+      {
+        "path": "wwwroot/js/util/wikipedia-utils.js",
+        "allowedLoc": 415
+      }
+    ]
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "scope": {
+    "exclude": [
+      "ChromeCache/**", "ImageCache/**", "Logs/**", "Migrations/**",
+      "MbtileCache/**", "OsmPbfCache/**", "RoutingCache/**", "TileCache/**",
+      "Uploads/**", "wwwroot/dist/**", "wwwroot/lib/**", "wwwroot/vite/**",
+      "**/*.Designer.cs", "**/*.g.cs", "**/*.generated.cs",
+      "**/*.min.css", "**/*.min.js"
+    ]
+  },
+  "guards": {
+    "loc": {
+      "ratchetAt": "review"
+    }
+  }
+}
