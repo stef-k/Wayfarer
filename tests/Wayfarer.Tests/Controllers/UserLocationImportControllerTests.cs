@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
@@ -49,7 +50,7 @@ public class UserLocationImportControllerTests : TestBase
         var expected = LocationEnrichmentPresentation.Build(null,
             new("geoapify", "Geoapify", false, "Provider verification is required.", true,
                 7, 2500, "credits", "rolling 24 hours", null),
-            new(0, 2, 1, true, DateTime.UtcNow.AddHours(1)));
+            new(0, 2, 1, 0, DateTime.UtcNow.AddHours(1)));
         projector.Setup(item => item.ProjectAsync("u1", It.IsAny<CancellationToken>())).ReturnsAsync(expected);
         var controller = BuildController(db, "u1", presentation: projector.Object);
 
@@ -135,13 +136,29 @@ public class UserLocationImportControllerTests : TestBase
     {
         var handoff = new Mock<IImportEnrichmentHandoff>();
         handoff.Setup(item => item.RetryDeferredAsync("u1", It.IsAny<CancellationToken>()))
-            .ReturnsAsync(EnrichmentCommandResult.Success("scheduled"));
+            .ReturnsAsync(EnrichmentCommandResult.Success("scheduled", 2));
         var controller = BuildController(CreateDbContext(), "u1", handoff.Object);
 
         var result = await controller.RetryDeferredEnrichment();
 
         Assert.IsType<RedirectToActionResult>(result);
+        Assert.Equal("Retry scheduled for 2 deferred locations.", controller.TempData["AlertMessage"]);
         handoff.Verify(item => item.RetryDeferredAsync("u1", It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task RetryDeferredReportsWhenNoRowsRemainEligible()
+    {
+        var handoff = new Mock<IImportEnrichmentHandoff>();
+        handoff.Setup(item => item.RetryDeferredAsync("u1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(EnrichmentCommandResult.Satisfied("nothing-to-retry"));
+        var controller = BuildController(CreateDbContext(), "u1", handoff.Object);
+
+        var result = await controller.RetryDeferredEnrichment();
+
+        Assert.IsType<RedirectToActionResult>(result);
+        Assert.Equal("No deferred locations are currently eligible for retry.",
+            controller.TempData["AlertMessage"]);
     }
 
     [Fact]
@@ -196,11 +213,12 @@ public class UserLocationImportControllerTests : TestBase
             .ReturnsAsync(LocationEnrichmentPresentation.Build(null,
                 new(null, "Not selected", false, "No geocoding provider is selected.", false,
                     0, 0, "credits", "No active usage window", null),
-                new(0, 0, 0, false, null)));
+                new(0, 0, 0, 0, null)));
         var controller = new LocationImportController(db, NullLogger<LocationImportController>.Instance,
             env.Object, scheduler.Object, presentation ?? defaultPresentation.Object, handoff, projection,
             contextFactory: new CloningFactory(db));
         controller.ControllerContext = new ControllerContext { HttpContext = BuildHttpContextWithUser(userId) };
+        controller.TempData = new TempDataDictionary(controller.HttpContext, Mock.Of<ITempDataProvider>());
         return controller;
     }
 

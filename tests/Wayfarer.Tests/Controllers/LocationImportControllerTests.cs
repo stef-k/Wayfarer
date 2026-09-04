@@ -178,7 +178,7 @@ public class LocationImportControllerTests : TestBase
             .ReturnsAsync(LocationEnrichmentPresentation.Build(null,
                 new(null, "Not selected", false, "No geocoding provider is selected.", false,
                     0, 0, "credits", "No active usage window", null),
-                new(0, 0, 0, false, null)));
+                new(0, 0, 0, 0, null)));
         var controller = new LocationImportController(
             db,
             NullLogger<LocationImportController>.Instance,

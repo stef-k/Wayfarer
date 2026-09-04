@@ -151,6 +151,7 @@ public sealed class ImportEnrichmentHandoff(
             return EnrichmentCommandResult.Conflict("authority-unavailable");
         await using var transaction = db.Database.IsRelational()
             ? await db.Database.BeginTransactionAsync(cancellationToken) : null;
+        var reset = 0;
         try
         {
             var workflow = await LockWorkflowAsync(userId, cancellationToken);
@@ -161,8 +162,8 @@ public sealed class ImportEnrichmentHandoff(
                 return await RollbackAsync(transaction,
                     EnrichmentCommandResult.Conflict("authority-unavailable"), cancellationToken);
             var now = await LocationEnrichmentExecutionAuthority.DatabaseUtcNowAsync(db, cancellationToken);
-            var eligible = EligibleDeferredAttempts(userId, authority);
-            var reset = db.Database.IsRelational()
+            var eligible = LocationEnrichmentProgressQuery.ManuallyRetryableAttempts(db, userId, authority);
+            reset = db.Database.IsRelational()
                 ? await eligible.ExecuteUpdateAsync(setters => setters
                     .SetProperty(item => item.Outcome, LocationEnrichmentOutcome.None)
                     .SetProperty(item => item.AdmittedAttemptCount, 0)
@@ -170,7 +171,7 @@ public sealed class ImportEnrichmentHandoff(
                 : await ResetTrackedAsync(eligible, authority, now, cancellationToken);
             if (reset == 0)
                 return await RollbackAsync(transaction,
-                    EnrichmentCommandResult.Success("nothing-to-retry"), cancellationToken);
+                    EnrichmentCommandResult.Satisfied("nothing-to-retry"), cancellationToken);
             if (!workflow.RetryDeferred(now))
                 return await RollbackAsync(transaction,
                     EnrichmentCommandResult.Conflict("concurrent-command"), cancellationToken);
@@ -186,35 +187,9 @@ public sealed class ImportEnrichmentHandoff(
             return EnrichmentCommandResult.Conflict("concurrent-command");
         }
         try { await projection.ProjectAsync(userId, cancellationToken); }
-        catch { return EnrichmentCommandResult.Scheduling("scheduling-reconciliation-required"); }
-        return EnrichmentCommandResult.Success("scheduled");
+        catch { return EnrichmentCommandResult.Scheduling("scheduling-reconciliation-required", reset); }
+        return EnrichmentCommandResult.Success("scheduled", reset);
     }
-
-    private IQueryable<LocationEnrichmentAttempt> EligibleDeferredAttempts(
-        string userId, PersonalProviderAuthorityBinding authority) =>
-        db.LocationEnrichmentAttempts.Where(item => item.UserId == userId
-            && item.OperationId == null && (item.Outcome == LocationEnrichmentOutcome.NoResult
-                || item.Outcome == LocationEnrichmentOutcome.AttemptLimit)
-            && item.ProviderKey == authority.ProviderKey && item.ProviderProfileId == authority.ProfileId
-            && item.Capability == PersonalProviderCapability.Geocoding
-            && item.CredentialGeneration == authority.CredentialGeneration
-            && item.ConfigurationGeneration == authority.CapabilityGeneration
-            && item.SelectionGeneration == authority.SelectionGeneration
-            && item.Verification == authority.Verification
-            && item.VerificationCredentialGeneration == authority.VerifiedCredentialGeneration
-            && item.VerificationGeneration == authority.VerifiedCapabilityGeneration
-            && item.ConsentVersion == authority.ConsentVersion && item.ConsentTimestamp == authority.ConsentedAt
-            && item.ConsentCredentialGeneration == authority.ConsentCredentialGeneration
-            && item.Location != null && (item.Location.Address == null || item.Location.Address == "")
-            && (item.Location.FullAddress == null || item.Location.FullAddress == "")
-            && (item.Location.AddressNumber == null || item.Location.AddressNumber == "")
-            && (item.Location.StreetName == null || item.Location.StreetName == "")
-            && (item.Location.PostCode == null || item.Location.PostCode == "")
-            && (item.Location.Place == null || item.Location.Place == "")
-            && (item.Location.Region == null || item.Location.Region == "")
-            && (item.Location.Country == null || item.Location.Country == "")
-            && item.Location.ReverseGeocodingProvider == null
-            && item.Location.ReverseGeocodingStorageMode == null && item.Location.ReverseGeocodedAt == null);
 
     private static bool CanRetryDeferred(LocationEnrichmentWorkflow workflow) => workflow.State is
         LocationEnrichmentState.PausedByAuthority
@@ -338,15 +313,18 @@ public enum LocationEnrichmentCommandResult
 { Applied, AlreadySatisfied, Conflict, InvalidTransition, AuthorityUnavailable, SchedulingPending }
 
 /// <summary>Contains a finite classification and bounded user-safe code.</summary>
-public sealed record EnrichmentCommandResult(LocationEnrichmentCommandResult Classification, string Code)
+public sealed record EnrichmentCommandResult(LocationEnrichmentCommandResult Classification, string Code,
+    int AffectedCount = 0)
 {
     public bool Succeeded => Classification is LocationEnrichmentCommandResult.Applied
         or LocationEnrichmentCommandResult.AlreadySatisfied;
-    public static EnrichmentCommandResult Success(string code) => Applied(code);
-    public static EnrichmentCommandResult Applied(string code) => new(LocationEnrichmentCommandResult.Applied, code);
+    public static EnrichmentCommandResult Success(string code, int affectedCount = 0) => Applied(code, affectedCount);
+    public static EnrichmentCommandResult Applied(string code, int affectedCount = 0) =>
+        new(LocationEnrichmentCommandResult.Applied, code, affectedCount);
     public static EnrichmentCommandResult Satisfied(string code) => new(LocationEnrichmentCommandResult.AlreadySatisfied, code);
     public static EnrichmentCommandResult Conflict(string code) => new(LocationEnrichmentCommandResult.Conflict, code);
     public static EnrichmentCommandResult Invalid(string code) => new(LocationEnrichmentCommandResult.InvalidTransition, code);
     public static EnrichmentCommandResult Authority(string code) => new(LocationEnrichmentCommandResult.AuthorityUnavailable, code);
-    public static EnrichmentCommandResult Scheduling(string code) => new(LocationEnrichmentCommandResult.SchedulingPending, code);
+    public static EnrichmentCommandResult Scheduling(string code, int affectedCount = 0) =>
+        new(LocationEnrichmentCommandResult.SchedulingPending, code, affectedCount);
 }

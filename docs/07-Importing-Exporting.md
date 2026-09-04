@@ -50,7 +50,7 @@ CSV uses the CSV importer and suits spreadsheets/Python. Wayfarer GeoJSON uses t
   exhaustion; see [Personal Location Providers](24-Personal-Location-Providers.md).
 - Without usable current provider authority, imports still work; address fields stay blank.
 - Opt in during upload or use **Start** later. Import completion covers parsing, duplicate filtering, and insertion; enrichment can continue independently for days.
-- State- and authority-specific controls are **Start**, **Pause**, **Resume**, **Cancel**, and **Retry deferred**; only meaningful actions are shown and the server revalidates every command. Retry deferred explicitly overrides eligible current-authority poison/no-result deferral without resetting usage or successes.
+- State- and authority-specific controls are **Start**, **Pause**, **Resume**, **Cancel**, and **Retry deferred**; only meaningful actions are shown and the server revalidates every command. Retry deferred explicitly resets eligible current-authority no-result or attempt-limit rows without resetting usage or successes. The page reports those rows separately from invalid-coordinate rows, which cannot be retried.
 - Each Quartz execution contacts at most 100 wholly empty owned candidates in timestamp/ID order. Permanent and not-yet-due attempts are skipped so poison rows cannot starve later Locations.
 - Geoapify geocoding and routing share a rolling pool and wake after the oldest counted admission expires plus five seconds. Mapbox Permanent Geocoding uses the next Wayfarer UTC month boundary plus five seconds.
 - Wayfarer cannot see usage made directly in the external provider account. The displayed usage contains only committed Wayfarer admissions.

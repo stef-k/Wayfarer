@@ -15,7 +15,7 @@ namespace Wayfarer.Tests.Services;
 public sealed class LocationEnrichmentPresentationProjectorTests
 {
     [Fact]
-    public async Task FreshContextProjectsFutureDueAndPermanentRowsExactly()
+    public async Task FreshContextProjectsFutureManualAndInvalidRowsExactly()
     {
         var database = Guid.NewGuid().ToString();
         using var services = new ServiceCollection().AddEntityFrameworkInMemoryDatabase().BuildServiceProvider();
@@ -27,11 +27,13 @@ public sealed class LocationEnrichmentPresentationProjectorTests
         {
             var user = TestDataFixtures.CreateUser(id: "projection-user");
             var future = TestDataFixtures.CreateLocation(user);
-            var permanent = TestDataFixtures.CreateLocation(user);
-            seed.AddRange(user, future, permanent);
+            var manual = TestDataFixtures.CreateLocation(user);
+            var invalid = TestDataFixtures.CreateLocation(user);
+            seed.AddRange(user, future, manual, invalid);
             await seed.SaveChangesAsync();
             seed.AddRange(Attempt(future.Id, binding, LocationEnrichmentOutcome.RetryableFailure, now.AddHours(2)),
-                Attempt(permanent.Id, binding, LocationEnrichmentOutcome.NoResult, null));
+                Attempt(manual.Id, binding, LocationEnrichmentOutcome.NoResult, null),
+                Attempt(invalid.Id, binding, LocationEnrichmentOutcome.InvalidCoordinates, null));
             var workflow = LocationEnrichmentWorkflow.Create(user.Id, now);
             workflow.Start(now);
             workflow.ContinueAs(LocationEnrichmentState.BackingOff,
@@ -47,7 +49,8 @@ public sealed class LocationEnrichmentPresentationProjectorTests
 
         Assert.Equal(0, view.RunnableRemaining);
         Assert.Equal(1, view.FutureDue);
-        Assert.Equal(1, view.PermanentlyDeferred);
+        Assert.Equal(1, view.ManualRetryAvailable);
+        Assert.Equal(1, view.CannotBeRetried);
         Assert.True(view.DeferredWorkRetryable);
         Assert.Equal(7, view.ProviderUsage);
         Assert.NotNull(view.NextAttemptAtUtc);
@@ -72,6 +75,28 @@ public sealed class LocationEnrichmentPresentationProjectorTests
         Assert.Equal(4, view.ProviderUsage);
     }
 
+    [Fact]
+    public async Task InvalidCoordinatesRemainVisibleWithoutProviderAuthority()
+    {
+        await using var db = CreateContext();
+        var user = TestDataFixtures.CreateUser(id: "unavailable-user");
+        var location = TestDataFixtures.CreateLocation(user);
+        db.AddRange(user, location);
+        await db.SaveChangesAsync();
+        db.Add(Attempt(location.Id, Binding(), LocationEnrichmentOutcome.InvalidCoordinates, null, user.Id));
+        await db.SaveChangesAsync();
+        var inspector = new Mock<IPersonalProviderStatusReader>();
+        inspector.Setup(item => item.InspectPersistentGeocodingAsync(user.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PersonalProviderInspection(PersonalProviderAdmissionCategory.NoProviderSelected,
+                null, false, false, null, null, null));
+
+        var view = await new LocationEnrichmentPresentationProjector(
+            db, inspector.Object, new LocationEnrichmentProgressQuery(db)).ProjectAsync(user.Id);
+
+        Assert.Equal(1, view.CannotBeRetried);
+        Assert.Equal(0, view.ManualRetryAvailable);
+    }
+
     private static ApplicationDbContext CreateContext()
     {
         var services = new ServiceCollection().BuildServiceProvider();
@@ -94,9 +119,9 @@ public sealed class LocationEnrichmentPresentationProjectorTests
         2, 3, 4, PersonalProviderVerification.Verified, 2, 3, null, null, null);
 
     private static LocationEnrichmentAttempt Attempt(int locationId, PersonalProviderAuthorityBinding binding,
-        LocationEnrichmentOutcome outcome, DateTime? next) => new()
+        LocationEnrichmentOutcome outcome, DateTime? next, string userId = "projection-user") => new()
     {
-        UserId = "projection-user", LocationId = locationId, ProviderKey = binding.ProviderKey,
+        UserId = userId, LocationId = locationId, ProviderKey = binding.ProviderKey,
         ProviderProfileId = binding.ProfileId, Capability = PersonalProviderCapability.Geocoding,
         CredentialGeneration = binding.CredentialGeneration, ConfigurationGeneration = binding.CapabilityGeneration,
         SelectionGeneration = binding.SelectionGeneration, Verification = binding.Verification,

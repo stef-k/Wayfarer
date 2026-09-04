@@ -19,7 +19,7 @@ public static class LocationEnrichmentPresentation
         var canResume = resumable && authority.Available;
         var canRetry = workflow?.State is (LocationEnrichmentState.PausedByAuthority
             or LocationEnrichmentState.Completed or LocationEnrichmentState.Failed)
-            && authority.Available && progress.DeferredWorkRetryable;
+            && authority.Available && progress.ManualRetryAvailable > 0;
         var pausedReason = state switch
         {
             LocationEnrichmentState.PausedByUser => "Paused by you.",
@@ -31,20 +31,21 @@ public static class LocationEnrichmentPresentation
         var noAction = canStart || active || canResume || canRetry ? null
             : !authority.Available ? authority.AvailabilitySummary
             : progress.FutureDue > 0 ? "Deferred work is not due yet."
-            : progress.PermanentlyDeferred > 0 ? "Deferred work requires an explicit retry when eligible."
+            : progress.ManualRetryAvailable > 0 ? "Some locations require an explicit retry."
+            : progress.CannotBeRetried > 0 ? "Some locations have invalid coordinates and cannot be retried."
             : "No eligible enrichment work is available.";
         return new(state.ToString(), workflow?.IntentEnabled ?? false, pausedReason,
             progress.NextAttemptAtUtc ?? workflow?.NextEligibleAtUtc,
             workflow?.ProcessedCount ?? 0, workflow?.EnrichedCount ?? 0,
             workflow?.SkippedCount ?? 0, workflow?.RetryableDeferredCount ?? 0,
-            progress.PermanentlyDeferred, workflow?.FailedBatchCount ?? 0,
+            progress.ManualRetryAvailable, progress.CannotBeRetried, workflow?.FailedBatchCount ?? 0,
             progress.RunnableRemaining, progress.FutureDue,
-            progress.RunnableRemaining + progress.FutureDue + progress.PermanentlyDeferred,
+            progress.RunnableRemaining + progress.FutureDue + progress.ManualRetryAvailable + progress.CannotBeRetried,
             workflow?.Outcome.ToString() ?? LocationEnrichmentOutcome.None.ToString(),
             authority.ProviderKey, authority.ProviderDisplayName, authority.Available,
             authority.AvailabilitySummary, authority.GuardEnabled, authority.Usage,
             authority.Limit, authority.Unit, authority.WindowDescription,
-            authority.NextAvailableAtUtc, progress.DeferredWorkRetryable, noAction,
+            authority.NextAvailableAtUtc, progress.ManualRetryAvailable > 0, noAction,
             Start: new(canStart, canStart),
             Pause: new(active, active), Resume: new(canResume, canResume),
             Cancel: new(active || resumable, active || resumable), RetryDeferred: new(canRetry, canRetry));
@@ -58,11 +59,11 @@ public sealed record LocationEnrichmentAuthorityPresentation(string? ProviderKey
     string WindowDescription, DateTime? NextAvailableAtUtc);
 
 public sealed record LocationEnrichmentProgressPresentation(int RunnableRemaining, int FutureDue,
-    int PermanentlyDeferred, bool DeferredWorkRetryable, DateTime? NextAttemptAtUtc);
+    int ManualRetryAvailable, int CannotBeRetried, DateTime? NextAttemptAtUtc);
 
 public sealed record LocationEnrichmentPresentationModel(string StatusText, bool IntentEnabled, string? PausedReason,
     DateTime? NextAttemptAtUtc, int Processed, int Enriched, int Skipped, int RetryableDeferred,
-    int PermanentlyDeferred, int FailedBatches, int RunnableRemaining, int FutureDue, int TotalOutstanding,
+    int ManualRetryAvailable, int CannotBeRetried, int FailedBatches, int RunnableRemaining, int FutureDue, int TotalOutstanding,
     string LastOutcome, string? ProviderKey, string ProviderDisplayName, bool ProviderAvailable,
     string ProviderAvailabilitySummary, bool GuardEnabled, int ProviderUsage, int ProviderLimit,
     string UsageUnit, string UsageWindowDescription, DateTime? ProviderNextAvailableAtUtc,

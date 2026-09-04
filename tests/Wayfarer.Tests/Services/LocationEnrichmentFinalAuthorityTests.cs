@@ -132,7 +132,7 @@ public sealed class LocationEnrichmentFinalAuthorityTests
         var view = LocationEnrichmentPresentation.Build(null,
             new(null, "Not selected", false, "No geocoding provider is selected.", false,
                 0, 0, "credits", "No active usage window", null),
-            new(0, 0, 0, false, null));
+            new(0, 0, 0, 0, null));
 
         Assert.False(view.Start.Visible);
         Assert.False(view.Pause.Visible);
@@ -149,7 +149,7 @@ public sealed class LocationEnrichmentFinalAuthorityTests
         var view = LocationEnrichmentPresentation.Build(workflow,
             new("geoapify", "Geoapify", true, "Provider authority is current.", true,
                 0, 2500, "credits", "rolling 24 hours", null),
-            new(1, 0, 0, false, null));
+            new(1, 0, 0, 0, null));
 
         Assert.True(view.Pause is { Visible: true, Enabled: true });
         Assert.True(view.Cancel is { Visible: true, Enabled: true });
@@ -167,7 +167,7 @@ public sealed class LocationEnrichmentFinalAuthorityTests
         var view = LocationEnrichmentPresentation.Build(workflow,
             new("geoapify", "Geoapify", false, "Provider verification is required.", true,
                 0, 2500, "credits", "rolling 24 hours", null),
-            new(1, 0, 0, false, null));
+            new(1, 0, 0, 0, null));
 
         Assert.False(view.Resume.Visible);
         Assert.False(view.Resume.Enabled);

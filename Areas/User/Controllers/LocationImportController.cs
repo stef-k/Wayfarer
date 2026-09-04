@@ -105,8 +105,26 @@ namespace Wayfarer.Areas.User.Controllers
             if (string.IsNullOrWhiteSpace(userId)) return Challenge();
             if (_enrichmentHandoff is null) return Conflict("control-unavailable");
             var result = await _enrichmentHandoff.RetryDeferredAsync(userId);
-            return result.Succeeded ? RedirectToAction(nameof(Index)) : Conflict(result.Code);
+            var feedback = RetryFeedback(result);
+            SetAlert(feedback.Message, feedback.Type);
+            return RedirectToAction(nameof(Index));
         }
+
+        /// <summary>Maps finite retry outcomes to credential-free user feedback.</summary>
+        private static (string Message, string Type) RetryFeedback(EnrichmentCommandResult result) => result switch
+        {
+            { Classification: LocationEnrichmentCommandResult.Applied, AffectedCount: > 0 } =>
+                ($"Retry scheduled for {result.AffectedCount} deferred locations.", "success"),
+            { Classification: LocationEnrichmentCommandResult.AlreadySatisfied, Code: "nothing-to-retry" } =>
+                ("No deferred locations are currently eligible for retry.", "info"),
+            { Classification: LocationEnrichmentCommandResult.SchedulingPending, AffectedCount: > 0 } =>
+                ($"Retry was saved for {result.AffectedCount} deferred locations; scheduling requires reconciliation.", "warning"),
+            { Code: "authority-unavailable" } =>
+                ("The current geocoding provider must be available before retrying.", "warning"),
+            { Code: "invalid-state" } =>
+                ("The enrichment workflow changed state before retry could start.", "warning"),
+            _ => ("Deferred enrichment could not be retried because its state changed. Refresh and try again.", "warning")
+        };
 
         private async Task<IActionResult> ExecuteEnrichmentAsync(
             Func<IImportEnrichmentHandoff, string, Task<EnrichmentCommandResult>> execute)

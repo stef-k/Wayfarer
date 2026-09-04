@@ -45,8 +45,9 @@ public sealed partial class LocationEnrichmentRetryAtomicityPostgresTests(Postgr
 
         var result = await Command(scenario).RetryDeferredAsync(scenario.UserId);
 
-        Assert.Equal(LocationEnrichmentCommandResult.Applied, result.Classification);
+        Assert.Equal(LocationEnrichmentCommandResult.AlreadySatisfied, result.Classification);
         Assert.Equal("nothing-to-retry", result.Code);
+        Assert.Equal(0, result.AffectedCount);
         Assert.Equal(before, await SnapshotAsync(scenario.UserId));
         scenario.Projection.Verify(x => x.ProjectAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
@@ -57,17 +58,32 @@ public sealed partial class LocationEnrichmentRetryAtomicityPostgresTests(Postgr
         fixture.RequireAvailable();
         var scenario = await SeedAsync(LocationEnrichmentState.Completed, LocationEnrichmentOutcome.AttemptLimit);
         var before = await SnapshotAsync(scenario.UserId);
+        var inspection = await scenario.Status.Object.InspectPersistentGeocodingAsync(scenario.UserId);
+        await AddInvalidAttemptAsync(scenario.UserId, inspection.Binding!);
+        await using (var progressDb = fixture.CreateContext())
+        {
+            var progress = await new LocationEnrichmentProgressQuery(progressDb)
+                .ProjectAsync(scenario.UserId, inspection.Binding, DateTime.UtcNow);
+            Assert.Equal(1, progress.ManualRetryAvailable);
+            Assert.Equal(1, progress.CannotBeRetried);
+        }
 
         var result = await Command(scenario).RetryDeferredAsync(scenario.UserId);
-        var after = await SnapshotAsync(scenario.UserId);
+        await using var verify = fixture.CreateContext();
+        var after = await verify.LocationEnrichmentWorkflows.AsNoTracking()
+            .SingleAsync(item => item.UserId == scenario.UserId);
+        var attempts = await verify.LocationEnrichmentAttempts.AsNoTracking()
+            .Where(item => item.UserId == scenario.UserId).ToListAsync();
 
         Assert.Equal(LocationEnrichmentCommandResult.Applied, result.Classification);
         Assert.Equal("scheduled", result.Code);
+        Assert.Equal(1, result.AffectedCount);
         Assert.Equal(before.Epoch + 1, after.Epoch);
         Assert.Equal(LocationEnrichmentState.Scheduled, after.State);
         Assert.True(after.IntentEnabled);
-        Assert.Equal(LocationEnrichmentOutcome.None, after.AttemptOutcome);
-        Assert.Equal(0, after.AdmittedAttemptCount);
+        Assert.Contains(attempts, item => item.Outcome == LocationEnrichmentOutcome.None
+            && item.AdmittedAttemptCount == 0);
+        Assert.Contains(attempts, item => item.Outcome == LocationEnrichmentOutcome.InvalidCoordinates);
         scenario.Projection.Verify(x => x.ProjectAsync(scenario.UserId, It.IsAny<CancellationToken>()), Times.Once);
     }
 
@@ -353,6 +369,28 @@ public sealed partial class LocationEnrichmentRetryAtomicityPostgresTests(Postgr
             .ReturnsAsync(new PersonalProviderInspection(PersonalProviderAdmissionCategory.Admitted,
                 "geoapify", true, false, null, new(0, 2500, "credits", null, null), binding, now));
         return new(user.Id, status, new Mock<IWorkflowScheduleProjection>());
+    }
+
+    private async Task AddInvalidAttemptAsync(string userId, PersonalProviderAuthorityBinding binding)
+    {
+        await using var db = fixture.CreateContext();
+        var user = await db.Users.SingleAsync(item => item.Id == userId);
+        var location = TestDataFixtures.CreateLocation(user);
+        db.Add(location);
+        await db.SaveChangesAsync();
+        db.Add(new LocationEnrichmentAttempt
+        {
+            UserId = userId, LocationId = location.Id, ProviderKey = binding.ProviderKey,
+            ProviderProfileId = binding.ProfileId, Capability = PersonalProviderCapability.Geocoding,
+            CredentialGeneration = binding.CredentialGeneration,
+            ConfigurationGeneration = binding.CapabilityGeneration,
+            SelectionGeneration = binding.SelectionGeneration, Verification = binding.Verification,
+            VerificationCredentialGeneration = binding.VerifiedCredentialGeneration,
+            VerificationGeneration = binding.VerifiedCapabilityGeneration,
+            Outcome = LocationEnrichmentOutcome.InvalidCoordinates, AdmittedAttemptCount = 0,
+            LastAttemptAtUtc = DateTime.UtcNow
+        });
+        await db.SaveChangesAsync();
     }
 
     private async Task<Snapshot> SnapshotAsync(string userId)
