@@ -138,6 +138,51 @@ public sealed partial class GeoapifyBackfillConcurrencyPostgresTests(PostgresImp
         Assert.Equal(1, result.Skipped);
     }
 
+    [PostgresFact(Timeout = 30_000)]
+    public async Task ExplicitIncompleteRepairFillsOnlyMissingFields()
+    {
+        var user = await fixture.CreateUserAsync();
+        var protection = new EphemeralDataProtectionProvider();
+        await SeedAsync(user.Id, null, protection);
+        await using (var setup = fixture.CreateContext())
+        {
+            var profile = await setup.PersonalLocationProviderProfiles.SingleAsync(
+                item => item.UserId == user.Id && item.ProviderKey == "geoapify");
+            var selection = await setup.PersonalLocationProviderSelections.SingleAsync(item => item.UserId == user.Id);
+            var location = await setup.Locations.SingleAsync(item => item.UserId == user.Id);
+            location.Address = "Keep this address";
+            location.Country = "Greece";
+            location.ReverseGeocodingProvider = "geoapify";
+            location.ReverseGeocodingStorageMode = "persistent";
+            location.ReverseGeocodedAt = DateTimeOffset.UtcNow.AddDays(-1);
+            var binding = new PersonalProviderAuthorityBinding("geoapify", profile.Id,
+                profile.CredentialGeneration, profile.GeocodingGeneration,
+                selection.GeocodingSelectionGeneration, profile.GeocodingVerification,
+                profile.GeocodingVerifiedCredentialGeneration,
+                profile.GeocodingVerifiedConfigurationGeneration, null, null, null);
+            var workflow = LocationEnrichmentWorkflow.Create(user.Id, DateTime.UtcNow);
+            workflow.Start(DateTime.UtcNow);
+            var attempt = new LocationEnrichmentAttempt { UserId = user.Id, Location = location };
+            attempt.PrepareRepair(binding, DateTime.UtcNow);
+            setup.AddRange(workflow, attempt);
+            await setup.SaveChangesAsync();
+        }
+        var handler = new CoordinatedHandler(user.Id, null);
+        var run = Service(protection, handler).RunAsync(user.Id);
+        await handler.FirstUserRequestEntered.WaitAsync(TimeSpan.FromSeconds(10));
+        handler.Release();
+
+        var result = await run.WaitAsync(TimeSpan.FromSeconds(10));
+
+        await using var verify = fixture.CreateContext();
+        var saved = await verify.Locations.SingleAsync(item => item.UserId == user.Id);
+        Assert.Equal(1, result.Succeeded);
+        Assert.Equal("Keep this address", saved.Address);
+        Assert.Equal("Alexandroupolis", saved.Place);
+        Assert.Equal("Greece", saved.Country);
+        Assert.Empty(await verify.LocationEnrichmentAttempts.Where(item => item.UserId == user.Id).ToListAsync());
+    }
+
     [PostgresTheory(Timeout = 30_000)]
     [InlineData(false)]
     [InlineData(true)]

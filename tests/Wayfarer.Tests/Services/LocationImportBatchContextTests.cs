@@ -194,6 +194,8 @@ public sealed class LocationImportBatchContextTests
             throw new NotSupportedException();
         public Task<EnrichmentCommandResult> RetryDeferredAsync(string userId, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
+        public Task<EnrichmentCommandResult> RepairIncompleteAsync(string userId, CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
         public Task<EnrichmentCommandResult> PauseAsync(string userId, CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
         public Task<EnrichmentCommandResult> ResumeAsync(string userId, CancellationToken cancellationToken = default) =>

@@ -162,6 +162,22 @@ public class UserLocationImportControllerTests : TestBase
     }
 
     [Fact]
+    public async Task RepairIncompleteUsesAuthenticatedIdentityAndCustomAlertFeedback()
+    {
+        var handoff = new Mock<IImportEnrichmentHandoff>();
+        handoff.Setup(item => item.RepairIncompleteAsync("u1", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(EnrichmentCommandResult.Success("repair-scheduled", 2));
+        var controller = BuildController(CreateDbContext(), "u1", handoff.Object);
+
+        var result = await controller.RepairIncompleteAddresses();
+
+        Assert.IsType<RedirectToActionResult>(result);
+        Assert.Equal("Repair scheduled for 2 incomplete locations.", controller.TempData["AlertMessage"]);
+        Assert.Equal("success", controller.TempData["AlertType"]);
+        handoff.Verify(item => item.RepairIncompleteAsync("u1", It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
     public async Task PauseWhileIdleReturnsBoundedConflict()
     {
         var db = CreateDbContext();

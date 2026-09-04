@@ -32,6 +32,7 @@
 ## Unreleased
 
 ### Fixed
+- Incomplete Geoapify-enriched Locations can now be explicitly repaired without overwriting existing address values; the import workflow reports these rows separately from permanently deferred failures (#559).
 - Missing-address enrichment now distinguishes rows available for explicit retry from invalid-coordinate rows, reports the exact accepted retry count, and provides durable feedback when no rows remain eligible (#550).
 - Map and Trip popups now keep meaningful detected-place names while replacing technical reverse-geocoding feature types with plain-language address-precision guidance only for broad results (#551).
 - Missing-address enrichment now exposes intermediate committed progress through its existing authenticated SSE refresh channel by using smaller durable workflow checkpoints (#554).

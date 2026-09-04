@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Wayfarer.Models.LocationProviders;
+using Wayfarer.Services.LocationProviders;
 
 namespace Wayfarer.Models.LocationEnrichment;
 
@@ -61,6 +62,33 @@ public sealed class LocationEnrichmentAttempt
         Outcome = LocationEnrichmentOutcome.None;
         AdmittedAttemptCount = 0;
         NextAttemptAtUtc = nowUtc;
+    }
+
+    /// <summary>Records explicit repair intent under one complete current personal-provider authority.</summary>
+    public void PrepareRepair(PersonalProviderAuthorityBinding authority, DateTime nowUtc)
+    {
+        if (nowUtc.Kind != DateTimeKind.Utc) throw new ArgumentException("Attempt timestamps must be UTC.");
+        ProviderKey = authority.ProviderKey;
+        ProviderProfileId = authority.ProfileId;
+        Capability = PersonalProviderCapability.Geocoding;
+        CredentialGeneration = authority.CredentialGeneration;
+        ConfigurationGeneration = authority.CapabilityGeneration;
+        SelectionGeneration = authority.SelectionGeneration;
+        Verification = authority.Verification;
+        VerificationCredentialGeneration = authority.VerifiedCredentialGeneration;
+        VerificationGeneration = authority.VerifiedCapabilityGeneration;
+        ConsentVersion = authority.ConsentVersion;
+        ConsentTimestamp = authority.ConsentedAt;
+        ConsentCredentialGeneration = authority.ConsentCredentialGeneration;
+        Outcome = LocationEnrichmentOutcome.None;
+        AdmittedAttemptCount = 0;
+        NextAttemptAtUtc = nowUtc;
+        OperationId = null;
+        OperationFencingGeneration = null;
+        OperationStartedAtUtc = null;
+        OperationLeaseId = null;
+        OperationWorkflowEpoch = null;
+        OperationAttemptNumber = null;
     }
 }
 

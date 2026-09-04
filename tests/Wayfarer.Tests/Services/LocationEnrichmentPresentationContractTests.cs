@@ -112,6 +112,19 @@ public sealed class LocationEnrichmentPresentationContractTests
         Assert.Equal(expected, view.RetryDeferred is { Visible: true, Enabled: true });
     }
 
+    [Fact]
+    public void IncompleteGeoapifyRowsExposeSeparateExplicitRepairAction()
+    {
+        var progress = new LocationEnrichmentProgressPresentation(0, 0, 0, 0, null, 2);
+
+        var view = LocationEnrichmentPresentation.Build(Workflow(LocationEnrichmentState.Completed),
+            Authority(), progress);
+
+        Assert.Equal(2, view.IncompleteProviderAddresses);
+        Assert.Equal(new LocationEnrichmentActionPresentation(true, true), view.RepairIncomplete);
+        Assert.False(view.RetryDeferred.Visible);
+    }
+
     private static LocationEnrichmentAuthorityPresentation Authority(bool available = true,
         string summary = "Provider is ready.", int usage = 0, int limit = 2500) =>
         new("geoapify", "Geoapify", available, summary, true, usage, limit,

@@ -88,6 +88,37 @@ public sealed partial class LocationEnrichmentRetryAtomicityPostgresTests(Postgr
     }
 
     [PostgresFact]
+    public async Task RepairSchedulesOnlyIncompleteDurableGeoapifyRowsWithCurrentAuthority()
+    {
+        var scenario = await SeedAsync(LocationEnrichmentState.Completed, LocationEnrichmentOutcome.NoResult);
+        var inspection = await scenario.Status.Object.InspectPersistentGeocodingAsync(scenario.UserId);
+        await using (var setup = fixture.CreateContext())
+        {
+            var attemptedIds = setup.LocationEnrichmentAttempts.Where(item => item.UserId == scenario.UserId)
+                .Select(item => item.LocationId);
+            var location = await setup.Locations.SingleAsync(item => item.UserId == scenario.UserId
+                && !attemptedIds.Contains(item.Id));
+            location.Address = "Existing line";
+            location.Country = "Greece";
+            location.ReverseGeocodingProvider = "geoapify";
+            location.ReverseGeocodingStorageMode = "persistent";
+            location.ReverseGeocodedAt = DateTimeOffset.UtcNow;
+            await setup.SaveChangesAsync();
+        }
+
+        var result = await Command(scenario).RepairIncompleteAsync(scenario.UserId);
+
+        await using var verify = fixture.CreateContext();
+        var repaired = await verify.LocationEnrichmentAttempts.SingleAsync(item => item.UserId == scenario.UserId
+            && item.Outcome == LocationEnrichmentOutcome.None);
+        Assert.Equal(LocationEnrichmentCommandResult.Applied, result.Classification);
+        Assert.Equal("repair-scheduled", result.Code);
+        Assert.Equal(1, result.AffectedCount);
+        Assert.Equal(inspection.Binding!.ProfileId, repaired.ProviderProfileId);
+        Assert.Equal(inspection.Binding.SelectionGeneration, repaired.SelectionGeneration);
+    }
+
+    [PostgresFact]
     public async Task TwoConcurrentRetriesResetAndAdvanceExactlyOnce()
     {
         fixture.RequireAvailable();

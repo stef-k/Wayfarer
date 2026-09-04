@@ -261,7 +261,7 @@ public sealed partial class GeoapifyBackfillConcurrencyPostgresTests
             {
                 Content = new StringContent("""
                     {"type":"FeatureCollection","features":[{"properties":{"formatted":"Address","address_line1":"Address",
-                    "name":"Tokyo Tower","result_type":"building"}}]}
+                    "name":"Tokyo Tower","city":"Alexandroupolis","result_type":"building"}}]}
                     """)
             };
         }
