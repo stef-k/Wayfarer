@@ -1,8 +1,10 @@
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.EntityFrameworkCore.Storage;
 using NetTopologySuite.Geometries;
 using System.Data.Common;
+using System.Runtime.ExceptionServices;
 using Wayfarer.Models;
 using Wayfarer.Models.LocationProviders;
 using Wayfarer.Services;
@@ -17,7 +19,7 @@ namespace Wayfarer.Tests.Services;
 [Collection(PostgresMigrationTestCollection.Name)]
 public sealed class PersonalRouteAcceptancePostgresTests(PostgresMigrationTestFixture fixture)
 {
-    [PostgresFact]
+    [PostgresFact(Timeout = 30_000)]
     public async Task SelectionMutationCommitsFirstAndConcurrentAcceptanceRejectsWithoutChangingSegment()
     {
         var operationTimeout = TimeSpan.FromSeconds(10);
@@ -58,45 +60,52 @@ public sealed class PersonalRouteAcceptancePostgresTests(PostgresMigrationTestFi
         using var acceptanceCancellation = new CancellationTokenSource();
         var acceptanceTask = acceptance.AcceptAsync(user.Id, seeded.TripId, seeded.SegmentId, proposalId,
             geometry, indices, token, acceptanceCancellation.Token);
-        var mutationCommitted = false;
-        ExternalRouteAcceptanceResult result;
+        Exception? primary = null;
         try
         {
             await acceptanceStarted.Task.WaitAsync(operationTimeout);
             await mutation.CommitAsync();
-            mutationCommitted = true;
 
-            result = await acceptanceTask.WaitAsync(operationTimeout);
+            var result = await acceptanceTask.WaitAsync(operationTimeout);
+            Assert.False(result.Succeeded);
+            Assert.Equal("route-proposal-stale", result.ErrorCode);
+            await using var verification = fixture.CreateContext();
+            var persistedSelection = await verification.PersonalLocationProviderSelections.AsNoTracking()
+                .SingleAsync(item => item.UserId == user.Id);
+            var segment = await verification.Segments.AsNoTracking().SingleAsync(item => item.Id == seeded.SegmentId);
+            Assert.Null(persistedSelection.RoutingProviderKey);
+            Assert.Equal(seeded.SelectionGeneration + 1, persistedSelection.RoutingSelectionGeneration);
+            Assert.Null(segment.RouteGeometry);
+            Assert.Null(segment.RouteProvider);
+            Assert.Null(segment.RouteTransportProfileId);
         }
+        catch (Exception failure) { primary = failure; }
         finally
         {
-            if (!acceptanceTask.IsCompleted)
+            if (primary is not null)
             {
                 acceptanceCancellation.Cancel();
-                if (!mutationCommitted)
-                    await mutation.RollbackAsync(CancellationToken.None);
                 try
                 {
-                    await acceptanceTask.WaitAsync(operationTimeout);
+                    if (mutation.GetDbTransaction().Connection is not null)
+                        await mutation.RollbackAsync(CancellationToken.None);
                 }
-                catch (OperationCanceledException) when (acceptanceCancellation.IsCancellationRequested)
+                catch (Exception cleanupFailure)
                 {
-                    // Cancellation is expected only while draining a failed or timed-out test operation.
+                    primary.Data["MutationRollback"] = cleanupFailure.ToString();
+                }
+
+                if (acceptanceTask.IsCompleted)
+                {
+                    try { await acceptanceTask; }
+                    catch (Exception cleanupFailure)
+                    {
+                        primary.Data["AcceptanceObservation"] = cleanupFailure.ToString();
+                    }
                 }
             }
         }
-
-        Assert.False(result.Succeeded);
-        Assert.Equal("route-proposal-stale", result.ErrorCode);
-        await using var verification = fixture.CreateContext();
-        var persistedSelection = await verification.PersonalLocationProviderSelections.AsNoTracking()
-            .SingleAsync(item => item.UserId == user.Id);
-        var segment = await verification.Segments.AsNoTracking().SingleAsync(item => item.Id == seeded.SegmentId);
-        Assert.Null(persistedSelection.RoutingProviderKey);
-        Assert.Equal(seeded.SelectionGeneration + 1, persistedSelection.RoutingSelectionGeneration);
-        Assert.Null(segment.RouteGeometry);
-        Assert.Null(segment.RouteProvider);
-        Assert.Null(segment.RouteTransportProfileId);
+        if (primary is not null) ExceptionDispatchInfo.Capture(primary).Throw();
     }
 
     private async Task<SeededAuthority> SeedAsync(string userId, PersonalProviderCredentialService credentials)
