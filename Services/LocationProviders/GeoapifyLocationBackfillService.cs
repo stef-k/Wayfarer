@@ -15,7 +15,7 @@ public sealed class GeoapifyLocationBackfillService(
     IHttpClientFactory clients, ILogger<BaseApiController> logger,
     LocationEnrichmentExecutionAuthority executionAuthority) : ILocationEnrichmentBatch
 {
-    public const int MaximumRecords = 100;
+    public const int MaximumRecords = 10;
 
     /// <summary>Provides a deterministic test boundary after claim commit and before final authority validation.</summary>
     internal Func<PersonalProviderAuthoritySnapshot, CancellationToken, Task> BeforeFinalAuthorityValidationAsync

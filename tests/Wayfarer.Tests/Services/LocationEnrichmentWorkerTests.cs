@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Moq;
 using Wayfarer.Models;
 using Wayfarer.Models.LocationEnrichment;
+using Wayfarer.Parsers;
 using Wayfarer.Services.LocationEnrichment;
 using Wayfarer.Services.LocationProviders;
 using Xunit;
@@ -78,9 +79,50 @@ public sealed class LocationEnrichmentWorkerTests
             It.IsAny<CancellationToken>()), Times.Once);
     }
 
+    [Fact]
+    public async Task IntermediateBatchBroadcastsOnlyAfterCommittedProgressIsReloadable()
+    {
+        var services = new ServiceCollection().BuildServiceProvider();
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options;
+        await using var db = new ApplicationDbContext(options, services);
+        var workflow = LocationEnrichmentWorkflow.Create("user", DateTime.UtcNow);
+        workflow.Start(DateTime.UtcNow);
+        db.Add(workflow);
+        await db.SaveChangesAsync();
+        var contexts = new TestContextFactory(options, services);
+        var batch = new Mock<ILocationEnrichmentBatch>();
+        batch.Setup(item => item.RunAsync(It.IsAny<LocationEnrichmentExecutionLease>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new GeoapifyBackfillResult(10, 8, 2, 0, 3, false, Admitted: 10));
+        var scheduler = new Mock<IWorkflowScheduleProjection>();
+        var sse = new CommittedProgressSse(contexts);
+
+        await new LocationEnrichmentWorker(contexts, new(contexts), batch.Object, scheduler.Object, sse)
+            .RunBatchAsync("user", workflow.Epoch, default);
+
+        Assert.Equal((LocationEnrichmentState.Scheduled, 10, 8), sse.CommittedProgress);
+        Assert.Equal(("import-user", "{\"type\":\"enrichment-state\"}"), sse.Message);
+        scheduler.Verify(item => item.ProjectAsync("user", It.IsAny<CancellationToken>()), Times.Once);
+    }
+
     private sealed class TestContextFactory(DbContextOptions<ApplicationDbContext> options, IServiceProvider services)
         : IDbContextFactory<ApplicationDbContext>
     {
         public ApplicationDbContext CreateDbContext() => new(options, services);
+    }
+
+    private sealed class CommittedProgressSse(IDbContextFactory<ApplicationDbContext> contexts) : SseService
+    {
+        public (LocationEnrichmentState State, int Processed, int Enriched) CommittedProgress { get; private set; }
+        public (string Channel, string Data) Message { get; private set; }
+
+        public override async Task BroadcastAsync(string channel, string data)
+        {
+            await using var db = await contexts.CreateDbContextAsync();
+            var workflow = await db.LocationEnrichmentWorkflows.AsNoTracking().SingleAsync();
+            CommittedProgress = (workflow.State, workflow.ProcessedCount, workflow.EnrichedCount);
+            Message = (channel, data);
+        }
     }
 }

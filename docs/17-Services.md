@@ -270,7 +270,7 @@ Wayfarer uses Quartz.NET for background job scheduling and execution.
 
 #### LocationEnrichmentJob
 
-- Runs one user-owned batch of at most 100 contacts through the existing provider admission authority.
+- Runs one user-owned batch of at most 10 candidates through the existing provider admission authority so the UI receives truthful intermediate committed checkpoints.
 - Uses a stable durable job, epoch-bound one-shot trigger, non-replay misfire handling, and startup reconciliation. Relational state commits before Quartz projection, so scheduling failures remain repairable.
 - Import parsing/insertion is separate and never checks provider authority, admits provider use, contacts a
   provider, enriches inline, or delays per record. Committed blank rows feed this scheduled workflow after

@@ -34,6 +34,7 @@
 ### Fixed
 - Missing-address enrichment now distinguishes rows available for explicit retry from invalid-coordinate rows, reports the exact accepted retry count, and provides durable feedback when no rows remain eligible (#550).
 - Map and Trip popups now keep meaningful detected-place names while replacing technical reverse-geocoding feature types with plain-language address-precision guidance only for broad results (#551).
+- Missing-address enrichment now exposes intermediate committed progress through its existing authenticated SSE refresh channel by using smaller durable workflow checkpoints (#554).
 
 ## [1.9.4] - 2026-08-31
 
