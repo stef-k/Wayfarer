@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Mvc.Rendering;
 using Wayfarer.Models;
 using Wayfarer.Models.ViewModels;
 
@@ -7,6 +8,43 @@ namespace Wayfarer.Services;
 /// <summary>Applies normalized manual address edits without retaining provider provenance.</summary>
 public static class LocationManualAddressEdit
 {
+    /// <summary>Reloads authoritative display fields and choices while retaining submitted edit values.</summary>
+    public static async Task<bool> ReloadInvalidAsync(ApplicationDbContext db, AddLocationViewModel model,
+        string userId, CancellationToken cancellationToken)
+    {
+        var location = await db.Locations.AsNoTracking()
+            .SingleOrDefaultAsync(item => item.Id == model.Id && item.UserId == userId, cancellationToken);
+        if (location == null) return false;
+        RestoreServerFields(model, location);
+        model.ActivityTypes = await db.ActivityTypes.AsNoTracking().Select(activity => new SelectListItem
+        {
+            Value = activity.Id.ToString(),
+            Text = activity.Name,
+            Selected = activity.Id == model.SelectedActivityId
+        }).ToListAsync(cancellationToken);
+        return true;
+    }
+
+    /// <summary>Restores fields that must come from the currently owned database row after an invalid post.</summary>
+    public static void RestoreServerFields(AddLocationViewModel model, Location location)
+    {
+        model.OriginalReverseGeocodingProvider = location.ReverseGeocodingProvider;
+        model.OriginalReverseGeocodingStorageMode = location.ReverseGeocodingStorageMode;
+        model.OriginalReverseGeocodedAt = location.ReverseGeocodedAt;
+        model.ResolvedFeatureName = location.ResolvedFeatureName;
+        model.ResolvedFeatureType = location.ResolvedFeatureType;
+        model.Source = location.Source;
+        model.IsUserInvoked = location.IsUserInvoked;
+        model.Provider = location.Provider;
+        model.Bearing = location.Bearing;
+        model.AppVersion = location.AppVersion;
+        model.AppBuild = location.AppBuild;
+        model.DeviceModel = location.DeviceModel;
+        model.OsVersion = location.OsVersion;
+        model.BatteryLevel = location.BatteryLevel;
+        model.IsCharging = location.IsCharging;
+    }
+
     /// <summary>Loads and locks the owned Location for the short manual-edit transaction.</summary>
     public static Task<Location?> LockOwnedAsync(ApplicationDbContext db, int? id, string userId,
         CancellationToken cancellationToken) => db.Database.IsNpgsql()

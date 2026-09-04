@@ -1,11 +1,10 @@
-using System.Data.Common;
 using System.Security.Claims;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Routing;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Wayfarer.Areas.Api.Controllers;
@@ -16,63 +15,48 @@ using Wayfarer.Parsers;
 using Wayfarer.Services;
 using Wayfarer.Tests.Infrastructure;
 using Xunit;
-using Point = NetTopologySuite.Geometries.Point;
 
-namespace Wayfarer.Tests.Controllers;
+namespace Wayfarer.Tests.Services;
 
-/// <summary>Proves stale manual forms cannot overwrite a provider publication that commits first.</summary>
-[Collection(PostgresImportTestCollection.Name)]
-public sealed class LocationManualAddressEditPostgresTests(PostgresImportTestFixture fixture)
+/// <summary>Proves manual editing rejects a stale form after #559 publishes a repair.</summary>
+public sealed partial class GeoapifyBackfillConcurrencyPostgresTests
 {
-    [PostgresFact(Timeout = 20_000)]
-    public async Task ProviderPublicationCommittingBeforeEditLockWins()
+    [PostgresFact(Timeout = 30_000)]
+    public async Task CompletedIncompleteRepairCannotBeOverwrittenByStaleManualForm()
     {
         var user = await fixture.CreateUserAsync();
-        var originalAt = new DateTimeOffset(2026, 9, 4, 18, 0, 0, TimeSpan.Zero);
-        int locationId;
-        await using (var seed = fixture.CreateContext())
+        var protection = new EphemeralDataProtectionProvider();
+        await SeedIncompleteRepairAsync(user.Id, protection);
+        AddLocationViewModel staleForm;
+        await using (var before = fixture.CreateContext())
         {
-            var location = new Location
+            var location = await before.Locations.SingleAsync(item => item.UserId == user.Id);
+            staleForm = new AddLocationViewModel
             {
-                UserId = user.Id, Coordinates = new Point(25, 40) { SRID = 4326 },
-                Timestamp = DateTime.UtcNow, LocalTimestamp = DateTime.UtcNow, TimeZoneId = "UTC",
-                Address = "Old provider line", Place = "Old city", Region = "Evros", Country = "Greece",
-                ReverseGeocodingProvider = "geoapify", ReverseGeocodingStorageMode = "persistent",
-                ReverseGeocodedAt = originalAt
+                Id = location.Id, Latitude = location.Coordinates.Y, Longitude = location.Coordinates.X,
+                LocalTimestamp = location.LocalTimestamp, Address = "Manual overwrite",
+                Place = location.Place, Region = location.Region, Country = location.Country,
+                OriginalReverseGeocodingProvider = location.ReverseGeocodingProvider,
+                OriginalReverseGeocodingStorageMode = location.ReverseGeocodingStorageMode,
+                OriginalReverseGeocodedAt = location.ReverseGeocodedAt
             };
-            seed.Add(location);
-            await seed.SaveChangesAsync();
-            locationId = location.Id;
         }
-        var model = new AddLocationViewModel
-        {
-            Id = locationId, Latitude = 40, Longitude = 25, LocalTimestamp = DateTime.UtcNow,
-            Address = "Manual overwrite", Place = "Old city", Region = "Evros", Country = "Greece",
-            OriginalReverseGeocodingProvider = "geoapify",
-            OriginalReverseGeocodingStorageMode = "persistent", OriginalReverseGeocodedAt = originalAt
-        };
-        await using var provider = fixture.CreateContext();
-        await using var providerTransaction = await provider.Database.BeginTransactionAsync();
-        var published = await provider.Locations.SingleAsync(item => item.Id == locationId);
-        var publishedAt = new DateTimeOffset(2026, 9, 4, 20, 0, 0, TimeSpan.Zero);
-        published.Address = "New provider line";
-        published.Place = "New provider city";
-        published.ReverseGeocodedAt = publishedAt;
-        await provider.SaveChangesAsync();
-        var gate = new LocationLockAttemptGate();
-        await using var editDb = fixture.CreateContext(gate);
-        var edit = Controller(editDb, user).Edit(model, null);
-        await gate.Attempted.WaitAsync(TimeSpan.FromSeconds(10));
 
-        await providerTransaction.CommitAsync();
-        var result = await edit.WaitAsync(TimeSpan.FromSeconds(10));
+        var handler = new CoordinatedHandler(user.Id, null);
+        var run = Service(protection, handler).RunAsync(user.Id);
+        await handler.FirstUserRequestEntered.WaitAsync(TimeSpan.FromSeconds(10));
+        handler.Release();
+        Assert.Equal(1, (await run.WaitAsync(TimeSpan.FromSeconds(10))).Succeeded);
+
+        await using var editDb = fixture.CreateContext();
+        var result = await Controller(editDb, user).Edit(staleForm, null);
 
         Assert.IsType<RedirectToActionResult>(result);
         await using var verify = fixture.CreateContext();
-        var saved = await verify.Locations.SingleAsync(item => item.Id == locationId);
-        Assert.Equal("New provider line", saved.Address);
-        Assert.Equal("New provider city", saved.Place);
-        Assert.Equal(publishedAt, saved.ReverseGeocodedAt);
+        var saved = await verify.Locations.SingleAsync(item => item.Id == staleForm.Id);
+        Assert.Equal("Keep this address", saved.Address);
+        Assert.Equal("Alexandroupolis", saved.Place);
+        Assert.NotEqual(staleForm.OriginalReverseGeocodedAt, saved.ReverseGeocodedAt);
     }
 
     private static Wayfarer.Areas.User.Controllers.LocationController Controller(
@@ -80,8 +64,8 @@ public sealed class LocationManualAddressEditPostgresTests(PostgresImportTestFix
     {
         var controller = new Wayfarer.Areas.User.Controllers.LocationController(
             NullLogger<BaseController>.Instance, db,
-            new ReverseGeocodingService(new HttpClient(new NoContactHandler()),
-                NullLogger<BaseApiController>.Instance), Mock.Of<SseService>(), Mock.Of<IPlaceVisitDetectionService>());
+            new ReverseGeocodingService(new HttpClient(), NullLogger<BaseApiController>.Instance),
+            Mock.Of<SseService>(), Mock.Of<IPlaceVisitDetectionService>());
         var context = new DefaultHttpContext { User = new ClaimsPrincipal(new ClaimsIdentity(
             [new Claim(ClaimTypes.NameIdentifier, user.Id)], "TestAuth")) };
         controller.ControllerContext = new ControllerContext { HttpContext = context };
@@ -91,26 +75,5 @@ public sealed class LocationManualAddressEditPostgresTests(PostgresImportTestFix
         url.Setup(item => item.Action(It.IsAny<UrlActionContext>())).Returns("/User/Location");
         controller.Url = url.Object;
         return controller;
-    }
-
-    private sealed class LocationLockAttemptGate : DbCommandInterceptor
-    {
-        private readonly TaskCompletionSource attempted = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public Task Attempted => attempted.Task;
-        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(DbCommand command,
-            CommandEventData eventData, InterceptionResult<DbDataReader> result,
-            CancellationToken cancellationToken = default)
-        {
-            if (command.CommandText.Contains("FROM \"Locations\"", StringComparison.Ordinal)
-                && command.CommandText.Contains("FOR UPDATE", StringComparison.OrdinalIgnoreCase))
-                attempted.TrySetResult();
-            return ValueTask.FromResult(result);
-        }
-    }
-
-    private sealed class NoContactHandler : HttpMessageHandler
-    {
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,
-            CancellationToken cancellationToken) => throw new InvalidOperationException("Provider contact is forbidden.");
     }
 }

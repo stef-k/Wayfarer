@@ -111,6 +111,24 @@ public sealed class LocationManualAddressEditTests : TestBase
         Assert.Contains(results, result => result.MemberNames.Contains(nameof(AddLocationViewModel.Address)));
     }
 
+    [Fact]
+    public async Task InvalidPostReloadsOwnedServerMetadataAndPreservesSubmittedAddress()
+    {
+        var scenario = await CreateScenarioAsync("invalid-owner");
+        var model = EditModel(scenario.Location);
+        model.Address = "Submitted address";
+        var controller = Controller(scenario);
+        controller.ModelState.AddModelError(nameof(model.Address), "Invalid address");
+
+        var result = Assert.IsType<ViewResult>(await controller.Edit(model, null));
+
+        var returned = Assert.IsType<AddLocationViewModel>(result.Model);
+        Assert.Equal("Submitted address", returned.Address);
+        Assert.Equal("Old feature", returned.ResolvedFeatureName);
+        Assert.Equal("amenity", returned.ResolvedFeatureType);
+        Assert.Equal(scenario.Location.ReverseGeocodedAt, returned.OriginalReverseGeocodedAt);
+    }
+
     private async Task<Scenario> CreateScenarioAsync(string userId)
     {
         var db = CreateDbContext();

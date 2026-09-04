@@ -354,16 +354,17 @@ namespace Wayfarer.Areas.User.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Edit(AddLocationViewModel model, string? saveAction)
         {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrWhiteSpace(userId)) return Unauthorized();
+
             if (!ModelState.IsValid)
             {
-                // Reload activity types and return the view with errors
-                List<ActivityType> activityTypes = await _dbContext.ActivityTypes.ToListAsync();
-                model.ActivityTypes = activityTypes.Select(a => new SelectListItem
+                if (!await LocationManualAddressEdit.ReloadInvalidAsync(
+                    _dbContext, model, userId, HttpContext.RequestAborted))
                 {
-                    Value = a.Id.ToString(),
-                    Text = a.Name,
-                    Selected = a.Id == model.SelectedActivityId
-                }).ToList();
+                    SetAlert("Location not found or you don't have permission to edit it.", "danger");
+                    return RedirectToAction("Index");
+                }
                 model.ReturnUrl = GetSafeReturnUrl(model.ReturnUrl);
                 ViewData["ExpandAddressDetails"] = true;
                 SetAlert("There are validation errors. Review the address details and try again.", "warning");
@@ -372,8 +373,6 @@ namespace Wayfarer.Areas.User.Controllers
                 return View(model);
             }
 
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (string.IsNullOrWhiteSpace(userId)) return Unauthorized();
             await using var transaction = _dbContext.Database.IsRelational() ? await _dbContext.Database.BeginTransactionAsync(HttpContext.RequestAborted) : null;
             var location = await LocationManualAddressEdit.LockOwnedAsync(_dbContext, model.Id, userId, HttpContext.RequestAborted);
             if (location == null)
