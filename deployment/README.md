@@ -279,6 +279,7 @@ The `install.sh` script automatically:
 
 The `deploy.sh` script automatically:
 - Reads the connection string from the systemd service file before running migrations
+- Applies production migrations with the explicit `Wayfarer.Models.ApplicationDbContext` owner
 - No need to manually export environment variables
 
 ### Manual Configuration

@@ -192,7 +192,9 @@ if [ -z "$ConnectionStrings__DefaultConnection" ]; then
     echo "      Environment=\"ConnectionStrings__DefaultConnection=Host=...;Password=...\""
 fi
 
-DOTNET_ENVIRONMENT=$DOTNET_ENVIRONMENT dotnet ef database update --project Wayfarer.csproj
+DOTNET_ENVIRONMENT=$DOTNET_ENVIRONMENT dotnet ef database update \
+  --project Wayfarer.csproj \
+  --context Wayfarer.Models.ApplicationDbContext
 
 # Step 5.5: Pre-install Playwright browsers (optional, recommended)
 # Uncomment the following lines to pre-install Chromium (~400MB download)
