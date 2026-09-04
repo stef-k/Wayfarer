@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## [1.9.6] - 2026-09-04
+
+### Fixed
+- Geoapify Directions now accepts the provider's documented JSON `{lon, lat}` route geometry. Configured providers remain visible, and credential changes retain saved geocoding and directions choices while safely requiring reverification (#547).
+
 ## [1.9.5] - 2026-09-04
 
 ### Changed
@@ -20,9 +25,6 @@
 - Rollback across the routing-authority retirement migration requires restoration of the compatible pre-upgrade database and its matching key ring; deploying older binaries alone cannot reconstruct deleted credentials, templates, mappings, selections, or global configuration.
 
 ## Unreleased
-
-### Fixed
-- Geoapify Directions now accepts the provider's documented JSON `{lon, lat}` route geometry. Configured providers remain visible, and credential changes retain saved geocoding and directions choices while safely requiring reverification.
 
 ## [1.9.4] - 2026-08-31
 
