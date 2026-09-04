@@ -1,5 +1,26 @@
 # CHANGELOG
 
+## [1.9.5] - 2026-09-04
+
+### Changed
+- Personal provider setup at `/User/LocationProviderSettings` now provides independent Geocoding and Directions workflows with explicit verification and provider selection. A credential alone does not authorize contact, each capability is verified and selected independently, and no administrator routing template is required (#538 step 1).
+- Geoapify Directions now requires an explicit provider-native mode. Transport Profiles remain independent manual-planning provenance and do not infer provider modes; released Mobile clients remain compatible only through the bounded exact stable-key adapter for omitted modes (#538 step 1).
+- Mapbox Permanent Geocoding remains supported under its existing consent and provider-policy contract. Mapbox Directions remains unsupported (#538).
+- Production source deployment now selects `Wayfarer.Models.ApplicationDbContext` explicitly when applying EF migrations in a repository with multiple contexts (#535).
+
+### Fixed
+- Geoapify capability verification now uses meaningful fixed public probes, production response parsing, bounded known- and unknown-length reads, and safe actionable outcomes. Displayed usage is truthful local Wayfarer-admitted usage, not provider-confirmed billing (#537).
+
+### Removed
+- Retired legacy administrator routing providers, templates, Transport Profile mappings, global routing authority, duplicate user routing credentials, generic OSRM execution, `/User/RoutingSettings`, `/User/ApiToken`, and their administrative and user interfaces (#538 step 3).
+- The retirement migration deletes obsolete routing ciphertext and configuration while preserving accepted Segment route provenance, saved geometry, and independent Transport Profiles (#538 step 3).
+
+### Upgrade notes
+- Before upgrading, back up PostgreSQL and the matching complete Data Protection key ring. Apply migrations before starting the new scheduler/application.
+- Rollback across the routing-authority retirement migration requires restoration of the compatible pre-upgrade database and its matching key ring; deploying older binaries alone cannot reconstruct deleted credentials, templates, mappings, selections, or global configuration.
+
+## Unreleased
+
 ## [1.9.4] - 2026-08-31
 
 ### Added
@@ -25,16 +46,6 @@
 ### Security
 - Isolated personal provider credentials behind the retained Data Protection authority, masked them across user and administrative surfaces, removed query/key-bearing provider URI logging, and required explicit current authority before provider contact or publication (#499, #501, #502, #526, #528).
 - Hardened import, enrichment, routing, and notification diagnostics and progress channels so credentials, raw provider responses, coordinate-bearing URLs, personal search text, staging names, and cross-user state are not disclosed (#507, #514).
-
-## Unreleased
-
-### Fixed
-- Corrected the production deployment migration command to select its owning `ApplicationDbContext` explicitly when multiple EF Core contexts are present (#535).
-- Corrected explicit Geoapify capability verification to use meaningful public probes, the production routing response contract, bounded response reads, safe actionable outcomes, and truthful local Wayfarer-admission accounting (#537).
-- Consolidated personal-provider setup into geocoding and directions workflows, added explicit provider-native Geoapify mode selection for web and Mobile, removed legacy administrator/global authority from new routing execution, and retained released-Mobile omitted-mode compatibility through an exact built-in-key adapter (#538 step 1).
-
-### Removed
-- Retired administrator routing providers, templates, activation, Transport Profile mappings, global routing authority, duplicate user routing credentials, generic OSRM execution, and their user/admin pages. The ordered migration deletes obsolete ciphertext while preserving accepted Segment route provenance and the released-Mobile exact-key compatibility adapter; rollback requires the normal pre-upgrade PostgreSQL and Data Protection key-ring backup (#538 step 3).
 
 ## [1.9.3] - 2026-08-22
 
