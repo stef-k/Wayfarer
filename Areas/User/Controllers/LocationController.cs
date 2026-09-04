@@ -316,6 +316,10 @@ namespace Wayfarer.Areas.User.Controllers
                     Place = location.Place,
                     Region = location.Region,
                     Country = location.Country,
+                    OriginalReverseGeocodingProvider = location.ReverseGeocodingProvider, OriginalReverseGeocodingStorageMode = location.ReverseGeocodingStorageMode,
+                    OriginalReverseGeocodedAt = location.ReverseGeocodedAt,
+                    ResolvedFeatureName = location.ResolvedFeatureName,
+                    ResolvedFeatureType = location.ResolvedFeatureType,
                     // Capture metadata (read-only)
                     Source = location.Source,
                     IsUserInvoked = location.IsUserInvoked,
@@ -350,69 +354,55 @@ namespace Wayfarer.Areas.User.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Edit(AddLocationViewModel model, string? saveAction)
         {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrWhiteSpace(userId)) return Unauthorized();
+
             if (!ModelState.IsValid)
             {
-                // Reload activity types and return the view with errors
-                List<ActivityType> activityTypes = await _dbContext.ActivityTypes.ToListAsync();
-                model.ActivityTypes = activityTypes.Select(a => new SelectListItem
+                if (!await LocationManualAddressEdit.ReloadInvalidAsync(
+                    _dbContext, model, userId, HttpContext.RequestAborted))
                 {
-                    Value = a.Id.ToString(),
-                    Text = a.Name,
-                    Selected = a.Id == model.SelectedActivityId
-                }).ToList();
+                    SetAlert("Location not found or you don't have permission to edit it.", "danger");
+                    return RedirectToAction("Index");
+                }
                 model.ReturnUrl = GetSafeReturnUrl(model.ReturnUrl);
+                ViewData["ExpandAddressDetails"] = true;
+                SetAlert("There are validation errors. Review the address details and try again.", "warning");
 
                 SetPageTitle("Edit Location");
                 return View(model);
             }
 
-            // Retrieve the existing location entity
-            Location? location = await _dbContext.Locations.FindAsync(model.Id);
-            if (location == null || location.UserId != User.FindFirstValue(ClaimTypes.NameIdentifier))
+            await using var transaction = _dbContext.Database.IsRelational() ? await _dbContext.Database.BeginTransactionAsync(HttpContext.RequestAborted) : null;
+            var location = await LocationManualAddressEdit.LockOwnedAsync(_dbContext, model.Id, userId, HttpContext.RequestAborted);
+            if (location == null)
             {
+                if (transaction != null) await transaction.RollbackAsync(HttpContext.RequestAborted);
                 SetAlert("Location not found or you don't have permission to edit it.", "danger");
                 return RedirectToAction("Index");
+            }
+            if (!LocationManualAddressEdit.HasCurrentProviderTuple(location, model))
+            {
+                if (transaction != null) await transaction.RollbackAsync(HttpContext.RequestAborted);
+                SetAlert("Address details changed while this form was open. Review the latest values and try again.", "warning");
+                return RedirectToAction("Edit", new { id = model.Id, returnUrl = GetSafeReturnUrl(model.ReturnUrl) });
             }
 
             // Update the location fields
             var utc = CoordinateTimeZoneConverter.ConvertToUtc(model.Latitude, model.Longitude, model.LocalTimestamp);
             var coordinatesChanged = !location.Coordinates.X.Equals(model.Longitude) || !location.Coordinates.Y.Equals(model.Latitude);
+            LocationManualAddressEdit.Apply(location, model, coordinatesChanged);
             location.Coordinates.X = model.Longitude;
             location.Coordinates.Y = model.Latitude;
             location.Altitude = model.Altitude;
-            var manualAddressChanged = !string.Equals(location.Address, model.Address, StringComparison.Ordinal);
-            location.Address = model.Address;
-            if (coordinatesChanged)
-            {
-                location.ReverseGeocodingProvider = null;
-                location.ReverseGeocodingStorageMode = null;
-                location.ReverseGeocodedAt = null;
-                location.ResolvedFeatureName = null;
-                location.ResolvedFeatureType = null;
-            }
-            if (manualAddressChanged && !string.IsNullOrWhiteSpace(model.Address))
-            {
-                location.ReverseGeocodingProvider = null;
-                location.ReverseGeocodingStorageMode = null;
-                location.ReverseGeocodedAt = null;
-                location.ResolvedFeatureName = null;
-                location.ResolvedFeatureType = null;
-            }
             location.LocalTimestamp = DateTime.SpecifyKind(utc, DateTimeKind.Utc);
             location.TimeZoneId =
                 CoordinateTimeZoneConverter.GetTimeZoneIdFromCoordinates(model.Latitude, model.Longitude);
             location.ActivityTypeId = model.SelectedActivityId;
             location.Notes = model.Notes;
 
-            model.UserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if (model.UserId != null && coordinatesChanged && string.IsNullOrWhiteSpace(model.Address))
-            {
-                var enrichment = await _reverseGeocodingService.EnrichAsync(model.UserId, location.Coordinates.Y,
-                    location.Coordinates.X, ReverseGeocodingIntent.LocationCoordinateRefresh, HttpContext.RequestAborted);
-                enrichment.ApplyTo(location, DateTimeOffset.UtcNow);
-            }
-
-            await _dbContext.SaveChangesAsync();
+            await _dbContext.SaveChangesAsync(HttpContext.RequestAborted);
+            if (transaction != null) await transaction.CommitAsync(HttpContext.RequestAborted);
 
             SetAlert("Location updated successfully.", "success");
             string safeReturnUrl = GetSafeReturnUrl(model.ReturnUrl);

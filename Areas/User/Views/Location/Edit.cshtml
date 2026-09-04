@@ -6,6 +6,21 @@
     ViewData["LoadLeaflet"] = true;
     ViewData["LoadQuill"] = true;
     ViewData["LoadTomSelect"] = true;
+    var addressSummary = new[] { Model.FullAddress, Model.Address }
+        .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
+    addressSummary ??= string.Join(", ", new[] { Model.Place, Model.Region, Model.Country }
+        .Where(value => !string.IsNullOrWhiteSpace(value)));
+    if (string.IsNullOrWhiteSpace(addressSummary)) addressSummary = "No address details";
+    var expandAddress = ViewData["ExpandAddressDetails"] as bool? == true
+        || string.IsNullOrWhiteSpace(Model.Place) || string.IsNullOrWhiteSpace(Model.Country);
+    var precisionNotice = (Model.ResolvedFeatureType ?? "").Trim().ToLowerInvariant() switch
+    {
+        "postcode" => "Approximate address — resolved to postcode level.",
+        "city" => "Approximate address — resolved to city level.",
+        "suburb" or "district" => "Approximate address — resolved to local-area level.",
+        "county" or "state" or "country" => "Approximate address — resolved only to a regional level.",
+        _ => null
+    };
 }
 
 <h1 class="fs-3 text-center">@ViewData["Title"]</h1>
@@ -21,6 +36,9 @@
                 <form asp-action="Edit" method="post" id="locationForm">
                     @Html.AntiForgeryToken()
                     <input type="hidden" asp-for="ReturnUrl" />
+                    <input type="hidden" asp-for="OriginalReverseGeocodingProvider" />
+                    <input type="hidden" asp-for="OriginalReverseGeocodingStorageMode" />
+                    <input type="hidden" asp-for="OriginalReverseGeocodedAt" />
                     <div asp-validation-summary="ModelOnly" class="text-danger"></div>
                     <div class="form-group row">
                         <label for="Latitude" class="col-sm-2 col-form-label">Latitude <span class="text-danger">*</span></label>
@@ -63,10 +81,65 @@
                         </div>
                     </div>
 
-                    <div class="form-group">
-                        <label for="Address">Address</label>
-                        <input type="text" class="form-control" id="Address" name="Address" value="@Model.Address" />
-                    </div>
+                    <details class="border rounded my-2" open="@(expandAddress ? "open" : null)">
+                        <summary class="p-2 d-flex flex-column gap-1" style="cursor: pointer; min-width: 0;">
+                            <span class="fw-semibold">Address details</span>
+                            <span class="small text-muted text-break">@addressSummary</span>
+                        </summary>
+                        <div class="border-top p-2">
+                            <div class="row g-2">
+                                <div class="col-12">
+                                    <label asp-for="FullAddress" class="form-label">Full address</label>
+                                    <input asp-for="FullAddress" class="form-control" maxlength="500" />
+                                    <span asp-validation-for="FullAddress" class="text-danger"></span>
+                                </div>
+                                <div class="col-12">
+                                    <label asp-for="Address" class="form-label">Address line</label>
+                                    <input asp-for="Address" class="form-control" maxlength="500" />
+                                    <span asp-validation-for="Address" class="text-danger"></span>
+                                </div>
+                                <div class="col-12 col-lg-8">
+                                    <label asp-for="StreetName" class="form-label">Street</label>
+                                    <input asp-for="StreetName" class="form-control" maxlength="500" />
+                                    <span asp-validation-for="StreetName" class="text-danger"></span>
+                                </div>
+                                <div class="col-12 col-lg-4">
+                                    <label asp-for="AddressNumber" class="form-label">House number</label>
+                                    <input asp-for="AddressNumber" class="form-control" maxlength="500" />
+                                    <span asp-validation-for="AddressNumber" class="text-danger"></span>
+                                </div>
+                                <div class="col-12 col-md-4">
+                                    <label asp-for="PostCode" class="form-label">Postcode</label>
+                                    <input asp-for="PostCode" class="form-control" maxlength="500" />
+                                    <span asp-validation-for="PostCode" class="text-danger"></span>
+                                </div>
+                                <div class="col-12 col-md-8">
+                                    <label asp-for="Place" class="form-label">City / place</label>
+                                    <input asp-for="Place" class="form-control" maxlength="500" />
+                                    <span asp-validation-for="Place" class="text-danger"></span>
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <label asp-for="Region" class="form-label">Region</label>
+                                    <input asp-for="Region" class="form-control" maxlength="500" />
+                                    <span asp-validation-for="Region" class="text-danger"></span>
+                                </div>
+                                <div class="col-12 col-md-6">
+                                    <label asp-for="Country" class="form-label">Country</label>
+                                    <input asp-for="Country" class="form-control" maxlength="500" />
+                                    <span asp-validation-for="Country" class="text-danger"></span>
+                                </div>
+                            </div>
+                            @if (!string.IsNullOrWhiteSpace(Model.ResolvedFeatureName))
+                            {
+                                <p class="small text-muted mb-1 mt-2">Detected place: @Model.ResolvedFeatureName</p>
+                            }
+                            @if (precisionNotice is not null)
+                            {
+                                <p class="small text-muted mb-0" role="note">@precisionNotice</p>
+                            }
+                            <p class="form-text mb-0">Editing any address field makes the address manual and clears provider attribution.</p>
+                        </div>
+                    </details>
                     <div class="form-group">
                         <label for="LocalTimestamp">Local Date and Time <span class="text-danger">*</span></label>
                         <input type="datetime-local"

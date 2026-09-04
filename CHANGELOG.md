@@ -32,6 +32,7 @@
 ## Unreleased
 
 ### Fixed
+- Location editing now supports safe manual correction of complete address details, clears stale provider provenance when values or coordinates change, and adds the project GitHub link to the shared footer (#560).
 - Incomplete Geoapify-enriched Locations can now be explicitly repaired without overwriting existing address values; the import workflow reports these rows separately from permanently deferred failures (#559).
 - Missing-address enrichment now distinguishes rows available for explicit retry from invalid-coordinate rows, reports the exact accepted retry count, and provides durable feedback when no rows remain eligible (#550).
 - Map and Trip popups now keep meaningful detected-place names while replacing technical reverse-geocoding feature types with plain-language address-precision guidance only for broad results (#551).

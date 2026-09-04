@@ -22,14 +22,23 @@ namespace Wayfarer.Models.ViewModels
         [Required]
         public double Longitude { get; set; } // Used to construct Point
 
-        public string? Address { get; set; }
-        public string? FullAddress { get; set; }
-        public string? AddressNumber { get; set; }
-        public string? StreetName { get; set; }
-        public string? PostCode { get; set; }
-        public string? Place { get; set; }
-        public string? Region { get; set; }
-        public string? Country { get; set; }
+        [MaxLength(500)] public string? Address { get; set; }
+        [MaxLength(500)] public string? FullAddress { get; set; }
+        [MaxLength(500)] public string? AddressNumber { get; set; }
+        [MaxLength(500)] public string? StreetName { get; set; }
+        [MaxLength(500)] public string? PostCode { get; set; }
+        [MaxLength(500)] public string? Place { get; set; }
+        [MaxLength(500)] public string? Region { get; set; }
+        [MaxLength(500)] public string? Country { get; set; }
+
+        /// <summary>Provider tuple shown by GET and used to reject stale provider publication on POST.</summary>
+        [MaxLength(24)] public string? OriginalReverseGeocodingProvider { get; set; }
+        [MaxLength(16)] public string? OriginalReverseGeocodingStorageMode { get; set; }
+        public DateTimeOffset? OriginalReverseGeocodedAt { get; set; }
+
+        /// <summary>Read-only detected provider feature displayed alongside editable address values.</summary>
+        [BindNever] public string? ResolvedFeatureName { get; set; }
+        [BindNever] public string? ResolvedFeatureType { get; set; }
 
         public DateTime LocalTimestamp { get; set; }
 

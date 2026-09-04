@@ -36,6 +36,7 @@ Wayfarer is a comprehensive self-hosted travel companion with location tracking,
 - **Wikipedia integration** — click the Wiki button on any location to see nearby Wikipedia articles; uses dual geo + text search for reliable discovery.
 - **Activity types** categorize entries (walking, driving, eating, etc.).
 - **Inline activity editing** — edit activity type directly from location modals and tables.
+- **Manual address correction** — edit complete address details in a responsive disclosure. Manual changes make no provider request and clear provider provenance; coordinate changes discard unchanged address data from the old position.
 - **Bulk edit notes** to update multiple location records at once.
 - **Location statistics** show visit counts by country, region, and city.
 - **GPS accuracy filtering** — configurable threshold (default 50m) filters noisy readings.
