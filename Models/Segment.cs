@@ -78,7 +78,7 @@ public class Segment
     [MaxLength(65535)] public string? RouteInstructionsJson { get; set; }
     /// <summary>Safe provider identity for an explicitly accepted retained route.</summary>
     [MaxLength(24)] public string? RouteProvider { get; set; }
-    /// <summary>Administrator routing-configuration identity used to generate the route.</summary>
+    /// <summary>Gets historical provider-configuration identity as nullable scalar provenance.</summary>
     public Guid? RouteProviderConfigurationId { get; set; }
     /// <summary>Configuration and mapping authority version used to generate the route.</summary>
     public int? RouteProviderConfigurationVersion { get; set; }

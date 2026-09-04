@@ -100,23 +100,6 @@ public class ApiTokenServiceTests : TestBase
     }
 
     [Fact]
-    public async Task StoreThirdPartyToken_SavesProvidedToken()
-    {
-        var db = CreateDbContext();
-        var user = TestDataFixtures.CreateUser(id: "u5", username: "erin");
-        db.Users.Add(user);
-        await db.SaveChangesAsync();
-        var service = new ApiTokenService(db, MockUserManager(user).Object);
-
-        var stored = await service.StoreThirdPartyToken(user.Id, "FitBit", "third-party-token");
-
-        Assert.Equal("third-party-token", stored.Token);
-        Assert.Null(stored.TokenHash); // Third-party tokens don't use hashing
-        Assert.Equal("FitBit", stored.Name);
-        Assert.Single(db.ApiTokens);
-    }
-
-    [Fact]
     public async Task ValidateApiTokenAsync_DoesNotTreatLegacyProviderCredentialAsInboundToken()
     {
         var db = CreateDbContext();

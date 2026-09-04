@@ -12,7 +12,6 @@ public sealed class PostgresMigrationFixtureOwnershipTests
         typeof(TransportProfilePostgresTests),
         typeof(SegmentWaypointPostgresTests),
         typeof(SegmentMeasurementPostgresTests),
-        typeof(UserRoutingConfigurationPostgresTests)
     ];
 
     private static readonly string[] MigrationClassNames =
@@ -20,7 +19,6 @@ public sealed class PostgresMigrationFixtureOwnershipTests
         "Wayfarer.Tests.Models.TransportProfileMigrationPostgresTests",
         "Wayfarer.Tests.Models.SegmentWaypointMigrationPostgresTests",
         "Wayfarer.Tests.Models.SegmentMeasurementMigrationPostgresTests",
-        "Wayfarer.Tests.Models.UserRoutingConfigurationMigrationPostgresTests"
     ];
 
     /// <summary>Proves ordinary relational classes remain owned by the persistent fixture.</summary>

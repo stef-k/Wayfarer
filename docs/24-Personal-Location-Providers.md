@@ -15,7 +15,7 @@ sudo chown -R wayfarer:wayfarer /home/wayfarer/.aspnet/DataProtection-Keys
 sudo chmod 700 /home/wayfarer/.aspnet/DataProtection-Keys
 ```
 
-Losing the applicable key ring makes protected administrator routing, personal routing, and location-provider credentials unreadable even when the database survives. Startup fails closed if the directory is unusable or retained protected credentials cannot be read.
+Losing the applicable key ring makes protected personal-provider credentials unreadable even when the database survives. Startup fails closed if the directory is unusable or retained protected credentials cannot be read.
 
 This compatibility contract covers the fixed single-host systemd deployment at `/var/www/wayfarer`. Containers, a changed content root, and multiple hosts are not covered automatically and require an explicitly shared, stable Data Protection authority before deployment; Wayfarer does not claim certificate, cloud-KMS, container, or multi-host key sharing.
 

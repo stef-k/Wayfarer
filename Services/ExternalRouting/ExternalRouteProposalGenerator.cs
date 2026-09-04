@@ -6,22 +6,18 @@ namespace Wayfarer.Services.ExternalRouting;
 /// <summary>Generates immutable route proposals from fully reloaded server authority.</summary>
 public sealed class ExternalRouteProposalGenerator
 {
-    private readonly Func<ApplicationSettings>? _settingsForGateTest;
     private readonly ApplicationDbContext? _dbContext;
     private readonly SegmentAggregateTokenService? _aggregateTokens;
-    private readonly IOsrmRouteClient? _client;
+    private readonly IProviderRouteClient? _client;
     private readonly IProviderRouteGeometryValidator? _geometryValidator;
     private readonly ExternalRouteProposalContextService? _proposalContexts;
     private readonly RoutingRequestBudget? _budgets;
     private readonly AuthoritativeRoutingProviderResolver? _resolver;
     private readonly TimeProvider _timeProvider = TimeProvider.System;
 
-    /// <summary>Initializes the narrow feature-gate seam used by configuration contract tests.</summary>
-    public ExternalRouteProposalGenerator(Func<ApplicationSettings> settings) => _settingsForGateTest = settings;
-
     /// <summary>Initializes authoritative proposal generation.</summary>
     public ExternalRouteProposalGenerator(
-        ApplicationDbContext dbContext, SegmentAggregateTokenService aggregateTokens, IOsrmRouteClient client,
+        ApplicationDbContext dbContext, SegmentAggregateTokenService aggregateTokens, IProviderRouteClient client,
         IProviderRouteGeometryValidator geometryValidator, ExternalRouteProposalContextService proposalContexts,
         RoutingRequestBudget budgets, AuthoritativeRoutingProviderResolver resolver, TimeProvider? timeProvider = null)
     {
@@ -29,15 +25,6 @@ public sealed class ExternalRouteProposalGenerator
             = (dbContext, aggregateTokens, client, geometryValidator, proposalContexts, budgets);
         _resolver = resolver;
         _timeProvider = timeProvider ?? TimeProvider.System;
-    }
-
-    /// <summary>Rejects disabled generation without contacting a provider.</summary>
-    public Task<ExternalRouteGenerationResult> GenerateAsync(CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        return Task.FromResult(_settingsForGateTest!().ExternalRouteGenerationEnabled
-            ? ExternalRouteGenerationResult.Failure("external-routing-unavailable")
-            : ExternalRouteGenerationResult.Failure("external-routing-disabled"));
     }
 
     /// <summary>Reloads every authoritative input and returns a non-persisted immutable proposal.</summary>
@@ -96,21 +83,18 @@ public sealed class ExternalRouteProposalGenerator
         var geometryHash = ExternalRouteProposalContextService.GeometryHash(validated.Geometry!, validated.WaypointIndices!);
         var binding = new ExternalRouteProposalBinding(
             proposalId, tripId, segmentId, userId, geometryHash, context.Fingerprint!, context.TransportProfileId!.Value,
-            context.Execution!.Provider.Id, context.Execution.ProviderConfigurationVersion,
-            context.Execution.FeatureStateGeneration, aggregateConcurrencyToken,
-            context.Execution.SelectionMode, context.Execution.UserConfigurationVersion,
+            aggregateConcurrencyToken,
             providerResult.DistanceMetres, providerResult.DurationSeconds, providerResult.Instructions,
-            context.Execution.Provider.AdapterType == RoutingAdapterType.Geoapify ? "geoapify" : null,
+            context.Execution!.ProviderKey,
             context.Execution.Profile, _timeProvider.GetUtcNow(),
-            context.Execution.Provider.AdapterType == RoutingAdapterType.Geoapify
-                ? "Powered by Geoapify|© OpenStreetMap contributors" : context.Execution.Attribution,
-            context.Execution.Provider.AdapterType == RoutingAdapterType.Geoapify ? "persistent" : null,
-            context.Execution.AuthoritySelectionGeneration, context.Execution.UserRowVersion);
+            context.Execution.Attribution, "persistent", context.Execution.AuthoritySelectionGeneration,
+            context.Execution.CredentialGeneration, context.Execution.RoutingGeneration,
+            context.Execution.CatalogVersion);
         var protectedContext = _proposalContexts!.Issue(binding);
         var proposal = new ExternalRouteProposalDto(proposalId, segmentId, validated.Geometry!, validated.WaypointIndices!,
             protectedContext.Token, protectedContext.ExpiresAt, providerResult.DistanceMetres,
             providerResult.DurationSeconds, providerResult.Instructions,
-            context.Execution.Provider.AdapterType == RoutingAdapterType.Geoapify ? "geoapify" : null,
+            context.Execution.ProviderKey,
             context.Execution.Attribution);
         return new ExternalRouteGenerationResult(true, null, proposal);
     }
@@ -140,9 +124,8 @@ public sealed class ExternalRouteProposalGenerator
         if (!await _dbContext.Set<TransportProfile>().AsNoTracking()
             .AnyAsync(item => item.Id == transportProfileId && item.IsActive, cancellationToken))
             return GenerationContext.Failure("routing-profile-unavailable");
-        var resolution = providerMode == null
-            ? await _resolver!.ResolveAsync(userId, transportProfileId, cancellationToken)
-            : await _resolver!.ResolveNativeAsync(userId, providerMode, cancellationToken);
+        if (providerMode == null) return GenerationContext.Failure("provider-mode-required");
+        var resolution = await _resolver!.ResolveNativeAsync(userId, providerMode, cancellationToken);
         if (resolution.Execution == null) return GenerationContext.Failure(resolution.ErrorCode ?? "external-routing-unavailable");
         var places = new[] { segment.FromPlace }.Concat(segment.Waypoints.OrderBy(item => item.Position).Select(item => item.Place))
             .Concat([segment.ToPlace]).ToArray();
@@ -154,15 +137,12 @@ public sealed class ExternalRouteProposalGenerator
     }
 
     private static bool SameAuthority(ResolvedRoutingProviderExecution? first, ResolvedRoutingProviderExecution? second) =>
-        first != null && second != null && first.SelectionMode == second.SelectionMode
-        && first.Provider.Id == second.Provider.Id
-        && first.ProviderConfigurationVersion == second.ProviderConfigurationVersion
-        && first.ProviderRowVersion == second.ProviderRowVersion
-        && first.UserConfigurationVersion == second.UserConfigurationVersion
-        && first.UserRowVersion == second.UserRowVersion
-        && first.FeatureStateGeneration == second.FeatureStateGeneration
+        first != null && second != null && first.ProviderKey == second.ProviderKey
         && first.Profile == second.Profile
         && first.AuthoritySelectionGeneration == second.AuthoritySelectionGeneration
+        && first.CredentialGeneration == second.CredentialGeneration
+        && first.RoutingGeneration == second.RoutingGeneration
+        && first.CatalogVersion == second.CatalogVersion
         && first.RoutingAuthorized == second.RoutingAuthorized
         && first.RoutingVerification == second.RoutingVerification
         && first.VerifiedCredentialGeneration == second.VerifiedCredentialGeneration
@@ -194,7 +174,7 @@ public interface IProviderRouteGeometryValidator
 {
     /// <summary>Returns a complete protected-anchor route or a bounded failure.</summary>
     ProviderRouteValidationResult Validate(
-        IReadOnlyList<RouteCoordinate> anchors, OsrmRouteResult providerRoute, CancellationToken cancellationToken);
+        IReadOnlyList<RouteCoordinate> anchors, ProviderRouteResult providerRoute, CancellationToken cancellationToken);
 }
 
 /// <summary>Contains validated budgeted geometry and complete waypoint indices.</summary>

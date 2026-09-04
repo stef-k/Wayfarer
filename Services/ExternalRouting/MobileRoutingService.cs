@@ -6,7 +6,7 @@ namespace Wayfarer.Services.ExternalRouting;
 
 /// <summary>Owns provider-neutral mobile capability and ad-hoc route orchestration without persistence.</summary>
 public sealed class MobileRoutingService(
-    ApplicationDbContext dbContext, AuthoritativeRoutingProviderResolver resolver, IOsrmRouteClient routeClient,
+    ApplicationDbContext dbContext, AuthoritativeRoutingProviderResolver resolver, IProviderRouteClient routeClient,
     IProviderRouteGeometryValidator geometryValidator, RoutingRequestBudget budgets,
     MobileRoutingProfileDiscoveryService discovery, TimeProvider? timeProvider = null)
 {
@@ -59,7 +59,7 @@ public sealed class MobileRoutingService(
         if (guard is { Enabled: true } && used >= guard.CreditLimit)
             return new("exhausted", transportProfileId, null, null, null, null, null,
                 discoveryCatalogIdentity, selectedIdentity);
-        return new("available", transportProfileId, "geoapify", execution.Provider.Id,
+        return new("available", transportProfileId, "geoapify", execution.PacingIdentity,
             MappingIdentity(execution, transportProfileId), "persistent", Attributions(),
             discoveryCatalogIdentity, selectedIdentity, execution.Profile);
     }
@@ -112,7 +112,7 @@ public sealed class MobileRoutingService(
             userId, transportProfileId, providerMode, execution, selectedProfileAuthorityIdentity, cancellationToken))
             return MobileRouteServiceResult.Failure(selectedProfileAuthorityIdentity is null ? "configuration-changed" : "authority-changed");
         return new(true, "available", validated.Geometry!, route.DistanceMetres, route.DurationSeconds,
-            route.Instructions, clock.GetUtcNow(), "geoapify", execution.Provider.Id,
+            route.Instructions, clock.GetUtcNow(), "geoapify", execution.PacingIdentity,
             MappingIdentity(execution, transportProfileId), transportProfileId, points,
             Attributions(), "persistent", selectedProfileAuthorityIdentity, execution.Profile);
     }
@@ -126,10 +126,12 @@ public sealed class MobileRoutingService(
         string? providerMode, ResolvedRoutingProviderExecution expected, CancellationToken cancellationToken)
     {
         var current = (await ResolveAsync(userId, profileId, providerMode, cancellationToken)).Execution;
-        return current != null && current.Provider.Id == expected.Provider.Id
-            && current.ProviderConfigurationVersion == expected.ProviderConfigurationVersion
-            && current.Profile == expected.Profile && current.UserConfigurationVersion == expected.UserConfigurationVersion
-            && current.UserRowVersion == expected.UserRowVersion;
+        return current != null && current.ProviderKey == expected.ProviderKey
+            && current.Profile == expected.Profile
+            && current.AuthoritySelectionGeneration == expected.AuthoritySelectionGeneration
+            && current.CredentialGeneration == expected.CredentialGeneration
+            && current.RoutingGeneration == expected.RoutingGeneration
+            && current.CatalogVersion == expected.CatalogVersion;
     }
 
     private async Task<bool> CompleteAuthorityCurrentAsync(string userId, Guid profileId,
@@ -149,16 +151,13 @@ public sealed class MobileRoutingService(
 
     private static string ComputeSelectedIdentity(string userId, Guid profileId,
         ResolvedRoutingProviderExecution execution) => SelectedProfileAuthorityIdentity.Compute(new(
-            userId, execution.FeatureStateGeneration, (int)execution.SelectionMode, execution.Provider.Id,
-            (int)execution.Provider.AdapterType, execution.Provider.Enabled, execution.ProviderConfigurationVersion,
-            execution.ProviderRowVersion, execution.UserConfigurationVersion, execution.UserRowVersion,
-            profileId, execution.Profile, !string.IsNullOrEmpty(execution.Credential),
-            execution.AuthoritySelectionGeneration, execution.RoutingAuthorized, execution.RoutingVerification,
-            execution.VerifiedCredentialGeneration, execution.VerifiedRoutingGeneration,
-            execution.ProviderVerifiedConfigurationVersion));
+            userId, execution.ProviderKey, profileId, execution.Profile, execution.CatalogVersion,
+            execution.AuthoritySelectionGeneration, execution.CredentialGeneration, execution.RoutingGeneration,
+            execution.RoutingAuthorized, (int)execution.RoutingVerification,
+            execution.VerifiedCredentialGeneration, execution.VerifiedRoutingGeneration));
 
     private static string MappingIdentity(ResolvedRoutingProviderExecution execution, Guid profileId) =>
-        $"{execution.Provider.Id:N}:{execution.ProviderConfigurationVersion}:{profileId:N}";
+        $"{execution.ProviderKey}:{execution.CatalogVersion}:{profileId:N}:{execution.Profile}";
 
     private static MobileRoutingCapability UnavailableCapability(Guid profileId) =>
         new("no-provider-selected", profileId, null, null, null, null, null, null, null);

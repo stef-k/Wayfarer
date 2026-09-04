@@ -77,13 +77,10 @@ public sealed class MobileRoutingProfileDiscoveryTests : TestBase
     {
         var service = CreateConfiguredService();
         AddProfile("car", "Car", 0);
-        Db.Add(new ApplicationSettings { Id = 1, ExternalRouteGenerationEnabled = false });
-        Db.Add(new RoutingProviderConfiguration
-        {
-            Id = Guid.NewGuid(), DisplayName = "Disabled admin provider", Enabled = false,
-            AdapterType = RoutingAdapterType.MapboxDirections
-        });
         await Db.SaveChangesAsync();
+
+        Assert.Null(Db.Model.FindEntityType("Wayfarer.Models.RoutingProviderConfiguration"));
+        Assert.Null(Db.Model.FindEntityType("Wayfarer.Models.UserRoutingConfiguration"));
 
         var result = await service.DiscoverAsync("owner", default);
 

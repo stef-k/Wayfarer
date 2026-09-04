@@ -12,7 +12,7 @@ public sealed class ProviderRouteGeometryValidatorTests
     public void Validate_RestoresSnappedAnchorsAndCompleteIndices()
     {
         RouteCoordinate[] anchors = [new(23.7, 37.9), new(23.75, 37.95), new(23.8, 38.0)];
-        var route = new OsrmRouteResult(true,
+        var route = new ProviderRouteResult(true,
             [new(23.70001, 37.90001), new(23.74, 37.94), new(23.75001, 37.95001), new(23.8, 38.0)],
             [new(23.70001, 37.90001), new(23.75001, 37.95001), new(23.8, 38.0)], null);
 
@@ -29,7 +29,7 @@ public sealed class ProviderRouteGeometryValidatorTests
     public void Validate_InsertsExactAnchorOnlyOnUnambiguousSegment()
     {
         RouteCoordinate[] anchors = [new(0, 0), new(0.001, 0), new(0.002, 0)];
-        var route = new OsrmRouteResult(true, [new(0, 0), new(0.002, 0)], anchors, null);
+        var route = new ProviderRouteResult(true, [new(0, 0), new(0.002, 0)], anchors, null);
 
         var result = _validator.Validate(anchors, route, CancellationToken.None);
 
@@ -42,7 +42,7 @@ public sealed class ProviderRouteGeometryValidatorTests
     public void Validate_HandlesExactClosedLoopWithDistinctOrderedIndices()
     {
         RouteCoordinate[] anchors = [new(0, 0), new(0.01, 0.01), new(0, 0)];
-        var route = new OsrmRouteResult(true, anchors, anchors, null);
+        var route = new ProviderRouteResult(true, anchors, anchors, null);
 
         var result = _validator.Validate(anchors, route, CancellationToken.None);
 
@@ -55,7 +55,7 @@ public sealed class ProviderRouteGeometryValidatorTests
     public void Validate_RejectsReorderedProviderWaypoints()
     {
         RouteCoordinate[] anchors = [new(0, 0), new(0.01, 0.01), new(0.02, 0.02)];
-        var route = new OsrmRouteResult(true, anchors, [anchors[0], anchors[2], anchors[1]], null);
+        var route = new ProviderRouteResult(true, anchors, [anchors[0], anchors[2], anchors[1]], null);
 
         var result = _validator.Validate(anchors, route, CancellationToken.None);
 
@@ -68,7 +68,7 @@ public sealed class ProviderRouteGeometryValidatorTests
     {
         var geometry = Enumerable.Range(0, 1201).Select(index => new RouteCoordinate(index / 100000d, Math.Sin(index / 20d) / 100000d)).ToArray();
         RouteCoordinate[] anchors = [geometry[0], geometry[600], geometry[^1]];
-        var route = new OsrmRouteResult(true, geometry, anchors, null);
+        var route = new ProviderRouteResult(true, geometry, anchors, null);
 
         var result = _validator.Validate(anchors, route, CancellationToken.None);
 
@@ -101,7 +101,7 @@ public sealed class ProviderRouteGeometryValidatorTests
     {
         RouteCoordinate[] anchors = [new(20, 10), new(21, 11), new(22, 12)];
         RouteCoordinate[] geometry = [anchors[0], anchors[1], new(21.5, 11.5), anchors[1], anchors[2]];
-        var route = WithStructuralIndices(new OsrmRouteResult(true, geometry, anchors, null), [0, 3, 4]);
+        var route = WithStructuralIndices(new ProviderRouteResult(true, geometry, anchors, null), [0, 3, 4]);
 
         var result = _validator.Validate(anchors, route, CancellationToken.None);
 
@@ -117,7 +117,7 @@ public sealed class ProviderRouteGeometryValidatorTests
     public void Validate_RejectsMalformedStructuralIndices(IReadOnlyList<int> indices)
     {
         RouteCoordinate[] anchors = [new(0, 0), new(0.01, 0.01), new(0.02, 0.02)];
-        var route = WithStructuralIndices(new OsrmRouteResult(true, anchors, anchors, null), indices);
+        var route = WithStructuralIndices(new ProviderRouteResult(true, anchors, anchors, null), indices);
 
         var result = _validator.Validate(anchors, route, CancellationToken.None);
 
@@ -131,7 +131,7 @@ public sealed class ProviderRouteGeometryValidatorTests
         RouteCoordinate[] anchors = [new(0, 0), new(0.01, 0.01), new(0.02, 0.02)];
         RouteCoordinate[] geometry = [anchors[0], anchors[1], anchors[1], anchors[2]];
 
-        var result = _validator.Validate(anchors, new OsrmRouteResult(true, geometry, anchors, null), CancellationToken.None);
+        var result = _validator.Validate(anchors, new ProviderRouteResult(true, geometry, anchors, null), CancellationToken.None);
 
         Assert.False(result.Succeeded);
         Assert.Equal("provider-anchor-ambiguous", result.ErrorCode);
@@ -144,6 +144,6 @@ public sealed class ProviderRouteGeometryValidatorTests
         new[] { 0, 1, 3 }
     };
 
-    private static OsrmRouteResult WithStructuralIndices(OsrmRouteResult route, IReadOnlyList<int> indices)
+    private static ProviderRouteResult WithStructuralIndices(ProviderRouteResult route, IReadOnlyList<int> indices)
         => route with { StructuralWaypointIndices = indices };
 }

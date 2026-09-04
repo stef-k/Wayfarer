@@ -8,7 +8,7 @@ namespace Wayfarer.Services.ExternalRouting;
 /// <summary>Protects immutable proposal geometry and authoritative generation context.</summary>
 public sealed class ExternalRouteProposalContextService
 {
-    private const int ContractVersion = 2;
+    private const int ContractVersion = 3;
     private static readonly TimeSpan ProposalLifetime = TimeSpan.FromMinutes(10);
     private readonly IDataProtector _protector;
     private readonly TimeProvider _timeProvider;
@@ -56,12 +56,11 @@ public sealed class ExternalRouteProposalContextService
 /// <summary>Contains all server-authoritative proposal stale dimensions.</summary>
 public sealed record ExternalRouteProposalBinding(
     Guid ProposalId, Guid TripId, Guid SegmentId, string UserId, string GeometryHash, string AnchorFingerprint,
-    Guid TransportProfileId, Guid ProviderId, int ProviderConfigurationVersion, int FeatureStateGeneration,
-    string AggregateConcurrencyToken, RoutingProviderSelectionMode ProviderSelectionMode = RoutingProviderSelectionMode.ServerDefault,
-    int UserRoutingConfigurationVersion = 1, double? DistanceMetres = null, double? DurationSeconds = null,
+    Guid TransportProfileId, string AggregateConcurrencyToken, double? DistanceMetres = null, double? DurationSeconds = null,
     IReadOnlyList<RouteInstruction>? Instructions = null, string? ProviderKey = null, string? MappingMode = null,
     DateTimeOffset? GeneratedAt = null, string? Attribution = null, string? StorageMode = null,
-    int AuthoritySelectionGeneration = 0, uint AuthorityCredentialGeneration = 0);
+    int AuthoritySelectionGeneration = 0, int AuthorityCredentialGeneration = 0,
+    int AuthorityRoutingGeneration = 0, int CatalogVersion = 0);
 
 /// <summary>Returns the protected context and its initial ten-minute expiry.</summary>
 public sealed record ProtectedProposalContext(string Token, DateTimeOffset ExpiresAt);

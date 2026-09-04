@@ -1,5 +1,3 @@
-using Wayfarer.Models;
-
 namespace Wayfarer.Services.ExternalRouting;
 
 /// <summary>Orders pacing, concurrency, final authority, rate admission, and monotonic attempt start.</summary>
@@ -14,19 +12,19 @@ public sealed class RoutingAttemptCoordinator
 
     /// <summary>Prepares one actual provider attempt immediately before DNS resolution.</summary>
     public async Task<RoutingAttemptAdmission> PrepareAsync(
-        RoutingProviderConfiguration provider, Func<CancellationToken, Task<bool>> validateAuthority,
+        ResolvedRoutingProviderExecution execution, Func<CancellationToken, Task<bool>> validateAuthority,
         CancellationToken cancellationToken,
         Func<CancellationToken, Task<string?>>? admitExternalCost = null)
     {
-        _pacer.ApplyConfiguration(provider.Id, provider.ConfigurationVersion, provider.MinimumIntervalMilliseconds);
-        var paced = await _pacer.WaitAsync(provider.Id, provider.ConfigurationVersion, cancellationToken);
+        _pacer.ApplyConfiguration(execution.PacingIdentity, execution.CatalogVersion, execution.MinimumIntervalMilliseconds);
+        var paced = await _pacer.WaitAsync(execution.PacingIdentity, execution.CatalogVersion, cancellationToken);
         if (!paced.Succeeded) return RoutingAttemptAdmission.Failure(paced.ErrorCode!);
         var turn = paced.Turn!;
         IDisposable? concurrency = null;
         try
         {
             concurrency = await _budget.AcquireAttemptConcurrencyAsync(
-                provider.Id, provider.MaxConcurrency, cancellationToken);
+                execution.PacingIdentity, execution.MaxConcurrency, cancellationToken);
             if (concurrency == null)
             {
                 turn.Dispose();
@@ -46,7 +44,7 @@ public sealed class RoutingAttemptCoordinator
                 return RoutingAttemptAdmission.Failure(externalError);
             }
             return RoutingAttemptAdmission.Prepared(concurrency, turn,
-                () => _budget.TryAdmitProviderAttempt(provider.Id, provider.RequestsPerMinute));
+                () => _budget.TryAdmitProviderAttempt(execution.PacingIdentity, execution.RequestsPerMinute));
         }
         catch
         {

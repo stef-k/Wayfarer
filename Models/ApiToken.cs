@@ -3,7 +3,7 @@
     /// <summary>
     /// Represents an API token for authenticating API requests.
     /// Wayfarer-generated tokens are stored as hashes for security.
-    /// Third-party tokens (user-provided) are stored in plain text for usability.
+    /// Historical plaintext values remain only for the bounded Mapbox credential migration.
     /// </summary>
     public class ApiToken
     {
@@ -15,14 +15,13 @@
         public required string Name { get; set; }
 
         /// <summary>
-        /// Plain text token value. Null for Wayfarer-generated tokens (which use TokenHash).
-        /// Only populated for third-party tokens that need to be retrieved.
+        /// Historical plaintext value retained only for the bounded legacy Mapbox migration.
         /// </summary>
         public string? Token { get; set; }
 
         /// <summary>
         /// SHA-256 hash of the token for secure storage and validation.
-        /// Used for Wayfarer-generated tokens. Null for third-party tokens.
+        /// Used for every current inbound Wayfarer token.
         /// </summary>
         public string? TokenHash { get; set; }
 

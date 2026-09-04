@@ -1,25 +1,19 @@
 using System.Net;
-using Microsoft.Extensions.Options;
 
 namespace Wayfarer.Services.ExternalRouting;
 
 /// <summary>Validates routing endpoints against deployment-owned SSRF policy.</summary>
 public sealed class RoutingEndpointPolicy
 {
-    private readonly RoutingOutboundOptions _options;
-
-    /// <summary>Initializes policy from deployment configuration, never database state.</summary>
-    public RoutingEndpointPolicy(IOptions<RoutingOutboundOptions> options) => _options = options.Value;
-
     /// <summary>Validates URI syntax and every resolved address, returning one address to pin.</summary>
     public RoutingEndpointDecision Validate(Uri endpoint, IReadOnlyList<IPAddress> addresses)
     {
         if (!endpoint.IsAbsoluteUri || endpoint.UserInfo.Length != 0 || endpoint.Fragment.Length != 0
             || endpoint.Query.Length != 0 || endpoint.HostNameType == UriHostNameType.Unknown
             || endpoint.Host.Contains('*', StringComparison.Ordinal)
-            || endpoint.Scheme is not ("https" or "http") || !PortAllowed(endpoint))
+            || endpoint.Scheme != Uri.UriSchemeHttps || !endpoint.IsDefaultPort)
             return RoutingEndpointDecision.Rejected;
-        if (addresses.Count == 0 || addresses.Any(address => !AddressAllowed(endpoint, address)))
+        if (addresses.Count == 0 || addresses.Any(address => !RoutingIpClassifier.IsPublic(address)))
             return RoutingEndpointDecision.Rejected;
         return new RoutingEndpointDecision(true, addresses[0]);
     }
@@ -28,33 +22,6 @@ public sealed class RoutingEndpointPolicy
     public RoutingEndpointDecision Validate(string endpoint, IReadOnlyList<IPAddress> addresses) =>
         Uri.TryCreate(endpoint, UriKind.Absolute, out var parsed) ? Validate(parsed, addresses) : RoutingEndpointDecision.Rejected;
 
-    private bool PortAllowed(Uri endpoint) => endpoint.IsDefaultPort || _options.AllowedPorts.Contains(endpoint.Port);
-
-    private bool AddressAllowed(Uri endpoint, IPAddress address)
-    {
-        var restricted = !RoutingIpClassifier.IsPublic(address);
-        if (!restricted && endpoint.Scheme == Uri.UriSchemeHttps) return true;
-        return _options.SelfHostedAllowlist.Any(entry => entry.Matches(endpoint.Host, address, endpoint.Scheme));
-    }
-}
-
-/// <summary>Contains deployment-owned intentional self-hosting exceptions.</summary>
-public sealed class RoutingOutboundOptions
-{
-    /// <summary>Gets the exact-host/CIDR entries permitted for intentional self-hosting.</summary>
-    public List<RoutingSelfHostedAllowlistEntry> SelfHostedAllowlist { get; init; } = [];
-
-    /// <summary>Gets additional explicitly approved destination ports.</summary>
-    public HashSet<int> AllowedPorts { get; init; } = [];
-}
-
-/// <summary>Defines one exact host, CIDR, and scheme exception owned by deployment configuration.</summary>
-public sealed record RoutingSelfHostedAllowlistEntry(string Host, string Cidr, bool AllowHttp)
-{
-    /// <summary>Matches all three required exception dimensions.</summary>
-    public bool Matches(string host, IPAddress address, string scheme) =>
-        host.Equals(Host, StringComparison.OrdinalIgnoreCase) && (scheme == Uri.UriSchemeHttps || AllowHttp)
-        && RoutingCidr.Contains(Cidr, address);
 }
 
 /// <summary>Represents a safe endpoint decision and the address selected for connection pinning.</summary>
@@ -88,7 +55,7 @@ public static class RoutingIpClassifier
 }
 
 /// <summary>Performs exact CIDR membership checks without wildcard host behavior.</summary>
-public static class RoutingCidr
+internal static class RoutingCidr
 {
     /// <summary>Returns whether an address belongs to the supplied CIDR.</summary>
     public static bool Contains(string cidr, IPAddress address)

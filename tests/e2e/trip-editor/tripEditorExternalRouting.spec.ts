@@ -107,8 +107,8 @@ test.describe.serial('bounded external routing workflow', () => {
   });
 });
 
-const capability = () => ({ available: true, unavailableReason: null, providerDisplayName: 'Controlled OSRM',
-  mappedProfileLabel: 'Controlled profile', disclosure: 'Ordered anchor coordinates are sent to Controlled OSRM.',
+const capability = () => ({ available: true, unavailableReason: null, providerDisplayName: 'Geoapify',
+  mappedProfileLabel: null, disclosure: 'Ordered anchor coordinates are sent to Geoapify.',
   attribution: 'Controlled routing data' });
 
 function proposal(state: Record<string, any>, segmentId: string): Record<string, any> {
@@ -142,8 +142,8 @@ async function openSegment(page: Page, id: string): Promise<void> {
 }
 
 async function expectDisclosure(page: Page): Promise<void> {
-  await expect(page.getByText('Controlled OSRM', { exact: true })).toBeVisible();
-  await expect(page.getByText('Ordered anchor coordinates are sent to Controlled OSRM.')).toBeVisible();
+  await expect(page.getByText('Geoapify', { exact: true })).toBeVisible();
+  await expect(page.getByText('Ordered anchor coordinates are sent to Geoapify.')).toBeVisible();
 }
 
 const fixedSegmentEndpoint = (id: string): string => `${editorApiPath}/segments/${id}`;

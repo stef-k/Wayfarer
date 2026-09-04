@@ -18,12 +18,6 @@ public sealed class MobileRoutingProfileDiscoveryService
         ILogger<MobileRoutingProfileDiscoveryService>? logger = null) =>
         (this.dbContext, this.personalCredentials, this.logger) = (dbContext, personalCredentials, logger);
 
-    /// <summary>Retains source compatibility for existing focused tests while ignoring legacy authority.</summary>
-    internal MobileRoutingProfileDiscoveryService(ApplicationDbContext dbContext,
-        RoutingProviderCredentialService providerCredentials, UserRoutingCredentialService userCredentials,
-        PersonalProviderCredentialService personalCredentials,
-        ILogger<MobileRoutingProfileDiscoveryService>? logger = null) : this(dbContext, personalCredentials, logger) { }
-
     /// <summary>Provides a controlled seam for authority-drift tests after the single protected read.</summary>
     internal Func<CancellationToken, Task> AfterCredentialReadAsync { get; set; } = _ => Task.CompletedTask;
     /// <summary>Provides a controlled counter seam for protected-readability tests.</summary>

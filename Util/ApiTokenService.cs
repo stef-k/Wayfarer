@@ -79,31 +79,9 @@ namespace Wayfarer.Util
             return (apiToken, plainToken);
         }
 
-        public async Task<ApiToken> StoreThirdPartyToken(string userId, string thirdPartyServiceName, string thirdPartyToken)
-        {
-            ApplicationUser? user = await _userManager.FindByIdAsync(userId);
-            if (user == null)
-            {
-                throw new ArgumentException("User not found.");
-            }
-
-            ApiToken apiToken = new ApiToken
-            {
-                UserId = userId,
-                User = user,
-                Name = thirdPartyServiceName,
-                Token = thirdPartyToken,
-                CreatedAt = DateTime.UtcNow
-            };
-
-            _dbContext.ApiTokens.Add(apiToken);
-            await _dbContext.SaveChangesAsync();
-            return apiToken;
-        }
-
         /// <summary>
         /// Validates the API Token for the specified user.
-        /// Supports both hashed (Wayfarer) and plain text (third-party) tokens.
+        /// Supports Wayfarer inbound bearer tokens stored as hashes.
         /// </summary>
         /// <param name="userId">The user ID to validate against</param>
         /// <param name="token">The API token to validate</param>
@@ -112,10 +90,9 @@ namespace Wayfarer.Util
         {
             string tokenHash = HashToken(token);
 
-            // Check for hashed token first, then fall back to plain text (third-party tokens)
             ApiToken? apiToken = await _dbContext.ApiTokens
-                .FirstOrDefaultAsync(t => t.UserId == userId &&
-                    (t.TokenHash == tokenHash || t.Token == token));
+                .FirstOrDefaultAsync(t => t.UserId == userId && (t.TokenHash == tokenHash
+                    || t.Token == token && t.Name.Trim().ToLower() != "mapbox"));
 
             return apiToken != null;
         }
