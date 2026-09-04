@@ -13,6 +13,7 @@ public interface IImportEnrichmentHandoff
     Task EnsureAsync(string userId, CancellationToken cancellationToken = default);
     Task<EnrichmentCommandResult> StartAsync(string userId, CancellationToken cancellationToken = default);
     Task<EnrichmentCommandResult> RetryDeferredAsync(string userId, CancellationToken cancellationToken = default);
+    Task<EnrichmentCommandResult> RepairIncompleteAsync(string userId, CancellationToken cancellationToken = default);
     Task<EnrichmentCommandResult> PauseAsync(string userId, CancellationToken cancellationToken = default);
     Task<EnrichmentCommandResult> ResumeAsync(string userId, CancellationToken cancellationToken = default);
     Task<EnrichmentCommandResult> CancelAsync(string userId, CancellationToken cancellationToken = default);
@@ -24,6 +25,7 @@ public sealed class ImportEnrichmentHandoff(
     IPersonalProviderStatusReader providerInspection,
     ILocationEnrichmentProgressQuery progressQuery) : IImportEnrichmentHandoff
 {
+    private const int RepairCommandLimit = 1_000;
     /// <summary>Test-only coordination point after advisory inspection and before locked validation.</summary>
     internal Func<CancellationToken, Task> BeforeTransactionalAuthorityValidationAsync { get; set; }
         = static _ => Task.CompletedTask;
@@ -189,6 +191,65 @@ public sealed class ImportEnrichmentHandoff(
         try { await projection.ProjectAsync(userId, cancellationToken); }
         catch { return EnrichmentCommandResult.Scheduling("scheduling-reconciliation-required", reset); }
         return EnrichmentCommandResult.Success("scheduled", reset);
+    }
+
+    /// <summary>Creates explicit repair intent for current Geoapify-persistent partial addresses.</summary>
+    public async Task<EnrichmentCommandResult> RepairIncompleteAsync(
+        string userId, CancellationToken cancellationToken = default)
+    {
+        var inspection = await providerInspection.InspectPersistentGeocodingAsync(userId, cancellationToken);
+        var authority = inspection.Binding;
+        if (!inspection.Available || authority is null || authority.ProviderKey != "geoapify")
+            return EnrichmentCommandResult.Authority("authority-unavailable");
+        await using var transaction = db.Database.IsRelational()
+            ? await db.Database.BeginTransactionAsync(cancellationToken) : null;
+        var workflow = await LockWorkflowAsync(userId, cancellationToken);
+        if (workflow is null || !CanRetryDeferred(workflow))
+            return await RollbackAsync(transaction, EnrichmentCommandResult.Conflict("invalid-state"), cancellationToken);
+        if (!await AuthorityIsCurrentAsync(userId, authority, cancellationToken))
+            return await RollbackAsync(transaction, EnrichmentCommandResult.Authority("authority-unavailable"), cancellationToken);
+        var now = await LocationEnrichmentExecutionAuthority.DatabaseUtcNowAsync(db, cancellationToken);
+        var eligibleLocations = LocationEnrichmentProgressQuery.IncompleteGeoapifyLocations(db, userId)
+            .OrderBy(item => item.Timestamp).ThenBy(item => item.Id).Take(RepairCommandLimit);
+        var locations = db.Database.IsNpgsql()
+            ? await db.Locations.FromSqlInterpolated($$"""
+                SELECT * FROM "Locations"
+                WHERE "UserId" = {{userId}}
+                  AND ("Place" IS NULL OR btrim("Place") = '')
+                  AND "ReverseGeocodingProvider" = 'geoapify'
+                  AND "ReverseGeocodingStorageMode" = 'persistent'
+                  AND "ReverseGeocodedAt" IS NOT NULL
+                  AND (("Address" IS NOT NULL AND btrim("Address") <> '')
+                    OR ("FullAddress" IS NOT NULL AND btrim("FullAddress") <> '')
+                    OR ("AddressNumber" IS NOT NULL AND btrim("AddressNumber") <> '')
+                    OR ("StreetName" IS NOT NULL AND btrim("StreetName") <> '')
+                    OR ("PostCode" IS NOT NULL AND btrim("PostCode") <> '')
+                    OR ("Region" IS NOT NULL AND btrim("Region") <> '')
+                    OR ("Country" IS NOT NULL AND btrim("Country") <> ''))
+                ORDER BY "Timestamp", "Id" LIMIT {{RepairCommandLimit}} FOR UPDATE
+                """).Select(item => item.Id).ToListAsync(cancellationToken)
+            : await eligibleLocations.Select(item => item.Id).ToListAsync(cancellationToken);
+        if (locations.Count == 0)
+            return await RollbackAsync(transaction, EnrichmentCommandResult.Satisfied("nothing-to-repair"), cancellationToken);
+        var existing = await db.LocationEnrichmentAttempts.Where(item => item.UserId == userId
+            && locations.Contains(item.LocationId)).ToDictionaryAsync(item => item.LocationId, cancellationToken);
+        foreach (var locationId in locations)
+        {
+            if (!existing.TryGetValue(locationId, out var attempt))
+            {
+                attempt = new LocationEnrichmentAttempt { UserId = userId, LocationId = locationId };
+                db.Add(attempt);
+            }
+            attempt.PrepareRepair(authority, now);
+        }
+        if (!workflow.RetryDeferred(now))
+            return await RollbackAsync(transaction, EnrichmentCommandResult.Conflict("concurrent-command"), cancellationToken);
+        await db.SaveChangesAsync(cancellationToken);
+        if (transaction != null) await transaction.CommitAsync(cancellationToken);
+        if (transaction != null) await transaction.DisposeAsync();
+        try { await projection.ProjectAsync(userId, cancellationToken); }
+        catch { return EnrichmentCommandResult.Scheduling("scheduling-reconciliation-required", locations.Count); }
+        return EnrichmentCommandResult.Success("repair-scheduled", locations.Count);
     }
 
     private static bool CanRetryDeferred(LocationEnrichmentWorkflow workflow) => workflow.State is

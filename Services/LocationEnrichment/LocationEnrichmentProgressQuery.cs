@@ -13,6 +13,7 @@ public interface ILocationEnrichmentProgressQuery
         PersonalProviderAuthorityBinding? authority, DateTime dbNow, CancellationToken cancellationToken = default);
     Task<bool> HasRunnableAsync(string userId, PersonalProviderAuthorityBinding authority,
         DateTime dbNow, CancellationToken cancellationToken = default);
+    Task<int> CountIncompleteGeoapifyAsync(string userId, CancellationToken cancellationToken = default);
 }
 
 /// <summary>Owns the shared translatable current-authority candidate classification.</summary>
@@ -23,7 +24,8 @@ public sealed class LocationEnrichmentProgressQuery(ApplicationDbContext db) : I
         PersonalProviderAuthorityBinding? authority, DateTime dbNow, CancellationToken cancellationToken = default)
     {
         var cannotRetry = await CannotRetryAttempts(db, userId).CountAsync(cancellationToken);
-        if (authority is null) return new(0, 0, 0, cannotRetry, null);
+        var incomplete = await CountIncompleteGeoapifyAsync(userId, cancellationToken);
+        if (authority is null) return new(0, 0, 0, cannotRetry, null, incomplete);
         var rows = Rows(userId, authority);
         var runnable = await rows.CountAsync(row => row.Attempt == null || (row.Attempt.OperationId == null
             && row.Attempt.Outcome != LocationEnrichmentOutcome.InvalidCoordinates
@@ -39,8 +41,13 @@ public sealed class LocationEnrichmentProgressQuery(ApplicationDbContext db) : I
                 && row.Attempt.OperationId == null && row.Attempt.Outcome == LocationEnrichmentOutcome.RetryableFailure
                 && row.Attempt.AdmittedAttemptCount < 3 && row.Attempt.NextAttemptAtUtc > dbNow)
             .MinAsync(row => row.Attempt!.NextAttemptAtUtc, cancellationToken);
-        return new(runnable, future, manualRetry, cannotRetry, next);
+        return new(runnable, future, manualRetry, cannotRetry, next, incomplete);
     }
+
+    /// <inheritdoc />
+    public Task<int> CountIncompleteGeoapifyAsync(string userId,
+        CancellationToken cancellationToken = default) => IncompleteGeoapifyLocations(db, userId)
+        .CountAsync(cancellationToken);
 
     /// <inheritdoc />
     public Task<bool> HasRunnableAsync(string userId, PersonalProviderAuthorityBinding authority,
@@ -94,6 +101,21 @@ public sealed class LocationEnrichmentProgressQuery(ApplicationDbContext db) : I
             && attempt.ConsentVersion == authority.ConsentVersion && attempt.ConsentTimestamp == authority.ConsentedAt
             && attempt.ConsentCredentialGeneration == authority.ConsentCredentialGeneration
         select attempt;
+
+    /// <summary>Returns provider-derived partial records without admitting or scheduling provider contact.</summary>
+    internal static IQueryable<Location> IncompleteGeoapifyLocations(ApplicationDbContext context, string userId) =>
+        context.Locations.Where(value => value.UserId == userId
+            && (value.Place == null || value.Place.Trim() == "")
+            && value.ReverseGeocodingProvider == "geoapify"
+            && value.ReverseGeocodingStorageMode == "persistent"
+            && value.ReverseGeocodedAt != null
+            && ((value.Address != null && value.Address.Trim() != "")
+            || (value.FullAddress != null && value.FullAddress.Trim() != "")
+            || (value.AddressNumber != null && value.AddressNumber.Trim() != "")
+                || (value.StreetName != null && value.StreetName.Trim() != "")
+                || (value.PostCode != null && value.PostCode.Trim() != "")
+                || (value.Region != null && value.Region.Trim() != "")
+                || (value.Country != null && value.Country.Trim() != "")));
 
     /// <summary>Returns invalid-coordinate rows independently of current provider authority.</summary>
     internal static IQueryable<LocationEnrichmentAttempt> CannotRetryAttempts(

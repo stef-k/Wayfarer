@@ -110,6 +110,30 @@ namespace Wayfarer.Areas.User.Controllers
             return RedirectToAction(nameof(Index));
         }
 
+        /// <summary>Schedules explicit missing-locality repair for the authenticated user's eligible records.</summary>
+        [HttpPost, ValidateAntiForgeryToken]
+        public async Task<IActionResult> RepairIncompleteAddresses()
+        {
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrWhiteSpace(userId)) return Challenge();
+            if (_enrichmentHandoff is null) return Conflict("control-unavailable");
+            var result = await _enrichmentHandoff.RepairIncompleteAsync(userId);
+            var feedback = result switch
+            {
+                { Classification: LocationEnrichmentCommandResult.Applied, AffectedCount: > 0 } =>
+                    ($"Repair scheduled for {result.AffectedCount} incomplete locations.", "success"),
+                { Classification: LocationEnrichmentCommandResult.AlreadySatisfied, Code: "nothing-to-repair" } =>
+                    ("No incomplete provider addresses are currently eligible.", "info"),
+                { Classification: LocationEnrichmentCommandResult.SchedulingPending, AffectedCount: > 0 } =>
+                    ($"Repair was saved for {result.AffectedCount} incomplete locations; scheduling requires reconciliation.", "warning"),
+                { Code: "authority-unavailable" } =>
+                    ("Current Geoapify geocoding authority is required before repairing incomplete addresses.", "warning"),
+                _ => ("Incomplete addresses could not be scheduled because the workflow changed. Refresh and try again.", "warning")
+            };
+            SetAlert(feedback.Item1, feedback.Item2);
+            return RedirectToAction(nameof(Index));
+        }
+
         /// <summary>Maps finite retry outcomes to credential-free user feedback.</summary>
         private static (string Message, string Type) RetryFeedback(EnrichmentCommandResult result) => result switch
         {

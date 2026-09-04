@@ -10,7 +10,7 @@ using Point = NetTopologySuite.Geometries.Point;
 namespace Wayfarer.Services.LocationProviders;
 
 /// <summary>Runs a bounded batch under one workflow lease and one durable operation per admitted contact.</summary>
-public sealed class GeoapifyLocationBackfillService(
+public sealed partial class GeoapifyLocationBackfillService(
     IDbContextFactory<ApplicationDbContext> contexts, IServiceScopeFactory scopes,
     IHttpClientFactory clients, ILogger<BaseApiController> logger,
     LocationEnrichmentExecutionAuthority executionAuthority) : ILocationEnrichmentBatch
@@ -69,7 +69,7 @@ public sealed class GeoapifyLocationBackfillService(
             var candidate = await LoadCandidateAsync(owner.UserId, id, cancellationToken);
             if (candidate is null) { skipped++; continue; }
             scanned++;
-            var boundary = await TryAdmitAndClaimAsync(owner, id, cancellationToken);
+            var boundary = await TryAdmitAndClaimAsync(owner, id, selected, cancellationToken);
             if (boundary.InvalidCoordinates) { permanentlyDeferred++; continue; }
             if (boundary.Admission is null) continue;
             var admission = boundary.Admission;
@@ -100,6 +100,7 @@ public sealed class GeoapifyLocationBackfillService(
                 boundary.Latitude, boundary.Longitude, admission.Authority!, result, CancellationToken.None);
             if (!applied.AuthorityCurrent) break;
             if (applied.Enriched) succeeded++;
+            else if (applied.NoResult) noResult++;
             else if (result.Succeeded) skipped++;
             else if (result.Category is ReverseGeocodingCategory.InvalidRequest or ReverseGeocodingCategory.InvalidResponse)
                 noResult++;
@@ -127,25 +128,26 @@ public sealed class GeoapifyLocationBackfillService(
         await using var db = await contexts.CreateDbContextAsync(cancellationToken);
         var location = await db.Locations.AsNoTracking().SingleOrDefaultAsync(
             item => item.UserId == userId && item.Id == id, cancellationToken);
-        return location is not null && IsWhollyUnenriched(location)
+        return location is not null && (IsWhollyUnenriched(location) || IsIncompleteGeoapify(location))
             ? (location.Coordinates.Y, location.Coordinates.X) : null;
     }
 
     /// <summary>Linearizes coordinate validity, provider admission, and operation ownership before contact.</summary>
     private async Task<AdmissionBoundary> TryAdmitAndClaimAsync(LocationEnrichmentExecutionLease owner,
-        int locationId, CancellationToken cancellationToken)
+        int locationId, EnrichmentAuthority authority, CancellationToken cancellationToken)
     {
-        var classification = await TryClassifyInvalidCoordinatesAsync(owner, locationId, cancellationToken);
+        var classification = await TryClassifyInvalidCoordinatesAsync(owner, locationId, authority, cancellationToken);
         if (!classification.Valid) return classification.Boundary;
         await using (var scope = scopes.CreateAsyncScope())
             await scope.ServiceProvider.GetRequiredService<PersonalProviderContactGate>()
                 .PreparePersistentGeocodingAsync(owner.UserId, cancellationToken);
-        return await TryAdmitPreparedAndClaimAsync(owner, locationId, cancellationToken);
+        return await TryAdmitPreparedAndClaimAsync(owner, locationId, authority, cancellationToken);
     }
 
     /// <summary>Classifies invalid work without resolving or mutating any provider authority.</summary>
     private async Task<(bool Valid, AdmissionBoundary Boundary)> TryClassifyInvalidCoordinatesAsync(
-        LocationEnrichmentExecutionLease owner, int locationId, CancellationToken cancellationToken)
+        LocationEnrichmentExecutionLease owner, int locationId, EnrichmentAuthority authority,
+        CancellationToken cancellationToken)
     {
         await using var db = await contexts.CreateDbContextAsync(cancellationToken);
         await using var transaction = db.Database.IsRelational()
@@ -158,8 +160,9 @@ public sealed class GeoapifyLocationBackfillService(
                 """).SingleOrDefaultAsync(cancellationToken)
             : await db.Locations.SingleOrDefaultAsync(item => item.UserId == owner.UserId
                 && item.Id == locationId, cancellationToken);
+        var attempt = location is null ? null : await LockAttemptAsync(db, owner.UserId, locationId, cancellationToken);
         if (workflow?.Epoch != owner.Epoch || !workflow.HasExecutionLease(owner.LeaseId,
-                owner.FencingGeneration, now) || location is null || !IsWhollyUnenriched(location))
+                owner.FencingGeneration, now) || location is null || !IsRunnableShape(location, attempt, authority, now))
         {
             if (transaction != null) await transaction.RollbackAsync(cancellationToken);
             return default;
@@ -180,7 +183,7 @@ public sealed class GeoapifyLocationBackfillService(
 
     /// <summary>Revalidates and admits prepared provider authority in one fresh short transaction.</summary>
     private async Task<AdmissionBoundary> TryAdmitPreparedAndClaimAsync(LocationEnrichmentExecutionLease owner,
-        int locationId, CancellationToken cancellationToken)
+        int locationId, EnrichmentAuthority authority, CancellationToken cancellationToken)
     {
         await using var scope = scopes.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -195,8 +198,9 @@ public sealed class GeoapifyLocationBackfillService(
                 """).SingleOrDefaultAsync(cancellationToken)
             : await db.Locations.SingleOrDefaultAsync(item => item.UserId == owner.UserId
                 && item.Id == locationId, cancellationToken);
+        var attempt = location is null ? null : await LockAttemptAsync(db, owner.UserId, locationId, cancellationToken);
         if (workflow?.Epoch != owner.Epoch || !workflow.HasExecutionLease(owner.LeaseId,
-                owner.FencingGeneration, now) || location is null || !IsWhollyUnenriched(location))
+                owner.FencingGeneration, now) || location is null || !IsRunnableShape(location, attempt, authority, now))
         { if (transaction != null) await transaction.RollbackAsync(cancellationToken); return default; }
         var latitude = location.Coordinates.Y;
         var longitude = location.Coordinates.X;
@@ -216,7 +220,6 @@ public sealed class GeoapifyLocationBackfillService(
             return new(admission, null, latitude, longitude, false);
         }
         var contacted = admission.Authority!;
-        var attempt = await LockAttemptAsync(db, owner.UserId, locationId, cancellationToken);
         attempt ??= new LocationEnrichmentAttempt { UserId = owner.UserId, LocationId = locationId };
         if (attempt.Id == 0) db.Add(attempt);
         var same = attempt.ProviderKey == contacted.ProviderKey
@@ -273,7 +276,7 @@ public sealed class GeoapifyLocationBackfillService(
         return new(null, null, latitude, longitude, true);
     }
 
-    private async Task<(bool AuthorityCurrent, bool Enriched)> TryCompleteAttemptAsync(
+    private async Task<(bool AuthorityCurrent, bool Enriched, bool NoResult)> TryCompleteAttemptAsync(
         LocationEnrichmentExecutionLease owner, int locationId, Guid operationId,
         double latitude, double longitude,
         PersonalProviderAuthoritySnapshot contacted, ReverseGeocodingResult result,
@@ -317,28 +320,32 @@ public sealed class GeoapifyLocationBackfillService(
             && profile.PermanentGeocodingConsentVersion == contacted.ConsentVersion
             && profile.PermanentGeocodingConsentedAt == contacted.ConsentedAt
             && profile.PermanentGeocodingConsentCredentialGeneration == contacted.ConsentCredentialGeneration;
+        var location = await db.Locations.AsNoTracking().SingleOrDefaultAsync(item => item.UserId == owner.UserId
+            && item.Id == locationId, cancellationToken);
+        var incompleteRepair = location is not null && IsIncompleteGeoapify(location);
         if (workflow?.Epoch != owner.Epoch || !workflow.HasExecutionLease(owner.LeaseId,
                 owner.FencingGeneration, now) || attempt is null || !authorityCurrent)
-        { if (transaction != null) await transaction.RollbackAsync(cancellationToken); return (false, false); }
-        attempt.Outcome = MapOutcome(result.Category, attempt.AdmittedAttemptCount);
+        { if (transaction != null) await transaction.RollbackAsync(cancellationToken); return (false, false, false); }
+        attempt.Outcome = result.Succeeded && incompleteRepair && string.IsNullOrWhiteSpace(result.Value?.Place)
+            ? LocationEnrichmentOutcome.NoResult : MapOutcome(result.Category, attempt.AdmittedAttemptCount);
         if (attempt.Outcome != LocationEnrichmentOutcome.RetryableFailure) attempt.NextAttemptAtUtc = null;
         attempt.OperationId = null; attempt.OperationFencingGeneration = null; attempt.OperationStartedAtUtc = null;
         attempt.OperationLeaseId = null; attempt.OperationWorkflowEpoch = null;
         attempt.OperationAttemptNumber = null;
         var enriched = false;
+        var repairNoResult = false;
         if (result.Succeeded && result.Value is not null)
         {
             var value = result.Value;
             var persistedAt = new DateTimeOffset(now, TimeSpan.Zero);
-            var provider = contacted.ProviderKey;
             var admittedCoordinates = new Point(longitude, latitude) { SRID = 4326 };
-            var eligibleLocations = WhollyUnenriched(db.Locations.Where(item => item.UserId == owner.UserId
-                && item.Id == locationId && item.Coordinates.Equals(admittedCoordinates)))
+            var eligibleLocations = db.Locations.Where(item => item.UserId == owner.UserId
+                && item.Id == locationId && item.Coordinates.Equals(admittedCoordinates))
                 .Where(_ => db.LocationEnrichmentWorkflows.Any(item => item.UserId == owner.UserId
-                && item.Epoch == owner.Epoch && item.IntentEnabled
-                && item.ExecutionLeaseId == owner.LeaseId
-                && item.ExecutionFencingGeneration == owner.FencingGeneration
-                && item.ExecutionLeaseExpiresAtUtc > now)
+                    && item.Epoch == owner.Epoch && item.IntentEnabled
+                    && item.ExecutionLeaseId == owner.LeaseId
+                    && item.ExecutionFencingGeneration == owner.FencingGeneration
+                    && item.ExecutionLeaseExpiresAtUtc > now)
                 && db.LocationEnrichmentAttempts.Any(item => item.UserId == owner.UserId
                     && item.LocationId == locationId && item.OperationId == operationId
                     && item.OperationLeaseId == owner.LeaseId
@@ -374,7 +381,39 @@ public sealed class GeoapifyLocationBackfillService(
                             && item.PermanentGeocodingConsentVersion == contacted.ConsentVersion
                             && item.PermanentGeocodingConsentedAt == contacted.ConsentedAt
                             && item.PermanentGeocodingConsentCredentialGeneration == contacted.ConsentCredentialGeneration)));
-            enriched = await eligibleLocations.ExecuteUpdateAsync(setters => setters
+            if (incompleteRepair)
+            {
+                var updated = await IncompleteGeoapify(eligibleLocations).ExecuteUpdateAsync(setters => setters
+                    .SetProperty(item => item.FullAddress, item => item.FullAddress == null || item.FullAddress.Trim() == ""
+                        ? value.FullAddress : item.FullAddress)
+                    .SetProperty(item => item.Address, item => item.Address == null || item.Address.Trim() == ""
+                        ? value.Address : item.Address)
+                    .SetProperty(item => item.AddressNumber, item => item.AddressNumber == null || item.AddressNumber.Trim() == ""
+                        ? value.AddressNumber : item.AddressNumber)
+                    .SetProperty(item => item.StreetName, item => item.StreetName == null || item.StreetName.Trim() == ""
+                        ? value.StreetName : item.StreetName)
+                    .SetProperty(item => item.PostCode, item => item.PostCode == null || item.PostCode.Trim() == ""
+                        ? value.PostCode : item.PostCode)
+                    .SetProperty(item => item.Place, item => item.Place == null || item.Place.Trim() == ""
+                        ? value.Place : item.Place)
+                    .SetProperty(item => item.Region, item => item.Region == null || item.Region.Trim() == ""
+                        ? value.Region : item.Region)
+                    .SetProperty(item => item.Country, item => item.Country == null || item.Country.Trim() == ""
+                        ? value.Country : item.Country)
+                    .SetProperty(item => item.ResolvedFeatureName,
+                        item => item.ResolvedFeatureName == null || item.ResolvedFeatureName.Trim() == ""
+                            ? value.ResolvedFeatureName : item.ResolvedFeatureName)
+                    .SetProperty(item => item.ResolvedFeatureType,
+                        item => item.ResolvedFeatureType == null || item.ResolvedFeatureType.Trim() == ""
+                            ? value.ResolvedFeatureType : item.ResolvedFeatureType)
+                    .SetProperty(item => item.ReverseGeocodedAt, persistedAt), cancellationToken) == 1;
+                enriched = updated && !string.IsNullOrWhiteSpace(value.Place);
+                repairNoResult = updated && !enriched;
+            }
+            else
+            {
+                var provider = contacted.ProviderKey;
+                enriched = await WhollyUnenriched(eligibleLocations).ExecuteUpdateAsync(setters => setters
                     .SetProperty(item => item.FullAddress, value.FullAddress)
                     .SetProperty(item => item.Address, value.Address)
                     .SetProperty(item => item.AddressNumber, value.AddressNumber)
@@ -389,11 +428,12 @@ public sealed class GeoapifyLocationBackfillService(
                     .SetProperty(item => item.ReverseGeocodingStorageMode,
                         provider == "geoapify" ? "persistent" : "permanent")
                     .SetProperty(item => item.ReverseGeocodedAt, persistedAt), cancellationToken) == 1;
+            }
             if (enriched) db.LocationEnrichmentAttempts.Remove(attempt);
         }
         await db.SaveChangesAsync(cancellationToken);
         if (transaction != null) await transaction.CommitAsync(cancellationToken);
-        return (true, enriched);
+        return (true, enriched, repairNoResult);
     }
 
     private static void ClearOperation(LocationEnrichmentAttempt attempt)
@@ -429,54 +469,6 @@ public sealed class GeoapifyLocationBackfillService(
     public static Task<List<int>> LoadCandidateIdsAsync(ApplicationDbContext db, string userId,
         EnrichmentAuthority authority, int limit, CancellationToken cancellationToken = default)
         => CandidateQuery(db, userId, authority, DateTime.UtcNow).Take(limit).ToListAsync(cancellationToken);
-
-    internal static IQueryable<int> CandidateQuery(ApplicationDbContext db, string userId,
-        EnrichmentAuthority authority, DateTime now)
-    {
-        var attempts = db.LocationEnrichmentAttempts.Where(item => item.UserId == userId);
-        return from location in WhollyUnenriched(db.Locations.Where(item => item.UserId == userId))
-            join attempt in attempts on location.Id equals attempt.LocationId into matches
-            from attempt in matches.DefaultIfEmpty()
-            where attempt == null || (attempt.OperationId == null
-                && attempt.Outcome != LocationEnrichmentOutcome.InvalidCoordinates
-                && ((attempt.ProviderKey != authority.ProviderKey
-                    || attempt.ProviderProfileId != authority.ProfileId
-                    || attempt.Capability != authority.Capability
-                    || attempt.CredentialGeneration != authority.CredentialGeneration
-                    || attempt.ConfigurationGeneration != authority.ConfigurationGeneration
-                    || attempt.SelectionGeneration != authority.SelectionGeneration
-                    || attempt.Verification != authority.Verification
-                    || attempt.VerificationCredentialGeneration != authority.VerificationCredentialGeneration
-                    || attempt.VerificationGeneration != authority.VerificationGeneration
-                    || attempt.ConsentVersion != authority.ConsentVersion
-                    || attempt.ConsentTimestamp != authority.ConsentTimestamp
-                    || attempt.ConsentCredentialGeneration != authority.ConsentCredentialGeneration)
-                    || (attempt.Outcome != LocationEnrichmentOutcome.NoResult
-                        && attempt.Outcome != LocationEnrichmentOutcome.AttemptLimit
-                        && attempt.AdmittedAttemptCount < 3
-                        && (attempt.NextAttemptAtUtc == null || attempt.NextAttemptAtUtc <= now))))
-            orderby location.Timestamp, location.Id select location.Id;
-    }
-
-    private static IQueryable<LocationEnrichmentAttempt> FutureRetryQuery(ApplicationDbContext db,
-        string userId, EnrichmentAuthority authority, DateTime now) =>
-        from attempt in db.LocationEnrichmentAttempts
-        join location in WhollyUnenriched(db.Locations.Where(item => item.UserId == userId))
-            on attempt.LocationId equals location.Id
-        where attempt.UserId == userId && attempt.ProviderKey == authority.ProviderKey
-            && attempt.ProviderProfileId == authority.ProfileId
-            && attempt.Capability == authority.Capability
-            && attempt.CredentialGeneration == authority.CredentialGeneration
-            && attempt.ConfigurationGeneration == authority.ConfigurationGeneration
-            && attempt.SelectionGeneration == authority.SelectionGeneration
-            && attempt.Verification == authority.Verification
-            && attempt.VerificationCredentialGeneration == authority.VerificationCredentialGeneration
-            && attempt.VerificationGeneration == authority.VerificationGeneration
-            && attempt.ConsentVersion == authority.ConsentVersion
-            && attempt.ConsentTimestamp == authority.ConsentTimestamp
-            && attempt.ConsentCredentialGeneration == authority.ConsentCredentialGeneration
-            && attempt.Outcome == LocationEnrichmentOutcome.RetryableFailure
-            && attempt.AdmittedAttemptCount < 3 && attempt.NextAttemptAtUtc > now select attempt;
 
     private async Task<EnrichmentAuthority> LoadAuthorityAsync(string userId, CancellationToken cancellationToken)
     {
@@ -535,20 +527,6 @@ public sealed class GeoapifyLocationBackfillService(
         _ => ReverseGeocodingCategory.ProviderUnavailable
     };
 
-    public static bool IsWhollyUnenriched(Location value) => string.IsNullOrWhiteSpace(value.Address)
-        && string.IsNullOrWhiteSpace(value.FullAddress) && string.IsNullOrWhiteSpace(value.AddressNumber)
-        && string.IsNullOrWhiteSpace(value.StreetName) && string.IsNullOrWhiteSpace(value.PostCode)
-        && string.IsNullOrWhiteSpace(value.Place) && string.IsNullOrWhiteSpace(value.Region)
-        && string.IsNullOrWhiteSpace(value.Country) && value.ReverseGeocodingProvider == null
-        && value.ReverseGeocodingStorageMode == null && value.ReverseGeocodedAt == null;
-
-    private static IQueryable<Location> WhollyUnenriched(IQueryable<Location> query) => query.Where(value =>
-        (value.Address == null || value.Address == "") && (value.FullAddress == null || value.FullAddress == "")
-        && (value.AddressNumber == null || value.AddressNumber == "") && (value.StreetName == null || value.StreetName == "")
-        && (value.PostCode == null || value.PostCode == "") && (value.Place == null || value.Place == "")
-        && (value.Region == null || value.Region == "") && (value.Country == null || value.Country == "")
-        && value.ReverseGeocodingProvider == null && value.ReverseGeocodingStorageMode == null
-        && value.ReverseGeocodedAt == null);
 }
 
 public sealed record GeoapifyBackfillResult(int Scanned, int Succeeded, int NoResult, int Unavailable,

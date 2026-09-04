@@ -1,10 +1,12 @@
 using System.Data.Common;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Wayfarer.Models;
 using Wayfarer.Models.LocationProviders;
 using Wayfarer.Services.LocationEnrichment;
 using Wayfarer.Services.LocationProviders;
 using Wayfarer.Tests.Infrastructure;
 using Xunit;
+using Point = NetTopologySuite.Geometries.Point;
 
 namespace Wayfarer.Tests.Services;
 
@@ -12,6 +14,25 @@ namespace Wayfarer.Tests.Services;
 [Collection(PostgresImportTestCollection.Name)]
 public sealed class LocationEnrichmentProgressQueryPostgresTests(PostgresImportTestFixture fixture)
 {
+    [PostgresFact]
+    public async Task IncompleteCountIncludesOnlyDurableGeoapifyRowsMissingPlace()
+    {
+        var user = await fixture.CreateUserAsync();
+        await using var db = fixture.CreateContext();
+        var now = DateTimeOffset.UtcNow;
+        db.Locations.AddRange(
+            Partial(user.Id, "geoapify", "persistent", now, addressNumberOnly: true),
+            Partial(user.Id, null, null, null),
+            Partial(user.Id, "mapbox", "permanent", now),
+            Partial(user.Id, "geoapify", "persistent", now, place: "Alexandroupolis"));
+        await db.SaveChangesAsync();
+
+        var result = await new LocationEnrichmentProgressQuery(db)
+            .ProjectAsync(user.Id, Binding(), DateTime.UtcNow);
+
+        Assert.Equal(1, result.IncompleteProviderAddresses);
+    }
+
     [PostgresFact]
     public async Task LargeProjectionExecutesOnlyFixedAggregateSql()
     {
@@ -36,7 +57,7 @@ public sealed class LocationEnrichmentProgressQueryPostgresTests(PostgresImportT
         }
 
         Assert.Equal(firstRecorder.Aggregates.Count, largeRecorder.Aggregates.Count);
-        Assert.Equal(5, largeRecorder.Aggregates.Count);
+        Assert.Equal(6, largeRecorder.Aggregates.Count);
         Assert.Contains(largeRecorder.Aggregates, sql => sql.Contains("count", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(largeRecorder.Aggregates, sql => sql.Contains("min", StringComparison.OrdinalIgnoreCase));
         Assert.DoesNotContain(largeRecorder.Aggregates, sql => sql.Contains(" IN (@", StringComparison.OrdinalIgnoreCase));
@@ -53,6 +74,16 @@ public sealed class LocationEnrichmentProgressQueryPostgresTests(PostgresImportT
 
     private static PersonalProviderAuthorityBinding Binding() => new("geoapify", Guid.NewGuid(),
         1, 1, 1, PersonalProviderVerification.Verified, 1, 1, null, null, null);
+
+    private static Location Partial(string userId, string? provider, string? storage,
+        DateTimeOffset? resolvedAt, string? place = null, bool addressNumberOnly = false) => new()
+    {
+        UserId = userId, Timestamp = DateTime.UtcNow, LocalTimestamp = DateTime.UtcNow,
+        TimeZoneId = "UTC", Coordinates = new Point(25, 40) { SRID = 4326 },
+        Address = addressNumberOnly ? null : "Known address", AddressNumber = addressNumberOnly ? "12" : null,
+        Country = addressNumberOnly ? null : "Greece", Place = place, ReverseGeocodingProvider = provider,
+        ReverseGeocodingStorageMode = storage, ReverseGeocodedAt = resolvedAt
+    };
 
     private sealed class CommandRecorder : DbCommandInterceptor
     {

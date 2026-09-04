@@ -191,6 +191,7 @@
             <dt class="col-sm-4">Retryable later</dt><dd class="col-sm-8">@enrichment.FutureDue</dd>
             <dt class="col-sm-4">Manual retry available</dt><dd class="col-sm-8">@enrichment.ManualRetryAvailable</dd>
             <dt class="col-sm-4">Cannot be retried</dt><dd class="col-sm-8">@enrichment.CannotBeRetried</dd>
+            <dt class="col-sm-4">Incomplete provider addresses</dt><dd class="col-sm-8">@enrichment.IncompleteProviderAddresses</dd>
             <dt class="col-sm-4">Failed batches (cumulative)</dt><dd class="col-sm-8">@enrichment.FailedBatches</dd>
             <dt class="col-sm-4">Last outcome</dt><dd class="col-sm-8">@enrichment.LastOutcome</dd>
             @if (enrichment.NextAttemptAtUtc.HasValue)
@@ -207,6 +208,7 @@
             @if (enrichment.Resume.Visible) { <form asp-action="ResumeEnrichment" method="post"><button class="btn btn-outline-primary" type="submit" aria-describedby="enrichment-status" disabled="@(!enrichment.Resume.Enabled)">Resume enrichment</button></form> }
             @if (enrichment.Cancel.Visible) { <form asp-action="CancelEnrichment" method="post"><button class="btn btn-outline-danger" type="submit" aria-describedby="enrichment-status">Cancel enrichment</button></form> }
             @if (enrichment.RetryDeferred.Visible) { <form asp-action="RetryDeferredEnrichment" method="post"><button class="btn btn-outline-warning" type="submit" aria-describedby="enrichment-status">Retry deferred enrichment</button><div class="form-text">Retrying may consume additional provider credits.</div></form> }
+            @if (enrichment.RepairIncomplete.Visible) { <form asp-action="RepairIncompleteAddresses" method="post"><button class="btn btn-outline-primary" type="submit" aria-describedby="enrichment-status" disabled="@(!enrichment.RepairIncomplete.Enabled)">Repair incomplete addresses</button><div class="form-text">Repairing may consume additional provider credits.</div></form> }
         </div>
     </div>
 </section>

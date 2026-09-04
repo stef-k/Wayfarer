@@ -20,6 +20,10 @@ public static class LocationEnrichmentPresentation
         var canRetry = workflow?.State is (LocationEnrichmentState.PausedByAuthority
             or LocationEnrichmentState.Completed or LocationEnrichmentState.Failed)
             && authority.Available && progress.ManualRetryAvailable > 0;
+        var canRepair = workflow?.State is (LocationEnrichmentState.PausedByAuthority
+            or LocationEnrichmentState.Completed or LocationEnrichmentState.Failed)
+            && authority.Available && authority.ProviderKey == "geoapify"
+            && progress.IncompleteProviderAddresses > 0;
         var pausedReason = state switch
         {
             LocationEnrichmentState.PausedByUser => "Paused by you.",
@@ -28,7 +32,7 @@ public static class LocationEnrichmentPresentation
             LocationEnrichmentState.BackingOff => "Waiting for a bounded retry.",
             _ => null
         };
-        var noAction = canStart || active || canResume || canRetry ? null
+        var noAction = canStart || active || canResume || canRetry || canRepair ? null
             : !authority.Available ? authority.AvailabilitySummary
             : progress.FutureDue > 0 ? "Deferred work is not due yet."
             : progress.ManualRetryAvailable > 0 ? "Some locations require an explicit retry."
@@ -38,7 +42,8 @@ public static class LocationEnrichmentPresentation
             progress.NextAttemptAtUtc ?? workflow?.NextEligibleAtUtc,
             workflow?.ProcessedCount ?? 0, workflow?.EnrichedCount ?? 0,
             workflow?.SkippedCount ?? 0, workflow?.RetryableDeferredCount ?? 0,
-            progress.ManualRetryAvailable, progress.CannotBeRetried, workflow?.FailedBatchCount ?? 0,
+            progress.ManualRetryAvailable, progress.CannotBeRetried, progress.IncompleteProviderAddresses,
+            workflow?.FailedBatchCount ?? 0,
             progress.RunnableRemaining, progress.FutureDue,
             progress.RunnableRemaining + progress.FutureDue + progress.ManualRetryAvailable + progress.CannotBeRetried,
             workflow?.Outcome.ToString() ?? LocationEnrichmentOutcome.None.ToString(),
@@ -48,7 +53,8 @@ public static class LocationEnrichmentPresentation
             authority.NextAvailableAtUtc, progress.ManualRetryAvailable > 0, noAction,
             Start: new(canStart, canStart),
             Pause: new(active, active), Resume: new(canResume, canResume),
-            Cancel: new(active || resumable, active || resumable), RetryDeferred: new(canRetry, canRetry));
+            Cancel: new(active || resumable, active || resumable), RetryDeferred: new(canRetry, canRetry),
+            RepairIncomplete: new(progress.IncompleteProviderAddresses > 0, canRepair));
     }
 }
 
@@ -59,15 +65,17 @@ public sealed record LocationEnrichmentAuthorityPresentation(string? ProviderKey
     string WindowDescription, DateTime? NextAvailableAtUtc);
 
 public sealed record LocationEnrichmentProgressPresentation(int RunnableRemaining, int FutureDue,
-    int ManualRetryAvailable, int CannotBeRetried, DateTime? NextAttemptAtUtc);
+    int ManualRetryAvailable, int CannotBeRetried, DateTime? NextAttemptAtUtc,
+    int IncompleteProviderAddresses = 0);
 
 public sealed record LocationEnrichmentPresentationModel(string StatusText, bool IntentEnabled, string? PausedReason,
     DateTime? NextAttemptAtUtc, int Processed, int Enriched, int Skipped, int RetryableDeferred,
-    int ManualRetryAvailable, int CannotBeRetried, int FailedBatches, int RunnableRemaining, int FutureDue, int TotalOutstanding,
+    int ManualRetryAvailable, int CannotBeRetried, int IncompleteProviderAddresses, int FailedBatches,
+    int RunnableRemaining, int FutureDue, int TotalOutstanding,
     string LastOutcome, string? ProviderKey, string ProviderDisplayName, bool ProviderAvailable,
     string ProviderAvailabilitySummary, bool GuardEnabled, int ProviderUsage, int ProviderLimit,
     string UsageUnit, string UsageWindowDescription, DateTime? ProviderNextAvailableAtUtc,
     bool DeferredWorkRetryable, string? NoActionReason,
     LocationEnrichmentActionPresentation Start, LocationEnrichmentActionPresentation Pause,
     LocationEnrichmentActionPresentation Resume, LocationEnrichmentActionPresentation Cancel,
-    LocationEnrichmentActionPresentation RetryDeferred);
+    LocationEnrichmentActionPresentation RetryDeferred, LocationEnrichmentActionPresentation RepairIncomplete);

@@ -138,6 +138,53 @@ public sealed partial class GeoapifyBackfillConcurrencyPostgresTests(PostgresImp
         Assert.Equal(1, result.Skipped);
     }
 
+    [PostgresFact(Timeout = 30_000)]
+    public async Task ExplicitIncompleteRepairFillsOnlyMissingFields()
+    {
+        var user = await fixture.CreateUserAsync();
+        var protection = new EphemeralDataProtectionProvider();
+        await SeedIncompleteRepairAsync(user.Id, protection);
+        var handler = new CoordinatedHandler(user.Id, null);
+        var run = Service(protection, handler).RunAsync(user.Id);
+        await handler.FirstUserRequestEntered.WaitAsync(TimeSpan.FromSeconds(10));
+        handler.Release();
+
+        var result = await run.WaitAsync(TimeSpan.FromSeconds(10));
+
+        await using var verify = fixture.CreateContext();
+        var saved = await verify.Locations.SingleAsync(item => item.UserId == user.Id);
+        Assert.Equal(1, result.Succeeded);
+        Assert.Equal("Keep this address", saved.Address);
+        Assert.Equal("Alexandroupolis", saved.Place);
+        Assert.Equal("Greece", saved.Country);
+        Assert.Empty(await verify.LocationEnrichmentAttempts.Where(item => item.UserId == user.Id).ToListAsync());
+    }
+
+    [PostgresFact(Timeout = 30_000)]
+    public async Task LocalityFreeRepairIsTerminalAndDoesNotContactAgain()
+    {
+        var user = await fixture.CreateUserAsync();
+        var protection = new EphemeralDataProtectionProvider();
+        await SeedIncompleteRepairAsync(user.Id, protection);
+        var firstHandler = new CoordinatedHandler(user.Id, null, includeLocality: false);
+        var firstRun = Service(protection, firstHandler).RunAsync(user.Id);
+        await firstHandler.FirstUserRequestEntered.WaitAsync(TimeSpan.FromSeconds(10));
+        firstHandler.Release();
+
+        var first = await firstRun.WaitAsync(TimeSpan.FromSeconds(10));
+        var secondHandler = new CoordinatedHandler(user.Id, null, includeLocality: false);
+        var second = await Service(protection, secondHandler).RunAsync(user.Id)
+            .WaitAsync(TimeSpan.FromSeconds(10));
+
+        await using var verify = fixture.CreateContext();
+        var attempt = await verify.LocationEnrichmentAttempts.SingleAsync(item => item.UserId == user.Id);
+        Assert.Equal(1, first.NoResult);
+        Assert.Equal(0, first.Skipped);
+        Assert.Equal(LocationEnrichmentOutcome.NoResult, attempt.Outcome);
+        Assert.Equal(0, secondHandler.RequestsFor(user.Id));
+        Assert.Equal(0, second.Admitted);
+    }
+
     [PostgresTheory(Timeout = 30_000)]
     [InlineData(false)]
     [InlineData(true)]
