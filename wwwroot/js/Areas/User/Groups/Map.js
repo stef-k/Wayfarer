@@ -1,5 +1,6 @@
 import { addZoomLevelControl } from '../../../map-utils.js';
-import { createTileLayer } from '../../../retryTileLayer.js'; import { featurePrecisionNotice } from '../../../util/feature-metadata.js';
+import { createTileLayer } from '../../../retryTileLayer.js';
+import { featurePrecisionNotice } from '../../../util/feature-metadata.js';
 import {
   formatViewerAndSourceTimes,
   currentDateInputValue,
