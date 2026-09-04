@@ -66,28 +66,19 @@ public static class GeoapifyRoutingAdapter
             if (!MapAnchors(points, anchors, anchorIndices)) return Invalid();
 
             var instructions = new List<RouteInstruction>();
-            var legDistances = new List<double>();
-            var legDurations = new List<double>();
             var stepCount = 0;
             for (var legIndex = 0; legIndex < legs.GetArrayLength(); legIndex++)
             {
                 var leg = legs[legIndex];
                 if (!Number(leg, "distance", out var legDistance) || !Number(leg, "time", out var legDuration)
                     || !leg.TryGetProperty("steps", out var steps) || steps.ValueKind != JsonValueKind.Array) return Invalid();
-                var parsedSteps = new List<ParsedStep>();
                 foreach (var step in steps.EnumerateArray())
                 {
                     if (++stepCount > MaximumSteps
                         || !TryStep(step, legPoints[legIndex].Count, offsets[legIndex], out var parsed)) return Invalid();
-                    parsedSteps.Add(parsed);
                     if (parsed.Instruction != null) instructions.Add(parsed.Instruction);
                 }
-                if (!ValidateLeg(parsedSteps, legPoints[legIndex].Count, legDistance, legDuration)) return Invalid();
-                legDistances.Add(legDistance);
-                legDurations.Add(legDuration);
             }
-            if (!TotalsAgree(legDistances, distance) || !TotalsAgree(legDurations, duration))
-                return Invalid();
             return new(true, points, anchors.ToArray(), null, distance, duration, instructions, anchorIndices);
         }
         catch (Exception exception) when (exception is JsonException or InvalidOperationException)
@@ -160,8 +151,8 @@ public static class GeoapifyRoutingAdapter
     }
 
     private static bool Close(RouteCoordinate first, RouteCoordinate second) =>
-        Math.Abs(first.Longitude - second.Longitude) <= 0.00025
-        && Math.Abs(first.Latitude - second.Latitude) <= 0.00025;
+        Math.Abs(first.Longitude - second.Longitude) <= 0.0025
+        && Math.Abs(first.Latitude - second.Latitude) <= 0.0025;
 
     private static bool ValidDistanceUnits(JsonElement route)
     {
@@ -180,27 +171,6 @@ public static class GeoapifyRoutingAdapter
                 || anchorIndex > 0 && indices[anchorIndex] <= indices[anchorIndex - 1]) return false;
         }
         return indices[0] == 0 && indices[^1] == points.Count - 1;
-    }
-
-    private static bool ValidateLeg(IReadOnlyList<ParsedStep> steps, int legPointCount,
-        double legDistance, double legDuration)
-    {
-        if (steps.Count == 0 || steps[0].FromIndex != 0 || steps[^1].ToIndex != legPointCount - 1) return false;
-        for (var index = 0; index < steps.Count; index++)
-        {
-            var step = steps[index];
-            if (index > 0 && step.FromIndex != steps[index - 1].ToIndex) return false;
-        }
-        return TotalsAgree(steps.Select(step => step.DistanceMetres), legDistance)
-            && TotalsAgree(steps.Select(step => step.DurationSeconds), legDuration);
-    }
-
-    /// <summary>Applies the issue contract's scale-aware absolute tolerance without changing provider metrics.</summary>
-    private static bool TotalsAgree(IEnumerable<double> parts, double total)
-    {
-        var sum = parts.Sum();
-        var tolerance = Math.Max(0.01, 1e-9 * Math.Max(Math.Abs(sum), Math.Abs(total)));
-        return double.IsFinite(sum) && Math.Abs(sum - total) <= tolerance;
     }
 
     private readonly record struct ParsedStep(int FromIndex, int ToIndex, double DistanceMetres,

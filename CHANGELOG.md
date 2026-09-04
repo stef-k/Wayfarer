@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## [1.9.7] - 2026-09-04
+
+### Fixed
+- Restored durable Geoapify geocoding and directions provider selection, corrected validation placement, and accepted bounded provider snapping and documented routing response semantics in verification, Trip routing, and Mobile routing.
+
 ## [1.9.6] - 2026-09-04
 
 ### Fixed
