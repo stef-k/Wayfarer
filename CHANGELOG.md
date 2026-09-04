@@ -33,7 +33,7 @@
 - Consolidated personal-provider setup into geocoding and directions workflows, added explicit provider-native Geoapify mode selection for web and Mobile, removed legacy administrator/global authority from new routing execution, and retained released-Mobile omitted-mode compatibility through an exact built-in-key adapter (#538 step 1).
 
 ### Removed
-- Retired administrator routing providers, templates, activation, Transport Profile mappings, global routing authority, duplicate user routing credentials, generic OSRM execution, and their user/admin pages. The ordered migration deletes obsolete ciphertext while preserving accepted Segment route provenance and the released-Mobile exact-key compatibility adapter (#538 step 3).
+- Retired administrator routing providers, templates, activation, Transport Profile mappings, global routing authority, duplicate user routing credentials, generic OSRM execution, and their user/admin pages. The ordered migration deletes obsolete ciphertext while preserving accepted Segment route provenance and the released-Mobile exact-key compatibility adapter; rollback requires the normal pre-upgrade PostgreSQL and Data Protection key-ring backup (#538 step 3).
 
 ## [1.9.3] - 2026-08-22
 
