@@ -248,7 +248,7 @@ public class LocationStatsService : ILocationStatsService
     private class RegionGroupResult
     {
         public string Region { get; set; } = string.Empty;
-        public string Country { get; set; } = string.Empty;
+        public string? Country { get; set; }
         public DateTime FirstVisit { get; set; }
         public DateTime LastVisit { get; set; }
         public int VisitCount { get; set; }
@@ -262,8 +262,8 @@ public class LocationStatsService : ILocationStatsService
     private class CityGroupResult
     {
         public string Place { get; set; } = string.Empty;
-        public string Region { get; set; } = string.Empty;
-        public string Country { get; set; } = string.Empty;
+        public string? Region { get; set; }
+        public string? Country { get; set; }
         public DateTime FirstVisit { get; set; }
         public DateTime LastVisit { get; set; }
         public int VisitCount { get; set; }

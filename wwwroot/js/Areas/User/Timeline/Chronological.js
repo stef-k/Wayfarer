@@ -566,7 +566,7 @@ const showDetailedStats = async (statType) => {
 
     } catch (error) {
         console.error('Error fetching detailed stats:', error);
-        alert('Failed to load detailed statistics');
+        wayfarer.showAlert('danger', 'Failed to load detailed statistics. Please try again.');
     }
 };
 
