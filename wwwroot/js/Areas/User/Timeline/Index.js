@@ -602,7 +602,7 @@ const showDetailedStats = async (statType) => {
         });
 
         if (!response.ok) {
-            throw new Error(`Error ${response.status}: ${await response.text()}`);
+            throw new Error('Detailed statistics request failed');
         }
 
         const detailedStats = await response.json();
@@ -632,9 +632,8 @@ const showDetailedStats = async (statType) => {
             });
         });
 
-    } catch (error) {
-        console.error('Error fetching detailed stats:', error);
-        alert('Failed to load detailed statistics');
+    } catch {
+        wayfarer.showAlert('danger', 'Failed to load detailed statistics. Please try again.');
     }
 };
 

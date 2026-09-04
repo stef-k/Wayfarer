@@ -110,7 +110,7 @@ public class LocationStatsService : ILocationStatsService
                 ""Country"",
                 MIN(""Timestamp"") as ""FirstVisit"",
                 MAX(""Timestamp"") as ""LastVisit"",
-                COUNT(*) as ""VisitCount"",
+                COUNT(*)::integer as ""VisitCount"",
                 AVG(ST_X(""Coordinates""::geometry)) as ""AvgLongitude"",
                 AVG(ST_Y(""Coordinates""::geometry)) as ""AvgLatitude""
             FROM ""Locations""
@@ -143,7 +143,7 @@ public class LocationStatsService : ILocationStatsService
                 ""Country"",
                 MIN(""Timestamp"") as ""FirstVisit"",
                 MAX(""Timestamp"") as ""LastVisit"",
-                COUNT(*) as ""VisitCount"",
+                COUNT(*)::integer as ""VisitCount"",
                 AVG(ST_X(""Coordinates""::geometry)) as ""AvgLongitude"",
                 AVG(ST_Y(""Coordinates""::geometry)) as ""AvgLatitude""
             FROM ""Locations""
@@ -175,7 +175,7 @@ public class LocationStatsService : ILocationStatsService
                     ""Country"",
                     MIN(""Timestamp"") as ""FirstVisit"",
                     MAX(""Timestamp"") as ""LastVisit"",
-                    COUNT(*) as ""VisitCount"",
+                    COUNT(*)::integer as ""VisitCount"",
                     MAX(""Timestamp"") as ""MostRecentVisit""
                 FROM ""Locations""
                 WHERE ""UserId"" = {0} AND ""Place"" IS NOT NULL AND ""Place"" != ''
@@ -248,7 +248,7 @@ public class LocationStatsService : ILocationStatsService
     private class RegionGroupResult
     {
         public string Region { get; set; } = string.Empty;
-        public string Country { get; set; } = string.Empty;
+        public string? Country { get; set; }
         public DateTime FirstVisit { get; set; }
         public DateTime LastVisit { get; set; }
         public int VisitCount { get; set; }
@@ -262,8 +262,8 @@ public class LocationStatsService : ILocationStatsService
     private class CityGroupResult
     {
         public string Place { get; set; } = string.Empty;
-        public string Region { get; set; } = string.Empty;
-        public string Country { get; set; } = string.Empty;
+        public string? Region { get; set; }
+        public string? Country { get; set; }
         public DateTime FirstVisit { get; set; }
         public DateTime LastVisit { get; set; }
         public int VisitCount { get; set; }
@@ -292,7 +292,7 @@ public class LocationStatsService : ILocationStatsService
                 ""Country"",
                 MIN(""LocalTimestamp"") as ""FirstVisit"",
                 MAX(""LocalTimestamp"") as ""LastVisit"",
-                COUNT(*) as ""VisitCount"",
+                COUNT(*)::integer as ""VisitCount"",
                 AVG(ST_X(""Coordinates""::geometry)) as ""AvgLongitude"",
                 AVG(ST_Y(""Coordinates""::geometry)) as ""AvgLatitude""
             FROM ""Locations""
@@ -326,7 +326,7 @@ public class LocationStatsService : ILocationStatsService
                 ""Country"",
                 MIN(""LocalTimestamp"") as ""FirstVisit"",
                 MAX(""LocalTimestamp"") as ""LastVisit"",
-                COUNT(*) as ""VisitCount"",
+                COUNT(*)::integer as ""VisitCount"",
                 AVG(ST_X(""Coordinates""::geometry)) as ""AvgLongitude"",
                 AVG(ST_Y(""Coordinates""::geometry)) as ""AvgLatitude""
             FROM ""Locations""
@@ -358,7 +358,7 @@ public class LocationStatsService : ILocationStatsService
                     ""Country"",
                     MIN(""LocalTimestamp"") as ""FirstVisit"",
                     MAX(""LocalTimestamp"") as ""LastVisit"",
-                    COUNT(*) as ""VisitCount"",
+                    COUNT(*)::integer as ""VisitCount"",
                     MAX(""LocalTimestamp"") as ""MostRecentVisit""
                 FROM ""Locations""
                 WHERE ""UserId"" = {0} AND ""Place"" IS NOT NULL AND ""Place"" != ''
