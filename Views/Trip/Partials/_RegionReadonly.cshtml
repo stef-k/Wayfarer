@@ -73,6 +73,14 @@
 
                     var pLat = p.Location?.Y;
                     var pLon = p.Location?.X;
+                    var precisionNotice = (p.ResolvedFeatureType ?? "").Trim().ToLowerInvariant() switch
+                    {
+                        "postcode" => "Approximate address — resolved to postcode level.",
+                        "city" => "Approximate address — resolved to city level.",
+                        "suburb" or "district" => "Approximate address — resolved to local-area level.",
+                        "county" or "state" or "country" => "Approximate address — resolved only to a regional level.",
+                        _ => null
+                    };
                     placeVisitCounts.TryGetValue(p.Id, out var vc);
                     var visitCount = showVisitStatus ? vc : 0;
                     <text>
@@ -114,9 +122,9 @@
                                 {
                                     <small class="d-block text-muted">Detected place: @p.ResolvedFeatureName</small>
                                 }
-                                @if (!string.IsNullOrWhiteSpace(p.ResolvedFeatureType))
+                                @if (precisionNotice is not null)
                                 {
-                                    <small class="d-block text-muted">Feature type: @System.Globalization.CultureInfo.InvariantCulture.TextInfo.ToTitleCase(p.ResolvedFeatureType)</small>
+                                    <small class="d-block text-muted" role="note">@precisionNotice</small>
                                 }
                             </span>
 

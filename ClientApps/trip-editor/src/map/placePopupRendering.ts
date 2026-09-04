@@ -4,6 +4,7 @@ import type { EditorPlace } from '../types';
 /// Builds sanitized place popup HTML from existing editor state only.
 export function placePopupHtml(place: EditorPlace, regionName: string | null | undefined): string {
   const notesHtml = placeNotesPreviewHtml(place.notesHtml, 220);
+  const precision = precisionNotice(place.resolvedFeatureType);
   return [
     '<div class="trip-editor-place-popup__content">',
     '<div class="trip-editor-place-popup__header">',
@@ -14,7 +15,7 @@ export function placePopupHtml(place: EditorPlace, regionName: string | null | u
     place.location ? `<div class="trip-editor-place-popup__meta"><span>Lat:</span> ${formatCoordinate(place.location.latitude)} <span>Lon:</span> ${formatCoordinate(place.location.longitude)}</div>` : '',
     place.address ? `<div class="trip-editor-place-popup__meta"><span>Address:</span> ${escapeHtml(place.address)}</div>` : '',
     place.resolvedFeatureName ? `<div class="trip-editor-place-popup__meta"><span>Detected place:</span> ${escapeHtml(place.resolvedFeatureName)}</div>` : '',
-    precisionNotice(place.resolvedFeatureType) ? `<div class="trip-editor-place-popup__meta" role="note">${precisionNotice(place.resolvedFeatureType)}</div>` : '',
+    precision ? `<div class="trip-editor-place-popup__meta" role="note">${precision}</div>` : '',
     visitSummaryHtml(place),
     notesHtml ? `<div class="trip-editor-place-popup__notes"><span>Notes:</span><div>${notesHtml}</div></div>` : '',
     '</div>',
