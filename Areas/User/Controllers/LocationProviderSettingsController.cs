@@ -50,7 +50,7 @@ public sealed class LocationProviderSettingsController(
         if (userId == null) return Challenge();
         if (!ModelState.IsValid || setup == null) return View("Index", await BuildAsync(userId, cancellationToken));
         await setup.ReplaceCredentialAsync(userId, ParseProvider(input.ProviderKey), input.ReplacementCredential, cancellationToken);
-        TempData["ProviderStatus"] = "Credential replaced. Verify and select each capability again.";
+        TempData["ProviderStatus"] = "Credential replaced. Existing provider choices remain blocked until each capability is verified again.";
         return RedirectToAction(nameof(Index));
     }
 
