@@ -48,12 +48,22 @@ public sealed class ExternalRouteProposalAcceptanceService
             if (result.Succeeded && transaction != null) await transaction.CommitAsync(cancellationToken);
             return result;
         }
-        catch (PostgresException exception) when (exception.SqlState == PostgresErrorCodes.SerializationFailure)
+        catch (Exception exception) when (IsSerializationFailure(exception))
         {
             if (transaction != null) await transaction.RollbackAsync(CancellationToken.None);
             _dbContext.ChangeTracker.Clear();
             return ExternalRouteAcceptanceResult.Failure("route-proposal-stale");
         }
+    }
+
+    /// <summary>Recognizes PostgreSQL serialization failures even when EF wraps a transient database exception.</summary>
+    private static bool IsSerializationFailure(Exception exception)
+    {
+        for (var current = exception; current != null; current = current.InnerException)
+            if (current is PostgresException postgres
+                && postgres.SqlState == PostgresErrorCodes.SerializationFailure)
+                return true;
+        return false;
     }
 
     /// <summary>Compares every protected member while treating deserialized instructions as values.</summary>

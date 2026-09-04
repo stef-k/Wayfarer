@@ -31,7 +31,7 @@ Wayfarer is a comprehensive self-hosted travel companion with location tracking,
 - **Export locations** to GeoJSON, KML, CSV, or GPX formats with full metadata.
 - **Retain optional detected-place context** returned by the admitted reverse-geocoding result, separately from formatted addresses and user-authored Trip labels.
 - **Personal location providers** retain protected profiles with explicit Mapbox Permanent consent/verification, independent selection, nullable provenance, and provider-native guards; capture remains available without enrichment. See [Personal Location Providers](24-Personal-Location-Providers.md).
-- **Geoapify persistent services** add explicit reverse-geocoding backfill, provider-scoped routing mappings, accepted offline-capable route provenance, and authenticated provider-neutral mobile routing without a public fallback.
+- **Personal-provider routing** uses the user's verified provider authority and an explicit provider-native mode. Accepted routes retain offline-capable provenance, while Transport Profiles remain independent manual-planning provenance and never select or map a provider mode.
 - **Resumable enrichment** runs independently after explicit opt-in, contacts at most 100 candidates per execution, and offers Start, Pause, Resume, Cancel, and explicit Retry deferred controls without changing imported or manual data.
 - **Wikipedia integration** — click the Wiki button on any location to see nearby Wikipedia articles; uses dual geo + text search for reliable discovery.
 - **Activity types** categorize entries (walking, driving, eating, etc.).
