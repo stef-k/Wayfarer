@@ -81,7 +81,7 @@ public sealed class ProviderRouteGeometryValidatorTests
     public async Task Validate_UsesGeoapifyLegBoundaryWhenIntermediateAnchorIsRevisited()
     {
         const string json = """
-            {"results":[{"distance":30,"time":10,"geometry":[[[20,10],[20.5,10.5],[21,11]],[[21,11],[21,11],[22,12]]],
+            {"results":[{"distance":30,"time":10,"geometry":[[{"lon":20,"lat":10},{"lon":20.5,"lat":10.5},{"lon":21,"lat":11}],[{"lon":21,"lat":11},{"lon":21,"lat":11},{"lon":22,"lat":12}]],
             "legs":[{"distance":10,"time":4,"steps":[{"from_index":0,"to_index":2,"distance":10,"time":4}]},
             {"distance":20,"time":6,"steps":[{"from_index":0,"to_index":2,"distance":20,"time":6}]}]}]}
             """;

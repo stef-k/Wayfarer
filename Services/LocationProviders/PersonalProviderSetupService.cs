@@ -8,24 +8,19 @@ namespace Wayfarer.Services.LocationProviders;
 public sealed class PersonalProviderSetupService(
     ApplicationDbContext dbContext, PersonalProviderCredentialService credentials)
 {
-    /// <summary>Replaces one credential and disables both capabilities without contacting a provider.</summary>
+    /// <summary>Replaces one credential and disables both capabilities without discarding explicit provider choices.</summary>
     public async Task ReplaceCredentialAsync(string userId, PersonalLocationProvider provider, string credential,
         CancellationToken cancellationToken)
     {
         var key = PersonalProviderKeys.Key(provider);
         await using var transaction = dbContext.Database.IsRelational()
             ? await dbContext.Database.BeginTransactionAsync(cancellationToken) : null;
-        var selection = await SelectionAsync(userId, cancellationToken)
-            ?? PersonalLocationProviderSelection.Create(userId);
-        if (dbContext.Entry(selection).State == EntityState.Detached) dbContext.Add(selection);
         var profile = await ProfileAsync(userId, key, cancellationToken)
             ?? PersonalLocationProviderProfile.Create(userId, provider);
         if (dbContext.Entry(profile).State == EntityState.Detached) dbContext.Add(profile);
         credentials.Replace(profile, credential);
         profile.SetAuthorization(PersonalProviderCapability.Geocoding, false);
         profile.SetAuthorization(PersonalProviderCapability.Routing, false);
-        if (selection.GeocodingProviderKey == key) selection.Select(PersonalProviderCapability.Geocoding, null);
-        if (selection.RoutingProviderKey == key) selection.Select(PersonalProviderCapability.Routing, null);
         await dbContext.SaveChangesAsync(cancellationToken);
         if (transaction != null) await transaction.CommitAsync(cancellationToken);
     }

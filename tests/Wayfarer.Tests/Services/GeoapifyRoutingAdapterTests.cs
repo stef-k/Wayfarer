@@ -71,8 +71,8 @@ public sealed class GeoapifyRoutingAdapterTests
     }
 
     [Theory]
-    [InlineData("[21,11],[21.5,11.5]", "[21.1,11],[21.5,11.5]")]
-    [InlineData("[[21,11],[21.5,11.5],[22,12]]", "[[21,11]]")]
+    [InlineData("{\"lon\":21,\"lat\":11},{\"lon\":21.5,\"lat\":11.5}", "{\"lon\":21.1,\"lat\":11},{\"lon\":21.5,\"lat\":11.5}")]
+    [InlineData("[{\"lon\":21,\"lat\":11},{\"lon\":21.5,\"lat\":11.5},{\"lon\":22,\"lat\":12}]", "[{\"lon\":21,\"lat\":11}]")]
     public async Task MalformedOrDisconnectedLegGeometryFailsClosed(string current, string mutation)
     {
         using var response = Response(MultiLegJson.Replace(current, mutation, StringComparison.Ordinal));
@@ -147,14 +147,14 @@ public sealed class GeoapifyRoutingAdapterTests
         new(HttpStatusCode.OK) { Content = new StringContent(json) };
 
     private const string SingleLegJson = """
-        {"results":[{"distance":1234,"time":321,"distance_units":"meters","geometry":[[[20,10],[21,11]]],
+        {"results":[{"distance":1234,"time":321,"distance_units":"meters","geometry":[[{"lon":20,"lat":10},{"lon":21,"lat":11}]],
         "legs":[{"distance":1234,"time":321,"steps":[{"instruction":{"text":"Continue","type":"Straight"},
         "from_index":0,"to_index":1,"distance":1234,"time":321}]}]}]}
         """;
 
     private const string MultiLegJson = """
         {"results":[{"distance":30,"time":10,"distance_units":"METERS",
-        "geometry":[[[20,10],[20.5,10.5],[21,11]],[[21,11],[21.5,11.5],[22,12]]],
+        "geometry":[[{"lon":20,"lat":10},{"lon":20.5,"lat":10.5},{"lon":21,"lat":11}],[{"lon":21,"lat":11},{"lon":21.5,"lat":11.5},{"lon":22,"lat":12}]],
         "legs":[{"distance":10,"time":4,"steps":[
         {"instruction":{"text":"First","type":"Straight"},"from_index":0,"to_index":1,"distance":4,"time":2},
         {"instruction":null,"from_index":1,"to_index":2,"distance":6,"time":2}]},

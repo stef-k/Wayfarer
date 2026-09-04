@@ -89,7 +89,9 @@ public sealed class ProviderAuthorityStepOneTests : TestBase
         Assert.Contains("id=\"geoapify-credential\"", source, StringComparison.Ordinal);
         Assert.Contains("mapbox-directions-guard-enabled", source, StringComparison.Ordinal);
         Assert.Contains("{profile.ProviderKey}-guard-enabled", source, StringComparison.Ordinal);
-
+        Assert.Contains("geoapify.CredentialConfigured", source, StringComparison.Ordinal);
+        Assert.Contains("Model.ActiveGeocodingProvider == \"geoapify\"", source, StringComparison.Ordinal);
+        Assert.Contains("Model.ActiveRoutingProvider == \"geoapify\"", source, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -123,7 +125,7 @@ public sealed class ProviderAuthorityStepOneTests : TestBase
     }
 
     [Fact]
-    public async Task CredentialReplacement_ClearsBothSelectionsAndAuthorityWithoutContact()
+    public async Task CredentialReplacement_RetainsSelectionsButClearsAuthorityWithoutContact()
     {
         await using var db = CreateDbContext();
         var credentials = new PersonalProviderCredentialService(new EphemeralDataProtectionProvider());
@@ -146,8 +148,8 @@ public sealed class ProviderAuthorityStepOneTests : TestBase
         Assert.False(profile.RoutingAuthorized);
         Assert.Equal(PersonalProviderVerification.Unverified, profile.GeocodingVerification);
         Assert.Equal(PersonalProviderVerification.Unverified, profile.RoutingVerification);
-        Assert.Null(selection.GeocodingProviderKey);
-        Assert.Null(selection.RoutingProviderKey);
+        Assert.Equal("geoapify", selection.GeocodingProviderKey);
+        Assert.Equal("geoapify", selection.RoutingProviderKey);
         Assert.Equal("new", credentials.Read(profile).Credential);
     }
 
