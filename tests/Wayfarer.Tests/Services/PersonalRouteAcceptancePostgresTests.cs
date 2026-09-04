@@ -20,6 +20,7 @@ public sealed class PersonalRouteAcceptancePostgresTests(PostgresMigrationTestFi
     [PostgresFact]
     public async Task SelectionMutationCommitsFirstAndConcurrentAcceptanceRejectsWithoutChangingSegment()
     {
+        var operationTimeout = TimeSpan.FromSeconds(10);
         fixture.RequireAvailable();
         var user = await fixture.CreateUserAsync();
         var protection = new EphemeralDataProtectionProvider();
@@ -54,12 +55,36 @@ public sealed class PersonalRouteAcceptancePostgresTests(PostgresMigrationTestFi
         await using var acceptanceContext = fixture.CreateContext(new SelectionLockObserver(acceptanceStarted));
         var acceptance = new ExternalRouteProposalAcceptanceService(acceptanceContext, aggregateTokens,
             proposalContexts, new AuthoritativeRoutingProviderResolver(acceptanceContext, credentials));
+        using var acceptanceCancellation = new CancellationTokenSource();
         var acceptanceTask = acceptance.AcceptAsync(user.Id, seeded.TripId, seeded.SegmentId, proposalId,
-            geometry, indices, token, CancellationToken.None);
-        await acceptanceStarted.Task.WaitAsync(TimeSpan.FromSeconds(10));
-        await mutation.CommitAsync();
+            geometry, indices, token, acceptanceCancellation.Token);
+        var mutationCommitted = false;
+        ExternalRouteAcceptanceResult result;
+        try
+        {
+            await acceptanceStarted.Task.WaitAsync(operationTimeout);
+            await mutation.CommitAsync();
+            mutationCommitted = true;
 
-        var result = await acceptanceTask;
+            result = await acceptanceTask.WaitAsync(operationTimeout);
+        }
+        finally
+        {
+            if (!acceptanceTask.IsCompleted)
+            {
+                acceptanceCancellation.Cancel();
+                if (!mutationCommitted)
+                    await mutation.RollbackAsync(CancellationToken.None);
+                try
+                {
+                    await acceptanceTask.WaitAsync(operationTimeout);
+                }
+                catch (OperationCanceledException) when (acceptanceCancellation.IsCancellationRequested)
+                {
+                    // Cancellation is expected only while draining a failed or timed-out test operation.
+                }
+            }
+        }
 
         Assert.False(result.Succeeded);
         Assert.Equal("route-proposal-stale", result.ErrorCode);
