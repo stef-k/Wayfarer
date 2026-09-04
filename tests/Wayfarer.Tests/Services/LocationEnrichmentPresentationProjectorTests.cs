@@ -75,6 +75,28 @@ public sealed class LocationEnrichmentPresentationProjectorTests
         Assert.Equal(4, view.ProviderUsage);
     }
 
+    [Fact]
+    public async Task InvalidCoordinatesRemainVisibleWithoutProviderAuthority()
+    {
+        await using var db = CreateContext();
+        var user = TestDataFixtures.CreateUser(id: "unavailable-user");
+        var location = TestDataFixtures.CreateLocation(user);
+        db.AddRange(user, location);
+        await db.SaveChangesAsync();
+        db.Add(Attempt(location.Id, Binding(), LocationEnrichmentOutcome.InvalidCoordinates, null, user.Id));
+        await db.SaveChangesAsync();
+        var inspector = new Mock<IPersonalProviderStatusReader>();
+        inspector.Setup(item => item.InspectPersistentGeocodingAsync(user.Id, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new PersonalProviderInspection(PersonalProviderAdmissionCategory.NoProviderSelected,
+                null, false, false, null, null, null));
+
+        var view = await new LocationEnrichmentPresentationProjector(
+            db, inspector.Object, new LocationEnrichmentProgressQuery(db)).ProjectAsync(user.Id);
+
+        Assert.Equal(1, view.CannotBeRetried);
+        Assert.Equal(0, view.ManualRetryAvailable);
+    }
+
     private static ApplicationDbContext CreateContext()
     {
         var services = new ServiceCollection().BuildServiceProvider();
@@ -97,9 +119,9 @@ public sealed class LocationEnrichmentPresentationProjectorTests
         2, 3, 4, PersonalProviderVerification.Verified, 2, 3, null, null, null);
 
     private static LocationEnrichmentAttempt Attempt(int locationId, PersonalProviderAuthorityBinding binding,
-        LocationEnrichmentOutcome outcome, DateTime? next) => new()
+        LocationEnrichmentOutcome outcome, DateTime? next, string userId = "projection-user") => new()
     {
-        UserId = "projection-user", LocationId = locationId, ProviderKey = binding.ProviderKey,
+        UserId = userId, LocationId = locationId, ProviderKey = binding.ProviderKey,
         ProviderProfileId = binding.ProfileId, Capability = PersonalProviderCapability.Geocoding,
         CredentialGeneration = binding.CredentialGeneration, ConfigurationGeneration = binding.CapabilityGeneration,
         SelectionGeneration = binding.SelectionGeneration, Verification = binding.Verification,
