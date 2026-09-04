@@ -21,6 +21,9 @@
 
 ## Unreleased
 
+### Fixed
+- Geoapify Directions now accepts the provider's documented JSON `{lon, lat}` route geometry, and saved provider choices remain visible in their dropdowns after refresh or unrelated settings changes.
+
 ## [1.9.4] - 2026-08-31
 
 ### Added

@@ -100,8 +100,9 @@ public static class GeoapifyRoutingAdapter
         var result = new List<RouteCoordinate>();
         foreach (var item in value.EnumerateArray())
         {
-            if (item.ValueKind != JsonValueKind.Array || item.GetArrayLength() != 2
-                || !item[0].TryGetDouble(out var longitude) || !item[1].TryGetDouble(out var latitude)) return null;
+            if (item.ValueKind != JsonValueKind.Object
+                || !CoordinateNumber(item, "lon", out var longitude)
+                || !CoordinateNumber(item, "lat", out var latitude)) return null;
             var coordinate = new RouteCoordinate(longitude, latitude);
             if (!coordinate.IsValid) return null;
             result.Add(coordinate);
@@ -149,6 +150,13 @@ public static class GeoapifyRoutingAdapter
         parsed = 0;
         return value.TryGetProperty(name, out var number) && number.TryGetDouble(out parsed)
             && double.IsFinite(parsed) && parsed >= 0;
+    }
+
+    private static bool CoordinateNumber(JsonElement value, string name, out double parsed)
+    {
+        parsed = 0;
+        return value.TryGetProperty(name, out var number) && number.TryGetDouble(out parsed)
+            && double.IsFinite(parsed);
     }
 
     private static bool Close(RouteCoordinate first, RouteCoordinate second) =>

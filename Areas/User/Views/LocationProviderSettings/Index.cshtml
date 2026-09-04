@@ -87,8 +87,8 @@
         <label for="geocoding-provider" class="form-label">Provider</label>
         <select id="geocoding-provider" name="ProviderKey" class="form-select">
             <option value="" selected="@(Model.ActiveGeocodingProvider == null)">No provider</option>
-            @if (geoapify.GeocodingEligible) { <option value="geoapify" selected="@(Model.ActiveGeocodingProvider == "geoapify")">Geoapify</option> }
-            @if (mapbox.GeocodingEligible) { <option value="mapbox" selected="@(Model.ActiveGeocodingProvider == "mapbox")">Mapbox Permanent Geocoding</option> }
+            @if (geoapify.GeocodingEligible || Model.ActiveGeocodingProvider == "geoapify") { <option value="geoapify" selected="@(Model.ActiveGeocodingProvider == "geoapify")">Geoapify@(geoapify.GeocodingEligible ? "" : " (blocked)")</option> }
+            @if (mapbox.GeocodingEligible || Model.ActiveGeocodingProvider == "mapbox") { <option value="mapbox" selected="@(Model.ActiveGeocodingProvider == "mapbox")">Mapbox Permanent Geocoding@(mapbox.GeocodingEligible ? "" : " (blocked)")</option> }
         </select>
         <button class="btn btn-primary mt-2" type="submit">Save geocoding provider</button>
     </form>
@@ -103,7 +103,7 @@
         <label for="directions-provider" class="form-label">Provider</label>
         <select id="directions-provider" name="ProviderKey" class="form-select">
             <option value="" selected="@(Model.ActiveRoutingProvider == null)">No provider</option>
-            @if (geoapify.RoutingEligible) { <option value="geoapify" selected="@(Model.ActiveRoutingProvider == "geoapify")">Geoapify</option> }
+            @if (geoapify.RoutingEligible || Model.ActiveRoutingProvider == "geoapify") { <option value="geoapify" selected="@(Model.ActiveRoutingProvider == "geoapify")">Geoapify@(geoapify.RoutingEligible ? "" : " (blocked)")</option> }
         </select>
         <button class="btn btn-primary mt-2" type="submit">Save directions provider</button>
     </form>

@@ -89,7 +89,8 @@ public sealed class ProviderAuthorityStepOneTests : TestBase
         Assert.Contains("id=\"geoapify-credential\"", source, StringComparison.Ordinal);
         Assert.Contains("mapbox-directions-guard-enabled", source, StringComparison.Ordinal);
         Assert.Contains("{profile.ProviderKey}-guard-enabled", source, StringComparison.Ordinal);
-
+        Assert.Contains("geoapify.GeocodingEligible || Model.ActiveGeocodingProvider == \"geoapify\"", source, StringComparison.Ordinal);
+        Assert.Contains("geoapify.RoutingEligible || Model.ActiveRoutingProvider == \"geoapify\"", source, StringComparison.Ordinal);
     }
 
     [Fact]
