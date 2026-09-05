@@ -1,6 +1,6 @@
 # CHANGELOG
 
-## [Unreleased]
+## [1.9.10] - 2026-09-05
 
 ### Fixed
 - Location statistics now share exact ASCII-trimmed, parent-scoped grouping and combine “East Macedonia and Thrace” with “Eastern Macedonia and Thrace” only under “Greece”. Parent scoping can increase counts; the region correction can decrease them. Both Timeline views show missing-parent sections and safely encode labels; tied visits select one deterministic settlement coordinate (#573). See [Timeline statistics](docs/06-Timeline.md#statistics-grouping) for sources and the remaining string-only ambiguity: identical names within identical parents cannot be distinguished, while other alternate labels may still split one entity. Stored values and released-Mobile API shapes remain unchanged; no migration or provider calls are added.
@@ -10,6 +10,10 @@
 
 ### Upgrade notes
 - Additive migration `20260905095140_AddLocationProviderAddressLine1` adds a nullable 500-character Location field. Existing rows are not rewritten; repair remains fill-only. Mapbox mappings, Trip Place preference and released-Mobile `FullAddress` remain compatible.
+
+- This migration preserves existing rows and does not correct historical stored address values or mixed fields. The successful development migration reported for this session is local evidence only; production migration remains outstanding. Preserve PostgreSQL and its matching Data Protection key ring.
+
+## Unreleased
 
 ## [1.9.9] - 2026-09-05
 
@@ -44,8 +48,6 @@
 ### Upgrade notes
 - No new database migration is introduced relative to 1.9.7. Preserve the PostgreSQL database and matching Data Protection key ring when upgrading.
 - Manual changes to address fields clear provider attribution; unchanged addresses retain it. Changing coordinates clears old address fields unless explicitly changed in the same save.
-
-## Unreleased
 
 ## [1.9.7] - 2026-09-04
 
