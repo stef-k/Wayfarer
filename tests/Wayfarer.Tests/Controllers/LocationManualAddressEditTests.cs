@@ -111,22 +111,70 @@ public sealed class LocationManualAddressEditTests : TestBase
         Assert.Contains(results, result => result.MemberNames.Contains(nameof(AddLocationViewModel.Address)));
     }
 
-    [Fact]
-    public async Task InvalidPostReloadsOwnedServerMetadataAndPreservesSubmittedAddress()
+    /// <summary>Invalid posts keep attempted values and original authority through rendering and correction.</summary>
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    public async Task InvalidPostRetainsAuthorityThroughCorrectedResubmission(
+        bool publishBeforeRedisplay, bool publishBeforeCorrection)
     {
         var scenario = await CreateScenarioAsync("invalid-owner");
-        var model = EditModel(scenario.Location);
-        model.Address = "Submitted address";
-        var controller = Controller(scenario);
-        controller.ModelState.AddModelError(nameof(model.Address), "Invalid address");
-
+        var original = EditModel(scenario.Location);
+        var fields = new[] { "OriginalReverseGeocodingProvider", "OriginalReverseGeocodingStorageMode",
+            "OriginalReverseGeocodedAt", "Address", "Place", "Region", "Country" };
+        var posted = fields.ToDictionary(field => field, field =>
+            new Microsoft.Extensions.Primitives.StringValues(
+                Wayfarer.Tests.Views.LocationEditViewContractTests.RenderInput(
+                    original, new Microsoft.AspNetCore.Mvc.ModelBinding.ModelStateDictionary(), field)));
+        posted["Id"] = original.Id.ToString();
+        posted["LocalTimestamp"] = original.LocalTimestamp.ToString("O");
+        posted["Address"] = "  Submitted address  ";
+        posted["SelectedActivityId"] = "not-an-id";
+        var (model, state) = await Wayfarer.Tests.Views.LocationEditViewContractTests.BindAsync(posted);
+        Assert.False(state.IsValid);
+        var newerAt = original.OriginalReverseGeocodedAt!.Value.AddTicks(10);
+        if (publishBeforeRedisplay) await PublishAsync();
+        var handler = new CountingHandler();
+        var controller = Controller(scenario, handler);
+        controller.ModelState.Merge(state);
         var result = Assert.IsType<ViewResult>(await controller.Edit(model, null));
-
         var returned = Assert.IsType<AddLocationViewModel>(result.Model);
-        Assert.Equal("Submitted address", returned.Address);
+        Assert.Equal(original.OriginalReverseGeocodedAt, returned.OriginalReverseGeocodedAt);
+        Assert.Equal("  Submitted address  ", returned.Address);
         Assert.Equal("Old feature", returned.ResolvedFeatureName);
-        Assert.Equal("amenity", returned.ResolvedFeatureType);
-        Assert.Equal(scenario.Location.ReverseGeocodedAt, returned.OriginalReverseGeocodedAt);
+        Assert.True((bool)controller.ViewData["ExpandAddressDetails"]!);
+        Assert.Equal("not-an-id", controller.ModelState["SelectedActivityId"]!.AttemptedValue);
+        Assert.NotEmpty(controller.ModelState["SelectedActivityId"]!.Errors);
+        foreach (var field in fields)
+        {
+            var rendered = Wayfarer.Tests.Views.LocationEditViewContractTests.RenderInput(
+                returned, controller.ModelState, field);
+            Assert.Equal(posted[field].ToString(), rendered);
+            posted[field] = rendered;
+        }
+        if (publishBeforeCorrection) await PublishAsync();
+        posted["SelectedActivityId"] = "";
+        var (corrected, correctedState) = await Wayfarer.Tests.Views.LocationEditViewContractTests.BindAsync(posted);
+        Assert.True(correctedState.IsValid);
+        var correction = Controller(scenario, handler);
+        correction.ModelState.Merge(correctedState);
+        var redirect = Assert.IsType<RedirectToActionResult>(await correction.Edit(corrected, null));
+        Assert.Equal("Edit", redirect.ActionName);
+        var saved = await scenario.Db.Locations.SingleAsync(item => item.Id == original.Id);
+        var stale = publishBeforeRedisplay || publishBeforeCorrection;
+        Assert.Equal(stale ? "New publication" : "Submitted address", saved.Address);
+        Assert.Equal(stale ? newerAt : (DateTimeOffset?)null, saved.ReverseGeocodedAt);
+        Assert.Contains(stale ? "Address details changed" : "Location updated successfully",
+            string.Join(" ", correction.TempData.Values));
+        Assert.Equal(0, handler.RequestCount);
+
+        async Task PublishAsync()
+        {
+            scenario.Location.Address = "New publication";
+            scenario.Location.ReverseGeocodedAt = newerAt;
+            await scenario.Db.SaveChangesAsync();
+        }
     }
 
     private async Task<Scenario> CreateScenarioAsync(string userId)

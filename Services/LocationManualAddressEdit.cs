@@ -28,9 +28,7 @@ public static class LocationManualAddressEdit
     /// <summary>Restores fields that must come from the currently owned database row after an invalid post.</summary>
     public static void RestoreServerFields(AddLocationViewModel model, Location location)
     {
-        model.OriginalReverseGeocodingProvider = location.ReverseGeocodingProvider;
-        model.OriginalReverseGeocodingStorageMode = location.ReverseGeocodingStorageMode;
-        model.OriginalReverseGeocodedAt = location.ReverseGeocodedAt;
+        // Submitted address values retain their original publication authority, including on redisplay.
         model.ResolvedFeatureName = location.ResolvedFeatureName;
         model.ResolvedFeatureType = location.ResolvedFeatureType;
         model.Source = location.Source;
