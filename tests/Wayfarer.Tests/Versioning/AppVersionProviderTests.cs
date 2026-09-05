@@ -14,7 +14,7 @@ public class AppVersionProviderTests
     {
         var provider = new AppVersionProvider();
 
-        provider.Version.Should().Be("1.9.9");
+        provider.Version.Should().Be("1.9.10");
     }
 
     [Fact]
