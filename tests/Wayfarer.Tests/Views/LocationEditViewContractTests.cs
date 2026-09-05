@@ -21,7 +21,7 @@ public sealed class LocationEditViewContractTests
 {
     /// <summary>The real MVC hidden-input formatter must preserve the database timestamp exactly.</summary>
     [Fact]
-    public void EditHiddenTimestampRoundTripsWithoutInventingAConflict()
+    public async Task EditHiddenTimestampRoundTripsWithoutInventingAConflict()
     {
         var builder = WebApplication.CreateBuilder();
         builder.Services.AddControllersWithViews();
@@ -35,20 +35,46 @@ public sealed class LocationEditViewContractTests
         var context = new ViewContext
         {
             ViewData = data,
+            FormContext = new FormContext(),
             HttpContext = new DefaultHttpContext { RequestServices = services }
         };
         var input = Regex.Match(Read("Areas", "User", "Views", "Location", "Edit.cshtml"),
             "<input[^>]*asp-for=\"OriginalReverseGeocodedAt\"[^>]*>").Value;
         Assert.NotEmpty(input);
         var format = Regex.Match(input, "asp-format=\"([^\"]+)\"");
-        var generator = services.GetRequiredService<IHtmlGenerator>();
-        var explorer = metadata.GetModelExplorerForType(typeof(DateTimeOffset?), timestamp);
-        // InputTagHelper formats the value before passing it to GenerateHidden.
-        var value = format.Success ? string.Format(CultureInfo.CurrentCulture, format.Groups[1].Value, timestamp) : (object)timestamp;
-        var tag = generator.GenerateHidden(context, explorer, nameof(model.OriginalReverseGeocodedAt), value, false, null);
-        model.OriginalReverseGeocodedAt = DateTimeOffset.Parse(tag.Attributes["value"]!, CultureInfo.CurrentCulture);
-        var location = new Location { ReverseGeocodedAt = timestamp };
-        Assert.True(LocationManualAddressEdit.HasCurrentProviderTuple(location, model));
+        var helper = new Microsoft.AspNetCore.Mvc.TagHelpers.InputTagHelper(
+            services.GetRequiredService<IHtmlGenerator>())
+        {
+            ViewContext = context,
+            For = new ModelExpression(nameof(model.OriginalReverseGeocodedAt),
+                data.ModelExplorer.GetExplorerForProperty(nameof(model.OriginalReverseGeocodedAt))),
+            InputTypeName = "hidden",
+            Format = format.Success ? format.Groups[1].Value : null
+        };
+        var attributes = new Microsoft.AspNetCore.Razor.TagHelpers.TagHelperAttributeList
+        {
+            { "type", "hidden" }, { "asp-for", helper.For }
+        };
+        var output = new Microsoft.AspNetCore.Razor.TagHelpers.TagHelperOutput("input", attributes,
+            (_, _) => Task.FromResult<Microsoft.AspNetCore.Razor.TagHelpers.TagHelperContent>(
+                new Microsoft.AspNetCore.Razor.TagHelpers.DefaultTagHelperContent()));
+        helper.Process(new Microsoft.AspNetCore.Razor.TagHelpers.TagHelperContext(attributes,
+            new Dictionary<object, object>(), "timestamp"), output);
+        var rendered = output.Attributes["value"].Value.ToString()!;
+        var action = new ActionContext(context.HttpContext, new RouteData(), new ActionDescriptor());
+        var modelMetadata = metadata.GetMetadataForType(typeof(AddLocationViewModel));
+        var binder = services.GetRequiredService<IModelBinderFactory>().CreateBinder(
+            new ModelBinderFactoryContext { Metadata = modelMetadata, CacheToken = typeof(AddLocationViewModel) });
+        var binding = DefaultModelBindingContext.CreateBindingContext(action,
+            new FormValueProvider(BindingSource.Form, new FormCollection(
+                new Dictionary<string, Microsoft.Extensions.Primitives.StringValues>
+                { [nameof(model.OriginalReverseGeocodedAt)] = rendered }), CultureInfo.CurrentCulture),
+            modelMetadata, null, "");
+        await binder.BindModelAsync(binding);
+        model = Assert.IsType<AddLocationViewModel>(binding.Result.Model);
+        var location = new Location { UserId = "synthetic", TimeZoneId = "UTC", Coordinates = new NetTopologySuite.Geometries.Point(0, 0), ReverseGeocodedAt = timestamp };
+        var current = LocationManualAddressEdit.HasCurrentProviderTuple(location, model);
+        Assert.True(current, $"Original={timestamp:O}; rendered={rendered}; bound={model.OriginalReverseGeocodedAt:O}; errors={string.Join(", ", action.ModelState.Values.SelectMany(entry => entry.Errors).Select(error => error.ErrorMessage))}; current={current}");
         location.ReverseGeocodedAt = timestamp.AddTicks(10);
         Assert.False(LocationManualAddressEdit.HasCurrentProviderTuple(location, model));
     }
