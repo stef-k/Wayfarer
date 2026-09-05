@@ -238,7 +238,7 @@ public sealed partial class LocationEnrichmentRetryAtomicityPostgresTests(Postgr
     }
 
     [PostgresFact]
-    public async Task CancelCommitFirstMakesRetryMutationFree()
+    public async Task CancelCommitFirstAllowsSubsequentExplicitRetry()
     {
         fixture.RequireAvailable();
         var scenario = await SeedAsync(LocationEnrichmentState.Completed, LocationEnrichmentOutcome.NoResult);
@@ -256,12 +256,12 @@ public sealed partial class LocationEnrichmentRetryAtomicityPostgresTests(Postgr
         var after = await SnapshotAsync(scenario.UserId);
 
         Assert.Equal("cancelled", results[0].Code);
-        Assert.Equal("invalid-state", results[1].Code);
-        Assert.Equal(LocationEnrichmentState.Cancelled, after.State);
-        Assert.Equal(2, after.Epoch);
-        Assert.Equal(LocationEnrichmentOutcome.NoResult, after.AttemptOutcome);
-        Assert.Equal(1, after.AdmittedAttemptCount);
-        scenario.Projection.Verify(x => x.ProjectAsync(scenario.UserId, It.IsAny<CancellationToken>()), Times.Once);
+        Assert.Equal("scheduled", results[1].Code);
+        Assert.Equal(LocationEnrichmentState.Scheduled, after.State);
+        Assert.Equal(3, after.Epoch);
+        Assert.Equal(LocationEnrichmentOutcome.None, after.AttemptOutcome);
+        Assert.Equal(0, after.AdmittedAttemptCount);
+        scenario.Projection.Verify(x => x.ProjectAsync(scenario.UserId, It.IsAny<CancellationToken>()), Times.Exactly(2));
     }
 
     [PostgresFact(Timeout = 20_000)]
@@ -379,6 +379,61 @@ public sealed partial class LocationEnrichmentRetryAtomicityPostgresTests(Postgr
 
     private static ImportEnrichmentHandoff Command(Scenario scenario, ApplicationDbContext db) =>
         new(db, scenario.Projection.Object, scenario.Status.Object, new LocationEnrichmentProgressQuery(db));
+
+    /// <summary>Each explicit restart commits only its distinct set with a fresh epoch.</summary>
+    [PostgresTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CancelledReportedStateRestartsOnlyRequestedSet(bool repair)
+    {
+        var scenario = await SeedAsync(LocationEnrichmentState.Completed, LocationEnrichmentOutcome.NoResult);
+        var binding = (await scenario.Status.Object.InspectPersistentGeocodingAsync(scenario.UserId)).Binding!;
+        await using var db = fixture.CreateContext();
+        var workflow = await db.LocationEnrichmentWorkflows.SingleAsync(x => x.UserId == scenario.UserId);
+        workflow.Cancel(DateTime.UtcNow);
+        var epoch = workflow.Epoch;
+        var second = await db.Locations.SingleAsync(x => x.UserId == scenario.UserId
+            && !db.LocationEnrichmentAttempts.Any(a => a.LocationId == x.Id));
+        var deferred = new LocationEnrichmentAttempt { UserId = scenario.UserId, LocationId = second.Id };
+        deferred.PrepareRepair(binding, DateTime.UtcNow);
+        deferred.Outcome = LocationEnrichmentOutcome.NoResult;
+        deferred.AdmittedAttemptCount = 1;
+        db.Add(deferred);
+        var user = await db.Users.SingleAsync(x => x.Id == scenario.UserId);
+        for (var i = 0; i < 11; i++)
+        {
+            var location = TestDataFixtures.CreateLocation(user);
+            location.Address = "Retain address";
+            location.ReverseGeocodingProvider = "geoapify";
+            location.ReverseGeocodingStorageMode = "persistent";
+            location.ReverseGeocodedAt = DateTimeOffset.UtcNow;
+            db.Add(location);
+        }
+        await db.SaveChangesAsync();
+        var progress = await new LocationEnrichmentProgressQuery(db).ProjectAsync(scenario.UserId, binding, DateTime.UtcNow);
+        Assert.Equal((0, 2, 11), (progress.RunnableRemaining, progress.ManualRetryAvailable, progress.IncompleteProviderAddresses));
+        scenario.Projection.Setup(x => x.ProjectAsync(scenario.UserId, It.IsAny<CancellationToken>()))
+            .Returns(async () =>
+            {
+                await using var committed = fixture.CreateContext();
+                var saved = await committed.LocationEnrichmentWorkflows.SingleAsync(x => x.UserId == scenario.UserId);
+                Assert.Equal(epoch + 1, saved.Epoch);
+                Assert.Equal(LocationEnrichmentState.Scheduled, saved.State);
+                Assert.True(saved.IntentEnabled);
+                Assert.NotNull(saved.NextEligibleAtUtc);
+                Assert.Equal(repair ? 11 : 2, await committed.LocationEnrichmentAttempts.CountAsync(
+                    x => x.UserId == scenario.UserId && x.Outcome == LocationEnrichmentOutcome.None));
+            });
+        var command = Command(scenario, db);
+        var result = repair ? await command.RepairIncompleteAsync(scenario.UserId)
+            : await command.RetryDeferredAsync(scenario.UserId);
+        Assert.Equal(repair ? "repair-scheduled" : "scheduled", result.Code);
+        await using var verify = fixture.CreateContext();
+        Assert.Equal(repair ? 2 : 0, await verify.LocationEnrichmentAttempts.CountAsync(
+            x => x.UserId == scenario.UserId && x.Outcome == LocationEnrichmentOutcome.NoResult));
+        Assert.Equal(repair ? 13 : 2, await verify.LocationEnrichmentAttempts.CountAsync(x => x.UserId == scenario.UserId));
+        scenario.Projection.Verify(x => x.ProjectAsync(scenario.UserId, It.IsAny<CancellationToken>()), Times.Once);
+    }
 
     private async Task<Scenario> SeedAsync(LocationEnrichmentState state, LocationEnrichmentOutcome outcome)
     {
