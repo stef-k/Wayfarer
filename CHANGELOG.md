@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### Fixed
+- Location statistics now share exact ASCII-trimmed, parent-scoped grouping and combine “East Macedonia and Thrace” with “Eastern Macedonia and Thrace” only under “Greece”. Parent scoping can increase counts; the region correction can decrease them. Both Timeline views show missing-parent sections and safely encode labels; tied visits select one deterministic settlement coordinate (#573). See [Timeline statistics](docs/06-Timeline.md#statistics-grouping) for sources and the remaining string-only ambiguity: identical names within identical parents cannot be distinguished, while other alternate labels may still split one entity. Stored values and released-Mobile API shapes remain unchanged; no migration or provider calls are added.
 - Geoapify Location enrichment now stores street then house number, keeps settlement and state at their documented levels, and retains the independent provider line. Location maps, tables, timelines, groups and edit summaries prioritize structured addresses and show nearby feature metadata beneath them (#572).
 - CSV history exports use an explicit-offset enrichment timestamp so valid retained provenance survives backend round trips (#572).
 - Backend history imports preserve internal newlines and tabs in retained provider address lines; GPX/KML round trips normalize line endings to LF (#572).

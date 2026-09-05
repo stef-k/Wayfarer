@@ -1,3 +1,4 @@
+import { renderStatistics } from './statistics.js';
 ﻿let locations = []; // Declare locations as a global variable
 let mapContainer = null;
 let zoomLevel = 3;
@@ -644,123 +645,8 @@ const showDetailedStats = async (statType) => {
  * @returns {string} HTML content
  */
 const generateStatsModalContent = (stats, highlightType) => {
-    let html = '<div class="container-fluid">';
-
-    // Summary section
-    html += '<div class="row mb-3">';
-    html += '<div class="col-12">';
-    html += `<h6>Overview</h6>`;
-    html += `<p><strong>Total Locations:</strong> ${stats.totalLocations}</p>`;
-    if (stats.fromDate && stats.toDate) {
-        html += `<p><strong>Date Range:</strong> ${formatDate({ iso: stats.fromDate, displayTimeZone: viewerTimeZone })} to ${formatDate({ iso: stats.toDate, displayTimeZone: viewerTimeZone })}</p>`;
-    }
-    html += '</div>';
-    html += '</div>';
-
-    // Countries section with hierarchical collapsible structure
-    const countriesHighlight = highlightType === 'countries' ? 'bg-light border' : '';
-    html += `<div class="row mb-3 ${countriesHighlight} p-2">`;
-    html += '<div class="col-12">';
-    html += `<h6>Countries (${stats.countries.length})</h6>`;
-
-    if (stats.countries.length > 0) {
-        html += '<div class="accordion" id="countriesAccordion">';
-
-        stats.countries.forEach((country, countryIdx) => {
-            const homeLabel = country.isHomeCountry ? ' <span class="badge bg-info">Home</span>' : '';
-            const firstVisit = formatDate({ iso: country.firstVisit, displayTimeZone: viewerTimeZone });
-            const lastVisit = formatDate({ iso: country.lastVisit, displayTimeZone: viewerTimeZone });
-
-            // Extract coordinates from PostGIS Point
-            const lat = country.coordinates?.latitude || 0;
-            const lng = country.coordinates?.longitude || 0;
-            const countryMapUrl = `?lat=${lat.toFixed(6)}&lng=${lng.toFixed(6)}&zoom=8`;
-
-            // Get regions for this country
-            const countryRegions = stats.regions.filter(r => r.countryName === country.name);
-
-            html += `<div class="accordion-item">`;
-            html += `<h2 class="accordion-header" id="country-heading-${countryIdx}">`;
-            html += `<div class="d-flex w-100 align-items-center">`;
-            html += `<button class="accordion-button collapsed flex-grow-1" type="button" data-bs-toggle="collapse" data-bs-target="#country-${countryIdx}">`;
-            html += `${country.name}${homeLabel} <small class="ms-2 text-muted">(${country.visitCount} records, ${firstVisit} - ${lastVisit})</small>`;
-            html += `</button>`;
-            html += `<a href="${countryMapUrl}" class="btn btn-sm btn-outline-primary country-coords-link me-2" data-lat="${lat}" data-lng="${lng}" onclick="event.stopPropagation();" title="View on map" style="min-width: 70px;"><i class="bi bi-geo-alt"></i> Map</a>`;
-            html += `</div>`;
-            html += `</h2>`;
-            html += `<div id="country-${countryIdx}" class="accordion-collapse collapse" data-bs-parent="#countriesAccordion">`;
-            html += `<div class="accordion-body">`;
-
-            if (countryRegions.length > 0) {
-                html += `<h6>Regions (${countryRegions.length})</h6>`;
-                html += `<div class="accordion" id="regionsAccordion-${countryIdx}">`;
-
-                countryRegions.forEach((region, regionIdx) => {
-                    const regFirstVisit = formatDate({ iso: region.firstVisit, displayTimeZone: viewerTimeZone });
-                    const regLastVisit = formatDate({ iso: region.lastVisit, displayTimeZone: viewerTimeZone });
-                    const regLat = region.coordinates?.latitude || 0;
-                    const regLng = region.coordinates?.longitude || 0;
-                    const regionMapUrl = `?lat=${regLat.toFixed(6)}&lng=${regLng.toFixed(6)}&zoom=10`;
-
-                    // Get cities for this region
-                    const regionCities = stats.cities.filter(c => c.regionName === region.name && c.countryName === country.name);
-
-                    html += `<div class="accordion-item">`;
-                    html += `<h2 class="accordion-header" id="region-heading-${countryIdx}-${regionIdx}">`;
-                    html += `<div class="d-flex w-100 align-items-center">`;
-                    html += `<button class="accordion-button collapsed flex-grow-1" type="button" data-bs-toggle="collapse" data-bs-target="#region-${countryIdx}-${regionIdx}">`;
-                    html += `${region.name} <small class="ms-2 text-muted">(${region.visitCount} records, ${regFirstVisit} - ${regLastVisit})</small>`;
-                    html += `</button>`;
-                    html += `<a href="${regionMapUrl}" class="btn btn-sm btn-outline-primary country-coords-link me-2" data-lat="${regLat}" data-lng="${regLng}" onclick="event.stopPropagation();" title="View on map" style="min-width: 70px;"><i class="bi bi-geo-alt"></i> Map</a>`;
-                    html += `</div>`;
-                    html += `</h2>`;
-                    html += `<div id="region-${countryIdx}-${regionIdx}" class="accordion-collapse collapse" data-bs-parent="#regionsAccordion-${countryIdx}">`;
-                    html += `<div class="accordion-body">`;
-
-                    if (regionCities.length > 0) {
-                        html += `<h6>Cities (${regionCities.length})</h6>`;
-                        html += '<div class="list-group">';
-
-                        regionCities.forEach(city => {
-                            const cityFirstVisit = formatDate({ iso: city.firstVisit, displayTimeZone: viewerTimeZone });
-                            const cityLastVisit = formatDate({ iso: city.lastVisit, displayTimeZone: viewerTimeZone });
-                            const cityLat = city.coordinates?.latitude || 0;
-                            const cityLng = city.coordinates?.longitude || 0;
-                            const cityMapUrl = `?lat=${cityLat.toFixed(6)}&lng=${cityLng.toFixed(6)}&zoom=13`;
-
-                            html += `<div class="list-group-item d-flex justify-content-between align-items-center">`;
-                            html += `<div><strong>${city.name}</strong> <small class="text-muted">(${city.visitCount} records, ${cityFirstVisit} - ${cityLastVisit})</small></div>`;
-                            html += `<a href="${cityMapUrl}" class="btn btn-sm btn-outline-primary country-coords-link" data-lat="${cityLat}" data-lng="${cityLng}" title="View on map" style="min-width: 70px;"><i class="bi bi-geo-alt"></i> Map</a>`;
-                            html += `</div>`;
-                        });
-
-                        html += '</div>';
-                    } else {
-                        html += '<p class="text-muted">No cities in this region</p>';
-                    }
-
-                    html += `</div></div></div>`;
-                });
-
-                html += `</div>`;
-            } else {
-                html += '<p class="text-muted">No regions in this country</p>';
-            }
-
-            html += `</div></div></div>`;
-        });
-
-        html += '</div>';
-    } else {
-        html += '<p class="text-muted">No country data available</p>';
-    }
-
-    html += '</div>';
-    html += '</div>';
-
-    html += '</div>';
-
-    return html;
+    return renderStatistics(stats, highlightType,
+        iso => formatDate({ iso, displayTimeZone: viewerTimeZone }));
 };
 
 const handleStream = (event) => {

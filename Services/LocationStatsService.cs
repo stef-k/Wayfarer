@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using System.Runtime.CompilerServices;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos;
 
@@ -24,100 +25,77 @@ public class LocationStatsService : ILocationStatsService
         _db = db;
     }
 
-    public async Task<UserLocationStatsDto> GetStatsForUserAsync(string userId)
-    {
-        var userLocations = _db.Locations.Where(l => l.UserId == userId);
+    /// <summary>Summarizes all records using their UTC Timestamp.</summary>
+    public Task<UserLocationStatsDto> GetStatsForUserAsync(string userId) =>
+        ReadSummaryAsync(StatisticsScope(false), [userId]);
 
-        var totalLocations = await userLocations.CountAsync();
-        var distinctCountries = await userLocations
-            .Where(l => !string.IsNullOrEmpty(l.Country))
-            .Select(l => l.Country).Distinct().CountAsync();
-        var distinctCities = await userLocations
-            .Where(l => !string.IsNullOrEmpty(l.Place))
-            .Select(l => l.Place).Distinct().CountAsync();
-        var distinctRegions = await userLocations
-            .Where(l => !string.IsNullOrEmpty(l.Region))
-            .Select(l => l.Region).Distinct().CountAsync();
+    /// <summary>Summarizes the inclusive LocalTimestamp window.</summary>
+    public Task<UserLocationStatsDto> GetStatsForDateRangeAsync(string userId, DateTime startDate, DateTime endDate) =>
+        ReadSummaryAsync(StatisticsScope(true), [userId, startDate, endDate]);
 
-        var fromDate = await userLocations.MinAsync(l => (DateTime?)l.Timestamp);
+    /// <summary>Returns all-time groups, using Timestamp for visits and representatives.</summary>
+    public Task<UserLocationStatsDetailedDto> GetDetailedStatsForUserAsync(string userId) =>
+        ReadDetailsAsync(StatisticsScope(false), [userId]);
 
-        var toDate = await userLocations.MaxAsync(l => (DateTime?)l.Timestamp);
-
-        return new UserLocationStatsDto
-        {
-            TotalLocations = totalLocations,
-            CountriesVisited = distinctCountries,
-            CitiesVisited = distinctCities,
-            RegionsVisited = distinctRegions,
-            FromDate = fromDate,
-            ToDate = toDate
-        };
-    }
+    /// <summary>Returns groups scoped inclusively by LocalTimestamp, also used for visit dates.</summary>
+    public Task<UserLocationStatsDetailedDto> GetDetailedStatsForDateRangeAsync(
+        string userId, DateTime startDate, DateTime endDate) =>
+        ReadDetailsAsync(StatisticsScope(true), [userId, startDate, endDate]);
 
     /// <summary>
-    /// Gets statistics for a specific date range (day, month, or year)
+    /// Shared read-only projection for every statistics query. PostgreSQL C collation keeps
+    /// component equality exact. btrim removes only the six authorized ASCII characters;
+    /// empty strings represent missing components internally and in the legacy DTOs.
+    /// Only trusted SQL fragments vary; user IDs and inclusive bounds remain parameters.
     /// </summary>
-    /// <param name="userId">User ID</param>
-    /// <param name="startDate">Start date (UTC)</param>
-    /// <param name="endDate">End date (UTC)</param>
-    /// <returns>Statistics for the date range</returns>
-    public async Task<UserLocationStatsDto> GetStatsForDateRangeAsync(string userId, DateTime startDate, DateTime endDate)
+    private static string StatisticsScope(bool dateRange)
     {
-        var userLocations = _db.Locations.Where(l => l.UserId == userId
-                                                      && l.LocalTimestamp >= startDate
-                                                      && l.LocalTimestamp <= endDate);
-
-        var totalLocations = await userLocations.CountAsync();
-        var distinctCountries = await userLocations
-            .Where(l => !string.IsNullOrEmpty(l.Country))
-            .Select(l => l.Country).Distinct().CountAsync();
-        var distinctCities = await userLocations
-            .Where(l => !string.IsNullOrEmpty(l.Place))
-            .Select(l => l.Place).Distinct().CountAsync();
-        var distinctRegions = await userLocations
-            .Where(l => !string.IsNullOrEmpty(l.Region))
-            .Select(l => l.Region).Distinct().CountAsync();
-
-        var fromDate = await userLocations.MinAsync(l => (DateTime?)l.LocalTimestamp);
-        var toDate = await userLocations.MaxAsync(l => (DateTime?)l.LocalTimestamp);
-
-        return new UserLocationStatsDto
-        {
-            TotalLocations = totalLocations,
-            CountriesVisited = distinctCountries,
-            CitiesVisited = distinctCities,
-            RegionsVisited = distinctRegions,
-            FromDate = fromDate,
-            ToDate = toDate
-        };
+        var timestamp = dateRange ? "LocalTimestamp" : "Timestamp";
+        var bounds = dateRange ? "AND \"LocalTimestamp\" >= {1} AND \"LocalTimestamp\" <= {2}" : "";
+        return $$"""
+            WITH trimmed AS (
+                SELECT "Id", "Coordinates", "{{timestamp}}" AS "VisitTime",
+                    btrim(COALESCE("Country", ''), E'\x20\x09\x0A\x0B\x0C\x0D') COLLATE "C" AS "Country",
+                    btrim(COALESCE("Region", ''), E'\x20\x09\x0A\x0B\x0C\x0D') COLLATE "C" AS "Region",
+                    btrim(COALESCE("Place", ''), E'\x20\x09\x0A\x0B\x0C\x0D') COLLATE "C" AS "Place"
+                FROM "Locations" WHERE "UserId" = {0} {{bounds}}
+            ), scoped AS (
+                SELECT "Id", "Coordinates", "VisitTime", "Country", "Place",
+                    (CASE WHEN "Country" = 'Greece' AND "Region" = 'East Macedonia and Thrace'
+                        THEN 'Eastern Macedonia and Thrace' ELSE "Region" END) COLLATE "C" AS "Region"
+                FROM trimmed
+            )
+            """;
     }
 
-    /// <summary>
-    /// Gets detailed statistics for all user locations including country details, regions, and cities
-    /// </summary>
-    /// <param name="userId">User ID</param>
-    /// <returns>Detailed statistics with arrays of country names, regions, and cities</returns>
-    public async Task<UserLocationStatsDetailedDto> GetDetailedStatsForUserAsync(string userId)
+    /// <summary>Counts distinct component tuples in PostgreSQL without loading Location entities.</summary>
+    private async Task<UserLocationStatsDto> ReadSummaryAsync(string scope, object[] parameters)
     {
-        var userLocations = _db.Locations.Where(l => l.UserId == userId);
+        var rows = await _db.Database.SqlQuery<UserLocationStatsDto>(FormattableStringFactory.Create(scope + """
 
-        var totalLocations = await userLocations.CountAsync();
+            SELECT COUNT(*)::integer AS "TotalLocations",
+                COUNT(DISTINCT "Country") FILTER (WHERE "Country" <> '')::integer AS "CountriesVisited",
+                COUNT(DISTINCT ("Country", "Region")) FILTER (WHERE "Region" <> '')::integer AS "RegionsVisited",
+                COUNT(DISTINCT ("Country", "Region", "Place")) FILTER (WHERE "Place" <> '')::integer AS "CitiesVisited",
+                MIN("VisitTime") AS "FromDate", MAX("VisitTime") AS "ToDate"
+            FROM scoped
+            """, parameters)).ToListAsync();
+        return rows.Single();
+    }
 
-        // OPTIMIZED: Get country details with coordinate averages calculated in database using PostGIS
-        // Using raw SQL for PostGIS functions - cast geography to geometry to use ST_X/ST_Y
-        var countryGroupsSql = await _db.Database.SqlQueryRaw<CountryGroupResult>(@"
-            SELECT
-                ""Country"",
-                MIN(""Timestamp"") as ""FirstVisit"",
-                MAX(""Timestamp"") as ""LastVisit"",
-                COUNT(*)::integer as ""VisitCount"",
-                AVG(ST_X(""Coordinates""::geometry)) as ""AvgLongitude"",
-                AVG(ST_Y(""Coordinates""::geometry)) as ""AvgLatitude""
-            FROM ""Locations""
-            WHERE ""UserId"" = {0} AND ""Country"" IS NOT NULL AND ""Country"" != ''
-            GROUP BY ""Country""
-        ", userId).ToListAsync();
+    /// <summary>Aggregates visits in PostgreSQL and maps only grouped results to unchanged DTOs.</summary>
+    private async Task<UserLocationStatsDetailedDto> ReadDetailsAsync(string scope, object[] parameters)
+    {
+        var summary = await ReadSummaryAsync(scope, parameters);
+        var totalLocations = summary.TotalLocations;
+        var countryGroupsSql = await _db.Database.SqlQuery<CountryGroupResult>(FormattableStringFactory.Create(scope + """
 
+            SELECT "Country", MIN("VisitTime") AS "FirstVisit", MAX("VisitTime") AS "LastVisit",
+                COUNT(*)::integer AS "VisitCount",
+                AVG(ST_X("Coordinates"::geometry) ORDER BY "Id") AS "AvgLongitude",
+                AVG(ST_Y("Coordinates"::geometry) ORDER BY "Id") AS "AvgLatitude"
+            FROM scoped WHERE "Country" <> '' GROUP BY "Country"
+            """, parameters)).ToListAsync();
         // Detect home country: country with >40% of total visits or significantly more than average
         var averageVisitCount = countryGroupsSql.Any() ? countryGroupsSql.Average(c => c.VisitCount) : 0;
         var homeCountryThreshold = Math.Max(totalLocations * 0.4, averageVisitCount * 3);
@@ -134,23 +112,17 @@ public class LocationStatsService : ILocationStatsService
             })
             .OrderByDescending(c => c.IsHomeCountry)
             .ThenByDescending(c => c.VisitCount)
+            .ThenBy(c => c.Name, StringComparer.Ordinal)
             .ToList();
 
-        // OPTIMIZED: Get region details with coordinate averages calculated in database using PostGIS
-        var regionGroupsSql = await _db.Database.SqlQueryRaw<RegionGroupResult>(@"
-            SELECT
-                ""Region"",
-                ""Country"",
-                MIN(""Timestamp"") as ""FirstVisit"",
-                MAX(""Timestamp"") as ""LastVisit"",
-                COUNT(*)::integer as ""VisitCount"",
-                AVG(ST_X(""Coordinates""::geometry)) as ""AvgLongitude"",
-                AVG(ST_Y(""Coordinates""::geometry)) as ""AvgLatitude""
-            FROM ""Locations""
-            WHERE ""UserId"" = {0} AND ""Region"" IS NOT NULL AND ""Region"" != ''
-            GROUP BY ""Region"", ""Country""
-        ", userId).ToListAsync();
+        var regionGroupsSql = await _db.Database.SqlQuery<RegionGroupResult>(FormattableStringFactory.Create(scope + """
 
+            SELECT "Country", "Region", MIN("VisitTime") AS "FirstVisit", MAX("VisitTime") AS "LastVisit",
+                COUNT(*)::integer AS "VisitCount",
+                AVG(ST_X("Coordinates"::geometry) ORDER BY "Id") AS "AvgLongitude",
+                AVG(ST_Y("Coordinates"::geometry) ORDER BY "Id") AS "AvgLatitude"
+            FROM scoped WHERE "Region" <> '' GROUP BY "Country", "Region"
+            """, parameters)).ToListAsync();
         var regions = regionGroupsSql
             .Select(r => new RegionVisitDetail
             {
@@ -161,44 +133,23 @@ public class LocationStatsService : ILocationStatsService
                 VisitCount = r.VisitCount,
                 Coordinates = new NetTopologySuite.Geometries.Point(r.AvgLongitude, r.AvgLatitude) { SRID = 4326 }
             })
-            .OrderBy(r => r.CountryName)
-            .ThenBy(r => r.Name)
+            .OrderBy(r => r.CountryName, StringComparer.Ordinal)
+            .ThenBy(r => r.Name, StringComparer.Ordinal)
             .ToList();
 
-        // OPTIMIZED: Get city details with representative coordinate (from most recent visit)
-        // This avoids loading thousands of coordinates into memory
-        var cityGroupsSql = await _db.Database.SqlQueryRaw<CityGroupResult>(@"
-            WITH CityLatest AS (
-                SELECT
-                    ""Place"",
-                    ""Region"",
-                    ""Country"",
-                    MIN(""Timestamp"") as ""FirstVisit"",
-                    MAX(""Timestamp"") as ""LastVisit"",
-                    COUNT(*)::integer as ""VisitCount"",
-                    MAX(""Timestamp"") as ""MostRecentVisit""
-                FROM ""Locations""
-                WHERE ""UserId"" = {0} AND ""Place"" IS NOT NULL AND ""Place"" != ''
-                GROUP BY ""Place"", ""Region"", ""Country""
-            )
-            SELECT
-                cl.""Place"",
-                cl.""Region"",
-                cl.""Country"",
-                cl.""FirstVisit"",
-                cl.""LastVisit"",
-                cl.""VisitCount"",
-                ST_X(l.""Coordinates""::geometry) as ""RepLongitude"",
-                ST_Y(l.""Coordinates""::geometry) as ""RepLatitude""
-            FROM CityLatest cl
-            INNER JOIN ""Locations"" l ON
-                l.""UserId"" = {0} AND
-                l.""Place"" = cl.""Place"" AND
-                COALESCE(l.""Region"", '') = COALESCE(cl.""Region"", '') AND
-                COALESCE(l.""Country"", '') = COALESCE(cl.""Country"", '') AND
-                l.""Timestamp"" = cl.""MostRecentVisit""
-        ", userId).ToListAsync();
+        // The full partition aggregates all visits; DISTINCT ON selects exactly one coordinate row.
+        var cityGroupsSql = await _db.Database.SqlQuery<CityGroupResult>(FormattableStringFactory.Create(scope + """
 
+            SELECT DISTINCT ON ("Country", "Region", "Place") "Country", "Region", "Place",
+                MIN("VisitTime") OVER membership AS "FirstVisit",
+                MAX("VisitTime") OVER membership AS "LastVisit",
+                (COUNT(*) OVER membership)::integer AS "VisitCount",
+                ST_X("Coordinates"::geometry) AS "RepLongitude",
+                ST_Y("Coordinates"::geometry) AS "RepLatitude"
+            FROM scoped WHERE "Place" <> ''
+            WINDOW membership AS (PARTITION BY "Country", "Region", "Place")
+            ORDER BY "Country", "Region", "Place", "VisitTime" DESC, "Id" DESC
+            """, parameters)).ToListAsync();
         var cities = cityGroupsSql
             .Select(c => new CityVisitDetail
             {
@@ -210,13 +161,10 @@ public class LocationStatsService : ILocationStatsService
                 VisitCount = c.VisitCount,
                 Coordinates = new NetTopologySuite.Geometries.Point(c.RepLongitude, c.RepLatitude) { SRID = 4326 }
             })
-            .OrderBy(c => c.CountryName)
-            .ThenBy(c => c.RegionName)
-            .ThenBy(c => c.Name)
+            .OrderBy(c => c.CountryName, StringComparer.Ordinal)
+            .ThenBy(c => c.RegionName, StringComparer.Ordinal)
+            .ThenBy(c => c.Name, StringComparer.Ordinal)
             .ToList();
-
-        var fromDate = await userLocations.MinAsync(l => (DateTime?)l.Timestamp);
-        var toDate = await userLocations.MaxAsync(l => (DateTime?)l.Timestamp);
 
         return new UserLocationStatsDetailedDto
         {
@@ -224,8 +172,8 @@ public class LocationStatsService : ILocationStatsService
             Countries = countries,
             Regions = regions,
             Cities = cities,
-            FromDate = fromDate,
-            ToDate = toDate
+            FromDate = summary.FromDate,
+            ToDate = summary.ToDate
         };
     }
 
@@ -271,145 +219,4 @@ public class LocationStatsService : ILocationStatsService
         public double RepLatitude { get; set; }
     }
 
-    /// <summary>
-    /// Gets detailed statistics for a specific date range including country details, regions, and cities
-    /// </summary>
-    /// <param name="userId">User ID</param>
-    /// <param name="startDate">Start date (UTC)</param>
-    /// <param name="endDate">End date (UTC)</param>
-    /// <returns>Detailed statistics for the date range with arrays of country names, regions, and cities</returns>
-    public async Task<UserLocationStatsDetailedDto> GetDetailedStatsForDateRangeAsync(string userId, DateTime startDate, DateTime endDate)
-    {
-        var userLocations = _db.Locations.Where(l => l.UserId == userId
-                                                      && l.LocalTimestamp >= startDate
-                                                      && l.LocalTimestamp <= endDate);
-
-        var totalLocations = await userLocations.CountAsync();
-
-        // OPTIMIZED: Get country details with coordinate averages calculated in database using PostGIS
-        var countryGroupsSql = await _db.Database.SqlQueryRaw<CountryGroupResult>(@"
-            SELECT
-                ""Country"",
-                MIN(""LocalTimestamp"") as ""FirstVisit"",
-                MAX(""LocalTimestamp"") as ""LastVisit"",
-                COUNT(*)::integer as ""VisitCount"",
-                AVG(ST_X(""Coordinates""::geometry)) as ""AvgLongitude"",
-                AVG(ST_Y(""Coordinates""::geometry)) as ""AvgLatitude""
-            FROM ""Locations""
-            WHERE ""UserId"" = {0} AND ""Country"" IS NOT NULL AND ""Country"" != ''
-                AND ""LocalTimestamp"" >= {1} AND ""LocalTimestamp"" <= {2}
-            GROUP BY ""Country""
-        ", userId, startDate, endDate).ToListAsync();
-
-        // Detect home country: country with >40% of total visits or significantly more than average
-        var averageVisitCount = countryGroupsSql.Any() ? countryGroupsSql.Average(c => c.VisitCount) : 0;
-        var homeCountryThreshold = Math.Max(totalLocations * 0.4, averageVisitCount * 3);
-
-        var countries = countryGroupsSql
-            .Select(c => new CountryVisitDetail
-            {
-                Name = c.Country ?? string.Empty,
-                FirstVisit = c.FirstVisit,
-                LastVisit = c.LastVisit,
-                VisitCount = c.VisitCount,
-                IsHomeCountry = c.VisitCount >= homeCountryThreshold,
-                Coordinates = new NetTopologySuite.Geometries.Point(c.AvgLongitude, c.AvgLatitude) { SRID = 4326 }
-            })
-            .OrderByDescending(c => c.IsHomeCountry)
-            .ThenByDescending(c => c.VisitCount)
-            .ToList();
-
-        // OPTIMIZED: Get region details with coordinate averages calculated in database using PostGIS
-        var regionGroupsSql = await _db.Database.SqlQueryRaw<RegionGroupResult>(@"
-            SELECT
-                ""Region"",
-                ""Country"",
-                MIN(""LocalTimestamp"") as ""FirstVisit"",
-                MAX(""LocalTimestamp"") as ""LastVisit"",
-                COUNT(*)::integer as ""VisitCount"",
-                AVG(ST_X(""Coordinates""::geometry)) as ""AvgLongitude"",
-                AVG(ST_Y(""Coordinates""::geometry)) as ""AvgLatitude""
-            FROM ""Locations""
-            WHERE ""UserId"" = {0} AND ""Region"" IS NOT NULL AND ""Region"" != ''
-                AND ""LocalTimestamp"" >= {1} AND ""LocalTimestamp"" <= {2}
-            GROUP BY ""Region"", ""Country""
-        ", userId, startDate, endDate).ToListAsync();
-
-        var regions = regionGroupsSql
-            .Select(r => new RegionVisitDetail
-            {
-                Name = r.Region ?? string.Empty,
-                CountryName = r.Country ?? string.Empty,
-                FirstVisit = r.FirstVisit,
-                LastVisit = r.LastVisit,
-                VisitCount = r.VisitCount,
-                Coordinates = new NetTopologySuite.Geometries.Point(r.AvgLongitude, r.AvgLatitude) { SRID = 4326 }
-            })
-            .OrderBy(r => r.CountryName)
-            .ThenBy(r => r.Name)
-            .ToList();
-
-        // OPTIMIZED: Get city details with representative coordinate (from most recent visit)
-        var cityGroupsSql = await _db.Database.SqlQueryRaw<CityGroupResult>(@"
-            WITH CityLatest AS (
-                SELECT
-                    ""Place"",
-                    ""Region"",
-                    ""Country"",
-                    MIN(""LocalTimestamp"") as ""FirstVisit"",
-                    MAX(""LocalTimestamp"") as ""LastVisit"",
-                    COUNT(*)::integer as ""VisitCount"",
-                    MAX(""LocalTimestamp"") as ""MostRecentVisit""
-                FROM ""Locations""
-                WHERE ""UserId"" = {0} AND ""Place"" IS NOT NULL AND ""Place"" != ''
-                    AND ""LocalTimestamp"" >= {1} AND ""LocalTimestamp"" <= {2}
-                GROUP BY ""Place"", ""Region"", ""Country""
-            )
-            SELECT
-                cl.""Place"",
-                cl.""Region"",
-                cl.""Country"",
-                cl.""FirstVisit"",
-                cl.""LastVisit"",
-                cl.""VisitCount"",
-                ST_X(l.""Coordinates""::geometry) as ""RepLongitude"",
-                ST_Y(l.""Coordinates""::geometry) as ""RepLatitude""
-            FROM CityLatest cl
-            INNER JOIN ""Locations"" l ON
-                l.""UserId"" = {0} AND
-                l.""Place"" = cl.""Place"" AND
-                COALESCE(l.""Region"", '') = COALESCE(cl.""Region"", '') AND
-                COALESCE(l.""Country"", '') = COALESCE(cl.""Country"", '') AND
-                l.""LocalTimestamp"" = cl.""MostRecentVisit""
-        ", userId, startDate, endDate).ToListAsync();
-
-        var cities = cityGroupsSql
-            .Select(c => new CityVisitDetail
-            {
-                Name = c.Place ?? string.Empty,
-                RegionName = c.Region ?? string.Empty,
-                CountryName = c.Country ?? string.Empty,
-                FirstVisit = c.FirstVisit,
-                LastVisit = c.LastVisit,
-                VisitCount = c.VisitCount,
-                Coordinates = new NetTopologySuite.Geometries.Point(c.RepLongitude, c.RepLatitude) { SRID = 4326 }
-            })
-            .OrderBy(c => c.CountryName)
-            .ThenBy(c => c.RegionName)
-            .ThenBy(c => c.Name)
-            .ToList();
-
-        var fromDate = await userLocations.MinAsync(l => (DateTime?)l.LocalTimestamp);
-        var toDate = await userLocations.MaxAsync(l => (DateTime?)l.LocalTimestamp);
-
-        return new UserLocationStatsDetailedDto
-        {
-            TotalLocations = totalLocations,
-            Countries = countries,
-            Regions = regions,
-            Cities = cities,
-            FromDate = fromDate,
-            ToDate = toDate
-        };
-    }
 }

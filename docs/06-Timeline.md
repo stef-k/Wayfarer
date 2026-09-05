@@ -70,6 +70,52 @@ Location Search & Filters
 
 ![Timeline Statistics](images/private-timeline-statistics.JPG)
 
+### Statistics grouping
+
+Statistics use recorded Country, Region and Place labels at read time. Only outer
+ASCII space (U+0020) and U+0009–U+000D are trimmed; null and empty results are
+missing. Case, accents, Unicode composition, internal whitespace and punctuation
+remain significant. Countries group by country; regions by country and region;
+settlements by country, region and place. Missing parents are separate from named
+parents and are never inferred. Summary counts equal the corresponding detailed
+group counts; Total Locations includes every record in the selected scope.
+
+The single geographic correction maps **East Macedonia and Thrace** to
+**Eastern Macedonia and Thrace** only under the exact trimmed country **Greece**,
+regardless of provider, manual entry or import origin. Other countries and
+spellings remain unchanged. Sources checked 2026-09-05:
+
+- [European Commission demographic-observatory project](https://reforms-investments.ec.europa.eu/technical-support-instrument-0/labour-market-and-social-protection/supporting-greece-establish-demographic-observatory-through-evidence-based-tools_en)
+- [Region of Eastern Macedonia and Thrace official website](https://www.pamth.gov.gr/en/)
+- [European Commission JRC regional report](https://publications.jrc.ec.europa.eu/repository/handle/JRC100503)
+
+These sources support the English label variation, not the identity of individual
+stored records. Parent scoping may increase visited counts; this region correction
+may decrease them. The existing API contracts, including released Mobile counts,
+are unchanged. Original labels, retained provider address lines, FullAddress and
+feature metadata are not rewritten, and this correction adds no migration or
+provider requests.
+
+Both User Timeline statistics views show children without recorded parents under
+presentation-only **Country not recorded** and **Region not recorded** sections.
+These sections do not add geographic entities or visited counts. Existing map links
+still navigate to averaged country/region coordinates or one settlement visit.
+
+All-time visits use Timestamp; date windows use LocalTimestamp with inclusive
+bounds. Visits and dates aggregate across corrected membership. Coordinate-average
+inputs are ordered by Location ID. A settlement uses its latest relevant timestamp,
+then highest Location ID to break ties. Countries sort by home status, visit count,
+then ordinal name; regions and settlements sort by their ordinal parent/name tuples.
+The home-country threshold remains the maximum of 40% of all records and three times
+the mean recorded-country visit count.
+
+Statistics labels are not new search identifiers. Search, Bulk Edit Notes,
+cascading choices, preview and update membership retain their existing semantics.
+The string-only limitation remains: settlements with identical names and recorded
+parents cannot be distinguished, and other alternate labels may still split one
+entity. Historical Place/Region administrative ambiguity is not resolved.
+
+
 Bulk Edit Notes
 - From Locations > Bulk Edit Notes, you can search by filters and update notes for many records at once.
 

@@ -391,12 +391,14 @@ public partial class ApiLocationControllerTests : TestBase
         Assert.IsType<ForbidResult>(result);
     }
 
+    /// <summary>Statistics accept the authenticated principal without requiring a token header.</summary>
     [Fact]
-    public async Task GetStats_ReturnsUnauthorized_WhenNoToken()
+    public async Task GetStats_ReturnsStats_ForAuthenticatedPrincipalWithoutToken()
     {
         var db = CreateDbContext();
         var user = SeedUserWithToken(db, "tok");
-        var controller = BuildApiController(db, user, includeAuthHeader: false);
+        var controller = BuildApiController(db, user, includeAuthHeader: false,
+            statsService: new StubStatsService(new UserLocationStatsDto()));
 
         var result = await controller.GetStats();
 
