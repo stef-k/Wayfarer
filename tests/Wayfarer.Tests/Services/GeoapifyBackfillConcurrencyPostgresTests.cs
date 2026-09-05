@@ -138,12 +138,20 @@ public sealed partial class GeoapifyBackfillConcurrencyPostgresTests(PostgresImp
         Assert.Equal(1, result.Skipped);
     }
 
-    [PostgresFact(Timeout = 30_000)]
-    public async Task ExplicitIncompleteRepairFillsOnlyMissingFields()
+    [PostgresTheory(Timeout = 30_000)]
+    [InlineData(null)]
+    [InlineData("Retained independent line")]
+    public async Task ExplicitIncompleteRepairFillsOnlyMissingFields(string? retainedLine)
     {
         var user = await fixture.CreateUserAsync();
         var protection = new EphemeralDataProtectionProvider();
         await SeedIncompleteRepairAsync(user.Id, protection);
+        await using (var setup = fixture.CreateContext())
+        {
+            var existing = await setup.Locations.SingleAsync(item => item.UserId == user.Id);
+            existing.ProviderAddressLine1 = retainedLine;
+            await setup.SaveChangesAsync();
+        }
         var handler = new CoordinatedHandler(user.Id, null);
         var run = Service(protection, handler).RunAsync(user.Id);
         await handler.FirstUserRequestEntered.WaitAsync(TimeSpan.FromSeconds(10));
@@ -154,6 +162,7 @@ public sealed partial class GeoapifyBackfillConcurrencyPostgresTests(PostgresImp
         await using var verify = fixture.CreateContext();
         var saved = await verify.Locations.SingleAsync(item => item.UserId == user.Id);
         Assert.Equal(1, result.Succeeded);
+        Assert.Equal(retainedLine ?? "Address", saved.ProviderAddressLine1);
         Assert.Equal("Keep this address", saved.Address);
         Assert.Equal("Alexandroupolis", saved.Place);
         Assert.Equal("Greece", saved.Country);

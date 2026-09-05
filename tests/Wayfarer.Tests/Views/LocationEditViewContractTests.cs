@@ -121,7 +121,8 @@ public sealed class LocationEditViewContractTests(Xunit.Abstractions.ITestOutput
         Assert.Contains("col-12 col-md-6", source);
         Assert.Contains("expandAddress ? \"open\" : null", source);
         Assert.Contains("string.Join(\", \"", source);
-        Assert.Contains("resolved to local-area level", source);
+        Assert.Contains("data-address=\"@addressPresentation\"", source);
+        Assert.DoesNotContain("asp-for=\"ProviderAddressLine1\"", source);
         foreach (var field in new[] { "FullAddress", "Address", "StreetName", "AddressNumber",
                      "PostCode", "Place", "Region", "Country" })
             Assert.Contains($"asp-for=\"{field}\"", source);

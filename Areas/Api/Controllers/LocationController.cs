@@ -766,33 +766,10 @@ public class LocationController : BaseApiController
                 .FirstOrDefault()?.Id;
 
             // 4) project and flag using that Id
-            var result = locationList.Select(location => new PublicLocationDto
+            var result = locationList.Select(location =>
             {
-                Id = location.Id,
-                Timestamp = location.Timestamp,
-                LocalTimestamp = location.LocalTimestamp, // Already converted by LocationService
-                Coordinates = location.Coordinates,
-                Timezone = location.Timezone,
-                Accuracy = location.Accuracy,
-                Altitude = location.Altitude,
-                Speed = location.Speed,
-                LocationType = location.LocationType,
-                ActivityType = location.ActivityType,
-                Address = location.Address,
-                FullAddress = location.FullAddress,
-                StreetName = location.StreetName,
-                PostCode = location.PostCode,
-                Place = location.Place,
-                Region = location.Region,
-                Country = location.Country,
-                ResolvedFeatureName = location.ResolvedFeatureName,
-                ResolvedFeatureType = location.ResolvedFeatureType,
-                Notes = location.Notes,
-
-                // true if this was the most recent event in *absolute* time
-                IsLatestLocation = location.Id == latestLocationId,
-
-                LocationTimeThresholdMinutes = location.LocationTimeThresholdMinutes
+                location.IsLatestLocation = location.Id == latestLocationId;
+                return location;
             });
 
             return Ok(new
@@ -1027,6 +1004,7 @@ public class LocationController : BaseApiController
                 location.ReverseGeocodingProvider = null;
                 location.ReverseGeocodingStorageMode = null;
                 location.ReverseGeocodedAt = null;
+                location.ProviderAddressLine1 = null;
                 location.ResolvedFeatureName = null;
                 location.ResolvedFeatureType = null;
                 var enrichment = await _reverseGeocodingService.EnrichAsync(user.Id, location.Coordinates.Y,
@@ -1184,6 +1162,12 @@ public class LocationController : BaseApiController
                         l.Place,
                         l.Region,
                         l.FullAddress,
+                        l.ProviderAddressLine1,
+                        l.StreetName,
+                        l.ResolvedFeatureName,
+                        l.ResolvedFeatureType,
+                        IsGeoapifyAddress = Wayfarer.Services.LocationProviders.ResolvedFeatureMetadata.NormalizePersisted(null, null,
+                            l.ReverseGeocodingProvider, l.ReverseGeocodingStorageMode, l.ReverseGeocodedAt).Provider == "geoapify",
                         l.PostCode,
                         l.AddressNumber,
                         l.Notes,

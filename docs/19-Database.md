@@ -45,7 +45,13 @@ Represents a single GPS point in a user's timeline.
 | `Heading` | double? | Compass bearing (0-360) |
 | `Source` | string | Origin identifier (mobile, import, api) |
 | `Address`, `Country`, `Region`, `Place`, `PostCode` | string | Reverse-geocoded address fields |
-| `FullAddress` | string | Complete formatted address |
+| `FullAddress` | string? | Retained provider display text; may be feature-bearing or incomplete |
+| `ProviderAddressLine1` | string? (500 max) | Independently supplied Geoapify `address_line1`; null for new Mapbox results and unsynthesized historical rows |
+| `StreetName`, `AddressNumber` | string? | Supplied street and house number; ranges and leading zeroes remain strings |
+
+For new Geoapify writes, `Address` is street followed by house number and is absent without street. `Place` is the first nonblank city, town or village; `Region` is state only. County, municipality and district never substitute for these levels. `FullAddress` keeps `formatted`, falling back to `address_line1`. Optional non-string scalars are absent, not coerced. Repair fills blanks without correcting nonempty historical values; recorded coordinates and capture metadata remain unchanged.
+
+The nullable provider line follows provider-metadata invalidation on manual address/coordinate edits and is not a posted editable field. Migration `20260905095140_AddLocationProviderAddressLine1` adds only this column; it performs no data correction.
 
 ---
 

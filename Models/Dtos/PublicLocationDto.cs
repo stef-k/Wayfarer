@@ -20,6 +20,12 @@ public class PublicLocationDto
     public int? ActivityTypeId { get; set; }
     public string? Address { get; set; }
     public string? FullAddress { get; set; }
+    /// <summary>Independent Geoapify display line; never synthesized from address components.</summary>
+    public string? ProviderAddressLine1 { get; set; }
+    /// <summary>Retained house number, including ranges and leading zeroes.</summary>
+    public string? AddressNumber { get; set; }
+    /// <summary>Validated retained Geoapify claim for presentation; not verified capture origin.</summary>
+    public bool IsGeoapifyAddress { get; set; }
     public string? StreetName { get; set; }
     public string? PostCode { get; set; }
     public string? Place { get; set; }
@@ -35,4 +41,22 @@ public class PublicLocationDto
     public bool IsLatestLocation { get; set; }
 
     public double LocationTimeThresholdMinutes { get; set; }
+    /// <summary>Copies the complete retained address contract for Location-only response projections.</summary>
+    public PublicLocationDto WithAddress(Location location)
+    {
+        Address = location.Address;
+        FullAddress = location.FullAddress;
+        ProviderAddressLine1 = location.ProviderAddressLine1;
+        AddressNumber = location.AddressNumber;
+        IsGeoapifyAddress = Services.LocationProviders.ResolvedFeatureMetadata.NormalizePersisted(null, null,
+            location.ReverseGeocodingProvider, location.ReverseGeocodingStorageMode, location.ReverseGeocodedAt).Provider == "geoapify";
+        StreetName = location.StreetName;
+        PostCode = location.PostCode;
+        Place = location.Place;
+        Region = location.Region;
+        Country = location.Country;
+        ResolvedFeatureName = location.ResolvedFeatureName;
+        ResolvedFeatureType = location.ResolvedFeatureType;
+        return this;
+    }
 }

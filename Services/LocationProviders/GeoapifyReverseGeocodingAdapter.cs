@@ -64,13 +64,14 @@ public sealed class GeoapifyReverseGeocodingAdapter(HttpClient httpClient)
         var street = Read(properties, "street");
         if (string.IsNullOrEmpty(formatted) && string.IsNullOrEmpty(line))
             return ReverseGeocodingResult.Failure(ReverseGeocodingCategory.InvalidResponse);
-        var address = line ?? Join(number, street) ?? formatted!;
+        // A street line never borrows provider display or feature text.
+        var address = street == null ? string.Empty : Join(number, street)!;
         return ReverseGeocodingResult.Success(new ReverseLocationResults
         {
-            FullAddress = formatted ?? line!, Address = address, AddressNumber = number ?? string.Empty,
+            FullAddress = formatted ?? line!, ProviderAddressLine1 = line, Address = address, AddressNumber = number ?? string.Empty,
             StreetName = street ?? string.Empty, PostCode = Read(properties, "postcode") ?? string.Empty,
-            Place = First(properties, "city", "town", "village", "municipality", "county"),
-            Region = First(properties, "state", "state_district", "county"),
+            Place = First(properties, "city", "town", "village"),
+            Region = Read(properties, "state"),
             Country = Read(properties, "country") ?? string.Empty,
             ResolvedFeatureName = ResolvedFeatureMetadata.NormalizeName(ReadOptionalString(properties, "name")),
             ResolvedFeatureType = ResolvedFeatureMetadata.NormalizeGeoapifyType(ReadOptionalString(properties, "result_type"))
@@ -93,5 +94,5 @@ public sealed class GeoapifyReverseGeocodingAdapter(HttpClient httpClient)
         names.Select(name => Read(properties, name)).FirstOrDefault(value => value != null);
 
     private static string? Join(string? number, string? street) => number == null ? street
-        : street == null ? number : $"{number} {street}";
+        : street == null ? number : $"{street} {number}";
 }

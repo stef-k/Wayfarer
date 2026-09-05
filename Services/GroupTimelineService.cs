@@ -249,19 +249,10 @@ public class GroupTimelineService : IGroupTimelineService
             LocationType = location.LocationType,
             ActivityType = location.ActivityType?.Name,
             ActivityTypeId = location.ActivityTypeId,
-            Address = location.Address,
-            FullAddress = location.FullAddress,
-            StreetName = location.StreetName,
-            PostCode = location.PostCode,
-            Place = location.Place,
-            Region = location.Region,
-            Country = location.Country,
-            ResolvedFeatureName = location.ResolvedFeatureName,
-            ResolvedFeatureType = location.ResolvedFeatureType,
             Notes = location.Notes,
             IsLatestLocation = true,
             LocationTimeThresholdMinutes = threshold
-        };
+        }.WithAddress(location);
     }
 
     private int ResolvePageSize(int? requestedPageSize)

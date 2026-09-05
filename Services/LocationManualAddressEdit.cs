@@ -29,6 +29,9 @@ public static class LocationManualAddressEdit
     public static void RestoreServerFields(AddLocationViewModel model, Location location)
     {
         // Submitted address values retain their original publication authority, including on redisplay.
+        model.ProviderAddressLine1 = location.ProviderAddressLine1;
+        model.IsGeoapifyAddress = LocationProviders.ResolvedFeatureMetadata.NormalizePersisted(null, null,
+            location.ReverseGeocodingProvider, location.ReverseGeocodingStorageMode, location.ReverseGeocodedAt).Provider == "geoapify";
         model.ResolvedFeatureName = location.ResolvedFeatureName;
         model.ResolvedFeatureType = location.ResolvedFeatureType;
         model.Source = location.Source;
@@ -72,6 +75,7 @@ public static class LocationManualAddressEdit
         location.ReverseGeocodingProvider = null;
         location.ReverseGeocodingStorageMode = null;
         location.ReverseGeocodedAt = null;
+        location.ProviderAddressLine1 = null;
         location.ResolvedFeatureName = null;
         location.ResolvedFeatureType = null;
     }

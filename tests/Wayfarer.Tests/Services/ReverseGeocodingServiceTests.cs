@@ -12,7 +12,7 @@ namespace Wayfarer.Tests.Services;
 /// <summary>
 /// Tests for <see cref="ReverseGeocodingService"/> covering Mapbox reverse geocoding.
 /// </summary>
-public class ReverseGeocodingServiceTests
+public class ReverseGeocodingServiceTests : Wayfarer.Tests.Infrastructure.TestBase
 {
     #region GetReverseGeocodingDataAsync Tests
 
@@ -112,6 +112,20 @@ public class ReverseGeocodingServiceTests
         Assert.Equal("10001", result.PostCode);
         Assert.Equal("New York", result.Region);
         Assert.Equal("United States", result.Country);
+        using var db = CreateDbContext();
+        var location = new Wayfarer.Models.Location
+        {
+            UserId = "mapbox-owner", TimeZoneId = "UTC", Coordinates = new NetTopologySuite.Geometries.Point(20, 10)
+        };
+        Assert.True(ReverseGeocodingResult.Success(result).ApplyTo(location, DateTimeOffset.UtcNow));
+        db.Locations.Add(location);
+        await db.SaveChangesAsync();
+        db.ChangeTracker.Clear();
+        var saved = db.Locations.Single();
+        Assert.Equal(("Broadway", "123 Broadway, New York, NY 10001, USA", "123", "Broadway", "New York", "10001", "New York", "United States"),
+            (saved.Address, saved.FullAddress, saved.AddressNumber, saved.StreetName, saved.Place, saved.PostCode, saved.Region, saved.Country));
+        Assert.Null(saved.ProviderAddressLine1);
+        Assert.Equal(("mapbox", "permanent"), (saved.ReverseGeocodingProvider, saved.ReverseGeocodingStorageMode));
     }
 
     [Fact]

@@ -27,12 +27,17 @@ public sealed class LocationEnrichmentProgressQueryPostgresTests(PostgresImportT
             Partial(user.Id, null, null, null),
             Partial(user.Id, "mapbox", "permanent", now),
             Partial(user.Id, "geoapify", "persistent", now, place: "Alexandroupolis"));
+        // An imported independent provider line is retained data even without other address strings.
+        var lineOnly = Partial(user.Id, "geoapify", "persistent", now, addressNumberOnly: true);
+        lineOnly.AddressNumber = null;
+        lineOnly.ProviderAddressLine1 = "Imported provider text";
+        db.Locations.Add(lineOnly);
         await db.SaveChangesAsync();
 
         var result = await new LocationEnrichmentProgressQuery(db)
             .ProjectAsync(user.Id, Binding(), DateTime.UtcNow);
 
-        Assert.Equal(1, result.IncompleteProviderAddresses);
+        Assert.Equal(2, result.IncompleteProviderAddresses);
         Assert.Equal(0, result.RepairsWithoutLocality);
     }
 

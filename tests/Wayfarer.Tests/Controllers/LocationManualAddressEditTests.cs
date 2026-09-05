@@ -40,6 +40,7 @@ public sealed class LocationManualAddressEditTests : TestBase
         Assert.Null(saved.ReverseGeocodingProvider);
         Assert.Null(saved.ReverseGeocodingStorageMode);
         Assert.Null(saved.ReverseGeocodedAt);
+        Assert.Null(saved.ProviderAddressLine1);
         Assert.Null(saved.ResolvedFeatureName);
         Assert.Null(saved.ResolvedFeatureType);
         Assert.Equal(0, handler.RequestCount);
@@ -77,6 +78,7 @@ public sealed class LocationManualAddressEditTests : TestBase
         var saved = await scenario.Db.Locations.SingleAsync(item => item.Id == scenario.Location.Id);
         Assert.Equal("geoapify", saved.ReverseGeocodingProvider);
         Assert.Equal("persistent", saved.ReverseGeocodingStorageMode);
+        Assert.Equal("Independent provider line", saved.ProviderAddressLine1);
         Assert.Equal(scenario.Location.ReverseGeocodedAt, saved.ReverseGeocodedAt);
     }
 
@@ -130,9 +132,11 @@ public sealed class LocationManualAddressEditTests : TestBase
         posted["Id"] = original.Id.ToString();
         posted["LocalTimestamp"] = original.LocalTimestamp.ToString("O");
         posted["Address"] = "  Submitted address  ";
+        posted["ProviderAddressLine1"] = "forged provider line";
         posted["SelectedActivityId"] = "not-an-id";
         var (model, state) = await Wayfarer.Tests.Views.LocationEditViewContractTests.BindAsync(posted);
         Assert.False(state.IsValid);
+        Assert.Null(model.ProviderAddressLine1);
         var newerAt = original.OriginalReverseGeocodedAt!.Value.AddTicks(10);
         if (publishBeforeRedisplay) await PublishAsync();
         var handler = new CountingHandler();
@@ -142,6 +146,8 @@ public sealed class LocationManualAddressEditTests : TestBase
         var returned = Assert.IsType<AddLocationViewModel>(result.Model);
         Assert.Equal(original.OriginalReverseGeocodedAt, returned.OriginalReverseGeocodedAt);
         Assert.Equal("  Submitted address  ", returned.Address);
+        Assert.Equal("Independent provider line", returned.ProviderAddressLine1);
+        Assert.True(returned.IsGeoapifyAddress);
         Assert.Equal(publishBeforeRedisplay ? "New feature" : "Old feature", returned.ResolvedFeatureName);
         Assert.Equal("warning", controller.TempData["AlertType"]);
         Assert.True((bool)controller.ViewData["ExpandAddressDetails"]!);
@@ -165,6 +171,7 @@ public sealed class LocationManualAddressEditTests : TestBase
         var saved = await scenario.Db.Locations.SingleAsync(item => item.Id == original.Id);
         var stale = publishBeforeRedisplay || publishBeforeCorrection;
         Assert.Equal(stale ? "New publication" : "Submitted address", saved.Address);
+        Assert.Equal(stale ? "Independent provider line" : null, saved.ProviderAddressLine1);
         Assert.Equal(stale ? newerAt : (DateTimeOffset?)null, saved.ReverseGeocodedAt);
         Assert.Contains(stale ? "Address details changed" : "Location updated successfully",
             string.Join(" ", correction.TempData.Values));
@@ -178,6 +185,7 @@ public sealed class LocationManualAddressEditTests : TestBase
         async Task PublishAsync()
         {
             scenario.Location.Address = "New publication";
+            scenario.Location.ProviderAddressLine1 = "Independent provider line";
             scenario.Location.ResolvedFeatureName = "New feature";
             scenario.Location.ReverseGeocodedAt = newerAt;
             await scenario.Db.SaveChangesAsync();
@@ -194,7 +202,7 @@ public sealed class LocationManualAddressEditTests : TestBase
             Timestamp = DateTime.UtcNow, LocalTimestamp = DateTime.UtcNow, TimeZoneId = "UTC",
             Address = "Old line", Place = "Old city", Region = "Evros", Country = "Greece",
             ReverseGeocodingProvider = "geoapify", ReverseGeocodingStorageMode = "persistent",
-            ReverseGeocodedAt = DateTimeOffset.UtcNow.AddHours(-1), ResolvedFeatureName = "Old feature",
+            ReverseGeocodedAt = DateTimeOffset.UtcNow.AddHours(-1), ProviderAddressLine1 = "Independent provider line", ResolvedFeatureName = "Old feature",
             ResolvedFeatureType = "amenity"
         };
         db.AddRange(user, location);
