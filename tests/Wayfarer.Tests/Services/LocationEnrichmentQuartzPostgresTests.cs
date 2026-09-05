@@ -20,6 +20,7 @@ namespace Wayfarer.Tests.Services;
 [Collection(PostgresEnvironmentEvidenceTestCollection.Name)]
 public sealed class LocationEnrichmentQuartzPostgresTests(PostgresImportTestFixture fixture)
 {
+    /// <summary>Recovers a failed projection across persistent restarts without touching another owner.</summary>
     [PostgresFact(Timeout = 30_000)]
     public async Task RetryProjectionFailureReconcilesOnceAndDoesNotReplayAfterRestart()
     {
@@ -33,6 +34,8 @@ public sealed class LocationEnrichmentQuartzPostgresTests(PostgresImportTestFixt
         IScheduler? restarted = null;
         IScheduler? reconstructed = null;
         ApplicationUser? user = null;
+        ApplicationUser? unrelated = null;
+        string? unrelatedSnapshot = null;
         Exception? primary = null;
         var schedulerName = $"Wayfarer507-{Guid.NewGuid():N}";
         try
@@ -42,13 +45,17 @@ public sealed class LocationEnrichmentQuartzPostgresTests(PostgresImportTestFixt
             var builder = new NpgsqlConnectionStringBuilder(persistedConnectionString) { SearchPath = schema };
             first = await new StdSchedulerFactory(Properties(builder.ConnectionString, schedulerName)).GetScheduler();
             user = await fixture.CreateUserAsync();
+            var contextFactory = new FixtureFactory(fixture, user.Id);
+            unrelated = await fixture.CreateUserAsync();
+            await SeedUnrelatedRecoveryAsync(unrelated.Id);
+            unrelatedSnapshot = await ReadRecoverySnapshotAsync(unrelated.Id);
             var now = DateTime.UtcNow;
             var profileId = Guid.NewGuid();
             var workflow = LocationEnrichmentWorkflow.Create(user.Id, now);
             workflow.Start(now);
             workflow.TransitionToTerminal(LocationEnrichmentState.Completed,
                 LocationEnrichmentOutcome.NoCandidates, now);
-            await using (var domain = fixture.CreateContext())
+            await using (var domain = contextFactory.CreateDbContext())
             {
                 var location = new Wayfarer.Models.Location
                 {
@@ -88,13 +95,13 @@ public sealed class LocationEnrichmentQuartzPostgresTests(PostgresImportTestFixt
             var failedProjection = new Mock<IWorkflowScheduleProjection>();
             failedProjection.Setup(item => item.ProjectAsync(user.Id, It.IsAny<CancellationToken>()))
                 .ThrowsAsync(new InvalidOperationException("forced initial projection failure"));
-            await using (var commandDb = fixture.CreateContext())
+            await using (var commandDb = contextFactory.CreateDbContext())
             {
                 var result = await new ImportEnrichmentHandoff(commandDb, failedProjection.Object,
                     inspection.Object, new LocationEnrichmentProgressQuery(commandDb)).RetryDeferredAsync(user.Id);
                 Assert.Equal(LocationEnrichmentCommandResult.SchedulingPending, result.Classification);
             }
-            await using (var verify = fixture.CreateContext())
+            await using (var verify = contextFactory.CreateDbContext())
             {
                 var committed = await verify.LocationEnrichmentWorkflows.AsNoTracking()
                     .SingleAsync(item => item.UserId == user.Id);
@@ -112,9 +119,9 @@ public sealed class LocationEnrichmentQuartzPostgresTests(PostgresImportTestFixt
             await first.Shutdown(false);
 
             restarted = await new StdSchedulerFactory(Properties(builder.ConnectionString, schedulerName)).GetScheduler();
-            var contextFactory = new FixtureFactory(fixture);
             await new LocationEnrichmentReconciler(contextFactory,
                 new LocationEnrichmentScheduler(restarted), restarted).ReconcileAsync();
+            Assert.Equal(unrelatedSnapshot, await ReadRecoverySnapshotAsync(unrelated.Id));
             Assert.Single(await restarted.GetJobKeys(
                 Quartz.Impl.Matchers.GroupMatcher<JobKey>.GroupEquals(LocationEnrichmentScheduler.Group)));
             Assert.Single(await restarted.GetTriggerKeys(
@@ -138,7 +145,7 @@ public sealed class LocationEnrichmentQuartzPostgresTests(PostgresImportTestFixt
             worker.Setup(item => item.RunBatchAsync(user.Id, 2, It.IsAny<CancellationToken>()))
                 .ReturnsAsync(() => { Interlocked.Increment(ref executions); fired.TrySetResult();
                     return LocationEnrichmentWorkerOutcome.Completed; });
-            restarted.JobFactory = new ProductionJobFactory(fixture, worker.Object);
+            restarted.JobFactory = new ProductionJobFactory(fixture, worker.Object, contextFactory.CreateDbContext);
             await restarted.Start();
             Assert.Same(fired.Task, await Task.WhenAny(fired.Task, Task.Delay(TimeSpan.FromSeconds(10))));
             Assert.Equal(1, executions);
@@ -152,7 +159,7 @@ public sealed class LocationEnrichmentQuartzPostgresTests(PostgresImportTestFixt
             var replayWorker = new Mock<ILocationEnrichmentWorker>();
             replayWorker.Setup(item => item.RunBatchAsync(It.IsAny<string>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(() => { replayed.TrySetResult(); return LocationEnrichmentWorkerOutcome.Completed; });
-            reconstructed.JobFactory = new ProductionJobFactory(fixture, replayWorker.Object);
+            reconstructed.JobFactory = new ProductionJobFactory(fixture, replayWorker.Object, contextFactory.CreateDbContext);
             await reconstructed.Start();
             Assert.NotSame(replayed.Task, await Task.WhenAny(replayed.Task, Task.Delay(TimeSpan.FromSeconds(2))));
             replayWorker.Verify(item => item.RunBatchAsync(It.IsAny<string>(), It.IsAny<int>(),
@@ -163,7 +170,7 @@ public sealed class LocationEnrichmentQuartzPostgresTests(PostgresImportTestFixt
                 Quartz.Impl.Matchers.GroupMatcher<TriggerKey>.GroupEquals(LocationEnrichmentScheduler.Group)));
             await reconstructed.Shutdown(true);
             Assert.Equal(1, executions);
-            await using var finalVerify = fixture.CreateContext();
+            await using var finalVerify = contextFactory.CreateDbContext();
             var finalWorkflow = await finalVerify.LocationEnrichmentWorkflows.AsNoTracking()
                 .SingleAsync(item => item.UserId == user.Id);
             var finalAttempt = await finalVerify.LocationEnrichmentAttempts.AsNoTracking()
@@ -178,15 +185,24 @@ public sealed class LocationEnrichmentQuartzPostgresTests(PostgresImportTestFixt
         }
         finally
         {
-            var cleanupScheduler = await new StdSchedulerFactory(Properties(
-                new NpgsqlConnectionStringBuilder(persistedConnectionString) { SearchPath = schema }.ConnectionString,
-                schedulerName)).GetScheduler();
+            IScheduler? cleanupScheduler = null;
             await FailureIndependentCleanup.CompleteAsync(primary,
             [
-                ("first scheduler shutdown", () => first?.Shutdown(false) ?? Task.CompletedTask),
-                ("restarted scheduler shutdown", () => restarted?.Shutdown(false) ?? Task.CompletedTask),
-                ("reconstructed scheduler shutdown", () => reconstructed?.Shutdown(false) ?? Task.CompletedTask),
-                ("Quartz projection cleanup", async () => { await cleanupScheduler.Clear(); await cleanupScheduler.Shutdown(true); }),
+                ("first scheduler shutdown", () => first?.Shutdown(true) ?? Task.CompletedTask),
+                ("restarted scheduler shutdown", () => restarted?.Shutdown(true) ?? Task.CompletedTask),
+                ("reconstructed scheduler shutdown", () => reconstructed?.Shutdown(true) ?? Task.CompletedTask),
+                // Quartz resolves schedulers by name: obtain the replacement only after every owner shuts down.
+                ("Quartz projection cleanup", async () =>
+                {
+                    Assert.All(new[] { first, restarted, reconstructed }.OfType<IScheduler>(),
+                        scheduler => Assert.True(scheduler.IsShutdown));
+                    cleanupScheduler = await new StdSchedulerFactory(Properties(
+                        new NpgsqlConnectionStringBuilder(persistedConnectionString) { SearchPath = schema }.ConnectionString,
+                        schedulerName)).GetScheduler();
+                    Assert.False(cleanupScheduler.IsShutdown);
+                    await cleanupScheduler.Clear();
+                }),
+                ("cleanup scheduler shutdown", () => cleanupScheduler?.Shutdown(true) ?? Task.CompletedTask),
                 ("first scheduler disposal", () => DisposeSchedulerAsync(first)),
                 ("restarted scheduler disposal", () => DisposeSchedulerAsync(restarted)),
                 ("reconstructed scheduler disposal", () => DisposeSchedulerAsync(reconstructed)),
@@ -198,6 +214,28 @@ public sealed class LocationEnrichmentQuartzPostgresTests(PostgresImportTestFixt
                     await cleanup.Users.Where(item => item.Id == user.Id).ExecuteDeleteAsync();
                     Assert.Equal(0, await cleanup.LocationEnrichmentWorkflows.CountAsync(item => item.UserId == user.Id));
                     Assert.Equal(0, await cleanup.LocationEnrichmentAttempts.CountAsync(item => item.UserId == user.Id));
+                    Assert.Equal(0, await cleanup.Locations.CountAsync(item => item.UserId == user.Id));
+                    Assert.False(await cleanup.Users.AnyAsync(item => item.Id == user.Id));
+                }),
+                ("unrelated state verification", async () =>
+                {
+                    if (unrelatedSnapshot is not null)
+                        Assert.Equal(unrelatedSnapshot, await ReadRecoverySnapshotAsync(unrelated!.Id));
+                }),
+                ("synthetic control cleanup", async () =>
+                {
+                    if (unrelated is null) return;
+                    await using var cleanup = fixture.CreateContext();
+                    await cleanup.Users.Where(item => item.Id == unrelated.Id).ExecuteDeleteAsync();
+                    Assert.Equal(0, await cleanup.LocationEnrichmentWorkflows.CountAsync(item => item.UserId == unrelated.Id));
+                    Assert.Equal(0, await cleanup.LocationEnrichmentAttempts.CountAsync(item => item.UserId == unrelated.Id));
+                    Assert.Equal(0, await cleanup.Locations.CountAsync(item => item.UserId == unrelated.Id));
+                    Assert.False(await cleanup.Users.AnyAsync(item => item.Id == unrelated.Id));
+                }),
+                ("scheduler registration verification", () =>
+                {
+                    Assert.Null(SchedulerRepository.Instance.Lookup(schedulerName));
+                    return Task.CompletedTask;
                 }),
                 ("Quartz residue verification", () => AssertQuartzResidueAsync(admin, schema)),
                 ("fixture schema removal", async () =>
@@ -210,6 +248,7 @@ public sealed class LocationEnrichmentQuartzPostgresTests(PostgresImportTestFixt
         }
     }
 
+    /// <summary>Rejects stale epoch delivery after persistent restarts and cleans up live scheduler owners.</summary>
     [PostgresFact(Timeout = 30_000)]
     public async Task OverdueStaleAuthorityFinalizesDurablyWithoutWorkerEntryAcrossRestarts()
     {
@@ -273,14 +312,22 @@ public sealed class LocationEnrichmentQuartzPostgresTests(PostgresImportTestFixt
         }
         finally
         {
-            var cleanupScheduler = await new StdSchedulerFactory(Properties(
-                new NpgsqlConnectionStringBuilder(persistedConnectionString) { SearchPath = schema }.ConnectionString,
-                schedulerName)).GetScheduler();
+            IScheduler? cleanupScheduler = null;
             var cleanupSteps = schedulers.Select((current, index) =>
-                ($"scheduler {index} shutdown", (Func<Task>)(() => current.Shutdown(false)))).ToList();
+                ($"scheduler {index} shutdown", (Func<Task>)(() => current.Shutdown(true)))).ToList();
             cleanupSteps.AddRange(
             [
-                ("Quartz projection cleanup", async () => { await cleanupScheduler.Clear(); await cleanupScheduler.Shutdown(true); }),
+                // Quartz resolves schedulers by name: obtain the replacement only after every owner shuts down.
+                ("Quartz projection cleanup", async () =>
+                {
+                    Assert.All(schedulers, scheduler => Assert.True(scheduler.IsShutdown));
+                    cleanupScheduler = await new StdSchedulerFactory(Properties(
+                        new NpgsqlConnectionStringBuilder(persistedConnectionString) { SearchPath = schema }.ConnectionString,
+                        schedulerName)).GetScheduler();
+                    Assert.False(cleanupScheduler.IsShutdown);
+                    await cleanupScheduler.Clear();
+                }),
+                ("cleanup scheduler shutdown", () => cleanupScheduler?.Shutdown(true) ?? Task.CompletedTask),
                 .. schedulers.Select((current, index) =>
                     ($"scheduler {index} disposal", (Func<Task>)(() => DisposeSchedulerAsync(current)))),
                 ("cleanup scheduler disposal", () => DisposeSchedulerAsync(cleanupScheduler)),
@@ -291,6 +338,13 @@ public sealed class LocationEnrichmentQuartzPostgresTests(PostgresImportTestFixt
                     await cleanup.Users.Where(item => item.Id == user.Id).ExecuteDeleteAsync();
                     Assert.Equal(0, await cleanup.LocationEnrichmentWorkflows.CountAsync(item => item.UserId == user.Id));
                     Assert.Equal(0, await cleanup.LocationEnrichmentAttempts.CountAsync(item => item.UserId == user.Id));
+                    Assert.Equal(0, await cleanup.Locations.CountAsync(item => item.UserId == user.Id));
+                    Assert.False(await cleanup.Users.AnyAsync(item => item.Id == user.Id));
+                }),
+                ("scheduler registration verification", () =>
+                {
+                    Assert.Null(SchedulerRepository.Instance.Lookup(schedulerName));
+                    return Task.CompletedTask;
                 }),
                 ("Quartz residue verification", () => AssertQuartzResidueAsync(admin, schema)),
                 ("fixture schema removal", async () =>
@@ -304,14 +358,16 @@ public sealed class LocationEnrichmentQuartzPostgresTests(PostgresImportTestFixt
         }
     }
 
-    internal sealed class ProductionJobFactory(PostgresImportTestFixture fixture, ILocationEnrichmentWorker worker)
+    /// <summary>Uses the caller's domain boundary for jobs; existing continuation callers retain their fixture context.</summary>
+    internal sealed class ProductionJobFactory(PostgresImportTestFixture fixture, ILocationEnrichmentWorker worker,
+        Func<ApplicationDbContext>? createContext = null)
         : IJobFactory
     {
         private readonly List<ApplicationDbContext> contexts = [];
 
         public IJob NewJob(TriggerFiredBundle bundle, IScheduler scheduler)
         {
-            var db = fixture.CreateContext();
+            var db = createContext is null ? fixture.CreateContext() : createContext();
             contexts.Add(db);
             return new LocationEnrichmentJob(db, worker);
         }
@@ -324,9 +380,70 @@ public sealed class LocationEnrichmentQuartzPostgresTests(PostgresImportTestFixt
     }
 
     /// <summary>Reconstructs relational owners independently of persisted scheduler instances.</summary>
-    private sealed class FixtureFactory(PostgresImportTestFixture fixture) : IDbContextFactory<ApplicationDbContext>
+    private sealed class FixtureFactory(PostgresImportTestFixture fixture, string userId) : IDbContextFactory<ApplicationDbContext>
     {
-        public ApplicationDbContext CreateDbContext() => fixture.CreateContext();
+        public ApplicationDbContext CreateDbContext() => fixture.CreateContext(
+            (options, services) => new OwnedRecoveryContext(options, services, userId));
+    }
+
+    /// <summary>Contains both recovery scans and all projection/job authority reads to this test's owner.</summary>
+    private sealed class OwnedRecoveryContext(DbContextOptions<ApplicationDbContext> options,
+        IServiceProvider services, string userId) : ApplicationDbContext(options, services)
+    {
+        // Context instance access keeps the owner parameterized when EF caches this model across runs.
+        private string OwnerId => userId;
+
+        protected override void OnModelCreating(ModelBuilder builder)
+        {
+            base.OnModelCreating(builder);
+            builder.Entity<LocationEnrichmentWorkflow>().HasQueryFilter(item => item.UserId == OwnerId);
+            builder.Entity<LocationEnrichmentAttempt>().HasQueryFilter(item => item.UserId == OwnerId);
+        }
+    }
+
+    /// <summary>Seeds independent, recovery-eligible state that an uncontained reconciler would mutate.</summary>
+    private async Task SeedUnrelatedRecoveryAsync(string userId)
+    {
+        var expired = DateTime.UtcNow.AddMinutes(-10);
+        var workflow = LocationEnrichmentWorkflow.Create(userId, expired);
+        workflow.Start(expired);
+        var lease = workflow.TryAcquireExecutionLease(expired, TimeSpan.FromMinutes(1))!.Value;
+        await using var db = fixture.CreateContext();
+        var location = new Wayfarer.Models.Location
+        {
+            UserId = userId, Timestamp = expired, LocalTimestamp = expired, TimeZoneId = "UTC",
+            Coordinates = new NetTopologySuite.Geometries.Point(23, 37) { SRID = 4326 }
+        };
+        db.AddRange(workflow, location);
+        await db.SaveChangesAsync();
+        db.Add(new LocationEnrichmentAttempt
+        {
+            UserId = userId, LocationId = location.Id, ProviderKey = "geoapify", ProviderProfileId = Guid.NewGuid(),
+            Capability = PersonalProviderCapability.Geocoding, CredentialGeneration = 1,
+            ConfigurationGeneration = 1, SelectionGeneration = 1, Verification = PersonalProviderVerification.Verified,
+            VerificationCredentialGeneration = 1, VerificationGeneration = 1, AdmittedAttemptCount = 1,
+            LastAttemptAtUtc = expired, NextAttemptAtUtc = lease.ExpiresAtUtc, OperationId = Guid.NewGuid(),
+            OperationLeaseId = lease.LeaseId, OperationFencingGeneration = lease.FencingGeneration,
+            OperationStartedAtUtc = expired, OperationWorkflowEpoch = lease.Epoch, OperationAttemptNumber = 1
+        });
+        await db.SaveChangesAsync();
+    }
+
+    /// <summary>Reads every persisted scalar from fresh, unfiltered contexts to detect recovery or cleanup mutations.</summary>
+    private async Task<string> ReadRecoverySnapshotAsync(string userId)
+    {
+        await using var db = fixture.CreateContext();
+        var workflow = await db.LocationEnrichmentWorkflows.SingleAsync(item => item.UserId == userId);
+        var attempt = await db.LocationEnrichmentAttempts.SingleAsync(item => item.UserId == userId);
+        var location = await db.Locations.SingleAsync(item => item.UserId == userId);
+        return System.Text.Json.JsonSerializer.Serialize(new object[] { workflow, attempt, location }
+            .Select(entity => db.Entry(entity).Properties.OrderBy(property => property.Metadata.Name)
+                .Select(property => new
+                {
+                    property.Metadata.Name,
+                    Value = property.CurrentValue is NetTopologySuite.Geometries.Geometry geometry
+                        ? $"{geometry.SRID}:{Convert.ToHexString(geometry.AsBinary())}" : property.CurrentValue
+                }).ToArray()));
     }
 
     private static NameValueCollection Properties(string connectionString, string schedulerName) => new()

@@ -261,6 +261,7 @@ Targets
 - Parsers: sample fixtures for GPX/KML/CSV/Wayfarer GeoJSON/Google JSON.
 - Services: `LocationImportService`, `TripExportService`, `ReverseGeocodingService` (mock external calls).
 - Resumable enrichment uses fake HTTP for outcomes, guarded PostgreSQL for admission/attempt fairness and ownership, and the real Quartz ADO store for restart/misfire/reconciliation. Never contact public providers; give concurrency tests explicit timeouts and avoid sleep-based scheduler assertions.
+- The persistent enrichment restart proof scopes every reconciliation and job context to its fixture-owned user, including workflow and attempt recovery; an isolated Quartz schema alone is insufficient. Its unrelated synthetic expired workflow/operation must remain unchanged through reconciliation and owner cleanup. Shut down existing schedulers before obtaining the same-name cleanup scheduler, run cleanup actions independently while preserving the primary failure, and verify owned domain rows, Quartz rows, scheduler registration, and schema removal. Never rerun an uncontained reconciler against shared domain state to reproduce retained evidence.
 - API: controller tests using `WebApplicationFactory` and in-memory DB or test containers.
 
 Guidelines
