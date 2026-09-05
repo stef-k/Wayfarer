@@ -55,14 +55,11 @@ public sealed class LocationEnrichmentWorker(
             workflow.ContinueAs(wake.HasValue ? LocationEnrichmentState.PausedByBudget : LocationEnrichmentState.Scheduled,
                 LocationEnrichmentOutcome.BudgetExhausted, wake ?? now, now);
         }
-        else if (result.Unavailable > 0)
-        {
-            var next = result.NextEligibleAt?.UtcDateTime ?? await db.LocationEnrichmentAttempts.Where(item => item.UserId == userId
-                    && item.Outcome == LocationEnrichmentOutcome.RetryableFailure)
-                .MinAsync(item => (DateTime?)item.NextAttemptAtUtc, cancellationToken) ?? now;
+        // The batch supplies a future wake only after its eligible runnable set is exhausted.
+        // Never select an unrelated, stale-authority, terminal, or operation-owned attempt here.
+        else if (result.NextEligibleAt?.UtcDateTime > now)
             workflow.ContinueAs(LocationEnrichmentState.BackingOff,
-                LocationEnrichmentOutcome.RetryableFailure, next, now);
-        }
+                LocationEnrichmentOutcome.RetryableFailure, result.NextEligibleAt.Value.UtcDateTime, now);
         else
             workflow.ContinueAs(LocationEnrichmentState.Scheduled, LocationEnrichmentOutcome.None, now, now);
         workflow.TryReleaseExecutionLease(owner.Value.LeaseId, owner.Value.FencingGeneration);

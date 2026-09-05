@@ -24,6 +24,7 @@
 ## Unreleased
 
 ### Fixed
+- Cancelled enrichment again offers explicit Retry and Repair actions. Prepared address repairs now appear in progress, resume automatically when transient backoff is due, and preserve replacement ownership after cancellation; locality-free outcomes are explained without automatic repeat contacts (#566).
 - Location address edits preserve exact publication timestamps and original concurrency authority after validation errors, preventing false conflicts and stale overwrites. Restored the native Address details disclosure indicator (#565).
 
 ## [1.9.7] - 2026-09-04

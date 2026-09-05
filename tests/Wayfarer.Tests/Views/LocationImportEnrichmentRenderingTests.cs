@@ -31,6 +31,10 @@ public sealed class LocationImportEnrichmentRenderingTests
         Assert.Contains("share Wayfarer's rolling pool", source);
         Assert.Contains("provider account is not visible", source);
         Assert.Contains("independent monthly meter", source);
+        Assert.Contains("@if (enrichment.RepairsWithoutLocality > 0)", source);
+        Assert.Contains("no automatic retry is scheduled for that outcome", source);
+        Assert.Contains("Incomplete addresses describe stored fields", source);
+        Assert.Contains("Awaiting recovery", source);
         Assert.Contains("yyyy-MM-dd HH:mm 'UTC'", source);
         Assert.DoesNotContain("ProtectedCredential", source);
         Assert.DoesNotContain("Coordinates", source);

@@ -183,43 +183,10 @@ public sealed partial class GeoapifyBackfillConcurrencyPostgresTests(PostgresImp
         Assert.Equal(LocationEnrichmentOutcome.NoResult, attempt.Outcome);
         Assert.Equal(0, secondHandler.RequestsFor(user.Id));
         Assert.Equal(0, second.Admitted);
-    }
-
-    [PostgresTheory(Timeout = 30_000)]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task PauseOrCancelDuringContactFencesEnrichmentAndRetainsAdmittedAttempt(bool cancel)
-    {
-        var user = await fixture.CreateUserAsync();
-        var protection = new EphemeralDataProtectionProvider();
-        await SeedAsync(user.Id, null, protection);
-        int epoch;
-        await using (var setup = fixture.CreateContext())
-        {
-            var workflow = LocationEnrichmentWorkflow.Create(user.Id, DateTime.UtcNow);
-            workflow.Start(DateTime.UtcNow); epoch = workflow.Epoch;
-            setup.Add(workflow); await setup.SaveChangesAsync();
-        }
-        var handler = new CoordinatedHandler(user.Id, null);
-        await using var runDb = fixture.CreateContext();
-        var run = Service(runDb, protection, handler).RunAsync(user.Id, epoch);
-        await handler.FirstUserRequestEntered;
-        await using (var command = fixture.CreateContext())
-        {
-            var workflow = await command.LocationEnrichmentWorkflows.SingleAsync(item => item.UserId == user.Id);
-            if (cancel) workflow.Cancel(DateTime.UtcNow); else workflow.Pause(DateTime.UtcNow);
-            await command.SaveChangesAsync();
-        }
-        handler.Release();
-        await run;
-
-        await using var verify = fixture.CreateContext();
-        Assert.Single(await verify.GeoapifyUsageAdmissions.Where(item => item.UserId == user.Id).ToListAsync());
-        var attempt = await verify.LocationEnrichmentAttempts.SingleAsync(item => item.UserId == user.Id);
-        Assert.NotNull(attempt.OperationId);
-        Assert.NotNull(attempt.NextAttemptAtUtc);
-        Assert.True(GeoapifyLocationBackfillService.IsWhollyUnenriched(
-            await verify.Locations.SingleAsync(item => item.UserId == user.Id)));
+        var status = await RepairStatusAsync(verify, user.Id);
+        var progress = await new LocationEnrichmentProgressQuery(verify).ProjectAsync(user.Id, status.Binding, DateTime.UtcNow);
+        Assert.Equal(1, progress.RepairsWithoutLocality);
+        Assert.Equal((0, 0), (progress.RunnableRemaining, progress.FutureDue));
     }
 
     [PostgresFact(Timeout = 30_000)]

@@ -76,12 +76,14 @@ public sealed partial class GeoapifyLocationBackfillService
             && attempt.AdmittedAttemptCount < 3
             && (!attempt.NextAttemptAtUtc.HasValue || attempt.NextAttemptAtUtc <= now));
 
-    private static IQueryable<LocationEnrichmentAttempt> FutureRetryQuery(ApplicationDbContext db,
+    /// <summary>Includes only unclaimed current-authority work, including explicitly prepared partial repairs.</summary>
+    internal static IQueryable<LocationEnrichmentAttempt> FutureRetryQuery(ApplicationDbContext db,
         string userId, EnrichmentAuthority authority, DateTime now) =>
         from attempt in db.LocationEnrichmentAttempts
         join location in WhollyUnenriched(db.Locations.Where(item => item.UserId == userId))
+            .Concat(IncompleteGeoapify(db.Locations.Where(item => item.UserId == userId)))
             on attempt.LocationId equals location.Id
-        where attempt.UserId == userId && attempt.ProviderKey == authority.ProviderKey
+        where attempt.UserId == userId && attempt.OperationId == null && attempt.ProviderKey == authority.ProviderKey
             && attempt.ProviderProfileId == authority.ProfileId && attempt.Capability == authority.Capability
             && attempt.CredentialGeneration == authority.CredentialGeneration
             && attempt.ConfigurationGeneration == authority.ConfigurationGeneration

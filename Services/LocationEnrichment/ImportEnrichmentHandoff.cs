@@ -254,7 +254,7 @@ public sealed class ImportEnrichmentHandoff(
 
     private static bool CanRetryDeferred(LocationEnrichmentWorkflow workflow) => workflow.State is
         LocationEnrichmentState.PausedByAuthority
-        or LocationEnrichmentState.Completed or LocationEnrichmentState.Failed;
+        or LocationEnrichmentState.Completed or LocationEnrichmentState.Failed or LocationEnrichmentState.Cancelled;
 
     private async Task<int> ResetTrackedAsync(IQueryable<LocationEnrichmentAttempt> eligible,
         PersonalProviderAuthorityBinding authority, DateTime now, CancellationToken cancellationToken)

@@ -36,6 +36,10 @@ public sealed class LocationEnrichmentOrphanInterleavingTests
         if (scenario == "exists-before-check")
             await CreateWorkflowAsync(options, services, schedulerId, "existing");
         var quartz = new Mock<IScheduler>();
+        // Model persisted trigger times as well as identities for the projection comparison.
+        var details = new Dictionary<TriggerKey, ITrigger>();
+        quartz.Setup(item => item.GetTrigger(It.IsAny<TriggerKey>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((TriggerKey key, CancellationToken _) => details.GetValueOrDefault(key));
         quartz.Setup(item => item.GetJobKeys(It.IsAny<GroupMatcher<JobKey>>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(() => jobs.ToHashSet());
         quartz.Setup(item => item.GetTriggerKeys(It.IsAny<GroupMatcher<TriggerKey>>(), It.IsAny<CancellationToken>()))
@@ -75,6 +79,7 @@ public sealed class LocationEnrichmentOrphanInterleavingTests
             .Returns<ITrigger, CancellationToken>(async (trigger, _) =>
             {
                 triggers.Add(trigger.Key);
+                details[trigger.Key] = trigger;
                 mutations++;
                 events.Add("repair-trigger");
                 if (scenario == "authority-changes-during-repair")

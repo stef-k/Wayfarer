@@ -88,7 +88,7 @@ public sealed class LocationEnrichmentRecoveryMatrixTests
             .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options;
         var now = DateTime.UtcNow;
         var workflow = LocationEnrichmentWorkflow.Create($"attempt-{expired}", now);
-        workflow.Start(now);
+        workflow.Start(now.AddMinutes(-3));
         var operationId = Guid.NewGuid();
         var leaseId = Guid.NewGuid();
         var attempt = new LocationEnrichmentAttempt
@@ -136,7 +136,7 @@ public sealed class LocationEnrichmentRecoveryMatrixTests
             .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options;
         var now = DateTime.UtcNow;
         var workflow = LocationEnrichmentWorkflow.Create("projection-failure", now);
-        workflow.Start(now);
+        workflow.Start(now.AddMinutes(-3));
         workflow.TryAcquireExecutionLease(now.AddMinutes(-2), TimeSpan.FromMinutes(1));
         await using (var seed = new ApplicationDbContext(options, services))
         { seed.Add(workflow); await seed.SaveChangesAsync(); }
@@ -166,7 +166,7 @@ public sealed class LocationEnrichmentRecoveryMatrixTests
     private static LocationEnrichmentWorkflow CreateWorkflow(string scenario, DateTime now)
     {
         var workflow = LocationEnrichmentWorkflow.Create($"matrix-{scenario}", now);
-        workflow.Start(now);
+        workflow.Start(now.AddMinutes(-3));
         workflow.RecordBatch(3, 1, 1, 1, 2, now);
         switch (scenario)
         {
@@ -196,6 +196,8 @@ public sealed class LocationEnrichmentRecoveryMatrixTests
 
         internal ProjectionScheduler(LocationEnrichmentWorkflow workflow, string scenario)
         {
+            // Retain trigger times so reconciliation can compare the actual projected wake.
+            var details = new Dictionary<TriggerKey, ITrigger>();
             var job = LocationEnrichmentScheduler.JobKey(workflow.SchedulerId);
             var current = LocationEnrichmentScheduler.TriggerKey(workflow.SchedulerId, workflow.Epoch);
             var stale = LocationEnrichmentScheduler.TriggerKey(workflow.SchedulerId, Math.Max(0, workflow.Epoch - 1));
@@ -203,6 +205,10 @@ public sealed class LocationEnrichmentRecoveryMatrixTests
             if (scenario is not ("missing-job" or "missing-trigger")) Triggers.Add(current);
             if (scenario is "stale-trigger") { Triggers.Remove(current); Triggers.Add(stale); }
             if (scenario is "duplicate-trigger") Triggers.Add(stale);
+            foreach (var key in Triggers)
+                details[key] = TriggerBuilder.Create().WithIdentity(key).StartAt(workflow.NextEligibleAtUtc ?? DateTime.UtcNow).Build();
+            Mock.Setup(item => item.GetTrigger(It.IsAny<TriggerKey>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync((TriggerKey key, CancellationToken _) => details.GetValueOrDefault(key));
             Mock.Setup(item => item.GetJobKeys(It.IsAny<GroupMatcher<JobKey>>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(() => Jobs.ToHashSet());
             Mock.Setup(item => item.GetTriggerKeys(It.IsAny<GroupMatcher<TriggerKey>>(), It.IsAny<CancellationToken>()))
@@ -213,7 +219,7 @@ public sealed class LocationEnrichmentRecoveryMatrixTests
                 .Returns(Task.CompletedTask);
             Mock.Setup(item => item.ScheduleJob(It.IsAny<ITrigger>(), It.IsAny<CancellationToken>()))
                 .Returns<ITrigger, CancellationToken>((trigger, _) =>
-                { Triggers.Add(trigger.Key); Mutations++; MutationLog.Add($"schedule:{trigger.Key}");
+                { Triggers.Add(trigger.Key); details[trigger.Key] = trigger; Mutations++; MutationLog.Add($"schedule:{trigger.Key}");
                     return Task.FromResult(DateTimeOffset.UtcNow); });
             Mock.Setup(item => item.UnscheduleJob(It.IsAny<TriggerKey>(), It.IsAny<CancellationToken>()))
                 .Returns<TriggerKey, CancellationToken>((key, _) =>

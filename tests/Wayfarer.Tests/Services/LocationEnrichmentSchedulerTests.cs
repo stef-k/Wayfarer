@@ -50,6 +50,9 @@ public sealed class LocationEnrichmentSchedulerTests
         var workflow = LocationEnrichmentWorkflow.Create("user", DateTime.UtcNow);
         workflow.Start(DateTime.UtcNow);
 
+        scheduler.Setup(item => item.GetTrigger(It.IsAny<TriggerKey>(), default))
+            .ReturnsAsync(TriggerBuilder.Create().StartAt(workflow.NextEligibleAtUtc!.Value).Build());
+
         await new LocationEnrichmentScheduler(scheduler.Object).EnsureScheduledAsync(workflow);
 
         scheduler.Verify(item => item.AddJob(It.IsAny<IJobDetail>(), It.IsAny<bool>(), default), Times.Never);
