@@ -11,7 +11,7 @@
 ### Upgrade notes
 - Additive migration `20260905095140_AddLocationProviderAddressLine1` adds a nullable 500-character Location field. Existing rows are not rewritten; repair remains fill-only. Mapbox mappings, Trip Place preference and released-Mobile `FullAddress` remain compatible.
 
-- This migration preserves existing rows and does not correct historical stored address values or mixed fields. The successful development migration reported for this session is local evidence only; production migration remains outstanding. Preserve PostgreSQL and its matching Data Protection key ring.
+- Apply this migration when upgrading. It preserves existing rows and does not correct historical stored address values or mixed fields. Preserve PostgreSQL and its matching Data Protection key ring.
 
 ## Unreleased
 
