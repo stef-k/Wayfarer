@@ -1,5 +1,18 @@
 # CHANGELOG
 
+## [1.9.9] - 2026-09-05
+
+### Fixed
+- Cancelled enrichment again offers explicit Retry and Repair actions. Prepared address repairs now appear in progress, resume automatically when transient backoff is due, and preserve replacement ownership after cancellation; locality-free outcomes are explained without automatic repeat contacts (#566).
+- Location address edits preserve exact publication timestamps and original concurrency authority after validation errors, preventing false conflicts and stale overwrites. Restored the native Address details disclosure indicator (#565).
+
+### Changed
+- Restored isolated PostgreSQL Quartz restart, recovery, and no-replay test coverage, including protection of unrelated workflow state and scheduler cleanup (#568).
+
+### Upgrade notes
+- No database migration was added since v1.9.8; the migration files and model snapshot are unchanged. Preserve PostgreSQL and the matching Data Protection key ring when upgrading.
+- These notes describe prepared release source, not a completed deployment. The original production enrichment inactivity has not been conclusively diagnosed.
+
 ## [1.9.8] - 2026-09-04
 
 ### Added
@@ -22,10 +35,6 @@
 - Manual changes to address fields clear provider attribution; unchanged addresses retain it. Changing coordinates clears old address fields unless explicitly changed in the same save.
 
 ## Unreleased
-
-### Fixed
-- Cancelled enrichment again offers explicit Retry and Repair actions. Prepared address repairs now appear in progress, resume automatically when transient backoff is due, and preserve replacement ownership after cancellation; locality-free outcomes are explained without automatic repeat contacts (#566).
-- Location address edits preserve exact publication timestamps and original concurrency authority after validation errors, preventing false conflicts and stale overwrites. Restored the native Address details disclosure indicator (#565).
 
 ## [1.9.7] - 2026-09-04
 
