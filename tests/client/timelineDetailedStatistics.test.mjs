@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import vm from 'node:vm';
+import { renderStatistics } from '../../wwwroot/js/Areas/User/Timeline/statistics.js';
 
 const timelineScripts = [
   'wwwroot/js/Areas/User/Timeline/Index.js',
@@ -25,7 +26,7 @@ const render = async (path, stats) => {
   const start = source.indexOf('const generateStatsModalContent =');
   const end = source.indexOf('\n};', start) + 3;
   return vm.runInNewContext(`${source.slice(start, end)}; generateStatsModalContent(stats, 'countries')`, {
-    stats, viewerTimeZone: 'UTC', formatDate: () => 'date',
+    stats, renderStatistics, viewerTimeZone: 'UTC', formatDate: () => 'date',
     formatDateDisplay: () => 'period', currentDate: new Date(), currentViewType: 'day'
   });
 };
@@ -55,6 +56,12 @@ test('both production renderers place missing parents once and encode geographic
       '&lt;img src=x onerror=&quot;boom&quot;&gt;', 'country-only-city', 'region-only-city', 'parentless-city']) {
       assert.equal(html.split(label).length - 1, 1, `${path}: ${label}`);
     }
+    const recordedCountry = html.slice(html.indexOf('id="country-heading-0"'), html.indexOf('id="country-heading-1"'));
+    const missingCountry = html.slice(html.indexOf('id="country-heading-1"'));
+    assert.ok(recordedCountry.includes('country-only-city') && !recordedCountry.includes('parentless-city'), path);
+    assert.ok(missingCountry.includes('orphan-region') && missingCountry.includes('region-only-city'), path);
+    const missingRegion = missingCountry.slice(missingCountry.indexOf('Region not recorded'));
+    assert.ok(missingRegion.includes('parentless-city') && !missingRegion.includes('region-only-city'), path);
     assert.ok(!html.includes('<img'), path);
     assert.ok(html.includes('Countries (1)'), path);
     assert.equal((html.match(/title="View on map"/g) ?? []).length, 7, path);

@@ -6,22 +6,18 @@ using Xunit;
 
 namespace Wayfarer.Tests.Services;
 
-/// <summary>
-/// Tests for <see cref="LocationStatsService"/> covering basic statistics calculations.
-/// Note: Detailed stats tests (GetDetailedStatsForUserAsync, GetDetailedStatsForDateRangeAsync)
-/// are skipped because they use raw SQL with PostGIS functions that require PostgreSQL.
-/// </summary>
-public class LocationStatsServiceTests : TestBase
+/// <summary>Preserves summary and date-boundary contracts against the PostgreSQL statistics projection.</summary>
+[Collection(PostgresImportTestCollection.Name)]
+public class LocationStatsServiceTests(PostgresImportTestFixture fixture)
 {
     #region GetStatsForUserAsync Tests
 
-    [Fact]
+    [PostgresFact]
     public async Task GetStatsForUserAsync_ReturnsZeroStats_ForUserWithNoLocations()
     {
         // Arrange
-        var db = CreateDbContext();
-        var user = TestDataFixtures.CreateUser();
-        db.Users.Add(user);
+        await using var db = fixture.CreateContext();
+        var user = await fixture.CreateUserAsync();
         await db.SaveChangesAsync();
 
         var service = new LocationStatsService(db);
@@ -38,13 +34,12 @@ public class LocationStatsServiceTests : TestBase
         Assert.Null(result.ToDate);
     }
 
-    [Fact]
+    [PostgresFact]
     public async Task GetStatsForUserAsync_CountsAllLocations()
     {
         // Arrange
-        var db = CreateDbContext();
-        var user = TestDataFixtures.CreateUser();
-        db.Users.Add(user);
+        await using var db = fixture.CreateContext();
+        var user = await fixture.CreateUserAsync();
 
         var locations = new[]
         {
@@ -64,13 +59,12 @@ public class LocationStatsServiceTests : TestBase
         Assert.Equal(3, result.TotalLocations);
     }
 
-    [Fact]
+    [PostgresFact]
     public async Task GetStatsForUserAsync_CountsDistinctCountries()
     {
         // Arrange
-        var db = CreateDbContext();
-        var user = TestDataFixtures.CreateUser();
-        db.Users.Add(user);
+        await using var db = fixture.CreateContext();
+        var user = await fixture.CreateUserAsync();
 
         var locations = new[]
         {
@@ -91,13 +85,12 @@ public class LocationStatsServiceTests : TestBase
         Assert.Equal(3, result.CountriesVisited); // USA, France, Germany
     }
 
-    [Fact]
+    [PostgresFact]
     public async Task GetStatsForUserAsync_CountsDistinctCities()
     {
         // Arrange
-        var db = CreateDbContext();
-        var user = TestDataFixtures.CreateUser();
-        db.Users.Add(user);
+        await using var db = fixture.CreateContext();
+        var user = await fixture.CreateUserAsync();
 
         var locations = new[]
         {
@@ -118,13 +111,12 @@ public class LocationStatsServiceTests : TestBase
         Assert.Equal(3, result.CitiesVisited); // New York, Los Angeles, Paris
     }
 
-    [Fact]
+    [PostgresFact]
     public async Task GetStatsForUserAsync_CountsDistinctRegions()
     {
         // Arrange
-        var db = CreateDbContext();
-        var user = TestDataFixtures.CreateUser();
-        db.Users.Add(user);
+        await using var db = fixture.CreateContext();
+        var user = await fixture.CreateUserAsync();
 
         var locations = new[]
         {
@@ -145,13 +137,12 @@ public class LocationStatsServiceTests : TestBase
         Assert.Equal(3, result.RegionsVisited); // NY, CA, Île-de-France
     }
 
-    [Fact]
+    [PostgresFact]
     public async Task GetStatsForUserAsync_ReturnsCorrectDateRange()
     {
         // Arrange
-        var db = CreateDbContext();
-        var user = TestDataFixtures.CreateUser();
-        db.Users.Add(user);
+        await using var db = fixture.CreateContext();
+        var user = await fixture.CreateUserAsync();
 
         var oldestDate = DateTime.UtcNow.AddDays(-30);
         var newestDate = DateTime.UtcNow;
@@ -177,13 +168,12 @@ public class LocationStatsServiceTests : TestBase
         Assert.Equal(newestDate, result.ToDate.Value, TimeSpan.FromSeconds(1));
     }
 
-    [Fact]
+    [PostgresFact]
     public async Task GetStatsForUserAsync_IgnoresNullCountries()
     {
         // Arrange
-        var db = CreateDbContext();
-        var user = TestDataFixtures.CreateUser();
-        db.Users.Add(user);
+        await using var db = fixture.CreateContext();
+        var user = await fixture.CreateUserAsync();
 
         var locations = new[]
         {
@@ -203,13 +193,12 @@ public class LocationStatsServiceTests : TestBase
         Assert.Equal(1, result.CountriesVisited); // only USA
     }
 
-    [Fact]
+    [PostgresFact]
     public async Task GetStatsForUserAsync_IgnoresEmptyStrings()
     {
         // Arrange
-        var db = CreateDbContext();
-        var user = TestDataFixtures.CreateUser();
-        db.Users.Add(user);
+        await using var db = fixture.CreateContext();
+        var user = await fixture.CreateUserAsync();
 
         var locations = new[]
         {
@@ -231,14 +220,13 @@ public class LocationStatsServiceTests : TestBase
         Assert.Equal(1, result.RegionsVisited);
     }
 
-    [Fact]
+    [PostgresFact]
     public async Task GetStatsForUserAsync_OnlyCountsUserOwnLocations()
     {
         // Arrange
-        var db = CreateDbContext();
-        var user1 = TestDataFixtures.CreateUser();
-        var user2 = TestDataFixtures.CreateUser();
-        db.Users.AddRange(user1, user2);
+        await using var db = fixture.CreateContext();
+        var user1 = await fixture.CreateUserAsync();
+        var user2 = await fixture.CreateUserAsync();
 
         var locations = new[]
         {
@@ -262,13 +250,12 @@ public class LocationStatsServiceTests : TestBase
 
     #region GetStatsForDateRangeAsync Tests
 
-    [Fact]
+    [PostgresFact]
     public async Task GetStatsForDateRangeAsync_FiltersToDateRange()
     {
         // Arrange
-        var db = CreateDbContext();
-        var user = TestDataFixtures.CreateUser();
-        db.Users.Add(user);
+        await using var db = fixture.CreateContext();
+        var user = await fixture.CreateUserAsync();
 
         var startDate = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc);
         var endDate = new DateTime(2024, 1, 31, 23, 59, 59, DateTimeKind.Utc);
@@ -293,13 +280,12 @@ public class LocationStatsServiceTests : TestBase
         Assert.Equal(2, result.CountriesVisited); // USA, France
     }
 
-    [Fact]
+    [PostgresFact]
     public async Task GetStatsForDateRangeAsync_ReturnsZeroForEmptyRange()
     {
         // Arrange
-        var db = CreateDbContext();
-        var user = TestDataFixtures.CreateUser();
-        db.Users.Add(user);
+        await using var db = fixture.CreateContext();
+        var user = await fixture.CreateUserAsync();
 
         var locations = new[]
         {
@@ -324,13 +310,12 @@ public class LocationStatsServiceTests : TestBase
         Assert.Null(result.ToDate);
     }
 
-    [Fact]
+    [PostgresFact]
     public async Task GetStatsForDateRangeAsync_IncludesEdgeDates()
     {
         // Arrange
-        var db = CreateDbContext();
-        var user = TestDataFixtures.CreateUser();
-        db.Users.Add(user);
+        await using var db = fixture.CreateContext();
+        var user = await fixture.CreateUserAsync();
 
         var startDate = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc);
         var endDate = new DateTime(2024, 1, 31, 23, 59, 59, DateTimeKind.Utc);
@@ -352,13 +337,12 @@ public class LocationStatsServiceTests : TestBase
         Assert.Equal(2, result.TotalLocations);
     }
 
-    [Fact]
+    [PostgresFact]
     public async Task GetStatsForDateRangeAsync_UsesLocalTimestamp()
     {
         // Arrange
-        var db = CreateDbContext();
-        var user = TestDataFixtures.CreateUser();
-        db.Users.Add(user);
+        await using var db = fixture.CreateContext();
+        var user = await fixture.CreateUserAsync();
 
         var startDate = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc);
         var endDate = new DateTime(2024, 1, 31, 23, 59, 59, DateTimeKind.Utc);
