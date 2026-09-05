@@ -38,7 +38,8 @@
                     <input type="hidden" asp-for="ReturnUrl" />
                     <input type="hidden" asp-for="OriginalReverseGeocodingProvider" />
                     <input type="hidden" asp-for="OriginalReverseGeocodingStorageMode" />
-                    <input type="hidden" asp-for="OriginalReverseGeocodedAt" />
+                    @* Preserve publication precision for the exact concurrency comparison. *@
+                    <input type="hidden" asp-for="OriginalReverseGeocodedAt" asp-format="{0:O}" />
                     <div asp-validation-summary="ModelOnly" class="text-danger"></div>
                     <div class="form-group row">
                         <label for="Latitude" class="col-sm-2 col-form-label">Latitude <span class="text-danger">*</span></label>
@@ -82,9 +83,12 @@
                     </div>
 
                     <details class="border rounded my-2" open="@(expandAddress ? "open" : null)">
-                        <summary class="p-2 d-flex flex-column gap-1" style="cursor: pointer; min-width: 0;">
-                            <span class="fw-semibold">Address details</span>
-                            <span class="small text-muted text-break">@addressSummary</span>
+                        @* Keep the native summary marker; layout belongs inside the disclosure control. *@
+                        <summary class="p-2" style="cursor: pointer;">
+                            <span class="d-inline-flex flex-column gap-1 align-top" style="max-width: calc(100% - 1.5rem); min-width: 0;">
+                                <span class="fw-semibold">Address details</span>
+                                <span class="small text-muted text-break">@addressSummary</span>
+                            </span>
                         </summary>
                         <div class="border-top p-2">
                             <div class="row g-2">

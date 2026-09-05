@@ -23,6 +23,9 @@
 
 ## Unreleased
 
+### Fixed
+- Location address edits preserve exact publication timestamps and original concurrency authority after validation errors, preventing false conflicts and stale overwrites. Restored the native Address details disclosure indicator (#565).
+
 ## [1.9.7] - 2026-09-04
 
 ### Fixed

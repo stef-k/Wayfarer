@@ -59,6 +59,41 @@ public sealed partial class GeoapifyBackfillConcurrencyPostgresTests
         Assert.NotEqual(staleForm.OriginalReverseGeocodedAt, saved.ReverseGeocodedAt);
     }
 
+    /// <summary>A provider-enriched manual edit commits normalized values visible from a fresh context.</summary>
+    [PostgresFact(Timeout = 30_000)]
+    public async Task ManualAddressCorrectionPersistsThroughFreshContext()
+    {
+        var user = await fixture.CreateUserAsync();
+        await SeedIncompleteRepairAsync(user.Id, new EphemeralDataProtectionProvider());
+        int id;
+        await using (var editDb = fixture.CreateContext())
+        {
+            var location = await editDb.Locations.SingleAsync(item => item.UserId == user.Id);
+            id = location.Id;
+            location.ReverseGeocodedAt = new DateTimeOffset(2026, 9, 4, 18, 12, 34, TimeSpan.Zero)
+                .AddTicks(1234560);
+            await editDb.SaveChangesAsync();
+            var model = new AddLocationViewModel
+            {
+                Id = id, Latitude = location.Coordinates.Y, Longitude = location.Coordinates.X,
+                LocalTimestamp = location.LocalTimestamp, Address = "  Corrected line  ",
+                Place = location.Place, Region = location.Region, Country = location.Country,
+                OriginalReverseGeocodingProvider = location.ReverseGeocodingProvider,
+                OriginalReverseGeocodingStorageMode = location.ReverseGeocodingStorageMode,
+                OriginalReverseGeocodedAt = location.ReverseGeocodedAt
+            };
+            Assert.IsType<RedirectToActionResult>(await Controller(editDb, user).Edit(model, null));
+        }
+        await using var verify = fixture.CreateContext();
+        var saved = await verify.Locations.SingleAsync(item => item.Id == id);
+        Assert.Equal("Corrected line", saved.Address);
+        Assert.Null(saved.ReverseGeocodingProvider);
+        Assert.Null(saved.ReverseGeocodingStorageMode);
+        Assert.Null(saved.ReverseGeocodedAt);
+        Assert.Null(saved.ResolvedFeatureName);
+        Assert.Null(saved.ResolvedFeatureType);
+    }
+
     private static Wayfarer.Areas.User.Controllers.LocationController Controller(
         ApplicationDbContext db, ApplicationUser user)
     {
