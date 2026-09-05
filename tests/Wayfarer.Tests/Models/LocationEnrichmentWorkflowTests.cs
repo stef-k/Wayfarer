@@ -99,4 +99,22 @@ public sealed class LocationEnrichmentWorkflowTests
         Assert.False(workflow.IntentEnabled);
         Assert.Equal(LocationEnrichmentState.Cancelled, workflow.State);
     }
+    /// <summary>Automatic waiting states acquire only at their durable deadline and retain their epoch.</summary>
+    [Theory]
+    [InlineData(LocationEnrichmentState.BackingOff)]
+    [InlineData(LocationEnrichmentState.PausedByBudget)]
+    public void AutomaticContinuationCannotAcquireBeforeDue(LocationEnrichmentState state)
+    {
+        var now = DateTime.UtcNow;
+        var workflow = LocationEnrichmentWorkflow.Create("due", now);
+        workflow.Start(now);
+        var epoch = workflow.Epoch;
+        workflow.ContinueAs(state, LocationEnrichmentOutcome.RetryableFailure, now.AddMinutes(5), now);
+        Assert.Null(workflow.TryAcquireExecutionLease(now, TimeSpan.FromSeconds(35)));
+        Assert.Equal(state, workflow.State);
+        var lease = workflow.TryAcquireExecutionLease(now.AddMinutes(5), TimeSpan.FromSeconds(35));
+        Assert.NotNull(lease);
+        Assert.Equal(epoch, lease.Value.Epoch);
+        Assert.Equal(LocationEnrichmentState.Running, workflow.State);
+    }
 }

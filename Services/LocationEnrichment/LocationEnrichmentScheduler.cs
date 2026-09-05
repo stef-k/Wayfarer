@@ -61,9 +61,13 @@ public sealed class LocationEnrichmentScheduler(IScheduler scheduler)
             await scheduler.UnscheduleJob(stale, cancellationToken);
             knownTriggerKeys?.Remove(stale);
         }
+        // Quartz stores milliseconds. Round up so persistence cannot move the wake before its authority deadline.
+        var wake = new DateTimeOffset(workflow.NextEligibleAtUtc ?? DateTime.UtcNow);
+        var scheduledAt = DateTimeOffset.FromUnixTimeMilliseconds(wake.ToUnixTimeMilliseconds());
+        if (scheduledAt < wake) scheduledAt = scheduledAt.AddMilliseconds(1);
         var trigger = TriggerBuilder.Create().WithIdentity(triggerKey).ForJob(jobKey)
             .UsingJobData("epoch", workflow.Epoch.ToString(System.Globalization.CultureInfo.InvariantCulture))
-            .StartAt(workflow.NextEligibleAtUtc ?? DateTime.UtcNow)
+            .StartAt(scheduledAt)
             .WithSimpleSchedule(schedule =>
             {
                 schedule.WithRepeatCount(0);

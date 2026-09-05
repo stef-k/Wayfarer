@@ -206,7 +206,8 @@ public sealed class LocationEnrichmentRecoveryMatrixTests
             if (scenario is "stale-trigger") { Triggers.Remove(current); Triggers.Add(stale); }
             if (scenario is "duplicate-trigger") Triggers.Add(stale);
             foreach (var key in Triggers)
-                details[key] = TriggerBuilder.Create().WithIdentity(key).StartAt(workflow.NextEligibleAtUtc ?? DateTime.UtcNow).Build();
+                details[key] = TriggerBuilder.Create().WithIdentity(key).StartAt(DateTimeOffset.FromUnixTimeMilliseconds(
+                    new DateTimeOffset(workflow.NextEligibleAtUtc ?? DateTime.UtcNow).ToUnixTimeMilliseconds() + 1)).Build();
             Mock.Setup(item => item.GetTrigger(It.IsAny<TriggerKey>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync((TriggerKey key, CancellationToken _) => details.GetValueOrDefault(key));
             Mock.Setup(item => item.GetJobKeys(It.IsAny<GroupMatcher<JobKey>>(), It.IsAny<CancellationToken>()))

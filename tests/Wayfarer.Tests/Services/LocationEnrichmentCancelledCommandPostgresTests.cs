@@ -71,4 +71,39 @@ public sealed partial class LocationEnrichmentRetryAtomicityPostgresTests
         scenario.Projection.Verify(x => x.ProjectAsync(scenario.UserId, It.IsAny<CancellationToken>()), Times.Once);
     }
 
+    /// <summary>Start consumes prepared work but never creates repair intent for an unprepared partial address.</summary>
+    [PostgresFact]
+    public async Task CancelledStartUsesPreparedRepairWithoutPreparingAnotherAddress()
+    {
+        var scenario = await SeedAsync(LocationEnrichmentState.Completed, LocationEnrichmentOutcome.NoResult);
+        var binding = (await scenario.Status.Object.InspectPersistentGeocodingAsync(scenario.UserId)).Binding!;
+        await using var db = fixture.CreateContext();
+        var workflow = await db.LocationEnrichmentWorkflows.SingleAsync(x => x.UserId == scenario.UserId);
+        workflow.Cancel(DateTime.UtcNow);
+        var epoch = workflow.Epoch;
+        var location = await db.Locations.SingleAsync(x => x.UserId == scenario.UserId
+            && !db.LocationEnrichmentAttempts.Any(a => a.LocationId == x.Id));
+        location.Address = "Preserve address";
+        location.ReverseGeocodingProvider = "geoapify";
+        location.ReverseGeocodingStorageMode = "persistent";
+        location.ReverseGeocodedAt = DateTimeOffset.UtcNow;
+        var prepared = new LocationEnrichmentAttempt { UserId = scenario.UserId, LocationId = location.Id };
+        prepared.PrepareRepair(binding, DateTime.UtcNow);
+        db.Add(prepared);
+        var user = await db.Users.SingleAsync(x => x.Id == scenario.UserId);
+        var unprepared = TestDataFixtures.CreateLocation(user);
+        unprepared.Address = "Unprepared address";
+        unprepared.ReverseGeocodingProvider = "geoapify";
+        unprepared.ReverseGeocodingStorageMode = "persistent";
+        unprepared.ReverseGeocodedAt = DateTimeOffset.UtcNow;
+        db.Add(unprepared);
+        await db.SaveChangesAsync();
+        Assert.Equal("scheduled", (await Command(scenario, db).StartAsync(scenario.UserId)).Code);
+        Assert.Equal(epoch + 1, workflow.Epoch);
+        Assert.True(workflow.IntentEnabled);
+        Assert.Equal(LocationEnrichmentState.Scheduled, workflow.State);
+        Assert.False(await db.LocationEnrichmentAttempts.AnyAsync(x => x.LocationId == unprepared.Id));
+        Assert.Equal(1, await db.LocationEnrichmentAttempts.CountAsync(x => x.UserId == scenario.UserId
+            && x.Outcome == LocationEnrichmentOutcome.NoResult));
+    }
 }

@@ -39,7 +39,7 @@ public sealed partial class GeoapifyBackfillConcurrencyPostgresTests
             var initial = await inspect.LocationEnrichmentWorkflows.AsNoTracking().SingleAsync(x => x.UserId == user.Id);
             var key = LocationEnrichmentScheduler.TriggerKey(initial.SchedulerId, initial.Epoch);
             var trigger = Assert.IsAssignableFrom<ISimpleTrigger>(await scheduler.GetTrigger(key));
-            Assert.Equal(initial.NextEligibleAtUtc, trigger.StartTimeUtc.UtcDateTime);
+            Assert.InRange(trigger.StartTimeUtc.UtcDateTime - initial.NextEligibleAtUtc!.Value, TimeSpan.Zero, TimeSpan.FromMilliseconds(1));
             Assert.Equal(0, trigger.RepeatCount);
             Assert.Equal(initial.Epoch, trigger.JobDataMap.GetInt("epoch"));
             var status = await RepairStatusAsync(inspect, user.Id);
@@ -49,7 +49,14 @@ public sealed partial class GeoapifyBackfillConcurrencyPostgresTests
             var failure = new CoordinatedHandler(user.Id, null, ContactOutcome.ProviderFailure);
             failure.Release();
             var worker = new LocationEnrichmentWorker(factory, new(factory), Service(protection, failure), projection);
-            await ExecuteRepairJobAsync(user.Id, initial, worker);
+            scheduler.JobFactory = new LocationEnrichmentQuartzPostgresTests.ProductionJobFactory(fixture, worker);
+            await scheduler.Start();
+            await LocationEnrichmentQuartzPostgresTests.WaitUntilAsync(async () =>
+                await inspect.LocationEnrichmentWorkflows.AsNoTracking().AnyAsync(x => x.UserId == user.Id
+                    && x.State == LocationEnrichmentState.BackingOff), TimeSpan.FromSeconds(5));
+            await LocationEnrichmentQuartzPostgresTests.WaitUntilAsync(async () =>
+                (await scheduler.GetCurrentlyExecutingJobs()).Count == 0, TimeSpan.FromSeconds(5));
+            await scheduler.Standby();
             var waiting = await inspect.LocationEnrichmentWorkflows.AsNoTracking().SingleAsync(x => x.UserId == user.Id);
             var attempt = await inspect.LocationEnrichmentAttempts.AsNoTracking().SingleAsync(x => x.UserId == user.Id);
             Assert.Equal(LocationEnrichmentOutcome.RetryableFailure, attempt.Outcome);
@@ -60,11 +67,11 @@ public sealed partial class GeoapifyBackfillConcurrencyPostgresTests
             Assert.Equal(attempt.NextAttemptAtUtc, waiting.NextEligibleAtUtc);
             Assert.True(waiting.NextEligibleAtUtc > DateTime.UtcNow.AddMinutes(4));
             trigger = Assert.IsAssignableFrom<ISimpleTrigger>(await scheduler.GetTrigger(key));
-            Assert.Equal(waiting.NextEligibleAtUtc, trigger.StartTimeUtc.UtcDateTime);
+            Assert.InRange(trigger.StartTimeUtc.UtcDateTime - waiting.NextEligibleAtUtc!.Value, TimeSpan.Zero, TimeSpan.FromMilliseconds(1));
             var success = new CoordinatedHandler(user.Id, null);
             success.Release();
             worker = new(factory, new(factory), Service(protection, success), projection);
-            await ExecuteRepairJobAsync(user.Id, waiting, worker);
+            await ExecuteRepairJobAsync(waiting, worker);
             Assert.Equal(0, success.RequestsFor(user.Id));
             Assert.Single(await inspect.GeoapifyUsageAdmissions.Where(x => x.UserId == user.Id).ToListAsync());
             progress = await new LocationEnrichmentProgressQuery(inspect).ProjectAsync(user.Id, status.Binding, DateTime.UtcNow);
@@ -77,7 +84,13 @@ public sealed partial class GeoapifyBackfillConcurrencyPostgresTests
             await inspect.LocationEnrichmentWorkflows.Where(x => x.UserId == user.Id)
                 .ExecuteUpdateAsync(s => s.SetProperty(x => x.NextEligibleAtUtc, due));
             await projection.ProjectAsync(user.Id);
-            await ExecuteRepairJobAsync(user.Id, waiting, worker);
+            scheduler.JobFactory = new LocationEnrichmentQuartzPostgresTests.ProductionJobFactory(fixture, worker);
+            await scheduler.Start();
+            await LocationEnrichmentQuartzPostgresTests.WaitUntilAsync(async () =>
+                await inspect.LocationEnrichmentWorkflows.AsNoTracking().AnyAsync(x => x.UserId == user.Id
+                    && x.State == LocationEnrichmentState.Completed), TimeSpan.FromSeconds(5));
+            await LocationEnrichmentQuartzPostgresTests.WaitUntilAsync(async () =>
+                !await scheduler.CheckExists(key), TimeSpan.FromSeconds(5));
             var completed = await inspect.LocationEnrichmentWorkflows.AsNoTracking().SingleAsync(x => x.UserId == user.Id);
             Assert.Equal(LocationEnrichmentState.Completed, completed.State);
             Assert.Equal(initial.Epoch, completed.Epoch);
@@ -89,7 +102,7 @@ public sealed partial class GeoapifyBackfillConcurrencyPostgresTests
             Assert.Equal((0, 0, 0), (progress.RunnableRemaining, progress.FutureDue, progress.IncompleteProviderAddresses));
             Assert.False(await scheduler.CheckExists(key));
         }
-        finally { await scheduler.Shutdown(false); }
+        finally { await scheduler.Shutdown(true); }
     }
 
     /// <summary>Fences a late cancelled contact even while a replacement repair owns the same attempt.</summary>
@@ -165,7 +178,7 @@ public sealed partial class GeoapifyBackfillConcurrencyPostgresTests
     }
 
     /// <summary>Uses projected identity data to enter the production job with a fresh relational context.</summary>
-    private async Task ExecuteRepairJobAsync(string userId, LocationEnrichmentWorkflow workflow,
+    private async Task ExecuteRepairJobAsync(LocationEnrichmentWorkflow workflow,
         ILocationEnrichmentWorker worker)
     {
         await using var db = fixture.CreateContext();
