@@ -7,7 +7,7 @@ let isSearchPanelOpen = false;
 let markerLayer, clusterLayer, highlightLayer;
 let markerTransitionTimer = null; // Timer for live-to-latest marker transition
 import {addZoomLevelControl, latestLocationMarker, liveMarker} from '../../../map-utils.js';
-import { createTileLayer } from '../../../retryTileLayer.js'; import { renderFeatureMetadata } from '../../../util/feature-metadata.js';
+import { createTileLayer } from '../../../retryTileLayer.js'; import { renderLocationAddress, locationAddressText } from '../../../util/location-address.js';
 import {
     formatViewerAndSourceTimes,
     formatDate,
@@ -475,7 +475,7 @@ const generateLocationModalContent = location => {
             <div class="col-6"><strong>Speed:</strong> <span>${formatDecimal(location.speed) != null ? formatDecimal(location.speed) + ' km/h' : '<i class="bi bi-patch-question" title="No available data for Speed"></i>'}</span></div>
         </div>
         <div class="row mb-2">
-            ${renderFeatureMetadata(location)}<div class="col-12"><strong>Address:</strong> <span>${location.fullAddress || '<i class="bi bi-patch-question" title="No available data for Address"></i> '}</span>
+            ${renderLocationAddress(location)}<div class="col-12">
             <br/>
             ${generateGoogleMapsLink(location)}
             ${generateWikipediaLinkHtml(location, { query: location.place || location.fullAddress })}
@@ -505,7 +505,7 @@ const generateLocationModalContent = location => {
  * @param {{ fullAddress?: string, coordinates: { latitude: number, longitude: number } }} location
  */
 const generateGoogleMapsLink = location => {
-    const addr = location?.fullAddress || '';
+    const addr = locationAddressText(location);
     const lat  = location?.coordinates?.latitude;
     const lon  = location?.coordinates?.longitude;
     const hasCoords = Number.isFinite(+lat) && Number.isFinite(+lon);
@@ -560,7 +560,7 @@ const displayLocationsInTable = (locations) => {
                 <td class="text-center">${formatDecimal(location.speed) != null ? formatDecimal(location.speed) : '<i class="bi bi-patch-question" title="No available data for Speed"></i>'}</td>
                 <td class="text-center">${formatDecimal(location.altitude) != null ? formatDecimal(location.altitude) : '<i class="bi bi-patch-question" title="No available data for Altitude"></i>'}</td>
                 <td>${activityEditorHtml}</td>
-                <td>${renderFeatureMetadata(location)}${location.address || '<i class="bi bi-patch-question" title="No available data for Address"></i>'}</td>
+                <td>${renderLocationAddress(location, location.address)}</td>
                 <td>${location.place || '<i class="bi bi-patch-question" title="No available data for Place"></i>'}</td>
                 <td>${location.country || '<i class="bi bi-patch-question" title="No available data for Country"></i>'}</td>
                 <td>

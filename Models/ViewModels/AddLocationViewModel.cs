@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Mvc.ModelBinding;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using System.ComponentModel.DataAnnotations;
 
@@ -37,6 +37,9 @@ namespace Wayfarer.Models.ViewModels
         public DateTimeOffset? OriginalReverseGeocodedAt { get; set; }
 
         /// <summary>Read-only detected provider feature displayed alongside editable address values.</summary>
+        /// <summary>Server-owned Location presentation metadata, separate from posted concurrency tokens.</summary>
+        [BindNever] public string? ProviderAddressLine1 { get; set; }
+        [BindNever] public bool IsGeoapifyAddress { get; set; }
         [BindNever] public string? ResolvedFeatureName { get; set; }
         [BindNever] public string? ResolvedFeatureType { get; set; }
 

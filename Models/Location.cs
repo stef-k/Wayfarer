@@ -1,4 +1,4 @@
-﻿using NetTopologySuite.Geometries;
+using NetTopologySuite.Geometries;
 using System.ComponentModel.DataAnnotations;
 
 namespace Wayfarer.Models
@@ -40,6 +40,8 @@ namespace Wayfarer.Models
         // Reverse Geocoding information
         public string? Address { get; set; }
         public string? FullAddress { get; set; }
+    /// <summary>Independent Geoapify display line; never synthesized from address components.</summary>
+        [MaxLength(500)] public string? ProviderAddressLine1 { get; set; }
         public string? AddressNumber { get; set; }
         public string? StreetName { get; set; }
         public string? PostCode { get; set; }

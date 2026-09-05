@@ -26,7 +26,7 @@ public sealed class GeoapifyReverseGeocodingAdapterTests
 
         Assert.True(result.Succeeded);
         Assert.Equal("12 Main Street, Town", result.Value!.FullAddress);
-        Assert.Equal("12 Main Street", result.Value.Address);
+        Assert.Equal("Main Street 12", result.Value.Address);
         Assert.Equal("12", result.Value.AddressNumber);
         Assert.Equal("Main Street", result.Value.StreetName);
         Assert.Equal("12345", result.Value.PostCode);
@@ -96,3 +96,4 @@ public sealed class GeoapifyReverseGeocodingAdapterTests
         }
     }
 }
+

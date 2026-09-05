@@ -1,6 +1,6 @@
 import { addZoomLevelControl } from '../../../map-utils.js';
 import { createTileLayer } from '../../../retryTileLayer.js';
-import { featurePrecisionNotice } from '../../../util/feature-metadata.js';
+import { renderLocationAddress, locationAddressText } from '../../../util/location-address.js';
 import {
   formatViewerAndSourceTimes,
   currentDateInputValue,
@@ -127,13 +127,13 @@ import {
   function buildTooltipHtml(info, loc){
     const u=(info.username||'') + (info.display? (' ('+info.display+')') : '');
     const timestamps = getLocationTimestampInfo(loc);
-    const addr=loc.fullAddress||loc.address||loc.place||'';
+    const addr=locationAddressText(loc, loc.fullAddress||loc.address||loc.place||'');
     let recordedLine = timestamps.source || 'Recorded time unavailable';
     const zone = getLocationSourceTimeZone(loc);
     if (!timestamps.source && zone) {
       recordedLine = `${recordedLine} (${zone})`;
     }
-    return `${u}<br/>${timestamps.viewer}<br/>Recorded: ${recordedLine}<br/>${addr}`;
+    return `${u}<br/>${timestamps.viewer}<br/>Recorded: ${recordedLine}<br/>${escapeHtml(addr)}`;
   }
   function upsertLatestForUser(userId, loc) {
     const latlng=[loc.coordinates.latitude, loc.coordinates.longitude];
@@ -652,7 +652,7 @@ import {
 
   // Modal generator aligned with public timeline
   function googleMapsLink(location){
-    const addr=location?.fullAddress||''; const lat=location?.coordinates?.latitude; const lon=location?.coordinates?.longitude;
+    const addr=locationAddressText(location, location?.fullAddress||location?.address||location?.place||''); const lat=location?.coordinates?.latitude; const lon=location?.coordinates?.longitude;
     const has=Number.isFinite(+lat)&&Number.isFinite(+lon);
     const query = addr && has ? `${addr} (${(+lat).toFixed(6)},${(+lon).toFixed(6)})` : has ? `${(+lat).toFixed(6)},${(+lon).toFixed(6)}` : addr;
     const q=encodeURIComponent(query||'');
@@ -675,7 +675,7 @@ import {
       + `<div class=\"col-6\"><strong>Recorded local time:</strong>${timestamps.recorded}</div>`
       + `</div>`
       + `<div class=\"row mb-2\">`
-      + `${location.resolvedFeatureName ? `<div class=\"col-12\"><strong>Detected place:</strong> ${escapeHtml(location.resolvedFeatureName)}</div>` : ''}${featurePrecisionNotice(location.resolvedFeatureType) ? `<div class=\"col-12\" role=\"note\">${featurePrecisionNotice(location.resolvedFeatureType)}</div>` : ''}<div class=\"col-12\"><strong>Address:</strong> <span>${location.fullAddress || location.address || location.place || '<i class=\"bi bi-patch-question\" title=\"No available data for Address\"></i>'}</span>${googleMapsLink(location)}</div>`
+      + `${renderLocationAddress(location, location.fullAddress || location.address || location.place)}${googleMapsLink(location)}`
       + `</div>`
       + `<div class=\"row mb-2\">`
       + `<div class=\"col-6\"><strong>Latitude:</strong> <span class=\"fw-bold text-primary\">${location.coordinates.latitude}</span></div>`

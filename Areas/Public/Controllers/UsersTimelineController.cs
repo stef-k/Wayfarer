@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos;
@@ -171,6 +171,11 @@ namespace Wayfarer.Areas.Public.Controllers
                     ActivityType = location.ActivityType,
                     Address = location.Address,
                     FullAddress = location.FullAddress,
+                    ProviderAddressLine1 = location.ProviderAddressLine1,
+                    AddressNumber = location.AddressNumber,
+                    ReverseGeocodingProvider = location.ReverseGeocodingProvider,
+                    ReverseGeocodingStorageMode = location.ReverseGeocodingStorageMode,
+                    ReverseGeocodedAt = location.ReverseGeocodedAt,
                     StreetName = location.StreetName,
                     PostCode = location.PostCode,
                     Place = location.Place,

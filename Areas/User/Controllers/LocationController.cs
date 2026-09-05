@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
@@ -318,21 +318,9 @@ namespace Wayfarer.Areas.User.Controllers
                     Country = location.Country,
                     OriginalReverseGeocodingProvider = location.ReverseGeocodingProvider, OriginalReverseGeocodingStorageMode = location.ReverseGeocodingStorageMode,
                     OriginalReverseGeocodedAt = location.ReverseGeocodedAt,
-                    ResolvedFeatureName = location.ResolvedFeatureName,
-                    ResolvedFeatureType = location.ResolvedFeatureType,
-                    // Capture metadata (read-only)
-                    Source = location.Source,
-                    IsUserInvoked = location.IsUserInvoked,
-                    Provider = location.Provider,
-                    Bearing = location.Bearing,
-                    AppVersion = location.AppVersion,
-                    AppBuild = location.AppBuild,
-                    DeviceModel = location.DeviceModel,
-                    OsVersion = location.OsVersion,
-                    BatteryLevel = location.BatteryLevel,
-                    IsCharging = location.IsCharging,
                 };
 
+                LocationManualAddressEdit.RestoreServerFields(viewModel, location);
                 viewModel.ReturnUrl = GetSafeReturnUrl(returnUrl);
 
                 SetPageTitle("Edit Location");

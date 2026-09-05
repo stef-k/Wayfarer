@@ -14,7 +14,7 @@ import {
 import {
     generateWikipediaLinkHtml,
     initWikipediaPopovers,
-} from '../../../util/wikipedia-utils.js'; import {renderFeatureMetadata} from '../../../util/feature-metadata.js';
+} from '../../../util/wikipedia-utils.js'; import { renderLocationAddress, locationAddressText } from '../../../util/location-address.js';
 
 let locations = [];
 let currentPage = 1;
@@ -264,7 +264,7 @@ const displayLocationsInTable = (locations) => {
         <td class="text-center">${formatDecimal(loc.speed) != null ? formatDecimal(loc.speed) : '<i class="bi bi-patch-question" title="No available data for Speed"></i>'}</td>
         <td class="text-center">${formatDecimal(loc.altitude) != null ? formatDecimal(loc.altitude) : '<i class="bi bi-patch-question" title="No available data for Altitude"></i>'}</td>
         <td>${activityEditorHtml}</td>
-        <td>${renderFeatureMetadata(loc)}${loc.fullAddress || '<i class="bi bi-patch-question" title="No available data for Address"></i>'}</td>
+        <td>${renderLocationAddress(loc)}</td>
         <td>${loc.place || '<i class="bi bi-patch-question" title="No available data for Place"></i>'}</td>
         <td>${loc.country || '<i class="bi bi-patch-question" title="No available data for Country"></i>'}</td>
         <td>
@@ -411,7 +411,7 @@ const generateLocationModalContent = (location) => {
       </div>
       <div class="row mb-2">
         <div class="col-12">
-            ${renderFeatureMetadata(location)}<strong>Address:</strong> ${location.fullAddress || '<i class="bi bi-patch-question" title="No available data for Address"></i>'} <br>
+            ${renderLocationAddress(location)}
                 ${generateGoogleMapsLink(location)}
             ${generateWikipediaLinkHtml(location, { query: location.place || location.fullAddress })}
         </div>
@@ -438,7 +438,7 @@ const generateLocationModalContent = (location) => {
  * @param {{ fullAddress?: string, coordinates: { latitude: number, longitude: number } }} location
  */
 const generateGoogleMapsLink = (location) => {
-    const addr = location?.fullAddress || '';
+    const addr = locationAddressText(location);
     const lat  = location?.coordinates?.latitude;
     const lon  = location?.coordinates?.longitude;
     const hasCoords = Number.isFinite(+lat) && Number.isFinite(+lon);

@@ -13,14 +13,7 @@
     if (string.IsNullOrWhiteSpace(addressSummary)) addressSummary = "No address details";
     var expandAddress = ViewData["ExpandAddressDetails"] as bool? == true
         || string.IsNullOrWhiteSpace(Model.Place) || string.IsNullOrWhiteSpace(Model.Country);
-    var precisionNotice = (Model.ResolvedFeatureType ?? "").Trim().ToLowerInvariant() switch
-    {
-        "postcode" => "Approximate address — resolved to postcode level.",
-        "city" => "Approximate address — resolved to city level.",
-        "suburb" or "district" => "Approximate address — resolved to local-area level.",
-        "county" or "state" or "country" => "Approximate address — resolved only to a regional level.",
-        _ => null
-    };
+
 }
 
 <h1 class="fs-3 text-center">@ViewData["Title"]</h1>
@@ -87,7 +80,7 @@
                         <summary class="p-2" style="cursor: pointer;">
                             <span class="d-inline-flex flex-column gap-1 align-top" style="max-width: calc(100% - 1.5rem); min-width: 0;">
                                 <span class="fw-semibold">Address details</span>
-                                <span class="small text-muted text-break">@addressSummary</span>
+                                <span id="location-address-summary" class="text-break">@addressSummary</span>
                             </span>
                         </summary>
                         <div class="border-top p-2">
@@ -133,14 +126,6 @@
                                     <span asp-validation-for="Country" class="text-danger"></span>
                                 </div>
                             </div>
-                            @if (!string.IsNullOrWhiteSpace(Model.ResolvedFeatureName))
-                            {
-                                <p class="small text-muted mb-1 mt-2">Detected place: @Model.ResolvedFeatureName</p>
-                            }
-                            @if (precisionNotice is not null)
-                            {
-                                <p class="small text-muted mb-0" role="note">@precisionNotice</p>
-                            }
                             <p class="form-text mb-0">Editing any address field makes the address manual and clears provider attribution.</p>
                         </div>
                     </details>
@@ -290,3 +275,17 @@
 @section Scripts {
     @Html.FrontendViewScripts()
 }
+
+@* Use the same Location-only formatter as timeline and map surfaces. JSON's default encoder protects the script boundary. *@
+<script type="module">
+    import { renderLocationAddress } from '/js/util/location-address.js';
+    const location = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(new {
+        fullAddress = Model.FullAddress, address = Model.Address, streetName = Model.StreetName,
+        addressNumber = Model.AddressNumber, postCode = Model.PostCode, place = Model.Place,
+        region = Model.Region, country = Model.Country, providerAddressLine1 = Model.ProviderAddressLine1,
+        isGeoapifyAddress = Model.IsGeoapifyAddress,
+        resolvedFeatureName = Model.ResolvedFeatureName, resolvedFeatureType = Model.ResolvedFeatureType
+    }));
+    document.getElementById('location-address-summary').innerHTML = renderLocationAddress(location,
+        location.fullAddress || location.address || [location.place, location.region, location.country].filter(Boolean).join(', '));
+</script>

@@ -178,19 +178,10 @@ public class GroupsController : ControllerBase
             Speed = t.Loc.Speed,
             LocationType = t.Loc.LocationType,
             ActivityType = t.Loc.ActivityType?.Name,
-            Address = t.Loc.Address,
-            FullAddress = t.Loc.FullAddress,
-            StreetName = t.Loc.StreetName,
-            PostCode = t.Loc.PostCode,
-            Place = t.Loc.Place,
-            Region = t.Loc.Region,
-            Country = t.Loc.Country,
-            ResolvedFeatureName = t.Loc.ResolvedFeatureName,
-            ResolvedFeatureType = t.Loc.ResolvedFeatureType,
             Notes = t.Loc.Notes,
             IsLatestLocation = true,
             LocationTimeThresholdMinutes = locationTimeThreshold
-        }).ToList();
+        }.WithAddress(t.Loc)).ToList();
 
         return Ok(result);
     }

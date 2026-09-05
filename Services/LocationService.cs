@@ -100,17 +100,10 @@ namespace Wayfarer.Parsers
                     LocationType = l.LocationType,
                     ActivityType = l.ActivityType?.Name ?? "Unknown",
                     ActivityTypeId = l.ActivityTypeId,
-                    Address = l.Address,
-                    FullAddress = l.FullAddress,
-                    StreetName = l.StreetName,
-                    PostCode = l.PostCode,
-                    Place = l.Place,
-                    Region = l.Region,
-                    Country = l.Country, ResolvedFeatureName = l.ResolvedFeatureName, ResolvedFeatureType = l.ResolvedFeatureType,
                     Notes = l.Notes,
                     IsLatestLocation = false,
                     LocationTimeThresholdMinutes = locationTimeThreshold
-                }).ToList();
+                }.WithAddress(l)).ToList();
 
                 return (dtos, totalItems);
             }
@@ -263,17 +256,10 @@ namespace Wayfarer.Parsers
                 LocationType = l.LocationType,
                 ActivityType = l.ActivityType?.Name ?? "Unknown",
                 ActivityTypeId = l.ActivityTypeId,
-                Address = l.Address,
-                FullAddress = l.FullAddress,
-                StreetName = l.StreetName,
-                PostCode = l.PostCode,
-                Place = l.Place,
-                Region = l.Region,
-                Country = l.Country, ResolvedFeatureName = l.ResolvedFeatureName, ResolvedFeatureType = l.ResolvedFeatureType,
                 Notes = l.Notes,
                 IsLatestLocation = false,
                 LocationTimeThresholdMinutes = locationTimeThreshold
-            }).ToList();
+            }.WithAddress(l)).ToList();
 
             return (resultDtos, totalItems);
         }
@@ -457,17 +443,10 @@ namespace Wayfarer.Parsers
                     LocationType = l.LocationType,
                     ActivityType = l.ActivityType?.Name ?? "Unknown",
                     ActivityTypeId = l.ActivityTypeId,
-                    Address = l.Address,
-                    FullAddress = l.FullAddress,
-                    StreetName = l.StreetName,
-                    PostCode = l.PostCode,
-                    Place = l.Place,
-                    Region = l.Region,
-                    Country = l.Country, ResolvedFeatureName = l.ResolvedFeatureName, ResolvedFeatureType = l.ResolvedFeatureType,
                     Notes = l.Notes,
                     IsLatestLocation = dayLatestLocationId.HasValue && l.Id == dayLatestLocationId.Value,
                     LocationTimeThresholdMinutes = locationTimeThreshold
-                }).ToList();
+                }.WithAddress(l)).ToList();
 
                 return (dayDtos, totalItems);
             }
@@ -546,17 +525,10 @@ namespace Wayfarer.Parsers
                 LocationType = l.LocationType,
                 ActivityType = l.ActivityType?.Name ?? "Unknown",
                 ActivityTypeId = l.ActivityTypeId,
-                Address = l.Address,
-                FullAddress = l.FullAddress,
-                StreetName = l.StreetName,
-                PostCode = l.PostCode,
-                Place = l.Place,
-                Region = l.Region,
-                Country = l.Country, ResolvedFeatureName = l.ResolvedFeatureName, ResolvedFeatureType = l.ResolvedFeatureType,
                 Notes = l.Notes,
                 IsLatestLocation = latestLocationId.HasValue && l.Id == latestLocationId.Value,
                 LocationTimeThresholdMinutes = locationTimeThreshold
-            }).ToList();
+            }.WithAddress(l)).ToList();
 
             return (resultDtos, totalItems);
         }

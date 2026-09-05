@@ -1,4 +1,4 @@
-﻿let locations = []; // Declare locations as a global variable
+let locations = []; // Declare locations as a global variable
 let mapContainer = null;
 let zoomLevel = 3;
 let mapBounds = null;
@@ -6,7 +6,7 @@ let markerLayer, clusterLayer, highlightLayer;
 let stream;
 let markerTransitionTimer = null; // Timer for live-to-latest marker transition
 import {addZoomLevelControl, latestLocationMarker, liveMarker} from '../../../map-utils.js';
-import { createTileLayer } from '../../../retryTileLayer.js'; import { renderFeatureMetadata } from '../../../util/feature-metadata.js';
+import { createTileLayer } from '../../../retryTileLayer.js'; import { renderLocationAddress, locationAddressText } from '../../../util/location-address.js';
 import {
     formatViewerAndSourceTimes,
     formatDate,
@@ -385,7 +385,7 @@ const generateLocationModalContent = (location, {isLive, isLatest}) => {
             <div class="col-6"><strong>Speed:</strong> <span>${formatDecimal(location.speed) != null ? formatDecimal(location.speed) + ' km/h' : '<i class="bi bi-patch-question" title="No available data for Speed"></i>'}</span></div>
         </div>
         <div class="row mb-2">
-            ${renderFeatureMetadata(location)}<div class="col-12"><strong>Address:</strong> <span>${location.fullAddress || '<i class="bi bi-patch-question" title="No available data for Address"></i> '}</span><br/>
+            ${renderLocationAddress(location)}<div class="col-12"><br/>
             ${generateGoogleMapsLink(location)}
             ${generateWikipediaLinkHtml(location, { query: location.place || location.fullAddress })}
             </div>
@@ -419,7 +419,7 @@ const generateLocationModalContent = (location, {isLive, isLatest}) => {
  * @param {{ fullAddress?: string, coordinates: { latitude: number, longitude: number } }} location
  */
 const generateGoogleMapsLink = location => {
-    const addr = location?.fullAddress || '';
+    const addr = locationAddressText(location);
     const lat  = location?.coordinates?.latitude;
     const lon  = location?.coordinates?.longitude;
     const hasCoords = Number.isFinite(+lat) && Number.isFinite(+lon);

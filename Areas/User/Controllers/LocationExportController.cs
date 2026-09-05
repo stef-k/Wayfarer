@@ -63,6 +63,7 @@ public class LocationExportController : Controller
                 { "Place", loc.Place },
                 { "Region", loc.Region },
                 { "Country", loc.Country },
+                { "ProviderAddressLine1", loc.ProviderAddressLine1 },
                 { "ResolvedFeatureName", loc.ResolvedFeatureName },
                 { "ResolvedFeatureType", loc.ResolvedFeatureType },
                 { "ReverseGeocodingProvider", loc.ReverseGeocodingProvider },
@@ -124,6 +125,7 @@ public class LocationExportController : Controller
             Place = l.Place,
             Region = l.Region,
             Country = l.Country,
+            l.ProviderAddressLine1,
             l.ResolvedFeatureName,
             l.ResolvedFeatureType,
             l.ReverseGeocodingProvider,
@@ -183,6 +185,7 @@ public class LocationExportController : Controller
                    || !string.IsNullOrWhiteSpace(loc.Place)
                    || !string.IsNullOrWhiteSpace(loc.Region)
                    || !string.IsNullOrWhiteSpace(loc.Country)
+                   || !string.IsNullOrWhiteSpace(loc.ProviderAddressLine1)
                    || !string.IsNullOrWhiteSpace(loc.ResolvedFeatureName)
                    || !string.IsNullOrWhiteSpace(loc.ResolvedFeatureType)
                    || !string.IsNullOrWhiteSpace(loc.ReverseGeocodingProvider)
@@ -245,6 +248,7 @@ public class LocationExportController : Controller
                     WriteGpxExtension(xw, "place", loc.Place);
                     WriteGpxExtension(xw, "region", loc.Region);
                     WriteGpxExtension(xw, "country", loc.Country);
+                    WriteGpxExtension(xw, "providerAddressLine1", loc.ProviderAddressLine1);
                     WriteGpxExtension(xw, "resolvedFeatureName", loc.ResolvedFeatureName);
                     WriteGpxExtension(xw, "resolvedFeatureType", loc.ResolvedFeatureType);
                     WriteGpxExtension(xw, "reverseGeocodingProvider", loc.ReverseGeocodingProvider);
@@ -334,6 +338,7 @@ public class LocationExportController : Controller
                 WriteKmlData(xw, "Place", loc.Place);
                 WriteKmlData(xw, "Region", loc.Region);
                 WriteKmlData(xw, "Country", loc.Country);
+                WriteKmlData(xw, "ProviderAddressLine1", loc.ProviderAddressLine1);
                 WriteKmlData(xw, "ResolvedFeatureName", loc.ResolvedFeatureName);
                 WriteKmlData(xw, "ResolvedFeatureType", loc.ResolvedFeatureType);
                 WriteKmlData(xw, "ReverseGeocodingProvider", loc.ReverseGeocodingProvider);
