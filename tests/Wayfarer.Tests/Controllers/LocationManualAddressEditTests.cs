@@ -142,7 +142,8 @@ public sealed class LocationManualAddressEditTests : TestBase
         var returned = Assert.IsType<AddLocationViewModel>(result.Model);
         Assert.Equal(original.OriginalReverseGeocodedAt, returned.OriginalReverseGeocodedAt);
         Assert.Equal("  Submitted address  ", returned.Address);
-        Assert.Equal("Old feature", returned.ResolvedFeatureName);
+        Assert.Equal(publishBeforeRedisplay ? "New feature" : "Old feature", returned.ResolvedFeatureName);
+        Assert.Equal("warning", controller.TempData["AlertType"]);
         Assert.True((bool)controller.ViewData["ExpandAddressDetails"]!);
         Assert.Equal("not-an-id", controller.ModelState["SelectedActivityId"]!.AttemptedValue);
         Assert.NotEmpty(controller.ModelState["SelectedActivityId"]!.Errors);
@@ -167,11 +168,17 @@ public sealed class LocationManualAddressEditTests : TestBase
         Assert.Equal(stale ? newerAt : (DateTimeOffset?)null, saved.ReverseGeocodedAt);
         Assert.Contains(stale ? "Address details changed" : "Location updated successfully",
             string.Join(" ", correction.TempData.Values));
+        Assert.Equal(stale ? "warning" : "success", correction.TempData["AlertType"]);
+        var freshResult = Assert.IsType<ViewResult>(await Controller(scenario, handler).Edit(original.Id!.Value, null));
+        var fresh = Assert.IsType<AddLocationViewModel>(freshResult.Model);
+        Assert.Equal(saved.Address, fresh.Address);
+        Assert.Equal(saved.ReverseGeocodedAt, fresh.OriginalReverseGeocodedAt);
         Assert.Equal(0, handler.RequestCount);
 
         async Task PublishAsync()
         {
             scenario.Location.Address = "New publication";
+            scenario.Location.ResolvedFeatureName = "New feature";
             scenario.Location.ReverseGeocodedAt = newerAt;
             await scenario.Db.SaveChangesAsync();
         }
