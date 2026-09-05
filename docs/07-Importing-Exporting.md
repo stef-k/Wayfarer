@@ -12,6 +12,12 @@ CSV uses the CSV importer and suits spreadsheets/Python. Wayfarer GeoJSON uses t
 
 ---
 
+## Retained Location address data
+
+Backend GeoJSON, CSV, GPX and KML history exports/imports preserve optional `ProviderAddressLine1` (GPX `providerAddressLine1`) alongside existing address strings. Older files remain accepted. The line is independently supplied provider display text, not a synthesized street address. Imports retain supplied values without silently correcting history; valid imported Geoapify enrichment tuples receive the same Location presentation as other valid retained tuples. A tuple is not verified capture origin.
+
+Released Mobile continues using `FullAddress`. Its existing fields remain compatible, but old Mobile offline export/import cannot promise to retain the unknown additive field. Trip Place remains `FullAddress`-preferred and has no new provider-line field.
+
 ## Importing Data
 
 ### Supported Formats

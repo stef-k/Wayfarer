@@ -90,3 +90,11 @@ Location Metadata
   - **Source** — origin of the data (mobile app, import, API)
 - Metadata is preserved during import/export operations.
 - View metadata in location details and edit modals.
+
+## Location addresses and mapped features
+
+Locations with a valid retained Geoapify enrichment tuple show structured street/number, postcode/settlement, region and country groups. Missing components and exact duplicate values are omitted, while Unicode and meaningful text are preserved. This also applies to imported valid tuples and historical Geoapify data regardless of the currently selected provider. Historical locality/region text is not silently corrected.
+
+A partial address without street says **Street address unavailable**. With no usable components, **Address details unavailable** precedes any retained **Provider display text**. A smaller secondary line identifies a **Nearby mapped feature** for buildings/amenities, **Mapped area** for broader results, or **Mapped feature** otherwise. A nearby business is not evidence of a visit, occupancy or exact position. Broader results retain their precision notice even without a feature name.
+
+Manual, Mapbox and unknown-provenance Locations retain their existing address preference. Address links continue targeting the recorded coordinates. The Location edit summary uses the same formatting; editing address values clears provider attribution and the retained provider-only line. No historical correction job or extra provider request is performed.

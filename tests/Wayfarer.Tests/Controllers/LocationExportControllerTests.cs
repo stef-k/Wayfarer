@@ -110,6 +110,47 @@ public class LocationExportControllerTests : TestBase
         Assert.DoesNotContain("BobGpx", payload);
     }
 
+    /// <summary>Backend history formats retain independent provider text and historical address values.</summary>
+    [Theory]
+    [InlineData("geojson")]
+    [InlineData("csv")]
+    [InlineData("gpx")]
+    [InlineData("kml")]
+    public async Task RetainedProviderLineRoundTrips(string format)
+    {
+        using var db = CreateDbContext();
+        var original = CreateLocation("u1", "Synthetic");
+        original.ProviderAddressLine1 = "Hotel & Οδός 10-12";
+        original.FullAddress = "Historical display";
+        original.Address = "Historical feature-bearing line";
+        original.ReverseGeocodingProvider = "geoapify";
+        original.ReverseGeocodingStorageMode = "persistent";
+        original.ReverseGeocodedAt = new DateTimeOffset(2020, 1, 2, 3, 4, 5, TimeSpan.Zero);
+        db.Locations.Add(original);
+        await db.SaveChangesAsync();
+        var controller = BuildController(db, "u1");
+        var file = Assert.IsType<FileStreamResult>(format switch
+        {
+            "geojson" => await controller.GeoJson(), "csv" => await controller.Csv(),
+            "gpx" => await controller.Gpx(), _ => await controller.Kml()
+        });
+        Wayfarer.Parsers.ILocationDataParser parser = format switch
+        {
+            "geojson" => new Wayfarer.Parsers.WayfarerGeoJsonParser(Microsoft.Extensions.Logging.Abstractions.NullLogger<Wayfarer.Parsers.WayfarerGeoJsonParser>.Instance),
+            "csv" => new Wayfarer.Parsers.CsvLocationParser(Microsoft.Extensions.Logging.Abstractions.NullLogger<Wayfarer.Parsers.CsvLocationParser>.Instance),
+            "gpx" => new Wayfarer.Parsers.GpxLocationParser(Microsoft.Extensions.Logging.Abstractions.NullLogger<Wayfarer.Parsers.GpxLocationParser>.Instance),
+            _ => new Wayfarer.Parsers.KmlLocationParser(Microsoft.Extensions.Logging.Abstractions.NullLogger<Wayfarer.Parsers.KmlLocationParser>.Instance)
+        };
+        var imported = new List<Location>();
+        await foreach (var row in parser.ParseAsync(file.FileStream, "import-owner")) imported.Add(row);
+        var saved = Assert.Single(imported);
+        Assert.Equal(original.ProviderAddressLine1, saved.ProviderAddressLine1);
+        Assert.Equal(original.FullAddress, saved.FullAddress);
+        Assert.Equal(original.Address, saved.Address);
+        Assert.Equal(("geoapify", "persistent", original.ReverseGeocodedAt),
+            (saved.ReverseGeocodingProvider, saved.ReverseGeocodingStorageMode, saved.ReverseGeocodedAt));
+    }
+
     private static LocationExportController BuildController(ApplicationDbContext db, string userId)
     {
         var controller = new LocationExportController(db);

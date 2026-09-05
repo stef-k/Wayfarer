@@ -24,10 +24,8 @@ public class PublicLocationDto
     public string? ProviderAddressLine1 { get; set; }
     /// <summary>Retained house number, including ranges and leading zeroes.</summary>
     public string? AddressNumber { get; set; }
-    /// <summary>Retained enrichment tuple used for Location presentation, not capture-origin verification.</summary>
-    public string? ReverseGeocodingProvider { get; set; }
-    public string? ReverseGeocodingStorageMode { get; set; }
-    public DateTimeOffset? ReverseGeocodedAt { get; set; }
+    /// <summary>Validated retained Geoapify claim for presentation; not verified capture origin.</summary>
+    public bool IsGeoapifyAddress { get; set; }
     public string? StreetName { get; set; }
     public string? PostCode { get; set; }
     public string? Place { get; set; }
@@ -50,9 +48,8 @@ public class PublicLocationDto
         FullAddress = location.FullAddress;
         ProviderAddressLine1 = location.ProviderAddressLine1;
         AddressNumber = location.AddressNumber;
-        ReverseGeocodingProvider = location.ReverseGeocodingProvider;
-        ReverseGeocodingStorageMode = location.ReverseGeocodingStorageMode;
-        ReverseGeocodedAt = location.ReverseGeocodedAt;
+        IsGeoapifyAddress = Services.LocationProviders.ResolvedFeatureMetadata.NormalizePersisted(null, null,
+            location.ReverseGeocodingProvider, location.ReverseGeocodingStorageMode, location.ReverseGeocodedAt).Provider == "geoapify";
         StreetName = location.StreetName;
         PostCode = location.PostCode;
         Place = location.Place;

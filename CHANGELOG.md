@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## [Unreleased]
+
+### Fixed
+- Geoapify Location enrichment now stores street then house number, keeps settlement and state at their documented levels, and retains the independent provider line. Location maps, tables, timelines, groups and edit summaries prioritize structured addresses and show nearby feature metadata beneath them (#572).
+- CSV history exports use an explicit-offset enrichment timestamp so valid retained provenance survives backend round trips (#572).
+
+### Upgrade notes
+- Additive migration `20260905095140_AddLocationProviderAddressLine1` adds a nullable 500-character Location field. Existing rows are not rewritten; repair remains fill-only. Mapbox mappings, Trip Place preference and released-Mobile `FullAddress` remain compatible.
+
 ## [1.9.9] - 2026-09-05
 
 ### Fixed

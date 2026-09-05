@@ -14,7 +14,7 @@ import {
 import {
     generateWikipediaLinkHtml,
     initWikipediaPopovers,
-} from '../../../util/wikipedia-utils.js'; import { renderLocationAddress, locationAddressText } from '../../../util/location-address.js';
+} from '../../../util/wikipedia-utils.js'; import { renderLocationAddress, locationAddressText, renderAddressComponent } from '../../../util/location-address.js';
 
 let locations = [];
 let currentPage = 1;
@@ -265,8 +265,8 @@ const displayLocationsInTable = (locations) => {
         <td class="text-center">${formatDecimal(loc.altitude) != null ? formatDecimal(loc.altitude) : '<i class="bi bi-patch-question" title="No available data for Altitude"></i>'}</td>
         <td>${activityEditorHtml}</td>
         <td>${renderLocationAddress(loc)}</td>
-        <td>${loc.place || '<i class="bi bi-patch-question" title="No available data for Place"></i>'}</td>
-        <td>${loc.country || '<i class="bi bi-patch-question" title="No available data for Country"></i>'}</td>
+        <td>${renderAddressComponent(loc.place, "Place")}</td>
+        <td>${renderAddressComponent(loc.country, "Country")}</td>
         <td>
           <a href="#" class="btn btn-primary btn-sm view-location" data-id="${loc.id}">View</a>
           <a href="${buildEditUrl(loc.id)}" class="btn btn-secondary btn-sm">Edit</a>

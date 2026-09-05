@@ -1,4 +1,4 @@
-let locations = []; // Declare locations as a global variable
+﻿let locations = []; // Declare locations as a global variable
 let mapContainer = null;
 let zoomLevel = 3;
 let mapBounds = null;

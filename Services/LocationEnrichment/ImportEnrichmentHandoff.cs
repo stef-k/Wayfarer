@@ -221,6 +221,7 @@ public sealed class ImportEnrichmentHandoff(
                   AND "ReverseGeocodedAt" IS NOT NULL
                   AND (("Address" IS NOT NULL AND btrim("Address") <> '')
                     OR ("FullAddress" IS NOT NULL AND btrim("FullAddress") <> '')
+                    OR ("ProviderAddressLine1" IS NOT NULL AND btrim("ProviderAddressLine1") <> '')
                     OR ("AddressNumber" IS NOT NULL AND btrim("AddressNumber") <> '')
                     OR ("StreetName" IS NOT NULL AND btrim("StreetName") <> '')
                     OR ("PostCode" IS NOT NULL AND btrim("PostCode") <> '')

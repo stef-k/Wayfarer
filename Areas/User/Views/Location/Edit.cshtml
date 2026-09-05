@@ -11,6 +11,14 @@
     addressSummary ??= string.Join(", ", new[] { Model.Place, Model.Region, Model.Country }
         .Where(value => !string.IsNullOrWhiteSpace(value)));
     if (string.IsNullOrWhiteSpace(addressSummary)) addressSummary = "No address details";
+    // Serialize only server-restored presentation metadata; Razor encodes the attribute boundary.
+    var addressPresentation = System.Text.Json.JsonSerializer.Serialize(new {
+        fullAddress = Model.FullAddress, address = Model.Address, streetName = Model.StreetName,
+        addressNumber = Model.AddressNumber, postCode = Model.PostCode, place = Model.Place,
+        region = Model.Region, country = Model.Country, providerAddressLine1 = Model.ProviderAddressLine1,
+        isGeoapifyAddress = Model.IsGeoapifyAddress,
+        resolvedFeatureName = Model.ResolvedFeatureName, resolvedFeatureType = Model.ResolvedFeatureType
+    });
     var expandAddress = ViewData["ExpandAddressDetails"] as bool? == true
         || string.IsNullOrWhiteSpace(Model.Place) || string.IsNullOrWhiteSpace(Model.Country);
 
@@ -80,7 +88,7 @@
                         <summary class="p-2" style="cursor: pointer;">
                             <span class="d-inline-flex flex-column gap-1 align-top" style="max-width: calc(100% - 1.5rem); min-width: 0;">
                                 <span class="fw-semibold">Address details</span>
-                                <span id="location-address-summary" class="text-break">@addressSummary</span>
+                                <span id="location-address-summary" class="text-break" data-address="@addressPresentation">Recorded address text: @addressSummary</span>
                             </span>
                         </summary>
                         <div class="border-top p-2">
@@ -275,17 +283,3 @@
 @section Scripts {
     @Html.FrontendViewScripts()
 }
-
-@* Use the same Location-only formatter as timeline and map surfaces. JSON's default encoder protects the script boundary. *@
-<script type="module">
-    import { renderLocationAddress } from '/js/util/location-address.js';
-    const location = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(new {
-        fullAddress = Model.FullAddress, address = Model.Address, streetName = Model.StreetName,
-        addressNumber = Model.AddressNumber, postCode = Model.PostCode, place = Model.Place,
-        region = Model.Region, country = Model.Country, providerAddressLine1 = Model.ProviderAddressLine1,
-        isGeoapifyAddress = Model.IsGeoapifyAddress,
-        resolvedFeatureName = Model.ResolvedFeatureName, resolvedFeatureType = Model.ResolvedFeatureType
-    }));
-    document.getElementById('location-address-summary').innerHTML = renderLocationAddress(location,
-        location.fullAddress || location.address || [location.place, location.region, location.country].filter(Boolean).join(', '));
-</script>

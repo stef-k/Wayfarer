@@ -32,7 +32,7 @@ public sealed class GeoapifyLocationBackfillTests
     {
         var fields = new Action<Location>[]
         {
-            value => value.Address = "x", value => value.FullAddress = "x", value => value.AddressNumber = "x",
+            value => value.ProviderAddressLine1 = "x", value => value.Address = "x", value => value.FullAddress = "x", value => value.AddressNumber = "x",
             value => value.StreetName = "x", value => value.PostCode = "x", value => value.Place = "x",
             value => value.Region = "x", value => value.Country = "x",
             value => value.ReverseGeocodingProvider = "geoapify",

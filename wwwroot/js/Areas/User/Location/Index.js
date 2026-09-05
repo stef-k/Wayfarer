@@ -7,7 +7,7 @@ let isSearchPanelOpen = false;
 let markerLayer, clusterLayer, highlightLayer;
 let markerTransitionTimer = null; // Timer for live-to-latest marker transition
 import {addZoomLevelControl, latestLocationMarker, liveMarker} from '../../../map-utils.js';
-import { createTileLayer } from '../../../retryTileLayer.js'; import { renderLocationAddress, locationAddressText } from '../../../util/location-address.js';
+import { createTileLayer } from '../../../retryTileLayer.js'; import { renderLocationAddress, locationAddressText, renderAddressComponent } from '../../../util/location-address.js';
 import {
     formatViewerAndSourceTimes,
     formatDate,
@@ -561,8 +561,8 @@ const displayLocationsInTable = (locations) => {
                 <td class="text-center">${formatDecimal(location.altitude) != null ? formatDecimal(location.altitude) : '<i class="bi bi-patch-question" title="No available data for Altitude"></i>'}</td>
                 <td>${activityEditorHtml}</td>
                 <td>${renderLocationAddress(location, location.address)}</td>
-                <td>${location.place || '<i class="bi bi-patch-question" title="No available data for Place"></i>'}</td>
-                <td>${location.country || '<i class="bi bi-patch-question" title="No available data for Country"></i>'}</td>
+                <td>${renderAddressComponent(location.place, "Place")}</td>
+                <td>${renderAddressComponent(location.country, "Country")}</td>
                 <td>
                     <a href="#" class="btn btn-primary btn-sm view-location"  data-id="${location.id}">View</a>
                     <a href="${buildEditUrl(location.id)}" class="btn btn-secondary btn-sm">Edit</a>

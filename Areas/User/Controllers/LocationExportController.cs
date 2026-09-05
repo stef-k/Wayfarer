@@ -130,7 +130,8 @@ public class LocationExportController : Controller
             l.ResolvedFeatureType,
             l.ReverseGeocodingProvider,
             l.ReverseGeocodingStorageMode,
-            l.ReverseGeocodedAt,
+            // CSV must use the same explicit-offset grammar accepted by history imports.
+            ReverseGeocodedAt = l.ReverseGeocodedAt?.ToString("O", CultureInfo.InvariantCulture),
             Notes = l.Notes,
             // Metadata fields
             l.Source,

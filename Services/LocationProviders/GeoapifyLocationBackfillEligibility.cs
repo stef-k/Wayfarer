@@ -98,6 +98,7 @@ public sealed partial class GeoapifyLocationBackfillService
             && attempt.AdmittedAttemptCount < 3 && attempt.NextAttemptAtUtc > now select attempt;
 
     public static bool IsWhollyUnenriched(Location value) => string.IsNullOrWhiteSpace(value.Address)
+        && string.IsNullOrWhiteSpace(value.ProviderAddressLine1)
         && string.IsNullOrWhiteSpace(value.FullAddress) && string.IsNullOrWhiteSpace(value.AddressNumber)
         && string.IsNullOrWhiteSpace(value.StreetName) && string.IsNullOrWhiteSpace(value.PostCode)
         && string.IsNullOrWhiteSpace(value.Place) && string.IsNullOrWhiteSpace(value.Region)
@@ -107,13 +108,15 @@ public sealed partial class GeoapifyLocationBackfillService
     private static bool IsIncompleteGeoapify(Location value) => string.IsNullOrWhiteSpace(value.Place)
         && value.ReverseGeocodingProvider == "geoapify"
         && value.ReverseGeocodingStorageMode == "persistent" && value.ReverseGeocodedAt.HasValue
-        && (!string.IsNullOrWhiteSpace(value.Address) || !string.IsNullOrWhiteSpace(value.FullAddress)
+        && (!string.IsNullOrWhiteSpace(value.Address) || !string.IsNullOrWhiteSpace(value.ProviderAddressLine1)
+            || !string.IsNullOrWhiteSpace(value.FullAddress)
             || !string.IsNullOrWhiteSpace(value.AddressNumber)
             || !string.IsNullOrWhiteSpace(value.StreetName) || !string.IsNullOrWhiteSpace(value.PostCode)
             || !string.IsNullOrWhiteSpace(value.Region) || !string.IsNullOrWhiteSpace(value.Country));
 
     private static IQueryable<Location> WhollyUnenriched(IQueryable<Location> query) => query.Where(value =>
         (value.Address == null || value.Address == "") && (value.FullAddress == null || value.FullAddress == "")
+        && (value.ProviderAddressLine1 == null || value.ProviderAddressLine1 == "")
         && (value.AddressNumber == null || value.AddressNumber == "") && (value.StreetName == null || value.StreetName == "")
         && (value.PostCode == null || value.PostCode == "") && (value.Place == null || value.Place == "")
         && (value.Region == null || value.Region == "") && (value.Country == null || value.Country == "")
@@ -125,6 +128,7 @@ public sealed partial class GeoapifyLocationBackfillService
         && value.ReverseGeocodingStorageMode == "persistent" && value.ReverseGeocodedAt != null
         && ((value.Address != null && value.Address.Trim() != "")
             || (value.FullAddress != null && value.FullAddress.Trim() != "")
+            || (value.ProviderAddressLine1 != null && value.ProviderAddressLine1.Trim() != "")
             || (value.AddressNumber != null && value.AddressNumber.Trim() != "")
             || (value.StreetName != null && value.StreetName.Trim() != "")
             || (value.PostCode != null && value.PostCode.Trim() != "")

@@ -1,9 +1,17 @@
-﻿import { createTileLayer } from '../../../retryTileLayer.js';
+﻿import { renderLocationAddress } from '../../../util/location-address.js';
+import { createTileLayer } from '../../../retryTileLayer.js';
 
 let mapContainer = null;
 let data = null;
 
 document.addEventListener("DOMContentLoaded", function () {
+    // Share the Location address hierarchy while leaving posted editable values untouched.
+    const summary = document.getElementById('location-address-summary');
+    if (summary) {
+        const location = JSON.parse(summary.dataset.address);
+        summary.innerHTML = renderLocationAddress(location, location.fullAddress || location.address
+            || [location.place, location.region, location.country].filter(Boolean).join(', '));
+    }
 
     if (typeof L !== 'undefined') {
 

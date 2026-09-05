@@ -134,6 +134,7 @@ public sealed class LocationEnrichmentProgressQuery(ApplicationDbContext db) : I
             && value.ReverseGeocodedAt != null
             && ((value.Address != null && value.Address.Trim() != "")
             || (value.FullAddress != null && value.FullAddress.Trim() != "")
+            || (value.ProviderAddressLine1 != null && value.ProviderAddressLine1.Trim() != "")
             || (value.AddressNumber != null && value.AddressNumber.Trim() != "")
                 || (value.StreetName != null && value.StreetName.Trim() != "")
                 || (value.PostCode != null && value.PostCode.Trim() != "")
@@ -153,6 +154,7 @@ public sealed class LocationEnrichmentProgressQuery(ApplicationDbContext db) : I
     /// <summary>Constrains every address, context, and provenance field used by enrichment.</summary>
     internal static IQueryable<Location> WhollyUnenriched(IQueryable<Location> query) => query.Where(value =>
         (value.Address == null || value.Address == "") && (value.FullAddress == null || value.FullAddress == "")
+        && (value.ProviderAddressLine1 == null || value.ProviderAddressLine1 == "")
         && (value.AddressNumber == null || value.AddressNumber == "") && (value.StreetName == null || value.StreetName == "")
         && (value.PostCode == null || value.PostCode == "") && (value.Place == null || value.Place == "")
         && (value.Region == null || value.Region == "") && (value.Country == null || value.Country == "")

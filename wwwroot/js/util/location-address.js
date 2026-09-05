@@ -39,10 +39,14 @@ export const renderLocationAddress = (location, fallback) => {
     const precision = geoapify ? featurePrecisionNotice(type) : null;
     const label = ['amenity', 'building'].includes(type) ? 'Nearby mapped feature' : precision ? 'Mapped area' : 'Mapped feature';
     const name = geoapify ? text(location?.resolvedFeatureName) : '';
-    const secondary = (value, role = '') => `<div class="small text-muted text-break"${role}>${value}</div>`;
-    return `<div class="location-address text-break"><strong>Address:</strong> ${encodeFeatureText(address.primary)}`
+    const secondary = (value, role = '') => `<span class="d-block small text-muted text-break"${role}>${value}</span>`;
+    return `<span class="d-block location-address text-break"><strong>Address:</strong> ${encodeFeatureText(address.primary)}`
         + (address.notice ? secondary(address.notice) : '')
         + (address.fallback ? secondary(`Provider display text: ${encodeFeatureText(address.fallback)}`) : '')
         + (name ? secondary(`${label}: ${encodeFeatureText(name)}`) : '')
-        + (precision ? secondary(precision, ' role="note"') : '') + '</div>';
+        + (precision ? secondary(precision, ' role="note"') : '') + '</span>';
 };
+
+/** Encodes an individual address component in Location tables, retaining the missing-data icon. */
+export const renderAddressComponent = (value, label) => value ? encodeFeatureText(value)
+    : `<i class="bi bi-patch-question" title="No available data for ${encodeFeatureText(label)}"></i>`;

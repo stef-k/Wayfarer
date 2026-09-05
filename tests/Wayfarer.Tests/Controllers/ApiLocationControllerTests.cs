@@ -22,7 +22,7 @@ namespace Wayfarer.Tests.Controllers;
 /// <summary>
 /// API-facing location tests (bulk delete and navigation flags).
 /// </summary>
-public class ApiLocationControllerTests : TestBase
+public partial class ApiLocationControllerTests : TestBase
 {
     [Fact]
     public async Task BulkDelete_RemovesOnlyCurrentUserLocations()
@@ -529,68 +529,6 @@ public class ApiLocationControllerTests : TestBase
         var payload = ok.Value!;
         var hasData = (bool)(payload.GetType().GetProperty("hasData")?.GetValue(payload) ?? false);
         Assert.False(hasData);
-    }
-
-    [Fact]
-    public async Task Search_ReturnsUnauthorized_WhenNoUser()
-    {
-        var db = CreateDbContext();
-        var user = SeedUserWithToken(db, "tok");
-        var controller = BuildApiController(db, user, includeAuthHeader: false);
-        controller.ControllerContext.HttpContext.User = new ClaimsPrincipal();
-
-        var result = await controller.Search(null, null!, null!, null!, null!, null!, null!, null!, null!, null!);
-
-        Assert.IsType<UnauthorizedResult>(result);
-    }
-
-    [Fact]
-    public async Task Search_FiltersByActivityNotesAndAddress()
-    {
-        var db = CreateDbContext();
-        var user = SeedUserWithToken(db, "tok");
-        var activity = new ActivityType { Id = 1, Name = "Walk" };
-        db.ActivityTypes.Add(activity);
-        db.Locations.Add(new Wayfarer.Models.Location
-        {
-            UserId = user.Id,
-            Coordinates = new Point(1, 1) { SRID = 4326 },
-            Timestamp = DateTime.UtcNow,
-            LocalTimestamp = DateTime.UtcNow,
-            TimeZoneId = "UTC",
-            ActivityTypeId = activity.Id,
-            ActivityType = activity,
-            Notes = "morning walk",
-            Address = "123 Main St",
-            Country = "USA",
-            Region = "CA",
-            Place = "LA"
-        });
-        db.Locations.Add(new Wayfarer.Models.Location
-        {
-            UserId = user.Id,
-            Coordinates = new Point(2, 2) { SRID = 4326 },
-            Timestamp = DateTime.UtcNow,
-            LocalTimestamp = DateTime.UtcNow,
-            TimeZoneId = "UTC",
-            ActivityTypeId = null,
-            Notes = "other",
-            Address = "Other St",
-            Country = "Canada",
-            Region = "BC",
-            Place = "Vancouver"
-        });
-        await db.SaveChangesAsync();
-
-        var controller = BuildApiController(db, user);
-
-        var result = await controller.Search(null, null, null, null, "walk", "morning", "Main", "usa", "ca", "LA");
-
-        var ok = Assert.IsType<OkObjectResult>(result);
-        var payload = ok.Value!;
-        var dataProp = payload.GetType().GetProperty("Data");
-        var data = Assert.IsAssignableFrom<IEnumerable<object>>(dataProp!.GetValue(payload)!);
-        Assert.Single(data);
     }
 
     private static ApplicationUser SeedUserWithToken(ApplicationDbContext db, string token)

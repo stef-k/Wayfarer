@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 
 using Microsoft.EntityFrameworkCore;
 using Wayfarer.Models;
@@ -164,7 +164,7 @@ namespace Wayfarer.Parsers
     public class ReverseLocationResults
     {
         public string Address { get; set; } = string.Empty;
-    /// <summary>Independent Geoapify display line; never synthesized from address components.</summary>
+        /// <summary>Independent Geoapify display line; never synthesized from address components.</summary>
         public string? ProviderAddressLine1 { get; set; }
         public string FullAddress { get; set; } = string.Empty;
         public string AddressNumber { get; set; } = string.Empty;

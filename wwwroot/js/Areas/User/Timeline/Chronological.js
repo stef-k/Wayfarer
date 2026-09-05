@@ -1,4 +1,4 @@
-// Chronological Timeline - allows navigation by day, month, or year
+﻿// Chronological Timeline - allows navigation by day, month, or year
 let locations = [];
 let mapContainer = null;
 let markerLayer, clusterLayer, highlightLayer;
