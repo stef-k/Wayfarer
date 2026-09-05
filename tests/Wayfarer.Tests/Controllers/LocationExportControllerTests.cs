@@ -112,15 +112,19 @@ public class LocationExportControllerTests : TestBase
 
     /// <summary>Backend history formats retain independent provider text and historical address values.</summary>
     [Theory]
-    [InlineData("geojson")]
-    [InlineData("csv")]
-    [InlineData("gpx")]
-    [InlineData("kml")]
-    public async Task RetainedProviderLineRoundTrips(string format)
+    [InlineData("geojson", "\n")]
+    [InlineData("csv", "\n")]
+    [InlineData("gpx", "\n")]
+    [InlineData("kml", "\n")]
+    [InlineData("geojson", "\r\n")]
+    [InlineData("csv", "\r\n")]
+    [InlineData("gpx", "\r\n")]
+    [InlineData("kml", "\r\n")]
+    public async Task RetainedProviderLineRoundTrips(string format, string newline)
     {
         using var db = CreateDbContext();
         var original = CreateLocation("u1", "Synthetic");
-        original.ProviderAddressLine1 = "Hotel & Οδός 10-12";
+        original.ProviderAddressLine1 = $"Hotel{newline}Main\tStreet & \"Οδός\", 10-12";
         original.FullAddress = "Historical display";
         original.Address = "Historical feature-bearing line";
         original.ReverseGeocodingProvider = "geoapify";
@@ -144,7 +148,10 @@ public class LocationExportControllerTests : TestBase
         var imported = new List<Location>();
         await foreach (var row in parser.ParseAsync(file.FileStream, "import-owner")) imported.Add(row);
         var saved = Assert.Single(imported);
-        Assert.Equal(original.ProviderAddressLine1, saved.ProviderAddressLine1);
+        // XML element text normalizes line endings to LF; JSON and quoted CSV preserve them.
+        var expectedLine = format is "gpx" or "kml"
+            ? original.ProviderAddressLine1.Replace("\r\n", "\n") : original.ProviderAddressLine1;
+        Assert.Equal(expectedLine, saved.ProviderAddressLine1);
         Assert.Equal(original.FullAddress, saved.FullAddress);
         Assert.Equal(original.Address, saved.Address);
         Assert.Equal(("geoapify", "persistent", original.ReverseGeocodedAt),
