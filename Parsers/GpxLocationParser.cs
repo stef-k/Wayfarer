@@ -123,7 +123,7 @@ public sealed class GpxLocationParser : ILocationDataParser
                 Place = place,
                 Region = region,
                 Country = country,
-                ProviderAddressLine1 = ResolvedFeatureMetadata.NormalizeName(GetExtensionValue(extensions, "providerAddressLine1")),
+                ProviderAddressLine1 = RetainedAddressText.Normalize(GetExtensionValue(extensions, "providerAddressLine1")),
                 ResolvedFeatureName = feature.Name,
                 ResolvedFeatureType = feature.Type,
                 ReverseGeocodingProvider = feature.Provider,

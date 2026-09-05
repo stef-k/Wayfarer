@@ -112,7 +112,7 @@ public sealed class CsvLocationParser : ILocationDataParser
                 Place = GetField(csv, "Place"),
                 Region = GetField(csv, "Region"),
                 Country = GetField(csv, "Country"),
-                ProviderAddressLine1 = ResolvedFeatureMetadata.NormalizeName(GetField(csv, "ProviderAddressLine1")),
+                ProviderAddressLine1 = RetainedAddressText.Normalize(GetField(csv, "ProviderAddressLine1")),
                 ResolvedFeatureName = feature.Name,
                 ResolvedFeatureType = feature.Type,
                 ReverseGeocodingProvider = feature.Provider,

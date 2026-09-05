@@ -16,6 +16,8 @@ CSV uses the CSV importer and suits spreadsheets/Python. Wayfarer GeoJSON uses t
 
 Backend GeoJSON, CSV, GPX and KML history exports/imports preserve optional `ProviderAddressLine1` (GPX `providerAddressLine1`) alongside existing address strings. Older files remain accepted. The line is independently supplied provider display text, not a synthesized street address. Imports retain supplied values without silently correcting history; valid imported Geoapify enrichment tuples receive the same Location presentation as other valid retained tuples. A tuple is not verified capture origin.
 
+Retained provider lines are trimmed at the edges; missing, blank, or values longer than 500 characters after trimming are absent. Internal whitespace, including newlines and tabs, survives. GeoJSON and quoted CSV preserve line endings; GPX/KML XML round trips normalize them to LF, so they do not promise byte-identical text. Feature-name validation remains separate and rejects internal control characters.
+
 Released Mobile continues using `FullAddress`. Its existing fields remain compatible, but old Mobile offline export/import cannot promise to retain the unknown additive field. Trip Place remains `FullAddress`-preferred and has no new provider-line field.
 
 ## Importing Data

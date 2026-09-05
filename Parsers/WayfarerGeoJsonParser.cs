@@ -178,7 +178,7 @@ namespace Wayfarer.Parsers
                         Place = place,
                         Region = region,
                         Country = country,
-                        ProviderAddressLine1 = ResolvedFeatureMetadata.NormalizeName(getTupleString("ProviderAddressLine1")),
+                        ProviderAddressLine1 = RetainedAddressText.Normalize(getTupleString("ProviderAddressLine1")),
                         ResolvedFeatureName = feature.Name,
                         ResolvedFeatureType = feature.Type,
                         ReverseGeocodingProvider = feature.Provider,

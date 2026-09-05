@@ -130,7 +130,7 @@ public sealed class KmlLocationParser : ILocationDataParser
                 Place = place,
                 Region = region,
                 Country = country,
-                ProviderAddressLine1 = ResolvedFeatureMetadata.NormalizeName(ReadDataValue(extendedData, namespaceToUse, "ProviderAddressLine1")),
+                ProviderAddressLine1 = RetainedAddressText.Normalize(ReadDataValue(extendedData, namespaceToUse, "ProviderAddressLine1")),
                 ResolvedFeatureName = feature.Name,
                 ResolvedFeatureType = feature.Type,
                 ReverseGeocodingProvider = feature.Provider,
