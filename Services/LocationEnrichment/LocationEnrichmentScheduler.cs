@@ -61,16 +61,27 @@ public sealed class LocationEnrichmentScheduler(IScheduler scheduler)
             await scheduler.UnscheduleJob(stale, cancellationToken);
             knownTriggerKeys?.Remove(stale);
         }
-        if (jobExists && (knownTriggerKeys?.Contains(triggerKey)
-            ?? await scheduler.CheckExists(triggerKey, cancellationToken))) return;
+        // Quartz stores milliseconds. Round up so persistence cannot move the wake before its authority deadline.
+        var wake = new DateTimeOffset(workflow.NextEligibleAtUtc ?? DateTime.UtcNow);
+        var scheduledAt = DateTimeOffset.FromUnixTimeMilliseconds(wake.ToUnixTimeMilliseconds());
+        if (scheduledAt < wake) scheduledAt = scheduledAt.AddMilliseconds(1);
         var trigger = TriggerBuilder.Create().WithIdentity(triggerKey).ForJob(jobKey)
             .UsingJobData("epoch", workflow.Epoch.ToString(System.Globalization.CultureInfo.InvariantCulture))
-            .StartAt(workflow.NextEligibleAtUtc ?? DateTime.UtcNow)
+            .StartAt(scheduledAt)
             .WithSimpleSchedule(schedule =>
             {
                 schedule.WithRepeatCount(0);
                 schedule.WithMisfireHandlingInstructionFireNow();
             }).Build();
+        // A continuation keeps its epoch but replaces the consumed or differently timed one-shot wake.
+        if (jobExists && (knownTriggerKeys?.Contains(triggerKey)
+            ?? await scheduler.CheckExists(triggerKey, cancellationToken)))
+        {
+            var existing = await scheduler.GetTrigger(triggerKey, cancellationToken);
+            if (existing is not null && (workflow.State == LocationEnrichmentState.Running
+                || existing.StartTimeUtc == trigger.StartTimeUtc)) return;
+            if (await scheduler.RescheduleJob(triggerKey, trigger, cancellationToken) is not null) return;
+        }
         await scheduler.ScheduleJob(trigger, cancellationToken);
         knownTriggerKeys?.Add(triggerKey);
     }

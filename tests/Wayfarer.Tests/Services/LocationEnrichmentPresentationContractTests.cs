@@ -100,7 +100,7 @@ public sealed class LocationEnrichmentPresentationContractTests
     [InlineData(true, LocationEnrichmentState.Completed, true)]
     [InlineData(true, LocationEnrichmentState.PausedByUser, false)]
     [InlineData(true, LocationEnrichmentState.PausedByAuthority, true)]
-    [InlineData(true, LocationEnrichmentState.Cancelled, false)]
+    [InlineData(true, LocationEnrichmentState.Cancelled, true)]
     [InlineData(false, LocationEnrichmentState.Completed, false)]
     [InlineData(true, LocationEnrichmentState.Running, false)]
     public void RetryDeferredRequiresCurrentEligibleRowsAndRestartableState(
@@ -123,6 +123,21 @@ public sealed class LocationEnrichmentPresentationContractTests
         Assert.Equal(2, view.IncompleteProviderAddresses);
         Assert.Equal(new LocationEnrichmentActionPresentation(true, true), view.RepairIncomplete);
         Assert.False(view.RetryDeferred.Visible);
+    }
+
+    /// <summary>Reproduces the reported stopped state without treating incompleteness as runnable work.</summary>
+    [Fact]
+    public void CancelledReportedStateOffersIndependentExplicitActionsWithoutAutomaticWake()
+    {
+        var view = LocationEnrichmentPresentation.Build(Workflow(LocationEnrichmentState.Cancelled),
+            Authority(usage: 98), new(0, 0, 2, 0, Now.AddMinutes(5), 11));
+        Assert.False(view.Start.Visible);
+        Assert.False(view.Resume.Visible);
+        Assert.Equal(new(true, true), view.RetryDeferred);
+        Assert.Equal(new(true, true), view.RepairIncomplete);
+        Assert.False(view.IntentEnabled);
+        Assert.Null(view.NextAttemptAtUtc);
+        Assert.Equal(2, view.TotalOutstanding);
     }
 
     private static LocationEnrichmentAuthorityPresentation Authority(bool available = true,

@@ -25,14 +25,33 @@ public sealed class LocationEnrichmentProgressQuery(ApplicationDbContext db) : I
     {
         var cannotRetry = await CannotRetryAttempts(db, userId).CountAsync(cancellationToken);
         var incomplete = await CountIncompleteGeoapifyAsync(userId, cancellationToken);
-        if (authority is null) return new(0, 0, 0, cannotRetry, null, incomplete);
+        // A claim is in flight only while its complete workflow owner remains live; otherwise it awaits recovery.
+        var operations = await db.LocationEnrichmentAttempts.Where(item => item.UserId == userId && item.OperationId != null)
+            .Select(item => item.Workflow != null && item.Workflow.IntentEnabled
+                && item.Workflow.State == LocationEnrichmentState.Running
+                && item.OperationWorkflowEpoch == item.Workflow.Epoch
+                && item.OperationLeaseId == item.Workflow.ExecutionLeaseId
+                && item.OperationFencingGeneration == item.Workflow.ExecutionFencingGeneration
+                && item.Workflow.ExecutionLeaseExpiresAtUtc > dbNow)
+            .GroupBy(owned => 1).Select(group => new { Total = group.Count(), Owned = group.Count(owned => owned) })
+            .SingleOrDefaultAsync(cancellationToken);
+        var inFlight = operations?.Owned ?? 0;
+        var recovery = (operations?.Total ?? 0) - inFlight;
+        // Only an admitted terminal repair supports a provider-no-locality explanation.
+        var noLocality = await (from location in IncompleteGeoapifyLocations(db, userId)
+            join attempt in db.LocationEnrichmentAttempts.Where(item => item.UserId == userId)
+                on location.Id equals attempt.LocationId
+            where attempt.OperationId == null && attempt.AdmittedAttemptCount > 0
+                && attempt.Outcome == LocationEnrichmentOutcome.NoResult
+            select attempt.Id).CountAsync(cancellationToken);
+        if (authority is null) return new(0, 0, 0, cannotRetry, null, incomplete, inFlight, recovery, noLocality);
         var rows = Rows(userId, authority);
-        var runnable = await rows.CountAsync(row => row.Attempt == null || (row.Attempt.OperationId == null
+        var runnable = await rows.CountAsync(row => (row.Normal || row.Current) && (row.Attempt == null || (row.Attempt.OperationId == null
             && row.Attempt.Outcome != LocationEnrichmentOutcome.InvalidCoordinates
             && (!row.Current || (row.Attempt.Outcome != LocationEnrichmentOutcome.NoResult
                 && row.Attempt.Outcome != LocationEnrichmentOutcome.AttemptLimit
                 && row.Attempt.AdmittedAttemptCount < 3
-                && (row.Attempt.NextAttemptAtUtc == null || row.Attempt.NextAttemptAtUtc <= dbNow)))), cancellationToken);
+                && (row.Attempt.NextAttemptAtUtc == null || row.Attempt.NextAttemptAtUtc <= dbNow))))), cancellationToken);
         var future = await rows.CountAsync(row => row.Attempt != null && row.Current
             && row.Attempt.OperationId == null && row.Attempt.Outcome == LocationEnrichmentOutcome.RetryableFailure
             && row.Attempt.AdmittedAttemptCount < 3 && row.Attempt.NextAttemptAtUtc > dbNow, cancellationToken);
@@ -41,7 +60,7 @@ public sealed class LocationEnrichmentProgressQuery(ApplicationDbContext db) : I
                 && row.Attempt.OperationId == null && row.Attempt.Outcome == LocationEnrichmentOutcome.RetryableFailure
                 && row.Attempt.AdmittedAttemptCount < 3 && row.Attempt.NextAttemptAtUtc > dbNow)
             .MinAsync(row => row.Attempt!.NextAttemptAtUtc, cancellationToken);
-        return new(runnable, future, manualRetry, cannotRetry, next, incomplete);
+        return new(runnable, future, manualRetry, cannotRetry, next, incomplete, inFlight, recovery, noLocality);
     }
 
     /// <inheritdoc />
@@ -52,21 +71,25 @@ public sealed class LocationEnrichmentProgressQuery(ApplicationDbContext db) : I
     /// <inheritdoc />
     public Task<bool> HasRunnableAsync(string userId, PersonalProviderAuthorityBinding authority,
         DateTime dbNow, CancellationToken cancellationToken = default) => Rows(userId, authority).AnyAsync(row =>
-            row.Attempt == null || (row.Attempt.OperationId == null
+            (row.Normal || row.Current) && (row.Attempt == null || (row.Attempt.OperationId == null
                 && row.Attempt.Outcome != LocationEnrichmentOutcome.InvalidCoordinates
                 && (!row.Current || (row.Attempt.Outcome != LocationEnrichmentOutcome.NoResult
                     && row.Attempt.Outcome != LocationEnrichmentOutcome.AttemptLimit
                     && row.Attempt.AdmittedAttemptCount < 3
-                    && (row.Attempt.NextAttemptAtUtc == null || row.Attempt.NextAttemptAtUtc <= dbNow)))), cancellationToken);
+                    && (row.Attempt.NextAttemptAtUtc == null || row.Attempt.NextAttemptAtUtc <= dbNow))))), cancellationToken);
 
+    /// <summary>Normal work may reset stale authority; partial repairs require affirmative current authority.</summary>
     private IQueryable<CandidateRow> Rows(string userId, PersonalProviderAuthorityBinding authority) =>
-        from location in WhollyUnenriched(db.Locations.Where(item => item.UserId == userId))
+        from location in db.Locations.Where(item => item.UserId == userId
+            && (WhollyUnenriched(db.Locations).Any(normal => normal.Id == item.Id)
+                || IncompleteGeoapifyLocations(db, userId).Any(partial => partial.Id == item.Id)))
         join attempt in db.LocationEnrichmentAttempts.Where(item => item.UserId == userId)
             on location.Id equals attempt.LocationId into attempts
         from attempt in attempts.DefaultIfEmpty()
         select new CandidateRow
         {
             Attempt = attempt,
+            Normal = WhollyUnenriched(db.Locations).Any(normal => normal.Id == location.Id),
             Current = attempt != null && attempt.ProviderKey == authority.ProviderKey
                 && attempt.ProviderProfileId == authority.ProfileId
                 && attempt.Capability == PersonalProviderCapability.Geocoding
@@ -140,5 +163,6 @@ public sealed class LocationEnrichmentProgressQuery(ApplicationDbContext db) : I
     {
         public LocationEnrichmentAttempt? Attempt { get; init; }
         public bool Current { get; init; }
+        public bool Normal { get; init; }
     }
 }

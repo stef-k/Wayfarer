@@ -34,6 +34,9 @@ public sealed class LocationEnrichmentSchedulerTests
         Assert.Equal(workflow.SchedulerId.ToString("N"), capturedJob.JobDataMap.GetString("workflowId"));
         Assert.Equal(workflow.Epoch, capturedTrigger.JobDataMap.GetInt("epoch"));
         Assert.Equal(1, capturedJob.JobDataMap.GetInt("schema"));
+        // Quartz persists milliseconds: round upward so a due trigger cannot precede relational authority.
+        Assert.Equal(0, capturedTrigger.StartTimeUtc.Ticks % TimeSpan.TicksPerMillisecond);
+        Assert.True(capturedTrigger.StartTimeUtc.UtcDateTime >= workflow.NextEligibleAtUtc);
         Assert.Equal(MisfireInstruction.SimpleTrigger.FireNow,
             Assert.IsAssignableFrom<ISimpleTrigger>(capturedTrigger).MisfireInstruction);
         Assert.DoesNotContain(capturedJob.JobDataMap.Keys, key => key.Contains("user", StringComparison.OrdinalIgnoreCase));
@@ -48,7 +51,10 @@ public sealed class LocationEnrichmentSchedulerTests
         scheduler.Setup(item => item.GetTriggerKeys(It.IsAny<Quartz.Impl.Matchers.GroupMatcher<TriggerKey>>(), default))
             .ReturnsAsync(new HashSet<TriggerKey>());
         var workflow = LocationEnrichmentWorkflow.Create("user", DateTime.UtcNow);
-        workflow.Start(DateTime.UtcNow);
+        workflow.Start(new DateTime(2026, 9, 5, 12, 0, 0, DateTimeKind.Utc));
+
+        scheduler.Setup(item => item.GetTrigger(It.IsAny<TriggerKey>(), default))
+            .ReturnsAsync(TriggerBuilder.Create().StartAt(workflow.NextEligibleAtUtc!.Value).Build());
 
         await new LocationEnrichmentScheduler(scheduler.Object).EnsureScheduledAsync(workflow);
 

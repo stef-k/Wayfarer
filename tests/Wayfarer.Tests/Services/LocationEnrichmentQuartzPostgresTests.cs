@@ -304,7 +304,7 @@ public sealed class LocationEnrichmentQuartzPostgresTests(PostgresImportTestFixt
         }
     }
 
-    private sealed class ProductionJobFactory(PostgresImportTestFixture fixture, ILocationEnrichmentWorker worker)
+    internal sealed class ProductionJobFactory(PostgresImportTestFixture fixture, ILocationEnrichmentWorker worker)
         : IJobFactory
     {
         private readonly List<ApplicationDbContext> contexts = [];
@@ -350,7 +350,7 @@ public sealed class LocationEnrichmentQuartzPostgresTests(PostgresImportTestFixt
         await command.ExecuteNonQueryAsync();
     }
 
-    private static async Task WaitUntilAsync(Func<Task<bool>> condition, TimeSpan timeout)
+    internal static async Task WaitUntilAsync(Func<Task<bool>> condition, TimeSpan timeout)
     {
         using var cancellation = new CancellationTokenSource(timeout);
         while (!await condition())

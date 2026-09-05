@@ -79,6 +79,7 @@ public sealed class LocationEnrichmentWorkerTests
             It.IsAny<CancellationToken>()), Times.Once);
     }
 
+    /// <summary>Runnable work continues immediately even when this batch also encountered a transient failure.</summary>
     [Fact]
     public async Task IntermediateBatchBroadcastsOnlyAfterCommittedProgressIsReloadable()
     {
@@ -94,7 +95,7 @@ public sealed class LocationEnrichmentWorkerTests
         var batch = new Mock<ILocationEnrichmentBatch>();
         batch.Setup(item => item.RunAsync(It.IsAny<LocationEnrichmentExecutionLease>(),
                 It.IsAny<CancellationToken>()))
-            .ReturnsAsync(new GeoapifyBackfillResult(10, 8, 2, 0, 3, false, Admitted: 10));
+            .ReturnsAsync(new GeoapifyBackfillResult(10, 8, 1, 1, 3, false, Admitted: 10));
         var scheduler = new Mock<IWorkflowScheduleProjection>();
         var sse = new CommittedProgressSse(contexts);
 

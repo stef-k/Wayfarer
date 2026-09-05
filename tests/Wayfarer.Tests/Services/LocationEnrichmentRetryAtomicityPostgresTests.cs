@@ -238,7 +238,7 @@ public sealed partial class LocationEnrichmentRetryAtomicityPostgresTests(Postgr
     }
 
     [PostgresFact]
-    public async Task CancelCommitFirstMakesRetryMutationFree()
+    public async Task CancelCommitFirstAllowsSubsequentExplicitRetry()
     {
         fixture.RequireAvailable();
         var scenario = await SeedAsync(LocationEnrichmentState.Completed, LocationEnrichmentOutcome.NoResult);
@@ -256,12 +256,12 @@ public sealed partial class LocationEnrichmentRetryAtomicityPostgresTests(Postgr
         var after = await SnapshotAsync(scenario.UserId);
 
         Assert.Equal("cancelled", results[0].Code);
-        Assert.Equal("invalid-state", results[1].Code);
-        Assert.Equal(LocationEnrichmentState.Cancelled, after.State);
-        Assert.Equal(2, after.Epoch);
-        Assert.Equal(LocationEnrichmentOutcome.NoResult, after.AttemptOutcome);
-        Assert.Equal(1, after.AdmittedAttemptCount);
-        scenario.Projection.Verify(x => x.ProjectAsync(scenario.UserId, It.IsAny<CancellationToken>()), Times.Once);
+        Assert.Equal("scheduled", results[1].Code);
+        Assert.Equal(LocationEnrichmentState.Scheduled, after.State);
+        Assert.Equal(3, after.Epoch);
+        Assert.Equal(LocationEnrichmentOutcome.None, after.AttemptOutcome);
+        Assert.Equal(0, after.AdmittedAttemptCount);
+        scenario.Projection.Verify(x => x.ProjectAsync(scenario.UserId, It.IsAny<CancellationToken>()), Times.Exactly(2));
     }
 
     [PostgresFact(Timeout = 20_000)]

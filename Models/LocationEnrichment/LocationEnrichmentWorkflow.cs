@@ -139,12 +139,12 @@ public sealed class LocationEnrichmentWorkflow
         UpdatedAtUtc = nowUtc;
     }
 
-    /// <summary>Advances the epoch once for an explicit deferred-attempt retry request.</summary>
+    /// <summary>Advances the epoch for an explicit retry or repair, including after cancellation.</summary>
     public bool RetryDeferred(DateTime nowUtc)
     {
         EnsureUtc(nowUtc);
         if (State is not (LocationEnrichmentState.PausedByAuthority
-            or LocationEnrichmentState.Completed or LocationEnrichmentState.Failed)) return false;
+            or LocationEnrichmentState.Completed or LocationEnrichmentState.Failed or LocationEnrichmentState.Cancelled)) return false;
         Epoch++;
         IntentEnabled = true;
         State = LocationEnrichmentState.Scheduled;
@@ -207,13 +207,16 @@ public sealed class LocationEnrichmentWorkflow
         return true;
     }
 
-    /// <summary>Acquires one expiring execution owner without retaining a database resource.</summary>
+    /// <summary>Acquires a due scheduled or backoff epoch without retaining a database resource.</summary>
     public LocationEnrichmentExecutionLease? TryAcquireExecutionLease(DateTime nowUtc, TimeSpan duration)
     {
         EnsureUtc(nowUtc);
         if (duration <= TimeSpan.FromSeconds(15)) throw new ArgumentOutOfRangeException(nameof(duration));
-        if (!IntentEnabled || State is not (LocationEnrichmentState.Scheduled or LocationEnrichmentState.Running))
-            return null;
+        if (!IntentEnabled || State is not (LocationEnrichmentState.Scheduled or LocationEnrichmentState.Running
+            or LocationEnrichmentState.BackingOff or LocationEnrichmentState.PausedByBudget)) return null;
+        if (NextEligibleAtUtc > nowUtc
+            || (State is LocationEnrichmentState.BackingOff or LocationEnrichmentState.PausedByBudget
+                && NextEligibleAtUtc is null)) return null;
         if (ExecutionLeaseId.HasValue && ExecutionLeaseExpiresAtUtc > nowUtc) return null;
         ExecutionFencingGeneration++;
         ExecutionLeaseId = Guid.NewGuid();

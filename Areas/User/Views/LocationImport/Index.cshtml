@@ -189,6 +189,9 @@
             <dt class="col-sm-4">Skipped (cumulative)</dt><dd class="col-sm-8">@enrichment.Skipped</dd>
             <dt class="col-sm-4">Runnable now</dt><dd class="col-sm-8">@enrichment.RunnableRemaining</dd>
             <dt class="col-sm-4">Retryable later</dt><dd class="col-sm-8">@enrichment.FutureDue</dd>
+            @* Operation ownership is distinct from readiness and stored address shape. *@
+            <dt class="col-sm-4">In flight (current owned operations)</dt><dd class="col-sm-8">@enrichment.InFlight</dd>
+            <dt class="col-sm-4">Awaiting recovery</dt><dd class="col-sm-8">@enrichment.AwaitingRecovery</dd>
             <dt class="col-sm-4">Manual retry available</dt><dd class="col-sm-8">@enrichment.ManualRetryAvailable</dd>
             <dt class="col-sm-4">Cannot be retried</dt><dd class="col-sm-8">@enrichment.CannotBeRetried</dd>
             <dt class="col-sm-4">Incomplete provider addresses</dt><dd class="col-sm-8">@enrichment.IncompleteProviderAddresses</dd>
@@ -200,6 +203,22 @@
         <p class="small">Geoapify geocoding and routing share Wayfarer's rolling pool; usage elsewhere in your
             provider account is not visible here. Mapbox Permanent requires separate consent and uses Wayfarer's
             independent monthly meter. Deleting import history does not delete Locations or enrichment.</p>
+        @if (enrichment.IncompleteProviderAddresses > 0)
+        {
+            <p class="small">Incomplete addresses describe stored fields, not additional scheduled requests.
+                Unprepared addresses need an explicit Repair action. Transient repairs appear under Retryable later;
+                a Next attempt is shown only while execution intent is enabled. Manual correction remains available.</p>
+        }
+        @if (enrichment.RepairsWithoutLocality > 0)
+        {
+            <p class="small">For @enrichment.RepairsWithoutLocality attempted repairs, the provider did not supply a city/place
+                or usable result. Those addresses remain incomplete; no automatic retry is scheduled for that outcome.
+                You can explicitly Repair again when stopped, or correct the address manually.</p>
+        }
+        @if (!enrichment.IntentEnabled && enrichment.FutureDue > 0)
+        {
+            <p class="small">Retained retry times do not schedule an automatic wake while enrichment is stopped.</p>
+        }
         <p id="enrichment-status" role="status">@(enrichment.PausedReason ?? enrichment.NoActionReason
             ?? "Choose an available enrichment action.")</p>
         <div class="d-flex gap-2 flex-wrap" aria-label="Enrichment actions">

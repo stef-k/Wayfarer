@@ -252,9 +252,10 @@ public sealed class ImportEnrichmentHandoff(
         return EnrichmentCommandResult.Success("repair-scheduled", locations.Count);
     }
 
+    /// <summary>Allows only explicit stopped-state retries or repairs, including a new intent after cancellation.</summary>
     private static bool CanRetryDeferred(LocationEnrichmentWorkflow workflow) => workflow.State is
         LocationEnrichmentState.PausedByAuthority
-        or LocationEnrichmentState.Completed or LocationEnrichmentState.Failed;
+        or LocationEnrichmentState.Completed or LocationEnrichmentState.Failed or LocationEnrichmentState.Cancelled;
 
     private async Task<int> ResetTrackedAsync(IQueryable<LocationEnrichmentAttempt> eligible,
         PersonalProviderAuthorityBinding authority, DateTime now, CancellationToken cancellationToken)

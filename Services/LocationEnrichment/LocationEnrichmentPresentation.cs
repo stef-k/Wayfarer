@@ -5,6 +5,7 @@ namespace Wayfarer.Services.LocationEnrichment;
 /// <summary>Maps bounded durable facts to the complete user command presentation.</summary>
 public static class LocationEnrichmentPresentation
 {
+    /// <summary>Offers explicit stopped-state restarts while exposing wakes only for enabled durable intent.</summary>
     public static LocationEnrichmentPresentationModel Build(LocationEnrichmentWorkflow? workflow,
         LocationEnrichmentAuthorityPresentation authority, LocationEnrichmentProgressPresentation progress)
     {
@@ -18,10 +19,10 @@ public static class LocationEnrichmentPresentation
         var canStart = restartable && authority.Available && hasRunnableWork;
         var canResume = resumable && authority.Available;
         var canRetry = workflow?.State is (LocationEnrichmentState.PausedByAuthority
-            or LocationEnrichmentState.Completed or LocationEnrichmentState.Failed)
+            or LocationEnrichmentState.Completed or LocationEnrichmentState.Failed or LocationEnrichmentState.Cancelled)
             && authority.Available && progress.ManualRetryAvailable > 0;
         var canRepair = workflow?.State is (LocationEnrichmentState.PausedByAuthority
-            or LocationEnrichmentState.Completed or LocationEnrichmentState.Failed)
+            or LocationEnrichmentState.Completed or LocationEnrichmentState.Failed or LocationEnrichmentState.Cancelled)
             && authority.Available && authority.ProviderKey == "geoapify"
             && progress.IncompleteProviderAddresses > 0;
         var pausedReason = state switch
@@ -39,13 +40,14 @@ public static class LocationEnrichmentPresentation
             : progress.CannotBeRetried > 0 ? "Some locations have invalid coordinates and cannot be retried."
             : "No eligible enrichment work is available.";
         return new(state.ToString(), workflow?.IntentEnabled ?? false, pausedReason,
-            progress.NextAttemptAtUtc ?? workflow?.NextEligibleAtUtc,
+            workflow?.IntentEnabled == true ? workflow.NextEligibleAtUtc : null,
             workflow?.ProcessedCount ?? 0, workflow?.EnrichedCount ?? 0,
             workflow?.SkippedCount ?? 0, workflow?.RetryableDeferredCount ?? 0,
             progress.ManualRetryAvailable, progress.CannotBeRetried, progress.IncompleteProviderAddresses,
             workflow?.FailedBatchCount ?? 0,
             progress.RunnableRemaining, progress.FutureDue,
-            progress.RunnableRemaining + progress.FutureDue + progress.ManualRetryAvailable + progress.CannotBeRetried,
+            progress.RunnableRemaining + progress.FutureDue + progress.ManualRetryAvailable + progress.CannotBeRetried
+                + progress.InFlight + progress.AwaitingRecovery,
             workflow?.Outcome.ToString() ?? LocationEnrichmentOutcome.None.ToString(),
             authority.ProviderKey, authority.ProviderDisplayName, authority.Available,
             authority.AvailabilitySummary, authority.GuardEnabled, authority.Usage,
@@ -54,7 +56,9 @@ public static class LocationEnrichmentPresentation
             Start: new(canStart, canStart),
             Pause: new(active, active), Resume: new(canResume, canResume),
             Cancel: new(active || resumable, active || resumable), RetryDeferred: new(canRetry, canRetry),
-            RepairIncomplete: new(progress.IncompleteProviderAddresses > 0, canRepair));
+            RepairIncomplete: new(progress.IncompleteProviderAddresses > 0, canRepair),
+            InFlight: progress.InFlight, AwaitingRecovery: progress.AwaitingRecovery,
+            RepairsWithoutLocality: progress.RepairsWithoutLocality);
     }
 }
 
@@ -66,7 +70,7 @@ public sealed record LocationEnrichmentAuthorityPresentation(string? ProviderKey
 
 public sealed record LocationEnrichmentProgressPresentation(int RunnableRemaining, int FutureDue,
     int ManualRetryAvailable, int CannotBeRetried, DateTime? NextAttemptAtUtc,
-    int IncompleteProviderAddresses = 0);
+    int IncompleteProviderAddresses = 0, int InFlight = 0, int AwaitingRecovery = 0, int RepairsWithoutLocality = 0);
 
 public sealed record LocationEnrichmentPresentationModel(string StatusText, bool IntentEnabled, string? PausedReason,
     DateTime? NextAttemptAtUtc, int Processed, int Enriched, int Skipped, int RetryableDeferred,
@@ -78,4 +82,5 @@ public sealed record LocationEnrichmentPresentationModel(string StatusText, bool
     bool DeferredWorkRetryable, string? NoActionReason,
     LocationEnrichmentActionPresentation Start, LocationEnrichmentActionPresentation Pause,
     LocationEnrichmentActionPresentation Resume, LocationEnrichmentActionPresentation Cancel,
-    LocationEnrichmentActionPresentation RetryDeferred, LocationEnrichmentActionPresentation RepairIncomplete);
+    LocationEnrichmentActionPresentation RetryDeferred, LocationEnrichmentActionPresentation RepairIncomplete,
+    int InFlight = 0, int AwaitingRecovery = 0, int RepairsWithoutLocality = 0);
