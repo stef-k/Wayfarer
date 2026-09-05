@@ -8,12 +8,13 @@ namespace Wayfarer.Tests.Versioning;
 
 public class AppVersionProviderTests
 {
+    /// <summary>Verifies the compiled assembly matches the prepared release version.</summary>
     [Fact]
     public void Version_DefaultProviderReadsCompiledWayfarerVersion()
     {
         var provider = new AppVersionProvider();
 
-        provider.Version.Should().Be("1.9.8");
+        provider.Version.Should().Be("1.9.9");
     }
 
     [Fact]
