@@ -125,10 +125,11 @@ onUnmounted(() => {
       <p class="small mb-2">Review the proposed route and estimates. Save Segment uses this proposal and saves your other Segment changes. Discard proposal keeps your previous route.</p>
       <!-- Estimates stay separate from the ordinary fields until canonical Save succeeds. -->
       <dl class="small mb-2 proposal-estimates">
+        <!-- Round only displayed estimates; proposal values retain their original precision. -->
         <dt>Proposed distance</dt>
-        <dd><strong>{{ state.proposal.distanceMetres == null ? 'Unavailable' : `${state.proposal.distanceMetres / 1000} km` }}</strong></dd>
+        <dd><strong>{{ state.proposal.distanceMetres == null ? 'Unavailable' : `${Number((state.proposal.distanceMetres / 1000).toFixed(2))} km` }}</strong></dd>
         <dt>Estimated travel time</dt>
-        <dd><strong>{{ state.proposal.durationSeconds == null ? 'Unavailable' : `${state.proposal.durationSeconds / 60} minutes` }}</strong></dd>
+        <dd><strong>{{ state.proposal.durationSeconds == null ? 'Unavailable' : `${Number((state.proposal.durationSeconds / 60).toFixed(2))} minutes` }}</strong></dd>
       </dl>
       <p v-if="manualDurationOverride" class="small">Save keeps your manual duration instead of the proposed duration estimate.</p>
       <button type="button" class="btn btn-outline-secondary btn-sm ms-2" :disabled="isSaving" @click="discard">Discard proposal</button>

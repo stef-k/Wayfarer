@@ -171,6 +171,7 @@ test('pending template labels present, absent and zero estimates and explains Ma
   const props = { segment: { id: 'segment', mode: 'walk', externalRouting: { available: true, modes: [] } },
     draftMode: 'walk', draftContextKey: 'context', manualDurationOverride: true };
   for (const [distance, duration, expected] of [[1250, 360, ['1.25 km', '6 minutes']],
+    [140357, 7981.014, ['140.36 km', '133.02 minutes']],
     [null, null, ['Unavailable', 'Unavailable']], [undefined, undefined, ['Unavailable', 'Unavailable']],
     [0, 0, ['0 km', '0 minutes']]]) {
     let bindings;
@@ -182,6 +183,8 @@ test('pending template labels present, absent and zero estimates and explains Ma
       return () => render({}, [], props, bindings, {}, {});
     } });
     const html = await renderToString(app);
+    assert.equal(bindings.state.proposal.distanceMetres, distance);
+    assert.equal(bindings.state.proposal.durationSeconds, duration);
     assert.match(html, /Proposed distance/);
     assert.match(html, /Estimated travel time/);
     for (const value of expected) assert.ok(html.includes(`<strong>${value}</strong>`), html);
