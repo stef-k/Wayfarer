@@ -71,7 +71,7 @@ export const createSegmentPresentationLayer = (
     }
     hit.getElement()?.setAttribute('data-segment-hit-owner', keyText(presentation.key));
     const normalOpacity = line.options.opacity!;
-    if (proposalSegmentId !== null && presentation.segmentId === proposalSegmentId) line.setStyle({ opacity: 0.50 });
+    if (proposalSegmentId !== null && presentation.segmentId === proposalSegmentId) line.setStyle({ opacity: 0.65 });
     registry.set(keyText(presentation.key), { presentation, group, line, normalOpacity, hit, chevrons });
   };
 
@@ -154,7 +154,7 @@ export const createSegmentPresentationLayer = (
   const setProposalEmphasis = (segmentId: Guid | null): void => {
     proposalSegmentId = segmentId;
     registry.forEach(entry => entry.line.setStyle({
-      opacity: segmentId !== null && entry.presentation.segmentId === segmentId ? 0.50 : entry.normalOpacity
+      opacity: segmentId !== null && entry.presentation.segmentId === segmentId ? 0.65 : entry.normalOpacity
     }));
   };
 
