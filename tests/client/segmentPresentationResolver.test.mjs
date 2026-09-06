@@ -178,6 +178,43 @@ test('places deterministic active and inactive chevrons from projected points', 
   assert.equal(placeProjectedChevrons([[0, 0], [1000, 0]], true).length, 8);
 });
 
+/** Tight returns must lose only contradictory candidates at each projected scale. */
+for (const scale of [1, 2]) {
+  for (const active of [false, true]) {
+    test(`mirrors truthful tight-return cues at ${scale}x, active=${active}`, async () => {
+      const { placeViewerChevrons } = await import('../../wwwroot/js/Trip/segmentPresentation.js');
+      const route = [[0, 0], [49, 0], [47, 1], [96, 1]].map(point => point.map(value => value * scale));
+      const original = structuredClone(route);
+      const results = [placeProjectedChevrons, placeViewerChevrons].map(place => place(route, active));
+      for (const cues of results) {
+        assert.equal(cues.length, scale === 1 ? 0 : 2);
+        assert.ok(cues.every(cue => cue.angle === 0), 'retained outer-leg cues still travel east');
+      }
+      assert.deepEqual(results[0], results[1]);
+      assert.deepEqual(route, original);
+    });
+  }
+}
+
+/** Vertex cues agree with both adjacent nonzero legs; duplicate vertices have no direction. */
+test('mirrors ordered vertex direction with duplicate projected points', async () => {
+  const { placeViewerChevrons } = await import('../../wwwroot/js/Trip/segmentPresentation.js');
+  const cases = [
+    { route: [[0, 0], [40, 0], [40, 0], [80, 0]], angle: 0 },
+    { route: [[80, 0], [40, 0], [40, 0], [0, 0]], angle: 180 },
+    { route: [[0, 0], [40, 0], [40, 0], [40, 40]], angle: 45 },
+    { route: [[0, 0], [40, 0], [40, 0], [0, 0]], angle: null }
+  ];
+  for (const { route, angle } of cases) {
+    for (const active of [false, true]) {
+      const editor = placeProjectedChevrons(route, active);
+      assert.deepEqual(placeViewerChevrons(route, active), editor);
+      assert.equal(editor.length, angle === null ? 0 : 1);
+      if (angle !== null) assert.equal(editor[0].angle, angle);
+    }
+  }
+});
+
 /** Proves both consumers preserve exact horizontal CSS-pixel spans, bounded arms, and opposite directions. */
 test('keeps mirrored chevron arms bounded and directionally stable', async () => {
   const editor = await import('../../ClientApps/trip-editor/src/segments/segmentPresentationResolver.ts');
