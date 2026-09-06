@@ -168,7 +168,7 @@ test('places deterministic active and inactive chevrons from projected points', 
   assert.equal(placeProjectedChevrons([[0, 0], [1000, 0]], true).length, 8);
 });
 
-/** Proves both consumers derive bounded arms and opposite directions from the same projected vectors. */
+/** Proves both consumers preserve exact horizontal CSS-pixel spans, bounded arms, and opposite directions. */
 test('keeps mirrored chevron arms bounded and directionally stable', async () => {
   const editor = await import('../../ClientApps/trip-editor/src/segments/segmentPresentationResolver.ts');
   const viewer = await import(`../../wwwroot/js/Trip/segmentPresentation.js?chevronBounds=${Date.now()}`);
@@ -183,6 +183,8 @@ test('keeps mirrored chevron arms bounded and directionally stable', async () =>
       const armLengths = [points[0], points[2]].map(point => Math.hypot(point[0] - points[1][0], point[1] - points[1][1]));
       const xs = points.map(point => point[0]);
       const ys = points.map(point => point[1]);
+      assert.equal(Math.max(...xs) - Math.min(...xs), active ? 10 : 8);
+      assert.equal(Math.max(...ys) - Math.min(...ys), active ? 10 : 8);
       assert.ok(armLengths.every(length => length <= (active ? 12 : 10)));
       assert.ok(Math.max(...xs) - Math.min(...xs) <= 24);
       assert.ok(Math.max(...ys) - Math.min(...ys) <= 24);

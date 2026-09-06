@@ -146,11 +146,11 @@ export const fitCombinedRouteBadgeLabels = (labels, maximumWidth) => {
     return {labels: [...labels], lines, width, height: 10 + lines.length * 14};
 };
 
-/** Converts one projected cue into the bounded three-point arrow geometry rendered by Leaflet. */
+/** Converts a projected cue into Leaflet arrow geometry with route-normal half-width in CSS pixels. */
 export const projectChevronArm = (cue, active) => {
     const radians = cue.angle * Math.PI / 180;
     const length = active ? 10 : 8;
-    const width = active ? 4 : 3;
+    const width = active ? 5 : 4;
     const backX = cue.x - Math.cos(radians) * length;
     const backY = cue.y - Math.sin(radians) * length;
     const normalX = -Math.sin(radians) * width;

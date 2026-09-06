@@ -15,6 +15,9 @@
 
 ## Unreleased
 
+### Fixed
+- Widened Segment direction chevrons across the route line in the Trip Editor and Viewer for better visibility, preserving their length, spacing, and styling (#577).
+
 ## [1.9.9] - 2026-09-05
 
 ### Fixed
