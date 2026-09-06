@@ -5,7 +5,7 @@ file contains the manually edited `WayfarerVersion` value and maps the standard
 MSBuild metadata directly from it:
 
 ```xml
-<WayfarerVersion>1.9.10</WayfarerVersion>
+<WayfarerVersion>1.9.11</WayfarerVersion>
 <Version>$(WayfarerVersion)</Version>
 <PackageVersion>$(WayfarerVersion)</PackageVersion>
 <AssemblyInformationalVersion>$(WayfarerVersion)</AssemblyInformationalVersion>
@@ -19,7 +19,7 @@ assembly through `IAppVersionProvider`. Runtime surfaces such as
 separate constants.
 
 Use `dotnet run --no-launch-profile -- version` when validating exact CLI
-output. The app writes exactly `Wayfarer 1.9.10`; `--no-launch-profile` avoids
+output. The app writes exactly `Wayfarer 1.9.11`; `--no-launch-profile` avoids
 .NET SDK launch-profile messages so validation stays focused on app output.
 
 ## Release helper
@@ -39,85 +39,52 @@ command validates only offline repo files; tag and GitHub release checks run
 only when their explicit flags are supplied. The helper validates release state
 but does not create, edit, publish, or delete GitHub releases.
 
-## 1.9.10 local release review record
+## 1.9.11 local release review record
 
-Prepared on 2026-09-05 on `feature/release-1.9.10` for independent review.
-The clean starting HEAD, local `main`, and fetched `origin/main` matched the
-expected base `49ea22ec762409beeb999409e24bef872b0e2bee`.
-Previous release `v1.9.9` resolves to `dd3d0b022e1308fa18ad7b87eae95357bfda5afd`.
-The first-parent range `v1.9.9..49ea22ec762409beeb999409e24bef872b0e2bee`
-contains exactly these two commits:
+Prepared on 2026-09-06 on `feature/release-1.9.11` for independent review.
+The clean starting HEAD, local `main`, and fetched `origin/main` matched
+`1cacd3fba1439c039668a66e4312cafe9be53550`.
+GitHub identified `v1.9.10` as the latest published, non-prerelease release;
+its tag resolves to `7ae4b2c78b93dea27e77615c46361caf6e94bfd7`.
+The first-parent range `v1.9.10..1cacd3fba1439c039668a66e4312cafe9be53550`
+contains exactly one commit:
 
 | PR / issue | First-parent commit | Scope |
 | --- | --- | --- |
-| [#574](https://github.com/stef-k/Wayfarer/pull/574) / #572 | `6ef7fe06532121d681a416e3e25b98b32b6bca62` | Geoapify field mapping, retained provider line, address presentation and backend round trips |
-| [#575](https://github.com/stef-k/Wayfarer/pull/575) / #573 | `49ea22ec762409beeb999409e24bef872b0e2bee` | Consistent geographic grouping, missing-parent rendering and Greece-scoped region alias |
+| [#578](https://github.com/stef-k/Wayfarer/pull/578) / #577 | `1cacd3fba1439c039668a66e4312cafe9be53550` | Wider Segment direction chevrons in the Editor and Viewer, mirrored geometry assertions and changelog |
 
 ### Migration boundary and compatibility
 
-The only added migration is `20260905095140_AddLocationProviderAddressLine1`,
-after `20260904100416_RetireLegacyRoutingAuthority`. Its Up operation adds nullable
-`Locations.ProviderAddressLine1` as `character varying(500)` without a default or
-any data update. The range changes only its migration, designer and
-`ApplicationDbContextModelSnapshot.cs` under `Migrations`; the snapshot adds the
-matching optional string with maximum length 500. Existing rows are preserved.
-Down drops the column and loses any retained provider lines stored there.
+There are no migration or model snapshot changes since `v1.9.10`.
+The latest migration remains `20260905095140_AddLocationProviderAddressLine1`;
+it adds nullable `Locations.ProviderAddressLine1` with maximum length 500.
+This patch adds no API, persistence, dependency or routing-provider changes.
+Upgrades from older releases still need their pending migrations. Preserve
+PostgreSQL and its matching Data Protection keys. No database update was run
+as part of release preparation; production migration state is not asserted.
 
-The user reports the development migration succeeded during this session. This
-is local evidence only, not independently rerun here; production migration remains
-outstanding. Preserve PostgreSQL and the matching Data Protection keys on upgrade.
-The migration does not correct historical stored addresses or mixed fields;
-repair remains fill-only. Mapbox mappings, Trip Place preference and released-Mobile
-fields including `FullAddress` remain preserved. Released Mobile does not promise
-retention of unknown fields through its own offline formats.
+### Product evidence and limits
 
-Statistics still group recorded labels, trimming only outer ASCII whitespace and
-scoping by recorded parents. The sole explicit read-time alias maps
-`East Macedonia and Thrace` to `Eastern Macedonia and Thrace` under exact `Greece`.
-Stored labels remain unchanged. Same-named settlements under identical parents
-remain indistinguishable; other aliases can split one entity. Parent scoping can
-increase counts, while this alias correction can decrease them.
+The reviewed source commit `7aa3e4d9fdc919bc4bdee85434e12bc6448955e8`
+was preserved on the local fix branch and merged through the normal squash workflow.
+Before merge, 17 geometry/parity tests, frontend typecheck, production build and
+built-asset smoke passed in fresh local runs. Vite retained its large-chunk advisory.
+The supplied review handoff includes synthetic Viewer evidence; that observation
+was not rerun during PR creation. Full-page Viewer and print visuals remain untested.
+The width-only change preserves tangent lengths, placement, direction and styling.
 
-### Reused product evidence and limits
-
-Live PR records and checks were read through `gh`. The `test` job succeeded on
-#574 head `bd1ce140873ddc3a43180a679aca4228afae7dc7` and #575 head
-`4356848d55b848b4fbb422113fdddbea8986f657`.
-#574 records independent review and a successful retention-fix re-review, including
-actual exporter-to-parser whitespace/provenance cases. Its reviewer selections
-were 248 backend tests including PostgreSQL and 117 client tests before remediation,
-then 115 focused backend cases at re-review. #575 records independent review with
-35 service/controller tests including PostgreSQL, two renderer tests and fresh
-in-memory bundling of both Timeline callers. These are attributed review records,
-not fresh product reruns; selections overlap and are not added together.
-
-#574 has a narrow formatter/modal wrapping observation, but authenticated full-page
-and Edit mounting remain unobserved. #575 has no published/browser observation;
-local generated dist bundles were stale and are not current-head evidence.
-No full-suite success, release-branch CI, production behavior or independent
-release approval is claimed by this preparation.
+GitHub Actions [Tests run 34039660952, test job 101503989599](https://github.com/stef-k/Wayfarer/actions/runs/34039660952/job/101503989599)
+completed successfully on that exact PR head before merge. This is product-PR CI,
+not release-branch CI or proof of the unobserved full-page/print visuals.
 
 ### Local validation and handoff
 
-Release-helper preparation and offline check passed; helper tests passed 21 cases.
-Focused version checks (`dotnet test` with the Versioning namespace filter and
-`--no-restore`) compiled successfully: 26 passed, zero failures/skips.
-`dotnet run --no-launch-profile --no-build -- version` returned exactly
-`Wayfarer 1.9.10`. Whitespace checks passed. A UTF-8 comparison verified prior
-released notes unchanged after removing only the redundant empty heading.
-Changed-work and complete branch-scope Code Guard returned REVIEW only for the
-867-line changelog; accepted because chronological release history remains one
-coherent navigable document. All other guards pass; no FAIL or INCOMPLETE.
-
-The release-only diff is limited to `Version.props`, `CHANGELOG.md`, this document,
+Release-only validation results are recorded after the focused checks below.
+The release diff is limited to `Version.props`, `CHANGELOG.md`, this document,
 and the compiled-version assertion in `AppVersionProviderTests.cs`.
-Prior released changelog content is preserved, placeholders are replaced, and
-exactly one empty Unreleased section remains below the new dated release.
+The #577 note moves into the dated release, prior released notes remain unchanged,
+and exactly one empty Unreleased section remains below the new release.
 
 Stop at a local checkpoint for independent review against the verified base.
-After independent approval, remaining steps are the authorized PR and exact-head
-`test` CI gate, normal merge and main synchronization, then separately authorized
-tag/release publication, artifact build and checksum recording, production migration,
-deployment and runtime verification. No PR, tag, release, deployable artifact or
-deployment is created here. Keep #505 and other deferred issues open; Mobile
-coordination remains outstanding after backend deployment.
+Release-branch PR creation, CI, merge, tagging, publication and deployment remain
+outstanding. No tag, release publication or deployment is authorized by this preparation.

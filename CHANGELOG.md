@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## [1.9.11] - 2026-09-06
+
+### Fixed
+- Widened Segment direction chevrons across the route line in the Trip Editor and Viewer for better visibility, preserving their length, spacing, and styling (#577).
+
+### Upgrade notes
+- No database migration was added since v1.9.10; migration files and the model snapshot are unchanged. The latest migration remains `20260905095140_AddLocationProviderAddressLine1`. Upgrades from older versions must still apply their pending migrations. Preserve PostgreSQL and the matching Data Protection key ring.
+
+## Unreleased
+
 ## [1.9.10] - 2026-09-05
 
 ### Fixed
@@ -12,11 +22,6 @@
 - Additive migration `20260905095140_AddLocationProviderAddressLine1` adds a nullable 500-character Location field. Existing rows are not rewritten; repair remains fill-only. Mapbox mappings, Trip Place preference and released-Mobile `FullAddress` remain compatible.
 
 - Apply this migration when upgrading. It preserves existing rows and does not correct historical stored address values or mixed fields. Preserve PostgreSQL and its matching Data Protection key ring.
-
-## Unreleased
-
-### Fixed
-- Widened Segment direction chevrons across the route line in the Trip Editor and Viewer for better visibility, preserving their length, spacing, and styling (#577).
 
 ## [1.9.9] - 2026-09-05
 
