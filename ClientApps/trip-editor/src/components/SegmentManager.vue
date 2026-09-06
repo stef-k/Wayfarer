@@ -92,7 +92,7 @@ const draftOrientation = computed(() => {
 });
 const routeProposalContextKey = computed(() => routeProposalDraftContextKey(draft, props.state, routeProposalDraftRevision.value));
 const routeProposalDraft = createSegmentRouteProposalDraftController(
-  draft, routePreviewIdentity, preview => emit('routeDraftPreviewChanged', preview));
+  draft, routePreviewIdentity, preview => emit('routeDraftPreviewChanged', preview), () => persistedBaseline.value);
 
 watch(isDirty, value => emit('dirtyStateChanged', value), { immediate: true });
 watch(

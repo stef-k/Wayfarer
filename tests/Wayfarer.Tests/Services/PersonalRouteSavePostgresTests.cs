@@ -95,23 +95,28 @@ public sealed class PersonalRouteSavePostgresTests(PostgresMigrationTestFixture 
         if (primary is not null) ExceptionDispatchInfo.Capture(primary).Throw();
     }
 
-    [PostgresFact]
-    public async Task GenerateThenSaveCommitsProposalAndNotesAndRetainsTrustedRouteOnFollowup()
+    /// <summary>Includes the client request for a pre-generation Manual edit with no provider duration.</summary>
+    [PostgresTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task GenerateThenSaveCommitsProposalAndNotesAndRetainsTrustedRouteOnFollowup(bool manualEdit)
     {
         fixture.RequireAvailable();
         var user = await fixture.CreateUserAsync();
         var protection = new EphemeralDataProtectionProvider();
         var credentials = new PersonalProviderCredentialService(protection);
         var seeded = await SeedAsync(user.Id, credentials);
-        var proposal = await GenerateAsync(user.Id, seeded, credentials, protection);
+        var proposal = await GenerateAsync(user.Id, seeded, credentials, protection, manualEdit ? null : 360);
         await using var context = fixture.CreateContext();
         var original = await context.Segments.AsNoTracking().SingleAsync(item => item.Id == seeded.SegmentId);
         Assert.Equal(seeded.RowVersion, original.RowVersion);
         Assert.Null(original.RouteGeometry);
         Assert.Equal("original", original.Notes);
         Assert.Equal(7, original.EstimatedDistanceKm);
+        Assert.Equal(TimeSpan.FromMinutes(8), original.EstimatedDuration);
+        Assert.Equal(EstimatedDurationSource.Automatic, original.EstimatedDurationSource);
         var service = SaveService(context, protection, credentials);
-        using var body = await BodyAsync(seeded.SegmentId, service.IssueAggregateToken(user.Id, seeded.TripId, original), proposal);
+        using var body = await BodyAsync(seeded.SegmentId, service.IssueAggregateToken(user.Id, seeded.TripId, original), proposal, manualEdit);
         var saved = await service.UpdateSegmentAsync(seeded.TripId, seeded.SegmentId, user.Id, body, null, CancellationToken.None);
         Assert.Equal(EditorRegionMutationStatus.Success, saved.Status);
         context.ChangeTracker.Clear();
@@ -119,8 +124,8 @@ public sealed class PersonalRouteSavePostgresTests(PostgresMigrationTestFixture 
         Assert.Equal("edited with proposal", canonical.Notes);
         Assert.Equal(proposal.Geometry.Select(item => new Coordinate(item.Longitude, item.Latitude)), canonical.RouteGeometry!.Coordinates);
         Assert.Equal(1.25, canonical.EstimatedDistanceKm);
-        Assert.Equal(TimeSpan.FromMinutes(6), canonical.EstimatedDuration);
-        Assert.Equal(EstimatedDurationSource.Automatic, canonical.EstimatedDurationSource);
+        Assert.Equal(TimeSpan.FromMinutes(manualEdit ? 12 : 6), canonical.EstimatedDuration);
+        Assert.Equal(manualEdit ? EstimatedDurationSource.Manual : EstimatedDurationSource.Automatic, canonical.EstimatedDurationSource);
         Assert.Equal("geoapify", canonical.RouteProvider);
         Assert.Equal("drive", canonical.RouteMappingMode);
         Assert.Equal(seeded.TransportProfileId, canonical.RouteTransportProfileId);
@@ -134,7 +139,7 @@ public sealed class PersonalRouteSavePostgresTests(PostgresMigrationTestFixture 
         var selection = await context.PersonalLocationProviderSelections.SingleAsync(item => item.UserId == user.Id);
         selection.Select(PersonalProviderCapability.Routing, null);
         await context.SaveChangesAsync();
-        using var followup = await BodyAsync(seeded.SegmentId, saved.Result!.Data.AggregateConcurrencyToken, null);
+        using var followup = await BodyAsync(seeded.SegmentId, saved.Result!.Data.AggregateConcurrencyToken, null, manualEdit);
         var again = await service.UpdateSegmentAsync(seeded.TripId, seeded.SegmentId, user.Id, followup, null, CancellationToken.None);
         Assert.Equal(EditorRegionMutationStatus.Success, again.Status);
         context.ChangeTracker.Clear();
@@ -151,11 +156,12 @@ public sealed class PersonalRouteSavePostgresTests(PostgresMigrationTestFixture 
 
     /// <summary>Uses the real generator with a controlled provider boundary and no network contact.</summary>
     private async Task<ExternalRouteProposalDto> GenerateAsync(
-        string userId, SeededAuthority seeded, PersonalProviderCredentialService credentials, IDataProtectionProvider protection)
+        string userId, SeededAuthority seeded, PersonalProviderCredentialService credentials, IDataProtectionProvider protection,
+        double? durationSeconds = 360)
     {
         await using var context = fixture.CreateContext();
         var tokens = new SegmentAggregateTokenService(protection);
-        var generator = new ExternalRouteProposalGenerator(context, tokens, new ControlledRouteClient(),
+        var generator = new ExternalRouteProposalGenerator(context, tokens, new ControlledRouteClient(durationSeconds),
             new ControlledGeometryValidator(), new ExternalRouteProposalContextService(protection), new RoutingRequestBudget(),
             new AuthoritativeRoutingProviderResolver(context, credentials));
         var generated = await generator.GenerateAsync(userId, seeded.TripId, seeded.SegmentId,
@@ -171,7 +177,7 @@ public sealed class PersonalRouteSavePostgresTests(PostgresMigrationTestFixture 
                 new ExternalRouteProposalContextService(protection), new AuthoritativeRoutingProviderResolver(context, credentials)));
 
     /// <summary>Submits effective route fields and the original protected identity through ordinary Save JSON.</summary>
-    private async Task<Stream> BodyAsync(Guid segmentId, string token, ExternalRouteProposalDto? proposal)
+    private async Task<Stream> BodyAsync(Guid segmentId, string token, ExternalRouteProposalDto? proposal, bool manualEdit = false)
     {
         await using var context = fixture.CreateContext();
         var segment = await context.Segments.Include(item => item.Waypoints).AsNoTracking().SingleAsync(item => item.Id == segmentId);
@@ -182,18 +188,19 @@ public sealed class PersonalRouteSavePostgresTests(PostgresMigrationTestFixture 
             waypointPlaceIds = segment.Waypoints.OrderBy(item => item.Position).Select(item => item.PlaceId),
             waypointRouteVertexIndices = proposal?.WaypointIndices.Skip(1).SkipLast(1).Select(item => (int?)item).ToArray()
                 ?? segment.Waypoints.OrderBy(item => item.Position).Select(item => item.RouteVertexIndex).ToArray(),
-            mode = segment.Mode, estimatedDistanceKm = 999, estimatedDurationMinutes = 999,
-            estimatedDurationSource = "Automatic", notesHtml = "edited with proposal",
+            mode = segment.Mode, estimatedDistanceKm = manualEdit ? proposal?.DistanceMetres / 1000 ?? segment.EstimatedDistanceKm : 999,
+            estimatedDurationMinutes = manualEdit ? 12 : 999,
+            estimatedDurationSource = manualEdit ? "Manual" : "Automatic", notesHtml = "edited with proposal",
             route = coordinates == null ? null : new { type = "LineString", coordinates }, aggregateConcurrencyToken = token,
-            proposal = proposal == null ? null : new { proposal.ProposalId, proposal.ProtectedContext }
+            proposal = proposal == null ? null : new { proposal.ProposalId, proposal.ProtectedContext, manualDurationOverride = manualEdit }
         }, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
     }
 
-    private sealed class ControlledRouteClient : IProviderRouteClient
+    private sealed class ControlledRouteClient(double? durationSeconds) : IProviderRouteClient
     {
         public Task<ProviderRouteResult> RouteAsync(ResolvedRoutingProviderExecution execution,
             IReadOnlyList<RouteCoordinate> anchors, Func<CancellationToken, Task<bool>> validateAuthority, CancellationToken cancellationToken) =>
-            Task.FromResult(new ProviderRouteResult(true, anchors, anchors, null, 1250, 360,
+            Task.FromResult(new ProviderRouteResult(true, anchors, anchors, null, 1250, durationSeconds,
                 [new("Continue", "straight", 0, anchors.Count - 1, 1250, 360)], Enumerable.Range(0, anchors.Count).ToArray()));
     }
 
