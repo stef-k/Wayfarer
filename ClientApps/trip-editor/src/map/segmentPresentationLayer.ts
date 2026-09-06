@@ -69,6 +69,7 @@ export const createSegmentPresentationLayer = (
     registry.set(keyText(presentation.key), { presentation, group, line, hit, chevrons });
   };
 
+  /** Mirrors Viewer 3/4 px strokes while retaining the projected chevron geometry. */
   const renderChevrons = (presentation: EditorSegmentPresentation, active: boolean, group: L.LayerGroup): L.Polyline[] => {
     const projected = presentation.coordinates.map(([longitude, latitude]) => {
       const point = map.latLngToLayerPoint([latitude, longitude]);
@@ -76,7 +77,7 @@ export const createSegmentPresentationLayer = (
     });
     return placeProjectedChevrons(projected, active).map(cue => {
       const points = projectChevronArm(cue, active).map(point => map.layerPointToLatLng([point[0], point[1]]));
-      return L.polyline(points, { color: '#852D10', opacity: active ? 1 : 0.72, weight: active ? 3 : 2,
+      return L.polyline(points, { color: '#852D10', opacity: active ? 1 : 0.72, weight: active ? 4 : 3,
         interactive: false, pane: 'segment-route-role' }).addTo(group);
     });
   };

@@ -356,7 +356,7 @@ const removeSegmentEntry = entry => {
     entry.group.remove();
 };
 
-/** Replaces projected chevrons after selection or zoom changes. */
+/** Replaces projected chevrons with Editor-mirrored 3/4 px strokes, including canvas print. */
 const renderSegmentDecorations = (map, entry) => {
     entry.chevrons.forEach(layer => entry.group.removeLayer(layer));
     entry.chevrons = [];
@@ -367,7 +367,7 @@ const renderSegmentDecorations = (map, entry) => {
     });
     entry.chevrons = placeViewerChevrons(projected, entry.active).map(cue => {
         const points = projectChevronArm(cue, entry.active).map(point => map.layerPointToLatLng(point));
-        return L.polyline(points, {color: '#852D10', weight: entry.active ? 3 : 2, opacity: entry.active ? 1 : 0.72,
+        return L.polyline(points, {color: '#852D10', weight: entry.active ? 4 : 3, opacity: entry.active ? 1 : 0.72,
             interactive: false, renderer: location.search.includes('print=1') ? canvasRenderer : undefined}).addTo(entry.group);
     });
 };

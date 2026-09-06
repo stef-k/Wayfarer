@@ -112,11 +112,21 @@ test('retains both ordered descriptions for a reused same-Place badge', async ()
   assert.deepEqual(viewer.resolveViewerAnchors(viewerInputs).badges[0], { placeId: 'ella', location: [10, 20], ...expected });
 });
 
-/** Pins the Editor's existing Leaflet route and badge tooltip boundary without a second Leaflet harness. */
-test('binds editor Segment and badge tooltips to the shared rich theme without keyboard badges', async () => {
+/** Pins production chevron style parity and tooltip boundaries without a second Leaflet harness. */
+test('keeps Editor/Viewer chevron styles aligned and editor tooltips on the shared rich theme', async () => {
   const source = await readFile('ClientApps/trip-editor/src/map/segmentPresentationLayer.ts', 'utf8');
+  const viewer = await readFile('wwwroot/js/Trip/tripViewerHelpers.js', 'utf8');
   const css = await readFile('ClientApps/trip-editor/src/map.css', 'utf8');
 
+  for (const renderer of [source, viewer]) {
+    const style = renderer.match(/L\.polyline\(points,\s*\{([^}]+)\}/)?.[1];
+    assert.ok(style, 'production chevron polyline style exists');
+    assert.match(style, /color:\s*'#852D10'/);
+    assert.match(style, /weight:\s*(?:entry\.)?active\s*\?\s*4\s*:\s*3\s*,/);
+    assert.match(style, /opacity:\s*(?:entry\.)?active\s*\?\s*1\s*:\s*0\.72\s*,/);
+    assert.match(style, /interactive:\s*false/);
+  }
+  assert.match(viewer, /L\.polyline\(points,\s*\{[^}]*renderer:\s*location\.search\.includes\('print=1'\)\s*\?\s*canvasRenderer\s*:\s*undefined/);
   assert.match(source, /\.bindTooltip\([^]*className:\s*'trip-rich-tooltip'/);
   assert.match(source, /descriptions\.map\(escapeHtml\)\.join\('<br>'\)/);
   assert.match(source, /interactive:\s*true,[^]*keyboard:\s*false/);
@@ -166,6 +176,44 @@ test('places deterministic active and inactive chevrons from projected points', 
   assert.deepEqual(placeProjectedChevrons([[0, 0], [120, 0]], false), [{ x: 60, y: 0, angle: 0 }]);
   assert.equal(placeProjectedChevrons([[0, 0], [1000, 0]], false).length, 4);
   assert.equal(placeProjectedChevrons([[0, 0], [1000, 0]], true).length, 8);
+});
+
+/** Tight returns must lose only contradictory candidates at each projected scale. */
+for (const scale of [1, 2]) {
+  for (const active of [false, true]) {
+    test(`mirrors truthful tight-return cues at ${scale}x, active=${active}`, async () => {
+      const { placeViewerChevrons } = await import('../../wwwroot/js/Trip/segmentPresentation.js');
+      const route = [[0, 0], [49, 0], [47, 1], [96, 1]].map(point => point.map(value => value * scale));
+      const original = structuredClone(route);
+      const results = [placeProjectedChevrons, placeViewerChevrons].map(place => place(route, active));
+      for (const cues of results) {
+        assert.equal(cues.length, scale === 1 ? 0 : 2);
+        assert.ok(cues.every(cue => cue.angle === 0), 'retained outer-leg cues still travel east');
+      }
+      assert.deepEqual(results[0], results[1]);
+      assert.deepEqual(route, original);
+    });
+  }
+}
+
+/** Vertex cues agree with both adjacent nonzero legs; duplicate vertices have no direction. */
+test('mirrors ordered vertex direction with duplicate projected points', async () => {
+  const { placeViewerChevrons } = await import('../../wwwroot/js/Trip/segmentPresentation.js');
+  const cases = [
+    { route: [[0, 0], [40, 0], [40, 0], [80, 0]], angle: 0 },
+    { route: [[80, 0], [40, 0], [40, 0], [0, 0]], angle: 180 },
+    { route: [[0, 0], [40, 0], [40, 0], [40, 40]], angle: 45 },
+    { route: [[0, 0], [40, 0], [40, 0], [0, 0]], angle: null },
+    { route: [[0, 0], [40, 0], [40, 0], [38, 0], [76, 0]], angle: null }
+  ];
+  for (const { route, angle } of cases) {
+    for (const active of [false, true]) {
+      const editor = placeProjectedChevrons(route, active);
+      assert.deepEqual(placeViewerChevrons(route, active), editor);
+      assert.equal(editor.length, angle === null ? 0 : 1);
+      if (angle !== null) assert.equal(editor[0].angle, angle);
+    }
+  }
 });
 
 /** Proves both consumers preserve exact horizontal CSS-pixel spans, bounded arms, and opposite directions. */
