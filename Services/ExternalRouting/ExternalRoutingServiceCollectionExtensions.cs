@@ -23,7 +23,7 @@ public static class ExternalRoutingServiceCollectionExtensions
         services.AddScoped<IProviderRouteClient, ProviderRouteClient>();
         services.AddScoped<ExternalRouteProposalContextService>();
         services.AddScoped<ExternalRouteProposalGenerator>();
-        services.AddScoped<ExternalRouteProposalAcceptanceService>();
+        services.AddScoped<ExternalRouteProposalSaveValidator>();
         services.AddScoped<ExternalRoutingCapabilityProjector>();
         services.AddScoped<MobileRoutingService>();
         services.AddScoped<MobileRoutingProfileDiscoveryService>();

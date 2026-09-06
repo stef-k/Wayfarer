@@ -29,7 +29,6 @@ import type {
   EditorTripMetadataUpdateRequest,
   EditorTripState,
   ExternalRouteProposal,
-  AcceptedExternalRouteProposal,
   TagSuggestion,
   ValidationProblemDetails
 } from '../types';
@@ -53,23 +52,6 @@ export const generateExternalRouteProposal = async (
     throw new ExternalRouteProposalError(error.code ?? 'external-routing-unavailable');
   }
   return await response.json() as ExternalRouteProposal;
-};
-
-/** Revalidates a protected proposal without persistence or provider contact. */
-export const acceptExternalRouteProposal = async (
-  tripId: string, proposal: ExternalRouteProposal, antiforgeryToken: string, signal?: AbortSignal
-): Promise<AcceptedExternalRouteProposal> => {
-  const response = await fetch(`/api/trip-editor/${encodeURIComponent(tripId)}/segments/${encodeURIComponent(proposal.segmentId)}/route-proposals/${encodeURIComponent(proposal.proposalId)}/accept`, {
-    method: 'POST', credentials: 'same-origin',
-      headers: { Accept: 'application/json', 'Content-Type': 'application/json', RequestVerificationToken: antiforgeryToken },
-      signal,
-    body: JSON.stringify({ geometry: proposal.geometry, waypointIndices: proposal.waypointIndices, protectedContext: proposal.protectedContext })
-  });
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ code: 'route-proposal-stale' })) as { code?: string };
-    throw new ExternalRouteProposalError(error.code ?? 'route-proposal-stale');
-  }
-  return await response.json() as AcceptedExternalRouteProposal;
 };
 
 /// Error raised when an editor mutation returns ASP.NET validation problem details.

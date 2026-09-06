@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.DataProtection;
 using Wayfarer.Models;
+using Wayfarer.Services.ExternalRouting;
 using Wayfarer.Models.Dtos.Editor;
 
 namespace Wayfarer.Services;
@@ -12,6 +13,7 @@ namespace Wayfarer.Services;
 public sealed partial class TripEditorSegmentMutationService
 {
     private readonly ApplicationDbContext _dbContext;
+    private readonly ExternalRouteProposalSaveValidator? _proposalValidator;
     private readonly SegmentAggregateTokenService _aggregateTokens;
     private readonly SegmentRouteClearConfirmation _routeConfirmation;
     private readonly Func<Guid> _segmentIdFactory;
@@ -40,9 +42,11 @@ public sealed partial class TripEditorSegmentMutationService
     public TripEditorSegmentMutationService(
         ApplicationDbContext dbContext,
         SegmentAggregateTokenService aggregateTokens,
-        SegmentRouteClearConfirmation routeConfirmation)
+        SegmentRouteClearConfirmation routeConfirmation,
+        ExternalRouteProposalSaveValidator? proposalValidator = null)
         : this(dbContext, aggregateTokens, routeConfirmation, Guid.NewGuid)
     {
+        _proposalValidator = proposalValidator;
     }
 
     /// <summary>Initializes deterministic application-ID generation for provider boundary tests.</summary>
@@ -91,6 +95,8 @@ public sealed partial class TripEditorSegmentMutationService
             return EditorRegionMutationOutcome<EditorMutationResult<EditorSegmentDto>>.ValidationFailed(
                 parsed.ValidationErrors, SegmentValidationCode(parsed.ValidationErrors));
         }
+
+        if (parsed.Value!.Proposal != null) return ProposalFailed("route-proposal-altered");
 
         if (parsed.Value!.AggregateConcurrencyToken != null)
             return EditorRegionMutationOutcome<EditorMutationResult<EditorSegmentDto>>.ValidationFailed(
@@ -177,6 +183,8 @@ public sealed partial class TripEditorSegmentMutationService
             return EditorRegionMutationOutcome<EditorMutationResult<EditorSegmentDto>>.ValidationFailed(
                 parsed.ValidationErrors, SegmentValidationCode(parsed.ValidationErrors));
         }
+
+        if (parsed.Value!.Proposal != null) return ProposalFailed("route-proposal-transaction-required");
 
         var submittedVersion = segment.RowVersion;
 
@@ -336,15 +344,6 @@ public sealed partial class TripEditorSegmentMutationService
         await _dbContext.Segments
             .Include(s => s.Trip)
             .FirstOrDefaultAsync(s => s.Id == segmentId && s.TripId == tripId && s.Trip.UserId == userId, cancellationToken);
-
-    private static SegmentRouteProposal BuildProposal(
-        Guid segmentId,
-        EditorSegmentSaveRequest request,
-        (string Key, Guid? ProfileId) mode) =>
-        new(segmentId, request.FromPlaceId, request.ToPlaceId,
-            request.WaypointPlaceIds.Select((id, index) => new SegmentWaypointProposal(id, index, request.WaypointRouteVertexIndices[index])).ToArray(), request.Route,
-            new(mode.Key, mode.ProfileId, request.EstimatedDurationSource, request.EstimatedDurationMinutes),
-            ApplyNotes: true, NotesHtml: request.NotesHtml);
 
     private static EditorRegionMutationOutcome<EditorMutationResult<EditorSegmentDto>> ReconciliationFailed(
         SegmentRouteReconciliationResult result)

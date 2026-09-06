@@ -1,21 +1,20 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { computed, nextTick, watchEffect } from 'vue';
-import { routeProposalDraftContextKey } from '../../ClientApps/trip-editor/src/components/segmentRouteProposalDraft.ts';
 import { createSegmentRouteProposalStore } from '../../ClientApps/trip-editor/src/components/segmentRouteProposalState.ts';
 
-test('successful completion reactively renders Preview, Accept, and Discard', async () => {
+test('successful completion reactively renders Preview, Save, and Discard', async () => {
   const store = createSegmentRouteProposalStore();
   const states = store.states;
   const state = computed(() => states.first ??= store.get('first', 'walk'));
   let renderedActions = [];
-  watchEffect(() => { renderedActions = state.value.proposal ? ['Preview', 'Accept', 'Discard'] : []; });
+  watchEffect(() => { renderedActions = state.value.proposal ? ['Preview', 'Save', 'Discard'] : []; });
   const request = store.begin('first', 'walk', new AbortController());
 
   assert.equal(store.complete('first', request, proposalFor('first', 'completed')), true);
   await nextTick();
 
-  assert.deepEqual(renderedActions, ['Preview', 'Accept', 'Discard']);
+  assert.deepEqual(renderedActions, ['Preview', 'Save', 'Discard']);
 });
 
 test('reactive visibility remains isolated and requires explicit Discard', async () => {
@@ -26,10 +25,10 @@ test('reactive visibility remains isolated and requires explicit Discard', async
 
   assert.equal(store.complete('first', request, proposalFor('first', 'visible')), true);
   await nextTick();
-  assert.deepEqual(first.actions(), ['Preview', 'Accept', 'Discard']);
+  assert.deepEqual(first.actions(), ['Preview', 'Save', 'Discard']);
   assert.deepEqual(second.actions(), []);
   await nextTick();
-  assert.deepEqual(first.actions(), ['Preview', 'Accept', 'Discard']);
+  assert.deepEqual(first.actions(), ['Preview', 'Save', 'Discard']);
 
   store.discard('first');
   await nextTick();
@@ -143,85 +142,6 @@ test('disposal aborts requests and rejects later completion', () => {
   assert.equal(store.get('first', 'walk').proposal, null);
 });
 
-test('acceptance completion is rejected after every lifecycle invalidation', () => {
-  for (const reason of ['discard', 'segment-switch', 'disposal', 'proposal-replacement', 'profile-change',
-    'anchor-change', 'clear', 'reset', 'cancel', 'manual-route-change']) {
-    const store = createSegmentRouteProposalStore();
-    const context = acceptanceContext();
-    const controller = new AbortController();
-    store.get('first', 'walk').proposal = proposalFor('first', 'proposal-1');
-    const request = store.beginAcceptance('first', 'proposal-1', context, controller);
-
-    store.invalidate('first', reason);
-
-    assert.equal(controller.signal.aborted, true, reason);
-    assert.equal(store.completeAcceptance('first', request, 'proposal-1', context), false, reason);
-  }
-});
-
-test('duplicate acceptance is refused while the initiating request is pending', () => {
-  const store = createSegmentRouteProposalStore();
-  const context = acceptanceContext();
-  store.get('first', 'walk').proposal = proposalFor('first', 'proposal-1');
-  const first = store.beginAcceptance('first', 'proposal-1', context, new AbortController());
-
-  assert.equal(typeof first, 'number');
-  assert.equal(store.beginAcceptance('first', 'proposal-1', context, new AbortController()), null);
-  assert.equal(store.get('first', 'walk').accepting, true);
-});
-
-test('acceptance requires the exact initiating proposal and complete draft context', () => {
-  for (const changed of [
-    { proposalId: 'proposal-2' },
-    { transportProfileId: 'bike' },
-    { aggregateConcurrencyToken: 'aggregate-new' },
-    { anchorFingerprint: 'changed' },
-    { routeFingerprint: 'changed' },
-    { draftRevision: 2 }
-  ]) {
-    const store = createSegmentRouteProposalStore();
-    const context = acceptanceContext();
-    store.get('first', 'walk').proposal = proposalFor('first', 'proposal-1');
-    const request = store.beginAcceptance('first', 'proposal-1', context, new AbortController());
-    const proposalId = changed.proposalId ?? 'proposal-1';
-
-    assert.equal(store.completeAcceptance('first', request, proposalId, { ...context, ...changed }), false);
-  }
-});
-
-test('notes-only Save invalidates delayed acceptance before old geometry can emit', () => {
-  const store = createSegmentRouteProposalStore();
-  const draft = {
-    id: 'first', transportProfileId: 'walk', fromPlaceId: 'from', waypointPlaceIds: ['via'], toPlaceId: 'to',
-    route: { type: 'LineString', coordinates: [[1, 1], [2, 2], [3, 3]] },
-    aggregateConcurrencyToken: 'aggregate-old'
-  };
-  const tripState = { placesById: {
-    from: { location: [1, 1] }, via: { location: [2, 2] }, to: { location: [3, 3] }
-  } };
-  const oldKey = routeProposalDraftContextKey(draft, tripState, 1);
-  const controller = new AbortController();
-  store.get('first', 'walk').proposal = proposalFor('first', 'proposal-1');
-  const request = store.beginAcceptance('first', 'proposal-1', JSON.parse(oldKey), controller);
-
-  draft.aggregateConcurrencyToken = 'aggregate-new';
-  const newKey = routeProposalDraftContextKey(draft, tripState, 1);
-  if (newKey !== oldKey) store.invalidate('first', 'draft-context-changed');
-  const emitted = [];
-  if (store.completeAcceptance('first', request, 'proposal-1', JSON.parse(newKey)))
-    emitted.push([[9, 9], [10, 10]]);
-
-  assert.equal(controller.signal.aborted, true);
-  assert.equal(store.get('first', 'walk').proposal, null);
-  assert.deepEqual(emitted, []);
-  assert.deepEqual(draft.route.coordinates, [[1, 1], [2, 2], [3, 3]]);
-});
-
-const acceptanceContext = () => ({
-  segmentId: 'first', transportProfileId: 'walk', anchorFingerprint: 'from|via|to',
-  aggregateConcurrencyToken: 'aggregate-old', routeFingerprint: 'draft-route', draftRevision: 1
-});
-
 const proposalFor = (segmentId, proposalId) => ({
   proposalId, segmentId, geometry: [{ longitude: 23.7, latitude: 37.9 }], waypointIndices: [0],
   protectedContext: 'context', expiresAt: '2026-08-18T22:00:00Z'
@@ -230,6 +150,6 @@ const proposalFor = (segmentId, proposalId) => ({
 const observableActions = (store, segmentId, contextKey) => {
   const state = computed(() => store.states[segmentId] ??= store.get(segmentId, contextKey));
   let actions = [];
-  watchEffect(() => { actions = state.value.proposal ? ['Preview', 'Accept', 'Discard'] : []; });
+  watchEffect(() => { actions = state.value.proposal ? ['Preview', 'Save', 'Discard'] : []; });
   return { actions: () => actions };
 };
