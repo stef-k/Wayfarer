@@ -7,7 +7,7 @@ namespace Wayfarer.Services.ExternalRouting;
 /// <summary>Registers the bounded external-routing slice without growing application startup orchestration.</summary>
 public static class ExternalRoutingServiceCollectionExtensions
 {
-    /// <summary>Adds personal-provider routing, proposal, and acceptance responsibilities.</summary>
+    /// <summary>Adds personal-provider routing, proposal, and Save validation responsibilities.</summary>
     public static IServiceCollection AddExternalRouting(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddSingleton<IRoutingDnsResolver, RoutingDnsResolver>();
@@ -23,7 +23,7 @@ public static class ExternalRoutingServiceCollectionExtensions
         services.AddScoped<IProviderRouteClient, ProviderRouteClient>();
         services.AddScoped<ExternalRouteProposalContextService>();
         services.AddScoped<ExternalRouteProposalGenerator>();
-        services.AddScoped<ExternalRouteProposalAcceptanceService>();
+        services.AddScoped<ExternalRouteProposalSaveValidator>();
         services.AddScoped<ExternalRoutingCapabilityProjector>();
         services.AddScoped<MobileRoutingService>();
         services.AddScoped<MobileRoutingProfileDiscoveryService>();

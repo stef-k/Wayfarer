@@ -35,14 +35,6 @@ test.describe.serial('bounded external routing workflow', () => {
       const segmentId = route.request().url().split('/segments/')[1].split('/')[0];
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(proposal(state, segmentId)) }).catch(() => {});
     });
-    await page.route(/\/route-proposals\/[^/]+\/accept$/, async route => {
-      const body = route.request().postDataJSON();
-      const segmentId = route.request().url().split('/segments/')[1].split('/')[0];
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
-        proposalId: route.request().url().split('/route-proposals/')[1].split('/')[0], segmentId,
-        geometry: body.geometry, waypointIndices: body.waypointIndices
-      }) });
-    });
     await page.route(new RegExp(`${escape(fixedSegmentEndpoint(customId))}$`), route => fulfillSegmentSave(route, state, customId));
     await page.route(new RegExp(`${escape(fixedSegmentEndpoint(fallbackId))}$`), route => fulfillSegmentSave(route, state, fallbackId));
 
@@ -52,22 +44,24 @@ test.describe.serial('bounded external routing workflow', () => {
 
     await openSegment(page, fallbackId);
     await expectDisclosure(page);
+    await page.getByLabel('Directions mode').selectOption('drive');
     await page.getByRole('button', { name: 'Generate routed path' }).click();
-    await expect(page.getByText('Proposal ready for preview.')).toBeVisible();
+    await expect(page.getByText('Review the proposed route and estimates.')).toBeVisible();
     await page.getByRole('button', { name: 'Discard proposal' }).click();
-    await expect(page.getByText('Proposal ready for preview.')).toHaveCount(0);
+    await expect(page.getByText('Review the proposed route and estimates.')).toHaveCount(0);
 
+    await page.getByLabel('Directions mode').selectOption('drive');
     await page.getByRole('button', { name: 'Generate routed path' }).click();
-    await page.getByRole('button', { name: 'Accept proposal' }).click();
+    await page.getByRole('button', { name: 'Save Segment' }).click();
     await expect(page.getByRole('button', { name: 'Clear Route' })).toBeEnabled();
     await expect(page.getByRole('button', { name: 'Draw/Edit Route' })).toBeEnabled();
     await page.getByRole('button', { name: 'Cancel' }).click();
 
     await openSegment(page, customId);
+    await page.getByLabel('Directions mode').selectOption('drive');
     await page.getByRole('button', { name: 'Replace with routed path' }).click();
     await page.getByRole('button', { name: 'Generate replacement' }).click();
-    await expect(page.getByText('Proposal ready for preview.')).toBeVisible();
-    await page.getByRole('button', { name: 'Accept proposal' }).click();
+    await expect(page.getByText('Review the proposed route and estimates.')).toBeVisible();
     await page.getByRole('button', { name: 'Save Segment' }).click();
     await expect(page.getByRole('button', { name: 'Reset' })).toBeDisabled();
     await page.getByRole('button', { name: 'Clear Route' }).click();
@@ -75,28 +69,32 @@ test.describe.serial('bounded external routing workflow', () => {
     await page.getByRole('button', { name: 'Reset' }).click();
     await expect(page.getByRole('button', { name: 'Clear Route' })).toBeEnabled();
 
+    await page.getByLabel('Directions mode').selectOption('drive');
     await page.getByRole('button', { name: 'Replace with routed path' }).click();
     await page.getByRole('button', { name: 'Generate replacement' }).click();
-    await expect(page.getByText('Proposal ready for preview.')).toBeVisible();
+    await expect(page.getByText('Review the proposed route and estimates.')).toBeVisible();
     const beforeProfileChange = generationRequests;
     const modeSelect = page.getByText('Transport mode').locator('..').locator('select');
     await modeSelect.selectOption({ index: 2 });
-    await expect(page.getByText('Proposal ready for preview.')).toHaveCount(0);
+    await expect(page.getByText('Review the proposed route and estimates.')).toHaveCount(0);
     await expect(page.getByText('Save the transport-profile change before generating')).toBeVisible();
     expect(generationRequests).toBe(beforeProfileChange);
     await page.getByRole('button', { name: 'Save Segment' }).click();
+    await page.getByLabel('Directions mode').selectOption('drive');
     await page.getByRole('button', { name: 'Replace with routed path' }).click();
     await page.getByRole('button', { name: 'Generate replacement' }).click();
-    await expect(page.getByText('Proposal ready for preview.')).toBeVisible();
+    await expect(page.getByText('Review the proposed route and estimates.')).toBeVisible();
     await page.getByRole('button', { name: 'Discard proposal' }).click();
 
     failNext = true;
+    await page.getByLabel('Directions mode').selectOption('drive');
     await page.getByRole('button', { name: 'Replace with routed path' }).click();
     await page.getByRole('button', { name: 'Generate replacement' }).click();
     await expect(page.getByRole('alert')).toContainText('draft is unchanged');
     await expect(page.getByRole('button', { name: 'Clear Route' })).toBeEnabled();
 
     pendingRelease = () => {};
+    await page.getByLabel('Directions mode').selectOption('drive');
     await page.getByRole('button', { name: 'Replace with routed path' }).click();
     await page.getByRole('button', { name: 'Generate replacement' }).click();
     await expect(page.getByRole('button', { name: 'Cancel generation' })).toBeVisible();
@@ -108,7 +106,7 @@ test.describe.serial('bounded external routing workflow', () => {
 });
 
 const capability = () => ({ available: true, unavailableReason: null, providerDisplayName: 'Geoapify',
-  mappedProfileLabel: null, disclosure: 'Ordered anchor coordinates are sent to Geoapify.',
+  modes: [{ key: 'drive', label: 'Drive' }], mappedProfileLabel: null, disclosure: 'Ordered anchor coordinates are sent to Geoapify.',
   attribution: 'Controlled routing data' });
 
 function proposal(state: Record<string, any>, segmentId: string): Record<string, any> {
@@ -117,14 +115,16 @@ function proposal(state: Record<string, any>, segmentId: string): Record<string,
   const geometry = placeIds.map((id: string) => state.placesById[id].location);
   return { proposalId: crypto.randomUUID(), segmentId, geometry,
     waypointIndices: geometry.map((_: unknown, index: number) => index), protectedContext: 'controlled-context',
-    expiresAt: new Date(Date.now() + 600000).toISOString() };
+    distanceMetres: 1250, durationSeconds: 360, expiresAt: new Date(Date.now() + 600000).toISOString() };
 }
 
 async function fulfillSegmentSave(route: Route, state: Record<string, any>, segmentId: string): Promise<void> {
   if (route.request().method() !== 'PUT') { await route.fallback(); return; }
   const request = route.request().postDataJSON();
   const current = state.segmentsById[segmentId];
-  const saved = { ...current, ...request, aggregateConcurrencyToken: `${current.aggregateConcurrencyToken}-saved`,
+  const { proposal: pendingProposal, ...fields } = request;
+  if (pendingProposal) expect(pendingProposal.protectedContext).toBe('controlled-context');
+  const saved = { ...current, ...fields, aggregateConcurrencyToken: `${current.aggregateConcurrencyToken}-saved`,
     hasCustomRoute: request.route !== null, externalRouting: current.externalRouting };
   state.segmentsById[segmentId] = saved;
   await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, data: saved,

@@ -383,6 +383,16 @@ This ensures visit notifications work reliably regardless of app state.
 - Throttling: `TileRateLimiter`, `SettingsStore.MaxConcurrentTileDownloads` and `MinTileRequestDelayMs`.
 - Tile server URL configurable via `SettingsStore.TileServerUrl` (defaults to OSM standard tile server). Respect provider usage policies.
 
+## Trip Editor pending route proposals
+
+`POST /api/trip-editor/{tripId}/segments/{segmentId}/route-proposals` generates a non-persisted proposal using an explicit `providerMode` and the current aggregate token. The existing Segment update request may include `proposal: { proposalId, protectedContext, manualDurationOverride }`, alongside its effective proposed GeoJSON `route`, intermediate `waypointRouteVertexIndices`, unchanged ordered anchor identities/profile, and current notes or other permitted edits. The original protected context supplies estimates and provenance; client estimates are not trusted.
+
+Save validates selection, credential and routing generations, catalog/native mode, profile activity, canonical and submitted anchors, geometry/indices, aggregate concurrency and original ten-minute expiry inside its Serializable transaction. Selection/profile authority locks precede planning-profile, Segment and Place/Region locks. It commits route, instructions, attribution, measurements and other edits together, then returns canonical state and a refreshed token. An invalid envelope is rejected explicitly without saving the prior route or partial edits. Failed saves retain client proposal/draft state; uncertain commit responses retain the existing reload/conflict recovery.
+
+Available estimates, including zero, become kilometres and Automatic minutes on Save. Missing estimates retain the canonical baseline under the matching token, except that an explicitly edited Manual duration is preserved even when edited before generation. An untouched canonical Manual value is not an explicit override. An explicit Manual-duration edit during preview wins over present estimates through ordinary normalization. Unchanged trusted-route saves preserve measurements and database provenance without a proposal token or current provider availability; replacement or clearing removes misleading route metadata. Ordinary non-proposal calculations otherwise retain their existing behavior.
+
+The obsolete `POST .../route-proposals/{proposalId}/accept` endpoint and acceptance DTOs are removed. Inspected production callers were the web editor; controlled tests have moved to Save. No supported compatibility requirement was established, so no non-writing compatibility endpoint is retained. Repository reference inspection cannot establish the absence of unknown external consumers; older editors must reload. Mobile routing and public stored-route DTOs are unchanged.
+
 ## Provider-neutral mobile routing
 
 `GET /api/mobile/routing/profiles` authenticates with the existing mobile token and returns at most 100 complete, ordered provider-neutral choices. Discovery is local-only: it performs no provider verification/contact, credit admission, reservation, consumption, or pacing. An `available` response includes an opaque versioned `DiscoveryCatalogIdentity`; all other bounded discovery outcomes return an empty list and no identity.

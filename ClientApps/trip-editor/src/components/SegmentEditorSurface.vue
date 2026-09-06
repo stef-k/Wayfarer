@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import type { EditorSurfaceController, EditorTarget } from '../composables/useEditorSurface';
-import type { AcceptedExternalRouteProposal, EditorSegment, EditorSegmentDraft, EditorTripState, ExternalRouteProposal } from '../types';
+import type { EditorSegment, EditorSegmentDraft, EditorTripState, ExternalRouteProposal } from '../types';
 import EditorSurface from './EditorSurface.vue';
 import SegmentEditorForm from './SegmentEditorForm.vue';
 import SegmentRouteProposal from './SegmentRouteProposal.vue';
@@ -18,6 +18,8 @@ const props = defineProps<{
   formSummaryErrors: string[];
   isDirty: boolean;
   isSaving: boolean;
+  isGenerating: boolean;
+  manualDurationOverride: boolean;
   routeOrientation: 'forward' | 'reversed' | 'ambiguous' | null;
   routeMapWorkActive: boolean;
   semanticEditsSafe: boolean;
@@ -53,7 +55,7 @@ defineEmits<{
   reverseRoute: [];
   save: [];
   semanticEditsUnsafe: [];
-  routeProposalAccepted: [proposal: AcceptedExternalRouteProposal];
+  routeProposalGeneratingChanged: [generating: boolean];
   routeProposalPreviewChanged: [proposal: ExternalRouteProposal | null];
 }>();
 </script>
@@ -87,7 +89,9 @@ defineEmits<{
         :draft-transport-profile-id="draft.transportProfileId"
         :segment="activeSegment"
         :trip-id="state.tripId"
-        @accepted="$emit('routeProposalAccepted', $event)"
+        :is-saving="isSaving"
+        :manual-duration-override="manualDurationOverride"
+        @generating-changed="$emit('routeProposalGeneratingChanged', $event)"
         @preview-changed="$emit('routeProposalPreviewChanged', $event)"
       />
     </template>
@@ -99,7 +103,7 @@ defineEmits<{
       <button type="button" class="btn btn-outline-light btn-sm" :disabled="isSaving || draft.route === null" @click="$emit('clearRoute')">Clear Route</button>
       <button type="button" class="btn btn-outline-light btn-sm" :disabled="isSaving" @click="$emit('cancel')">Cancel</button>
       <button type="button" class="btn btn-outline-secondary btn-sm" :disabled="isSaving || !isDirty" @click="$emit('reset')">Reset</button>
-      <button type="submit" :form="formId" class="btn btn-primary btn-sm" :disabled="isSaving">Save Segment</button>
+      <button type="submit" :form="formId" class="btn btn-primary btn-sm" :disabled="isSaving || isGenerating">Save Segment</button>
     </template>
   </EditorSurface>
 </template>

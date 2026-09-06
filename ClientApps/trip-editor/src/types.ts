@@ -61,14 +61,8 @@ export interface ExternalRouteProposal {
   waypointIndices: number[];
   protectedContext: string;
   expiresAt: string;
-}
-
-export interface AcceptedExternalRouteProposal {
-  proposalId: Guid;
-  segmentId: Guid;
-  geometry: Array<{ longitude: number; latitude: number }>;
-  waypointIndices: number[];
-  aggregateConcurrencyToken?: string | null;
+  distanceMetres?: number | null;
+  durationSeconds?: number | null;
 }
 
 export interface EditorPlace {
@@ -326,6 +320,7 @@ export interface EditorAreaDeleteResult {
 }
 
 export interface EditorSegmentSaveRequest {
+  proposal?: { proposalId: Guid; protectedContext: string; manualDurationOverride: boolean };
   fromPlaceId: Guid | null;
   toPlaceId: Guid | null;
   waypointPlaceIds: Guid[];

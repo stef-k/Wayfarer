@@ -11,23 +11,6 @@ namespace Wayfarer.Services;
 /// <param name="RouteVertexIndex">Custom-route vertex index, or null for fallback geometry.</param>
 public sealed record SegmentWaypointProposal(Guid PlaceId, int Position, int? RouteVertexIndex);
 
-/// <summary>Describes the proposed mode and explicit duration-provenance state.</summary>
-/// <param name="Mode">Durable public/interchange mode value.</param>
-/// <param name="TransportProfileId">Canonical linked transport-profile identity.</param>
-/// <param name="DurationSource">Explicit Automatic or Manual duration ownership.</param>
-/// <param name="ManualDurationMinutes">Submitted Manual duration, otherwise ignored.</param>
-/// <param name="AllowUnavailableAutomatic">Whether an administrator-owned compatibility operation may clear Automatic duration without speed.</param>
-/// <param name="UsePlanningSpeedOverride">Whether a profile mutation supplies the canonical proposed speed.</param>
-/// <param name="PlanningSpeedKmhOverride">Proposed speed, including null for a confirmed clear.</param>
-public sealed record SegmentMeasurementProposal(
-    string Mode,
-    Guid? TransportProfileId,
-    EstimatedDurationSource DurationSource,
-    double? ManualDurationMinutes,
-    bool AllowUnavailableAutomatic = false,
-    bool UsePlanningSpeedOverride = false,
-    double? PlanningSpeedKmhOverride = null);
-
 /// <summary>Describes a complete persisted Segment route aggregate proposal.</summary>
 /// <param name="SegmentId">Canonical Segment identity.</param>
 /// <param name="FromPlaceId">Proposed canonical origin identity.</param>
@@ -45,7 +28,11 @@ public sealed record SegmentRouteProposal(
     LineString? RouteGeometry,
     SegmentMeasurementProposal? Measurement = null,
     bool ApplyNotes = false,
-    string? NotesHtml = null);
+    string? NotesHtml = null)
+{
+    /// <summary>Save-owned, validated measurements; never deserialized from client provenance.</summary>
+    internal PreservedRouteMeasurements? PreservedMeasurements { get; init; }
+}
 
 /// <summary>Reports whether a route proposal committed and its effective canonical anchor chain.</summary>
 /// <param name="Succeeded">Whether validation succeeded and the aggregate committed.</param>

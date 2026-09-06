@@ -37,6 +37,7 @@ internal static class EditorSegmentRequestParser
             errors["estimatedDurationMinutes"] = ["Manual duration is required."];
         var notesHtml = ReadRequiredNullableString(request, "notesHtml", errors);
         var route = ReadRequiredNullableRoute(request, errors);
+        var proposal = ReadProposal(request, errors);
         var aggregateToken = ReadRequiredNullableString(request, "aggregateConcurrencyToken", errors);
         if (waypointPlaceIds.Count != waypointIndices.Count)
             errors["waypointRouteVertexIndices"] = ["Waypoint IDs and route vertex indices must have matching lengths."];
@@ -63,7 +64,7 @@ internal static class EditorSegmentRequestParser
             durationSource,
             EditorRichNotesRequestHtml.NormalizeForPersistence(notesHtml),
             route,
-            aggregateToken);
+            aggregateToken, proposal);
         return true;
     }
 
@@ -106,6 +107,20 @@ internal static class EditorSegmentRequestParser
 
         update = new EditorSegmentOrderRequest(segmentIds);
         return true;
+    }
+
+    /// <summary>Rejects malformed envelopes explicitly rather than silently saving the prior route.</summary>
+    private static EditorSegmentProposalEnvelope? ReadProposal(JsonElement request, Dictionary<string, string[]> errors)
+    {
+        if (!request.TryGetProperty("proposal", out var value) || value.ValueKind == JsonValueKind.Null) return null;
+        if (value.ValueKind == JsonValueKind.Object
+            && value.TryGetProperty("proposalId", out var id) && id.ValueKind == JsonValueKind.String && id.TryGetGuid(out var proposalId)
+            && value.TryGetProperty("protectedContext", out var context) && context.ValueKind == JsonValueKind.String
+            && !string.IsNullOrWhiteSpace(context.GetString())
+            && (!value.TryGetProperty("manualDurationOverride", out var manual) || manual.ValueKind is JsonValueKind.True or JsonValueKind.False))
+            return new(proposalId, context.GetString()!, manual.ValueKind == JsonValueKind.True);
+        errors["proposal"] = ["The pending proposal is malformed. Discard or regenerate it before saving."];
+        return null;
     }
 
     private static bool ValidateObject(JsonElement request, Dictionary<string, string[]> errors, string message)

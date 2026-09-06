@@ -74,6 +74,15 @@ public sealed class ProviderAuthorityStepOneTests : TestBase
         Assert.Equal("provider-mode-required", Assert.IsType<ExternalRouteErrorDto>(rejected.Value).Code);
     }
 
+    /// <summary>The retired acceptance URL has no MVC POST action capable of writing a proposal.</summary>
+    [Fact]
+    public void ProposalController_ExposesOnlyGenerationPostAction()
+    {
+        var actions = typeof(ExternalRouteProposalsController).GetMethods()
+            .Where(method => method.GetCustomAttributes(typeof(HttpPostAttribute), false).Length != 0).ToArray();
+        Assert.Equal(nameof(ExternalRouteProposalsController.Generate), Assert.Single(actions).Name);
+    }
+
     [Fact]
     public void ProviderSettingsView_DoesNotExposeInternalAuthorizationOrActivationCheckboxes()
     {

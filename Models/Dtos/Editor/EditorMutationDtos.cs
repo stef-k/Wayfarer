@@ -124,7 +124,8 @@ public sealed record EditorSegmentSaveRequest(
     EstimatedDurationSource EstimatedDurationSource,
     string? NotesHtml,
     NetTopologySuite.Geometries.LineString? Route,
-    string? AggregateConcurrencyToken);
+    string? AggregateConcurrencyToken,
+    EditorSegmentProposalEnvelope? Proposal = null);
 
 /// <summary>
 /// Complete desired trip-level segment order.
@@ -240,3 +241,6 @@ public sealed record EditorLifecycleConflictDto(
     EditorLifecycleDependencySampleDto DeletedAreas,
     string ConfirmationToken,
     DateTimeOffset ExpiresAt);
+
+/// <summary>Original protected proposal identity; route and complete indices travel in the ordinary Save fields.</summary>
+public sealed record EditorSegmentProposalEnvelope(Guid ProposalId, string ProtectedContext, bool ManualDurationOverride = false);

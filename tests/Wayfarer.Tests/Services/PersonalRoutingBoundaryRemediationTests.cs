@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using NetTopologySuite.Geometries;
 using System.Text.Json;
 using Wayfarer.Models;
+using Wayfarer.Models.Dtos.Editor;
 using Wayfarer.Models.LocationProviders;
 using Wayfarer.Services;
 using Wayfarer.Services.ExternalRouting;
@@ -39,57 +40,6 @@ public sealed class PersonalRoutingBoundaryRemediationTests : TestBase
     }
 
     [Fact]
-    public async Task Acceptance_PersistsExactRouteAndPersonalProvenanceWithoutChangingPlanningProfile()
-    {
-        var fixture = CreateFixture();
-        RouteInstruction[] instructions =
-        [
-            new("Head east", "straight", 0, 1, 900, 240),
-            new("Turn right", "right", 1, 2, 350, 120)
-        ];
-        var generatedAt = DateTimeOffset.Parse("2026-09-04T08:30:00+00:00");
-        var proposalId = Guid.NewGuid();
-        var geometry = fixture.Anchors;
-        int[] indices = [0, 1, 2];
-        var binding = new ExternalRouteProposalBinding(
-            proposalId, fixture.Trip.Id, fixture.Segment.Id, fixture.UserId,
-            ExternalRouteProposalContextService.GeometryHash(geometry, indices),
-            ExternalRouteAnchorFingerprint.Compute([fixture.From, fixture.Via, fixture.To], geometry),
-            fixture.PlanningProfile.Id, fixture.AggregateToken, 1250, 360, instructions, "geoapify", "drive",
-            generatedAt, "Powered by Geoapify|© OpenStreetMap contributors", "persistent",
-            fixture.Selection.RoutingSelectionGeneration, fixture.ProviderProfile.CredentialGeneration,
-            fixture.ProviderProfile.RoutingGeneration, ProviderDirectionsCatalog.AuthorityVersion);
-        var protectedContext = fixture.ProposalContexts.Issue(binding).Token;
-        var originalPlanningState = (fixture.PlanningProfile.Key, fixture.PlanningProfile.Label,
-            fixture.PlanningProfile.Category, fixture.PlanningProfile.PlanningSpeedKmh, fixture.PlanningProfile.IsActive);
-        var service = new ExternalRouteProposalAcceptanceService(
-            fixture.Db, fixture.AggregateTokens, fixture.ProposalContexts, fixture.Resolver);
-
-        var result = await service.AcceptAsync(fixture.UserId, fixture.Trip.Id, fixture.Segment.Id, proposalId,
-            geometry, indices, protectedContext, CancellationToken.None);
-
-        Assert.True(result.Succeeded);
-        fixture.Db.ChangeTracker.Clear();
-        var segment = await fixture.Db.Segments.AsNoTracking().SingleAsync(item => item.Id == fixture.Segment.Id);
-        Assert.Equal(geometry.Select(item => new Coordinate(item.Longitude, item.Latitude)), segment.RouteGeometry!.Coordinates);
-        Assert.Equal(1.25, segment.EstimatedDistanceKm);
-        Assert.Equal(TimeSpan.FromSeconds(360), segment.EstimatedDuration);
-        Assert.Equal(instructions, JsonSerializer.Deserialize<RouteInstruction[]>(segment.RouteInstructionsJson!));
-        Assert.Equal("Powered by Geoapify|© OpenStreetMap contributors", segment.RouteAttribution);
-        Assert.Equal(generatedAt, segment.RouteGeneratedAt);
-        Assert.Equal("persistent", segment.RouteStorageMode);
-        Assert.Equal("geoapify", segment.RouteProvider);
-        Assert.Equal("drive", segment.RouteMappingMode);
-        Assert.Null(segment.RouteProviderConfigurationId);
-        Assert.Null(segment.RouteProviderConfigurationVersion);
-        Assert.Equal(fixture.PlanningProfile.Id, segment.RouteTransportProfileId);
-        var planningProfile = await fixture.Db.Set<TransportProfile>().AsNoTracking()
-            .SingleAsync(item => item.Id == fixture.PlanningProfile.Id);
-        Assert.Equal(originalPlanningState, (planningProfile.Key, planningProfile.Label,
-            planningProfile.Category, planningProfile.PlanningSpeedKmh, planningProfile.IsActive));
-    }
-
-    [Fact]
     public async Task MobileRoute_RejectsSelectionChangeBeforePublicationWithoutModeSubstitution()
     {
         var fixture = CreateFixture();
@@ -116,6 +66,51 @@ public sealed class PersonalRoutingBoundaryRemediationTests : TestBase
         Assert.Null(result.Geometry);
         Assert.Null(result.ProviderMode);
         Assert.Null(fixture.Selection.RoutingProviderKey);
+    }
+
+    /// <summary>The Save validator rejects altered final drafts and rechecks expiry without mutating the aggregate.</summary>
+    [Theory]
+    [InlineData("anchors")]
+    [InlineData("geometry")]
+    [InlineData("indices")]
+    [InlineData("profile")]
+    [InlineData("expiry")]
+    public async Task SaveValidation_RejectsAlteredFinalDraftOrOriginalExpiry(string defect)
+    {
+        var fixture = CreateFixture();
+        var clock = new ProposalClock();
+        var contexts = new ExternalRouteProposalContextService(new EphemeralDataProtectionProvider(), clock);
+        var generator = new ExternalRouteProposalGenerator(fixture.Db, fixture.AggregateTokens, new CallbackRouteClient(),
+            new AcceptingGeometryValidator(), contexts, new RoutingRequestBudget(), fixture.Resolver);
+        var generated = await generator.GenerateAsync(fixture.UserId, fixture.Trip.Id, fixture.Segment.Id,
+            fixture.AggregateToken, "drive", CancellationToken.None);
+        Assert.True(generated.Succeeded);
+        var proposal = generated.Proposal!;
+        var request = new EditorSegmentSaveRequest(fixture.From.Id, fixture.To.Id, [fixture.Via.Id], [1],
+            fixture.PlanningProfile.Key, null, null, EstimatedDurationSource.Automatic, "changed notes",
+            new LineString(proposal.Geometry.Select(item => new Coordinate(item.Longitude, item.Latitude)).ToArray()) { SRID = 4326 },
+            fixture.AggregateToken, new(proposal.ProposalId, proposal.ProtectedContext));
+        if (defect == "anchors") request = request with { FromPlaceId = fixture.To.Id };
+        if (defect == "geometry") request = request with { Route = new LineString([new(1, 1), new(2, 2), new(3, 3)]) { SRID = 4326 } };
+        if (defect == "indices") request = request with { WaypointRouteVertexIndices = [0] };
+        var validator = new ExternalRouteProposalSaveValidator(fixture.Db, fixture.AggregateTokens, contexts, fixture.Resolver);
+        var locked = await validator.LockAuthorityAsync(fixture.UserId, fixture.Trip.Id, fixture.Segment.Id, request, CancellationToken.None);
+        if (defect == "expiry") clock.Advance(TimeSpan.FromMinutes(10));
+        var error = locked.Error ?? await validator.ValidateFinalAsync(locked.Binding!, fixture.Segment, request,
+            defect == "profile" ? Guid.NewGuid() : fixture.PlanningProfile.Id, CancellationToken.None);
+        Assert.NotNull(error);
+        Assert.Null(fixture.Segment.RouteGeometry);
+        Assert.Null(fixture.Segment.RouteProvider);
+        Assert.NotEqual("changed notes", fixture.Segment.Notes);
+        if (defect == "expiry") Assert.Equal("route-proposal-invalid-or-expired", error);
+    }
+
+    /// <summary>Advances only the proposal lifetime clock, without provider calls or wall-clock waits.</summary>
+    private sealed class ProposalClock : TimeProvider
+    {
+        private DateTimeOffset _now = DateTimeOffset.UtcNow;
+        public override DateTimeOffset GetUtcNow() => _now;
+        public void Advance(TimeSpan duration) => _now += duration;
     }
 
     private Fixture CreateFixture()

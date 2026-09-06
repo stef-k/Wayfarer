@@ -17,6 +17,12 @@ public sealed class SegmentRouteReconcilerTests
         await using var context = CreateContext();
         var seeded = await SeedAsync(context);
         var geometry = Line((1, 1), (2, 2));
+        var original = await context.Segments.SingleAsync(item => item.Id == seeded.SegmentId);
+        original.RouteProvider = "geoapify";
+        original.RouteStorageMode = "persistent";
+        original.RouteInstructionsJson = "[]";
+        original.RouteAttribution = "old route attribution";
+        await context.SaveChangesAsync();
 
         var result = await SegmentRouteReconciler.ReconcileAsync(context,
             new(seeded.SegmentId, null, null, [], geometry));
@@ -27,6 +33,10 @@ public sealed class SegmentRouteReconcilerTests
         Assert.Null(segment.ToPlaceId);
         Assert.NotSame(geometry, segment.RouteGeometry);
         Assert.Empty(segment.Waypoints);
+        Assert.Null(segment.RouteProvider);
+        Assert.Null(segment.RouteStorageMode);
+        Assert.Null(segment.RouteInstructionsJson);
+        Assert.Null(segment.RouteAttribution);
     }
 
     /// <summary>Every supplied custom route is validated even when the Segment has no waypoint rows.</summary>
