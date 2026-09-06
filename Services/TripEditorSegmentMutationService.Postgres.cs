@@ -102,7 +102,7 @@ public sealed partial class TripEditorSegmentMutationService
                 new() { ["aggregateConcurrencyToken"] = ["The aggregate token is missing, malformed, or scoped to another Segment."] },
                 "segment-aggregate-token-invalid");
 
-        var mode = await ResolveModeAsync(request.Mode, candidateSegment.Mode, cancellationToken);
+        var mode = await ResolveModeAsync(request.Mode, candidateSegment, cancellationToken);
         if (mode == null)
             return EditorRegionMutationOutcome<EditorMutationResult<EditorSegmentDto>>.ValidationFailed(
                 new() { ["mode"] = ["Mode must match an active transport profile or preserve the current inactive profile."] }, "segment-mode-invalid");

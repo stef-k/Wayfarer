@@ -95,7 +95,7 @@ public sealed class PersonalRouteSavePostgresTests(PostgresMigrationTestFixture 
         if (primary is not null) ExceptionDispatchInfo.Capture(primary).Throw();
     }
 
-    /// <summary>Includes the client request for a pre-generation Manual edit with no provider duration.</summary>
+    /// <summary>Preserves inactive planning identity, including a Manual edit with no provider duration.</summary>
     [PostgresTheory]
     [InlineData(false)]
     [InlineData(true)]
@@ -105,7 +105,7 @@ public sealed class PersonalRouteSavePostgresTests(PostgresMigrationTestFixture 
         var user = await fixture.CreateUserAsync();
         var protection = new EphemeralDataProtectionProvider();
         var credentials = new PersonalProviderCredentialService(protection);
-        var seeded = await SeedAsync(user.Id, credentials);
+        var seeded = await SeedAsync(user.Id, credentials, inactiveChoice: true);
         var proposal = await GenerateAsync(user.Id, seeded, credentials, protection, manualEdit ? null : 360);
         await using var context = fixture.CreateContext();
         var original = await context.Segments.AsNoTracking().SingleAsync(item => item.Id == seeded.SegmentId);
@@ -122,6 +122,9 @@ public sealed class PersonalRouteSavePostgresTests(PostgresMigrationTestFixture 
         context.ChangeTracker.Clear();
         var canonical = await context.Segments.AsNoTracking().SingleAsync(item => item.Id == seeded.SegmentId);
         Assert.Equal("edited with proposal", canonical.Notes);
+        Assert.Equal(original.Mode, canonical.Mode);
+        Assert.Equal(original.TransportProfileId, canonical.TransportProfileId);
+        Assert.False(await context.Set<TransportProfile>().Where(item => item.Id == seeded.TransportProfileId).Select(item => item.IsActive).SingleAsync());
         Assert.Equal(proposal.Geometry.Select(item => new Coordinate(item.Longitude, item.Latitude)), canonical.RouteGeometry!.Coordinates);
         Assert.Equal(1.25, canonical.EstimatedDistanceKm);
         Assert.Equal(TimeSpan.FromMinutes(manualEdit ? 12 : 6), canonical.EstimatedDuration);
@@ -211,7 +214,8 @@ public sealed class PersonalRouteSavePostgresTests(PostgresMigrationTestFixture 
             new(true, providerRoute.Geometry, Enumerable.Range(0, anchors.Count).ToArray(), null);
     }
 
-    private async Task<SeededAuthority> SeedAsync(string userId, PersonalProviderCredentialService credentials)
+    private async Task<SeededAuthority> SeedAsync(string userId, PersonalProviderCredentialService credentials,
+        bool inactiveChoice = false)
     {
         await using var context = fixture.CreateContext();
         var providerProfile = PersonalLocationProviderProfile.Create(userId, PersonalLocationProvider.Geoapify);
@@ -223,8 +227,8 @@ public sealed class PersonalRouteSavePostgresTests(PostgresMigrationTestFixture 
         selection.Select(PersonalProviderCapability.Routing, PersonalLocationProvider.Geoapify);
         var transportProfile = new TransportProfile
         {
-            Id = Guid.NewGuid(), Key = $"race-{Guid.NewGuid():N}", Label = "Race planning",
-            Category = "test", IsActive = true, PlanningSpeedKmh = 5
+            Id = Guid.NewGuid(), Key = $"race-{Guid.NewGuid():N}", Label = "Fish",
+            Category = "test", IsActive = !inactiveChoice, PlanningSpeedKmh = 5
         };
         var trip = new Trip { Id = Guid.NewGuid(), UserId = userId, Name = "Acceptance race" };
         var region = new Region

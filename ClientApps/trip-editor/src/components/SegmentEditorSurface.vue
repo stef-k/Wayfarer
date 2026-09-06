@@ -83,7 +83,6 @@ defineEmits<{
       <SegmentRouteProposal
         v-if="activeSegment && activeSegment.externalRouting?.available"
         :antiforgery-token="antiforgeryToken"
-        :draft-has-route="draft.route !== null"
         :draft-context-key="draftContextKey"
         :draft-mode="draft.mode"
         :draft-transport-profile-id="draft.transportProfileId"

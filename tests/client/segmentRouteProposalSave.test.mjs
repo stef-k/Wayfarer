@@ -10,12 +10,16 @@ const { createSegmentRouteProposalDraftController } = await import(`data:text/ja
 test('pending proposal alone is dirty and Save transports it without changing preview fields; discard retains edits', () => {
   const draft = { id: 'segment', fromPlaceId: '', toPlaceId: '', waypointRows: [], mode: '', route: null, notesHtml: '', estimatedDurationSource: 'Automatic', aggregateConcurrencyToken: 'aggregate', estimatedDistanceKm: '7', estimatedDurationMinutes: '8' };
   const baseline = structuredClone(draft);
-  const controller = createSegmentRouteProposalDraftController(draft, () => 'segment', () => {}, () => baseline);
+  const previews = [];
+  const controller = createSegmentRouteProposalDraftController(draft, () => 'segment', preview => previews.push(preview), () => baseline);
   const before = structuredClone(draft);
   controller.preview({ proposalId: 'proposal', segmentId: 'segment', protectedContext: 'protected',
     geometry: [{ longitude: 1, latitude: 2 }, { longitude: 3, latitude: 4 }], waypointIndices: [0, 1],
     distanceMetres: 0, durationSeconds: 0 });
   assert.equal(controller.hasProposal.value, true);
+  assert.equal(controller.publishIfPresent(), true);
+  assert.equal(previews[0].kind, 'proposal');
+  assert.deepEqual(previews[0].route.coordinates, [[1, 2], [3, 4]]);
   assert.deepEqual(draft, before);
   draft.notesHtml = 'edit during preview';
   const request = controller.buildRequest();
@@ -26,6 +30,7 @@ test('pending proposal alone is dirty and Save transports it without changing pr
   assert.equal(request.estimatedDurationMinutes, 0);
   controller.preview(null);
   assert.equal(controller.hasProposal.value, false);
+  assert.equal(controller.publishIfPresent(), false);
   assert.equal(draft.notesHtml, 'edit during preview');
   assert.equal(draft.estimatedDistanceKm, '7');
 });

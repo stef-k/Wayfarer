@@ -24,6 +24,7 @@ export const toRouteProposalPreview = (
 ): SegmentDraftRoutePreview => ({
   fromPlaceId: draft.fromPlaceId,
   identity: `${identity}-provider-proposal`,
+  kind: 'proposal',
   route: { type: 'LineString', coordinates: proposal.geometry.map(item => [item.longitude, item.latitude]) },
   segmentId: draft.id,
   toPlaceId: draft.toPlaceId

@@ -16,6 +16,51 @@ namespace Wayfarer.Tests.Services;
 /// <summary>Proves the focused personal-provider routing boundaries retained by issue 538 step 3.</summary>
 public sealed class PersonalRoutingBoundaryRemediationTests : TestBase
 {
+    /// <summary>Planning identity is retained context, never permission to request an explicit native mode.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Generator_PreservesInactiveOrMissingChoiceAndUsesExplicitMode(bool missingIdentity)
+    {
+        var fixture = CreateFixture();
+        fixture.PlanningProfile.IsActive = false;
+        fixture.PlanningProfile.Key = "fish";
+        fixture.Segment.Mode = "Fish";
+        if (missingIdentity) fixture.Segment.TransportProfileId = null;
+        await fixture.Db.SaveChangesAsync();
+        var identity = fixture.Segment.TransportProfileId;
+        var capability = await new ExternalRoutingCapabilityProjector(fixture.Resolver)
+            .ProjectAsync(fixture.UserId, [fixture.Segment], default);
+        Assert.True(capability[fixture.Segment.Id].Available);
+        var client = new CallbackRouteClient();
+        var generator = new ExternalRouteProposalGenerator(fixture.Db, fixture.AggregateTokens, client,
+            new AcceptingGeometryValidator(), fixture.ProposalContexts, new RoutingRequestBudget(), fixture.Resolver);
+        var invalid = await generator.GenerateAsync(fixture.UserId, fixture.Trip.Id, fixture.Segment.Id,
+            fixture.AggregateToken, "Fish", default);
+        Assert.Equal("unsupported-provider-mode", invalid.ErrorCode);
+        Assert.Equal(0, client.Requests);
+        var result = await generator.GenerateAsync(fixture.UserId, fixture.Trip.Id, fixture.Segment.Id,
+            fixture.AggregateToken, "drive", default);
+        Assert.True(result.Succeeded, result.ErrorCode);
+        Assert.Equal("drive", client.Mode);
+        Assert.True(fixture.ProposalContexts.TryRead(result.Proposal!.ProtectedContext, out var binding));
+        Assert.Equal(identity, binding!.TransportProfileId);
+        Assert.Equal("Fish", fixture.Segment.Mode);
+        Assert.Equal(identity, fixture.Segment.TransportProfileId);
+        Assert.Null(fixture.Segment.RouteGeometry);
+        var request = new EditorSegmentSaveRequest(fixture.From.Id, fixture.To.Id, [fixture.Via.Id], [1],
+            "Fish", null, null, EstimatedDurationSource.Automatic, null,
+            new LineString(result.Proposal.Geometry.Select(item => new Coordinate(item.Longitude, item.Latitude)).ToArray()) { SRID = 4326 },
+            fixture.AggregateToken, new(result.Proposal.ProposalId, result.Proposal.ProtectedContext));
+        var validator = new ExternalRouteProposalSaveValidator(fixture.Db, fixture.AggregateTokens, fixture.ProposalContexts, fixture.Resolver);
+        Assert.Null(await validator.ValidateFinalAsync(binding, fixture.Segment, request, identity, default));
+        if (missingIdentity)
+            Assert.Equal("route-proposal-stale", await validator.ValidateFinalAsync(binding, fixture.Segment, request with { Mode = "" }, null, default));
+        Assert.Equal("route-proposal-stale", await validator.ValidateFinalAsync(binding, fixture.Segment, request, Guid.NewGuid(), default));
+        fixture.Segment.TransportProfileId = Guid.NewGuid();
+        Assert.Equal("route-proposal-stale", await validator.ValidateFinalAsync(binding, fixture.Segment, request, identity, default));
+    }
+
     [Fact]
     public async Task Generator_RejectsCredentialReplacementAfterContactWithoutPublishingProposal()
     {
@@ -167,12 +212,14 @@ public sealed class PersonalRoutingBoundaryRemediationTests : TestBase
     private sealed class CallbackRouteClient(Func<CancellationToken, Task>? callback = null) : IProviderRouteClient
     {
         public int Requests { get; private set; }
+        public string? Mode { get; private set; }
 
         public async Task<ProviderRouteResult> RouteAsync(ResolvedRoutingProviderExecution execution,
             IReadOnlyList<RouteCoordinate> anchors, Func<CancellationToken, Task<bool>> validateAuthority,
             CancellationToken cancellationToken)
         {
             Requests++;
+            Mode = execution.Profile;
             if (callback != null) await callback(cancellationToken);
             return new(true, anchors, anchors, null, 1250, 360,
                 [new("Continue", "straight", 0, anchors.Count - 1, 1250, 360)],

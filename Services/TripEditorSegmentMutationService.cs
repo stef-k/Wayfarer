@@ -199,7 +199,7 @@ public sealed partial class TripEditorSegmentMutationService
             return EditorRegionMutationOutcome<EditorMutationResult<EditorSegmentDto>>.ValidationFailed(referenceErrors);
         }
 
-        var mode = await ResolveModeAsync(parsed.Value!.Mode, segment.Mode, cancellationToken);
+        var mode = await ResolveModeAsync(parsed.Value!.Mode, segment, cancellationToken);
         if (mode == null)
         {
             return EditorRegionMutationOutcome<EditorMutationResult<EditorSegmentDto>>.ValidationFailed(
@@ -356,16 +356,19 @@ public sealed partial class TripEditorSegmentMutationService
             });
     }
 
-    /// <summary>Resolves database-backed mode semantics for a create or edit operation.</summary>
-    private async Task<(string Key, Guid? ProfileId)?> ResolveModeAsync(string requestedMode, string? currentMode, CancellationToken cancellationToken)
+    /// <summary>Preserves an unchanged choice exactly; explicit changes still require catalog eligibility.</summary>
+    private async Task<(string Key, Guid? ProfileId)?> ResolveModeAsync(string requestedMode, Segment? current, CancellationToken cancellationToken)
     {
+        if (current != null && string.Equals(TransportProfile.NormalizeKey(requestedMode),
+            TransportProfile.NormalizeKey(current.Mode), StringComparison.Ordinal))
+            return (current.Mode, current.TransportProfileId);
         if (string.IsNullOrWhiteSpace(requestedMode))
         {
             return (string.Empty, null);
         }
 
         var resolved = await new TransportProfileCatalog(_dbContext)
-            .ResolveEditorModeAsync(requestedMode, currentMode, cancellationToken);
+            .ResolveEditorModeAsync(requestedMode, current?.Mode, cancellationToken);
         if (resolved == null)
         {
             return null;
@@ -375,9 +378,7 @@ public sealed partial class TripEditorSegmentMutationService
             .Where(profile => profile.Key == resolved)
             .Select(profile => (Guid?)profile.Id)
             .SingleAsync(cancellationToken);
-        var preserveCurrent = !string.IsNullOrWhiteSpace(currentMode)
-            && string.Equals(TransportProfile.NormalizeKey(requestedMode), TransportProfile.NormalizeKey(currentMode), StringComparison.Ordinal);
-        return (preserveCurrent ? currentMode! : resolved, profileId);
+        return (resolved, profileId);
     }
 
     private async Task<EditorSegmentDto> LoadSegmentDtoAsync(Guid segmentId, Guid tripId, string userId, CancellationToken cancellationToken)
