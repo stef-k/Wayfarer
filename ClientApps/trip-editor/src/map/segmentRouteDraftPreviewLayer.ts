@@ -16,7 +16,7 @@ export interface SegmentDraftRoutePreview {
 export const createSegmentRouteDraftPreviewLayer = (map: LeafletMap): {
   dispose: () => void;
   extendBounds: (bounds: L.LatLngBounds) => L.LatLngBounds;
-  focus: (map: LeafletMap, target: EditorTarget | null) => 'moved' | null;
+  focus: (target: EditorTarget | null) => 'moved' | null;
   render: (state: EditorTripState, hiddenSegmentIds: ReadonlySet<Guid>, workActive: boolean) => void;
   segmentId: () => Guid | null;
   set: (preview: SegmentDraftRoutePreview | null) => void;
@@ -54,14 +54,14 @@ export const createSegmentRouteDraftPreviewLayer = (map: LeafletMap): {
     if (element) {
       element.setAttribute('data-segment-id', preview.identity);
       element.setAttribute('data-route-owner', 'proposal');
-      element.setAttribute('data-route-kind', preview.route === null ? 'fallback' : 'custom');
+      element.setAttribute('data-route-kind', 'custom');
     }
   };
 
   return {
     dispose: () => { activePreview = null; visibleCoordinates = []; layers.clearLayers(); },
     extendBounds,
-    focus: (map, target) => {
+    focus: target => {
       if (target?.kind !== 'segment' || target.entityId !== activePreview?.segmentId || visibleCoordinates.length < 2) return null;
       map.fitBounds(extendBounds(L.latLngBounds([])), { padding: [32, 32], maxZoom: 12 });
       return 'moved';
@@ -71,4 +71,3 @@ export const createSegmentRouteDraftPreviewLayer = (map: LeafletMap): {
     set: preview => { activePreview = preview?.kind === 'proposal' ? preview : null; }
   };
 };
-

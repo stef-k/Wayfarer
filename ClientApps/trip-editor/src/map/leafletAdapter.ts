@@ -222,7 +222,7 @@ export const createTripEditorMap = (element: HTMLElement, tilesUrl: string, opti
     setSegmentRouteWorkState: state => segmentRouteWork.setState(state),
     fitAllGeometry: state => fitBounds(map, segmentDraftPreview.extendBounds(allGeometryBounds(state))),
     focusSavedTripView: metadata => focusSavedTripView(map, metadata),
-    focusActiveEntity: (state, target) => segmentDraftPreview.focus(map, target) ?? focusActiveEntity(map, state, target),
+    focusActiveEntity: (state, target) => segmentDraftPreview.focus(target) ?? focusActiveEntity(map, state, target),
     showSearchPreview: searchPreview.show,
     dispose: () => {
       searchPreview.dispose();

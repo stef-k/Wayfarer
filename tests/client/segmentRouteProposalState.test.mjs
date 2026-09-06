@@ -94,8 +94,8 @@ test('successful response is retained for its Segment and can render preview', (
   const controller = new AbortController();
   const request = store.begin('first', 'walk', controller);
   const proposal = {
-    proposalId: 'proposal-1', segmentId: 'first', geometry: [{ longitude: 23.7, latitude: 37.9 }],
-    waypointIndices: [0], protectedContext: 'context', expiresAt: '2026-08-18T22:00:00Z'
+    proposalId: 'proposal-1', segmentId: 'first', geometry: [{ longitude: 23.7, latitude: 37.9 }, { longitude: 23.8, latitude: 38 }],
+    waypointIndices: [0, 1], protectedContext: 'context', expiresAt: '2026-08-18T22:00:00Z'
   };
 
   assert.equal(store.complete('first', request, proposal), true);

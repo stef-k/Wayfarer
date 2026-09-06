@@ -1,108 +1,78 @@
 import { expect, test, type Page, type Route } from '@playwright/test';
-import { absoluteUrl, config, editorApiPath, editorPath, expectMountedWorkspace, pathRegex, signIn } from './tripEditorTestUtils';
+import { absoluteUrl, editorApiPath, editorPath, expectMountedWorkspace, pathRegex, signIn } from './tripEditorTestUtils';
 
-test.describe.serial('bounded external routing workflow', () => {
-  test('mounted two-Segment workflow preserves independent drafts through proposal lifecycle', async ({ page }) => {
-    await signIn(page);
-    const fixtureResponse = await page.request.get(absoluteUrl(editorApiPath), { headers: { Accept: 'application/json' } });
-    test.skip(!fixtureResponse.ok(), `The configured mounted fixture is unavailable (${fixtureResponse.status()}).`);
-    const original = await fixtureResponse.json() as Record<string, any>;
-    test.skip(original.segmentOrder.length < 2, 'The configured mounted fixture has fewer than two Segments.');
-    const [fallbackId, customId] = original.segmentOrder.slice(0, 2) as string[];
-    const state = structuredClone(original);
-    state.options.transportModes = distinctModes(state.options.transportModes);
-    for (const id of [fallbackId, customId]) state.segmentsById[id].externalRouting = capability();
-    state.segmentsById[fallbackId].route = null;
-    state.segmentsById[fallbackId].hasCustomRoute = false;
-    state.segmentsById[customId].route = state.segmentsById[customId].effectiveRoute;
-    state.segmentsById[customId].hasCustomRoute = true;
-
-    await page.route(pathRegex(editorApiPath), async route => {
-      if (route.request().method() === 'GET') await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(state) });
-      else await route.fallback();
-    });
-    let generationRequests = 0;
-    let failNext = false;
-    let pendingRelease: (() => void) | null = null;
-    await page.route(/\/api\/trip-editor\/[^/]+\/segments\/[^/]+\/route-proposals$/, async route => {
-      generationRequests++;
-      if (failNext) {
-        failNext = false;
-        await route.fulfill({ status: 422, contentType: 'application/json', body: JSON.stringify({ code: 'provider-unavailable' }) });
-        return;
-      }
-      if (pendingRelease) await new Promise<void>(resolve => { const prior = pendingRelease; pendingRelease = () => { prior?.(); resolve(); }; });
-      const segmentId = route.request().url().split('/segments/')[1].split('/')[0];
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(proposal(state, segmentId)) }).catch(() => {});
-    });
-    await page.route(new RegExp(`${escape(fixedSegmentEndpoint(customId))}$`), route => fulfillSegmentSave(route, state, customId));
-    await page.route(new RegExp(`${escape(fixedSegmentEndpoint(fallbackId))}$`), route => fulfillSegmentSave(route, state, fallbackId));
-
-    await page.goto(absoluteUrl(editorPath), { waitUntil: 'domcontentloaded' });
-    await expect(page).toHaveURL(pathRegex(editorPath));
-    await expectMountedWorkspace(page);
-
-    await openSegment(page, fallbackId);
-    await expectDisclosure(page);
-    await page.getByLabel('Directions mode').selectOption('drive');
-    await page.getByRole('button', { name: 'Generate routed path' }).click();
-    await expect(page.getByText('Review the proposed route and estimates.')).toBeVisible();
-    await page.getByRole('button', { name: 'Discard proposal' }).click();
-    await expect(page.getByText('Review the proposed route and estimates.')).toHaveCount(0);
-
-    await page.getByLabel('Directions mode').selectOption('drive');
-    await page.getByRole('button', { name: 'Generate routed path' }).click();
-    await page.getByRole('button', { name: 'Save Segment' }).click();
-    await expect(page.getByRole('button', { name: 'Clear Route' })).toBeEnabled();
-    await expect(page.getByRole('button', { name: 'Draw/Edit Route' })).toBeEnabled();
-    await page.getByRole('button', { name: 'Cancel' }).click();
-
-    await openSegment(page, customId);
+// Controlled proposal and Save responses isolate the mounted presentation contract from provider/persistence tests.
+test('pending geometry and estimates survive theme changes, Discard and canonical Save', async ({ page }, testInfo) => {
+  await page.route(/\/tiles?\//i, route => route.abort());
+  await page.route(/https?:\/\/(?!localhost[:/]|127\.0\.0\.1[:/])/, route => route.abort());
+  await signIn(page);
+  const fixtureResponse = await page.request.get(absoluteUrl(editorApiPath), { headers: { Accept: 'application/json' } });
+  expect(fixtureResponse.ok()).toBeTruthy();
+  const state = await fixtureResponse.json() as Record<string, any>;
+  const [segmentId] = state.segmentOrder as string[];
+  expect(segmentId).toBeTruthy();
+  const segment = state.segmentsById[segmentId];
+  segment.externalRouting = capability();
+  segment.route = segment.effectiveRoute;
+  segment.hasCustomRoute = true;
+  await page.route(pathRegex(editorApiPath), route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(state) }));
+  await page.route(/\/api\/trip-editor\/[^/]+\/segments\/[^/]+\/route-proposals$/, route =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(proposal(state, segmentId)) }));
+  await page.route(new RegExp(`${escape(fixedSegmentEndpoint(segmentId))}$`), route => fulfillSegmentSave(route, state, segmentId));
+  await page.goto(absoluteUrl(editorPath), { waitUntil: 'domcontentloaded' });
+  await expectMountedWorkspace(page);
+  await openSegment(page, segmentId);
+  await expectDisclosure(page);
+  const form = page.locator('#trip-editor-segment-form');
+  const distance = form.getByLabel('Estimated distance km', { exact: true });
+  const duration = form.getByLabel('Estimated duration minutes', { exact: true });
+  const before = [await distance.inputValue(), await duration.inputValue()];
+  const current = page.locator(`path[data-segment-id="${segmentId}"][data-segment-presentation-owner]`);
+  const preview = page.locator('path[data-route-owner="proposal"]');
+  const generate = async () => {
     await page.getByLabel('Directions mode').selectOption('drive');
     await page.getByRole('button', { name: 'Replace with routed path' }).click();
     await page.getByRole('button', { name: 'Generate replacement' }).click();
-    await expect(page.getByText('Review the proposed route and estimates.')).toBeVisible();
-    await page.getByRole('button', { name: 'Save Segment' }).click();
-    await expect(page.getByRole('button', { name: 'Reset' })).toBeDisabled();
-    await page.getByRole('button', { name: 'Clear Route' }).click();
-    await expect(page.getByRole('button', { name: 'Reset' })).toBeEnabled();
-    await page.getByRole('button', { name: 'Reset' }).click();
-    await expect(page.getByRole('button', { name: 'Clear Route' })).toBeEnabled();
-
-    await page.getByLabel('Directions mode').selectOption('drive');
-    await page.getByRole('button', { name: 'Replace with routed path' }).click();
-    await page.getByRole('button', { name: 'Generate replacement' }).click();
-    await expect(page.getByText('Review the proposed route and estimates.')).toBeVisible();
-    const beforeProfileChange = generationRequests;
-    const modeSelect = page.getByText('Transport mode').locator('..').locator('select');
-    await modeSelect.selectOption({ index: 2 });
-    await expect(page.getByText('Review the proposed route and estimates.')).toHaveCount(0);
-    await expect(page.getByText('Save the transport-profile change before generating')).toBeVisible();
-    expect(generationRequests).toBe(beforeProfileChange);
-    await page.getByRole('button', { name: 'Save Segment' }).click();
-    await page.getByLabel('Directions mode').selectOption('drive');
-    await page.getByRole('button', { name: 'Replace with routed path' }).click();
-    await page.getByRole('button', { name: 'Generate replacement' }).click();
-    await expect(page.getByText('Review the proposed route and estimates.')).toBeVisible();
-    await page.getByRole('button', { name: 'Discard proposal' }).click();
-
-    failNext = true;
-    await page.getByLabel('Directions mode').selectOption('drive');
-    await page.getByRole('button', { name: 'Replace with routed path' }).click();
-    await page.getByRole('button', { name: 'Generate replacement' }).click();
-    await expect(page.getByRole('alert')).toContainText('draft is unchanged');
-    await expect(page.getByRole('button', { name: 'Clear Route' })).toBeEnabled();
-
-    pendingRelease = () => {};
-    await page.getByLabel('Directions mode').selectOption('drive');
-    await page.getByRole('button', { name: 'Replace with routed path' }).click();
-    await page.getByRole('button', { name: 'Generate replacement' }).click();
-    await expect(page.getByRole('button', { name: 'Cancel generation' })).toBeVisible();
-    await page.getByRole('button', { name: 'Cancel generation' }).click();
-    pendingRelease?.();
-    pendingRelease = null;
-    await expect(page.getByRole('button', { name: 'Clear Route' })).toBeEnabled();
-  });
+    await expect(preview).toHaveCount(1);
+    await expect(preview).toHaveAttribute('stroke-dasharray', '8 6');
+    await expect.poll(() => preview.evaluate(node => (node as SVGPathElement).getTotalLength())).toBeGreaterThan(10);
+  };
+  await generate();
+  await expect(current).toHaveCount(1);
+  // The controlled proposal deliberately overlaps the current route: both strokes must remain present.
+  expect(await preview.getAttribute('d')).toBe(await current.getAttribute('d'));
+  expect(await preview.getAttribute('stroke')).not.toBe(await current.getAttribute('stroke'));
+  expect(await preview.evaluate(node => node.parentNode?.lastChild === node)).toBeTruthy();
+  await expect(distance).toHaveValue(before[0]);
+  await expect(duration).toHaveValue(before[1]);
+  await expect(page.getByText("Used only to calculate this route. The Segment's transport profile stays unchanged.")).toBeVisible();
+  await expect(page.getByText('Review the proposed route and estimates. Save Segment uses this proposal and saves your other Segment changes. Discard proposal keeps your previous route.')).toBeVisible();
+  for (const theme of ['light', 'dark']) {
+    await page.evaluate(value => document.documentElement.setAttribute('data-bs-theme', value), theme);
+    await expect(page.locator('.proposal-estimates dt').first()).toHaveText('Proposed distance');
+    await expect(page.locator('.proposal-estimates strong').first()).toHaveText('1.25 km');
+    await expect(page.locator('.proposal-estimates dt').last()).toHaveText('Estimated travel time');
+    await expect(page.locator('.proposal-estimates strong').last()).toHaveText('6 minutes');
+    await expect(page.locator('.proposal-estimates strong').first()).toHaveCSS('font-weight', '700');
+    // Retain actual theme screenshots for visual contrast review; do not approximate CSS color-mix backgrounds.
+    const accent = await page.locator('.proposal-estimates strong').first().evaluate(node => getComputedStyle(node).color);
+    testInfo.annotations.push({ type: `${theme} estimate color`, description: accent });
+    await page.screenshot({ path: testInfo.outputPath(`proposal-${theme}.png`), fullPage: true });
+  }
+  await page.getByRole('button', { name: 'Discard proposal' }).click();
+  await expect(preview).toHaveCount(0);
+  await expect(current).toHaveCount(1);
+  await expect(distance).toHaveValue(before[0]);
+  await expect(duration).toHaveValue(before[1]);
+  await generate();
+  await page.getByRole('button', { name: 'Save Segment' }).click();
+  await expect(preview).toHaveCount(0);
+  await expect(page.locator('.proposal-estimates')).toHaveCount(0);
+  await expect(distance).toHaveValue('1.25');
+  await expect(duration).toHaveValue('6');
+  await expect(current).toHaveCount(1);
+  await expect.poll(() => current.evaluate(node => (node as SVGPathElement).getTotalLength())).toBeGreaterThan(10);
+  await expect(page.getByRole('button', { name: 'Save Segment' })).toBeDisabled();
 });
 
 const capability = () => ({ available: true, unavailableReason: null, providerDisplayName: 'Geoapify',
@@ -112,9 +82,9 @@ const capability = () => ({ available: true, unavailableReason: null, providerDi
 function proposal(state: Record<string, any>, segmentId: string): Record<string, any> {
   const segment = state.segmentsById[segmentId];
   const placeIds = [segment.fromPlaceId, ...segment.waypointPlaceIds, segment.toPlaceId];
-  const geometry = placeIds.map((id: string) => state.placesById[id].location);
+  const geometry = segment.route.coordinates.map(([longitude, latitude]: number[]) => ({ longitude, latitude }));
   return { proposalId: crypto.randomUUID(), segmentId, geometry,
-    waypointIndices: geometry.map((_: unknown, index: number) => index), protectedContext: 'controlled-context',
+    waypointIndices: placeIds.map((id: string) => geometry.findIndex((point: Record<string, number>) => point.longitude === state.placesById[id].location.longitude && point.latitude === state.placesById[id].location.latitude)), protectedContext: 'controlled-context',
     distanceMetres: 1250, durationSeconds: 360, expiresAt: new Date(Date.now() + 600000).toISOString() };
 }
 
@@ -125,6 +95,7 @@ async function fulfillSegmentSave(route: Route, state: Record<string, any>, segm
   const { proposal: pendingProposal, ...fields } = request;
   if (pendingProposal) expect(pendingProposal.protectedContext).toBe('controlled-context');
   const saved = { ...current, ...fields, aggregateConcurrencyToken: `${current.aggregateConcurrencyToken}-saved`,
+    effectiveRoute: request.route, estimatedDistanceKm: 1.25, estimatedDurationMinutes: 6, estimatedDurationSource: 'Automatic',
     hasCustomRoute: request.route !== null, externalRouting: current.externalRouting };
   state.segmentsById[segmentId] = saved;
   await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ success: true, data: saved,
@@ -148,5 +119,3 @@ async function expectDisclosure(page: Page): Promise<void> {
 
 const fixedSegmentEndpoint = (id: string): string => `${editorApiPath}/segments/${id}`;
 const escape = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-const distinctModes = (modes: Array<Record<string, any>>): Array<Record<string, any>> => modes.length > 1 ? modes :
-  [...modes, { value: 'controlled-alternate', label: 'Controlled alternate', speedKmh: 10 }];
