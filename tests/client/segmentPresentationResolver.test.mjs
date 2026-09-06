@@ -112,11 +112,21 @@ test('retains both ordered descriptions for a reused same-Place badge', async ()
   assert.deepEqual(viewer.resolveViewerAnchors(viewerInputs).badges[0], { placeId: 'ella', location: [10, 20], ...expected });
 });
 
-/** Pins the Editor's existing Leaflet route and badge tooltip boundary without a second Leaflet harness. */
-test('binds editor Segment and badge tooltips to the shared rich theme without keyboard badges', async () => {
+/** Pins production chevron style parity and tooltip boundaries without a second Leaflet harness. */
+test('keeps Editor/Viewer chevron styles aligned and editor tooltips on the shared rich theme', async () => {
   const source = await readFile('ClientApps/trip-editor/src/map/segmentPresentationLayer.ts', 'utf8');
+  const viewer = await readFile('wwwroot/js/Trip/tripViewerHelpers.js', 'utf8');
   const css = await readFile('ClientApps/trip-editor/src/map.css', 'utf8');
 
+  for (const renderer of [source, viewer]) {
+    const style = renderer.match(/L\.polyline\(points,\s*\{([^}]+)\}/)?.[1];
+    assert.ok(style, 'production chevron polyline style exists');
+    assert.match(style, /color:\s*'#852D10'/);
+    assert.match(style, /weight:\s*(?:entry\.)?active\s*\?\s*4\s*:\s*3\s*,/);
+    assert.match(style, /opacity:\s*(?:entry\.)?active\s*\?\s*1\s*:\s*0\.72\s*,/);
+    assert.match(style, /interactive:\s*false/);
+  }
+  assert.match(viewer, /L\.polyline\(points,\s*\{[^}]*renderer:\s*location\.search\.includes\('print=1'\)\s*\?\s*canvasRenderer\s*:\s*undefined/);
   assert.match(source, /\.bindTooltip\([^]*className:\s*'trip-rich-tooltip'/);
   assert.match(source, /descriptions\.map\(escapeHtml\)\.join\('<br>'\)/);
   assert.match(source, /interactive:\s*true,[^]*keyboard:\s*false/);

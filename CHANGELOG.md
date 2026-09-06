@@ -10,6 +10,9 @@
 
 ## Unreleased
 
+### Fixed
+- Thickened Segment chevron strokes to 3 px inactive / 4 px selected in the Trip Editor and Viewer, including print, while preserving geometry and placement (follow-up to #577).
+
 ## [1.9.10] - 2026-09-05
 
 ### Fixed
