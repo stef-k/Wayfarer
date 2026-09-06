@@ -49,13 +49,13 @@ export const createSegmentRouteDraftPreviewLayer = (map: LeafletMap, setEmphasis
     visibleCoordinates = coordinates;
 
     const latLngs: Array<[number, number]> = coordinates.map(([longitude, latitude]) => [latitude, longitude]);
-    // Matched dashed white casing preserves separation on both dark and light map regions.
-    L.polyline(latLngs, { color: '#ffffff', dashArray: '8 6', opacity: 1,
+    // Flat dash ends keep the casing from filling gaps that reveal the current route.
+    L.polyline(latLngs, { color: '#ffffff', dashArray: '8 6', lineCap: 'butt', opacity: 1,
       interactive: false, weight: 8, pane: 'segment-route-proposal' }).addTo(layers);
     const polyline = L.polyline(latLngs, {
       pane: 'segment-route-proposal',
       color: '#a21caf',
-      dashArray: '8 6',
+      dashArray: '8 6', lineCap: 'butt',
       opacity: 1,
       interactive: false,
       weight: 4

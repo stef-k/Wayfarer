@@ -90,19 +90,19 @@ test('proposal casing and whole-route emphasis retain ownership through redraw a
   proposal.set({ kind: 'proposal', identity: 'pending', segmentId: 'current', route: { coordinates: coordinates.slice(0, 2) } });
   proposal.render({}, new Set(), false);
   assert.deepEqual(line('current').coordinates, [[37, 23], [38, 24], [39, 25]]);
-  assert.deepEqual(line('current').style, { ...normal, opacity: 0.40 });
+  assert.deepEqual(line('current').style, { ...normal, opacity: 0.50 });
   assert.deepEqual(line('other').style, other);
   const preview = line('pending');
-  assert.deepEqual(preview.style, { pane: 'segment-route-proposal', color: '#a21caf', dashArray: '8 6', opacity: 1, interactive: false, weight: 4 });
+  assert.deepEqual(preview.style, { pane: 'segment-route-proposal', color: '#a21caf', dashArray: '8 6', lineCap: 'butt', opacity: 1, interactive: false, weight: 4 });
   const casing = paths[paths.indexOf(preview) - 1];
-  assert.deepEqual(casing.style, { color: '#ffffff', dashArray: '8 6', opacity: 1, interactive: false, weight: 8, pane: 'segment-route-proposal' });
+  assert.deepEqual(casing.style, { color: '#ffffff', dashArray: '8 6', lineCap: 'butt', opacity: 1, interactive: false, weight: 8, pane: 'segment-route-proposal' });
   assert.deepEqual(casing.coordinates, preview.coordinates);
   assert.equal(panes['segment-route-proposal'].style.pointerEvents, 'none');
   assert.ok(Number(panes['segment-route-proposal'].style.zIndex) > 400);
   assert.ok(Number(panes['segment-route-proposal'].style.zIndex) < Number(panes['segment-route-role'].style.zIndex));
   assert.ok(Number(panes['segment-route-proposal'].style.zIndex) < 600);
   movements['zoomend moveend']();
-  assert.deepEqual(line('current').style, { ...normal, opacity: 0.40 });
+  assert.deepEqual(line('current').style, { ...normal, opacity: 0.50 });
   assert.deepEqual(line('other').style, other);
   assert.equal(paths.filter(path => path.attributes['data-segment-hit-owner']).length, 2);
   for (const [hidden, work] of [[new Set(['current']), false], [new Set(), true]]) {
