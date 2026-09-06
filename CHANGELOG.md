@@ -1,5 +1,17 @@
 # CHANGELOG
 
+## [1.9.12] - 2026-09-06
+
+### Fixed
+- Suppressed Segment chevrons whose sampled direction contradicts local route traversal at tight returns across zoom levels, with matching Editor and Viewer behavior (#580).
+- Thickened Segment chevron strokes to 3 px inactive / 4 px selected in the Trip Editor and Viewer, including print, while preserving geometry and placement (follow-up to #577).
+
+### Upgrade notes
+- No database migration was added since v1.9.11; migration files and the model snapshot are unchanged. The latest migration remains `20260905095140_AddLocationProviderAddressLine1`. Upgrades from older versions must still apply their pending migrations. Preserve PostgreSQL and the matching Data Protection key ring.
+- Follow the [server-build deployment workflow](docs/20-Deployment.md#updating-wayfarer) using this release source.
+
+## Unreleased
+
 ## [1.9.11] - 2026-09-06
 
 ### Fixed
@@ -7,12 +19,6 @@
 
 ### Upgrade notes
 - No database migration was added since v1.9.10; migration files and the model snapshot are unchanged. The latest migration remains `20260905095140_AddLocationProviderAddressLine1`. Upgrades from older versions must still apply their pending migrations. Preserve PostgreSQL and the matching Data Protection key ring.
-
-## Unreleased
-
-### Fixed
-- Suppressed Segment chevrons whose sampled direction contradicts local route traversal at tight returns across zoom levels, with matching Editor and Viewer behavior (#580).
-- Thickened Segment chevron strokes to 3 px inactive / 4 px selected in the Trip Editor and Viewer, including print, while preserving geometry and placement (follow-up to #577).
 
 ## [1.9.10] - 2026-09-05
 
