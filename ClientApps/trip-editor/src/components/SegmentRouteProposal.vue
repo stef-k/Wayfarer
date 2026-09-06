@@ -1,13 +1,11 @@
 <script setup lang="ts">
 import { computed, onUnmounted, ref, watch } from 'vue';
 import { ExternalRouteProposalError, generateExternalRouteProposal } from '../api/tripEditorApi';
-import { confirm } from '../composables/useConfirmDialog';
 import type { EditorSegment, ExternalRouteProposal, Guid } from '../types';
 import { createSegmentRouteProposalStore } from './segmentRouteProposalState';
 
 const props = defineProps<{
   antiforgeryToken: string;
-  draftHasRoute: boolean;
   isSaving: boolean;
   manualDurationOverride: boolean;
   draftMode: string;
@@ -28,7 +26,6 @@ const selectedProviderMode = ref('');
 const proposalContextKey = computed(() => `${props.draftTransportProfileId ?? ''}:${props.draftMode}:${selectedProviderMode.value}`);
 const state = computed(() => states[props.segment.id] ??= proposalStore.get(props.segment.id, proposalContextKey.value));
 const capability = computed(() => props.segment.externalRouting ?? null);
-const actionLabel = computed(() => props.draftHasRoute ? 'Replace with routed path' : 'Generate routed path');
 const profileChanged = computed(() => props.draftMode !== props.segment.mode);
 
 watch(() => props.segment.id, (segmentId, previousId) => {
@@ -58,10 +55,6 @@ watch(proposalContextKey, profileKey => {
 /** Starts only an explicit user-authorized provider request for this Segment. */
 async function generate(): Promise<void> {
   if (!capability.value?.available || !selectedProviderMode.value || profileChanged.value || state.value.generating || props.isSaving) return;
-  if (props.draftHasRoute && !(await confirm({
-    title: 'Replace current route?', message: 'Generate a proposal without changing the current draft until you save the Segment.',
-    confirmLabel: 'Generate replacement', cancelLabel: 'Keep current route', variant: 'warning'
-  }))) return;
   state.value.controller?.abort();
   const controller = new AbortController();
   const segmentId = props.segment.id;
@@ -89,8 +82,11 @@ function discard(): void {
 
 function boundedMessage(error: unknown): string {
   if (!(error instanceof ExternalRouteProposalError)) return 'Route generation is unavailable. The draft is unchanged.';
-  if (error.code === 'unmapped-transport-profile') return 'Route suggestions are not configured for this transport profile.';
-  if (error.code === 'unsupported-transport-profile') return 'This routing provider does not support the mapped transport mode.';
+  if (error.code === 'provider-mode-required' || error.code === 'unsupported-provider-mode') return 'Choose a supported Directions mode and generate again.';
+  if (error.code === 'segment-anchors-invalid') return 'Check that every route stop has coordinates and the Segment has at most 50 stops.';
+  if (error.code === 'segment-not-found') return 'This Segment is no longer available. Reload the Trip.';
+  if (error.code === 'no-provider-selected') return 'Select a verified directions provider in your provider settings.';
+  if (error.code === 'unauthorized' || error.code === 'verification-required' || error.code === 'personal-credential-unavailable') return 'Check directions authorization and verify your credential in provider settings.';
   if (error.code.includes('unavailable') || error.code.includes('configuration')) return 'Route suggestions are temporarily unavailable.';
   if (error.code.includes('stale') || error.code.includes('expired')) return 'This proposal is stale or expired. Generate it again.';
   if (error.code.includes('rate') || error.code.includes('budget')) return 'The routing request limit was reached. Try again later.';
@@ -122,7 +118,7 @@ onUnmounted(() => {
     </select>
     <p class="small text-muted">Used only to calculate this route. The Segment's transport profile stays unchanged.</p>
     <button v-if="!state.proposal" type="button" class="btn btn-outline-info btn-sm" :disabled="isSaving || state.generating || profileChanged || !selectedProviderMode" @click="generate">
-      {{ state.generating ? 'Generating…' : actionLabel }}
+      {{ state.generating ? 'Generating…' : 'Generate routed path' }}
     </button>
     <button v-if="state.generating" type="button" class="btn btn-outline-secondary btn-sm ms-2" @click="discard">Cancel generation</button>
     <div v-if="state.proposal" role="status" class="mt-2">

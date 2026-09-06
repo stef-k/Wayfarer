@@ -82,7 +82,7 @@ public sealed class ExternalRouteProposalGenerator
         var proposalId = Guid.NewGuid();
         var geometryHash = ExternalRouteProposalContextService.GeometryHash(validated.Geometry!, validated.WaypointIndices!);
         var binding = new ExternalRouteProposalBinding(
-            proposalId, tripId, segmentId, userId, geometryHash, context.Fingerprint!, context.TransportProfileId!.Value,
+            proposalId, tripId, segmentId, userId, geometryHash, context.Fingerprint!, context.TransportProfileId,
             aggregateConcurrencyToken,
             providerResult.DistanceMetres, providerResult.DurationSeconds, providerResult.Instructions,
             context.Execution!.ProviderKey,
@@ -119,11 +119,7 @@ public sealed class ExternalRouteProposalGenerator
         if (segment == null) return GenerationContext.Failure("segment-not-found");
         if (!_aggregateTokens!.TryRead(aggregateToken, userId, tripId, segmentId, out var rowVersion)
             || rowVersion != segment.RowVersion) return GenerationContext.Failure("segment-aggregate-stale");
-        if (segment.TransportProfileId is not { } transportProfileId)
-            return GenerationContext.Failure("routing-profile-unavailable");
-        if (!await _dbContext.Set<TransportProfile>().AsNoTracking()
-            .AnyAsync(item => item.Id == transportProfileId && item.IsActive, cancellationToken))
-            return GenerationContext.Failure("routing-profile-unavailable");
+        // Planning identity is retained for stale checks, not provider routing eligibility.
         if (providerMode == null) return GenerationContext.Failure("provider-mode-required");
         var resolution = await _resolver!.ResolveNativeAsync(userId, providerMode, cancellationToken);
         if (resolution.Execution == null) return GenerationContext.Failure(resolution.ErrorCode ?? "external-routing-unavailable");
@@ -133,7 +129,7 @@ public sealed class ExternalRouteProposalGenerator
             return GenerationContext.Failure("segment-anchors-invalid");
         var anchors = places.Select(place => new RouteCoordinate(place!.Location!.X, place.Location.Y)).ToArray();
         var fingerprint = ExternalRouteAnchorFingerprint.Compute(places!, anchors);
-        return new GenerationContext(true, null, resolution.Execution, anchors, transportProfileId, fingerprint);
+        return new GenerationContext(true, null, resolution.Execution, anchors, segment.TransportProfileId, fingerprint);
     }
 
     private static bool SameAuthority(ResolvedRoutingProviderExecution? first, ResolvedRoutingProviderExecution? second) =>

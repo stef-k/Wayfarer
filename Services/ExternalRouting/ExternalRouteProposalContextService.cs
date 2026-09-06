@@ -53,10 +53,10 @@ public sealed class ExternalRouteProposalContextService
     private sealed record ProposalPayload(int Version, ExternalRouteProposalBinding Binding, DateTimeOffset ExpiresAt);
 }
 
-/// <summary>Contains all server-authoritative proposal stale dimensions.</summary>
+/// <summary>Contains authoritative stale dimensions, including nullable planning identity rather than routing eligibility.</summary>
 public sealed record ExternalRouteProposalBinding(
     Guid ProposalId, Guid TripId, Guid SegmentId, string UserId, string GeometryHash, string AnchorFingerprint,
-    Guid TransportProfileId, string AggregateConcurrencyToken, double? DistanceMetres = null, double? DurationSeconds = null,
+    Guid? TransportProfileId, string AggregateConcurrencyToken, double? DistanceMetres = null, double? DurationSeconds = null,
     IReadOnlyList<RouteInstruction>? Instructions = null, string? ProviderKey = null, string? MappingMode = null,
     DateTimeOffset? GeneratedAt = null, string? Attribution = null, string? StorageMode = null,
     int AuthoritySelectionGeneration = 0, int AuthorityCredentialGeneration = 0,

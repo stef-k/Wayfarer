@@ -11,6 +11,28 @@ namespace Wayfarer.Tests.Controllers;
 /// </summary>
 public sealed class TripEditorSegmentValidationControllerTests : TestBase
 {
+    /// <summary>An unchanged legacy label with no identity is preserved; it does not become a new selectable choice.</summary>
+    [Fact]
+    public async Task SavePreservesMissingPlanningIdentityAndRejectsChangingToUnknownChoice()
+    {
+        using var db = CreateDbContext();
+        var graph = TripEditorSegmentControllerTests.SeedTripGraph(db, "owner-user");
+        graph.FirstSegment.Mode = "Retained Fish";
+        graph.FirstSegment.TransportProfileId = null;
+        await db.SaveChangesAsync();
+        var controller = TripEditorSegmentControllerTests.BuildController(db);
+        TripEditorSegmentControllerTests.ConfigureControllerWithUserRole(controller, "owner-user");
+        var body = TripEditorSegmentControllerTests.ValidBody(graph.FirstPlace.Id, graph.SecondPlace.Id, "Retained Fish", "null");
+        var saved = await TripEditorSegmentControllerTests.SendJson(controller,
+            item => item.UpdateSegment(graph.Trip.Id, graph.FirstSegment.Id, CancellationToken.None), body);
+        Assert.IsType<OkObjectResult>(saved);
+        Assert.Equal("Retained Fish", graph.FirstSegment.Mode);
+        Assert.Null(graph.FirstSegment.TransportProfileId);
+        var rejected = await TripEditorSegmentControllerTests.SendJson(controller,
+            item => item.UpdateSegment(graph.Trip.Id, graph.FirstSegment.Id, CancellationToken.None), body.Replace("Retained Fish", "Unknown Train"));
+        Assert.Contains("mode", TripEditorSegmentControllerTests.AssertValidationProblem(rejected).Errors.Keys);
+    }
+
     /// <summary>Waypoint arrays are required complete-replacement fields and null is never preserve.</summary>
     [Theory]
     [InlineData("waypointPlaceIds", "segment-field-required")]

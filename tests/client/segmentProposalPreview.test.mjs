@@ -70,7 +70,7 @@ test('temporary route yields to map work and hidden Segments, with no fallback o
 });
 
 // Render the production proposal template with real proposal state and the existing SFC compiler.
-test('pending template labels present, absent and zero estimates and explains Manual precedence', async () => {
+async function loadProposalComponent() {
   const filename = 'ClientApps/trip-editor/src/components/SegmentRouteProposal.vue';
   const { descriptor } = parse(await readFile(filename, 'utf8'), { filename });
   const script = compileScript(descriptor, { id: 'proposal-test' });
@@ -78,10 +78,44 @@ test('pending template labels present, absent and zero estimates and explains Ma
     compilerOptions: { bindingMetadata: script.bindings } });
   const compiled = await build({ stdin: { contents: `${script.content}\n${template.code}`, loader: 'ts',
     resolveDir: 'ClientApps/trip-editor/src/components' }, bundle: true, write: false, format: 'esm', platform: 'node',
-    external: ['vue'] });
+    external: ['vue'], plugins: [{ name: 'confirmation-boundary', setup(builder) {
+      builder.onLoad({ filter: /useConfirmDialog\.ts$/ }, () => ({ contents: 'export const confirm = async () => false;' }));
+    } }] });
   // Resolve Vue against this repository rather than a data URL.
   const code = compiled.outputFiles[0].text.replaceAll('from "vue"', `from "${import.meta.resolve('vue')}"`);
-  const { default: component, render } = await import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`);
+  return import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`);
+}
+
+test('one Generate with existing geometry requests a preview without confirmation', async () => {
+  const { default: component, render } = await loadProposalComponent();
+  let requests = 0;
+  const previousFetch = globalThis.fetch;
+  globalThis.fetch = async () => {
+    requests++;
+    return { ok: true, json: async () => ({ segmentId: 'segment', geometry: [
+      { longitude: 1, latitude: 2 }, { longitude: 3, latitude: 4 }] }) };
+  };
+  let bindings;
+  const props = { segment: { id: 'segment', mode: 'Fish', externalRouting: { available: true, modes: [] } },
+    draftMode: 'Fish', draftHasRoute: true, draftContextKey: 'context' };
+  try {
+    const html = await renderToString(createSSRApp({ setup() {
+      bindings = proxyRefs(component.setup(props, { expose() {}, emit() {} }));
+      bindings.selectedProviderMode = 'drive';
+      return () => render({}, [], props, bindings, {}, {});
+    } }));
+    const pending = bindings.generate();
+    // A confirmation would suspend generation before the production API boundary.
+    assert.equal(requests, 1);
+    await pending;
+    assert.match(html, /Generate routed path/);
+    assert.ok(bindings.state.proposal);
+    assert.equal(props.draftMode, 'Fish');
+  } finally { globalThis.fetch = previousFetch; }
+});
+
+test('pending template labels present, absent and zero estimates and explains Manual precedence', async () => {
+  const { default: component, render } = await loadProposalComponent();
   const props = { segment: { id: 'segment', mode: 'walk', externalRouting: { available: true, modes: [] } },
     draftMode: 'walk', draftContextKey: 'context', manualDurationOverride: true };
   for (const [distance, duration, expected] of [[1250, 360, ['1.25 km', '6 minutes']],

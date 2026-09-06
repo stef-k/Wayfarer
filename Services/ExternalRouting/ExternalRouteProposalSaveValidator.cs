@@ -41,30 +41,31 @@ public sealed class ExternalRouteProposalSaveValidator(
     }
 
     /// <summary>Checks locked canonical anchors and the final submitted draft, retaining the original expiry.</summary>
-    internal async Task<string?> ValidateFinalAsync(
+    internal Task<string?> ValidateFinalAsync(
         ExternalRouteProposalBinding binding, Segment segment, EditorSegmentSaveRequest request,
         Guid? submittedProfileId, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+        // Compare nullable planning identity without requiring an active catalog choice.
         if (segment.TransportProfileId != binding.TransportProfileId || submittedProfileId != binding.TransportProfileId
+            || (binding.TransportProfileId == null && TransportProfile.NormalizeKey(request.Mode) != TransportProfile.NormalizeKey(segment.Mode))
             || !aggregateTokens.TryRead(binding.AggregateConcurrencyToken, segment.UserId, segment.TripId, segment.Id, out var version)
-            || version != segment.RowVersion
-            || !await _dbContext.Set<TransportProfile>().AsNoTracking().AnyAsync(
-                item => item.Id == binding.TransportProfileId && item.IsActive, cancellationToken))
-            return "route-proposal-stale";
+            || version != segment.RowVersion)
+            return Task.FromResult<string?>("route-proposal-stale");
         var places = new[] { segment.FromPlace }.Concat(segment.Waypoints.OrderBy(item => item.Position).Select(item => item.Place))
             .Concat([segment.ToPlace]).ToArray();
         var submittedIds = new[] { request.FromPlaceId }.Concat(request.WaypointPlaceIds.Select(item => (Guid?)item))
             .Append(request.ToPlaceId);
         if (places.Any(place => place?.Location == null) || !places.Select(place => (Guid?)place!.Id).SequenceEqual(submittedIds))
-            return "route-proposal-altered";
+            return Task.FromResult<string?>("route-proposal-altered");
         var anchors = places.Select(place => new RouteCoordinate(place!.Location!.X, place.Location.Y)).ToArray();
         var indices = new[] { 0 }.Concat(request.WaypointRouteVertexIndices.Select(item => item!.Value))
             .Append(request.Route!.NumPoints - 1).ToArray();
         if (ExternalRouteAnchorFingerprint.Compute(places!, anchors) != binding.AnchorFingerprint
             || indices.Where((index, anchorIndex) => new RouteCoordinate(request.Route.GetCoordinateN(index).X,
                 request.Route.GetCoordinateN(index).Y) != anchors[anchorIndex]).Any())
-            return "route-proposal-stale";
-        return IsCurrent(binding, request.Proposal!.ProtectedContext) ? null : "route-proposal-invalid-or-expired";
+            return Task.FromResult<string?>("route-proposal-stale");
+        return Task.FromResult(IsCurrent(binding, request.Proposal!.ProtectedContext) ? null : "route-proposal-invalid-or-expired");
     }
 
     /// <summary>Rechecks original token expiry immediately before the durable write.</summary>
