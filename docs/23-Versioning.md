@@ -79,7 +79,16 @@ not release-branch CI or proof of the unobserved full-page/print visuals.
 
 ### Local validation and handoff
 
-Release-only validation results are recorded after the focused checks below.
+Release-helper preparation and offline check passed. Helper tests passed all 21
+cases using `python -m pytest tools/release/tests -q` (unittest discovery found no
+cases, so it supplies no test evidence). Focused .NET Versioning tests compiled
+the app and test project and passed all 26 cases with no failures or skips.
+`dotnet run --no-launch-profile --no-build -- version` returned exactly
+`Wayfarer 1.9.11`. A text comparison verified prior released notes unchanged,
+one empty Unreleased section and no release placeholders. Whitespace checks passed.
+Changed-work and complete branch Code Guard reported only the 875-line changelog
+size REVIEW, accepted because chronological release history remains a cohesive,
+navigable document. All other guards passed; no FAIL or INCOMPLETE.
 The release diff is limited to `Version.props`, `CHANGELOG.md`, this document,
 and the compiled-version assertion in `AppVersionProviderTests.cs`.
 The #577 note moves into the dated release, prior released notes remain unchanged,
