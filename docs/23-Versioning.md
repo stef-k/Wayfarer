@@ -5,7 +5,7 @@ file contains the manually edited `WayfarerVersion` value and maps the standard
 MSBuild metadata directly from it:
 
 ```xml
-<WayfarerVersion>1.9.11</WayfarerVersion>
+<WayfarerVersion>1.9.12</WayfarerVersion>
 <Version>$(WayfarerVersion)</Version>
 <PackageVersion>$(WayfarerVersion)</PackageVersion>
 <AssemblyInformationalVersion>$(WayfarerVersion)</AssemblyInformationalVersion>
@@ -19,7 +19,7 @@ assembly through `IAppVersionProvider`. Runtime surfaces such as
 separate constants.
 
 Use `dotnet run --no-launch-profile -- version` when validating exact CLI
-output. The app writes exactly `Wayfarer 1.9.11`; `--no-launch-profile` avoids
+output. The app writes exactly `Wayfarer 1.9.12`; `--no-launch-profile` avoids
 .NET SDK launch-profile messages so validation stays focused on app output.
 
 ## Release helper
@@ -39,61 +39,49 @@ command validates only offline repo files; tag and GitHub release checks run
 only when their explicit flags are supplied. The helper validates release state
 but does not create, edit, publish, or delete GitHub releases.
 
-## 1.9.11 local release review record
+## 1.9.12 release source record
 
-Prepared on 2026-09-06 on `feature/release-1.9.11` for independent review.
-The clean starting HEAD, local `main`, and fetched `origin/main` matched
-`1cacd3fba1439c039668a66e4312cafe9be53550`.
-GitHub identified `v1.9.10` as the latest published, non-prerelease release;
-its tag resolves to `7ae4b2c78b93dea27e77615c46361caf6e94bfd7`.
-The first-parent range `v1.9.10..1cacd3fba1439c039668a66e4312cafe9be53550`
-contains exactly one commit:
+Prepared on 2026-09-06 from synchronized `main` at
+`182665fa4bcd1431540f737063b428b98c23b898` on `feature/release-1.9.12`.
+The latest published release was `v1.9.11`, whose tag resolves to
+`f3934de632aca388c345cc54f7a312d97978be52`.
+The first-parent range from that tag to the preparation base contains only:
 
-| PR / issue | First-parent commit | Scope |
+| PR / issues | First-parent commit | Scope |
 | --- | --- | --- |
-| [#578](https://github.com/stef-k/Wayfarer/pull/578) / #577 | `1cacd3fba1439c039668a66e4312cafe9be53550` | Wider Segment direction chevrons in the Editor and Viewer, mirrored geometry assertions and changelog |
+| [#581](https://github.com/stef-k/Wayfarer/pull/581) / #580, #577 follow-up | `182665fa4bcd1431540f737063b428b98c23b898` | Thicker Segment chevron strokes and suppression of locally contradictory direction cues |
 
-### Migration boundary and compatibility
+### Migration boundary and deployment
 
-There are no migration or model snapshot changes since `v1.9.10`.
-The latest migration remains `20260905095140_AddLocationProviderAddressLine1`;
-it adds nullable `Locations.ProviderAddressLine1` with maximum length 500.
-This patch adds no API, persistence, dependency or routing-provider changes.
-Upgrades from older releases still need their pending migrations. Preserve
-PostgreSQL and its matching Data Protection keys. No database update was run
-as part of release preparation; production migration state is not asserted.
+Migration files and the model snapshot are unchanged since `v1.9.11`.
+The latest migration remains `20260905095140_AddLocationProviderAddressLine1`.
+There are no API, persistence, dependency or routing-provider changes.
+Upgrades from older releases still require their pending migrations; preserve
+PostgreSQL and its matching Data Protection keys.
+Use the existing [server-build deployment workflow](20-Deployment.md#updating-wayfarer)
+from the tagged source. This release does not introduce a binary asset workflow.
+Deployment and any required migrations remain with the maintainer.
 
 ### Product evidence and limits
 
-The reviewed source commit `7aa3e4d9fdc919bc4bdee85434e12bc6448955e8`
-was preserved on the local fix branch and merged through the normal squash workflow.
-Before merge, 17 geometry/parity tests, frontend typecheck, production build and
-built-asset smoke passed in fresh local runs. Vite retained its large-chunk advisory.
-The supplied review handoff includes synthetic Viewer evidence; that observation
-was not rerun during PR creation. Full-page Viewer and print visuals remain untested.
-The width-only change preserves tangent lengths, placement, direction and styling.
+Reviewed commit `1bce6a75d089a708733047d6415ec0c6817539d7` remains preserved
+on the local correction branch. Independent combined review passed, and the
+maintainer accepted sizing and local direction during zoom checks.
+The supplied review evidence records 34 passing focused client tests, frontend
+typecheck/build and built-asset smoke. The historical 6,308-vertex Ella-to-Kandy
+replay remains independently unverified because its artifact was unavailable;
+mirrored synthetic tight-return tests provide the reproducible direction proof.
 
-GitHub Actions [Tests run 34039660952, test job 101503989599](https://github.com/stef-k/Wayfarer/actions/runs/34039660952/job/101503989599)
-completed successfully on that exact PR head before merge. This is product-PR CI,
-not release-branch CI or proof of the unobserved full-page/print visuals.
+GitHub Actions [test job 101515334540](https://github.com/stef-k/Wayfarer/actions/runs/34043873977/job/101515334540)
+completed successfully on that exact reviewed PR head before the normal squash merge.
+This is correction-PR CI; release-PR CI is separately required before publication.
 
-### Local validation and handoff
+### Release validation scope
 
-Release-helper preparation and offline check passed. Helper tests passed all 21
-cases using `python -m pytest tools/release/tests -q` (unittest discovery found no
-cases, so it supplies no test evidence). Focused .NET Versioning tests compiled
-the app and test project and passed all 26 cases with no failures or skips.
-`dotnet run --no-launch-profile --no-build -- version` returned exactly
-`Wayfarer 1.9.11`. A text comparison verified prior released notes unchanged,
-one empty Unreleased section and no release placeholders. Whitespace checks passed.
-Changed-work and complete branch Code Guard reported only the 875-line changelog
-size REVIEW, accepted because chronological release history remains a cohesive,
-navigable document. All other guards passed; no FAIL or INCOMPLETE.
+Release validation uses the helper and its tests, focused .NET Versioning tests,
+exact CLI output, prior-note preservation, whitespace and complete-branch Code Guard.
+Product suites are not repeated locally for metadata-only preparation.
 The release diff is limited to `Version.props`, `CHANGELOG.md`, this document,
 and the compiled-version assertion in `AppVersionProviderTests.cs`.
-The #577 note moves into the dated release, prior released notes remain unchanged,
-and exactly one empty Unreleased section remains below the new release.
-
-Stop at a local checkpoint for independent review against the verified base.
-Release-branch PR creation, CI, merge, tagging, publication and deployment remain
-outstanding. No tag, release publication or deployment is authorized by this preparation.
+Both correction notes move into the dated release, with prior released notes
+preserved and one empty Unreleased section retained.
