@@ -13,7 +13,7 @@ export interface SegmentDraftRoutePreview {
 }
 
 /// Owns only the temporary provider proposal, never an ordinary draft or map-work route.
-export const createSegmentRouteDraftPreviewLayer = (map: LeafletMap): {
+export const createSegmentRouteDraftPreviewLayer = (map: LeafletMap, setEmphasis: (segmentId: Guid | null) => void): {
   dispose: () => void;
   extendBounds: (bounds: L.LatLngBounds) => L.LatLngBounds;
   focus: (target: EditorTarget | null) => 'moved' | null;
@@ -21,6 +21,10 @@ export const createSegmentRouteDraftPreviewLayer = (map: LeafletMap): {
   segmentId: () => Guid | null;
   set: (preview: SegmentDraftRoutePreview | null) => void;
 } => {
+  // Above overlay strokes (400), below route badges/chevrons (590) and Place markers (600).
+  const pane = map.createPane('segment-route-proposal');
+  pane.style.zIndex = '580';
+  pane.style.pointerEvents = 'none';
   const layers = L.layerGroup().addTo(map);
   let activePreview: SegmentDraftRoutePreview | null = null;
   let visibleCoordinates: Array<[number, number]> = [];
@@ -32,6 +36,7 @@ export const createSegmentRouteDraftPreviewLayer = (map: LeafletMap): {
   const render = (state: EditorTripState, hiddenSegmentIds: ReadonlySet<Guid>, workActive: boolean): void => {
     layers.clearLayers();
     visibleCoordinates = [];
+    setEmphasis(null);
     const preview = activePreview;
     if (!preview || workActive || (preview.segmentId !== null && hiddenSegmentIds.has(preview.segmentId))) {
       return;
@@ -43,13 +48,19 @@ export const createSegmentRouteDraftPreviewLayer = (map: LeafletMap): {
     }
     visibleCoordinates = coordinates;
 
-    const polyline = L.polyline(coordinates.map(([longitude, latitude]) => [latitude, longitude]), {
-      color: '#38bdf8',
+    const latLngs: Array<[number, number]> = coordinates.map(([longitude, latitude]) => [latitude, longitude]);
+    // Matched dashed white casing preserves separation on both dark and light map regions.
+    L.polyline(latLngs, { color: '#ffffff', dashArray: '8 6', opacity: 1,
+      interactive: false, weight: 8, pane: 'segment-route-proposal' }).addTo(layers);
+    const polyline = L.polyline(latLngs, {
+      pane: 'segment-route-proposal',
+      color: '#a21caf',
       dashArray: '8 6',
-      opacity: 0.9,
+      opacity: 1,
       interactive: false,
       weight: 4
     }).addTo(layers);
+    setEmphasis(preview.segmentId);
     const element = polyline.getElement();
     if (element) {
       element.setAttribute('data-segment-id', preview.identity);
@@ -59,7 +70,7 @@ export const createSegmentRouteDraftPreviewLayer = (map: LeafletMap): {
   };
 
   return {
-    dispose: () => { activePreview = null; visibleCoordinates = []; layers.clearLayers(); },
+    dispose: () => { activePreview = null; visibleCoordinates = []; layers.clearLayers(); setEmphasis(null); layers.remove(); pane.remove(); },
     extendBounds,
     focus: target => {
       if (target?.kind !== 'segment' || target.entityId !== activePreview?.segmentId || visibleCoordinates.length < 2) return null;

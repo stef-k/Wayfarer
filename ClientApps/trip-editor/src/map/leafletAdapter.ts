@@ -73,8 +73,8 @@ export const createTripEditorMap = (element: HTMLElement, tilesUrl: string, opti
   const coordinatePick = createPlaceCoordinatePickLayer(map, placeDraftPreview);
   const areaPolygonWork = createAreaPolygonWorkLayer(map);
   const segmentRouteWork = createSegmentRouteWorkLayer(map);
-  const segmentDraftPreview = createSegmentRouteDraftPreviewLayer(map);
   const segmentPresentation = createSegmentPresentationLayer(map, key => options.onSegmentSelected?.(key) ?? true);
+  const segmentDraftPreview = createSegmentRouteDraftPreviewLayer(map, segmentPresentation.setProposalEmphasis);
   const mapUtilities = createMapUtilitiesControl(element).addTo(map);
   const placeMarkers = new Map<Guid, L.Marker>();
   let activePlaceDraftPreview: PlaceDraftMarkerPreview | null = null;

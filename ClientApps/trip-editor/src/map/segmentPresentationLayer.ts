@@ -1,4 +1,5 @@
 import L, { type Map as LeafletMap } from 'leaflet';
+import type { Guid } from '../types';
 import type { EditorSegmentPresentation, SegmentPresentationKey } from '../segments/editorSegmentPresentation';
 import { fitCombinedRouteBadgeLabels, placeCombinedRouteBadge, placeProjectedChevrons, placeRouteBadge, projectChevronArm,
   type CombinedRouteBadgeLayout, type PresentationRectangle } from '../segments/segmentPresentationResolver';
@@ -7,6 +8,7 @@ type RegistryEntry = {
   presentation: EditorSegmentPresentation;
   group: L.LayerGroup;
   line: L.Polyline;
+  normalOpacity: number;
   hit: L.Polyline;
   chevrons: L.Polyline[];
 };
@@ -19,7 +21,9 @@ export const createSegmentPresentationLayer = (
   render: (presentations: readonly EditorSegmentPresentation[], activeKey: SegmentPresentationKey | null) => void;
   dispose: () => void;
   snapshot: () => unknown;
+  setProposalEmphasis: (segmentId: Guid | null) => void;
 } => {
+  let proposalSegmentId: Guid | null = null;
   const registry = new Map<string, RegistryEntry>();
   const badgeGroup = L.layerGroup().addTo(map);
   let currentPresentations: readonly EditorSegmentPresentation[] = [];
@@ -66,7 +70,9 @@ export const createSegmentPresentationLayer = (
       lineElement.setAttribute('data-route-kind', presentation.hasCustomRoute ? 'custom' : 'fallback');
     }
     hit.getElement()?.setAttribute('data-segment-hit-owner', keyText(presentation.key));
-    registry.set(keyText(presentation.key), { presentation, group, line, hit, chevrons });
+    const normalOpacity = line.options.opacity!;
+    if (proposalSegmentId !== null && presentation.segmentId === proposalSegmentId) line.setStyle({ opacity: 0.22 });
+    registry.set(keyText(presentation.key), { presentation, group, line, normalOpacity, hit, chevrons });
   };
 
   /** Mirrors Viewer 3/4 px strokes while retaining the projected chevron geometry. */
@@ -144,7 +150,16 @@ export const createSegmentPresentationLayer = (
     pane?.remove();
   };
 
+  /** Adjusts only complete ordinary strokes; retained normal opacity survives movement rerenders. */
+  const setProposalEmphasis = (segmentId: Guid | null): void => {
+    proposalSegmentId = segmentId;
+    registry.forEach(entry => entry.line.setStyle({
+      opacity: segmentId !== null && entry.presentation.segmentId === segmentId ? 0.22 : entry.normalOpacity
+    }));
+  };
+
   return {
+    setProposalEmphasis,
     render,
     dispose,
     snapshot: () => ({

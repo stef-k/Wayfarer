@@ -14,7 +14,7 @@
 
 ### Fixed
 - External route generation and proposal Save preserve inactive/custom Segment choices and nullable planning identity independently of the selected provider directions mode. Generate requests a preview without a replacement confirmation (#583 correction).
-- Pending external routes now appear as a dashed cyan map preview over the current route, with labelled distance and travel-time estimates in the proposal section. Discard clears only the proposal; Save retains the validated #584 flow and Manual-duration override (#583).
+- Pending external routes now appear as a magenta dashed map preview with white casing above ordinary routes, temporarily dimming only the complete current Segment line, with labelled distance and travel-time estimates in the proposal section. Discard clears only the proposal; Save retains the validated #584 flow and Manual-duration override (#583).
 - Segment Save now validates and atomically persists a pending external-route proposal with other Segment edits. Generate/preview leaves the draft unchanged, Discard preserves edits, and the separate Accept action/endpoint is removed. Validated estimates and provenance survive unchanged follow-up saves (#584).
 
 ## [1.9.11] - 2026-09-06
