@@ -143,8 +143,20 @@ test('disposal aborts requests and rejects later completion', () => {
 });
 
 const proposalFor = (segmentId, proposalId) => ({
-  proposalId, segmentId, geometry: [{ longitude: 23.7, latitude: 37.9 }], waypointIndices: [0],
+  proposalId, segmentId, geometry: [{ longitude: 23.7, latitude: 37.9 }, { longitude: 23.8, latitude: 38 }], waypointIndices: [0, 1],
   protectedContext: 'context', expiresAt: '2026-08-18T22:00:00Z'
+});
+
+test('unusable geometry never reports a ready proposal', () => {
+  for (const geometry of [undefined, [], [{ longitude: 1, latitude: 2 }],
+    [{ longitude: NaN, latitude: 2 }, { longitude: 3, latitude: 4 }]]) {
+    const store = createSegmentRouteProposalStore();
+    const request = store.begin('first', 'drive', new AbortController());
+    assert.equal(store.complete('first', request, { ...proposalFor('first', 'bad'), geometry }), false);
+    assert.equal(store.get('first', 'drive').proposal, null);
+    assert.equal(store.get('first', 'drive').generating, false);
+    assert.match(store.get('first', 'drive').error, /usable route geometry/);
+  }
 });
 
 const observableActions = (store, segmentId, contextKey) => {

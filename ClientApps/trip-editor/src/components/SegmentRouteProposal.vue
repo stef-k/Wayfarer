@@ -127,9 +127,21 @@ onUnmounted(() => {
     <button v-if="state.generating" type="button" class="btn btn-outline-secondary btn-sm ms-2" @click="discard">Cancel generation</button>
     <div v-if="state.proposal" role="status" class="mt-2">
       <p class="small mb-2">Review the proposed route and estimates. Save Segment uses this proposal and saves your other Segment changes. Discard proposal keeps your previous route.</p>
+      <!-- Estimates stay separate from the ordinary fields until canonical Save succeeds. -->
+      <dl class="small mb-2 proposal-estimates">
+        <dt>Proposed distance</dt>
+        <dd><strong>{{ state.proposal.distanceMetres == null ? 'Unavailable' : `${state.proposal.distanceMetres / 1000} km` }}</strong></dd>
+        <dt>Estimated travel time</dt>
+        <dd><strong>{{ state.proposal.durationSeconds == null ? 'Unavailable' : `${state.proposal.durationSeconds / 60} minutes` }}</strong></dd>
+      </dl>
       <p v-if="manualDurationOverride" class="small">Save keeps your manual duration instead of the proposed duration estimate.</p>
       <button type="button" class="btn btn-outline-secondary btn-sm ms-2" :disabled="isSaving" @click="discard">Discard proposal</button>
     </div>
     <p v-if="state.error" class="trip-editor-form-error mt-2 mb-0" role="alert" tabindex="-1">{{ state.error }}</p>
   </section>
 </template>
+
+<style scoped>
+/* Labels and bold values identify estimates in both themes without color alone. */
+.proposal-estimates strong { color: var(--bs-info-text-emphasis); }
+</style>

@@ -44,6 +44,13 @@ export const createSegmentRouteProposalStore = (): {
     complete: (segmentId, requestId, proposal) => {
       const current = states[segmentId];
       if (!current || current.requestId !== requestId || proposal.segmentId !== segmentId) return false;
+      // A successful transport response alone is not a usable map preview.
+      if (!Array.isArray(proposal.geometry) || proposal.geometry.length < 2
+        || proposal.geometry.some(point => !point || !Number.isFinite(point.longitude) || !Number.isFinite(point.latitude))) {
+        Object.assign(current, { generating: false, proposal: null, controller: null,
+          error: 'The proposal has no usable route geometry. Your draft is unchanged.' });
+        return false;
+      }
       Object.assign(current, { generating: false, proposal, controller: null });
       return true;
     },

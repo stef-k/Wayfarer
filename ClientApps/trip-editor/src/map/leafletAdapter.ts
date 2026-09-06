@@ -143,8 +143,8 @@ export const createTripEditorMap = (element: HTMLElement, tilesUrl: string, opti
   };
 
   const setSegmentDraftPreview = (state: EditorTripState, preview: SegmentDraftRoutePreview | null): void => {
-    // The unified S/D/W registry owns the sole route representation; retain this API until callers migrate.
-    segmentDraftPreview.set(null);
+    segmentDraftPreview.set(preview); // Ordinary drafts remain owned by the unified S/D/W registry.
+    segmentDraftPreview.render(state, lastHiddenSegmentIds, segmentRouteWork.isActive());
   };
 
   const applyActivePlaceDraftPreview = (state: EditorTripState): void => {
@@ -220,9 +220,9 @@ export const createTripEditorMap = (element: HTMLElement, tilesUrl: string, opti
       };
     },
     setSegmentRouteWorkState: state => segmentRouteWork.setState(state),
-    fitAllGeometry: state => fitAllGeometry(map, state),
+    fitAllGeometry: state => fitBounds(map, segmentDraftPreview.extendBounds(allGeometryBounds(state))),
     focusSavedTripView: metadata => focusSavedTripView(map, metadata),
-    focusActiveEntity: (state, target) => focusActiveEntity(map, state, target),
+    focusActiveEntity: (state, target) => segmentDraftPreview.focus(map, target) ?? focusActiveEntity(map, state, target),
     showSearchPreview: searchPreview.show,
     dispose: () => {
       searchPreview.dispose();
