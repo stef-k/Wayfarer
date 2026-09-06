@@ -47,4 +47,3 @@ public sealed record ExternalRouteGenerationRequest(string AggregateConcurrencyT
 
 /// <summary>Contains one bounded Wayfarer-owned route error code.</summary>
 public sealed record ExternalRouteErrorDto(string Code);
-

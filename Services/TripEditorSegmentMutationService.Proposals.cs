@@ -33,13 +33,11 @@ public sealed partial class TripEditorSegmentMutationService
         if (binding == null && !retained) return route;
         var manual = request.EstimatedDurationSource == EstimatedDurationSource.Manual
             && (binding == null || request.Proposal!.ManualDurationOverride);
-        var duration = manual
-            ? SegmentMeasurementCalculator.NormalizeManualDuration(request.EstimatedDurationMinutes!.Value)
-            : binding?.DurationSeconds is { } seconds ? TimeSpan.FromSeconds(seconds) : canonical.EstimatedDuration;
+        var duration = binding?.DurationSeconds is { } seconds ? TimeSpan.FromSeconds(seconds) : canonical.EstimatedDuration;
         var source = manual ? EstimatedDurationSource.Manual
             : binding?.DurationSeconds != null ? EstimatedDurationSource.Automatic : canonical.EstimatedDurationSource;
         return route with { PreservedMeasurements = new(
-            binding?.DistanceMetres is { } metres ? metres / 1000d : canonical.EstimatedDistanceKm, duration, source) };
+            binding?.DistanceMetres is { } metres ? metres / 1000d : canonical.EstimatedDistanceKm, duration, source, manual ? request.EstimatedDurationMinutes : null) };
     }
 
     /// <summary>Copies provenance exclusively from the final validated binding, before the caller commits.</summary>

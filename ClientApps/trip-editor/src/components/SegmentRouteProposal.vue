@@ -43,12 +43,14 @@ watch(() => props.draftContextKey, (value, previous) => {
   if (value === previous) return;
   const hadProposal = state.value.proposal !== null;
   proposalStore.invalidate(props.segment.id, 'draft-context-changed');
-  if (hadProposal) state.value.error = 'Route context changed. The proposal was discarded; your draft route is unchanged.';
+  if (hadProposal && !props.isSaving) state.value.error = 'Route context changed. The proposal was discarded; your draft route is unchanged.';
   emit('previewChanged', null);
   emit('generatingChanged', false);
-});
+}, { flush: 'sync' });
 watch(proposalContextKey, profileKey => {
+  const hadProposal = state.value.proposal !== null;
   if (!proposalStore.invalidateProfile(props.segment.id, profileKey)) return;
+  if (hadProposal) state.value.error = 'Directions mode changed. Generate a new proposal to use this mode.';
   emit('previewChanged', null);
   emit('generatingChanged', false);
 });

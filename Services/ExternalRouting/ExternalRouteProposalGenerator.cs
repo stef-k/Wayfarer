@@ -163,7 +163,7 @@ public sealed record ExternalRouteGenerationResult(bool Succeeded, string? Error
     public static ExternalRouteGenerationResult Failure(string code) => new(false, code);
 }
 
-/// <summary>Contains an immutable, non-persisted route proposal for explicit acceptance.</summary>
+/// <summary>Contains an immutable, non-persisted route proposal for explicit Segment Save.</summary>
 public sealed record ExternalRouteProposalDto(
     Guid ProposalId, Guid SegmentId, IReadOnlyList<RouteCoordinate> Geometry, IReadOnlyList<int> WaypointIndices,
     string ProtectedContext, DateTimeOffset ExpiresAt, double? DistanceMetres = null, double? DurationSeconds = null,

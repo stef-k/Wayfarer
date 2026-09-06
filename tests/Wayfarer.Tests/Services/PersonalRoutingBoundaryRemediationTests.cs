@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using NetTopologySuite.Geometries;
 using System.Text.Json;
 using Wayfarer.Models;
+using Wayfarer.Models.Dtos.Editor;
 using Wayfarer.Models.LocationProviders;
 using Wayfarer.Services;
 using Wayfarer.Services.ExternalRouting;
@@ -65,6 +66,51 @@ public sealed class PersonalRoutingBoundaryRemediationTests : TestBase
         Assert.Null(result.Geometry);
         Assert.Null(result.ProviderMode);
         Assert.Null(fixture.Selection.RoutingProviderKey);
+    }
+
+    /// <summary>The Save validator rejects altered final drafts and rechecks expiry without mutating the aggregate.</summary>
+    [Theory]
+    [InlineData("anchors")]
+    [InlineData("geometry")]
+    [InlineData("indices")]
+    [InlineData("profile")]
+    [InlineData("expiry")]
+    public async Task SaveValidation_RejectsAlteredFinalDraftOrOriginalExpiry(string defect)
+    {
+        var fixture = CreateFixture();
+        var clock = new ProposalClock();
+        var contexts = new ExternalRouteProposalContextService(new EphemeralDataProtectionProvider(), clock);
+        var generator = new ExternalRouteProposalGenerator(fixture.Db, fixture.AggregateTokens, new CallbackRouteClient(),
+            new AcceptingGeometryValidator(), contexts, new RoutingRequestBudget(), fixture.Resolver);
+        var generated = await generator.GenerateAsync(fixture.UserId, fixture.Trip.Id, fixture.Segment.Id,
+            fixture.AggregateToken, "drive", CancellationToken.None);
+        Assert.True(generated.Succeeded);
+        var proposal = generated.Proposal!;
+        var request = new EditorSegmentSaveRequest(fixture.From.Id, fixture.To.Id, [fixture.Via.Id], [1],
+            fixture.PlanningProfile.Key, null, null, EstimatedDurationSource.Automatic, "changed notes",
+            new LineString(proposal.Geometry.Select(item => new Coordinate(item.Longitude, item.Latitude)).ToArray()) { SRID = 4326 },
+            fixture.AggregateToken, new(proposal.ProposalId, proposal.ProtectedContext));
+        if (defect == "anchors") request = request with { FromPlaceId = fixture.To.Id };
+        if (defect == "geometry") request = request with { Route = new LineString([new(1, 1), new(2, 2), new(3, 3)]) { SRID = 4326 } };
+        if (defect == "indices") request = request with { WaypointRouteVertexIndices = [0] };
+        var validator = new ExternalRouteProposalSaveValidator(fixture.Db, fixture.AggregateTokens, contexts, fixture.Resolver);
+        var locked = await validator.LockAuthorityAsync(fixture.UserId, fixture.Trip.Id, fixture.Segment.Id, request, CancellationToken.None);
+        if (defect == "expiry") clock.Advance(TimeSpan.FromMinutes(10));
+        var error = locked.Error ?? await validator.ValidateFinalAsync(locked.Binding!, fixture.Segment, request,
+            defect == "profile" ? Guid.NewGuid() : fixture.PlanningProfile.Id, CancellationToken.None);
+        Assert.NotNull(error);
+        Assert.Null(fixture.Segment.RouteGeometry);
+        Assert.Null(fixture.Segment.RouteProvider);
+        Assert.NotEqual("changed notes", fixture.Segment.Notes);
+        if (defect == "expiry") Assert.Equal("route-proposal-invalid-or-expired", error);
+    }
+
+    /// <summary>Advances only the proposal lifetime clock, without provider calls or wall-clock waits.</summary>
+    private sealed class ProposalClock : TimeProvider
+    {
+        private DateTimeOffset _now = DateTimeOffset.UtcNow;
+        public override DateTimeOffset GetUtcNow() => _now;
+        public void Advance(TimeSpan duration) => _now += duration;
     }
 
     private Fixture CreateFixture()

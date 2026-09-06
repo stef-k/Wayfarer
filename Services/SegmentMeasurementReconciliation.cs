@@ -22,7 +22,8 @@ public sealed record SegmentMeasurementProposal(
     double? PlanningSpeedKmhOverride = null);
 
 /// <summary>Measurements sourced from a protected proposal or an unchanged canonical trusted route.</summary>
-internal sealed record PreservedRouteMeasurements(double? DistanceKm, TimeSpan? Duration, EstimatedDurationSource Source);
+internal sealed record PreservedRouteMeasurements(
+    double? DistanceKm, TimeSpan? Duration, EstimatedDurationSource Source, double? ManualDurationMinutes = null);
 
 /// <summary>Measurement portion of the transaction-neutral locked Segment aggregate core.</summary>
 public static partial class SegmentRouteReconciler
@@ -133,9 +134,21 @@ public static partial class SegmentRouteReconciler
             errors.Add("Mode must match the linked transport profile.");
 
         if (routeProposal.PreservedMeasurements is { } preserved)
-            return errors.Count == 0
-                ? new(proposal.Mode, proposal.TransportProfileId, preserved.Source, preserved.DistanceKm, preserved.Duration)
-                : null;
+        {
+            try
+            {
+                var retainedDuration = preserved.ManualDurationMinutes is { } minutes
+                    ? SegmentMeasurementCalculator.NormalizeManualDuration(minutes) : preserved.Duration;
+                return errors.Count == 0
+                    ? new(proposal.Mode, proposal.TransportProfileId, preserved.Source, preserved.DistanceKm, retainedDuration)
+                    : null;
+            }
+            catch (ArgumentOutOfRangeException exception)
+            {
+                errors.Add(exception.Message);
+                return null;
+            }
+        }
 
         SegmentDistanceMeasurement? distance = null;
         try

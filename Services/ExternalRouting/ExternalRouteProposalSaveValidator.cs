@@ -103,4 +103,3 @@ public sealed class ExternalRouteProposalSaveValidator(
         && indices.All(index => index >= 0 && index < geometry.Count)
         && indices.Zip(indices.Skip(1), (first, second) => second > first).All(value => value);
 }
-

@@ -28,3 +28,54 @@ test('pending proposal alone is dirty and Save transports it without changing pr
   assert.equal(draft.notesHtml, 'edit during preview');
   assert.equal(draft.estimatedDistanceKm, '7');
 });
+
+for (const [distance, duration] of [[1250, 360], [null, null], [undefined, undefined], [0, 0]]) {
+  test(`proposal estimates ${distance}/${duration} remain transient and Manual edit wins`, () => {
+    const draft = { id: 'segment', fromPlaceId: '', toPlaceId: '', waypointRows: [], mode: '', route: null,
+      notesHtml: '', estimatedDurationSource: 'Automatic', estimatedDistanceKm: '7', estimatedDurationMinutes: '8' };
+    const controller = createSegmentRouteProposalDraftController(draft, () => 'segment', () => {});
+    controller.preview({ proposalId: 'p', segmentId: 'segment', protectedContext: 'protected',
+      geometry: [{ longitude: 1, latitude: 2 }, { longitude: 3, latitude: 4 }], waypointIndices: [0, 1],
+      distanceMetres: distance, durationSeconds: duration });
+    assert.equal(controller.buildRequest().estimatedDistanceKm, distance == null ? 7 : distance / 1000);
+    assert.equal(controller.buildRequest().estimatedDurationMinutes, duration == null ? 8 : duration / 60);
+    assert.equal(draft.estimatedDistanceKm, '7');
+    assert.equal(draft.estimatedDurationMinutes, '8');
+    draft.estimatedDurationSource = 'Manual';
+    draft.estimatedDurationMinutes = '12';
+    const request = controller.buildRequest();
+    assert.equal(request.estimatedDurationMinutes, 12);
+    assert.equal(request.estimatedDurationSource, 'Manual');
+    assert.equal(request.proposal.manualDurationOverride, true);
+    controller.preview(null);
+    assert.equal(draft.estimatedDurationMinutes, '12');
+    assert.equal(draft.estimatedDurationSource, 'Manual');
+    assert.equal(controller.buildRequest().proposal, undefined);
+  });
+}
+
+test('Generate followed by ordinary Save makes no separate acceptance request and failed Save retains proposal', async () => {
+  const apiBundle = await build({ bundle: true, entryPoints: ['ClientApps/trip-editor/src/api/tripEditorApi.ts'], format: 'esm', platform: 'node', write: false });
+  const api = await import(`data:text/javascript;base64,${Buffer.from(apiBundle.outputFiles[0].text + '\n//# sourceURL=proposal-api-test-bundle.mjs').toString('base64')}`);
+  const calls = [];
+  const originalFetch = globalThis.fetch;
+  const proposal = { proposalId: 'p', segmentId: 'segment', protectedContext: 'protected',
+    geometry: [{ longitude: 1, latitude: 2 }, { longitude: 3, latitude: 4 }], waypointIndices: [0, 1] };
+  globalThis.fetch = async (url, options) => {
+    calls.push({ url, options });
+    return new Response(JSON.stringify(options.method === 'POST' ? proposal : { title: 'Stale proposal', errors: { proposal: ['Regenerate explicitly.'] } }),
+      { status: options.method === 'POST' ? 200 : 422, headers: { 'Content-Type': 'application/json' } });
+  };
+  try {
+    const draft = { id: 'segment', fromPlaceId: '', toPlaceId: '', waypointRows: [], mode: '', route: null,
+      notesHtml: '', estimatedDurationSource: 'Automatic', estimatedDistanceKm: '7', estimatedDurationMinutes: '8' };
+    const controller = createSegmentRouteProposalDraftController(draft, () => 'segment', () => {});
+    controller.preview(await api.generateExternalRouteProposal('trip', 'segment', 'anti', 'aggregate', 'drive', new AbortController().signal));
+    await assert.rejects(api.updateSegment('/editor', 'segment', 'anti', controller.buildRequest()));
+    assert.equal(controller.hasProposal.value, true);
+    assert.equal(draft.route, null);
+    assert.deepEqual(calls.map(call => call.options.method), ['POST', 'PUT']);
+    assert.equal(calls.some(call => call.url.endsWith('/accept')), false);
+    assert.equal(JSON.parse(calls[1].options.body).proposal.protectedContext, 'protected');
+  } finally { globalThis.fetch = originalFetch; }
+});

@@ -36,9 +36,9 @@ export const createSegmentRouteProposalDraftController = (
   emitPreview: (preview: SegmentDraftRoutePreview | null) => void
 ) => {
   const current = shallowRef<ExternalRouteProposal | null>(null);
-  let durationAtPreview = '';
-  const manualOverride = (): boolean => draft.estimatedDurationSource === 'Manual'
-    && JSON.stringify([draft.estimatedDurationSource, draft.estimatedDurationMinutes]) !== durationAtPreview;
+  const durationAtPreview = shallowRef('');
+  const manualOverride = (): boolean => current.value !== null && draft.estimatedDurationSource === 'Manual'
+    && JSON.stringify([draft.estimatedDurationSource, draft.estimatedDurationMinutes]) !== durationAtPreview.value;
   return {
     hasProposal: computed(() => current.value !== null),
     manualOverride: computed(manualOverride),
@@ -64,7 +64,7 @@ export const createSegmentRouteProposalDraftController = (
     },
     preview: (proposal: ExternalRouteProposal | null): void => {
       current.value = proposal;
-      durationAtPreview = JSON.stringify([draft.estimatedDurationSource, draft.estimatedDurationMinutes]);
+      durationAtPreview.value = JSON.stringify([draft.estimatedDurationSource, draft.estimatedDurationMinutes]);
     }
   };
 };

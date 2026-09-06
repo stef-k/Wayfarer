@@ -12,6 +12,9 @@
 
 ## Unreleased
 
+### Fixed
+- Segment Save now validates and atomically persists a pending external-route proposal with other Segment edits. Generate/preview leaves the draft unchanged, Discard preserves edits, and the separate Accept action/endpoint is removed. Validated estimates and provenance survive unchanged follow-up saves (#584). Map-preview repair and final estimate presentation remain tracked in #583.
+
 ## [1.9.11] - 2026-09-06
 
 ### Fixed
