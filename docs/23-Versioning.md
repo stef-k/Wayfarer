@@ -5,7 +5,7 @@ file contains the manually edited `WayfarerVersion` value and maps the standard
 MSBuild metadata directly from it:
 
 ```xml
-<WayfarerVersion>1.9.12</WayfarerVersion>
+<WayfarerVersion>1.9.13</WayfarerVersion>
 <Version>$(WayfarerVersion)</Version>
 <PackageVersion>$(WayfarerVersion)</PackageVersion>
 <AssemblyInformationalVersion>$(WayfarerVersion)</AssemblyInformationalVersion>
@@ -19,7 +19,7 @@ assembly through `IAppVersionProvider`. Runtime surfaces such as
 separate constants.
 
 Use `dotnet run --no-launch-profile -- version` when validating exact CLI
-output. The app writes exactly `Wayfarer 1.9.12`; `--no-launch-profile` avoids
+output. The app writes exactly `Wayfarer 1.9.13`; `--no-launch-profile` avoids
 .NET SDK launch-profile messages so validation stays focused on app output.
 
 ## Release helper
@@ -38,6 +38,37 @@ adds the required changelog skeleton for the target release. The default `check`
 command validates only offline repo files; tag and GitHub release checks run
 only when their explicit flags are supplied. The helper validates release state
 but does not create, edit, publish, or delete GitHub releases.
+
+## 1.9.13 release source record
+
+Prepared on 2026-09-06 from synchronized main `fd58c69870b9e528580abadf3f3a43f240f5cc4f` on
+`feature/release-1.9.13`. Latest published release verified as v1.9.12.
+Its first-parent delta contains only PR #585 (#584 atomic proposal Save) and
+PR #586 (#583 preview, independent provider mode and display refinements).
+
+Migration files and snapshot are unchanged since v1.9.12. The latest migration
+remains `20260905095140_AddLocationProviderAddressLine1`. Preserve PostgreSQL
+and the matching Data Protection key ring; older upgrades still apply pending
+migrations. Deployment follows the existing server-build source-release workflow.
+The removed acceptance endpoint is replaced by ordinary validated Segment Save;
+reload open editors after deployment. No Mobile protocol or release changes.
+
+Independent product reviews covered the Save correction, preview, planning-mode
+independence and contrast changes. Maintainer-directed final tuning uses 80%
+current-route opacity, flat preview dash ends and at most two displayed decimals.
+The maintainer observed real proposals and accepted the appearance. Full mounted
+dark-theme, Discard and post-Save observation is not claimed. Existing lower-seam
+coverage and independent reviews established no blocking risk; the earlier
+owned-Trip fixture 404 did not establish a Vite integration defect.
+
+Final correction selection: 24 client tests, frontend typecheck/build and built
+asset smoke passed. Retained backend/PostgreSQL selections remain attributed in
+PRs #585/#586, not summed. Exact correction-head test CI passed at
+`aceafe46a10dc46271f426e8b3b5823f35c668ca` in run 34058012120.
+Release metadata validation uses the helper, 21 helper tests, 26 compiled
+Versioning tests, exact CLI output, prior-release-note preservation, whitespace
+and complete-branch Code Guard. No new provider request or production operation
+is part of this preparation. Release PR CI and publication are separate gates.
 
 ## 1.9.12 release source record
 

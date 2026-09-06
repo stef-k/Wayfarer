@@ -1,5 +1,20 @@
 # CHANGELOG
 
+## [1.9.13] - 2026-09-06
+
+### Fixed
+- External route generation and proposal Save preserve inactive/custom Segment choices and nullable planning identity independently of the selected provider directions mode. Generate requests a preview without a replacement confirmation (#583 correction).
+- Pending external routes now appear as a magenta dashed map preview with white casing above ordinary routes, temporarily dimming only the complete current Segment line, with labelled distance and travel-time estimates rounded only for display to at most two decimals. The current line retains 80% opacity and flat preview dash ends reveal overlapping geometry. Discard clears only the proposal; Save retains the validated #584 flow and Manual-duration override (#583).
+- Segment Save now validates and atomically persists a pending external-route proposal with other Segment edits. Generate/preview leaves the draft unchanged, Discard preserves edits, and the separate Accept action/endpoint is removed. Validated estimates and provenance survive unchanged follow-up saves (#584).
+
+### Upgrade notes
+- No database migration was added since v1.9.12. Upgrades from older versions must still apply their pending migrations. Preserve PostgreSQL and its matching Data Protection key ring.
+- Route proposals now persist only through Save Segment; the separate acceptance endpoint is removed. Reload an already-open Trip Editor after upgrading. Segment planning labels remain independent of the explicitly selected provider directions mode.
+- Follow the [server-build deployment workflow](docs/20-Deployment.md#updating-wayfarer) using this tagged source.
+
+## Unreleased
+
+
 ## [1.9.12] - 2026-09-06
 
 ### Fixed
@@ -9,13 +24,6 @@
 ### Upgrade notes
 - No database migration was added since v1.9.11; migration files and the model snapshot are unchanged. The latest migration remains `20260905095140_AddLocationProviderAddressLine1`. Upgrades from older versions must still apply their pending migrations. Preserve PostgreSQL and the matching Data Protection key ring.
 - Follow the [server-build deployment workflow](docs/20-Deployment.md#updating-wayfarer) using this release source.
-
-## Unreleased
-
-### Fixed
-- External route generation and proposal Save preserve inactive/custom Segment choices and nullable planning identity independently of the selected provider directions mode. Generate requests a preview without a replacement confirmation (#583 correction).
-- Pending external routes now appear as a magenta dashed map preview with white casing above ordinary routes, temporarily dimming only the complete current Segment line, with labelled distance and travel-time estimates rounded only for display to at most two decimals. The current line retains 80% opacity and flat preview dash ends reveal overlapping geometry. Discard clears only the proposal; Save retains the validated #584 flow and Manual-duration override (#583).
-- Segment Save now validates and atomically persists a pending external-route proposal with other Segment edits. Generate/preview leaves the draft unchanged, Discard preserves edits, and the separate Accept action/endpoint is removed. Validated estimates and provenance survive unchanged follow-up saves (#584).
 
 ## [1.9.11] - 2026-09-06
 
