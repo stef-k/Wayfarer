@@ -90,7 +90,7 @@ test('proposal casing and whole-route emphasis retain ownership through redraw a
   proposal.set({ kind: 'proposal', identity: 'pending', segmentId: 'current', route: { coordinates: coordinates.slice(0, 2) } });
   proposal.render({}, new Set(), false);
   assert.deepEqual(line('current').coordinates, [[37, 23], [38, 24], [39, 25]]);
-  assert.deepEqual(line('current').style, { ...normal, opacity: 0.75 });
+  assert.deepEqual(line('current').style, { ...normal, opacity: 0.80 });
   assert.deepEqual(line('other').style, other);
   const preview = line('pending');
   assert.deepEqual(preview.style, { pane: 'segment-route-proposal', color: '#a21caf', dashArray: '8 6', lineCap: 'butt', opacity: 1, interactive: false, weight: 4 });
@@ -102,7 +102,7 @@ test('proposal casing and whole-route emphasis retain ownership through redraw a
   assert.ok(Number(panes['segment-route-proposal'].style.zIndex) < Number(panes['segment-route-role'].style.zIndex));
   assert.ok(Number(panes['segment-route-proposal'].style.zIndex) < 600);
   movements['zoomend moveend']();
-  assert.deepEqual(line('current').style, { ...normal, opacity: 0.75 });
+  assert.deepEqual(line('current').style, { ...normal, opacity: 0.80 });
   assert.deepEqual(line('other').style, other);
   assert.equal(paths.filter(path => path.attributes['data-segment-hit-owner']).length, 2);
   for (const [hidden, work] of [[new Set(['current']), false], [new Set(), true]]) {
