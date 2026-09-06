@@ -280,7 +280,7 @@ function projectedMetrics(points: readonly ProjectedPoint[]): ProjectedMetrics |
   return { points, cumulative, length: cumulative.at(-1)! };
 }
 
-/** Samples one position and its local six-pixel tangent, omitting degenerate cues. */
+/** Samples one position and its local six-pixel tangent, omitting degenerate or locally contradictory cues. */
 function sampleChevron(metrics: ProjectedMetrics, distance: number): ProjectedChevron[] {
   const point = interpolateProjected(metrics, distance);
   const before = interpolateProjected(metrics, Math.max(0, distance - 6));
@@ -288,6 +288,18 @@ function sampleChevron(metrics: ProjectedMetrics, distance: number): ProjectedCh
   const dx = after[0] - before[0];
   const dy = after[1] - before[1];
   if (!Number.isFinite(dx) || !Number.isFinite(dy) || Math.hypot(dx, dy) < 4) return [];
+  // Ordered cumulative intervals identify the containing leg, even at crossings.
+  // At an exact vertex interpolation uses the incoming leg; require agreement
+  // with both adjacent nonzero legs. Zero-length legs contribute no direction.
+  for (let index = 1; index < metrics.cumulative.length; index += 1) {
+    const start = metrics.cumulative[index - 1];
+    const end = metrics.cumulative[index];
+    if (start > distance) break;
+    if (end < distance || end === start) continue;
+    const legDx = metrics.points[index][0] - metrics.points[index - 1][0];
+    const legDy = metrics.points[index][1] - metrics.points[index - 1][1];
+    if (!(dx * legDx + dy * legDy > 0)) return [];
+  }
   return [{ x: point[0], y: point[1], angle: Math.atan2(dy, dx) * 180 / Math.PI }];
 }
 

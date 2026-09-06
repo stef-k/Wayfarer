@@ -76,7 +76,20 @@ export const placeViewerChevrons = (points, active) => {
         const after = interpolate(Math.min(length, distance + 6));
         const dx = after[0] - before[0];
         const dy = after[1] - before[1];
-        return Math.hypot(dx, dy) < 4 ? [] : [{ x: point[0], y: point[1], angle: Math.atan2(dy, dx) * 180 / Math.PI }];
+        if (!Number.isFinite(dx) || !Number.isFinite(dy) || Math.hypot(dx, dy) < 4) return [];
+        // Ordered cumulative intervals identify the containing leg, even at crossings.
+        // At an exact vertex interpolation uses the incoming leg; require agreement
+        // with both adjacent nonzero legs. Zero-length legs contribute no direction.
+        for (let index = 1; index < cumulative.length; index += 1) {
+            const start = cumulative[index - 1];
+            const end = cumulative[index];
+            if (start > distance) break;
+            if (end < distance || end === start) continue;
+            const legDx = points[index][0] - points[index - 1][0];
+            const legDy = points[index][1] - points[index - 1][1];
+            if (!(dx * legDx + dy * legDy > 0)) return [];
+        }
+        return [{ x: point[0], y: point[1], angle: Math.atan2(dy, dx) * 180 / Math.PI }];
     });
 };
 

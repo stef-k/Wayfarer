@@ -203,7 +203,8 @@ test('mirrors ordered vertex direction with duplicate projected points', async (
     { route: [[0, 0], [40, 0], [40, 0], [80, 0]], angle: 0 },
     { route: [[80, 0], [40, 0], [40, 0], [0, 0]], angle: 180 },
     { route: [[0, 0], [40, 0], [40, 0], [40, 40]], angle: 45 },
-    { route: [[0, 0], [40, 0], [40, 0], [0, 0]], angle: null }
+    { route: [[0, 0], [40, 0], [40, 0], [0, 0]], angle: null },
+    { route: [[0, 0], [40, 0], [40, 0], [38, 0], [76, 0]], angle: null }
   ];
   for (const { route, angle } of cases) {
     for (const active of [false, true]) {
