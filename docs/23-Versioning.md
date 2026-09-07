@@ -5,7 +5,7 @@ file contains the manually edited `WayfarerVersion` value and maps the standard
 MSBuild metadata directly from it:
 
 ```xml
-<WayfarerVersion>1.9.13</WayfarerVersion>
+<WayfarerVersion>1.9.14</WayfarerVersion>
 <Version>$(WayfarerVersion)</Version>
 <PackageVersion>$(WayfarerVersion)</PackageVersion>
 <AssemblyInformationalVersion>$(WayfarerVersion)</AssemblyInformationalVersion>
@@ -19,7 +19,7 @@ assembly through `IAppVersionProvider`. Runtime surfaces such as
 separate constants.
 
 Use `dotnet run --no-launch-profile -- version` when validating exact CLI
-output. The app writes exactly `Wayfarer 1.9.13`; `--no-launch-profile` avoids
+output. The app writes exactly `Wayfarer 1.9.14`; `--no-launch-profile` avoids
 .NET SDK launch-profile messages so validation stays focused on app output.
 
 ## Release helper
@@ -38,6 +38,31 @@ adds the required changelog skeleton for the target release. The default `check`
 command validates only offline repo files; tag and GitHub release checks run
 only when their explicit flags are supplied. The helper validates release state
 but does not create, edit, publish, or delete GitHub releases.
+
+## 1.9.14 release source record
+
+Prepared on 2026-09-07 from synchronized main `a45355cc` on
+`feature/release-1.9.14`. The delta since v1.9.13 contains only
+[PR #588](https://github.com/stef-k/Wayfarer/pull/588): saved Segment dirty-state
+correction, removal of unused parent state, and one custom confirmation for
+app-controlled exits. Browser unload approval is consumed once so interrupted
+navigation retains protection.
+
+There are no migration, API, dependency, or Mobile changes. Reload open editors
+after deployment using the existing server-build source-release workflow.
+Older upgrades still apply pending migrations; preserve PostgreSQL and its
+matching Data Protection key ring.
+
+Independent review passed at `b8a75ff799aee319df01e4150c1c250037332187`.
+Nine focused client tests, frontend typecheck/build and exact-head correction
+[test CI](https://github.com/stef-k/Wayfarer/actions/runs/34133148745) passed.
+The focused tests exercise production component state and exit guards; no
+mounted-browser Save-and-leave journey is claimed.
+
+Release validation covers the release helper and its tests, compiled Versioning
+tests, exact CLI version output, prior-note preservation, whitespace and Code
+Guard. Release PR CI and publication are separate gates. Server deployment
+remains with the maintainer.
 
 ## 1.9.13 release source record
 

@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## [1.9.14] - 2026-09-07
+
+### Fixed
+- Saving a Segment, including an external provider route, clears its unsaved-changes navigation warning while preserving warnings for other unsaved editor drafts.
+- Back to Trips and Save & Exit use a single custom confirmation when discarding unsaved drafts, without a second browser prompt. Reloading or closing the page still warns about unsaved changes.
+
+### Upgrade notes
+- No database migration, API, or Mobile changes since v1.9.13. Older upgrades must still apply pending migrations; preserve PostgreSQL and its matching Data Protection key ring.
+- Reload open Trip Editor pages after deployment. Follow the [server-build deployment workflow](docs/20-Deployment.md#updating-wayfarer) using this tagged source.
+
 ## [1.9.13] - 2026-09-06
 
 ### Fixed
@@ -14,9 +24,6 @@
 
 ## Unreleased
 
-### Fixed
-- Saving a Segment, including an external provider route, clears its unsaved-changes navigation warning while preserving warnings for other unsaved editor drafts.
-- Back to Trips and Save & Exit use a single custom confirmation when discarding unsaved drafts, without a second browser prompt. Reloading or closing the page still warns about unsaved changes.
 
 ## [1.9.12] - 2026-09-06
 
