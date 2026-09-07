@@ -67,4 +67,3 @@ test('saved segment clears the page warning while independent region edits remai
     assert.equal(await warning(), false);
   } finally { scope.stop(); }
 });
-
