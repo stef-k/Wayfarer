@@ -14,6 +14,9 @@
 
 ## Unreleased
 
+### Fixed
+- Saving a Segment, including an external provider route, clears its unsaved-changes navigation warning while preserving warnings for other unsaved editor drafts.
+- Back to Trips and Save & Exit use a single custom confirmation when discarding unsaved drafts, without a second browser prompt. Reloading or closing the page still warns about unsaved changes.
 
 ## [1.9.12] - 2026-09-06
 

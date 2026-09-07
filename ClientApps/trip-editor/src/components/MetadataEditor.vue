@@ -52,7 +52,7 @@ const lastSavedAt = ref<string | null>(null);
 const saveError = ref<string | null>(null);
 const validationErrors = ref<Record<string, string[]>>({});
 const warnings = ref<EditorWarning[]>([]);
-const savedExitInProgress = ref(false);
+const exitInProgress = ref(false);
 const tagInput = ref('');
 const tagSuggestions = ref<TagSuggestion[]>([]);
 const tagSuggestionError = ref<string | null>(null);
@@ -60,10 +60,12 @@ let unregisterSurfaceHandler: (() => void) | null = null;
 let suggestionRequestId = 0;
 
 const persistedDraft = computed(() => toDraft(props.metadata, props.tagOrder, props.tagsBySlug));
-const isMetadataDirty = computed(() => JSON.stringify(normalizeMetadataDraft(draft)) !== JSON.stringify(normalizeMetadataDraft(persistedDraft.value)));
+const isMetadataDirty = computed(() => JSON.stringify(buildMetadataRequest(draft)) !== JSON.stringify(buildMetadataRequest(persistedDraft.value)));
 const isTagsDirty = computed(() => JSON.stringify(normalizeTagNames(draft.tags)) !== JSON.stringify(normalizeTagNames(persistedDraft.value.tags)));
 const isShareProgressDirty = computed(() => normalizeShareProgress(draft) !== normalizeShareProgress(persistedDraft.value));
 const isDirty = computed(() => isMetadataDirty.value || isTagsDirty.value || isShareProgressDirty.value);
+/// Combines metadata, tag, share-progress, region, and segment drafts for navigation prompts.
+const hasUnsavedEditorChanges = computed(() => isDirty.value || props.hasRegionDraftChanges);
 const shareProgressUnavailable = computed(() => !draft.isPublic || !props.metadata.isPublic);
 const visibleShareProgressEnabled = computed({
   get: () => !shareProgressUnavailable.value && draft.shareProgressEnabled,
@@ -169,7 +171,7 @@ const resetDraft = (): void => {
 };
 
 const saveAndExit = async (): Promise<void> => {
-  if (hasUnsavedNonMetadataEditorChanges() && !(await confirmDiscardTripEditorChanges())) {
+  if (props.hasRegionDraftChanges && !(await confirmDiscardTripEditorChanges())) {
     return;
   }
 
@@ -178,7 +180,6 @@ const saveAndExit = async (): Promise<void> => {
 
 const save = async (exitAfterSave: boolean): Promise<void> => {
   isSaving.value = true;
-  savedExitInProgress.value = false;
   saveError.value = null;
   validationErrors.value = {};
   warnings.value = [];
@@ -224,39 +225,39 @@ const save = async (exitAfterSave: boolean): Promise<void> => {
   if (!failed) {
     lastSavedAt.value = new Intl.DateTimeFormat(undefined, { timeStyle: 'short' }).format(new Date());
     if (exitAfterSave) {
-      savedExitInProgress.value = true;
-      window.location.assign(props.tripIndexUrl);
+      leaveEditor();
     }
   }
 };
 
 const backToTrips = async (): Promise<void> => {
-  if (!hasUnsavedEditorChanges() || (await confirmDiscardTripEditorChanges())) {
-    window.location.assign(props.tripIndexUrl);
+  if (!hasUnsavedEditorChanges.value || (await confirmDiscardTripEditorChanges())) {
+    leaveEditor();
   }
 };
 
-function confirmUnload(event: BeforeUnloadEvent): void {
-  if (savedExitInProgress.value) {
-    return;
+/// Bypasses the shared unload warning only for an approved app-controlled exit.
+function leaveEditor(): void {
+  exitInProgress.value = true;
+  try {
+    window.location.assign(props.tripIndexUrl);
+  } catch (error) {
+    exitInProgress.value = false;
+    throw error;
   }
+}
 
-  if (!hasUnsavedEditorChanges()) {
+/// Owns browser unload protection for metadata and all sidebar drafts.
+function confirmUnload(event: BeforeUnloadEvent): void {
+  // Consume approval once so interrupted navigation or a restored page retains protection.
+  const approvedExit = exitInProgress.value;
+  exitInProgress.value = false;
+  if (approvedExit || !hasUnsavedEditorChanges.value) {
     return;
   }
 
   event.preventDefault();
   event.returnValue = '';
-}
-
-/// Combines metadata, tag, share-progress, and child-region drafts for navigation prompts.
-function hasUnsavedEditorChanges(): boolean {
-  return isDirty.value || props.hasRegionDraftChanges;
-}
-
-/// Tracks editor-owned drafts that Save & Exit cannot persist through the metadata surface.
-function hasUnsavedNonMetadataEditorChanges(): boolean {
-  return props.hasRegionDraftChanges;
 }
 
 /// Confirms before discarding Trip Editor drafts that are not saved by the current action.
@@ -335,10 +336,6 @@ function toMetadataDraft(metadata: EditorTripMetadata): Omit<MetadataDraft, 'tag
     centerLongitude: metadata.center ? String(metadata.center.longitude) : '',
     zoom: metadata.zoom === null ? '' : String(metadata.zoom)
   };
-}
-
-function normalizeMetadataDraft(value: MetadataDraft): EditorTripMetadataUpdateRequest {
-  return buildMetadataRequest(value);
 }
 
 function normalizeShareProgress(value: MetadataDraft): boolean {
