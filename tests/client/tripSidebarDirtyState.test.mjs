@@ -6,7 +6,7 @@ import { build } from 'esbuild';
 import { renderToString } from 'vue/server-renderer';
 import { createSSRApp, h, effectScope, nextTick, proxyRefs, shallowReactive, ref } from 'vue';
 
-// Exercise the sidebar's real child event wiring, including the parent's prop round trip.
+// Exercise the sidebar's real child event wiring and the aggregate passed to its unload owner.
 const filename = 'ClientApps/trip-editor/src/components/TripSidebar.vue';
 const { descriptor } = parse(await readFile(filename, 'utf8'), { filename });
 const script = compileScript(descriptor, { id: 'sidebar-dirty-test' });
@@ -21,15 +21,13 @@ const code = bundled.outputFiles[0].text.replaceAll('from "vue"', `from "${impor
 const { default: component, render } = await import(`data:text/javascript;base64,${Buffer.from(code + '\n//# sourceURL=sidebar-dirty-test.mjs').toString('base64')}`);
 
 test('saved segment clears the page warning while independent region edits remain protected', async () => {
-  const props = shallowReactive({ hasRegionDraftChanges: false, hiddenSegmentIds: new Set(),
+  const props = shallowReactive({ hiddenSegmentIds: new Set(),
     editorSurface: { activeTarget: ref(null), isMapWorkActive: ref(false) },
     state: { tagOrder: [], segmentOrder: [], segmentsById: {}, regionOrder: [], regionsById: {},
       placeOrderByRegionId: {}, areaOrderByRegionId: {}, options: {}, metadata: { name: "Trip" }, permissions: {} } });
   const input = props;
   const scope = effectScope();
-  const bindings = scope.run(() => proxyRefs(component.setup(input, { expose() {}, emit(name, value) {
-    if (name === 'regionDraftDirtyChanged') props.hasRegionDraftChanges = value;
-  } })));
+  const bindings = scope.run(() => proxyRefs(component.setup(input, { expose() {}, emit() {} })));
   const find = (node, name) => {
     if (node?.type?.name === name) return node;
     for (const child of Array.isArray(node?.children) ? node.children : []) {
@@ -55,7 +53,6 @@ test('saved segment clears the page warning while independent region edits remai
     assert.equal(await warning(), true);
     await dirty('SegmentManager', false);
     assert.equal(await warning(), false, 'successful segment Save must clear the navigation warning');
-    assert.equal(props.hasRegionDraftChanges, false);
     await dirty('RegionManager', true);
     await dirty('SegmentManager', true);
     await dirty('SegmentManager', false);
