@@ -64,6 +64,8 @@ const isMetadataDirty = computed(() => JSON.stringify(buildMetadataRequest(draft
 const isTagsDirty = computed(() => JSON.stringify(normalizeTagNames(draft.tags)) !== JSON.stringify(normalizeTagNames(persistedDraft.value.tags)));
 const isShareProgressDirty = computed(() => normalizeShareProgress(draft) !== normalizeShareProgress(persistedDraft.value));
 const isDirty = computed(() => isMetadataDirty.value || isTagsDirty.value || isShareProgressDirty.value);
+/// Combines metadata, tag, share-progress, region, and segment drafts for navigation prompts.
+const hasUnsavedEditorChanges = computed(() => isDirty.value || props.hasRegionDraftChanges);
 const shareProgressUnavailable = computed(() => !draft.isPublic || !props.metadata.isPublic);
 const visibleShareProgressEnabled = computed({
   get: () => !shareProgressUnavailable.value && draft.shareProgressEnabled,
@@ -178,7 +180,6 @@ const saveAndExit = async (): Promise<void> => {
 
 const save = async (exitAfterSave: boolean): Promise<void> => {
   isSaving.value = true;
-  exitInProgress.value = false;
   saveError.value = null;
   validationErrors.value = {};
   warnings.value = [];
@@ -230,7 +231,7 @@ const save = async (exitAfterSave: boolean): Promise<void> => {
 };
 
 const backToTrips = async (): Promise<void> => {
-  if (!hasUnsavedEditorChanges() || (await confirmDiscardTripEditorChanges())) {
+  if (!hasUnsavedEditorChanges.value || (await confirmDiscardTripEditorChanges())) {
     leaveEditor();
   }
 };
@@ -248,17 +249,15 @@ function leaveEditor(): void {
 
 /// Owns browser unload protection for metadata and all sidebar drafts.
 function confirmUnload(event: BeforeUnloadEvent): void {
-  if (exitInProgress.value || !hasUnsavedEditorChanges()) {
+  // Consume approval once so interrupted navigation or a restored page retains protection.
+  const approvedExit = exitInProgress.value;
+  exitInProgress.value = false;
+  if (approvedExit || !hasUnsavedEditorChanges.value) {
     return;
   }
 
   event.preventDefault();
   event.returnValue = '';
-}
-
-/// Combines metadata, tag, share-progress, region, and segment drafts for navigation prompts.
-function hasUnsavedEditorChanges(): boolean {
-  return isDirty.value || props.hasRegionDraftChanges;
 }
 
 /// Confirms before discarding Trip Editor drafts that are not saved by the current action.

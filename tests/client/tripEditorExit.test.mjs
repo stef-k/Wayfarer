@@ -53,10 +53,12 @@ test('custom exit confirmation replaces the native warning only after approval a
     await editor.backToTrips();
     assert.equal(confirmations, 2);
     assert.deepEqual(navigations.pop(), { url: '/User/Trip', nativeWarning: false });
+    assert.equal(warns(), true, 'interrupted navigation must not suppress a later unload');
 
     await open();
     await editor.saveAndExit();
     assert.deepEqual(navigations.pop(), { url: '/User/Trip', nativeWarning: false });
+    assert.equal(warns(), true, 'Save & Exit approval is also consumed once');
     await open();
     editor.draft.name = 'Edited trip';
     globalThis.fetch = async () => new Response('{}', { status: 500 });
