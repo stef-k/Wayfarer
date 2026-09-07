@@ -14,6 +14,8 @@
 
 ## Unreleased
 
+### Fixed
+- Saving a Segment, including an external provider route, clears its unsaved-changes navigation warning while preserving warnings for other unsaved editor drafts.
 
 ## [1.9.12] - 2026-09-06
 

@@ -25,7 +25,6 @@ const props = defineProps<{
   editorEndpoint: string;
   antiforgeryToken: string;
   tripIndexUrl: string;
-  hasRegionDraftChanges: boolean;
   hiddenSegmentIds: ReadonlySet<Guid>;
   selectedPlaceId: Guid | null;
   activeSegmentKey: SegmentPresentationKey | null;
@@ -60,6 +59,7 @@ type MobileDrawerTab = 'trip' | 'regions' | 'segments';
 type MobileDrawerState = 'collapsed' | 'peek' | 'expanded-view' | 'expanded-edit';
 
 const searchQuery = ref('');
+const regionDraftDirty = ref(false);
 const segmentDraftDirty = ref(false);
 const isVisitProgressOpen = ref(false);
 const activeMobileTab = ref<MobileDrawerTab>('trip');
@@ -106,7 +106,9 @@ const sidebarSearch = computed<SidebarSearchResult>(() => {
   return result;
 });
 const hasSidebarSearchMatches = computed(() => sidebarSearch.value.hasMatches || filteredSegments.value.length > 0);
-const hasAnyDraftChanges = computed(() => props.hasRegionDraftChanges || segmentDraftDirty.value);
+// Combine child-owned flags without feeding the parent's aggregate back into either editor.
+const hasAnyDraftChanges = computed(() => regionDraftDirty.value || segmentDraftDirty.value);
+watch(hasAnyDraftChanges, value => emit('regionDraftDirtyChanged', value), { immediate: true });
 /// Resolves the visible phone drawer height while preserving the active shared editor.
 const drawerMode = computed<MobileDrawerState>(() => {
   if (props.editorSurface.isMapWorkActive.value) {
@@ -374,7 +376,7 @@ function normalize(value: string): string {
             :select-place="selectPlace"
             :clear-selected-place="clearSelectedPlace"
             @mutation-applied="result => emit('mutationApplied', result)"
-            @dirty-state-changed="isDirty => emit('regionDraftDirtyChanged', isDirty)"
+            @dirty-state-changed="regionDraftDirty = $event"
             @place-draft-preview-changed="preview => emit('placeDraftPreviewChanged', preview)"
             @search-add-opened="requestId => emit('searchAddOpened', requestId)"
           />
@@ -400,7 +402,7 @@ function normalize(value: string): string {
             :route-editor="routeEditor"
             :search-active="isSearchActive"
             :segments="filteredSegments"
-            @dirty-state-changed="isDirty => { segmentDraftDirty = isDirty; emit('regionDraftDirtyChanged', hasAnyDraftChanges); }"
+            @dirty-state-changed="segmentDraftDirty = $event"
             @hidden-segment-ids-changed="ids => emit('hiddenSegmentIdsChanged', ids)"
             @mutation-applied="result => emit('mutationApplied', result)"
             @route-draft-preview-changed="preview => emit('segmentRouteDraftPreviewChanged', preview)"

@@ -556,7 +556,6 @@ function focusStatusText(result: FocusActiveEntityResult, target: { kind: string
         :editor-endpoint="props.config.editorEndpoint"
         :antiforgery-token="props.config.antiforgeryToken"
         :trip-index-url="props.config.tripIndexUrl"
-        :has-region-draft-changes="hasRegionDraftChanges"
         :hidden-segment-ids="hiddenSegmentIds"
         :selected-place-id="selectedPlaceId"
         :active-segment-key="activeSegmentKey"
