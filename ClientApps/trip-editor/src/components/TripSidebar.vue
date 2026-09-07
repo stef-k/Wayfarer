@@ -43,7 +43,6 @@ const props = defineProps<{
 const emit = defineEmits<{
   metadataSaved: [metadata: EditorTripState['metadata']];
   mutationApplied: [result: EditorMutationResult<unknown>];
-  regionDraftDirtyChanged: [isDirty: boolean];
   hiddenSegmentIdsChanged: [ids: Set<Guid>];
   placeDraftPreviewChanged: [preview: PlaceDraftMarkerPreview | null];
   segmentRouteDraftPreviewChanged: [preview: SegmentDraftRoutePreview | null];
@@ -108,7 +107,6 @@ const sidebarSearch = computed<SidebarSearchResult>(() => {
 const hasSidebarSearchMatches = computed(() => sidebarSearch.value.hasMatches || filteredSegments.value.length > 0);
 // Combine child-owned flags without feeding the parent's aggregate back into either editor.
 const hasAnyDraftChanges = computed(() => regionDraftDirty.value || segmentDraftDirty.value);
-watch(hasAnyDraftChanges, value => emit('regionDraftDirtyChanged', value), { immediate: true });
 /// Resolves the visible phone drawer height while preserving the active shared editor.
 const drawerMode = computed<MobileDrawerState>(() => {
   if (props.editorSurface.isMapWorkActive.value) {

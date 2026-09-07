@@ -345,7 +345,6 @@ watch(
 );
 
 onMounted(() => {
-  window.addEventListener('beforeunload', confirmUnload);
   unregisterRegionHandler = props.editorSurface.registerTargetHandler(regionDraftKey, {
     isDirty: () => regionDirty.value,
     discard: discardRegionDraft
@@ -368,7 +367,6 @@ onUnmounted(() => {
   stopAreaPolygonEdit(areaPolygonMapWork);
   emit('dirtyStateChanged', false);
   emit('placeDraftPreviewChanged', null);
-  window.removeEventListener('beforeunload', confirmUnload);
 });
 
 /// Rebuilds the Sortable-mutated list from persisted Vue state after canceled or failed reorder.
@@ -475,15 +473,6 @@ function confirmDiscard(message = 'Discard unsaved changes?'): Promise<boolean> 
     cancelLabel: 'Keep editing',
     variant: 'warning'
   });
-}
-
-function confirmUnload(event: BeforeUnloadEvent): void {
-  if (!isDirty.value) {
-    return;
-  }
-
-  event.preventDefault();
-  event.returnValue = '';
 }
 
 function discardRegionDraft(): void {

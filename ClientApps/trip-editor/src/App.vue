@@ -17,7 +17,6 @@ const props = defineProps<{ config: BootstrapConfig }>();
 const state = ref<EditorTripState | null>(null);
 const error = ref<string | null>(null);
 const isLoading = ref(true);
-const hasRegionDraftChanges = ref(false);
 const workspaceElement = ref<HTMLElement | null>(null);
 const mapElement = ref<HTMLElement | null>(null);
 const mobileDrawerActive = ref(false);
@@ -368,11 +367,6 @@ const handleSearchAddOpened = (requestId: number): void => {
   }
 };
 
-/// Tracks region draft changes that live inside the sidebar child component.
-const setRegionDraftChanges = (isDirty: boolean): void => {
-  hasRegionDraftChanges.value = isDirty;
-};
-
 /// Applies active place draft icon/color to the selected marker preview without saving it.
 const applyPlaceDraftPreview = (preview: PlaceDraftMarkerPreview | null): void => {
   if (!state.value) {
@@ -568,7 +562,6 @@ function focusStatusText(result: FocusActiveEntityResult, target: { kind: string
         :route-editor="routeEditor"
         @metadata-saved="applyMetadata"
         @mutation-applied="applyMutation"
-        @region-draft-dirty-changed="setRegionDraftChanges"
         @place-draft-preview-changed="applyPlaceDraftPreview"
         @segment-route-draft-preview-changed="applySegmentRouteDraftPreview"
         @active-segment-draft-changed="applyActiveSegmentDraft"
