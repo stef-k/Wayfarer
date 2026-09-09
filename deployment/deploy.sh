@@ -234,6 +234,10 @@ sudo chmod 700 "/home/$APP_USER/.aspnet" "/home/$APP_USER/.aspnet/DataProtection
 sudo chown -R "$APP_USER":"$APP_USER" "$DEPLOY_DIR/Uploads" "$DEPLOY_DIR/TileCache" "$DEPLOY_DIR/ImageCache" "$DEPLOY_DIR/ChromeCache" "$DEPLOY_DIR/Logs"
 sudo chmod 755 "$DEPLOY_DIR/Uploads" "$DEPLOY_DIR/TileCache" "$DEPLOY_DIR/ImageCache" "$DEPLOY_DIR/ChromeCache" "$DEPLOY_DIR/Logs"
 
+# Production logging is configured outside DEPLOY_DIR; prepare it before service start.
+echo "Ensuring production log directory exists..."
+sudo install -d -o "$APP_USER" -g "$APP_USER" -m 0750 /var/log/wayfarer
+
 echo "[8/8] Starting $SERVICE_NAME service..."
 sudo systemctl start "$SERVICE_NAME"
 
