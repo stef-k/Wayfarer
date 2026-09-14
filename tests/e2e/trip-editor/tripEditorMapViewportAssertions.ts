@@ -14,8 +14,8 @@ export const expectViewportUrl = async (page: Page): Promise<void> => {
   await expect.poll(async () => {
     const view = await readViewport(page);
     const url = new URL(page.url());
-    return [url.searchParams.get('lat'), url.searchParams.get('lng'), url.searchParams.get('zoom')];
-  }).toEqual(Object.values(await readViewport(page)));
+    return url.searchParams.get('lat') === view.latitude && url.searchParams.get('lng') === view.longitude && url.searchParams.get('zoom') === view.zoom;
+  }).toBe(true);
 };
 
 /** Real mouse drag with a slow release avoids depending on an inertial animation timeout. */

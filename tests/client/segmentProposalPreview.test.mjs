@@ -19,7 +19,8 @@ const map = { setView() { return this; }, on(event, callback) { movements[event]
   createPane(name) { return panes[name] = { style: {}, setAttribute() {}, remove() {} }; }, getPane(name) { return panes[name]; },
   fitBounds(bounds) { this.bounds = bounds.points; },
   attributionControl: { setPrefix() {}, getContainer() { return null; } } };
-globalThis.window = new EventTarget();
+globalThis.window = Object.assign(new EventTarget(), { requestAnimationFrame: () => 0, cancelAnimationFrame() {} });
+globalThis.document = new EventTarget();
 globalThis.previewLeaflet = { map: () => map, layerGroup: group, latLng: (lat, lng) => [lat, lng],
   latLngBounds: () => ({ points: [], extend(point) { this.points.push(point); return this; }, isValid() { return this.points.length > 0; } }),
   polyline: (coordinates, style) => ({ coordinates, style, options: style, attributes: {},

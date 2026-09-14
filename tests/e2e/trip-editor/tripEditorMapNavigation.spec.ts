@@ -257,7 +257,7 @@ test.describe.serial('Trip Editor map navigation toolbar', () => {
     await expect(mapWork.getByRole('button', { name: 'Done' })).toBeEnabled();
     await mapWork.getByRole('button', { name: 'Done' }).click();
     await expect(toolbar.getByRole('button', { name: 'Fit All' })).toBeVisible();
-    await page.getByRole('button', { name: 'Cancel / Reset', exact: true }).click();
+    await page.getByRole('button', { name: 'Reset', exact: true }).click();
     await page.getByRole('button', { name: 'Edit Trip', exact: true }).click();
     await expectMetadataMapFieldValues(page, metadataBefore);
     await expect(page.locator('.trip-editor-surface--docked .trip-editor-save-state')).toHaveText('Saved');

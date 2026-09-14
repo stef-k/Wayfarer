@@ -48,6 +48,11 @@ test('captured viewport survives closed settings and unrelated refresh, with equ
   globalThis.window = { addEventListener() {}, removeEventListener() {} };
   const owner = mountDraft();
   try {
+    owner.editor.draft.centerLatitude = 38.5; // Vue's number input emits a number, not a string.
+    owner.editor.draft.centerLongitude = 24;
+    owner.editor.draft.zoom = 10;
+    assert.equal(owner.editor.isDirty, true, 'manual numeric fields retain their existing save contract');
+    owner.editor.resetDraft();
     owner.props.capturedMapView = { center: { latitude: 37.123456, longitude: 23 }, zoom: 9 };
     await nextTick();
     assert.equal(owner.editor.isDirty, false, 'six-decimal equivalence must not dirty persisted metadata');
@@ -101,6 +106,16 @@ test('capture after PATCH starts survives the old response and Save & Exit, then
     await nextTick();
     assert.equal(owner.editor.isDirty, false);
     assert.deepEqual(navigations, ['/User/Trip']);
+    await owner.capture(40);
+    owner.editor.draft.centerLatitude = 39; // Manual edit back to the saved view also permits clean exit.
+    await owner.editor.saveAndExit();
+    assert.equal(navigations.length, 2);
+    await owner.capture(40);
+    globalThis.fetch = async () => new Response('{}', { status: 500 });
+    await owner.editor.saveAndExit();
+    assert.equal(owner.editor.draft.centerLatitude, '40.000000');
+    assert.equal(owner.editor.isDirty, true, 'failed PATCH retains the captured draft');
+    assert.equal(navigations.length, 2, 'failed PATCH retains exit protection');
   } finally { owner.dispose(); globalThis.window = previousWindow; globalThis.fetch = previousFetch; }
 });
 

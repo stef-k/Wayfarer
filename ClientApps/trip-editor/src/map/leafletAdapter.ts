@@ -15,14 +15,14 @@ import { createSegmentRouteDraftPreviewLayer, type SegmentDraftRoutePreview } fr
 import { createSegmentRouteWorkLayer, type SegmentRouteWorkOptions } from './segmentRouteWorkLayer';
 import { createSegmentPresentationLayer } from './segmentPresentationLayer';
 import { createTripEditorTileLayer } from './tileRetryLayer';
+import { allGeometryBounds, applyInitialMapView, fallbackSegmentCoordinates, fitBounds, focusActiveEntity, focusSavedTripView,
+  type FitAllGeometryResult, type FocusActiveEntityResult, type FocusSavedTripViewResult } from './mapNavigation';
+import { createMapViewport, type TripEditorMapView } from './mapViewport';
 export type { AreaPolygonWorkOptions } from './areaPolygonWorkLayer';
 export type { CoordinatePickOptions } from './placeDraftPreviewLayer';
 export type { SegmentRouteWorkOptions } from './segmentRouteWorkLayer';
 export type { SegmentDraftRoutePreview } from './segmentRouteDraftPreviewLayer';
 
-import { allGeometryBounds, applyInitialMapView, fallbackSegmentCoordinates, fitBounds, focusActiveEntity, focusSavedTripView,
-  type FitAllGeometryResult, type FocusActiveEntityResult, type FocusSavedTripViewResult } from './mapNavigation';
-import { createMapViewport, type TripEditorMapView } from './mapViewport';
 export { canFocusActiveEntity, hasAnyGeometry, hasSavedTripView } from './mapNavigation';
 export type { FocusActiveEntityResult } from './mapNavigation';
 export type { TripEditorMapView } from './mapViewport';

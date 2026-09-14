@@ -22,9 +22,11 @@ export const applyInitialMapView = (map: LeafletMap, state: EditorTripState): vo
   map.setView([view.center.latitude, view.center.longitude], view.zoom, { animate: false });
 };
 
+/** Fit all loaded geometry when no saved view or specific target is available. */
 const fitAllGeometry = (map: LeafletMap, state: EditorTripState): FitAllGeometryResult =>
   fitBounds(map, allGeometryBounds(state));
 
+/** Navigate to a valid persisted default, leaving draft ownership to MetadataEditor. */
 export const focusSavedTripView = (map: LeafletMap, metadata: EditorTripMetadata): FocusSavedTripViewResult => {
   if (!hasSavedTripView(metadata)) {
     return 'missing-view';
@@ -34,6 +36,7 @@ export const focusSavedTripView = (map: LeafletMap, metadata: EditorTripMetadata
   return 'moved';
 };
 
+/** Resolve each editor target to its available geometry without inventing missing coordinates. */
 export const focusActiveEntity = (map: LeafletMap, state: EditorTripState, target: EditorTarget | null): FocusActiveEntityResult => {
   if (!target) {
     return 'missing-target';
@@ -93,8 +96,10 @@ export const focusActiveEntity = (map: LeafletMap, state: EditorTripState, targe
   return 'unsupported-target';
 };
 
+/** Drive Fit All availability from the same bounds used by navigation. */
 export const hasAnyGeometry = (state: EditorTripState): boolean => allGeometryBounds(state).isValid();
 
+/** Validate persisted view components before giving them to Leaflet. */
 export const hasSavedTripView = (metadata: EditorTripMetadata): metadata is EditorTripMetadata & { center: EditorCoordinate; zoom: number } =>
   metadata.center !== null &&
   isFiniteCoordinate(metadata.center) &&
@@ -104,6 +109,7 @@ export const hasSavedTripView = (metadata: EditorTripMetadata): metadata is Edit
   metadata.zoom >= 0 &&
   metadata.zoom <= 19;
 
+/** Mirror target focus availability for the toolbar without moving the map. */
 export const canFocusActiveEntity = (state: EditorTripState, target: EditorTarget | null): boolean => {
   if (!target) {
     return false;
@@ -148,6 +154,7 @@ export const canFocusActiveEntity = (state: EditorTripState, target: EditorTarge
   return false;
 };
 
+/** Fit valid bounds with toolbar padding; initial placement explicitly disables animation. */
 export const fitBounds = (map: LeafletMap, bounds: L.LatLngBounds, animate?: boolean): FitAllGeometryResult => {
   if (!bounds.isValid()) {
     return 'no-geometry';
@@ -157,6 +164,7 @@ export const fitBounds = (map: LeafletMap, bounds: L.LatLngBounds, animate?: boo
   return 'moved';
 };
 
+/** Combine region centers, places, areas, and effective segment routes. */
 export const allGeometryBounds = (state: EditorTripState): L.LatLngBounds => {
   const bounds = L.latLngBounds([]);
   Object.values(state.regionsById).forEach(region => extendCoordinate(bounds, region.center));
@@ -166,6 +174,7 @@ export const allGeometryBounds = (state: EditorTripState): L.LatLngBounds => {
   return bounds;
 };
 
+/** Include the region center and its children plus segments touching its places. */
 const regionGeometryBounds = (state: EditorTripState, regionId: Guid): L.LatLngBounds => {
   const bounds = L.latLngBounds([]);
   const regionPlaceIds = new Set<Guid>();
@@ -190,12 +199,14 @@ const regionGeometryBounds = (state: EditorTripState, regionId: Guid): L.LatLngB
   return bounds;
 };
 
+/** Represent an optional coordinate as possibly empty Leaflet bounds. */
 const coordinateBounds = (coordinate: EditorCoordinate | null): L.LatLngBounds => {
   const bounds = L.latLngBounds([]);
   extendCoordinate(bounds, coordinate);
   return bounds;
 };
 
+/** Build bounds only when the requested area exists. */
 const areaBounds = (area: EditorArea | undefined): L.LatLngBounds => {
   const bounds = L.latLngBounds([]);
   if (area) {
@@ -205,6 +216,7 @@ const areaBounds = (area: EditorArea | undefined): L.LatLngBounds => {
   return bounds;
 };
 
+/** Build bounds only when the requested segment exists. */
 const segmentBounds = (segment: EditorSegment | undefined, state: EditorTripState): L.LatLngBounds => {
   const bounds = L.latLngBounds([]);
   if (segment) {
@@ -214,26 +226,31 @@ const segmentBounds = (segment: EditorSegment | undefined, state: EditorTripStat
   return bounds;
 };
 
+/** Ignore missing or non-finite coordinates while gathering geometry. */
 const extendCoordinate = (bounds: L.LatLngBounds, coordinate: EditorCoordinate | null | undefined): void => {
   if (coordinate && isFiniteCoordinate(coordinate)) {
     bounds.extend([coordinate.latitude, coordinate.longitude]);
   }
 };
 
+/** Include every polygon ring in navigation bounds. */
 const extendArea = (bounds: L.LatLngBounds, area: EditorArea): void => {
   area.geometry?.coordinates.flat().forEach(coordinate => extendLongitudeLatitude(bounds, coordinate));
 };
 
+/** Prefer the effective route, then saved custom geometry, then endpoints. */
 const extendSegment = (bounds: L.LatLngBounds, segment: EditorSegment, state: EditorTripState): void => {
   (segment.effectiveRoute?.coordinates ?? segment.route?.coordinates ?? fallbackSegmentCoordinates(segment, state))?.forEach(coordinate => extendLongitudeLatitude(bounds, coordinate));
 };
 
+/** Convert finite GeoJSON coordinate order to Leaflet latitude/longitude order. */
 const extendLongitudeLatitude = (bounds: L.LatLngBounds, [longitude, latitude]: [number, number]): void => {
   if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
     bounds.extend([latitude, longitude]);
   }
 };
 
+/** Guard bounds and persisted-view navigation against malformed numbers. */
 const isFiniteCoordinate = (coordinate: EditorCoordinate): boolean =>
   Number.isFinite(coordinate.latitude) && Number.isFinite(coordinate.longitude);
 

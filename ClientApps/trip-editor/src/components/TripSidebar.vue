@@ -304,7 +304,7 @@ function normalize(value: string): string {
         <section v-show="!mobileDrawerActive || activeMobileTab === 'trip'" class="trip-editor-mobile-drawer__tab trip-editor-mobile-drawer__tab--trip" aria-label="Trip tab" :aria-hidden="mobileDrawerActive && activeMobileTab !== 'trip'" :inert="mobileDrawerActive && activeMobileTab !== 'trip'">
           <MetadataEditor
             :metadata="state.metadata"
-        :captured-map-view="capturedMapView"
+            :captured-map-view="capturedMapView"
             :tags-by-slug="state.tagsBySlug"
             :tag-order="state.tagOrder"
             :tag-options="state.options.tag"

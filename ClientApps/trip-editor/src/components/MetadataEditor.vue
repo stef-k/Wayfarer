@@ -237,7 +237,7 @@ const save = async (exitAfterSave: boolean): Promise<void> => {
   if (!failed) {
     lastSavedAt.value = new Intl.DateTimeFormat(undefined, { timeStyle: 'short' }).format(new Date());
     await nextTick(); // Let authoritative props reconcile before deciding whether a later capture remains.
-    if (exitAfterSave && !hasCapturedView) {
+    if (exitAfterSave && (!hasCapturedView || !isMetadataDirty.value)) {
       leaveEditor();
     }
   }

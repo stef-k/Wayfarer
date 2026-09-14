@@ -27,15 +27,26 @@ test('canonical URLs retain history state, unrelated query keys and hash and rep
   assert.equal(calls[0][2].href, 'https://example.test/editor?tag=a&lat=38.123457&lng=-179.750000&zoom=11#section');
   assert.deepEqual(canonicalMapView({ center: { latitude: -93, longitude: -541 }, zoom: 22 }),
     { center: { latitude: -90, longitude: 179 }, zoom: 19 });
+  const antimeridian = canonicalMapView({ center: { latitude: 0, longitude: 179.99999999 }, zoom: 9 });
+  assert.equal(antimeridian.center.longitude, -180);
+  assert.deepEqual(canonicalMapView(antimeridian), antimeridian, 'rounding remains stable across serialization and reload');
 });
 
 test('only gestures capture: asynchronous commands, paired terminal events, auto-pan, resize and map-work remain transient', () => {
   const previousWindow = globalThis.window;
+  const frames = new Map();
+  let frameId = 0;
   const browser = Object.assign(new EventTarget(), { location: { href: 'https://example.test/editor' },
+    requestAnimationFrame(callback) { frames.set(++frameId, callback); return frameId; },
+    cancelAnimationFrame(id) { frames.delete(id); },
     history: { state: null, replaceState(_state, _title, url) { browser.location.href = String(url); } } });
   globalThis.window = browser;
+  const previousDocument = globalThis.document;
+  globalThis.document = new EventTarget();
   const element = Object.assign(new EventTarget(), { dataset: {}, querySelectorAll: () => [] });
   const events = new EventEmitter();
+  const fire = name => events.emit(name, { type: name });
+  const frame = () => { const callbacks = [...frames.values()]; frames.clear(); callbacks.forEach(callback => callback()); };
   let current = structuredClone(base);
   let work = false;
   const captures = [];
@@ -43,6 +54,7 @@ test('only gestures capture: asynchronous commands, paired terminal events, auto
   const map = { getContainer: () => element, getCenter: () => ({ lat: current.center.latitude, lng: current.center.longitude }),
     getZoom: () => current.zoom, options: { wheelDebounceTime: 40 },
     scrollWheelZoom: { enabled: () => true }, keyboard: { enabled: () => true }, touchZoom: { enabled: () => true },
+    doubleClickZoom: { enabled: () => true },
     on: (names, fn) => names.split(' ').forEach(name => events.on(name, fn)),
     off: (names, fn) => names.split(' ').forEach(name => events.off(name, fn)) };
   const owner = createMapViewport(map, { canCapture: () => !work, onCaptured: view => captures.push(view) });
@@ -54,9 +66,12 @@ test('only gestures capture: asynchronous commands, paired terminal events, auto
   try {
     owner.initialize(() => finish(38));
     assert.equal(browser.location.href, 'https://example.test/editor', 'initial placement leaves clean URL clean');
-    element.dispatchEvent(new Event('wheel'));
-    events.emit('zoomstart');
-    owner.navigate(() => events.emit('movestart'));
+    frame();
+    owner.navigate(() => {}); // The command's animation start is deferred until the next frame.
+    element.dispatchEvent(new Event('wheel')); // This input must not claim the queued command's movement.
+    fire('zoomstart');
+    fire('movestart');
+    frame();
     finish(39); // Terminal pair arrives after the command call returned.
     events.emit('moveend');
     assert.equal(captures.length, 0);
@@ -76,13 +91,26 @@ test('only gestures capture: asynchronous commands, paired terminal events, auto
     finish(43);
     assert.equal(captures.length, 1);
     element.dispatchEvent(new Event('wheel'));
-    events.emit('zoomstart');
+    fire('zoomstart');
     finish(44, 10);
     assert.equal(captures.length, 2);
     assert.equal(element.dataset.tripEditorMapLat, '44.000000');
+    element.dispatchEvent(Object.assign(new Event('keydown'), { keyCode: 39 }));
+    fire('movestart');
+    finish(45, 10);
+    element.dispatchEvent(Object.assign(new Event('touchstart'), { touches: [{}, {}] }));
+    fire('zoomstart');
+    finish(46, 11);
+    for (const pointerId of [1, 2]) element.dispatchEvent(Object.assign(new Event('pointerdown'), { pointerId, pointerType: 'touch' }));
+    fire('zoomstart');
+    finish(47, 12);
+    element.dispatchEvent(new Event('dblclick'));
+    fire('zoomstart');
+    finish(48, 13);
+    assert.equal(captures.length, 6, 'keyboard, native/pointer pinch, and double-click are recognized gestures');
     owner.dispose();
     events.emit('dragstart');
-    finish(45);
-    assert.equal(captures.length, 2, 'disposed listeners no longer publish');
-  } finally { owner.dispose(); globalThis.window = previousWindow; }
+    finish(49);
+    assert.equal(captures.length, 6, 'disposed listeners no longer publish');
+  } finally { owner.dispose(); globalThis.window = previousWindow; globalThis.document = previousDocument; }
 });
