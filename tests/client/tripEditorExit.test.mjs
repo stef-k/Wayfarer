@@ -119,6 +119,44 @@ test('capture after PATCH starts survives the old response and Save & Exit, then
   } finally { owner.dispose(); globalThis.window = previousWindow; globalThis.fetch = previousFetch; }
 });
 
+// A capture owns the current manual values even when no field assignment is needed.
+test('capture matching a manual zoom edit survives an older PATCH and saves on retry', async () => {
+  const previousWindow = globalThis.window;
+  const previousFetch = globalThis.fetch;
+  const navigations = [];
+  globalThis.window = { addEventListener() {}, removeEventListener() {}, location: { assign: url => navigations.push(url) } };
+  const owner = mountDraft();
+  let complete;
+  const requests = [];
+  globalThis.fetch = async (_url, options) => {
+    const body = JSON.parse(options.body);
+    requests.push(body);
+    await new Promise(resolve => { complete = resolve; });
+    const metadata = { ...owner.props.metadata, ...body };
+    return new Response(JSON.stringify({ data: metadata, affected: { metadata }, warnings: [] }));
+  };
+  try {
+    await owner.capture(38, 10);
+    const saving = owner.editor.saveAndExit();
+    assert.equal(requests[0].zoom, 10);
+    owner.editor.draft.zoom = 11; // Match the still-enabled numeric input's value.
+    await owner.capture(38, 11);
+    complete();
+    await saving;
+    await nextTick();
+    assert.equal(owner.editor.draft.zoom, 11);
+    assert.equal(owner.editor.isMetadataDirty, true);
+    assert.deepEqual(navigations, [], 'the newer unsaved view must retain the editor');
+    const retry = owner.editor.saveAndExit();
+    assert.equal(requests[1].zoom, 11);
+    complete();
+    await retry;
+    await nextTick();
+    assert.equal(owner.editor.isDirty, false);
+    assert.deepEqual(navigations, ['/User/Trip']);
+  } finally { owner.dispose(); globalThis.window = previousWindow; globalThis.fetch = previousFetch; }
+});
+
 test('custom exit confirmation replaces the native warning only after approval and successful save', async () => {
   const previousWindow = globalThis.window;
   const previousFetch = globalThis.fetch;
