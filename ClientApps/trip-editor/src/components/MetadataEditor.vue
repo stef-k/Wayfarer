@@ -122,11 +122,12 @@ watch(
 watch(() => props.capturedMapView, view => {
   if (!view) return;
   const captured = capturedViewDraft(view);
-  if (equivalentViewDraft(draft, captured)) return;
   const matchesSaved = equivalentViewDraft(persistedDraft.value, captured);
-  Object.assign(draft, matchesSaved ? viewDraft(persistedDraft.value) : captured);
+  // Capture ownership advances even when manual fields already match, fencing older PATCH responses.
   captureRevision++;
   hasCapturedView = !matchesSaved;
+  if (equivalentViewDraft(draft, captured)) return;
+  Object.assign(draft, matchesSaved ? viewDraft(persistedDraft.value) : captured);
 }, { flush: 'sync' });
 
 watch(tagInput, () => {
