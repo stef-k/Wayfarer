@@ -28,6 +28,16 @@ Trips are **private by default**; you can make them public to share with others.
 
 ---
 
+## Trip Map View
+
+Pan or zoom the map in normal navigation mode to capture its center and zoom into the **Trip Settings** draft, even while Settings is closed. Open **Edit Trip** and use **Save & Continue** or **Save & Exit** to persist that default view. Moving the map alone does not save to the server. The manual Center Latitude, Center Longitude, and Zoom fields remain available.
+
+**Fit All**, **Recenter Saved Trip View**, **Focus Active Entity**, place selection, and search previews only navigate the map. Place picking, Area drawing, and Segment route work also leave the Trip default-view draft unchanged.
+
+After navigation, the browser URL describes the live view with `lat` and `lng` at six decimal places and integer `zoom`. Movement replaces the current history entry while preserving other query parameters and the hash. Opening a clean editor URL leaves it clean until navigation. Valid URL components override the saved view independently; missing or invalid components use the saved view, loaded geometry, or global fallback. Latitude must be within -90..90, longitude within -180..180, and zoom within 0..19. A URL override does not create unsaved metadata changes.
+
+**Cancel / Reset** discards the captured metadata draft without moving the map or changing its URL. A later pan or zoom captures a new draft. Captures survive unrelated editor saves; if you move the map while a metadata save is in progress, the newer view remains unsaved and **Save & Exit** keeps the editor open so you can save it again. Save failures retain the draft and its unsaved-changes protection.
+
 ## Regions and Places
 
 Trip Editor map search runs only when you explicitly submit the search form; it does not search while you type. A current active personal Geoapify geocoding selection supplies attributed results when its shared allowance permits, while the disclosed public Nominatim fallback covers no selection, Mapbox selection, or exhausted Geoapify allowance. Manual Place entry remains available.

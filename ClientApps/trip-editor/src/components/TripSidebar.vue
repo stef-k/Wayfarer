@@ -7,7 +7,7 @@ import MapSearchControl from './MapSearchControl.vue';
 import RegionManager from './RegionManager.vue';
 import SegmentManager from './SegmentManager.vue';
 import VisitProgressSurface from './VisitProgressSurface.vue';
-import type { AreaPolygonWorkOptions, PlaceDraftMarkerPreview, SegmentDraftRoutePreview } from '../map/leafletAdapter';
+import type { TripEditorMapView, AreaPolygonWorkOptions, PlaceDraftMarkerPreview, SegmentDraftRoutePreview } from '../map/leafletAdapter';
 import type { EditorSegmentDraftPresentation, SegmentPresentationKey } from '../segments/editorSegmentPresentation';
 import type { PlaceCoordinatePicker } from './placeCoordinateMapWork';
 import type { SegmentRouteEditor } from './segmentRouteMapWork';
@@ -21,6 +21,8 @@ type SidebarSearchResult = {
 
 const props = defineProps<{
   state: EditorTripState;
+  /** Pass user viewport notifications to the persistent metadata draft owner. */
+  capturedMapView?: TripEditorMapView | null;
   editorSurface: EditorSurfaceController;
   editorEndpoint: string;
   antiforgeryToken: string;
@@ -302,6 +304,7 @@ function normalize(value: string): string {
         <section v-show="!mobileDrawerActive || activeMobileTab === 'trip'" class="trip-editor-mobile-drawer__tab trip-editor-mobile-drawer__tab--trip" aria-label="Trip tab" :aria-hidden="mobileDrawerActive && activeMobileTab !== 'trip'" :inert="mobileDrawerActive && activeMobileTab !== 'trip'">
           <MetadataEditor
             :metadata="state.metadata"
+            :captured-map-view="capturedMapView"
             :tags-by-slug="state.tagsBySlug"
             :tag-order="state.tagOrder"
             :tag-options="state.options.tag"

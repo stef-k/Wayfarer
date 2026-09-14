@@ -1,9 +1,11 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import { EditorValidationError, patchMetadata, patchShareProgress, putTags, suggestTags } from '../api/tripEditorApi';
 import { confirm } from '../composables/useConfirmDialog';
 import type { EditorSurfaceController, EditorTarget } from '../composables/useEditorSurface';
-import { normalizeNotesHtml } from '../notes/notesHtml';
+import type { TripEditorMapView } from '../map/mapViewport';
+import { buildMetadataRequest, capturedViewDraft, equivalentViewDraft, normalizeTagNameKey, normalizeTagNames,
+  toDraft, toMetadataDraft, viewDraft, type MetadataDraft } from './metadataDraft';
 import EditorSurface from './EditorSurface.vue';
 import RichNotesEditor from './RichNotesEditor.vue';
 import type {
@@ -11,13 +13,14 @@ import type {
   EditorOptions,
   EditorTag,
   EditorTripMetadata,
-  EditorTripMetadataUpdateRequest,
   EditorWarning,
   TagSuggestion
 } from '../types';
 
 const props = defineProps<{
   metadata: EditorTripMetadata;
+  /** A new adapter gesture notification; MetadataEditor remains the sole draft owner. */
+  capturedMapView?: TripEditorMapView | null;
   tagsBySlug: Record<string, EditorTag>;
   tagOrder: string[];
   tagOptions: EditorOptions['tag'];
@@ -34,18 +37,6 @@ const emit = defineEmits<{
   mutationApplied: [result: EditorMutationResult<unknown>];
 }>();
 
-type MetadataDraft = {
-  name: string;
-  isPublic: boolean;
-  shareProgressEnabled: boolean;
-  notesHtml: string;
-  coverImageRawUrl: string;
-  centerLatitude: string;
-  centerLongitude: string;
-  zoom: string;
-  tags: string[];
-};
-
 const draft = reactive<MetadataDraft>(toDraft(props.metadata, props.tagOrder, props.tagsBySlug));
 const isSaving = ref(false);
 const lastSavedAt = ref<string | null>(null);
@@ -58,6 +49,8 @@ const tagSuggestions = ref<TagSuggestion[]>([]);
 const tagSuggestionError = ref<string | null>(null);
 let unregisterSurfaceHandler: (() => void) | null = null;
 let suggestionRequestId = 0;
+let captureRevision = 0;
+let hasCapturedView = false;
 
 const persistedDraft = computed(() => toDraft(props.metadata, props.tagOrder, props.tagsBySlug));
 const isMetadataDirty = computed(() => JSON.stringify(buildMetadataRequest(draft)) !== JSON.stringify(buildMetadataRequest(persistedDraft.value)));
@@ -116,11 +109,26 @@ watch(
       return;
     }
 
-    Object.assign(draft, toDraft(props.metadata, props.tagOrder, props.tagsBySlug));
+    // applyMutation can rebuild tag props while settings are closed or another editor is active.
+    hasCapturedView = hasCapturedView && !equivalentViewDraft(draft, persistedDraft.value);
+    const retainedView = hasCapturedView ? viewDraft(draft) : {};
+    Object.assign(draft, persistedDraft.value, retainedView);
     validationErrors.value = {};
     saveError.value = null;
   }
 );
+
+// Consume notifications once; reset must not replay the last capture prop.
+watch(() => props.capturedMapView, view => {
+  if (!view) return;
+  const captured = capturedViewDraft(view);
+  const matchesSaved = equivalentViewDraft(persistedDraft.value, captured);
+  // Capture ownership advances even when manual fields already match, fencing older PATCH responses.
+  captureRevision++;
+  hasCapturedView = !matchesSaved;
+  if (equivalentViewDraft(draft, captured)) return;
+  Object.assign(draft, matchesSaved ? viewDraft(persistedDraft.value) : captured);
+}, { flush: 'sync' });
 
 watch(tagInput, () => {
   void loadTagSuggestions();
@@ -161,6 +169,7 @@ onUnmounted(() => {
 });
 
 const resetDraft = (): void => {
+  hasCapturedView = false;
   Object.assign(draft, toDraft(props.metadata, props.tagOrder, props.tagsBySlug));
   tagInput.value = '';
   tagSuggestions.value = [];
@@ -189,10 +198,14 @@ const save = async (exitAfterSave: boolean): Promise<void> => {
 
   try {
     if (isMetadataDirty.value) {
+      const submittedCaptureRevision = captureRevision;
       const result = await patchMetadata(props.editorEndpoint, props.antiforgeryToken, buildMetadataRequest(draft));
       savedMetadata = result.affected.metadata ?? result.data;
       warnings.value = result.warnings;
-      Object.assign(draft, { ...draft, ...toMetadataDraft(savedMetadata) });
+      // The response acknowledges only the submitted capture, never a gesture made during PATCH.
+      const retainedView = captureRevision !== submittedCaptureRevision ? viewDraft(draft) : {};
+      Object.assign(draft, toMetadataDraft(savedMetadata), retainedView);
+      hasCapturedView = !equivalentViewDraft(draft, toMetadataDraft(savedMetadata));
       emit('saved', savedMetadata);
       emit('mutationApplied', result as EditorMutationResult<unknown>);
     }
@@ -224,7 +237,8 @@ const save = async (exitAfterSave: boolean): Promise<void> => {
 
   if (!failed) {
     lastSavedAt.value = new Intl.DateTimeFormat(undefined, { timeStyle: 'short' }).format(new Date());
-    if (exitAfterSave) {
+    await nextTick(); // Let authoritative props reconcile before deciding whether a later capture remains.
+    if (exitAfterSave && (!hasCapturedView || !isMetadataDirty.value)) {
       leaveEditor();
     }
   }
@@ -318,65 +332,8 @@ function removeTag(index: number): void {
   draft.tags.splice(index, 1);
 }
 
-function toDraft(metadata: EditorTripMetadata, tagOrder: string[], tagsBySlug: Record<string, EditorTag>): MetadataDraft {
-  return {
-    ...toMetadataDraft(metadata),
-    tags: tagOrder.map(slug => tagsBySlug[slug]?.name).filter(Boolean) as string[]
-  };
-}
-
-function toMetadataDraft(metadata: EditorTripMetadata): Omit<MetadataDraft, 'tags'> {
-  return {
-    name: metadata.name,
-    isPublic: metadata.isPublic,
-    shareProgressEnabled: metadata.isPublic && metadata.shareProgressEnabled,
-    notesHtml: normalizeNotesHtml(metadata.notesHtml),
-    coverImageRawUrl: metadata.coverImage?.rawUrl ?? '',
-    centerLatitude: metadata.center ? String(metadata.center.latitude) : '',
-    centerLongitude: metadata.center ? String(metadata.center.longitude) : '',
-    zoom: metadata.zoom === null ? '' : String(metadata.zoom)
-  };
-}
-
 function normalizeShareProgress(value: MetadataDraft): boolean {
   return value.isPublic && props.metadata.isPublic && value.shareProgressEnabled;
-}
-
-function buildMetadataRequest(value: MetadataDraft): EditorTripMetadataUpdateRequest {
-  const centerLatitude = value.centerLatitude.trim();
-  const centerLongitude = value.centerLongitude.trim();
-  const zoom = value.zoom.trim();
-  const coverImageRawUrl = value.coverImageRawUrl.trim();
-  const hasPartialCenter = Boolean(centerLatitude || centerLongitude);
-
-  return {
-    name: value.name,
-    notesHtml: normalizeNotesHtml(value.notesHtml),
-    isPublic: value.isPublic,
-    coverImage: coverImageRawUrl ? { rawUrl: coverImageRawUrl } : null,
-    center: hasPartialCenter
-      ? { latitude: centerLatitude ? Number(centerLatitude) : Number.NaN, longitude: centerLongitude ? Number(centerLongitude) : Number.NaN }
-      : null,
-    zoom: zoom ? Number(zoom) : null
-  };
-}
-
-function normalizeTagNames(values: string[]): string[] {
-  const seen = new Set<string>();
-  const tags: string[] = [];
-  values.forEach(value => {
-    const tag = value.trim();
-    const key = normalizeTagNameKey(tag);
-    if (tag && !seen.has(key)) {
-      seen.add(key);
-      tags.push(tag);
-    }
-  });
-  return tags;
-}
-
-function normalizeTagNameKey(value: string): string {
-  return value.trim().toLocaleLowerCase();
 }
 
 const fieldErrors = (key: string): string[] => validationErrors.value[key] ?? [];

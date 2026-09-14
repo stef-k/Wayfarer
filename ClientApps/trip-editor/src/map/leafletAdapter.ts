@@ -15,15 +15,17 @@ import { createSegmentRouteDraftPreviewLayer, type SegmentDraftRoutePreview } fr
 import { createSegmentRouteWorkLayer, type SegmentRouteWorkOptions } from './segmentRouteWorkLayer';
 import { createSegmentPresentationLayer } from './segmentPresentationLayer';
 import { createTripEditorTileLayer } from './tileRetryLayer';
+import { allGeometryBounds, applyInitialMapView, fallbackSegmentCoordinates, fitBounds, focusActiveEntity, focusSavedTripView,
+  type FitAllGeometryResult, type FocusActiveEntityResult, type FocusSavedTripViewResult } from './mapNavigation';
+import { createMapViewport, type TripEditorMapView } from './mapViewport';
 export type { AreaPolygonWorkOptions } from './areaPolygonWorkLayer';
 export type { CoordinatePickOptions } from './placeDraftPreviewLayer';
 export type { SegmentRouteWorkOptions } from './segmentRouteWorkLayer';
 export type { SegmentDraftRoutePreview } from './segmentRouteDraftPreviewLayer';
 
-export type FitAllGeometryResult = 'moved' | 'no-geometry';
-export type FocusSavedTripViewResult = 'moved' | 'missing-view';
-export type FocusActiveEntityResult = 'moved' | 'missing-target' | 'no-geometry' | 'unsupported-target';
-export type InitialMapViewSource = 'url' | 'saved' | 'fit-bounds' | 'fallback';
+export { canFocusActiveEntity, hasAnyGeometry, hasSavedTripView } from './mapNavigation';
+export type { FocusActiveEntityResult } from './mapNavigation';
+export type { TripEditorMapView } from './mapViewport';
 
 interface TripEditorMapAdapter {
   render: (state: EditorTripState, hiddenSegmentIds?: ReadonlySet<Guid>, selectedPlaceId?: Guid | null) => void;
@@ -44,11 +46,6 @@ interface TripEditorMapAdapter {
   dispose: () => void;
 }
 
-export interface TripEditorMapView {
-  center: EditorCoordinate;
-  zoom: number;
-}
-
 export interface PlaceDraftMarkerPreview extends Pick<EditorPlace, 'iconName' | 'markerColor'> {
   coordinate: EditorCoordinate | null;
   label: string;
@@ -56,6 +53,9 @@ export interface PlaceDraftMarkerPreview extends Pick<EditorPlace, 'iconName' | 
 }
 
 export interface TripEditorMapOptions {
+  /** Capture is permitted only for a recognized gesture outside map-work. */
+  onMapViewCaptured?: (view: TripEditorMapView) => void;
+  canCaptureTripView?: () => boolean;
   onPlaceSelected?: (placeId: Guid) => boolean | Promise<boolean>;
   onSegmentSelected?: (key: SegmentPresentationKey) => boolean | Promise<boolean>;
 }
@@ -67,6 +67,10 @@ export interface SelectPlaceOptions {
 
 export const createTripEditorMap = (element: HTMLElement, tilesUrl: string, options: TripEditorMapOptions = {}): TripEditorMapAdapter => {
   const map = L.map(element, { zoomControl: true }).setView([20, 0], 2);
+  const viewport = createMapViewport(map, {
+    onCaptured: options.onMapViewCaptured,
+    canCapture: () => options.canCaptureTripView?.() ?? true
+  });
   const layers = L.layerGroup().addTo(map);
   const searchPreview = createSearchPreviewLayer(map);
   const placeDraftPreview = createPlaceDraftPreviewLayer(map);
@@ -80,19 +84,11 @@ export const createTripEditorMap = (element: HTMLElement, tilesUrl: string, opti
   let activePlaceDraftPreview: PlaceDraftMarkerPreview | null = null;
   let lastRenderedState: EditorTripState | null = null;
   let lastHiddenSegmentIds: ReadonlySet<Guid> = new Set();
-  const updateMapViewDataset = (): void => {
-    const center = map.getCenter();
-    element.dataset.tripEditorMapLat = center.lat.toFixed(6);
-    element.dataset.tripEditorMapLng = center.lng.toFixed(6);
-    element.dataset.tripEditorMapZoom = String(map.getZoom());
-  };
   let selectedPlaceId: Guid | null = null;
   let activeSegmentKey: SegmentPresentationKey | null = null;
   let activeSegmentDraft: EditorSegmentDraftPresentation | null = null;
   let initialViewApplied = false;
   const prepareMapWork = (): void => { searchPreview.clear(); mapUtilities.cancelMeasure(); };
-
-  map.on('moveend zoomend', updateMapViewDataset);
 
   // The shared layout supplies final provider-safe attribution for every map client.
   createTripEditorTileLayer(tilesUrl, {
@@ -134,9 +130,8 @@ export const createTripEditorMap = (element: HTMLElement, tilesUrl: string, opti
 
     if (!initialViewApplied) {
       initialViewApplied = true;
-      applyInitialMapView(map, state);
+      viewport.initialize(() => applyInitialMapView(map, state));
     }
-    updateMapViewDataset();
     applySelectedPlaceMarker(placeMarkers, selectedPlaceId);
     applyActivePlaceDraftPreview(state);
     segmentDraftPreview.render(state, hiddenSegmentIds, segmentRouteWork.isActive());
@@ -183,10 +178,7 @@ export const createTripEditorMap = (element: HTMLElement, tilesUrl: string, opti
   return {
     render,
     clearSearchPreview: searchPreview.clear,
-    getMapView: () => {
-      const center = map.getCenter();
-      return { center: { latitude: center.lat, longitude: center.lng }, zoom: map.getZoom() };
-    },
+    getMapView: viewport.getView,
     selectPlace: (state, placeId, selectOptions = {}) => {
       selectedPlaceId = placeId && state.placesById[placeId] ? placeId : null;
       applySelectedPlaceMarker(placeMarkers, selectedPlaceId);
@@ -194,7 +186,7 @@ export const createTripEditorMap = (element: HTMLElement, tilesUrl: string, opti
         map.closePopup();
       }
       if (selectedPlaceId) {
-        focusSelectedPlace(map, state, placeMarkers, selectedPlaceId, selectOptions);
+        viewport.navigate(() => focusSelectedPlace(map, state, placeMarkers, selectedPlaceId!, selectOptions));
       }
     },
     setPlaceDraftPreview,
@@ -204,14 +196,14 @@ export const createTripEditorMap = (element: HTMLElement, tilesUrl: string, opti
       activeSegmentDraft = draft;
       render(state, lastHiddenSegmentIds, selectedPlaceId);
     },
-    startCoordinatePick: options => (prepareMapWork(), coordinatePick.start(options)),
-    startAreaPolygonWork: options => (prepareMapWork(), areaPolygonWork.start(options)),
+    startCoordinatePick: options => viewport.navigate(() => (prepareMapWork(), coordinatePick.start(options))),
+    startAreaPolygonWork: options => viewport.navigate(() => (prepareMapWork(), areaPolygonWork.start(options))),
     startSegmentRouteWork: options => {
       prepareMapWork();
       if (lastRenderedState) {
         segmentDraftPreview.render(lastRenderedState, lastHiddenSegmentIds, true);
       }
-      const stop = segmentRouteWork.start(options);
+      const stop = viewport.navigate(() => segmentRouteWork.start(options));
       return () => {
         stop();
         if (lastRenderedState) {
@@ -220,10 +212,10 @@ export const createTripEditorMap = (element: HTMLElement, tilesUrl: string, opti
       };
     },
     setSegmentRouteWorkState: state => segmentRouteWork.setState(state),
-    fitAllGeometry: state => fitBounds(map, segmentDraftPreview.extendBounds(allGeometryBounds(state))),
-    focusSavedTripView: metadata => focusSavedTripView(map, metadata),
-    focusActiveEntity: (state, target) => segmentDraftPreview.focus(target) ?? focusActiveEntity(map, state, target),
-    showSearchPreview: searchPreview.show,
+    fitAllGeometry: state => viewport.navigate(() => fitBounds(map, segmentDraftPreview.extendBounds(allGeometryBounds(state)))),
+    focusSavedTripView: metadata => viewport.navigate(() => focusSavedTripView(map, metadata)),
+    focusActiveEntity: (state, target) => viewport.navigate(() => segmentDraftPreview.focus(target) ?? focusActiveEntity(map, state, target)),
+    showSearchPreview: (coordinate, label) => viewport.navigate(() => searchPreview.show(coordinate, label)),
     dispose: () => {
       searchPreview.dispose();
       placeDraftPreview.dispose();
@@ -233,7 +225,7 @@ export const createTripEditorMap = (element: HTMLElement, tilesUrl: string, opti
       segmentDraftPreview.dispose();
       segmentPresentation.dispose();
       mapUtilities.remove();
-      map.off('moveend zoomend', updateMapViewDataset);
+      viewport.dispose();
       map.remove();
     }
   };
@@ -345,264 +337,6 @@ const renderSegment = (segment: EditorSegment, state: EditorTripState, layers: L
     element.setAttribute('data-route-owner', 'saved');
     element.setAttribute('data-route-kind', segment.hasCustomRoute ? 'custom' : 'fallback');
   }
-};
-
-const fallbackSegmentCoordinates = (segment: EditorSegment, state: EditorTripState): Array<[number, number]> | null => {
-  const from = segment.fromPlaceId ? state.placesById[segment.fromPlaceId]?.location : null;
-  const to = segment.toPlaceId ? state.placesById[segment.toPlaceId]?.location : null;
-  return from && to ? [[from.longitude, from.latitude], [to.longitude, to.latitude]] : null;
-};
-
-const applyInitialMapView = (map: LeafletMap, state: EditorTripState): InitialMapViewSource => {
-  const urlView = readUrlMapView(window.location.search);
-  if (urlView) {
-    map.setView([urlView.center.latitude, urlView.center.longitude], urlView.zoom);
-    return 'url';
-  }
-
-  if (focusSavedTripView(map, state.metadata) === 'moved') {
-    return 'saved';
-  }
-
-  if (fitAllGeometry(map, state) === 'moved') {
-    return 'fit-bounds';
-  }
-
-  return 'fallback';
-};
-
-const fitAllGeometry = (map: LeafletMap, state: EditorTripState): FitAllGeometryResult =>
-  fitBounds(map, allGeometryBounds(state));
-
-const focusSavedTripView = (map: LeafletMap, metadata: EditorTripMetadata): FocusSavedTripViewResult => {
-  if (!hasSavedTripView(metadata)) {
-    return 'missing-view';
-  }
-
-  map.setView([metadata.center.latitude, metadata.center.longitude], metadata.zoom);
-  return 'moved';
-};
-
-const focusActiveEntity = (map: LeafletMap, state: EditorTripState, target: EditorTarget | null): FocusActiveEntityResult => {
-  if (!target) {
-    return 'missing-target';
-  }
-
-  if (target.kind === 'metadata') {
-    return focusSavedTripView(map, state.metadata) === 'moved' ? 'moved' : fitAllGeometry(map, state);
-  }
-
-  if (target.kind === 'region') {
-    if (target.mode !== 'edit' || !target.entityId) {
-      return 'no-geometry';
-    }
-
-    return fitBounds(map, regionGeometryBounds(state, target.entityId));
-  }
-
-  if (target.kind === 'place') {
-    if (target.mode === 'add') {
-      return target.parentRegionId ? fitBounds(map, regionGeometryBounds(state, target.parentRegionId)) : 'no-geometry';
-    }
-
-    if (!target.entityId) {
-      return 'missing-target';
-    }
-
-    const place = state.placesById[target.entityId];
-    if (!place) {
-      return 'missing-target';
-    }
-
-    return fitBounds(map, coordinateBounds(place.location));
-  }
-
-  if (target.kind === 'area') {
-    if (target.mode === 'add') {
-      return target.parentRegionId ? fitBounds(map, regionGeometryBounds(state, target.parentRegionId)) : 'no-geometry';
-    }
-
-    if (!target.entityId) {
-      return 'missing-target';
-    }
-
-    const area = state.areasById[target.entityId];
-    return area ? fitBounds(map, areaBounds(area)) : 'missing-target';
-  }
-
-  if (target.kind === 'segment') {
-    if (target.mode !== 'edit' || !target.entityId) {
-      return allGeometryBounds(state).isValid() ? fitAllGeometry(map, state) : 'no-geometry';
-    }
-
-    const segment = state.segmentsById[target.entityId];
-    return segment ? fitBounds(map, segmentBounds(segment, state)) : 'missing-target';
-  }
-
-  return 'unsupported-target';
-};
-
-export const hasAnyGeometry = (state: EditorTripState): boolean => allGeometryBounds(state).isValid();
-
-export const hasSavedTripView = (metadata: EditorTripMetadata): metadata is EditorTripMetadata & { center: EditorCoordinate; zoom: number } =>
-  metadata.center !== null &&
-  isFiniteCoordinate(metadata.center) &&
-  metadata.zoom !== null &&
-  Number.isFinite(metadata.zoom) &&
-  metadata.zoom >= 0 &&
-  metadata.zoom <= 19;
-
-export const canFocusActiveEntity = (state: EditorTripState, target: EditorTarget | null): boolean => {
-  if (!target) {
-    return false;
-  }
-
-  if (target.kind === 'metadata') {
-    return hasSavedTripView(state.metadata) || hasAnyGeometry(state);
-  }
-
-  if (target.kind === 'region') {
-    return target.mode === 'edit' && Boolean(target.entityId) && regionGeometryBounds(state, target.entityId!).isValid();
-  }
-
-  if (target.kind === 'place') {
-    if (target.mode === 'add') {
-      return Boolean(target.parentRegionId) && regionGeometryBounds(state, target.parentRegionId!).isValid();
-    }
-
-    if (!target.entityId) {
-      return false;
-    }
-
-    return coordinateBounds(state.placesById[target.entityId]?.location ?? null).isValid();
-  }
-
-  if (target.kind === 'area') {
-    if (target.mode === 'add') {
-      return Boolean(target.parentRegionId) && regionGeometryBounds(state, target.parentRegionId!).isValid();
-    }
-
-    return Boolean(target.entityId) && areaBounds(state.areasById[target.entityId!]).isValid();
-  }
-
-  if (target.kind === 'segment') {
-    if (target.mode === 'add') {
-      return hasAnyGeometry(state);
-    }
-
-    return Boolean(target.entityId) && segmentBounds(state.segmentsById[target.entityId!], state).isValid();
-  }
-
-  return false;
-};
-
-const fitBounds = (map: LeafletMap, bounds: L.LatLngBounds): FitAllGeometryResult => {
-  if (!bounds.isValid()) {
-    return 'no-geometry';
-  }
-
-  map.fitBounds(bounds, { padding: [32, 32], maxZoom: 12 });
-  return 'moved';
-};
-
-const allGeometryBounds = (state: EditorTripState): L.LatLngBounds => {
-  const bounds = L.latLngBounds([]);
-  Object.values(state.regionsById).forEach(region => extendCoordinate(bounds, region.center));
-  Object.values(state.placesById).forEach(place => extendCoordinate(bounds, place.location));
-  Object.values(state.areasById).forEach(area => extendArea(bounds, area));
-  Object.values(state.segmentsById).forEach(segment => extendSegment(bounds, segment, state));
-  return bounds;
-};
-
-const regionGeometryBounds = (state: EditorTripState, regionId: Guid): L.LatLngBounds => {
-  const bounds = L.latLngBounds([]);
-  const regionPlaceIds = new Set<Guid>();
-
-  Object.values(state.placesById).forEach(place => {
-    if (place.regionId === regionId) {
-      regionPlaceIds.add(place.id);
-      extendCoordinate(bounds, place.location);
-    }
-  });
-  Object.values(state.areasById).forEach(area => {
-    if (area.regionId === regionId) {
-      extendArea(bounds, area);
-    }
-  });
-  Object.values(state.segmentsById).forEach(segment => {
-    if ((segment.fromPlaceId && regionPlaceIds.has(segment.fromPlaceId)) || (segment.toPlaceId && regionPlaceIds.has(segment.toPlaceId))) {
-      extendSegment(bounds, segment, state);
-    }
-  });
-  extendCoordinate(bounds, state.regionsById[regionId]?.center ?? null);
-  return bounds;
-};
-
-const coordinateBounds = (coordinate: EditorCoordinate | null): L.LatLngBounds => {
-  const bounds = L.latLngBounds([]);
-  extendCoordinate(bounds, coordinate);
-  return bounds;
-};
-
-const areaBounds = (area: EditorArea | undefined): L.LatLngBounds => {
-  const bounds = L.latLngBounds([]);
-  if (area) {
-    extendArea(bounds, area);
-  }
-
-  return bounds;
-};
-
-const segmentBounds = (segment: EditorSegment | undefined, state: EditorTripState): L.LatLngBounds => {
-  const bounds = L.latLngBounds([]);
-  if (segment) {
-    extendSegment(bounds, segment, state);
-  }
-
-  return bounds;
-};
-
-const extendCoordinate = (bounds: L.LatLngBounds, coordinate: EditorCoordinate | null | undefined): void => {
-  if (coordinate && isFiniteCoordinate(coordinate)) {
-    bounds.extend([coordinate.latitude, coordinate.longitude]);
-  }
-};
-
-const extendArea = (bounds: L.LatLngBounds, area: EditorArea): void => {
-  area.geometry?.coordinates.flat().forEach(coordinate => extendLongitudeLatitude(bounds, coordinate));
-};
-
-const extendSegment = (bounds: L.LatLngBounds, segment: EditorSegment, state: EditorTripState): void => {
-  (segment.effectiveRoute?.coordinates ?? segment.route?.coordinates ?? fallbackSegmentCoordinates(segment, state))?.forEach(coordinate => extendLongitudeLatitude(bounds, coordinate));
-};
-
-const extendLongitudeLatitude = (bounds: L.LatLngBounds, [longitude, latitude]: [number, number]): void => {
-  if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
-    bounds.extend([latitude, longitude]);
-  }
-};
-
-const isFiniteCoordinate = (coordinate: EditorCoordinate): boolean =>
-  Number.isFinite(coordinate.latitude) && Number.isFinite(coordinate.longitude);
-
-const readUrlMapView = (search: string): { center: EditorCoordinate; zoom: number } | null => {
-  const parameters = new URLSearchParams(search);
-  const latitudeValue = parameters.get('lat');
-  const longitudeValue = parameters.get('lng');
-  const zoomValue = parameters.get('zoom');
-  if (latitudeValue === null || longitudeValue === null || zoomValue === null) {
-    return null;
-  }
-
-  const latitude = Number(latitudeValue);
-  const longitude = Number(longitudeValue);
-  const zoom = Number(zoomValue);
-  if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || !Number.isFinite(zoom) || zoom < 0 || zoom > 19) {
-    return null;
-  }
-
-  const center = { latitude, longitude };
-  return isFiniteCoordinate(center) ? { center, zoom } : null;
 };
 
 const segmentLabel = (segment: EditorSegment, state: EditorTripState): string => {

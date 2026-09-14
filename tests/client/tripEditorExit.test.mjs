@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import { parse, compileScript } from '@vue/compiler-sfc';
 import { build } from 'esbuild';
-import { createSSRApp, h, proxyRefs } from 'vue';
+import { createSSRApp, createRenderer, h, nextTick, proxyRefs, shallowReactive } from 'vue';
 import { renderToString } from 'vue/server-renderer';
 
 // Run the production exit actions and unload guard with controlled user/API responses.
@@ -19,6 +19,143 @@ const bundled = await build({ stdin: { contents: script.content, loader: 'ts',
   } }] });
 const code = bundled.outputFiles[0].text.replaceAll('from "vue"', `from "${import.meta.resolve('vue')}"`);
 const component = (await import(`data:text/javascript;base64,${Buffer.from(code + '\n//# sourceURL=editor-exit-test.mjs').toString('base64')}`)).default;
+
+// Mount the real draft owner with reactive props; child rendering is irrelevant to draft lifetime.
+const mountDraft = () => {
+  let editor;
+  const props = shallowReactive({ metadata: { name: 'Trip', isPublic: false, notesHtml: '',
+    center: { latitude: 37.12345601, longitude: 23 }, zoom: 9 },
+    capturedMapView: null, tagsBySlug: {}, tagOrder: [], tagOptions: {}, hasRegionDraftChanges: false,
+    tripIndexUrl: '/User/Trip', editorEndpoint: '/editor', editorSurface: {
+      registerTargetHandler: () => () => {}, isTargetActive: () => false
+    }, autoOpen: false });
+  const renderer = createRenderer({ createComment: () => ({}), insert() {}, remove() {}, parentNode() {} });
+  const app = renderer.createApp({ setup() {
+    editor = proxyRefs(component.setup(props, { expose() {}, emit: (name, metadata) => {
+      if (name === 'saved') props.metadata = metadata;
+    } }));
+    return () => null;
+  } });
+  app.mount({});
+  return { editor, props, dispose: () => app.unmount(), capture: async (latitude, zoom = 10) => {
+    props.capturedMapView = { center: { latitude, longitude: 24 }, zoom };
+    await nextTick();
+  } };
+};
+
+test('captured viewport survives closed settings and unrelated refresh, with equivalent capture and reset staying clean', async () => {
+  const previousWindow = globalThis.window;
+  globalThis.window = { addEventListener() {}, removeEventListener() {} };
+  const owner = mountDraft();
+  try {
+    owner.editor.draft.centerLatitude = 38.5; // Vue's number input emits a number, not a string.
+    owner.editor.draft.centerLongitude = 24;
+    owner.editor.draft.zoom = 10;
+    assert.equal(owner.editor.isDirty, true, 'manual numeric fields retain their existing save contract');
+    owner.editor.resetDraft();
+    owner.props.capturedMapView = { center: { latitude: 37.123456, longitude: 23 }, zoom: 9 };
+    await nextTick();
+    assert.equal(owner.editor.isDirty, false, 'six-decimal equivalence must not dirty persisted metadata');
+    await owner.capture(38);
+    assert.equal(owner.editor.isDirty, true);
+    assert.equal(owner.editor.draft.centerLatitude, '38.000000');
+    owner.props.tagsBySlug = {};
+    owner.props.tagOrder = [];
+    owner.props.metadata = { ...owner.props.metadata, name: 'Authoritative renamed Trip' };
+    await nextTick();
+    assert.equal(owner.editor.draft.name, 'Authoritative renamed Trip');
+    assert.equal(owner.editor.draft.centerLatitude, '38.000000');
+    owner.editor.resetDraft();
+    assert.equal(owner.editor.isDirty, false);
+    await owner.capture(38);
+    assert.equal(owner.editor.isDirty, true, 'same viewport may be captured again after discard');
+  } finally { owner.dispose(); globalThis.window = previousWindow; }
+});
+
+test('capture after PATCH starts survives the old response and Save & Exit, then saves normally', async () => {
+  const previousWindow = globalThis.window;
+  const previousFetch = globalThis.fetch;
+  const navigations = [];
+  globalThis.window = { addEventListener() {}, removeEventListener() {}, location: { assign: url => navigations.push(url) } };
+  const owner = mountDraft();
+  let complete;
+  const requests = [];
+  globalThis.fetch = async (_url, options) => {
+    const body = JSON.parse(options.body);
+    requests.push(body);
+    await new Promise(resolve => { complete = resolve; });
+    const metadata = { ...owner.props.metadata, ...body };
+    return new Response(JSON.stringify({ data: metadata, affected: { metadata }, warnings: [] }));
+  };
+  try {
+    await owner.capture(38);
+    const saving = owner.editor.saveAndExit();
+    assert.equal(requests[0].center.latitude, 38);
+    await owner.capture(39);
+    complete();
+    await saving;
+    await nextTick();
+    assert.equal(owner.props.metadata.center.latitude, 38);
+    assert.equal(owner.editor.draft.centerLatitude, '39.000000');
+    assert.equal(owner.editor.isDirty, true);
+    assert.deepEqual(navigations, [], 'new capture must not be silently discarded through exit');
+    const retry = owner.editor.saveAndExit();
+    assert.equal(requests[1].center.latitude, 39);
+    complete();
+    await retry;
+    await nextTick();
+    assert.equal(owner.editor.isDirty, false);
+    assert.deepEqual(navigations, ['/User/Trip']);
+    await owner.capture(40);
+    owner.editor.draft.centerLatitude = 39; // Manual edit back to the saved view also permits clean exit.
+    await owner.editor.saveAndExit();
+    assert.equal(navigations.length, 2);
+    await owner.capture(40);
+    globalThis.fetch = async () => new Response('{}', { status: 500 });
+    await owner.editor.saveAndExit();
+    assert.equal(owner.editor.draft.centerLatitude, '40.000000');
+    assert.equal(owner.editor.isDirty, true, 'failed PATCH retains the captured draft');
+    assert.equal(navigations.length, 2, 'failed PATCH retains exit protection');
+  } finally { owner.dispose(); globalThis.window = previousWindow; globalThis.fetch = previousFetch; }
+});
+
+// A capture owns the current manual values even when no field assignment is needed.
+test('capture matching a manual zoom edit survives an older PATCH and saves on retry', async () => {
+  const previousWindow = globalThis.window;
+  const previousFetch = globalThis.fetch;
+  const navigations = [];
+  globalThis.window = { addEventListener() {}, removeEventListener() {}, location: { assign: url => navigations.push(url) } };
+  const owner = mountDraft();
+  let complete;
+  const requests = [];
+  globalThis.fetch = async (_url, options) => {
+    const body = JSON.parse(options.body);
+    requests.push(body);
+    await new Promise(resolve => { complete = resolve; });
+    const metadata = { ...owner.props.metadata, ...body };
+    return new Response(JSON.stringify({ data: metadata, affected: { metadata }, warnings: [] }));
+  };
+  try {
+    await owner.capture(38, 10);
+    const saving = owner.editor.saveAndExit();
+    assert.equal(requests[0].zoom, 10);
+    owner.editor.draft.zoom = 11; // Match the still-enabled numeric input's value.
+    await owner.capture(38, 11);
+    complete();
+    await saving;
+    await nextTick();
+    assert.equal(owner.editor.draft.zoom, 11);
+    assert.equal(owner.editor.isMetadataDirty, true);
+    assert.deepEqual(navigations, [], 'the newer unsaved view must retain the editor');
+    const retry = owner.editor.saveAndExit();
+    assert.equal(requests[1].zoom, 11);
+    complete();
+    await retry;
+    await nextTick();
+    assert.equal(owner.editor.isDirty, false);
+    assert.deepEqual(navigations, ['/User/Trip']);
+  } finally { owner.dispose(); globalThis.window = previousWindow; globalThis.fetch = previousFetch; }
+});
 
 test('custom exit confirmation replaces the native warning only after approval and successful save', async () => {
   const previousWindow = globalThis.window;

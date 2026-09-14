@@ -20,6 +20,8 @@ const isLoading = ref(true);
 const workspaceElement = ref<HTMLElement | null>(null);
 const mapElement = ref<HTMLElement | null>(null);
 const mobileDrawerActive = ref(false);
+// Plain viewport notifications cross Vue props; Leaflet instances stay adapter-owned.
+const capturedMapView = ref<TripEditorMapView | null>(null);
 const navigationStatus = ref<string | null>(null);
 const hiddenSegmentIds = ref<Set<string>>(new Set());
 const selectedPlaceId = ref<Guid | null>(null);
@@ -137,7 +139,9 @@ onMounted(async () => {
 
     mapAdapter = createTripEditorMap(mapElement.value, props.config.tilesUrl, {
       onPlaceSelected: placeId => selectPlace(placeId, { focusMap: false, openPopup: true }),
-      onSegmentSelected: key => selectSegment(key)
+      onSegmentSelected: key => selectSegment(key),
+      canCaptureTripView: () => !editorSurface.isMapWorkActive.value,
+      onMapViewCaptured: view => { capturedMapView.value = view; }
     });
     mapAdapter.render(loadedState, hiddenSegmentIds.value, selectedPlaceId.value);
   } catch (loadError) {
@@ -546,6 +550,7 @@ function focusStatusText(result: FocusActiveEntityResult, target: { kind: string
     <template v-else-if="state">
       <TripSidebar
         :state="state"
+        :captured-map-view="capturedMapView"
         :editor-surface="editorSurface"
         :editor-endpoint="props.config.editorEndpoint"
         :antiforgery-token="props.config.antiforgeryToken"

@@ -12,11 +12,15 @@ const group = () => ({ owned: [], addTo() { return this; }, remove() {}, getLaye
   clearLayers() { this.owned.forEach(path => { const index = paths.indexOf(path); if (index >= 0) paths.splice(index, 1); }); this.owned = []; } });
 const panes = {};
 const movements = {};
+// Viewport lifecycle uses the normal Leaflet container without changing proposal rendering evidence.
+const container = Object.assign(new EventTarget(), { dataset: {}, querySelectorAll: () => [] });
 const map = { setView() { return this; }, on(event, callback) { movements[event] = callback; }, off() {}, remove() {},
+  getContainer: () => container,
   createPane(name) { return panes[name] = { style: {}, setAttribute() {}, remove() {} }; }, getPane(name) { return panes[name]; },
   fitBounds(bounds) { this.bounds = bounds.points; },
   attributionControl: { setPrefix() {}, getContainer() { return null; } } };
-globalThis.window = {};
+globalThis.window = Object.assign(new EventTarget(), { requestAnimationFrame: () => 0, cancelAnimationFrame() {} });
+globalThis.document = new EventTarget();
 globalThis.previewLeaflet = { map: () => map, layerGroup: group, latLng: (lat, lng) => [lat, lng],
   latLngBounds: () => ({ points: [], extend(point) { this.points.push(point); return this; }, isValid() { return this.points.length > 0; } }),
   polyline: (coordinates, style) => ({ coordinates, style, options: style, attributes: {},
