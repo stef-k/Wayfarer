@@ -5,7 +5,7 @@ file contains the manually edited `WayfarerVersion` value and maps the standard
 MSBuild metadata directly from it:
 
 ```xml
-<WayfarerVersion>1.9.14</WayfarerVersion>
+<WayfarerVersion>1.9.15</WayfarerVersion>
 <Version>$(WayfarerVersion)</Version>
 <PackageVersion>$(WayfarerVersion)</PackageVersion>
 <AssemblyInformationalVersion>$(WayfarerVersion)</AssemblyInformationalVersion>
@@ -19,7 +19,7 @@ assembly through `IAppVersionProvider`. Runtime surfaces such as
 separate constants.
 
 Use `dotnet run --no-launch-profile -- version` when validating exact CLI
-output. The app writes exactly `Wayfarer 1.9.14`; `--no-launch-profile` avoids
+output. The app writes exactly `Wayfarer 1.9.15`; `--no-launch-profile` avoids
 .NET SDK launch-profile messages so validation stays focused on app output.
 
 ## Release helper
@@ -38,6 +38,43 @@ adds the required changelog skeleton for the target release. The default `check`
 command validates only offline repo files; tag and GitHub release checks run
 only when their explicit flags are supplied. The helper validates release state
 but does not create, edit, publish, or delete GitHub releases.
+
+## 1.9.15 release source record
+
+Prepared on 2026-09-14 from synchronized main
+`44ed5356edb68fc2427479643455084350b3049c` on `feature/release-1.9.15`.
+Latest published release v1.9.14 resolves to
+`6a6251506110ba95c6bdaf7179249801ed0b16cb`. The first-parent delta is:
+
+- `a790b001`: [PR #591](https://github.com/stef-k/Wayfarer/pull/591), closes #590; provisions `/var/log/wayfarer` for `APP_USER` with mode `0750` before service startup.
+- `44ed5356`: [PR #593](https://github.com/stef-k/Wayfarer/pull/593), closes #592; restores direct pan/zoom capture into the Trip default-view draft and persistence through existing Save, with partial URL overrides and URL/history preservation.
+
+Toolbar commands and map-work remain transient; Reset retains the live viewport.
+Newer captures survive unrelated refreshes and delayed saves, including captures
+matching manually entered values. No database migration, backend API, dependency,
+or Mobile changes since v1.9.14. Reload open Trip Editor pages after deployment
+and follow the existing [server-build workflow](20-Deployment.md#updating-wayfarer).
+Older upgrades still apply pending migrations; preserve PostgreSQL and its
+matching Data Protection key ring.
+
+Both product PRs have successful exact-head `test` CI:
+[#591 run](https://github.com/stef-k/Wayfarer/actions/runs/34384832416) at
+`fb44dd13fc18d9b17f6a8593a2d385d2dfca851e` and
+[#593 run](https://github.com/stef-k/Wayfarer/actions/runs/34827297292) at
+`9b9a0c64df9e94cb3b0499313d27b82e94b803c9`.
+For #592, retained evidence includes complete independent review plus passing
+narrow P2 re-review and eight focused tests after correction. All 10 browser
+cases passed across runs; seven retain earlier evidence. Browser/build artifacts
+predate the narrow correction. Retained persistence evidence covers real PATCH,
+API reread, and clean-URL reload. Physical touch hardware was not exercised.
+The #590 service-start operational evidence belongs to PR #591; this preparation
+does not perform or claim a fresh production deployment.
+
+Release-source validation covers the helper and its tests, app build, focused
+Versioning tests, exact CLI output, prior-note preservation, whitespace, and
+Code Guard. Product/browser suites are not repeated for metadata preparation.
+Independent release-source review and exact-head release-PR CI come next;
+tagging, publication, deployment, and migrations remain separate stages.
 
 ## 1.9.14 release source record
 
