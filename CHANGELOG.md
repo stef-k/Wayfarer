@@ -24,6 +24,8 @@
 
 ## Unreleased
 
+### Fixed
+- Restored Trip Editor pan/zoom capture into Trip Settings, persisted only through metadata Save. Toolbar commands and map-work stay transient. The URL follows navigation with partial viewport overrides and preserves other URL/history state; Reset discards the draft without jumping the map. Captures survive unrelated saves and older in-flight metadata responses (#592). No database migration.
 
 ## [1.9.12] - 2026-09-06
 
