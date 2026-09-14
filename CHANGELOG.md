@@ -1,5 +1,18 @@
 # CHANGELOG
 
+## [1.9.15] - 2026-09-14
+
+### Fixed
+- Direct pan/zoom captures the Trip default-view draft in Trip Settings; the existing metadata Save persists it. Toolbar commands and map-work remain transient, and Reset discards the draft while retaining the live viewport (#592, PR #593).
+- Viewport URL synchronization supports partial overrides and preserves unrelated query parameters, hash, and history state. Newer captures survive unrelated refreshes and delayed saves, including a capture matching manually entered draft values (#592, PR #593).
+- Deployment provisions `/var/log/wayfarer` for the configured `APP_USER` with mode `0750` before service startup, covering fresh installs and subsequent deployments (#590, PR #591).
+
+### Upgrade notes
+- No database migration, backend API, dependency, or Mobile changes since v1.9.14. Older upgrades must still apply pending migrations; preserve PostgreSQL and its matching Data Protection key ring.
+- Reload open Trip Editor pages after deployment. Follow the existing [server-build deployment workflow](docs/20-Deployment.md#updating-wayfarer) using this tagged source.
+
+## Unreleased
+
 ## [1.9.14] - 2026-09-07
 
 ### Fixed
@@ -21,11 +34,6 @@
 - No database migration was added since v1.9.12. Upgrades from older versions must still apply their pending migrations. Preserve PostgreSQL and its matching Data Protection key ring.
 - Route proposals now persist only through Save Segment; the separate acceptance endpoint is removed. Reload an already-open Trip Editor after upgrading. Segment planning labels remain independent of the explicitly selected provider directions mode.
 - Follow the [server-build deployment workflow](docs/20-Deployment.md#updating-wayfarer) using this tagged source.
-
-## Unreleased
-
-### Fixed
-- Restored Trip Editor pan/zoom capture into Trip Settings, persisted only through metadata Save. Toolbar commands and map-work stay transient. The URL follows navigation with partial viewport overrides and preserves other URL/history state; Reset discards the draft without jumping the map. Captures survive unrelated saves and older in-flight metadata responses (#592). No database migration.
 
 ## [1.9.12] - 2026-09-06
 
