@@ -105,4 +105,3 @@ export function normalizeTagNames(values: string[]): string[] {
 export function normalizeTagNameKey(value: string): string {
   return value.trim().toLocaleLowerCase();
 }
-

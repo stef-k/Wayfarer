@@ -152,4 +152,3 @@ function editableCapabilities(): Record<string, boolean> {
     canTargetForSearchAdd: false
   };
 }
-

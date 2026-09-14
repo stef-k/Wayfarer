@@ -260,4 +260,3 @@ export const fallbackSegmentCoordinates = (segment: EditorSegment, state: Editor
   const to = segment.toPlaceId ? state.placesById[segment.toPlaceId]?.location : null;
   return from && to ? [[from.longitude, from.latitude], [to.longitude, to.latitude]] : null;
 };
-
