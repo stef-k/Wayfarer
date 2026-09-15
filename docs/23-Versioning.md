@@ -5,7 +5,7 @@ file contains the manually edited `WayfarerVersion` value and maps the standard
 MSBuild metadata directly from it:
 
 ```xml
-<WayfarerVersion>1.9.15</WayfarerVersion>
+<WayfarerVersion>1.9.16</WayfarerVersion>
 <Version>$(WayfarerVersion)</Version>
 <PackageVersion>$(WayfarerVersion)</PackageVersion>
 <AssemblyInformationalVersion>$(WayfarerVersion)</AssemblyInformationalVersion>
@@ -19,7 +19,7 @@ assembly through `IAppVersionProvider`. Runtime surfaces such as
 separate constants.
 
 Use `dotnet run --no-launch-profile -- version` when validating exact CLI
-output. The app writes exactly `Wayfarer 1.9.15`; `--no-launch-profile` avoids
+output. The app writes exactly `Wayfarer 1.9.16`; `--no-launch-profile` avoids
 .NET SDK launch-profile messages so validation stays focused on app output.
 
 ## Release helper
@@ -38,6 +38,34 @@ adds the required changelog skeleton for the target release. The default `check`
 command validates only offline repo files; tag and GitHub release checks run
 only when their explicit flags are supplied. The helper validates release state
 but does not create, edit, publish, or delete GitHub releases.
+
+## 1.9.16 release source record
+
+Prepared on 2026-09-15 from synchronized main
+`4feebd2773008d6b5c67378c540939c0368c6cd1` on `feature/release-1.9.16`.
+The first-parent delta since v1.9.15 contains only
+[PR #597](https://github.com/stef-k/Wayfarer/pull/597), closing #596:
+shared cooperative map embeds, accessible full-view escape, canonical URL/HTML
+sharing, Timeline iframe sizing, and thumbnail escape suppression.
+
+Independent product review and focused thumbnail re-review passed at
+`e107451a47fadd31e0cba368b35ed8a64834fe43`. The exact-head
+[test check](https://github.com/stef-k/Wayfarer/actions/runs/35014379085) passed.
+Retained evidence includes three mounted iframe browser tests, Chromium mobile
+emulation, and 20 thumbnail plus five shared embed tests in the final re-review.
+The thumbnail browser test uses real Leaflet and production capture code with
+fixture HTML; it does not establish a live-database journey. Physical-device and
+Safari acceptance are not claimed. Release metadata preparation does not repeat
+these product/browser suites.
+
+No database migration, API, dependency, or Mobile changes since v1.9.15.
+Existing embed URLs remain valid; copying embed output requires public HTTPS.
+Follow the [server-build deployment workflow](20-Deployment.md#updating-wayfarer)
+and reload open pages after deployment. Older upgrades still apply pending
+migrations; preserve PostgreSQL and its matching Data Protection key ring.
+Release validation covers helper tests, focused Versioning tests, exact CLI
+output, changelog preservation, diff hygiene, and Code Guard. Publication does
+not perform server deployment.
 
 ## 1.9.15 release source record
 
