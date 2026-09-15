@@ -185,7 +185,7 @@ const init = () => {
         zoom = 2;
     }
 
-    const map = initLeaflet([lat, lon], zoom);
+    const map = initLeaflet([lat, lon], zoom, isEmbed ? fullscreenUrl : null);
     const segmentPresentation = createViewerSegmentPresentationController(map, root, {
         isPrint,
         paddingX: () => collapsed || sidebarOverlaysMap() ? 60 : legendW() / 2 + 60
@@ -345,22 +345,10 @@ const init = () => {
     });
     document.body.appendChild(showBtn);
     showBtn.style.display = 'none';
-    /* ----------  FULL-SCREEN button (embed only) ------------------------------ */
-    let fsBtn;
-    if (isEmbed) {
-        fsBtn               = document.createElement('button');
-        fsBtn.id            = 'btn-fullscreen';
-        fsBtn.className     = 'btn btn-primary btn-sm shadow-lg';
-        fsBtn.title         = 'Open full-screen view';
-        fsBtn.innerHTML     = '<i class="bi bi-arrows-fullscreen"></i>';
-        fsBtn.style.display = 'none';
-        fsBtn.addEventListener('click', () => window.open(fullscreenUrl,'_blank'));
-        document.body.appendChild(fsBtn);
-    }
     const pane = $('#sidebar-secondary');
     
     /**
-     * Show the MAP LEGEND / fullscreen buttons only when:
+     * Show the MAP LEGEND button only when:
      *   – primary legend is collapsed, and
      *   – details pane (#sidebar-secondary) is NOT open.
      */
@@ -368,21 +356,7 @@ const init = () => {
         const detailsOpen = pane?.classList.contains('open');
         const visible     = collapsed && !detailsOpen;
         showBtn.style.display = visible ? 'block' : 'none';
-        if (isEmbed) {
-            fsBtn.style.display = visible ? 'block' : 'none';
-            if (visible) positionFsBtn();
-        }
     };
-
-    const positionFsBtn = () => {
-        if (!fsBtn) return;                       // safety
-        const r = showBtn.getBoundingClientRect();
-        fsBtn.style.left = `${r.left + r.width + 8}px`;
-        fsBtn.style.top  = `${r.top}px`;          // just mirrors CSS in case of resize
-    };
-
-    positionFsBtn();                            // initial
-    window.addEventListener('resize', positionFsBtn);
     const DELAY = 600;
     let timer = null;
     let collapsed = false;

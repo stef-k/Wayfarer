@@ -7,6 +7,7 @@
  */
 
 import {addZoomLevelControl} from '../map-utils.js';
+import {embeddedMapOptions, installEmbeddedMap} from '../embeddedMap.js';
 import {createTileLayer} from '../retryTileLayer.js';
 import {
     buildPlacePopup,
@@ -33,7 +34,7 @@ export const canvasRenderer = L.canvas();
  * initLeaflet – single source of truth for the “print-mode” flag.
  * It raises window.__leafletTilesOk **once** when all tiles are decoded.
  */
-export const initLeaflet = (center = [20, 0], zoom = 3) => {
+export const initLeaflet = (center = [20, 0], zoom = 3, embedUrl = null) => {
     /* ─── detect exporter’s &print=1 ─── */
     const isPrint = location.search.includes('print=1');
 
@@ -44,8 +45,10 @@ export const initLeaflet = (center = [20, 0], zoom = 3) => {
 
     /* ─── create map ─── */
     const map = L.map('mapContainer', {
-        zoomAnimation: !isPrint, fadeAnimation: !isPrint, zoomControl: false
+        zoomAnimation: !isPrint, fadeAnimation: !isPrint, zoomControl: false,
+        ...embeddedMapOptions(Boolean(embedUrl), isPrint)
     }).setView(center, zoom);
+    if (embedUrl && !isPrint) installEmbeddedMap(map, embedUrl);
 
     /* keep a handle to the tile layer so we can attach events */
     const tiles = createTileLayer().addTo(map);

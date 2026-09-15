@@ -13,7 +13,6 @@ let markerTransitionTimer = null; // Timer for live-to-latest marker transition
 const urlParams = new URLSearchParams(window.location.search);
 const initialLat = parseFloat(urlParams.get('lat'));
 const initialLng = parseFloat(urlParams.get('lng'));
-const initialZoom = parseInt(urlParams.get('zoom'), 10);
 const z = parseInt(urlParams.get('zoom'), 10);
 zoomLevel = (!isNaN(z) && z >= 0) ? z : 3;
 let initialCenter = (
@@ -31,6 +30,7 @@ const getLocationTimestampInfo = location => formatViewerAndSourceTimes({
 });
 
 import {addZoomLevelControl, latestLocationMarker, liveMarker} from '../../../map-utils.js';
+import {embeddedMapOptions, installEmbeddedMap} from '../../../embeddedMap.js';
 import { createTileLayer } from '../../../retryTileLayer.js'; import { renderLocationAddress, locationAddressText } from '../../../util/location-address.js';
 import {
     formatViewerAndSourceTimes,
@@ -111,13 +111,13 @@ const handleStream = (event) => {
 // Initialize mapContainer with the cache proxy tile layer.
 const initializeMap = () => {
     if (mapContainer !== undefined && mapContainer !== null) {
-        mapContainer.off();
         mapContainer.remove();
     }
     mapContainer = L.map('mapContainer', {
-        scrollWheelZoom: false,
+        ...embeddedMapOptions(true),
         zoomAnimation: true
     }).setView(initialCenter, zoomLevel);
+    installEmbeddedMap(mapContainer, `/Public/Users/Timeline/${encodeURIComponent(username)}`);
     createTileLayer().addTo(mapContainer);
 
     mapContainer.attributionControl.setPrefix('&copy; <a href="https://wayfarer.stefk.me" title="Powered by Wayfarer, made by Stef" target="_blank">Wayfarer</a> | <a href="https://stefk.me" title="Check my blog" target="_blank">Stef K</a> | &copy; <a href="https://leafletjs.com/" target="_blank">Leaflet</a>');
