@@ -15,8 +15,9 @@ export const escapeEmbedAttribute = value => String(value).replace(/[&<>"']/g,
 const publicOrigin = origin => {
     const url = new URL(origin);
     const host = url.hostname.toLowerCase();
-    const privateHost = !host.includes('.') || host.endsWith('.localhost') || host.endsWith('.local') ||
-        host.endsWith('.internal') || host.includes(':') ||
+    const privateHost = (!host.startsWith('[') && !host.includes('.')) ||
+        host.endsWith('.localhost') || host.endsWith('.local') || host.endsWith('.internal') ||
+        /^\[(?:::1\]|::\]|f[cd]|fe[89ab]|::ffff:)/.test(host) ||
         /^(0|10|127|169\.254|192\.168)\./.test(host) || /^172\.(1[6-9]|2\d|3[01])\./.test(host);
     if (url.protocol !== 'https:' || privateHost || url.username || url.password) {
         throw new Error('Open Wayfarer at its public HTTPS address to copy an embed.');

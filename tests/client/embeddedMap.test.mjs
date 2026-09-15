@@ -95,8 +95,11 @@ test('canonical URL and escaped HTML share the public browser origin and omit tr
     assert.ok(timeline.html.includes(`src="${timeline.url}"`));
     assert.match(timeline.html, /title="Wayfarer timeline map"/);
     assert.doesNotMatch(timeline.html, /sandbox|frameborder|postMessage|token|lat=|zoom=/);
+    assert.match(buildMapEmbed({ kind: 'trip', id: 'id' }, 'https://[2001:4860:4860::8888]').url,
+        /^https:\/\/\[2001:4860:4860::8888\]\/Public\/Trips/);
     for (const origin of ['http://maps.example.test', 'https://localhost:7150', 'https://127.0.0.1',
-        'https://10.0.0.5', 'https://172.16.2.3', 'https://192.168.1.2', 'https://server.internal']) {
+        'https://10.0.0.5', 'https://172.16.2.3', 'https://192.168.1.2', 'https://server.internal',
+        'https://[::1]', 'https://[fd00::1]', 'https://[fe80::1]']) {
         assert.throws(() => buildMapEmbed({ kind: 'trip', id: 'id' }, origin), /public HTTPS address/);
     }
 });

@@ -1,8 +1,9 @@
 import { expect, test, type Page, type CDPSession } from '@playwright/test';
 import { buildMapEmbed } from '../../../wwwroot/js/embedSharing.js';
+import { loadSharedLayoutConfig } from '../shared-layout/sharedLayoutConfig';
 
 // A reserved test hostname points at the established local HTTPS host, never a deployment hostname.
-test.use({ ignoreHTTPSErrors: true, permissions: ['local-network-access'],
+test.use({ ignoreHTTPSErrors: true, permissions: ['local-network-access', 'clipboard-read', 'clipboard-write'],
   launchOptions: { args: ['--host-resolver-rules=MAP wayfarer.example.test 127.0.0.1'] } });
 
 /** Native Chromium input reaches the actual iframe; no touch/wheel dispatch in page JavaScript. */
@@ -72,6 +73,40 @@ test('generated Trip iframe cooperates with desktop scrolling and retains explic
   await fullView.waitForURL(`${baseURL}${path}`);
   await expect(fullView.locator('#trip-view')).toHaveAttribute('data-embed', 'false');
   console.log('Desktop: parent wheel scrolling before/after Ctrl-wheel; zoom controls, mouse drag, keyboard full view passed.');
+});
+
+test('Timeline settings copies matching output and a wrapped header does not consume parent scrolling', async ({ page, baseURL }) => {
+  const config = loadSharedLayoutConfig();
+  await page.goto(`${baseURL}/Identity/Account/Login`);
+  await page.getByLabel('Username').fill(config.username);
+  await page.getByLabel('Password').fill(config.password);
+  await Promise.all([page.waitForURL(url => !url.pathname.endsWith('/Login')),
+    page.getByRole('button', { name: 'Log in' }).click()]);
+  await page.goto(`${baseURL}/User/Settings`);
+  test.skip(await page.locator('[data-embed-format="url"]').count() === 0, 'The established account has no public Timeline.');
+  await page.getByRole('button', { name: 'Copy embed URL', exact: true }).click();
+  const url = await page.evaluate(() => navigator.clipboard.readText());
+  await page.getByRole('button', { name: 'Copy embed HTML', exact: true }).click();
+  const html = await page.evaluate(() => navigator.clipboard.readText());
+  expect(html).toContain(`src="${url}"`);
+  expect(url).toMatch(new RegExp(`^${baseURL}/Public/Users/Timeline/`));
+  await page.route('https://embed-host.example.test/', route => route.fulfill({ contentType: 'text/html',
+    body: `<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><div style="height:120px">Before</div>${html}<div style="height:1800px">After</div>` }));
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('https://embed-host.example.test/');
+  const frame = page.frameLocator('iframe');
+  const escape = frame.getByRole('link', { name: 'Open full view', exact: true });
+  await expect(escape).toBeVisible();
+  await expect(escape).toHaveAttribute('href', new URL(url).pathname.replace(/\/embed$/, ''));
+  const child = page.frames().find(item => item.url().startsWith(url))!;
+  await expect.poll(() => child.evaluate(() => document.documentElement.scrollHeight - innerHeight)).toBe(0);
+  const zoom = frame.locator('.leaflet-control-custom span').first();
+  const initialZoom = await zoom.textContent();
+  await page.mouse.move(190, 430);
+  await page.mouse.wheel(0, 250);
+  await expect.poll(() => page.evaluate(() => scrollY)).toBeGreaterThan(200);
+  await expect(zoom).toHaveText(initialZoom!);
+  console.log('Timeline: real settings clipboard URL/HTML match; wrapped header fits iframe; ordinary wheel reaches parent.');
 });
 
 test('mounted mobile iframe allows single-touch page scroll, two-touch pan/zoom, and one-tap escape', async ({ browser, baseURL }) => {
