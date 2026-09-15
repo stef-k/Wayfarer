@@ -1,4 +1,8 @@
+import { handleEmbedCopy } from '../../../embedSharing.js';
+
 document.addEventListener('DOMContentLoaded', () => {
+    // Share the same canonical output and notification behavior as Trip Index.
+    document.addEventListener('click', handleEmbedCopy);
     handleLocationsDeletion();
 });
 

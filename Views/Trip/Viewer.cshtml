@@ -35,7 +35,7 @@
 <!-- wrapper that stretches between navbar & footer -->
 <div id="trip-view"
      data-embed="@( (ViewBag.IsEmbed as bool? ?? false).ToString().ToLower() )"
-     data-fullscreen-url="@Url.Action("View","TripViewer", new { id = Model.Id })"
+     data-fullscreen-url="/Public/Trips/@Model.Id"
      class="position-relative flex-grow-1"
      data-trip-lat="@Model.CenterLat"
      data-trip-lon="@Model.CenterLon"

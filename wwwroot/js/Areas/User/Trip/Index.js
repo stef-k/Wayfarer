@@ -6,6 +6,7 @@ import {
 } from '../../../util/wikipedia-utils.js';
 import { createTileLayer } from '../../../retryTileLayer.js';
 import { submitTripImport } from './tripImportClient.js';
+import { copyWithFeedback, escapeEmbedAttribute, handleEmbedCopy } from '../../../embedSharing.js';
 
 (() => {
     /* ------------------------------------------------ Pagination state */
@@ -115,8 +116,10 @@ import { submitTripImport } from './tripImportClient.js';
                         <li><a class="dropdown-item" href="/Public/Trips/${t.id}" target="_blank">Visit public trip page</a></li>
                         <li><a class="dropdown-item copy-url" href="#" data-url="/Public/Trips/${t.id}"
                             title="Click to copy to clipboard">Copy public trip page URL</a></li>
-                        <li><a class="dropdown-item copy-url" href="#" data-url="/Public/Trips/${t.id}?embed=true"
-                            title="Click to copy to clipboard">Copy public trip page embed</a></li>
+                        <li><button class="dropdown-item" type="button" data-embed-kind="trip" data-embed-id="${escapeEmbedAttribute(t.id)}"
+                            data-embed-title="${escapeEmbedAttribute(t.name)}" data-embed-format="url">Copy embed URL</button></li>
+                        <li><button class="dropdown-item" type="button" data-embed-kind="trip" data-embed-id="${escapeEmbedAttribute(t.id)}"
+                            data-embed-title="${escapeEmbedAttribute(t.name)}" data-embed-format="html">Copy embed HTML</button></li>
                         <li><hr class="dropdown-divider"></li>
                         ${extraItems}
                     </ul>
@@ -1611,6 +1614,7 @@ import { submitTripImport } from './tripImportClient.js';
 
     /* ------------------------------------------------ boot */
     document.addEventListener('DOMContentLoaded', () => {
+        document.addEventListener('click', handleEmbedCopy);
         // Clipboard copy handling (event delegation — works with dynamic rows)
         document.addEventListener('click', async (e) => {
             const el = e.target.closest('a.copy-url');
@@ -1619,20 +1623,7 @@ import { submitTripImport } from './tripImportClient.js';
             e.preventDefault();
 
             const url = el.dataset.url;
-            try {
-                await navigator.clipboard.writeText(`${window.location.origin}${url}`);
-                if (wayfarer.showToast) {
-                    wayfarer.showToast('success', 'URL copied to clipboard!');
-                } else {
-                    wayfarer.showAlert('success', 'URL copied to clipboard!');
-                }
-            } catch (err) {
-                if (wayfarer.showToast) {
-                    wayfarer.showToast('danger', 'Failed to copy URL.');
-                } else {
-                    wayfarer.showAlert('danger', 'Failed to copy URL.');
-                }
-            }
+            await copyWithFeedback(() => `${window.location.origin}${url}`, 'URL');
         });
 
         // Search input with debounced server-side search

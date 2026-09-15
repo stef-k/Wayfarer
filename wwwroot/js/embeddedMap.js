@@ -10,6 +10,8 @@ export const installEmbeddedMap = (map, fullViewUrl) => {
     if (installations.has(map)) return installations.get(map);
     const container = map.getContainer();
     const previousTouchAction = container.style.touchAction;
+    const previousDragging = map.dragging.enabled();
+    const previousWheel = map.scrollWheelZoom.enabled();
     container.style.touchAction = 'pan-x pan-y';
 
     // Capture runs before Leaflet's bubbling handlers, including its pointer-to-touch adapter.
@@ -49,6 +51,10 @@ export const installEmbeddedMap = (map, fullViewUrl) => {
         container.removeEventListener('pointerdown', pointer, true);
         container.removeEventListener('touchstart', touch, true);
         container.style.touchAction = previousTouchAction;
+        if (previousDragging) map.dragging.enable();
+        else map.dragging.disable();
+        if (previousWheel) map.scrollWheelZoom.enable();
+        else map.scrollWheelZoom.disable();
         escape.remove();
         map.off('unload', dispose);
         installations.delete(map);
