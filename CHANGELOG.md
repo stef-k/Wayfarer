@@ -1,5 +1,20 @@
 # CHANGELOG
 
+## [1.9.16] - 2026-09-15
+
+### Fixed
+- Trip thumbnail capture omits the shared **Open full view** escape before screenshotting, retaining screen-media framing, map controls, and attribution (#596).
+
+### Added
+- Public Trip and Timeline embeds share cooperative map gestures and a keyboard/single-pointer **Open full view** escape. Ordinary wheel/single-touch input scrolls the containing page; modifier-wheel, two-touch gestures, and explicit controls manipulate the map (#596).
+- Trip sharing and Timeline Settings offer distinct **Copy embed URL** and **Copy embed HTML** actions, using the public HTTPS browser origin, escaped accessible iframe markup, and explicit clipboard feedback (#596).
+
+### Upgrade notes
+- No database migration, API, dependency, or Mobile changes since v1.9.15. Older upgrades must still apply pending migrations; preserve PostgreSQL and its matching Data Protection key ring.
+- Follow the existing [server-build deployment workflow](docs/20-Deployment.md#updating-wayfarer), then reload open Wayfarer pages. Existing embed URLs remain valid; URL and HTML copying requires the public HTTPS address.
+
+## Unreleased
+
 ## [1.9.15] - 2026-09-14
 
 ### Fixed
@@ -10,15 +25,6 @@
 ### Upgrade notes
 - No database migration, backend API, dependency, or Mobile changes since v1.9.14. Older upgrades must still apply pending migrations; preserve PostgreSQL and its matching Data Protection key ring.
 - Reload open Trip Editor pages after deployment. Follow the existing [server-build deployment workflow](docs/20-Deployment.md#updating-wayfarer) using this tagged source.
-
-## Unreleased
-
-### Fixed
-- Trip thumbnail capture omits the shared **Open full view** escape before screenshotting, retaining screen-media framing, map controls, and attribution (#596).
-
-### Added
-- Public Trip and Timeline embeds share cooperative map gestures and a keyboard/single-pointer **Open full view** escape. Ordinary wheel/single-touch input scrolls the containing page; modifier-wheel, two-touch gestures, and explicit controls manipulate the map (#596).
-- Trip sharing and Timeline Settings offer distinct **Copy embed URL** and **Copy embed HTML** actions, using the public HTTPS browser origin, escaped accessible iframe markup, and explicit clipboard feedback (#596).
 
 ## [1.9.14] - 2026-09-07
 
