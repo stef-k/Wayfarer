@@ -17,5 +17,5 @@ How do I join a group?
 - By invitation from a group owner/manager. Accept in the app when invited.
 
 Can I embed my timeline on my website?
-- Yes. Use the public embed URL and place it in an iframe.
+- Yes. Timeline Settings and the public Trip sharing menu offer **Copy embed URL** and **Copy embed HTML**. Open Wayfarer at its public HTTPS address, then paste the generated iframe into your website and adjust its height if needed. Ordinary wheel/single-finger scrolling navigates your page; Ctrl/Cmd + wheel and two fingers intentionally manipulate the map. **Open full view** gives a one-click/tap or keyboard path to normal map navigation in a new tab. See [Timeline embedding](06-Timeline.md).
 

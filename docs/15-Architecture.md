@@ -56,6 +56,14 @@ The application uses ASP.NET Areas for logical separation:
 - Data API: `POST /Public/Users/GetPublicTimeline` (with viewport/zoom filter), `GET /Public/Users/GetPublicStats/{username}`
 - Hidden Areas are enforced: locations inside user-defined hidden polygons are excluded from public results.
 
+### Public map embed contract
+
+- `wwwroot/js/embeddedMap.js` owns cooperative Leaflet interaction and the accessible **Open full view** link. Trip `initLeaflet` opts in from viewer embed state, excluding `print=1`; Timeline's dedicated embed initializer consumes the same options and installation. Normal maps do not opt in. Reinitialization uses Leaflet removal so the shared owner's unload cleanup runs.
+- Ordinary wheel and single-touch movement remain parent-page navigation. A capture listener selects platform modifier-wheel intent before Leaflet handles the event; single-touch disables Leaflet dragging while its existing two-touch handler owns deliberate pan/zoom. Explicit mouse drag, controls, and marker interactions remain available. There is no gesture dependency, parent messaging, or host-specific integration.
+- `wwwroot/js/embedSharing.js` owns canonical routes, escaped iframe HTML, and the existing clipboard feedback used by Trip Index and Timeline Settings. Generated markup uses `width="100%"`, `height="600"`, an accessible title, lazy loading, and borderless styling, without sandbox or unnecessary permissions. URL and HTML derive from the same canonical URL, excluding transient/private state.
+- Public origin comes from the browser's effective HTTPS origin, not an independently reconstructed server Host. `Program.cs` already processes trusted forwarded scheme/host headers before routing; proxy deployments must expose Wayfarer at the intended public HTTPS address. HTTP and clearly local/internal origins produce an explicit copy error. A public hostname is never inferred from the backend hostname or a hard-coded deployment name. Relative Timeline navigation uses the same browser origin.
+- Future map embeds must consume these owners and provide a canonical public non-embed full-view route. Cross-frame scrolling requires mounted browser evidence; handler tests alone are insufficient. See the focused iframe test in `tests/e2e/trip-editor/embeddedMap.spec.ts`. Physical-device Safari/Android behavior remains separate from Chromium mobile emulation evidence.
+
 ### Base Controllers
 
 - `Controllers/BaseController` — shared helpers for MVC controllers (logging, alerts, titles).

@@ -1,8 +1,8 @@
 ﻿@model Wayfarer.Models.ApplicationUser
 
 @{
-    var fullurl = $"https://{Context.Request.Host}/Public/Users/Timeline/{Model.UserName}";
-    var fullurlEmbed = $"https://{Context.Request.Host}/Public/Users/Timeline/{Model.UserName}/embed";
+    // Relative navigation respects the public browser origin and existing forwarded-header handling.
+    var fullurl = $"/Public/Users/Timeline/{Uri.EscapeDataString(Model.UserName!)}";
 }
 
 <h1 class="text-center">@ViewData["Title"]</h1>
@@ -26,8 +26,15 @@
                                 <span class="badge bg-success d-inline">YES</span>
                                 <p>See your public timeline at <a href="@fullurl" title="Your public facing timeline!" target="_blank">@fullurl</a>
                                     <br/>You can share this link to your friends!</p>
-                                <p>Or <a href="@fullurlEmbed" title="Your public facing timeline!" target="_blank">@fullurlEmbed</a>
-                                    <br/>You can embed it in your blog!</p>
+                                <p>Embed your public Timeline in your website:</p>
+                                <div class="d-flex flex-wrap gap-2">
+                                    <button type="button" class="btn btn-outline-primary btn-sm" data-embed-kind="timeline"
+                                            data-embed-id="@Model.UserName" data-embed-title="@(Model.TimelineTitle ?? Model.DisplayName ?? Model.UserName)"
+                                            data-embed-format="url">Copy embed URL</button>
+                                    <button type="button" class="btn btn-outline-primary btn-sm" data-embed-kind="timeline"
+                                            data-embed-id="@Model.UserName" data-embed-title="@(Model.TimelineTitle ?? Model.DisplayName ?? Model.UserName)"
+                                            data-embed-format="html">Copy embed HTML</button>
+                                </div>
                             }
                             else
                             {

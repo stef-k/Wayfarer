@@ -1,5 +1,5 @@
 ﻿<!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="h-100">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -31,7 +31,8 @@
         <link rel="stylesheet" href="~/lib/Leaflet.markercluster-1.4.1/dist/MarkerCluster.Default.css" />
     }
 </head>
-<body data-bs-theme="light">
+<!-- The embed document fits its viewport; the host page owns ordinary scrolling. -->
+<body data-bs-theme="light" class="h-100">
     <div class="@(ViewData["BodyClass"] as string ?? "container")">
         @if (TempData["AlertMessage"] != null)
         {
@@ -46,7 +47,7 @@
         </div>
 
 
-        <main role="main" class="pb-3">
+        <main role="main" class="h-100">
             @RenderBody()
         </main>
     </div>

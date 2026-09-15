@@ -1331,18 +1331,6 @@ thead th {
 #btn-show-sidebar[style*="display: none"]{
     pointer-events:none;
 }
-/*show fullscreen button in embed trip view*/
-#btn-fullscreen{
-    position:fixed;
-    top:85px!important;              /* default when navbar is present */
-    z-index:1060;
-    user-select:none;
-}
-
-/* becomes clickable when visible */
-#btn-fullscreen:not([style*="display: none"]){
-    pointer-events:auto;
-}
 
 /* ─── Animated details sidebar ───────────────────────────── */
 #sidebar-secondary{
@@ -1429,7 +1417,6 @@ html.embed-mode {
 
 /* Embed view: no site navbar, align buttons with Leaflet controls near top */
 body.embed-mode #btn-show-sidebar { top: 14px; }
-body.embed-mode #btn-fullscreen  { top: 14px !important; }
 body.embed-mode #btn-collapse-sidebar.stick { top: 14px; }
 
 body.embed-mode .container-fluid,

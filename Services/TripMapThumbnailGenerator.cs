@@ -329,6 +329,12 @@ public sealed partial class TripMapThumbnailGenerator : ITripMapThumbnailGenerat
             return null;
         }
 
+        // Omit only the shared embed escape; retain screen media and the existing map framing.
+        await page.AddStyleTagAsync(new PageAddStyleTagOptions
+        {
+            Content = ".wayfarer-embed-full-view { display: none !important; }"
+        });
+
         return await page.ScreenshotAsync(new PageScreenshotOptions
         {
             Type = ScreenshotType.Jpeg,

@@ -226,6 +226,9 @@ Adjust in **Admin > Settings**:
 ## Public Trip Sharing
 
 - Make trips public to share via URL.
+- In the Trip list's public sharing menu, **Copy embed URL** copies `/Public/Trips/{id}?embed=true` at your public HTTPS origin. **Copy embed HTML** copies an accessible iframe with that exact URL; it does not include your current viewport or owner-only state.
+- Embeds let ordinary wheel and single-finger input scroll the containing page. Use Ctrl + wheel (Cmd on macOS), mouse drag, two-finger touch gestures, or explicit zoom controls for map interaction. **Open full view** opens the normal public Trip outside the iframe with one click/tap or keyboard activation, independently of the legend.
+- See [the iframe example](06-Timeline.md) for the shared markup convention and adjustable default height. Print and map-snapshot rendering omit the full-view escape.
 - Toggle **Share Visit Progress** to display your journey on public trips.
 - Viewers see your progress in real-time via SSE updates.
 
