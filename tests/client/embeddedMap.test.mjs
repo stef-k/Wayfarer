@@ -59,7 +59,9 @@ test('intentional gestures do not permanently enable ordinary wheel or single-to
     assert.equal(fixture.send('touchstart', { touches: [{}, {}] }).defaultPrevented, true);
     fixture.send('pointerdown', { pointerType: 'mouse' });
     assert.equal(fixture.map.dragging.enabled(), true);
+    fixture.send('pointerdown', { pointerType: 'touch' });
     dispose();
+    assert.equal(fixture.map.dragging.enabled(), true);
 });
 
 test('full-view link stays independent of gestures and reinitialization releases listeners and controls', () => {
@@ -72,11 +74,12 @@ test('full-view link stays independent of gestures and reinitialization releases
     assert.equal(link.href, '/Public/Users/Timeline/alice');
     assert.equal(link.target, '_blank');
     assert.equal(link.rel, 'noopener');
+    fixture.map.dragging.disable(); // Leaflet disables handlers before firing unload.
     fixture.events.get('unload')();
     assert.equal(fixture.controls.size, 0);
     assert.equal(fixture.container.style.touchAction, '');
-    fixture.send('pointerdown', { pointerType: 'touch' });
-    assert.equal(fixture.map.dragging.enabled(), true);
+    fixture.send('pointerdown', { pointerType: 'mouse' });
+    assert.equal(fixture.map.dragging.enabled(), false);
     const nextDispose = installEmbeddedMap(fixture.map, '/Public/Trips/another');
     assert.notEqual(nextDispose, dispose);
     assert.equal(fixture.controls.size, 1);

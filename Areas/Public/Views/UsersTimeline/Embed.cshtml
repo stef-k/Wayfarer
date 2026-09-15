@@ -3,16 +3,17 @@
 }
 
 @{
-    ViewData["BodyClass"] = "container-fluid";
+    ViewData["BodyClass"] = "container-fluid p-0 h-100";
     ViewData["LoadLeaflet"] = true;
     var username = ViewData["Username"];
     var timelineTitle = ViewData["TimelineTitle"];
     var timelineLive = ViewData["TimelineLive"];
 }
 
-<div class="wayfarer-embed py-1">
+<!-- Fit the header and map inside the iframe so ordinary scrolling chains to its parent. -->
+<div class="wayfarer-embed d-flex flex-column h-100">
     
-    <div id="timeline-header" class="d-flex flex-wrap align-items-baseline justify-content-center justify-content-md-start gap-2 px-3">
+    <div id="timeline-header" class="d-flex flex-shrink-0 flex-wrap align-items-baseline justify-content-center justify-content-md-start gap-2 px-3">
         <h1 class="fs-3 py-1">
             @timelineTitle
         </h1>
@@ -24,7 +25,7 @@
     <!-- Map container -->
     <div id="username" data-username="@username" hidden></div>
     <div id="timelineLive" data-timeline-live="@timelineLive" hidden></div>
-    <div id="mapContainer" style="height: calc(100vh - 80px);"></div>
+    <div id="mapContainer" class="flex-grow-1" style="min-height:0;"></div>
 
     <!-- Modal HTML -->
     <div class="modal fade" id="locationModal" tabindex="-1" aria-labelledby="locationModalLabel" data-bs-backdrop="static">

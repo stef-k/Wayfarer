@@ -28,13 +28,13 @@ export const installEmbeddedMap = (map, fullViewUrl) => {
         if (event.touches.length === 2) event.preventDefault();
     };
     container.addEventListener('wheel', wheel, { capture: true, passive: true });
-    container.addEventListener('pointerdown', pointer, true);
+    container.addEventListener('pointerdown', pointer, { capture: true });
     container.addEventListener('touchstart', touch, { capture: true, passive: false });
 
     const escape = L.control({ position: 'topright' });
     escape.onAdd = () => {
         const link = document.createElement('a');
-        link.className = 'btn btn-primary btn-sm shadow d-print-none';
+        link.className = 'btn btn-primary btn-sm text-white shadow d-print-none';
         link.textContent = 'Open full view';
         link.title = 'Open full view in a new tab';
         link.href = fullViewUrl;
@@ -46,20 +46,24 @@ export const installEmbeddedMap = (map, fullViewUrl) => {
     escape.addTo(map);
 
     // Map removal and explicit reinitialization release every listener and control.
-    const dispose = () => {
-        container.removeEventListener('wheel', wheel, true);
-        container.removeEventListener('pointerdown', pointer, true);
-        container.removeEventListener('touchstart', touch, true);
+    const dispose = (restore = true) => {
+        container.removeEventListener('wheel', wheel, { capture: true });
+        container.removeEventListener('pointerdown', pointer, { capture: true });
+        container.removeEventListener('touchstart', touch, { capture: true });
         container.style.touchAction = previousTouchAction;
-        if (previousDragging) map.dragging.enable();
-        else map.dragging.disable();
-        if (previousWheel) map.scrollWheelZoom.enable();
-        else map.scrollWheelZoom.disable();
+        // Leaflet has already disabled its handlers during unload; never revive a removed map.
+        if (restore) {
+            if (previousDragging) map.dragging.enable();
+            else map.dragging.disable();
+            if (previousWheel) map.scrollWheelZoom.enable();
+            else map.scrollWheelZoom.disable();
+        }
         escape.remove();
-        map.off('unload', dispose);
+        map.off('unload', unload);
         installations.delete(map);
     };
+    const unload = () => dispose(false);
     installations.set(map, dispose);
-    map.on('unload', dispose);
+    map.on('unload', unload);
     return dispose;
 };

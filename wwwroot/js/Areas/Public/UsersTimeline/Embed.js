@@ -45,8 +45,6 @@ import {
 
 document.addEventListener('DOMContentLoaded', () => {
     
-    fixParentPadding();
-    
     username = document.getElementById('username').dataset.username;
     const timelineLiveStr = document.getElementById('timelineLive').dataset.timelineLive;
     timelineLive = timelineLiveStr && timelineLiveStr.toLowerCase() === "true";
@@ -534,16 +532,7 @@ const getUserStats = async (username) => {
 
     const summary = summaryParts.join(" | ");
     document.getElementById("timeline-summary").innerHTML  = summary;
-};
-
-const fixParentPadding = () => {
-    document.querySelectorAll('.wayfarer-embed').forEach(embed => {
-        const parent = embed.closest('.container-fluid');
-        if (parent) {
-            parent.style.backgroundColor = "transparent !important";
-            parent.style.paddingLeft = '0';
-            parent.style.paddingRight = '0';
-        }
-    });
+    // Wrapped statistics can resize the flex map after the initial tile layout.
+    mapContainer?.invalidateSize();
 };
 

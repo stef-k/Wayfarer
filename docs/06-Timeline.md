@@ -22,9 +22,16 @@ Hidden Areas
 ![Adding a Hidden Area](images/add-hidden-area.JPG)
 
 Embed Your Public Timeline
-- Use the embed URL to include your public timeline in another site:
-- Example: `<iframe src="https://<your-server>/Public/Users/Timeline/<username>/embed" width="100%" height="600" frameborder="0"></iframe>`
-- Replace `<your-server>` and `<username>` with your instance and username.
+- Open Timeline Settings at your instance's public HTTPS address. **Copy embed URL** copies the canonical public URL; **Copy embed HTML** copies a ready-to-paste iframe. Copy failures are reported explicitly.
+- A representative snippet (replace the example host and username) is:
+
+```html
+<iframe src="https://maps.example.org/Public/Users/Timeline/alice/embed" title="Alice's Timeline" width="100%" height="600" loading="lazy" style="border:0;"></iframe>
+```
+
+- Adjust `height="600"` to suit your website; the width fills its container. No parent-page scripts, overlays, or sandbox are needed.
+- Ordinary wheel scrolling and single-finger swipes scroll the containing page. Use Ctrl + wheel (Cmd on macOS) to zoom, mouse drag to pan, or two fingers to pan/zoom on touchscreens. Zoom buttons and marker taps remain available.
+- **Open full view** opens the normal public Timeline in a new tab with one tap/click or keyboard activation. Normal views keep unrestricted map navigation. Trip embeds follow this same interaction contract.
 
 Stats
 - Public endpoints also provide aggregated stats for your username to support simple "about me" blocks.

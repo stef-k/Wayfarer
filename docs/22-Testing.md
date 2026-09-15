@@ -169,6 +169,7 @@ npm run smoke:trip-editor:assets
 
 Trip Editor Playwright Verification
 - This is dev-only tooling for the Vue Trip Editor. It is not part of production deployment, and `npm run build` does not run Playwright.
+- The focused `embeddedMap.spec.ts` also uses this runner. Start the established local HTTPS host on port 7150, set `WAYFARER_E2E_BASE_URL=https://wayfarer.example.test:7150`, and run `npx playwright test --config=playwright.config.ts embeddedMap.spec.ts`. The reserved hostname is mapped to loopback only inside the test browser. The test discovers an existing public Trip without changing it and mounts production-generated HTML in a script-free cross-origin scrollable parent. Its local-network permission only allows that fixture to reach the local host; it is not an iframe attribute or production requirement. Chromium native input/CDP proves desktop and emulated mobile scroll chaining, controls, pan/zoom, and the full-view escape; it does not establish physical-device acceptance.
 - Start the ASP.NET Core app first:
 
 ```powershell
