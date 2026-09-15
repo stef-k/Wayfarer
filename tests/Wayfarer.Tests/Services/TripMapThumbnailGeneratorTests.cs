@@ -126,6 +126,7 @@ public class TripMapThumbnailGeneratorTests : IDisposable
         page.Verify(item => item.ScreenshotAsync(It.IsAny<PageScreenshotOptions>()), Times.Never);
     }
 
+    /// <summary>Capture must await escape suppression before taking the screen-media screenshot.</summary>
     [Fact]
     public async Task CapturePageAsync_ScreenshotsSuccessfulEmbedResponse()
     {
@@ -137,13 +138,65 @@ public class TripMapThumbnailGeneratorTests : IDisposable
         response.SetupGet(item => item.Url).Returns(embedUrl);
         page.Setup(item => item.GotoAsync(embedUrl, It.IsAny<PageGotoOptions>()))
             .ReturnsAsync(response.Object);
-        page.Setup(item => item.ScreenshotAsync(It.IsAny<PageScreenshotOptions>()))
+        var styled = new TaskCompletionSource<IElementHandle>();
+        page.Setup(item => item.AddStyleTagAsync(It.Is<PageAddStyleTagOptions>(options =>
+                options.Content == ".wayfarer-embed-full-view { display: none !important; }")))
+            .Returns(styled.Task);
+        page.Setup(item => item.ScreenshotAsync(It.Is<PageScreenshotOptions>(options =>
+                options.Type == ScreenshotType.Jpeg && options.Quality == 85 && options.FullPage == false)))
             .ReturnsAsync(expected);
 
-        var result = await TripMapThumbnailGenerator.CapturePageAsync(
+        var capture = TripMapThumbnailGenerator.CapturePageAsync(
             page.Object, embedUrl, CancellationToken.None);
 
-        Assert.Equal(expected, result);
+        page.Verify(item => item.AddStyleTagAsync(It.IsAny<PageAddStyleTagOptions>()), Times.Once);
+        page.Verify(item => item.ScreenshotAsync(It.IsAny<PageScreenshotOptions>()), Times.Never);
+        styled.SetResult(Mock.Of<IElementHandle>());
+        Assert.Equal(expected, await capture);
+        page.Verify(item => item.EmulateMediaAsync(It.IsAny<PageEmulateMediaOptions>()), Times.Never);
+    }
+
+    /// <summary>Real screen-media capture hides the production escape while retaining the map and attribution.</summary>
+    [Fact]
+    [Trait("Category", "RequiresPlaywright")]
+    public async Task CapturePageAsync_OmitsMountedEscapeInScreenMedia()
+    {
+        var root = new DirectoryInfo(AppContext.BaseDirectory);
+        while (!File.Exists(Path.Combine(root.FullName, "Wayfarer.csproj"))) root = root.Parent!;
+        var leaflet = await File.ReadAllTextAsync(Path.Combine(root.FullName, "wwwroot/lib/leaflet/leaflet-1.9.4.js"));
+        var styles = await File.ReadAllTextAsync(Path.Combine(root.FullName, "wwwroot/lib/leaflet/leaflet-1.9.4.css"));
+        var embed = await File.ReadAllTextAsync(Path.Combine(root.FullName, "wwwroot/js/embeddedMap.js"));
+        var html = "<style>body{margin:0}#map{width:800px;height:450px}" + styles + "</style>" +
+            "<div id='map'></div><script>" + leaflet + "</script><script type='module'>" + embed +
+            ";window.map=L.map('map').setView([10,20],4);installEmbeddedMap(map,'/full');</script>";
+        using var playwright = await Microsoft.Playwright.Playwright.CreateAsync();
+        await using var browser = await playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions { Headless = true });
+        var page = await browser.NewPageAsync(new BrowserNewPageOptions
+        {
+            ViewportSize = new ViewportSize { Width = 800, Height = 450 }
+        });
+        const string url = "http://wayfarer.example.com/capture";
+        await page.RouteAsync(url, route => route.FulfillAsync(new RouteFulfillOptions
+        {
+            ContentType = "text/html", Body = html
+        }));
+        await page.GotoAsync(url);
+        var escape = page.GetByRole(AriaRole.Link, new() { Name = "Open full view", Exact = true });
+        await escape.WaitForAsync();
+        Assert.True(await escape.IsVisibleAsync());
+        var bounds = await page.Locator("#map").BoundingBoxAsync();
+
+        var bytes = await TripMapThumbnailGenerator.CapturePageAsync(page, url, CancellationToken.None);
+
+        Assert.NotEmpty(bytes!);
+        Assert.True(await page.EvaluateAsync<bool>("matchMedia('screen').matches"));
+        Assert.True(await escape.IsHiddenAsync());
+        Assert.True(await page.Locator(".leaflet-control-attribution").IsVisibleAsync());
+        Assert.True(await page.Locator(".leaflet-control-zoom").IsVisibleAsync());
+        Assert.Equal(bounds!.Width, (await page.Locator("#map").BoundingBoxAsync())!.Width);
+        Assert.Equal(bounds.Height, (await page.Locator("#map").BoundingBoxAsync())!.Height);
+        Assert.Equal(4, await page.EvaluateAsync<int>("map.getZoom()"));
+        Assert.Equal(new[] { 10d, 20d }, await page.EvaluateAsync<double[]>("[map.getCenter().lat,map.getCenter().lng]"));
     }
 
     [Fact]

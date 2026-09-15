@@ -34,7 +34,8 @@ export const installEmbeddedMap = (map, fullViewUrl) => {
     const escape = L.control({ position: 'topright' });
     escape.onAdd = () => {
         const link = document.createElement('a');
-        link.className = 'btn btn-primary btn-sm text-white shadow d-print-none';
+        // Dedicated capture selector keeps thumbnail omission separate from print styling.
+        link.className = 'wayfarer-embed-full-view btn btn-primary btn-sm text-white shadow d-print-none';
         link.textContent = 'Open full view';
         link.title = 'Open full view in a new tab';
         link.href = fullViewUrl;
