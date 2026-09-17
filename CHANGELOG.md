@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## [1.9.17] - 2026-09-17
+
+### Fixed
+- Public Trip and Timeline embeds show a pointer cursor when hovering over **Open full view**.
+
+### Upgrade notes
+- No database migration, API, dependency, or Mobile changes since v1.9.16.
+- Follow the existing [server-build deployment workflow](docs/20-Deployment.md#updating-wayfarer), then reload open pages. Older upgrades must still apply pending migrations; preserve PostgreSQL and its matching Data Protection key ring.
+
 ## [1.9.16] - 2026-09-15
 
 ### Fixed
