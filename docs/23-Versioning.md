@@ -5,7 +5,7 @@ file contains the manually edited `WayfarerVersion` value and maps the standard
 MSBuild metadata directly from it:
 
 ```xml
-<WayfarerVersion>1.9.16</WayfarerVersion>
+<WayfarerVersion>1.9.17</WayfarerVersion>
 <Version>$(WayfarerVersion)</Version>
 <PackageVersion>$(WayfarerVersion)</PackageVersion>
 <AssemblyInformationalVersion>$(WayfarerVersion)</AssemblyInformationalVersion>
@@ -19,7 +19,7 @@ assembly through `IAppVersionProvider`. Runtime surfaces such as
 separate constants.
 
 Use `dotnet run --no-launch-profile -- version` when validating exact CLI
-output. The app writes exactly `Wayfarer 1.9.16`; `--no-launch-profile` avoids
+output. The app writes exactly `Wayfarer 1.9.17`; `--no-launch-profile` avoids
 .NET SDK launch-profile messages so validation stays focused on app output.
 
 ## Release helper
@@ -38,6 +38,24 @@ adds the required changelog skeleton for the target release. The default `check`
 command validates only offline repo files; tag and GitHub release checks run
 only when their explicit flags are supplied. The helper validates release state
 but does not create, edit, publish, or delete GitHub releases.
+
+## 1.9.17 release source record
+
+Prepared on 2026-09-17 from main `e6b8bd48` with the shared embed cursor
+correction on `fix/embed-full-view-cursor`. Both public Trip and Timeline
+full-view links explicitly use the pointer cursor. Existing Trip URL and iframe
+copy actions remain unchanged; the maintainer confirmed they are visible.
+
+Validation covers the five shared embed client tests, release helper tests,
+compiled Versioning tests, exact CLI output, diff hygiene, and complete-branch
+Code Guard. No fresh mounted-browser hover verification is claimed.
+The changelog remains a cohesive release history despite its size review.
+
+No database migration, API, dependency, or Mobile changes since v1.9.16.
+Follow the [server-build deployment workflow](20-Deployment.md#updating-wayfarer)
+and reload open pages. Older upgrades still apply pending migrations; preserve
+PostgreSQL and its matching Data Protection key ring. GitHub publication does
+not deploy the server.
 
 ## 1.9.16 release source record
 
