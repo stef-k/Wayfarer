@@ -15,7 +15,7 @@ const mount = () => {
     const map = { dragging: handler(true), scrollWheelZoom: handler(false),
         getContainer: () => container, on: (type, fn) => events.set(type, fn),
         off: type => events.delete(type) };
-    globalThis.document = { createElement: () => ({}) };
+    globalThis.document = { createElement: () => ({ style: {} }) };
     globalThis.L = { DomEvent: { disableClickPropagation: () => {} }, control: () => ({
         addTo() { this.element = this.onAdd(); controls.add(this); }, remove() { controls.delete(this); }
     }) };
@@ -71,6 +71,7 @@ test('full-view link stays independent of gestures and reinitialization releases
     assert.equal(fixture.controls.size, 1);
     const link = [...fixture.controls][0].element;
     assert.equal(link.textContent, 'Open full view');
+    assert.equal(link.style.cursor, 'pointer');
     assert.equal(link.href, '/Public/Users/Timeline/alice');
     assert.equal(link.target, '_blank');
     assert.equal(link.rel, 'noopener');

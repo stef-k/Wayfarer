@@ -15,6 +15,9 @@
 
 ## Unreleased
 
+### Fixed
+- Public Trip and Timeline embeds show a pointer cursor when hovering over **Open full view**.
+
 ## [1.9.15] - 2026-09-14
 
 ### Fixed

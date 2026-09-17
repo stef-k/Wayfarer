@@ -36,6 +36,8 @@ export const installEmbeddedMap = (map, fullViewUrl) => {
         const link = document.createElement('a');
         // Dedicated capture selector keeps thumbnail omission separate from print styling.
         link.className = 'wayfarer-embed-full-view btn btn-primary btn-sm text-white shadow d-print-none';
+        // Override Leaflet's control cursor so this action remains visibly clickable.
+        link.style.cursor = 'pointer';
         link.textContent = 'Open full view';
         link.title = 'Open full view in a new tab';
         link.href = fullViewUrl;
