@@ -6,8 +6,11 @@ using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using NetTopologySuite.Geometries;
+using NetTopologySuite.IO;
+using Microsoft.EntityFrameworkCore;
 using Wayfarer.Areas.User.Controllers;
 using Wayfarer.Models;
+using Wayfarer.Models.ViewModels;
 using Wayfarer.Tests.Infrastructure;
 using Xunit;
 
@@ -18,6 +21,65 @@ namespace Wayfarer.Tests.Controllers;
 /// </summary>
 public class HiddenAreasControllerTests : TestBase
 {
+    /// <summary>Drawing WKT uses longitude/latitude; saving assigns metadata without moving vertices.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Save_PersistsDrawingCoordinatesWith4326(bool edit)
+    {
+        using var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser();
+        db.Users.Add(user);
+        var area = CreateHiddenArea(user, "Original");
+        if (edit) db.HiddenAreas.Add(area);
+        await db.SaveChangesAsync();
+        const string wkt = "POLYGON ((23.5 38.1, 24.2 38.1, 24.2 39.7, 23.5 38.1))";
+        var controller = CreateController(db, user);
+
+        var result = edit
+            ? await controller.Edit(new HiddenAreaEditViewModel { Id = area.Id, Name = "Drawing", AreaWKT = wkt })
+            : await controller.Create(new HiddenAreaCreateViewModel { Name = "Drawing", AreaWKT = wkt });
+
+        Assert.IsType<RedirectToActionResult>(result);
+        db.ChangeTracker.Clear();
+        var saved = await db.HiddenAreas.SingleAsync();
+        Assert.Equal(4326, saved.Area.SRID);
+        Assert.Equal(new WKTReader().Read(wkt).Coordinates, saved.Area.Coordinates);
+        Assert.Equal(user.Id, saved.UserId);
+    }
+
+    /// <summary>An explicitly conflicting CRS is rejected rather than relabelled as longitude/latitude.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Save_RejectsConflictingSrid(bool edit)
+    {
+        using var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser();
+        db.Users.Add(user);
+        var area = CreateHiddenArea(user, "Original");
+        if (edit) db.HiddenAreas.Add(area);
+        await db.SaveChangesAsync();
+        var original = area.Area.AsText();
+        const string wkt = "SRID=3857;POLYGON ((23 38, 24 38, 24 39, 23 38))";
+        var controller = CreateController(db, user);
+
+        var result = edit
+            ? await controller.Edit(new HiddenAreaEditViewModel { Id = area.Id, Name = "Rejected", AreaWKT = wkt })
+            : await controller.Create(new HiddenAreaCreateViewModel { Name = "Rejected", AreaWKT = wkt });
+
+        Assert.IsType<ViewResult>(result);
+        db.ChangeTracker.Clear();
+        if (edit)
+        {
+            var saved = await db.HiddenAreas.SingleAsync();
+            Assert.Equal("Original", saved.Name);
+            Assert.Equal(original, saved.Area.AsText());
+            Assert.Equal(0, saved.Area.SRID);
+        }
+        else Assert.Empty(db.HiddenAreas);
+    }
+
     [Fact]
     public async Task Index_ReturnsHiddenAreasForSignedInUser()
     {

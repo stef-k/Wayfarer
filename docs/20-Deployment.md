@@ -407,6 +407,18 @@ sudo systemctl start wayfarer
 
 Before the first release that uses protected personal provider profiles, preserve the service user's existing Data Protection keys at `/home/wayfarer/.aspnet/DataProtection-Keys` as described in [Personal Location Providers](24-Personal-Location-Providers.md). Back up and restore the PostgreSQL database and key ring together; restoration, ownership, and permission recovery must be complete before starting Wayfarer. Database-only backups are incomplete once protected credentials exist.
 
+### Hidden Area SRID correction after v1.9.18
+
+Deploy migration `20260922182107_RepairHiddenAreaSrid` together with the corrected application. Stop the old application before applying pending EF migrations through the normal deployment workflow, and start the corrected application only after migrations succeed. An application-only update does not repair saved polygons; leaving old application instances running can recreate SRID-0 drawings after repair.
+
+For this upgrade, explicitly stop the service before invoking `deployment/deploy.sh`: its ordinary stop step occurs after migration execution. For manual deployment, apply pending migrations with `dotnet ef database update --project Wayfarer.csproj --context Wayfarer.Models.ApplicationDbContext` using the configured deployment environment/connection while the service is stopped, before the start step below. If migration fails, keep the service stopped until the data issue is resolved.
+
+The migration locks Hidden Areas against concurrent writes, checks for unexpected nonzero SRIDs, and assigns SRID 4326 only to SRID-0 polygons with `ST_SetSRID`, within the normal EF migration transaction. Drawing coordinates already use longitude/latitude: no coordinates are transformed, existing 4326 records are unchanged, and an empty table is a no-op. Public points and statistics continue using the shared privacy query, including Hidden Area interior exclusion; private owner statistics remain complete.
+
+If the preflight aborts, inspect `ST_SRID("Area")` in `"HiddenAreas"` and verify the unexpected records' source coordinate system before correcting them and retrying. The failure leaves all polygons unrepaired and the migration unapplied. Do not blindly relabel another coordinate system, delete Hidden Areas, or disable privacy.
+
+`Down` deliberately retains corrected SRID metadata: it cannot distinguish repaired records from originally correct or subsequently created 4326 polygons. A downgrade is not a reversal of this data repair; indiscriminately resetting polygons to 0 would recreate the public-query failure. Keep the corrected writer during application rollback planning, or restore a verified matching database/application backup with the service stopped.
+
 ### Automated (Recommended)
 
 ```bash
