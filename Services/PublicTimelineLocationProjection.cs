@@ -37,9 +37,6 @@ public sealed class PublicTimelineLocationProjection
                  AND ST_Contains(hidden."Area"::geometry, location."Coordinates"::geometry)))
         """;
 
-    /// <summary>Replaces the trusted Location table source before viewport ranking or limiting.</summary>
-    public string ApplyTo(string sql) => sql.Replace("\"public\".\"Locations\"", SourceSql + " AS public_locations");
-
     /// <summary>Creates fresh provider parameters for each command, retaining caller parameters.</summary>
     public object[] Bind(params object[] parameters) => parameters.Concat(new object[]
     {

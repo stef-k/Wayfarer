@@ -9,6 +9,7 @@ using Wayfarer.Parsers;
 using Wayfarer.Services;
 using Wayfarer.Tests.Infrastructure;
 using Xunit;
+using Location = Wayfarer.Models.Location;
 
 namespace Wayfarer.Tests.Services;
 
@@ -98,6 +99,11 @@ public sealed class PublicTimelineLocationPostgresTests(PostgresImportTestFixtur
         Assert.Equal(1, count);
         Assert.True(point.LocalTimestamp > cutoff); // Athens display time must not be compared to UTC.
         AssertSummary(await new LocationStatsService(db).GetPublicStatsAsync(projection), [boundary]);
+        // Existing private callers omit the projection and continue seeing both records.
+        var (privatePoints, privateCount) = await new LocationService(db).GetLocationsAsync(
+            20, 35, 30, 45, 12, user.Id, CancellationToken.None);
+        Assert.Equal(2, privateCount);
+        Assert.Equal(2, privatePoints.Count);
     }
 
     /// <summary>Private rows cannot win country/geohash ranking or the high-zoom latest selection.</summary>

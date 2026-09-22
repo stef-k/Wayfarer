@@ -77,6 +77,16 @@ Location Search & Filters
 
 ![Timeline Statistics](images/private-timeline-statistics.JPG)
 
+### Public statistics privacy
+
+Public Timeline and embed summaries use the same eligible Locations as the public
+point feed: the Timeline must be effectively public with a valid delay setting,
+and Locations inside Hidden Areas are excluded. Delayed timelines include events
+at or before the cutoff; live timelines have no delay cutoff. Counts and first/last
+dates summarize the full eligible history, regardless of viewport, zoom or map
+sampling. No eligible history gives zero counts and empty dates. Private owner and
+chronological statistics retain their existing scope.
+
 ### Statistics grouping
 
 Statistics use recorded Country, Region and Place labels at read time. Only outer
