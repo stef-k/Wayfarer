@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using NetTopologySuite.IO;
 using NetTopologySuite.Geometries;
+using NetTopologySuite;
 using Wayfarer.Models;
 using Wayfarer.Models.ViewModels;
 
@@ -50,7 +51,6 @@ namespace Wayfarer.Areas.User.Controllers
 
             try
             {
-                var reader = new WKTReader();
                 var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
                 if (string.IsNullOrEmpty(userId))
                 {
@@ -58,8 +58,7 @@ namespace Wayfarer.Areas.User.Controllers
                     return RedirectToAction("Index", "Home", new { area = "" });
                 }
 
-                var polygon = (Polygon)reader.Read(vm.AreaWKT);
-                SetDrawingSrid(polygon);
+                var polygon = (Polygon)ReadDrawingGeometry(vm.AreaWKT);
                 var hiddenArea = new HiddenArea
                 {
                     Name = vm.Name,
@@ -140,17 +139,15 @@ namespace Wayfarer.Areas.User.Controllers
 
             try
             {
-                hiddenArea.Name = vm.Name;
-                hiddenArea.Description = vm.Description;
-
-                var reader = new WKTReader();
-                var polygon = reader.Read(vm.AreaWKT) as Polygon;
+                var polygon = ReadDrawingGeometry(vm.AreaWKT) as Polygon;
                 if (polygon == null)
                 {
                     SetAlert("Invalid area geometry.", "error");
                     return View(vm);
                 }
-                SetDrawingSrid(polygon);
+                // Validate before mutating tracked data: HandleError also saves its audit entry.
+                hiddenArea.Name = vm.Name;
+                hiddenArea.Description = vm.Description;
                 hiddenArea.Area = polygon;
 
                 await _dbContext.SaveChangesAsync();
@@ -168,13 +165,15 @@ namespace Wayfarer.Areas.User.Controllers
 
 
         /// <summary>Assigns the drawing forms' longitude/latitude CRS without changing coordinates.</summary>
-        /// <remarks>Unspecified WKT has SRID 0; explicitly conflicting systems must not be relabelled.</remarks>
-        private static void SetDrawingSrid(Polygon polygon)
+        /// <remarks>Default only unspecified WKT; reject an explicitly different coordinate system.</remarks>
+        private static Geometry ReadDrawingGeometry(string wkt)
         {
-            if (polygon.SRID != 0 && polygon.SRID != 4326)
+            var reader = new WKTReader(new NtsGeometryServices(new PrecisionModel(), 4326));
+            var geometry = reader.Read(wkt);
+            if (geometry.SRID != 4326)
                 throw new ArgumentException("Hidden Areas must use longitude/latitude coordinates (SRID 4326).");
 
-            polygon.SRID = 4326;
+            return geometry;
         }
 
         // GET: User/HiddenAreas/Delete/5

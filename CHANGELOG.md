@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## [Unreleased]
+
+### Fixed
+- Hidden Area Create and Edit save longitude/latitude drawings with SRID 4326 and reject explicitly conflicting coordinate systems. A data migration repairs legacy SRID-0 polygons, correcting public Timeline points and statistics failures exposed by v1.9.18 (#601, PR #602).
+
+### Upgrade notes
+- Deploy the corrected application together with migration `20260922182107_RepairHiddenAreaSrid`; stop the old application, apply pending migrations, then start the corrected application. Application-only deployment leaves legacy queries broken; migration-only deployment allows old writers to recreate the defect. See [Updating Wayfarer](docs/20-Deployment.md#updating-wayfarer).
+- The repair uses `ST_SetSRID` only for SRID-0 Hidden Areas: coordinates are not transformed and existing SRID-4326 polygons remain unchanged. Unexpected nonzero SRIDs abort the migration before any repair, with an inspection hint; verify their source coordinate system and correct them before retrying. Empty tables require no repair.
+- Downgrading the migration retains corrected metadata because repaired, originally correct, and subsequently created polygons cannot be distinguished safely. Do not reset all polygons to SRID 0, delete Hidden Areas, or disable privacy as an upgrade workaround.
+
 ## [1.9.18] - 2026-09-22
 
 ### Fixed
