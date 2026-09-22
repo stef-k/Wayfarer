@@ -1,6 +1,6 @@
 # CHANGELOG
 
-## [Unreleased]
+## [1.9.19] - 2026-09-22
 
 ### Fixed
 - Hidden Area Create and Edit save longitude/latitude drawings with SRID 4326 and reject explicitly conflicting coordinate systems. A data migration repairs legacy SRID-0 polygons, correcting public Timeline points and statistics failures exposed by v1.9.18 (#601, PR #602).

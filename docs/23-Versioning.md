@@ -5,7 +5,7 @@ file contains the manually edited `WayfarerVersion` value and maps the standard
 MSBuild metadata directly from it:
 
 ```xml
-<WayfarerVersion>1.9.18</WayfarerVersion>
+<WayfarerVersion>1.9.19</WayfarerVersion>
 <Version>$(WayfarerVersion)</Version>
 <PackageVersion>$(WayfarerVersion)</PackageVersion>
 <AssemblyInformationalVersion>$(WayfarerVersion)</AssemblyInformationalVersion>
@@ -19,7 +19,7 @@ assembly through `IAppVersionProvider`. Runtime surfaces such as
 separate constants.
 
 Use `dotnet run --no-launch-profile -- version` when validating exact CLI
-output. The app writes exactly `Wayfarer 1.9.18`; `--no-launch-profile` avoids
+output. The app writes exactly `Wayfarer 1.9.19`; `--no-launch-profile` avoids
 .NET SDK launch-profile messages so validation stays focused on app output.
 
 ## Release helper
@@ -38,6 +38,30 @@ adds the required changelog skeleton for the target release. The default `check`
 command validates only offline repo files; tag and GitHub release checks run
 only when their explicit flags are supplied. The helper validates release state
 but does not create, edit, publish, or delete GitHub releases.
+
+## 1.9.19 release source record
+
+Prepared on 2026-09-22 from synchronized main `5ed49f8e`.
+[PR #606](https://github.com/stef-k/Wayfarer/pull/606) corrects the v1.9.18
+public Timeline points/statistics failure caused by legacy Hidden Area SRID 0.
+Create/Edit save longitude/latitude drawings with SRID 4326 and reject conflicting
+coordinate systems; the shared privacy query and private statistics are unchanged.
+
+Apply migration `20260922182107_RepairHiddenAreaSrid` together with this application.
+It labels only SRID-0 polygons without moving coordinates, preserves existing
+4326 rows, and aborts unexpected nonzero SRIDs before repair. Down retains the
+corrected metadata. Follow the [upgrade instructions](20-Deployment.md#hidden-area-srid-correction-after-v1918):
+stop old writers, migrate, then start the corrected application. The deployment
+script normally stops after migrations; stop the service first for this upgrade.
+Preserve PostgreSQL and its matching Data Protection key ring.
+
+Independent review at `3580b6cf` reported 41 passing tests with zero skipped,
+including 15 PostgreSQL cases proving the actual migration and public recovery.
+The exact-head GitHub Actions `test` check passed before merge. This is retained
+product evidence; release metadata preparation does not repeat product suites.
+Release validation covers helper tests, compiled Versioning tests, exact CLI
+output, prior-note preservation, diff hygiene, and complete-branch Code Guard.
+No API shape, dependency, or Mobile changes. Publication does not deploy the server.
 
 ## 1.9.18 release source record
 
