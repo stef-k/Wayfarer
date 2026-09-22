@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## [1.9.18] - 2026-09-22
+
+### Fixed
+- Public Timeline and embed statistics honor delay and Hidden Areas through the same backend eligibility source as public points. Privacy filtering precedes sampling and latest-location selection; empty public history returns zero counts and empty dates (#601).
+
+### Upgrade notes
+- No database migration, API shape, dependency, or Mobile changes since v1.9.17. Private owner statistics remain unchanged.
+- Follow the existing [server-build deployment workflow](docs/20-Deployment.md#updating-wayfarer), then reload open pages. Older upgrades must still apply pending migrations; preserve PostgreSQL and its matching Data Protection key ring.
+
 ## [1.9.17] - 2026-09-17
 
 ### Fixed
@@ -21,11 +30,6 @@
 ### Upgrade notes
 - No database migration, API, dependency, or Mobile changes since v1.9.15. Older upgrades must still apply pending migrations; preserve PostgreSQL and its matching Data Protection key ring.
 - Follow the existing [server-build deployment workflow](docs/20-Deployment.md#updating-wayfarer), then reload open Wayfarer pages. Existing embed URLs remain valid; URL and HTML copying requires the public HTTPS address.
-
-## Unreleased
-
-### Fixed
-- Public Timeline and embed statistics honor delay and Hidden Areas through the same backend eligibility source as public points. Privacy filtering precedes sampling and latest-location selection; empty public history returns zero counts and empty dates (#601).
 
 ## [1.9.15] - 2026-09-14
 
