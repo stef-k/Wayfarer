@@ -4,6 +4,7 @@ using Npgsql;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos;
 using Wayfarer.Util;
+using Wayfarer.Services;
 using Location = Wayfarer.Models.Location;
 
 namespace Wayfarer.Parsers
@@ -15,10 +16,12 @@ namespace Wayfarer.Parsers
         public LocationService(ApplicationDbContext dbContext)
             => _dbContext = dbContext;
 
+        /// <summary>Applies optional public eligibility before the existing viewport and zoom sampling.</summary>
         public async Task<(List<PublicLocationDto> Locations, int TotalItems)> GetLocationsAsync(
             double minLongitude, double minLatitude,
             double maxLongitude, double maxLatitude,
-            double zoomLevel, string userId, CancellationToken cancellationToken)
+            double zoomLevel, string userId, CancellationToken cancellationToken,
+            PublicTimelineLocationProjection? publicProjection = null)
         {
             // 1) Expand bbox
             double eps = zoomLevel <= 5 ? 0.1
@@ -34,7 +37,7 @@ namespace Wayfarer.Parsers
             maxLatitude += expand;
 
             // 2) RAW-SQL COUNT
-            var countCmd = _dbContext.Database.GetDbConnection().CreateCommand();
+            using var countCmd = _dbContext.Database.GetDbConnection().CreateCommand();
             countCmd.CommandText = @"
                 SELECT COUNT(*)
                   FROM ""public"".""Locations""
@@ -47,6 +50,12 @@ namespace Wayfarer.Parsers
             countCmd.Parameters.Add(new NpgsqlParameter("minLat", minLatitude));
             countCmd.Parameters.Add(new NpgsqlParameter("maxLat", maxLatitude));
             countCmd.Parameters.Add(new NpgsqlParameter("userId", userId));
+
+            if (publicProjection is not null)
+            {
+                countCmd.CommandText = publicProjection.ApplyTo(countCmd.CommandText);
+                countCmd.Parameters.AddRange(publicProjection.Bind());
+            }
 
             if (countCmd.Connection?.State != System.Data.ConnectionState.Open)
                 await countCmd.Connection!.OpenAsync(cancellationToken);
@@ -79,7 +88,7 @@ namespace Wayfarer.Parsers
                 };
 
                 var allLocations = await _dbContext.Locations
-                    .FromSqlRaw(sqlAll, sqlParams)
+                    .FromSqlRaw(publicProjection?.ApplyTo(sqlAll) ?? sqlAll, publicProjection?.Bind(sqlParams) ?? sqlParams)
                     .Include(l => l.ActivityType)
                     .ToListAsync(cancellationToken);
 
@@ -139,7 +148,7 @@ namespace Wayfarer.Parsers
                 };
 
                 var countryBatch = await _dbContext.Locations
-                    .FromSqlRaw(countrySql, countryParams)
+                    .FromSqlRaw(publicProjection?.ApplyTo(countrySql) ?? countrySql, publicProjection?.Bind(countryParams) ?? countryParams)
                     .Include(l => l.ActivityType)
                     .ToListAsync(cancellationToken);
 
@@ -153,7 +162,7 @@ namespace Wayfarer.Parsers
                         maxLongitude, maxLatitude,
                         precision: 2,
                         limit: fillLimit,
-                        userId, cancellationToken);
+                        userId, cancellationToken, publicProjection);
 
                     locations = countryBatch.Concat(fill.Where(l => !pickedIds.Contains(l.Id))).ToList();
                 }
@@ -170,7 +179,7 @@ namespace Wayfarer.Parsers
                     minLongitude, minLatitude,
                     maxLongitude, maxLatitude,
                     precision, limit,
-                    userId, cancellationToken);
+                    userId, cancellationToken, publicProjection);
             }
             else
             {
@@ -192,7 +201,7 @@ namespace Wayfarer.Parsers
                     new NpgsqlParameter("userId", userId)
                 };
                 locations = await _dbContext.Locations
-                    .FromSqlRaw(sql, parameters)
+                    .FromSqlRaw(publicProjection?.ApplyTo(sql) ?? sql, publicProjection?.Bind(parameters) ?? parameters)
                     .Include(l => l.ActivityType)
                     .ToListAsync(cancellationToken);
             }
@@ -268,7 +277,7 @@ namespace Wayfarer.Parsers
             double minLon, double minLat,
             double maxLon, double maxLat,
             int precision, int limit,
-            string userId, CancellationToken ct)
+            string userId, CancellationToken ct, PublicTimelineLocationProjection? publicProjection)
         {
             var sql = @"
         WITH ranked AS (
@@ -285,7 +294,7 @@ namespace Wayfarer.Parsers
         )
         SELECT l.*
           FROM ranked r
-          JOIN ""public"".""Locations"" l
+          JOIN ""Locations"" l
             ON l.""Id"" = r.""Id""
          WHERE r.rn = 1
          LIMIT @p_limit
@@ -303,7 +312,7 @@ namespace Wayfarer.Parsers
             };
 
             return await _dbContext.Locations
-                .FromSqlRaw(sql, parameters)
+                .FromSqlRaw(publicProjection?.ApplyTo(sql) ?? sql, publicProjection?.Bind(parameters) ?? parameters)
                 .Include(l => l.ActivityType)
                 .ToListAsync(ct);
         }
@@ -485,7 +494,7 @@ namespace Wayfarer.Parsers
                     )
                     SELECT l.*
                       FROM ranked r
-                      JOIN ""public"".""Locations"" l ON l.""Id"" = r.""Id""
+                      JOIN ""Locations"" l ON l.""Id"" = r.""Id""
                      WHERE r.rn <= 5
                      LIMIT 3000
                 ";

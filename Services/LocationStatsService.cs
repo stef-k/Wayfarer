@@ -1,12 +1,15 @@
 using Microsoft.EntityFrameworkCore;
 using System.Runtime.CompilerServices;
 using Wayfarer.Models;
+using Wayfarer.Services;
 using Wayfarer.Models.Dtos;
 
 namespace Wayfarer.Parsers;
 
 public interface ILocationStatsService
 {
+    /// <summary>Summarizes the full eligible public history without viewport sampling.</summary>
+    Task<UserLocationStatsDto> GetPublicStatsAsync(PublicTimelineLocationProjection projection);
     Task<UserLocationStatsDto> GetStatsForUserAsync(string userId);
     Task<UserLocationStatsDto> GetStatsForDateRangeAsync(string userId, DateTime startDate, DateTime endDate);
     Task<UserLocationStatsDetailedDto> GetDetailedStatsForUserAsync(string userId);
@@ -24,6 +27,10 @@ public class LocationStatsService : ILocationStatsService
     {
         _db = db;
     }
+
+    /// <summary>Reuses normalization and UTC summary dates over the authoritative public source.</summary>
+    public Task<UserLocationStatsDto> GetPublicStatsAsync(PublicTimelineLocationProjection projection) =>
+        ReadSummaryAsync(StatisticsScope(false, PublicTimelineLocationProjection.SourceSql + " AS eligible"), projection.Bind());
 
     /// <summary>Summarizes all records using their UTC Timestamp.</summary>
     public Task<UserLocationStatsDto> GetStatsForUserAsync(string userId) =>
@@ -48,17 +55,19 @@ public class LocationStatsService : ILocationStatsService
     /// empty strings represent missing components internally and in the legacy DTOs.
     /// Only trusted SQL fragments vary; user IDs and inclusive bounds remain parameters.
     /// </summary>
-    private static string StatisticsScope(bool dateRange)
+    private static string StatisticsScope(bool dateRange, string? publicSource = null)
     {
         var timestamp = dateRange ? "LocalTimestamp" : "Timestamp";
         var bounds = dateRange ? "AND \"LocalTimestamp\" >= {1} AND \"LocalTimestamp\" <= {2}" : "";
+        var source = publicSource ?? "\"Locations\"";
+        var owner = publicSource is null ? "WHERE \"UserId\" = {0}" : "";
         return $$"""
             WITH trimmed AS (
                 SELECT "Id", "Coordinates", "{{timestamp}}" AS "VisitTime",
                     btrim(COALESCE("Country", ''), E'\x20\x09\x0A\x0B\x0C\x0D') COLLATE "C" AS "Country",
                     btrim(COALESCE("Region", ''), E'\x20\x09\x0A\x0B\x0C\x0D') COLLATE "C" AS "Region",
                     btrim(COALESCE("Place", ''), E'\x20\x09\x0A\x0B\x0C\x0D') COLLATE "C" AS "Place"
-                FROM "Locations" WHERE "UserId" = {0} {{bounds}}
+                FROM {{source}} {{owner}} {{bounds}}
             ), scoped AS (
                 SELECT "Id", "Coordinates", "VisitTime", "Country", "Place",
                     (CASE WHEN "Country" = 'Greece' AND "Region" = 'East Macedonia and Thrace'
@@ -71,7 +80,8 @@ public class LocationStatsService : ILocationStatsService
     /// <summary>Counts distinct component tuples in PostgreSQL without loading Location entities.</summary>
     private async Task<UserLocationStatsDto> ReadSummaryAsync(string scope, object[] parameters)
     {
-        var rows = await _db.Database.SqlQuery<UserLocationStatsDto>(FormattableStringFactory.Create(scope + """
+        // Only trusted projection fragments compose SQL; all owner/cutoff values are parameters.
+        var sql = scope + """
 
             SELECT COUNT(*)::integer AS "TotalLocations",
                 COUNT(DISTINCT "Country") FILTER (WHERE "Country" <> '')::integer AS "CountriesVisited",
@@ -79,7 +89,8 @@ public class LocationStatsService : ILocationStatsService
                 COUNT(DISTINCT ("Country", "Region", "Place")) FILTER (WHERE "Place" <> '')::integer AS "CitiesVisited",
                 MIN("VisitTime") AS "FromDate", MAX("VisitTime") AS "ToDate"
             FROM scoped
-            """, parameters)).ToListAsync();
+            """;
+        var rows = await _db.Database.SqlQueryRaw<UserLocationStatsDto>(sql, parameters).ToListAsync();
         return rows.Single();
     }
 
