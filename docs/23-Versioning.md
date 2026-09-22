@@ -5,7 +5,7 @@ file contains the manually edited `WayfarerVersion` value and maps the standard
 MSBuild metadata directly from it:
 
 ```xml
-<WayfarerVersion>1.9.17</WayfarerVersion>
+<WayfarerVersion>1.9.18</WayfarerVersion>
 <Version>$(WayfarerVersion)</Version>
 <PackageVersion>$(WayfarerVersion)</PackageVersion>
 <AssemblyInformationalVersion>$(WayfarerVersion)</AssemblyInformationalVersion>
@@ -19,7 +19,7 @@ assembly through `IAppVersionProvider`. Runtime surfaces such as
 separate constants.
 
 Use `dotnet run --no-launch-profile -- version` when validating exact CLI
-output. The app writes exactly `Wayfarer 1.9.17`; `--no-launch-profile` avoids
+output. The app writes exactly `Wayfarer 1.9.18`; `--no-launch-profile` avoids
 .NET SDK launch-profile messages so validation stays focused on app output.
 
 ## Release helper
@@ -38,6 +38,28 @@ adds the required changelog skeleton for the target release. The default `check`
 command validates only offline repo files; tag and GitHub release checks run
 only when their explicit flags are supplied. The helper validates release state
 but does not create, edit, publish, or delete GitHub releases.
+
+## 1.9.18 release source record
+
+Prepared on 2026-09-22 from synchronized main `cd35db48`.
+The only change since v1.9.17 is [PR #602](https://github.com/stef-k/Wayfarer/pull/602),
+closing #601: public Timeline and embed statistics share public-point privacy
+eligibility, including delay and Hidden Areas, before sampling or aggregation.
+Private owner statistics remain unchanged; empty public history has zero counts
+and empty dates. Existing timestamp conventions remain documented in
+[Timeline statistics](06-Timeline.md#statistics-grouping).
+
+Product evidence retained from PR #602 includes independent review and 104
+focused passing tests; its exact final-head GitHub Actions `test` check passed.
+Release validation covers helper tests, compiled Versioning tests, exact CLI
+output, preservation of prior release notes, diff hygiene, and Code Guard.
+Product/browser suites are not repeated locally for metadata preparation.
+
+No database migration, API shape, dependency, or Mobile changes since v1.9.17.
+Follow the [server-build deployment workflow](20-Deployment.md#updating-wayfarer)
+and reload open pages. Older upgrades still apply pending migrations; preserve
+PostgreSQL and its matching Data Protection key ring. GitHub publication does
+not deploy the server.
 
 ## 1.9.17 release source record
 
