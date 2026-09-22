@@ -4,7 +4,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using NetTopologySuite.IO;
 using NetTopologySuite.Geometries;
-using NetTopologySuite;
 using Wayfarer.Models;
 using Wayfarer.Models.ViewModels;
 
@@ -60,6 +59,7 @@ namespace Wayfarer.Areas.User.Controllers
                 }
 
                 var polygon = (Polygon)reader.Read(vm.AreaWKT);
+                SetDrawingSrid(polygon);
                 var hiddenArea = new HiddenArea
                 {
                     Name = vm.Name,
@@ -143,15 +143,14 @@ namespace Wayfarer.Areas.User.Controllers
                 hiddenArea.Name = vm.Name;
                 hiddenArea.Description = vm.Description;
 
-                var geometryServices = NtsGeometryServices.Instance;
-                var factory = geometryServices.CreateGeometryFactory(4326);
-                var reader = new WKTReader(geometryServices);
+                var reader = new WKTReader();
                 var polygon = reader.Read(vm.AreaWKT) as Polygon;
                 if (polygon == null)
                 {
                     SetAlert("Invalid area geometry.", "error");
                     return View(vm);
                 }
+                SetDrawingSrid(polygon);
                 hiddenArea.Area = polygon;
 
                 await _dbContext.SaveChangesAsync();
@@ -167,6 +166,16 @@ namespace Wayfarer.Areas.User.Controllers
             }
         }
 
+
+        /// <summary>Assigns the drawing forms' longitude/latitude CRS without changing coordinates.</summary>
+        /// <remarks>Unspecified WKT has SRID 0; explicitly conflicting systems must not be relabelled.</remarks>
+        private static void SetDrawingSrid(Polygon polygon)
+        {
+            if (polygon.SRID != 0 && polygon.SRID != 4326)
+                throw new ArgumentException("Hidden Areas must use longitude/latitude coordinates (SRID 4326).");
+
+            polygon.SRID = 4326;
+        }
 
         // GET: User/HiddenAreas/Delete/5
         public async Task<IActionResult> Delete(int? id)
