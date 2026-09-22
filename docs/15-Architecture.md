@@ -54,7 +54,9 @@ The application uses ASP.NET Areas for logical separation:
 - User public timeline: `GET /Public/Users/Timeline/{username}` (full page view)
 - Embeddable view: `GET /Public/Users/Timeline/{username}/embed`
 - Data API: `POST /Public/Users/GetPublicTimeline` (with viewport/zoom filter), `GET /Public/Users/GetPublicStats/{username}`
-- Hidden Areas are enforced: locations inside user-defined hidden polygons are excluded from public results.
+- `PublicTimelineLocationProjection` is the shared backend source for public points, latest-public-location selection and summaries. It reuses `PublicTimelineEligibilityResolver`, fails closed for private/invalid settings, resolves one inclusive cutoff per request, and applies Hidden Areas with geometry `ST_Contains` (polygon boundary semantics unchanged).
+- Delay compares persisted `LocalTimestamp` inclusively before DTO display conversion. API ingestion stores the UTC client event instant in this field; the existing Wayfarer GeoJSON importer can preserve an imported wall-clock value marked UTC. This change preserves those ingestion conventions. Public/all-time summary dates continue to use `Timestamp`. Live state omits the cutoff.
+- `LocationService` applies eligibility before viewport counts, ranking and limits while retaining zoom presentation. `LocationStatsService` aggregates the full eligible source in PostgreSQL using the existing normalized geographic tuples, without loading owner history. Private callers retain their original source.
 
 ### Public map embed contract
 

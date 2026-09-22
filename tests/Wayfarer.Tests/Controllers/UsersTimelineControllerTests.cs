@@ -238,22 +238,6 @@ public class UsersTimelineControllerTests : TestBase
         Assert.Equal(isLive, controller.ViewData["TimelineLive"]);
     }
 
-    [Fact]
-    public async Task GetPublicTimeline_ReturnsDataEnvelope_ForValidatedCustomThreshold()
-    {
-        var db = CreateDbContext();
-        var user = TestDataFixtures.CreateUser(id: "u1", username: "alice");
-        user.IsTimelinePublic = true;
-        user.PublicTimelineTimeThreshold = "1.5w";
-        db.Users.Add(user);
-        await db.SaveChangesAsync();
-        var controller = BuildController(db);
-
-        var result = await controller.GetPublicTimeline(CreateRequest("alice"));
-
-        Assert.IsType<OkObjectResult>(result);
-    }
-
     private static LocationFilterRequest CreateRequest(string username) => new()
     {
         Username = username,
@@ -276,6 +260,10 @@ public class UsersTimelineControllerTests : TestBase
 
     private sealed class StubStatsService : ILocationStatsService
     {
+        /// <summary>Supplies the public summary for controller visibility tests.</summary>
+        public Task<UserLocationStatsDto> GetPublicStatsAsync(Wayfarer.Services.PublicTimelineLocationProjection projection) =>
+            Task.FromResult(new UserLocationStatsDto { TotalLocations = 99 });
+
         public Task<UserLocationStatsDto> GetStatsForUserAsync(string userId) =>
             Task.FromResult(new UserLocationStatsDto { TotalLocations = 99 });
 

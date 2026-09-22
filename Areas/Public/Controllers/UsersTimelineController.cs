@@ -110,18 +110,14 @@ namespace Wayfarer.Areas.Public.Controllers
         {
             // keep the checks both in view controller and here
             ApplicationUser? user = await _dbContext.Users.FirstOrDefaultAsync(u => u.UserName == request.Username);
-            var eligibility = user is null ? null : PublicTimelineEligibilityResolver.Resolve(user);
-            if (user == null || eligibility is null || !eligibility.IsEffectivelyPublic)
+            var projection = user is null ? null : new PublicTimelineLocationProjection(user, DateTime.UtcNow);
+            if (projection is null || !projection.IsAvailable)
             {
                 return NotFound("User not found or timeline is not public.");
             }
 
-            DateTime cutOffTime = DateTime.UtcNow.Subtract(eligibility.Delay!.Value);
-
-            // get the latest location
-            var latestLocation = await _dbContext.Locations
-                .Where(l => l.UserId == user.Id && l.LocalTimestamp <= cutOffTime)
-                .Include(l => l.ActivityType)
+            // Latest selection shares eligibility and remains independent of viewport and zoom.
+            var latestLocation = await projection.Query(_dbContext)
                 .OrderByDescending(l => l.LocalTimestamp)
                 .FirstOrDefaultAsync();
 
@@ -133,29 +129,10 @@ namespace Wayfarer.Areas.Public.Controllers
                     request.MaxLongitude,
                     request.MaxLatitude,
                     request.ZoomLevel,
-                    user.Id,
-                    CancellationToken.None
+                    user!.Id,
+                    CancellationToken.None,
+                    projection
                 );
-
-                var settings = await _dbContext.ApplicationSettings.OrderBy(s => s.Id).FirstOrDefaultAsync();
-
-                // check against "now" threshold
-                if (!eligibility.IsLive)
-                {
-                    locationDtos = locationDtos.Where(l => l.LocalTimestamp <= cutOffTime).ToList();
-                }
-
-                // Load all hidden areas for this user
-                var hiddenAreas = await _dbContext.HiddenAreas
-                    .Where(h => h.UserId == user.Id)
-                    .ToListAsync();
-
-                // Filter out any locations that fall inside any of the user's hidden areas
-                locationDtos = locationDtos
-                    .Where(loc =>
-                        !hiddenAreas.Any(area => area.Area != null && area.Area.Contains(loc.Coordinates))
-                    )
-                    .ToList();
 
                 var result = locationDtos.Select(location => new PublicLocationDto()
                 {
@@ -231,14 +208,15 @@ namespace Wayfarer.Areas.Public.Controllers
 
             ApplicationUser? user = await _dbContext.Users.FirstOrDefaultAsync(u => u.UserName == username);
 
-            if (user == null || !PublicTimelineEligibilityResolver.Resolve(user).IsEffectivelyPublic)
+            var projection = user is null ? null : new PublicTimelineLocationProjection(user, DateTime.UtcNow);
+            if (projection is null || !projection.IsAvailable)
             {
                 return NotFound("User not found or timeline is not public.");
             }
 
 
-            // 2) Delegate all the heavy‐lifting to your stats service
-            var statsDto = await _statsService.GetStatsForUserAsync(user.Id);
+            // Aggregate eligible history independently of viewport sampling.
+            var statsDto = await _statsService.GetPublicStatsAsync(projection);
 
             return Ok(statsDto);
         }

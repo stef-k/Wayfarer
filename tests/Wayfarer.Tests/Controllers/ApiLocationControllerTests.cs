@@ -635,6 +635,8 @@ public partial class ApiLocationControllerTests : TestBase
     {
         private readonly UserLocationStatsDto _stats;
         public StubStatsService(UserLocationStatsDto stats) => _stats = stats;
+        /// <summary>Public summaries are not exercised by this private-controller stub.</summary>
+        public Task<UserLocationStatsDto> GetPublicStatsAsync(Wayfarer.Services.PublicTimelineLocationProjection projection) => Task.FromResult(_stats);
         public Task<UserLocationStatsDto> GetStatsForUserAsync(string userId) => Task.FromResult(_stats);
         public Task<UserLocationStatsDto> GetStatsForDateRangeAsync(string userId, DateTime startDate, DateTime endDate) => Task.FromResult(_stats);
         public Task<UserLocationStatsDetailedDto> GetDetailedStatsForUserAsync(string userId) => Task.FromResult(new UserLocationStatsDetailedDto());

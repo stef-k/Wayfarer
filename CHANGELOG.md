@@ -24,6 +24,9 @@
 
 ## Unreleased
 
+### Fixed
+- Public Timeline and embed statistics honor delay and Hidden Areas through the same backend eligibility source as public points. Privacy filtering precedes sampling and latest-location selection; empty public history returns zero counts and empty dates (#601).
+
 ## [1.9.15] - 2026-09-14
 
 ### Fixed
