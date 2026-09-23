@@ -30,6 +30,7 @@ public partial class TileCacheService
     /// </summary>
     private readonly ApplicationDbContext _dbContext;
     private readonly string _cacheDirectory;
+    private readonly TileCacheStorage _storage;
     private readonly HttpClient _httpClient;
     private readonly IConfiguration _configuration;
     private readonly IApplicationSettingsService _applicationSettings;
@@ -190,7 +191,7 @@ public partial class TileCacheService
     public TileCacheService(ILogger<TileCacheService> logger, IConfiguration configuration, HttpClient httpClient,
         ApplicationDbContext dbContext, IApplicationSettingsService applicationSettings,
         IServiceScopeFactory serviceScopeFactory, IHttpContextAccessor httpContextAccessor,
-        TileMetadataHotCache tileMetadataHotCache)
+        TileMetadataHotCache tileMetadataHotCache, TileCacheStorage storage)
     {
         _logger = logger;
         _dbContext = dbContext;
@@ -225,20 +226,8 @@ public partial class TileCacheService
                 _maxCacheSizeInMB);
         }
 
-        // Read the cache directory from configuration, fallback to a default if not set.
-        _cacheDirectory = _configuration.GetSection("CacheSettings:TileCacheDirectory").Value ?? string.Empty;
-        if (string.IsNullOrEmpty(_cacheDirectory))
-        {
-            _logger.LogWarning("Invalid or missing TileCacheDirectory. Using default path.");
-            _cacheDirectory = Path.Combine(Directory.GetCurrentDirectory(), "TileCache");
-        }
-        else
-        {
-            // interpret relative paths as "under current directory"
-            _cacheDirectory = Path.IsPathRooted(_cacheDirectory)
-                ? _cacheDirectory
-                : Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), _cacheDirectory));
-        }
+        _storage = storage;
+        _cacheDirectory = storage.CurrentRoot;
 
     }
 
@@ -671,7 +660,7 @@ public partial class TileCacheService
     /// Returns the path to the JSON sidecar metadata file for a tile.
     /// Used for zoom 0-8 tiles that are not tracked in the database.
     /// </summary>
-    private static string GetSidecarPath(string tileFilePath) => tileFilePath + ".meta";
+    private static string GetSidecarPath(string tileFilePath) => TileCacheStorage.Sidecar(tileFilePath);
 
     /// <summary>
     /// Reads sidecar metadata for a tile. Checks the in-memory cache first,
@@ -789,6 +778,19 @@ public partial class TileCacheService
             int zoom = int.Parse(zoomLevel);
             int x = int.Parse(xCoordinate);
             int y = int.Parse(yCoordinate);
+            // Existing metadata owns its reference even when its file must be fetched again.
+            if (zoom >= DbMetadataZoomThreshold)
+            {
+                var row = await _dbContext.TileCacheMetadata.AsNoTracking().FirstOrDefaultAsync(
+                    t => t.ProviderIdentity == providerIdentity && t.Zoom == zoom && t.X == x && t.Y == y,
+                    cancellationToken);
+                if (row != null)
+                {
+                    var resolved = _storage.Resolve(row);
+                    if (resolved == null) return TileCacheFillResult.PermanentFailure();
+                    tileFilePath = resolved;
+                }
+            }
             var download = await DownloadTileWithRetryAsync(
                 tileUrl, providerPolicy, clientIp, allowHttpContext, publicOrigin, cancellationToken);
             if (download.Status != TileCacheFillStatus.Cached)
@@ -871,7 +873,7 @@ public partial class TileCacheService
                         // Storing the coordinates as a point (update as needed).
                         TileLocation = new Point(x, y),
                         Size = tileData.Length,
-                        TileFilePath = tileFilePath,
+                        TileFilePath = TileCacheStorage.CreateReference(providerIdentity, zoom, x, y),
                         ProviderIdentity = providerIdentity,
                         LastAccessed = DateTime.UtcNow,
                         ETag = etag,
@@ -1014,7 +1016,7 @@ public partial class TileCacheService
 
             if (!int.TryParse(zoomLevel, out var zoomLvl) ||
                 !int.TryParse(xCoordinate, out var xVal) ||
-                !int.TryParse(yCoordinate, out var yVal))
+                !int.TryParse(yCoordinate, out var yVal) || zoomLvl < 0 || xVal < 0 || yVal < 0)
             {
                 _logger.LogWarning("Invalid tile coordinates: z={Zoom} x={X} y={Y}",
                     zoomLevel, xCoordinate, yCoordinate);
@@ -1028,12 +1030,11 @@ public partial class TileCacheService
             var tileKey = $"{activeProvider.Fingerprint}:{coordinateKey}";
             var scopedTilePath = GetProviderTilePath(
                 activeProvider.Fingerprint, zoomLevel, xCoordinate, yCoordinate);
-            var legacyTilePath = Path.Combine(_cacheDirectory, $"{coordinateKey}.png");
-            var tileFilePath = File.Exists(scopedTilePath)
-                ? scopedTilePath
-                : activeProvider.CanAdoptLegacyOsm && File.Exists(legacyTilePath)
-                    ? legacyTilePath
-                    : scopedTilePath;
+            var legacyTilePath = Path.Combine(_storage.LegacyRoot, $"{coordinateKey}.png");
+            var tileFilePath = _storage.Find(activeProvider.Fingerprint, zoomLvl, xVal, yVal,
+                activeProvider.CanAdoptLegacyOsm);
+
+            var refreshTilePath = tileFilePath;
 
             // 1. Check the file system first.
             if (File.Exists(tileFilePath))
@@ -1050,8 +1051,12 @@ public partial class TileCacheService
                 {
                     if (TryGetHotMetadataEntry(
                             activeProvider.Fingerprint, zoomLvl, xVal, yVal, out var hotMetadata) &&
-                        hotMetadata != null)
+                        hotMetadata?.TileFilePath != null)
                     {
+                        var resolved = _storage.Resolve(hotMetadata.TileFilePath, activeProvider.Fingerprint,
+                            zoomLvl, xVal, yVal);
+                        if (resolved == null) return TileRetrievalResult.NotFound();
+                        refreshTilePath = resolved;
                         etag = hotMetadata.ETag;
                         lastModified = hotMetadata.LastModifiedUpstream;
 
@@ -1064,6 +1069,9 @@ public partial class TileCacheService
                                 zoomLvl, xVal, yVal);
                             if (seededMetadata != null)
                             {
+                                var resolvedSeed = _storage.Resolve(seededMetadata);
+                                if (resolvedSeed == null) return TileRetrievalResult.NotFound();
+                                refreshTilePath = resolvedSeed;
                                 if (seededMetadata.ExpiresAtUtc == null)
                                 {
                                     await SeedLegacyTileExpiryAsync(seededMetadata);
@@ -1095,6 +1103,9 @@ public partial class TileCacheService
                             zoomLvl, xVal, yVal);
                         if (meta != null)
                         {
+                            var resolved = _storage.Resolve(meta);
+                            if (resolved == null) return TileRetrievalResult.NotFound();
+                            refreshTilePath = resolved;
                             if (meta.ExpiresAtUtc == null)
                             {
                                 await SeedLegacyTileExpiryAsync(meta);
@@ -1210,7 +1221,7 @@ public partial class TileCacheService
                 if (!string.IsNullOrEmpty(tileUrl))
                 {
                     ScheduleBackgroundRefresh(
-                        tileUrl, tileFilePath, tileKey, activeProvider.Fingerprint, zoomLvl, xVal, yVal,
+                        tileUrl, refreshTilePath, tileKey, activeProvider.Fingerprint, zoomLvl, xVal, yVal,
                         etag, lastModified, schedulerClientKey, publicOrigin);
                 }
 
@@ -1478,7 +1489,7 @@ public partial class TileCacheService
             .OrderBy(t => t.LastAccessed)
             .Take(LRU_TO_EVICT)
             .AsNoTracking()
-            .Select(t => new { t.Id, t.Zoom, t.X, t.Y, t.Size })
+            .Select(t => t)
             .ToListAsync();
 
         // Phase 1: Commit DB deletions first.
@@ -1491,7 +1502,7 @@ public partial class TileCacheService
                 t.Zoom,
                 t.X,
                 t.Y,
-                FilePath = Path.Combine(_cacheDirectory, $"{t.Zoom}_{t.X}_{t.Y}.png")
+                FilePath = _storage.Resolve(t)
             })
             .ToList();
         var tileIds = tilesToEvict.Select(t => t.Id).ToList();
@@ -1554,8 +1565,7 @@ public partial class TileCacheService
     /// </summary>
     public Task<double> GetCacheFileSizeInMbAsync()
     {
-        DirectoryInfo di = new DirectoryInfo(_cacheDirectory);
-        var totalSizeInBytes = di.GetFiles().Sum(f => f.Length);
+        var totalSizeInBytes = _storage.EnumerateFiles().Sum(path => new FileInfo(path).Length);
         if (totalSizeInBytes <= 0)
         {
             return Task.FromResult(0.0);
@@ -1573,8 +1583,7 @@ public partial class TileCacheService
     /// <returns></returns>
     public Task<int> GetTotalCachedFilesAsync()
     {
-        DirectoryInfo di = new DirectoryInfo(_cacheDirectory);
-        var totalFiles = di.GetFiles().Count();
+        var totalFiles = _storage.EnumerateFiles().Count();
 
         return Task.FromResult(totalFiles);
     }
@@ -1620,7 +1629,6 @@ public partial class TileCacheService
 
         try
         {
-            if (!Directory.Exists(_cacheDirectory)) return;
 
             using var scope = _serviceScopeFactory.CreateScope();
             var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -1632,20 +1640,22 @@ public partial class TileCacheService
             // Bulk-load all DB metadata into a dictionary keyed by file path.
             // This replaces O(N) individual DB queries (one per file) with a single query,
             // preventing connection pool exhaustion on large caches (100K+ tiles).
-            // Uses foreach instead of ToDictionary to handle anomalous duplicate TileFilePath
-            // values gracefully (last-wins) instead of throwing ArgumentException.
+            // Group all owners of one physical path so DB-first deletion includes mixed references.
             var allMetadataList = await dbContext.TileCacheMetadata
                 .AsNoTracking()
-                .Select(t => new { t.Id, t.TileFilePath })
+                .Select(t => t)
                 .ToListAsync();
-            var allMetadata = new Dictionary<string, int>(allMetadataList.Count);
+            var allMetadata = new Dictionary<string, List<int>>(TileCacheStorage.PathComparer);
             foreach (var t in allMetadataList)
             {
-                allMetadata[t.TileFilePath ?? string.Empty] = t.Id;
+                var path = _storage.Resolve(t);
+                if (path == null) continue;
+                if (!allMetadata.TryGetValue(path, out var ids)) allMetadata[path] = ids = [];
+                ids.Add(t.Id);
             }
 
             // Count total files for progress reporting.
-            var allFiles = Directory.EnumerateFiles(_cacheDirectory, "*.png").ToList();
+            var allFiles = _storage.EnumerateFiles("*.png").ToList();
             var totalFiles = allFiles.Count;
             var deletedFiles = 0;
 
@@ -1660,10 +1670,10 @@ public partial class TileCacheService
             {
                 try
                 {
-                    int? metaId = allMetadata.TryGetValue(file, out var id) ? id : null;
-
                     long fileSize = File.Exists(file) ? new FileInfo(file).Length : 0;
-                    batch.Add((metaId, file, fileSize));
+                    if (allMetadata.TryGetValue(file, out var ids))
+                        batch.AddRange(ids.Select(id => ((int?)id, file, fileSize)));
+                    else batch.Add((null, file, fileSize));
 
                     // Commit and delete in batches.
                     if (batch.Count >= batchSize)
@@ -1695,13 +1705,13 @@ public partial class TileCacheService
             // File.Exists cannot be translated to SQL, so project only Id + TileFilePath
             // with AsNoTracking to minimize memory, then filter client-side with a HashSet.
             var existingFiles = new HashSet<string>(
-                Directory.EnumerateFiles(_cacheDirectory, "*.png"));
+                _storage.EnumerateFiles("*.png"));
             var allPaths = await dbContext.TileCacheMetadata
                 .AsNoTracking()
-                .Select(t => new { t.Id, t.TileFilePath })
+                .Select(t => t)
                 .ToListAsync();
             var orphanIds = allPaths
-                .Where(t => !existingFiles.Contains(t.TileFilePath))
+                .Where(t => !existingFiles.Contains(_storage.Resolve(t) ?? string.Empty))
                 .Select(t => t.Id)
                 .ToList();
 
@@ -1723,6 +1733,8 @@ public partial class TileCacheService
                 }, maxRetries, delayBetweenRetries);
             }
 
+            Interlocked.Exchange(ref _currentCacheSize, await dbContext.TileCacheMetadata.SumAsync(t => (long)t.Size));
+
             // Clean up sidecar metadata files and temp files as a final sweep.
             CleanupSidecarFiles();
             TryClearHotMetadataCache();
@@ -1741,13 +1753,13 @@ public partial class TileCacheService
     {
         try
         {
-            foreach (var metaFile in Directory.EnumerateFiles(_cacheDirectory, "*.meta"))
+            foreach (var metaFile in _storage.EnumerateFiles("*.meta"))
             {
                 try { File.Delete(metaFile); }
                 catch (Exception ex) { _logger.LogDebug(ex, "Failed to delete sidecar file {File}", metaFile); }
             }
 
-            foreach (var tmpFile in Directory.EnumerateFiles(_cacheDirectory, "*.meta.tmp"))
+            foreach (var tmpFile in _storage.EnumerateFiles("*.meta.tmp"))
             {
                 try { File.Delete(tmpFile); }
                 catch (Exception ex) { _logger.LogDebug(ex, "Failed to delete temp sidecar file {File}", tmpFile); }
@@ -1895,14 +1907,14 @@ public partial class TileCacheService
             var lruCache = await dbContext.TileCacheMetadata
                 .AsNoTracking()
                 .Where(file => file.Zoom >= DbMetadataZoomThreshold)
-                .Select(t => new { t.Id, t.TileFilePath, t.Size })
+                .Select(t => t)
                 .ToListAsync();
 
             if (!lruCache.Any()) return;
 
             // Collect file paths with IDs for Phase 2 size lookup.
             var fileInfo = lruCache
-                .Select(t => (Id: t.Id, FilePath: t.TileFilePath, Size: (long)t.Size))
+                .Select(t => (Id: t.Id, FilePath: _storage.Resolve(t), Size: (long)t.Size))
                 .ToList();
 
             var totalFiles = fileInfo.Count;
@@ -1937,6 +1949,7 @@ public partial class TileCacheService
                 }, 3, 1000);
             }
 
+            Interlocked.Add(ref _currentCacheSize, -actualSizes.Values.Sum());
             _logger.LogInformation("LRU purge: {Count} DB records deleted.", lruCache.Count);
 
             // Phase 2: Delete files from disk (best-effort, after DB commit succeeded).
@@ -1957,11 +1970,6 @@ public partial class TileCacheService
                         if (File.Exists(filePath))
                         {
                             File.Delete(filePath);
-                            if (actualSizes.TryGetValue(id, out var actualSize))
-                            {
-                                Interlocked.Add(ref _currentCacheSize, -actualSize);
-                            }
-
                             TryRemoveHotMetadataEntryFromPath(filePath);
                         }
                     }
@@ -2021,27 +2029,6 @@ public partial class TileCacheService
         catch (Exception ex)
         {
             _logger.LogDebug(ex, "Failed to broadcast purge progress via SSE");
-        }
-    }
-
-    /// <summary>
-    /// Deletes a cache file while holding the cache lock to avoid read/write races.
-    /// </summary>
-    private async Task DeleteCacheFileAsync(string tileFilePath, long tileSize)
-    {
-        await _cacheLock.WaitAsync();
-        try
-        {
-            if (File.Exists(tileFilePath))
-            {
-                File.Delete(tileFilePath);
-                Interlocked.Add(ref _currentCacheSize, -tileSize);
-                TryRemoveHotMetadataEntryFromPath(tileFilePath);
-            }
-        }
-        finally
-        {
-            _cacheLock.Release();
         }
     }
 
@@ -2123,6 +2110,7 @@ public partial class TileCacheService
     {
         TrySetHotMetadataEntry(providerIdentity, zoom, x, y, new HotTileMetadataCacheEntry
         {
+            TileFilePath = metadata.TileFilePath,
             ExpiresAtUtc = metadata.ExpiresAtUtc,
             ETag = metadata.ETag,
             LastModifiedUpstream = metadata.LastModifiedUpstream
@@ -2169,26 +2157,11 @@ public partial class TileCacheService
     /// <summary>
     /// Best-effort hot metadata invalidation for a cached file path with the standard z_x_y file name format.
     /// </summary>
-    private void TryRemoveHotMetadataEntryFromPath(string tileFilePath)
+    private void TryRemoveHotMetadataEntryFromPath(string? tileFilePath)
     {
-        var tileName = Path.GetFileNameWithoutExtension(tileFilePath)?.Split('_');
-        if (tileName is not { Length: 3 } ||
-            !int.TryParse(tileName[0], out var zoom) ||
-            !int.TryParse(tileName[1], out var x) ||
-            !int.TryParse(tileName[2], out var y))
-        {
-            return;
-        }
-
-        var providerIdentity = Path.GetFileName(Path.GetDirectoryName(tileFilePath));
-        if (providerIdentity?.Length == 64)
-        {
-            TryRemoveHotMetadataEntry(providerIdentity, zoom, x, y);
-        }
-        else
-        {
-            TryClearHotMetadataCache();
-        }
+        if (!_storage.TryIdentify(tileFilePath, out var provider, out var zoom, out var x, out var y)) return;
+        if (provider != null) TryRemoveHotMetadataEntry(provider, zoom, x, y);
+        else TryClearHotMetadataCache();
     }
 
     /// <summary>

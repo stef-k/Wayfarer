@@ -472,7 +472,7 @@ public class TilesControllerTests : TestBase
             settingsService,
             Mock.Of<IServiceScopeFactory>(),
             new HttpContextAccessor(),
-            new TileMetadataHotCache(NullLogger<TileMetadataHotCache>.Instance));
+            new TileMetadataHotCache(NullLogger<TileMetadataHotCache>.Instance), new TileCacheStorage(cacheDir, cacheDir));
     }
 
     private IApplicationSettingsService BuildSettingsService(bool rateLimitEnabled = true, int rateLimitPerMinute = 500, int rateLimitAuthenticatedPerMinute = 2000)

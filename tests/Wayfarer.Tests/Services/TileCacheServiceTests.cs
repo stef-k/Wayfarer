@@ -41,7 +41,7 @@ public partial class TileCacheServiceTests : TestBase
         Assert.True(File.Exists(filePath));
         var meta = Assert.Single(db.TileCacheMetadata);
         Assert.Equal(9, meta.Zoom);
-        Assert.Equal(filePath, meta.TileFilePath);
+        Assert.Equal(TileCacheStorage.CreateReference(meta.ProviderIdentity!, 9, 1, 2), meta.TileFilePath);
     }
 
     [Fact]
@@ -762,7 +762,7 @@ public partial class TileCacheServiceTests : TestBase
             appSettings,
             scopeFactory,
             httpContextAccessor ?? new HttpContextAccessor(),
-            effectiveHotCache);
+            effectiveHotCache, new TileCacheStorage(cacheDir, cacheDir));
     }
 
     /// <summary>

@@ -68,6 +68,7 @@ internal sealed class TileCacheTestHarness : IDisposable, IAsyncDisposable
         services.AddSingleton<TileMetadataHotCache>();
         services.AddDbContext<ApplicationDbContext>(options =>
             options.UseInMemoryDatabase(databaseName));
+        services.AddSingleton(new TileCacheStorage(CacheDirectory, CacheDirectory));
         services.AddScoped<TileCacheService>();
 
         _rootProvider = services.BuildServiceProvider();

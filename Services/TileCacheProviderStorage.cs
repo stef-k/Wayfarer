@@ -28,16 +28,17 @@ public partial class TileCacheService
                 .OrderBy(tile => tile.Id)
                 .Take(batchSize)
                 .ToListAsync(cancellationToken);
-            var paths = legacyRows
-                .Select(tile => tile.TileFilePath)
-                .Where(path => !string.IsNullOrWhiteSpace(path))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToArray();
-            var protectedPaths = (await BuildScopedPathProtectionQuery(
-                    _dbContext.TileCacheMetadata,
-                    paths)
-                .ToListAsync(cancellationToken))
-                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var paths = legacyRows.Select(_storage.Resolve).OfType<string>()
+                .Distinct(TileCacheStorage.PathComparer).ToArray();
+            // Protect physical ownership across logical/absolute representations, bounded by this batch's coordinates.
+            var zooms = legacyRows.Select(t => t.Zoom).Distinct().ToArray();
+            var xs = legacyRows.Select(t => t.X).Distinct().ToArray();
+            var ys = legacyRows.Select(t => t.Y).Distinct().ToArray();
+            var scopedRows = await _dbContext.TileCacheMetadata.AsNoTracking()
+                .Where(t => t.ProviderIdentity != null && zooms.Contains(t.Zoom) &&
+                    xs.Contains(t.X) && ys.Contains(t.Y)).ToListAsync(cancellationToken);
+            var protectedPaths = scopedRows.Select(_storage.Resolve).OfType<string>()
+                .ToHashSet(TileCacheStorage.PathComparer);
             var retiredSize = legacyRows.Sum(tile => (long)tile.Size);
             if (legacyRows.Count > 0)
             {
@@ -74,21 +75,6 @@ public partial class TileCacheService
         }
     }
 
-    /// <summary>Restricts provider ownership protection to the bounded cleanup candidate paths.</summary>
-    internal static IQueryable<string> BuildScopedPathProtectionQuery(
-        IQueryable<TileCacheMetadata> metadata,
-        string[] candidatePaths)
-    {
-        var normalizedCandidates = candidatePaths
-            .Select(path => path.ToUpperInvariant())
-            .ToArray();
-        return metadata
-            .Where(tile =>
-                tile.ProviderIdentity != null &&
-                normalizedCandidates.Contains(tile.TileFilePath.ToUpper()))
-            .Select(tile => tile.TileFilePath);
-    }
-
     /// <summary>Resolves the active non-secret cache identity from authoritative settings.</summary>
     private TileProviderCacheIdentity GetActiveProviderIdentity()
     {
@@ -104,15 +90,14 @@ public partial class TileCacheService
         string zoom,
         string x,
         string y) =>
-        Path.Combine(_cacheDirectory, providerIdentity, $"{zoom}_{x}_{y}.png");
+        _storage.CurrentPath(providerIdentity, int.Parse(zoom), int.Parse(x), int.Parse(y));
 
     /// <summary>Returns the active provider path for deterministic cache integration tests.</summary>
     internal string GetTileFilePathForTesting(string zoom, string x, string y)
     {
         var provider = GetActiveProviderIdentity();
-        var scopedPath = GetProviderTilePath(provider.Fingerprint, zoom, x, y);
-        var legacyPath = Path.Combine(_cacheDirectory, $"{zoom}_{x}_{y}.png");
-        return File.Exists(scopedPath) ? scopedPath : legacyPath;
+        return _storage.Find(provider.Fingerprint, int.Parse(zoom), int.Parse(x), int.Parse(y),
+            provider.CanAdoptLegacyOsm);
     }
 
     /// <summary>
@@ -158,6 +143,19 @@ public partial class TileCacheService
         string? publicOrigin,
         CancellationToken cancellationToken)
     {
+        // A cold refill must also preserve the existing row's physical authority.
+        if (int.Parse(zoom) >= DbMetadataZoomThreshold)
+        {
+            var row = await _dbContext.TileCacheMetadata.AsNoTracking().FirstOrDefaultAsync(
+                t => t.ProviderIdentity == providerIdentity && t.Zoom == int.Parse(zoom) &&
+                    t.X == int.Parse(x) && t.Y == int.Parse(y), cancellationToken);
+            if (row != null)
+            {
+                var resolved = _storage.Resolve(row);
+                if (resolved == null) return TileRetrievalResult.NotFound();
+                tileFilePath = resolved;
+            }
+        }
         try
         {
             if (File.Exists(tileFilePath))
@@ -236,7 +234,7 @@ public partial class TileCacheService
                 meta = await _dbContext.TileCacheMetadata
                     .FirstOrDefaultAsync(t => t.ProviderIdentity == null &&
                                               t.Zoom == zoom && t.X == x && t.Y == y);
-                if (meta != null)
+                if (meta != null && _storage.Resolve(meta) != null)
                 {
                     meta.ProviderIdentity = providerIdentity;
                     try

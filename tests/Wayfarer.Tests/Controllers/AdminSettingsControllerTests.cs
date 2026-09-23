@@ -54,7 +54,7 @@ public partial class AdminSettingsControllerTests : TestBase
             settingsMock.Object,
             Mock.Of<IServiceScopeFactory>(),
             new HttpContextAccessor(),
-            new TileMetadataHotCache(NullLogger<TileMetadataHotCache>.Instance));
+            new TileMetadataHotCache(NullLogger<TileMetadataHotCache>.Instance), new TileCacheStorage(tileCacheDir, tileCacheDir));
 
         var scopeFactory = BuildScopeFactory(tileCache);
         var controller = new SettingsController(ImportStaging.Files,NullLogger<BaseController>.Instance, db, settingsMock.Object, tileCache, Mock.Of<IProxiedImageCacheService>(), env.Object, scopeFactory, new SseService());
@@ -404,7 +404,7 @@ public partial class AdminSettingsControllerTests : TestBase
             settingsService ?? settingsMock!.Object,
             Mock.Of<IServiceScopeFactory>(),
             new HttpContextAccessor(),
-            new TileMetadataHotCache(NullLogger<TileMetadataHotCache>.Instance));
+            new TileMetadataHotCache(NullLogger<TileMetadataHotCache>.Instance), new TileCacheStorage(tileCacheDir, tileCacheDir));
 
         var scopeFactory = BuildScopeFactory(tileCache);
         var controller = new SettingsController(files ?? ImportStaging.Files,

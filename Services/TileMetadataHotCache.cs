@@ -288,6 +288,9 @@ public sealed class TileMetadataHotCache : IDisposable
 /// </summary>
 public sealed class HotTileMetadataCacheEntry
 {
+    /// <summary>Persisted reference retained so hot hits obey the same storage validation as DB hits.</summary>
+    public string? TileFilePath { get; init; }
+
     /// <summary>
     /// Expiry timestamp used to decide whether the cached file can be served directly.
     /// </summary>
