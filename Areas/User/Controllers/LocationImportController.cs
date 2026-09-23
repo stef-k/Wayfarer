@@ -190,6 +190,7 @@ namespace Wayfarer.Areas.User.Controllers
             return RedirectToAction("Index");
         }
 
+        /// <summary>Requests deletion and distinguishes completed cleanup from pending reconciliation.</summary>
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Delete(int id)
@@ -197,11 +198,17 @@ namespace Wayfarer.Areas.User.Controllers
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (string.IsNullOrWhiteSpace(userId)) return Challenge();
             var result = await _importLifecycle.DeleteAsync(userId, id, HttpContext.RequestAborted);
-            SetAlert(result.Code == LocationImportCommandCode.Accepted
-                ? "Upload record removed successfully."
-                : result.Code == LocationImportCommandCode.ExecutionActive
-                    ? "Upload is active or stopping and cannot be removed yet."
-                    : "Upload record not found.", result.Code == LocationImportCommandCode.Accepted ? "success" : "warning");
+            var message = result.Code switch
+            {
+                LocationImportCommandCode.Accepted => "Upload record removed successfully.",
+                LocationImportCommandCode.ProjectionPending =>
+                    "Deletion requested. Upload cleanup is pending reconciliation.",
+                LocationImportCommandCode.ExecutionActive =>
+                    "Upload is active or stopping and cannot be removed yet.",
+                LocationImportCommandCode.NotFound => "Upload record not found.",
+                _ => "Upload record could not be removed."
+            };
+            SetAlert(message, result.Code == LocationImportCommandCode.Accepted ? "success" : "warning");
             return RedirectToAction("Index");
         }
 
