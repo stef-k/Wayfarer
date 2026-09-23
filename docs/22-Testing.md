@@ -46,7 +46,7 @@ Reusable Environment Discovery
 - An agent may declare infrastructure unavailable only after these discovery and repair steps fail or require credentials/authority that are genuinely absent. Report the exact failed prerequisite and command; do not substitute “environment variable missing” for environment discovery.
 
 ## Persistent PostgreSQL Test Database
-- Local relational work uses the persistent PostgreSQL 17 service and the dedicated database named exactly `wayfarer_import_tests`. Never point guarded tests at the normal `wayfarer` development database or a production database.
+- Local relational work uses PostgreSQL 17 as the maintainer/guarded-test qualification baseline and the dedicated database named exactly `wayfarer_import_tests`. This test baseline does not raise the documented PostgreSQL 13+ general self-hosting/runtime minimum. Never point guarded tests at the normal `wayfarer` development database or a production database.
 - `WAYFARER_TEST_POSTGRES_CONNECTION` is the safety attachment consumed by the test process. On Linux/WSL, export it from private shell configuration into the test process; keep credentials out of Git and command output. On Windows, store it at user scope and copy it into the current process before running tests.
 - The dedicated database is reusable. Tests must isolate their own schemas or rows and clean only their owned data. Do not recreate the database for every issue merely because the process environment is empty.
 - If the database is not present, use the installed PostgreSQL 17 tools and the existing local administrator connection to create only `wayfarer_import_tests`, then install PostGIS when the selected fixture requires it. Do not print or commit the password.
@@ -114,12 +114,15 @@ Trip Editor Typecheck
 - The conditional frontend CI path runs this command after dependency audit and before client tests and the production build.
 
 Pull Request Merge Gate
-- The GitHub Actions `test` check for the current PR head is authoritative merge evidence.
-- Inspect the actual PR check with `gh pr checks <pr-number>` and wait until it reports success before invoking `gh pr merge`.
-- Do not infer safety from the merge button, `gh pr checks --required`, or `gh pr merge --auto`; repository settings can allow an administrator to merge while a non-required check is still pending.
+- The GitHub Actions `test` check for the current PR head is necessary merge evidence, not sufficient merge authorization.
+- Inspect the actual PR check with `gh pr checks <pr-number>` and wait until it reports success. Do not infer safety from the merge button, `gh pr checks --required`, or `gh pr merge --auto`; repository settings can allow an administrator to merge while a non-required check is still pending.
+- After implementation and validation, the implementation agent reports the exact PR head SHA and stops with the PR unmerged and the issue open. It does not merge its own PR or close the implementation issue.
+- The exact head then receives an independent review separate from the implementation pass. In the maintainer workflow, Codex implements and ChatGPT reviews the live GitHub exact head. Implementation-time self-review, subagent review, or an unrecorded internal review does not satisfy this gate.
+- Any commit after independent review invalidates that review. Run proportionate validation and exact-head CI again, then independently review the new head.
+- Merge and issue closure require successful exact-head CI, independent review with no blocking findings, and maintainer acceptance.
 - Pending, missing, cancelled, neutral, or failed executions are not a passing gate.
 - If a run clearly stalls in runner/package setup before reaching repository code, cancel it and rerun the unchanged workflow once. If that rerun also fails or stalls, report CI infrastructure failure instead of modifying product code or repeatedly rebuilding the environment.
-- Documentation-only changes under `docs/` or in Markdown files take the workflow's fast path: the `test` job succeeds without running restore, build, ordinary tests, or Playwright. Workflow, configuration, source, test, migration, and dependency changes always run the complete job.
+- Documentation-only changes under `docs/` or in Markdown files take the workflow's fast path: the `test` job succeeds without running restore, build, ordinary tests, or Playwright. The independent-review gate still applies. Workflow, configuration, source, test, migration, and dependency changes always run the complete job.
 
 .NET Playwright Rendering Test
 - The .NET rendering test owns a browser cache separate from JavaScript Playwright.
