@@ -28,19 +28,6 @@ TileCache/*
 ImageCache/*
 !ImageCache/.gitkeep
 
-# mbtiles cache
-MbtileCache/*
-!MbtileCache/.gitkeep
-
-# routing cache
-RoutingCache/*
-!RoutingCache/.gitkeep
-
-# OsmPbfCache cache
-OsmPbfCache/*
-!OsmPbfCache/.gitkeep
-
-
 # Generated files
 project.lock.json
 .vs/

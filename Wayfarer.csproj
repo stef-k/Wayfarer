@@ -73,7 +73,6 @@
 
 
     <ItemGroup>
-        <Folder Include="Exports\" />
         <Folder Include="Scripts\" />
         <Folder Include="Uploads\Temp\" />
         <Folder Include="wwwroot\icons\" />
