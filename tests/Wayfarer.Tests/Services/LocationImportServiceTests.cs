@@ -101,7 +101,7 @@ public class LocationImportServiceTests : TestBase
         var parserFactory = new LocationDataParserFactory(loggerFactory);
         var httpClient = new HttpClient(new FakeHttpHandler());
         var reverse = new ReverseGeocodingService(httpClient, NullLogger<BaseApiController>.Instance);
-        return new LocationImportService(ImportStaging.Files, 
+        return new LocationImportService(ImportStaging.Files,
             db,
             reverse,
             NullLogger<LocationImportService>.Instance,
