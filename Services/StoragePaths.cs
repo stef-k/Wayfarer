@@ -21,24 +21,33 @@ public sealed class StoragePaths
         Func<Environment.SpecialFolder, string> folder, Func<string, string?> variable, string systemTemp)
     {
         DataRoot = ResolveRoot(options.DataRoot, nameof(StorageOptions.DataRoot), () => windows
-            ? Path.Combine(folder(Environment.SpecialFolder.LocalApplicationData), "Wayfarer", "Data")
+            ? Path.Combine(UserFolder(Environment.SpecialFolder.LocalApplicationData), "Wayfarer", "Data")
             : Path.Combine(XdgHome("XDG_DATA_HOME", ".local/share"), "Wayfarer"));
         CacheRoot = ResolveRoot(options.CacheRoot, nameof(StorageOptions.CacheRoot), () => windows
-            ? Path.Combine(folder(Environment.SpecialFolder.LocalApplicationData), "Wayfarer", "Cache")
+            ? Path.Combine(UserFolder(Environment.SpecialFolder.LocalApplicationData), "Wayfarer", "Cache")
             : Path.Combine(XdgHome("XDG_CACHE_HOME", ".cache"), "Wayfarer"));
         LogRoot = ResolveRoot(options.LogRoot, nameof(StorageOptions.LogRoot), () => windows
-            ? Path.Combine(folder(Environment.SpecialFolder.LocalApplicationData), "Wayfarer", "Logs")
+            ? Path.Combine(UserFolder(Environment.SpecialFolder.LocalApplicationData), "Wayfarer", "Logs")
             : Path.Combine(XdgHome("XDG_STATE_HOME", ".local/state"), "Wayfarer", "logs"));
         TempRoot = ResolveRoot(options.TempRoot, nameof(StorageOptions.TempRoot), () =>
             Path.Combine(!windows && Path.IsPathFullyQualified(variable("TMPDIR") ?? "")
                 ? variable("TMPDIR")! : systemTemp, "wayfarer"));
+
+        // Special-folder failure must not turn a per-user default into a repository-relative path.
+        string UserFolder(Environment.SpecialFolder specialFolder)
+        {
+            var path = folder(specialFolder);
+            if (!Path.IsPathFullyQualified(path))
+                throw new InvalidOperationException($"Cannot resolve the per-user {specialFolder} directory.");
+            return path;
+        }
 
         // XDG relative/empty values are invalid and use the per-user fallback.
         string XdgHome(string name, string fallback)
         {
             var value = variable(name);
             return Path.IsPathFullyQualified(value ?? "")
-                ? value! : Path.Combine(folder(Environment.SpecialFolder.UserProfile), fallback);
+                ? value! : Path.Combine(UserFolder(Environment.SpecialFolder.UserProfile), fallback);
         }
 
         // Explicit empty values are configuration errors, not requests for defaults.

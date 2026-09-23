@@ -83,6 +83,16 @@ public class StoragePathsTests
         Assert.Throws<ArgumentException>(() => Create(new StorageOptions { DataRoot = " " }));
     }
 
+    /// <summary>Unavailable user folders cannot silently resolve defaults beneath the checkout.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void MissingUserFolderFails(bool windows)
+    {
+        Assert.Throws<InvalidOperationException>(() => new StoragePaths(new StorageOptions(), Host(true),
+            windows, _ => "", _ => null, Path.Combine(Base, "system-temp")));
+    }
+
     /// <summary>Resolution never creates even explicitly configured target directories.</summary>
     [Fact]
     public void ConstructionDoesNotCreateDirectories()

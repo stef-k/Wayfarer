@@ -13,14 +13,14 @@ internal static class ApplicationConfiguration
         builder.Configuration.AddJsonFile("appsettings.json", false, true)
             .AddJsonFile($"appsettings.{builder.Environment.EnvironmentName}.json", true, true)
             .AddEnvironmentVariables();
-    
+
         // Retrieving the log file path from the configuration
         var logFilePath = builder.Configuration["Logging:LogFilePath:Default"];
-    
+
         if (string.IsNullOrEmpty(logFilePath))
             throw new InvalidOperationException(
                 "Log file path is not configured. Please check your appsettings.json or appsettings.Development.json.");
-    
+
         // Ensuring that the directory for logs exists
         var logDirectory = Path.GetDirectoryName(logFilePath);
         if (!string.IsNullOrEmpty(logDirectory) && !Directory.Exists(logDirectory))
@@ -33,7 +33,7 @@ internal static class ApplicationConfiguration
                 Console.WriteLine($"Failed to create log directory: {ex.Message}");
                 throw;
             }
-    
+
         // Resolve only when requested; existing subsystems retain their current storage behavior.
         builder.Services.Configure<StorageOptions>(builder.Configuration.GetSection("Storage"));
         builder.Services.AddSingleton<StoragePaths>();
