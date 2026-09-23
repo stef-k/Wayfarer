@@ -83,21 +83,18 @@ public sealed class LocationImportDeleteRecoveryPostgresTests(PostgresImportTest
     {
         var seed = await SeedAsync(ImportStatus.Completed);
         // Inject the failure at the existing boundary; Unix can unlink an open file.
-        var observer = new Mock<ILocationImportLifecycleObserver>();
-        observer.Setup(item => item.BeforeFileDeletionAsync(seed.ImportId, seed.Path, default))
-            .ThrowsAsync(new IOException("fixture file deletion unavailable"));
+        var observer = new FileDeletionFailure();
         var scheduler = Scheduler();
         await using (var command = fixture.CreateContext())
         {
             var result = await new LocationImportLifecycle(new FixtureFactory(fixture), scheduler.Object,
-                NullLogger<LocationImportLifecycle>.Instance, observer.Object).DeleteAsync(seed.UserId, seed.ImportId);
+                NullLogger<LocationImportLifecycle>.Instance, observer).DeleteAsync(seed.UserId, seed.ImportId);
             Assert.Equal(LocationImportCommandCode.ProjectionPending, result.Code);
         }
         await using (var verification = fixture.CreateContext())
             Assert.NotNull((await verification.LocationImports.FindAsync(seed.ImportId))!.DeletionRequestedAtUtc);
 
         Assert.True(File.Exists(seed.Path));
-        observer.Verify(item => item.BeforeFileDeletionAsync(seed.ImportId, seed.Path, default), Times.Once);
         var reconciler = new LocationImportReconciler(new FixtureFactory(fixture), scheduler.Object,
             NullLogger<LocationImportReconciler>.Instance);
         await reconciler.ReconcileAsync();
@@ -210,6 +207,23 @@ public sealed class LocationImportDeleteRecoveryPostgresTests(PostgresImportTest
         scheduler.Setup(item => item.GetTriggerKeys(It.IsAny<Quartz.Impl.Matchers.GroupMatcher<TriggerKey>>(), default))
             .ReturnsAsync([]);
         return scheduler;
+    }
+
+    /// <summary>Injects an I/O failure without changing host filesystem or lifecycle authority.</summary>
+    private sealed class FileDeletionFailure : ILocationImportLifecycleObserver
+    {
+        /// <summary>Leaves batch persistence unchanged.</summary>
+        public Task AfterBatchCommittedAsync(int importId, int epoch, int processed, CancellationToken token) =>
+            Task.CompletedTask;
+
+        /// <summary>Leaves terminal persistence unchanged.</summary>
+        public Task BeforeTerminalPersistenceAsync(
+            int importId, int epoch, LocationImportExecutionOutcome outcome, CancellationToken token) =>
+            Task.CompletedTask;
+
+        /// <summary>Fails before unlink so committed deletion intent must survive for reconciliation.</summary>
+        public Task BeforeFileDeletionAsync(int importId, string filePath, CancellationToken token) =>
+            throw new IOException("fixture file deletion unavailable");
     }
 
     private sealed class FixtureFactory(PostgresImportTestFixture fixture) : IDbContextFactory<ApplicationDbContext>

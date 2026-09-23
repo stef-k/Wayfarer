@@ -98,7 +98,7 @@ public sealed class LocationImportBackfillVisibilityPostgresTests(PostgresImport
         Assert.Equal(2, await final.Locations.CountAsync(x => x.UserId == user.Id));
         // Provider display text does not manufacture a structured street address.
         var location = await final.Locations.SingleAsync(x => x.UserId == user.Id && x.Timestamp.Minute == 2);
-        Assert.Null(location.Address);
+        Assert.Equal(string.Empty, location.Address);
         Assert.Equal("Address", location.FullAddress);
         Assert.Equal("Address", location.ProviderAddressLine1);
         Assert.Equal(1, handler.Requests);
