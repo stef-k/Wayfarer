@@ -15,6 +15,8 @@ Wayfarer is designed for self-hosting by power users, small businesses, and orga
 - **Nginx** (or similar reverse proxy) - Recommended for production
 - **Node.js 24.x/npm** - Build-host tooling for Trip Editor Vite assets
 
+PostgreSQL 13+ remains the documented general self-hosting/runtime minimum. The maintainer development environment and guarded relational test fixtures use PostgreSQL 17 as their qualification baseline; that test baseline does not itself raise the runtime minimum.
+
 ### Optional: PDF Export Feature
 
 If you want to export trips as PDF documents, you'll need:
@@ -103,7 +105,7 @@ nano appsettings.json  # Set your connection string
 dotnet run
 ```
 
-The primary maintainer development baseline is Ubuntu 24.04 on Linux/WSL2, .NET 10, PostgreSQL 17/PostGIS, and Node 24 LTS. Keep WSL source on its Linux filesystem; see [Setup](14-Setup.md#linuxwsl-development) for the nvm and frontend workflow.
+The primary maintainer development baseline is Ubuntu 24.04 on Linux/WSL2, .NET 10, PostgreSQL 17/PostGIS, and Node 24 LTS. PostgreSQL 17 here is the maintainer/guarded-test qualification baseline, not a change to the PostgreSQL 13+ general self-hosting/runtime minimum above. Keep WSL source on its Linux filesystem; see [Setup](14-Setup.md#linuxwsl-development) for the nvm and frontend workflow.
 
 ### Windows (alternative development path)
 

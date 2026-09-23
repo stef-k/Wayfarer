@@ -18,7 +18,7 @@
 
 - Primary development baseline: Ubuntu 24.04 on Linux/WSL2 with .NET 10 SDK. Keep WSL checkouts on the Linux filesystem, not `/mnt/c`.
 - Frontend build baseline: Node 24 LTS/npm; `.nvmrc` supports `nvm install` and `nvm use`.
-- Database: PostgreSQL with PostGIS. Configure via `ConnectionStrings:DefaultConnection`.
+- Database: PostgreSQL with PostGIS. The general self-hosting/runtime minimum is PostgreSQL 13+; the maintainer development and guarded relational-test baseline is PostgreSQL 17. Configure via `ConnectionStrings:DefaultConnection`.
 - Front end: plain modern JavaScript (prefer arrow functions).
 - Maps: Leaflet with OpenStreetMap tiles and local cache. Configure cache directories under `CacheSettings:*` in `appsettings*.json`.
 
@@ -73,9 +73,13 @@
 
 - Clear, imperative commits. Conventional Commits welcome (e.g., `feat(trips): ...`, `chore: ...`).
 - PRs must include: description, linked issues, screenshots for UI changes, test plan/steps, and DB migration notes when relevant.
-- Treat the GitHub Actions `test` check on the current PR head as the merge gate. Poll the actual check until it reports success, then merge; do not rely on `gh pr checks --required` or `gh pr merge --auto` unless branch protection and auto-merge enforcement have first been verified.
+- The GitHub Actions `test` check on the current PR head is necessary merge evidence, but green CI is not sufficient authorization to merge. Poll the actual check until it reports success; do not rely on `gh pr checks --required` or `gh pr merge --auto` unless branch protection and auto-merge enforcement have first been verified.
+- The implementation agent must stop with the PR unmerged and the implementation issue open after reporting the exact PR head SHA, validation evidence, Code Guard result, and known debt. It must not merge its own PR or close its issue as completed.
+- The exact PR head must receive an independent review separate from the implementation pass before merge. For the maintainer workflow, Codex implements and ChatGPT reviews the live GitHub exact head; implementation-time self-review, subagent review, or an unrecorded internal review is not a substitute for this gate.
+- Any commit after independent review invalidates that review. Re-run proportionate validation/CI and independently review the new exact head before merge.
+- Merge and issue closure require all three: successful exact-head CI, independent review with no blocking findings, and maintainer acceptance.
 - Pending, failed, cancelled, or missing checks are not successful merge evidence. For a clear infrastructure stall, cancel and rerun the unchanged workflow at most once before reporting the infrastructure failure.
-- Documentation-only PRs may skip the expensive test steps, but the required `test` job must still complete successfully through its documented fast path.
+- Documentation-only PRs may skip the expensive test steps, but the required `test` job must still complete successfully through its documented fast path and the independent-review gate still applies.
 
 ## Security & Configuration Tips
 
