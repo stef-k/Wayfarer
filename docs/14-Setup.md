@@ -2,7 +2,7 @@
 
 Prerequisites
 - .NET 10 SDK
-- PostgreSQL 17 with PostGIS extension
+- PostgreSQL with PostGIS extension; PostgreSQL 17 is the maintainer development and guarded relational-test baseline, while the general self-hosting/runtime minimum remains PostgreSQL 13+.
 - Node.js 24.x/npm for Trip Editor Vite builds
 - Ubuntu 24.04 on Linux/WSL2 is the primary maintainer baseline; Windows remains an alternative.
 
@@ -22,6 +22,7 @@ Restore, Build, Run
 
 Database
 - Configure `ConnectionStrings:DefaultConnection` for your local PostgreSQL.
+- Use PostgreSQL 17 for the maintainer development and guarded relational-test baseline. This does not raise the documented PostgreSQL 13+ minimum for general self-hosting/runtime use.
 - Ensure PostGIS is enabled for the target database.
 - The app auto‑creates Quartz tables at startup (`QuartzSchemaInstaller`).
 
@@ -63,4 +64,3 @@ ASPNETCORE_ENVIRONMENT=Production dotnet Wayfarer.dll --urls=http://localhost:50
 Mobile App (Separate Repo)
 - Location: `WayfarerMobile`.
 - Configure the mobile app to your server URL; no central domain.
-
