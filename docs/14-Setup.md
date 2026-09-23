@@ -2,9 +2,17 @@
 
 Prerequisites
 - .NET 10 SDK
-- PostgreSQL with PostGIS extension
-- Node.js 22.x/npm for Trip Editor Vite builds
-- Windows 10 (primary dev OS) or Linux/macOS for development
+- PostgreSQL 17 with PostGIS extension
+- Node.js 24.x/npm for Trip Editor Vite builds
+- Ubuntu 24.04 on Linux/WSL2 is the primary maintainer baseline; Windows remains an alternative.
+
+## Linux/WSL Development
+
+- Clone into the Linux filesystem (for example, `~/src/Wayfarer`), not `/mnt/c`, and run .NET, npm, and PostgreSQL tools from the Linux shell.
+- With nvm installed, run `nvm install` then `nvm use` in the checkout; `.nvmrc` selects Node 24 LTS. Run `npm ci` to restore the locked frontend dependencies.
+- Keep credentials in .NET user-secrets or ignored local configuration. Configure writable local cache/log paths for your environment.
+- Run `npm run dev` alongside `dotnet run` for the Trip Editor; validate with `npm run typecheck`, `npm run test:client`, and `npm run build`.
+- Attach the dedicated PostgreSQL test connection as described in [Testing](22-Testing.md#persistent-postgresql-test-database). Do not run relational fixtures against your useful development data.
 
 Restore, Build, Run
 - Restore: `dotnet restore`

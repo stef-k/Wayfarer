@@ -126,11 +126,11 @@ Server-build deployments need Node.js/npm on the build host so `deploy.sh` can
 build the Trip Editor Vue/Vite assets before `dotnet publish`. Node/npm are
 build-host tooling only; production does not run a Node service or SSR server.
 
-`deployment/install.sh` installs or verifies Node.js 22.x/npm automatically. For
+`deployment/install.sh` installs or verifies Node.js 24.x/npm automatically. For
 manual setup:
 
 ```bash
-curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+curl -fsSL https://deb.nodesource.com/setup_24.x | sudo -E bash -
 sudo apt install -y nodejs
 node --version
 npm --version
@@ -215,7 +215,7 @@ The `install.sh` script automatically:
 1. Prompts for the database password during installation
 2. Creates the PostgreSQL user with that password
 3. Configures the systemd service with the connection string
-4. Installs or verifies Node.js 22.x/npm build tooling
+4. Installs or verifies Node.js 24.x/npm build tooling
 
 For non-interactive installation, set the `DB_PASS` environment variable:
 

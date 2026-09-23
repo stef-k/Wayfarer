@@ -17,8 +17,8 @@ namespace Wayfarer.Util
 
             try
             {
-                string systemTimeZoneId = TZConvert.IanaToWindows(timeZoneId); // Will do nothing if already Windows ID on Windows
-                TimeZoneInfo tz = TimeZoneInfo.FindSystemTimeZoneById(systemTimeZoneId);
+                // Resolve IANA and Windows identifiers using the host timezone database.
+                TimeZoneInfo tz = TZConvert.GetTimeZoneInfo(timeZoneId);
                 return TimeZoneInfo.ConvertTimeFromUtc(utcTime, tz);
             }
             catch (Exception)

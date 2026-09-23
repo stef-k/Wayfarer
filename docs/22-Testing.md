@@ -40,16 +40,29 @@ Proportionate Validation Policy
 
 Reusable Environment Discovery
 - A missing environment variable means the prerequisite is not attached to the current process; it does not prove that the underlying service or runtime is absent.
-- Before reporting PostgreSQL evidence as unavailable, inspect the Windows PostgreSQL service, `C:\Program Files\PostgreSQL\17\bin`, the persistent `wayfarer_import_tests` database, the user-scoped `WAYFARER_TEST_POSTGRES_CONNECTION`, and existing repository runners such as `tools/run-407-waypoint-browser.ps1`.
+- Before reporting PostgreSQL evidence as unavailable, inspect the Linux PostgreSQL service (`pg_isready`, `pg_lsclusters`), installed `psql`/`createdb` tools, the persistent `wayfarer_import_tests` database, the shell-exported `WAYFARER_TEST_POSTGRES_CONNECTION` (or Windows service/tools and user-scoped variable on Windows), and existing repository runners such as `tools/run-407-waypoint-browser.ps1`.
 - Before reporting browser evidence as unavailable, distinguish the Codex in-app browser backend from repository Playwright. The absence of an attached in-app browser does not prevent `npx playwright` or the generated .NET `playwright.ps1` from launching Chromium.
 - Inspect existing Playwright caches and installers before reinstalling. Install the required version into the documented cache when it is missing, then run one launch/readiness check before the selected tests.
 - An agent may declare infrastructure unavailable only after these discovery and repair steps fail or require credentials/authority that are genuinely absent. Report the exact failed prerequisite and command; do not substitute “environment variable missing” for environment discovery.
 
-Persistent PostgreSQL Test Database
+## Persistent PostgreSQL Test Database
 - Local relational work uses the persistent PostgreSQL 17 service and the dedicated database named exactly `wayfarer_import_tests`. Never point guarded tests at the normal `wayfarer` development database or a production database.
-- `WAYFARER_TEST_POSTGRES_CONNECTION` is the safety attachment consumed by the test process. Store the dedicated connection at Windows user scope so new shells and agents can discover it; also copy it into the current process before running tests.
+- `WAYFARER_TEST_POSTGRES_CONNECTION` is the safety attachment consumed by the test process. On Linux/WSL, export it from private shell configuration into the test process; keep credentials out of Git and command output. On Windows, store it at user scope and copy it into the current process before running tests.
 - The dedicated database is reusable. Tests must isolate their own schemas or rows and clean only their owned data. Do not recreate the database for every issue merely because the process environment is empty.
 - If the database is not present, use the installed PostgreSQL 17 tools and the existing local administrator connection to create only `wayfarer_import_tests`, then install PostGIS when the selected fixture requires it. Do not print or commit the password.
+
+```bash
+# Attach the dedicated connection without echoing it or adding it to shell history.
+read -rsp 'Dedicated wayfarer_import_tests connection: ' WAYFARER_TEST_POSTGRES_CONNECTION
+printf '\n'
+export WAYFARER_TEST_POSTGRES_CONNECTION
+# Ordinary suite: includes opt-in PostgreSQL tests; excludes browser/SpatiaLite lanes.
+dotnet test tests/Wayfarer.Tests/Wayfarer.Tests.csproj --filter 'Category!=RequiresSpatialite&Category!=RequiresPlaywright'
+```
+
+The connection must name `Database=wayfarer_import_tests`. A missing attachment causes opt-in tests to skip; skipped tests are not PostgreSQL qualification. For future shells, an untracked private shell configuration may export the same connection. Do not substitute the application connection string.
+
+Windows attachment:
 
 ```powershell
 # Read the already-configured user-scoped connection without displaying it.
@@ -72,7 +85,7 @@ Disposable Migration-History Database
 - The fixture instance retains the only cleanup authority. It closes fixture contexts, clears its connection pool, terminates sessions only for its exact retained name, and drops only that database. Initialization cleanup preserves the primary failure and retains bounded cleanup diagnostics.
 - A retained disposable database indicates interrupted or failed cleanup. Diagnose it with a read-only catalog query for names beginning with the full `wayfarer_migration_tests_` prefix and inspect active sessions for that exact name. Do not use wildcard deletion, enumerate-and-drop scripts, or recreate `wayfarer_import_tests`; remove a retained database only after confirming its complete guarded name and ownership.
 
-Trip Editor Browser Preflight
+## Trip Editor Browser Preflight
 - Decide the evidence class before starting:
   1. Use client/component tests when the claim is state transitions, races, cancellation, or reactivity.
   2. Use focused PostgreSQL tests when the claim is persistence, concurrency, measurements, or cleanup.

@@ -13,7 +13,7 @@ Wayfarer is designed for self-hosting by power users, small businesses, and orga
 - **.NET 10 SDK** - Application build/runtime
 - **PostgreSQL 13+** with **PostGIS extension** - Database
 - **Nginx** (or similar reverse proxy) - Recommended for production
-- **Node.js 22.x/npm** - Build-host tooling for Trip Editor Vite assets
+- **Node.js 24.x/npm** - Build-host tooling for Trip Editor Vite assets
 
 ### Optional: PDF Export Feature
 
@@ -76,9 +76,9 @@ sudo apt update
 # 2) Install packages
 sudo apt install -y dotnet-sdk-10.0 postgresql postgis nginx
 
-# 3) Install Node.js 22.x/npm on hosts that build deployments
+# 3) Install Node.js 24.x/npm on hosts that build deployments
 # deployment/install.sh installs or verifies this automatically.
-curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
+curl -fsSL https://deb.nodesource.com/setup_24.x | sudo -E bash -
 sudo apt install -y nodejs
 
 # Install Chrome dependencies (for PDF export)
@@ -103,11 +103,13 @@ nano appsettings.json  # Set your connection string
 dotnet run
 ```
 
-### Windows
+The primary maintainer development baseline is Ubuntu 24.04 on Linux/WSL2, .NET 10, PostgreSQL 17/PostGIS, and Node 24 LTS. Keep WSL source on its Linux filesystem; see [Setup](14-Setup.md#linuxwsl-development) for the nvm and frontend workflow.
+
+### Windows (alternative development path)
 
 1. Install .NET 10 SDK from [microsoft.com/dotnet](https://dotnet.microsoft.com/download)
 2. Install PostgreSQL + PostGIS from [postgresql.org (Windows installer)](https://www.postgresql.org/download/windows/) or [enterprisedb.com](https://www.enterprisedb.com/downloads/postgres-postgresql-downloads)
-3. Install Node.js 22.x/npm for Trip Editor Vite builds
+3. Install Node.js 24.x/npm for Trip Editor Vite builds
 4. Clone the repository
 5. Configure `appsettings.Development.json` with your connection string
 6. Run `dotnet restore` then `dotnet run`

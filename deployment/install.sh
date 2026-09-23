@@ -199,19 +199,19 @@ ensure_node_build_tooling() {
     return
   fi
 
-  echo "Node.js/npm not found. Installing Node.js 22.x LTS from NodeSource for frontend builds..."
+  echo "Node.js/npm not found. Installing Node.js 24.x LTS from NodeSource for frontend builds..."
   sudo apt-get install -y ca-certificates curl gnupg
   sudo install -d -m 0755 /etc/apt/keyrings
   curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key \
     | sudo gpg --batch --yes --dearmor -o /etc/apt/keyrings/nodesource.gpg
-  echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_22.x nodistro main" \
+  echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_24.x nodistro main" \
     | sudo tee /etc/apt/sources.list.d/nodesource.list >/dev/null
   sudo apt-get update -y
   sudo apt-get install -y nodejs
 
   if ! command -v node >/dev/null 2>&1 || ! command -v npm >/dev/null 2>&1; then
     echo "✖ Node.js/npm installation did not complete successfully." >&2
-    echo "  Install Node.js 22.x LTS/npm manually, then re-run deployment/install.sh." >&2
+    echo "  Install Node.js 24.x LTS/npm manually, then re-run deployment/install.sh." >&2
     exit 1
   fi
 

@@ -11,12 +11,13 @@
 
 ## Project Paths
 
-- Backend (this repo): `C:\Users\stef\source\repos\Wayfarer`
-- Mobile app (separate repo): `C:\Users\stef\source\repos\WayfarerMobile`
+- Backend: this `Wayfarer` checkout.
+- Mobile app: separate `WayfarerMobile` repository; do not assume a fixed checkout path.
 
 ## Development Environment
 
-- Primary dev OS: Windows 10; install .NET 10 SDK.
+- Primary development baseline: Ubuntu 24.04 on Linux/WSL2 with .NET 10 SDK. Keep WSL checkouts on the Linux filesystem, not `/mnt/c`.
+- Frontend build baseline: Node 24 LTS/npm; `.nvmrc` supports `nvm install` and `nvm use`.
 - Database: PostgreSQL with PostGIS. Configure via `ConnectionStrings:DefaultConnection`.
 - Front end: plain modern JavaScript (prefer arrow functions).
 - Maps: Leaflet with OpenStreetMap tiles and local cache. Configure cache directories under `CacheSettings:*` in `appsettings*.json`.
@@ -45,7 +46,7 @@
 - Keep browser evidence proportionate: normally one critical happy-path smoke and, only when the risk warrants it, one focused negative/race observation. Do not encode exhaustive lifecycle, role, viewport, provider, or failure matrices as one uninterrupted browser workflow.
 - Prove each requirement at the lowest reliable seam. Do not repeat a state-transition matrix in Playwright when deterministic client/component tests already exercise the production state owner, or repeat persistence matrices in the browser when focused relational tests cover them.
 - A browser fixture, locator, host, port, timing, or setup failure is test-infrastructure evidence, not a product defect. Diagnose and correct it once, then allow at most one full rerun of the same selection. Do not perform a third environment rebuild unless the preceding run exposed a concrete product failure.
-- A missing opt-in environment variable or browser-backend attachment is not proof that PostgreSQL or Chromium is unavailable. Before reporting infrastructure as unavailable, inspect the documented persistent test database, installed PostgreSQL tools/service, repository provisioning scripts, Playwright caches, and version-coupled installers. Provision or repair the established reusable prerequisite when it is safe and in scope; do not stop at the first missing variable.
+- A missing opt-in environment variable or browser-backend attachment is not proof that PostgreSQL or Chromium is unavailable. Before reporting infrastructure as unavailable, inspect the documented persistent `wayfarer_import_tests` database, `WAYFARER_TEST_POSTGRES_CONNECTION`, installed PostgreSQL tools/service, repository provisioning scripts, Playwright caches, and version-coupled installers. Provision or repair the established reusable prerequisite when it is safe and in scope; do not stop at the first missing variable.
 - An unavailable in-app browser connector is not evidence that Chromium is unavailable. Try the in-app browser once and follow its documented troubleshooting once; if it remains unavailable, use the repository's established bundled Playwright Chromium, authenticated test convention, version-matched installer, and configured browser cache. Do not report browser evidence unavailable until both supported paths have failed, and do not create a bespoke browser harness as a substitute.
 - When browser infrastructure remains unavailable or fails again without a product counterexample, report the browser evidence as unavailable/validation debt and make the readiness decision from the remaining risk and evidence. Missing browser evidence blocks readiness only when the changed user-visible behavior cannot be credibly exercised at a lower stable seam.
 - Do not let test-harness refinement displace the production fix. If the same setup gap recurs across issues, improve or document the shared harness in a dedicated slice instead of rebuilding bespoke infrastructure inside each product issue.
