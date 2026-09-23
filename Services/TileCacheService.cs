@@ -291,6 +291,12 @@ public partial class TileCacheService
         return _cacheDirectory;
     }
 
+    /// <summary>Reports a distinct legacy root only while it exists on this host.</summary>
+    public string? GetLegacyCacheDirectory() =>
+        !TileCacheStorage.PathComparer.Equals(_storage.CurrentRoot, _storage.LegacyRoot) && Directory.Exists(_storage.LegacyRoot)
+            ? _storage.LegacyRoot : null;
+
+
     // ── HTTP request helpers ────────────────────────────────────────────
 
     /// <summary>
@@ -1030,7 +1036,6 @@ public partial class TileCacheService
             var tileKey = $"{activeProvider.Fingerprint}:{coordinateKey}";
             var scopedTilePath = GetProviderTilePath(
                 activeProvider.Fingerprint, zoomLevel, xCoordinate, yCoordinate);
-            var legacyTilePath = Path.Combine(_storage.LegacyRoot, $"{coordinateKey}.png");
             var tileFilePath = _storage.Find(activeProvider.Fingerprint, zoomLvl, xVal, yVal,
                 activeProvider.CanAdoptLegacyOsm);
 
@@ -1136,8 +1141,10 @@ public partial class TileCacheService
                     var sidecar = ReadSidecarMetadata(tileFilePath);
                     if (sidecar != null)
                     {
+                        if (sidecar.ProviderIdentity != null && sidecar.ProviderIdentity != activeProvider.Fingerprint)
+                            return TileRetrievalResult.NotFound();
                         if (activeProvider.CanAdoptLegacyOsm &&
-                            tileFilePath == legacyTilePath &&
+                            _storage.IsFlatLegacyPath(tileFilePath, zoomLvl, xVal, yVal) &&
                             sidecar.ProviderIdentity == null)
                         {
                             sidecar.ProviderIdentity = activeProvider.Fingerprint;
@@ -1409,6 +1416,7 @@ public partial class TileCacheService
             await _cacheLock.WaitAsync();
             try
             {
+                Directory.CreateDirectory(Path.GetDirectoryName(series.TileFilePath)!);
                 await File.WriteAllBytesAsync(tempFilePath, tileData, series.CancellationToken);
                 ReplaceTileFileAtomically(tempFilePath, series.TileFilePath);
 
@@ -1484,12 +1492,11 @@ public partial class TileCacheService
         var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
         // Retrieve a batch of the least recently accessed tile IDs and sizes.
-        // AsNoTracking + projection avoids loading full entities or RowVersions.
+        // No tracking is needed until the DB-first deletion re-fetches the selected IDs.
         var tilesToEvict = await dbContext.TileCacheMetadata
             .OrderBy(t => t.LastAccessed)
             .Take(LRU_TO_EVICT)
             .AsNoTracking()
-            .Select(t => t)
             .ToListAsync();
 
         // Phase 1: Commit DB deletions first.
@@ -1643,8 +1650,7 @@ public partial class TileCacheService
             // Group all owners of one physical path so DB-first deletion includes mixed references.
             var allMetadataList = await dbContext.TileCacheMetadata
                 .AsNoTracking()
-                .Select(t => t)
-                .ToListAsync();
+            .ToListAsync();
             var allMetadata = new Dictionary<string, List<int>>(TileCacheStorage.PathComparer);
             foreach (var t in allMetadataList)
             {
@@ -1702,13 +1708,12 @@ public partial class TileCacheService
             }
 
             // Clean up orphan DB records (records without corresponding files on disk).
-            // File.Exists cannot be translated to SQL, so project only Id + TileFilePath
-            // with AsNoTracking to minimize memory, then filter client-side with a HashSet.
+            // Resolve provider and coordinate identity before comparing filesystem membership.
+            // Invalid references are retired without authorizing any file access.
             var existingFiles = new HashSet<string>(
                 _storage.EnumerateFiles("*.png"));
             var allPaths = await dbContext.TileCacheMetadata
                 .AsNoTracking()
-                .Select(t => t)
                 .ToListAsync();
             var orphanIds = allPaths
                 .Where(t => !existingFiles.Contains(_storage.Resolve(t) ?? string.Empty))
@@ -1903,12 +1908,11 @@ public partial class TileCacheService
             using var scope = _serviceScopeFactory.CreateScope();
             var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
-            // Project only the fields needed — AsNoTracking avoids change tracker overhead.
+            // Load row identity for bounded resolution without change tracker overhead.
             var lruCache = await dbContext.TileCacheMetadata
                 .AsNoTracking()
                 .Where(file => file.Zoom >= DbMetadataZoomThreshold)
-                .Select(t => t)
-                .ToListAsync();
+                    .ToListAsync();
 
             if (!lruCache.Any()) return;
 

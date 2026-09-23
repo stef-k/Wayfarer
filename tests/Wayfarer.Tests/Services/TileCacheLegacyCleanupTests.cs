@@ -79,6 +79,31 @@ public sealed class TileCacheLegacyCleanupTests
         Assert.True(File.Exists(path));
     }
 
+    /// <summary>Logical scoped ownership protects the same bytes referenced by a legacy absolute row.</summary>
+    [Fact]
+    public async Task Retirement_ProtectsMixedRepresentations()
+    {
+        await using var harness = new TileCacheTestHarness();
+        harness.Settings.TileProviderKey = "custom";
+        harness.Settings.TileProviderUrlTemplate = "https://tiles.example.test/{z}/{x}/{y}.png";
+        var provider = new string('A', 64);
+        var storage = new TileCacheStorage(harness.CacheDirectory, Path.Combine(harness.CacheDirectory, provider));
+        Directory.CreateDirectory(storage.LegacyRoot);
+        var path = storage.CurrentPath(provider, 9, 1, 2);
+        await File.WriteAllBytesAsync(path, [7]);
+        using var scope = harness.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        db.TileCacheMetadata.AddRange(
+            new TileCacheMetadata { Zoom = 9, X = 1, Y = 2, TileFilePath = path, TileLocation = new Point(1, 2) },
+            new TileCacheMetadata { Zoom = 9, X = 1, Y = 2, ProviderIdentity = provider,
+                TileFilePath = TileCacheStorage.CreateReference(provider, 9, 1, 2), TileLocation = new Point(1, 2) });
+        await db.SaveChangesAsync();
+        var service = ActivatorUtilities.CreateInstance<TileCacheService>(scope.ServiceProvider, storage);
+        Assert.Equal(1, await service.RetireLegacyCacheBatchAsync(CancellationToken.None));
+        Assert.True(File.Exists(path));
+        Assert.Equal(provider, Assert.Single(db.TileCacheMetadata).ProviderIdentity);
+    }
+
     /// <summary>Malformed legacy metadata cannot authorize deleting an outside file.</summary>
     [Fact]
     public async Task Retirement_RejectsOutsidePath()

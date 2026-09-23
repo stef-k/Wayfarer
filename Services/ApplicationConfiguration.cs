@@ -34,7 +34,7 @@ internal static class ApplicationConfiguration
                 throw;
             }
 
-        // Resolve on demand; location imports adopt durable storage while other subsystems transition separately.
+        // Resolve on demand; imports and tiles adopt storage while other subsystems transition separately.
         builder.Services.Configure<StorageOptions>(builder.Configuration.GetSection("Storage"));
         builder.Services.AddSingleton<StoragePaths>();
         builder.Services.AddSingleton<TileCacheStorage>();

@@ -79,6 +79,10 @@ public sealed class TileCacheStorage
         return allowFlat && provider == OsmIdentity && File.Exists(flat) ? flat : current;
     }
 
+    /// <summary>Recognizes the flat legacy lane without leaking path construction into service code.</summary>
+    public bool IsFlatLegacyPath(string path, int zoom, int x, int y) =>
+        PathComparer.Equals(path, Path.Combine(LegacyRoot, FileName(zoom, x, y)));
+
     /// <summary>Sidecars always remain adjacent to the already resolved tile.</summary>
     public static string Sidecar(string tilePath) => tilePath + ".meta";
 
@@ -102,6 +106,15 @@ public sealed class TileCacheStorage
         provider = IsProvider(parent) ? parent : null;
         if (Resolve(path, provider, zoom, x, y) != null) return true;
         return provider != null && PathComparer.Equals(path, CurrentPath(provider, zoom, x, y));
+    }
+
+    /// <summary>Returns the physical and logical representations that could own one bounded deletion candidate.</summary>
+    public IEnumerable<string> ReferenceAliases(string physicalPath)
+    {
+        yield return physicalPath;
+        if (TryIdentify(physicalPath, out var provider, out var zoom, out var x, out var y) && provider != null &&
+            PathComparer.Equals(physicalPath, CurrentPath(provider, zoom, x, y)))
+            yield return CreateReference(provider, zoom, x, y);
     }
 
     /// <summary>Serializes coordinates independently of the process culture.</summary>

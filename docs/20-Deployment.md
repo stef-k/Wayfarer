@@ -257,7 +257,7 @@ New import rows store logical `imports/<guidN><extension>` references. Old same-
 The following directories are **auto-created** if missing:
 
 - `Logs/` - Application log files (auto-cleaned after 1 month)
-- `TileCache/` - Cached map tiles
+- `TileCache/` - Retained legacy map tiles; new tiles use `Storage:CacheRoot/tiles`
 - `ImageCache/` - Cached proxied images (LRU-evicted, admin-configurable size)
 - `ChromeCache/` - Chrome browser binaries for PDF export
 - `Uploads/` - Retained legacy upload compatibility tree; do not delete it while old rows reference it.
@@ -630,3 +630,5 @@ Before rollback, stop the scheduler and back up PostgreSQL plus the Data Protect
 - **Documentation:** See `docs/` folder
 - **Configuration Reference:** `docs/16-Configuration.md`
 
+
+Native TileCache transition (#617): install/deploy prepares `/var/cache/wayfarer/tiles` with application-user ownership and retains the old deployed `TileCache` exclusion/tree. Operators overriding `Storage__CacheRoot` must prepare the corresponding `tiles` directory before startup. Preserve customized `CacheSettings:TileCacheDirectory` as the temporary legacy-root input. This does not copy old files or rewrite DB paths; see [cache configuration](16-Configuration.md).

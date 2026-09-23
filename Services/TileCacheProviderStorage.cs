@@ -30,13 +30,11 @@ public partial class TileCacheService
                 .ToListAsync(cancellationToken);
             var paths = legacyRows.Select(_storage.Resolve).OfType<string>()
                 .Distinct(TileCacheStorage.PathComparer).ToArray();
-            // Protect physical ownership across logical/absolute representations, bounded by this batch's coordinates.
-            var zooms = legacyRows.Select(t => t.Zoom).Distinct().ToArray();
-            var xs = legacyRows.Select(t => t.X).Distinct().ToArray();
-            var ys = legacyRows.Select(t => t.Y).Distinct().ToArray();
+            // At most two reference forms per candidate; do not scan a coordinate cross-product.
+            var references = paths.SelectMany(_storage.ReferenceAliases).Select(path => path.ToUpperInvariant()).ToArray();
             var scopedRows = await _dbContext.TileCacheMetadata.AsNoTracking()
-                .Where(t => t.ProviderIdentity != null && zooms.Contains(t.Zoom) &&
-                    xs.Contains(t.X) && ys.Contains(t.Y)).ToListAsync(cancellationToken);
+                .Where(t => t.ProviderIdentity != null && references.Contains(t.TileFilePath.ToUpper()))
+                .ToListAsync(cancellationToken);
             var protectedPaths = scopedRows.Select(_storage.Resolve).OfType<string>()
                 .ToHashSet(TileCacheStorage.PathComparer);
             var retiredSize = legacyRows.Sum(tile => (long)tile.Size);
