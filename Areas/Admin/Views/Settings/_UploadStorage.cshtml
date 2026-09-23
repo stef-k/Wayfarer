@@ -1,0 +1,24 @@
+@* Known canonical and legacy staging authorities; metrics never inspect DB-supplied paths. *@
+<div class="col-12 mb-2">
+    <strong>Uploads Directory Path: </strong><code>@ViewData["UploadsPath"]</code>
+    @* Compatibility files remain in place and are included once in totals. *@
+    @foreach (var legacyRoot in ViewData["LegacyUploadsPaths"] as string[] ?? [])
+    {
+        <div>Legacy upload staging (not migrated): <code>@legacyRoot</code></div>
+    }
+</div>
+
+<div class="row mb-2">
+    <div class="col-4">
+        <strong>Upload File Count:</strong><br/>
+        <code>@ViewData["UploadsFileCount"]</code>
+    </div>
+    <div class="col-4">
+        <strong>Total Upload Size:</strong><br/>
+        <code>@ViewData["UploadsSizeMB"] MB</code>
+    </div>
+    <div class="col-4">
+        <strong>Total Upload Size:</strong><br/>
+        <code>@ViewData["UploadsSizeGB"] GB</code>
+    </div>
+</div>

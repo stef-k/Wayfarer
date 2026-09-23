@@ -1,3 +1,4 @@
+using Wayfarer.Tests.Infrastructure;
 using System.Net;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
@@ -35,7 +36,7 @@ internal sealed class LocationRecoveryScenario : IAsyncDisposable
     public async Task<int> ImportAsync(Guid key) => (await ImportWithResultAsync(key)).LocationId;
     public async Task<(int LocationId, int SkippedDuplicates)> ImportWithResultAsync(Guid key)
     {
-        var path = Path.GetTempFileName(); files.Add(path);
+        var path = ImportStaging.TempFile(); files.Add(path);
         await File.WriteAllTextAsync(path, $"Latitude,Longitude,TimestampUtc,IdempotencyKey\r\n37.1,22.2,2026-08-22T10:00:00Z,{key:D}");
         var import = new LocationImport { UserId = userId, FileType = LocationImportFileType.Csv, FilePath = path, Status = ImportStatus.InProgress, TotalRecords = 0, LastProcessedIndex = 0 };
         db.LocationImports.Add(import); await db.SaveChangesAsync();
@@ -58,7 +59,7 @@ internal sealed class LocationRecoveryScenario : IAsyncDisposable
     private LocationImportService CreateImportService()
     {
         var factory = NullLoggerFactory.Instance;
-        return new LocationImportService(db, new ReverseGeocodingService(new HttpClient(new FakeHandler()), NullLogger<BaseApiController>.Instance),
+        return new LocationImportService(ImportStaging.Files, db, new ReverseGeocodingService(new HttpClient(new FakeHandler()), NullLogger<BaseApiController>.Instance),
             NullLogger<LocationImportService>.Instance, new LocationDataParserFactory(factory), new SseService());
     }
 

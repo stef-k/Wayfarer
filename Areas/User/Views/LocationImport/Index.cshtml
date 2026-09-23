@@ -39,7 +39,7 @@
     @foreach (var import in Model)
     {
         <tr>
-            <td class="filePath">@System.IO.Path.GetFileName(import.FilePath)</td>
+            <td class="filePath">@Wayfarer.Services.LocationImports.LocationImportStagedFiles.DisplayName(import.FilePath)</td>
             <td>@import.CreatedAt.ToString("yyyy-MM-dd HH:mm")</td>
             <td class="importStatus">
                 @if (import.Status == ImportStatus.Stopped)

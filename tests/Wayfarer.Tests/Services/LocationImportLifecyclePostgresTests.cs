@@ -224,7 +224,7 @@ public sealed class LocationImportLifecyclePostgresTests(PostgresImportTestFixtu
     [PostgresFact]
     public async Task ConcurrentTerminalDeletes_AreBoundedAndRemoveOnlyImportHistory()
     {
-        var seed = await SeedAsync(ImportStatus.Completed, filePath: Path.GetTempFileName());
+        var seed = await SeedAsync(ImportStatus.Completed, filePath: ImportStaging.TempFile());
         var (scheduler, _) = Scheduler();
         scheduler.Setup(item => item.GetJobKeys(It.IsAny<Quartz.Impl.Matchers.GroupMatcher<JobKey>>(), default))
             .ReturnsAsync([]);
@@ -245,7 +245,7 @@ public sealed class LocationImportLifecyclePostgresTests(PostgresImportTestFixtu
     [PostgresFact]
     public async Task QuartzDeleteFailure_RetainsDurableDeletionIntentForRestartRecovery()
     {
-        var seed = await SeedAsync(ImportStatus.Completed, filePath: Path.GetTempFileName());
+        var seed = await SeedAsync(ImportStatus.Completed, filePath: ImportStaging.TempFile());
         var (scheduler, _) = Scheduler();
         scheduler.Setup(item => item.GetJobKeys(It.IsAny<Quartz.Impl.Matchers.GroupMatcher<JobKey>>(), default))
             .ReturnsAsync([LocationImportSchedulerKeys.Job(seed.ImportId, 1)]);
@@ -287,7 +287,7 @@ public sealed class LocationImportLifecyclePostgresTests(PostgresImportTestFixtu
         await using var db = fixture.CreateContext();
         var import = new LocationImport
         {
-            UserId = user.Id, FilePath = filePath, FileType = LocationImportFileType.Csv,
+            UserId = user.Id, FilePath = filePath == "guarded-upload" ? LocationImportStagedFiles.CreateReference(LocationImportFileType.Csv) : filePath, FileType = LocationImportFileType.Csv,
             TotalRecords = 0, LastProcessedIndex = 0, Status = status ?? ImportStatus.Stopped,
             ExecutionEpoch = epoch,
             ProjectionPending = status?.Equals(ImportStatus.Stopping) == true,
@@ -299,7 +299,7 @@ public sealed class LocationImportLifecyclePostgresTests(PostgresImportTestFixtu
     }
 
     private LocationImportLifecycle Owner(ApplicationDbContext db, IScheduler scheduler)
-        => new(new FixtureFactory(fixture), scheduler, NullLogger<LocationImportLifecycle>.Instance);
+        => new(ImportStaging.Files, new FixtureFactory(fixture), scheduler, NullLogger<LocationImportLifecycle>.Instance);
 
     private sealed class FixtureFactory(PostgresImportTestFixture fixture) : IDbContextFactory<ApplicationDbContext>
     {

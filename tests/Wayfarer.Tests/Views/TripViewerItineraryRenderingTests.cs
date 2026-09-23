@@ -339,7 +339,6 @@ public sealed class TripViewerItineraryRenderingTests
         public ApplicationSettings GetSettings() => new();
 
         /// <inheritdoc />
-        public string GetUploadsDirectoryPath() => Path.GetTempPath();
 
         /// <inheritdoc />
         public void RefreshSettings()

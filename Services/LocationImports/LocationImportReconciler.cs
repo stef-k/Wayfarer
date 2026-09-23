@@ -8,7 +8,7 @@ namespace Wayfarer.Services.LocationImports;
 
 /// <summary>Repairs the bounded import-specific Quartz projection without provider contact.</summary>
 public sealed class LocationImportReconciler(
-    IDbContextFactory<ApplicationDbContext> contexts, IScheduler scheduler, ILogger<LocationImportReconciler> logger,
+    LocationImportStagedFiles stagedFiles, IDbContextFactory<ApplicationDbContext> contexts, IScheduler scheduler, ILogger<LocationImportReconciler> logger,
     LocationImportProjectionCoordinator? projectionCoordinator = null)
 {
     private const int PageSize = 100;
@@ -98,8 +98,14 @@ public sealed class LocationImportReconciler(
                     && x.Status != ImportStatus.Stopping)
                 .Select(x => x.FilePath).SingleOrDefaultAsync(token);
         }
-        if (path is null) return;
-        if (File.Exists(path)) File.Delete(path);
+        if (!stagedFiles.TryResolve(path, out var resolved)) return;
+        try { File.Delete(resolved); }
+        catch (DirectoryNotFoundException) { } // A missing validated staging directory is already clean.
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            logger.LogWarning("Import {ImportId} file cleanup remains pending reconciliation.", importId);
+            return;
+        }
         await using var deletion = await contexts.CreateDbContextAsync(token);
         var import = await deletion.LocationImports.SingleOrDefaultAsync(
             x => x.Id == importId && x.DeletionRequestedAtUtc != null, token);
@@ -153,7 +159,7 @@ public sealed class LocationImportReconciler(
     private async Task ProjectAsync(int importId, int epoch, HashSet<JobKey> projected,
         HashSet<TriggerKey> triggers, CancellationToken token)
     {
-        await new LocationImportLifecycle(contexts, scheduler, NullLogger<LocationImportLifecycle>.Instance,
+        await new LocationImportLifecycle(stagedFiles, contexts, scheduler, NullLogger<LocationImportLifecycle>.Instance,
                 projectionCoordinator)
             .EnsureProjectionAsync(importId, epoch, token);
         projected.Add(LocationImportSchedulerKeys.Job(importId, epoch));

@@ -106,6 +106,7 @@ public class StartupTests
         services.AddSingleton<LocationDataParserFactory>(sp =>
             new LocationDataParserFactory(NullLoggerFactory.Instance));
         services.AddHttpClient<ReverseGeocodingService>();
+        services.AddSingleton(ImportStaging.Files);
         services.AddScoped<ILocationImportService, LocationImportService>();
         services.AddScoped<LocationService>();
         services.AddSingleton<SseService>();

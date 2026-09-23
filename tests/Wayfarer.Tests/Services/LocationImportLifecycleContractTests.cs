@@ -133,7 +133,7 @@ public sealed class LocationImportLifecycleContractTests : TestBase
     {
         await using var db = CreateDbContext();
         var import = NewImport(ImportStatus.Stopping, epoch: 1);
-        import.FilePath = Path.GetTempFileName();
+        import.FilePath = ImportStaging.TempFile();
         db.LocationImports.Add(import);
         await db.SaveChangesAsync();
 
@@ -199,11 +199,11 @@ public sealed class LocationImportLifecycleContractTests : TestBase
     }
 
     private static LocationImportLifecycle Owner(ApplicationDbContext db, IScheduler scheduler)
-        => new(new CloningFactory(db), scheduler, NullLogger<LocationImportLifecycle>.Instance);
+        => new(ImportStaging.Files, new CloningFactory(db), scheduler, NullLogger<LocationImportLifecycle>.Instance);
 
     private static LocationImportReconciler Reconciler(
         IDbContextFactory<ApplicationDbContext> contexts, IScheduler scheduler)
-        => new(contexts, scheduler, NullLogger<LocationImportReconciler>.Instance);
+        => new(ImportStaging.Files, contexts, scheduler, NullLogger<LocationImportReconciler>.Instance);
 
     private sealed class InMemoryFactory : IDbContextFactory<ApplicationDbContext>
     {
@@ -250,7 +250,7 @@ public sealed class LocationImportLifecycleContractTests : TestBase
     {
         Id = 1,
         UserId = "owner",
-        FilePath = "upload",
+        FilePath = LocationImportStagedFiles.CreateReference(LocationImportFileType.Csv),
         FileType = LocationImportFileType.Csv,
         TotalRecords = 0,
         LastProcessedIndex = 0,

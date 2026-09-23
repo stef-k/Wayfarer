@@ -230,7 +230,7 @@ public class UserLocationImportControllerTests : TestBase
                 new(null, "Not selected", false, "No geocoding provider is selected.", false,
                     0, 0, "credits", "No active usage window", null),
                 new(0, 0, 0, 0, null)));
-        var controller = new LocationImportController(db, NullLogger<LocationImportController>.Instance,
+        var controller = new LocationImportController(ImportStaging.Files, db, NullLogger<LocationImportController>.Instance,
             env.Object, scheduler.Object, presentation ?? defaultPresentation.Object, handoff, projection,
             contextFactory: new CloningFactory(db));
         controller.ControllerContext = new ControllerContext { HttpContext = BuildHttpContextWithUser(userId) };

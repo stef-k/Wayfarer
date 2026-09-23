@@ -53,7 +53,7 @@ public class LocationImportServiceTests : TestBase
         db.ActivityTypes.Add(new ActivityType { Id = 5, Name = "Walking" });
         await db.SaveChangesAsync();
 
-        var tempFile = Path.GetTempFileName();
+        var tempFile = ImportStaging.TempFile();
         await File.WriteAllTextAsync(
             tempFile,
             "Latitude,Longitude,TimestampUtc,LocalTimestamp,TimeZoneId,Activity,Accuracy,Altitude,Speed,Address,FullAddress,Notes,AddressNumber,StreetName,PostCode,Place,Region,Country\r\n" +
@@ -101,7 +101,7 @@ public class LocationImportServiceTests : TestBase
         var parserFactory = new LocationDataParserFactory(loggerFactory);
         var httpClient = new HttpClient(new FakeHttpHandler());
         var reverse = new ReverseGeocodingService(httpClient, NullLogger<BaseApiController>.Instance);
-        return new LocationImportService(
+        return new LocationImportService(ImportStaging.Files,
             db,
             reverse,
             NullLogger<LocationImportService>.Instance,
@@ -140,7 +140,7 @@ public class LocationImportServiceTests : TestBase
         await db.SaveChangesAsync();
 
         // CSV with same location (should be skipped) + one new location
-        var tempFile = Path.GetTempFileName();
+        var tempFile = ImportStaging.TempFile();
         await File.WriteAllTextAsync(
             tempFile,
             "Latitude,Longitude,TimestampUtc,LocalTimestamp,TimeZoneId,Accuracy\r\n" +
@@ -188,7 +188,7 @@ public class LocationImportServiceTests : TestBase
     {
         var db = CreateDbContext();
 
-        var tempFile = Path.GetTempFileName();
+        var tempFile = ImportStaging.TempFile();
         await File.WriteAllTextAsync(
             tempFile,
             "Latitude,Longitude,TimestampUtc,LocalTimestamp,TimeZoneId,Accuracy\r\n" +
@@ -227,7 +227,7 @@ public class LocationImportServiceTests : TestBase
     {
         var db = CreateDbContext();
 
-        var tempFile = Path.GetTempFileName();
+        var tempFile = ImportStaging.TempFile();
         await File.WriteAllTextAsync(
             tempFile,
             "Latitude,Longitude,TimestampUtc,LocalTimestamp,TimeZoneId,Accuracy\r\n" +
@@ -306,7 +306,7 @@ public class LocationImportServiceTests : TestBase
         await db.SaveChangesAsync();
 
         // CSV with location exactly 1 second later at same coordinates (should be duplicate)
-        var tempFile = Path.GetTempFileName();
+        var tempFile = ImportStaging.TempFile();
         await File.WriteAllTextAsync(
             tempFile,
             "Latitude,Longitude,TimestampUtc,LocalTimestamp,TimeZoneId\r\n" +
@@ -360,7 +360,7 @@ public class LocationImportServiceTests : TestBase
         await db.SaveChangesAsync();
 
         // CSV with location 2 seconds later at same coordinates (should NOT be duplicate)
-        var tempFile = Path.GetTempFileName();
+        var tempFile = ImportStaging.TempFile();
         await File.WriteAllTextAsync(
             tempFile,
             "Latitude,Longitude,TimestampUtc,LocalTimestamp,TimeZoneId\r\n" +
@@ -415,7 +415,7 @@ public class LocationImportServiceTests : TestBase
 
         // CSV with location ~5 meters away at same timestamp (should be duplicate)
         // At latitude 37.1°: ~5m north ≈ 0.000045 degrees latitude
-        var tempFile = Path.GetTempFileName();
+        var tempFile = ImportStaging.TempFile();
         await File.WriteAllTextAsync(
             tempFile,
             "Latitude,Longitude,TimestampUtc,LocalTimestamp,TimeZoneId\r\n" +
@@ -470,7 +470,7 @@ public class LocationImportServiceTests : TestBase
 
         // CSV with location ~15 meters away at same timestamp (should NOT be duplicate)
         // At latitude 37.1°: ~15m north ≈ 0.000135 degrees latitude
-        var tempFile = Path.GetTempFileName();
+        var tempFile = ImportStaging.TempFile();
         await File.WriteAllTextAsync(
             tempFile,
             "Latitude,Longitude,TimestampUtc,LocalTimestamp,TimeZoneId\r\n" +
@@ -524,7 +524,7 @@ public class LocationImportServiceTests : TestBase
         await db.SaveChangesAsync();
 
         // CSV with location ~8m away and 1 second later (both within tolerance = duplicate)
-        var tempFile = Path.GetTempFileName();
+        var tempFile = ImportStaging.TempFile();
         await File.WriteAllTextAsync(
             tempFile,
             "Latitude,Longitude,TimestampUtc,LocalTimestamp,TimeZoneId\r\n" +
@@ -578,7 +578,7 @@ public class LocationImportServiceTests : TestBase
         await db.SaveChangesAsync();
 
         // CSV with location ~20m away but only 0.5 seconds later (distance outside, time within)
-        var tempFile = Path.GetTempFileName();
+        var tempFile = ImportStaging.TempFile();
         await File.WriteAllTextAsync(
             tempFile,
             "Latitude,Longitude,TimestampUtc,LocalTimestamp,TimeZoneId\r\n" +
@@ -632,7 +632,7 @@ public class LocationImportServiceTests : TestBase
         await db.SaveChangesAsync();
 
         // CSV with location at same coordinates but 5 seconds later (distance within, time outside)
-        var tempFile = Path.GetTempFileName();
+        var tempFile = ImportStaging.TempFile();
         await File.WriteAllTextAsync(
             tempFile,
             "Latitude,Longitude,TimestampUtc,LocalTimestamp,TimeZoneId\r\n" +

@@ -30,7 +30,7 @@ public sealed class LocationImportDeleteRecoveryPostgresTests(PostgresImportTest
             Assert.Equal(LocationImportCommandCode.ProjectionPending, result.Code);
         }
 
-        var reconciler = new LocationImportReconciler(new FixtureFactory(fixture), scheduler.Object,
+        var reconciler = new LocationImportReconciler(ImportStaging.Files, new FixtureFactory(fixture), scheduler.Object,
             NullLogger<LocationImportReconciler>.Instance);
         await reconciler.ReconcileAsync();
 
@@ -87,7 +87,7 @@ public sealed class LocationImportDeleteRecoveryPostgresTests(PostgresImportTest
         var scheduler = Scheduler();
         await using (var command = fixture.CreateContext())
         {
-            var result = await new LocationImportLifecycle(new FixtureFactory(fixture), scheduler.Object,
+            var result = await new LocationImportLifecycle(ImportStaging.Files, new FixtureFactory(fixture), scheduler.Object,
                 NullLogger<LocationImportLifecycle>.Instance, observer).DeleteAsync(seed.UserId, seed.ImportId);
             Assert.Equal(LocationImportCommandCode.ProjectionPending, result.Code);
         }
@@ -95,7 +95,7 @@ public sealed class LocationImportDeleteRecoveryPostgresTests(PostgresImportTest
             Assert.NotNull((await verification.LocationImports.FindAsync(seed.ImportId))!.DeletionRequestedAtUtc);
 
         Assert.True(File.Exists(seed.Path));
-        var reconciler = new LocationImportReconciler(new FixtureFactory(fixture), scheduler.Object,
+        var reconciler = new LocationImportReconciler(ImportStaging.Files, new FixtureFactory(fixture), scheduler.Object,
             NullLogger<LocationImportReconciler>.Instance);
         await reconciler.ReconcileAsync();
         await reconciler.ReconcileAsync();
@@ -132,7 +132,7 @@ public sealed class LocationImportDeleteRecoveryPostgresTests(PostgresImportTest
         }
 
         scheduler = Scheduler();
-        var reconciler = new LocationImportReconciler(new FixtureFactory(fixture), scheduler.Object,
+        var reconciler = new LocationImportReconciler(ImportStaging.Files, new FixtureFactory(fixture), scheduler.Object,
             NullLogger<LocationImportReconciler>.Instance);
         await reconciler.ReconcileAsync();
         await reconciler.ReconcileAsync();
@@ -172,7 +172,7 @@ public sealed class LocationImportDeleteRecoveryPostgresTests(PostgresImportTest
     private async Task<(string UserId, int ImportId, string Path)> SeedAsync(ImportStatus status, int epoch = 0)
     {
         var user = await fixture.CreateUserAsync();
-        var path = Path.Combine(Path.GetTempPath(), $"wayfarer-511-{Guid.NewGuid():N}.csv");
+        var path = Path.Combine(ImportStaging.LegacyDirectory, $"wayfarer-511-{Guid.NewGuid():N}.csv");
         await File.WriteAllTextAsync(path, "fixture");
         await using var db = fixture.CreateContext();
         var import = new LocationImport
@@ -186,7 +186,7 @@ public sealed class LocationImportDeleteRecoveryPostgresTests(PostgresImportTest
     }
 
     private LocationImportLifecycle Lifecycle(ApplicationDbContext db, IScheduler scheduler) =>
-        new(new FixtureFactory(fixture), scheduler, NullLogger<LocationImportLifecycle>.Instance);
+        new(ImportStaging.Files, new FixtureFactory(fixture), scheduler, NullLogger<LocationImportLifecycle>.Instance);
 
     private static Mock<IScheduler> Scheduler(JobKey? executing = null)
     {

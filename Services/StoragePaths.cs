@@ -70,7 +70,7 @@ public sealed class StoragePaths
     public string LogRoot { get; }
     /// <summary>Absolute ephemeral working root.</summary>
     public string TempRoot { get; }
-    /// <summary>Target upload directory; existing upload consumers have not adopted it yet.</summary>
+    /// <summary>Durable upload root; location-import staging resides in its imports namespace.</summary>
     public string Uploads => Path.Combine(DataRoot, "uploads");
     /// <summary>Target key-ring directory; does not change Data Protection identity or configuration.</summary>
     public string DataProtection => Path.Combine(DataRoot, "data-protection");

@@ -36,7 +36,7 @@ public sealed class LocationImportCleanupRacePostgresTests(PostgresImportTestFix
 
         LocationImportCommandResult result;
         await using (var command = fixture.CreateContext())
-            result = await new LocationImportLifecycle(new FixtureFactory(fixture), scheduler.Object,
+            result = await new LocationImportLifecycle(ImportStaging.Files, new FixtureFactory(fixture), scheduler.Object,
                 NullLogger<LocationImportLifecycle>.Instance)
                 .DeleteAsync(seed.UserId, seed.ImportId, cancellation.Token);
 
@@ -52,7 +52,7 @@ public sealed class LocationImportCleanupRacePostgresTests(PostgresImportTestFix
         }
 
         var retryScheduler = StableScheduler(keys);
-        var reconciler = new LocationImportReconciler(new FixtureFactory(fixture), retryScheduler.Object,
+        var reconciler = new LocationImportReconciler(ImportStaging.Files, new FixtureFactory(fixture), retryScheduler.Object,
             NullLogger<LocationImportReconciler>.Instance);
         await reconciler.ReconcileAsync();
         Assert.Empty(keys);
@@ -79,7 +79,7 @@ public sealed class LocationImportCleanupRacePostgresTests(PostgresImportTestFix
             queued.TrySetResult();
             await release.Task;
             await using var workerDb = fixture.CreateContext();
-            var service = new LocationImportService(workerDb,
+            var service = new LocationImportService(ImportStaging.Files, workerDb,
                 new ReverseGeocodingService(new HttpClient(new RejectingHandler()),
                     NullLogger<BaseApiController>.Instance),
                 NullLogger<LocationImportService>.Instance,
@@ -92,7 +92,7 @@ public sealed class LocationImportCleanupRacePostgresTests(PostgresImportTestFix
         await queued.Task.WaitAsync(TimeSpan.FromSeconds(10));
         await using (var command = fixture.CreateContext())
         {
-            var result = await new LocationImportLifecycle(new FixtureFactory(fixture), scheduler.Object,
+            var result = await new LocationImportLifecycle(ImportStaging.Files, new FixtureFactory(fixture), scheduler.Object,
                 NullLogger<LocationImportLifecycle>.Instance).DeleteAsync(seed.UserId, seed.ImportId);
             Assert.Equal(LocationImportCommandCode.Accepted, result.Code);
         }
@@ -102,7 +102,7 @@ public sealed class LocationImportCleanupRacePostgresTests(PostgresImportTestFix
         Assert.Equal(LocationImportExecutionOutcome.Stale, await invocation);
         handoff.Verify(x => x.EnsureAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
 
-        var reconciler = new LocationImportReconciler(new FixtureFactory(fixture), scheduler.Object,
+        var reconciler = new LocationImportReconciler(ImportStaging.Files, new FixtureFactory(fixture), scheduler.Object,
             NullLogger<LocationImportReconciler>.Instance);
         await reconciler.ReconcileAsync();
         await reconciler.ReconcileAsync();
@@ -116,7 +116,7 @@ public sealed class LocationImportCleanupRacePostgresTests(PostgresImportTestFix
     private async Task<Seed> SeedCompletedAsync(bool withProtectedLocation = false)
     {
         var user = await fixture.CreateUserAsync();
-        var path = Path.Combine(Path.GetTempPath(), $"wayfarer-511-cleanup-{Guid.NewGuid():N}.csv");
+        var path = Path.Combine(ImportStaging.LegacyDirectory, $"wayfarer-511-cleanup-{Guid.NewGuid():N}.csv");
         await File.WriteAllTextAsync(path, "Latitude,Longitude\n37,23");
         await using var db = fixture.CreateContext();
         var import = new LocationImport

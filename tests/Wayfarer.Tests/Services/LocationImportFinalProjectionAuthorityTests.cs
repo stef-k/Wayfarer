@@ -26,7 +26,7 @@ public sealed class LocationImportFinalProjectionAuthorityTests(PostgresImportTe
     public async Task PostProjectionAuthorityChange_ConvergesInOneBoundedPass(AuthorityChange change)
     {
         var user = await fixture.CreateUserAsync();
-        var path = Path.Combine(Path.GetTempPath(), $"wayfarer-511-matrix-{Guid.NewGuid():N}.csv");
+        var path = Path.Combine(ImportStaging.LegacyDirectory, $"wayfarer-511-matrix-{Guid.NewGuid():N}.csv");
         await File.WriteAllTextAsync(path, "Latitude,Longitude");
         int importId;
         await using (var db = fixture.CreateContext())
@@ -71,7 +71,7 @@ public sealed class LocationImportFinalProjectionAuthorityTests(PostgresImportTe
             }
             await authority.SaveChangesAsync();
         });
-        var reconciler = new LocationImportReconciler(new FixtureFactory(fixture), scheduler.Object,
+        var reconciler = new LocationImportReconciler(ImportStaging.Files, new FixtureFactory(fixture), scheduler.Object,
             NullLogger<LocationImportReconciler>.Instance, new LocationImportProjectionCoordinator());
 
         await reconciler.ReconcileAsync();
@@ -97,7 +97,7 @@ public sealed class LocationImportFinalProjectionAuthorityTests(PostgresImportTe
     public async Task ReconcilerFirst_DeleteWaitsThenRemovesProjectionAndPhysicalImport()
     {
         var user = await fixture.CreateUserAsync();
-        var path = Path.Combine(Path.GetTempPath(), $"wayfarer-511-reverse-{Guid.NewGuid():N}.csv");
+        var path = Path.Combine(ImportStaging.LegacyDirectory, $"wayfarer-511-reverse-{Guid.NewGuid():N}.csv");
         await File.WriteAllTextAsync(path, "Latitude,Longitude");
         int importId;
         await using (var db = fixture.CreateContext())
@@ -125,9 +125,9 @@ public sealed class LocationImportFinalProjectionAuthorityTests(PostgresImportTe
         });
         var coordinator = new LocationImportProjectionCoordinator();
         var contexts = new FixtureFactory(fixture);
-        var reconciler = new LocationImportReconciler(contexts, scheduler.Object,
+        var reconciler = new LocationImportReconciler(ImportStaging.Files, contexts, scheduler.Object,
             NullLogger<LocationImportReconciler>.Instance, coordinator);
-        var lifecycle = new LocationImportLifecycle(contexts, scheduler.Object,
+        var lifecycle = new LocationImportLifecycle(ImportStaging.Files, contexts, scheduler.Object,
             NullLogger<LocationImportLifecycle>.Instance, coordinator);
 
         var reconciliation = reconciler.ReconcileAsync();
@@ -167,7 +167,7 @@ public sealed class LocationImportFinalProjectionAuthorityTests(PostgresImportTe
     public async Task StaleReconcilerProjectionAfterDeletionIntent_DoesNotSurvive()
     {
         var user = await fixture.CreateUserAsync();
-        var path = Path.Combine(Path.GetTempPath(), $"wayfarer-511-projection-{Guid.NewGuid():N}.csv");
+        var path = Path.Combine(ImportStaging.LegacyDirectory, $"wayfarer-511-projection-{Guid.NewGuid():N}.csv");
         await File.WriteAllTextAsync(path, "Latitude,Longitude");
         int importId;
         await using (var seed = fixture.CreateContext())
@@ -211,7 +211,7 @@ public sealed class LocationImportFinalProjectionAuthorityTests(PostgresImportTe
         scheduler.Setup(x => x.DeleteJob(It.IsAny<JobKey>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((JobKey key, CancellationToken _) => jobs.Remove(key));
 
-        await new LocationImportReconciler(new FixtureFactory(fixture), scheduler.Object,
+        await new LocationImportReconciler(ImportStaging.Files, new FixtureFactory(fixture), scheduler.Object,
             NullLogger<LocationImportReconciler>.Instance).ReconcileAsync();
 
         Assert.DoesNotContain(LocationImportSchedulerKeys.Job(importId, 6), jobs);

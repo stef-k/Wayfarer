@@ -24,7 +24,7 @@ public sealed class LocationImportBoundedPostgresTests(PostgresImportTestFixture
         var user = await fixture.CreateUserAsync();
         var conflictingKey = Guid.NewGuid();
         var otherKey = Guid.NewGuid();
-        var path = Path.Combine(Path.GetTempPath(), $"keyed-conflict-{Guid.NewGuid():N}.csv");
+        var path = Path.Combine(ImportStaging.LegacyDirectory, $"keyed-conflict-{Guid.NewGuid():N}.csv");
         try
         {
             await File.WriteAllTextAsync(path,
@@ -55,7 +55,7 @@ public sealed class LocationImportBoundedPostgresTests(PostgresImportTestFixture
                 await external.SaveChangesAsync();
                 externalCommitted = true;
             });
-            var service = new LocationImportService(new FixtureFactory(fixture, interceptor, disableAutoSavepoints: true),
+            var service = new LocationImportService(ImportStaging.Files, new FixtureFactory(fixture, interceptor, disableAutoSavepoints: true),
                 new ReverseGeocodingService(new HttpClient(), NullLogger<BaseApiController>.Instance),
                 NullLogger<LocationImportService>.Instance,
                 new LocationDataParserFactory(NullLoggerFactory.Instance), new SseService());
@@ -163,7 +163,7 @@ public sealed class LocationImportBoundedPostgresTests(PostgresImportTestFixture
     {
         var user = await fixture.CreateUserAsync();
         var paths = Enumerable.Range(0, 2)
-            .Select(_ => Path.Combine(Path.GetTempPath(), $"no-key-replay-{Guid.NewGuid():N}.csv"))
+            .Select(_ => Path.Combine(ImportStaging.LegacyDirectory, $"no-key-replay-{Guid.NewGuid():N}.csv"))
             .ToArray();
         try
         {
@@ -183,7 +183,7 @@ public sealed class LocationImportBoundedPostgresTests(PostgresImportTestFixture
                 await seed.SaveChangesAsync();
                 importIds = imports.Select(item => item.Id).ToArray();
             }
-            var service = new LocationImportService(new FixtureFactory(fixture),
+            var service = new LocationImportService(ImportStaging.Files, new FixtureFactory(fixture),
                 new ReverseGeocodingService(new HttpClient(), NullLogger<BaseApiController>.Instance),
                 NullLogger<LocationImportService>.Instance,
                 new LocationDataParserFactory(NullLoggerFactory.Instance), new SseService());

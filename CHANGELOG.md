@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Changed
+- Stage new location imports beneath the durable DataRoot with portable logical references; retain bounded same-host legacy compatibility and report both storage roots in Admin Settings (#615). Native Linux deployment prepares the external staging directory without migrating old rows or files.
+
 ### Fixed
 - Resolve IANA and Windows timezone identifiers across Linux and Windows, including India’s half-hour offset (#608).
 

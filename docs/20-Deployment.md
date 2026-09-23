@@ -250,13 +250,17 @@ sudo systemctl restart wayfarer
 
 ## Directory Structure & Permissions
 
+New location imports use `/var/lib/wayfarer/uploads/imports`, prepared with application-user ownership by both native scripts. The existing Linux-oriented `appsettings.Production.json` supplies `Storage:DataRoot=/var/lib/wayfarer`, `CacheRoot=/var/cache/wayfarer`, `LogRoot=/var/log/wayfarer`, and `TempRoot=/tmp/wayfarer`. Override these through normal ASP.NET Core configuration; when overriding DataRoot, prepare its `uploads/imports` directory for the service user before startup. These roots do not yet move cache, log, thumbnail or Data Protection consumers.
+
+New import rows store logical `imports/<guidN><extension>` references. Old same-host absolute rows/files remain in place under known `Uploads/Temp` roots, with the deployment exclusion retained. Cross-host/native-to-Docker conversion needs a future explicit, quiesced migration; startup and Admin viewing never perform it. No EF schema migration is introduced for this reference change. Routine backup classification is owned by #533 and the real M6 migration by #604.
+
 The following directories are **auto-created** if missing:
 
 - `Logs/` - Application log files (auto-cleaned after 1 month)
 - `TileCache/` - Cached map tiles
 - `ImageCache/` - Cached proxied images (LRU-evicted, admin-configurable size)
 - `ChromeCache/` - Chrome browser binaries for PDF export
-- `Uploads/` - User uploaded files
+- `Uploads/` - Retained legacy upload compatibility tree; do not delete it while old rows reference it.
 
 ```bash
 # Ensure wayfarer user owns the entire application

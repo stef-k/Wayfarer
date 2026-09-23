@@ -23,13 +23,14 @@ namespace Wayfarer.Areas.User.Controllers
         /// </summary>
         private const string ImportJobGroup = "Imports";
 
-        private readonly IWebHostEnvironment _environment;
+        private readonly LocationImportStagedFiles _stagedFiles;
         private readonly IScheduler        _scheduler;
         private readonly IImportEnrichmentHandoff? _enrichmentHandoff;
         private readonly ILocationImportLifecycle _importLifecycle;
         private readonly ILocationEnrichmentPresentationProjector _enrichmentPresentation;
 
-        public LocationImportController(ApplicationDbContext dbContext,
+        /// <summary>Uses the shared staging authority for new uploads and lifecycle cleanup.</summary>
+        public LocationImportController(LocationImportStagedFiles stagedFiles, ApplicationDbContext dbContext,
             ILogger<LocationImportController> logger,
             IWebHostEnvironment environment,
             IScheduler scheduler,
@@ -40,12 +41,12 @@ namespace Wayfarer.Areas.User.Controllers
             IDbContextFactory<ApplicationDbContext>? contextFactory = null)
             : base(logger, dbContext)
         {
-            _environment = environment;
+            _stagedFiles = stagedFiles;
             _scheduler = scheduler;
             _enrichmentPresentation = enrichmentPresentation;
             _enrichmentHandoff = enrichmentHandoff;
             _importLifecycle = importLifecycle ?? new LocationImportLifecycle(
-                contextFactory ?? throw new ArgumentNullException(nameof(contextFactory)), scheduler,
+                stagedFiles, contextFactory ?? throw new ArgumentNullException(nameof(contextFactory)), scheduler,
                 logger as ILogger<LocationImportLifecycle>
                     ?? Microsoft.Extensions.Logging.Abstractions.NullLogger<LocationImportLifecycle>.Instance);
         }
@@ -189,6 +190,7 @@ namespace Wayfarer.Areas.User.Controllers
             return RedirectToAction("Index");
         }
 
+        /// <summary>Requests deletion and distinguishes completed cleanup from pending reconciliation.</summary>
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Delete(int id)
@@ -196,11 +198,17 @@ namespace Wayfarer.Areas.User.Controllers
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (string.IsNullOrWhiteSpace(userId)) return Challenge();
             var result = await _importLifecycle.DeleteAsync(userId, id, HttpContext.RequestAborted);
-            SetAlert(result.Code == LocationImportCommandCode.Accepted
-                ? "Upload record removed successfully."
-                : result.Code == LocationImportCommandCode.ExecutionActive
-                    ? "Upload is active or stopping and cannot be removed yet."
-                    : "Upload record not found.", result.Code == LocationImportCommandCode.Accepted ? "success" : "warning");
+            var message = result.Code switch
+            {
+                LocationImportCommandCode.Accepted => "Upload record removed successfully.",
+                LocationImportCommandCode.ProjectionPending =>
+                    "Deletion requested. Upload cleanup is pending reconciliation.",
+                LocationImportCommandCode.ExecutionActive =>
+                    "Upload is active or stopping and cannot be removed yet.",
+                LocationImportCommandCode.NotFound => "Upload record not found.",
+                _ => "Upload record could not be removed."
+            };
+            SetAlert(message, result.Code == LocationImportCommandCode.Accepted ? "success" : "warning");
             return RedirectToAction("Index");
         }
 
@@ -295,7 +303,7 @@ namespace Wayfarer.Areas.User.Controllers
                 return RedirectToAction("Index", "Home", new { area = "" });
             }
 
-            var uploadDirectory = Path.Combine(_environment.ContentRootPath, "Uploads", "Temp");
+            var reference = LocationImportStagedFiles.CreateReference(model.FileType.Value);
             string? filePath = null;
             var stagedFileCreated = false;
             var committed = false;
@@ -303,9 +311,10 @@ namespace Wayfarer.Areas.User.Controllers
 
             try
             {
-                Directory.CreateDirectory(uploadDirectory);
-                var serverExtension = model.FileType.Value.GetAllowedExtensions().First();
-                filePath = Path.Combine(uploadDirectory, $"{Guid.NewGuid():N}{serverExtension}");
+                if (!_stagedFiles.TryResolve(reference, out filePath))
+                    throw new InvalidOperationException("Invalid generated import reference.");
+                // Only the owned staging directory is created; installation roots remain administrator-owned.
+                Directory.CreateDirectory(_stagedFiles.DirectoryPath);
                 using (var stream = new FileStream(filePath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
                 {
                     stagedFileCreated = true;
@@ -316,7 +325,7 @@ namespace Wayfarer.Areas.User.Controllers
                 {
                     UserId = userId,
                     FileType = model.FileType.Value,
-                    FilePath = filePath,
+                    FilePath = reference,
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow,
                     LastProcessedIndex = 0,

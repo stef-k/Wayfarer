@@ -1,3 +1,4 @@
+using Wayfarer.Services.LocationImports;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Hosting;
@@ -137,6 +138,7 @@ public class LocationImportControllerTests : TestBase
         Assert.Equal(ImportStatus.Stopped, db.LocationImports.Single(i => i.Id == 20).Status);
     }
 
+    /// <summary>Verifies deletion outcome feedback and alert severity.</summary>
     [Fact]
     public async Task Delete_RemovesOwnedImport()
     {
@@ -152,6 +154,8 @@ public class LocationImportControllerTests : TestBase
         var redirect = Assert.IsType<RedirectToActionResult>(result);
         Assert.Equal("Index", redirect.ActionName);
         Assert.Empty(db.LocationImports);
+        Assert.Equal("Upload record removed successfully.", controller.TempData["AlertMessage"]);
+        Assert.Equal("success", controller.TempData["AlertType"]);
     }
 
     [Fact]
@@ -171,6 +175,30 @@ public class LocationImportControllerTests : TestBase
         Assert.Single(db.LocationImports);
     }
 
+    /// <summary>Unresolvable staging retains deletion intent and reports pending cleanup.</summary>
+    [Fact]
+    public async Task Delete_ReportsPendingCleanupForUnresolvableReference()
+    {
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "u1");
+        db.Users.Add(user);
+        var import = NewImport(36, user.Id, ImportStatus.Completed);
+        import.FilePath = "unsafe-reference";
+        db.LocationImports.Add(import);
+        await db.SaveChangesAsync();
+        var controller = BuildController(db, user, Mock.Of<IScheduler>());
+
+        var result = await controller.Delete(36);
+
+        var redirect = Assert.IsType<RedirectToActionResult>(result);
+        Assert.Equal("Index", redirect.ActionName);
+        Assert.Equal("Deletion requested. Upload cleanup is pending reconciliation.",
+            controller.TempData["AlertMessage"]);
+        Assert.Equal("warning", controller.TempData["AlertType"]);
+        db.ChangeTracker.Clear();
+        Assert.NotNull(Assert.Single(db.LocationImports).DeletionRequestedAtUtc);
+    }
+
     private static LocationImportController BuildController(ApplicationDbContext db, ApplicationUser user, IScheduler scheduler)
     {
         var presentation = new Mock<ILocationEnrichmentPresentationProjector>();
@@ -179,7 +207,7 @@ public class LocationImportControllerTests : TestBase
                 new(null, "Not selected", false, "No geocoding provider is selected.", false,
                     0, 0, "credits", "No active usage window", null),
                 new(0, 0, 0, 0, null)));
-        var controller = new LocationImportController(
+        var controller = new LocationImportController(ImportStaging.Files,
             db,
             NullLogger<LocationImportController>.Instance,
             Mock.Of<IWebHostEnvironment>(),
@@ -291,6 +319,7 @@ public class LocationImportControllerTests : TestBase
         Assert.Equal(ImportStatus.Stopping, db.LocationImports.Single(i => i.Id == 26).Status);
     }
 
+    /// <summary>Verifies deletion outcome feedback and alert severity.</summary>
     [Fact]
     public async Task Delete_ReturnsRedirect_WhenNotFound()
     {
@@ -304,8 +333,11 @@ public class LocationImportControllerTests : TestBase
 
         var redirect = Assert.IsType<RedirectToActionResult>(result);
         Assert.Equal("Index", redirect.ActionName);
+        Assert.Equal("Upload record not found.", controller.TempData["AlertMessage"]);
+        Assert.Equal("warning", controller.TempData["AlertType"]);
     }
 
+    /// <summary>Verifies deletion outcome feedback and alert severity.</summary>
     [Fact]
     public async Task Delete_RejectsInProgressImport()
     {
@@ -320,6 +352,8 @@ public class LocationImportControllerTests : TestBase
 
         var redirect = Assert.IsType<RedirectToActionResult>(result);
         Assert.Single(db.LocationImports);
+        Assert.Equal("Upload is active or stopping and cannot be removed yet.", controller.TempData["AlertMessage"]);
+        Assert.Equal("warning", controller.TempData["AlertType"]);
     }
 
     [Fact]
@@ -347,7 +381,7 @@ public class LocationImportControllerTests : TestBase
             UserId = userId,
             FileType = LocationImportFileType.GoogleTimeline,
             TotalRecords = 0,
-            FilePath = $"path-{id}",
+            FilePath = LocationImportStagedFiles.CreateReference(LocationImportFileType.Csv),
             LastProcessedIndex = 0,
             Status = status,
             CreatedAt = DateTime.UtcNow

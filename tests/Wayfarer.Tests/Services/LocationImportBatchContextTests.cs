@@ -1,3 +1,4 @@
+using Wayfarer.Tests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -17,7 +18,7 @@ public sealed class LocationImportBatchContextTests
     [Fact]
     public async Task Stop_DisposesBatchContextBeforeEnrichmentReconciliation()
     {
-        var path = Path.Combine(Path.GetTempPath(), $"bounded-stop-{Guid.NewGuid():N}.csv");
+        var path = Path.Combine(ImportStaging.LegacyDirectory, $"bounded-stop-{Guid.NewGuid():N}.csv");
         await File.WriteAllTextAsync(path,
             "Latitude,Longitude,TimestampUtc\r\n40.1,22.2,2026-08-25T00:00:00Z\r\n");
         try
@@ -33,7 +34,7 @@ public sealed class LocationImportBatchContextTests
             factory.StopImportOnCreation(72, 3);
             var handoff = new ContextBoundaryHandoff(factory);
             var reverse = new ReverseGeocodingService(new HttpClient(), NullLogger<BaseApiController>.Instance);
-            var service = new LocationImportService(factory, reverse,
+            var service = new LocationImportService(ImportStaging.Files, factory, reverse,
                 NullLogger<LocationImportService>.Instance,
                 new LocationDataParserFactory(NullLoggerFactory.Instance), new SseService(), handoff);
 
@@ -49,7 +50,7 @@ public sealed class LocationImportBatchContextTests
     [Fact]
     public async Task Worker_DisposesEachBatchContextAndBoundsTrackedLocations()
     {
-        var path = Path.Combine(Path.GetTempPath(), $"bounded-import-{Guid.NewGuid():N}.csv");
+        var path = Path.Combine(ImportStaging.LegacyDirectory, $"bounded-import-{Guid.NewGuid():N}.csv");
         var rows = Enumerable.Range(0, 51).Select(index =>
             $"40.1,22.2,2026-08-25T00:00:{index % 60:00}Z,{Guid.NewGuid():D}");
         await File.WriteAllTextAsync(path,
@@ -70,7 +71,7 @@ public sealed class LocationImportBatchContextTests
             factory.Reset();
             var observer = new BatchObserver(factory);
             var reverse = new ReverseGeocodingService(new HttpClient(), NullLogger<BaseApiController>.Instance);
-            var service = new LocationImportService(factory, reverse,
+            var service = new LocationImportService(ImportStaging.Files, factory, reverse,
                 NullLogger<LocationImportService>.Instance,
                 new LocationDataParserFactory(NullLoggerFactory.Instance), new SseService(), null, observer);
 

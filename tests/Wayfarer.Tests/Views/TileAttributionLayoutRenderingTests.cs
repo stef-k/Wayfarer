@@ -467,7 +467,6 @@ public sealed class TileAttributionLayoutRenderingTests
         public ApplicationSettings GetSettings() => Settings;
 
         /// <inheritdoc />
-        public string GetUploadsDirectoryPath() => Path.GetTempPath();
 
         /// <inheritdoc />
         public void RefreshSettings()

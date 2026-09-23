@@ -473,24 +473,7 @@
                         <div class="row">
                             <h3 class="text-center fs-4">User Uploads</h3>
                             <div class="col-md-8">
-                                <div class="col-12 mb-2">
-                                    <strong>Uploads Directory Path: </strong><code>@ViewData["UploadsPath"]</code>
-                                </div>
-
-                                <div class="row mb-2">
-                                    <div class="col-4">
-                                        <strong>Upload File Count:</strong><br/>
-                                        <code>@ViewData["UploadsFileCount"]</code>
-                                    </div>
-                                    <div class="col-4">
-                                        <strong>Total Upload Size:</strong><br/>
-                                        <code>@ViewData["UploadsSizeMB"] MB</code>
-                                    </div>
-                                    <div class="col-4">
-                                        <strong>Total Upload Size:</strong><br/>
-                                        <code>@ViewData["UploadsSizeGB"] GB</code>
-                                    </div>
-                                </div>
+                                <partial name="_UploadStorage" />
 
                                 <label for="UploadSizeLimitMB" class="form-label">
                                     Maximum Upload Size (currently: <code>@Model.UploadSizeLimitMB</code> MB):
