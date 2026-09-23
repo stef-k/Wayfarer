@@ -34,6 +34,7 @@ public sealed class LocationImportService : ILocationImportService, ILocationImp
     private readonly IImportEnrichmentHandoff? _enrichmentHandoff;
     private readonly ILocationImportLifecycleObserver _lifecycleObserver;
 
+    /// <summary>Streams only files resolved through the shared staged-file authority.</summary>
     public LocationImportService(LocationImportStagedFiles stagedFiles, IDbContextFactory<ApplicationDbContext> contexts,
         ReverseGeocodingService reverseGeocodingService, ILogger<LocationImportService> logger,
         LocationDataParserFactory parserFactory, SseService sse,
@@ -299,7 +300,7 @@ public sealed class LocationImportService : ILocationImportService, ILocationImp
     {
         if (!_stagedFiles.TryResolve(reference, out var filePath)) throw new StagedFileUnavailableException();
         try { return File.OpenRead(filePath); }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        catch (Exception exception) when (exception is FileNotFoundException or DirectoryNotFoundException)
         {
             throw new StagedFileUnavailableException();
         }

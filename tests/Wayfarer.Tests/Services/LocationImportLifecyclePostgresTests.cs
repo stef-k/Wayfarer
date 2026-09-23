@@ -287,7 +287,7 @@ public sealed class LocationImportLifecyclePostgresTests(PostgresImportTestFixtu
         await using var db = fixture.CreateContext();
         var import = new LocationImport
         {
-            UserId = user.Id, FilePath = filePath, FileType = LocationImportFileType.Csv,
+            UserId = user.Id, FilePath = filePath == "guarded-upload" ? LocationImportStagedFiles.CreateReference(LocationImportFileType.Csv) : filePath, FileType = LocationImportFileType.Csv,
             TotalRecords = 0, LastProcessedIndex = 0, Status = status ?? ImportStatus.Stopped,
             ExecutionEpoch = epoch,
             ProjectionPending = status?.Equals(ImportStatus.Stopping) == true,

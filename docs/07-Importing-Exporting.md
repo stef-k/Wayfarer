@@ -43,7 +43,9 @@ Released Mobile continues using `FullAddress`. Its existing fields remain compat
 
 - **Start** — begin or resume processing a stopped/failed import.
 - **Stop** — pause an in-progress import (can resume later).
-- **Delete** — remove the import and associated uploaded file.
+- **Delete** — remove the import and associated uploaded file. Unsafe/unresolvable legacy file references retain durable deletion intent for explicit repair; they are not treated as absent files.
+
+New uploads are staged in durable external `Storage:DataRoot/uploads/imports`. The database stores portable `imports/<guidN><extension>` references, and history shows only basenames. Existing same-host absolute paths under known old `Uploads/Temp` roots remain compatibility-only and are not silently rewritten or moved. Foreign/cross-host paths need explicit migration. Routine backup classification belongs to #533; the real M6 migration remains #604 and is not performed by this change.
 - Status indicators: InProgress, Completed, Stopped, Failed, Stopping.
 - Large files are processed asynchronously with SSE progress updates.
 

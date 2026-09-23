@@ -250,7 +250,7 @@ public sealed class LocationImportLifecycleContractTests : TestBase
     {
         Id = 1,
         UserId = "owner",
-        FilePath = "upload",
+        FilePath = LocationImportStagedFiles.CreateReference(LocationImportFileType.Csv),
         FileType = LocationImportFileType.Csv,
         TotalRecords = 0,
         LastProcessedIndex = 0,

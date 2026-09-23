@@ -213,7 +213,7 @@ public sealed class LocationImportDiagnosticPrivacyTests : TestBase
     public async Task WorkerMissingFileAndSchedulingFailureEmitOnlyBoundedDiagnostics()
     {
         using var root = new TemporaryDirectory("private-directory-507");
-        var missingPath = Path.Combine(ImportStaging.LegacyDirectory, FileSentinel);
+        var missingPath = Path.Combine(ImportStaging.LegacyDirectory, Guid.NewGuid().ToString("N") + FileSentinel);
         var db = CreateDbContext();
         db.LocationImports.Add(new LocationImport
         {
@@ -242,7 +242,7 @@ public sealed class LocationImportDiagnosticPrivacyTests : TestBase
     public async Task WorkerProcessingAndSchedulingFailuresNeverCaptureExceptions()
     {
         using var root = new TemporaryDirectory("private-directory-507");
-        var filePath = Path.Combine(ImportStaging.LegacyDirectory, FileSentinel);
+        var filePath = Path.Combine(ImportStaging.LegacyDirectory, Guid.NewGuid().ToString("N") + FileSentinel);
         await File.WriteAllTextAsync(filePath,
             "Latitude,Longitude,TimestampUtc\r\n37.1,-122.2,2025-01-01T00:00:00Z");
         var db = CreateDbContext();
@@ -275,7 +275,7 @@ public sealed class LocationImportDiagnosticPrivacyTests : TestBase
     public async Task WorkerProcessingFailurePersistsAndLogsOnlyBoundedCategory()
     {
         using var root = new TemporaryDirectory("private-directory-507");
-        var filePath = Path.Combine(ImportStaging.LegacyDirectory, FileSentinel);
+        var filePath = Path.Combine(ImportStaging.LegacyDirectory, Guid.NewGuid().ToString("N") + FileSentinel);
         await File.WriteAllTextAsync(filePath, "private parser payload");
         await using var exclusive = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.None);
         var db = CreateDbContext();

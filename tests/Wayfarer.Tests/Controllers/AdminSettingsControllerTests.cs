@@ -57,7 +57,7 @@ public partial class AdminSettingsControllerTests : TestBase
             new TileMetadataHotCache(NullLogger<TileMetadataHotCache>.Instance));
 
         var scopeFactory = BuildScopeFactory(tileCache);
-        var controller = new SettingsController(ImportStaging.Files, NullLogger<BaseController>.Instance, db, settingsMock.Object, tileCache, Mock.Of<IProxiedImageCacheService>(), env.Object, scopeFactory, new SseService());
+        var controller = new SettingsController(ImportStaging.Files,NullLogger<BaseController>.Instance, db, settingsMock.Object, tileCache, Mock.Of<IProxiedImageCacheService>(), env.Object, scopeFactory, new SseService());
         controller.ControllerContext = new ControllerContext { HttpContext = BuildHttpContextWithUser("admin", "Admin") };
 
         var result = await controller.Index();
@@ -373,7 +373,7 @@ public partial class AdminSettingsControllerTests : TestBase
     }
 
     private (SettingsController controller, Mock<IApplicationSettingsService> settingsMock, TileCacheService tileCache)
-        BuildController(ApplicationDbContext? db = null, IApplicationSettingsService? settingsService = null)
+        BuildController(ApplicationDbContext? db = null, IApplicationSettingsService? settingsService = null, Wayfarer.Services.LocationImports.LocationImportStagedFiles? files = null)
     {
         db ??= CreateDbContext();
 
@@ -407,7 +407,7 @@ public partial class AdminSettingsControllerTests : TestBase
             new TileMetadataHotCache(NullLogger<TileMetadataHotCache>.Instance));
 
         var scopeFactory = BuildScopeFactory(tileCache);
-        var controller = new SettingsController(ImportStaging.Files, 
+        var controller = new SettingsController(files ?? ImportStaging.Files,
             NullLogger<BaseController>.Instance,
             db,
             settingsService ?? settingsMock!.Object,

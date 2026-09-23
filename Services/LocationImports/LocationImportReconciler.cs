@@ -99,7 +99,7 @@ public sealed class LocationImportReconciler(
                 .Select(x => x.FilePath).SingleOrDefaultAsync(token);
         }
         if (!stagedFiles.TryResolve(path, out var resolved)) return;
-        try { if (File.Exists(resolved)) File.Delete(resolved); }
+        try { File.Delete(resolved); }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
             logger.LogWarning("Import {ImportId} file cleanup remains pending reconciliation.", importId);

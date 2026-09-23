@@ -1,3 +1,4 @@
+using Wayfarer.Services.LocationImports;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Hosting;
@@ -347,7 +348,7 @@ public class LocationImportControllerTests : TestBase
             UserId = userId,
             FileType = LocationImportFileType.GoogleTimeline,
             TotalRecords = 0,
-            FilePath = $"path-{id}",
+            FilePath = LocationImportStagedFiles.CreateReference(LocationImportFileType.Csv),
             LastProcessedIndex = 0,
             Status = status,
             CreatedAt = DateTime.UtcNow

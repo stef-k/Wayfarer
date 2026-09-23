@@ -214,7 +214,7 @@ public sealed class LocationImportLifecycle(
             if (!stagedFiles.TryResolve(authority.FilePath, out var path))
                 return new(LocationImportCommandCode.ProjectionPending);
             await _observer.BeforeFileDeletionAsync(importId, path, cancellationToken);
-            if (File.Exists(path)) File.Delete(path);
+            File.Delete(path);
             await FinalDeleteAsync(userId, importId, deletionEpoch, cancellationToken);
         }
         catch (Exception exception) when (exception is SchedulerException or IOException or UnauthorizedAccessException)

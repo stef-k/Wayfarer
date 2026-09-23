@@ -12,6 +12,7 @@ This directory contains ready-to-use configuration files and scripts for deployi
 - Installs or verifies Node.js/npm build tooling for server-build deployments
 - Creates DB + user and enables PostGIS/citext
 - Creates deployment directory and app user
+- Prepares durable `/var/lib/wayfarer/uploads/imports` with application-user ownership
 - Installs systemd service, Nginx vhost, Fail2ban jails
 - Optionally configures HTTPS via Certbot
 - Can run `deploy.sh` for the first deployment
@@ -24,7 +25,8 @@ This directory contains ready-to-use configuration files and scripts for deployi
 - Applies database migrations
 - Deploys to the production directory
 - Handles permissions automatically
-- Preserves user data directories
+- Preserves user data directories, including the legacy application-root `Uploads` tree
+- Prepares durable import staging before service startup; never moves legacy files or rewrites DB rows
 
 **`uninstall.sh`** – Clean removal script
 
@@ -333,3 +335,9 @@ For complete installation and deployment guide, see:
 ---
 
 **Note:** All configuration files are templates designed for open-source deployment. Always review and customize for your specific environment before using in production.
+
+## Import staging transition
+
+The existing Linux-oriented Production profile supplies all four `Storage` roots: DataRoot `/var/lib/wayfarer`, CacheRoot `/var/cache/wayfarer`, LogRoot `/var/log/wayfarer`, and TempRoot `/tmp/wayfarer`. Normal environment overrides such as `Storage__DataRoot` retain precedence. Operators overriding DataRoot must prepare its `uploads/imports` directory with service-user ownership. Only location-import staging adopts the new authority in Slice B (#615).
+
+New rows persist `imports/<guidN><extension>` and remain portable across hosts. Known same-host legacy `Uploads/Temp` paths remain readable/deletable without silent rewriting; foreign paths need explicit migration. Keep the old Uploads exclusion/tree. Backup classification remains #533; actual M6 migration remains #604.

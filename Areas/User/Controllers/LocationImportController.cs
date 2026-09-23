@@ -29,6 +29,7 @@ namespace Wayfarer.Areas.User.Controllers
         private readonly ILocationImportLifecycle _importLifecycle;
         private readonly ILocationEnrichmentPresentationProjector _enrichmentPresentation;
 
+        /// <summary>Uses the shared staging authority for new uploads and lifecycle cleanup.</summary>
         public LocationImportController(LocationImportStagedFiles stagedFiles, ApplicationDbContext dbContext,
             ILogger<LocationImportController> logger,
             IWebHostEnvironment environment,

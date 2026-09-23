@@ -56,6 +56,15 @@ public sealed class LocationImportEnrichmentRenderingTests
         Assert.Contains("@enrichment.ProviderNextAvailableAtUtc.Value.ToString(\"yyyy-MM-dd HH:mm 'UTC'\")", source);
     }
 
+    /// <summary>The list uses the tested cross-platform safe projection rather than native path parsing.</summary>
+    [Fact]
+    public void ImportHistory_UsesSafeBasenameProjection()
+    {
+        var source = File.ReadAllText(ViewPath());
+        Assert.Contains("LocationImportStagedFiles.DisplayName(import.FilePath)", source);
+        Assert.DoesNotContain("Path.GetFileName(import.FilePath)", source);
+    }
+
     private static string ViewPath() => Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,
         "..", "..", "..", "..", "..", "Areas", "User", "Views", "LocationImport", "Index.cshtml"));
 }
