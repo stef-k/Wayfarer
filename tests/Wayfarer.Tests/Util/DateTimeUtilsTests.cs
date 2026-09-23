@@ -154,14 +154,17 @@ public class DateTimeUtilsTests
         Assert.Equal(2, result.Hour);
     }
 
-    [Fact]
-    public void ConvertUtcToLocalTime_HandlesIndiaTimezone()
+    /// <summary>Resolves both supported identifier formats with the same half-hour offset.</summary>
+    [Theory]
+    [InlineData("Asia/Kolkata")]
+    [InlineData("India Standard Time")]
+    public void ConvertUtcToLocalTime_HandlesIndiaTimezone(string timeZoneId)
     {
         // Arrange - India is UTC+5:30 (half hour offset)
         var utcTime = new DateTime(2024, 1, 15, 12, 0, 0, DateTimeKind.Utc);
 
         // Act
-        var result = DateTimeUtils.ConvertUtcToLocalTime(utcTime, "Asia/Kolkata");
+        var result = DateTimeUtils.ConvertUtcToLocalTime(utcTime, timeZoneId);
 
         // Assert - Should be 17:30 (UTC+5:30)
         Assert.Equal(17, result.Hour);

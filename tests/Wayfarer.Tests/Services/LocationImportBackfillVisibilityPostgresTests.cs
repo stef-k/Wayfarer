@@ -96,8 +96,11 @@ public sealed class LocationImportBackfillVisibilityPostgresTests(PostgresImport
                     .ProcessImportExecution(replay.ImportId, replay.Epoch, CancellationToken.None));
         await using var final = fixture.CreateContext();
         Assert.Equal(2, await final.Locations.CountAsync(x => x.UserId == user.Id));
-        Assert.Equal("Address", (await final.Locations.SingleAsync(x => x.UserId == user.Id
-            && x.Timestamp.Minute == 2)).Address);
+        // Provider display text does not manufacture a structured street address.
+        var location = await final.Locations.SingleAsync(x => x.UserId == user.Id && x.Timestamp.Minute == 2);
+        Assert.Null(location.Address);
+        Assert.Equal("Address", location.FullAddress);
+        Assert.Equal("Address", location.ProviderAddressLine1);
         Assert.Equal(1, handler.Requests);
         Assert.Equal(1, await final.GeoapifyUsageAdmissions.CountAsync(x => x.UserId == user.Id));
     }
