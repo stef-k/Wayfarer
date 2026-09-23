@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### Changed
+- Store new map tiles beneath CacheRoot with portable provider-scoped metadata references; preserve bounded native-cache compatibility without automatic migration. Correct nested tile purge, eviction and statistics, and prepare native deployment storage (#617).
 - Stage new location imports beneath the durable DataRoot with portable logical references; retain bounded same-host legacy compatibility and report both storage roots in Admin Settings (#615). Native Linux deployment prepares the external staging directory without migrating old rows or files.
 
 ### Fixed

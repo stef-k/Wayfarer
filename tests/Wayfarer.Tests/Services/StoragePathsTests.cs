@@ -39,6 +39,19 @@ public class StoragePathsTests
         Assert.Equal(Path.Combine(paths.CacheRoot, "thumbnails"), paths.Thumbnails);
     }
 
+    /// <summary>The shipped Linux Production profile puts new tiles outside the deployment directory.</summary>
+    [Fact]
+    public void ProductionProfile_ResolvesExternalTileRoot()
+    {
+        var configuration = new ConfigurationBuilder().AddJsonFile(
+            Path.Combine(AppContext.BaseDirectory, "appsettings.Production.json")).Build();
+        var paths = Create(configuration.GetSection("Storage").Get<StorageOptions>(), development: false);
+        if (!OperatingSystem.IsWindows()) Assert.Equal("/var/cache/wayfarer/tiles", paths.Tiles);
+        var tiles = new TileCacheStorage(paths, configuration);
+        Assert.Equal(paths.Tiles, tiles.CurrentRoot);
+        Assert.NotEqual(tiles.CurrentRoot, tiles.LegacyRoot);
+    }
+
     /// <summary>Linux honors absolute XDG and TMPDIR values without touching the real user environment.</summary>
     [Fact]
     public void LinuxUsesXdgAndTempOverrides()

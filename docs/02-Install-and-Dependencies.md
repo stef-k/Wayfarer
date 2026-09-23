@@ -154,7 +154,7 @@ Edit `appsettings.json`:
 ### Important Settings
 
 - **`Logging:LogFilePath:Default`** - Where application logs are written (ensure directory exists and is writable)
-- **`CacheSettings:TileCacheDirectory`** - Where map tiles are cached locally
+- **`Storage:CacheRoot`** - New map tiles use its `tiles` subdirectory. `CacheSettings:TileCacheDirectory` is retained only to locate old native tiles; it is not the new-write location.
 - **`AllowedHosts`** - Configure semicolon-separated exact public DNS hostnames in production; do not use wildcards, IP literals, localhost/private names, or ports
 
 ### Environment-Specific Configuration

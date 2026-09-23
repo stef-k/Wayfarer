@@ -21,8 +21,8 @@ namespace Wayfarer.Models
         // Track the size of the tile in bytes (useful for managing overall cache size)
         public int Size { get; set; }
 
-        // This could be a reference to the actual file location or just an identifier
-        // indicating that the tile is stored on disk
+        /// <summary>Canonical provider/coordinate logical reference for new rows, or a retained
+        /// known-root legacy absolute path. Resolve exclusively through TileCacheStorage.</summary>
         public required string TileFilePath { get; set; }
 
         /// <summary>

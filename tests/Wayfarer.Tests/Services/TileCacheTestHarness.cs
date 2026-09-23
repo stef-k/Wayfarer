@@ -27,6 +27,9 @@ internal sealed class TileCacheTestHarness : IDisposable, IAsyncDisposable
     public string CacheDirectory { get; } =
         Path.Combine(Path.GetTempPath(), "wayfarer-tile-tests", Guid.NewGuid().ToString("N"));
 
+    /// <summary>Gets the isolated current-write authority.</summary>
+    public TileCacheStorage Storage { get; }
+
     /// <summary>Gets structured logs emitted by services created through the harness.</summary>
     public TestLogProvider Logs { get; } = new();
 
@@ -39,9 +42,11 @@ internal sealed class TileCacheTestHarness : IDisposable, IAsyncDisposable
     /// <summary>Creates an isolated harness with the supplied fake upstream behavior and host policy.</summary>
     public TileCacheTestHarness(
         RecordingTileHandler? upstream = null,
-        string allowedHosts = "wayfarer.example.com")
+        string allowedHosts = "wayfarer.example.com", bool distinctRoots = false,
+        Func<ApplicationDbContext>? databaseFactory = null)
     {
         Directory.CreateDirectory(CacheDirectory);
+        Storage = new TileCacheStorage(distinctRoots ? CacheDirectory + "-current" : CacheDirectory, CacheDirectory);
         Upstream = upstream ?? new RecordingTileHandler();
         _settingsService = new TestTileSettingsService();
 
@@ -66,8 +71,10 @@ internal sealed class TileCacheTestHarness : IDisposable, IAsyncDisposable
             builder.AddProvider(Logs);
         });
         services.AddSingleton<TileMetadataHotCache>();
-        services.AddDbContext<ApplicationDbContext>(options =>
-            options.UseInMemoryDatabase(databaseName));
+        if (databaseFactory == null)
+            services.AddDbContext<ApplicationDbContext>(options => options.UseInMemoryDatabase(databaseName));
+        else services.AddScoped(_ => databaseFactory());
+        services.AddSingleton(Storage);
         services.AddScoped<TileCacheService>();
 
         _rootProvider = services.BuildServiceProvider();
@@ -115,10 +122,8 @@ internal sealed class TileCacheTestHarness : IDisposable, IAsyncDisposable
         TileCacheService.ResetStaticStateForTesting();
         await _rootProvider.DisposeAsync();
 
-        if (Directory.Exists(CacheDirectory))
-        {
-            Directory.Delete(CacheDirectory, recursive: true);
-        }
+        foreach (var root in new[] { Storage.CurrentRoot, CacheDirectory }.Distinct())
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
     }
 
     /// <summary>Supplies a mutable settings snapshot without persistence side effects.</summary>

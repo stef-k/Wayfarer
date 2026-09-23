@@ -360,7 +360,7 @@ public partial class TileCacheServiceTests
                 appSettings,
                 scopeFactory!,
                 new HttpContextAccessor(),
-                hotCache);
+                hotCache, new TileCacheStorage(config["CacheSettings:TileCacheDirectory"]!, config["CacheSettings:TileCacheDirectory"]));
             return new ServiceCollection()
                 .AddSingleton(scopedDb)
                 .AddSingleton<ApplicationDbContext>(scopedDb)

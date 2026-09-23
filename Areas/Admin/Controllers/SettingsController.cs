@@ -75,10 +75,11 @@ namespace Wayfarer.Areas.Admin.Controllers
                 settings.UploadSizeLimitMB = ApplicationSettings.DefaultUploadSizeLimitMB;
             }
             
-            // Removed Routing/PBF stats (Itinero cleanup)
 
             // Tile Cache
             ViewData["CachePath"] = _tileCacheService.GetCacheDirectory();
+            // Report retained legacy storage independently of the new-write authority.
+            ViewData["LegacyCachePath"] = _tileCacheService.GetLegacyCacheDirectory();
             ViewData["TotalCacheFiles"] = await _tileCacheService.GetTotalCachedFilesAsync();
             ViewData["LruTotalFiles"] = await _tileCacheService.GetLruTotalFilesInDbAsync();
             double tileCacheSizeMB = await _tileCacheService.GetCacheFileSizeInMbAsync();

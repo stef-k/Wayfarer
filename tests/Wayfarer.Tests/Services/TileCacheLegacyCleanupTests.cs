@@ -79,45 +79,52 @@ public sealed class TileCacheLegacyCleanupTests
         Assert.True(File.Exists(path));
     }
 
-    /// <summary>Ownership protection filters scoped metadata by only the selected candidate paths.</summary>
+    /// <summary>Logical scoped ownership protects the same bytes referenced by a legacy absolute row.</summary>
     [Fact]
-    public void ScopedOwnershipProtection_IsRestrictedToCandidatePaths()
+    public async Task Retirement_ProtectsMixedRepresentations()
     {
-        var candidatePaths = Enumerable
-            .Range(0, 50)
-            .Select(index => $"candidate-{index}.png")
-            .ToArray();
-        var metadata = new[]
-        {
-            new TileCacheMetadata
-            {
-                ProviderIdentity = "scoped",
-                TileFilePath = candidatePaths[0],
-                TileLocation = new Point(0, 0)
-            },
-            new TileCacheMetadata
-            {
-                ProviderIdentity = "scoped",
-                TileFilePath = candidatePaths[1].ToUpperInvariant(),
-                TileLocation = new Point(1, 1)
-            },
-            new TileCacheMetadata
-            {
-                ProviderIdentity = null,
-                TileFilePath = candidatePaths[2],
-                TileLocation = new Point(2, 2)
-            },
-            new TileCacheMetadata
-            {
-                ProviderIdentity = "scoped",
-                TileFilePath = "unrelated.png",
-                TileLocation = new Point(3, 3)
-            }
-        }.AsQueryable();
-        var query = TileCacheService.BuildScopedPathProtectionQuery(metadata, candidatePaths);
+        await using var harness = new TileCacheTestHarness();
+        harness.Settings.TileProviderKey = "custom";
+        harness.Settings.TileProviderUrlTemplate = "https://tiles.example.test/{z}/{x}/{y}.png";
+        var provider = new string('A', 64);
+        var storage = new TileCacheStorage(harness.CacheDirectory, Path.Combine(harness.CacheDirectory, provider));
+        Directory.CreateDirectory(storage.LegacyRoot);
+        var path = storage.CurrentPath(provider, 9, 1, 2);
+        await File.WriteAllBytesAsync(path, [7]);
+        using var scope = harness.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        db.TileCacheMetadata.AddRange(
+            new TileCacheMetadata { Zoom = 9, X = 1, Y = 2, TileFilePath = path, TileLocation = new Point(1, 2) },
+            new TileCacheMetadata { Zoom = 9, X = 1, Y = 2, ProviderIdentity = provider,
+                TileFilePath = TileCacheStorage.CreateReference(provider, 9, 1, 2), TileLocation = new Point(1, 2) });
+        await db.SaveChangesAsync();
+        var service = ActivatorUtilities.CreateInstance<TileCacheService>(scope.ServiceProvider, storage);
+        Assert.Equal(1, await service.RetireLegacyCacheBatchAsync(CancellationToken.None));
+        Assert.True(File.Exists(path));
+        Assert.Equal(provider, Assert.Single(db.TileCacheMetadata).ProviderIdentity);
+    }
 
-        Assert.Equal(
-            [candidatePaths[0], candidatePaths[1].ToUpperInvariant()],
-            query.ToArray());
+    /// <summary>Malformed legacy metadata cannot authorize deleting an outside file.</summary>
+    [Fact]
+    public async Task Retirement_RejectsOutsidePath()
+    {
+        await using var harness = new TileCacheTestHarness();
+        harness.Settings.TileProviderKey = "custom";
+        harness.Settings.TileProviderUrlTemplate = "https://tiles.example.test/{z}/{x}/{y}.png";
+        var outside = Path.GetTempFileName();
+        try
+        {
+            using var scope = harness.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            db.TileCacheMetadata.Add(new TileCacheMetadata
+            {
+                Zoom = 9, X = 1, Y = 1, TileFilePath = outside, TileLocation = new Point(1, 1)
+            });
+            await db.SaveChangesAsync();
+            Assert.Equal(1, await scope.ServiceProvider.GetRequiredService<TileCacheService>()
+                .RetireLegacyCacheBatchAsync(CancellationToken.None));
+            Assert.True(File.Exists(outside));
+        }
+        finally { File.Delete(outside); }
     }
 }
