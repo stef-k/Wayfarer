@@ -106,25 +106,28 @@ public sealed class LocationImportStagingPostgresTests(PostgresImportTestFixture
     [InlineData("canonical")]
     [InlineData("legacy")]
     [InlineData("missing")]
+    [InlineData("missing-directory")]
     [InlineData("outside")]
     [InlineData("foreign")]
     [InlineData("malformed")]
     public async Task Delete_RetainsUnsafeAuthorityUntilExplicitRepairThenConverges(string kind)
     {
+        var files = kind == "missing-directory"
+            ? ImportStaging.Create(Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"))) : ImportStaging.Files;
         var reference = LocationImportStagedFiles.CreateReference(LocationImportFileType.Csv);
-        Assert.True(ImportStaging.Files.TryResolve(reference, out var path));
-        Directory.CreateDirectory(ImportStaging.Files.DirectoryPath);
+        Assert.True(files.TryResolve(reference, out var path));
+        if (kind != "missing-directory") Directory.CreateDirectory(files.DirectoryPath);
         if (kind == "legacy") reference = path = ImportStaging.TempFile();
         if (kind == "outside") reference = path = Path.GetTempFileName();
         if (kind == "foreign") reference = @"Z:\private\foreign.csv";
         if (kind == "malformed") reference = "imports/../outside.csv";
-        if (kind != "missing") await File.WriteAllTextAsync(path, "preserve until cleanup authority is valid");
+        if (kind is not "missing" and not "missing-directory") await File.WriteAllTextAsync(path, "preserve until cleanup authority is valid");
         var row = await SeedAsync(reference, ImportStatus.Completed);
         var observer = new DeletionObserver(fixture);
         var scheduler = Scheduler();
-        var lifecycle = new LocationImportLifecycle(ImportStaging.Files, new Contexts(fixture), scheduler,
+        var lifecycle = new LocationImportLifecycle(files, new Contexts(fixture), scheduler,
             NullLogger<LocationImportLifecycle>.Instance, observer);
-        var reconciler = new LocationImportReconciler(ImportStaging.Files, new Contexts(fixture), scheduler,
+        var reconciler = new LocationImportReconciler(files, new Contexts(fixture), scheduler,
             NullLogger<LocationImportReconciler>.Instance);
         try
         {
@@ -159,7 +162,7 @@ public sealed class LocationImportStagingPostgresTests(PostgresImportTestFixture
             Assert.Null(await final.LocationImports.FindAsync(row.Id));
             if (unsafeReference) Assert.True(File.Exists(path));
         }
-        finally { File.Delete(path); }
+        finally { if (File.Exists(path)) File.Delete(path); }
     }
 
     /// <summary>Seeds durable row authority without reaching into the worker's implementation.</summary>

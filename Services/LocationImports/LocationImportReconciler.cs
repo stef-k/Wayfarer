@@ -100,6 +100,7 @@ public sealed class LocationImportReconciler(
         }
         if (!stagedFiles.TryResolve(path, out var resolved)) return;
         try { File.Delete(resolved); }
+        catch (DirectoryNotFoundException) { } // A missing validated staging directory is already clean.
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
             logger.LogWarning("Import {ImportId} file cleanup remains pending reconciliation.", importId);

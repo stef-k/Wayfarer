@@ -214,7 +214,9 @@ public sealed class LocationImportLifecycle(
             if (!stagedFiles.TryResolve(authority.FilePath, out var path))
                 return new(LocationImportCommandCode.ProjectionPending);
             await _observer.BeforeFileDeletionAsync(importId, path, cancellationToken);
-            File.Delete(path);
+            // Missing parent directories also mean the validated file is absent.
+            try { File.Delete(path); }
+            catch (DirectoryNotFoundException) { }
             await FinalDeleteAsync(userId, importId, deletionEpoch, cancellationToken);
         }
         catch (Exception exception) when (exception is SchedulerException or IOException or UnauthorizedAccessException)
