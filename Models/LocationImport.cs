@@ -58,6 +58,7 @@ public class LocationImport
     public required int TotalRecords { get; set; } = 0;
 
     public string? LastImportedRecord { get; set; } = "N/A";
+    /// <summary>Canonical imports/guidN.extension for new rows; bounded same-host legacy absolute paths remain readable.</summary>
     public required string FilePath { get; set; } = string.Empty;
     public required int LastProcessedIndex { get; set; } = 0;
     // Status (Pending, InProgress, Completed, Failed)

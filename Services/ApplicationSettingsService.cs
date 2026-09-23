@@ -6,7 +6,6 @@ namespace Wayfarer.Parsers
     public interface IApplicationSettingsService
     {
         ApplicationSettings GetSettings();
-        string GetUploadsDirectoryPath();
         void RefreshSettings();
     }
 
@@ -74,10 +73,7 @@ namespace Wayfarer.Parsers
             return settings;
         }
         
-        public string GetUploadsDirectoryPath()
-        {
-            return Path.Combine(AppContext.BaseDirectory, "Uploads", "Temp");
-        }
+
     }
 
 }

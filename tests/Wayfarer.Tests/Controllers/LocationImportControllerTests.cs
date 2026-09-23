@@ -179,7 +179,7 @@ public class LocationImportControllerTests : TestBase
                 new(null, "Not selected", false, "No geocoding provider is selected.", false,
                     0, 0, "credits", "No active usage window", null),
                 new(0, 0, 0, 0, null)));
-        var controller = new LocationImportController(
+        var controller = new LocationImportController(ImportStaging.Files, 
             db,
             NullLogger<LocationImportController>.Instance,
             Mock.Of<IWebHostEnvironment>(),

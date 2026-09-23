@@ -30,7 +30,7 @@ public sealed class LocationImportDeletionAuthorityTests : TestBase
         db.LocationImports.Add(import);
         await db.SaveChangesAsync();
         var sse = new RecordingSseService();
-        var service = new LocationImportService(db,
+        var service = new LocationImportService(ImportStaging.Files, db,
             new ReverseGeocodingService(new HttpClient(new RejectingHandler()),
                 NullLogger<BaseApiController>.Instance),
             NullLogger<LocationImportService>.Instance,

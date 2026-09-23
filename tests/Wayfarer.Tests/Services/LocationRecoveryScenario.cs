@@ -1,3 +1,4 @@
+using Wayfarer.Tests.Infrastructure;
 using System.Net;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
@@ -58,7 +59,7 @@ internal sealed class LocationRecoveryScenario : IAsyncDisposable
     private LocationImportService CreateImportService()
     {
         var factory = NullLoggerFactory.Instance;
-        return new LocationImportService(db, new ReverseGeocodingService(new HttpClient(new FakeHandler()), NullLogger<BaseApiController>.Instance),
+        return new LocationImportService(ImportStaging.Files, db, new ReverseGeocodingService(new HttpClient(new FakeHandler()), NullLogger<BaseApiController>.Instance),
             NullLogger<LocationImportService>.Instance, new LocationDataParserFactory(factory), new SseService());
     }
 

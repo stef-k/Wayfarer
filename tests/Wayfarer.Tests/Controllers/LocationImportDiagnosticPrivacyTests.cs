@@ -78,7 +78,7 @@ public sealed class LocationImportDiagnosticPrivacyTests : TestBase
 
         Assert.All(logs.Entries, entry => AssertPrivateTextAbsent(entry, root.Path));
         Assert.All(db.AuditLogs, audit => AssertPrivateTextAbsent(audit.Details, root.Path));
-        Assert.Empty(Directory.EnumerateFiles(Path.Combine(root.Path, "Uploads", "Temp")));
+        Assert.Empty(Directory.EnumerateFiles(ImportStaging.Create(root.Path).DirectoryPath));
         Assert.Equal("An unexpected error occurred. Please try again later.", controller.TempData["AlertMessage"]);
     }
 
@@ -86,7 +86,7 @@ public sealed class LocationImportDiagnosticPrivacyTests : TestBase
     public async Task UploadPreCommitFailureCleansExactStagedFileBeforeThrowingDiagnostics()
     {
         using var root = new TemporaryDirectory("precommit-cleanup-order-507");
-        var uploadDirectory = Path.Combine(root.Path, "Uploads", "Temp");
+        var uploadDirectory = ImportStaging.Create(root.Path).DirectoryPath;
         Directory.CreateDirectory(uploadDirectory);
         var preservedFile = Path.Combine(uploadDirectory, "fixture-owned-preserved.csv");
         await File.WriteAllTextAsync(preservedFile, "preserve");
@@ -199,9 +199,10 @@ public sealed class LocationImportDiagnosticPrivacyTests : TestBase
         var redirect = Assert.IsType<RedirectToActionResult>(result);
         Assert.Equal("Index", redirect.ActionName);
         var import = Assert.Single(db.LocationImports);
-        var stagedFile = Assert.Single(Directory.EnumerateFiles(Path.Combine(root.Path, "Uploads", "Temp")));
-        Assert.Equal(stagedFile, import.FilePath);
-        Assert.True(File.Exists(import.FilePath));
+        var stagedFile = Assert.Single(Directory.EnumerateFiles(ImportStaging.Create(root.Path).DirectoryPath));
+        Assert.True(ImportStaging.Create(root.Path).TryResolve(import.FilePath, out var resolved));
+        Assert.Equal(stagedFile, resolved);
+        Assert.True(File.Exists(resolved));
         Assert.DoesNotContain(logger.Entries, entry => entry.Message.Contains("upload failed", StringComparison.Ordinal));
         Assert.DoesNotContain(logger.Entries, entry => entry.Message.Contains("cleanup failed", StringComparison.Ordinal));
         Assert.All(logger.Entries, entry => AssertPrivateTextAbsent(entry, root.Path));
@@ -212,7 +213,7 @@ public sealed class LocationImportDiagnosticPrivacyTests : TestBase
     public async Task WorkerMissingFileAndSchedulingFailureEmitOnlyBoundedDiagnostics()
     {
         using var root = new TemporaryDirectory("private-directory-507");
-        var missingPath = Path.Combine(root.Path, FileSentinel);
+        var missingPath = Path.Combine(ImportStaging.LegacyDirectory, FileSentinel);
         var db = CreateDbContext();
         db.LocationImports.Add(new LocationImport
         {
@@ -241,7 +242,7 @@ public sealed class LocationImportDiagnosticPrivacyTests : TestBase
     public async Task WorkerProcessingAndSchedulingFailuresNeverCaptureExceptions()
     {
         using var root = new TemporaryDirectory("private-directory-507");
-        var filePath = Path.Combine(root.Path, FileSentinel);
+        var filePath = Path.Combine(ImportStaging.LegacyDirectory, FileSentinel);
         await File.WriteAllTextAsync(filePath,
             "Latitude,Longitude,TimestampUtc\r\n37.1,-122.2,2025-01-01T00:00:00Z");
         var db = CreateDbContext();
@@ -274,7 +275,7 @@ public sealed class LocationImportDiagnosticPrivacyTests : TestBase
     public async Task WorkerProcessingFailurePersistsAndLogsOnlyBoundedCategory()
     {
         using var root = new TemporaryDirectory("private-directory-507");
-        var filePath = Path.Combine(root.Path, FileSentinel);
+        var filePath = Path.Combine(ImportStaging.LegacyDirectory, FileSentinel);
         await File.WriteAllTextAsync(filePath, "private parser payload");
         await using var exclusive = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.None);
         var db = CreateDbContext();
@@ -321,8 +322,6 @@ public sealed class LocationImportDiagnosticPrivacyTests : TestBase
     private LocationImportController BuildController(ApplicationDbContext db, string contentRoot,
         TestLogProvider logs, string userId)
     {
-        var environment = new Mock<IWebHostEnvironment>();
-        environment.SetupGet(item => item.ContentRootPath).Returns(contentRoot);
         var loggerFactory = LoggerFactory.Create(builder => builder.AddProvider(logs));
         return BuildController(db, contentRoot, loggerFactory.CreateLogger<LocationImportController>(), userId);
     }
@@ -332,7 +331,7 @@ public sealed class LocationImportDiagnosticPrivacyTests : TestBase
     {
         var environment = new Mock<IWebHostEnvironment>();
         environment.SetupGet(item => item.ContentRootPath).Returns(contentRoot);
-        var controller = new LocationImportController(db, logger,
+        var controller = new LocationImportController(ImportStaging.Create(contentRoot), db, logger,
             environment.Object, Mock.Of<IScheduler>(),
             Mock.Of<ILocationEnrichmentPresentationProjector>(), importLifecycle: Mock.Of<ILocationImportLifecycle>());
         var identity = new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, userId)], "test");
@@ -462,7 +461,7 @@ public sealed class LocationImportDiagnosticPrivacyTests : TestBase
         var loggerFactory = LoggerFactory.Create(builder => builder.AddProvider(logs));
         var reverse = new ReverseGeocodingService(new HttpClient(),
             loggerFactory.CreateLogger<BaseApiController>());
-        return new LocationImportService(db, reverse, loggerFactory.CreateLogger<LocationImportService>(),
+        return new LocationImportService(ImportStaging.Files, db, reverse, loggerFactory.CreateLogger<LocationImportService>(),
             new LocationDataParserFactory(loggerFactory), new SseService(), handoff);
     }
 

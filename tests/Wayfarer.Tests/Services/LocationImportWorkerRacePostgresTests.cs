@@ -33,7 +33,7 @@ public sealed class LocationImportWorkerRacePostgresTests(PostgresImportTestFixt
         await using var workerDb = fixture.CreateContext();
         var job = new LocationImportJob(Service(workerDb, handoff.Object, observer),
             NullLogger<LocationImportJob>.Instance,
-            new LocationImportLifecycle(new FixtureFactory(fixture), scheduler.Object,
+            new LocationImportLifecycle(ImportStaging.Files, new FixtureFactory(fixture), scheduler.Object,
                 NullLogger<LocationImportLifecycle>.Instance, observer));
         var context = JobContext(seed.ImportId, seed.Epoch);
 
@@ -132,7 +132,7 @@ public sealed class LocationImportWorkerRacePostgresTests(PostgresImportTestFixt
         var scheduler = EmptyScheduler();
         await using var workerDb = fixture.CreateContext();
         var service = Service(workerDb, null, observer);
-        var lifecycle = new LocationImportLifecycle(new FixtureFactory(fixture), scheduler.Object,
+        var lifecycle = new LocationImportLifecycle(ImportStaging.Files, new FixtureFactory(fixture), scheduler.Object,
             NullLogger<LocationImportLifecycle>.Instance, observer);
         var job = new LocationImportJob(service, NullLogger<LocationImportJob>.Instance, lifecycle);
         var context = JobContext(seed.ImportId, seed.Epoch);
@@ -166,7 +166,7 @@ public sealed class LocationImportWorkerRacePostgresTests(PostgresImportTestFixt
     private async Task<Seed> SeedAsync(int count, bool enrichmentRequested)
     {
         var user = await fixture.CreateUserAsync();
-        var root = Path.Combine(Path.GetTempPath(), "wayfarer-511-worker-races");
+        var root = Path.Combine(ImportStaging.LegacyDirectory, "wayfarer-511-worker-races");
         Directory.CreateDirectory(root);
         var baseline = Directory.GetDirectories(root).Select(DirectorySnapshot.Capture).ToArray();
         var directory = Path.Combine(root, Guid.NewGuid().ToString("N"));
@@ -200,14 +200,14 @@ public sealed class LocationImportWorkerRacePostgresTests(PostgresImportTestFixt
     }
 
     private LocationImportService Service(ApplicationDbContext db, IImportEnrichmentHandoff? handoff,
-        ILocationImportLifecycleObserver observer) => new(db,
+        ILocationImportLifecycleObserver observer) => new(ImportStaging.Files, db,
         new ReverseGeocodingService(new HttpClient(new RejectingHandler()), NullLogger<BaseApiController>.Instance),
         NullLogger<LocationImportService>.Instance, new LocationDataParserFactory(NullLoggerFactory.Instance),
         new SseService(), handoff, observer);
 
     private async Task ReconcileTwiceAsync(IScheduler scheduler)
     {
-        var reconciler = new LocationImportReconciler(new FixtureFactory(fixture), scheduler,
+        var reconciler = new LocationImportReconciler(ImportStaging.Files, new FixtureFactory(fixture), scheduler,
             NullLogger<LocationImportReconciler>.Instance);
         await reconciler.ReconcileAsync();
         await reconciler.ReconcileAsync();

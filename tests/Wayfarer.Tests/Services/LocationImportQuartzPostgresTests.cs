@@ -52,7 +52,7 @@ public sealed class LocationImportQuartzPostgresTests(PostgresImportTestFixture 
             failing.Setup(item => item.CheckExists(It.IsAny<JobKey>(), default)).ReturnsAsync(false);
             failing.Setup(item => item.ScheduleJob(It.IsAny<IJobDetail>(), It.IsAny<ITrigger>(), default))
                 .ThrowsAsync(new SchedulerException("fixture projection failure"));
-            var result = await new LocationImportLifecycle(new FixtureContextFactory(fixture), failing.Object,
+            var result = await new LocationImportLifecycle(ImportStaging.Files, new FixtureContextFactory(fixture), failing.Object,
                 NullLogger<LocationImportLifecycle>.Instance).StartAsync(seed.UserId, seed.ImportId);
             Assert.Equal(LocationImportCommandCode.ProjectionPending, result.Code);
         }
@@ -187,7 +187,7 @@ public sealed class LocationImportQuartzPostgresTests(PostgresImportTestFixture 
         {
             var user = await fixture.CreateUserAsync();
             userIds.Add(user.Id);
-            var directory = Path.Combine(Path.GetTempPath(), $"wayfarer-511-{Guid.NewGuid():N}");
+            var directory = Path.Combine(ImportStaging.LegacyDirectory, $"wayfarer-511-{Guid.NewGuid():N}");
             Directory.CreateDirectory(directory);
             var path = Path.Combine(directory, "fixture.csv");
             await File.WriteAllTextAsync(path, "latitude,longitude");
@@ -214,7 +214,7 @@ public sealed class LocationImportQuartzPostgresTests(PostgresImportTestFixture 
 
         internal async Task ReconcileAsync()
         {
-            await new LocationImportReconciler(new FixtureContextFactory(fixture), Current,
+            await new LocationImportReconciler(ImportStaging.Files, new FixtureContextFactory(fixture), Current,
                 NullLogger<LocationImportReconciler>.Instance).ReconcileAsync();
         }
 
@@ -276,7 +276,7 @@ public sealed class LocationImportQuartzPostgresTests(PostgresImportTestFixture 
     {
         public IJob NewJob(TriggerFiredBundle bundle, IScheduler scheduler)
         {
-            var lifecycle = new LocationImportLifecycle(new FixtureContextFactory(fixture), scheduler,
+            var lifecycle = new LocationImportLifecycle(ImportStaging.Files, new FixtureContextFactory(fixture), scheduler,
                 NullLogger<LocationImportLifecycle>.Instance);
             return new LocationImportJob(service, NullLogger<LocationImportJob>.Instance, lifecycle);
         }

@@ -27,45 +27,47 @@ public sealed class LocationImportService : ILocationImportService, ILocationImp
     private const string SafeProgressEvent = """{"type":"import-state"}""";
     private const int BatchSize = 50;
     private readonly IDbContextFactory<ApplicationDbContext> _contexts;
+    private readonly LocationImportStagedFiles _stagedFiles;
     private readonly ILogger<LocationImportService> _logger;
     private readonly LocationDataParserFactory _parserFactory;
     private readonly SseService _sse;
     private readonly IImportEnrichmentHandoff? _enrichmentHandoff;
     private readonly ILocationImportLifecycleObserver _lifecycleObserver;
 
-    public LocationImportService(IDbContextFactory<ApplicationDbContext> contexts,
+    public LocationImportService(LocationImportStagedFiles stagedFiles, IDbContextFactory<ApplicationDbContext> contexts,
         ReverseGeocodingService reverseGeocodingService, ILogger<LocationImportService> logger,
         LocationDataParserFactory parserFactory, SseService sse,
         IImportEnrichmentHandoff? enrichmentHandoff = null)
-        : this(contexts, reverseGeocodingService, logger, parserFactory, sse, enrichmentHandoff,
+        : this(stagedFiles, contexts, reverseGeocodingService, logger, parserFactory, sse, enrichmentHandoff,
             NullLocationImportLifecycleObserver.Instance)
     { }
 
     /// <summary>Retains source compatibility for focused tests while production uses a factory.</summary>
-    internal LocationImportService(ApplicationDbContext context,
+    internal LocationImportService(LocationImportStagedFiles stagedFiles, ApplicationDbContext context,
         ReverseGeocodingService reverseGeocodingService, ILogger<LocationImportService> logger,
         LocationDataParserFactory parserFactory, SseService sse,
         IImportEnrichmentHandoff? enrichmentHandoff = null)
-        : this(new CloningContextFactory(context), reverseGeocodingService, logger, parserFactory, sse,
+        : this(stagedFiles, new CloningContextFactory(context), reverseGeocodingService, logger, parserFactory, sse,
             enrichmentHandoff, NullLocationImportLifecycleObserver.Instance)
     { }
 
     /// <summary>Retains observer-enabled source compatibility for focused tests.</summary>
-    internal LocationImportService(ApplicationDbContext context,
+    internal LocationImportService(LocationImportStagedFiles stagedFiles, ApplicationDbContext context,
         ReverseGeocodingService reverseGeocodingService, ILogger<LocationImportService> logger,
         LocationDataParserFactory parserFactory, SseService sse,
         IImportEnrichmentHandoff? enrichmentHandoff, ILocationImportLifecycleObserver lifecycleObserver)
-        : this(new CloningContextFactory(context), reverseGeocodingService, logger, parserFactory, sse,
+        : this(stagedFiles, new CloningContextFactory(context), reverseGeocodingService, logger, parserFactory, sse,
             enrichmentHandoff, lifecycleObserver)
     { }
 
     /// <summary>Creates a worker with a test-controlled lifecycle observer.</summary>
-    internal LocationImportService(IDbContextFactory<ApplicationDbContext> contexts,
+    internal LocationImportService(LocationImportStagedFiles stagedFiles, IDbContextFactory<ApplicationDbContext> contexts,
         ReverseGeocodingService reverseGeocodingService, ILogger<LocationImportService> logger,
         LocationDataParserFactory parserFactory, SseService sse,
         IImportEnrichmentHandoff? enrichmentHandoff, ILocationImportLifecycleObserver lifecycleObserver)
     {
         _contexts = contexts;
+        _stagedFiles = stagedFiles;
         _logger = logger;
         _parserFactory = parserFactory;
         _sse = sse;
@@ -170,7 +172,7 @@ public sealed class LocationImportService : ILocationImportService, ILocationImp
 
     private async Task<int> CountLocationsAsync(LocationImportSnapshot snapshot, CancellationToken token)
     {
-        if (!File.Exists(snapshot.FilePath)) throw new StagedFileUnavailableException();
+        // OpenStagedFile resolves authority before any filesystem access.
         var count = 0;
         await using var stream = OpenStagedFile(snapshot.FilePath);
         await foreach (var unused in _parserFactory.GetParser(snapshot.FileType)
@@ -293,10 +295,11 @@ public sealed class LocationImportService : ILocationImportService, ILocationImp
         GeoapifyLocationBackfillService.IsWhollyUnenriched(location);
 
     /// <summary>Opens durable file authority while translating path-bearing absence exceptions.</summary>
-    private static FileStream OpenStagedFile(string filePath)
+    private FileStream OpenStagedFile(string reference)
     {
+        if (!_stagedFiles.TryResolve(reference, out var filePath)) throw new StagedFileUnavailableException();
         try { return File.OpenRead(filePath); }
-        catch (Exception exception) when (exception is FileNotFoundException or DirectoryNotFoundException)
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
             throw new StagedFileUnavailableException();
         }

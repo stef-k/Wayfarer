@@ -54,7 +54,7 @@ public interface ILocationImportLifecycle
 
 /// <summary>Owns short relational lifecycle mutations and projects them only after commit.</summary>
 public sealed class LocationImportLifecycle(
-    IDbContextFactory<ApplicationDbContext> contexts, IScheduler scheduler, ILogger<LocationImportLifecycle> logger,
+    LocationImportStagedFiles stagedFiles, IDbContextFactory<ApplicationDbContext> contexts, IScheduler scheduler, ILogger<LocationImportLifecycle> logger,
     LocationImportProjectionCoordinator? projectionCoordinator = null) : ILocationImportLifecycle
 {
     private readonly LocationImportProjectionCoordinator projectionCoordinator =
@@ -63,15 +63,15 @@ public sealed class LocationImportLifecycle(
     private ILocationImportLifecycleObserver _observer = NullLocationImportLifecycleObserver.Instance;
 
     /// <summary>Creates a lifecycle with a test-controlled, authority-neutral persistence observer.</summary>
-    internal LocationImportLifecycle(IDbContextFactory<ApplicationDbContext> contexts, IScheduler scheduler,
+    internal LocationImportLifecycle(LocationImportStagedFiles stagedFiles, IDbContextFactory<ApplicationDbContext> contexts, IScheduler scheduler,
         ILogger<LocationImportLifecycle> logger, ILocationImportLifecycleObserver observer)
-        : this(contexts, scheduler, logger, (LocationImportProjectionCoordinator?)null) => _observer = observer;
+        : this(stagedFiles, contexts, scheduler, logger, (LocationImportProjectionCoordinator?)null) => _observer = observer;
 
     /// <summary>Creates a lifecycle with test-controlled coordination and authority-neutral observation.</summary>
-    internal LocationImportLifecycle(IDbContextFactory<ApplicationDbContext> contexts, IScheduler scheduler,
+    internal LocationImportLifecycle(LocationImportStagedFiles stagedFiles, IDbContextFactory<ApplicationDbContext> contexts, IScheduler scheduler,
         ILogger<LocationImportLifecycle> logger, LocationImportProjectionCoordinator projectionCoordinator,
         ILocationImportLifecycleObserver observer)
-        : this(contexts, scheduler, logger, projectionCoordinator) => _observer = observer;
+        : this(stagedFiles, contexts, scheduler, logger, projectionCoordinator) => _observer = observer;
 
     public async Task<LocationImportCommandResult> StartAsync(
         string userId, int importId, CancellationToken cancellationToken = default)
@@ -210,11 +210,14 @@ public sealed class LocationImportLifecycle(
             if (!authority.DeletionRequestedAtUtc.HasValue || authority.Epoch != deletionEpoch
                 || authority.Status == ImportStatus.InProgress || authority.Status == ImportStatus.Stopping)
                 return new(LocationImportCommandCode.ProjectionPending);
-            await _observer.BeforeFileDeletionAsync(importId, authority.FilePath, cancellationToken);
-            if (File.Exists(authority.FilePath)) File.Delete(authority.FilePath);
+            // Unsafe authority is a retryable cleanup failure, never evidence of absence.
+            if (!stagedFiles.TryResolve(authority.FilePath, out var path))
+                return new(LocationImportCommandCode.ProjectionPending);
+            await _observer.BeforeFileDeletionAsync(importId, path, cancellationToken);
+            if (File.Exists(path)) File.Delete(path);
             await FinalDeleteAsync(userId, importId, deletionEpoch, cancellationToken);
         }
-        catch (Exception exception) when (exception is SchedulerException or IOException)
+        catch (Exception exception) when (exception is SchedulerException or IOException or UnauthorizedAccessException)
         {
             logger.LogWarning("Import {ImportId} deletion remains pending reconciliation.", importId);
             return new(LocationImportCommandCode.ProjectionPending);

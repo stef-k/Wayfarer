@@ -139,7 +139,6 @@ internal sealed class TileCacheTestHarness : IDisposable, IAsyncDisposable
         public ApplicationSettings GetSettings() => Settings;
 
         /// <inheritdoc />
-        public string GetUploadsDirectoryPath() => Path.Combine(Path.GetTempPath(), "uploads");
 
         /// <inheritdoc />
         public void RefreshSettings() { }

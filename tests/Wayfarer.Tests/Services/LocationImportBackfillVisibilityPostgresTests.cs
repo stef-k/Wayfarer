@@ -109,7 +109,7 @@ public sealed class LocationImportBackfillVisibilityPostgresTests(PostgresImport
         LocationEnrichmentProgressQuery.WhollyUnenriched(db.Locations.Where(x => x.UserId == userId)).CountAsync();
 
     private LocationImportService Service(ApplicationDbContext db, HttpMessageHandler handler,
-        ILocationImportLifecycleObserver observer) => new(db,
+        ILocationImportLifecycleObserver observer) => new(ImportStaging.Files, db,
         new ReverseGeocodingService(new HttpClient(handler), NullLogger<BaseApiController>.Instance),
         NullLogger<LocationImportService>.Instance, new LocationDataParserFactory(NullLoggerFactory.Instance),
         new SseService(), null, observer);
@@ -149,7 +149,7 @@ public sealed class LocationImportBackfillVisibilityPostgresTests(PostgresImport
         string? existingUserId = null, int minuteOffset = 0)
     {
         var userId = existingUserId ?? (await fixture.CreateUserAsync()).Id;
-        var directory = Path.Combine(Path.GetTempPath(), "wayfarer-512-import-visibility", Guid.NewGuid().ToString("N"));
+        var directory = Path.Combine(ImportStaging.LegacyDirectory, "wayfarer-512-import-visibility", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
         var path = Path.Combine(directory, "locations.csv");
         var header = "Latitude,Longitude,TimestampUtc,Address,IdempotencyKey";

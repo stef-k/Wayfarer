@@ -1,3 +1,4 @@
+using Wayfarer.Tests.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
@@ -17,7 +18,7 @@ public sealed class LocationImportLifecycleContextLifetimeTests
     [Fact]
     public async Task Delete_FileSystemBoundaryHasNoLiveContextAndFinalDeleteUsesFreshContext()
     {
-        var path = Path.Combine(Path.GetTempPath(), $"wayfarer-context-{Guid.NewGuid():N}.csv");
+        var path = Path.Combine(ImportStaging.LegacyDirectory, $"wayfarer-context-{Guid.NewGuid():N}.csv");
         await File.WriteAllTextAsync(path, "fixture");
         try
         {
@@ -27,7 +28,7 @@ public sealed class LocationImportLifecycleContextLifetimeTests
             var coordinator = new LocationImportProjectionCoordinator();
             var observer = new FileBoundaryObserver(factory, coordinator, path);
             var scheduler = DeleteScheduler(factory);
-            var lifecycle = new LocationImportLifecycle(factory, scheduler.Object,
+            var lifecycle = new LocationImportLifecycle(ImportStaging.Files, factory, scheduler.Object,
                 NullLogger<LocationImportLifecycle>.Instance, coordinator, observer);
 
             var result = await lifecycle.DeleteAsync("owner", 1);
@@ -48,7 +49,7 @@ public sealed class LocationImportLifecycleContextLifetimeTests
     [Fact]
     public async Task Delete_ConcurrencyReloadDisposesConflictedContextBeforeFreshAuthorityContext()
     {
-        var path = Path.Combine(Path.GetTempPath(), $"wayfarer-conflict-{Guid.NewGuid():N}.csv");
+        var path = Path.Combine(ImportStaging.LegacyDirectory, $"wayfarer-conflict-{Guid.NewGuid():N}.csv");
         await File.WriteAllTextAsync(path, "fixture");
         try
         {
@@ -59,7 +60,7 @@ public sealed class LocationImportLifecycleContextLifetimeTests
             var scheduler = DeleteScheduler(factory);
             var coordinator = new LocationImportProjectionCoordinator();
             var observer = new FileBoundaryObserver(factory, coordinator, path);
-            var lifecycle = new LocationImportLifecycle(factory, scheduler.Object,
+            var lifecycle = new LocationImportLifecycle(ImportStaging.Files, factory, scheduler.Object,
                 NullLogger<LocationImportLifecycle>.Instance, coordinator, observer);
 
             var result = await lifecycle.DeleteAsync("owner", 1);
@@ -100,7 +101,7 @@ public sealed class LocationImportLifecycleContextLifetimeTests
         var coordinator = new LocationImportProjectionCoordinator();
         await using var held = await coordinator.AcquireAsync(1);
         var scheduler = Scheduler(factory);
-        var lifecycle = new LocationImportLifecycle(factory, scheduler.Object,
+        var lifecycle = new LocationImportLifecycle(ImportStaging.Files, factory, scheduler.Object,
             NullLogger<LocationImportLifecycle>.Instance, coordinator);
 
         var command = lifecycle.StartAsync("owner", 1);

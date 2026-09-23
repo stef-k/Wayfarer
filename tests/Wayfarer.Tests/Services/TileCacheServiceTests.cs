@@ -969,7 +969,6 @@ public partial class TileCacheServiceTests : TestBase
             IsRegistrationOpen = true
         };
 
-        public string GetUploadsDirectoryPath() => Path.Combine(Path.GetTempPath(), "uploads");
         public void RefreshSettings() { }
     }
 

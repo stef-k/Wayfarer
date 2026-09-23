@@ -28,7 +28,7 @@ public sealed class LocationImportDeletePreservationPostgresTests(PostgresImport
         var scheduler = Scheduler(jobs);
         await using (var command = fixture.CreateContext())
         {
-            var result = await new LocationImportLifecycle(new FixtureFactory(fixture), scheduler.Object,
+            var result = await new LocationImportLifecycle(ImportStaging.Files, new FixtureFactory(fixture), scheduler.Object,
                 NullLogger<LocationImportLifecycle>.Instance).DeleteAsync(seed.UserId, seed.ImportId);
             Assert.Equal(LocationImportCommandCode.Accepted, result.Code);
         }
@@ -48,7 +48,7 @@ public sealed class LocationImportDeletePreservationPostgresTests(PostgresImport
         }
         jobs.Add(LocationImportSchedulerKeys.Job(seed.ImportId, 2));
         var failure = new DeleteFailureInterceptor();
-        var failing = new LocationImportReconciler(new FixtureFactory(fixture, failure), scheduler.Object,
+        var failing = new LocationImportReconciler(ImportStaging.Files, new FixtureFactory(fixture, failure), scheduler.Object,
             NullLogger<LocationImportReconciler>.Instance);
         var exception = await Assert.ThrowsAsync<DbUpdateException>(() => failing.ReconcileAsync());
         Assert.IsType<NpgsqlException>(exception.InnerException);
@@ -57,7 +57,7 @@ public sealed class LocationImportDeletePreservationPostgresTests(PostgresImport
         Assert.False(File.Exists(seed.Path));
         await AssertPreservedAsync(seed, importExpected: true);
 
-        var retry = new LocationImportReconciler(new FixtureFactory(fixture), scheduler.Object,
+        var retry = new LocationImportReconciler(ImportStaging.Files, new FixtureFactory(fixture), scheduler.Object,
             NullLogger<LocationImportReconciler>.Instance);
         await retry.ReconcileAsync();
         await retry.ReconcileAsync();
@@ -67,7 +67,7 @@ public sealed class LocationImportDeletePreservationPostgresTests(PostgresImport
     private async Task<Seed> SeedPreservedStateAsync()
     {
         var user = await fixture.CreateUserAsync();
-        var path = Path.Combine(Path.GetTempPath(), $"wayfarer-511-preserve-{Guid.NewGuid():N}.csv");
+        var path = Path.Combine(ImportStaging.LegacyDirectory, $"wayfarer-511-preserve-{Guid.NewGuid():N}.csv");
         await File.WriteAllTextAsync(path, "fixture");
         var tripId = Guid.NewGuid();
         var regionId = Guid.NewGuid();

@@ -22,10 +22,12 @@ namespace Wayfarer.Areas.Admin.Controllers
         private readonly TileCacheService _tileCacheService;
         private readonly IProxiedImageCacheService _imageCacheService;
         private readonly IWebHostEnvironment _env;
+        private readonly Wayfarer.Services.LocationImports.LocationImportStagedFiles _stagedFiles;
         private readonly IServiceScopeFactory _scopeFactory;
         private readonly SseService _sseService;
 
         public SettingsController(
+            Wayfarer.Services.LocationImports.LocationImportStagedFiles stagedFiles,
             ILogger<BaseController> logger,
             ApplicationDbContext dbContext,
             IApplicationSettingsService settingsService,
@@ -36,6 +38,7 @@ namespace Wayfarer.Areas.Admin.Controllers
             SseService sseService)
             : base(logger, dbContext)
         {
+            _stagedFiles = stagedFiles;
             _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
             _tileCacheService = tileCacheService ?? throw new ArgumentNullException(nameof(tileCacheService));
             _imageCacheService = imageCacheService ?? throw new ArgumentNullException(nameof(imageCacheService));
@@ -48,18 +51,13 @@ namespace Wayfarer.Areas.Admin.Controllers
         public async Task<IActionResult> Index()
         {
             ApplicationSettings settings = _settingsService.GetSettings();
-            string uploadsPath = Path.Combine(_env.ContentRootPath, "Uploads", "Temp");
+            string uploadsPath = _stagedFiles.DirectoryPath;
             ViewData["UploadsPath"] = uploadsPath;
+            // Report only known installation roots; never discover paths from database rows.
+            ViewData["LegacyUploadsPaths"] = _stagedFiles.LegacyRoots
+                .Where(root => root != uploadsPath && Directory.Exists(root)).ToArray();
 
-            long totalUploadBytes = 0;
-            int uploadFileCount = 0;
-
-            if (Directory.Exists(uploadsPath))
-            {
-                var uploadFiles = new DirectoryInfo(uploadsPath).GetFiles("*", SearchOption.AllDirectories);
-                totalUploadBytes = uploadFiles.Sum(file => file.Length);
-                uploadFileCount = uploadFiles.Length;
-            }
+            var (totalUploadBytes, uploadFileCount) = _stagedFiles.MeasureStorage();
 
             // Fallbacks for unset values
             if (settings.MaxCacheTileSizeInMB == 0)
