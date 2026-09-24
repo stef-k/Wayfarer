@@ -706,12 +706,12 @@ static async Task ConfigureMiddleware(WebApplication app)
     // Force HTTPS in the app
     app.UseHttpsRedirection();
 
-    // Configure routing and authorization
+    // Own /thumbs before routing can select a compiled legacy static-asset endpoint.
+    app.Services.GetRequiredService<TripThumbnailStorage>().MapStaticFiles(app);
+
+    // Configure routing and authorization; compiled assets retain their existing pipeline.
     app.UseRouting();
     app.UseAuthorization();
-
-    // External thumbnails own /thumbs, including misses; compiled assets retain their pipeline.
-    app.Services.GetRequiredService<TripThumbnailStorage>().MapStaticFiles(app);
     app.UseStaticFiles();
 
     // Serve documentation at /docs/ - works locally and matches GitHub Pages structure

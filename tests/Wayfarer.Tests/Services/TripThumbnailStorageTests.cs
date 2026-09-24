@@ -1,6 +1,8 @@
 using System.Net;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
@@ -84,35 +86,52 @@ public sealed class TripThumbnailStorageTests
         var name = TripThumbnailStorage.FileName(id, 800, 450);
         var legacy = Path.Combine(webroot, "thumbs", "trips", name);
         await File.WriteAllTextAsync(legacy, "legacy");
-        var bytes = new byte[] { 0xff, 0xd8, 0xff, 0xd9 };
-        var captures = 0;
-        var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+        var compiledDirectories = new[] { webroot, Path.Combine(webroot, "thumbs"), Path.GetDirectoryName(legacy)! };
+        try
         {
-            ["CacheSettings:ChromeCacheDirectory"] = Path.Combine(directory.Path, "browser")
-        }).Build();
-        var generator = new TripMapThumbnailGenerator(NullLogger<TripMapThumbnailGenerator>.Instance,
-            storage, config, _ => { captures++; return Task.FromResult<byte[]?>(bytes); });
-        var updated = DateTime.UtcNow.AddMinutes(-1);
-        var url = await generator.GetOrGenerateThumbnailAsync(id, 10, 20, 5, 800, 450, updated);
-        Assert.Equal(url, await generator.GetOrGenerateThumbnailAsync(id, 10, 20, 5, 800, 450, updated));
-        Assert.Equal(1, captures);
-        Assert.Equal(bytes, await File.ReadAllBytesAsync(storage.Resolve(name)));
-        using var provider = new PhysicalFileProvider(webroot);
-        using var host = await new HostBuilder().ConfigureWebHost(web => web.UseTestServer().Configure(app =>
+            if (!OperatingSystem.IsWindows())
+                foreach (var path in compiledDirectories)
+                    File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserExecute);
+            var bytes = new byte[] { 0xff, 0xd8, 0xff, 0xd9 };
+            var captures = 0;
+            var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["CacheSettings:ChromeCacheDirectory"] = Path.Combine(directory.Path, "browser")
+            }).Build();
+            var generator = new TripMapThumbnailGenerator(NullLogger<TripMapThumbnailGenerator>.Instance,
+                storage, config, _ => { captures++; return Task.FromResult<byte[]?>(bytes); });
+            var updated = DateTime.UtcNow.AddMinutes(-1);
+            var url = await generator.GetOrGenerateThumbnailAsync(id, 10, 20, 5, 800, 450, updated);
+            Assert.Equal(url, await generator.GetOrGenerateThumbnailAsync(id, 10, 20, 5, 800, 450, updated));
+            Assert.Equal(1, captures);
+            Assert.Equal(bytes, await File.ReadAllBytesAsync(storage.Resolve(name)));
+            using var provider = new PhysicalFileProvider(webroot);
+            using var host = await new HostBuilder().ConfigureWebHost(web => web.UseTestServer().ConfigureServices(services => services.AddRouting()).Configure(app =>
+            {
+                storage.MapStaticFiles(app);
+                app.UseRouting();
+                app.UseStaticFiles(new StaticFileOptions { FileProvider = provider });
+                // Compiled legacy asset endpoints must not preempt current-root serving either.
+                app.UseEndpoints(endpoints => endpoints.MapGet("/thumbs/trips/" + name,
+                    context => context.Response.WriteAsync("compiled legacy")));
+            })).StartAsync();
+            var client = host.GetTestClient();
+            var response = await client.GetAsync(url);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Equal("image/jpeg", response.Content.Headers.ContentType!.MediaType);
+            Assert.Equal(bytes, await response.Content.ReadAsByteArrayAsync());
+            Assert.Contains("max-age=2592000", response.Headers.CacheControl!.ToString());
+            Assert.Contains("immutable", response.Headers.CacheControl.ToString());
+            generator.InvalidateThumbnails(id, updated);
+            Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync(url)).StatusCode);
+            Assert.Equal("legacy", await File.ReadAllTextAsync(legacy));
+            await host.StopAsync();
+        }
+        finally
         {
-            storage.MapStaticFiles(app);
-            app.UseStaticFiles(new StaticFileOptions { FileProvider = provider });
-        })).StartAsync();
-        var client = host.GetTestClient();
-        var response = await client.GetAsync(url);
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Equal("image/jpeg", response.Content.Headers.ContentType!.MediaType);
-        Assert.Equal(bytes, await response.Content.ReadAsByteArrayAsync());
-        Assert.Contains("max-age=2592000", response.Headers.CacheControl!.ToString());
-        Assert.Contains("immutable", response.Headers.CacheControl.ToString());
-        generator.InvalidateThumbnails(id, updated);
-        Assert.Equal(HttpStatusCode.NotFound, (await client.GetAsync(url)).StatusCode);
-        Assert.Equal("legacy", await File.ReadAllTextAsync(legacy));
-        await host.StopAsync();
+            if (!OperatingSystem.IsWindows())
+                foreach (var path in compiledDirectories)
+                    File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        }
     }
 }

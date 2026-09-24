@@ -274,7 +274,10 @@ async function ensureDevelopmentServers() {
   if (!(await urlResponds(`${config.devBaseUrl}/Identity/Account/Login`))) {
     startProcess(dotnetCommand, ['run', '--no-launch-profile', '--urls', config.devBaseUrl], {
       ASPNETCORE_ENVIRONMENT: 'Development',
-      ASPNETCORE_URLS: config.devBaseUrl
+      ASPNETCORE_URLS: config.devBaseUrl,
+      // Hosts started by this runner own both operational logs and generated cache state.
+      Storage__LogRoot: logsDir,
+      Storage__CacheRoot: path.join(cacheDir, 'current')
     }, 'aspnet-development');
   } else {
     console.log(`[development] Reusing ASP.NET server at ${config.devBaseUrl}.`);

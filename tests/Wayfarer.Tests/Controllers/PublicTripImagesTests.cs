@@ -136,8 +136,15 @@ public class PublicTripImagesTests : TestBase
         Assert.IsType<NotFoundResult>(result);
     }
 
-    [Fact]
-    public async Task MapSnapshot_ReturnsNotFound_WhenThumbnailReturnsDataUri()
+    /// <summary>Direct snapshots reject placeholders, malformed filenames and every other namespace.</summary>
+    [Theory]
+    [InlineData(null)]
+    [InlineData("data:image/svg+xml,...")]
+    [InlineData("/thumbs/trips/not-a-thumbnail.jpg?v=1")]
+    [InlineData("/images/00000000-0000-0000-0000-000000000000-800x450.jpg")]
+    [InlineData("/thumbs/trips/../00000000-0000-0000-0000-000000000000-800x450.jpg")]
+    [InlineData("/thumbs/trips/00000000-0000-0000-0000-000000000000-800x450.jpg?v=1")]
+    public async Task MapSnapshot_ReturnsNotFound_WhenThumbnailIsInvalidOrMissing(string? url)
     {
         var db = CreateDbContext();
         var tripId = Guid.NewGuid();
@@ -150,11 +157,11 @@ public class PublicTripImagesTests : TestBase
         });
         db.SaveChanges();
 
-        // Thumbnail service returns a data URI (placeholder SVG)
+        // No supplied URL may escape the current thumbnail authority.
         var thumbMock = new Mock<ITripThumbnailService>();
         thumbMock.Setup(s => s.GetThumbUrlAsync(
                 tripId, 40.0, 25.0, 10, null, It.IsAny<DateTime>(), "800x450", default))
-            .ReturnsAsync("data:image/svg+xml,...");
+            .ReturnsAsync(url);
 
         var controller = BuildController(db, thumbnailService: thumbMock.Object);
         var result = await controller.GetMapSnapshot(tripId);

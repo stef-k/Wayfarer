@@ -43,6 +43,8 @@ public sealed class OperationalLogStorageTests : TestBase
         var previousLogger = Log.Logger;
         try
         {
+            if (!OperatingSystem.IsWindows())
+                File.SetUnixFileMode(appRoot, UnixFileMode.UserRead | UnixFileMode.UserExecute);
             ApplicationConfiguration.ConfigureLogging(builder, storage);
             await using var app = builder.Build();
             Assert.Same(storage, app.Services.GetRequiredService<StoragePaths>());
@@ -61,6 +63,8 @@ public sealed class OperationalLogStorageTests : TestBase
         {
             Log.CloseAndFlush();
             Log.Logger = previousLogger;
+            if (!OperatingSystem.IsWindows())
+                File.SetUnixFileMode(appRoot, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
         }
     }
 

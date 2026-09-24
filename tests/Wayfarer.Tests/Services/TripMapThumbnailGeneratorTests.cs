@@ -305,6 +305,8 @@ public class TripMapThumbnailGeneratorTests : IDisposable
         Directory.CreateDirectory(path);
         var mine = Path.Combine(path, $"{tripId}-800x450.jpg");
         var other = Path.Combine(path, $"{Guid.NewGuid()}-800x450.jpg");
+        var unknown = Path.Combine(path, $"{tripId}-not-generated.jpg");
+        File.WriteAllText(unknown, "keep");
         File.WriteAllBytes(mine, new byte[] { 1, 2, 3 });
         File.WriteAllBytes(other, new byte[] { 4, 5, 6 });
 
@@ -313,6 +315,7 @@ public class TripMapThumbnailGeneratorTests : IDisposable
         generator.DeleteThumbnails(tripId);
 
         Assert.False(File.Exists(mine));
+        Assert.True(File.Exists(unknown));
         Assert.True(File.Exists(other));
     }
 

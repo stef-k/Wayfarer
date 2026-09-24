@@ -32,7 +32,8 @@ internal static class ApplicationConfiguration
         // Fail startup on an unusable operational root rather than falling back to the app tree.
         Directory.CreateDirectory(storagePaths.LogRoot);
         var logFilePath = Path.Combine(storagePaths.LogRoot, "wayfarer-.log");
-        var today = Path.Combine(storagePaths.LogRoot, $"wayfarer-{DateTime.Now:yyyyMMdd}.log");
+        var today = Path.Combine(storagePaths.LogRoot,
+            "wayfarer-" + DateTime.Now.ToString("yyyyMMdd", System.Globalization.CultureInfo.InvariantCulture) + ".log");
         using (new FileStream(today, FileMode.Append, FileAccess.Write, FileShare.ReadWrite)) { }
 
         // Configure Serilog for logging to console, file, and PostgreSQL.

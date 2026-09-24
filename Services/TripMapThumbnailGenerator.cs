@@ -343,13 +343,9 @@ public sealed partial class TripMapThumbnailGenerator : ITripMapThumbnailGenerat
 
     /// <summary>
     /// Deletes all cached thumbnails for a specific trip.
-    /// (No-op for external API approach; will be implemented for self-hosted tiles)
     /// </summary>
     public void DeleteThumbnails(Guid tripId)
     {
-        // For external API approach, no cleanup needed
-        // If/when we implement self-hosted thumbnails, we'll delete files here
-
         try
         {
             var pattern = $"{tripId}-*.jpg";
