@@ -9,6 +9,7 @@ import fs from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { removeOwnedDirectory } from './test-artifact-paths.mjs';
 
 const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const isWindows = process.platform === 'win32';
@@ -17,13 +18,17 @@ const dotnetCommand = isWindows ? 'dotnet.exe' : 'dotnet';
 const localDir = path.join(rootDir, '.local');
 const publishDir = path.join(localDir, 'publish-smoke');
 const logsDir = path.join(localDir, 'asset-smoke');
+const cacheDir = path.join(localDir, 'asset-smoke-cache');
 const viteBaseUrl = 'http://localhost:5173';
 const tripEditorEntryKey = 'ClientApps/trip-editor/src/main.ts';
 const defaultBuildOutputDir = path.join(rootDir, 'wwwroot', 'vite', 'trip-editor');
 
 const args = process.argv.slice(2);
 const mode = parseMode(args);
-const config = mode === 'built' ? null : loadTripEditorConfig();
+let config;
+let succeeded = false;
+let ownsSmokeState = false;
+let ownsPublishState = false;
 const startedProcesses = [];
 
 process.on('SIGINT', () => {
@@ -34,7 +39,12 @@ try {
   if (mode === 'built') {
     runBuiltAssetSmoke(resolveBuildOutputDir(args));
   } else {
+    // Replace only exact smoke-owned state; failed current logs survive until the next run.
+    safeRemoveDirectory(logsDir);
+    safeRemoveDirectory(cacheDir);
     fs.mkdirSync(logsDir, { recursive: true });
+    ownsSmokeState = true;
+    config = loadTripEditorConfig();
     printScopeBoundary();
   }
 
@@ -46,6 +56,7 @@ try {
     await runPublishedSmoke();
   }
 
+  succeeded = true;
   console.log('\nTrip Editor asset smoke complete.');
 } catch (error) {
   if (mode !== 'built') {
@@ -56,7 +67,17 @@ try {
   console.error(`[built] FAIL: ${message.slice(0, 500)}`);
   process.exitCode = 1;
 } finally {
-  await stopStartedProcesses();
+  try {
+    await stopStartedProcesses();
+    if (ownsSmokeState) {
+      safeRemoveDirectory(cacheDir);
+      if (ownsPublishState) safeRemoveDirectory(publishDir);
+      if (succeeded) safeRemoveDirectory(logsDir);
+    }
+  } catch (error) {
+    console.error(`Smoke cleanup failed: ${String(error).slice(0, 500)}`);
+    process.exitCode = 1;
+  }
 }
 
 // Parses the explicit smoke mode requested by the npm script or direct CLI use.
@@ -304,6 +325,7 @@ async function runPublishedSmoke() {
 async function preparePublishedOutput() {
   safeRemoveDirectory(publishDir);
   fs.mkdirSync(publishDir, { recursive: true });
+  ownsPublishState = true;
   runCommand(dotnetCommand, ['tool', 'restore'], 'dotnet tool restore');
   runCommand(dotnetCommand, ['frontend', 'build'], 'dotnet frontend build');
   runCommand(npmCommand, ['run', 'build'], 'npm run build');
@@ -482,6 +504,7 @@ function startProcess(command, args, extraEnv, name, cwd = rootDir) {
     env: { ...process.env, ...extraEnv },
     stdio: ['ignore', 'pipe', 'pipe'],
     shell: false,
+    detached: !isWindows,
     windowsHide: true
   });
 
@@ -549,11 +572,15 @@ async function stopStartedProcesses() {
       if (isWindows) {
         spawnSync('taskkill.exe', ['/pid', String(child.pid), '/t', '/f'], { stdio: 'ignore' });
       } else {
-        child.kill('SIGTERM');
+        try { process.kill(-child.pid, 'SIGTERM'); } catch (error) { if (error.code !== 'ESRCH') throw error; }
       }
     }
 
-    logStream.end();
+    // Wait for the owned host before deleting its files (important on Windows).
+    const deadline = Date.now() + 10000;
+    while (child.exitCode === null && child.signalCode === null && Date.now() < deadline) await delay(50);
+    if (child.exitCode === null && child.signalCode === null) throw new Error(`${name} did not stop; preserving smoke state.`);
+    await new Promise(resolve => logStream.end(resolve));
   }
 }
 
@@ -583,14 +610,10 @@ function formatTail(label, value) {
   return trimmed ? `${label} tail:\n${trimmed}` : `${label} tail: <empty>`;
 }
 
+// The smoke runner accepts only its three fixed outputs, including on setup/failure paths.
 function safeRemoveDirectory(targetDir) {
-  const resolved = path.resolve(targetDir);
-  const allowedRoot = path.resolve(localDir);
-  if (resolved === allowedRoot || !resolved.startsWith(`${allowedRoot}${path.sep}`)) {
-    throw new Error(`Refusing to remove directory outside .local: ${resolved}`);
-  }
-
-  fs.rmSync(resolved, { recursive: true, force: true });
+  if (![publishDir, logsDir, cacheDir].includes(targetDir)) throw new Error('Not a smoke-owned directory.');
+  removeOwnedDirectory(rootDir, targetDir);
 }
 
 function delay(milliseconds) {

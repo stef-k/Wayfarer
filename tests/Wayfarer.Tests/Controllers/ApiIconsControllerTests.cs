@@ -192,10 +192,10 @@ public class ApiIconsControllerTests : TestBase
         return new IconsController(CreateDbContext(), NullLogger<IconsController>.Instance, env, new IconColorProvider(env));
     }
 
-    private static IWebHostEnvironment CreateTempWebRoot()
+    private IWebHostEnvironment CreateTempWebRoot()
     {
         var env = new Mock<IWebHostEnvironment>();
-        var root = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        var root = CreateTestDirectory();
         Directory.CreateDirectory(root);
         env.SetupGet(e => e.WebRootPath).Returns(root);
         return env.Object;

@@ -7,7 +7,8 @@ $runRoot = Join-Path $repository ".local\407-waypoint-$runId"
 $databaseDirectory = Join-Path $runRoot 'postgres'
 $publishDirectory = Join-Path $runRoot 'publish'
 $helperDirectory = Join-Path $runRoot 'fixture'
-$browserDirectory = Join-Path $runRoot 'chromium'
+# Browser revisions are reusable dependencies, never copied into retained failure evidence.
+$browserDirectory = if ($env:PLAYWRIGHT_BROWSERS_PATH) { $env:PLAYWRIGHT_BROWSERS_PATH } else { Join-Path $repository '.local/playwright/js-browsers' }
 $manifestPath = Join-Path $runRoot 'fixture.json'
 $databaseLog = Join-Path $runRoot 'postgres.log'
 $hostLog = Join-Path $runRoot 'host.log'
@@ -82,11 +83,6 @@ try {
         Invoke-Checked 'npm.cmd' @('run', 'build')
         Invoke-Checked 'dotnet.exe' @('publish', 'Wayfarer.csproj', '-c', 'Release', '-o', $publishDirectory)
         Invoke-Checked 'dotnet.exe' @('publish', 'tools\Wayfarer.WaypointBrowserFixture\Wayfarer.WaypointBrowserFixture.csproj', '-c', 'Release', '-o', $helperDirectory)
-        $installedBrowserCache = Join-Path $env:LOCALAPPDATA 'ms-playwright'
-        if (Test-Path -LiteralPath $installedBrowserCache) {
-            New-Item -ItemType Directory -Path $browserDirectory -Force | Out-Null
-            Get-ChildItem -LiteralPath $installedBrowserCache | Copy-Item -Destination $browserDirectory -Recurse -Force
-        }
         Invoke-Checked 'npx.cmd' @('playwright', 'install', 'chromium')
         $helper = Join-Path $helperDirectory 'Wayfarer.WaypointBrowserFixture.dll'
         Invoke-Checked 'dotnet.exe' @($helper, 'provision', $manifestPath, $password)

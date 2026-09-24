@@ -10,7 +10,7 @@ export const staleMilliseconds = 24 * 60 * 60 * 1000;
 const guid = '[0-9a-f]{32}';
 const retainedRun = new RegExp(`^407-waypoint-${guid}$`);
 // These names correspond to concrete test/launcher producers, never general runtime caches.
-const tempRun = new RegExp(`^(?:wayfarer-(?:import-tests|browser-tests|version-tests|attribution-render|attribution-snapshot|attribution-pdf|itinerary-render|waypoint-render|foreign-waypoint-render|waypoint-pdf-render|rich-notes-render|foreign-waypoint-pdf|coverage-safety|cleanup-safety)-${guid}|wayfarer_imgcache_test_${guid}|wayfarer-shared-layout-e2e-[1-9][0-9]*)$`);
+const tempRun = new RegExp(`^(?:wayfarer-(?:import-tests|fixture-tests|browser-tests|version-tests|attribution-render|attribution-snapshot|attribution-pdf|itinerary-render|waypoint-render|foreign-waypoint-render|waypoint-pdf-render|rich-notes-render|foreign-waypoint-pdf|coverage-safety|cleanup-safety)-${guid}|wayfarer_imgcache_test_${guid}|wayfarer-shared-layout-e2e-[1-9][0-9]*)$`);
 const ephemeral = [
   'tests/Wayfarer.Tests/TestResults', 'playwright-report', '.local/playwright/test-output',
   '.local/playwright/shared-layout-output', '.local/playwright/shared-layout-report',
@@ -19,7 +19,7 @@ const ephemeral = [
 
 /** Lists only ordinary direct children of a known parent; a linked ancestor fails closed. */
 function matchingChildren(root, relative, pattern) {
-  const parent = relative ? assertOrdinaryPath(root, path.join(root, relative)) : root;
+  const parent = relative ? assertOrdinaryPath(root, path.join(root, relative)) : assertOrdinaryPath(path.dirname(root), root);
   if (!fs.existsSync(parent)) return [];
   return fs.readdirSync(parent).filter(name => pattern.test(name)).map(name => path.join(parent, name));
 }
@@ -34,7 +34,7 @@ export function cleanup({ repository, temporary = os.tmpdir(), dryRun = false, n
   };
   add(repository, '.local', retainedRun, 'retained #407 evidence');
   add(temporary, '', tempRun, 'OS-temp');
-  add(temporary, 'wayfarer-tile-tests', new RegExp(`^${guid}$`), 'OS-temp tiles');
+  add(temporary, 'wayfarer-tile-tests', new RegExp(`^${guid}(?:-current)?$`), 'OS-temp tiles');
   add(temporary, 'wayfarer-trip-editor-place-tests', new RegExp(`^${guid}$`), 'OS-temp places');
   for (const { root, target, kind, stale } of candidates) {
     try {

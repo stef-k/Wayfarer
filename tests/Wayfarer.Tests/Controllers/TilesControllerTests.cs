@@ -431,7 +431,7 @@ public class TilesControllerTests : TestBase
     private TilesController BuildController(TileCacheService? tileService = null, ApplicationDbContext? dbContext = null!, string? cacheDir = null, HttpMessageHandler? handler = null, IApplicationSettingsService? settingsService = null)
     {
         dbContext ??= CreateDbContext();
-        cacheDir ??= Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        cacheDir ??= CreateTestDirectory();
         Directory.CreateDirectory(cacheDir);
         handler ??= new FakeHttpMessageHandler(HttpStatusCode.NotFound);
         settingsService ??= BuildSettingsService();

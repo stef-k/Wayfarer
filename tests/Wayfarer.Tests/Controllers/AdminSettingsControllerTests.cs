@@ -36,7 +36,7 @@ public partial class AdminSettingsControllerTests : TestBase
         var settingsMock = new Mock<IApplicationSettingsService>();
         settingsMock.Setup(s => s.GetSettings()).Returns(new ApplicationSettings { Id = 1, MaxCacheTileSizeInMB = 10, UploadSizeLimitMB = 5 });
 
-        var tileCacheDir = Path.Combine(Path.GetTempPath(), "tile-cache");
+        var tileCacheDir = CreateTestDirectory();
         Directory.CreateDirectory(tileCacheDir);
 
         var config = new ConfigurationBuilder()
@@ -386,7 +386,7 @@ public partial class AdminSettingsControllerTests : TestBase
             settingsMock.Setup(s => s.GetSettings()).Returns(new ApplicationSettings { Id = 1 });
         }
 
-        var tileCacheDir = Path.Combine(Path.GetTempPath(), $"tilecache-{Guid.NewGuid():N}");
+        var tileCacheDir = CreateTestDirectory();
         Directory.CreateDirectory(tileCacheDir);
 
         var config = new ConfigurationBuilder()

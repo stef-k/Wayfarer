@@ -80,3 +80,13 @@ test('old directory with recent contents is preserved; arbitrary CLI targets are
   assert.equal(result.status, 1);
   assert.match(result.stderr, /no deletion paths/);
 });
+
+test('asset smoke wires setup and finalization to its exact three guarded outputs', () => {
+  const source = fs.readFileSync(new URL('../../tools/trip-editor-asset-smoke.mjs', import.meta.url), 'utf8');
+  assert.match(source, /safeRemoveDirectory\(logsDir\);\s+safeRemoveDirectory\(cacheDir\);\s+fs.mkdirSync\(logsDir/);
+  assert.match(source, /await stopStartedProcesses\(\);\s+if \(ownsSmokeState\)/);
+  assert.match(source, /if \(ownsPublishState\) safeRemoveDirectory\(publishDir\)/);
+  assert.match(source, /if \(succeeded\) safeRemoveDirectory\(logsDir\)/);
+  assert.match(source, /if \(!\[publishDir, logsDir, cacheDir\].includes\(targetDir\)\) throw/);
+  assert.match(source, /removeOwnedDirectory\(rootDir, targetDir\)/);
+});

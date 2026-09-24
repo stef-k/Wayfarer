@@ -1,18 +1,13 @@
 import { execFileSync } from 'node:child_process';
-import fs from 'node:fs';
-import path from 'node:path';
 
-const pidFile = path.join(process.env.TEMP ?? process.env.TMP ?? '.', 'wayfarer-shared-layout-e2e-host.pid');
-
-/** Stops only the isolated host process recorded by the shared-layout launcher. */
+/** The launcher and teardown share exact-PID ownership validation and idempotent tree removal. */
 export default async function sharedLayoutGlobalTeardown(): Promise<void> {
-  if (!fs.existsSync(pidFile)) return;
-
-  const processId = Number(fs.readFileSync(pidFile, 'utf8').trim());
-  if (Number.isInteger(processId) && processId > 0) {
-    const command = `$processId = ${processId}; if (Get-NetTCPConnection -State Listen -LocalPort 7150 -ErrorAction SilentlyContinue | Where-Object OwningProcess -eq $processId) { Stop-Process -Id $processId -Force }`;
-    execFileSync('powershell', ['-NoProfile', '-Command', command], { stdio: 'inherit' });
+  try {
+    execFileSync(process.platform === 'win32' ? 'powershell' : 'pwsh', [
+      '-NoProfile', '-File', 'tools/start-shared-layout-e2e-host.ps1', '-Teardown'
+    ], { stdio: 'inherit' });
+  } catch (error) {
+    // Preserve the primary Playwright failure; leave the PID authority/residue for diagnosis.
+    throw new Error(`Shared-layout cleanup failed: ${String(error).slice(0, 500)}`);
   }
-
-  fs.rmSync(pidFile, { force: true });
 }

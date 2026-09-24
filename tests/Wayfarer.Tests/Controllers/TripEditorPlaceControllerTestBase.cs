@@ -90,7 +90,7 @@ public abstract class TripEditorPlaceControllerTestBase : TestBase
     /// <summary>
     /// Builds the Trip Editor controller with place mutation dependencies.
     /// </summary>
-    protected static TripEditorController BuildController(ApplicationDbContext db, ReverseGeocodingService? reverseGeocodingService = null)
+    protected TripEditorController BuildController(ApplicationDbContext db, ReverseGeocodingService? reverseGeocodingService = null)
     {
         var environment = BuildEnvironment();
         var iconColorProvider = new IconColorProvider(environment);
@@ -149,9 +149,9 @@ public abstract class TripEditorPlaceControllerTestBase : TestBase
             ? $$"""{ "latitude": {{latitude.Value}}, "longitude": {{longitude.Value}} }"""
             : "null";
 
-    private static IWebHostEnvironment BuildEnvironment()
+    private IWebHostEnvironment BuildEnvironment()
     {
-        var webRoot = Path.Combine(Path.GetTempPath(), "wayfarer-trip-editor-place-tests", Guid.NewGuid().ToString("N"));
+        var webRoot = CreateTestDirectory();
         var markerDir = Path.Combine(webRoot, "icons", "wayfarer-map-icons", "dist", "marker");
         Directory.CreateDirectory(markerDir);
         File.WriteAllText(Path.Combine(markerDir, "marker.svg"), "<svg></svg>");

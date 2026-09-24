@@ -10,9 +10,21 @@ namespace Wayfarer.Tests.Infrastructure;
 /// <summary>Supplies real bounded staging authorities to import fixtures instead of arbitrary temp-file access.</summary>
 internal static class ImportStaging
 {
+    /// <summary>The shared authority lives until testhost exits, after all parallel cases finish.</summary>
+    private static readonly TestDirectory ProcessDirectory = new();
+
     /// <summary>Shared test installation; unique file names retain per-case isolation.</summary>
-    internal static LocationImportStagedFiles Files { get; } = Create(Path.Combine(Path.GetTempPath(),
-        "wayfarer-import-tests-" + Guid.NewGuid().ToString("N")));
+    internal static LocationImportStagedFiles Files { get; } = Create(ProcessDirectory.Path);
+
+    /// <summary>Normal testhost exit finalizes this exact root; killed hosts use stale maintenance.</summary>
+    static ImportStaging()
+    {
+        AppDomain.CurrentDomain.ProcessExit += (_, _) =>
+        {
+            try { ProcessDirectory.Dispose(); }
+            catch (Exception error) { Console.Error.WriteLine("Import fixture cleanup failed: " + error.Message); }
+        };
+    }
 
     /// <summary>Creates a side-effect-free authority with separate content and durable roots.</summary>
     internal static LocationImportStagedFiles Create(string root)

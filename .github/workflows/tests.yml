@@ -53,7 +53,7 @@ jobs:
           fi
 
           # Baseline changes must exercise the frontend toolchain too.
-          if grep -Eq '^(\.nvmrc$|\.github/workflows/tests\.yml$|package(-lock)?\.json|ClientApps/|wwwroot/(css|js)/|tests/client/|vite\.config\.[^/]+$|tsconfig[^/]*\.json$|tools/trip-editor-asset-smoke\.mjs$)' <<< "$changed_files"; then
+          if grep -Eq '^(\.nvmrc$|\.github/workflows/tests\.yml$|package(-lock)?\.json|ClientApps/|wwwroot/(css|js)/|tests/client/|vite\.config\.[^/]+$|tsconfig[^/]*\.json$|tools/[^/]+\.(mjs|ps1)$)' <<< "$changed_files"; then
             echo "run_frontend=true" >> "$GITHUB_OUTPUT"
           else
             echo "run_frontend=false" >> "$GITHUB_OUTPUT"
@@ -171,3 +171,23 @@ jobs:
           test -s "$WAYFARER_TEST_ARTIFACT_DIRECTORY/phase2b-map-attribution-print.png"
         env:
           WAYFARER_TEST_ARTIFACT_DIRECTORY: ${{ runner.temp }}/wayfarer-test-artifacts
+
+  # Filesystem ownership is platform-sensitive; exercise real junction/link behavior on both hosts.
+  cleanup-safety:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - name: Test cleanup ownership and smoke lifecycle
+        run: npm run test:cleanup:safety
+      - name: Test coverage and shared-layout cleanup guards
+        shell: pwsh
+        run: |
+          pwsh -NoProfile -File ./tools/coverage-report.safety.tests.ps1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          pwsh -NoProfile -File ./tools/shared-layout.safety.tests.ps1
