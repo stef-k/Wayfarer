@@ -156,12 +156,7 @@ dotnet test tests/Wayfarer.Tests/Wayfarer.Tests.csproj `
 ```
 
 - Retained PDF and screenshot evidence is written only when `WAYFARER_TEST_ARTIFACT_DIRECTORY` is set.
-- Cleanup is limited to the issue-owned directories created above:
-
-```powershell
-Remove-Item -LiteralPath $dotnetBrowserCache -Recurse -Force
-Remove-Item -LiteralPath $artifactDirectory -Recurse -Force
-```
+- Keep the shared browser cache for subsequent runs. Explicit evidence under `.local/test-results` stays until its owner deliberately removes that exact evidence directory.
 - Do not delete global Playwright caches, production `ChromeCache`, browser profiles, JavaScript browser assets, or unrelated `.local` content.
 
 Trip Editor Asset-Mode Smoke
@@ -264,11 +259,37 @@ Trip Editor Test Credibility Matrix
 | Development Vite server smoke | Standard Trip Editor Playwright run mounts the dev-served shell. | contract | Proves local ASP.NET + Vite dev integration only. | Keep separate from production bundle claims. |
 | Import/export/backfill/public viewer/mobile/API | Not Trip Editor E2E unless the editor entry point depends on the behavior. | out of scope | Do not report these as Trip Editor release proof. | Track in separate issue/suite if needed. |
 
+### Test artifact ownership and disk lifecycle
+
+- Ordinary `dotnet test` uses console results (no persistent logger/collector output by default). Filesystem fixtures remove their own exact roots through disposal/finally; the shared import staging authority finalizes its process-owned root on normal testhost exit, including test failures. Explicit logger/collector evidence should use `.local/test-results` or another non-allowlisted output path; coverage's temporary results have their own closing cleanup.
+- Coverage retains one current successful HTML report by default. Current-run intermediate results and failed partial HTML are finalized automatically; unknown report entries remain untouched.
+- Shared-layout E2E stops its exact recorded host before deleting its launcher-owned OS-temp source/build tree. Launcher exit and global teardown use the same path guards. Cleanup problems are reported separately from test/host failures.
+- Non-built asset smoke replaces its exact `.local/asset-smoke` logs and `.local/asset-smoke-cache` at setup. After owned processes stop, it removes run-owned cache/publish output; successful runs also remove logs. Failure logs remain for diagnosis until the next smoke run.
+- Playwright replaces its configured output/report directories on the next invocation; traces/videos/screenshots are retained only on failure. Explicit PDF/screenshot evidence is opt-in via `WAYFARER_TEST_ARTIFACT_DIRECTORY` and is never removed by maintenance.
+- The #407 browser runner removes its exact run root on success and preserves the current failed run. It references `PLAYWRIGHT_BROWSERS_PATH` (default `.local/playwright/js-browsers`) instead of copying browser binaries into each retained run. Its disposable PostgreSQL cluster and published app can still make retained failures large.
+- Shared JavaScript and .NET browser binaries, `node_modules`, npm/NuGet caches, and ordinary `bin/obj` are reusable dependencies, not ephemeral output. Browser-free service tests use fixture-owned cache paths. Production `ChromeCache` behavior is unchanged.
+
+Use the cross-platform maintenance command only for stale/interrupted residue; it is **not** a closing step required after normal tests:
+
+```sh
+npm run test:cleanup -- --dry-run
+npm run test:cleanup
+npm run test:cleanup:safety
+pwsh -NoProfile -File tools/coverage-report.safety.tests.ps1
+pwsh -NoProfile -File tools/shared-layout.safety.tests.ps1
+```
+
+The command reports approximate bytes and accepts no deletion path or age override. It removes only these fixed ephemeral repository outputs: `tests/Wayfarer.Tests/TestResults`, `playwright-report`, `.local/playwright/{test-output,shared-layout-output,shared-layout-report}`, and `.local/{publish-smoke,asset-smoke,asset-smoke-cache}`. Run it when those repository-local producers are idle.
+
+Exact direct `.local/407-waypoint-<32-lowercase-hex-guid>` children are reported separately as retained evidence and removed only after 24 hours without writes anywhere in the tree. Known OS-temp fixture prefixes (import, fixture, browser, image-cache, version, rendering, coverage safety and shared-layout), plus GUID children of `wayfarer-tile-tests` and `wayfarer-trip-editor-place-tests`, use the same age guard. Recent entries survive, as do shared-layout roots whose launcher PID is still alive. Unrecognized names, linked ancestors, symlinks/junctions/reparse points, and trees containing links are skipped without traversal.
+
+Maintenance preserves `.local/test-results`, `.local/manual-verification.md`, shared browser caches, all unrelated `.local` content, `ChromeCache`, package caches, `bin/obj`, PostgreSQL databases outside exact stale #407 fixture roots, and uploads/runtime data. It never sweeps the whole repository, `.local`, or OS temp directory. Do not use broad recursive deletion as a replacement.
+
 Coverage
 - The test project uses xUnit v2 with the xUnit Visual Studio adapter and the default VSTest execution model. It does not opt into Microsoft Testing Platform.
 - `coverlet.collector` is the sole coverage integration. The repository does not use Coverlet's MSBuild properties or console tool.
 - Restore repository-local tools and generate HTML with `.\tools\coverage-report.ps1`. The script builds the Debug test project, runs `dotnet test --collect:"XPlat Code Coverage"` with `coverlet.runsettings`, and fails unless the current run produces one non-empty Cobertura file and a non-empty `coverage-report/<run-id>/index.html`.
-- Each invocation creates a fresh internally generated GUID child under `coverage-report` and prints its exact path. Previous reports are retained, and users may manually remove these ignored report directories when they are no longer needed. The script never recursively replaces a caller-selected directory.
+- Each invocation creates a fresh internally generated GUID child under `coverage-report` and prints its exact path. After validating a new successful HTML report, older ordinary lowercase GUID report children are pruned. Unknown entries and links are preserved. A failed invocation removes only its partial report and retains the previous successful report. The script never recursively replaces a caller-selected directory.
 - Ordinary coverage uses `Category!=RequiresSpatialite&Category!=RequiresPlaywright`. PostgreSQL tests remain discoverable but skip unless `WAYFARER_TEST_POSTGRES_CONNECTION` identifies the dedicated test database; the coverage command does not install browsers, load SpatiaLite, or contact an unconfigured PostgreSQL fixture.
 - Current-run Cobertura XML is isolated temporarily below `tests/Wayfarer.Tests/TestResults/coverage-report/<run-id>/`; the script never searches older result directories and removes only that invocation's exact run directory after success or failure.
 - Compiled Razor views (`AspNetCoreGeneratedDocument*`) are excluded from coverage to keep numbers focused on backend code.

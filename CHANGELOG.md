@@ -10,6 +10,7 @@
 - Resolve IANA and Windows timezone identifiers across Linux and Windows, including India’s half-hour offset (#608).
 
 ### Development
+- Bound test artifact retention with automatic owner cleanup, one current coverage report, shared browser caches, and a cross-platform guarded stale-residue maintenance command (#621).
 - Adopt Linux/WSL as the primary development baseline and Node 24 LTS for frontend builds and CI. Import recovery and provider-address tests now follow portable filesystem behavior and the current address contract (#608).
 
 ## [1.9.19] - 2026-09-22

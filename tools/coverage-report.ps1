@@ -24,6 +24,8 @@ $runPaths = Get-CoverageRunPaths -RepoRoot $repoRoot -RunId $runId
 $reportDirectory = New-CoverageReportDirectory -CoverageRoot $runPaths.ReportRoot -RunId $runId
 Write-Host "Coverage report directory: $reportDirectory"
 
+$succeeded = $false
+$cleanupFailed = $false
 try {
     Write-Host "Building tests..."
     Invoke-CheckedDotnet build $testProject -c Debug
@@ -52,13 +54,21 @@ try {
     if (-not (Test-Path -LiteralPath $htmlIndex) -or (Get-Item -LiteralPath $htmlIndex).Length -eq 0) {
         throw "ReportGenerator did not create a non-empty HTML report at $htmlIndex."
     }
+    $succeeded = $true
     Write-Host "Cobertura consumed: $($coverageFiles[0].FullName) ($($coverageFiles[0].Length) bytes)"
     Write-Host "HTML report: $htmlIndex ($((Get-Item -LiteralPath $htmlIndex).Length) bytes)"
 }
 finally {
-    if (Test-Path -LiteralPath $runPaths.ResultsDirectory) {
-        $cleanupPath = Test-CoverageResultsCleanupPath -ResultsRoot $runPaths.ResultsRoot -ResultsDirectory $runPaths.ResultsDirectory -RunId $runId
-        Remove-Item -LiteralPath $cleanupPath -Recurse -Force
-        Write-Host "Removed current-run results: $cleanupPath"
-    }
+    # Cleanup failures are reported separately and never replace the primary tool failure.
+    try {
+        if (Test-Path -LiteralPath $runPaths.ResultsDirectory) {
+            $cleanupPath = Test-CoverageResultsCleanupPath -ResultsRoot $runPaths.ResultsRoot -ResultsDirectory $runPaths.ResultsDirectory -RunId $runId
+            Remove-OwnedTestDirectory -Root $runPaths.ResultsRoot -Name $runId
+            Write-Host "Removed current-run results: $cleanupPath"
+        }
+    } catch { Write-Warning "Results cleanup failed: $($_.Exception.Message)"; if ($succeeded) { $cleanupFailed = $true } }
+    try { Complete-CoverageReport -CoverageRoot $runPaths.ReportRoot -RunId $runId -Succeeded $succeeded }
+    catch { Write-Warning "Report cleanup failed: $($_.Exception.Message)"; if ($succeeded) { $cleanupFailed = $true } }
 }
+
+if ($cleanupFailed) { throw "Coverage succeeded, but artifact cleanup failed; see warnings above." }

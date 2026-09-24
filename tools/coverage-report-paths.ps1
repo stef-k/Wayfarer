@@ -85,3 +85,27 @@ function Test-CoverageResultsCleanupPath {
 
     return $candidate
 }
+
+. (Join-Path $PSScriptRoot 'test-artifact-paths.ps1')
+
+# On success retain the validated current report and prune only recognized ordinary siblings.
+# On failure remove only this invocation's partial report, preserving all earlier evidence.
+function Complete-CoverageReport {
+    param([string]$CoverageRoot, [string]$RunId, [bool]$Succeeded)
+    Test-CoverageRunId -RunId $RunId | Out-Null
+    if (-not $Succeeded) {
+        Remove-OwnedTestDirectory -Root $CoverageRoot -Name $RunId
+        return
+    }
+    $current = Join-Path $CoverageRoot $RunId
+    Assert-OrdinaryTestTree -Path $current
+    $index = Get-Item -LiteralPath (Join-Path $current 'index.html')
+    if ($index.PSIsContainer -or $index.Length -eq 0) { throw 'Current HTML report is not complete.' }
+    foreach ($child in Get-ChildItem -LiteralPath $CoverageRoot -Force) {
+        if ($child.Name -cne $RunId -and $child.Name -cmatch '^[0-9a-f]{32}$' -and
+            $child.PSIsContainer -and ($child.Attributes -band [IO.FileAttributes]::ReparsePoint) -eq 0) {
+            try { Remove-OwnedTestDirectory -Root $CoverageRoot -Name $child.Name }
+            catch { Write-Warning "Retained unsafe/inaccessible old report: $($_.Exception.Message)" }
+        }
+    }
+}

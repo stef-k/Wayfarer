@@ -14,6 +14,15 @@ namespace Wayfarer.Tests.Infrastructure;
 public abstract class TestBase : IDisposable
 {
     private readonly List<ApplicationDbContext> _contexts = new();
+    private readonly List<TestDirectory> _directories = new();
+
+    /// <summary>Allocates an exact test-owned root removed with this test, including on failure.</summary>
+    protected string CreateTestDirectory()
+    {
+        var directory = new TestDirectory();
+        _directories.Add(directory);
+        return directory.Path;
+    }
 
     /// <summary>
     /// Creates a new in-memory database context for testing.
@@ -145,6 +154,8 @@ public abstract class TestBase : IDisposable
                 context.Dispose();
             }
             _contexts.Clear();
+            foreach (var directory in _directories) directory.Dispose();
+            _directories.Clear();
         }
     }
 }

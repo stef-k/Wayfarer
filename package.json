@@ -16,7 +16,9 @@
     "smoke:trip-editor:assets": "node tools/trip-editor-asset-smoke.mjs --mode=all",
     "smoke:trip-editor:assets:built": "node tools/trip-editor-asset-smoke.mjs --mode=built",
     "smoke:trip-editor:assets:dev": "node tools/trip-editor-asset-smoke.mjs --mode=development",
-    "smoke:trip-editor:assets:published": "node tools/trip-editor-asset-smoke.mjs --mode=published"
+    "smoke:trip-editor:assets:published": "node tools/trip-editor-asset-smoke.mjs --mode=published",
+    "test:cleanup": "node tools/test-cleanup.mjs",
+    "test:cleanup:safety": "node --test tests/client/testCleanup.test.mjs"
   },
   "dependencies": {
     "@types/leaflet": "1.9.22",

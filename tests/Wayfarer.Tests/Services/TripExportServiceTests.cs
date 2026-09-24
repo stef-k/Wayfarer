@@ -24,7 +24,7 @@ public class TripExportServiceTests : TestBase
     private TripExportService CreateService(ApplicationDbContext db, IImageProxyService? imageProxyService = null)
     {
         var mockConfig = new Mock<IConfiguration>();
-        mockConfig.Setup(c => c["CacheSettings:ChromeCacheDirectory"]).Returns("TestCache");
+        mockConfig.Setup(c => c["CacheSettings:ChromeCacheDirectory"]).Returns(CreateTestDirectory());
 
         return new TripExportService(
             db,

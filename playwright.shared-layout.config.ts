@@ -17,7 +17,7 @@ export default defineConfig({
     screenshot: 'only-on-failure'
   },
   webServer: {
-    command: 'powershell -NoProfile -ExecutionPolicy Bypass -File .\\tools\\start-shared-layout-e2e-host.ps1',
+    command: `${process.platform === 'win32' ? 'powershell' : 'pwsh'} -NoProfile -File tools/start-shared-layout-e2e-host.ps1`,
     url: 'https://localhost:7150/Home/Privacy',
     ignoreHTTPSErrors: true,
     reuseExistingServer: false,
