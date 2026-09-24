@@ -299,8 +299,9 @@ public class PublicTripImagesTests : TestBase
         });
         db.SaveChanges();
 
-        // Create a temp thumbnail file in wwwroot/thumbs/trips/
-        var thumbDir = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "thumbs", "trips");
+        // Use an owned external root; never write fixtures into repository webroot.
+        var storage = new TripThumbnailStorage(TestDirectory.Storage(CreateTestDirectory()));
+        var thumbDir = storage.Root;
         Directory.CreateDirectory(thumbDir);
         var thumbFile = Path.Combine(thumbDir, $"{tripId}-800x450.jpg");
 
@@ -315,11 +316,12 @@ public class PublicTripImagesTests : TestBase
                     tripId, 40.0, 25.0, 10, null, It.IsAny<DateTime>(), "800x450", default))
                 .ReturnsAsync($"/thumbs/trips/{tripId}-800x450.jpg?v=638770000000000000");
 
-            var controller = BuildController(db, thumbnailService: thumbMock.Object);
+            var controller = BuildController(db, thumbnailService: thumbMock.Object, thumbnailStorage: storage);
             var result = await controller.GetMapSnapshot(tripId);
 
             var file = Assert.IsType<PhysicalFileResult>(result);
             Assert.Equal("image/jpeg", file.ContentType);
+            Assert.Equal(thumbFile, file.FileName);
         }
         finally
         {
@@ -332,7 +334,8 @@ public class PublicTripImagesTests : TestBase
         ApplicationDbContext db,
         ITripThumbnailService? thumbnailService = null,
         IApplicationSettingsService? settingsService = null,
-        IProxiedImageCacheService? imageCacheService = null)
+        IProxiedImageCacheService? imageCacheService = null,
+        TripThumbnailStorage? thumbnailStorage = null)
     {
         var client = new System.Net.Http.HttpClient();
         thumbnailService ??= Mock.Of<ITripThumbnailService>();
@@ -363,7 +366,8 @@ public class PublicTripImagesTests : TestBase
             thumbnailService,
             tagService,
             imageProxyService,
-            settingsService);
+            settingsService,
+            thumbnailStorage ?? new TripThumbnailStorage(TestDirectory.Storage(CreateTestDirectory())));
         controller.ControllerContext = new ControllerContext
         {
             HttpContext = new DefaultHttpContext()

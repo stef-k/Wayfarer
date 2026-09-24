@@ -18,14 +18,14 @@ public class TripMapThumbnailGeneratorTests : IDisposable
 {
     private readonly string _root;
     private readonly Mock<ILogger<TripMapThumbnailGenerator>> _logger = new();
-    private readonly Mock<IWebHostEnvironment> _env = new();
+    private readonly TripThumbnailStorage _storage;
     private readonly IConfiguration _config;
 
     public TripMapThumbnailGeneratorTests()
     {
         _root = Path.Combine(Path.GetTempPath(), "wayfarer-browser-tests-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_root);
-        _env.SetupGet(e => e.WebRootPath).Returns(_root);
+        _storage = new TripThumbnailStorage(TestDirectory.Storage(_root));
         _config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         {
             ["CacheSettings:ChromeCacheDirectory"] = Path.Combine(_root, "browser")
@@ -35,7 +35,7 @@ public class TripMapThumbnailGeneratorTests : IDisposable
     [Fact]
     public async Task GetOrGenerateThumbnailAsync_ReturnsNull_WhenCoordinatesInvalid()
     {
-        var generator = new TripMapThumbnailGenerator(_logger.Object, _env.Object, _config);
+        var generator = new TripMapThumbnailGenerator(_logger.Object, _storage, _config);
 
         var result = await generator.GetOrGenerateThumbnailAsync(
             Guid.NewGuid(), 200, 10, 5, 200, 200, DateTime.UtcNow);
@@ -54,7 +54,7 @@ public class TripMapThumbnailGeneratorTests : IDisposable
                 ["Kestrel:Endpoints:Http:Url"] = "http://*:5500"
             })
             .Build();
-        var generator = new TripMapThumbnailGenerator(_logger.Object, _env.Object, config);
+        var generator = new TripMapThumbnailGenerator(_logger.Object, _storage, config);
 
         var settings = generator.BuildCaptureSettings(Guid.Empty, 1, 2, 3);
 
@@ -75,7 +75,7 @@ public class TripMapThumbnailGeneratorTests : IDisposable
                 ["Kestrel:Endpoints:Http:Url"] = "http://*:5500"
             })
             .Build();
-        var generator = new TripMapThumbnailGenerator(_logger.Object, _env.Object, config);
+        var generator = new TripMapThumbnailGenerator(_logger.Object, _storage, config);
 
         var settings = generator.BuildCaptureSettings(Guid.Empty, 1, 2, 3);
 
@@ -210,10 +210,10 @@ public class TripMapThumbnailGeneratorTests : IDisposable
         var tripId = Guid.NewGuid();
         var generator = new TripMapThumbnailGenerator(
             _logger.Object,
-            _env.Object,
+            _storage,
             _config,
             _ => Task.FromResult<byte[]?>(null));
-        var path = Path.Combine(_root, "thumbs", "trips", $"{tripId}-800x450.jpg");
+        var path = _storage.Resolve($"{tripId}-800x450.jpg");
         var original = new byte[] { 1, 2, 3 };
         File.WriteAllBytes(path, original);
         File.SetLastWriteTimeUtc(path, DateTime.UtcNow.AddDays(-1));
@@ -232,10 +232,10 @@ public class TripMapThumbnailGeneratorTests : IDisposable
         var replacement = new byte[] { 9, 8, 7 };
         var generator = new TripMapThumbnailGenerator(
             _logger.Object,
-            _env.Object,
+            _storage,
             _config,
             _ => Task.FromResult<byte[]?>(replacement));
-        var directory = Path.Combine(_root, "thumbs", "trips");
+        var directory = _storage.Root;
         var path = Path.Combine(directory, $"{tripId}-800x450.jpg");
         var original = new byte[] { 1, 2, 3 };
         File.WriteAllBytes(path, original);
@@ -272,7 +272,7 @@ public class TripMapThumbnailGeneratorTests : IDisposable
                 ["Kestrel:Endpoints:Http:Url"] = "http://*:5500"
             })
             .Build();
-        var generator = new TripMapThumbnailGenerator(_logger.Object, _env.Object, config);
+        var generator = new TripMapThumbnailGenerator(_logger.Object, _storage, config);
         var playwright = new Mock<IPlaywright>();
         var browserType = new Mock<IBrowserType>();
         var browser = new Mock<IBrowser>();
@@ -301,14 +301,14 @@ public class TripMapThumbnailGeneratorTests : IDisposable
     public void DeleteThumbnails_RemovesFilesForTrip()
     {
         var tripId = Guid.NewGuid();
-        var path = Path.Combine(_root, "thumbs", "trips");
+        var path = _storage.Root;
         Directory.CreateDirectory(path);
         var mine = Path.Combine(path, $"{tripId}-800x450.jpg");
         var other = Path.Combine(path, $"{Guid.NewGuid()}-800x450.jpg");
         File.WriteAllBytes(mine, new byte[] { 1, 2, 3 });
         File.WriteAllBytes(other, new byte[] { 4, 5, 6 });
 
-        var generator = new TripMapThumbnailGenerator(_logger.Object, _env.Object, _config);
+        var generator = new TripMapThumbnailGenerator(_logger.Object, _storage, _config);
 
         generator.DeleteThumbnails(tripId);
 
@@ -321,29 +321,31 @@ public class TripMapThumbnailGeneratorTests : IDisposable
     {
         var keep = Guid.NewGuid();
         var orphan = Guid.NewGuid();
-        var path = Path.Combine(_root, "thumbs", "trips");
-        var generator = new TripMapThumbnailGenerator(_logger.Object, _env.Object, _config);
+        var path = _storage.Root;
+        var generator = new TripMapThumbnailGenerator(_logger.Object, _storage, _config);
         Directory.CreateDirectory(path);
-        File.WriteAllBytes(Path.Combine(path, $"{keep:N}-800x450.jpg"), new byte[] { 1 });
-        File.WriteAllBytes(Path.Combine(path, $"{orphan:N}-800x450.jpg"), new byte[] { 2 });
+        File.WriteAllBytes(Path.Combine(path, $"{keep:D}-800x450.jpg"), new byte[] { 1 });
+        File.WriteAllBytes(Path.Combine(path, $"{orphan:D}-800x450.jpg"), new byte[] { 2 });
 
+        File.WriteAllText(Path.Combine(path, "unknown.jpg"), "keep");
         var deleted = await generator.CleanupOrphanedThumbnailsAsync(new HashSet<Guid> { keep });
 
         Assert.Equal(1, deleted);
-        Assert.True(File.Exists(Path.Combine(path, $"{keep:N}-800x450.jpg")));
-        Assert.False(File.Exists(Path.Combine(path, $"{orphan:N}-800x450.jpg")));
+        Assert.True(File.Exists(Path.Combine(path, "unknown.jpg")));
+        Assert.True(File.Exists(Path.Combine(path, $"{keep:D}-800x450.jpg")));
+        Assert.False(File.Exists(Path.Combine(path, $"{orphan:D}-800x450.jpg")));
     }
 
     [Fact]
     public void InvalidateThumbnails_RemovesTripFiles()
     {
         var tripId = Guid.NewGuid();
-        var path = Path.Combine(_root, "thumbs", "trips");
+        var path = _storage.Root;
         Directory.CreateDirectory(path);
         var file = Path.Combine(path, $"{tripId}-800x450.jpg");
         File.WriteAllBytes(file, new byte[] { 1, 2 });
 
-        var generator = new TripMapThumbnailGenerator(_logger.Object, _env.Object, _config);
+        var generator = new TripMapThumbnailGenerator(_logger.Object, _storage, _config);
 
         generator.InvalidateThumbnails(tripId, DateTime.UtcNow);
 
@@ -360,7 +362,7 @@ public class TripMapThumbnailGeneratorTests : IDisposable
                 ["Kestrel:Endpoints:Http:Url"] = "http://localhost:5500"
             })
             .Build();
-        var generator = new TripMapThumbnailGenerator(_logger.Object, _env.Object, config);
+        var generator = new TripMapThumbnailGenerator(_logger.Object, _storage, config);
 
         var result = InvokeGetLocalBaseUrl(generator);
 
@@ -377,7 +379,7 @@ public class TripMapThumbnailGeneratorTests : IDisposable
                 ["Kestrel:Endpoints:Http:Url"] = "http://*:8080"
             })
             .Build();
-        var generator = new TripMapThumbnailGenerator(_logger.Object, _env.Object, config);
+        var generator = new TripMapThumbnailGenerator(_logger.Object, _storage, config);
 
         var result = InvokeGetLocalBaseUrl(generator);
 
@@ -394,7 +396,7 @@ public class TripMapThumbnailGeneratorTests : IDisposable
                 ["Kestrel:Endpoints:Http:Url"] = "http://+:3000"
             })
             .Build();
-        var generator = new TripMapThumbnailGenerator(_logger.Object, _env.Object, config);
+        var generator = new TripMapThumbnailGenerator(_logger.Object, _storage, config);
 
         var result = InvokeGetLocalBaseUrl(generator);
 
@@ -409,7 +411,7 @@ public class TripMapThumbnailGeneratorTests : IDisposable
         {
             Environment.SetEnvironmentVariable("ASPNETCORE_URLS", "http://localhost:7000;https://localhost:7001");
             var config = new ConfigurationBuilder().Build();
-            var generator = new TripMapThumbnailGenerator(_logger.Object, _env.Object, config);
+            var generator = new TripMapThumbnailGenerator(_logger.Object, _storage, config);
 
             var result = InvokeGetLocalBaseUrl(generator);
 
@@ -429,7 +431,7 @@ public class TripMapThumbnailGeneratorTests : IDisposable
         {
             Environment.SetEnvironmentVariable("ASPNETCORE_URLS", null);
             var config = new ConfigurationBuilder().Build();
-            var generator = new TripMapThumbnailGenerator(_logger.Object, _env.Object, config);
+            var generator = new TripMapThumbnailGenerator(_logger.Object, _storage, config);
 
             var result = InvokeGetLocalBaseUrl(generator);
 
@@ -449,7 +451,7 @@ public class TripMapThumbnailGeneratorTests : IDisposable
         {
             Environment.SetEnvironmentVariable("ASPNETCORE_URLS", "https://localhost:7001;http://localhost:6000");
             var config = new ConfigurationBuilder().Build();
-            var generator = new TripMapThumbnailGenerator(_logger.Object, _env.Object, config);
+            var generator = new TripMapThumbnailGenerator(_logger.Object, _storage, config);
 
             var result = InvokeGetLocalBaseUrl(generator);
 

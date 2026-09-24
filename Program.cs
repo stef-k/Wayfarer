@@ -42,13 +42,13 @@ if (args.Length > 0 && args[0] == "reset-password") { await HandlePasswordResetC
 
 #region Configuration Setup
 
-ApplicationConfiguration.Configure(builder);
+var storagePaths = ApplicationConfiguration.Configure(builder);
 
 #endregion Configuration Setup
 
 #region Serilog Logging Setup
 
-ConfigureLogging(builder);
+ApplicationConfiguration.ConfigureLogging(builder, storagePaths);
 
 #endregion Serilog Logging Setup
 
@@ -231,39 +231,6 @@ static async Task HandlePasswordResetCommand(string[] args)
         Console.WriteLine("Failed to reset password. Errors:");
         foreach (var error in result.Errors) Console.WriteLine($" - {error.Description}");
     }
-}
-
-// Method to configure logging with Serilog
-static void ConfigureLogging(WebApplicationBuilder builder)
-{
-    // Retrieve the log file path from configuration
-    var logFilePath = builder.Configuration["Logging:LogFilePath:Default"];
-
-    if (string.IsNullOrEmpty(logFilePath))
-        throw new InvalidOperationException(
-            "Log file path is not configured. Please check your appsettings.json or appsettings.Development.json.");
-
-    // Configure Serilog for logging to console, file, and PostgreSQL.
-    // .Enrich.FromLogContext() enables LogContext properties (e.g., RequestId pushed by
-    // RequestIdLoggingMiddleware) to flow into all sinks automatically.
-    // {Properties:j} in output templates renders pushed properties as JSON.
-    Log.Logger = new LoggerConfiguration()
-        .Enrich.FromLogContext()
-        .WriteTo.Console(outputTemplate:
-            "[{Timestamp:HH:mm:ss} {Level:u3}] {Message:lj} {Properties:j}{NewLine}{Exception}")
-        .WriteTo.File(logFilePath, rollingInterval: RollingInterval.Day, outputTemplate:
-            "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {Message:lj} {Properties:j}{NewLine}{Exception}")
-        .WriteTo.PostgreSQL(builder.Configuration.GetConnectionString("DefaultConnection"),
-            "AuditLogs", // Table for storing logs
-            needAutoCreateTable: true) // Auto-creates the table if it doesn't exist
-        .CreateLogger();
-
-    // Add Serilog as the logging provider
-    builder.Services.AddLogging(logging =>
-    {
-        logging.ClearProviders(); // Clears default logging providers
-        logging.AddSerilog(); // Adds Serilog as the logging provider
-    });
 }
 
 // Method to configure the database connection and Entity Framework setup
@@ -743,7 +710,8 @@ static async Task ConfigureMiddleware(WebApplication app)
     app.UseRouting();
     app.UseAuthorization();
 
-    // Serve static files (includes runtime-generated files like thumbnails)
+    // External thumbnails own /thumbs, including misses; compiled assets retain their pipeline.
+    app.Services.GetRequiredService<TripThumbnailStorage>().MapStaticFiles(app);
     app.UseStaticFiles();
 
     // Serve documentation at /docs/ - works locally and matches GitHub Pages structure

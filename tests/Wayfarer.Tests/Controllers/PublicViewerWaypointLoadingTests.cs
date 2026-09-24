@@ -51,14 +51,14 @@ public sealed class PublicViewerWaypointLoadingTests : TestBase
     };
 
     /// <summary>Constructs the production public controller with inert unrelated dependencies.</summary>
-    private static TripViewerController BuildController(ApplicationDbContext db)
+    private TripViewerController BuildController(ApplicationDbContext db)
     {
         var settings = new Mock<IApplicationSettingsService>();
         settings.Setup(service => service.GetSettings()).Returns(new ApplicationSettings());
         var imageProxy = new ImageProxyService(new HttpClient(), Mock.Of<IProxiedImageCacheService>(), settings.Object,
             Mock.Of<IServiceScopeFactory>(), NullLogger<ImageProxyService>.Instance);
         var controller = new TripViewerController(NullLogger<TripViewerController>.Instance, db, new HttpClient(),
-            Mock.Of<ITripThumbnailService>(), Mock.Of<ITripTagService>(), imageProxy, settings.Object);
+            Mock.Of<ITripThumbnailService>(), Mock.Of<ITripTagService>(), imageProxy, settings.Object, new TripThumbnailStorage(TestDirectory.Storage(CreateTestDirectory())));
         controller.ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() };
         return controller;
     }

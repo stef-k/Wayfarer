@@ -2,6 +2,7 @@ using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Wayfarer.Models;
+using Wayfarer.Services;
 using Wayfarer.Models.ViewModels;
 
 namespace Wayfarer.Areas.Admin.Controllers;
@@ -14,18 +15,16 @@ namespace Wayfarer.Areas.Admin.Controllers;
 [Authorize(Roles = "Admin")]
 public class LogsController : BaseController
 {
-    private readonly IConfiguration _configuration;
-    private readonly IWebHostEnvironment _env;
+    private readonly StoragePaths _storage;
 
+    /// <summary>Reads only the shared operational log root.</summary>
     public LogsController(
         ILogger<LogsController> logger,
         ApplicationDbContext dbContext,
-        IConfiguration configuration,
-        IWebHostEnvironment env)
+        StoragePaths storage)
         : base(logger, dbContext)
     {
-        _configuration = configuration;
-        _env = env;
+        _storage = storage;
     }
 
     /// <summary>
@@ -56,7 +55,7 @@ public class LogsController : BaseController
             return BadRequest(new { success = false, message = "Invalid file name" });
         }
 
-        var logPath = Path.Combine(GetLogDirectory(), fileName);
+        var logPath = StoragePaths.ResolveFile(_storage.LogRoot, fileName);
         if (!System.IO.File.Exists(logPath))
         {
             return NotFound(new { success = false, message = "Log file not found" });
@@ -363,7 +362,7 @@ public class LogsController : BaseController
             return BadRequest("Invalid file name");
         }
 
-        var logPath = Path.Combine(GetLogDirectory(), fileName);
+        var logPath = StoragePaths.ResolveFile(_storage.LogRoot, fileName);
         if (!System.IO.File.Exists(logPath))
         {
             return NotFound("Log file not found");
@@ -392,7 +391,7 @@ public class LogsController : BaseController
             return BadRequest(new { success = false, message = "Search query is required" });
         }
 
-        var logPath = Path.Combine(GetLogDirectory(), fileName);
+        var logPath = StoragePaths.ResolveFile(_storage.LogRoot, fileName);
         if (!System.IO.File.Exists(logPath))
         {
             return NotFound(new { success = false, message = "Log file not found" });
@@ -438,32 +437,12 @@ public class LogsController : BaseController
     }
 
     /// <summary>
-    /// Gets the log directory path based on configuration.
-    /// </summary>
-    /// <returns>Absolute path to the log directory.</returns>
-    private string GetLogDirectory()
-    {
-        var logFilePath = _configuration["Logging:LogFilePath:Default"] ?? "Logs/wayfarer-.log";
-
-        // Extract directory from the path pattern
-        var directory = Path.GetDirectoryName(logFilePath) ?? "Logs";
-
-        // If relative path, make it absolute based on content root
-        if (!Path.IsPathRooted(directory))
-        {
-            directory = Path.Combine(_env.ContentRootPath, directory);
-        }
-
-        return directory;
-    }
-
-    /// <summary>
     /// Gets list of available log files with metadata.
     /// </summary>
     /// <returns>List of log file info objects sorted by date descending.</returns>
     private List<LogFileInfo> GetLogFiles()
     {
-        var logDirectory = GetLogDirectory();
+        var logDirectory = _storage.LogRoot;
         var logFiles = new List<LogFileInfo>();
 
         if (!Directory.Exists(logDirectory))
@@ -476,6 +455,7 @@ public class LogsController : BaseController
 
         foreach (var file in Directory.GetFiles(logDirectory, "wayfarer-*.log"))
         {
+            if (!IsValidLogFile(Path.GetFileName(file))) continue;
             var fileInfo = new FileInfo(file);
             logFiles.Add(new LogFileInfo
             {
@@ -509,7 +489,7 @@ public class LogsController : BaseController
         }
 
         // Only allow log files matching our pattern
-        return Regex.IsMatch(fileName, @"^wayfarer-\d{8}\.log$");
+        return Regex.IsMatch(fileName, @"\Awayfarer-\d{8}\.log\z");
     }
 
     /// <summary>

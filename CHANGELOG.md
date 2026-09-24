@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### Changed
+- Store generated trip thumbnails outside webroot while preserving public URLs, atomic replacement and authoritative serving; fix GUID-based orphan cleanup. Serilog, Admin and file cleanup now share Storage LogRoot, with bounded native routing and isolated runner roots (#625). No schema or automatic legacy-file migration.
 - Store new proxied images beneath CacheRoot using logical generation filenames; retain bounded legacy reads, promote only on successful refresh, preserve metadata commit points, and retire LRU metadata before deleting bytes (#623). Native deployment prepares the image root; no schema or bulk migration.
 - Store new map tiles beneath CacheRoot with portable provider-scoped metadata references; preserve bounded native-cache compatibility without automatic migration. Correct nested tile purge, eviction and statistics, and prepare native deployment storage (#617).
 - Stage new location imports beneath the durable DataRoot with portable logical references; retain bounded same-host legacy compatibility and report both storage roots in Admin Settings (#615). Native Linux deployment prepares the external staging directory without migrating old rows or files.

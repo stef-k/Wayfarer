@@ -22,12 +22,14 @@ public class TripViewerController : BaseController
     /// </summary>
     internal static readonly ConcurrentDictionary<string, RateLimitHelper.RateLimitEntry> RateLimitCache = new();
 
+    private readonly TripThumbnailStorage _thumbnailStorage;
     private readonly HttpClient _httpClient;
     private readonly ITripThumbnailService _thumbnailService;
     private readonly ITripTagService _tripTagService;
     private readonly IImageProxyService _imageProxyService;
     private readonly IApplicationSettingsService _settingsService;
 
+    /// <summary>Uses the generated-thumbnail authority for direct snapshot responses.</summary>
     public TripViewerController(
         ILogger<TripViewerController> logger,
         ApplicationDbContext dbContext,
@@ -35,9 +37,11 @@ public class TripViewerController : BaseController
         ITripThumbnailService thumbnailService,
         ITripTagService tripTagService,
         IImageProxyService imageProxyService,
-        IApplicationSettingsService settingsService)
+        IApplicationSettingsService settingsService,
+        TripThumbnailStorage thumbnailStorage)
         : base(logger, dbContext)
     {
+        _thumbnailStorage = thumbnailStorage;
         _httpClient = httpClient;
         _thumbnailService = thumbnailService;
         _tripTagService = tripTagService;
@@ -690,34 +694,17 @@ public class TripViewerController : BaseController
             null, // Do not fall back to cover image — this endpoint serves map snapshots only
             trip.UpdatedAt);
 
-        // Reject data URIs (placeholder SVGs) and null results
-        if (string.IsNullOrWhiteSpace(thumbUrl) || thumbUrl.StartsWith("data:", StringComparison.Ordinal))
+        // Only the current generated-thumbnail authority may translate public URLs into files.
+        if (!_thumbnailStorage.TryResolvePublicUrl(thumbUrl, out var thumbnailPath))
         {
             return NotFound();
         }
 
-        // The thumbnail URL is a relative path like /thumbs/trips/{id}-800x450.jpg
-        // Strip query string (?v=timestamp) used for browser cache busting
-        var queryIndex = thumbUrl.IndexOf('?');
-        var pathOnly = queryIndex >= 0 ? thumbUrl[..queryIndex] : thumbUrl;
-
-        // Convert to a physical file path and serve directly
-        var relativePath = pathOnly.TrimStart('/');
-        var wwwRoot = Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), "wwwroot"));
-        var webRootPath = Path.GetFullPath(
-            Path.Combine(wwwRoot, relativePath.Replace('/', Path.DirectorySeparatorChar)));
-
-        // Path traversal guard: ensure resolved path stays within wwwroot
-        if (!webRootPath.StartsWith(wwwRoot, StringComparison.OrdinalIgnoreCase))
+        if (!System.IO.File.Exists(thumbnailPath))
         {
             return NotFound();
         }
 
-        if (!System.IO.File.Exists(webRootPath))
-        {
-            return NotFound();
-        }
-
-        return PhysicalFile(webRootPath, "image/jpeg");
+        return PhysicalFile(thumbnailPath, "image/jpeg");
     }
 }

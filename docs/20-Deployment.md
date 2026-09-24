@@ -250,7 +250,17 @@ sudo systemctl restart wayfarer
 
 ## Directory Structure & Permissions
 
-New location imports use `/var/lib/wayfarer/uploads/imports`, prepared with application-user ownership by both native scripts. The existing Linux-oriented `appsettings.Production.json` supplies `Storage:DataRoot=/var/lib/wayfarer`, `CacheRoot=/var/cache/wayfarer`, `LogRoot=/var/log/wayfarer`, and `TempRoot=/tmp/wayfarer`. Override these through normal ASP.NET Core configuration; when overriding DataRoot, prepare its `uploads/imports` directory for the service user before startup. These roots do not yet move cache, log, thumbnail or Data Protection consumers.
+New location imports use `/var/lib/wayfarer/uploads/imports`, prepared with application-user ownership by both native scripts. The existing Linux-oriented `appsettings.Production.json` supplies `Storage:DataRoot=/var/lib/wayfarer`, `CacheRoot=/var/cache/wayfarer`, `LogRoot=/var/log/wayfarer`, and `TempRoot=/tmp/wayfarer`. Override these through normal ASP.NET Core configuration; when overriding DataRoot, prepare its `uploads/imports` directory for the service user before startup. Imports, tiles, images, generated thumbnails and file logs use these roots; Data Protection remains separately configured.
+
+Native install/deploy also prepare `/var/cache/wayfarer/thumbnails/trips` and
+`/var/log/wayfarer` with application-user ownership before startup. The Nginx
+`location ^~ /thumbs/` proxy must reach Kestrel ahead of the generic image regex;
+Kestrel serves external JPEGs and owns their versioned cache headers and 404s.
+Existing application-root `Logs` and `wwwroot/thumbs/` deployment exclusions remain
+in place as legacy residue preservation, not runtime dependencies. No automatic
+copy, deletion or migration occurs. Slice G owns their final exclusion retirement;
+this slice does not change ChromeCache or require full read-only-root qualification.
+
 
 New import rows store logical `imports/<guidN><extension>` references. Old same-host absolute rows/files remain in place under known `Uploads/Temp` roots, with the deployment exclusion retained. Cross-host/native-to-Docker conversion needs a future explicit, quiesced migration; startup and Admin viewing never perform it. No EF schema migration is introduced for this reference change. Routine backup classification is owned by #533 and the real M6 migration by #604.
 
@@ -465,7 +475,7 @@ sudo systemctl start wayfarer
 
 ### Configuration
 
-- `Logging:LogFilePath:Default` — ensure directory exists and is writable.
+- `Storage:LogRoot` — ensure directory exists and is writable.
 - `Logging:LogLevel:*` — tune verbosity. Development uses more verbose levels.
 
 ### Middleware

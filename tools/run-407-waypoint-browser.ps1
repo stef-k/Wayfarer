@@ -24,7 +24,7 @@ $ownedVariables = @(
     'WAYFARER_TEST_POSTGRES_CONNECTION', 'ConnectionStrings__DefaultConnection', 'ASPNETCORE_ENVIRONMENT',
     'ASPNETCORE_URLS', 'WAYFARER_E2E_BASE_URL', 'WAYFARER_E2E_USERNAME', 'WAYFARER_E2E_PASSWORD',
     'WAYFARER_E2E_TRIP_ID', 'WAYFARER_E2E_WAYPOINT_FIXTURE', 'WAYFARER_E2E_WAYPOINT_HELPER',
-    'PLAYWRIGHT_BROWSERS_PATH', 'Logging__LogFilePath__Default')
+    'PLAYWRIGHT_BROWSERS_PATH', 'Storage__LogRoot', 'Storage__CacheRoot')
 $originalVariables = @{}
 foreach ($name in $ownedVariables) { $originalVariables[$name] = [Environment]::GetEnvironmentVariable($name, 'Process') }
 
@@ -77,7 +77,8 @@ try {
     $env:WAYFARER_TEST_POSTGRES_CONNECTION = $connection
     $env:ConnectionStrings__DefaultConnection = $connection
     $env:PLAYWRIGHT_BROWSERS_PATH = $browserDirectory
-    $env:Logging__LogFilePath__Default = (Join-Path $runRoot 'wayfarer-.log')
+    $env:Storage__LogRoot = (Join-Path $runRoot 'logs')
+    $env:Storage__CacheRoot = (Join-Path $runRoot 'cache')
     Push-Location $repository
     try {
         Invoke-Checked 'npm.cmd' @('run', 'build')

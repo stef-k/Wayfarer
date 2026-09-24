@@ -1,4 +1,6 @@
 ﻿using Quartz;
+using Wayfarer.Services;
+using System.Text.RegularExpressions;
 
 namespace Wayfarer.Jobs
 {
@@ -8,15 +10,17 @@ namespace Wayfarer.Jobs
     /// </summary>
     public class LogCleanupJob : IJob
     {
-        private readonly IConfiguration _configuration;
+        private readonly StoragePaths _storage;
         private readonly ILogger<LogCleanupJob> _logger;
 
-        public LogCleanupJob(IConfiguration configuration, ILogger<LogCleanupJob> logger)
+        /// <summary>Uses the same operational directory as Serilog and Admin.</summary>
+        public LogCleanupJob(StoragePaths storage, ILogger<LogCleanupJob> logger)
         {
-            _configuration = configuration;
+            _storage = storage;
             _logger = logger;
         }
 
+        /// <summary>Prunes only daily Wayfarer files while preserving cancellation and Quartz status.</summary>
         public Task Execute(IJobExecutionContext context)
         {
             CancellationToken cancellationToken = context.CancellationToken;
@@ -32,22 +36,16 @@ namespace Wayfarer.Jobs
                 _logger.LogInformation("LogCleanupJob started.");
                 jobDataMap["Status"] = "In Progress";
 
-                string? logDirectory = Path.GetDirectoryName(_configuration["Logging:LogFilePath:Default"]);
-
-                if (string.IsNullOrEmpty(logDirectory))
-                {
-                    _logger.LogWarning("Log directory path could not be determined. Skipping log cleanup.");
-                    jobDataMap["Status"] = "Completed";
-                    return Task.CompletedTask;
-                }
-
-                string[] logFiles = Directory.GetFiles(logDirectory, "wayfarer-*.log");
+                var logDirectory = _storage.LogRoot;
+                var logFiles = Directory.Exists(logDirectory)
+                    ? Directory.GetFiles(logDirectory, "wayfarer-*.log") : [];
                 int deletedCount = 0;
 
                 foreach (string logFile in logFiles)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
 
+                    if (!Regex.IsMatch(Path.GetFileName(logFile), @"\Awayfarer-\d{8}\.log\z")) continue;
                     FileInfo fileInfo = new FileInfo(logFile);
                     if (fileInfo.CreationTime < DateTime.Now.AddMonths(-1))
                     {

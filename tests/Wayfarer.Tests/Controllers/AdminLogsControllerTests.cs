@@ -488,21 +488,10 @@ public class AdminLogsControllerTests : TestBase, IDisposable
     /// </summary>
     private LogsController BuildController()
     {
-        var config = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["Logging:LogFilePath:Default"] = Path.Combine(_tempLogDir, "wayfarer-.log")
-            })
-            .Build();
-
-        var env = new Mock<IWebHostEnvironment>();
-        env.SetupGet(e => e.ContentRootPath).Returns(Path.GetTempPath());
-
         var controller = new LogsController(
             NullLogger<LogsController>.Instance,
             _db,
-            config,
-            env.Object);
+            TestDirectory.Storage(_tempLogDir, _tempLogDir));
 
         var httpContext = new DefaultHttpContext
         {

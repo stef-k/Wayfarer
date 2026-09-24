@@ -18,7 +18,7 @@ ConnectionStrings
 
 Logging
 - `Logging:LogLevel:*` — log verbosity per category.
-- `Logging:LogFilePath:Default` — path to rolling log file (ensure directory exists).
+- `Storage:LogRoot` — operational daily log directory (created and checked for writability at startup).
 - Serilog sinks: console, file, and PostgreSQL (table `AuditLogs`).
 
 Application
@@ -32,7 +32,7 @@ Runtime storage roots (foundation for #609)
 - Windows Development uses `LocalApplicationData/Wayfarer/{Data,Cache,Logs}` and system temp's `wayfarer` directory. Outside Development, all four roots must be configured. The existing Linux-oriented `appsettings.Production.json` profile supplies `/var/lib/wayfarer`, `/var/cache/wayfarer`, `/var/log/wayfarer`, and `/tmp/wayfarer`, respectively; normal ASP.NET Core environment/configuration overrides retain precedence.
 - Derived targets are `uploads` and `data-protection` beneath DataRoot, and `tiles`, `images`, and `thumbnails` beneath CacheRoot. LogRoot is the exact log directory. Resolution never creates directories or checks writability.
 - `StoragePaths.ResolveFile(root, reference)` accepts logical relative file references, normalizes contained segments, and rejects rooted, empty, directory-only, or escaping values using native platform path semantics. Containment is lexical; adopting subsystems must control filesystem ownership/symlinks before opening files.
-- **Location-import staging now uses `StoragePaths.Uploads/imports`** beneath DataRoot, including external per-user Development defaults. New `LocationImports.FilePath` values are canonical `imports/<32-lowercase-hex-guid><supported-extension>` references with ASCII `/`, never physical roots. `LocationImportStagedFiles` validates serialization before native resolution. Thumbnails, logs, and Data Protection retain their existing authorities until later #609 slices.
+- **Location-import staging now uses `StoragePaths.Uploads/imports`** beneath DataRoot, including external per-user Development defaults. New `LocationImports.FilePath` values are canonical `imports/<32-lowercase-hex-guid><supported-extension>` references with ASCII `/`, never physical roots. `LocationImportStagedFiles` validates serialization before native resolution. Generated thumbnails and file logs also use StoragePaths; Data Protection retains its separate authority.
 - Legacy native absolute references resolve only beneath the current content root or application base directory's `Uploads/Temp`. Ordinary startup, processing, listing, Admin reporting and deletion never migrate/rewrite these rows. Foreign/cross-host, unknown and unsafe paths require explicit migration; they are never guessed by basename. Unresolvable deletion retains its intent and row for repair. Admin totals include distinct known legacy staging roots without double counting.
 
 CacheSettings
@@ -126,3 +126,24 @@ Upload Size
 
 Secrets
 - Keep tokens, API keys, and passwords out of `appsettings*.json` in production. Use environment variables or secret stores.
+
+
+## Generated thumbnails and operational file logs (#625)
+
+Trip thumbnails use `Storage:CacheRoot/thumbnails/trips` and retain the public
+`/thumbs/trips/{tripId:D}-{width}x{height}.jpg?v={Trip.UpdatedAt.Ticks}` URL.
+The authoritative `/thumbs` branch serves external bytes; missing files return 404
+without falling back to compiled webroot. JPEGs retain the 30-day immutable cache
+policy. Generation, atomic replacement, invalidation and cleanup use only this root.
+
+Serilog, Admin log list/read/search/download and one-month cleanup share the exact
+`Storage:LogRoot`, with the existing `wayfarer-.log` daily pattern. Console and
+PostgreSQL AuditLogs behavior is unchanged. `Logging:LogFilePath:Default` is retired
+and has no filesystem authority. Startup fails if the operational log root cannot
+be created or written. Development uses the established per-user XDG state logs
+(or LocalApplicationData Wayfarer Logs on Windows), not repository `Logs`.
+
+Old `wwwroot/thumbs` bytes are inactive rebuildable legacy residue. Old customized
+log directories are historical operational evidence. Neither is automatically
+migrated or deleted, nor required as authoritative recovery state in routine backups.
+#604 may archive historical logs if desired; neither tree blocks production cutover.

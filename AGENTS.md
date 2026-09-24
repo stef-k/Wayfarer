@@ -84,6 +84,6 @@
 ## Security & Configuration Tips
 
 - Configure `ConnectionStrings:DefaultConnection` in `appsettings*.json`. Requires PostGIS.
-- Ensure `Logging:LogFilePath:Default` exists; tile/cache paths under `CacheSettings:*`.
+- Ensure `Storage:LogRoot` exists; tile/cache paths under `CacheSettings:*`.
 - Reverse proxy: forwarded headers configured in `Program.cs`; adjust for your environment.
 - Keep API tokens/secrets out of Git; use user‑secrets or environment variables.

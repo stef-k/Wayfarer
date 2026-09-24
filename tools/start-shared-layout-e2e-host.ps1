@@ -28,6 +28,9 @@ $hostOutput = Join-Path $tempRoot 'host'
 $hostProcess = $null
 $failure = $null
 $ownsRoot = $false
+# Restore caller overrides after the owned host exits.
+$originalLogRoot = $env:Storage__LogRoot
+$originalCacheRoot = $env:Storage__CacheRoot
 # Exclusive file creation prevents concurrent launchers from replacing teardown authority.
 $authority = [IO.File]::Open($pidFile, [IO.FileMode]::CreateNew, [IO.FileAccess]::Write, [IO.FileShare]::Read)
 try {
@@ -47,6 +50,8 @@ try {
     & dotnet build (Join-Path $sourceRoot 'Wayfarer.csproj') --configuration Debug --output $hostOutput --nologo
     if ($LASTEXITCODE -ne 0) { throw 'Unable to build shared-layout host.' }
     $env:ASPNETCORE_ENVIRONMENT = 'Development'
+    $env:Storage__LogRoot = Join-Path $tempRoot 'logs'
+    $env:Storage__CacheRoot = Join-Path $tempRoot 'cache'
     $hostProcess = Start-Process -FilePath dotnet -ArgumentList @("`"$(Join-Path $hostOutput 'Wayfarer.dll')`"", '--urls', 'https://127.0.0.1:7150') -WorkingDirectory $sourceRoot -PassThru
     $record = @{ OwnerPid = $PID; HostPid = $hostProcess.Id; HostStarted = $hostProcess.StartTime.ToUniversalTime().Ticks.ToString() }
     $bytes = [Text.Encoding]::UTF8.GetBytes(($record | ConvertTo-Json -Compress))
@@ -58,6 +63,8 @@ try {
     if ($hostProcess.ExitCode -ne 0) { throw "Shared-layout host exited $($hostProcess.ExitCode)." }
 } catch { $failure = $_ }
 finally {
+    $env:Storage__LogRoot = $originalLogRoot
+    $env:Storage__CacheRoot = $originalCacheRoot
     $authority.Dispose()
     try {
         if ($hostProcess) { Stop-SharedLayoutHost $record }
