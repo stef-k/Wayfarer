@@ -44,6 +44,7 @@ test('removes allowlisted outputs and stale owned roots; preserves protected sta
   preserved.push(f.make(`wayfarer-import-tests-${'a'.repeat(32)}`, f.temporary));
   preserved.push(f.make(`.local/407-waypoint-${'b'.repeat(32)}`));
   preserved.push(f.make('postgres', f.temporary, true));
+  preserved.push(f.make(`wayfarer-shared-layout-e2e-${process.pid}`, f.temporary, true));
   fs.writeFileSync(path.join(f.repository, '.local/manual-verification.md'), 'protected');
   cleanup({ ...f, dryRun: true });
   for (const name of removable) assert.ok(fs.existsSync(name));

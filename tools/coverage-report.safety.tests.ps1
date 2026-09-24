@@ -106,6 +106,12 @@ try {
         Set-Content (Join-Path $previous 'index.html') 'previous'
         $unknown = Join-Path $coverageRoot 'manual-evidence'
         New-Item -ItemType Directory -Path $unknown | Out-Null
+        $unknownFile = Join-Path $coverageRoot 'notes.txt'
+        Set-Content $unknownFile 'manual'
+        $guidFile = Join-Path $coverageRoot ([Guid]::NewGuid().ToString('N'))
+        Set-Content $guidFile 'not a directory'
+        $uppercase = Join-Path $coverageRoot 'ABCDEF0123456789ABCDEF0123456789'
+        New-Item -ItemType Directory -Path $uppercase | Out-Null
         $linkedId = [Guid]::NewGuid().ToString('N')
         New-Item -ItemType $(if ($env:OS -eq 'Windows_NT') { 'Junction' } else { 'SymbolicLink' }) -Path (Join-Path $coverageRoot $linkedId) -Target $reparseTarget | Out-Null
         Complete-CoverageReport $coverageRoot $runId $false
@@ -113,6 +119,7 @@ try {
         $current = New-CoverageReportDirectory $coverageRoot $runId
         Set-Content (Join-Path $current 'index.html') 'current'
         Complete-CoverageReport $coverageRoot $runId $true
+        if (!(Test-Path $unknownFile) -or !(Test-Path $guidFile) -or !(Test-Path $uppercase)) { throw 'Unrecognized entries changed.' }
         if ((Test-Path $previous) -or !(Test-Path $current) -or !(Test-Path $unknown) -or !(Test-Path (Join-Path $coverageRoot $linkedId))) { throw 'Success pruning is incorrect.' }
     }
 }

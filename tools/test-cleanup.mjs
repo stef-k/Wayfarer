@@ -24,6 +24,14 @@ function matchingChildren(root, relative, pattern) {
   return fs.readdirSync(parent).filter(name => pattern.test(name)).map(name => path.join(parent, name));
 }
 
+/** A long-idle shared-layout launcher may still own an old tree; PID reuse also preserves it. */
+function hasLiveLauncher(target) {
+  const match = /^wayfarer-shared-layout-e2e-([1-9][0-9]*)$/.exec(path.basename(target));
+  if (!match) return false;
+  try { process.kill(Number(match[1]), 0); return true; }
+  catch (error) { return error.code !== 'ESRCH'; }
+}
+
 /** Injectable roots are for synthetic tests only; the CLI has no path/age overrides. */
 export function cleanup({ repository, temporary = os.tmpdir(), dryRun = false, now = Date.now(), report = console.log }) {
   const candidates = ephemeral.map(name => ({ root: repository, target: path.join(repository, name), kind: 'ephemeral', stale: false }));
@@ -41,8 +49,8 @@ export function cleanup({ repository, temporary = os.tmpdir(), dryRun = false, n
       assertOrdinaryPath(root, target);
       if (!fs.existsSync(target)) continue;
       const { bytes, newest } = inspectTree(target);
-      const recent = stale && now - newest < staleMilliseconds;
-      report(`${recent ? 'KEEP recent' : dryRun ? 'WOULD REMOVE' : 'REMOVE'} [${kind}] ${target} (~${bytes} bytes)`);
+      const recent = stale && (now - newest < staleMilliseconds || hasLiveLauncher(target));
+      report(`${recent ? 'KEEP recent/active' : dryRun ? 'WOULD REMOVE' : 'REMOVE'} [${kind}] ${target} (~${bytes} bytes)`);
       if (!recent && !dryRun) removeOwnedDirectory(root, target);
     } catch (error) { report(`SKIP ${target}: ${error.message}`); }
   }

@@ -28,7 +28,7 @@ try {
     } finally {
         if (!$sleeper.HasExited) { $sleeper.Kill(); $sleeper.WaitForExit() }
     }
-    Write-Host 'PASS: non-owned paths and reused PIDs rejected; exact host stopped and tree removed idempotently.' 
+    Write-Host 'PASS: non-owned paths and reused PIDs rejected; exact host stopped and tree removed idempotently.'
 } finally {
     Remove-SharedLayoutRoot $PID $root
 }
