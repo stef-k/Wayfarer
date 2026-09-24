@@ -74,6 +74,7 @@ public sealed class LegacyMapboxMigrationService(
             }
         }
 
+        credentials.PrepareStable(profile);
         profile.LegacyMigrationState = LegacyMapboxMigrationState.Migrated;
         dbContext.ApiTokens.RemoveRange(legacyRows.Where(item => string.Equals(item.Token?.Trim(), values[0], StringComparison.Ordinal)));
         var retired = legacyRows.Count;

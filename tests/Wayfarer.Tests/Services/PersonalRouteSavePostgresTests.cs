@@ -28,7 +28,7 @@ public sealed class PersonalRouteSavePostgresTests(PostgresMigrationTestFixture 
         fixture.RequireAvailable();
         var user = await fixture.CreateUserAsync();
         var protection = new EphemeralDataProtectionProvider();
-        var credentials = new PersonalProviderCredentialService(protection);
+        var credentials = Wayfarer.Tests.Infrastructure.CredentialTestFactory.Create(protection);
         var seeded = await SeedAsync(user.Id, credentials);
         var proposalContexts = new ExternalRouteProposalContextService(protection);
         var aggregateTokens = new SegmentAggregateTokenService(protection);
@@ -104,7 +104,7 @@ public sealed class PersonalRouteSavePostgresTests(PostgresMigrationTestFixture 
         fixture.RequireAvailable();
         var user = await fixture.CreateUserAsync();
         var protection = new EphemeralDataProtectionProvider();
-        var credentials = new PersonalProviderCredentialService(protection);
+        var credentials = Wayfarer.Tests.Infrastructure.CredentialTestFactory.Create(protection);
         var seeded = await SeedAsync(user.Id, credentials, inactiveChoice: true);
         var proposal = await GenerateAsync(user.Id, seeded, credentials, protection, manualEdit ? null : 360);
         await using var context = fixture.CreateContext();

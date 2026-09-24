@@ -16,7 +16,7 @@ public sealed class PersonalLocationProviderFoundationTests : TestBase
     public void CredentialOwner_ProtectsProviderProfileCredential()
     {
         var profile = PersonalLocationProviderProfile.Create("user-1", PersonalLocationProvider.Mapbox);
-        var owner = new PersonalProviderCredentialService(new EphemeralDataProtectionProvider());
+        var owner = Wayfarer.Tests.Infrastructure.CredentialTestFactory.Create(new EphemeralDataProtectionProvider());
 
         owner.Replace(profile, "secret-mapbox-key");
 
@@ -39,7 +39,7 @@ public sealed class PersonalLocationProviderFoundationTests : TestBase
     public void SwitchingProvider_RetainsInactiveProfileCredential()
     {
         var mapbox = PersonalLocationProviderProfile.Create("user-1", PersonalLocationProvider.Mapbox);
-        var owner = new PersonalProviderCredentialService(new EphemeralDataProtectionProvider());
+        var owner = Wayfarer.Tests.Infrastructure.CredentialTestFactory.Create(new EphemeralDataProtectionProvider());
         owner.Replace(mapbox, "retained-key");
         var selection = PersonalLocationProviderSelection.Create("user-1");
 
@@ -92,13 +92,15 @@ public sealed class PersonalLocationProviderFoundationTests : TestBase
             new ApiToken { Id = 8002, Name = "mobile", TokenHash = "hash", UserId = user.Id, User = user },
             new ApiToken { Id = 8003, Name = "MyMapboxBackup", Token = "unrelated", UserId = user.Id, User = user });
         await db.SaveChangesAsync();
-        var owner = new PersonalProviderCredentialService(new EphemeralDataProtectionProvider());
+        var owner = Wayfarer.Tests.Infrastructure.CredentialTestFactory.Create(new EphemeralDataProtectionProvider());
 
         var result = await new LegacyMapboxMigrationService(db, owner).MigrateAsync(user.Id);
 
         var profile = await db.PersonalLocationProviderProfiles.SingleAsync();
         Assert.True(result.ProtectedCredentialReady);
         Assert.Equal("legacy-key", owner.Read(profile).Credential);
+        Assert.True(owner.ReadStable(profile).Succeeded);
+        Assert.True(string.Equals(owner.Read(profile).Credential, owner.ReadStable(profile).Credential, StringComparison.Ordinal));
         Assert.True(profile.GeocodingAuthorized);
         Assert.False(profile.RoutingAuthorized);
         Assert.DoesNotContain(await db.ApiTokens.IgnoreQueryFilters().ToListAsync(), item => PersonalProviderKeys.IsLegacyMapbox(item.Name));
@@ -118,7 +120,7 @@ public sealed class PersonalLocationProviderFoundationTests : TestBase
         await db.SaveChangesAsync();
 
         var result = await new LegacyMapboxMigrationService(db,
-            new PersonalProviderCredentialService(new EphemeralDataProtectionProvider())).MigrateAsync(user.Id);
+            Wayfarer.Tests.Infrastructure.CredentialTestFactory.Create(new EphemeralDataProtectionProvider())).MigrateAsync(user.Id);
 
         Assert.Equal(LegacyMapboxMigrationState.Conflict, result.State);
         Assert.Equal(2, await db.ApiTokens.IgnoreQueryFilters().CountAsync());
@@ -133,11 +135,11 @@ public sealed class PersonalLocationProviderFoundationTests : TestBase
         try
         {
             var profile = PersonalLocationProviderProfile.Create("restart-user", PersonalLocationProvider.Geoapify);
-            var first = new PersonalProviderCredentialService(DataProtectionProvider.Create(
+            var first = Wayfarer.Tests.Infrastructure.CredentialTestFactory.Create(DataProtectionProvider.Create(
                 new DirectoryInfo(path)));
             first.Replace(profile, "restart-safe-key");
 
-            var recreated = new PersonalProviderCredentialService(DataProtectionProvider.Create(
+            var recreated = Wayfarer.Tests.Infrastructure.CredentialTestFactory.Create(DataProtectionProvider.Create(
                 new DirectoryInfo(path)));
 
             Assert.Equal("restart-safe-key", recreated.Read(profile).Credential);
@@ -163,7 +165,7 @@ public sealed class PersonalLocationProviderFoundationTests : TestBase
     public void ReplacementAndRevocation_AdvanceGenerationAndInvalidateBothCapabilities()
     {
         var profile = PersonalLocationProviderProfile.Create("generation-user", PersonalLocationProvider.Mapbox);
-        var owner = new PersonalProviderCredentialService(new EphemeralDataProtectionProvider());
+        var owner = Wayfarer.Tests.Infrastructure.CredentialTestFactory.Create(new EphemeralDataProtectionProvider());
         owner.Replace(profile, "first");
         profile.SetAuthorization(PersonalProviderCapability.Geocoding, true);
         profile.SetAuthorization(PersonalProviderCapability.Routing, true);
@@ -199,7 +201,7 @@ public sealed class PersonalLocationProviderFoundationTests : TestBase
             new ApiToken { Id = 8202, Name = " mapBOX ", Token = "same", UserId = user.Id, User = user });
         await db.SaveChangesAsync();
         var service = new LegacyMapboxMigrationService(db,
-            new PersonalProviderCredentialService(new EphemeralDataProtectionProvider()));
+            Wayfarer.Tests.Infrastructure.CredentialTestFactory.Create(new EphemeralDataProtectionProvider()));
 
         var first = await service.MigrateAsync(user.Id);
         var rerun = await service.MigrateAsync(user.Id);
@@ -227,7 +229,7 @@ public sealed class PersonalLocationProviderFoundationTests : TestBase
             new ApiToken { Id = 8302, Name = "Mapbox", Token = "legacy-revoked", UserId = revokedUser.Id, User = revokedUser });
         await db.SaveChangesAsync();
         var service = new LegacyMapboxMigrationService(db,
-            new PersonalProviderCredentialService(new EphemeralDataProtectionProvider()));
+            Wayfarer.Tests.Infrastructure.CredentialTestFactory.Create(new EphemeralDataProtectionProvider()));
 
         Assert.Equal(LegacyMapboxMigrationState.ProtectedCredentialUnavailable,
             (await service.MigrateAsync(invalidUser.Id)).State);
@@ -241,7 +243,7 @@ public sealed class PersonalLocationProviderFoundationTests : TestBase
         var db = CreateDbContext();
         var user = TestDataFixtures.CreateUser(id: "matching-user", username: "matching");
         db.Users.Add(user);
-        var owner = new PersonalProviderCredentialService(new EphemeralDataProtectionProvider());
+        var owner = Wayfarer.Tests.Infrastructure.CredentialTestFactory.Create(new EphemeralDataProtectionProvider());
         var profile = PersonalLocationProviderProfile.Create(user.Id, PersonalLocationProvider.Mapbox);
         owner.Replace(profile, "matching-key");
         db.Add(profile);

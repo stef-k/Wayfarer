@@ -43,7 +43,7 @@ public sealed partial class GeoapifyBackfillConcurrencyPostgresTests
             if (mutation == PreContactMutation.VerificationBinding)
                 profile.GeocodingVerifiedCredentialGeneration++;
             else if (mutation == PreContactMutation.CredentialBinding)
-                new PersonalProviderCredentialService(protection).Replace(profile, "replacement");
+                Wayfarer.Tests.Infrastructure.CredentialTestFactory.Create(protection).Replace(profile, "replacement");
             else
                 profile.ClearPermanentGeocodingConsent();
             await mutate.SaveChangesAsync(cancellationToken);

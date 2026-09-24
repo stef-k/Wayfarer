@@ -20,7 +20,7 @@ public sealed class MapboxGeocodingCorrectionTests
     public async Task VerificationRejectsMissingFeaturesMemberWithoutChangingProviderState()
     {
         await using var db = CreateDb(nameof(VerificationRejectsMissingFeaturesMemberWithoutChangingProviderState));
-        var credentialOwner = new PersonalProviderCredentialService(new EphemeralDataProtectionProvider());
+        var credentialOwner = Wayfarer.Tests.Infrastructure.CredentialTestFactory.Create(new EphemeralDataProtectionProvider());
         var profile = PersonalLocationProviderProfile.Create("missing-features-user", PersonalLocationProvider.Mapbox);
         credentialOwner.Replace(profile, "credential");
         profile.SetAuthorization(PersonalProviderCapability.Geocoding, true);
@@ -87,7 +87,7 @@ public sealed class MapboxGeocodingCorrectionTests
     public async Task VerificationWrite_RejectsAReplacementCredentialSnapshot()
     {
         await using var db = CreateDb(nameof(VerificationWrite_RejectsAReplacementCredentialSnapshot));
-        var credentialOwner = new PersonalProviderCredentialService(new EphemeralDataProtectionProvider());
+        var credentialOwner = Wayfarer.Tests.Infrastructure.CredentialTestFactory.Create(new EphemeralDataProtectionProvider());
         var profile = PersonalLocationProviderProfile.Create("user", PersonalLocationProvider.Mapbox);
         credentialOwner.Replace(profile, "generation-one");
         profile.SetAuthorization(PersonalProviderCapability.Geocoding, true);
@@ -118,7 +118,7 @@ public sealed class MapboxGeocodingCorrectionTests
     public async Task VerificationWrite_AcceptsExactlyMatchingSnapshot()
     {
         await using var db = CreateDb(nameof(VerificationWrite_AcceptsExactlyMatchingSnapshot));
-        var credentialOwner = new PersonalProviderCredentialService(new EphemeralDataProtectionProvider());
+        var credentialOwner = Wayfarer.Tests.Infrastructure.CredentialTestFactory.Create(new EphemeralDataProtectionProvider());
         var profile = PersonalLocationProviderProfile.Create("user", PersonalLocationProvider.Mapbox);
         credentialOwner.Replace(profile, "credential");
         profile.SetAuthorization(PersonalProviderCapability.Geocoding, true);

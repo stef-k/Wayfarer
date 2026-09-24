@@ -41,7 +41,7 @@ public sealed class LegacyRoutingRetirementMigrationPostgresTests(PostgresMigrat
                 Category = "test", PlanningSpeedKmh = 42, IsActive = true
             };
             var protection = new EphemeralDataProtectionProvider();
-            var credentials = new PersonalProviderCredentialService(protection);
+            var credentials = Wayfarer.Tests.Infrastructure.CredentialTestFactory.Create(protection);
             var personalProfile = PersonalLocationProviderProfile.Create(user.Id, PersonalLocationProvider.Geoapify);
             credentials.Replace(personalProfile, "preserved-personal-secret");
             personalProfile.SetAuthorization(PersonalProviderCapability.Geocoding, true);

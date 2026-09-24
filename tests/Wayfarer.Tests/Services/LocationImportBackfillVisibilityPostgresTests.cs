@@ -117,7 +117,7 @@ public sealed class LocationImportBackfillVisibilityPostgresTests(PostgresImport
     private GeoapifyLocationBackfillService Backfill(
         IDataProtectionProvider protection, HttpMessageHandler handler)
     {
-        var credentials = new PersonalProviderCredentialService(protection);
+        var credentials = Wayfarer.Tests.Infrastructure.CredentialTestFactory.Create(protection);
         var services = new ServiceCollection()
             .AddScoped(_ => fixture.CreateContext())
             .AddSingleton(credentials)
@@ -135,9 +135,9 @@ public sealed class LocationImportBackfillVisibilityPostgresTests(PostgresImport
     {
         await using var db = fixture.CreateContext();
         var profile = PersonalLocationProviderProfile.Create(userId, PersonalLocationProvider.Geoapify);
-        new PersonalProviderCredentialService(protection).Replace(profile, $"key-{userId}");
+        Wayfarer.Tests.Infrastructure.CredentialTestFactory.Create(protection).Replace(profile, $"key-{userId}");
         profile.SetAuthorization(PersonalProviderCapability.Geocoding, true);
-        new PersonalProviderCredentialService(protection).RecordVerification(profile,
+        Wayfarer.Tests.Infrastructure.CredentialTestFactory.Create(protection).RecordVerification(profile,
             PersonalProviderCapability.Geocoding, PersonalProviderVerification.Verified);
         var selection = PersonalLocationProviderSelection.Create(userId);
         selection.Select(PersonalProviderCapability.Geocoding, PersonalLocationProvider.Geoapify);

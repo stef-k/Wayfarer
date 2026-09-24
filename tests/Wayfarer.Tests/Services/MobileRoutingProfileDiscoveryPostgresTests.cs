@@ -18,7 +18,7 @@ public sealed class MobileRoutingProfileDiscoveryPostgresTests(PostgresImportTes
         using var db = fixture.CreateContext();
         var protection = new EphemeralDataProtectionProvider();
         var service = new MobileRoutingProfileDiscoveryService(
-            db, new PersonalProviderCredentialService(protection));
+            db, Wayfarer.Tests.Infrastructure.CredentialTestFactory.Create(protection));
 
         var sql = service.EligibleQuery(Guid.NewGuid()).ToQueryString();
 

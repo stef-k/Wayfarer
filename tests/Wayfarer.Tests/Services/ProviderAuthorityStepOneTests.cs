@@ -107,7 +107,7 @@ public sealed class ProviderAuthorityStepOneTests : TestBase
     public async Task SetupTransitions_AuthorizeVerifySelectAndDisableOnlyOneCapability()
     {
         await using var db = CreateDbContext();
-        var credentials = new PersonalProviderCredentialService(new EphemeralDataProtectionProvider());
+        var credentials = Wayfarer.Tests.Infrastructure.CredentialTestFactory.Create(new EphemeralDataProtectionProvider());
         var setup = new PersonalProviderSetupService(db, credentials);
         var profile = PersonalLocationProviderProfile.Create("user", PersonalLocationProvider.Geoapify);
         credentials.Replace(profile, "credential");
@@ -137,7 +137,7 @@ public sealed class ProviderAuthorityStepOneTests : TestBase
     public async Task CredentialReplacement_RetainsSelectionsButClearsAuthorityWithoutContact()
     {
         await using var db = CreateDbContext();
-        var credentials = new PersonalProviderCredentialService(new EphemeralDataProtectionProvider());
+        var credentials = Wayfarer.Tests.Infrastructure.CredentialTestFactory.Create(new EphemeralDataProtectionProvider());
         var setup = new PersonalProviderSetupService(db, credentials);
         var profile = PersonalLocationProviderProfile.Create("user", PersonalLocationProvider.Geoapify);
         credentials.Replace(profile, "old");
@@ -166,13 +166,13 @@ public sealed class ProviderAuthorityStepOneTests : TestBase
     public async Task SetupChoice_RejectsVerifiedButUnreadableCredentialWithoutMutation()
     {
         await using var db = CreateDbContext();
-        var storedCredentials = new PersonalProviderCredentialService(new EphemeralDataProtectionProvider());
+        var storedCredentials = Wayfarer.Tests.Infrastructure.CredentialTestFactory.Create(new EphemeralDataProtectionProvider());
         var profile = VerifiedGeoapify("user", storedCredentials);
         db.Add(profile);
         await db.SaveChangesAsync();
         db.ChangeTracker.Clear();
         var setup = new PersonalProviderSetupService(db,
-            new PersonalProviderCredentialService(new EphemeralDataProtectionProvider()));
+            Wayfarer.Tests.Infrastructure.CredentialTestFactory.Create(new EphemeralDataProtectionProvider()));
 
         var result = await setup.ChooseAsync("user", PersonalProviderCapability.Routing,
             PersonalLocationProvider.Geoapify, default);
@@ -189,9 +189,9 @@ public sealed class ProviderAuthorityStepOneTests : TestBase
         bool revoked, bool useMatchingProtector)
     {
         await using var db = CreateDbContext();
-        var storedCredentials = new PersonalProviderCredentialService(new EphemeralDataProtectionProvider());
+        var storedCredentials = Wayfarer.Tests.Infrastructure.CredentialTestFactory.Create(new EphemeralDataProtectionProvider());
         var presentationCredentials = useMatchingProtector
-            ? storedCredentials : new PersonalProviderCredentialService(new EphemeralDataProtectionProvider());
+            ? storedCredentials : Wayfarer.Tests.Infrastructure.CredentialTestFactory.Create(new EphemeralDataProtectionProvider());
         var profile = VerifiedGeoapify("user", storedCredentials);
         if (revoked) profile.RevokedAt = DateTimeOffset.UtcNow;
         var selection = PersonalLocationProviderSelection.Create("user");
@@ -217,7 +217,7 @@ public sealed class ProviderAuthorityStepOneTests : TestBase
     public async Task SettingsProjection_OffersReadableCurrentVerifiedGeoapifyAsReady()
     {
         await using var db = CreateDbContext();
-        var credentials = new PersonalProviderCredentialService(new EphemeralDataProtectionProvider());
+        var credentials = Wayfarer.Tests.Infrastructure.CredentialTestFactory.Create(new EphemeralDataProtectionProvider());
         var profile = VerifiedGeoapify("user", credentials);
         var selection = PersonalLocationProviderSelection.Create("user");
         selection.Select(PersonalProviderCapability.Geocoding, PersonalLocationProvider.Geoapify);

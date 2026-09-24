@@ -1,0 +1,224 @@
+using System.Security.Cryptography;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.DependencyInjection;
+using Npgsql;
+using Wayfarer.CommandLine;
+using Wayfarer.Models;
+using Wayfarer.Models.LocationProviders;
+using Wayfarer.Services.LocationProviders;
+using Wayfarer.Tests.Infrastructure;
+using Xunit;
+
+namespace Wayfarer.Tests.Services;
+
+/// <summary>Real migration, xmin, transactional failure, command and writer-exclusion qualification.</summary>
+[Collection(PostgresEnvironmentEvidenceTestCollection.Name)]
+public sealed class StableIdentityPreparationPostgresTests
+{
+    /// <summary>Preparation changes only companions/xmin, reruns without writes, and stays ready after ordinary replacement.</summary>
+    [PostgresFact]
+    public async Task PreparationAndStatus_PreserveAuthorityAndSupportIdempotentRollback()
+    {
+        await using var fixture = new PostgresMigrationTestFixture();
+        await fixture.InitializeAsync();
+        using var directory = new TestDirectory();
+        await using var host = StableIdentityCryptographyTests.Host(directory.Path, Path.Combine(directory.Path, "ring"));
+        var owner = host.Services.GetRequiredService<PersonalProviderCredentialService>();
+        await SeedAsync(fixture, owner);
+        await using var db = fixture.CreateContext();
+        var before = await db.PersonalLocationProviderProfiles.AsNoTracking().OrderBy(row => row.Id).ToListAsync();
+        var preparation = new StableIdentityPreparation(db, owner);
+        var pending = await preparation.StatusAsync();
+        Assert.Equal(new StableIdentityStatus(3, 1, 2, 0, 1), pending);
+        Assert.Equal(1, await RunCliAsync("status", preparation));
+        var ready = await preparation.PrepareAsync();
+        Assert.True(ready.Ready);
+        var after = await db.PersonalLocationProviderProfiles.AsNoTracking().OrderBy(row => row.Id).ToListAsync();
+        AssertOnlyCompanionsChanged(db, before, after, successful: true);
+        Assert.All(after.Where(row => row.ProtectedCredential != null), row =>
+        {
+            Assert.True(owner.Read(row).Succeeded);
+            Assert.True(owner.ReadStable(row).Succeeded);
+        });
+        Assert.Equal(0, await RunCliAsync("prepare-stable-identity", new StableIdentityPreparation(fixture.CreateContext(), owner)));
+        var rerun = await db.PersonalLocationProviderProfiles.AsNoTracking().OrderBy(row => row.Id).ToListAsync();
+        AssertOnlyCompanionsChanged(db, after, rerun, successful: false);
+
+        // An old reader's xmin cannot overwrite the newly prepared companion.
+        await using var oldWriter = fixture.CreateContext();
+        var stale = before.First(row => row.ProtectedCredential != null && row.StableProtectedCredential == null);
+        oldWriter.Attach(stale);
+        stale.RoutingAuthorized = !stale.RoutingAuthorized;
+        await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() => oldWriter.SaveChangesAsync());
+        db.ChangeTracker.Clear();
+        var replacement = await db.PersonalLocationProviderProfiles.FirstAsync(row => row.ProtectedCredential != null);
+        owner.Replace(replacement, "post-preparation-replacement");
+        await db.SaveChangesAsync();
+        Assert.Equal(0, await RunCliAsync("status", preparation));
+
+        await using var connection = new NpgsqlConnection(fixture.ConnectionString);
+        await connection.OpenAsync();
+        await using var column = new NpgsqlCommand("""
+            SELECT count(*) FROM information_schema.columns
+            WHERE table_name = 'PersonalLocationProviderProfiles' AND column_name = 'StableProtectedCredential'
+            AND is_nullable = 'YES' AND character_maximum_length = 4096
+            """, connection);
+        Assert.Equal(1L, await column.ExecuteScalarAsync());
+    }
+
+    /// <summary>Every conflicting state and a late protection/save failure leave the entire selected set untouched.</summary>
+    [PostgresTheory]
+    [InlineData("legacy")]
+    [InlineData("stable")]
+    [InlineData("mismatch")]
+    [InlineData("stable-only")]
+    [InlineData("protection")]
+    [InlineData("save")]
+    public async Task Failure_RollsBackEveryCompanionAndRedactsCommand(string failure)
+    {
+        await using var fixture = new PostgresMigrationTestFixture();
+        await fixture.InitializeAsync();
+        var provider = new EphemeralDataProtectionProvider();
+        var owner = CredentialTestFactory.Create(provider);
+        await SeedAsync(fixture, owner);
+        await using (var corrupt = fixture.CreateContext())
+        {
+            var row = await corrupt.PersonalLocationProviderProfiles.FirstAsync(item => item.StableProtectedCredential != null);
+            if (failure == "legacy") row.ProtectedCredential = StableIdentityCryptographyTests.Secret;
+            if (failure == "stable") row.StableProtectedCredential = StableIdentityCryptographyTests.Secret;
+            if (failure == "stable-only") row.ProtectedCredential = null;
+            if (failure == "mismatch")
+            {
+                var other = PersonalLocationProviderProfile.Create(row.UserId, PersonalLocationProvider.Mapbox);
+                owner.Replace(other, "mismatching-secret");
+                row.StableProtectedCredential = other.StableProtectedCredential;
+            }
+            await corrupt.SaveChangesAsync();
+        }
+        await using var db = fixture.CreateContext(failure == "save" ? [new FailAfterSave()] : []);
+        var before = await db.PersonalLocationProviderProfiles.AsNoTracking().OrderBy(row => row.Id).ToListAsync();
+        if (failure == "protection")
+            owner = new PersonalProviderCredentialService(provider, new StableDataProtectionProvider(
+                new FailSecondProtection(provider.CreateProtector("test-stable-identity"))));
+        var preparation = new StableIdentityPreparation(db, owner);
+        Assert.Equal(1, await RunCliAsync("prepare-stable-identity", preparation));
+        await using var verify = fixture.CreateContext();
+        var after = await verify.PersonalLocationProviderProfiles.AsNoTracking().OrderBy(row => row.Id).ToListAsync();
+        AssertOnlyCompanionsChanged(verify, before, after, successful: false);
+        Assert.Empty(db.ChangeTracker.Entries());
+        Assert.Equal(0, await verify.AuditLogs.CountAsync());
+    }
+
+    /// <summary>A real concurrent writer times out while preparation holds exclusion, then succeeds after commit.</summary>
+    [PostgresFact]
+    public async Task Preparation_ExcludesConcurrentProfileMutation()
+    {
+        await using var fixture = new PostgresMigrationTestFixture();
+        await fixture.InitializeAsync();
+        var owner = CredentialTestFactory.Create(new EphemeralDataProtectionProvider());
+        await SeedAsync(fixture, owner);
+        var gate = new PauseBeforeSave();
+        await using var db = fixture.CreateContext(gate);
+        var prepare = new StableIdentityPreparation(db, owner).PrepareAsync();
+        await gate.Entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        try
+        {
+            await using var writer = fixture.CreateContext();
+            await writer.Database.ExecuteSqlRawAsync("SET lock_timeout = '200ms'");
+            var exception = await Assert.ThrowsAsync<PostgresException>(() => writer.Database.ExecuteSqlRawAsync(
+                """UPDATE "PersonalLocationProviderProfiles" SET "RoutingAuthorized" = NOT "RoutingAuthorized" """));
+            Assert.Equal(PostgresErrorCodes.LockNotAvailable, exception.SqlState);
+        }
+        finally { gate.Release.TrySetResult(); }
+        Assert.True((await prepare).Ready);
+        await using var after = fixture.CreateContext();
+        Assert.Equal(4, await after.Database.ExecuteSqlRawAsync(
+            """UPDATE "PersonalLocationProviderProfiles" SET "RoutingAuthorized" = NOT "RoutingAuthorized" """));
+    }
+
+    /// <summary>Seeds matching, pending and inactive profiles with meaningful authority fields.</summary>
+    private static async Task SeedAsync(PostgresMigrationTestFixture fixture, PersonalProviderCredentialService owner)
+    {
+        await using var db = fixture.CreateContext();
+        for (var index = 0; index < 4; index++)
+        {
+            var user = await fixture.CreateUserAsync();
+            var profile = PersonalLocationProviderProfile.Create(user.Id, PersonalLocationProvider.Mapbox);
+            if (index != 3)
+            {
+                owner.Replace(profile, StableIdentityCryptographyTests.Secret);
+                profile.SetAuthorization(PersonalProviderCapability.Geocoding, true);
+                profile.GrantPermanentGeocodingConsent(DateTimeOffset.UtcNow);
+                owner.RecordVerification(profile, PersonalProviderCapability.Geocoding, PersonalProviderVerification.Verified);
+                if (index != 0) profile.StableProtectedCredential = null;
+            }
+            db.Add(profile);
+        }
+        await db.SaveChangesAsync();
+    }
+
+    /// <summary>Checks every mapped value without dumping a secret-bearing row on assertion failure.</summary>
+    private static void AssertOnlyCompanionsChanged(ApplicationDbContext db,
+        List<PersonalLocationProviderProfile> before, List<PersonalLocationProviderProfile> after, bool successful)
+    {
+        Assert.Equal(before.Count, after.Count);
+        for (var index = 0; index < before.Count; index++)
+        {
+            var pending = successful && before[index].ProtectedCredential != null && before[index].StableProtectedCredential == null;
+            foreach (var property in db.Model.FindEntityType(typeof(PersonalLocationProviderProfile))!.GetProperties())
+            {
+                var oldValue = property.PropertyInfo!.GetValue(before[index]);
+                var newValue = property.PropertyInfo.GetValue(after[index]);
+                if (pending && property.Name is "StableProtectedCredential" or "RowVersion")
+                    Assert.False(Equals(oldValue, newValue), "A prepared property must change.");
+                else Assert.True(Equals(oldValue, newValue), "Preparation changed a preserved property.");
+            }
+        }
+    }
+
+    /// <summary>Captures command output and asserts only bounded counts reach diagnostics.</summary>
+    private static async Task<int> RunCliAsync(string command, StableIdentityPreparation preparation)
+    {
+        var output = new StringWriter();
+        var error = new StringWriter();
+        var code = await DataProtectionCli.ExecuteAsync(command, preparation, output, error);
+        var text = output.ToString() + error;
+        Assert.False(text.Contains(StableIdentityCryptographyTests.Secret, StringComparison.Ordinal));
+        Assert.False(text.Contains("migration-fixture-", StringComparison.Ordinal));
+        Assert.False(text.Contains("CfDJ", StringComparison.Ordinal));
+        return code;
+    }
+
+    /// <summary>Fails after SQL was saved inside the outer migration transaction.</summary>
+    private sealed class FailAfterSave : SaveChangesInterceptor
+    {
+        public override ValueTask<int> SavedChangesAsync(SaveChangesCompletedEventData eventData, int result,
+            CancellationToken cancellationToken = default) => throw new InvalidOperationException(StableIdentityCryptographyTests.Secret);
+    }
+
+    /// <summary>Pauses inside preparation while its table lock is held.</summary>
+    private sealed class PauseBeforeSave : SaveChangesInterceptor
+    {
+        internal TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        internal TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public override async ValueTask<InterceptionResult<int>> SavingChangesAsync(DbContextEventData eventData,
+            InterceptionResult<int> result, CancellationToken cancellationToken = default)
+        {
+            Entered.TrySetResult();
+            await Release.Task.WaitAsync(TimeSpan.FromSeconds(10), cancellationToken);
+            return result;
+        }
+    }
+
+    /// <summary>Shares a failure counter through the real purpose chain and throws after one companion was computed.</summary>
+    private sealed class FailSecondProtection(IDataProtectionProvider provider, int[]? calls = null) : IDataProtectionProvider, IDataProtector
+    {
+        private readonly int[] _calls = calls ?? [0];
+        public IDataProtector CreateProtector(string purpose) => new FailSecondProtection(provider.CreateProtector(purpose), _calls);
+        public byte[] Protect(byte[] plaintext) => ++_calls[0] == 2
+            ? throw new CryptographicException(StableIdentityCryptographyTests.Secret) : ((IDataProtector)provider).Protect(plaintext);
+        public byte[] Unprotect(byte[] protectedData) => ((IDataProtector)provider).Unprotect(protectedData);
+    }
+}

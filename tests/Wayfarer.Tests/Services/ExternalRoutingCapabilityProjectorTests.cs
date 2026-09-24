@@ -56,7 +56,7 @@ public sealed class ExternalRoutingCapabilityProjectorTests : TestBase
         db.Set<Place>().AddRange(from, to);
         db.Set<Segment>().Add(segment);
         var protection = new EphemeralDataProtectionProvider();
-        var personalCredentials = new PersonalProviderCredentialService(protection);
+        var personalCredentials = Wayfarer.Tests.Infrastructure.CredentialTestFactory.Create(protection);
         var personal = PersonalLocationProviderProfile.Create("owner", PersonalLocationProvider.Geoapify);
         personalCredentials.Replace(personal, "personal-key");
         personal.RoutingAuthorized = true;
@@ -72,7 +72,7 @@ public sealed class ExternalRoutingCapabilityProjectorTests : TestBase
     private static ExternalRoutingCapabilityProjector CreateProjector(Fixture fixture)
     {
         var resolver = new AuthoritativeRoutingProviderResolver(fixture.Db,
-            new PersonalProviderCredentialService(fixture.Protection));
+            Wayfarer.Tests.Infrastructure.CredentialTestFactory.Create(fixture.Protection));
         return new ExternalRoutingCapabilityProjector(resolver);
     }
 

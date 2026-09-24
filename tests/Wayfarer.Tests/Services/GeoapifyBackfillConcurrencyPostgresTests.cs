@@ -51,9 +51,9 @@ public sealed partial class GeoapifyBackfillConcurrencyPostgresTests(PostgresImp
                 .SingleAsync(item => item.UserId == user.Id && item.ProviderKey == "geoapify");
             var selection = await mutate.PersonalLocationProviderSelections.SingleAsync(item => item.UserId == user.Id);
             if (mutation == AuthorityMutation.ReplaceCredential)
-                new PersonalProviderCredentialService(protection).Replace(profile, "replacement");
+                Wayfarer.Tests.Infrastructure.CredentialTestFactory.Create(protection).Replace(profile, "replacement");
             else if (mutation == AuthorityMutation.RevokeCredential)
-                new PersonalProviderCredentialService(protection).Revoke(profile);
+                Wayfarer.Tests.Infrastructure.CredentialTestFactory.Create(protection).Revoke(profile);
             else if (mutation == AuthorityMutation.ChangeSelection)
                 selection.Select(PersonalProviderCapability.Geocoding, null);
             else if (mutation == AuthorityMutation.ChangeCapabilityGeneration)

@@ -33,8 +33,8 @@ public sealed class LegacyMapboxMigrationLockOrderPostgresTests(PostgresImportTe
             var gate = new ReverseAcquisitionGate();
             await using var migrationContext = fixture.CreateContext(new MigrationLockInterceptor(gate));
             await using var settingsContext = fixture.CreateContext(new SettingsLockInterceptor(gate));
-            var migrationCredentials = new PersonalProviderCredentialService(protection);
-            var settingsCredentials = new PersonalProviderCredentialService(protection);
+            var migrationCredentials = Wayfarer.Tests.Infrastructure.CredentialTestFactory.Create(protection);
+            var settingsCredentials = Wayfarer.Tests.Infrastructure.CredentialTestFactory.Create(protection);
             var migration = new LegacyMapboxMigrationService(migrationContext, migrationCredentials);
             var controller = new LocationProviderSettingsController(
                 settingsContext, settingsCredentials, null!, null!,

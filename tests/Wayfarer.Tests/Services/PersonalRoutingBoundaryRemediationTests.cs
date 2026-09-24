@@ -163,7 +163,7 @@ public sealed class PersonalRoutingBoundaryRemediationTests : TestBase
         const string userId = "personal-routing-owner";
         var db = CreateDbContext();
         var dataProtection = new EphemeralDataProtectionProvider();
-        var credentials = new PersonalProviderCredentialService(dataProtection);
+        var credentials = Wayfarer.Tests.Infrastructure.CredentialTestFactory.Create(dataProtection);
         var profile = PersonalLocationProviderProfile.Create(userId, PersonalLocationProvider.Geoapify);
         credentials.Replace(profile, "credential");
         profile.SetAuthorization(PersonalProviderCapability.Routing, true);
