@@ -189,7 +189,7 @@ public partial class ProxiedImageCacheService : IProxiedImageCacheService
     /// </summary>
     private async Task<ProxiedImageCacheResult> HandleMissingCapturedFileAsync(
         string cacheKey,
-        string capturedFilePath,
+        string capturedReference,
         ApplicationSettings settings)
     {
         await _cacheLock.WaitAsync();
@@ -212,14 +212,17 @@ public partial class ProxiedImageCacheService : IProxiedImageCacheService
                     null);
             }
 
-            if (!string.Equals(currentMetadata.FilePath, capturedFilePath, StringComparison.Ordinal))
+            if (!string.Equals(currentMetadata.FilePath, capturedReference, StringComparison.Ordinal))
             {
                 return await ReadConcurrentRefreshFileAsync(currentMetadata, settings);
             }
 
             _logger.LogWarning("Image cache file missing for key {CacheKey}. Removing DB entry.", cacheKey);
             _dbContext.ImageCacheMetadata.Remove(currentMetadata);
-            try { await SaveMetadataChangesAsync(); }
+            try
+            {
+                await SaveMetadataChangesAsync();
+            }
             catch
             {
                 _dbContext.Entry(currentMetadata).State = EntityState.Unchanged;
@@ -317,13 +320,20 @@ public partial class ProxiedImageCacheService : IProxiedImageCacheService
             .Take(LruEvictionBatchSize)
             .ToListAsync();
 
+        // Scoped contexts may already track older snapshots; reload intended rows before retirement.
+        foreach (var entry in entriesToEvict)
+            await _dbContext.Entry(entry).ReloadAsync();
+        entriesToEvict.RemoveAll(entry => _dbContext.Entry(entry).State == EntityState.Detached);
         if (entriesToEvict.Count == 0)
             return 0;
 
         // Commit retirement before changing accounting or deleting any referenced bytes.
         var candidates = entriesToEvict.Select(entry => (Entry: entry, Path: _storage.Resolve(entry))).ToList();
         _dbContext.ImageCacheMetadata.RemoveRange(entriesToEvict);
-        try { await SaveMetadataChangesAsync(); }
+        try
+        {
+            await SaveMetadataChangesAsync();
+        }
         catch
         {
             foreach (var entry in entriesToEvict) _dbContext.Entry(entry).State = EntityState.Unchanged;
@@ -333,7 +343,10 @@ public partial class ProxiedImageCacheService : IProxiedImageCacheService
         foreach (var candidate in candidates)
         {
             if (candidate.Path == null) continue;
-            try { File.Delete(candidate.Path); }
+            try
+            {
+                File.Delete(candidate.Path);
+            }
             catch (Exception)
             {
                 _logger.LogWarning("Failed to delete retired image for key {CacheKey}.", candidate.Entry.CacheKey);

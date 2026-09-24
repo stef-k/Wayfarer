@@ -77,16 +77,18 @@ public partial class ProxiedImageCacheService
         };
 
         _dbContext.ImageCacheMetadata.Add(metadata);
+        var published = false;
         try
         {
             ReplaceImageFileAtomically(tempFilePath, filePath);
+            published = true;
             await SaveMetadataChangesAsync();
             Interlocked.Add(ref _currentCacheSize, bytes.Length);
         }
         catch
         {
             _dbContext.ImageCacheMetadata.Remove(metadata);
-            TryDeleteTempImage(filePath);
+            if (published) TryDeleteTempImage(filePath);
             return ProxiedImageCacheStoreResult.Failure;
         }
 
@@ -115,7 +117,7 @@ public partial class ProxiedImageCacheService
         try
         {
             // The metadata row is the commit point. New bytes live in an unreferenced
-            // sibling file until the row points at them, so failed metadata leaves the
+            // current-root generation until the row points at it, so failed metadata leaves the
             // old file and metadata usable. After metadata succeeds, old-file cleanup is best effort.
             ReplaceImageFileAtomically(tempFilePath, newFilePath);
             var now = DateTime.UtcNow;

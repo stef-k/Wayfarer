@@ -1,4 +1,3 @@
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Wayfarer.Models;
@@ -12,6 +11,7 @@ namespace Wayfarer.Tests.Services;
 /// <summary>
 /// Tests for the ProxiedImageCacheService: cache hit/miss, expiry, LRU eviction, and initialization.
 /// </summary>
+[Collection(ImageProxyStaticStateTestCollection.Name)]
 public class ProxiedImageCacheServiceTests : TestBase, IDisposable
 {
     private readonly string _tempDir;
@@ -52,7 +52,8 @@ public class ProxiedImageCacheServiceTests : TestBase, IDisposable
     [Fact]
     public async Task SetAsync_ThenGetAsync_ReturnsSameBytesAndContentType()
     {
-        var service = CreateService();
+        var db = CreateDbContext();
+        var service = CreateService(db: db);
         var imageBytes = new byte[] { 0xFF, 0xD8, 0xFF, 0xE0, 1, 2, 3, 4 };
         var contentType = "image/jpeg";
 
@@ -61,6 +62,8 @@ public class ProxiedImageCacheServiceTests : TestBase, IDisposable
         var result = await service.GetAsync(Key("test_key_1"));
 
         Assert.True(stored.Stored);
+        Assert.Equal(Key("test_key_1") + ".dat", db.ImageCacheMetadata.Single().FilePath);
+        Assert.Equal(Path.Combine(_tempDir, Key("test_key_1") + ".dat"), result.FilePath);
         Assert.Equal(ProxiedImageCacheStatus.FreshHit, result.Status);
         Assert.Equal(imageBytes, result.Bytes);
         Assert.Equal(contentType, result.ContentType);
@@ -143,8 +146,11 @@ public class ProxiedImageCacheServiceTests : TestBase, IDisposable
         Assert.Equal(3, metadata.Size);
     }
 
-    [Fact]
-    public async Task GetAsync_DoesNotDeleteMetadata_WhenRefreshMovedCapturedFilePath()
+    /// <summary>Captured current or legacy references cannot retire a concurrently promoted row.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task GetAsync_DoesNotDeleteMetadata_WhenRefreshMovedCapturedFilePath(bool legacy)
     {
         var db = CreateDbContext();
         var service = CreateService(db: db);
@@ -153,6 +159,11 @@ public class ProxiedImageCacheServiceTests : TestBase, IDisposable
 
         Assert.True((await service.SetAsync(Key("refresh_race_key"), oldBytes, "image/jpeg")).Stored);
         var oldMetadata = db.ImageCacheMetadata.Single(m => m.CacheKey == Key("refresh_race_key"));
+        if (legacy)
+        {
+            oldMetadata.FilePath = Path.Combine(_tempDir, oldMetadata.FilePath);
+            await db.SaveChangesAsync();
+        }
         var oldFilePath = oldMetadata.FilePath;
         var hookRan = false;
 
@@ -260,7 +271,7 @@ public class ProxiedImageCacheServiceTests : TestBase, IDisposable
     [Fact]
     public void Initialize_CreatesDirectory()
     {
-        var newDir = Path.Combine(_tempDir, Key("sub_init"));
+        var newDir = Path.Combine(_tempDir, "sub_init");
         var service = CreateService(cacheDir: newDir);
 
         service.Initialize();
