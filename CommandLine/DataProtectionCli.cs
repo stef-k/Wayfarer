@@ -23,7 +23,7 @@ public static class DataProtectionCli
             builder.Configuration.AddJsonFile("appsettings.json", false)
                 .AddJsonFile($"appsettings.{builder.Environment.EnvironmentName}.json", true)
                 .AddEnvironmentVariables();
-            builder.AddWayfarerDataProtection();
+            builder.AddWayfarerDataProtection(readOnlyKeys: true);
             builder.Services.AddDbContext<ApplicationDbContext>(options =>
                 options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"),
                     postgres => postgres.UseNetTopologySuite()));

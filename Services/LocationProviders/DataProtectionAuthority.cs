@@ -1,9 +1,5 @@
 using Microsoft.AspNetCore.DataProtection;
-using Microsoft.EntityFrameworkCore;
 using System.Security.Cryptography;
-using Wayfarer.Models;
-using Wayfarer.Models.LocationProviders;
-
 
 namespace Wayfarer.Services.LocationProviders;
 
@@ -13,17 +9,19 @@ public static class DataProtectionAuthority
     /// <summary>Names the future application identity, independent of releases and hosted paths.</summary>
     public const string StableApplicationName = "Wayfarer";
 
-    /// <summary>Registers one explicit persistent key ring shared by every application protector.</summary>
-    public static void AddWayfarerDataProtection(this WebApplicationBuilder builder)
+    /// <summary>Registers both identities over the existing ring; readOnlyKeys suppresses all command-side key writes.</summary>
+    public static void AddWayfarerDataProtection(this WebApplicationBuilder builder, bool readOnlyKeys = false)
     {
         var configured = builder.Configuration["DataProtection:KeyRingPath"];
         var path = string.IsNullOrWhiteSpace(configured)
             ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 "Wayfarer", "DataProtectionKeys")
             : Path.GetFullPath(configured);
-        Directory.CreateDirectory(path);
-        builder.Services.AddDataProtection()
+        // Explicit commands must not create a directory or generate new master keys.
+        if (!readOnlyKeys) Directory.CreateDirectory(path);
+        var legacy = builder.Services.AddDataProtection()
             .PersistKeysToFileSystem(new DirectoryInfo(path));
+        if (readOnlyKeys) legacy.DisableAutomaticKeyGeneration();
         builder.Services.AddSingleton(new DataProtectionKeyRing(path));
         // The secondary provider reads the same ring but never generates or modifies keys.
         builder.Services.AddSingleton(new StableDataProtectionProvider(

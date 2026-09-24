@@ -100,7 +100,7 @@ public sealed class PersonalLocationProviderFoundationTests : TestBase
         Assert.True(result.ProtectedCredentialReady);
         Assert.Equal("legacy-key", owner.Read(profile).Credential);
         Assert.True(owner.ReadStable(profile).Succeeded);
-        Assert.True(string.Equals(owner.Read(profile).Credential, owner.ReadStable(profile).Credential, StringComparison.Ordinal));
+        Assert.True(object.Equals(owner.Read(profile).Credential, owner.ReadStable(profile).Credential));
         Assert.True(profile.GeocodingAuthorized);
         Assert.False(profile.RoutingAuthorized);
         Assert.DoesNotContain(await db.ApiTokens.IgnoreQueryFilters().ToListAsync(), item => PersonalProviderKeys.IsLegacyMapbox(item.Name));

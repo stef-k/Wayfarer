@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### Changed
+- Prepare stable Data Protection companions while retaining legacy runtime/rollback authority; add atomic dual protection and explicit transactional status/preparation commands. Apply the additive companion-column migration before F1 startup and prepare at the original content root before any future identity activation (#627).
 - Store generated trip thumbnails outside webroot while preserving public URLs, atomic replacement and authoritative serving; fix GUID-based orphan cleanup. Serilog, Admin and file cleanup now share Storage LogRoot, with bounded native routing and isolated runner roots (#625). No schema or automatic legacy-file migration.
 - Store new proxied images beneath CacheRoot using logical generation filenames; retain bounded legacy reads, promote only on successful refresh, preserve metadata commit points, and retire LRU metadata before deleting bytes (#623). Native deployment prepares the image root; no schema or bulk migration.
 - Store new map tiles beneath CacheRoot with portable provider-scoped metadata references; preserve bounded native-cache compatibility without automatic migration. Correct nested tile purge, eviction and statistics, and prepare native deployment storage (#617).

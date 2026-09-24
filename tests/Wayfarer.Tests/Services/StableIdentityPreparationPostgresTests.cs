@@ -42,7 +42,8 @@ public sealed class StableIdentityPreparationPostgresTests
             Assert.True(owner.Read(row).Succeeded);
             Assert.True(owner.ReadStable(row).Succeeded);
         });
-        Assert.Equal(0, await RunCliAsync("prepare-stable-identity", new StableIdentityPreparation(fixture.CreateContext(), owner)));
+        await using var rerunDb = fixture.CreateContext();
+        Assert.Equal(0, await RunCliAsync("prepare-stable-identity", new StableIdentityPreparation(rerunDb, owner)));
         var rerun = await db.PersonalLocationProviderProfiles.AsNoTracking().OrderBy(row => row.Id).ToListAsync();
         AssertOnlyCompanionsChanged(db, after, rerun, successful: false);
 
@@ -126,6 +127,7 @@ public sealed class StableIdentityPreparationPostgresTests
         try
         {
             await using var writer = fixture.CreateContext();
+            await writer.Database.OpenConnectionAsync();
             await writer.Database.ExecuteSqlRawAsync("SET lock_timeout = '200ms'");
             var exception = await Assert.ThrowsAsync<PostgresException>(() => writer.Database.ExecuteSqlRawAsync(
                 """UPDATE "PersonalLocationProviderProfiles" SET "RoutingAuthorized" = NOT "RoutingAuthorized" """));
@@ -138,7 +140,48 @@ public sealed class StableIdentityPreparationPostgresTests
             """UPDATE "PersonalLocationProviderProfiles" SET "RoutingAuthorized" = NOT "RoutingAuthorized" """));
     }
 
-    /// <summary>Seeds matching, pending and inactive profiles with meaningful authority fields.</summary>
+    /// <summary>Legacy Mapbox plaintext is retired only when both F1 copies are available.</summary>
+    [PostgresFact]
+    public async Task LegacyMapboxMigration_DualProtectsAndPreservesPlaintextOnStableFailure()
+    {
+        await using var fixture = new PostgresMigrationTestFixture();
+        await fixture.InitializeAsync();
+        var provider = new EphemeralDataProtectionProvider();
+        var healthy = CredentialTestFactory.Create(provider);
+        foreach (var fail in new[] { false, true })
+        {
+            var user = await fixture.CreateUserAsync();
+            await using var db = fixture.CreateContext();
+            db.ApiTokens.Add(new ApiToken
+            {
+                UserId = user.Id, Name = "Mapbox", Token = StableIdentityCryptographyTests.Secret
+            });
+            await db.SaveChangesAsync();
+            var owner = fail
+                ? new PersonalProviderCredentialService(provider,
+                    new StableDataProtectionProvider(new StableIdentityCryptographyTests.ThrowingProvider()))
+                : healthy;
+            var migration = new LegacyMapboxMigrationService(db, owner);
+            if (fail)
+            {
+                var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => migration.MigrateAsync(user.Id));
+                Assert.False(exception.ToString().Contains(StableIdentityCryptographyTests.Secret, StringComparison.Ordinal));
+            }
+            else Assert.True((await migration.MigrateAsync(user.Id)).ProtectedCredentialReady);
+            await using var verify = fixture.CreateContext();
+            Assert.Equal(fail ? 1 : 0, await verify.ApiTokens.IgnoreQueryFilters().CountAsync(row => row.UserId == user.Id));
+            var profile = await verify.PersonalLocationProviderProfiles.SingleOrDefaultAsync(row => row.UserId == user.Id);
+            if (fail) Assert.Null(profile);
+            else
+            {
+                Assert.NotNull(profile);
+                Assert.True(healthy.Read(profile).Succeeded);
+                Assert.True(healthy.ReadStable(profile).Succeeded);
+            }
+        }
+    }
+
+
     private static async Task SeedAsync(PostgresMigrationTestFixture fixture, PersonalProviderCredentialService owner)
     {
         await using var db = fixture.CreateContext();

@@ -33,6 +33,8 @@ public sealed class StableIdentityCryptographyTests
         var profile = PersonalLocationProviderProfile.Create("private-user", PersonalLocationProvider.Mapbox);
         owner.Replace(profile, Secret);
         var legacy = profile.ProtectedCredential;
+        profile.StableProtectedCredential = null;
+        owner.PrepareStable(profile);
         var stable = profile.StableProtectedCredential;
         Assert.True(owner.ReadStable(profile).Succeeded);
         Assert.NotEqual(DataProtectionAuthority.StableApplicationName,
@@ -43,15 +45,15 @@ public sealed class StableIdentityCryptographyTests
         var copiedRing = Directory.CreateDirectory(Path.Combine(directory.Path, "copied-ring")).FullName;
         foreach (var file in Directory.GetFiles(ring))
             File.Copy(file, Path.Combine(copiedRing, Path.GetFileName(file)));
-        var keysBefore = Directory.GetFiles(ring).ToDictionary(Path.GetFileName, File.ReadAllBytes);
+        var keysBefore = Directory.GetFiles(ring).ToDictionary(file => Path.GetFileName(file)!, File.ReadAllBytes);
         await using var target = Host(targetRoot, copiedRing);
         var targetOwner = target.Services.GetRequiredService<PersonalProviderCredentialService>();
         Assert.False(targetOwner.Read(profile).Succeeded);
-        Assert.True(string.Equals(Secret, targetOwner.ReadStable(profile).Credential, StringComparison.Ordinal));
+        Assert.True(object.Equals(Secret, targetOwner.ReadStable(profile).Credential));
         await using var restored = Host(sourceRoot, ring);
         profile.StableProtectedCredential = null;
-        Assert.True(string.Equals(Secret, restored.Services.GetRequiredService<PersonalProviderCredentialService>().Read(profile).Credential, StringComparison.Ordinal));
-        Assert.True(string.Equals(legacy, profile.ProtectedCredential, StringComparison.Ordinal));
+        Assert.True(object.Equals(Secret, restored.Services.GetRequiredService<PersonalProviderCredentialService>().Read(profile).Credential));
+        Assert.True(object.Equals(legacy, profile.ProtectedCredential));
         profile.StableProtectedCredential = stable;
         foreach (var file in Directory.GetFiles(ring))
             Assert.True(keysBefore[Path.GetFileName(file)]!.SequenceEqual(File.ReadAllBytes(file)));
@@ -76,7 +78,7 @@ public sealed class StableIdentityCryptographyTests
             new StableDataProtectionProvider(legacyFailure ? provider : failure));
         var exception = Assert.Throws<InvalidOperationException>(() => broken.Replace(profile, Secret));
         Assert.True(before == JsonSerializer.Serialize(profile));
-        Assert.DoesNotContain(Secret, exception.ToString());
+        Assert.False(exception.ToString().Contains(Secret, StringComparison.Ordinal));
         healthy.Replace(profile, "replacement");
         Assert.Equal(3, profile.CredentialGeneration);
         Assert.True(healthy.ReadStable(profile).Succeeded);
@@ -121,9 +123,11 @@ public sealed class StableIdentityCryptographyTests
         var before = JsonSerializer.Serialize(profile);
         var exception = await Record.ExceptionAsync(() => DataProtectionAuthority.ValidateAsync(host.Services));
         Assert.Equal(accepted, exception == null);
-        Assert.DoesNotContain(Secret, exception?.ToString() ?? "");
-        Assert.DoesNotContain(Secret, string.Join("\n", logs.Messages));
-        Assert.DoesNotContain(profile.UserId, string.Join("\n", logs.Messages));
+        Assert.False((exception?.ToString() ?? "").Contains(Secret, StringComparison.Ordinal));
+        var leakedSecret = logs.Messages.Any(message => message.Contains(Secret, StringComparison.Ordinal));
+        var leakedIdentity = logs.Messages.Any(message => message.Contains(profile.UserId, StringComparison.Ordinal));
+        Assert.False(leakedSecret);
+        Assert.False(leakedIdentity);
         db.ChangeTracker.Clear();
         Assert.True(before == JsonSerializer.Serialize(await db.PersonalLocationProviderProfiles.SingleAsync()));
         if (state == "pending")
