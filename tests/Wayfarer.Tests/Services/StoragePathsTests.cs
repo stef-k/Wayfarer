@@ -47,6 +47,10 @@ public class StoragePathsTests
             Path.Combine(AppContext.BaseDirectory, "appsettings.Production.json")).Build();
         var paths = Create(configuration.GetSection("Storage").Get<StorageOptions>(), development: false);
         if (!OperatingSystem.IsWindows()) Assert.Equal("/var/cache/wayfarer/tiles", paths.Tiles);
+        if (!OperatingSystem.IsWindows()) Assert.Equal("/var/cache/wayfarer/images", paths.Images);
+        var images = new ImageCacheStorage(paths, configuration);
+        Assert.Equal(paths.Images, images.CurrentRoot);
+        Assert.NotEqual(images.CurrentRoot, images.LegacyRoot);
         var tiles = new TileCacheStorage(paths, configuration);
         Assert.Equal(paths.Tiles, tiles.CurrentRoot);
         Assert.NotEqual(tiles.CurrentRoot, tiles.LegacyRoot);

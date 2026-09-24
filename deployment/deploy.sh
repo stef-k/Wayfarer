@@ -231,7 +231,7 @@ sudo mkdir -p "$DEPLOY_DIR/Uploads" "$DEPLOY_DIR/TileCache" "$DEPLOY_DIR/ImageCa
 # Durable import staging uses the Linux production DataRoot; retain old Uploads for legacy rows.
 sudo install -d -m 750 -o "$APP_USER" -g "$APP_USER" /var/lib/wayfarer/uploads/imports
 # New TileCache writes use CacheRoot; preserve the old deployed TileCache tree.
-sudo install -d -m 750 -o "$APP_USER" -g "$APP_USER" /var/cache/wayfarer/tiles
+sudo install -d -m 750 -o "$APP_USER" -g "$APP_USER" /var/cache/wayfarer/tiles /var/cache/wayfarer/images
 sudo mkdir -p "/home/$APP_USER/.aspnet/DataProtection-Keys"
 sudo chown -R "$APP_USER":"$APP_USER" "/home/$APP_USER/.aspnet"
 sudo chmod 700 "/home/$APP_USER/.aspnet" "/home/$APP_USER/.aspnet/DataProtection-Keys"

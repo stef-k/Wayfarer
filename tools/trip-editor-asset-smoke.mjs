@@ -340,6 +340,8 @@ async function startPublishedApp() {
     ASPNETCORE_URLS: config.publishedBaseUrl,
     Logging__LogFilePath__Default: path.join(logsDir, 'published-wayfarer-.log'),
     CacheSettings__TileCacheDirectory: path.join(localDir, 'asset-smoke-cache', 'TileCache'),
+    // New cache writes must stay inside the smoke-owned tree under Production.
+    Storage__CacheRoot: path.join(localDir, 'asset-smoke-cache', 'current'),
     CacheSettings__ImageCacheDirectory: path.join(localDir, 'asset-smoke-cache', 'ImageCache'),
     CacheSettings__ChromeCacheDirectory: path.join(localDir, 'asset-smoke-cache', 'ChromeCache'),
     ConnectionStrings__DefaultConnection: connectionString

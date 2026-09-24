@@ -27,7 +27,8 @@ namespace Wayfarer.Models
         public required string ContentType { get; set; }
 
         /// <summary>
-        /// Absolute path to the cached image file on disk.
+        /// Canonical logical image filename for new writes; bounded legacy rows may retain absolute paths.
+        /// ImageCacheStorage must resolve this value before any filesystem access.
         /// </summary>
         [Required]
         public required string FilePath { get; set; }
