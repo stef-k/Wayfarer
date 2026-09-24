@@ -596,6 +596,7 @@ static void ConfigureServices(WebApplicationBuilder builder)
     builder.Services.AddSingleton(sp => sp.GetRequiredService<IOptions<MobileSseOptions>>().Value);
 
     // Proxied image cache service (disk + DB backed, scoped for DbContext access)
+    builder.Services.AddSingleton<ImageCacheStorage>();
     builder.Services.AddScoped<IProxiedImageCacheService, ProxiedImageCacheService>();
 
     // Image proxy service for fetch+optimize+cache pipeline (used by warm-up job)

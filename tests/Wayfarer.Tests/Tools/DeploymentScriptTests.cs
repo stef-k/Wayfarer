@@ -31,6 +31,24 @@ public sealed class DeploymentScriptTests
         });
     }
 
+    /// <summary>Native scripts prepare new image storage while retaining the old deployment tree.</summary>
+    [Fact]
+    public void ImageCacheTransitionRetainsLegacyAndPreparesOwnedCurrentRoot()
+    {
+        foreach (var name in new[] { "install.sh", "deploy.sh" })
+        {
+            var script = File.ReadAllText(RepositoryFile("deployment", name));
+            Assert.Contains("/var/cache/wayfarer/images", script);
+            Assert.Matches(@"(?m)^sudo (?:chown|install)[^\r\n]*APP_USER[^\r\n]*/var/cache/wayfarer/images", script);
+        }
+        var deploy = File.ReadAllText(RepositoryFile("deployment", "deploy.sh"));
+        Assert.Contains("--exclude 'ImageCache'", deploy);
+        Assert.Contains("\"$DEPLOY_DIR/ImageCache\"", deploy);
+        var smoke = File.ReadAllText(RepositoryFile("tools", "trip-editor-asset-smoke.mjs"));
+        Assert.Contains("Storage__CacheRoot: path.join(localDir, 'asset-smoke-cache', 'current')", smoke);
+    }
+
+    /// <summary>Finds source scripts from the test output directory.</summary>
     private static string RepositoryFile(params string[] parts) => Path.GetFullPath(
         Path.Combine([AppContext.BaseDirectory, "..", "..", "..", "..", "..", .. parts]));
 }

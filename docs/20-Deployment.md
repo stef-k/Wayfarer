@@ -258,7 +258,7 @@ The following directories are **auto-created** if missing:
 
 - `Logs/` - Application log files (auto-cleaned after 1 month)
 - `TileCache/` - Retained legacy map tiles; new tiles use `Storage:CacheRoot/tiles`
-- `ImageCache/` - Cached proxied images (LRU-evicted, admin-configurable size)
+- `ImageCache/` - Retained legacy proxied images; new writes use `Storage:CacheRoot/images` (LRU-evicted, admin-configurable size)
 - `ChromeCache/` - Chrome browser binaries for PDF export
 - `Uploads/` - Retained legacy upload compatibility tree; do not delete it while old rows reference it.
 
@@ -632,3 +632,5 @@ Before rollback, stop the scheduler and back up PostgreSQL plus the Data Protect
 
 
 Native TileCache transition (#617): install/deploy prepares `/var/cache/wayfarer/tiles` with application-user ownership and retains the old deployed `TileCache` exclusion/tree. Operators overriding `Storage__CacheRoot` must prepare the corresponding `tiles` directory before startup. Preserve customized `CacheSettings:TileCacheDirectory` as the temporary legacy-root input. This does not copy old files or rewrite DB paths; see [cache configuration](16-Configuration.md).
+
+Native ImageCache transition (#623): new writes use `StoragePaths.Images`, and install/deploy prepares `/var/cache/wayfarer/images` with application-user ownership. Retain `$DEPLOY_DIR/ImageCache`, its rsync exclusion and existing permissions for bounded legacy reads. Keep customized `CacheSettings:ImageCacheDirectory` as the deprecated legacy-root input. Operators overriding `Storage__CacheRoot` must prepare its `images` subdirectory before startup. New metadata uses logical `.dat` filenames; legacy reads remain in place, while successful refresh promotes to a current-root generation only after metadata commit. No bulk migration or EF schema migration is introduced; routine ImageCache backups remain excluded/rebuildable. See [configuration](16-Configuration.md) for explicit compatible-cache migration guidance.

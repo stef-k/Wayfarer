@@ -9,18 +9,19 @@ public partial class ProxiedImageCacheService
     public async Task<ProxiedImageCacheStoreResult> SetAsync(string cacheKey, byte[] bytes, string contentType)
     {
         var settings = _settingsService.GetSettings();
-        if (settings.MaxCacheImageSizeInMB < 0)
+        if (settings.MaxCacheImageSizeInMB < 0 || !ImageCacheStorage.IsCacheKey(cacheKey))
             return ProxiedImageCacheStoreResult.Failure;
 
-        var filePath = Path.Combine(_cacheDirectory, $"{cacheKey}.dat");
+        var filePath = _storage.CurrentPath(ImageCacheStorage.CreateReference(cacheKey), cacheKey);
         var tempFilePath = CreateTempImagePath(filePath);
         try
         {
-            Directory.CreateDirectory(_cacheDirectory);
+            Directory.CreateDirectory(_storage.CurrentRoot);
             await File.WriteAllBytesAsync(tempFilePath, bytes);
         }
         catch (Exception ex)
         {
+            TryDeleteTempImage(tempFilePath);
             _logger.LogError(ex, "Error writing proxy image file for key {CacheKey}.", cacheKey);
             return ProxiedImageCacheStoreResult.Failure;
         }
@@ -69,23 +70,25 @@ public partial class ProxiedImageCacheService
         {
             CacheKey = cacheKey,
             ContentType = contentType,
-            FilePath = filePath,
+            FilePath = ImageCacheStorage.CreateReference(cacheKey),
             Size = bytes.Length,
             CreatedAt = DateTime.UtcNow,
             LastAccessed = DateTime.UtcNow
         };
 
         _dbContext.ImageCacheMetadata.Add(metadata);
+        var published = false;
         try
         {
             ReplaceImageFileAtomically(tempFilePath, filePath);
+            published = true;
             await SaveMetadataChangesAsync();
             Interlocked.Add(ref _currentCacheSize, bytes.Length);
         }
         catch
         {
             _dbContext.ImageCacheMetadata.Remove(metadata);
-            TryDeleteTempImage(filePath);
+            if (published) TryDeleteTempImage(filePath);
             return ProxiedImageCacheStoreResult.Failure;
         }
 
@@ -107,22 +110,24 @@ public partial class ProxiedImageCacheService
         var oldSize = existing.Size;
         var oldCreatedAt = existing.CreatedAt;
         var oldLastAccessed = existing.LastAccessed;
-        var newFilePath = CreateReplacementImagePath(oldFilePath);
+        var oldPhysicalPath = _storage.Resolve(existing);
+        var newReference = ImageCacheStorage.CreateReference(existing.CacheKey, Guid.NewGuid());
+        var newFilePath = _storage.CurrentPath(newReference, existing.CacheKey);
 
         try
         {
             // The metadata row is the commit point. New bytes live in an unreferenced
-            // sibling file until the row points at them, so failed metadata leaves the
+            // current-root generation until the row points at it, so failed metadata leaves the
             // old file and metadata usable. After metadata succeeds, old-file cleanup is best effort.
             ReplaceImageFileAtomically(tempFilePath, newFilePath);
             var now = DateTime.UtcNow;
-            existing.FilePath = newFilePath;
+            existing.FilePath = newReference;
             existing.ContentType = contentType;
             existing.Size = bytes.Length;
             existing.CreatedAt = now;
             existing.LastAccessed = now;
 
-            var saved = await SaveWithConcurrencyRetryAsync(existing);
+            var saved = await SaveRefreshWithConcurrencyRetryAsync(existing);
             if (!saved)
             {
                 RestoreMetadataValues(existing, oldFilePath, oldContentType, oldSize, oldCreatedAt, oldLastAccessed);
@@ -131,7 +136,7 @@ public partial class ProxiedImageCacheService
             }
 
             Interlocked.Add(ref _currentCacheSize, bytes.Length - oldSize);
-            TryDeleteTempImage(oldFilePath);
+            if (oldPhysicalPath != null) TryDeleteTempImage(oldPhysicalPath);
             _logger.LogInformation("Refreshed proxy image: key={CacheKey}, size={Size} bytes.",
                 existing.CacheKey, bytes.Length);
             return ProxiedImageCacheStoreResult.Success;
@@ -146,9 +151,33 @@ public partial class ProxiedImageCacheService
     }
 
     /// <summary>
-    /// Saves metadata changes with retry on concurrency conflicts.
+    /// Updates only access time. On xmin conflict, reload every database-current field before
+    /// retrying so an old reader cannot restore a retired reference or stale content metadata.
     /// </summary>
-    private async Task<bool> SaveWithConcurrencyRetryAsync(ImageCacheMetadata metadata)
+    private async Task UpdateLastAccessedAsync(ImageCacheMetadata metadata)
+    {
+        var entry = _dbContext.Entry(metadata);
+        for (var attempt = 0; attempt < 3; attempt++)
+        {
+            // Do not call Update: EF should mark only the changed LastAccessed property.
+            metadata.LastAccessed = DateTime.UtcNow;
+            try
+            {
+                await SaveMetadataChangesAsync();
+                return;
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                await entry.ReloadAsync();
+                if (entry.State == EntityState.Detached) return;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Persists the full refresh intent with retry while retaining the uncommitted generation.
+    /// </summary>
+    private async Task<bool> SaveRefreshWithConcurrencyRetryAsync(ImageCacheMetadata metadata)
     {
         var attempts = 0;
         var updated = false;
@@ -190,17 +219,6 @@ public partial class ProxiedImageCacheService
         var directory = Path.GetDirectoryName(filePath) ?? ".";
         var fileName = Path.GetFileName(filePath);
         return Path.Combine(directory, $"{fileName}.{Guid.NewGuid():N}.tmp");
-    }
-
-    /// <summary>
-    /// Creates a same-directory replacement path that is not referenced until metadata commits.
-    /// </summary>
-    private static string CreateReplacementImagePath(string filePath)
-    {
-        var directory = Path.GetDirectoryName(filePath) ?? ".";
-        var extension = Path.GetExtension(filePath);
-        var baseName = Path.GetFileNameWithoutExtension(filePath);
-        return Path.Combine(directory, $"{baseName}.{Guid.NewGuid():N}{extension}");
     }
 
     /// <summary>
