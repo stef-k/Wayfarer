@@ -20,7 +20,7 @@ public sealed class TripPlaceAddressCompatibilityTests : TripEditorPlaceControll
         using var db = CreateDbContext();
         var trip = SeedTripGraph(db, "owner-user");
         var region = trip.Regions.Single(item => item.Name == "Athens");
-        var credentials = new PersonalProviderCredentialService(new EphemeralDataProtectionProvider());
+        var credentials = Wayfarer.Tests.Infrastructure.CredentialTestFactory.Create(new EphemeralDataProtectionProvider());
         var profile = PersonalLocationProviderProfile.Create("owner-user", PersonalLocationProvider.Geoapify);
         credentials.Replace(profile, "synthetic");
         profile.SetAuthorization(PersonalProviderCapability.Geocoding, true);

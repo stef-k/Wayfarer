@@ -32,6 +32,13 @@ if (AppVersionCli.TryHandle(args, new AppVersionProvider(), Console.Out, Console
     return;
 }
 
+// Explicit preparation exits before web startup, migrations, seeding, logging or jobs.
+if (args.Length > 0 && args[0] == "data-protection")
+{
+    Environment.ExitCode = await DataProtectionCli.RunAsync(args, Console.Out, Console.Error);
+    return;
+}
+
 var builder = WebApplication.CreateBuilder(args);
 
 #region CLI Command Handling

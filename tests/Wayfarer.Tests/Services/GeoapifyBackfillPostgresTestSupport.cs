@@ -54,7 +54,7 @@ public sealed partial class GeoapifyBackfillConcurrencyPostgresTests
         foreach (var id in new[] { userId, otherUserId }.OfType<string>())
         {
             var profile = PersonalLocationProviderProfile.Create(id, PersonalLocationProvider.Geoapify);
-            new PersonalProviderCredentialService(protection).Replace(profile, $"key-{id}");
+            Wayfarer.Tests.Infrastructure.CredentialTestFactory.Create(protection).Replace(profile, $"key-{id}");
             profile.GeocodingAuthorized = true;
             profile.GeocodingVerification = PersonalProviderVerification.Verified;
             profile.GeocodingVerifiedCredentialGeneration = profile.CredentialGeneration;
@@ -102,10 +102,10 @@ public sealed partial class GeoapifyBackfillConcurrencyPostgresTests
     {
         await using var db = fixture.CreateContext();
         var profile = PersonalLocationProviderProfile.Create(userId, PersonalLocationProvider.Mapbox);
-        new PersonalProviderCredentialService(protection).Replace(profile, $"key-{userId}");
+        Wayfarer.Tests.Infrastructure.CredentialTestFactory.Create(protection).Replace(profile, $"key-{userId}");
         profile.GeocodingAuthorized = true;
         profile.GrantPermanentGeocodingConsent(DateTimeOffset.UtcNow);
-        new PersonalProviderCredentialService(protection).RecordVerification(profile,
+        Wayfarer.Tests.Infrastructure.CredentialTestFactory.Create(protection).RecordVerification(profile,
             PersonalProviderCapability.Geocoding, PersonalProviderVerification.Verified);
         db.Add(profile);
         db.Add(new PersonalLocationProviderSelection { UserId = userId, GeocodingProviderKey = "mapbox" });
@@ -122,7 +122,7 @@ public sealed partial class GeoapifyBackfillConcurrencyPostgresTests
         Func<PersonalProviderAuthoritySnapshot, CancellationToken, Task>? beforeFinalAuthorityValidation = null,
         params IInterceptor[] interceptors)
     {
-        var credentials = new PersonalProviderCredentialService(protection);
+        var credentials = Wayfarer.Tests.Infrastructure.CredentialTestFactory.Create(protection);
         var contextFactory = new FixtureDbContextFactory(fixture, interceptors);
         var services = new ServiceCollection()
             .AddScoped(_ => fixture.CreateContext(interceptors))

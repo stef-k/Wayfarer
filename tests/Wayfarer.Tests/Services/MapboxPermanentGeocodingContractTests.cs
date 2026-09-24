@@ -107,7 +107,7 @@ public sealed class MapboxPermanentGeocodingContractTests
     public void Consent_IsCredentialBound_AndReplacementOrDisableInvalidatesIt()
     {
         var profile = PersonalLocationProviderProfile.Create("consent-user", PersonalLocationProvider.Mapbox);
-        var credentials = new Wayfarer.Services.LocationProviders.PersonalProviderCredentialService(
+        var credentials = Wayfarer.Tests.Infrastructure.CredentialTestFactory.Create(
             new EphemeralDataProtectionProvider());
         credentials.Replace(profile, "first-key");
         profile.SetAuthorization(PersonalProviderCapability.Geocoding, true);

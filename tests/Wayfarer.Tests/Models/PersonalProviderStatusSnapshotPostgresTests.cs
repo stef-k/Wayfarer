@@ -102,7 +102,7 @@ public sealed class PersonalProviderStatusSnapshotPostgresTests(PostgresImportTe
         var projection = new Mock<IWorkflowScheduleProjection>();
         var result = await new ImportEnrichmentHandoff(command, projection.Object,
             new PersonalProviderStatusReader(new FixtureFactory(fixture),
-                new PersonalProviderCredentialService(protection),
+                Wayfarer.Tests.Infrastructure.CredentialTestFactory.Create(protection),
                 new ConfigurationBuilder().Build()),
             new LocationEnrichmentProgressQuery(command)).StartAsync(user.Id);
 
@@ -117,7 +117,7 @@ public sealed class PersonalProviderStatusSnapshotPostgresTests(PostgresImportTe
         IDataProtectionProvider protection)
     {
         await using var db = fixture.CreateContext();
-        var owner = new PersonalProviderCredentialService(protection);
+        var owner = Wayfarer.Tests.Infrastructure.CredentialTestFactory.Create(protection);
         var geoapify = Profile(userId, PersonalLocationProvider.Geoapify, owner);
         var mapbox = Profile(userId, PersonalLocationProvider.Mapbox, owner);
         mapbox.GrantPermanentGeocodingConsent(new DateTimeOffset(2026, 8, 1, 0, 0, 0, TimeSpan.Zero));
@@ -173,7 +173,7 @@ public sealed class PersonalProviderStatusSnapshotPostgresTests(PostgresImportTe
                 selection.Select(PersonalProviderCapability.Geocoding, PersonalLocationProvider.Geoapify);
                 break;
             case ProviderDrift.CredentialReplacement:
-                new PersonalProviderCredentialService(protection).Replace(profile, "replacement-secret");
+                Wayfarer.Tests.Infrastructure.CredentialTestFactory.Create(protection).Replace(profile, "replacement-secret");
                 break;
             case ProviderDrift.CapabilityGeneration:
                 profile.GeocodingGeneration++;
@@ -279,7 +279,7 @@ public sealed class PersonalProviderStatusSnapshotPostgresTests(PostgresImportTe
 
     private static PersonalProviderStatusReader Reader(
         Wayfarer.Models.ApplicationDbContext db, IDataProtectionProvider protection) => new(new ExistingContextFactory(db),
-        new PersonalProviderCredentialService(protection),
+        Wayfarer.Tests.Infrastructure.CredentialTestFactory.Create(protection),
         new ConfigurationBuilder().AddInMemoryCollection().Build());
 
     private sealed class ExistingContextFactory(Wayfarer.Models.ApplicationDbContext context)

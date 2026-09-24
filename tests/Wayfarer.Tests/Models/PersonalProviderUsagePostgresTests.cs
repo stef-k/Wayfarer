@@ -41,7 +41,7 @@ public sealed class PersonalProviderUsagePostgresTests(PostgresImportTestFixture
         var protection = new EphemeralDataProtectionProvider();
         await using (var migrate = fixture.CreateContext())
         {
-            var owner = new PersonalProviderCredentialService(protection);
+            var owner = Wayfarer.Tests.Infrastructure.CredentialTestFactory.Create(protection);
             var result = await new LegacyMapboxMigrationService(migrate, owner).MigrateAsync(user.Id);
             var profile = await migrate.PersonalLocationProviderProfiles.SingleAsync(item => item.UserId == user.Id);
 
@@ -77,7 +77,7 @@ public sealed class PersonalProviderUsagePostgresTests(PostgresImportTestFixture
 
         await using (var migrate = fixture.CreateContext())
         {
-            var owner = new PersonalProviderCredentialService(new EphemeralDataProtectionProvider());
+            var owner = Wayfarer.Tests.Infrastructure.CredentialTestFactory.Create(new EphemeralDataProtectionProvider());
             var result = await new LegacyMapboxMigrationService(migrate, owner).MigrateAsync(user.Id);
             Assert.Equal(LegacyMapboxMigrationState.Conflict, result.State);
             Assert.False(result.ProtectedCredentialReady);
@@ -265,7 +265,7 @@ public sealed class PersonalProviderUsagePostgresTests(PostgresImportTestFixture
         var user = await fixture.CreateUserAsync();
         var protection = new EphemeralDataProtectionProvider();
         await using var context = fixture.CreateContext();
-        var owner = new PersonalProviderCredentialService(protection);
+        var owner = Wayfarer.Tests.Infrastructure.CredentialTestFactory.Create(protection);
         var profile = PersonalLocationProviderProfile.Create(user.Id, PersonalLocationProvider.Mapbox);
         owner.Replace(profile, "generation-one");
         profile.SetAuthorization(PersonalProviderCapability.Geocoding, true);
@@ -297,7 +297,7 @@ public sealed class PersonalProviderUsagePostgresTests(PostgresImportTestFixture
         PersonalProviderCapability capability, IDataProtectionProvider protection, bool alsoRouting = false)
     {
         await using var context = fixture.CreateContext();
-        var owner = new PersonalProviderCredentialService(protection);
+        var owner = Wayfarer.Tests.Infrastructure.CredentialTestFactory.Create(protection);
         var profile = PersonalLocationProviderProfile.Create(userId, provider);
         owner.Replace(profile, "test-provider-key");
         if (provider == PersonalLocationProvider.Mapbox && (capability == PersonalProviderCapability.Geocoding || alsoRouting))
@@ -330,7 +330,7 @@ public sealed class PersonalProviderUsagePostgresTests(PostgresImportTestFixture
 
     private static PersonalProviderContactGate Gate(Wayfarer.Models.ApplicationDbContext context, IDataProtectionProvider protection)
     {
-        var owner = new PersonalProviderCredentialService(protection);
+        var owner = Wayfarer.Tests.Infrastructure.CredentialTestFactory.Create(protection);
         var config = new ConfigurationBuilder().AddInMemoryCollection().Build();
         return new(context, owner, new LegacyMapboxMigrationService(context, owner), config);
     }
@@ -342,14 +342,14 @@ public sealed class PersonalProviderUsagePostgresTests(PostgresImportTestFixture
         return new(new NominatimTripEditorGeocodeProvider(new HttpClient(nominatim), options),
             new GeoapifyTripEditorGeocodeProvider(new HttpClient(geoapify)),
             new PersonalProviderStatusReader(new FixtureContextFactory(fixture),
-                new PersonalProviderCredentialService(protection), new ConfigurationBuilder().AddInMemoryCollection().Build()),
+                Wayfarer.Tests.Infrastructure.CredentialTestFactory.Create(protection), new ConfigurationBuilder().AddInMemoryCollection().Build()),
             Gate(context, protection), new MemoryCache(new MemoryCacheOptions()),
             new TripEditorGeocodeRateLimiter(new FixedClock()), options);
     }
 
     private static PersonalProviderStatusReader Reader(
         Wayfarer.Models.ApplicationDbContext context, IDataProtectionProvider protection)
-        => new(new ExistingContextFactory(context), new PersonalProviderCredentialService(protection),
+        => new(new ExistingContextFactory(context), Wayfarer.Tests.Infrastructure.CredentialTestFactory.Create(protection),
             new ConfigurationBuilder().AddInMemoryCollection().Build());
 
     private sealed class ExistingContextFactory(ApplicationDbContext context)

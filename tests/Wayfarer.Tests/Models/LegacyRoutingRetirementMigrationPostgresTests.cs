@@ -31,7 +31,6 @@ public sealed class LegacyRoutingRetirementMigrationPostgresTests(PostgresMigrat
         Exception? primary = null;
         try
         {
-            await migrator.MigrateAsync(PreviousMigration);
             var providerId = Guid.NewGuid();
             var tripId = Guid.NewGuid();
             var segmentId = Guid.NewGuid();
@@ -41,7 +40,7 @@ public sealed class LegacyRoutingRetirementMigrationPostgresTests(PostgresMigrat
                 Category = "test", PlanningSpeedKmh = 42, IsActive = true
             };
             var protection = new EphemeralDataProtectionProvider();
-            var credentials = new PersonalProviderCredentialService(protection);
+            var credentials = Wayfarer.Tests.Infrastructure.CredentialTestFactory.Create(protection);
             var personalProfile = PersonalLocationProviderProfile.Create(user.Id, PersonalLocationProvider.Geoapify);
             credentials.Replace(personalProfile, "preserved-personal-secret");
             personalProfile.SetAuthorization(PersonalProviderCapability.Geocoding, true);
@@ -55,6 +54,8 @@ public sealed class LegacyRoutingRetirementMigrationPostgresTests(PostgresMigrat
             selection.Select(PersonalProviderCapability.Routing, PersonalLocationProvider.Geoapify);
             context.AddRange(transportProfile, personalProfile, selection);
             await context.SaveChangesAsync();
+            // Seed through the current model before downgrading: the historical source has no F1 companion column.
+            await migrator.MigrateAsync(PreviousMigration);
             var expectedCredentialGeneration = personalProfile.CredentialGeneration;
             var expectedGeocodingGeneration = personalProfile.GeocodingGeneration;
             var expectedRoutingGeneration = personalProfile.RoutingGeneration;

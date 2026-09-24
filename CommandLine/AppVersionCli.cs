@@ -69,6 +69,7 @@ public static class AppVersionCli
         Commands:
           version                         Print the compiled Wayfarer version.
           reset-password <user> <pass>    Reset a user's password.
+          data-protection <command>       Inspect or prepare stable credential companions.
           help                            Show this help text.
         """;
 

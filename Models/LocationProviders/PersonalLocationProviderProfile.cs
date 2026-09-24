@@ -27,6 +27,8 @@ public sealed class PersonalLocationProviderProfile
     [StringLength(24)] public string ProviderKey { get; set; } = string.Empty;
     /// <summary>Gets or sets protected credential material.</summary>
     [StringLength(4096)] public string? ProtectedCredential { get; set; }
+    /// <summary>Gets or sets the future stable-identity companion; legacy ciphertext remains authoritative in F1.</summary>
+    [StringLength(4096)] public string? StableProtectedCredential { get; set; }
     /// <summary>Gets or sets the monotonic credential authority generation.</summary>
     public int CredentialGeneration { get; set; } = 1;
     /// <summary>Gets or sets the acknowledged Mapbox Permanent Geocoding terms version.</summary>

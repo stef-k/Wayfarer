@@ -107,7 +107,7 @@ public sealed class MobileRoutingProfileDiscoveryTests : TestBase
     private MobileRoutingProfileDiscoveryService CreateConfiguredService()
     {
         Db = CreateDbContext();
-        var credentials = new PersonalProviderCredentialService(new EphemeralDataProtectionProvider());
+        var credentials = Wayfarer.Tests.Infrastructure.CredentialTestFactory.Create(new EphemeralDataProtectionProvider());
         var profile = PersonalLocationProviderProfile.Create("owner", PersonalLocationProvider.Geoapify);
         credentials.Replace(profile, "secret");
         profile.RoutingAuthorized = true;

@@ -19,6 +19,108 @@ Losing the applicable key ring makes protected personal-provider credentials unr
 
 This compatibility contract covers the fixed single-host systemd deployment at `/var/www/wayfarer`. Containers, a changed content root, and multiple hosts are not covered automatically and require an explicitly shared, stable Data Protection authority before deployment; Wayfarer does not claim certificate, cloud-KMS, container, or multi-host key sharing.
 
+
+## F1 stable-identity preparation (#627)
+
+F1 keeps `ProtectedCredential` as the legacy runtime and rollback authority. Migration
+`20260924220353_StablePersonalCredentialCompanion` adds nullable
+`StableProtectedCredential` (4096 characters). Apply the schema migration before
+starting F1; it adds no ciphertext and performs no preparation. The pre-F1
+application ignores the companion column, so application rollback can retain the
+additive schema and original ciphertext.
+
+New/replaced credentials are protected under both identities before either field
+or any authority state changes. Revocation clears both. Legacy Mapbox migration
+also verifies the stable companion before retiring recognized plaintext rows.
+Normal provider contact still reads only the legacy copy.
+
+The secondary provider uses application name `Wayfarer` and the same complete
+master key ring. It does not generate keys or relocate, prune, rename or rewrite
+existing XML. The global provider retains normal key management and its existing
+hosted discriminator. This implements source preparation only; F2 activation is
+a separately reviewed future stage. [ASP.NET Core application isolation](https://learn.microsoft.com/en-us/aspnet/core/security/data-protection/configuration/overview?view=aspnetcore-10.0#set-the-application-name-setapplicationname)
+explains why a shared ring alone does not make legacy ciphertext portable.
+
+### Supported source preparation sequence
+
+1. Remain at the original readable native content root.
+2. Back up PostgreSQL and the **complete current key ring together**.
+3. Apply the additive schema migration and deploy F1 at the **same** source root.
+4. Verify ordinary startup still reads legacy credentials. Missing stable copies
+   produce only a bounded pending-count warning; invalid or mismatched copies
+   fail startup closed.
+5. Stop/quiesce Wayfarer before preparation.
+6. As the same service account, from the same working/content root and with the
+   same environment/configuration, run `dotnet Wayfarer.dll data-protection status`.
+7. Run `dotnet Wayfarer.dll data-protection prepare-stable-identity`.
+8. Run `dotnet Wayfarer.dll data-protection status` again; require
+   `Activation-ready: True` and exit code 0.
+9. Restart F1 if desired and inspect normal provider settings/state without
+   verification or other provider contact.
+10. Create a **fresh paired PostgreSQL + complete-key-ring recovery set**.
+11. Proceed to F2 activation only after that separate stage is accepted.
+
+For source builds, the equivalent invocation is
+`dotnet run --no-launch-profile -- data-protection status` (or
+`prepare-stable-identity`). Do not change the content root, service identity,
+`DataProtection:KeyRingPath`, or environment when invoking the command.
+
+### Command and transaction contract
+
+Status is read-only and prints bounded active, stable-ready, pending, blocked,
+revoked/no-credential counts and overall readiness. Exit codes: 0 means ready,
+1 means pending/blocked or command failure, and 2 means invalid command syntax.
+Neither command accepts credentials, ciphertext or key material as arguments.
+Diagnostics omit credentials, protected payloads, users, provider URLs and key
+material. The command host has no logging/audit sinks, seeding, jobs or provider
+HTTP services.
+
+Preparation takes a PostgreSQL transaction and an EXCLUSIVE table lock on
+`PersonalLocationProviderProfiles`, with a five-second lock wait. This excludes
+profile writes and row-locking mutations but permits ordinary readers. The lock
+is defense in depth: it does not replace quiescing the service. There are no
+automatic retries. After lock timeout or another failure, check source authority
+and service quiescence before explicitly rerunning.
+
+Every row is validated before writes. Only missing companions are filled;
+matching copies are left byte-for-byte unchanged. Unreadable legacy/stable
+ciphertext, mismatch, stable-only active state or inconsistent revoked state
+blocks the run without overwriting recovery evidence. The complete set is
+re-read and checked before commit. Any failure rolls back all companions from
+that run. Only `StableProtectedCredential` and PostgreSQL `xmin` change;
+legacy ciphertext, generation, authorization, verification, Permanent Geocoding
+consent and `UpdatedAt` remain unchanged. An idempotent rerun changes no rows.
+Ordinary replacements after preparation keep both copies ready.
+
+Preparation never runs automatically from deployment, EF migration, ordinary
+startup or a web request. Runtime legacy Mapbox conversion prepares only the
+credential it is already explicitly migrating.
+
+### Already-moved state and protector inventory
+
+An already moved database/ring whose legacy credential cannot be decrypted under
+the new hosted content root cannot be repaired from the ring alone. Prepare on
+the still-readable source identity, restore that source environment/content-root
+identity sufficiently to decrypt, or explicitly replace/re-enter the credential.
+Wayfarer never guesses paths or brute-forces old discriminators.
+
+The only active durable ciphertext target is
+`PersonalLocationProviderProfile.ProtectedCredential`, using unchanged purposes
+`Wayfarer.LocationProviders.PersonalCredentials.v1 / credential / <providerKey> / <userId>`.
+Historical routing `CredentialCiphertext` columns belong to retired migrations.
+
+These explicit transient purposes stay on the global legacy identity and require
+no database rewrite:
+
+- `Wayfarer.TripEditor.SegmentAggregate.v1`
+- `Wayfarer.TripEditor.SegmentRouteClear.v1`
+- `Wayfarer.PlaceRegionLifecycle.DependencyConfirmation.v1`
+- `Wayfarer.ExternalRouting.ProposalContext.v1`
+
+The startup probe is non-durable. Framework auth cookies, antiforgery and Identity
+Data Protection tokens retain their current identity and behavior throughout F1.
+The later F2 stage will define activation and controlled token invalidation.
+
 ## Profiles, authorization, and switching
 
 Geocoding and routing authorization, verification, and active selection are independent. “No provider” is supported. A replacement advances the credential generation and invalidates both verifications without changing authorization or usage. Revocation removes ciphertext, disables both capabilities, and preserves usage and all Locations, Timeline records, Places, Trips, Segments, addresses, enrichment, geometry, and accepted routes. Switching changes selection only: inactive profiles, credentials, verification history, guards, and usage remain retained.
