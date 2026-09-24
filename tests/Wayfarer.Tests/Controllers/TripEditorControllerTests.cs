@@ -422,9 +422,9 @@ public sealed class TripEditorControllerTests : TestBase
         return mock.Object;
     }
 
-    private static string CreateIconWebRoot()
+    private string CreateIconWebRoot()
     {
-        var root = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        var root = CreateTestDirectory(); // TestBase disposes this fixture after success or failure.
         var markerDir = Path.Combine(root, "icons", "wayfarer-map-icons", "dist", "marker");
         Directory.CreateDirectory(markerDir);
         File.WriteAllText(Path.Combine(markerDir, "zulu.svg"), "<svg />");
