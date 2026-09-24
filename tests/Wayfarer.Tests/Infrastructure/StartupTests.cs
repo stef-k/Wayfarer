@@ -78,7 +78,6 @@ public class StartupTests
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["ConnectionStrings:DefaultConnection"] = "Host=localhost;Database=test;",
-                ["Logging:LogFilePath:Default"] = "logs/test.log",
                 ["MobileSse:Enabled"] = "false"
             })
             .Build();

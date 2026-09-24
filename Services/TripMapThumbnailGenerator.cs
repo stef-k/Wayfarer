@@ -17,7 +17,7 @@ public sealed partial class TripMapThumbnailGenerator : ITripMapThumbnailGenerat
     private static bool _browsersInstalled = false;
 
     private readonly ILogger<TripMapThumbnailGenerator> _logger;
-    private readonly IWebHostEnvironment _env;
+    private readonly TripThumbnailStorage _storage;
     private readonly IConfiguration _configuration;
     private readonly string _thumbsDirectory;
     private readonly string _chromeCachePath;
@@ -28,15 +28,15 @@ public sealed partial class TripMapThumbnailGenerator : ITripMapThumbnailGenerat
     /// </summary>
     public TripMapThumbnailGenerator(
         ILogger<TripMapThumbnailGenerator> logger,
-        IWebHostEnvironment env,
+        TripThumbnailStorage storage,
         IConfiguration configuration)
     {
         _logger = logger;
-        _env = env;
+        _storage = storage;
         _configuration = configuration;
 
         // Prepare thumbs directory
-        _thumbsDirectory = Path.Combine(_env.WebRootPath, "thumbs", "trips");
+        _thumbsDirectory = storage.Root;
         Directory.CreateDirectory(_thumbsDirectory);
         _logger.LogInformation("Thumbnail directory: {ThumbsDirectory}", _thumbsDirectory);
 
@@ -54,10 +54,10 @@ public sealed partial class TripMapThumbnailGenerator : ITripMapThumbnailGenerat
     /// <summary>Creates a generator with a controllable capture seam for focused tests.</summary>
     internal TripMapThumbnailGenerator(
         ILogger<TripMapThumbnailGenerator> logger,
-        IWebHostEnvironment env,
+        TripThumbnailStorage storage,
         IConfiguration configuration,
         Func<CancellationToken, Task<byte[]?>> captureOverride)
-        : this(logger, env, configuration)
+        : this(logger, storage, configuration)
     {
         _captureOverride = captureOverride;
     }
@@ -120,9 +120,9 @@ public sealed partial class TripMapThumbnailGenerator : ITripMapThumbnailGenerat
         // Clamp zoom to reasonable range
         zoom = Math.Clamp(zoom, 1, 18);
 
-        // Build filename: {tripId}-{width}x{height}-{ticks}.jpg
-        var filename = $"{tripId}-{width}x{height}.jpg";
-        var filePath = Path.Combine(_thumbsDirectory, filename);
+        // Resolve the canonical generated JPEG under the current external root.
+        var filename = TripThumbnailStorage.FileName(tripId, width, height);
+        var filePath = _storage.Resolve(filename);
 
         // Check if thumbnail exists and is fresh (newer than trip's UpdatedAt)
         if (File.Exists(filePath))
@@ -131,8 +131,7 @@ public sealed partial class TripMapThumbnailGenerator : ITripMapThumbnailGenerat
             if (fileTime >= updatedAt)
             {
                 // Cached version is fresh - add timestamp for browser cache busting
-                var timestamp = updatedAt.Ticks;
-                return $"/thumbs/trips/{filename}?v={timestamp}";
+                return _storage.PublicUrl(tripId, width, height, updatedAt);
             }
         }
 
@@ -159,8 +158,7 @@ public sealed partial class TripMapThumbnailGenerator : ITripMapThumbnailGenerat
                     tripId, width, height, filePath);
 
                 // Add timestamp for browser cache busting
-                var timestamp = updatedAt.Ticks;
-                return $"/thumbs/trips/{filename}?v={timestamp}";
+                return _storage.PublicUrl(tripId, width, height, updatedAt);
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -345,13 +343,9 @@ public sealed partial class TripMapThumbnailGenerator : ITripMapThumbnailGenerat
 
     /// <summary>
     /// Deletes all cached thumbnails for a specific trip.
-    /// (No-op for external API approach; will be implemented for self-hosted tiles)
     /// </summary>
     public void DeleteThumbnails(Guid tripId)
     {
-        // For external API approach, no cleanup needed
-        // If/when we implement self-hosted thumbnails, we'll delete files here
-
         try
         {
             var pattern = $"{tripId}-*.jpg";
@@ -359,6 +353,7 @@ public sealed partial class TripMapThumbnailGenerator : ITripMapThumbnailGenerat
 
             foreach (var file in files)
             {
+                if (!TripThumbnailStorage.TryParse(Path.GetFileName(file), out var parsedId) || parsedId != tripId) continue;
                 File.Delete(file);
                 _logger.LogInformation("Deleted thumbnail: {File}", file);
             }
@@ -382,11 +377,7 @@ public sealed partial class TripMapThumbnailGenerator : ITripMapThumbnailGenerat
 
             foreach (var file in files)
             {
-                // Extract trip ID from filename: {tripId}-{width}x{height}-{ticks}.jpg
-                var filename = Path.GetFileNameWithoutExtension(file);
-                var parts = filename.Split('-');
-
-                if (parts.Length > 0 && Guid.TryParse(parts[0], out var tripId))
+                if (TripThumbnailStorage.TryParse(Path.GetFileName(file), out var tripId))
                 {
                     if (!existingTripIds.Contains(tripId))
                     {
@@ -420,6 +411,7 @@ public sealed partial class TripMapThumbnailGenerator : ITripMapThumbnailGenerat
 
             foreach (var file in files)
             {
+                if (!TripThumbnailStorage.TryParse(Path.GetFileName(file), out var parsedId) || parsedId != tripId) continue;
                 File.Delete(file);
                 _logger.LogInformation("Invalidated thumbnail for updated trip: {File}", file);
             }

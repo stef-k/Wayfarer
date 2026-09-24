@@ -442,7 +442,8 @@ public class TripViewerControllerTests : TestBase
             thumbnailService,
             tagService,
             imageProxyService,
-            settingsService);
+            settingsService,
+            new TripThumbnailStorage(TestDirectory.Storage(CreateTestDirectory())));
         controller.ControllerContext = new ControllerContext
         {
             HttpContext = new DefaultHttpContext()

@@ -315,3 +315,21 @@ Issue 405 provider tests require `WAYFARER_TEST_POSTGRES_CONNECTION` to identify
 Run `dotnet test tests/Wayfarer.Tests/Wayfarer.Tests.csproj --filter 'FullyQualifiedName~ImageCache|FullyQualifiedName~ImageProxy|FullyQualifiedName~StoragePathsTests|FullyQualifiedName~DeploymentScriptTests'` first. Attach the guarded PostgreSQL connection above: `ImageCacheStoragePostgresTests` uses an owned disposable migrated database to prove restored absolute rows, promotion commit points, rollback/preservation and real xmin conflicts. In-memory tests own filename grammar, safe reads/deletion, missing-file races, LastAccessed throttling and DB-first LRU accounting; proxy tests use fake HTTP for stale serving and coalescing. No external image origin or M6 instance is involved.
 
 Then run the ordinary non-Playwright/non-SpatiaLite suite with PostgreSQL attached, `dotnet build`, `bash -n deployment/install.sh deployment/deploy.sh`, deployment/config safety tests, and both Code Guard scopes. Production-like smoke launchers that previously isolated only `CacheSettings__ImageCacheDirectory` must also set an owned `Storage__CacheRoot`; `tools/trip-editor-asset-smoke.mjs` does so. Do not let disposable new writes fall back to `/var/cache/wayfarer/images`. These are disposable qualification results, not a production migration or host-ownership acceptance claim.
+
+
+## Thumbnail and operational log storage qualification
+
+Use disposable Storage roots for #625. Focused `TripThumbnailStorageTests`,
+`TripMapThumbnailGeneratorTests`, `PublicTripImagesTests`, `OperationalLogStorageTests`,
+`AdminLogsControllerTests`, `JobTests`, `StoragePathsTests` and `DeploymentScriptTests`
+cover external JPEG persistence/atomic failure, authoritative HTTP misses, direct
+MapSnapshot, daily file sink/Admin/cleanup convergence, platform defaults and native
+routing/preparation. Capture overrides prove persistence without external network or
+browser installation. Fixtures never write thumbnails into repository webroot.
+
+Run the ordinary PostgreSQL-attached suite described above, build, relevant asset
+smoke, shell syntax/config checks and both Code Guard scopes. Real-host launchers
+must set their owned `Storage__LogRoot` and `Storage__CacheRoot`; the published asset,
+waypoint and shared-layout runners retain their existing cleanup/evidence ownership.
+These subsystem checks do not qualify browser-runtime relocation, a fully read-only
+application root, containers, or the real production migration.

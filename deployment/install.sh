@@ -439,8 +439,8 @@ fi
 # ------------------------------
 echo ""
 echo "Creating deployment directory (if needed) and setting ownership."
-sudo mkdir -p "$DEPLOY_DIR" /var/lib/wayfarer/uploads/imports /var/cache/wayfarer/tiles /var/cache/wayfarer/images
-sudo chown -R "$APP_USER":"$APP_USER" "$DEPLOY_DIR" /var/lib/wayfarer/uploads /var/cache/wayfarer/tiles /var/cache/wayfarer/images
+sudo mkdir -p "$DEPLOY_DIR" /var/log/wayfarer /var/lib/wayfarer/uploads/imports /var/cache/wayfarer/tiles /var/cache/wayfarer/images /var/cache/wayfarer/thumbnails/trips
+sudo chown -R "$APP_USER":"$APP_USER" "$DEPLOY_DIR" /var/log/wayfarer /var/lib/wayfarer/uploads /var/cache/wayfarer/tiles /var/cache/wayfarer/images /var/cache/wayfarer/thumbnails/trips
 sudo mkdir -p "/home/$APP_USER/.aspnet/DataProtection-Keys"
 sudo chown -R "$APP_USER":"$APP_USER" "/home/$APP_USER/.aspnet"
 sudo chmod 700 "/home/$APP_USER/.aspnet" "/home/$APP_USER/.aspnet/DataProtection-Keys"

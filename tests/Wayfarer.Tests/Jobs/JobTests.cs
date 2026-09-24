@@ -30,21 +30,16 @@ public class JobTests : TestBase
     {
         var tempDir = Path.Combine(Path.GetTempPath(), $"wf-logs-{Guid.NewGuid():N}");
         Directory.CreateDirectory(tempDir);
-        var oldFile = Path.Combine(tempDir, "wayfarer-old.log");
-        var recentFile = Path.Combine(tempDir, "wayfarer-recent.log");
+        var oldFile = Path.Combine(tempDir, "wayfarer-20250101.log");
+        var recentFile = Path.Combine(tempDir, "wayfarer-20260925.log");
         File.WriteAllText(oldFile, "old");
         File.WriteAllText(recentFile, "recent");
         File.SetCreationTime(oldFile, DateTime.Now.AddMonths(-2));
         File.SetCreationTime(recentFile, DateTime.Now);
 
-        var config = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["Logging:LogFilePath:Default"] = Path.Combine(tempDir, "wayfarer-current.log")
-            })
-            .Build();
+        var storage = TestDirectory.Storage(tempDir, tempDir);
 
-        var job = new LogCleanupJob(config, NullLogger<LogCleanupJob>.Instance);
+        var job = new LogCleanupJob(storage, NullLogger<LogCleanupJob>.Instance);
         var jobDetail = JobBuilder.Create<LogCleanupJob>().WithIdentity("logCleanup", "tests").Build();
         var context = new Mock<IJobExecutionContext>();
         context.SetupGet(c => c.JobDetail).Returns(jobDetail);
@@ -120,12 +115,7 @@ public class JobTests : TestBase
         var tempDir = Path.Combine(Path.GetTempPath(), $"wf-logs-{Guid.NewGuid():N}");
         Directory.CreateDirectory(tempDir);
 
-        var config = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["Logging:LogFilePath:Default"] = Path.Combine(tempDir, "wayfarer-current.log")
-            })
-            .Build();
+        var storage = TestDirectory.Storage(tempDir, tempDir);
 
         var cts = new CancellationTokenSource();
         cts.Cancel();
@@ -135,7 +125,7 @@ public class JobTests : TestBase
         context.SetupGet(c => c.JobDetail).Returns(jobDetail);
         context.SetupGet(c => c.CancellationToken).Returns(cts.Token);
 
-        var job = new LogCleanupJob(config, NullLogger<LogCleanupJob>.Instance);
+        var job = new LogCleanupJob(storage, NullLogger<LogCleanupJob>.Instance);
 
         try
         {

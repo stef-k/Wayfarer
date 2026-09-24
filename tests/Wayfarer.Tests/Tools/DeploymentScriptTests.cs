@@ -48,6 +48,38 @@ public sealed class DeploymentScriptTests
         Assert.Contains("Storage__CacheRoot: path.join(localDir, 'asset-smoke-cache', 'current')", smoke);
     }
 
+    /// <summary>The bounded prefix bypasses regex image handling and preserves standard proxy headers.</summary>
+    [Fact]
+    public void ThumbnailsReachKestrelAndNativeRootsArePrepared()
+    {
+        var nginx = File.ReadAllText(RepositoryFile("deployment", "wayfarer-nginx-vhost.conf"));
+        var route = Regex.Match(nginx, @"location \^~ /thumbs/ \{([^}]+)\}");
+        Assert.True(route.Success);
+        Assert.Contains("proxy_pass http://localhost:5000;", route.Value);
+        Assert.DoesNotContain("root ", route.Value);
+        foreach (var header in new[] { "Host", "X-Forwarded-For", "X-Forwarded-Proto", "X-Real-IP" })
+            Assert.Contains("proxy_set_header " + header, route.Value);
+        Assert.Contains("location ~*", nginx);
+        foreach (var name in new[] { "install.sh", "deploy.sh" })
+        {
+            var script = File.ReadAllText(RepositoryFile("deployment", name));
+            foreach (var root in new[] { "/var/cache/wayfarer/thumbnails/trips", "/var/log/wayfarer" })
+                Assert.Matches(@"(?m)^sudo (?:chown|install)[^\r\n]*APP_USER[^\r\n]*" + root, script);
+        }
+        var deploy = File.ReadAllText(RepositoryFile("deployment", "deploy.sh"));
+        Assert.Contains("--exclude 'wwwroot/thumbs/'", deploy);
+        Assert.Contains("--exclude 'Logs'", deploy);
+        foreach (var name in new[] { "trip-editor-asset-smoke.mjs", "run-407-waypoint-browser.ps1", "start-shared-layout-e2e-host.ps1" })
+        {
+            var runner = File.ReadAllText(RepositoryFile("tools", name));
+            Assert.Contains("Storage__LogRoot", runner);
+            Assert.Contains("Storage__CacheRoot", runner);
+            Assert.DoesNotContain("Logging__LogFilePath__Default", runner);
+        }
+        foreach (var name in new[] { "appsettings.json", "appsettings.Development.json", "appsettings.Production.json" })
+            Assert.DoesNotContain("LogFilePath", File.ReadAllText(RepositoryFile(name)));
+    }
+
     /// <summary>Finds source scripts from the test output directory.</summary>
     private static string RepositoryFile(params string[] parts) => Path.GetFullPath(
         Path.Combine([AppContext.BaseDirectory, "..", "..", "..", "..", "..", .. parts]));

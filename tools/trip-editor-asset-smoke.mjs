@@ -274,7 +274,10 @@ async function ensureDevelopmentServers() {
   if (!(await urlResponds(`${config.devBaseUrl}/Identity/Account/Login`))) {
     startProcess(dotnetCommand, ['run', '--no-launch-profile', '--urls', config.devBaseUrl], {
       ASPNETCORE_ENVIRONMENT: 'Development',
-      ASPNETCORE_URLS: config.devBaseUrl
+      ASPNETCORE_URLS: config.devBaseUrl,
+      // Hosts started by this runner own both operational logs and generated cache state.
+      Storage__LogRoot: logsDir,
+      Storage__CacheRoot: path.join(cacheDir, 'current')
     }, 'aspnet-development');
   } else {
     console.log(`[development] Reusing ASP.NET server at ${config.devBaseUrl}.`);
@@ -338,7 +341,7 @@ async function startPublishedApp() {
   const env = {
     ASPNETCORE_ENVIRONMENT: 'Production',
     ASPNETCORE_URLS: config.publishedBaseUrl,
-    Logging__LogFilePath__Default: path.join(logsDir, 'published-wayfarer-.log'),
+    Storage__LogRoot: logsDir,
     CacheSettings__TileCacheDirectory: path.join(localDir, 'asset-smoke-cache', 'TileCache'),
     // New cache writes must stay inside the smoke-owned tree under Production.
     Storage__CacheRoot: path.join(localDir, 'asset-smoke-cache', 'current'),
