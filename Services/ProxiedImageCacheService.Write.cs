@@ -127,7 +127,7 @@ public partial class ProxiedImageCacheService
             existing.CreatedAt = now;
             existing.LastAccessed = now;
 
-            var saved = await SaveWithConcurrencyRetryAsync(existing);
+            var saved = await SaveRefreshWithConcurrencyRetryAsync(existing);
             if (!saved)
             {
                 RestoreMetadataValues(existing, oldFilePath, oldContentType, oldSize, oldCreatedAt, oldLastAccessed);
@@ -151,9 +151,33 @@ public partial class ProxiedImageCacheService
     }
 
     /// <summary>
-    /// Saves metadata changes with retry on concurrency conflicts.
+    /// Updates only access time. On xmin conflict, reload every database-current field before
+    /// retrying so an old reader cannot restore a retired reference or stale content metadata.
     /// </summary>
-    private async Task<bool> SaveWithConcurrencyRetryAsync(ImageCacheMetadata metadata)
+    private async Task UpdateLastAccessedAsync(ImageCacheMetadata metadata)
+    {
+        var entry = _dbContext.Entry(metadata);
+        for (var attempt = 0; attempt < 3; attempt++)
+        {
+            // Do not call Update: EF should mark only the changed LastAccessed property.
+            metadata.LastAccessed = DateTime.UtcNow;
+            try
+            {
+                await SaveMetadataChangesAsync();
+                return;
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                await entry.ReloadAsync();
+                if (entry.State == EntityState.Detached) return;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Persists the full refresh intent with retry while retaining the uncommitted generation.
+    /// </summary>
+    private async Task<bool> SaveRefreshWithConcurrencyRetryAsync(ImageCacheMetadata metadata)
     {
         var attempts = 0;
         var updated = false;

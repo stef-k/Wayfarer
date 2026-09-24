@@ -128,21 +128,13 @@ public partial class ProxiedImageCacheService : IProxiedImageCacheService
             if (_storage.Resolve(metadata) == null)
                 return new ProxiedImageCacheResult(ProxiedImageCacheStatus.DiskMissingOrError, null, null, null);
 
-            // Expired entries are stale-but-servable while the file remains present.
-            // Expiry is the refresh cadence, not a user-facing delete trigger.
-            var maxAge = TimeSpan.FromDays(settings.ImageCacheExpiryDays);
-            status = DateTime.UtcNow - metadata.CreatedAt > maxAge
-                ? ProxiedImageCacheStatus.StaleHit
-                : ProxiedImageCacheStatus.FreshHit;
-
             // Conditional LastAccessed update — only when stale (>1 hour)
             // No lock needed; concurrent updates both write "now" (harmless)
             if (DateTime.UtcNow - metadata.LastAccessed > LastAccessedUpdateInterval)
             {
                 try
                 {
-                    metadata.LastAccessed = DateTime.UtcNow;
-                    await SaveWithConcurrencyRetryAsync(metadata);
+                    await UpdateLastAccessedAsync(metadata);
                 }
                 catch (Exception ex)
                 {
@@ -151,6 +143,12 @@ public partial class ProxiedImageCacheService : IProxiedImageCacheService
                 }
             }
 
+            // A LastAccessed conflict may have reloaded a concurrently refreshed generation.
+            // Classify expiry from that same current snapshot used for reference and content type.
+            var maxAge = TimeSpan.FromDays(settings.ImageCacheExpiryDays);
+            status = DateTime.UtcNow - metadata.CreatedAt > maxAge
+                ? ProxiedImageCacheStatus.StaleHit
+                : ProxiedImageCacheStatus.FreshHit;
             capturedReference = metadata.FilePath;
             filePath = _storage.Resolve(metadata);
             if (filePath == null)

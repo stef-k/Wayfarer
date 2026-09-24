@@ -51,4 +51,69 @@ public sealed class ImageCacheStoragePostgresTests
             await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() => competing.SaveChangesAsync());
         }
     }
+
+    /// <summary>An hourly access write cannot revert a refresh committed after the reader captured its old xmin.</summary>
+    [PostgresFact]
+    public async Task LastAccessedConflictPreservesConcurrentRefreshAndServesItsGeneration()
+    {
+        await using var fixture = new PostgresMigrationTestFixture();
+        await fixture.InitializeAsync();
+        using var directory = new TestDirectory();
+        var storage = new ImageCacheStorage(Path.Combine(directory.Path, "current"), Path.Combine(directory.Path, "legacy"));
+        await using var readerDb = fixture.CreateContext();
+        var oldRow = await ImageCacheStorageQualificationTests.SeedAsync(readerDb, storage, "legacy", stale: true);
+        oldRow.LastAccessed = DateTime.UtcNow.AddHours(-2);
+        await readerDb.SaveChangesAsync();
+        var oldPath = oldRow.FilePath;
+        var oldVersion = oldRow.RowVersion;
+        await using var writerDb = fixture.CreateContext();
+        var writer = ImageCacheStorageQualificationTests.Service(writerDb, storage);
+        var reader = ImageCacheStorageQualificationTests.Service(readerDb, storage);
+        var conflicts = 0;
+        var refreshCommitted = false;
+        string? refreshedReference = null;
+        DateTime refreshedCreatedAt = default;
+        ProxiedImageCacheService.SetMetadataSaverForTesting(async context =>
+        {
+            if (ReferenceEquals(context, readerDb) && !refreshCommitted)
+            {
+                // The reader has already captured stale fields and decided its hourly write is due.
+                Assert.Equal(oldVersion, oldRow.RowVersion);
+                Assert.True((await writer.SetAsync(oldRow.CacheKey, [3, 4, 5], "image/png")).Stored);
+                var refreshed = await writerDb.ImageCacheMetadata.SingleAsync();
+                refreshedReference = refreshed.FilePath;
+                refreshedCreatedAt = refreshed.CreatedAt;
+                Assert.NotEqual(oldVersion, refreshed.RowVersion);
+                Assert.False(File.Exists(oldPath));
+                refreshCommitted = true;
+            }
+            try { return await context.SaveChangesAsync(); }
+            catch (DbUpdateConcurrencyException)
+            {
+                conflicts++;
+                throw;
+            }
+        });
+        ProxiedImageCacheResult result;
+        try { result = await reader.GetAsync(oldRow.CacheKey); }
+        finally { ProxiedImageCacheService.SetMetadataSaverForTesting(null); }
+
+        Assert.True(refreshCommitted);
+        Assert.Equal(1, conflicts);
+        Assert.Equal(ProxiedImageCacheStatus.FreshHit, result.Status);
+        Assert.Equal(new byte[] { 3, 4, 5 }, result.Bytes);
+        Assert.Equal("image/png", result.ContentType);
+        var current = await readerDb.ImageCacheMetadata.AsNoTracking().SingleAsync();
+        Assert.Equal(refreshedReference, current.FilePath);
+        Assert.True(ImageCacheStorage.IsReference(current.FilePath, current.CacheKey));
+        Assert.Equal(3, current.Size);
+        Assert.Equal("image/png", current.ContentType);
+        // PostgreSQL stores microseconds while the publishing context initially retains .NET ticks.
+        Assert.Equal(refreshedCreatedAt.Ticks / 10, current.CreatedAt.Ticks / 10);
+        Assert.True(current.LastAccessed >= current.CreatedAt);
+        Assert.Equal(storage.Resolve(current), result.FilePath);
+        Assert.Equal(new byte[] { 3, 4, 5 }, await File.ReadAllBytesAsync(result.FilePath!));
+        Assert.False(File.Exists(oldPath));
+    }
+
 }
