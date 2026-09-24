@@ -43,6 +43,9 @@ public partial class TileCacheService
     /// </summary>
     private static Func<int, TimeSpan> _refreshRetryDelayProvider = CalculateRefreshRetryDelay;
 
+    /// <summary>Waits for refresh retry backoff; overridable only for deterministic tests.</summary>
+    private static Func<TimeSpan, CancellationToken, Task> _refreshRetryWait = Task.Delay;
+
     /// <summary>
     /// Test-overridable tile replacement hook for deterministic replacement-failure coverage.
     /// </summary>
@@ -148,7 +151,7 @@ public partial class TileCacheService
                     selectedDelay.TotalMilliseconds,
                     "stale-refresh");
                 series.CancellationStage = "stale-refresh-delay";
-                await Task.Delay(selectedDelay, series.CancellationToken).ConfigureAwait(false);
+                await _refreshRetryWait(selectedDelay, series.CancellationToken).ConfigureAwait(false);
             }
         }
         catch (OperationCanceledException) when (series.CancellationToken.IsCancellationRequested)
@@ -327,6 +330,12 @@ public partial class TileCacheService
         _refreshRetryDelayProvider = delayProvider ?? CalculateRefreshRetryDelay;
     }
 
+    /// <summary>Overrides only the refresh retry wait for deterministic cancellation tests.</summary>
+    internal static void SetRefreshRetryWaitForTesting(Func<TimeSpan, CancellationToken, Task>? wait)
+    {
+        _refreshRetryWait = wait ?? Task.Delay;
+    }
+
     /// <summary>
     /// Overrides tile replacement for deterministic replacement-failure tests.
     /// </summary>
@@ -335,11 +344,12 @@ public partial class TileCacheService
         _replaceTileFile = replacer ?? ReplaceTileFileAtomicallyCore;
     }
 
-    /// <summary>Reopens background admission after isolated test cleanup.</summary>
+    /// <summary>Restores the retry wait and reopens admission after isolated test cleanup.</summary>
     private static void ResetRefreshCoordinatorForTesting()
     {
         lock (_refreshAdmissionLock)
         {
+            _refreshRetryWait = Task.Delay;
             _refreshStopping = false;
         }
     }

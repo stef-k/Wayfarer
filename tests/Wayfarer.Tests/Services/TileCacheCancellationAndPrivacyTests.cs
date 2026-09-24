@@ -145,12 +145,11 @@ public sealed class TileCacheCancellationAndPrivacyTests
     [Fact]
     public async Task StaleRefreshDelayCancellation_RemovesRefreshState()
     {
-        var conditionalAttempted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var delayEntered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var upstream = new RecordingTileHandler((request, _) =>
         {
             if (request.Headers.IfNoneMatch.Count > 0)
             {
-                conditionalAttempted.TrySetResult();
                 return Task.FromResult(new HttpResponseMessage(HttpStatusCode.ServiceUnavailable));
             }
 
@@ -161,10 +160,16 @@ public sealed class TileCacheCancellationAndPrivacyTests
         SetHttpContext(scope, TileCacheTestHarness.CreateHttpContext());
         var service = scope.ServiceProvider.GetRequiredService<TileCacheService>();
         await SeedExpiredTileAsync(service, harness.CacheDirectory, 5, 18, 23);
-        TileCacheService.SetRefreshRetryDelayForTesting(_ => TimeSpan.FromMinutes(1));
+        // Signal from the actual retry wait, after the coordinator selects the cancellation stage.
+        TileCacheService.SetRefreshRetryWaitForTesting((_, token) =>
+        {
+            var wait = Task.Delay(Timeout.InfiniteTimeSpan, token);
+            delayEntered.TrySetResult();
+            return wait;
+        });
 
         var result = await service.RetrieveTileAsync("5", "18", "23", CanonicalTileUrl(5, 18, 23));
-        await conditionalAttempted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await delayEntered.Task.WaitAsync(TimeSpan.FromSeconds(2));
         TileCacheService.CancelRefreshForTesting("5_18_23");
 
         Assert.NotNull(result.TileData);
