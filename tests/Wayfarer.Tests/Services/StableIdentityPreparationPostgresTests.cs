@@ -154,7 +154,8 @@ public sealed class StableIdentityPreparationPostgresTests
             await using var db = fixture.CreateContext();
             db.ApiTokens.Add(new ApiToken
             {
-                UserId = user.Id, Name = "Mapbox", Token = StableIdentityCryptographyTests.Secret
+                UserId = user.Id, User = await db.Users.SingleAsync(row => row.Id == user.Id),
+                Name = "Mapbox", Token = StableIdentityCryptographyTests.Secret
             });
             await db.SaveChangesAsync();
             var owner = fail
