@@ -9,9 +9,11 @@ test ! -w /var/lib/wayfarer
 test ! -w /var/cache/wayfarer
 test ! -w /var/log/wayfarer
 test -z "$(dotnet --list-sdks)"
-! command -v node
-! command -v npm
-! command -v pwsh
+# Negated commands bypass sh errexit; explicitly fail if a build tool is present.
+if command -v node || command -v npm || command -v pwsh; then
+  echo "Unexpected build tool in runtime image" >&2
+  exit 1
+fi
 test -s wwwroot/vite/trip-editor/manifest.json
 test -d wwwroot/dist
 .playwright/node/linux-x64/node <<'JAVASCRIPT'
