@@ -1,0 +1,108 @@
+# Production substrate only: setup explicitly prepares volumes and database before web startup.
+name: wayfarer
+services:
+  wayfarer:
+    image: ghcr.io/stef-k/wayfarer@${WAYFARER_DIGEST:?immutable application digest required}
+    platform: linux/amd64
+    read_only: true
+    init: true
+    restart: unless-stopped
+    stop_grace_period: 70s
+    security_opt: [no-new-privileges:true]
+    environment:
+      AllowedHosts: ${PUBLIC_HOST:?public hostname required}
+      ConnectionStrings__DefaultConnection: Host=db;Database=wayfarer;Username=wayfarer;Timeout=5
+      Database__PasswordFile: /run/secrets/app-password
+      # One fixed managed proxy peer, never the whole edge network.
+      TrustedProxy__Addresses__0: ${EDGE_PREFIX:-172.30.64}.3
+    secrets: [app-password]
+    volumes:
+      - type: volume
+        source: app-data
+        target: /var/lib/wayfarer
+        volume:
+          nocopy: true
+      - type: volume
+        source: app-cache
+        target: /var/cache/wayfarer
+        volume:
+          nocopy: true
+      - type: volume
+        source: app-logs
+        target: /var/log/wayfarer
+        volume:
+          nocopy: true
+    tmpfs:
+      - /tmp/wayfarer:uid=1654,gid=1654,mode=0700,size=536870912
+    networks: [backend, edge]
+    depends_on:
+      db:
+        condition: service_healthy
+  db:
+    # Wayfarer packaging: official PG17.11 Bookworm + signed PGDG PostGIS3.6.4.
+    image: ghcr.io/stef-k/wayfarer-db@${DB_DIGEST:?immutable database digest required}
+    platform: linux/amd64
+    restart: unless-stopped
+    stop_grace_period: 60s
+    environment:
+      POSTGRES_PASSWORD_FILE: /run/secrets/db-password
+      POSTGRES_INITDB_ARGS: --encoding=UTF8 --locale=C.UTF-8
+    secrets:
+      - db-password
+      - source: db-app-password
+        target: app-password
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      - ./db/20-wayfarer.sh:/docker-entrypoint-initdb.d/20-wayfarer.sh:ro
+    networks: [backend]
+    healthcheck:
+      test: [CMD, pg_isready, -U, postgres, -d, wayfarer, -t, '3']
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+  caddy:
+    # Official Caddy2.11.4; immutable index, with platform constrained below.
+    image: caddy@sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b
+    platform: linux/amd64
+    profiles: [managed]
+    restart: unless-stopped
+    stop_grace_period: 70s
+    environment:
+      PUBLIC_HOST: ${PUBLIC_HOST:?public hostname required}
+    ports: ['80:80', '443:443', '443:443/udp']
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    networks:
+      edge:
+        ipv4_address: ${EDGE_PREFIX:-172.30.64}.3
+    depends_on:
+      wayfarer:
+        condition: service_healthy
+# App retains egress for maps/providers. Only DB + app share the internal backend.
+networks:
+  backend:
+    internal: true
+  edge:
+    ipam:
+      config:
+        - subnet: ${EDGE_PREFIX:-172.30.64}.0/24
+          gateway: ${EDGE_PREFIX:-172.30.64}.1
+volumes:
+  app-data:
+  app-cache:
+  app-logs:
+  db-data:
+  caddy-data:
+  caddy-config:
+# Local Compose secrets are protected bind mounts; uid/gid remapping is not assumed.
+secrets:
+  db-password:
+    file: ${DB_PASSWORD_FILE:?administrative password file required}
+  app-password:
+    file: ${APP_PASSWORD_FILE:?application password file required}
+  db-app-password:
+    # Same role password, separate 0600 copy readable by upstream postgres UID999.
+    file: ${DB_APP_PASSWORD_FILE:?database-readable application password file required}

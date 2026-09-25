@@ -1,0 +1,7 @@
+# Public automatic HTTPS is the production default; test TLS lives outside this file.
+{$PUBLIC_HOST} {
+	# Immediate streaming supports SSE; no artificial response/body-size/time limits.
+	reverse_proxy wayfarer:8080 {
+		flush_interval -1
+	}
+}

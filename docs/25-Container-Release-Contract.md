@@ -91,14 +91,25 @@ backup operation, not the ordinary web service. No NAS mounting/credentials fram
 
 ## Database contract
 
-Select project-maintained `docker.io/postgis/postgis:17-3.5`, Debian variant, based
-on the official PostgreSQL image. First bundle supports PostgreSQL **17 only** and
-PostGIS **3.5.x**, pinned by digest per bundle. This matches the maintainer/test PG17
-baseline; the native application's documented PG13+ minimum is not a promise that
-the managed bundle operates all those majors. Upstream currently recommends this
-family alongside 18-3.6 and lists AMD64 support. Its Bullseye base has a separate
-support horizon from Noble: publication must recheck upstream maintenance/security
-status; do not ship an unsupported base merely to retain this initial selection.
+Select a narrowly scoped Wayfarer-owned DB image assembled from the official
+`postgres:17.11-bookworm` Linux AMD64 digest and signed PGDG PostGIS **3.6.4**
+packages. PostgreSQL **17 only**, Debian/glibc and the PG17 data-volume path remain
+fixed. #644's [image investigation and qualification](28-Production-Compose.md#exact-third-party-image-decision)
+rejects the stale project Debian image and supersedes the proposed Alpine exception.
+The bounded refinement is PostGIS3.5.x → 3.6.x using the PostgreSQL project's
+package distribution; Wayfarer owns image assembly, qualification and publication,
+not a fork of PostgreSQL/PostGIS. Prefer a maintained official-project artifact
+when it can satisfy this contract again.
+
+Each deployable bundle must name the published derived DB image by immutable
+digest, never its base digest or a mutable build tag. The source bundle requires
+`DB_DIGEST`; it cannot launch until publication supplies that value. Fresh clusters
+use UTF8/C.UTF-8 with glibc case folding and byte ordering. Matching libc alone does
+not make native data directories, locale/index versions or extensions portable;
+logical migration remains separately owned by #604. Backup tools run in the
+selected version-matched DB image. Recheck live patch/support status and qualify
+before every new bundle release. Wayfarer maintainers must rebuild and publish a
+new immutable image for upstream security updates; containers never self-update.
 
 Require `postgis` and `citext` in the application DB, checked by the explicit
 maintenance operation. PostGIS initialization supplies spatial extensions; citext

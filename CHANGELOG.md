@@ -3,6 +3,8 @@
 ## [Unreleased]
 
 ### Changed
+- Add an exact-source manual DB-image publication and anonymous full-Compose recovery gate (#644); registry publication remains pending maintainer workflow activation.
+- Add the production Compose substrate with official PG17.11 Debian/PGDG PostGIS3.6.4 image assembly, required immutable DB/app references and pinned Caddy2.11.4, private database networking, managed HTTPS/external loopback modes and disposable integration qualification (#644). Guided lifecycle and release bundle remain pending; no automatic native migration or PostgreSQL major upgrade.
 - Add immutable stable application-image publication to GHCR with exact release/source/version checks, image digest evidence and anonymous qualification (#642). Application image only; Compose/Caddy/wayfarerctl and the final deployment bundle remain unavailable. Actual publication acceptance awaits the first real stable release. No database migration.
 - Separate Production startup from explicit database/administrator maintenance; add protected password input, database password-file configuration, explicit proxy trust, bounded health checks and the non-root Noble application image (#640). Native Production operators must explicitly prepare schema/bootstrap and configure trusted proxy peers before restart. No new EF migration.
 - Require explicitly preinstalled, release-matched Chromium and OS libraries for all browser operations; remove runtime installation and ChromeCache configuration (#631). Retire native Logs/thumbnail/browser exclusions while preserving Uploads/TileCache/ImageCache legacy compatibility. No database migration.

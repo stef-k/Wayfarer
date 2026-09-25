@@ -113,3 +113,6 @@ public visibility, anonymous exact-digest pull and the resulting qualified evide
 Dry-run/CI success does not satisfy that production-publication gate. Release notes
 for that release must retain the application-image-only stage until #603's bundle
 and lifecycle work is accepted.
+
+The production Compose substrate is now described in [Compose deployment](28-Production-Compose.md);
+its managed/external topology does not complete the later guided lifecycle product.
