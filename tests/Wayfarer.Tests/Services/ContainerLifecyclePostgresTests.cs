@@ -29,10 +29,14 @@ public sealed class ContainerLifecyclePostgresTests : IClassFixture<PostgresMigr
             await using var db = fixture.CreateContext();
             // This fixture owns the entire database. Reset only that owned schema for a fresh migration proof.
             await db.Database.ExecuteSqlRawAsync("DROP SCHEMA public CASCADE; CREATE SCHEMA public; CREATE EXTENSION postgis; CREATE EXTENSION citext;");
+            var unprepared = await RunAsync(root, null);
+            Assert.NotEqual(0, unprepared.Code);
+            Assert.Contains("Application is not prepared", unprepared.Output);
             Assert.Equal(0, (await RunAsync(root, null, "database", "migrate")).Code);
             Assert.False(await ReadyAsync());
             Assert.Equal(0, (await RunAsync(root, null, "database", "seed")).Code);
             Assert.Equal(0, (await RunAsync(root, null, "database", "seed")).Code);
+            Assert.NotEqual(0, (await RunAsync(root, null)).Code);
             Assert.False(await db.Users.AnyAsync());
             Assert.False(await ReadyAsync());
             var password = "Protected-" + Guid.NewGuid().ToString("N") + "!7";
@@ -81,6 +85,8 @@ public sealed class ContainerLifecyclePostgresTests : IClassFixture<PostgresMigr
         start.Environment["ConnectionStrings__DefaultConnection"] = fixture.ConnectionString;
         start.Environment["DataProtection__KeyRingPath"] = Path.Combine(root, "keys");
         start.Environment["DOTNET_ENVIRONMENT"] = "Production";
+        foreach (var authority in new[] { "Data", "Cache", "Log", "Temp" })
+            start.Environment[$"Storage__{authority}Root"] = Path.Combine(root, authority);
         using var process = Process.Start(start)!;
         var output = process.StandardOutput.ReadToEndAsync();
         var error = process.StandardError.ReadToEndAsync();

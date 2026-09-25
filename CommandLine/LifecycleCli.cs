@@ -127,7 +127,13 @@ internal static class LifecycleCli
         {
             using var handler = new HttpClientHandler { UseProxy = false, AllowAutoRedirect = false };
             using var client = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(7) };
-            using var response = await client.GetAsync("http://127.0.0.1:8080/health/ready");
+            using var request = new HttpRequestMessage(HttpMethod.Get, "http://127.0.0.1:8080/health/ready");
+            var configuration = new ConfigurationBuilder().AddJsonFile("appsettings.json", optional: true)
+                .AddEnvironmentVariables().Build();
+            var host = configuration["AllowedHosts"]?.Split(';', StringSplitOptions.TrimEntries)
+                .FirstOrDefault(value => Uri.CheckHostName(value) != UriHostNameType.Unknown);
+            if (host is not null) request.Headers.Host = host;
+            using var response = await client.SendAsync(request);
             return response.StatusCode == System.Net.HttpStatusCode.OK ? 0 : 1;
         }
         catch (Exception) { return 1; }
