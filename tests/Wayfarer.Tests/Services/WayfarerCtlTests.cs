@@ -269,6 +269,19 @@ public sealed class WayfarerCtlTests
         Assert.Throws<UsageException>(() => Preflight.VerifyRetainedResource(Config(), kind, document.RootElement));
     }
 
+    /// <summary>Compose normalizes absolute bundle paths when it persists container ownership labels.</summary>
+    [Fact]
+    public void ResumeAcceptsComposeNormalizedBundleIdentity()
+    {
+        using var document = System.Text.Json.JsonDocument.Parse("""
+            {"Config":{"Labels":{"com.docker.compose.project":"wayfarer",
+            "com.docker.compose.project.working_dir":"/bundle",
+            "com.docker.compose.project.config_files":"/bundle/compose.yaml",
+            "com.docker.compose.service":"db"}}}
+            """);
+        Preflight.VerifyRetainedResource(Config() with { Bundle = "/bundle/../bundle/" }, "container", document.RootElement);
+    }
+
     /// <summary>Continuation has no surface for changing the original installation choices.</summary>
     [Theory]
     [InlineData("--resume --hostname other.example.org")]

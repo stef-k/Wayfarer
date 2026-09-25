@@ -123,8 +123,9 @@ public sealed class Preflight(IProcessRunner runner)
         if (Label("project") != config.Project) throw new UsageException("Foreign project resource refused.");
         if (kind == "container")
         {
-            var files = Path.Combine(config.Bundle, "compose.yaml") + (config.Mode == "external" ? "," + Path.Combine(config.Bundle, "external.yaml") : "");
-            if (Label("project.working_dir") != config.Bundle || Label("project.config_files") != files ||
+            var bundle = Path.TrimEndingDirectorySeparator(Path.GetFullPath(config.Bundle));
+            var files = Path.Combine(bundle, "compose.yaml") + (config.Mode == "external" ? "," + Path.Combine(bundle, "external.yaml") : "");
+            if (Label("project.working_dir") != bundle || Label("project.config_files") != files ||
                 Label("service") is not ("db" or "wayfarer" or "caddy"))
                 throw new UsageException("Retained container belongs to different Compose inputs.");
         }
