@@ -152,7 +152,7 @@ public sealed class StableIdentityPreparationPostgresTests
         await fixture.InitializeAsync();
         var provider = new EphemeralDataProtectionProvider();
         var healthy = CredentialTestFactory.Create(provider);
-        foreach (var fail in new[] { false, true })
+        foreach (var failure in new[] { "none", "protection", "readback" })
         {
             var user = await fixture.CreateUserAsync();
             await using var db = fixture.CreateContext();
@@ -162,24 +162,27 @@ public sealed class StableIdentityPreparationPostgresTests
                 Name = "Mapbox", Token = StableIdentityCryptographyTests.Secret
             });
             await db.SaveChangesAsync();
-            var owner = fail
-                ? new PersonalProviderCredentialService(new StableIdentityCryptographyTests.ThrowingProvider())
-                : healthy;
+            var owner = failure switch
+            {
+                "protection" => new PersonalProviderCredentialService(new StableIdentityCryptographyTests.ThrowingProvider()),
+                "readback" => new PersonalProviderCredentialService(new FailReadback(provider)),
+                _ => healthy
+            };
             var migration = new LegacyMapboxMigrationService(db, owner);
-            if (fail)
+            if (failure == "protection")
             {
                 var exception = await Assert.ThrowsAsync<InvalidOperationException>(() => migration.MigrateAsync(user.Id));
                 Assert.False(exception.ToString().Contains(StableIdentityCryptographyTests.Secret, StringComparison.Ordinal));
             }
-            else Assert.True((await migration.MigrateAsync(user.Id)).ProtectedCredentialReady);
+            else Assert.Equal(failure == "none", (await migration.MigrateAsync(user.Id)).ProtectedCredentialReady);
             await using var verify = fixture.CreateContext();
-            Assert.Equal(fail ? 1 : 0, await verify.ApiTokens.IgnoreQueryFilters().CountAsync(row => row.UserId == user.Id));
+            Assert.Equal(failure == "none" ? 0 : 1, await verify.ApiTokens.IgnoreQueryFilters().CountAsync(row => row.UserId == user.Id));
             var profile = await verify.PersonalLocationProviderProfiles.SingleOrDefaultAsync(row => row.UserId == user.Id);
-            if (fail) Assert.Null(profile);
+            if (failure == "protection") Assert.Null(profile);
             else
             {
                 Assert.NotNull(profile);
-                Assert.True(healthy.Read(profile).Succeeded);
+                Assert.Equal(failure == "none", owner.Read(profile).Succeeded);
                 Assert.Null(profile.ProtectedCredential);
             }
         }
@@ -297,6 +300,14 @@ public sealed class StableIdentityPreparationPostgresTests
             Assert.Null(exception.InnerException);
             return 1;
         }
+    }
+
+    /// <summary>Allows stable protection but denies readback, proving plaintext retirement requires successful verification.</summary>
+    private sealed class FailReadback(IDataProtectionProvider provider) : IDataProtectionProvider, IDataProtector
+    {
+        public IDataProtector CreateProtector(string purpose) => new FailReadback(provider.CreateProtector(purpose));
+        public byte[] Protect(byte[] plaintext) => ((IDataProtector)provider).Protect(plaintext);
+        public byte[] Unprotect(byte[] protectedData) => throw new CryptographicException(StableIdentityCryptographyTests.Secret);
     }
 
     /// <summary>Fails after SQL was saved inside the outer migration transaction.</summary>
