@@ -145,3 +145,6 @@ rendering tests, one published read-only runtime test, Release image build/publi
 frontend built-asset smoke passed. Browser host qualification required the Noble ALSA
 library and explicit browser-cache path; the image installs its own dependencies.
 This is disposable development evidence, not production-host or Compose qualification.
+
+The production Compose substrate is now described in [Compose deployment](28-Production-Compose.md);
+its managed/external topology does not complete the later guided lifecycle product.

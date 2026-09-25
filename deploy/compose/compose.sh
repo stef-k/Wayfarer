@@ -6,6 +6,8 @@ fail() { echo "Compose configuration: $1" >&2; exit 2; }
 config=$1
 shift
 [[ $config == /* && -f $config ]] || fail 'an absolute configuration file is required'
+# The file is the authority; ambient deployment values must not fill missing inputs.
+unset PUBLIC_HOST WAYFARER_DIGEST PROXY_MODE EDGE_PREFIX DB_PASSWORD_FILE DB_APP_PASSWORD_FILE APP_PASSWORD_FILE EXTERNAL_PROXY_ADDRESS LOOPBACK_ADDRESS LOOPBACK_PORT
 # Parse literals only; never execute the operator file or expand shell substitutions.
 while IFS= read -r line || [[ -n $line ]]; do
     [[ -z $line || $line == \#* ]] && continue
@@ -26,11 +28,12 @@ done < "$config"
 for key in DB_PASSWORD_FILE DB_APP_PASSWORD_FILE APP_PASSWORD_FILE; do
     value=${!key:-}
     [[ $value == /* && -f $value && ! -L $value && -s $value ]] || fail "$key must name a nonempty regular absolute secret file"
+    [[ $(stat -c %s "$value") -ge 32 ]] || fail "$key requires at least 32 bytes of generated secret material"
     [[ $(stat -c %a "$value") == 600 ]] || fail "$key requires mode 0600"
 done
 bundle=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 # Ignore ambient Compose overrides/profiles; mode and file selection are explicit.
-unset COMPOSE_FILE COMPOSE_PROFILES
+unset COMPOSE_FILE COMPOSE_PROFILES COMPOSE_ENV_FILES COMPOSE_PROJECT_NAME
 files=(-f "$bundle/compose.yaml")
 if [[ $PROXY_MODE == managed ]]; then
     files+=(--profile managed)

@@ -91,14 +91,16 @@ backup operation, not the ordinary web service. No NAS mounting/credentials fram
 
 ## Database contract
 
-Select project-maintained `docker.io/postgis/postgis:17-3.5`, Debian variant, based
-on the official PostgreSQL image. First bundle supports PostgreSQL **17 only** and
-PostGIS **3.5.x**, pinned by digest per bundle. This matches the maintainer/test PG17
-baseline; the native application's documented PG13+ minimum is not a promise that
-the managed bundle operates all those majors. Upstream currently recommends this
-family alongside 18-3.6 and lists AMD64 support. Its Bullseye base has a separate
-support horizon from Noble: publication must recheck upstream maintenance/security
-status; do not ship an unsupported base merely to retain this initial selection.
+Select project-maintained `docker.io/postgis/postgis:17-3.5-alpine` for fresh
+clusters, pinned by digest per bundle. PostgreSQL **17 only**, PostGIS **3.5.x** and
+the PG17 data-volume path remain fixed. #644's [exact image investigation and
+qualification](28-Production-Compose.md#exact-third-party-image-decision) refines
+only the base family: the Debian candidate still contains unmaintained PG17.5;
+the selected Alpine3.24.1 image contains PG17.11/PostGIS3.5.7. Fresh clusters use
+UTF8/C.UTF-8 locale. Native/Debian data directories, libc locale/index assumptions and
+binary extensions are not interchangeable with musl; logical migration remains
+separately owned by #604. Backup tools run in the selected version-matched DB image.
+Recheck live patch/support status and qualify before every new bundle release.
 
 Require `postgis` and `citext` in the application DB, checked by the explicit
 maintenance operation. PostGIS initialization supplies spatial extensions; citext

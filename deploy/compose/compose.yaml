@@ -17,9 +17,21 @@ services:
       TrustedProxy__Addresses__0: ${EDGE_PREFIX:-172.30.64}.3
     secrets: [app-password]
     volumes:
-      - app-data:/var/lib/wayfarer
-      - app-cache:/var/cache/wayfarer
-      - app-logs:/var/log/wayfarer
+      - type: volume
+        source: app-data
+        target: /var/lib/wayfarer
+        volume:
+          nocopy: true
+      - type: volume
+        source: app-cache
+        target: /var/cache/wayfarer
+        volume:
+          nocopy: true
+      - type: volume
+        source: app-logs
+        target: /var/log/wayfarer
+        volume:
+          nocopy: true
     tmpfs:
       - /tmp/wayfarer:uid=1654,gid=1654,mode=0700,size=536870912
     networks: [backend, edge]
@@ -34,7 +46,7 @@ services:
     stop_grace_period: 60s
     environment:
       POSTGRES_PASSWORD_FILE: /run/secrets/db-password
-      POSTGRES_INITDB_ARGS: --encoding=UTF8 --locale=C
+      POSTGRES_INITDB_ARGS: --encoding=UTF8 --locale=C.UTF-8
     secrets:
       - db-password
       - source: db-app-password

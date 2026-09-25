@@ -1,0 +1,181 @@
+# Production Compose substrate
+
+Implements [#644](https://github.com/stef-k/Wayfarer/issues/644) against
+`ae2ece49896049ce65193acc3188a8b887c5f7bf`, preserving the
+[container contract](25-Container-Release-Contract.md),
+[application image](26-Application-Container.md) and
+[publication identity](27-Application-Image-Publication.md).
+This is an advanced/internal precursor to `wayfarerctl`, not the completed #603
+installation product. Guided setup, backup/restore, updates, release tarball and
+`release.json` are not provided. Nothing here migrates a native installation.
+
+## Topology and state
+
+`deploy/compose/` is self-contained bundle source: no source/build mount or local
+application toolchain is needed on the target host. Linux AMD64 Docker Engine and
+Compose 2.24.4+ with Bash are required. Keep the extracted directory intact.
+The default project is `wayfarer`; persist any alternative `-p` project selection
+and use it for every command. Generated container names are not interfaces.
+
+| Authority | Services | Exposure/state |
+| --- | --- | --- |
+| `backend` | `wayfarer`, `db` | Internal network; no DB host port |
+| `edge` | `wayfarer`, managed `caddy` | Outbound app/provider access; Caddy at reserved `.3` |
+| `app-data` | `wayfarer` | Durable uploads/imports and complete Data Protection ring |
+| `app-cache` | `wayfarer` | Rebuildable tile/image/thumbnail state |
+| `app-logs` | `wayfarer` | Operational logs with application retention |
+| `db-data` | `db` | Authoritative PG17 cluster at `/var/lib/postgresql/data` |
+| `caddy-data`, `caddy-config` | `caddy` | Persistent certificates/account and proxy state |
+
+Wayfarer retains UID1654, read-only root, immutable application/browser payload,
+512MiB temporary tmpfs and 70-second stop grace (covering the 60-second application
+contract). App volumes use `nocopy`: copying the root-owned image directories into
+an empty volume would undo explicit ownership preparation. No privileged container,
+Docker socket, source tree, or backup destination is mounted.
+Caddy has no backend attachment or secrets. Only it publishes 80/TCP, 443/TCP and
+443/UDP in managed mode. There is no published Kestrel endpoint in managed mode;
+as with ordinary Linux bridge networking, a privileged Docker host can still reach
+container addresses. Host administration is outside the network isolation boundary.
+
+## Exact third-party image decision
+
+Live pull, image config, executable and extension checks on 2026-09-25 established:
+
+| Candidate | Immutable digest | Actual payload | Decision |
+| --- | --- | --- | --- |
+| `postgis/postgis:17-3.5` | `sha256:01a6a70e41e6c4467c8f55f6063555ed72db2d6662cd0d571040d42eadaeb6f6` | PG17.5 (`17.5-1.pgdg110+1`), PostGIS3.5.2, Debian11 | Rejected; repush did not patch PostgreSQL |
+| `postgis/postgis:17-3.5-alpine` | `sha256:894f570c0cf0664ed5576a8fd5d5bfb8fb1b19d592885b686c3a88c8bd90c41f` | PG17.11, PostGIS3.5.7, Alpine3.24.1 | Selected; smallest family refinement |
+| `postgis/postgis:17-3.6-alpine` | `sha256:a8ffa9afeea4ad6eada171fa2afdb57cd3eb90f92ce20156aa2cb8411d70e0cd` | PG17.11, PostGIS3.6.4, Alpine3.24.1 | Investigated; unnecessary PostGIS series change |
+
+`17-3.6` Debian did not resolve. Development/master or PG18 images are not substitutes.
+The selected PostGIS digest is a single AMD64 manifest. It contains PostgreSQL
+17.11 server, `pg_dump`, `pg_restore`, PostGIS3.5.7 and `citext`1.6. Live SQL reports
+GEOS3.14.1, PROJ9.8.1 and LIBXML2.13.9. The project builds PostgreSQL/PostGIS from
+source on musl; Alpine package dates alone are not evidence of the server patch.
+
+[PostgreSQL17.11 release notes](https://www.postgresql.org/docs/17/release-17-11.html)
+identify the current patch and security fixes. The
+[official PostGIS project](https://github.com/postgis/docker-postgis) supplies both
+investigated Alpine variants and retains the PG17 data path.
+The bounded refinement is **fresh PG17/PostGIS3.5 Alpine clusters**, not a general
+license to change libc or major versions on existing data. Initialize UTF8 with
+explicit `C.UTF-8` locale; do not assume glibc locale ordering, locale availability,
+collation indexes or binary extension libraries transfer to musl. Existing native/
+Debian state requires a separately qualified logical migration under #604; never
+attach its data directory to this image. Backup tooling must use the selected
+image's version-matched PostgreSQL tools, with extensions provisioned on restore.
+Plain `C` was rejected after it failed Greek `citext` case folding; `C.UTF-8`
+preserves the tested Greek and accented Latin behavior. Disposable spatial/citext round trip and application-schema custom-format dump/
+restore qualify these tools here; managed backup/recovery remains unimplemented.
+
+Caddy is official `caddy:2-alpine`, executable **2.11.4** on Alpine3.23.6, pinned index
+`sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b`;
+selected Linux AMD64 manifest
+`sha256:040e9f7480b80b6d4a7e5013a21159b950a63dcbdb956e38abe2387fb28d9ec0`.
+No plugins are added. Refresh either image only in a reviewed new bundle/source
+revision after live version/security review and this integration qualification.
+Never change PostgreSQL major through an image refresh; PostGIS upgrades also need
+an explicit tested extension step. Do not rebuild an existing stable release.
+
+## Configuration and protected files
+
+Copy `config/deployment.env.example` to an absolute administrator-owned location,
+for example `/etc/wayfarer/deployment.env`. It contains literal `KEY=value` entries,
+no shell expansion, quoted values or passwords. Set the public DNS hostname,
+application `sha256:` digest from genuine release evidence, mode and secret paths.
+The application reference becomes `ghcr.io/stef-k/wayfarer@sha256:...`.
+DB/Caddy immutable references live directly in the inspectable Compose source.
+No released application digest is fabricated by this slice; first real publication
+acceptance under #642 remains required for ordinary anonymous deployment.
+
+Choose an unused private `172.16-31.x.0/24` via `EDGE_PREFIX`; `.1` is its gateway,
+`.3` is Caddy. Do not overlap host/VPN routes or another Docker network. The default
+is `172.30.64`. `compose.sh` performs configuration validation and delegates raw
+Compose operations; it does not generate secrets or implement lifecycle policy.
+It rejects missing/malformed image digests, hostnames, mode, secret paths and
+non-loopback external bindings. Run it with an absolute env path for every command.
+Advanced raw Compose bypasses this preflight and is not the supported config seam.
+
+Provision cryptographically random, distinct administrative and application DB
+passwords of at least 32 bytes outside the repository. Protect the parent directory
+with mode0700; files are mode0600 and mounted read-only:
+
+| Input | Host owner | Consumer |
+| --- | --- | --- |
+| `DB_PASSWORD_FILE` | root (upstream root entrypoint reads it) | DB bootstrap administrator |
+| `DB_APP_PASSWORD_FILE` | 70:70 (selected Alpine postgres) | DB initialization |
+| `APP_PASSWORD_FILE` | 1654:1654 | Wayfarer password-file seam |
+
+The last two files contain **the same application password**, copied with separate
+consumer ownership; Compose local file secrets do not remap UID/GID. They represent
+one credential, not two roles. Verify matching bytes using an authorized root
+session without printing them. Never chmod secrets world-readable. The non-superuser
+`wayfarer` DB owner can migrate its own schema; only administrative initialization
+creates extensions. Initialization runs only on an empty cluster and never resets an
+existing password, runs EF/Quartz, seeds users, or treats `pg_isready` as schema proof.
+Changing mounted files is not password rotation for an existing database.
+
+## Advanced fresh initialization
+
+Run only on a **new, disposable or explicitly authorized fresh installation**.
+Assume `bundle` names the absolute extracted Compose directory, `env` the absolute
+non-secret configuration, and `admin_input` a separately protected password file.
+These are internal maintenance seams for the later CLI, not guided setup commands.
+
+```bash
+"$bundle/compose.sh" "$env" config --quiet
+"$bundle/compose.sh" "$env" up -d --wait db
+# Fixed named-volume roots only; no recursive ownership changes or arbitrary host paths.
+"$bundle/compose.sh" "$env" run --rm --no-deps --user 0 --entrypoint sh wayfarer -ec \
+  'chown 1654:1654 /var/lib/wayfarer /var/cache/wayfarer /var/log/wayfarer; chmod 700 /var/lib/wayfarer; chmod 750 /var/cache/wayfarer /var/log/wayfarer'
+"$bundle/compose.sh" "$env" run --rm -T wayfarer database migrate
+"$bundle/compose.sh" "$env" run --rm -T wayfarer database seed
+"$bundle/compose.sh" "$env" run --rm -T wayfarer admin bootstrap administrator --stdin < "$admin_input"
+"$bundle/compose.sh" "$env" up -d --wait
+```
+
+Serialize maintenance and keep web/ingress stopped until it succeeds. Ordinary web
+startup does not migrate or bootstrap. DB health orders maintenance/web dependency;
+application readiness checks compatible schema/bootstrap; managed Caddy starts only
+after app health. `pg_isready` does not prove credentials or extensions. Inspect
+`ps` and public `/health/ready`; Caddy startup is not public certificate acceptance.
+
+Managed mode uses `PROXY_MODE=managed` and Caddy's normal public automatic HTTPS.
+DNS and host firewall must allow its listeners. Its sole upstream is Wayfarer8080;
+stream flushing is immediate and no arbitrary body or response timeout truncates
+exports. Caddy's default incoming forwarded-header handling protects against public
+spoofing; Wayfarer trusts just `.3`, not all edge peers.
+
+External mode uses `PROXY_MODE=external`, `EXTERNAL_PROXY_ADDRESS=<edge-prefix>.1`
+and optional `LOOPBACK_PORT` (default8080). Binding is restricted to 127.0.0.1.
+This slice qualifies a Linux host-native proxy reaching that loopback port; other
+container/private-network proxy topologies are not claimed. The proxy must preserve
+the public Host and send authoritative `X-Forwarded-Proto`, `X-Forwarded-Host` and
+one client `X-Forwarded-For`, replacing client-supplied forwarding headers. Qualify
+the observed hop if host NAT/firewall behavior differs. Caddy has no active profile
+in this mode. When switching from managed mode, first stop/remove its service using
+the old managed configuration, then stop Wayfarer and activate the external config;
+profile omission alone does not stop an already-running container. Switching back
+requires freeing80/443 from the existing proxy. No Nginx/Cloudflare-specific app
+changes or arbitrary-proxy support is implied.
+
+## Recreation and qualification
+
+Use the same project, configuration and named volumes with `up -d --force-recreate`;
+state is not in container layers. Stop writers before DB replacement. Keep DB,
+complete key ring and uploads together for recovery; caches/logs are not replacements
+for authoritative data. **Volume deletion destroys state.** Do not use volume removal
+in ordinary lifecycle commands. No safe update/rollback/restore automation exists yet.
+
+CI reuses the application-image dry-run and runs `tools/compose/qualify.py --image
+<local-image-ID>`. Its test-only override selects that exact local build, an isolated
+project, high loopback TLS port and Caddy internal CA. Production pins and automatic
+public HTTPS remain unchanged. It validates both config modes, malformed inputs,
+fresh non-superuser migration/seed/bootstrap, health, real page/static/KML/SSE/PDF/
+thumbnail paths, network/mount boundaries, DB/key/upload/TLS state after recreation,
+logical dump/restore and external loopback forwarding. It deletes only its random
+project-labelled test resources and temporary secret files, never global Docker state.
+The selected third-party digests are pulled by Compose and actual DB versions checked.
+Existing image/browser/release and ordinary application CI remain separate gates.
+This is disposable integration evidence, not public-CA issuance, production host,
+M6 cutover, arbitrary external-proxy, mobile/embed or full #603 acceptance.
