@@ -173,9 +173,19 @@ project, high loopback TLS port and Caddy internal CA. Production pins and autom
 public HTTPS remain unchanged. It validates both config modes, malformed inputs,
 fresh non-superuser migration/seed/bootstrap, health, real page/static/KML/SSE/PDF/
 thumbnail paths, network/mount boundaries, DB/key/upload/TLS state after recreation,
-logical dump/restore and external loopback forwarding. It deletes only its random
+logical dump/restore, authenticated-cookie survival, public client-IP spoof resistance
+and a real separate host-native Caddy proxy through the external loopback endpoint. It deletes only its random
 project-labelled test resources and temporary secret files, never global Docker state.
 The selected third-party digests are pulled by Compose and actual DB versions checked.
 Existing image/browser/release and ordinary application CI remain separate gates.
 This is disposable integration evidence, not public-CA issuance, production host,
 M6 cutover, arbitrary external-proxy, mobile/embed or full #603 acceptance.
+
+Local qualification on 2026-09-25 used Docker29.1.3/Compose2.40.3 on Linux/WSL.
+The maintained Alpine DB passed explicit non-superuser EF/Quartz migration, repeated
+seed and protected admin bootstrap. Browser-generated JPEG/PDF, SSE heartbeat and
+KML download passed through trusted local TLS. Container replacement preserved DB,
+complete keys, a representative durable upload and TLS identities; an authenticated
+cookie remained valid. The existing five container configuration tests and 43 release
+tooling tests passed. Exact-head CI repeats the image build and Compose integration;
+see the PR checks for the final source revision's result.

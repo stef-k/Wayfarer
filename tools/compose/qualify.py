@@ -9,6 +9,7 @@ import subprocess
 import tempfile
 import time
 import uuid
+from urllib.parse import urlencode
 
 ROOT = Path(__file__).resolve().parents[2]
 BUNDLE = ROOT / 'deploy/compose'
@@ -120,8 +121,15 @@ class Stack:
                      data=self.password + '\n')
         self.sql(f'''INSERT INTO "Trips" ("Id","UserId","Name","IsPublic","ShareProgressEnabled","UpdatedAt","CenterLat","CenterLon","Zoom")
             SELECT '{TRIP}',"Id",'Compose qualification',true,false,now(),37.9,23.7,3 FROM "AspNetUsers" WHERE "UserName"='compose-admin';''')
+        self.sql('UPDATE "ApplicationSettings" SET "ProxyImageRateLimitEnabled"=true, "ProxyImageRateLimitPerMinute"=1;')
         self.compose('up', '-d', '--wait', '--wait-timeout', '180')
         self.connect()
+        assert self.compose('exec', '-T', 'caddy', 'caddy', 'version').stdout.startswith('v2.11.4 ')
+        for service in ['db', 'caddy']:
+            info = json.loads(run('docker', 'inspect', self.container(service)).stdout)[0]
+            image_info = json.loads(run('docker', 'image', 'inspect', info['Image']).stdout)[0]
+            assert image_info['Os'] == 'linux' and image_info['Architecture'] == 'amd64'
+            print(service + ': ' + info['Config']['Image'], flush=True)
 
     def container(self, service):
         """Resolve by Compose service identity; never depend on generated names."""
@@ -161,7 +169,31 @@ class Stack:
         assert (self.directory / 'map.jpg').read_bytes().startswith(b'\xff\xd8')
         self.curl(f'/Trip/ExportPdf/{TRIP}', '-o', str(self.directory / 'trip.pdf'))
         assert (self.directory / 'trip.pdf').read_bytes().startswith(b'%PDF')
+        # Different forged client IPs must not escape the same real-client bucket.
+        for spoof in ['203.0.113.98', '203.0.113.99']:
+            response = self.curl(f'/Public/Trips/{TRIP}/MapSnapshot', '-H', f'X-Forwarded-For: {spoof}',
+                                 '-o', '/dev/null', '-w', '%{http_code}', check=False)
+            assert response.stdout == '429'
+        logs = run('docker', 'logs', self.container('wayfarer')).stdout
+        assert 'Map snapshot rate limit exceeded for IP: 172.30.65.1' in logs
+        self.authenticate()
         print('Managed TLS/page/static/spoofed-host/export/SSE/thumbnail/PDF passed', flush=True)
+
+    def authenticate(self):
+        """Use the real antiforgery login and retain its encrypted cookie across replacement."""
+        cookies = str(self.directory / 'cookies')
+        page = self.curl('/Identity/Account/Login', '-c', cookies).stdout
+        token = re.search(r'name="__RequestVerificationToken" type="hidden" value="([^"]+)"', page).group(1)
+        body = self.directory / 'login-body'
+        body.write_text(urlencode({'Input.Username': 'compose-admin', 'Input.Password': self.password,
+                                   '__RequestVerificationToken': token}))
+        body.chmod(0o600)
+        try:
+            self.curl('/Identity/Account/Login', '-b', cookies, '-c', cookies,
+                      '-H', 'Content-Type: application/x-www-form-urlencoded', '--data-binary', '@' + str(body))
+        finally:
+            body.unlink()
+        assert self.curl('/Admin/Users', '-b', cookies, '-o', '/dev/null', '-w', '%{http_code}').stdout == '200'
 
     def identities(self):
         """Capture durable/key/upload identity separately from rebuildable cache and operational logs."""
@@ -190,6 +222,8 @@ class Stack:
         self.compose('up', '-d', '--wait', '--wait-timeout', '180')
         self.connect()
         assert self.identities() == before
+        assert self.curl('/Admin/Users', '-b', str(self.directory / 'cookies'),
+                         '-o', '/dev/null', '-w', '%{http_code}').stdout == '200'
         # Backup tools run inside the selected PG17 image; restore into another disposable DB.
         self.compose('exec', '-T', 'db', 'sh', '-ec',
             'pg_dump -U postgres -Fc wayfarer > /tmp/qualification.dump; '
@@ -197,7 +231,7 @@ class Stack:
             'rm /tmp/qualification.dump')
         assert self.sql(f'''SELECT "Name" FROM "Trips" WHERE "Id"='{TRIP}';''', 'restored') == 'Compose qualification'
         self.sql('DROP DATABASE restored;', 'postgres')
-        print('DB/key ring/durable upload/TLS persistence and logical restore passed', flush=True)
+        print('DB/key ring/cookie/durable upload/TLS persistence and logical restore passed', flush=True)
 
     def exposure(self):
         """Assert actual runtime mounts, privilege, publication and network boundaries."""
@@ -220,7 +254,8 @@ class Stack:
         print('Managed network/mount/non-root/read-only exposure assertions passed', flush=True)
 
     def external(self):
-        """Switch modes explicitly; a host-origin request simulates the qualified native ingress hop."""
+        """Switch modes and qualify a real host-native proxy against the loopback endpoint."""
+        run('docker', 'cp', self.container('caddy') + ':/usr/bin/caddy', str(self.directory / 'caddy'))
         self.compose('stop', 'caddy', 'wayfarer')
         self.compose('rm', '-f', 'caddy')
         self.mode = 'external'
@@ -229,12 +264,43 @@ class Stack:
         info = json.loads(run('docker', 'inspect', self.container('wayfarer')).stdout)[0]
         assert info['NetworkSettings']['Ports']['8080/tcp'][0]['HostIp'] == '127.0.0.1'
         assert not self.container('caddy')
-        page = run('curl', '--fail', '--silent', '--noproxy', '*', '--max-time', '20',
-            '-H', 'Host: wayfarer.example.org', '-H', 'X-Forwarded-Proto: https',
-            '-H', 'X-Forwarded-Host: wayfarer.example.org', 'http://127.0.0.1:18464/Public/Trips').stdout
-        assert f'https://wayfarer.example.org/Public/Trips/{TRIP}' in page
-        assert self.identities()[1].endswith('Compose qualification')
-        print('External loopback topology/public forwarding/persistence passed', flush=True)
+        # Run the pinned Caddy binary as a separate, unprivileged host-native proxy.
+        # This proves the real loopback/NAT hop rather than simulating headers with curl.
+        with socket.socket() as listener:
+            listener.bind(('127.0.0.1', 0))
+            self.port = listener.getsockname()[1]
+        config = self.directory / 'external.Caddyfile'
+        config.write_text('{\n admin off\n auto_https disable_redirects\n}\n'
+            f'https://wayfarer.example.org:{self.port} {{\n bind 127.0.0.1\n tls internal\n'
+            ' reverse_proxy 127.0.0.1:18464 {\n flush_interval -1\n }\n}\n')
+        with (self.directory / 'external.log').open('w') as log:
+            process = subprocess.Popen([str(self.directory / 'caddy'), 'run', '--config', str(config),
+                '--adapter', 'caddyfile'], stdout=log, stderr=log,
+                env={'HOME': str(self.directory), 'XDG_DATA_HOME': str(self.directory / 'external-data'),
+                     'XDG_CONFIG_HOME': str(self.directory / 'external-config')})
+            try:
+                ca = self.directory / 'external-data/caddy/pki/authorities/local/root.crt'
+                for _ in range(30):
+                    if ca.exists():
+                        (self.directory / 'ca.crt').write_bytes(ca.read_bytes())
+                        break
+                    assert process.poll() is None, 'External proxy exited during startup'
+                    time.sleep(1)
+                assert self.curl('/health/ready').stdout == 'ready'
+                page = self.curl('/Public/Trips', '-H', 'X-Forwarded-Proto: http',
+                                 '-H', 'X-Forwarded-Host: spoof.invalid').stdout
+                assert f'https://wayfarer.example.org:{self.port}/Public/Trips/{TRIP}' in page
+                assert '<kml' in self.curl(f'/Trip/ExportWayfarerKml/{TRIP}').stdout
+                assert self.identities()[1].endswith('Compose qualification')
+            finally:
+                process.terminate()
+                try:
+                    process.wait(timeout=15)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait()
+                    raise
+        print('External host-native TLS proxy/loopback/forwarding/persistence passed', flush=True)
 
     def cleanup(self):
         """Remove only resources labelled for this random project; no down -v or global prune."""

@@ -22,6 +22,15 @@ while IFS= read -r line || [[ -n $line ]]; do
 done < "$config"
 [[ ${WAYFARER_DIGEST:-} =~ ^sha256:[0-9a-f]{64}$ ]] || fail 'immutable application sha256 digest required'
 [[ ${PUBLIC_HOST:-} =~ ^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)+$ && ${#PUBLIC_HOST} -le 253 ]] || fail 'DNS hostname required'
+IFS=. read -ra host_labels <<< "$PUBLIC_HOST"
+for label in "${host_labels[@]}"; do
+    [[ ${#label} -le 63 ]] || fail 'DNS label exceeds 63 characters'
+done
+[[ ${host_labels[-1]} =~ [a-zA-Z] ]] || fail 'public DNS name required, not an IP'
+case ${PUBLIC_HOST,,} in
+    *.localhost|*.local|*.internal|*.home.arpa|*.test|*.invalid|*.example|*.onion|*.alt)
+        fail 'public DNS hostname required for map capture' ;;
+esac
 [[ ${PROXY_MODE:-} == managed || ${PROXY_MODE:-} == external ]] || fail 'proxy mode must be managed or external'
 # Keep addressing private and predictable; reserve .1/.3 and trust just the selected peer.
 [[ ${EDGE_PREFIX:-172.30.64} =~ ^172\.(1[6-9]|2[0-9]|3[01])\.([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$ ]] || fail 'edge prefix must name a private 172.16-31 /24'

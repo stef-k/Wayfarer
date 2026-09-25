@@ -101,7 +101,8 @@ Recheck `postgis/postgis:17-3.5` before every qualification. On 2026-09-25 it st
 resolved to the research-only old PostgreSQL 17.5 digest recorded in #638. It is not
 approved for production. The maintained isolated host test database is PostgreSQL
 17.11/PostGIS 3.6.4; evidence using that fallback does not qualify the production 3.5
-image family. Final database-image selection remains with the Compose/release child.
+image family. #644 now records the maintained Alpine3.5 selection and fresh-cluster
+compatibility boundary in [Compose deployment](28-Production-Compose.md).
 
 A one-shot command uses the same mount set as the web process. For example, after
 preparing the task-owned directories, the non-secret connection settings file and
