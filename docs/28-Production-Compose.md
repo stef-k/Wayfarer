@@ -248,10 +248,18 @@ This is disposable integration evidence, not public-CA issuance, production host
 M6 cutover, arbitrary external-proxy, mobile/embed or full #603 acceptance.
 
 Local qualification on 2026-09-25 used Docker29.1.3/Compose2.40.3 on Linux/WSL.
-The maintained Debian/PGDG DB must pass explicit non-superuser EF/Quartz migration, repeated
+The maintained Debian/PGDG DB passed explicit non-superuser EF/Quartz migration, repeated
 seed and protected admin bootstrap. Browser-generated JPEG/PDF, SSE heartbeat and
 KML download passed through trusted local TLS. Container replacement preserved DB,
 complete keys, a representative durable upload and TLS identities; an authenticated
-cookie remained valid. The existing five container configuration tests and 43 release
-tooling tests passed. Exact-head CI repeats the image build and Compose integration;
-see the PR checks for the final source revision's result.
+cookie remained valid. Local derived DB image ID was
+`sha256:f072a71e7835871f06219ade7c44fbcb05c90343139effb9d881c384206b6700`;
+this is local content evidence, **not a published registry manifest digest**.
+The Greek/Latin sample also passed against the former Alpine image; Debian exposes
+`C.utf8`, `en_US.utf8` and ICU Greek collations, while the Alpine probe exposed ICU
+Greek but neither tested glibc locale name. Production uses the explicit database
+locale rather than assuming those named collations exist on every base.
+The existing five container configuration tests and 43 release tooling tests passed
+in the original qualification; the DB correction reran the complete Compose gate
+and focused config rejection checks. Exact-head CI repeats the image build and
+Compose integration; see the PR checks for the final source revision's result.
