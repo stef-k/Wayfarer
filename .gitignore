@@ -12,17 +12,13 @@ coverage-report/*
 
 # Uploads
 Uploads/*
-!Uploads/.gitkeep
 Uploads/Temp/*
-!Uploads/Temp/.gitkeep
 
 # Tile Cache
 TileCache/*
-!TileCache/.gitkeep
 
 # Image Proxy Cache
 ImageCache/*
-!ImageCache/.gitkeep
 
 # Generated files
 project.lock.json

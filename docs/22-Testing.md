@@ -364,6 +364,12 @@ map-snapshot endpoint, verifies JPEG output in external thumbnail storage, exter
 logs and key XML, stops the host, and compares every publish entry and file digest.
 No production database, key ring or native deployment is touched.
 
+This qualifies the current publish payload and external current/new authorities
+for #609. It does not prove that retained native `Uploads`, `TileCache`, or
+`ImageCache` trees can be read-only: recognized old state may still write/delete
+there under bounded compatibility until explicit #604 migration. Fresh/current
+deployments do not depend on those trees; see [deployment](20-Deployment.md#directory-structure--permissions).
+
 Provision the release-matched browser and OS libraries first using the deployment
 guide. The ordinary .NET browser tests use the same external bundle. The historical
 `libasound.so.2` launch failure requires `libasound2t64` on Ubuntu 24.04, not another

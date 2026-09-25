@@ -104,7 +104,7 @@ Tile Rate Limiting
 - X-Forwarded-For header trusted from localhost/private IPs for proper client identification behind reverse proxies.
 
 Uploads
-- Upload staging directory defaults under `Uploads/Temp/` (path visible in Admin Settings). Ensure writable by the app.
+- New upload staging uses `Storage:DataRoot/uploads/imports`, resolved by `LocationImportStagedFiles` (path visible in Admin Settings). Ensure this external directory is writable by the app. Old `Uploads/Temp` paths are supported only as bounded same-host legacy compatibility, as described above.
 
 Reverse Geocoding (Per‑User)
 - `DataProtection:KeyRingPath` is the persistent key authority for Identity and protected personal-provider credentials. The supported systemd deployment explicitly retains its existing `/home/wayfarer/.aspnet/DataProtection-Keys` authority; backup requirements are in [Personal Location Providers](24-Personal-Location-Providers.md).
@@ -157,5 +157,6 @@ No `CacheSettings:ChromeCacheDirectory` setting is supported. See the native
 [provisioning workflow](20-Deployment.md#6-install-chromium-runtime-dependencies-pdf-export).
 Browser profiles/downloads use external OS temp and are cleaned by Playwright;
 keep `TMPDIR` outside the application tree. Current mutable application state uses
-Storage roots; old Uploads/TileCache/ImageCache trees remain only for bounded
-legacy compatibility until explicit migration.
+Storage roots; retained native Uploads/TileCache/ImageCache trees may remain writable
+only for recognized old state under bounded legacy compatibility until explicit
+#604 migration. Fresh/current deployments do not depend on those trees.
