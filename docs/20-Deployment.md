@@ -1,5 +1,9 @@
 # Deployment & Operations
 
+The Compose operator foundation now provides secure fresh setup and routine management through
+[`wayfarerctl`](29-Wayfarerctl.md). Final release packaging, backup/restore/update and native
+migration remain separate #603 work; the existing native path below remains available.
+
 This guide covers installation, deployment, logging, and operational commands for Wayfarer on Linux servers.
 
 For the planned Docker distribution, see the normative [container and release contract](25-Container-Release-Contract.md). The [application image and explicit maintenance commands](26-Application-Container.md) are implemented; Compose/publication remain planned. This guide remains the native/manual deployment path.
