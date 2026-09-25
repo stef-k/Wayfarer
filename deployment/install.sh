@@ -333,7 +333,7 @@ sudo apt-get update -y
 
 echo ""
 echo "Installing PostgreSQL + PostGIS..."
-sudo apt-get install -y postgresql postgresql-contrib postgis
+sudo apt-get install -y postgresql postgresql-contrib postgis python3
 
 echo ""
 echo "Installing Nginx..."

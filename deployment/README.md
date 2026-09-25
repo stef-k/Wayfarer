@@ -70,7 +70,7 @@ REF=v1.2.0 ./deployment/deploy.sh
 - Starts on system boot
 - Fully documented with customization points
 
-**Installation:**
+**New installation:** Existing services must retain their explicit key-ring override; use `install.sh` for a compatibility-preserving template refresh.
 
 ```bash
 sudo cp deployment/wayfarer.service /etc/systemd/system/
