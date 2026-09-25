@@ -43,6 +43,9 @@ public sealed class LegacyRoutingRetirementMigrationPostgresTests(PostgresMigrat
             var credentials = Wayfarer.Tests.Infrastructure.CredentialTestFactory.Create(protection);
             var personalProfile = PersonalLocationProviderProfile.Create(user.Id, PersonalLocationProvider.Geoapify);
             credentials.Replace(personalProfile, "preserved-personal-secret");
+            // The historical schema owns only legacy ciphertext; F2 replacement intentionally does not write it.
+            personalProfile.ProtectedCredential = PersonalProviderCredentialService.Protector(personalProfile, protection)
+                .Protect("preserved-personal-secret");
             personalProfile.SetAuthorization(PersonalProviderCapability.Geocoding, true);
             personalProfile.SetAuthorization(PersonalProviderCapability.Routing, true);
             credentials.RecordVerification(personalProfile, PersonalProviderCapability.Geocoding,
@@ -65,6 +68,12 @@ public sealed class LegacyRoutingRetirementMigrationPostgresTests(PostgresMigrat
 
             await migrator.MigrateAsync();
             context.ChangeTracker.Clear();
+            // Re-upgrade adds an empty companion column: verify legacy preservation, then prepare this source fixture.
+            var restored = await context.PersonalLocationProviderProfiles.SingleAsync(item => item.Id == personalProfile.Id);
+            var codec = new LegacyCredentialPreparationCodec(protection, new StableDataProtectionProvider(protection));
+            Assert.True(codec.ReadLegacy(restored).Credential == "preserved-personal-secret");
+            codec.PrepareStable(restored);
+            await context.SaveChangesAsync();
 
             await AssertPreservedDataAsync(context, user.Id, providerId, segmentId, transportProfile,
                 personalProfile.Id, credentials, expectedCredentialGeneration, expectedGeocodingGeneration,
@@ -112,7 +121,7 @@ public sealed class LegacyRoutingRetirementMigrationPostgresTests(PostgresMigrat
         Assert.Equal(("geoapify", "geoapify", geocodingSelectionGeneration, routingSelectionGeneration),
             (retainedSelection.GeocodingProviderKey, retainedSelection.RoutingProviderKey,
                 retainedSelection.GeocodingSelectionGeneration, retainedSelection.RoutingSelectionGeneration));
-        Assert.Equal("preserved-personal-secret", credentials.Read(retainedPersonalProfile).Credential);
+        Assert.True(credentials.Read(retainedPersonalProfile).Credential == "preserved-personal-secret");
         Assert.NotNull((await new AuthoritativeRoutingProviderResolver(context, credentials)
             .ResolveNativeAsync(userId, "drive", CancellationToken.None)).Execution);
     }

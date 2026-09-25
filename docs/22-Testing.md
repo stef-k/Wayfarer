@@ -334,10 +334,10 @@ waypoint and shared-layout runners retain their existing cleanup/evidence owners
 These subsystem checks do not qualify browser-runtime relocation, a fully read-only
 application root, containers, or the real production migration.
 
-## F1 Data Protection qualification
+## F1 to F2 Data Protection qualification
 
 Run the focused selection with the guarded PostgreSQL attachment configured:
-`dotnet test tests/Wayfarer.Tests/Wayfarer.Tests.csproj --filter 'FullyQualifiedName~StableIdentity|FullyQualifiedName~DataProtectionCliTests|FullyQualifiedName~PersonalLocationProviderFoundationTests'`.
+`dotnet test tests/Wayfarer.Tests/Wayfarer.Tests.csproj --filter 'FullyQualifiedName~StableIdentity|FullyQualifiedName~DataProtectionCliTests|FullyQualifiedName~DataProtectionKeyRingTests|FullyQualifiedName~DeploymentScriptTests|FullyQualifiedName~PersonalLocationProviderFoundationTests'`.
 The tests use disposable migrated databases, persistent disposable key rings and
 real hosted content-root discriminators. They cover stable portability, source
 rollback, in-memory replacement atomicity, startup consistency, bounded CLI
@@ -345,3 +345,9 @@ output, table write exclusion, xmin conflicts, idempotence, and transaction
 rollback after protection/save failures. Executable CLI tests prove routing exits
 before web startup or seeding. Secret comparisons intentionally use boolean
 assertions so failure diagnostics cannot print credentials or ciphertext.
+
+F2 additionally qualifies actual cookie-handler authentication, antiforgery requests,
+Identity reset tokens, all four explicit operation purposes, stable-only activation,
+legacy downgrade cutoff, API hash continuity, default-ring ambiguity and installed
+service override preservation. These are disposable framework/PostgreSQL evidence,
+not production M6 or provider-network qualification.

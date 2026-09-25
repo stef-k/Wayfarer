@@ -23,7 +23,7 @@ public sealed class LegacyMapboxMigrationService(
         if (values.Length == 0)
         {
             if (profile?.RevokedAt != null) profile.LegacyMigrationState = LegacyMapboxMigrationState.Revoked;
-            else if (!string.IsNullOrEmpty(profile?.ProtectedCredential) && !credentials.Read(profile).Succeeded)
+            else if (!string.IsNullOrEmpty(profile?.StableProtectedCredential) && !credentials.Read(profile).Succeeded)
                 profile.LegacyMigrationState = LegacyMapboxMigrationState.ProtectedCredentialUnavailable;
             else if (profile?.LegacyMigrationState == LegacyMapboxMigrationState.Migrated
                      && !profile.HasCurrentPermanentGeocodingConsent()
@@ -46,7 +46,7 @@ public sealed class LegacyMapboxMigrationService(
         if (dbContext.Entry(profile).State == EntityState.Detached)
             dbContext.Set<PersonalLocationProviderProfile>().Add(profile);
 
-        if (!string.IsNullOrEmpty(profile.ProtectedCredential))
+        if (!string.IsNullOrEmpty(profile.StableProtectedCredential))
         {
             var protectedRead = credentials.Read(profile);
             if (!protectedRead.Succeeded)
@@ -74,7 +74,8 @@ public sealed class LegacyMapboxMigrationService(
             }
         }
 
-        credentials.PrepareStable(profile);
+        // Retiring plaintext is a credential downgrade cutoff, including already prepared profiles.
+        profile.ProtectedCredential = null;
         profile.LegacyMigrationState = LegacyMapboxMigrationState.Migrated;
         dbContext.ApiTokens.RemoveRange(legacyRows.Where(item => string.Equals(item.Token?.Trim(), values[0], StringComparison.Ordinal)));
         var retired = legacyRows.Count;

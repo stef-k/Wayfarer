@@ -250,7 +250,7 @@ sudo systemctl restart wayfarer
 
 ## Directory Structure & Permissions
 
-New location imports use `/var/lib/wayfarer/uploads/imports`, prepared with application-user ownership by both native scripts. The existing Linux-oriented `appsettings.Production.json` supplies `Storage:DataRoot=/var/lib/wayfarer`, `CacheRoot=/var/cache/wayfarer`, `LogRoot=/var/log/wayfarer`, and `TempRoot=/tmp/wayfarer`. Override these through normal ASP.NET Core configuration; when overriding DataRoot, prepare its `uploads/imports` directory for the service user before startup. Imports, tiles, images, generated thumbnails and file logs use these roots; Data Protection remains separately configured.
+New location imports use `/var/lib/wayfarer/uploads/imports`, prepared with application-user ownership by both native scripts. The existing Linux-oriented `appsettings.Production.json` supplies `Storage:DataRoot=/var/lib/wayfarer`, `CacheRoot=/var/cache/wayfarer`, `LogRoot=/var/log/wayfarer`, and `TempRoot=/tmp/wayfarer`. Override these through normal ASP.NET Core configuration; when overriding DataRoot, prepare its `uploads/imports` directory for the service user before startup. Imports, tiles, images, generated thumbnails and file logs use these roots; Data Protection uses Storage defaults subject to explicit and previous-default compatibility; follow [F2 activation](24-Personal-Location-Providers.md#f1-preparation-to-f2-activation).
 
 Native install/deploy also prepare `/var/cache/wayfarer/thumbnails/trips` and
 `/var/log/wayfarer` with application-user ownership before startup. The Nginx
@@ -419,7 +419,7 @@ sudo systemctl start wayfarer
 
 ## Updating Wayfarer
 
-Before the first release that uses protected personal provider profiles, preserve the service user's existing Data Protection keys at `/home/wayfarer/.aspnet/DataProtection-Keys` as described in [Personal Location Providers](24-Personal-Location-Providers.md). Back up and restore the PostgreSQL database and key ring together; restoration, ownership, and permission recovery must be complete before starting Wayfarer. Database-only backups are incomplete once protected credentials exist.
+Before F2 startup, follow the source preparation and activation sequence in [Personal Location Providers](24-Personal-Location-Providers.md#f1-preparation-to-f2-activation). Preserve the resolved active key ring; existing explicit `/home/wayfarer/.aspnet/DataProtection-Keys` overrides remain installed until migration. Back up and restore the PostgreSQL database and key ring together; restoration, ownership, and permission recovery must be complete before starting Wayfarer. Database-only backups are incomplete once protected credentials exist.
 
 ### Hidden Area SRID correction after v1.9.18
 

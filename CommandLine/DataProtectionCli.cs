@@ -1,13 +1,14 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.DataProtection;
 using Wayfarer.Models;
 using Wayfarer.Services.LocationProviders;
 
 namespace Wayfarer.CommandLine;
 
-/// <summary>Runs explicit F1 commands without web startup, seeding, jobs, provider contact or audit logging.</summary>
+/// <summary>Runs explicit offline commands without web startup, seeding, jobs, provider contact or audit logging.</summary>
 public static class DataProtectionCli
 {
-    /// <summary>Builds the same hosted legacy identity and configuration, returning only bounded diagnostics.</summary>
+    /// <summary>Builds stable status or the explicit hosted source preparation identity, returning only bounded diagnostics.</summary>
     public static async Task<int> RunAsync(string[] args, TextWriter output, TextWriter error)
     {
         if (args.Length != 2 || args[1] is not ("status" or "prepare-stable-identity"))
@@ -23,14 +24,40 @@ public static class DataProtectionCli
             builder.Configuration.AddJsonFile("appsettings.json", false)
                 .AddJsonFile($"appsettings.{builder.Environment.EnvironmentName}.json", true)
                 .AddEnvironmentVariables();
-            builder.AddWayfarerDataProtection(readOnlyKeys: true);
+            var ring = DataProtectionAuthority.ResolveKeyRing(builder.Configuration, builder.Environment);
+            if (args[1] == "prepare-stable-identity")
+            {
+                // Use the framework's actual hosted source identity, independent of F2 registration.
+                builder.Services.AddDataProtection().PersistKeysToFileSystem(new DirectoryInfo(ring.Path))
+                    .DisableAutomaticKeyGeneration();
+                builder.Services.AddSingleton(new StableDataProtectionProvider(DataProtectionProvider.Create(
+                    new DirectoryInfo(ring.Path), options => options
+                        .SetApplicationName(DataProtectionAuthority.StableApplicationName).DisableAutomaticKeyGeneration())));
+                builder.Services.AddScoped<LegacyCredentialPreparationCodec>();
+                builder.Services.AddScoped<StableIdentityPreparation>();
+                builder.Services.AddScoped(services => new PersonalProviderCredentialService(
+                    services.GetRequiredService<StableDataProtectionProvider>().Provider));
+            }
+            else
+            {
+                builder.AddWayfarerDataProtection(ring, readOnlyKeys: true);
+                builder.Services.AddScoped<PersonalProviderCredentialService>();
+            }
+            builder.Services.AddScoped<StableIdentityReadiness>();
             builder.Services.AddDbContext<ApplicationDbContext>(options =>
                 options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"),
                     postgres => postgres.UseNetTopologySuite()));
-            builder.Services.AddScoped<PersonalProviderCredentialService>();
             await using var app = builder.Build();
             using var scope = app.Services.CreateScope();
-            return await ExecuteAsync(args[1], scope.ServiceProvider.GetRequiredService<StableIdentityPreparation>(), output, error);
+            await output.WriteLineAsync($"Key-ring path: {ring.Path}; authority: {ring.Authority}");
+            if (args[1] == "prepare-stable-identity")
+                await scope.ServiceProvider.GetRequiredService<StableIdentityPreparation>().PrepareAsync();
+            var stableProvider = args[1] == "prepare-stable-identity"
+                ? scope.ServiceProvider.GetRequiredService<StableDataProtectionProvider>().Provider
+                : scope.ServiceProvider.GetRequiredService<IDataProtectionProvider>();
+            DataProtectionAuthority.VerifyProtector(stableProvider);
+            var status = await scope.ServiceProvider.GetRequiredService<StableIdentityReadiness>().StatusAsync();
+            return await WriteStatusAsync(status, output);
         }
         catch (Exception)
         {
@@ -39,22 +66,11 @@ public static class DataProtectionCli
         }
     }
 
-    /// <summary>Executes the bounded command surface against an already scoped authority.</summary>
-    internal static async Task<int> ExecuteAsync(string command, StableIdentityPreparation preparation,
-        TextWriter output, TextWriter error)
+    /// <summary>Emits only bounded readiness categories and the stable public application name.</summary>
+    private static async Task<int> WriteStatusAsync(StableIdentityStatus status, TextWriter output)
     {
-        try
-        {
-            var status = command == "prepare-stable-identity"
-                ? await preparation.PrepareAsync() : await preparation.StatusAsync();
-            await output.WriteLineAsync($"Active: {status.Active}; stable-ready: {status.StableReady}; pending: {status.Pending}; blocked: {status.Blocked}; revoked/no-credential: {status.Inactive}");
-            await output.WriteLineAsync($"Activation-ready: {status.Ready}; future application name: {DataProtectionAuthority.StableApplicationName}");
-            return status.Ready ? 0 : 1;
-        }
-        catch (Exception)
-        {
-            await error.WriteLineAsync("Data Protection command failed; no preparation changes were committed.");
-            return 1;
-        }
+        await output.WriteLineAsync($"Active: {status.Active}; stable-ready: {status.StableReady}; pending: {status.Pending}; blocked: {status.Blocked}; revoked/no-credential: {status.Inactive}");
+        await output.WriteLineAsync($"Activation-ready: {status.Ready}; application name: {DataProtectionAuthority.StableApplicationName}");
+        return status.Ready ? 0 : 1;
     }
 }

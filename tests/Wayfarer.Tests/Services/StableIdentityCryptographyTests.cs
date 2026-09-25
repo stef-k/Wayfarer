@@ -32,14 +32,14 @@ public sealed class StableIdentityCryptographyTests
         var owner = source.Services.GetRequiredService<PersonalProviderCredentialService>();
         var profile = PersonalLocationProviderProfile.Create("private-user", PersonalLocationProvider.Mapbox);
         owner.Replace(profile, Secret);
+        var legacyProvider = DataProtectionProvider.Create(new DirectoryInfo(ring), options =>
+            options.SetApplicationName(sourceRoot + Path.DirectorySeparatorChar).DisableAutomaticKeyGeneration());
+        var codec = new LegacyCredentialPreparationCodec(legacyProvider,
+            new StableDataProtectionProvider(source.Services.GetRequiredService<IDataProtectionProvider>()));
+        profile.ProtectedCredential = PersonalProviderCredentialService.Protector(profile, legacyProvider).Protect(Secret);
         var legacy = profile.ProtectedCredential;
-        profile.StableProtectedCredential = null;
-        owner.PrepareStable(profile);
-        var stable = profile.StableProtectedCredential;
-        Assert.True(owner.ReadStable(profile).Succeeded);
-        Assert.NotEqual(DataProtectionAuthority.StableApplicationName,
-            source.Services.GetRequiredService<IOptions<DataProtectionOptions>>().Value.ApplicationDiscriminator);
-        Assert.Equal(sourceRoot + Path.DirectorySeparatorChar,
+        Assert.True(codec.ReadLegacy(profile).Succeeded);
+        Assert.Equal(DataProtectionAuthority.StableApplicationName,
             source.Services.GetRequiredService<IOptions<DataProtectionOptions>>().Value.ApplicationDiscriminator);
 
         var copiedRing = Directory.CreateDirectory(Path.Combine(directory.Path, "copied-ring")).FullName;
@@ -48,40 +48,37 @@ public sealed class StableIdentityCryptographyTests
         var keysBefore = Directory.GetFiles(ring).ToDictionary(file => Path.GetFileName(file)!, File.ReadAllBytes);
         await using var target = Host(targetRoot, copiedRing);
         var targetOwner = target.Services.GetRequiredService<PersonalProviderCredentialService>();
-        Assert.False(targetOwner.Read(profile).Succeeded);
-        Assert.True(object.Equals(Secret, targetOwner.ReadStable(profile).Credential));
-        await using var restored = Host(sourceRoot, ring);
-        profile.StableProtectedCredential = null;
-        Assert.True(object.Equals(Secret, restored.Services.GetRequiredService<PersonalProviderCredentialService>().Read(profile).Credential));
+        Assert.True(object.Equals(Secret, targetOwner.Read(profile).Credential));
         Assert.True(object.Equals(legacy, profile.ProtectedCredential));
-        profile.StableProtectedCredential = stable;
+        owner.Replace(profile, "replacement");
+        Assert.Null(profile.ProtectedCredential);
+        Assert.False(codec.ReadLegacy(profile).Succeeded);
+        Assert.True(object.Equals("replacement", targetOwner.Read(profile).Credential));
         foreach (var file in Directory.GetFiles(ring))
             Assert.True(keysBefore[Path.GetFileName(file)]!.SequenceEqual(File.ReadAllBytes(file)));
     }
 
     /// <summary>Either protection failure leaves every profile field unchanged and strips secret-bearing exceptions.</summary>
-    [Theory]
-    [InlineData(true)]
-    [InlineData(false)]
-    public void ReplacementFailure_IsAtomicAndRedacted(bool legacyFailure)
+    [Fact]
+    public void ReplacementFailure_IsAtomicAndRedacted()
     {
         var provider = new EphemeralDataProtectionProvider();
         var healthy = CredentialTestFactory.Create(provider);
         var profile = PersonalLocationProviderProfile.Create("private-user", PersonalLocationProvider.Mapbox);
         healthy.Replace(profile, Secret);
+        profile.ProtectedCredential = "retained-rollback-evidence";
         profile.SetAuthorization(PersonalProviderCapability.Geocoding, true);
         profile.GrantPermanentGeocodingConsent(DateTimeOffset.UtcNow);
         healthy.RecordVerification(profile, PersonalProviderCapability.Geocoding, PersonalProviderVerification.Verified);
         var before = JsonSerializer.Serialize(profile);
         var failure = new ThrowingProvider();
-        var broken = new PersonalProviderCredentialService(legacyFailure ? failure : provider,
-            new StableDataProtectionProvider(legacyFailure ? provider : failure));
+        var broken = new PersonalProviderCredentialService(failure);
         var exception = Assert.Throws<InvalidOperationException>(() => broken.Replace(profile, Secret));
         Assert.True(before == JsonSerializer.Serialize(profile));
         Assert.False(exception.ToString().Contains(Secret, StringComparison.Ordinal));
         healthy.Replace(profile, "replacement");
         Assert.Equal(3, profile.CredentialGeneration);
-        Assert.True(healthy.ReadStable(profile).Succeeded);
+        Assert.True(healthy.Read(profile).Succeeded);
         Assert.True(profile.GeocodingAuthorized);
         Assert.False(profile.HasCurrentPermanentGeocodingConsent());
         healthy.Revoke(profile);
@@ -89,14 +86,17 @@ public sealed class StableIdentityCryptographyTests
         Assert.Null(profile.StableProtectedCredential);
     }
 
-    /// <summary>Startup accepts pending rows, rejects corrupt/mismatched companions, and never changes durable state.</summary>
+    /// <summary>Startup rejects pending/corrupt stable rows, accepts stable-only and rollback evidence, and never changes durable state.</summary>
     [Theory]
-    [InlineData("pending", true)]
+    [InlineData("pending", false)]
     [InlineData("matching", true)]
     [InlineData("unreadable", false)]
-    [InlineData("mismatch", false)]
-    [InlineData("legacy-unreadable", false)]
-    [InlineData("stable-only", false)]
+    [InlineData("mismatch", true)]
+    [InlineData("legacy-unreadable", true)]
+    [InlineData("stable-only", true)]
+    [InlineData("revoked", true)]
+    [InlineData("revoked-inconsistent", false)]
+    [InlineData("empty", true)]
     public async Task Startup_ValidatesWithoutPreparing(string state, bool accepted)
     {
         using var directory = new TestDirectory();
@@ -108,7 +108,11 @@ public sealed class StableIdentityCryptographyTests
         var owner = scope.ServiceProvider.GetRequiredService<PersonalProviderCredentialService>();
         var profile = PersonalLocationProviderProfile.Create("private-user", PersonalLocationProvider.Mapbox);
         owner.Replace(profile, Secret);
+        profile.ProtectedCredential = "retained-rollback-evidence";
         if (state == "pending") profile.StableProtectedCredential = null;
+        if (state is "revoked" or "revoked-inconsistent") owner.Revoke(profile);
+        if (state == "revoked-inconsistent") profile.ProtectedCredential = "inconsistent";
+        if (state == "empty") { profile.ProtectedCredential = null; profile.StableProtectedCredential = null; }
         if (state == "unreadable") profile.StableProtectedCredential = Secret;
         if (state == "mismatch")
         {
@@ -128,10 +132,10 @@ public sealed class StableIdentityCryptographyTests
         var leakedIdentity = logs.Messages.Any(message => message.Contains(profile.UserId, StringComparison.Ordinal));
         Assert.False(leakedSecret);
         Assert.False(leakedIdentity);
+        Assert.DoesNotContain(logs.Messages, message => Regex.IsMatch(message,
+            "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"));
         db.ChangeTracker.Clear();
         Assert.True(before == JsonSerializer.Serialize(await db.PersonalLocationProviderProfiles.SingleAsync()));
-        if (state == "pending")
-            Assert.Contains(logs.Messages, message => message.Contains("pending for 1"));
     }
 
     /// <summary>Pins the complete explicit purpose inventory, distinguishing durable credentials from transient operations.</summary>
@@ -162,6 +166,7 @@ public sealed class StableIdentityCryptographyTests
         builder.Configuration["DataProtection:KeyRingPath"] = ring;
         builder.AddWayfarerDataProtection();
         builder.Services.AddScoped<PersonalProviderCredentialService>();
+        builder.Services.AddScoped<StableIdentityReadiness>();
         builder.Services.AddDbContext<ApplicationDbContext>(options => options.UseInMemoryDatabase(root));
         return builder.Build();
     }

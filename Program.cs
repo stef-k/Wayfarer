@@ -142,6 +142,9 @@ ConfigureServices(builder);
 
 var app = builder.Build();
 
+// Gate activation before Quartz schema work, seeding, or hosted jobs.
+await DataProtectionAuthority.ValidateAsync(app.Services);
+
 // Check and set if needed for Quartz database setup for job persistence
 await QuartzSchemaInstaller.EnsureQuartzTablesExistAsync(app.Services);
 
@@ -149,7 +152,6 @@ await QuartzSchemaInstaller.EnsureQuartzTablesExistAsync(app.Services);
 
 // Seed the database with roles and the admin user if necessary
 await SeedDatabase(app);
-await DataProtectionAuthority.ValidateAsync(app.Services);
 
 #endregion Database Seeding
 
@@ -437,6 +439,7 @@ static void ConfigureServices(WebApplicationBuilder builder)
 {
     // Use one explicit durable authority for Identity and all protected provider credentials.
     builder.AddWayfarerDataProtection();
+    builder.Services.AddScoped<StableIdentityReadiness>();
     // Explicitly register IHttpContextAccessor for services that need it (e.g., TileCacheService).
     // Some framework components may register it implicitly, but explicit registration is safer.
     builder.Services.AddHttpContextAccessor();

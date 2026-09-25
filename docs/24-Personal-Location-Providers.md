@@ -2,124 +2,147 @@
 
 Wayfarer stores one personal credential per user and provider (`Geoapify` or `Mapbox`). Credentials are protected with ASP.NET Core Data Protection and cryptographically bound to credential type, provider, and user. Browser and mobile responses show only a fixed mask; WayfarerMobile never receives provider credentials.
 
-## Key-ring durability and backup
+## Key-ring durability and selection
 
-The supported Linux/systemd deployment pins `WorkingDirectory=/var/www/wayfarer` and `HOME=/home/wayfarer`. Its existing ASP.NET Core ring is `/home/wayfarer/.aspnet/DataProtection-Keys`; Wayfarer configures that retained path explicitly. The application discriminator remains the ASP.NET Core hosted discriminator derived from the fixed `/var/www/wayfarer` content root, preserving ciphertext created before personal-provider profiles were introduced. The ring survives process restarts and publish replacement without relocating existing keys.
-
-The installer and deployer assign the ring to the `wayfarer` service account and set the ring directory to mode `0700`. They do not apply a separate mode to individual key files; the directory boundary prevents access by other accounts. At-rest protection is the dedicated service identity plus host filesystem permissions and disk/host encryption.
-
-Back up the PostgreSQL database and key ring together in the same recovery set. Restore both before starting the application, then restore the production ownership and directory permission exactly:
-
-```bash
-sudo chown -R wayfarer:wayfarer /home/wayfarer/.aspnet/DataProtection-Keys
-sudo chmod 700 /home/wayfarer/.aspnet/DataProtection-Keys
-```
-
-Losing the applicable key ring makes protected personal-provider credentials unreadable even when the database survives. Startup fails closed if the directory is unusable or retained protected credentials cannot be read.
-
-This compatibility contract covers the fixed single-host systemd deployment at `/var/www/wayfarer`. Containers, a changed content root, and multiple hosts are not covered automatically and require an explicitly shared, stable Data Protection authority before deployment; Wayfarer does not claim certificate, cloud-KMS, container, or multi-host key sharing.
-
-
-## F1 stable-identity preparation (#627)
-
-F1 keeps `ProtectedCredential` as the legacy runtime and rollback authority. Migration
-`20260924220353_StablePersonalCredentialCompanion` adds nullable
-`StableProtectedCredential` (4096 characters). Apply the schema migration before
-starting F1; it adds no ciphertext and performs no preparation. The pre-F1
-application ignores the companion column, so application rollback can retain the
-additive schema and original ciphertext.
-
-New/replaced credentials are protected under both identities before either field
-or any authority state changes. Revocation clears both. Legacy Mapbox migration
-also verifies the stable companion before retiring recognized plaintext rows.
-Normal provider contact still reads only the legacy copy.
-
-The secondary provider uses application name `Wayfarer` and the same complete
-master key ring. It does not generate keys or relocate, prune, rename or rewrite
-existing XML. The global provider retains normal key management and its existing
-hosted discriminator. This implements source preparation only; F2 activation is
-a separately reviewed future stage. [ASP.NET Core application isolation](https://learn.microsoft.com/en-us/aspnet/core/security/data-protection/configuration/overview?view=aspnetcore-10.0#set-the-application-name-setapplicationname)
-explains why a shared ring alone does not make legacy ciphertext portable.
-
-### Supported source preparation sequence
-
-1. Remain at the original readable native content root.
-2. Back up PostgreSQL and the **complete current key ring together**.
-3. Apply the additive schema migration and deploy F1 at the **same** source root.
-4. Verify ordinary startup still reads legacy credentials. Missing stable copies
-   produce only a bounded pending-count warning; invalid or mismatched copies
-   fail startup closed.
-5. Stop/quiesce Wayfarer before preparation.
-6. As the same service account, from the same working/content root and with the
-   same environment/configuration, run `dotnet Wayfarer.dll data-protection status`.
-7. Run `dotnet Wayfarer.dll data-protection prepare-stable-identity`.
-8. Run `dotnet Wayfarer.dll data-protection status` again; require
-   `Activation-ready: True` and exit code 0.
-9. Restart F1 if desired and inspect normal provider settings/state without
-   verification or other provider contact.
-10. Create a **fresh paired PostgreSQL + complete-key-ring recovery set**.
-11. Proceed to F2 activation only after that separate stage is accepted.
-
-For source builds, the equivalent invocation is
-`dotnet run --no-launch-profile -- data-protection status` (or
-`prepare-stable-identity`). Do not change the content root, service identity,
-`DataProtection:KeyRingPath`, or environment when invoking the command.
-
-### Command and transaction contract
-
-Status is read-only and prints bounded active, stable-ready, pending, blocked,
-revoked/no-credential counts and overall readiness. Exit codes: 0 means ready,
-1 means pending/blocked or command failure, and 2 means invalid command syntax.
-Neither command accepts credentials, ciphertext or key material as arguments.
-Diagnostics omit credentials, protected payloads, users, provider URLs and key
-material. The command host has no logging/audit sinks, seeding, jobs or provider
-HTTP services.
-
-Preparation takes a PostgreSQL transaction and an EXCLUSIVE table lock on
-`PersonalLocationProviderProfiles`, with a five-second lock wait. This excludes
-profile writes and row-locking mutations but permits ordinary readers. The lock
-is defense in depth: it does not replace quiescing the service. There are no
-automatic retries. After lock timeout or another failure, check source authority
-and service quiescence before explicitly rerunning.
-
-Every row is validated before writes. Only missing companions are filled;
-matching copies are left byte-for-byte unchanged. Unreadable legacy/stable
-ciphertext, mismatch, stable-only active state or inconsistent revoked state
-blocks the run without overwriting recovery evidence. The complete set is
-re-read and checked before commit. Any failure rolls back all companions from
-that run. Only `StableProtectedCredential` and PostgreSQL `xmin` change;
-legacy ciphertext, generation, authorization, verification, Permanent Geocoding
-consent and `UpdatedAt` remain unchanged. An idempotent rerun changes no rows.
-Ordinary replacements after preparation keep both copies ready.
-
-Preparation never runs automatically from deployment, EF migration, ordinary
-startup or a web request. Runtime legacy Mapbox conversion prepares only the
-credential it is already explicitly migrating.
-
-### Already-moved state and protector inventory
-
-An already moved database/ring whose legacy credential cannot be decrypted under
-the new hosted content root cannot be repaired from the ring alone. Prepare on
-the still-readable source identity, restore that source environment/content-root
-identity sufficiently to decrypt, or explicitly replace/re-enter the credential.
-Wayfarer never guesses paths or brute-forces old discriminators.
-
-The only active durable ciphertext target is
-`PersonalLocationProviderProfile.ProtectedCredential`, using unchanged purposes
+F2 (#629) sets the global ASP.NET Core Data Protection application name to the
+unversioned `Wayfarer`. A complete ring plus that name makes stable payloads
+portable across content roots. The credential purpose chain stays
 `Wayfarer.LocationProviders.PersonalCredentials.v1 / credential / <providerKey> / <userId>`.
-Historical routing `CredentialCiphertext` columns belong to retired migrations.
+[ASP.NET Core application isolation](https://learn.microsoft.com/en-us/aspnet/core/security/data-protection/configuration/overview?view=aspnetcore-10.0#set-the-application-name-setapplicationname)
+explains why the same keys alone cannot recover a legacy path-derived identity.
 
-These explicit transient purposes stay on the global legacy identity and require
-no database rewrite:
+Runtime and offline commands use one key-ring resolver:
+
+1. A nonblank `DataProtection:KeyRingPath` selects that normalized absolute path.
+2. Otherwise use `StoragePaths.DataProtection` (`Storage:DataRoot/data-protection`).
+3. If only the previous default `<LocalApplicationData>/Wayfarer/DataProtectionKeys`
+   contains ordinary `key-*.xml` files, retain it **in place**.
+4. If both distinct defaults contain keys, fail closed. Inspect/recover the intended
+   complete ring and set an explicit override; never merge rings or select by age.
+
+New Linux Production installs use `/var/lib/wayfarer/data-protection`; Development
+uses the platform-native Storage DataRoot. Native scripts prepare the new default
+with service-user ownership and mode `0700`. Existing installed
+`DataProtection__KeyRingPath=/home/wayfarer/.aspnet/DataProtection-Keys` remains
+active through installer refresh and deploy. Neither script nor startup copies,
+moves, deletes, renames, prunes or rewrites existing keys. Drop-ins remain intact.
+At-rest protection remains service identity, filesystem permissions and host/disk
+encryption; no new certificate/KMS scheme is introduced.
+
+Back up PostgreSQL and the **complete resolved active ring** as one recovery set
+(#533). Use the path/authority reported by `data-protection status`, not an assumed
+historical or new default. Restore both, their service-user ownership and restricted
+directory permissions before startup. Losing keys makes durable credentials
+unreadable even when the database survives. Normal runtime may generate/rotate
+keys in the selected ring; offline commands cannot generate/rotate keys.
+
+## F1 preparation to F2 activation
+
+F1 (#627) added nullable `StableProtectedCredential` through migration
+`20260924220353_StablePersonalCredentialCompanion`, while keeping legacy
+`ProtectedCredential` authoritative. Its dual writes/preparation established matching
+copies. F2 adds no schema migration; apply the existing additive migration explicitly
+before activation. F2 web runtime registers no legacy preparation service.
+
+F2 reads **only** `StableProtectedCredential`. Stable failure never falls back to
+legacy. Startup validates the directory, stable round-trip, exact global name
+`Wayfarer`, and every profile before Quartz schema work, seeding and jobs:
+
+| Profile state | F2 activation |
+| --- | --- |
+| Both fields null, not revoked | Inactive, valid |
+| Revoked with both fields null | Inactive, valid |
+| Revoked with either field present | Blocked, inconsistent |
+| Both fields present | Stable must decrypt; legacy retained without decryption |
+| Stable only | Stable must decrypt; valid post-F2 state |
+| Legacy only | Blocked; stop and run source preparation |
+| Unreadable stable | Blocked |
+
+### Existing source already prepared by F1
+
+1. Keep service stopped/quiesced and verify paired PostgreSQL + complete-ring backup.
+2. Run the F2 binary's `dotnet Wayfarer.dll data-protection status`; require exit 0
+   and `Activation-ready: True` with the intended resolved ring.
+3. Deploy/start F2 with the installed explicit ring override retained.
+4. Expect session/form/token invalidation described below; verify fresh login and
+   provider readability through settings/status without unnecessary provider HTTP.
+5. Create a fresh stable-identity recovery set before later host/container migration.
+
+### Existing source not yet prepared
+
+The final F2 binary can prepare without deploying an intermediate F1 binary:
+
+1. Stop/quiesce service at its **original readable source content root/identity**.
+2. Back up PostgreSQL plus the complete resolved ring.
+3. Apply the required F1 additive schema if absent.
+4. With the same service account, working/content root and ring configuration, run
+   `dotnet Wayfarer.dll data-protection prepare-stable-identity`.
+5. Run `dotnet Wayfarer.dll data-protection status`; require exit 0/readiness.
+6. Create another paired backup, then start F2.
+
+Source builds may use `dotnet run --no-launch-profile -- data-protection status`
+(or `prepare-stable-identity`). Preparation deliberately uses the framework hosted
+source discriminator and a separate stable provider over the same ring. It never
+uses the F2 web registration. After moving away from the source root, preparation
+fails legacy decryption rather than guessing the old discriminator. Restore the
+readable source identity or explicitly re-enter credentials if it is already lost.
+
+### Offline command and transaction contract
+
+Status is read-only stable activation inventory and works at another content root
+with the complete copied ring and prepared database. Both commands disable automatic
+key generation and bypass normal logging/audit sinks, jobs, seeding and provider HTTP.
+Only bounded categories/counts, the stable application name and resolved ring
+path/authority are reported. No user/provider identities, secret lengths, plaintext,
+ciphertext, XML, key IDs or protected framework payloads enter diagnostics.
+Exit codes: 0 ready, 1 pending/blocked/failure, 2 invalid syntax.
+
+Source preparation retains F1's PostgreSQL transaction, EXCLUSIVE profile-table
+lock and five-second lock timeout. Quiescence is still required. It validates every
+row first, checks legacy/stable equality, fills only missing companions and verifies
+the whole set before commit. It rejects unreadable/mismatched copies, stable-only
+post-F2 rows and inconsistent revoked states. Failure rolls back every preparation
+write. Only companions and xmin change; an idempotent rerun writes nothing.
+Status after preparation uses the stable provider. Preparation never runs at web
+startup, deploy, schema migration or runtime Mapbox conversion.
+
+### Credential rollback cutoff
+
+Untouched F1-prepared profiles retain original legacy ciphertext for rollback to
+the original legacy source identity. F2 replacement protects the new stable value
+before mutating anything, clears legacy ciphertext, increments generation once,
+and preserves existing authorization and consent/verification invalidation rules.
+A protection failure leaves all profile state unchanged. Revocation clears both.
+An old/F1 reader therefore fails unavailable after mutation instead of contacting
+a provider with a stale secret. Recovery needs the paired pre-F2 DB + complete-ring
+set or credential re-entry. Retiring legacy Mapbox plaintext after stable protection
+and readback is also a credential downgrade cutoff; failures preserve plaintext.
+
+This per-credential cutoff is separate from #604's broader production-write cutoff.
+F2 performs no production M6 move. For #604, prepare source first, retain the native
+explicit ring until quiesce, copy the **complete** ring with the final database delta,
+and require target stable status before public ingress. Target needs no old path
+or discriminator override. After production writes or credential mutation, follow
+recovery-set rollback rules instead of starting stale source state.
+
+### Framework and transient invalidation
+
+Changing application identity deliberately invalidates legacy authentication cookies,
+antiforgery payloads, Identity password-reset/email-confirmation links and these
+short-lived operation purposes:
 
 - `Wayfarer.TripEditor.SegmentAggregate.v1`
 - `Wayfarer.TripEditor.SegmentRouteClear.v1`
 - `Wayfarer.PlaceRegionLifecycle.DependencyConfirmation.v1`
 - `Wayfarer.ExternalRouting.ProposalContext.v1`
 
-The startup probe is non-durable. Framework auth cookies, antiforgery and Identity
-Data Protection tokens retain their current identity and behavior throughout F1.
-The later F2 stage will define activation and controlled token invalidation.
+Users sign in again, reload stale forms, reissue outstanding Identity links and
+regenerate editor/confirmation/proposal tokens through normal flows. There is no
+dual-unprotect bridge. Stable reissues remain portable with the same complete ring
+and application name. Ordinary Mobile/API bearer tokens use database hashes and
+remain valid; F2 never rotates or deletes them. Historical routing ciphertext is
+retired schema, not a new migration target. Multi-active-instance key-management,
+Docker/Compose, production cutover and key-vault encryption remain out of scope.
 
 ## Profiles, authorization, and switching
 

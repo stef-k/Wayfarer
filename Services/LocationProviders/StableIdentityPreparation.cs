@@ -5,7 +5,7 @@ using Wayfarer.Models.LocationProviders;
 namespace Wayfarer.Services.LocationProviders;
 
 /// <summary>Owns explicit F1 inventory and all-or-nothing PostgreSQL companion preparation.</summary>
-public sealed class StableIdentityPreparation(ApplicationDbContext db, PersonalProviderCredentialService credentials)
+public sealed class StableIdentityPreparation(ApplicationDbContext db, LegacyCredentialPreparationCodec credentials)
 {
     /// <summary>Inspects durable state without tracking or modifying any row.</summary>
     public async Task<StableIdentityStatus> StatusAsync(CancellationToken cancellationToken = default) =>
@@ -69,7 +69,7 @@ public sealed class StableIdentityPreparation(ApplicationDbContext db, PersonalP
                 continue;
             }
             active++;
-            var legacy = credentials.Read(profile);
+            var legacy = credentials.ReadLegacy(profile);
             if (!legacy.Succeeded) { blocked++; continue; }
             if (profile.StableProtectedCredential == null) { pending++; continue; }
             var stable = credentials.ReadStable(profile);
@@ -84,6 +84,6 @@ public sealed class StableIdentityPreparation(ApplicationDbContext db, PersonalP
 /// <summary>Contains bounded non-secret migration counts only.</summary>
 public sealed record StableIdentityStatus(int Active, int StableReady, int Pending, int Blocked, int Inactive)
 {
-    /// <summary>Reports whether all durable credentials are prepared for a later activation.</summary>
+    /// <summary>Reports whether every durable profile meets the selected preparation or activation contract.</summary>
     public bool Ready => Pending == 0 && Blocked == 0;
 }

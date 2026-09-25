@@ -232,9 +232,8 @@ sudo mkdir -p "$DEPLOY_DIR/Uploads" "$DEPLOY_DIR/TileCache" "$DEPLOY_DIR/ImageCa
 sudo install -d -m 750 -o "$APP_USER" -g "$APP_USER" /var/lib/wayfarer/uploads/imports
 # New tile/image writes use CacheRoot; preserve both old deployed cache trees.
 sudo install -d -m 750 -o "$APP_USER" -g "$APP_USER" /var/cache/wayfarer/tiles /var/cache/wayfarer/images /var/cache/wayfarer/thumbnails/trips
-sudo mkdir -p "/home/$APP_USER/.aspnet/DataProtection-Keys"
-sudo chown -R "$APP_USER":"$APP_USER" "/home/$APP_USER/.aspnet"
-sudo chmod 700 "/home/$APP_USER/.aspnet" "/home/$APP_USER/.aspnet/DataProtection-Keys"
+# Prepare only the new default; never relocate or alter an installed active ring.
+sudo install -d -m 700 -o "$APP_USER" -g "$APP_USER" /var/lib/wayfarer/data-protection
 sudo chown -R "$APP_USER":"$APP_USER" "$DEPLOY_DIR/Uploads" "$DEPLOY_DIR/TileCache" "$DEPLOY_DIR/ImageCache" "$DEPLOY_DIR/ChromeCache" "$DEPLOY_DIR/Logs"
 sudo chmod 755 "$DEPLOY_DIR/Uploads" "$DEPLOY_DIR/TileCache" "$DEPLOY_DIR/ImageCache" "$DEPLOY_DIR/ChromeCache" "$DEPLOY_DIR/Logs"
 

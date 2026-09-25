@@ -10,13 +10,11 @@ public sealed class PersonalProviderCredentialService
     /// <summary>Gets the immutable root protection purpose.</summary>
     public const string ProtectionPurpose = "Wayfarer.LocationProviders.PersonalCredentials.v1";
     private readonly IDataProtectionProvider _provider;
-    private readonly IDataProtectionProvider _stableProvider;
 
     /// <summary>Creates the credential owner.</summary>
-    public PersonalProviderCredentialService(IDataProtectionProvider provider, StableDataProtectionProvider stableProvider)
+    public PersonalProviderCredentialService(IDataProtectionProvider provider)
     {
         _provider = provider;
-        _stableProvider = stableProvider.Provider;
     }
 
     /// <summary>Protects a nonblank replacement, advances generation, and preserves authorizations.</summary>
@@ -27,19 +25,17 @@ public sealed class PersonalProviderCredentialService
         if (normalized.Length > 2048 || normalized.Any(character => char.IsWhiteSpace(character) || char.IsControl(character)))
             throw new ArgumentException("The provider credential contains unsupported characters.", nameof(credential));
         var generation = checked(profile.CredentialGeneration + 1);
-        string legacy;
         string stable;
         try
         {
-            legacy = Protector(profile).Protect(normalized);
-            stable = Protector(profile, _stableProvider).Protect(normalized);
+            stable = Protector(profile, _provider).Protect(normalized);
         }
         catch (Exception)
         {
             // Never retain a provider exception that could contain credential material.
             throw new InvalidOperationException("The personal credential could not be protected.");
         }
-        profile.ProtectedCredential = legacy;
+        profile.ProtectedCredential = null;
         profile.StableProtectedCredential = stable;
         profile.CredentialGeneration = generation;
         profile.RevokedAt = null;
@@ -52,9 +48,9 @@ public sealed class PersonalProviderCredentialService
     /// <summary>Reads a credential as a bounded unavailable result without mutating ciphertext.</summary>
     public PersonalCredentialRead Read(PersonalLocationProviderProfile profile)
     {
-        if (profile.RevokedAt != null || string.IsNullOrEmpty(profile.ProtectedCredential))
+        if (profile.RevokedAt != null || string.IsNullOrEmpty(profile.StableProtectedCredential))
             return PersonalCredentialRead.Unavailable;
-        try { return new(true, Protector(profile).Unprotect(profile.ProtectedCredential)); }
+        try { return new(true, Protector(profile, _provider).Unprotect(profile.StableProtectedCredential)); }
         catch (CryptographicException) { return PersonalCredentialRead.Unavailable; }
     }
 
@@ -94,43 +90,8 @@ public sealed class PersonalProviderCredentialService
         profile.UpdatedAt = DateTimeOffset.UtcNow;
     }
 
-    /// <summary>Reads only the preparation companion; runtime contact must continue to use Read.</summary>
-    internal PersonalCredentialRead ReadStable(PersonalLocationProviderProfile profile)
-    {
-        if (profile.RevokedAt != null || string.IsNullOrEmpty(profile.StableProtectedCredential))
-            return PersonalCredentialRead.Unavailable;
-        try { return new(true, Protector(profile, _stableProvider).Unprotect(profile.StableProtectedCredential)); }
-        catch (CryptographicException) { return PersonalCredentialRead.Unavailable; }
-    }
-
-    /// <summary>Creates and verifies a missing companion without changing any runtime authority.</summary>
-    internal void PrepareStable(PersonalLocationProviderProfile profile)
-    {
-        var legacy = Read(profile);
-        if (!legacy.Succeeded) throw new InvalidOperationException("Legacy credential is unavailable.");
-        if (profile.StableProtectedCredential != null)
-        {
-            var existing = ReadStable(profile);
-            if (!existing.Succeeded || !string.Equals(existing.Credential, legacy.Credential, StringComparison.Ordinal))
-                throw new InvalidOperationException("Stable credential is invalid.");
-            return;
-        }
-        try
-        {
-            var protector = Protector(profile, _stableProvider);
-            var stable = protector.Protect(legacy.Credential!);
-            if (!string.Equals(protector.Unprotect(stable), legacy.Credential, StringComparison.Ordinal))
-                throw new InvalidOperationException();
-            profile.StableProtectedCredential = stable;
-        }
-        catch (Exception)
-        {
-            throw new InvalidOperationException("Stable credential preparation failed.");
-        }
-    }
-
     /// <summary>Keeps the credential purpose chain identical for both application identities.</summary>
-    private IDataProtector Protector(PersonalLocationProviderProfile profile, IDataProtectionProvider? provider = null) => (provider ?? _provider)
+    internal static IDataProtector Protector(PersonalLocationProviderProfile profile, IDataProtectionProvider provider) => provider
         .CreateProtector(ProtectionPurpose).CreateProtector("credential")
         .CreateProtector(profile.ProviderKey).CreateProtector(profile.UserId);
 }

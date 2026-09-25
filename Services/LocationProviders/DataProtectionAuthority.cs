@@ -6,28 +6,59 @@ namespace Wayfarer.Services.LocationProviders;
 /// <summary>Configures and validates the persistent single-host Data Protection authority.</summary>
 public static class DataProtectionAuthority
 {
-    /// <summary>Names the future application identity, independent of releases and hosted paths.</summary>
+    /// <summary>Names the stable application identity, independent of releases and hosted paths.</summary>
     public const string StableApplicationName = "Wayfarer";
 
-    /// <summary>Registers both identities over the existing ring; readOnlyKeys suppresses all command-side key writes.</summary>
-    public static void AddWayfarerDataProtection(this WebApplicationBuilder builder, bool readOnlyKeys = false)
+    /// <summary>Registers the stable runtime identity and the single resolved ring.</summary>
+    public static void AddWayfarerDataProtection(this WebApplicationBuilder builder, bool readOnlyKeys = false) =>
+        builder.AddWayfarerDataProtection(ResolveKeyRing(builder.Configuration, builder.Environment), readOnlyKeys);
+
+    /// <summary>Registers a previously resolved authority so CLI inventory and protection use exactly the same selection.</summary>
+    internal static void AddWayfarerDataProtection(this WebApplicationBuilder builder, DataProtectionKeyRing ring,
+        bool readOnlyKeys = false)
     {
-        var configured = builder.Configuration["DataProtection:KeyRingPath"];
-        var path = string.IsNullOrWhiteSpace(configured)
-            ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "Wayfarer", "DataProtectionKeys")
-            : Path.GetFullPath(configured);
-        // Explicit commands must not create a directory or generate new master keys.
-        if (!readOnlyKeys) Directory.CreateDirectory(path);
-        var legacy = builder.Services.AddDataProtection()
-            .PersistKeysToFileSystem(new DirectoryInfo(path));
-        if (readOnlyKeys) legacy.DisableAutomaticKeyGeneration();
-        builder.Services.AddSingleton(new DataProtectionKeyRing(path));
-        // The secondary provider reads the same ring but never generates or modifies keys.
-        builder.Services.AddSingleton(new StableDataProtectionProvider(
-            DataProtectionProvider.Create(new DirectoryInfo(path), configuration =>
-                configuration.SetApplicationName(StableApplicationName).DisableAutomaticKeyGeneration())));
-        builder.Services.AddScoped<StableIdentityPreparation>();
+        // Framework key-management diagnostics include key IDs; expose only our bounded activation errors.
+        builder.Logging.AddFilter("Microsoft.AspNetCore.DataProtection", LogLevel.None);
+        if (!readOnlyKeys) Directory.CreateDirectory(ring.Path);
+        var protection = builder.Services.AddDataProtection()
+            .SetApplicationName(StableApplicationName)
+            .PersistKeysToFileSystem(new DirectoryInfo(ring.Path));
+        if (readOnlyKeys) protection.DisableAutomaticKeyGeneration();
+        builder.Services.AddSingleton(ring);
+    }
+
+    /// <summary>Selects one authority in place, refusing competing default rings without an explicit override.</summary>
+    public static DataProtectionKeyRing ResolveKeyRing(IConfiguration configuration, IHostEnvironment environment,
+        string? previousDefault = null)
+    {
+        var configured = configuration["DataProtection:KeyRingPath"];
+        if (!string.IsNullOrWhiteSpace(configured))
+            return new(Path.GetFullPath(configured), "explicit override");
+        var storage = new StoragePaths(Microsoft.Extensions.Options.Options.Create(
+            configuration.GetSection("Storage").Get<Wayfarer.Models.Options.StorageOptions>() ?? new()), environment);
+        var current = Path.TrimEndingDirectorySeparator(Path.GetFullPath(storage.DataProtection));
+        var previous = Path.TrimEndingDirectorySeparator(Path.GetFullPath(previousDefault ?? Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Wayfarer", "DataProtectionKeys")));
+        var distinct = !string.Equals(current, previous,
+            OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
+        if (distinct && HasKeys(previous))
+        {
+            if (HasKeys(current))
+                throw new InvalidOperationException("Ambiguous Data Protection rings; inspect the complete ring and set DataProtection:KeyRingPath explicitly.");
+            return new(previous, "previous-default compatibility");
+        }
+        return new(current, "current Storage default");
+    }
+
+    /// <summary>Detects ordinary framework key filenames without reading key contents or identifiers.</summary>
+    private static bool HasKeys(string path) => Directory.Exists(path) &&
+        Directory.EnumerateFiles(path, "key-*.xml", SearchOption.TopDirectoryOnly).Any();
+
+    /// <summary>Verifies effective stable protection without filesystem writes when key generation is disabled.</summary>
+    internal static void VerifyProtector(IDataProtectionProvider provider)
+    {
+        var probe = provider.CreateProtector("Wayfarer.DataProtection.StartupProbe.v1");
+        if (probe.Unprotect(probe.Protect("ready")) != "ready") throw new InvalidOperationException();
     }
 
     /// <summary>Fails startup when the key ring cannot round-trip or retained protected credentials cannot be read.</summary>
@@ -36,9 +67,9 @@ public static class DataProtectionAuthority
         using var scope = services.CreateScope();
         var provider = scope.ServiceProvider.GetRequiredService<IDataProtectionProvider>();
         var keyRing = scope.ServiceProvider.GetRequiredService<DataProtectionKeyRing>();
-        var stable = scope.ServiceProvider.GetRequiredService<StableDataProtectionProvider>().Provider;
-        var probe = provider.CreateProtector("Wayfarer.DataProtection.StartupProbe.v1");
-        var stableProbe = stable.CreateProtector("Wayfarer.DataProtection.StartupProbe.v1");
+        if (scope.ServiceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<DataProtectionOptions>>()
+                .Value.ApplicationDiscriminator != StableApplicationName)
+            throw new InvalidOperationException("Data Protection application identity must be Wayfarer.");
         try
         {
             var probeFile = Path.Combine(keyRing.Path, $".write-probe-{Guid.NewGuid():N}");
@@ -49,25 +80,20 @@ public static class DataProtectionAuthority
                     throw new IOException();
             }
             finally { File.Delete(probeFile); }
-            if (probe.Unprotect(probe.Protect("ready")) != "ready") throw new InvalidOperationException();
-            if (stableProbe.Unprotect(stableProbe.Protect("ready")) != "ready") throw new InvalidOperationException();
+            VerifyProtector(provider);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or CryptographicException or InvalidOperationException)
         {
             throw new InvalidOperationException("The configured Data Protection key authority is unusable.");
         }
 
-        var status = await scope.ServiceProvider.GetRequiredService<StableIdentityPreparation>().StatusAsync(cancellationToken);
+        var status = await scope.ServiceProvider.GetRequiredService<StableIdentityReadiness>().StatusAsync(cancellationToken);
         if (status.Blocked != 0)
             throw new InvalidOperationException("A personal provider credential is unreadable or inconsistent with the configured key authority.");
         if (status.Pending != 0)
-            scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger(nameof(DataProtectionAuthority))
-                .LogWarning("Stable identity preparation pending for {Count} credential profiles.", status.Pending);
+            throw new InvalidOperationException("Stable credentials are unprepared; stop and run source prepare-stable-identity before activation.");
     }
 }
 
 /// <summary>Describes the configured durable key-ring path without exposing key material.</summary>
-public sealed record DataProtectionKeyRing(string Path);
-
-/// <summary>Explicitly identifies the secondary F1 provider; never replaces the global legacy provider.</summary>
-public sealed record StableDataProtectionProvider(IDataProtectionProvider Provider);
+public sealed record DataProtectionKeyRing(string Path, string Authority);

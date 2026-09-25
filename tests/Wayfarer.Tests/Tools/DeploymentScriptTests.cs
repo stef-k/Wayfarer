@@ -1,4 +1,6 @@
 using System.Text.RegularExpressions;
+using System.Diagnostics;
+using Wayfarer.Tests.Infrastructure;
 using Xunit;
 
 namespace Wayfarer.Tests.Tools;
@@ -78,6 +80,37 @@ public sealed class DeploymentScriptTests
         }
         foreach (var name in new[] { "appsettings.json", "appsettings.Development.json", "appsettings.Production.json" })
             Assert.DoesNotContain("LogFilePath", File.ReadAllText(RepositoryFile(name)));
+    }
+
+    /// <summary>Actual template refresh retains quoted compatibility paths and gives new installs no old override.</summary>
+    [Theory]
+    [InlineData(null)]
+    [InlineData("Environment=DataProtection__KeyRingPath=/home/wayfarer/.aspnet/DataProtection-Keys")]
+    [InlineData("Environment=\"DataProtection__KeyRingPath=/srv/retained ring\"")]
+    [InlineData("Environment=\"Other=retained\" \"DataProtection__KeyRingPath=/srv/retained ring\"")]
+    public async Task ServiceRefresh_PreservesExactInstalledKeyRingAssignment(string? assignment)
+    {
+        using var directory = new TestDirectory();
+        var installed = Path.Combine(directory.Path, "wayfarer.service");
+        if (assignment != null) await File.WriteAllTextAsync(installed, "[Service]\n" + assignment + "\n[Install]\nWantedBy=multi-user.target\n");
+        var start = new ProcessStartInfo("python3") { RedirectStandardError = true, UseShellExecute = false };
+        start.ArgumentList.Add(RepositoryFile("deployment", "refresh-service.py"));
+        start.ArgumentList.Add(RepositoryFile("deployment", "wayfarer.service"));
+        start.ArgumentList.Add(installed);
+        using var process = Process.Start(start)!;
+        await process.WaitForExitAsync();
+        Assert.Equal(0, process.ExitCode);
+        var text = await File.ReadAllTextAsync(installed);
+        var active = text.Split('\n').Where(line => !line.TrimStart().StartsWith('#') && line.Contains("DataProtection__KeyRingPath")).ToArray();
+        if (assignment == null) Assert.Empty(active);
+        else Assert.Equal(assignment, Assert.Single(active));
+        foreach (var name in new[] { "install.sh", "deploy.sh" })
+        {
+            var script = File.ReadAllText(RepositoryFile("deployment", name));
+            Assert.Contains("install -d -m 700 -o \"$APP_USER\" -g \"$APP_USER\" /var/lib/wayfarer/data-protection", script);
+            Assert.DoesNotContain("sudo mkdir -p \"/home/$APP_USER/.aspnet/DataProtection-Keys\"", script);
+        }
+        Assert.Contains("refresh-service.py", File.ReadAllText(RepositoryFile("deployment", "install.sh")));
     }
 
     /// <summary>Finds source scripts from the test output directory.</summary>

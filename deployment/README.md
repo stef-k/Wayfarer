@@ -70,7 +70,7 @@ REF=v1.2.0 ./deployment/deploy.sh
 - Starts on system boot
 - Fully documented with customization points
 
-**Installation:**
+**New installation:** Existing services must retain their explicit key-ring override; use `install.sh` for a compatibility-preserving template refresh.
 
 ```bash
 sudo cp deployment/wayfarer.service /etc/systemd/system/
@@ -343,3 +343,13 @@ The existing Linux-oriented Production profile supplies all four `Storage` roots
 New rows persist `imports/<guidN><extension>` and remain portable across hosts. Known same-host legacy `Uploads/Temp` paths remain readable/deletable without silent rewriting; foreign paths need explicit migration. Keep the old Uploads exclusion/tree. Backup classification remains #533; actual M6 migration remains #604.
 
 Native ImageCache transition (#623): new writes use `StoragePaths.Images`, and install/deploy prepares `/var/cache/wayfarer/images` with application-user ownership. Retain `$DEPLOY_DIR/ImageCache`, its rsync exclusion and existing permissions for bounded legacy reads. Keep customized `CacheSettings:ImageCacheDirectory` as the deprecated legacy-root input. Operators overriding `Storage__CacheRoot` must prepare its `images` subdirectory before startup. New metadata uses logical `.dat` filenames; legacy reads remain in place, while successful refresh promotes to a current-root generation only after metadata commit. No bulk migration or EF schema migration is introduced; routine ImageCache backups remain excluded/rebuildable. See [configuration](../docs/16-Configuration.md) for explicit compatible-cache migration guidance.
+
+## Stable Data Protection activation
+
+Before starting an F2 upgrade, follow [source preparation and activation](../docs/24-Personal-Location-Providers.md#f1-preparation-to-f2-activation).
+The installer refreshes service templates through `refresh-service.py`, retaining
+installed `DataProtection__KeyRingPath` assignments verbatim. Keep this helper beside
+`install.sh`. New installs use `/var/lib/wayfarer/data-protection` with mode `0700`;
+existing native overrides stay active. Install/deploy never relocate the ring.
+Use offline status to identify the resolved active path for paired DB/ring backups.
+Sessions and protected forms/links require reissue; API hashes remain valid.
