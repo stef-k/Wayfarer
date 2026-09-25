@@ -138,7 +138,8 @@ exec /usr/bin/docker "$@"
         """Protected receipt, config, bundle and credentials must all match before continuation."""
         for relative in ['installation/deployment.env', 'bundle/caddy/Caddyfile', 'installation/secrets/db-password']:
             path = self.directory / relative
-            self.host('sh', '-ec', f'cp -p {path} {path}.saved; printf changed >> {path}')
+            replacement = ('printf ' + 'A' * 64 + f' > {path}') if relative.endswith('db-password') else f'printf changed >> {path}'
+            self.host('sh', '-ec', f'cp -p {path} {path}.saved; {replacement}')
             assert self.ctl('setup', '--resume', check=False).returncode == 2
             self.host('mv', str(path) + '.saved', str(path))
         receipt = self.install / 'setup-progress.json'
@@ -156,6 +157,8 @@ exec /usr/bin/docker "$@"
         assert result.returncode == 1
         credentials = self.host('sh', '-ec', f'sha256sum {self.install}/secrets/*').stdout
         volumes = run('docker', 'volume', 'ls', '-q', '--filter', f'label=com.docker.compose.project={self.project}').stdout
+        self.compose('run', '--rm', '--no-deps', '-T', '--entrypoint', 'sh', 'wayfarer', '-ec',
+                     'mkdir -p /var/lib/wayfarer/uploads/imports; printf durable > /var/lib/wayfarer/uploads/imports/qualification-upload')
         self.reject_changed_inputs()
         # Lose the bootstrap result after its real transaction commits; never repeat it.
         for point in ['admin', 'web', 'doctor', 'none']:
@@ -168,6 +171,8 @@ exec /usr/bin/docker "$@"
                 assert 'Protected admin bootstrap...' not in result.stdout
             assert credentials == self.host('sh', '-ec', f'sha256sum {self.install}/secrets/*').stdout
             assert volumes == run('docker', 'volume', 'ls', '-q', '--filter', f'label=com.docker.compose.project={self.project}').stdout
+            assert self.compose('run', '--rm', '--no-deps', '-T', '--entrypoint', 'sh', 'wayfarer', '-ec',
+                                'cat /var/lib/wayfarer/uploads/imports/qualification-upload').strip() == 'durable'
         print(result.stdout, flush=True)
         assert 'Setup complete' in result.stdout
         run('docker', 'run', '-d', '--name', self.proxy, '--network', 'host',

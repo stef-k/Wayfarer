@@ -40,6 +40,7 @@ Place `deploy/compose/` contents intact under an immutable root-owned bundle dir
   deployment.env                    generated non-secret literal Compose inputs, 0600
   secrets/                          generated, root:root 0700
   operation.lock                    per-installation serialization, 0600
+  setup-progress.json               protected original-input receipt and maintenance checkpoints
   setup-complete                    created only after successful setup diagnostics
 ```
 

@@ -258,6 +258,17 @@ public sealed class WayfarerCtlTests
         Assert.Single(process.Calls);
     }
 
+    /// <summary>Project-name collisions do not authorize adopting unrelated containers or volumes.</summary>
+    [Theory]
+    [InlineData("volume", "{\"Name\":\"wayfarer_db-data\",\"Labels\":{}}")]
+    [InlineData("network", "{\"Name\":\"wayfarer_edge\",\"Labels\":{\"com.docker.compose.project\":\"foreign\"}}")]
+    [InlineData("container", "{\"Config\":{\"Labels\":{\"com.docker.compose.project\":\"wayfarer\",\"com.docker.compose.project.working_dir\":\"/foreign\"}}}")]
+    public void ResumeRefusesForeignResources(string kind, string json)
+    {
+        using var document = System.Text.Json.JsonDocument.Parse(json);
+        Assert.Throws<UsageException>(() => Preflight.VerifyRetainedResource(Config(), kind, document.RootElement));
+    }
+
     /// <summary>Continuation has no surface for changing the original installation choices.</summary>
     [Theory]
     [InlineData("--resume --hostname other.example.org")]
