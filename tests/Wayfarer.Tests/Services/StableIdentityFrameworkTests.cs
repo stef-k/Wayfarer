@@ -134,7 +134,7 @@ public sealed class StableIdentityFrameworkTests
             new PasswordHasher<ApplicationUser>(), [], [], new UpperInvariantLookupNormalizer(),
             new IdentityErrorDescriber(), host.Services, host.Services.GetRequiredService<ILogger<UserManager<ApplicationUser>>>());
         return (new(host.Services.GetRequiredService<IDataProtectionProvider>(), Options.Create(new DataProtectionTokenProviderOptions()),
-            host.Services.GetRequiredService<ILogger<DataProtectorTokenProvider<ApplicationUser>>>()), manager, new() { Id = "fixture-user" });
+            host.Services.GetRequiredService<ILogger<DataProtectorTokenProvider<ApplicationUser>>>()), manager, new() { Id = "fixture-user", DisplayName = "Fixture" });
     }
 
     /// <summary>Issues a representative password reset token.</summary>

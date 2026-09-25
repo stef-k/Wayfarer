@@ -66,6 +66,7 @@ public sealed class StableIdentityCryptographyTests
         var healthy = CredentialTestFactory.Create(provider);
         var profile = PersonalLocationProviderProfile.Create("private-user", PersonalLocationProvider.Mapbox);
         healthy.Replace(profile, Secret);
+        profile.ProtectedCredential = "retained-rollback-evidence";
         profile.SetAuthorization(PersonalProviderCapability.Geocoding, true);
         profile.GrantPermanentGeocodingConsent(DateTimeOffset.UtcNow);
         healthy.RecordVerification(profile, PersonalProviderCapability.Geocoding, PersonalProviderVerification.Verified);
@@ -163,6 +164,7 @@ public sealed class StableIdentityCryptographyTests
         builder.Configuration["DataProtection:KeyRingPath"] = ring;
         builder.AddWayfarerDataProtection();
         builder.Services.AddScoped<PersonalProviderCredentialService>();
+        builder.Services.AddScoped<StableIdentityReadiness>();
         builder.Services.AddDbContext<ApplicationDbContext>(options => options.UseInMemoryDatabase(root));
         return builder.Build();
     }

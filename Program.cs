@@ -442,6 +442,7 @@ static void ConfigureServices(WebApplicationBuilder builder)
 {
     // Use one explicit durable authority for Identity and all protected provider credentials.
     builder.AddWayfarerDataProtection();
+    builder.Services.AddScoped<StableIdentityReadiness>();
     // Explicitly register IHttpContextAccessor for services that need it (e.g., TileCacheService).
     // Some framework components may register it implicitly, but explicit registration is safer.
     builder.Services.AddHttpContextAccessor();

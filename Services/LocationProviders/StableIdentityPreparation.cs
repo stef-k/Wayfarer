@@ -84,6 +84,6 @@ public sealed class StableIdentityPreparation(ApplicationDbContext db, LegacyCre
 /// <summary>Contains bounded non-secret migration counts only.</summary>
 public sealed record StableIdentityStatus(int Active, int StableReady, int Pending, int Blocked, int Inactive)
 {
-    /// <summary>Reports whether all durable credentials are prepared for a later activation.</summary>
+    /// <summary>Reports whether every durable profile meets the selected preparation or activation contract.</summary>
     public bool Ready => Pending == 0 && Blocked == 0;
 }

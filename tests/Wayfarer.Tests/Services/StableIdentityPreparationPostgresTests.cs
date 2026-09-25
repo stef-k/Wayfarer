@@ -4,7 +4,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
-using Wayfarer.CommandLine;
 using Wayfarer.Models;
 using Wayfarer.Models.LocationProviders;
 using Wayfarer.Services.LocationProviders;
@@ -34,7 +33,7 @@ public sealed class StableIdentityPreparationPostgresTests
         var preparation = new StableIdentityPreparation(db, codec);
         var pending = await preparation.StatusAsync();
         Assert.Equal(new StableIdentityStatus(3, 1, 2, 0, 1), pending);
-        Assert.Equal(1, await RunCliAsync("status", preparation));
+        Assert.Equal(1, await RunPreparationAsync("status", preparation));
         var ready = await preparation.PrepareAsync();
         Assert.True(ready.Ready);
         var after = await db.PersonalLocationProviderProfiles.AsNoTracking().OrderBy(row => row.Id).ToListAsync();
@@ -45,7 +44,7 @@ public sealed class StableIdentityPreparationPostgresTests
             Assert.True(codec.ReadStable(row).Succeeded);
         });
         await using var rerunDb = fixture.CreateContext();
-        Assert.Equal(0, await RunCliAsync("prepare-stable-identity", new StableIdentityPreparation(rerunDb, codec)));
+        Assert.Equal(0, await RunPreparationAsync("prepare-stable-identity", new StableIdentityPreparation(rerunDb, codec)));
         var rerun = await db.PersonalLocationProviderProfiles.AsNoTracking().OrderBy(row => row.Id).ToListAsync();
         AssertOnlyCompanionsChanged(db, after, rerun, successful: false);
 
@@ -107,7 +106,7 @@ public sealed class StableIdentityPreparationPostgresTests
         if (failure == "protection")
             codec = new LegacyCredentialPreparationCodec(provider, new StableDataProtectionProvider(new FailSecondProtection(provider)));
         var preparation = new StableIdentityPreparation(db, codec);
-        Assert.Equal(1, await RunCliAsync("prepare-stable-identity", preparation));
+        Assert.Equal(1, await RunPreparationAsync("prepare-stable-identity", preparation));
         await using var verify = fixture.CreateContext();
         var after = await verify.PersonalLocationProviderProfiles.AsNoTracking().OrderBy(row => row.Id).ToListAsync();
         AssertOnlyCompanionsChanged(verify, before, after, successful: false);
@@ -203,7 +202,7 @@ public sealed class StableIdentityPreparationPostgresTests
         profile.ProtectedCredential = "retained-rollback-evidence";
         db.Add(profile);
         var hash = Wayfarer.Util.ApiTokenService.HashToken("ordinary-mobile-token");
-        db.ApiTokens.Add(new ApiToken { UserId = user.Id, Name = "mobile", TokenHash = hash });
+        db.ApiTokens.Add(new ApiToken { UserId = user.Id, User = await db.Users.SingleAsync(item => item.Id == user.Id), Name = "mobile", TokenHash = hash });
         await db.SaveChangesAsync();
         var readiness = new StableIdentityReadiness(db, owner);
         var tokens = new Wayfarer.Util.ApiTokenService(db, null!);
@@ -283,17 +282,21 @@ public sealed class StableIdentityPreparationPostgresTests
         }
     }
 
-    /// <summary>Captures command output and asserts only bounded counts reach diagnostics.</summary>
-    private static async Task<int> RunCliAsync(string command, StableIdentityPreparation preparation)
+    /// <summary>Exercises preparation with bounded failure diagnostics; executable CLI tests own command output.</summary>
+    private static async Task<int> RunPreparationAsync(string command, StableIdentityPreparation preparation)
     {
-        var output = new StringWriter();
-        var error = new StringWriter();
-        var code = await DataProtectionCli.ExecuteAsync(command, preparation, output, error);
-        var text = output.ToString() + error;
-        Assert.False(text.Contains(StableIdentityCryptographyTests.Secret, StringComparison.Ordinal));
-        Assert.False(text.Contains("migration-fixture-", StringComparison.Ordinal));
-        Assert.False(text.Contains("CfDJ", StringComparison.Ordinal));
-        return code;
+        try
+        {
+            var status = command == "prepare-stable-identity"
+                ? await preparation.PrepareAsync() : await preparation.StatusAsync();
+            return status.Ready ? 0 : 1;
+        }
+        catch (InvalidOperationException exception)
+        {
+            Assert.False(exception.ToString().Contains(StableIdentityCryptographyTests.Secret, StringComparison.Ordinal));
+            Assert.Null(exception.InnerException);
+            return 1;
+        }
     }
 
     /// <summary>Fails after SQL was saved inside the outer migration transaction.</summary>

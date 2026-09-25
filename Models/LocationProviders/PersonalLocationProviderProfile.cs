@@ -25,9 +25,9 @@ public sealed class PersonalLocationProviderProfile
     [StringLength(450)] public string UserId { get; set; } = string.Empty;
     /// <summary>Gets or sets the normalized stable provider key.</summary>
     [StringLength(24)] public string ProviderKey { get; set; } = string.Empty;
-    /// <summary>Gets or sets protected credential material.</summary>
+    /// <summary>Gets or sets legacy rollback evidence; F2 replacement clears it.</summary>
     [StringLength(4096)] public string? ProtectedCredential { get; set; }
-    /// <summary>Gets or sets the future stable-identity companion; legacy ciphertext remains authoritative in F1.</summary>
+    /// <summary>Gets or sets the sole F2 runtime credential ciphertext under application identity Wayfarer.</summary>
     [StringLength(4096)] public string? StableProtectedCredential { get; set; }
     /// <summary>Gets or sets the monotonic credential authority generation.</summary>
     public int CredentialGeneration { get; set; } = 1;

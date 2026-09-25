@@ -10,16 +10,19 @@ public static class DataProtectionAuthority
     public const string StableApplicationName = "Wayfarer";
 
     /// <summary>Registers the stable runtime identity and the single resolved ring.</summary>
-    public static void AddWayfarerDataProtection(this WebApplicationBuilder builder, bool readOnlyKeys = false)
+    public static void AddWayfarerDataProtection(this WebApplicationBuilder builder, bool readOnlyKeys = false) =>
+        builder.AddWayfarerDataProtection(ResolveKeyRing(builder.Configuration, builder.Environment), readOnlyKeys);
+
+    /// <summary>Registers a previously resolved authority so CLI inventory and protection use exactly the same selection.</summary>
+    internal static void AddWayfarerDataProtection(this WebApplicationBuilder builder, DataProtectionKeyRing ring,
+        bool readOnlyKeys = false)
     {
-        var ring = ResolveKeyRing(builder.Configuration, builder.Environment);
         if (!readOnlyKeys) Directory.CreateDirectory(ring.Path);
         var protection = builder.Services.AddDataProtection()
             .SetApplicationName(StableApplicationName)
             .PersistKeysToFileSystem(new DirectoryInfo(ring.Path));
         if (readOnlyKeys) protection.DisableAutomaticKeyGeneration();
         builder.Services.AddSingleton(ring);
-        builder.Services.AddScoped<StableIdentityReadiness>();
     }
 
     /// <summary>Selects one authority in place, refusing competing default rings without an explicit override.</summary>
@@ -49,6 +52,13 @@ public static class DataProtectionAuthority
     private static bool HasKeys(string path) => Directory.Exists(path) &&
         Directory.EnumerateFiles(path, "key-*.xml", SearchOption.TopDirectoryOnly).Any();
 
+    /// <summary>Verifies effective stable protection without filesystem writes when key generation is disabled.</summary>
+    internal static void VerifyProtector(IDataProtectionProvider provider)
+    {
+        var probe = provider.CreateProtector("Wayfarer.DataProtection.StartupProbe.v1");
+        if (probe.Unprotect(probe.Protect("ready")) != "ready") throw new InvalidOperationException();
+    }
+
     /// <summary>Fails startup when the key ring cannot round-trip or retained protected credentials cannot be read.</summary>
     public static async Task ValidateAsync(IServiceProvider services, CancellationToken cancellationToken = default)
     {
@@ -58,7 +68,6 @@ public static class DataProtectionAuthority
         if (scope.ServiceProvider.GetRequiredService<Microsoft.Extensions.Options.IOptions<DataProtectionOptions>>()
                 .Value.ApplicationDiscriminator != StableApplicationName)
             throw new InvalidOperationException("Data Protection application identity must be Wayfarer.");
-        var probe = provider.CreateProtector("Wayfarer.DataProtection.StartupProbe.v1");
         try
         {
             var probeFile = Path.Combine(keyRing.Path, $".write-probe-{Guid.NewGuid():N}");
@@ -69,7 +78,7 @@ public static class DataProtectionAuthority
                     throw new IOException();
             }
             finally { File.Delete(probeFile); }
-            if (probe.Unprotect(probe.Protect("ready")) != "ready") throw new InvalidOperationException();
+            VerifyProtector(provider);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or CryptographicException or InvalidOperationException)
         {

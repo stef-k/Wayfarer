@@ -3,10 +3,10 @@ using Wayfarer.Services.LocationProviders;
 
 namespace Wayfarer.Tests.Infrastructure;
 
-/// <summary>Supplies explicit distinct credential identities for existing provider-domain tests.</summary>
+/// <summary>Supplies the stable runtime credential owner for provider-domain tests.</summary>
 internal static class CredentialTestFactory
 {
-    /// <summary>Shares the fixture key authority while isolating the companion namespace.</summary>
+    /// <summary>Uses the fixture provider as the runtime stable authority.</summary>
     internal static PersonalProviderCredentialService Create(IDataProtectionProvider provider) =>
         new(provider);
 }

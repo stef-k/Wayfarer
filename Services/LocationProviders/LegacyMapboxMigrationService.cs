@@ -74,6 +74,8 @@ public sealed class LegacyMapboxMigrationService(
             }
         }
 
+        // Retiring plaintext is a credential downgrade cutoff, including already prepared profiles.
+        profile.ProtectedCredential = null;
         profile.LegacyMigrationState = LegacyMapboxMigrationState.Migrated;
         dbContext.ApiTokens.RemoveRange(legacyRows.Where(item => string.Equals(item.Token?.Trim(), values[0], StringComparison.Ordinal)));
         var retired = legacyRows.Count;

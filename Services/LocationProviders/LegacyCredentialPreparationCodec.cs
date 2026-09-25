@@ -16,7 +16,7 @@ public sealed class LegacyCredentialPreparationCodec(IDataProtectionProvider leg
         catch (CryptographicException) { return PersonalCredentialRead.Unavailable; }
     }
 
-    /// <summary>Reads only the preparation companion; runtime contact must continue to use Read.</summary>
+    /// <summary>Reads the stable companion only for offline equality verification.</summary>
     internal PersonalCredentialRead ReadStable(PersonalLocationProviderProfile profile)
     {
         if (profile.RevokedAt != null || string.IsNullOrEmpty(profile.StableProtectedCredential))

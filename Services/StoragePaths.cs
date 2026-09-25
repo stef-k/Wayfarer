@@ -72,7 +72,7 @@ public sealed class StoragePaths
     public string TempRoot { get; }
     /// <summary>Durable upload root; location-import staging resides in its imports namespace.</summary>
     public string Uploads => Path.Combine(DataRoot, "uploads");
-    /// <summary>Target key-ring directory; does not change Data Protection identity or configuration.</summary>
+    /// <summary>Current default key-ring directory, subject to explicit and previous-default compatibility selection.</summary>
     public string DataProtection => Path.Combine(DataRoot, "data-protection");
     /// <summary>Target tile cache directory.</summary>
     public string Tiles => Path.Combine(CacheRoot, "tiles");

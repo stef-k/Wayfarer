@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Npgsql;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -62,9 +63,12 @@ public sealed class DataProtectionCliTests
         var copiedRing = Directory.CreateDirectory(Path.Combine(target, "data-protection")).FullName;
         await File.WriteAllTextAsync(Path.Combine(target, "appsettings.json"), "{}");
         foreach (var file in Directory.GetFiles(ring)) File.Copy(file, Path.Combine(copiedRing, Path.GetFileName(file)));
-        Assert.Equal(0, await RunProcessAsync("status", target, copiedRing, fixture.ConnectionString, useStorage: true));
-        Assert.Equal(1, await RunProcessAsync("prepare-stable-identity", target, copiedRing, fixture.ConnectionString, useStorage: true));
-        Assert.Equal(0, await RunProcessAsync("status", target, copiedRing, fixture.ConnectionString, useStorage: true));
+        await using var targetFixture = new PostgresMigrationTestFixture();
+        await targetFixture.InitializeAsync();
+        await CopyDatabaseAsync(fixture, targetFixture, directory.Path);
+        Assert.Equal(0, await RunProcessAsync("status", target, copiedRing, targetFixture.ConnectionString, useStorage: true));
+        Assert.Equal(1, await RunProcessAsync("prepare-stable-identity", target, copiedRing, targetFixture.ConnectionString, useStorage: true));
+        Assert.Equal(0, await RunProcessAsync("status", target, copiedRing, targetFixture.ConnectionString, useStorage: true));
         foreach (var path in new[] { ring, copiedRing })
         {
             Assert.Equal(keysBefore.Count, Directory.GetFiles(path).Length);
@@ -77,6 +81,36 @@ public sealed class DataProtectionCliTests
         Assert.Equal(1, await RunProcessAsync("prepare-stable-identity", directory.Path, ring, fixture.ConnectionString));
         Assert.Equal(0, await db.AuditLogs.CountAsync());
         Assert.Equal(1, await db.Users.CountAsync());
+    }
+
+    /// <summary>Copies a full disposable database recovery set using PostgreSQL's native dump/restore tools.</summary>
+    private static async Task CopyDatabaseAsync(PostgresMigrationTestFixture source, PostgresMigrationTestFixture target, string root)
+    {
+        var dump = Path.Combine(root, "fixture.dump");
+        await RunDatabaseToolAsync("pg_dump", source.ConnectionString, ["--format=custom", "--file", dump]);
+        await RunDatabaseToolAsync("pg_restore", target.ConnectionString, ["--clean", "--if-exists", "--no-owner", "--exit-on-error", dump]);
+    }
+
+    /// <summary>Supplies private connection configuration through the environment and never emits tool diagnostics.</summary>
+    private static async Task RunDatabaseToolAsync(string tool, string connection, string[] arguments)
+    {
+        var settings = new NpgsqlConnectionStringBuilder(connection);
+        Assert.StartsWith(PostgresMigrationTestFixture.DatabasePrefix, settings.Database);
+        var start = new ProcessStartInfo(tool) { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false };
+        start.Environment["PGHOST"] = settings.Host;
+        start.Environment["PGPORT"] = settings.Port.ToString();
+        start.Environment["PGUSER"] = settings.Username;
+        start.Environment["PGPASSWORD"] = settings.Password;
+        start.Environment["PGDATABASE"] = settings.Database;
+        if (tool == "pg_restore") { start.ArgumentList.Add("--dbname"); start.ArgumentList.Add(settings.Database!); }
+        foreach (var argument in arguments) start.ArgumentList.Add(argument);
+        using var process = Process.Start(start)!;
+        var output = process.StandardOutput.ReadToEndAsync();
+        var error = process.StandardError.ReadToEndAsync();
+        try { await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(60)); }
+        finally { if (!process.HasExited) { process.Kill(true); await process.WaitForExitAsync(); } }
+        await Task.WhenAll(output, error);
+        Assert.True(process.ExitCode == 0, "Disposable database copy failed.");
     }
 
     /// <summary>Passes authority configuration only through the environment, captures both streams and enforces termination.</summary>
@@ -94,6 +128,8 @@ public sealed class DataProtectionCliTests
         start.ArgumentList.Add(command);
         start.Environment["ConnectionStrings__DefaultConnection"] = connection;
         start.Environment["DataProtection__KeyRingPath"] = useStorage ? "" : ring;
+        // Isolate the historical per-user default as well as the current Storage path.
+        start.Environment["XDG_DATA_HOME"] = Path.Combine(root, "xdg-data");
         start.Environment["Storage__DataRoot"] = root;
         start.Environment["Storage__CacheRoot"] = Path.Combine(root, "cache");
         start.Environment["Storage__LogRoot"] = Path.Combine(root, "logs");
