@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### Changed
+- Add immutable stable application-image publication to GHCR with exact release/source/version checks, image digest evidence and anonymous qualification (#642). Application image only; Compose/Caddy/wayfarerctl and the final deployment bundle remain unavailable. Actual publication acceptance awaits the first real stable release. No database migration.
 - Separate Production startup from explicit database/administrator maintenance; add protected password input, database password-file configuration, explicit proxy trust, bounded health checks and the non-root Noble application image (#640). Native Production operators must explicitly prepare schema/bootstrap and configure trusted proxy peers before restart. No new EF migration.
 - Require explicitly preinstalled, release-matched Chromium and OS libraries for all browser operations; remove runtime installation and ChromeCache configuration (#631). Retire native Logs/thumbnail/browser exclusions while preserving Uploads/TileCache/ImageCache legacy compatibility. No database migration.
 - Activate global Data Protection identity `Wayfarer` and stable-only provider credentials (#629). Prepare the source before startup; preserve the complete resolved ring. Existing explicit native overrides survive reinstall without automatic key movement. Sessions/forms/Identity links and operation tokens require reissue; hashed API tokens remain valid. Credential mutation clears legacy rollback evidence; recover with the paired pre-F2 recovery set or credential re-entry.

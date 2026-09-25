@@ -1,8 +1,9 @@
 # Application container and maintenance
 
 Implements the application side of [the accepted contract](25-Container-Release-Contract.md)
-for #640. The full Compose distribution, registry publication and host lifecycle CLI
-are not available through this slice. Only Linux AMD64 is qualified.
+for #640. [Stable application-image publication](27-Application-Image-Publication.md)
+is implemented separately by #642. The full Compose distribution and host lifecycle
+CLI remain unavailable. Only Linux AMD64 is qualified.
 
 ## Explicit maintenance
 

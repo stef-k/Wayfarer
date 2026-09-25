@@ -157,7 +157,9 @@ GHCR packages must be explicitly public and verified by anonymous digest pull fr
 a clean client. A public repository alone is insufficient. Publishing uses scoped
 Actions `GITHUB_TOKEN` with `packages: write`, linked to the source repository;
 ordinary operators need no registry credential. Private testing may use appropriate
-read access, but cannot qualify public installation. No GHCR image is published here.
+read access, but cannot qualify public installation. The application-only publication
+pipeline is documented in [image publication](27-Application-Image-Publication.md);
+its first real stable release remains the public-distribution acceptance gate.
 
 ## Configuration, secrets and project identity
 

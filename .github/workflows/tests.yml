@@ -192,38 +192,23 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           pwsh -NoProfile -File ./tools/shared-layout.safety.tests.ps1
 
-  # Qualifies only the production application image; no registry publication or Compose lifecycle.
+  # Same build/metadata/qualification seam as publication, without registry credentials or push.
   application-image:
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v4
-      - name: Build production AMD64 image
-        run: docker build --platform linux/amd64 -t wayfarer:ci .
-      - name: Check immutable payload and installed browser
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Release tooling tests
         run: |
-          docker run --rm -i --read-only --tmpfs /tmp/wayfarer:uid=1654,gid=1654,mode=0700 --entrypoint sh wayfarer:ci -es <<'SHELL'
-          test "$(id -u)" = 1654
-          test ! -w /app
-          test ! -w /opt/wayfarer-browsers
-          test ! -w /var/lib/wayfarer
-          test ! -w /var/cache/wayfarer
-          test ! -w /var/log/wayfarer
-          test -z "$(dotnet --list-sdks)"
-          ! command -v node
-          ! command -v npm
-          ! command -v pwsh
-          test -s wwwroot/vite/trip-editor/manifest.json
-          test -d wwwroot/dist
-          .playwright/node/linux-x64/node <<'JAVASCRIPT'
-          const {chromium}=require("./.playwright/package");
-          (async()=>{
-            const browser=await chromium.launch();
-            const page=await browser.newPage();
-            await page.setContent("<h1>Wayfarer image qualification</h1>");
-            await page.pdf({path:"/tmp/wayfarer/probe.pdf"});
-            await browser.close();
-          })().catch(()=>process.exit(1));
-          JAVASCRIPT
-          test -s /tmp/wayfarer/probe.pdf
-          SHELL
+          python3 -m venv "$RUNNER_TEMP/release-tests"
+          "$RUNNER_TEMP/release-tests/bin/pip" install pytest==8.3.5
+          "$RUNNER_TEMP/release-tests/bin/python" -m pytest tools/release/tests
+      - name: Build and qualify production image without publishing
+        run: python3 tools/release/image.py dry-run --output "$RUNNER_TEMP/image-evidence.json"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: image-dry-run
+          path: ${{ runner.temp }}/image-evidence.json
+          if-no-files-found: error
