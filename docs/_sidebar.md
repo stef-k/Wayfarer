@@ -21,6 +21,7 @@
   - [API](18-API.md)
   - [Database](19-Database.md)
   - [Deployment](20-Deployment.md)
+  - [Container & Release Contract](25-Container-Release-Contract.md)
   - [Security](21-Security.md)
   - [Personal Location Providers](24-Personal-Location-Providers.md)
   - [Testing](22-Testing.md)
