@@ -36,8 +36,8 @@ public class ApplicationDbContextSeed
             var roleExists = await roleManager.RoleExistsAsync(roleName);
             if (!roleExists)
             {
-                var role = new IdentityRole(roleName);
-                await roleManager.CreateAsync(role);
+                if (!(await roleManager.CreateAsync(new IdentityRole(roleName))).Succeeded)
+                    throw new InvalidOperationException("Role seeding failed.");
             }
         }
     }

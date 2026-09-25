@@ -2,7 +2,9 @@
 
 This guide covers installation, deployment, logging, and operational commands for Wayfarer on Linux servers.
 
-For the planned Docker distribution, see the normative [container and release contract](25-Container-Release-Contract.md). It is architecture only; this guide remains the current native/manual deployment path.
+For the planned Docker distribution, see the normative [container and release contract](25-Container-Release-Contract.md). The [application image and explicit maintenance commands](26-Application-Container.md) are implemented; Compose/publication remain planned. This guide remains the native/manual deployment path.
+
+Production startup no longer migrates, seeds or creates an administrator. Existing native install/deploy helpers do not replace the explicit maintenance sequence below; run it with the service identity and its protected configuration before starting/restarting. Configure `TrustedProxy__Addresses__0=127.0.0.1` (and `::1` as a second entry if used) for native loopback nginx.
 
 ---
 
@@ -356,11 +358,13 @@ The Trip Editor published output must include
 `wwwroot/vite/trip-editor/manifest.json` plus the CSS/JS files referenced by
 that manifest.
 
-**What happens on first run:**
-- Database tables created automatically
-- Default admin user: `admin` / `Admin1!`
-- System roles seeded
-- 69 activity types seeded
+**Before the first Production start:** provision `postgis` and `citext`, then run
+`dotnet Wayfarer.dll database migrate`, `dotnet Wayfarer.dll database seed`, and
+`dotnet Wayfarer.dll admin bootstrap <username> --stdin < /protected/password-file`
+from the published directory under the service identity/configuration. For an existing
+native administrator, use `admin reset <username> --stdin` instead of bootstrap.
+The known Development default is never accepted as secure Production bootstrap.
+See [maintenance boundaries](26-Application-Container.md#explicit-maintenance).
 
 ---
 
@@ -456,8 +460,8 @@ sudo systemctl start wayfarer
 ## Post-Installation
 
 1. Access at `https://yourdomain.com`
-2. Login: `admin` / `Admin1!`
-3. **Change admin password immediately!**
+2. Log in with the administrator and protected password supplied during explicit bootstrap.
+3. Keep the initial password outside shell history and ordinary configuration.
 4. Configure settings in Admin Dashboard
 
 ---
@@ -563,10 +567,10 @@ dotnet run --no-launch-profile -- help
 Reset a user's password from the command line:
 
 ```bash
-dotnet run -- reset-password <username> <new-password>
+dotnet Wayfarer.dll admin reset <username> --stdin < /protected/password-file
 ```
 
-This spins up minimal services, generates a reset token, and updates the password. Use temporary values and rotate immediately.
+Run from the published directory with the service configuration. This uses Identity without starting web/jobs. The old password-argv form remains deprecated compatibility only; use protected stdin for new automation.
 
 ### Admin Maintenance
 

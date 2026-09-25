@@ -3,7 +3,6 @@ using Microsoft.Extensions.FileProviders;
 using System.Net;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using MvcFrontendKit.Extensions;
@@ -24,7 +23,6 @@ using Wayfarer.Services.LocationProviders;
 using Wayfarer.Services.LocationEnrichment;
 using Wayfarer.Swagger;
 using Wayfarer.Util;
-using IPNetwork = System.Net.IPNetwork;
 
 if (AppVersionCli.TryHandle(args, new AppVersionProvider(), Console.Out, Console.Error, out var versionExitCode))
 {

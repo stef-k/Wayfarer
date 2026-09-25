@@ -44,6 +44,10 @@ public sealed class ContainerLifecyclePostgresTests : IClassFixture<PostgresMigr
             Assert.Equal(0, bootstrap.Code);
             Assert.DoesNotContain(password, bootstrap.Output);
             Assert.True(await ReadyAsync());
+            var legacyAdmin = await db.Users.SingleAsync();
+            legacyAdmin.PasswordHash = new PasswordHasher<ApplicationUser>().HashPassword(legacyAdmin, "Admin1!");
+            await db.SaveChangesAsync();
+            Assert.False(await ReadyAsync());
             Assert.Equal(1, (await RunAsync(root, "Admin1!", "admin", "reset", "operator", "--stdin")).Code);
             Assert.Equal(0, (await RunAsync(root, password + "new", "admin", "reset", "operator", "--stdin")).Code);
             var lookup = await RunAsync(root, null, "user", "find", "operator");

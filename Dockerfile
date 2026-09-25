@@ -7,7 +7,8 @@ COPY Wayfarer.csproj Version.props ./
 RUN dotnet restore Wayfarer.csproj -r linux-x64
 COPY . .
 RUN npm ci && npm run build \
-    && dotnet publish Wayfarer.csproj -c Release -r linux-x64 --self-contained false --no-restore -o /publish
+    && dotnet build Wayfarer.csproj -c Release -r linux-x64 --no-restore \
+    && dotnet publish Wayfarer.csproj -c Release -r linux-x64 --self-contained false --no-build --no-restore -o /publish
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0-noble@sha256:ed6a2d26633ddcd3d42a1d9f9866214ecbbc11ba6ac5e0e843da02c13da24072 AS runtime
 WORKDIR /app
@@ -25,6 +26,7 @@ RUN chmod -R a-w /app /opt/wayfarer-browsers \
     && chmod 750 /var/cache/wayfarer /var/log/wayfarer
 ENV ASPNETCORE_ENVIRONMENT=Production \
     ASPNETCORE_HTTP_PORTS=8080 \
+    Kestrel__Endpoints__Http__Url=http://0.0.0.0:8080 \
     Storage__DataRoot=/var/lib/wayfarer \
     Storage__CacheRoot=/var/cache/wayfarer \
     Storage__LogRoot=/var/log/wayfarer \

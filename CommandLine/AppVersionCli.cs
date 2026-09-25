@@ -68,7 +68,11 @@ public static class AppVersionCli
 
         Commands:
           version                         Print the compiled Wayfarer version.
-          reset-password <user> <pass>    Reset a user's password.
+          database migrate|seed           Explicit offline database maintenance.
+          admin bootstrap|reset <user> --stdin  Protected password input.
+          user find <user>                Print only matching user ID/name.
+          healthcheck                     Probe container readiness on loopback.
+          reset-password <user> <pass>    Deprecated native compatibility.
           data-protection <command>       Inspect or prepare stable credential companions.
           help                            Show this help text.
         """;

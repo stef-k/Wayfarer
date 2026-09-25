@@ -24,9 +24,9 @@ internal static class ApplicationReadiness
                                 join membership in db.UserRoles on user.Id equals membership.UserId
                                 join role in db.Roles on membership.RoleId equals role.Id
                                 where role.Name == "Admin" && user.IsActive && user.IsProtected
-                                select user).Take(2).ToListAsync(timeout.Token);
+                                select user).ToListAsync(timeout.Token);
             var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher<ApplicationUser>>();
-            return admins.Any(user => user.PasswordHash is not null &&
+            return admins.Count > 0 && admins.All(user => user.PasswordHash is not null &&
                 hasher.VerifyHashedPassword(user, user.PasswordHash, "Admin1!") == PasswordVerificationResult.Failed);
         }
         catch (Exception)
