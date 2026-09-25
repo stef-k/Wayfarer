@@ -15,6 +15,8 @@ internal static class ApplicationConfiguration
             .AddJsonFile($"appsettings.{builder.Environment.EnvironmentName}.json", true, true)
             .AddEnvironmentVariables();
 
+        DatabaseSecret.Apply(builder.Configuration);
+
         // Resolve once before Serilog; DI receives this exact same immutable authority.
         var options = builder.Configuration.GetSection("Storage").Get<StorageOptions>() ?? new StorageOptions();
         var paths = new StoragePaths(Microsoft.Extensions.Options.Options.Create(options), builder.Environment);
@@ -48,7 +50,7 @@ internal static class ApplicationConfiguration
                 "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {Message:lj} {Properties:j}{NewLine}{Exception}")
             .WriteTo.PostgreSQL(builder.Configuration.GetConnectionString("DefaultConnection"),
                 "AuditLogs", // Table for storing logs
-                needAutoCreateTable: true) // Auto-creates the table if it doesn't exist
+                needAutoCreateTable: false) // Schema belongs to explicit migrations
             .CreateLogger();
 
         // Add Serilog as the logging provider

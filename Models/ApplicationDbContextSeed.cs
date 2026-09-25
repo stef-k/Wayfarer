@@ -1,11 +1,12 @@
 ﻿using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore;
 using Wayfarer.Models;
 
+/// <summary>Seeds reference data independently from schema migration.</summary>
 public class ApplicationDbContextSeed
 {
+    /// <summary>Seeds references and optionally the legacy Development administrator.</summary>
     public static async Task SeedAsync(UserManager<ApplicationUser> userManager, RoleManager<IdentityRole> roleManager,
-        IServiceProvider serviceProvider)
+        IServiceProvider serviceProvider, bool includeDevelopmentAdmin = true)
     {
         // Seed application settings
         await SeedApplicationSettingsAsync(serviceProvider);
@@ -14,7 +15,7 @@ public class ApplicationDbContextSeed
         await SeedRolesAsync(roleManager);
 
         // Seed Admin user
-        await SeedAdminUserAsync(userManager);
+        if (includeDevelopmentAdmin) await SeedAdminUserAsync(userManager);
 
         // Seed default Activity Types
         await SeedActivityTypes(serviceProvider);
@@ -79,7 +80,6 @@ public class ApplicationDbContextSeed
         using var scope = serviceProvider.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
-        await dbContext.Database.MigrateAsync();
 
         var settings = await dbContext.ApplicationSettings.FindAsync(1);
 

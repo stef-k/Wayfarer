@@ -84,6 +84,27 @@ public static class QuartzSchemaInstaller
         }
     }
 
+    /// <summary>Checks the existing Quartz contract without applying installation or upgrades.</summary>
+    internal static async Task ValidateAsync(DbConnection connection, CancellationToken cancellationToken)
+    {
+        var openedHere = connection.State != ConnectionState.Open;
+        if (openedHere) await connection.OpenAsync(cancellationToken);
+        try
+        {
+            await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+            await ExecuteAsync(connection, transaction, "SET TRANSACTION READ ONLY", cancellationToken);
+            var schema = await GetEffectiveSchemaAsync(connection, transaction, cancellationToken);
+            var tables = await GetQuartzTablesAsync(connection, transaction, schema, cancellationToken);
+            if (tables.Count != RequiredTables.Length) throw new InvalidOperationException("Quartz maintenance required.");
+            await ValidateRequiredColumnsAsync(connection, transaction, schema, cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+        }
+        finally
+        {
+            if (openedHere) await connection.CloseAsync();
+        }
+    }
+
     /// <summary>Finds the first usable schema in the connection's PostgreSQL search path.</summary>
     private static async Task<string> GetEffectiveSchemaAsync(
         DbConnection connection, DbTransaction transaction, CancellationToken cancellationToken)

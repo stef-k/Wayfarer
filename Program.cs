@@ -39,6 +39,13 @@ if (args.Length > 0 && args[0] == "data-protection")
     return;
 }
 
+// Lifecycle commands exit before web service registration or scheduler construction.
+if (LifecycleCli.Handles(args))
+{
+    Environment.ExitCode = await LifecycleCli.RunAsync(args, Console.In, Console.Out, Console.Error);
+    return;
+}
+
 var builder = WebApplication.CreateBuilder(args);
 
 #region CLI Command Handling
@@ -75,49 +82,6 @@ ConfigureIdentity(builder);
 
 #region Forwarded Headers Configuration
 
-// Simple forwarded headers configuration for nginx reverse proxy
-static void ConfigureForwardedHeaders(WebApplicationBuilder builder)
-{
-    builder.Services.Configure<ForwardedHeadersOptions>(options =>
-    {
-        // Configure headers to forward from nginx
-        options.ForwardedHeaders = ForwardedHeaders.XForwardedFor |
-                                   ForwardedHeaders.XForwardedProto |
-                                   ForwardedHeaders.XForwardedHost;
-
-        // Clear defaults for explicit configuration
-        options.KnownIPNetworks.Clear();
-        options.KnownProxies.Clear();
-
-        // Trust nginx running on localhost (your setup)
-        options.KnownProxies.Add(IPAddress.Parse("127.0.0.1"));
-        options.KnownProxies.Add(IPAddress.IPv6Loopback);
-
-        // For nginx on same machine, trust loopback networks
-        options.KnownIPNetworks.Add(new IPNetwork(
-            IPAddress.Parse("127.0.0.0"), 8));
-        options.KnownIPNetworks.Add(new IPNetwork(
-            IPAddress.Parse("::1"), 128));
-
-        // Optional: Trust local network ranges if needed
-        if (builder.Environment.IsDevelopment())
-        {
-            // In development, also trust local networks
-            options.KnownIPNetworks.Add(new IPNetwork(
-                IPAddress.Parse("192.168.0.0"), 16));
-            options.KnownIPNetworks.Add(new IPNetwork(
-                IPAddress.Parse("10.0.0.0"), 8));
-        }
-
-        // Security settings
-        options.ForwardLimit = 1; // Only expect one proxy (nginx)
-
-        // For your wayfarer.stefk.me setup, this is sufficient
-        if (!builder.Environment.IsDevelopment())
-            options.RequireHeaderSymmetry = false; // Allow flexible header presence
-    });
-}
-
 #endregion Forwarded Headers Configuration
 
 #region Quartz Configuration
@@ -130,7 +94,7 @@ ConfigureQuartz(builder);
 #region Forwarded Headers Configuration
 
 // NEW: Configure forwarded headers for nginx proxy support
-ConfigureForwardedHeaders(builder);
+TrustedProxyConfiguration.Configure(builder);
 
 #endregion Forwarded Headers Configuration
 
@@ -142,18 +106,29 @@ ConfigureServices(builder);
 
 var app = builder.Build();
 
-// Gate activation before Quartz schema work, seeding, or hosted jobs.
+// Production activation is read-only with respect to schema and administrator state.
+if (app.Environment.IsProduction())
+{
+    if (!await ApplicationReadiness.IsReadyAsync(app.Services))
+        throw new InvalidOperationException("Application is not prepared; run explicit database migrate, seed and admin bootstrap maintenance.");
+}
+else
+{
+    using var scope = app.Services.CreateScope();
+    await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>().Database.MigrateAsync();
+    await QuartzSchemaInstaller.EnsureQuartzTablesExistAsync(app.Services);
+    await SeedDatabase(app);
+}
 await DataProtectionAuthority.ValidateAsync(app.Services);
 
-// Check and set if needed for Quartz database setup for job persistence
-await QuartzSchemaInstaller.EnsureQuartzTablesExistAsync(app.Services);
-
-#region Database Seeding
-
-// Seed the database with roles and the admin user if necessary
-await SeedDatabase(app);
-
-#endregion Database Seeding
+// Health responses precede redirects/authentication and never expose dependency diagnostics.
+app.Map("/health/live", branch => branch.Run(context => context.Response.WriteAsync("live")));
+app.Map("/health/ready", branch => branch.Run(async context =>
+{
+    var ready = await ApplicationReadiness.IsReadyAsync(app.Services, context.RequestAborted);
+    context.Response.StatusCode = ready ? 200 : 503;
+    await context.Response.WriteAsync(ready ? "ready" : "not ready");
+}));
 
 #region Middleware Setup
 
