@@ -132,6 +132,8 @@ public sealed class StableIdentityCryptographyTests
         var leakedIdentity = logs.Messages.Any(message => message.Contains(profile.UserId, StringComparison.Ordinal));
         Assert.False(leakedSecret);
         Assert.False(leakedIdentity);
+        Assert.DoesNotContain(logs.Messages, message => Regex.IsMatch(message,
+            "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"));
         db.ChangeTracker.Clear();
         Assert.True(before == JsonSerializer.Serialize(await db.PersonalLocationProviderProfiles.SingleAsync()));
     }

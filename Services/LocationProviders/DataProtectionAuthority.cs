@@ -17,6 +17,8 @@ public static class DataProtectionAuthority
     internal static void AddWayfarerDataProtection(this WebApplicationBuilder builder, DataProtectionKeyRing ring,
         bool readOnlyKeys = false)
     {
+        // Framework key-management diagnostics include key IDs; expose only our bounded activation errors.
+        builder.Logging.AddFilter("Microsoft.AspNetCore.DataProtection", LogLevel.None);
         if (!readOnlyKeys) Directory.CreateDirectory(ring.Path);
         var protection = builder.Services.AddDataProtection()
             .SetApplicationName(StableApplicationName)
