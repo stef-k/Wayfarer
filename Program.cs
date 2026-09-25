@@ -218,9 +218,6 @@ static async Task HandlePasswordResetCommand(string[] args)
         .AddDefaultTokenProviders();
 
     await using var app = builder.Build();
-
-// Gate activation before Quartz schema work, seeding, or hosted jobs.
-await DataProtectionAuthority.ValidateAsync(app.Services);
     using var scope = app.Services.CreateScope();
     var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
 

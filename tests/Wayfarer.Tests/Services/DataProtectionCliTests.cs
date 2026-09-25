@@ -91,6 +91,46 @@ public sealed class DataProtectionCliTests
         Assert.Equal(1, await db.Users.CountAsync());
     }
 
+    /// <summary>The minimal password-reset host must reach UserManager without registering F2 activation services.</summary>
+    [PostgresFact]
+    public async Task ResetPassword_MinimalHostReachesUserLookupWithoutF2Services()
+    {
+        await using var fixture = new PostgresMigrationTestFixture();
+        await fixture.InitializeAsync();
+        using var directory = new TestDirectory();
+        await File.WriteAllTextAsync(Path.Combine(directory.Path, "appsettings.json"), "{}");
+        var start = new ProcessStartInfo("dotnet")
+        {
+            WorkingDirectory = directory.Path,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false
+        };
+        start.ArgumentList.Add(typeof(DataProtectionCli).Assembly.Location);
+        start.ArgumentList.Add("reset-password");
+        start.ArgumentList.Add("missing-reset-user");
+        start.ArgumentList.Add("Fixture-Reset629!");
+        start.Environment["ConnectionStrings__DefaultConnection"] = fixture.ConnectionString;
+        start.Environment["ASPNETCORE_CONTENTROOT"] = directory.Path;
+        start.Environment["DOTNET_CONTENTROOT"] = directory.Path;
+        start.Environment["DOTNET_ENVIRONMENT"] = "Production";
+        start.Environment["ASPNETCORE_ENVIRONMENT"] = "Production";
+        using var process = Process.Start(start)!;
+        try
+        {
+            var output = process.StandardOutput.ReadToEndAsync();
+            var error = process.StandardError.ReadToEndAsync();
+            await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(30));
+            await error;
+            Assert.True(process.ExitCode == 0, "The minimal reset-password command must exit normally.");
+            Assert.Contains("User 'missing-reset-user' not found.", await output);
+        }
+        finally
+        {
+            if (!process.HasExited) { process.Kill(entireProcessTree: true); await process.WaitForExitAsync(); }
+        }
+    }
+
     /// <summary>Copies a full disposable database recovery set using PostgreSQL's native dump/restore tools.</summary>
     private static async Task CopyDatabaseAsync(PostgresMigrationTestFixture source, PostgresMigrationTestFixture target, string root)
     {
