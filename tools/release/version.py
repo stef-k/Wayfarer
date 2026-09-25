@@ -196,7 +196,7 @@ def write_text(path: Path, text: str, newline: str) -> None:
 def parse_semver(version: str) -> tuple[int, int, int]:
     """Parse strict SemVer core syntax into a numeric tuple."""
 
-    match = SEMVER_CORE_PATTERN.match(version)
+    match = SEMVER_CORE_PATTERN.fullmatch(version)
     if not match:
         raise ValidationError(f"{version} is not a strict SemVer core version")
     return tuple(int(part) for part in match.groups())
@@ -277,6 +277,33 @@ def validate_local_tag(expected_tag: str) -> None:
     tags = [line.strip() for line in result.stdout.splitlines() if line.strip()]
     if tags != [expected_tag]:
         raise ValidationError(f"local Git tag {expected_tag} is missing")
+
+
+def stable_source(tag: str, source: str) -> str:
+    """Bind a stable release to clean HEAD, local/remote tag and GitHub Release."""
+
+    if not tag.startswith("v"):
+        raise ValidationError("stable tag must be vX.Y.Z")
+    parse_semver(tag[1:])
+    if read_version_state().version != tag[1:]:
+        raise ValidationError("stable tag does not match Version.props")
+    if not re.fullmatch(r"[0-9a-f]{40}", source):
+        raise ValidationError("source must be a full commit SHA")
+    head = run_command(["git", "rev-parse", "HEAD"]).stdout.strip()
+    tagged = run_command(["git", "rev-parse", f"refs/tags/{tag}^{{commit}}"]).stdout.strip()
+    if source != head or source != tagged:
+        raise ValidationError("source, HEAD and tagged commit must agree")
+    remote = run_command([
+        "git", "ls-remote", "origin", f"refs/tags/{tag}", f"refs/tags/{tag}^{{}}"
+    ]).stdout.splitlines()
+    refs = dict(line.split()[::-1] for line in remote)
+    remote_commit = refs.get(f"refs/tags/{tag}^{{}}", refs.get(f"refs/tags/{tag}"))
+    if remote_commit != source:
+        raise ValidationError("remote release tag must resolve to source")
+    if run_command(["git", "status", "--porcelain", "--untracked-files=all"]).stdout.strip():
+        raise ValidationError("stable publication requires a clean source checkout")
+    validate_github_release(tag)
+    return tag[1:]
 
 
 def validate_github_release(expected_tag: str) -> None:

@@ -1,0 +1,81 @@
+name: Stable application image
+
+# Only an intentional published stable release authorizes a registry write.
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+# Serialize reruns/releases for the same tag; never cancel a publication in flight.
+concurrency:
+  group: application-image-${{ github.event.release.tag_name }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.repository == 'stef-k/Wayfarer' && !github.event.release.draft && !github.event.release.prerelease
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      digest: ${{ steps.publish.outputs.digest }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Authenticate only the publishing client
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+      - name: Validate release, build, qualify and publish once
+        id: publish
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          RELEASE_SOURCE: ${{ github.sha }}
+        run: python3 tools/release/image.py publish --tag "$RELEASE_TAG" --source "$RELEASE_SOURCE" --output "$RUNNER_TEMP/image-publication.json"
+      - name: Logout publishing client
+        if: always()
+        run: docker logout ghcr.io
+      - name: Preserve published digest even if qualification is incomplete
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: image-publication
+          path: ${{ runner.temp }}/image-publication.json
+          if-no-files-found: warn
+
+  # A fresh runner and empty Docker config prove distribution without publisher credentials.
+  anonymous-pull:
+    needs: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Pull and qualify exactly the published digest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          RELEASE_SOURCE: ${{ github.sha }}
+          IMAGE_DIGEST: ${{ needs.publish.outputs.digest }}
+        run: python3 tools/release/image.py qualify --tag "$RELEASE_TAG" --source "$RELEASE_SOURCE" --digest "$IMAGE_DIGEST" --output "$RUNNER_TEMP/image-evidence.json"
+      - name: Explain public visibility gate
+        if: failure()
+        run: echo 'Anonymous qualification failed. If GHCR denied access, the maintainer must set the Wayfarer package visibility to public. Preserve the published digest; rerun only this failed job, never rebuild or overwrite the stable tag.'
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: image-evidence
+          path: ${{ runner.temp }}/image-evidence.json
+          if-no-files-found: error
