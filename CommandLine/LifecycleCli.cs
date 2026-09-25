@@ -91,9 +91,11 @@ internal static class LifecycleCli
         if (operation == "bootstrap")
         {
             if (user is not null) throw new InvalidOperationException("User already exists; use explicit reset.");
+            await using var transaction = await services.GetRequiredService<ApplicationDbContext>().Database.BeginTransactionAsync();
             user = new ApplicationUser { UserName = username, DisplayName = "Wayfarer Administrator", IsActive = true, IsProtected = true };
             EnsureSuccess(await manager.CreateAsync(user, password));
             EnsureSuccess(await manager.AddToRoleAsync(user, "Admin"));
+            await transaction.CommitAsync();
         }
         else
         {

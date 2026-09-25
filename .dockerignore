@@ -17,6 +17,8 @@
 !Parsers/**
 !Util/**
 !CommandLine/**
+!Converters/**
+!Design/**
 !Controllers/**
 !Middleware/**
 !Migrations/**

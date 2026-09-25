@@ -47,6 +47,8 @@ if (LifecycleCli.Handles(args))
 }
 
 var builder = WebApplication.CreateBuilder(args);
+// Match the documented container stop grace; Quartz observes the host cancellation deadline.
+builder.Services.Configure<HostOptions>(options => options.ShutdownTimeout = TimeSpan.FromSeconds(60));
 
 #region CLI Command Handling
 
@@ -173,6 +175,7 @@ static Task<long> LoadUploadSizeLimitFromDatabaseAsync()
 // Method to handle the password reset command
 static async Task HandlePasswordResetCommand(string[] args)
 {
+    Console.Error.WriteLine("Deprecated: use admin reset <username> --stdin for protected password input.");
     if (args.Length != 3)
     {
         Console.WriteLine("Usage: reset-password <username> <new-password>");
