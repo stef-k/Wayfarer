@@ -121,7 +121,7 @@ public sealed class LegacyRoutingRetirementMigrationPostgresTests(PostgresMigrat
         Assert.Equal(("geoapify", "geoapify", geocodingSelectionGeneration, routingSelectionGeneration),
             (retainedSelection.GeocodingProviderKey, retainedSelection.RoutingProviderKey,
                 retainedSelection.GeocodingSelectionGeneration, retainedSelection.RoutingSelectionGeneration));
-        Assert.Equal("preserved-personal-secret", credentials.Read(retainedPersonalProfile).Credential);
+        Assert.True(credentials.Read(retainedPersonalProfile).Credential == "preserved-personal-secret");
         Assert.NotNull((await new AuthoritativeRoutingProviderResolver(context, credentials)
             .ResolveNativeAsync(userId, "drive", CancellationToken.None)).Execution);
     }
