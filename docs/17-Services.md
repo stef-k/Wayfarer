@@ -390,7 +390,7 @@ public class MyCustomJob : IJob
 
 ## Uploads Pipeline
 
-1. Files uploaded to `Uploads/Temp/` directory.
+1. Files staged by `LocationImportStagedFiles` under external `Storage:DataRoot/uploads/imports`; new rows persist logical `imports/<guidN><extension>` references. Old `Uploads/Temp` paths remain bounded same-host legacy compatibility only (see [configuration](16-Configuration.md)).
 2. `LocationImportJob` scheduled to process file.
 3. `LocationImportService` parses and persists data.
 4. Progress updates sent via SSE.

@@ -5,9 +5,33 @@ using Xunit;
 
 namespace Wayfarer.Tests.Tools;
 
-/// <summary>Guards the supported production deployment script's EF migration ownership.</summary>
+/// <summary>Guards repository scaffolding and supported native deployment contracts.</summary>
 public sealed class DeploymentScriptTests
 {
+    /// <summary>Current source needs no runtime scaffolding while native legacy exclusions remain protected.</summary>
+    [Fact]
+    public void RuntimeScaffoldingIsAbsentAndCurrentImportDocsUseExternalStorage()
+    {
+        var ignore = File.ReadAllText(RepositoryFile(".gitignore"));
+        foreach (var legacy in new[] { "Uploads", "TileCache", "ImageCache" })
+        {
+            Assert.False(File.Exists(RepositoryFile(legacy, ".gitkeep")));
+            Assert.Contains(legacy + "/*", ignore);
+            Assert.DoesNotContain("!" + legacy + "/.gitkeep", ignore);
+        }
+        Assert.DoesNotContain("!Uploads/Temp/.gitkeep", ignore);
+        var project = System.Xml.Linq.XDocument.Load(RepositoryFile("Wayfarer.csproj"));
+        Assert.DoesNotContain(project.Descendants("Folder"), folder =>
+            ((string?)folder.Attribute("Include"))?.Replace('\\', '/').StartsWith("Uploads/") == true);
+        foreach (var name in new[] { "16-Configuration.md", "17-Services.md" })
+        {
+            var document = File.ReadAllText(RepositoryFile("docs", name));
+            Assert.Contains("Storage:DataRoot/uploads/imports", document);
+            Assert.DoesNotContain("Upload staging directory defaults under `Uploads/Temp/`", document);
+            Assert.DoesNotContain("Files uploaded to `Uploads/Temp/`", document);
+        }
+    }
+
     /// <summary>All current browser consumers delegate launch without an installer or discovery mutation.</summary>
     [Fact]
     public void BrowserConsumersUsePreinstalledRuntimeOnly()

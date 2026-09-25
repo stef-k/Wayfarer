@@ -291,13 +291,25 @@ Native deployment no longer preserves `ChromeCache`, application-root `Logs`, or
 `wwwroot/thumbs`: they are inactive residue, not runtime authorities. Deployments
 may replace that obsolete payload. No migration/copy of old bytes is performed.
 The `Uploads`, `TileCache`, and `ImageCache` exclusions remain solely for bounded
-same-host legacy references. Do not delete these trees until their explicit
-migration (#604). Current mutable state uses external Storage roots; the payload
-can be read-only while those legacy compatibility trees remain preserved.
+same-host legacy references. Preserve these trees, their deployment exclusions and
+required write permissions until explicit migration (#604). Recognized old state
+can still mutate them: TileCache revalidation/cold refill replaces legacy bytes,
+legacy import deletion removes files beneath old `Uploads/Temp`, and ImageCache
+refresh/LRU can retire legacy bytes after metadata authority changes.
+
+For #609 closure, the current application/publish payload is replaceable and
+read-only-qualified, and all current/new runtime authorities are externalized.
+The three retained native legacy trees are bounded writable compatibility
+authorities, not part of that read-only claim. An existing native installation
+with retained legacy references cannot make these trees read-only today.
+Fresh/current deployments do not depend on them. Removing source-checkout
+scaffolding does not migrate or delete deployed legacy state; #604 owns that
+explicit migration.
 
 New import rows store logical `imports/<guidN><extension>` references. Old same-host absolute rows/files remain in place under known `Uploads/Temp` roots, with the deployment exclusion retained. Cross-host/native-to-Docker conversion needs a future explicit, quiesced migration; startup and Admin viewing never perform it. No EF schema migration is introduced for this reference change. Routine backup classification is owned by #533 and the real M6 migration by #604.
 
-The following directories are **auto-created** if missing:
+Native deployment scripts still prepare these legacy compatibility directories
+if missing; current/new runtime writes do not depend on them:
 
 - `TileCache/` - Retained legacy map tiles; new tiles use `Storage:CacheRoot/tiles`
 - `ImageCache/` - Retained legacy proxied images; new writes use `Storage:CacheRoot/images` (LRU-evicted, admin-configurable size)
@@ -670,4 +682,4 @@ Before rollback, stop the scheduler and back up PostgreSQL plus the Data Protect
 
 Native TileCache transition (#617): install/deploy prepares `/var/cache/wayfarer/tiles` with application-user ownership and retains the old deployed `TileCache` exclusion/tree. Operators overriding `Storage__CacheRoot` must prepare the corresponding `tiles` directory before startup. Preserve customized `CacheSettings:TileCacheDirectory` as the temporary legacy-root input. This does not copy old files or rewrite DB paths; see [cache configuration](16-Configuration.md).
 
-Native ImageCache transition (#623): new writes use `StoragePaths.Images`, and install/deploy prepares `/var/cache/wayfarer/images` with application-user ownership. Retain `$DEPLOY_DIR/ImageCache`, its rsync exclusion and existing permissions for bounded legacy reads. Keep customized `CacheSettings:ImageCacheDirectory` as the deprecated legacy-root input. Operators overriding `Storage__CacheRoot` must prepare its `images` subdirectory before startup. New metadata uses logical `.dat` filenames; legacy reads remain in place, while successful refresh promotes to a current-root generation only after metadata commit. No bulk migration or EF schema migration is introduced; routine ImageCache backups remain excluded/rebuildable. See [configuration](16-Configuration.md) for explicit compatible-cache migration guidance.
+Native ImageCache transition (#623): new writes use `StoragePaths.Images`, and install/deploy prepares `/var/cache/wayfarer/images` with application-user ownership. Retain `$DEPLOY_DIR/ImageCache`, its rsync exclusion and existing write permissions for bounded legacy reads and refresh/LRU retirement. Keep customized `CacheSettings:ImageCacheDirectory` as the deprecated legacy-root input. Operators overriding `Storage__CacheRoot` must prepare its `images` subdirectory before startup. New metadata uses logical `.dat` filenames; legacy reads remain in place, while successful refresh promotes to a current-root generation only after metadata commit. No bulk migration or EF schema migration is introduced; routine ImageCache backups remain excluded/rebuildable. See [configuration](16-Configuration.md) for explicit compatible-cache migration guidance.
