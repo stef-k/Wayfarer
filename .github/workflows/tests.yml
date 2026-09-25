@@ -206,6 +206,9 @@ jobs:
           test "$(id -u)" = 1654
           test ! -w /app
           test ! -w /opt/wayfarer-browsers
+          test ! -w /var/lib/wayfarer
+          test ! -w /var/cache/wayfarer
+          test ! -w /var/log/wayfarer
           test -z "$(dotnet --list-sdks)"
           ! command -v node
           ! command -v npm

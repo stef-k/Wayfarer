@@ -77,7 +77,9 @@ that private driver but no general Node/npm, SDK or PowerShell.
 Runtime selects `app` (1654:1654), port 8080 and an exec-form entrypoint. `/app` and
 `/opt/wayfarer-browsers` are root-owned and non-writable. Supply the four writable
 mounts from the normative contract: `/var/lib/wayfarer`, `/var/cache/wayfarer`,
-`/var/log/wayfarer`, `/tmp/wayfarer`. Prepare ownership before launch; durable data/key
+`/var/log/wayfarer`, `/tmp/wayfarer`. Unmounted image state directories remain root-owned and non-writable to app, so missing
+mounts fail instead of silently storing state in a container layer. Prepare mounted
+ownership before launch; durable data/key
 parents require 0700. The image does not initialize arbitrary host ownership. Preserve
 the complete Data Protection ring under the durable root. Use read-only root, a private
 temporary mount, no Docker socket and no privilege escalation. Allow 60 seconds for

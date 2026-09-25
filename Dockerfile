@@ -19,9 +19,9 @@ RUN .playwright/node/linux-x64/node .playwright/package/cli.js install-deps chro
     && .playwright/node/linux-x64/node .playwright/package/cli.js install chromium \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=build /publish/ ./
+# Unmounted state roots remain root-owned: omitted mounts must fail, not store durable state in a layer.
 RUN chmod -R a-w /app /opt/wayfarer-browsers \
     && mkdir -p /var/lib/wayfarer /var/cache/wayfarer /var/log/wayfarer /tmp/wayfarer \
-    && chown app:app /var/lib/wayfarer /var/cache/wayfarer /var/log/wayfarer /tmp/wayfarer \
     && chmod 700 /var/lib/wayfarer /tmp/wayfarer \
     && chmod 750 /var/cache/wayfarer /var/log/wayfarer
 ENV ASPNETCORE_ENVIRONMENT=Production \
