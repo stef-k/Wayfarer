@@ -6,7 +6,6 @@ using System.Runtime.Versioning;
 using Wayfarer.Models;
 using Wayfarer.Tests.Infrastructure;
 using Xunit;
-using Xunit.Sdk;
 
 namespace Wayfarer.Tests.Services;
 
@@ -15,14 +14,14 @@ namespace Wayfarer.Tests.Services;
 public sealed class PublishedReadOnlyRuntimeTests
 {
     /// <summary>Runs the real thumbnail endpoint against a disposable database and external writable roots.</summary>
-    [Fact]
+    [PublishedRuntimeFact]
     [Trait("Category", "RequiresPlaywright")]
     [Trait("Category", "RequiresPublishedRuntime")]
     public async Task PublishedHostGeneratesThumbnailWithoutChangingReadOnlyPayload()
     {
         var source = Environment.GetEnvironmentVariable("WAYFARER_TEST_PUBLISH_DIRECTORY");
         if (!OperatingSystem.IsLinux() || string.IsNullOrEmpty(source))
-            throw SkipException.ForSkip("Set WAYFARER_TEST_PUBLISH_DIRECTORY to a Release publish on Linux.");
+            throw new InvalidOperationException("Published runtime qualification requires a Linux publish directory.");
         using var directory = new TestDirectory();
         var database = new PostgresMigrationTestFixture();
         await database.InitializeAsync();
@@ -183,4 +182,17 @@ public sealed class PublishedReadOnlyRuntimeTests
         .Select(path => Path.GetRelativePath(root, path) + (File.Exists(path)
             ? ":" + Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path))) : "/"))
         .Order(StringComparer.Ordinal).ToArray();
+}
+
+/// <summary>Marks unavailable qualification prerequisites as discovery-time skips for the xUnit v2 runner.</summary>
+public sealed class PublishedRuntimeFactAttribute : FactAttribute
+{
+    /// <summary>Requires Linux, an explicit publish and the established guarded PostgreSQL connection.</summary>
+    public PublishedRuntimeFactAttribute()
+    {
+        if (!OperatingSystem.IsLinux()
+            || string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WAYFARER_TEST_PUBLISH_DIRECTORY"))
+            || string.IsNullOrEmpty(Environment.GetEnvironmentVariable("WAYFARER_TEST_POSTGRES_CONNECTION")))
+            Skip = "Requires Linux, WAYFARER_TEST_PUBLISH_DIRECTORY and WAYFARER_TEST_POSTGRES_CONNECTION.";
+    }
 }
