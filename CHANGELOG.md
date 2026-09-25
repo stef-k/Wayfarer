@@ -57,6 +57,8 @@
 - Trip thumbnail capture omits the shared **Open full view** escape before screenshotting, retaining screen-media framing, map controls, and attribution (#596).
 
 ### Added
+
+- Add an exact-source manual DB-image publication and anonymous full-Compose recovery gate; registry publication remains pending maintainer workflow activation.
 - Public Trip and Timeline embeds share cooperative map gestures and a keyboard/single-pointer **Open full view** escape. Ordinary wheel/single-touch input scrolls the containing page; modifier-wheel, two-touch gestures, and explicit controls manipulate the map (#596).
 - Trip sharing and Timeline Settings offer distinct **Copy embed URL** and **Copy embed HTML** actions, using the public HTTPS browser origin, escaped accessible iframe markup, and explicit clipboard feedback (#596).
 

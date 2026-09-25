@@ -263,3 +263,79 @@ The existing five container configuration tests and 43 release tooling tests pas
 in the original qualification; the DB correction reran the complete Compose gate
 and focused config rejection checks. Exact-head CI repeats the image build and
 Compose integration; see the PR checks for the final source revision's result.
+
+## Derived DB publication and recovery
+
+The bounded `.github/workflows/database-image.yml` manual workflow publishes only
+`ghcr.io/stef-k/wayfarer-db`. It does not create an application release, Git tag,
+release tarball or `release.json`. Select an independently reviewed full source SHA
+containing this workflow, recipe and qualification tools. The selected workflow ref
+must resolve to exactly the supplied `source`; checkout stays at that SHA.
+
+The immutable publication tag is
+`pg17.11-postgis3.6.4-bookworm-<full-source-SHA>`. It identifies a reviewed DB assembly,
+independently of the application release number. Later complete release bundles must
+consume its qualified **registry manifest digest** and retained evidence, never its
+mutable tag or local image ID. A refreshed recipe requires a new reviewed source and
+publication identity. Existing identities are never overwritten, including reruns.
+
+The publisher builds the unchanged pinned recipe, verifies actual Debian package and
+PostgreSQL executable versions against OCI metadata, and runs the full disposable
+Compose gate (including executable PostGIS SQL, locale/citext and dump/restore) before
+push. Only its publishing job receives `packages: write`, using `GITHUB_TOKEN` over
+stdin. No PAT is needed. The single AMD64 manifest binds the tested config; OCI and
+JSON evidence include source, exact package versions and official base reference.
+The workflow serializes DB writes and requires explicit registry absence before build
+and immediately before push. Authentication/network/ambiguous errors fail closed.
+GHCR has no conditional create-only push: other package writers must not race this
+workflow, retarget tags or delete immutable evidence.
+
+`db-publication` JSON is uploaded before the anonymous job starts, even if a
+post-push registry check fails. A fresh runner with read-only repository permission
+uses an empty Docker client configuration to pull only the captured digest. It checks
+platform, OCI/package/executable identity, then repeats the entire Compose gate with
+that pulled DB reference and `pull_policy: never`. The DB is never rebuilt in this
+job. The application companion is built locally from the same source in each job.
+Only successful `db-evidence` records anonymous/full Compose acceptance. Preserve
+both artifacts beyond Actions retention with the later bundle's release evidence.
+
+### Maintainer activation and exact-source dispatch
+
+[GitHub requires a manual workflow on the default branch before dispatch](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow).
+While #645 remains unmerged, publication is blocked until a separately reviewed and
+maintainer-accepted activation makes this workflow available on the default branch.
+Do not merge #645 or create a fake application release to bypass this gate. The
+implementation environment has no scoped package-write token; local/PR evidence
+therefore does not establish a public derived digest. Once activation is authorized,
+dispatch the reviewed PR branch/ref with its exact full head (verify it has not moved):
+
+```sh
+gh workflow run database-image.yml --ref REVIEWED_REF \
+  -f source=FULL_REVIEWED_SHA -f db_version=pg17.11-postgis3.6.4-bookworm
+gh run list --workflow database-image.yml
+gh run watch RUN_ID --exit-status
+gh run download RUN_ID -n db-publication -D /absolute/evidence/db-publication
+```
+
+If the new GHCR package is private, preserve `manifestDigest` from that artifact,
+then set the **wayfarer-db** package visibility to **public** in GitHub package
+settings. [Public GHCR packages support anonymous pulls](https://docs.github.com/en/packages/learn-github-packages/configuring-a-packages-access-control-and-visibility).
+Rerun only the failed anonymous job (`gh run rerun RUN_ID --failed` when it alone
+failed), or explicitly recover without any publication job:
+
+```sh
+gh workflow run database-image.yml --ref REVIEWED_REF \
+  -f source=FULL_REVIEWED_SHA -f db_version=pg17.11-postgis3.6.4-bookworm \
+  -f digest=sha256:RECORDED_DERIVED_MANIFEST
+gh run download RECOVERY_RUN_ID -n db-evidence -D /absolute/evidence/db-qualified
+```
+
+Never rerun the publishing job after a push, including interrupted runs. If digest
+recording was interrupted, inspect registry/run evidence; do not rebuild or delete
+the existing tag. Authentication failure during the absence check also requires a
+maintainer access investigation, not relaxed absence checks. A successful public
+pull and full pulled-artifact qualification remain mandatory before #644 acceptance.
+
+PR CI runs `tools/release/db_image.py dry-run` against a clean checkout with the same
+build/metadata/full Compose path, without login, package-write permission or push.
+Focused publication tests run with the existing `tools/release/tests` selection.
