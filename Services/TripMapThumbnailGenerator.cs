@@ -12,15 +12,10 @@ namespace Wayfarer.Services;
 /// </summary>
 public sealed partial class TripMapThumbnailGenerator : ITripMapThumbnailGenerator
 {
-    // Static semaphore to prevent concurrent browser installations across all instances
-    private static readonly SemaphoreSlim _installLock = new(1, 1);
-    private static bool _browsersInstalled = false;
-
     private readonly ILogger<TripMapThumbnailGenerator> _logger;
     private readonly TripThumbnailStorage _storage;
     private readonly IConfiguration _configuration;
     private readonly string _thumbsDirectory;
-    private readonly string _chromeCachePath;
     private readonly Func<CancellationToken, Task<byte[]?>>? _captureOverride;
 
     /// <summary>
@@ -40,15 +35,6 @@ public sealed partial class TripMapThumbnailGenerator : ITripMapThumbnailGenerat
         Directory.CreateDirectory(_thumbsDirectory);
         _logger.LogInformation("Thumbnail directory: {ThumbsDirectory}", _thumbsDirectory);
 
-        // Get Chrome cache directory from configuration (defaults to ChromeCache if not specified)
-        _chromeCachePath = configuration["CacheSettings:ChromeCacheDirectory"] ?? "ChromeCache";
-        _chromeCachePath = Path.GetFullPath(_chromeCachePath);
-
-        // Configure Playwright to store browsers in ChromeCache directory
-        var playwrightPath = Path.Combine(_chromeCachePath, "playwright-browsers");
-        Environment.SetEnvironmentVariable("PLAYWRIGHT_BROWSERS_PATH", playwrightPath);
-
-        _logger.LogInformation("Thumbnail generator - Chrome cache: {ChromePath}", _chromeCachePath);
     }
 
     /// <summary>Creates a generator with a controllable capture seam for focused tests.</summary>
@@ -60,39 +46,6 @@ public sealed partial class TripMapThumbnailGenerator : ITripMapThumbnailGenerat
         : this(logger, storage, configuration)
     {
         _captureOverride = captureOverride;
-    }
-
-    /// <summary>
-    /// Ensures Playwright browsers are installed. Uses semaphore to prevent concurrent installations.
-    /// </summary>
-    private async Task EnsureBrowsersInstalledAsync(CancellationToken cancellationToken = default)
-    {
-        if (_browsersInstalled) return;
-
-        await _installLock.WaitAsync(cancellationToken);
-        try
-        {
-            if (_browsersInstalled) return;
-
-            _logger.LogInformation("Checking Playwright browser installation for thumbnails...");
-
-            var exitCode = Microsoft.Playwright.Program.Main(new[] { "install", "chromium" });
-
-            if (exitCode != 0)
-            {
-                _logger.LogWarning("Playwright browser installation returned exit code {ExitCode}", exitCode);
-            }
-            else
-            {
-                _logger.LogInformation("Playwright browsers ready for thumbnails");
-            }
-
-            _browsersInstalled = true;
-        }
-        finally
-        {
-            _installLock.Release();
-        }
     }
 
     /// <summary>
@@ -145,7 +98,6 @@ public sealed partial class TripMapThumbnailGenerator : ITripMapThumbnailGenerat
             }
             else
             {
-                await EnsureBrowsersInstalledAsync(cancellationToken);
                 thumbnailBytes = await CaptureEmbedViewAsync(
                     tripId, centerLat, centerLon, zoom, width, height, cancellationToken);
             }
@@ -278,7 +230,7 @@ public sealed partial class TripMapThumbnailGenerator : ITripMapThumbnailGenerat
             cancellationToken.ThrowIfCancellationRequested();
 
             var launchArgs = CreateLaunchArguments(captureSettings.Value.HostResolverRule);
-            browser = await playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions
+            browser = await BrowserRuntime.LaunchAsync(playwright, new BrowserTypeLaunchOptions
             {
                 Headless = true,
                 Args = launchArgs

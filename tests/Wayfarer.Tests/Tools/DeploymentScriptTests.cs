@@ -69,8 +69,11 @@ public sealed class DeploymentScriptTests
                 Assert.Matches(@"(?m)^sudo (?:chown|install)[^\r\n]*APP_USER[^\r\n]*" + root, script);
         }
         var deploy = File.ReadAllText(RepositoryFile("deployment", "deploy.sh"));
-        Assert.Contains("--exclude 'wwwroot/thumbs/'", deploy);
-        Assert.Contains("--exclude 'Logs'", deploy);
+        Assert.DoesNotContain("--exclude 'wwwroot/thumbs/'", deploy);
+        Assert.DoesNotContain("--exclude 'Logs'", deploy);
+        Assert.DoesNotContain("ChromeCache", deploy);
+        foreach (var legacy in new[] { "Uploads", "TileCache", "ImageCache" })
+            Assert.Contains("--exclude '" + legacy + "'", deploy);
         foreach (var name in new[] { "trip-editor-asset-smoke.mjs", "run-407-waypoint-browser.ps1", "start-shared-layout-e2e-host.ps1" })
         {
             var runner = File.ReadAllText(RepositoryFile("tools", name));

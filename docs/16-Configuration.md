@@ -147,3 +147,15 @@ Old `wwwroot/thumbs` bytes are inactive rebuildable legacy residue. Old customiz
 log directories are historical operational evidence. Neither is automatically
 migrated or deleted, nor required as authoritative recovery state in routine backups.
 #604 may archive historical logs if desired; neither tree blocks production cutover.
+
+## Browser runtime
+
+Browser binaries are deployment dependencies, not Storage cache or recovery data.
+Set `PLAYWRIGHT_BROWSERS_PATH` before starting the process when using an explicitly
+provisioned bundle; otherwise normal Playwright version-matched discovery applies.
+No `CacheSettings:ChromeCacheDirectory` setting is supported. See the native
+[provisioning workflow](20-Deployment.md#6-install-chromium-runtime-dependencies-pdf-export).
+Browser profiles/downloads use external OS temp and are cleaned by Playwright;
+keep `TMPDIR` outside the application tree. Current mutable application state uses
+Storage roots; old Uploads/TileCache/ImageCache trees remain only for bounded
+legacy compatibility until explicit migration.

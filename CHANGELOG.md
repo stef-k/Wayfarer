@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### Changed
+- Require explicitly preinstalled, release-matched Chromium and OS libraries for all browser operations; remove runtime installation and ChromeCache configuration (#631). Retire native Logs/thumbnail/browser exclusions while preserving Uploads/TileCache/ImageCache legacy compatibility. No database migration.
 - Activate global Data Protection identity `Wayfarer` and stable-only provider credentials (#629). Prepare the source before startup; preserve the complete resolved ring. Existing explicit native overrides survive reinstall without automatic key movement. Sessions/forms/Identity links and operation tokens require reissue; hashed API tokens remain valid. Credential mutation clears legacy rollback evidence; recover with the paired pre-F2 recovery set or credential re-entry.
 - Prepare stable Data Protection companions while retaining legacy runtime/rollback authority; add atomic dual protection and explicit transactional status/preparation commands. Apply the additive companion-column migration before F1 startup and prepare at the original content root before any future identity activation (#627).
 - Store generated trip thumbnails outside webroot while preserving public URLs, atomic replacement and authoritative serving; fix GUID-based orphan cleanup. Serilog, Admin and file cleanup now share Storage LogRoot, with bounded native routing and isolated runner roots (#625). No schema or automatic legacy-file migration.

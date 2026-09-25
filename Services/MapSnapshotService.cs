@@ -3,75 +3,20 @@ using System.Runtime.InteropServices;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Playwright;
+using Wayfarer.Services;
 
 namespace Wayfarer.Parsers
 {
     public sealed class MapSnapshotService
     {
-        // Static semaphore to prevent concurrent browser installations across all instances
-        private static readonly SemaphoreSlim _installLock = new(1, 1);
-        private static bool _browsersInstalled = false;
-
         readonly ILogger<MapSnapshotService> _logger;
-        readonly string _chromeCachePath;
 
         /// <summary>
-        /// Initializes MapSnapshotService with configured Chrome cache directory.
-        /// Playwright handles cross-platform browser downloads automatically for all platforms:
-        /// Windows (x64/ARM64), macOS (x64/ARM64), Linux (x64/ARM64).
+        /// Initializes map capture; browser provisioning is an explicit deployment responsibility.
         /// </summary>
         public MapSnapshotService(ILogger<MapSnapshotService> logger, IConfiguration configuration)
         {
             _logger = logger;
-
-            // Get Chrome cache directory from configuration (defaults to ChromeCache if not specified)
-            _chromeCachePath = configuration["CacheSettings:ChromeCacheDirectory"] ?? "ChromeCache";
-
-            // Resolve to absolute path and normalize path separators for current platform
-            _chromeCachePath = Path.GetFullPath(_chromeCachePath);
-
-            // Configure Playwright to store browsers in our ChromeCache directory
-            // This works across all platforms (Windows, Linux x64/ARM64, macOS)
-            var playwrightPath = Path.Combine(_chromeCachePath, "playwright-browsers");
-            Environment.SetEnvironmentVariable("PLAYWRIGHT_BROWSERS_PATH", playwrightPath);
-
-            _logger.LogInformation("Chrome cache directory configured at: {ChromePath}", _chromeCachePath);
-            _logger.LogInformation("Playwright browsers will be stored at: {PlaywrightPath}", playwrightPath);
-        }
-
-        /// <summary>
-        /// Ensures Playwright browsers are installed. Uses semaphore to prevent concurrent installations.
-        /// </summary>
-        private async Task EnsureBrowsersInstalledAsync(CancellationToken cancellationToken = default)
-        {
-            if (_browsersInstalled) return;
-
-            await _installLock.WaitAsync(cancellationToken);
-            try
-            {
-                if (_browsersInstalled) return;
-
-                _logger.LogInformation("Checking Playwright browser installation...");
-
-                // Playwright will check if browsers are already installed
-                // Only downloads if missing
-                var exitCode = Microsoft.Playwright.Program.Main(new[] { "install", "chromium" });
-
-                if (exitCode != 0)
-                {
-                    _logger.LogWarning("Playwright browser installation returned exit code {ExitCode}", exitCode);
-                }
-                else
-                {
-                    _logger.LogInformation("Playwright browsers ready");
-                }
-
-                _browsersInstalled = true;
-            }
-            finally
-            {
-                _installLock.Release();
-            }
         }
 
         /// <summary>
@@ -86,15 +31,14 @@ namespace Wayfarer.Parsers
         public async Task<byte[]> CaptureMapAsync(string url, int width, int height,
             IList<Cookie>? cookies = null, CancellationToken cancellationToken = default)
         {
-            // Ensure browsers are installed
-            await EnsureBrowsersInstalledAsync(cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
 
             // 0) derive origin for absolute proxy logging
             var pageUri = new Uri(url);
             var origin = pageUri.GetLeftPart(UriPartial.Authority);
 
             // 1) Create Playwright instance
-            var playwright = await Playwright.CreateAsync();
+            using var playwright = await Playwright.CreateAsync();
             cancellationToken.ThrowIfCancellationRequested();
 
             var launchArgs = new List<string>
@@ -118,7 +62,7 @@ namespace Wayfarer.Parsers
             }
 
             // 2) Launch headless browser
-            var browser = await playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions
+            var browser = await BrowserRuntime.LaunchAsync(playwright, new BrowserTypeLaunchOptions
             {
                 Headless = true,
                 Args = launchArgs
@@ -242,7 +186,6 @@ namespace Wayfarer.Parsers
             finally
             {
                 await browser.CloseAsync();
-                playwright.Dispose();
             }
         }
     }
