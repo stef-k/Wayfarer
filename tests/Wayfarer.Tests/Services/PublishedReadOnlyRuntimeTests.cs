@@ -60,6 +60,28 @@ public sealed class PublishedReadOnlyRuntimeTests
         return trip.Id;
     }
 
+    /// <summary>Explicitly prepares the disposable database using the same published maintenance executable.</summary>
+    private static async Task PreparePublishedHostAsync(ProcessStartInfo start)
+    {
+        start.RedirectStandardInput = true;
+        foreach (var command in new[] { new[] { "database", "migrate" }, new[] { "database", "seed" },
+                     new[] { "admin", "bootstrap", "runtime-operator", "--stdin" } })
+        {
+            foreach (var argument in command) start.ArgumentList.Add(argument);
+            using var maintenance = Process.Start(start)!;
+            var output = maintenance.StandardOutput.ReadToEndAsync();
+            var error = maintenance.StandardError.ReadToEndAsync();
+            if (command[0] == "admin")
+                await maintenance.StandardInput.WriteLineAsync("Runtime-" + Guid.NewGuid().ToString("N") + "!7");
+            maintenance.StandardInput.Close();
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(45));
+            try { await maintenance.WaitForExitAsync(timeout.Token); }
+            catch { maintenance.Kill(true); throw; }
+            Assert.True(maintenance.ExitCode == 0, await output + await error);
+            while (start.ArgumentList.Count > 1) start.ArgumentList.RemoveAt(1);
+        }
+    }
+
     /// <summary>Exercises HTTP/static serving and the production loopback browser path; always stops the owned host.</summary>
     private static async Task RunPublishedHostAsync(string app, string root, string connection, Guid tripId)
     {
@@ -84,6 +106,7 @@ public sealed class PublishedReadOnlyRuntimeTests
             ["TMPDIR"] = Path.Combine(root, "temp")
         }) start.Environment[key] = value;
         Directory.CreateDirectory(Path.Combine(root, "temp"));
+        await PreparePublishedHostAsync(start);
         using var process = Process.Start(start)!;
         var stdout = process.StandardOutput.ReadToEndAsync();
         var stderr = process.StandardError.ReadToEndAsync();

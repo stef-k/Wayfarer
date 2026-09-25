@@ -7,6 +7,7 @@ namespace Wayfarer.Tests.Versioning;
 
 public class AppVersionCliTests
 {
+    /// <summary>Expected public help includes explicit lifecycle commands and deprecated compatibility.</summary>
     private static readonly string TopLevelHelp = string.Join(
         Environment.NewLine,
         "Wayfarer CLI",
@@ -16,7 +17,11 @@ public class AppVersionCliTests
         "",
         "Commands:",
         "  version                         Print the compiled Wayfarer version.",
-        "  reset-password <user> <pass>    Reset a user's password.",
+        "  database migrate|seed           Explicit offline database maintenance.",
+        "  admin bootstrap|reset <user> --stdin  Protected password input.",
+        "  user find <user>                Print only matching user ID/name.",
+        "  healthcheck                     Probe container readiness on loopback.",
+        "  reset-password <user> <pass>    Deprecated native compatibility.",
         "  data-protection <command>       Inspect or prepare stable credential companions.",
         "  help                            Show this help text.",
         "");
