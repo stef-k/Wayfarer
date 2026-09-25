@@ -81,6 +81,51 @@ public sealed class Preflight(IProcessRunner runner)
         await NetworksAsync(config, token);
     }
 
+    /// <summary>Refuse foreign project resources before resuming the receipt-owned Compose sequence.</summary>
+    public async Task ResumeAsync(string root, Deployment config, CancellationToken token, bool requireDatabase = false)
+    {
+        // Include expected names even when a foreign resource has no Compose project label.
+        var volumes = await runner.RunAsync(["volume", "ls", "--format", "{{.Name}}"], null, token);
+        if (volumes.Code != 0) throw new UsageException("Cannot verify retained volumes.");
+        var names = volumes.Output.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+        if (requireDatabase && !names.Contains(config.Project + "_db-data"))
+            throw new UsageException("Previously migrated database volume is missing; refusing to recreate durable state.");
+        foreach (var kind in new[] { "container", "volume", "network" })
+        {
+            string[] list = kind == "container" ? ["ps", "-aq"] : [kind, "ls", "-q"];
+            var result = await runner.RunAsync([.. list, "--filter", $"label=com.docker.compose.project={config.Project}"], null, token);
+            if (result.Code != 0) throw new UsageException("Cannot verify retained project ownership.");
+            var ids = result.Output.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).AsEnumerable();
+            if (kind == "volume") ids = ids.Concat(names.Where(name => name.StartsWith(config.Project + "_", StringComparison.Ordinal))).Distinct();
+            foreach (var id in ids)
+            {
+                var inspection = await runner.RunAsync([kind, "inspect", id], null, token);
+                if (inspection.Code != 0) throw new UsageException("Cannot inspect retained project ownership.");
+                using var document = JsonDocument.Parse(inspection.Output);
+                var resource = document.RootElement[0];
+                var labels = kind == "container" ? resource.GetProperty("Config").GetProperty("Labels") : resource.GetProperty("Labels");
+                string? Label(string key) => labels.TryGetProperty("com.docker.compose." + key, out var value) ? value.GetString() : null;
+                if (Label("project") != config.Project) throw new UsageException("Foreign project resource refused.");
+                if (kind == "container")
+                {
+                    var files = Path.Combine(config.Bundle, "compose.yaml") + (config.Mode == "external" ? "," + Path.Combine(config.Bundle, "external.yaml") : "");
+                    if (Label("project.working_dir") != config.Bundle || Label("project.config_files") != files ||
+                        Label("service") is not ("db" or "wayfarer" or "caddy"))
+                        throw new UsageException("Retained container belongs to different Compose inputs.");
+                }
+                else
+                {
+                    var name = Label(kind);
+                    var allowed = kind == "network" ? new[] { "backend", "edge" } :
+                        new[] { "db-data", "app-data", "app-cache", "app-logs", "caddy-data", "caddy-config" };
+                    if (name is null || !allowed.Contains(name) || resource.GetProperty("Name").GetString() != config.Project + "_" + name)
+                        throw new UsageException("Foreign retained volume/network refused.");
+                }
+            }
+        }
+        await NetworksAsync(config, token, installed: true);
+    }
+
     /// <summary>Bind intended listeners briefly; Docker will arbitrate races at actual startup.</summary>
     public static void CheckPorts(Deployment config)
     {

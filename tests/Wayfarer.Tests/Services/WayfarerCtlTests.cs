@@ -205,6 +205,66 @@ public sealed class WayfarerCtlTests
         Assert.Single(process.Calls);
     }
 
+    /// <summary>A new invocation consumes the durable checkpoint, preserving completed mutations after each boundary.</summary>
+    [Theory]
+    [InlineData(5, 1)] // Migration committed; seed fails.
+    [InlineData(6, 2)] // Seed committed; bootstrap fails before success is known.
+    [InlineData(7, 3)] // Bootstrap committed; web readiness fails.
+    [InlineData(8, 3)] // Web ready; managed proxy fails.
+    public async Task ResumeSkipsCompletedMutationsAndPreservesIdentity(int failedStep, int completed)
+    {
+        var original = new SetupProgress { Fingerprint = "original-config-and-secret-fingerprint" };
+        var receipt = "";
+        void Save() => receipt = System.Text.Json.JsonSerializer.Serialize(original);
+        var first = new FakeProcess { FailAt = failedStep };
+        await Assert.ThrowsAsync<IOException>(() => new Setup(first, new FakeTerminal())
+            .ExecuteAsync("/etc/wayfarer", Config(), "protected", default, original, Save));
+        var restored = System.Text.Json.JsonSerializer.Deserialize<SetupProgress>(receipt)!;
+        Assert.Equal(completed, restored.Completed);
+        var retry = new FakeProcess(); // An uncertain bootstrap lookup reports the existing account.
+        await new Setup(retry, new FakeTerminal()).ExecuteAsync("/etc/wayfarer", Config(), completed == 1 ? "protected" : "", default, restored);
+        Assert.DoesNotContain(retry.Calls, call => Join(call).Contains("database migrate"));
+        if (completed >= 2) Assert.DoesNotContain(retry.Calls, call => Join(call).Contains("database seed"));
+        if (completed >= 2) Assert.DoesNotContain(retry.Calls, call => Join(call).Contains("admin bootstrap"));
+        else Assert.Single(retry.Calls.Where(call => Join(call).Contains("admin bootstrap")));
+        Assert.Equal(original.Fingerprint, restored.Fingerprint);
+        if (completed >= 2) Assert.All(retry.Inputs, Assert.Null);
+        Assert.DoesNotContain(retry.Calls, call => call.Contains("down") || call.Contains("-v"));
+        Assert.Equal(3, restored.Completed);
+    }
+
+    /// <summary>Lost/failed admin results cannot implicitly reset or retry credentials.</summary>
+    [Fact]
+    public async Task UncertainAdminRequiresExplicitRetryWhenLookupCannotConfirm()
+    {
+        var progress = new SetupProgress { Completed = 2, AdminStarted = true };
+        var process = new FakeProcess { Reply = args => new(Join(args).Contains("user find") ? 1 : 0, "") };
+        await Assert.ThrowsAsync<UsageException>(() => new Setup(process, new FakeTerminal())
+            .ExecuteAsync("/etc/wayfarer", Config(), "", default, progress));
+        Assert.DoesNotContain(process.Calls, call => Join(call).Contains("admin bootstrap") || call.Last() == "caddy");
+        var retry = new FakeProcess { Reply = args => new(Join(args).Contains("user find") ? 1 : 0, "") };
+        await new Setup(retry, new FakeTerminal()).ExecuteAsync("/etc/wayfarer", Config(), "new-protected", default, progress, retryAdmin: true);
+        Assert.Single(retry.Calls.Where(call => Join(call).Contains("admin bootstrap")));
+        Assert.DoesNotContain(retry.Calls, call => Join(call).Contains("admin reset"));
+        Assert.Equal("new-protected", retry.Inputs.Single(value => value is not null));
+    }
+
+    /// <summary>A missing migrated cluster cannot be silently replaced with a fresh volume.</summary>
+    [Fact]
+    public async Task ResumeRefusesMissingDurableDatabase()
+    {
+        var process = new FakeProcess();
+        await Assert.ThrowsAsync<UsageException>(() => new Preflight(process).ResumeAsync("/etc/wayfarer", Config(), default, true));
+        Assert.Single(process.Calls);
+    }
+
+    /// <summary>Continuation has no surface for changing the original installation choices.</summary>
+    [Theory]
+    [InlineData("--resume --hostname other.example.org")]
+    [InlineData("--retry-admin")]
+    public void ResumeRefusesChangedChoices(string options) =>
+        Assert.Throws<UsageException>(() => Setup.Options(options.Split(' ')));
+
     private static Deployment Config() => new() { Bundle = "/bundle", Hostname = "wayfarer.example.org", AppDigest = "sha256:" + new string('a', 64) };
     private static string Join(string[] args) => string.Join(' ', args);
 

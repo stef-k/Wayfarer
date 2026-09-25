@@ -63,6 +63,8 @@ class Journey:
                    '-v', f'{self.directory}:{self.directory}',
                    '-v', f'{self.executable}:/ctl/wayfarerctl:ro',
                    '-v', '/usr/bin/docker:/usr/bin/docker:ro',
+                   '-v', f'{self.directory}/docker-test:/usr/local/bin/docker:ro',
+                   '-e', f'WAYFARER_TEST_FAILURE={self.directory}/failure',
                    '-v', f'{self.plugin}:/usr/libexec/docker/cli-plugins:ro',
                    '-v', f'{self.socket}:/var/run/docker.sock', HOST, *args, data=data, check=check)
 
@@ -80,6 +82,19 @@ class Journey:
 
     def prepare(self):
         """Copy production substrate; replace only TLS provisioning for a safe local certificate."""
+        # Inject faults only at the child-process seam; the published CLI is unmodified.
+        wrapper = self.directory / 'docker-test'
+        wrapper.write_text("""#!/bin/sh
+point=$(cat "$WAYFARER_TEST_FAILURE" 2>/dev/null || true)
+case "$point:$*" in
+  seed:*" database seed"|doctor:*" healthcheck") exit 1 ;;
+  admin:*" admin bootstrap admin --stdin"|web:*" 180 wayfarer")
+    /usr/bin/docker "$@" || exit $?
+    exit 1 ;;
+esac
+exec /usr/bin/docker "$@"
+""")
+        wrapper.chmod(0o755)
         shutil.copytree(ROOT / 'deploy/compose', self.bundle)
         run('openssl', 'req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '1',
             '-subj', '/CN=wayfarer.example.org', '-addext', 'subjectAltName=DNS:wayfarer.example.org',
@@ -119,12 +134,40 @@ class Journey:
                       '-H', 'Content-Type: application/x-www-form-urlencoded', '--data-binary', '@' + body.name)
         assert self.curl('/Admin/Users', '-b', cookie, '-o', '/dev/null', '-w', '%{http_code}') == '200'
 
+    def reject_changed_inputs(self):
+        """Protected receipt, config, bundle and credentials must all match before continuation."""
+        for relative in ['installation/deployment.env', 'bundle/caddy/Caddyfile', 'installation/secrets/db-password']:
+            path = self.directory / relative
+            self.host('sh', '-ec', f'cp -p {path} {path}.saved; printf changed >> {path}')
+            assert self.ctl('setup', '--resume', check=False).returncode == 2
+            self.host('mv', str(path) + '.saved', str(path))
+        receipt = self.install / 'setup-progress.json'
+        self.host('mv', str(receipt), str(receipt) + '.saved')
+        assert self.ctl('setup', '--resume', check=False).returncode == 2
+        self.host('mv', str(receipt) + '.saved', str(receipt))
+
     def qualify(self):
         """Fresh setup -> diagnostics -> restart -> user recovery through one product journey."""
+        self.host('sh', '-ec', f'printf seed > {self.directory}/failure')
         result = self.ctl('setup', '--bundle', str(self.bundle), '--hostname', 'wayfarer.example.org',
                           '--app-digest', self.digest, '--project', self.project, '--edge-prefix', '172.30.68',
                           '--mode', 'external', '--loopback-port', str(self.loopback),
-                          '--password-stdin', data=self.password + '\n')
+                          '--password-stdin', data=self.password + '\n', check=False)
+        assert result.returncode == 1
+        credentials = self.host('sh', '-ec', f'sha256sum {self.install}/secrets/*').stdout
+        volumes = run('docker', 'volume', 'ls', '-q', '--filter', f'label=com.docker.compose.project={self.project}').stdout
+        self.reject_changed_inputs()
+        # Lose the bootstrap result after its real transaction commits; never repeat it.
+        for point in ['admin', 'web', 'doctor', 'none']:
+            self.host('sh', '-ec', f'printf {point} > {self.directory}/failure')
+            result = self.ctl('setup', '--resume', '--password-stdin', data=self.password + '\n', check=False)
+            assert result.returncode == (0 if point == 'none' else 1), result.stdout + result.stderr
+            assert 'Database migrate...' not in result.stdout
+            if point != 'admin':
+                assert 'Database seed...' not in result.stdout
+                assert 'Protected admin bootstrap...' not in result.stdout
+            assert credentials == self.host('sh', '-ec', f'sha256sum {self.install}/secrets/*').stdout
+            assert volumes == run('docker', 'volume', 'ls', '-q', '--filter', f'label=com.docker.compose.project={self.project}').stdout
         print(result.stdout, flush=True)
         assert 'Setup complete' in result.stdout
         run('docker', 'run', '-d', '--name', self.proxy, '--network', 'host',
@@ -165,7 +208,7 @@ class Journey:
         self.ctl('stop')
         assert self.ctl('doctor', check=False).returncode == 1
         self.ctl('start')
-        print('PASS self-contained setup/TLS/status/doctor/restart/cookie/key/upload/user recovery/stop/start', flush=True)
+        print('PASS self-contained interrupted-setup/resume/identity-and-secret-refusal/TLS/status/doctor/restart/cookie/key/upload/user recovery/stop/start', flush=True)
 
     def cleanup(self):
         """Delete only this unpredictable project's labelled disposable resources and owned temp directory."""

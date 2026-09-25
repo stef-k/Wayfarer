@@ -10,6 +10,8 @@ public static class Help
         ["setup"] = "setup --bundle PATH --hostname DNS --app-digest sha256:HEX [--mode managed|external]\n" +
             "  [--project NAME] [--edge-prefix 172.30.64] [--loopback-port 8080] [--password-stdin]\n" +
             "  Interactive terminal prompts for omitted required inputs. Fresh installation only.\n" +
+            "  Continue owned partial setup: setup --resume [--password-stdin] [--retry-admin]\n" +
+            "  Resume verifies original config/bundle/secrets; --retry-admin explicitly retries an uncertain bootstrap.\n" +
             "  Secures the protected admin account; application password policy applies.\n" +
             "  Example: wayfarerctl setup --bundle /etc/wayfarer/releases/vX.Y.Z",
         ["status"] = "status — read-only service, health, image/version, DB and setup assessment",

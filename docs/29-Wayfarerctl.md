@@ -191,23 +191,45 @@ data. Do not deliberately log secrets in custom integrations.
 
 ## Interrupted setup and troubleshooting
 
-A failed setup retains files and volumes. Reinvocation refuses existing/partial state;
-there is no automatic rollback, password replacement, migration downgrade or purge.
-Preserve everything and inspect `status`, `doctor`, and bounded service logs first.
-The failed step is printed without child exception/config dumps. A competing invocation
-is serialized by the installation lock; do not delete a live lock to bypass it.
+A failed setup retains files and volumes. Inspect `status`, `doctor` and bounded logs,
+correct the reported cause, then continue through the supported operator command:
 
-For deliberate advanced recovery, use the same installation identity, bundle, project
-and protected credentials with the [manual maintenance sequence](28-Production-Compose.md#advanced-fresh-initialization).
-Keep web/ingress stopped while completing schema/seed/bootstrap. Do not bootstrap an
-already-existing admin again; use the application's explicit protected reset seam only
-when password recovery is intended. Never reset DB credentials by replacing files.
-After securing admin, start the configured stack and run doctor. If the **only** failure
-is the absent completion marker, a root administrator may explicitly create a0600,
-root:root `setup-complete` file containing `1` and rerun doctor. Any other FAIL remains
-unresolved. This manual acknowledgement is not an automated resume/update facility.
-If config/secrets were only partly created, recover from retained verified files with
-an administrator; do not infer that missing config means empty database state.
+```sh
+sudo wayfarerctl --deployment-root /etc/wayfarer setup --resume
+# If admin bootstrap has not started, supply its password through hidden terminal
+# input or append --password-stdin with a protected redirected input file.
+```
+
+Continuation requires the original protected installation identity, generated config,
+credential bytes and bundle files to match the protected setup receipt. It refuses
+foreign resources, changed inputs, missing migrated DB volumes, unsafe permissions,
+unreceipted/legacy partial state and already-completed installations. It cannot adopt
+native data. Do not change setup choices on resume or replace DB credentials.
+Completed migration, seed and bootstrap steps are skipped. DB health, volume ownership,
+web/proxy convergence and live diagnostics are checked again; only successful diagnostics
+create the completion marker. No volumes are deleted and no rollback is attempted.
+A migration or seed whose success was not recorded may repeat through the application's
+existing idempotent maintenance authority.
+
+If bootstrap's result was lost, continuation first asks the application for the existing
+admin. It never blindly bootstraps again. If lookup cannot confirm the account, inspect
+DB/maintenance logs and correct the cause, then explicitly use:
+
+```sh
+sudo wayfarerctl --deployment-root /etc/wayfarer setup --resume --retry-admin
+```
+
+This retries transactional application bootstrap with protected password input; the
+application refuses an existing account and never resets its password. A found account
+still must pass application startup/admin-security readiness before setup can complete.
+Passwords are not requested for an already-recorded bootstrap. Preserve the installation
+lock; do not delete it to bypass another operation.
+
+Failures during initial protected-file creation (before a complete setup receipt exists),
+or mismatched/uncertain ownership remain fail-closed. Preserve the files and have an
+administrator reconcile their provenance. The [raw Compose maintenance sequence](28-Production-Compose.md#advanced-fresh-initialization)
+is an advanced emergency seam for such cases, not normal recovery for receipt-owned setup.
+Never fabricate completion markers or infer that missing config means an empty database.
 
 | Symptom | Action |
 | --- | --- |
@@ -217,7 +239,7 @@ an administrator; do not infer that missing config means empty database state.
 | Network conflict | Before fresh setup choose a free private `--edge-prefix`; inspect VPN/host routes |
 | Port conflict | Free managed80/443 deliberately or use external mode with a free loopback port |
 | DB unhealthy | Inspect `logs db`; preserve cluster/secrets; do not delete volumes or change PG major |
-| Migrate/seed/bootstrap failed | Keep web stopped; use application maintenance authority with the same image and protected input |
+| Migrate/seed/bootstrap failed | Inspect logs, correct the cause and use `setup --resume`; uncertain bootstrap requires explicit `--retry-admin` |
 | Caddy/DNS/certificate failure | Check hostname/DNS, firewall80/443, `logs caddy`; retain Caddy TLS volumes |
 | App readiness failure | Inspect app logs, database credentials/schema/admin bootstrap and durable/key mounts |
 | External loopback works, public URL fails | Correct the external proxy's TLS, Host/forwarding and actual trusted hop |
