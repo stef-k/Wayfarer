@@ -1,0 +1,8 @@
+# Use without the managed profile. Host-native ingress reaches the explicit loopback endpoint.
+services:
+  wayfarer:
+    ports:
+      - '${LOOPBACK_ADDRESS:-127.0.0.1}:${LOOPBACK_PORT:-8080}:8080'
+    environment:
+      # Linux bridge NAT presents the host proxy as the edge gateway; qualify the actual hop.
+      TrustedProxy__Addresses__0: ${EXTERNAL_PROXY_ADDRESS:?actual external proxy peer required}
