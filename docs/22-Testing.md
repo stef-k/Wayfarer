@@ -351,3 +351,43 @@ Identity reset tokens, all four explicit operation purposes, stable-only activat
 legacy downgrade cutoff, API hash continuity, default-ring ambiguity and installed
 service override preservation. These are disposable framework/PostgreSQL evidence,
 not production M6 or provider-network qualification.
+
+## Published read-only runtime qualification
+
+`PublishedReadOnlyRuntimeTests` is the Linux Slice G smoke. It copies an existing
+Release publish into its owned fixture, removes every write permission, proves a
+write is denied to the running identity, then starts the actual Production host.
+It uses the established disposable PostgreSQL migration fixture, external Storage
+roots and an explicit external key ring. Startup enforces F2's stable `Wayfarer`
+identity. The smoke requests the login page, a static asset and the real public
+map-snapshot endpoint, verifies JPEG output in external thumbnail storage, external
+logs and key XML, stops the host, and compares every publish entry and file digest.
+No production database, key ring or native deployment is touched.
+
+Provision the release-matched browser and OS libraries first using the deployment
+guide. The ordinary .NET browser tests use the same external bundle. The historical
+`libasound.so.2` launch failure requires `libasound2t64` on Ubuntu 24.04, not another
+browser download. Run as an ordinary user; root bypasses permission evidence.
+
+```bash
+dotnet tool restore
+dotnet frontend build
+npm run build
+dotnet publish Wayfarer.csproj -c Release -o /tmp/wayfarer-publish-qualification
+# Use the dedicated PostgreSQL 17 fixture connection configured for ordinary tests.
+export PLAYWRIGHT_BROWSERS_PATH="$HOME/.cache/ms-playwright"
+export WAYFARER_TEST_PUBLISH_DIRECTORY=/tmp/wayfarer-publish-qualification
+export WAYFARER_TEST_ARTIFACT_DIRECTORY=/tmp/wayfarer-read-only-evidence
+dotnet test tests/Wayfarer.Tests/Wayfarer.Tests.csproj \
+  --filter 'FullyQualifiedName~PublishedReadOnlyRuntimeTests'
+```
+
+The selected test requires `WAYFARER_TEST_POSTGRES_CONNECTION` naming exactly
+`wayfarer_import_tests`; it creates and drops only its own generated database.
+A missing Linux/publish prerequisite is an explicit skip, not qualification.
+The ordinary PostgreSQL-attached suite separately proves import and cache writes
+at their stable storage seams. Browser-policy tests preserve launch options and
+prove one bounded failure without retry; deployment guards reject runtime
+installer calls in all current consumers. Run the browser category for existing
+PDF/attribution and screenshot evidence, then the built-asset smoke and both Code
+Guard scopes. Final Docker packaging and real native migration remain #603/#604.

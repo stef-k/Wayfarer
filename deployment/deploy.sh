@@ -196,7 +196,7 @@ DOTNET_ENVIRONMENT=$DOTNET_ENVIRONMENT dotnet ef database update \
   --project Wayfarer.csproj \
   --context Wayfarer.Models.ApplicationDbContext
 
-# Step 5.5: Pre-install Playwright browsers (optional, recommended)
+# Browser features require a preinstalled runtime before service use.
 # Provision the release-matched browser and OS libraries explicitly; see docs/20-Deployment.md.
 
 # Step 6: Stop service
