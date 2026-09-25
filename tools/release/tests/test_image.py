@@ -81,6 +81,7 @@ def test_remote_retarget_is_rejected(release_repo, tmp_path):
 @pytest.mark.parametrize("code,error,allowed", [
     (0, "", False),
     (1, "no such manifest: ghcr.io/stef-k/wayfarer:v1.4.0\n", True),
+    (1, "manifest unknown\n", True),
     (1, "unauthorized", False), (1, "denied", False), (1, "TLS timeout", False),
 ])
 def test_stable_tag_absence_fails_closed(monkeypatch, code, error, allowed):
@@ -127,7 +128,7 @@ def test_anonymous_qualification_uses_only_exact_digest(monkeypatch, tmp_path):
         observed.append(args)
         return ""
     monkeypatch.setattr(image, "run", run)
-    monkeypatch.setattr(image, "qualify", lambda release, ref: {"Id": "id"} if ref == expected else None)
+    monkeypatch.setattr(image, "qualify", lambda release, ref: {"Id": "sha256:" + "b" * 64} if ref == expected else None)
     monkeypatch.setattr(image, "manifest_matches", lambda ref, dg, config: observed.append((ref, dg)))
     monkeypatch.setattr(image, "evidence", lambda *args: {"qualification": args[-1]})
     monkeypatch.setenv("DOCKER_CONFIG", "/unused/publisher-config")
@@ -144,3 +145,56 @@ def test_manifest_rejects_index_or_wrong_config(monkeypatch):
         monkeypatch.setattr(image, "run", lambda *a: json.dumps(manifest))
         with pytest.raises(version.ValidationError):
             image.manifest_matches("fixture", "sha256:" + "c" * 64, "config")
+
+
+def test_containerd_and_classic_config_identity():
+    """Actual containerd inspect metadata exposes a manifest ID distinct from config."""
+
+    config = "sha256:" + "a" * 64
+    manifest = "sha256:" + "b" * 64
+    assert image.config_digest({"Id": config}) == config
+    assert image.config_digest({"Id": manifest, "Descriptor": {
+        "digest": manifest, "annotations": {"config.digest": config}}}) == config
+
+
+def test_dry_run_never_pushes(monkeypatch, tmp_path):
+    """CLI dry run permits only build/qualification/evidence, with no stable operations."""
+
+    monkeypatch.setattr(sys, "argv", ["image.py", "dry-run", "--output", str(tmp_path / "dry.json")])
+    monkeypatch.setattr(image, "identity", lambda *a: {})
+    monkeypatch.setattr(image, "build", lambda *a: "local")
+    monkeypatch.setattr(image, "qualify", lambda *a: {})
+    monkeypatch.setattr(image, "evidence", lambda *a: {"manifestDigest": a[2]})
+    def forbidden(*args):
+        pytest.fail("dry run reached publication")
+    monkeypatch.setattr(image, "publish", forbidden)
+    monkeypatch.setattr(image, "require_absent", forbidden)
+    assert image.main() == 0
+    assert json.loads((tmp_path / "dry.json").read_text())["manifestDigest"] is None
+
+
+def test_existing_tag_blocks_before_build(monkeypatch, tmp_path):
+    """A rerun cannot even rebuild a stable image whose identity already exists."""
+
+    monkeypatch.setattr(image.subprocess, "run", lambda *a, **k:
+                        subprocess.CompletedProcess(a, 0, stdout="{}", stderr=""))
+    def forbidden(*args):
+        pytest.fail("existing stable image was rebuilt")
+    monkeypatch.setattr(image, "build", forbidden)
+    with pytest.raises(version.ValidationError, match="already exists"):
+        image.publish({"tag": "v1.4.0"}, tmp_path / "evidence.json")
+
+
+@pytest.mark.parametrize("architecture,compiled", [
+    ("arm64", "Wayfarer 1.4.0"), ("amd64", "Wayfarer 1.4.1"),
+])
+def test_image_rejects_wrong_platform_or_compiled_version(monkeypatch, architecture, compiled):
+    """Correct labels cannot hide the wrong binary version or image architecture."""
+
+    release = {"version": "1.4.0", "sourceRevision": "a" * 40}
+    inspected = {"Os": "linux", "Architecture": architecture,
+                 "Config": {"Labels": image.labels(release)}}
+    monkeypatch.setattr(image, "run", lambda *a: json.dumps([inspected])
+                        if a[1:3] == ("image", "inspect") else compiled)
+    with pytest.raises(version.ValidationError):
+        image.inspect_image(release, "fixture")

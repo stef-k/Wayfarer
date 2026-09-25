@@ -70,7 +70,7 @@ def require_absent(image: str) -> None:
     if result.returncode == 0:
         raise version.ValidationError("stable image already exists; never rebuild/overwrite it")
     # Docker emits this exact diagnostic for MANIFEST_UNKNOWN, not denied/transport errors.
-    if result.stderr.strip() != f"no such manifest: {image}":
+    if result.stderr.strip() not in {"manifest unknown", f"no such manifest: {image}"}:
         raise version.ValidationError("cannot prove stable image absent; check GHCR access/availability")
 
 
@@ -107,6 +107,16 @@ def manifest_matches(image: str, digest: str, config_digest: str) -> None:
         raise version.ValidationError("expected the tested single-platform image manifest")
 
 
+def config_digest(inspected: dict) -> str:
+    """Docker containerd uses manifest IDs; classic engines use config IDs."""
+
+    descriptor = inspected.get("Descriptor", {})
+    digest = descriptor.get("annotations", {}).get("config.digest", inspected["Id"])
+    if not DIGEST.fullmatch(digest):
+        raise version.ValidationError("invalid image config digest")
+    return digest
+
+
 def evidence(release: dict, inspected: dict, digest: str | None, status: str) -> dict:
     """Produce image-only evidence; dry runs cannot claim an immutable registry identity."""
 
@@ -116,7 +126,7 @@ def evidence(release: dict, inspected: dict, digest: str | None, status: str) ->
              if line.startswith("FROM ")]
     run_id = os.environ.get("GITHUB_RUN_ID")
     return {**release, "manifestDigest": digest, "platformDigest": digest,
-            "configDigest": inspected["Id"], "baseImages": bases,
+            "configDigest": config_digest(inspected), "baseImages": bases,
             "qualification": status,
             "workflowRun": f"{SOURCE}/actions/runs/{run_id}" if run_id else None,
             "workflowAttempt": os.environ.get("GITHUB_RUN_ATTEMPT")}
@@ -145,7 +155,7 @@ def publish(release: dict, output: Path) -> None:
     digest = matches[0]
     # Keep identity even if subsequent registry/anonymous qualification fails.
     write_evidence(output, evidence(release, inspected, digest, "pushed; anonymous qualification pending"))
-    manifest_matches(f"{IMAGE}@{digest}", digest, inspected["Id"])
+    manifest_matches(f"{IMAGE}@{digest}", digest, config_digest(inspected))
     with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as stream:
         stream.write(f"digest={digest}\n")
 
@@ -162,7 +172,7 @@ def anonymous(release: dict, digest: str, output: Path) -> None:
         try:
             run("docker", "pull", "--platform", PLATFORM, image)
             inspected = qualify(release, image)
-            manifest_matches(image, digest, inspected["Id"])
+            manifest_matches(image, digest, config_digest(inspected))
             write_evidence(output, evidence(release, inspected, digest, "anonymous pull and smoke passed"))
         finally:
             if previous is None:
