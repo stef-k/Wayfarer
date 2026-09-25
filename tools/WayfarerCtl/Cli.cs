@@ -9,6 +9,7 @@ public sealed class Cli(IProcessRunner runner, ITerminal terminal)
     public async Task<int> RunAsync(string[] args, CancellationToken token = default)
     {
         try { return await DispatchAsync(args, token); }
+        catch (System.Text.Json.JsonException) { terminal.Error("Invalid installation JSON configuration; restore the trusted non-secret identity."); return 2; }
         catch (UsageException e) { terminal.Error(e.Message); return 2; }
         catch (OperationCanceledException) { terminal.Error("Cancelled. State retained; run status/doctor before retrying."); return 1; }
         catch (Exception) { terminal.Error("Operation failed. State retained; check Docker access, protected configuration and doctor."); return 1; }
@@ -144,7 +145,7 @@ public sealed class Cli(IProcessRunner runner, ITerminal terminal)
         void Display(string line)
         {
             if (secrets.Any(line.Contains) || System.Text.RegularExpressions.Regex.IsMatch(line,
-                "password|token|connectionstring|securitystamp|authorization|-----BEGIN|<key", System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+                "password|token|connectionstring|securitystamp|authorization|Host=|Server=|postgresql://|-----BEGIN|<key", System.Text.RegularExpressions.RegexOptions.IgnoreCase))
                 terminal.Write("[sensitive log line withheld]");
             else terminal.Write(new string(line.Where(character => !char.IsControl(character) || character == '\t').ToArray()));
         }

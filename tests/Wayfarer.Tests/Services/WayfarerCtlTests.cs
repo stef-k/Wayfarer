@@ -83,12 +83,15 @@ public sealed class WayfarerCtlTests
         Assert.DoesNotContain(process.Calls, call => call.Contains("down") || call.Contains("-v"));
     }
 
-    [Fact]
-    public async Task FailedMigrationNeverSeedsBootstrapsOrStartsIngress()
+    [Theory]
+    [InlineData(4)]
+    [InlineData(5)]
+    [InlineData(6)]
+    public async Task FailedMaintenanceNeverRunsSubsequentStepsOrIngress(int failedStep)
     {
-        var process = new FakeProcess { FailAt = 4 };
+        var process = new FakeProcess { FailAt = failedStep };
         await Assert.ThrowsAsync<IOException>(() => new Setup(process, new FakeTerminal()).ExecuteAsync("/etc/wayfarer", Config(), "hidden", default));
-        Assert.Equal(4, process.Calls.Count);
+        Assert.Equal(failedStep, process.Calls.Count);
     }
 
     [Theory]
@@ -132,6 +135,7 @@ public sealed class WayfarerCtlTests
         Assert.Throws<UsageException>(() => (Config() with { AppDigest = "latest" }).Validate());
         Assert.Throws<UsageException>(() => (Config() with { Hostname = "localhost" }).Validate());
         Assert.Throws<UsageException>(() => (Config() with { Mode = "native" }).Validate());
+        Assert.Throws<UsageException>(() => (Config() with { Schema = 2 }).Validate());
         Config().Validate();
     }
 
@@ -191,6 +195,14 @@ public sealed class WayfarerCtlTests
             {"services":{"wayfarer":{"image":"ghcr.io/stef-k/wayfarer:latest","platform":"linux/amd64"}}}
             """);
         Assert.Throws<UsageException>(() => Preflight.VerifyImages(Config(), document.RootElement));
+    }
+
+    [Fact]
+    public async Task UnavailableDockerFailsBeforeOtherPreflightWork()
+    {
+        var process = new FakeProcess { Reply = _ => new(1, "unavailable") };
+        await Assert.ThrowsAsync<UsageException>(() => new Preflight(process).DockerAsync(default));
+        Assert.Single(process.Calls);
     }
 
     private static Deployment Config() => new() { Bundle = "/bundle", Hostname = "wayfarer.example.org", AppDigest = "sha256:" + new string('a', 64) };

@@ -137,6 +137,12 @@ class Journey:
                         data=self.password + '\n', check=False).returncode == 2
         secret_check = self.host('sh', '-ec', f'stat -c "%a %u %g" {self.install}/secrets/*').stdout
         assert sorted(secret_check.splitlines()) == ['600 0 0', '600 1654 1654', '600 999 999']
+        self.host('sh', '-ec', f'test "$(wc -c < {self.install}/secrets/app-password)" = 64; '
+                  f'cmp -s {self.install}/secrets/app-password {self.install}/secrets/db-app-password; '
+                  f'! cmp -s {self.install}/secrets/app-password {self.install}/secrets/db-password')
+        self.host('chmod', '640', str(self.install / 'secrets/app-password'))
+        assert self.ctl('doctor', check=False).returncode == 1
+        self.host('chmod', '600', str(self.install / 'secrets/app-password'))
         assert 'FAIL' not in self.ctl('status').stdout
         assert 'FAIL' not in self.ctl('doctor').stdout
         assert 'admin' in self.ctl('user', 'find', 'admin').stdout

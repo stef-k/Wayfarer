@@ -140,6 +140,19 @@ public sealed class Diagnostics(IProcessRunner runner, ITerminal terminal)
     /// <summary>Normal certificate validation, no redirects/proxy environment; bounded public/loopback proof.</summary>
     public static async Task EndpointAsync(Deployment config, CancellationToken token, string? expectedVersion = null)
     {
+        // Caddy may still be completing ACME after its process starts. Keep the wait bounded.
+        for (var attempt = 0; ; attempt++)
+        {
+            try { await EndpointOnceAsync(config, token, expectedVersion); return; }
+            catch (Exception error) when (attempt < 5 && !token.IsCancellationRequested &&
+                error is HttpRequestException or IOException or TaskCanceledException)
+            { await Task.Delay(TimeSpan.FromSeconds(2), token); }
+        }
+    }
+
+    /// <summary>One certificate-validating HTTP attempt, with response and version identity checks.</summary>
+    private static async Task EndpointOnceAsync(Deployment config, CancellationToken token, string? expectedVersion)
+    {
         using var handler = new HttpClientHandler { AllowAutoRedirect = false, UseProxy = false };
         using var client = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(10) };
         var origin = config.Mode == "managed" ? "https://" + config.Hostname : "http://127.0.0.1:" + config.LoopbackPort;
