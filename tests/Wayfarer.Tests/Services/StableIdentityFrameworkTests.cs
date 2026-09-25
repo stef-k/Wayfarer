@@ -1,5 +1,4 @@
 using System.Security.Claims;
-using System.Security.Cryptography;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
@@ -12,6 +11,8 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
 using Wayfarer.Models;
+using Wayfarer.Services;
+using Wayfarer.Services.ExternalRouting;
 using Wayfarer.Services.LocationProviders;
 using Wayfarer.Tests.Infrastructure;
 using Xunit;
@@ -33,20 +34,19 @@ public sealed class StableIdentityFrameworkTests
         var oldCookie = await IssueCookieAsync(legacy);
         var oldForm = IssueForm(legacy);
         var oldIdentity = await IdentityTokenAsync(legacy);
-        var oldProvider = legacy.Services.GetRequiredService<IDataProtectionProvider>();
-        var purposes = new[]
-        {
-            "Wayfarer.TripEditor.SegmentAggregate.v1", "Wayfarer.TripEditor.SegmentRouteClear.v1",
-            "Wayfarer.PlaceRegionLifecycle.DependencyConfirmation.v1", "Wayfarer.ExternalRouting.ProposalContext.v1"
-        };
-        var oldTokens = purposes.Select(purpose => oldProvider.CreateProtector(purpose).Protect("operation")).ToArray();
+        var oldOperations = Operations(legacy.Services.GetRequiredService<IDataProtectionProvider>());
+        var oldTokens = oldOperations.Select(operation => operation.Issue()).ToArray();
         await using var stable = Host(sourceRoot, ring, stable: true);
         Assert.False(await AuthenticateAsync(stable, oldCookie));
         Assert.False(await ValidateFormAsync(stable, oldForm));
         Assert.False(await ValidateIdentityAsync(stable, oldIdentity));
-        var stableProvider = stable.Services.GetRequiredService<IDataProtectionProvider>();
-        for (var index = 0; index < purposes.Length; index++)
-            Assert.Throws<CryptographicException>(() => stableProvider.CreateProtector(purposes[index]).Unprotect(oldTokens[index]));
+        var stableOperations = Operations(stable.Services.GetRequiredService<IDataProtectionProvider>());
+        var stableTokens = stableOperations.Select(operation => operation.Issue()).ToArray();
+        for (var index = 0; index < stableOperations.Length; index++)
+        {
+            Assert.False(stableOperations[index].Read(oldTokens[index]));
+            Assert.True(stableOperations[index].Read(stableTokens[index]));
+        }
         var cookie = await IssueCookieAsync(stable);
         var form = IssueForm(stable);
         var identity = await IdentityTokenAsync(stable);
@@ -61,9 +61,31 @@ public sealed class StableIdentityFrameworkTests
         Assert.True(await AuthenticateAsync(target, cookie));
         Assert.True(await ValidateFormAsync(target, form));
         Assert.True(await ValidateIdentityAsync(target, identity));
-        var targetProvider = target.Services.GetRequiredService<IDataProtectionProvider>();
-        foreach (var purpose in purposes)
-            Assert.True(targetProvider.CreateProtector(purpose).Unprotect(stableProvider.CreateProtector(purpose).Protect("operation")) == "operation");
+        var targetOperations = Operations(target.Services.GetRequiredService<IDataProtectionProvider>());
+        for (var index = 0; index < targetOperations.Length; index++)
+            Assert.True(targetOperations[index].Read(stableTokens[index]));
+    }
+
+    /// <summary>Exercises the four production issue/read paths with a fixed fixture scope and normal expiry.</summary>
+    private static (Func<string> Issue, Func<string, bool> Read)[] Operations(IDataProtectionProvider provider)
+    {
+        var trip = Guid.Parse("a0000000-0000-0000-0000-000000000001");
+        var segment = Guid.Parse("a0000000-0000-0000-0000-000000000002");
+        var aggregate = new SegmentAggregateTokenService(provider);
+        var clear = new SegmentRouteClearConfirmation(provider, TimeProvider.System);
+        var lifecycle = new LifecycleDependencyConfirmation(provider);
+        var dependencies = new LifecycleDependencies([segment], [], [], [], []);
+        var proposal = new ExternalRouteProposalContextService(provider);
+        var binding = new ExternalRouteProposalBinding(Guid.Empty, trip, segment, "fixture-user", "geometry", "anchors", null, "version");
+        return
+        [
+            (() => aggregate.Issue("fixture-user", trip, segment, 1),
+                token => aggregate.TryRead(token, "fixture-user", trip, segment, out var version) && version == 1),
+            (() => clear.Issue(segment, "fingerprint").Token, token => clear.IsValid(token, segment, "fingerprint")),
+            (() => lifecycle.Create("conflict", "delete", "fixture-user", trip, segment, dependencies).ConfirmationToken,
+                token => lifecycle.IsValid(token, "delete", "fixture-user", trip, segment, dependencies)),
+            (() => proposal.Issue(binding).Token, token => proposal.TryRead(token, out var read) && read == binding)
+        ];
     }
 
     /// <summary>Uses the normal stable registration or framework hosted legacy registration without a discriminator override.</summary>
