@@ -49,12 +49,17 @@ public sealed class TileCacheStorageQualificationTests
     [InlineData("flat", HttpStatusCode.NotModified)]
     public async Task StaleHits_RefreshInPlace(string kind, HttpStatusCode status)
     {
-        var upstream = new RecordingTileHandler((_, _) =>
+        // Hold refresh publication until the foreground has proved it served the stale bytes.
+        var refreshStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseRefresh = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var upstream = new RecordingTileHandler(async (_, cancellationToken) =>
         {
+            refreshStarted.TrySetResult();
+            await releaseRefresh.Task.WaitAsync(cancellationToken);
             var response = new HttpResponseMessage(status) { Content = new ByteArrayContent([3, 4, 5]) };
             response.Headers.TryAddWithoutValidation("ETag", "\"new\"");
             response.Headers.TryAddWithoutValidation("Cache-Control", "max-age=3600");
-            return Task.FromResult(response);
+            return response;
         });
         await using var harness = new TileCacheTestHarness(upstream, distinctRoots: true);
         string reference;
@@ -65,9 +70,19 @@ public sealed class TileCacheStorageQualificationTests
             reference = row.TileFilePath;
             row.ExpiresAtUtc = DateTime.UtcNow.AddHours(-1);
             await db.SaveChangesAsync();
-            var result = await scope.ServiceProvider.GetRequiredService<TileCacheService>()
-                .RetrieveTileAsync("9", "1", "2", "https://tiles.test/9/1/2.png");
-            Assert.Equal(new byte[] { 7, 8 }, result.TileData);
+            try
+            {
+                var result = await scope.ServiceProvider.GetRequiredService<TileCacheService>()
+                    .RetrieveTileAsync("9", "1", "2", "https://tiles.test/9/1/2.png")
+                    .WaitAsync(TimeSpan.FromSeconds(5));
+                await refreshStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+                Assert.Equal(new byte[] { 7, 8 }, result.TileData);
+            }
+            finally
+            {
+                // Release even on failure so background work cannot strand fixture disposal.
+                releaseRefresh.TrySetResult();
+            }
         }
         Assert.True(await TileCacheService.WaitForRefreshIdleForTestingAsync("9_1_2", TimeSpan.FromSeconds(5)));
         using var verification = harness.CreateScope();
