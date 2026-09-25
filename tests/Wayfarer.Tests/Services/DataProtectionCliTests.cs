@@ -4,6 +4,8 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Wayfarer.CommandLine;
+using Wayfarer.Models;
+using Wayfarer.Util;
 using Wayfarer.Models.LocationProviders;
 using Wayfarer.Services.LocationProviders;
 using Wayfarer.Tests.Infrastructure;
@@ -50,6 +52,9 @@ public sealed class DataProtectionCliTests
             .Protect(StableIdentityCryptographyTests.Secret);
         profile.StableProtectedCredential = null;
         db.Add(profile);
+        var apiHash = ApiTokenService.HashToken("fixture-mobile-token");
+        db.ApiTokens.Add(new ApiToken { UserId = user.Id, User = await db.Users.SingleAsync(row => row.Id == user.Id),
+            Name = "mobile", TokenHash = apiHash });
         await db.SaveChangesAsync();
         var keysBefore = Directory.GetFiles(ring).ToDictionary(file => Path.GetFileName(file)!, File.ReadAllBytes);
         Assert.Equal(1, await RunProcessAsync("status", directory.Path, ring, fixture.ConnectionString));
@@ -67,6 +72,9 @@ public sealed class DataProtectionCliTests
         await targetFixture.InitializeAsync();
         await CopyDatabaseAsync(fixture, targetFixture, directory.Path);
         Assert.Equal(0, await RunProcessAsync("status", target, copiedRing, targetFixture.ConnectionString, useStorage: true));
+        await using var targetDb = targetFixture.CreateContext();
+        Assert.True(await new ApiTokenService(targetDb, null!).ValidateApiTokenAsync(user.Id, "fixture-mobile-token"));
+        Assert.True((await targetDb.ApiTokens.SingleAsync()).TokenHash == apiHash);
         Assert.Equal(1, await RunProcessAsync("prepare-stable-identity", target, copiedRing, targetFixture.ConnectionString, useStorage: true));
         Assert.Equal(0, await RunProcessAsync("status", target, copiedRing, targetFixture.ConnectionString, useStorage: true));
         foreach (var path in new[] { ring, copiedRing })
