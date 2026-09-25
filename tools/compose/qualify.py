@@ -63,7 +63,7 @@ class Stack:
         with socket.socket() as listener:
             listener.bind(('127.0.0.1', 0))
             self.port = listener.getsockname()[1]
-        caddy.write_text('{\n https_port ' + str(self.port) + '\n}\n' + (BUNDLE / 'caddy/Caddyfile').read_text().replace(
+        caddy.write_text('{\n skip_install_trust\n https_port ' + str(self.port) + '\n}\n' + (BUNDLE / 'caddy/Caddyfile').read_text().replace(
             '{$PUBLIC_HOST} {', '{$PUBLIC_HOST} {\n\ttls internal'))
         # !override replaces production listeners rather than appending public test ports.
         self.override.write_text('services:\n  wayfarer:\n    image: ' + self.image +
@@ -270,7 +270,7 @@ class Stack:
             listener.bind(('127.0.0.1', 0))
             self.port = listener.getsockname()[1]
         config = self.directory / 'external.Caddyfile'
-        config.write_text('{\n admin off\n auto_https disable_redirects\n}\n'
+        config.write_text('{\n admin off\n skip_install_trust\n auto_https disable_redirects\n}\n'
             f'https://wayfarer.example.org:{self.port} {{\n bind 127.0.0.1\n tls internal\n'
             ' reverse_proxy 127.0.0.1:18464 {\n flush_interval -1\n }\n}\n')
         with (self.directory / 'external.log').open('w') as log:

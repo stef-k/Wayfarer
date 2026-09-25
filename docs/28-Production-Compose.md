@@ -169,7 +169,8 @@ in ordinary lifecycle commands. No safe update/rollback/restore automation exist
 
 CI reuses the application-image dry-run and runs `tools/compose/qualify.py --image
 <local-image-ID>`. Its test-only override selects that exact local build, an isolated
-project, high loopback TLS port and Caddy internal CA. Production pins and automatic
+project, high loopback TLS port and Caddy internal CA. Test configurations disable
+CA trust-store installation; curl trusts only the explicitly supplied temporary CA file. Production pins and automatic
 public HTTPS remain unchanged. It validates both config modes, malformed inputs,
 fresh non-superuser migration/seed/bootstrap, health, real page/static/KML/SSE/PDF/
 thumbnail paths, network/mount boundaries, DB/key/upload/TLS state after recreation,
