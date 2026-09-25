@@ -7,20 +7,21 @@ config=$1
 shift
 [[ $config == /* && -f $config ]] || fail 'an absolute configuration file is required'
 # The file is the authority; ambient deployment values must not fill missing inputs.
-unset PUBLIC_HOST WAYFARER_DIGEST PROXY_MODE EDGE_PREFIX DB_PASSWORD_FILE DB_APP_PASSWORD_FILE APP_PASSWORD_FILE EXTERNAL_PROXY_ADDRESS LOOPBACK_ADDRESS LOOPBACK_PORT
+unset PUBLIC_HOST WAYFARER_DIGEST DB_DIGEST PROXY_MODE EDGE_PREFIX DB_PASSWORD_FILE DB_APP_PASSWORD_FILE APP_PASSWORD_FILE EXTERNAL_PROXY_ADDRESS LOOPBACK_ADDRESS LOOPBACK_PORT
 # Parse literals only; never execute the operator file or expand shell substitutions.
 while IFS= read -r line || [[ -n $line ]]; do
     [[ -z $line || $line == \#* ]] && continue
     [[ $line =~ ^([A-Z_]+)=(.*)$ ]] || fail 'expected literal KEY=value'
     key=${BASH_REMATCH[1]}; value=${BASH_REMATCH[2]}
     case $key in
-        PUBLIC_HOST|WAYFARER_DIGEST|PROXY_MODE|EDGE_PREFIX|DB_PASSWORD_FILE|DB_APP_PASSWORD_FILE|APP_PASSWORD_FILE|EXTERNAL_PROXY_ADDRESS|LOOPBACK_ADDRESS|LOOPBACK_PORT) ;;
+        PUBLIC_HOST|WAYFARER_DIGEST|DB_DIGEST|PROXY_MODE|EDGE_PREFIX|DB_PASSWORD_FILE|DB_APP_PASSWORD_FILE|APP_PASSWORD_FILE|EXTERNAL_PROXY_ADDRESS|LOOPBACK_ADDRESS|LOOPBACK_PORT) ;;
         *) fail 'unknown configuration key' ;;
     esac
     [[ $value != *'$'* && $value != *'"'* && $value != *"'"* && $value != *'`'* ]] || fail 'values must be literal, without quoting/interpolation'
     export "$key=$value"
 done < "$config"
 [[ ${WAYFARER_DIGEST:-} =~ ^sha256:[0-9a-f]{64}$ ]] || fail 'immutable application sha256 digest required'
+[[ ${DB_DIGEST:-} =~ ^sha256:[0-9a-f]{64}$ ]] || fail 'immutable database sha256 digest required'
 [[ ${PUBLIC_HOST:-} =~ ^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)+$ && ${#PUBLIC_HOST} -le 253 ]] || fail 'DNS hostname required'
 IFS=. read -ra host_labels <<< "$PUBLIC_HOST"
 for label in "${host_labels[@]}"; do

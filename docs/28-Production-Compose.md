@@ -39,34 +39,98 @@ container addresses. Host administration is outside the network isolation bounda
 
 ## Exact third-party image decision
 
-Live pull, image config, executable and extension checks on 2026-09-25 established:
+Live manifest/config, executable and signed-package checks on 2026-09-25 established:
 
-| Candidate | Immutable digest | Actual payload | Decision |
-| --- | --- | --- | --- |
-| `postgis/postgis:17-3.5` | `sha256:01a6a70e41e6c4467c8f55f6063555ed72db2d6662cd0d571040d42eadaeb6f6` | PG17.5 (`17.5-1.pgdg110+1`), PostGIS3.5.2, Debian11 | Rejected; repush did not patch PostgreSQL |
-| `postgis/postgis:17-3.5-alpine` | `sha256:894f570c0cf0664ed5576a8fd5d5bfb8fb1b19d592885b686c3a88c8bd90c41f` | PG17.11, PostGIS3.5.7, Alpine3.24.1 | Selected; smallest family refinement |
-| `postgis/postgis:17-3.6-alpine` | `sha256:a8ffa9afeea4ad6eada171fa2afdb57cd3eb90f92ce20156aa2cb8411d70e0cd` | PG17.11, PostGIS3.6.4, Alpine3.24.1 | Investigated; unnecessary PostGIS series change |
+| Candidate | Actual payload / provenance | Decision |
+| --- | --- | --- |
+| PostGIS project `17-3.5` Debian | PG17.5 (`17.5-1.pgdg110+1`), PostGIS3.5.2, Debian11 | Rejected; current manifest remains stale |
+| Official `postgres:17.11-bookworm` + PGDG PostGIS | PG17.11 (`17.11-1.pgdg12+2`), PostGIS3.6.4 (`3.6.4+dfsg-2.pgdg12+1`), Debian12/glibc2.36 | Selected Wayfarer packaging route |
+| PostGIS project `17-3.5-alpine` | PG17.11, PostGIS3.5.7, Alpine3.24.1/musl | Qualified alternative, superseded by practical glibc route |
+| PostGIS project `17-3.6-alpine` | PG17.11, PostGIS3.6.4, Alpine3.24.1/musl | Available; does not resolve the libc concern |
 
-`17-3.6` Debian did not resolve. Development/master or PG18 images are not substitutes.
-The selected PostGIS digest is a single AMD64 manifest. It contains PostgreSQL
-17.11 server, `pg_dump`, `pg_restore`, PostGIS3.5.7 and `citext`1.6. Live SQL reports
-GEOS3.14.1, PROJ9.8.1 and LIBXML2.13.9. The project builds PostgreSQL/PostGIS from
-source on musl; Alpine package dates alone are not evidence of the server patch.
+The project Debian `17-3.6` tag does not resolve; its source Dockerfile is a
+placeholder. Current `17-3.5` index remains
+`sha256:01a6a70e41e6c4467c8f55f6063555ed72db2d6662cd0d571040d42eadaeb6f6`.
+The rejected Alpine selection was
+`sha256:894f570c0cf0664ed5576a8fd5d5bfb8fb1b19d592885b686c3a88c8bd90c41f`;
+the investigated 3.6 Alpine digest was
+`sha256:a8ffa9afeea4ad6eada171fa2afdb57cd3eb90f92ce20156aa2cb8411d70e0cd`.
+No third-party convenience image or PostgreSQL major change is introduced.
+
+`db/Dockerfile` pins the official PostgreSQL17.11 Bookworm **AMD64 base manifest**
+`sha256:91eb910c44c7ed13f7f1a4ccadaa9ca72ef14cddc04cacb6e070e48eb44731a3`
+(index `sha256:639ab7ceb90e13123085b741fb31ef493fba25463002f6da665352e7b534b652`).
+It installs exact matching `postgresql-17-postgis-3` and `-scripts` versions from
+PGDG using the base's repository/signing key, and rejects a changed server package.
+There is no source compilation, replacement entrypoint, runtime package installation
+or baked-in cluster/secret. Existing Compose initialization creates only required
+`postgis` and `citext` extensions in the application DB. PostgreSQL supplies citext1.6.
+The base retains UID/GID999 and `/var/lib/postgresql/data`.
 
 [PostgreSQL17.11 release notes](https://www.postgresql.org/docs/17/release-17-11.html)
-identify the current patch and security fixes. The
-[official PostGIS project](https://github.com/postgis/docker-postgis) supplies both
-investigated Alpine variants and retains the PG17 data path.
-The bounded refinement is **fresh PG17/PostGIS3.5 Alpine clusters**, not a general
-license to change libc or major versions on existing data. Initialize UTF8 with
-explicit `C.UTF-8` locale; do not assume glibc locale ordering, locale availability,
-collation indexes or binary extension libraries transfer to musl. Existing native/
-Debian state requires a separately qualified logical migration under #604; never
-attach its data directory to this image. Backup tooling must use the selected
-image's version-matched PostgreSQL tools, with extensions provisioned on restore.
-Plain `C` was rejected after it failed Greek `citext` case folding; `C.UTF-8`
-preserves the tested Greek and accented Latin behavior. Disposable spatial/citext round trip and application-schema custom-format dump/
-restore qualify these tools here; managed backup/recovery remains unimplemented.
+identify current PG17 fixes. [PostgreSQL's Debian distribution](https://www.postgresql.org/download/linux/debian/)
+supports Bookworm and provides maintained PG17 packages; [PostGIS's installation guide](https://postgis.net/documentation/getting_started/install_ubuntu/)
+explicitly recommends this package route. The upstream image is maintained by the
+[Docker Official Images PostgreSQL team](https://github.com/docker-library/postgres),
+and the extension packages by the PostgreSQL/PGDG packaging ecosystem. Debian owns
+base-library security updates. Wayfarer owns the small assembly layer and must
+monitor all three, refresh pins, rebuild, qualify, then publish a new immutable
+DB image. No unattended update runs inside an existing image. Transitive Debian/
+PGDG dependencies are resolved at build time: exact top-level pins do not promise
+bit-for-bit rebuilds; the published **derived manifest digest** is runtime authority.
+If a pinned package is withdrawn, the build fails rather than silently changing it.
+
+This is lower maintenance than compiling PostGIS or adopting another vendor's
+entrypoint/update contract. Canonical/Ubuntu was not needed after the official
+PostgreSQL + PGDG route passed assembly; no claim is made that an Ubuntu vendor
+image supplies this exact combination. The Alpine alternative delegates assembly
+to PostGIS but introduces musl locale/library compatibility work. Both require
+Wayfarer to track upstream fixes and requalify each accepted image refresh; the
+selected route additionally requires Wayfarer to build and publish that image.
+
+Fresh clusters retain explicit UTF8/C.UTF-8. `citext` folds Greek and accented Latin
+case, preserves accent distinctions, and ordinary text ordering is byte ordering,
+not Greek-language dictionary ordering. Plain `C` previously failed Greek folding.
+Qualification checks these properties and required extensions on the selected base,
+then checks them again after custom-format restore with a spatial/citext row and
+the real application schema. This is a bounded behavioral sample, not equivalence
+of every Unicode case/collation between libc implementations.
+
+For #604, inspect source PG/PostGIS versions, extension usage, encoding, locale
+provider/version and collation-dependent uniqueness before logical dump/restore.
+Use the selected image's PG17 tools and explicitly provision compatible extensions;
+rebuild indexes through restore and verify application identities and representative
+Greek/Latin data. The PostGIS3.5 → 3.6 boundary needs source-specific qualification;
+this fresh-stack proof does not qualify production migration, downgrade, binary
+extensions or direct data-directory reuse. Glibc reduces the libc change but does
+not remove these migration requirements. Managed backup/recovery remains unimplemented.
+
+## Derived database image delivery
+
+The production Compose file consumes `ghcr.io/stef-k/wayfarer-db@${DB_DIGEST}` with
+no build context. A target host neither builds Wayfarer nor installs PGDG packages.
+`DB_DIGEST` must be the published, qualified **derived image manifest**, never the
+PostgreSQL base digest, a local image ID or a guessed reference. As with the pending
+first application publication, source/CI qualification is not proof of anonymous
+registry availability. Until DB publication and digest capture are complete, this
+source bundle is not ready for ordinary deployment. The release bundle must carry
+the accepted digest; do not retain Alpine as an implicit fallback.
+
+Maintainer/CI assembly and disposable qualification use:
+
+```bash
+docker buildx build --platform linux/amd64 --load --provenance=false --sbom=false \
+  --tag wayfarer-db:qualification deploy/compose/db
+# Both arguments are exact local IDs; only the disposable override consumes them.
+python3 tools/compose/qualify.py --image "$application_image_id" \
+  --db-image "$(docker image inspect wayfarer-db:qualification --format '{{.Id}}')"
+```
+
+Publication must preserve the qualified artifact, record source revision/package
+versions and registry manifest digest, then prove an anonymous pull and rerun the
+Compose gate against that exact pulled artifact before declaring release acceptance.
+Do not rebuild under an existing release identity. Final release tarball/metadata
+and general lifecycle publication orchestration remain later #603 work.
 
 Caddy is official `caddy:2-alpine`, executable **2.11.4** on Alpine3.23.6, pinned index
 `sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b`;
@@ -82,9 +146,9 @@ an explicit tested extension step. Do not rebuild an existing stable release.
 Copy `config/deployment.env.example` to an absolute administrator-owned location,
 for example `/etc/wayfarer/deployment.env`. It contains literal `KEY=value` entries,
 no shell expansion, quoted values or passwords. Set the public DNS hostname,
-application `sha256:` digest from genuine release evidence, mode and secret paths.
+application and derived DB `sha256:` digests from genuine release evidence, mode and secret paths.
 The application reference becomes `ghcr.io/stef-k/wayfarer@sha256:...`.
-DB/Caddy immutable references live directly in the inspectable Compose source.
+The DB reference becomes `ghcr.io/stef-k/wayfarer-db@sha256:...`; Caddy is pinned directly in Compose.
 No released application digest is fabricated by this slice; first real publication
 acceptance under #642 remains required for ordinary anonymous deployment.
 
@@ -103,7 +167,7 @@ with mode0700; files are mode0600 and mounted read-only:
 | Input | Host owner | Consumer |
 | --- | --- | --- |
 | `DB_PASSWORD_FILE` | root (upstream root entrypoint reads it) | DB bootstrap administrator |
-| `DB_APP_PASSWORD_FILE` | 70:70 (selected Alpine postgres) | DB initialization |
+| `DB_APP_PASSWORD_FILE` | 999:999 (selected Debian postgres) | DB initialization |
 | `APP_PASSWORD_FILE` | 1654:1654 | Wayfarer password-file seam |
 
 The last two files contain **the same application password**, copied with separate
@@ -168,7 +232,7 @@ for authoritative data. **Volume deletion destroys state.** Do not use volume re
 in ordinary lifecycle commands. No safe update/rollback/restore automation exists yet.
 
 CI reuses the application-image dry-run and runs `tools/compose/qualify.py --image
-<local-image-ID>`. Its test-only override selects that exact local build, an isolated
+<local-app-image-ID> --db-image <local-db-image-ID>`. Its test-only override selects that exact local build, an isolated
 project, high loopback TLS port and Caddy internal CA. Test configurations disable
 CA trust-store installation; curl trusts only the explicitly supplied temporary CA file. Production pins and automatic
 public HTTPS remain unchanged. It validates both config modes, malformed inputs,
@@ -177,13 +241,14 @@ thumbnail paths, network/mount boundaries, DB/key/upload/TLS state after recreat
 logical dump/restore, authenticated-cookie survival, public client-IP spoof resistance
 and a real separate host-native Caddy proxy through the external loopback endpoint. It deletes only its random
 project-labelled test resources and temporary secret files, never global Docker state.
-The selected third-party digests are pulled by Compose and actual DB versions checked.
+CI builds the DB from its pinned upstream base/packages and checks actual DB versions;
+Caddy is pulled by its production digest. Registry acceptance of the derived DB remains separate.
 Existing image/browser/release and ordinary application CI remain separate gates.
 This is disposable integration evidence, not public-CA issuance, production host,
 M6 cutover, arbitrary external-proxy, mobile/embed or full #603 acceptance.
 
 Local qualification on 2026-09-25 used Docker29.1.3/Compose2.40.3 on Linux/WSL.
-The maintained Alpine DB passed explicit non-superuser EF/Quartz migration, repeated
+The maintained Debian/PGDG DB must pass explicit non-superuser EF/Quartz migration, repeated
 seed and protected admin bootstrap. Browser-generated JPEG/PDF, SSE heartbeat and
 KML download passed through trusted local TLS. Container replacement preserved DB,
 complete keys, a representative durable upload and TLS identities; an authenticated

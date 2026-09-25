@@ -26,10 +26,11 @@ def run(*args, data=None, check=True):
 
 class Stack:
     """Own exactly one random Compose project and its temporary qualification files."""
-    def __init__(self, directory, image):
+    def __init__(self, directory, image, db_image):
         self.directory = Path(directory)
         self.project = 'wayfarer-644-' + uuid.uuid4().hex[:10]
         self.image = image
+        self.db_image = db_image
         self.env = self.directory / 'deployment.env'
         self.override = self.directory / 'test.yaml'
         self.password = secrets.token_hex(24) + '!aA9'
@@ -57,7 +58,7 @@ class Stack:
         # Ownership is real, not Compose uid/gid metadata (which cannot remap bind mounts).
         run('docker', 'run', '--rm', '--user', '0', '--network', 'none', '--entrypoint', 'sh',
             '-v', f'{self.directory}:/qualification', self.image, '-ec',
-            'chown 1654:1654 /qualification/app-password; chown 70:70 /qualification/db-app-password')
+            'chown 1654:1654 /qualification/app-password; chown 999:999 /qualification/db-app-password')
         self.write_env()
         caddy = self.directory / 'Caddyfile'
         with socket.socket() as listener:
@@ -67,6 +68,7 @@ class Stack:
             '{$PUBLIC_HOST} {', '{$PUBLIC_HOST} {\n\ttls internal'))
         # !override replaces production listeners rather than appending public test ports.
         self.override.write_text('services:\n  wayfarer:\n    image: ' + self.image +
+            '\n    pull_policy: never\n  db:\n    image: ' + self.db_image +
             '\n    pull_policy: never\n  caddy:\n    ports: !override\n'
             f'      - "127.0.0.1:{self.port}:{self.port}"\n'
             '    networks:\n      edge:\n        aliases: [wayfarer.example.org]\n'
@@ -75,7 +77,7 @@ class Stack:
     def write_env(self):
         """Keep secrets outside interpolation and select a bounded host loopback endpoint."""
         self.env.write_text(f'PUBLIC_HOST=wayfarer.example.org\nWAYFARER_DIGEST=sha256:{"0" * 64}\n'
-            f'PROXY_MODE={self.mode}\nEDGE_PREFIX=172.30.65\n'
+            f'DB_DIGEST=sha256:{"0" * 64}\nPROXY_MODE={self.mode}\nEDGE_PREFIX=172.30.65\n'
             f'DB_PASSWORD_FILE={self.directory}/db-password\n'
             f'APP_PASSWORD_FILE={self.directory}/app-password\n'
             f'DB_APP_PASSWORD_FILE={self.directory}/db-app-password\n'
@@ -99,8 +101,10 @@ class Stack:
             else:
                 assert 'caddy' not in services
                 assert services['wayfarer']['ports'][0]['host_ip'] == '127.0.0.1'
-        for old, new in [('sha256:' + '0' * 64, 'latest'), ('wayfarer.example.org', 'https://bad/path'),
-                         ('DB_PASSWORD_FILE=', 'UNKNOWN=')]:
+        for old, new in [('WAYFARER_DIGEST=sha256:' + '0' * 64, 'WAYFARER_DIGEST=latest'),
+                         ('DB_DIGEST=sha256:' + '0' * 64, 'DB_DIGEST=latest'),
+                         ('DB_DIGEST=sha256:' + '0' * 64 + '\n', ''),
+                         ('wayfarer.example.org', 'https://bad/path'), ('DB_PASSWORD_FILE=', 'UNKNOWN=')]:
             self.env.write_text(original.replace(old, new))
             assert run(str(BUNDLE / 'compose.sh'), str(self.env), 'config', check=False).returncode != 0
         self.mode = 'managed'
@@ -112,8 +116,10 @@ class Stack:
         self.compose('run', '--rm', '--no-deps', '--user', '0', '--entrypoint', 'sh', 'wayfarer', '-ec',
             'chown 1654:1654 /var/lib/wayfarer /var/cache/wayfarer /var/log/wayfarer; '
             'chmod 700 /var/lib/wayfarer; chmod 750 /var/cache/wayfarer /var/log/wayfarer')
-        assert self.sql("SELECT current_setting('server_version'), postgis_lib_version();") == '17.11|3.5.7'
-        assert self.sql("SELECT 'Α'::citext = 'α'::citext, lower('É');") == 't|é'
+        assert self.sql("SELECT current_setting('server_version'), postgis_lib_version();") == '17.11 (Debian 17.11-1.pgdg12+2)|3.6.4'
+        self.database_semantics()
+        self.sql("""CREATE TABLE compose_db_probe (label citext UNIQUE, point geometry(Point,4326));
+            INSERT INTO compose_db_probe VALUES ('Άλφα', ST_SetSRID(ST_MakePoint(23.7,37.9),4326));""")
         assert self.sql("SELECT rolsuper FROM pg_roles WHERE rolname='wayfarer';") == 'f'
         for command in [('database', 'migrate'), ('database', 'seed'), ('database', 'seed')]:
             self.compose('run', '--rm', '-T', 'wayfarer', *command)
@@ -130,6 +136,17 @@ class Stack:
             image_info = json.loads(run('docker', 'image', 'inspect', info['Image']).stdout)[0]
             assert image_info['Os'] == 'linux' and image_info['Architecture'] == 'amd64'
             print(service + ': ' + info['Config']['Image'], flush=True)
+
+    def database_semantics(self, database='wayfarer'):
+        """Prove the selected locale, case semantics and spatial/extension contract, also after restore."""
+        assert self.sql("SELECT datcollate, datctype FROM pg_database WHERE datname=current_database();",
+                        database) == 'C.UTF-8|C.UTF-8'
+        assert self.sql("SELECT 'Α'::citext = 'α'::citext, 'Ά'::citext = 'ά'::citext, "
+                        "'É'::citext = 'é'::citext, 'E'::citext = 'É'::citext;", database) == 't|t|t|f'
+        assert self.sql("SELECT string_agg(v, ',' ORDER BY v) "
+                        "FROM (VALUES ('α'),('é'),('Α'),('E'),('É')) AS sample(v);", database) == 'E,É,é,Α,α'
+        assert self.sql("SELECT extname || ':' || extversion FROM pg_extension "
+                        "WHERE extname IN ('postgis','citext') ORDER BY extname;", database) == 'citext:1.6\npostgis:3.6.4'
 
     def container(self, service):
         """Resolve by Compose service identity; never depend on generated names."""
@@ -230,6 +247,9 @@ class Stack:
             'createdb -U postgres restored; pg_restore -U postgres --exit-on-error -d restored /tmp/qualification.dump; '
             'rm /tmp/qualification.dump')
         assert self.sql(f'''SELECT "Name" FROM "Trips" WHERE "Id"='{TRIP}';''', 'restored') == 'Compose qualification'
+        self.database_semantics('restored')
+        assert self.sql("SELECT ST_AsEWKT(point) FROM compose_db_probe WHERE label='άλφα';",
+                        'restored') == 'SRID=4326;POINT(23.7 37.9)'
         self.sql('DROP DATABASE restored;', 'postgres')
         print('DB/key ring/cookie/durable upload/TLS persistence and logical restore passed', flush=True)
 
@@ -317,9 +337,10 @@ def main():
     """Run the bounded integration; retain failure logs without printing secret values."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--image', required=True, help='locally built image ID from image dry-run')
+    parser.add_argument('--db-image', required=True, help='locally built DB image ID from deploy/compose/db')
     args = parser.parse_args()
     with tempfile.TemporaryDirectory(prefix='wayfarer-compose-') as directory:
-        stack = Stack(directory, args.image)
+        stack = Stack(directory, args.image, args.db_image)
         try:
             stack.prepare()
             stack.config_checks()

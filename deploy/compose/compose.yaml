@@ -39,8 +39,8 @@ services:
       db:
         condition: service_healthy
   db:
-    # Official PostGIS project: PG17.11 / PostGIS3.5.7 / Alpine3.24.1, qualified together.
-    image: postgis/postgis@sha256:894f570c0cf0664ed5576a8fd5d5bfb8fb1b19d592885b686c3a88c8bd90c41f
+    # Wayfarer packaging: official PG17.11 Bookworm + signed PGDG PostGIS3.6.4.
+    image: ghcr.io/stef-k/wayfarer-db@${DB_DIGEST:?immutable database digest required}
     platform: linux/amd64
     restart: unless-stopped
     stop_grace_period: 60s
@@ -104,5 +104,5 @@ secrets:
   app-password:
     file: ${APP_PASSWORD_FILE:?application password file required}
   db-app-password:
-    # Same role password, separate 0600 copy readable by upstream postgres UID70.
+    # Same role password, separate 0600 copy readable by upstream postgres UID999.
     file: ${DB_APP_PASSWORD_FILE:?database-readable application password file required}
