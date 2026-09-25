@@ -2,6 +2,8 @@
 
 This guide covers installation, deployment, logging, and operational commands for Wayfarer on Linux servers.
 
+For the planned Docker distribution, see the normative [container and release contract](25-Container-Release-Contract.md). It is architecture only; this guide remains the current native/manual deployment path.
+
 ---
 
 ## Table of Contents
