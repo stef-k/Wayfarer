@@ -133,7 +133,7 @@ Read-only-root image qualification passed: UID 1654, immutable app/browser paylo
 no SDK/general Node/npm/PowerShell, generated static assets, external key ring/cache,
 ordinary/static HTTP, real application MapSnapshot JPEG and browser PDF/PNG, readiness
 and Docker healthy. DB login failure returned sanitized 503 while live remained 200;
-healthcheck returned 1 and recovered to 0. Container layer diff was empty, and the DB
+healthcheck returned 1 and recovered to 0. The layer diff contained only Docker-created secret mountpoints (no application writes), and the DB
 secret was absent from image history/config and application logs. SIGTERM completed
 with exit 0 and Quartz's shutdown-complete message within the 60-second grace.
 
