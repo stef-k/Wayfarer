@@ -99,3 +99,46 @@ resolved to the research-only old PostgreSQL 17.5 digest recorded in #638. It is
 approved for production. The maintained isolated host test database is PostgreSQL
 17.11/PostGIS 3.6.4; evidence using that fallback does not qualify the production 3.5
 image family. Final database-image selection remains with the Compose/release child.
+
+A one-shot command uses the same mount set as the web process. For example, after
+preparing the task-owned directories, the non-secret connection settings file and
+UID-readable password file (substitute absolute disposable paths):
+
+```sh
+docker run --rm --read-only --network host \
+  --env-file /absolute/qualification/runtime.env \
+  --mount type=bind,src=/absolute/qualification/database-password,dst=/run/secrets/database-password,readonly \
+  --mount type=bind,src=/absolute/qualification/data,dst=/var/lib/wayfarer \
+  --mount type=bind,src=/absolute/qualification/cache,dst=/var/cache/wayfarer \
+  --mount type=bind,src=/absolute/qualification/logs,dst=/var/log/wayfarer \
+  --mount type=bind,src=/absolute/qualification/temp,dst=/tmp/wayfarer \
+  wayfarer:qualification database migrate
+```
+
+Here host networking is a disposable test attachment to a loopback test DB, not the
+future production topology. Repeat with `database seed`; use `-i` and protected stdin
+for bootstrap. Omit the command for web startup. The environment file contains a
+password-free connection string, `Database__PasswordFile=/run/secrets/database-password`
+and a specific `AllowedHosts`. Healthcheck sends that allowed Host over loopback.
+
+### Recorded local qualification
+
+On 2026-09-25, Linux/WSL Docker Engine 29.1.3 built the real AMD64 image with .NET 10
+Noble and release-matched Chromium 151.0.7922.34/revision 1234. The isolated PG17.11 /
+PostGIS 3.6.4 fallback used a non-superuser application owner. Explicit migration,
+idempotent seed and protected bootstrap succeeded. Production rejection of unprepared
+state and nonmutating incompatible-schema checks passed at the executable/relational seam.
+
+Read-only-root image qualification passed: UID 1654, immutable app/browser payload,
+no SDK/general Node/npm/PowerShell, generated static assets, external key ring/cache,
+ordinary/static HTTP, real application MapSnapshot JPEG and browser PDF/PNG, readiness
+and Docker healthy. DB login failure returned sanitized 503 while live remained 200;
+healthcheck returned 1 and recovered to 0. Container layer diff was empty, and the DB
+secret was absent from image history/config and application logs. SIGTERM completed
+with exit 0 and Quartz's shutdown-complete message within the 60-second grace.
+
+Regression evidence: 3,293 ordinary PostgreSQL-attached tests, two existing browser
+rendering tests, one published read-only runtime test, Release image build/publish and
+frontend built-asset smoke passed. Browser host qualification required the Noble ALSA
+library and explicit browser-cache path; the image installs its own dependencies.
+This is disposable development evidence, not production-host or Compose qualification.
