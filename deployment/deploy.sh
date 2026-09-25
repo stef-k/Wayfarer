@@ -196,25 +196,19 @@ DOTNET_ENVIRONMENT=$DOTNET_ENVIRONMENT dotnet ef database update \
   --project Wayfarer.csproj \
   --context Wayfarer.Models.ApplicationDbContext
 
-# Step 5.5: Pre-install Playwright browsers (optional, recommended)
-# Uncomment the following lines to pre-install Chromium (~400MB download)
-# This avoids slow first PDF export in production
-# echo "[6.5/8] Installing Playwright browsers..."
-# pwsh "$OUT_DIR/playwright.ps1" install chromium
+# Browser features require a preinstalled runtime before service use.
+# Provision the release-matched browser and OS libraries explicitly; see docs/20-Deployment.md.
 
 # Step 6: Stop service
 echo "[7/8] Stopping $SERVICE_NAME service..."
 sudo systemctl stop "$SERVICE_NAME"
 
 # Step 7: Deploy files
-echo "Deploying to $DEPLOY_DIR (excluding Uploads, TileCache, ImageCache, ChromeCache, Logs, wwwroot/thumbs)..."
+echo "Deploying to $DEPLOY_DIR (excluding legacy Uploads, TileCache, ImageCache)..."
 sudo rsync -av --delete \
   --exclude 'Uploads' \
   --exclude 'TileCache' \
   --exclude 'ImageCache' \
-  --exclude 'ChromeCache' \
-  --exclude 'Logs' \
-  --exclude 'wwwroot/thumbs/' \
   --exclude 'tests' \
   --exclude 'coverage' \
   --exclude 'coverage-report' \
@@ -227,15 +221,15 @@ sudo chown -R "$APP_USER":"$APP_USER" "$DEPLOY_DIR"
 
 # Ensure writable directories exist and have correct permissions
 echo "Ensuring writable directories exist..."
-sudo mkdir -p "$DEPLOY_DIR/Uploads" "$DEPLOY_DIR/TileCache" "$DEPLOY_DIR/ImageCache" "$DEPLOY_DIR/ChromeCache" "$DEPLOY_DIR/Logs"
+sudo mkdir -p "$DEPLOY_DIR/Uploads" "$DEPLOY_DIR/TileCache" "$DEPLOY_DIR/ImageCache"
 # Durable import staging uses the Linux production DataRoot; retain old Uploads for legacy rows.
 sudo install -d -m 750 -o "$APP_USER" -g "$APP_USER" /var/lib/wayfarer/uploads/imports
 # New tile/image writes use CacheRoot; preserve both old deployed cache trees.
 sudo install -d -m 750 -o "$APP_USER" -g "$APP_USER" /var/cache/wayfarer/tiles /var/cache/wayfarer/images /var/cache/wayfarer/thumbnails/trips
 # Prepare only the new default; never relocate or alter an installed active ring.
 sudo install -d -m 700 -o "$APP_USER" -g "$APP_USER" /var/lib/wayfarer/data-protection
-sudo chown -R "$APP_USER":"$APP_USER" "$DEPLOY_DIR/Uploads" "$DEPLOY_DIR/TileCache" "$DEPLOY_DIR/ImageCache" "$DEPLOY_DIR/ChromeCache" "$DEPLOY_DIR/Logs"
-sudo chmod 755 "$DEPLOY_DIR/Uploads" "$DEPLOY_DIR/TileCache" "$DEPLOY_DIR/ImageCache" "$DEPLOY_DIR/ChromeCache" "$DEPLOY_DIR/Logs"
+sudo chown -R "$APP_USER":"$APP_USER" "$DEPLOY_DIR/Uploads" "$DEPLOY_DIR/TileCache" "$DEPLOY_DIR/ImageCache"
+sudo chmod 755 "$DEPLOY_DIR/Uploads" "$DEPLOY_DIR/TileCache" "$DEPLOY_DIR/ImageCache"
 
 # Production logging is configured outside DEPLOY_DIR; prepare it before service start.
 echo "Ensuring production log directory exists..."

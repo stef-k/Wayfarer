@@ -28,7 +28,6 @@ public class TripMapThumbnailGeneratorTests : IDisposable
         _storage = new TripThumbnailStorage(TestDirectory.Storage(_root));
         _config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         {
-            ["CacheSettings:ChromeCacheDirectory"] = Path.Combine(_root, "browser")
         }).Build();
     }
 
@@ -49,7 +48,6 @@ public class TripMapThumbnailGeneratorTests : IDisposable
         var config = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["CacheSettings:ChromeCacheDirectory"] = Path.Combine(_root, "browser"),
                 ["AllowedHosts"] = "invalid host;wayfarer.example.com;other.example.com",
                 ["Kestrel:Endpoints:Http:Url"] = "http://*:5500"
             })
@@ -70,7 +68,6 @@ public class TripMapThumbnailGeneratorTests : IDisposable
         var config = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["CacheSettings:ChromeCacheDirectory"] = Path.Combine(_root, "browser"),
                 ["AllowedHosts"] = "wayfarer.test",
                 ["Kestrel:Endpoints:Http:Url"] = "http://*:5500"
             })
@@ -267,7 +264,6 @@ public class TripMapThumbnailGeneratorTests : IDisposable
         var config = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["CacheSettings:ChromeCacheDirectory"] = Path.Combine(_root, "browser"),
                 ["AllowedHosts"] = "wayfarer.example.com",
                 ["Kestrel:Endpoints:Http:Url"] = "http://*:5500"
             })
@@ -361,7 +357,6 @@ public class TripMapThumbnailGeneratorTests : IDisposable
         var config = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["CacheSettings:ChromeCacheDirectory"] = Path.Combine(_root, "browser"),
                 ["Kestrel:Endpoints:Http:Url"] = "http://localhost:5500"
             })
             .Build();
@@ -378,7 +373,6 @@ public class TripMapThumbnailGeneratorTests : IDisposable
         var config = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["CacheSettings:ChromeCacheDirectory"] = Path.Combine(_root, "browser"),
                 ["Kestrel:Endpoints:Http:Url"] = "http://*:8080"
             })
             .Build();
@@ -395,7 +389,6 @@ public class TripMapThumbnailGeneratorTests : IDisposable
         var config = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["CacheSettings:ChromeCacheDirectory"] = Path.Combine(_root, "browser"),
                 ["Kestrel:Endpoints:Http:Url"] = "http://+:3000"
             })
             .Build();

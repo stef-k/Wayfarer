@@ -5,13 +5,9 @@
 .claude/
 nul
 debug_console.txt
-# Logs
-Logs/*
 docs/design
 docs/spec
 docs/archive
-ChromeCache/*
-wwwroot/thumbs/trips/*
 coverage-report/*
 
 # Uploads

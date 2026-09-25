@@ -22,7 +22,7 @@ PostgreSQL 13+ remains the documented general self-hosting/runtime minimum. The 
 If you want to export trips as PDF documents, you'll need:
 
 - **Chrome system libraries** (Linux only)
-- Chrome browser is **automatically downloaded** by the application on first PDF export
+- Preinstall the release-matched Playwright Chromium bundle and required OS libraries using the [native provisioning workflow](20-Deployment.md#6-install-chromium-runtime-dependencies-pdf-export). Browser operations never download or install it.
 - No manual Chrome installation needed - it's handled automatically!
 
 **Linux users:** See [Install Chromium Runtime Dependencies (PDF export)](20-Deployment.md#6-install-chromium-runtime-dependencies-pdf-export)

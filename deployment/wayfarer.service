@@ -54,8 +54,11 @@ SyslogIdentifier=wayfarer
 Environment=ASPNETCORE_ENVIRONMENT=Production
 Environment=DOTNET_ENVIRONMENT=Production
 Environment=DOTNET_PRINT_TELEMETRY_MESSAGE=false
-# HOME is required for Playwright's Chromium runtime profiles (PDF export)
+# HOME supplies standard per-user runtime discovery; browser provisioning is explicit.
 Environment=HOME=/home/wayfarer
+# Preinstall the release-matched bundle and OS libraries; no request-time installer exists.
+# Environment=PLAYWRIGHT_BROWSERS_PATH=/opt/wayfarer-browsers
+# Browser profiles/downloads use OS temp outside the immutable application payload.
 # Existing installations must retain their installed explicit override until complete-ring migration.
 # Environment=DataProtection__KeyRingPath=/home/wayfarer/.aspnet/DataProtection-Keys
 

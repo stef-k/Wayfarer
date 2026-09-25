@@ -12,7 +12,7 @@ The six guards remain enabled at shipped thresholds. LOC above 400 triggers revi
 
 Normal analysis never changes the ratchet. `code-guard . --create-loc-baseline` is a one-time adoption operation; do not recreate the file to accept growth. Use `code-guard . --update-loc-baseline` only to lower or prune allowances after genuine reductions. Review the resulting diff; increases require an explicit policy decision.
 
-`.agent-tools/code-guard.config.json` excludes generated migrations, `*.Designer.cs`, `*.g.cs`, `*.generated.cs`, minified JS/CSS, vendored `wwwroot/lib`, generated `wwwroot/dist` and `wwwroot/vite`, and the existing Chrome/Image/Tile/Mbtile/OsmPbf/Routing caches, Logs, and Uploads. These are all-guard boundaries; project-owned source/tests receive every supported guard. Built-in exclusions also omit build outputs, dependency directories, and local scratch artifacts.
+`.agent-tools/code-guard.config.json` excludes generated migrations, `*.Designer.cs`, `*.g.cs`, `*.generated.cs`, minified JS/CSS, vendored `wwwroot/lib`, generated `wwwroot/dist` and `wwwroot/vite`, and the retained legacy Image/Tile caches and Uploads. These are all-guard boundaries; project-owned source/tests receive every supported guard. Built-in exclusions also omit build outputs, dependency directories, and local scratch artifacts.
 
 CI installs exactly 0.3.1 in an isolated Python 3.12 environment, verifies the version and doctor, and checks the event's exact PR base SHA with `--base-ref "$BASE_SHA" --ci`. Checkout retains full history. This gate runs even for documentation-only PRs; REVIEW remains visible, while FAIL/INCOMPLETE/tool errors fail the required `test` job.
 
@@ -157,7 +157,7 @@ dotnet test tests/Wayfarer.Tests/Wayfarer.Tests.csproj `
 
 - Retained PDF and screenshot evidence is written only when `WAYFARER_TEST_ARTIFACT_DIRECTORY` is set.
 - Keep the shared browser cache for subsequent runs. Explicit evidence under `.local/test-results` stays until its owner deliberately removes that exact evidence directory.
-- Do not delete global Playwright caches, production `ChromeCache`, browser profiles, JavaScript browser assets, or unrelated `.local` content.
+- Do not delete global Playwright caches, browser profiles, JavaScript browser assets, or unrelated `.local` content.
 
 Trip Editor Asset-Mode Smoke
 - These smokes are explicit opt-in checks. They do not run as part of `npm run test:e2e:trip-editor`.
@@ -267,7 +267,7 @@ Trip Editor Test Credibility Matrix
 - Non-built asset smoke replaces its exact `.local/asset-smoke` logs and `.local/asset-smoke-cache` at setup. After owned processes stop, it removes run-owned cache/publish output; successful runs also remove logs. Failure logs remain for diagnosis until the next smoke run.
 - Playwright replaces its configured output/report directories on the next invocation; traces/videos/screenshots are retained only on failure. Explicit PDF/screenshot evidence is opt-in via `WAYFARER_TEST_ARTIFACT_DIRECTORY` and is never removed by maintenance.
 - The #407 browser runner removes its exact run root on success and preserves the current failed run. It references `PLAYWRIGHT_BROWSERS_PATH` (default `.local/playwright/js-browsers`) instead of copying browser binaries into each retained run. Its disposable PostgreSQL cluster and published app can still make retained failures large.
-- Shared JavaScript and .NET browser binaries, `node_modules`, npm/NuGet caches, and ordinary `bin/obj` are reusable dependencies, not ephemeral output. Browser-free service tests use fixture-owned cache paths. Production `ChromeCache` behavior is unchanged.
+- Shared JavaScript and .NET browser binaries, `node_modules`, npm/NuGet caches, and ordinary `bin/obj` are reusable dependencies, not ephemeral output. Browser services consume preinstalled version-matched bundles; service construction does not change browser discovery.
 
 Use the cross-platform maintenance command only for stale/interrupted residue; it is **not** a closing step required after normal tests:
 
@@ -283,7 +283,7 @@ The command reports approximate bytes and accepts no deletion path or age overri
 
 Exact direct `.local/407-waypoint-<32-lowercase-hex-guid>` children are reported separately as retained evidence and removed only after 24 hours without writes anywhere in the tree. Known OS-temp fixture prefixes (import, fixture, browser, image-cache, version, rendering, coverage safety and shared-layout), plus GUID children of `wayfarer-tile-tests` and `wayfarer-trip-editor-place-tests`, use the same age guard. Recent entries survive, as do shared-layout roots whose launcher PID is still alive. Unrecognized names, linked ancestors, symlinks/junctions/reparse points, and trees containing links are skipped without traversal.
 
-Maintenance preserves `.local/test-results`, `.local/manual-verification.md`, shared browser caches, all unrelated `.local` content, `ChromeCache`, package caches, `bin/obj`, PostgreSQL databases outside exact stale #407 fixture roots, and uploads/runtime data. It never sweeps the whole repository, `.local`, or OS temp directory. Do not use broad recursive deletion as a replacement.
+Maintenance preserves `.local/test-results`, `.local/manual-verification.md`, shared browser caches, all unrelated `.local` content, inactive legacy residue, package caches, `bin/obj`, PostgreSQL databases outside exact stale #407 fixture roots, and uploads/runtime data. It never sweeps the whole repository, `.local`, or OS temp directory. Do not use broad recursive deletion as a replacement.
 
 Coverage
 - The test project uses xUnit v2 with the xUnit Visual Studio adapter and the default VSTest execution model. It does not opt into Microsoft Testing Platform.
@@ -351,3 +351,43 @@ Identity reset tokens, all four explicit operation purposes, stable-only activat
 legacy downgrade cutoff, API hash continuity, default-ring ambiguity and installed
 service override preservation. These are disposable framework/PostgreSQL evidence,
 not production M6 or provider-network qualification.
+
+## Published read-only runtime qualification
+
+`PublishedReadOnlyRuntimeTests` is the Linux Slice G smoke. It copies an existing
+Release publish into its owned fixture, removes every write permission, proves a
+write is denied to the running identity, then starts the actual Production host.
+It uses the established disposable PostgreSQL migration fixture, external Storage
+roots and an explicit external key ring. Startup enforces F2's stable `Wayfarer`
+identity. The smoke requests the login page, a static asset and the real public
+map-snapshot endpoint, verifies JPEG output in external thumbnail storage, external
+logs and key XML, stops the host, and compares every publish entry and file digest.
+No production database, key ring or native deployment is touched.
+
+Provision the release-matched browser and OS libraries first using the deployment
+guide. The ordinary .NET browser tests use the same external bundle. The historical
+`libasound.so.2` launch failure requires `libasound2t64` on Ubuntu 24.04, not another
+browser download. Run as an ordinary user; root bypasses permission evidence.
+
+```bash
+dotnet tool restore
+dotnet frontend build
+npm run build
+dotnet publish Wayfarer.csproj -c Release -o /tmp/wayfarer-publish-qualification
+# Use the dedicated PostgreSQL 17 fixture connection configured for ordinary tests.
+export PLAYWRIGHT_BROWSERS_PATH="$HOME/.cache/ms-playwright"
+export WAYFARER_TEST_PUBLISH_DIRECTORY=/tmp/wayfarer-publish-qualification
+export WAYFARER_TEST_ARTIFACT_DIRECTORY=/tmp/wayfarer-read-only-evidence
+dotnet test tests/Wayfarer.Tests/Wayfarer.Tests.csproj \
+  --filter 'FullyQualifiedName~PublishedReadOnlyRuntimeTests'
+```
+
+The selected test requires `WAYFARER_TEST_POSTGRES_CONNECTION` naming exactly
+`wayfarer_import_tests`; it creates and drops only its own generated database.
+A missing Linux/publish prerequisite is an explicit skip, not qualification.
+The ordinary PostgreSQL-attached suite separately proves import and cache writes
+at their stable storage seams. Browser-policy tests preserve launch options and
+prove one bounded failure without retry; deployment guards reject runtime
+installer calls in all current consumers. Run the browser category for existing
+PDF/attribution and screenshot evidence, then the built-asset smoke and both Code
+Guard scopes. Final Docker packaging and real native migration remain #603/#604.

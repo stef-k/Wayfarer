@@ -2,7 +2,7 @@
   "version": 1,
   "scope": {
     "exclude": [
-      "ChromeCache/**", "ImageCache/**", "Logs/**", "Migrations/**",
+      "ImageCache/**", "Migrations/**",
       "TileCache/**",
       "Uploads/**", "wwwroot/dist/**", "wwwroot/lib/**", "wwwroot/vite/**",
       "**/*.Designer.cs", "**/*.g.cs", "**/*.generated.cs",

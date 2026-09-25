@@ -8,6 +8,26 @@ namespace Wayfarer.Tests.Tools;
 /// <summary>Guards the supported production deployment script's EF migration ownership.</summary>
 public sealed class DeploymentScriptTests
 {
+    /// <summary>All current browser consumers delegate launch without an installer or discovery mutation.</summary>
+    [Fact]
+    public void BrowserConsumersUsePreinstalledRuntimeOnly()
+    {
+        foreach (var name in new[] { "MapSnapshotService", "TripMapThumbnailGenerator", "TripExportService" })
+        {
+            var source = File.ReadAllText(RepositoryFile("Services", name + ".cs"));
+            Assert.Contains("BrowserRuntime.LaunchAsync(", source);
+            Assert.DoesNotContain(".Chromium.LaunchAsync(", source);
+            Assert.DoesNotContain("Program.Main", source);
+            Assert.DoesNotContain("SetEnvironmentVariable", source);
+            Assert.DoesNotContain("ChromeCache", source);
+        }
+        var policy = File.ReadAllText(RepositoryFile("Services", "BrowserRuntime.cs"));
+        Assert.DoesNotContain("Program.Main", policy);
+        Assert.DoesNotContain("Process.Start", policy);
+        foreach (var name in new[] { "appsettings.json", "appsettings.Production.json" })
+            Assert.DoesNotContain("ChromeCache", File.ReadAllText(RepositoryFile(name)));
+    }
+
     [Fact]
     public void EfMigrationCommands_SelectApplicationDbContext()
     {
@@ -69,8 +89,11 @@ public sealed class DeploymentScriptTests
                 Assert.Matches(@"(?m)^sudo (?:chown|install)[^\r\n]*APP_USER[^\r\n]*" + root, script);
         }
         var deploy = File.ReadAllText(RepositoryFile("deployment", "deploy.sh"));
-        Assert.Contains("--exclude 'wwwroot/thumbs/'", deploy);
-        Assert.Contains("--exclude 'Logs'", deploy);
+        Assert.DoesNotContain("--exclude 'wwwroot/thumbs/'", deploy);
+        Assert.DoesNotContain("--exclude 'Logs'", deploy);
+        Assert.DoesNotContain("ChromeCache", deploy);
+        foreach (var legacy in new[] { "Uploads", "TileCache", "ImageCache" })
+            Assert.Contains("--exclude '" + legacy + "'", deploy);
         foreach (var name in new[] { "trip-editor-asset-smoke.mjs", "run-407-waypoint-browser.ps1", "start-shared-layout-e2e-host.ps1" })
         {
             var runner = File.ReadAllText(RepositoryFile("tools", name));

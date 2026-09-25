@@ -18,10 +18,6 @@ namespace Wayfarer.Parsers
     /// <summary>Generates PDF and KML exports for a Trip.</summary>
     public class TripExportService : ITripExportService
     {
-        // Static semaphore to prevent concurrent browser installations across all instances
-        private static readonly SemaphoreSlim _installLock = new(1, 1);
-        private static bool _browsersInstalled = false;
-
         readonly ApplicationDbContext _db;
         readonly MapSnapshotService _snap;
         readonly IHttpContextAccessor _ctx;
@@ -31,7 +27,6 @@ namespace Wayfarer.Parsers
         readonly IConfiguration _configuration;
         readonly SseService _sseService;
         readonly IImageProxyService _imageProxyService;
-        readonly string _chromeCachePath;
         private static readonly CultureInfo CI = CultureInfo.InvariantCulture;
 
         public TripExportService(
@@ -54,55 +49,6 @@ namespace Wayfarer.Parsers
             _configuration = configuration;
             _sseService = sseService;
             _imageProxyService = imageProxyService;
-
-            // Get Chrome cache directory from configuration (defaults to ChromeCache if not specified)
-            _chromeCachePath = configuration["CacheSettings:ChromeCacheDirectory"] ?? "ChromeCache";
-
-            // Resolve to absolute path and normalize path separators for current platform
-            _chromeCachePath = Path.GetFullPath(_chromeCachePath);
-
-            // Configure Playwright to store browsers in our ChromeCache directory
-            // This works across all platforms (Windows, Linux x64/ARM64, macOS)
-            var playwrightPath = Path.Combine(_chromeCachePath, "playwright-browsers");
-            Environment.SetEnvironmentVariable("PLAYWRIGHT_BROWSERS_PATH", playwrightPath);
-
-            _logger.LogInformation("Chrome cache directory for PDF export configured at: {ChromePath}", _chromeCachePath);
-            _logger.LogInformation("Playwright browsers will be stored at: {PlaywrightPath}", playwrightPath);
-        }
-
-        /// <summary>
-        /// Ensures Playwright browsers are installed. Uses semaphore to prevent concurrent installations.
-        /// </summary>
-        private async Task EnsureBrowsersInstalledAsync(CancellationToken cancellationToken = default)
-        {
-            if (_browsersInstalled) return;
-
-            await _installLock.WaitAsync(cancellationToken);
-            try
-            {
-                if (_browsersInstalled) return;
-
-                _logger.LogInformation("Checking Playwright browser installation...");
-
-                // Playwright will check if browsers are already installed
-                // Only downloads if missing
-                var exitCode = Microsoft.Playwright.Program.Main(new[] { "install", "chromium" });
-
-                if (exitCode != 0)
-                {
-                    _logger.LogWarning("Playwright browser installation returned exit code {ExitCode}", exitCode);
-                }
-                else
-                {
-                    _logger.LogInformation("Playwright browsers ready");
-                }
-
-                _browsersInstalled = true;
-            }
-            finally
-            {
-                _installLock.Release();
-            }
         }
 
         /* ---------------------------------------------------------------- KML stubs */
@@ -494,11 +440,9 @@ namespace Wayfarer.Parsers
             // Playwright ➜ PDF
             await ReportProgress("🌐 Starting PDF generator...");
 
-            // Ensure browsers installed
-            await EnsureBrowsersInstalledAsync(cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
 
-            var playwright = await Microsoft.Playwright.Playwright.CreateAsync();
+            using var playwright = await Microsoft.Playwright.Playwright.CreateAsync();
             cancellationToken.ThrowIfCancellationRequested();
 
             var launchArgs = new List<string>
@@ -519,7 +463,7 @@ namespace Wayfarer.Parsers
                 });
             }
 
-            var browser = await playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions
+            var browser = await BrowserRuntime.LaunchAsync(playwright, new BrowserTypeLaunchOptions
             {
                 Headless = true,
                 Args = launchArgs
@@ -573,7 +517,6 @@ namespace Wayfarer.Parsers
             finally
             {
                 await browser.CloseAsync();
-                playwright.Dispose();
             }
         }
 

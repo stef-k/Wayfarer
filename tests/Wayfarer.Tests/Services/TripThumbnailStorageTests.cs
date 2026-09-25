@@ -96,7 +96,6 @@ public sealed class TripThumbnailStorageTests
             var captures = 0;
             var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["CacheSettings:ChromeCacheDirectory"] = Path.Combine(directory.Path, "browser")
             }).Build();
             var generator = new TripMapThumbnailGenerator(NullLogger<TripMapThumbnailGenerator>.Instance,
                 storage, config, _ => { captures++; return Task.FromResult<byte[]?>(bytes); });

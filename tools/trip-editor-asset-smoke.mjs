@@ -346,7 +346,6 @@ async function startPublishedApp() {
     // New cache writes must stay inside the smoke-owned tree under Production.
     Storage__CacheRoot: path.join(localDir, 'asset-smoke-cache', 'current'),
     CacheSettings__ImageCacheDirectory: path.join(localDir, 'asset-smoke-cache', 'ImageCache'),
-    CacheSettings__ChromeCacheDirectory: path.join(localDir, 'asset-smoke-cache', 'ChromeCache'),
     ConnectionStrings__DefaultConnection: connectionString
   };
 

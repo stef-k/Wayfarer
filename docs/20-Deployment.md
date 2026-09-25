@@ -151,7 +151,38 @@ sudo apt update && sudo apt install -y \
 
 > Note: `t64` package names are for Ubuntu/Debian 24.04+. On older versions, use names without `t64` suffix.
 
-Playwright will **automatically download** Chromium (~400MB) to `ChromeCache/playwright-browsers/` on first PDF export.
+Browser binaries are immutable deployment dependencies. Wayfarer never downloads,
+installs, or updates Chromium during requests, exports, or startup. Provision the
+bundle matching the release's Microsoft.Playwright package before enabling browser
+features; do not substitute an unrelated system Chromium. Startup itself does not
+launch Chromium. Missing executables or OS libraries fail the browser operation
+with provisioning guidance and the original launch error.
+
+After publishing, provision explicitly (PowerShell is required for the generated
+installer). On Ubuntu 24.04, `libasound2t64` supplies `libasound.so.2`; an executable
+alone is insufficient. The generated installer's `install-deps chromium` command
+is the version-coupled authority for the complete OS package set:
+
+```bash
+# Run as the deployment administrator, outside request processing.
+sudo pwsh /path/to/publish/playwright.ps1 install-deps chromium
+sudo env PLAYWRIGHT_BROWSERS_PATH=/opt/wayfarer-browsers \
+  pwsh /path/to/publish/playwright.ps1 install chromium
+# Give the service read/execute access, not ownership of browser binaries.
+```
+
+Set `Environment=PLAYWRIGHT_BROWSERS_PATH=/opt/wayfarer-browsers` in the native
+systemd service override and restart after provisioning. Retain version-matched
+bundles for releases still eligible for rollback. Development/test installation
+is also explicit; see [Testing](22-Testing.md#net-playwright-rendering-test).
+The #603 image child owns packaging these same dependencies into the final image.
+There is no application executable override or host-location scanning.
+
+Playwright owns process-scoped profiles and downloads in OS temporary storage and
+cleans them when the browser closes. Keep OS temp outside the publish tree (for
+example, set `TMPDIR=/tmp/wayfarer` to an existing writable directory). These files
+are ephemeral, not cache or recovery data. Wayfarer-owned temporary files continue
+to use `Storage:TempRoot`.
 
 ---
 
@@ -256,20 +287,20 @@ Native install/deploy also prepare `/var/cache/wayfarer/thumbnails/trips` and
 `/var/log/wayfarer` with application-user ownership before startup. The Nginx
 `location ^~ /thumbs/` proxy must reach Kestrel ahead of the generic image regex;
 Kestrel serves external JPEGs and owns their versioned cache headers and 404s.
-Existing application-root `Logs` and `wwwroot/thumbs/` deployment exclusions remain
-in place as legacy residue preservation, not runtime dependencies. No automatic
-copy, deletion or migration occurs. Slice G owns their final exclusion retirement;
-this slice does not change ChromeCache or require full read-only-root qualification.
-
+Native deployment no longer preserves `ChromeCache`, application-root `Logs`, or
+`wwwroot/thumbs`: they are inactive residue, not runtime authorities. Deployments
+may replace that obsolete payload. No migration/copy of old bytes is performed.
+The `Uploads`, `TileCache`, and `ImageCache` exclusions remain solely for bounded
+same-host legacy references. Do not delete these trees until their explicit
+migration (#604). Current mutable state uses external Storage roots; the payload
+can be read-only while those legacy compatibility trees remain preserved.
 
 New import rows store logical `imports/<guidN><extension>` references. Old same-host absolute rows/files remain in place under known `Uploads/Temp` roots, with the deployment exclusion retained. Cross-host/native-to-Docker conversion needs a future explicit, quiesced migration; startup and Admin viewing never perform it. No EF schema migration is introduced for this reference change. Routine backup classification is owned by #533 and the real M6 migration by #604.
 
 The following directories are **auto-created** if missing:
 
-- `Logs/` - Application log files (auto-cleaned after 1 month)
 - `TileCache/` - Retained legacy map tiles; new tiles use `Storage:CacheRoot/tiles`
 - `ImageCache/` - Retained legacy proxied images; new writes use `Storage:CacheRoot/images` (LRU-evicted, admin-configurable size)
-- `ChromeCache/` - Chrome browser binaries for PDF export
 - `Uploads/` - Retained legacy upload compatibility tree; do not delete it while old rows reference it.
 
 ```bash
@@ -458,7 +489,7 @@ dotnet publish -c Release -o ./out
 # Deploy
 sudo systemctl stop wayfarer
 sudo rsync -av --delete \
-  --exclude 'Uploads' --exclude 'TileCache' --exclude 'ImageCache' --exclude 'ChromeCache' --exclude 'Logs' \
+  --exclude 'Uploads' --exclude 'TileCache' --exclude 'ImageCache' \
   ./out/ /var/www/wayfarer/
 sudo chown -R wayfarer:wayfarer /var/www/wayfarer
 sudo systemctl start wayfarer
@@ -561,17 +592,13 @@ sudo tail -f /var/log/nginx/error.log
 ### PDF Export / Playwright Issues
 
 ```bash
-# Check Chromium download
-ls -la /var/www/wayfarer/ChromeCache/playwright-browsers/
-
-# Check dependencies
+# Check the explicitly provisioned bundle and OS dependency package.
+ls -la /opt/wayfarer-browsers/
 dpkg -l | grep -E 'libnss3|libgbm1|libasound2|libxshmfence'
-
-# Force reinstall
-sudo rm -rf /var/www/wayfarer/ChromeCache/playwright-browsers
-sudo -u wayfarer bash
-cd /var/www/wayfarer
-pwsh bin/Release/net10.0/playwright.ps1 install chromium
+# Diagnose missing libraries on the actual executable reported by Playwright.
+ldd /opt/wayfarer-browsers/chromium_headless_shell-*/chrome-headless-shell-linux64/chrome-headless-shell
+# Provision using this release's generated installer as documented above.
+# Do not delete a shared bundle to repair one application operation.
 ```
 
 ### Out of Disk Space
