@@ -56,7 +56,8 @@ Environment=DOTNET_ENVIRONMENT=Production
 Environment=DOTNET_PRINT_TELEMETRY_MESSAGE=false
 # HOME is required for Playwright's Chromium runtime profiles (PDF export)
 Environment=HOME=/home/wayfarer
-Environment=DataProtection__KeyRingPath=/home/wayfarer/.aspnet/DataProtection-Keys
+# Existing installations must retain their installed explicit override until complete-ring migration.
+# Environment=DataProtection__KeyRingPath=/home/wayfarer/.aspnet/DataProtection-Keys
 
 # TILE PROXY CONTACT EMAIL
 # Used in the User-Agent header sent to tile providers (e.g. OpenStreetMap).

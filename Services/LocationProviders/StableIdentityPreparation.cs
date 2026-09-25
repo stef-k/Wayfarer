@@ -5,7 +5,7 @@ using Wayfarer.Models.LocationProviders;
 namespace Wayfarer.Services.LocationProviders;
 
 /// <summary>Owns explicit F1 inventory and all-or-nothing PostgreSQL companion preparation.</summary>
-public sealed class StableIdentityPreparation(ApplicationDbContext db, PersonalProviderCredentialService credentials)
+public sealed class StableIdentityPreparation(ApplicationDbContext db, LegacyCredentialPreparationCodec credentials)
 {
     /// <summary>Inspects durable state without tracking or modifying any row.</summary>
     public async Task<StableIdentityStatus> StatusAsync(CancellationToken cancellationToken = default) =>
@@ -69,7 +69,7 @@ public sealed class StableIdentityPreparation(ApplicationDbContext db, PersonalP
                 continue;
             }
             active++;
-            var legacy = credentials.Read(profile);
+            var legacy = credentials.ReadLegacy(profile);
             if (!legacy.Succeeded) { blocked++; continue; }
             if (profile.StableProtectedCredential == null) { pending++; continue; }
             var stable = credentials.ReadStable(profile);

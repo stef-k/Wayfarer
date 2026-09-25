@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Wayfarer.CommandLine;
@@ -42,9 +43,14 @@ public sealed class DataProtectionCliTests
         await using var db = fixture.CreateContext();
         var profile = PersonalLocationProviderProfile.Create(user.Id, PersonalLocationProvider.Geoapify);
         owner.Replace(profile, StableIdentityCryptographyTests.Secret);
+        var legacy = DataProtectionProvider.Create(new DirectoryInfo(ring), options =>
+            options.SetApplicationName(directory.Path + Path.DirectorySeparatorChar).DisableAutomaticKeyGeneration());
+        profile.ProtectedCredential = PersonalProviderCredentialService.Protector(profile, legacy)
+            .Protect(StableIdentityCryptographyTests.Secret);
         profile.StableProtectedCredential = null;
         db.Add(profile);
         await db.SaveChangesAsync();
+        var keysBefore = Directory.GetFiles(ring).ToDictionary(file => Path.GetFileName(file)!, File.ReadAllBytes);
         Assert.Equal(1, await RunProcessAsync("status", directory.Path, ring, fixture.ConnectionString));
         Assert.Null((await db.PersonalLocationProviderProfiles.AsNoTracking().SingleAsync()).StableProtectedCredential);
         Assert.Equal(0, await RunProcessAsync("prepare-stable-identity", directory.Path, ring, fixture.ConnectionString));
@@ -52,7 +58,19 @@ public sealed class DataProtectionCliTests
         db.ChangeTracker.Clear();
         profile = await db.PersonalLocationProviderProfiles.SingleAsync();
         Assert.True(owner.Read(profile).Succeeded);
-        Assert.True(owner.ReadStable(profile).Succeeded);
+        var target = Directory.CreateDirectory(Path.Combine(directory.Path, "target")).FullName;
+        var copiedRing = Directory.CreateDirectory(Path.Combine(target, "data-protection")).FullName;
+        await File.WriteAllTextAsync(Path.Combine(target, "appsettings.json"), "{}");
+        foreach (var file in Directory.GetFiles(ring)) File.Copy(file, Path.Combine(copiedRing, Path.GetFileName(file)));
+        Assert.Equal(0, await RunProcessAsync("status", target, copiedRing, fixture.ConnectionString, useStorage: true));
+        Assert.Equal(1, await RunProcessAsync("prepare-stable-identity", target, copiedRing, fixture.ConnectionString, useStorage: true));
+        Assert.Equal(0, await RunProcessAsync("status", target, copiedRing, fixture.ConnectionString, useStorage: true));
+        foreach (var path in new[] { ring, copiedRing })
+        {
+            Assert.Equal(keysBefore.Count, Directory.GetFiles(path).Length);
+            foreach (var file in Directory.GetFiles(path))
+                Assert.True(keysBefore[Path.GetFileName(file)].SequenceEqual(File.ReadAllBytes(file)));
+        }
         profile.StableProtectedCredential = StableIdentityCryptographyTests.Secret;
         await db.SaveChangesAsync();
         Assert.Equal(1, await RunProcessAsync("status", directory.Path, ring, fixture.ConnectionString));
@@ -62,7 +80,7 @@ public sealed class DataProtectionCliTests
     }
 
     /// <summary>Passes authority configuration only through the environment, captures both streams and enforces termination.</summary>
-    private static async Task<int> RunProcessAsync(string command, string root, string ring, string connection)
+    private static async Task<int> RunProcessAsync(string command, string root, string ring, string connection, bool useStorage = false)
     {
         var start = new ProcessStartInfo("dotnet")
         {
@@ -75,7 +93,11 @@ public sealed class DataProtectionCliTests
         start.ArgumentList.Add("data-protection");
         start.ArgumentList.Add(command);
         start.Environment["ConnectionStrings__DefaultConnection"] = connection;
-        start.Environment["DataProtection__KeyRingPath"] = ring;
+        start.Environment["DataProtection__KeyRingPath"] = useStorage ? "" : ring;
+        start.Environment["Storage__DataRoot"] = root;
+        start.Environment["Storage__CacheRoot"] = Path.Combine(root, "cache");
+        start.Environment["Storage__LogRoot"] = Path.Combine(root, "logs");
+        start.Environment["Storage__TempRoot"] = Path.Combine(root, "temp");
         start.Environment["ASPNETCORE_CONTENTROOT"] = root;
         start.Environment["DOTNET_CONTENTROOT"] = root;
         start.Environment["DOTNET_ENVIRONMENT"] = "Production";

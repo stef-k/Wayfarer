@@ -20,7 +20,7 @@ public sealed class PersonalLocationProviderFoundationTests : TestBase
 
         owner.Replace(profile, "secret-mapbox-key");
 
-        Assert.DoesNotContain("secret-mapbox-key", profile.ProtectedCredential, StringComparison.Ordinal);
+        Assert.DoesNotContain("secret-mapbox-key", profile.StableProtectedCredential, StringComparison.Ordinal);
         Assert.Equal("secret-mapbox-key", owner.Read(profile).Credential);
     }
 
@@ -99,8 +99,7 @@ public sealed class PersonalLocationProviderFoundationTests : TestBase
         var profile = await db.PersonalLocationProviderProfiles.SingleAsync();
         Assert.True(result.ProtectedCredentialReady);
         Assert.Equal("legacy-key", owner.Read(profile).Credential);
-        Assert.True(owner.ReadStable(profile).Succeeded);
-        Assert.True(object.Equals(owner.Read(profile).Credential, owner.ReadStable(profile).Credential));
+        Assert.Null(profile.ProtectedCredential);
         Assert.True(profile.GeocodingAuthorized);
         Assert.False(profile.RoutingAuthorized);
         Assert.DoesNotContain(await db.ApiTokens.IgnoreQueryFilters().ToListAsync(), item => PersonalProviderKeys.IsLegacyMapbox(item.Name));
@@ -220,7 +219,7 @@ public sealed class PersonalLocationProviderFoundationTests : TestBase
         var revokedUser = TestDataFixtures.CreateUser(id: "revoked-user", username: "revoked");
         db.Users.AddRange(invalidUser, revokedUser);
         var invalid = PersonalLocationProviderProfile.Create(invalidUser.Id, PersonalLocationProvider.Mapbox);
-        invalid.ProtectedCredential = "invalid-ciphertext";
+        invalid.StableProtectedCredential = "invalid-ciphertext";
         var revoked = PersonalLocationProviderProfile.Create(revokedUser.Id, PersonalLocationProvider.Mapbox);
         revoked.RevokedAt = DateTimeOffset.UtcNow;
         db.AddRange(invalid, revoked);

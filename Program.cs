@@ -142,6 +142,9 @@ ConfigureServices(builder);
 
 var app = builder.Build();
 
+// Gate activation before Quartz schema work, seeding, or hosted jobs.
+await DataProtectionAuthority.ValidateAsync(app.Services);
+
 // Check and set if needed for Quartz database setup for job persistence
 await QuartzSchemaInstaller.EnsureQuartzTablesExistAsync(app.Services);
 
@@ -149,7 +152,6 @@ await QuartzSchemaInstaller.EnsureQuartzTablesExistAsync(app.Services);
 
 // Seed the database with roles and the admin user if necessary
 await SeedDatabase(app);
-await DataProtectionAuthority.ValidateAsync(app.Services);
 
 #endregion Database Seeding
 
@@ -216,6 +218,9 @@ static async Task HandlePasswordResetCommand(string[] args)
         .AddDefaultTokenProviders();
 
     await using var app = builder.Build();
+
+// Gate activation before Quartz schema work, seeding, or hosted jobs.
+await DataProtectionAuthority.ValidateAsync(app.Services);
     using var scope = app.Services.CreateScope();
     var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
 

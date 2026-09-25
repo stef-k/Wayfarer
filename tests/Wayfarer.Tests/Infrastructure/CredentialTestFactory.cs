@@ -8,5 +8,5 @@ internal static class CredentialTestFactory
 {
     /// <summary>Shares the fixture key authority while isolating the companion namespace.</summary>
     internal static PersonalProviderCredentialService Create(IDataProtectionProvider provider) =>
-        new(provider, new StableDataProtectionProvider(provider.CreateProtector("test-stable-identity")));
+        new(provider);
 }
