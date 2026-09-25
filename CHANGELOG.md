@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### Changed
+- Add an exact-source manual DB-image publication and anonymous full-Compose recovery gate (#644); registry publication remains pending maintainer workflow activation.
 - Add the production Compose substrate with official PG17.11 Debian/PGDG PostGIS3.6.4 image assembly, required immutable DB/app references and pinned Caddy2.11.4, private database networking, managed HTTPS/external loopback modes and disposable integration qualification (#644). Guided lifecycle and release bundle remain pending; no automatic native migration or PostgreSQL major upgrade.
 - Add immutable stable application-image publication to GHCR with exact release/source/version checks, image digest evidence and anonymous qualification (#642). Application image only; Compose/Caddy/wayfarerctl and the final deployment bundle remain unavailable. Actual publication acceptance awaits the first real stable release. No database migration.
 - Separate Production startup from explicit database/administrator maintenance; add protected password input, database password-file configuration, explicit proxy trust, bounded health checks and the non-root Noble application image (#640). Native Production operators must explicitly prepare schema/bootstrap and configure trusted proxy peers before restart. No new EF migration.
@@ -57,8 +58,6 @@
 - Trip thumbnail capture omits the shared **Open full view** escape before screenshotting, retaining screen-media framing, map controls, and attribution (#596).
 
 ### Added
-
-- Add an exact-source manual DB-image publication and anonymous full-Compose recovery gate; registry publication remains pending maintainer workflow activation.
 - Public Trip and Timeline embeds share cooperative map gestures and a keyboard/single-pointer **Open full view** escape. Ordinary wheel/single-touch input scrolls the containing page; modifier-wheel, two-touch gestures, and explicit controls manipulate the map (#596).
 - Trip sharing and Timeline Settings offer distinct **Copy embed URL** and **Copy embed HTML** actions, using the public HTTPS browser origin, escaped accessible iframe markup, and explicit clipboard feedback (#596).
 
