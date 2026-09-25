@@ -41,10 +41,31 @@ public sealed class Preflight(IProcessRunner runner)
         {
             var path = Path.Combine(temporary.FullName, "deployment.env");
             await File.WriteAllTextAsync(path, config.EnvironmentFile(root), token);
-            var result = await runner.RunAsync(config.Compose(temporary.FullName, "config", "--quiet"), null, token);
+            var result = await runner.RunAsync(config.Compose(temporary.FullName, "config", "--format", "json"), null, token);
             if (result.Code != 0) throw new UsageException("Bundle Compose validation failed; restore the trusted bundle/config.");
+            using var document = JsonDocument.Parse(result.Output);
+            VerifyImages(config, document.RootElement);
         }
         finally { temporary.Delete(recursive: true); }
+    }
+
+    /// <summary>Validate resolved images, not just digest-shaped inputs an altered bundle might ignore.</summary>
+    public static void VerifyImages(Deployment config, JsonElement document)
+    {
+        var services = document.GetProperty("services");
+        var expected = new Dictionary<string, string>
+        {
+            ["wayfarer"] = "ghcr.io/stef-k/wayfarer@" + config.AppDigest,
+            ["db"] = "ghcr.io/stef-k/wayfarer-db@" + config.DbDigest
+        };
+        if (config.Mode == "managed")
+            expected["caddy"] = "caddy@sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b";
+        foreach (var (name, image) in expected)
+        {
+            if (!services.TryGetProperty(name, out var service) || service.GetProperty("image").GetString() != image ||
+                service.GetProperty("platform").GetString() != "linux/amd64")
+                throw new UsageException("Bundle resolved image/platform differs from accepted immutable configuration.");
+        }
     }
 
     /// <summary>Any labelled resource is existing/partial state, including stopped containers and volumes.</summary>

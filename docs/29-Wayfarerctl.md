@@ -231,6 +231,9 @@ Python or Node. `tools/compose/qualify_ctl.py --executable PATH --app-digest DIG
 performs a disposable real external setup, generated secret ownership, migrated/seeded
 DB and protected admin, status/doctor, validated local TLS via a separate test Caddy,
 restart with authentication/key/upload persistence and user password recovery.
+CI uses the actual local image-store digest from the existing application-image dry run;
+this is local candidate evidence, not a published registry/release manifest. The first
+genuine application publication remains the #642 release acceptance gate.
 It removes only its random labelled resources. Test-only TLS never changes production
 Caddy automatic HTTPS. This is not public-CA issuance, production/native qualification,
 backup/restore/update acceptance or completion of #603.

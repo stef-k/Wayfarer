@@ -184,6 +184,15 @@ public sealed class WayfarerCtlTests
         Preflight.CheckPlatform(true, System.Runtime.InteropServices.Architecture.X64);
     }
 
+    [Fact]
+    public void BundleCannotIgnoreImmutableInputAndUseMutableImage()
+    {
+        using var document = System.Text.Json.JsonDocument.Parse("""
+            {"services":{"wayfarer":{"image":"ghcr.io/stef-k/wayfarer:latest","platform":"linux/amd64"}}}
+            """);
+        Assert.Throws<UsageException>(() => Preflight.VerifyImages(Config(), document.RootElement));
+    }
+
     private static Deployment Config() => new() { Bundle = "/bundle", Hostname = "wayfarer.example.org", AppDigest = "sha256:" + new string('a', 64) };
     private static string Join(string[] args) => string.Join(' ', args);
 

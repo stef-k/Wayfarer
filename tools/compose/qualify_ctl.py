@@ -42,6 +42,10 @@ class Journey:
         self.proxy = self.project + '-proxy'
         self.port = self.free_port()
         self.loopback = self.free_port()
+        endpoint = run('docker', 'context', 'inspect', '--format', '{{.Endpoints.docker.Host}}').stdout.strip()
+        if not endpoint.startswith('unix://'):
+            raise RuntimeError('qualification requires a local Unix-socket daemon')
+        self.socket = endpoint.removeprefix('unix://')
         self.plugin = next(path for path in [Path('/usr/libexec/docker/cli-plugins'), Path('/usr/lib/docker/cli-plugins')]
                            if (path / 'docker-compose').exists())
 
@@ -60,7 +64,7 @@ class Journey:
                    '-v', f'{self.executable}:/ctl/wayfarerctl:ro',
                    '-v', '/usr/bin/docker:/usr/bin/docker:ro',
                    '-v', f'{self.plugin}:/usr/libexec/docker/cli-plugins:ro',
-                   '-v', '/var/run/docker.sock:/var/run/docker.sock', HOST, *args, data=data, check=check)
+                   '-v', f'{self.socket}:/var/run/docker.sock', HOST, *args, data=data, check=check)
 
     def ctl(self, *args, data=None, check=True):
         """All ordinary work goes through the actual published operator executable."""
@@ -174,7 +178,7 @@ def main():
     parser.add_argument('--app-digest', required=True)
     args = parser.parse_args()
     if not re.fullmatch(r'sha256:[a-f0-9]{64}', args.app_digest):
-        parser.error('real immutable application digest required')
+        parser.error('actual immutable application content digest required')
     with tempfile.TemporaryDirectory(prefix='wayfarer-648-') as directory:
         journey = Journey(directory, args.executable, args.app_digest)
         try:
