@@ -8,6 +8,7 @@ namespace WayfarerCtl;
 public sealed class Diagnostics(IProcessRunner runner, ITerminal terminal)
 {
     private bool failed;
+    private string? applicationVersion;
 
     public async Task<int> RunAsync(string root, Deployment config, bool doctor, CancellationToken token, bool finishingSetup = false)
     {
@@ -31,7 +32,7 @@ public sealed class Diagnostics(IProcessRunner runner, ITerminal terminal)
         });
         await Check("Application readiness (schema/admin/DB)", async () =>
             await Required(config.Compose(root, "exec", "-T", "wayfarer", "dotnet", "Wayfarer.dll", "healthcheck"), token));
-        await Check("Proxy endpoint live/ready", () => EndpointAsync(config, token));
+        await Check("Proxy endpoint live/ready", () => EndpointAsync(config, token, applicationVersion));
         if (doctor)
         {
             await Check("Expected project volumes/networks", () => ResourcesAsync(config, token));
@@ -94,8 +95,22 @@ public sealed class Diagnostics(IProcessRunner runner, ITerminal terminal)
             using var imageJson = JsonDocument.Parse(await Required(["image", "inspect", container.GetProperty("Image").GetString()!], token));
             var label = imageJson.RootElement[0].GetProperty("Config").GetProperty("Labels").GetProperty("org.opencontainers.image.version").GetString();
             if (version != "Wayfarer " + label || !Regex.IsMatch(label ?? "", @"^\d+\.\d+\.\d+$")) throw new IOException();
+            applicationVersion = label;
+            CheckStorage(container);
             terminal.Write("Deployed " + version + " (compiled version agrees with image label)");
         }
+    }
+
+    /// <summary>Verify the running app uses the accepted data/key authority, not merely a spare mounted volume.</summary>
+    private static void CheckStorage(JsonElement container)
+    {
+        var environment = container.GetProperty("Config").GetProperty("Env").EnumerateArray()
+            .Select(value => value.GetString()!).ToHashSet(StringComparer.Ordinal);
+        foreach (var expected in new[] { "Storage__DataRoot=/var/lib/wayfarer", "Storage__CacheRoot=/var/cache/wayfarer",
+            "Storage__LogRoot=/var/log/wayfarer", "Storage__TempRoot=/tmp/wayfarer",
+            "DataProtection__KeyRingPath=/var/lib/wayfarer/data-protection" })
+            if (!environment.Contains(expected)) throw new IOException();
+        if (!container.GetProperty("HostConfig").GetProperty("ReadonlyRootfs").GetBoolean()) throw new IOException();
     }
 
     /// <summary>Validate actual listener exposure rather than mistaking the stack's own occupied ports for conflicts.</summary>
@@ -123,7 +138,7 @@ public sealed class Diagnostics(IProcessRunner runner, ITerminal terminal)
     }
 
     /// <summary>Normal certificate validation, no redirects/proxy environment; bounded public/loopback proof.</summary>
-    public static async Task EndpointAsync(Deployment config, CancellationToken token)
+    public static async Task EndpointAsync(Deployment config, CancellationToken token, string? expectedVersion = null)
     {
         using var handler = new HttpClientHandler { AllowAutoRedirect = false, UseProxy = false };
         using var client = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(10) };
@@ -133,7 +148,15 @@ public sealed class Diagnostics(IProcessRunner runner, ITerminal terminal)
             using var request = new HttpRequestMessage(HttpMethod.Get, origin + path);
             request.Headers.Host = config.Hostname;
             using var response = await client.SendAsync(request, token);
-            if (response.StatusCode != HttpStatusCode.OK) throw new IOException();
+            var body = await response.Content.ReadAsStringAsync(token);
+            if (response.StatusCode != HttpStatusCode.OK || body != (path.EndsWith("live") ? "live" : "ready")) throw new IOException();
+        }
+        if (config.Mode == "managed")
+        {
+            using var response = await client.GetAsync(origin + "/api/version", token);
+            response.EnsureSuccessStatusCode();
+            using var version = JsonDocument.Parse(await response.Content.ReadAsStringAsync(token));
+            if (expectedVersion is null || version.RootElement.GetProperty("version").GetString() != expectedVersion) throw new IOException();
         }
     }
 }

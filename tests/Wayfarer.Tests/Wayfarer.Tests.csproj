@@ -35,5 +35,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\Wayfarer.csproj" />
+    <!-- Exercise operator commands through their narrow process/terminal seams. -->
+    <ProjectReference Include="..\..\tools\WayfarerCtl\WayfarerCtl.csproj" />
   </ItemGroup>
 </Project>

@@ -16,7 +16,8 @@ public sealed class Terminal : ITerminal
     public bool Interactive => !Console.IsInputRedirected && !Console.IsOutputRedirected;
     public void Write(string message) => Console.WriteLine(message);
     public void Error(string message) => Console.Error.WriteLine(message);
-    public string? Read(string prompt) { Console.Write(prompt); return Console.ReadLine(); }
+    /// <summary>Line editing stays cancellable even while the menu is waiting for a key.</summary>
+    public string? Read(string prompt) { Console.Write(prompt); return ReadKeys(hidden: false); }
 
     /// <summary>Automation deliberately redirects one password line; menus hide and confirm it.</summary>
     public string Password(bool fromStdin)
@@ -28,25 +29,41 @@ public sealed class Terminal : ITerminal
         }
         if (!Interactive) throw new UsageException("Use --password-stdin with protected redirected input.");
         Console.Write("Password: ");
-        var first = Hidden();
+        var first = ReadKeys(hidden: true) ?? throw new OperationCanceledException();
         Console.Write("Confirm password: ");
-        if (first != Hidden()) throw new UsageException("Passwords do not match.");
+        if (first != ReadKeys(hidden: true)) throw new UsageException("Passwords do not match.");
         return Validate(first);
     }
 
-    /// <summary>Accept printable characters and backspace without terminal echo.</summary>
-    private static string Hidden()
+    /// <summary>Handle Ctrl-C/Ctrl-D explicitly so interactive reads never strand cancellation.</summary>
+    private static string? ReadKeys(bool hidden)
     {
-        var value = new System.Text.StringBuilder();
-        while (true)
+        var original = Console.TreatControlCAsInput;
+        Console.TreatControlCAsInput = true;
+        try
         {
-            var key = Console.ReadKey(intercept: true);
-            if (key.Key == ConsoleKey.Enter) { Console.WriteLine(); return value.ToString(); }
-            if (key.Key == ConsoleKey.D || key.Key == ConsoleKey.C)
-                if (key.Modifiers.HasFlag(ConsoleModifiers.Control)) throw new OperationCanceledException();
-            if (key.Key == ConsoleKey.Backspace && value.Length > 0) value.Length--;
-            else if (!char.IsControl(key.KeyChar) && value.Length < 1025) value.Append(key.KeyChar);
+            var value = new System.Text.StringBuilder();
+            while (true)
+            {
+                var key = Console.ReadKey(intercept: true);
+                if (key.Key == ConsoleKey.Enter) { Console.WriteLine(); return value.ToString(); }
+                if (key.Modifiers.HasFlag(ConsoleModifiers.Control) && key.Key == ConsoleKey.C)
+                    throw new OperationCanceledException();
+                if (key.Modifiers.HasFlag(ConsoleModifiers.Control) && key.Key == ConsoleKey.D)
+                    return null;
+                if (key.Key == ConsoleKey.Backspace && value.Length > 0)
+                {
+                    value.Length--;
+                    if (!hidden) Console.Write("\b \b");
+                }
+                else if (!char.IsControl(key.KeyChar) && value.Length < 1025)
+                {
+                    value.Append(key.KeyChar);
+                    if (!hidden) Console.Write(key.KeyChar);
+                }
+            }
         }
+        finally { Console.TreatControlCAsInput = original; }
     }
 
     private static string Validate(string? password) => !string.IsNullOrWhiteSpace(password) && password.Length <= 1024

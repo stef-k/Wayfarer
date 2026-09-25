@@ -1,5 +1,4 @@
 using System.Net;
-using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using System.Text.Json;
@@ -12,7 +11,13 @@ public sealed class Preflight(IProcessRunner runner)
     /// <summary>Check runtime platform before invoking Linux ownership APIs.</summary>
     public static void Platform()
     {
-        if (!OperatingSystem.IsLinux() || RuntimeInformation.OSArchitecture != Architecture.X64)
+        CheckPlatform(OperatingSystem.IsLinux(), RuntimeInformation.OSArchitecture);
+    }
+
+    /// <summary>Pure platform contract for deterministic unsupported-host tests.</summary>
+    public static void CheckPlatform(bool linux, Architecture architecture)
+    {
+        if (!linux || architecture != Architecture.X64)
             throw new UsageException("Supported host: Linux AMD64 Docker Engine (local daemon).");
     }
 
@@ -26,6 +31,20 @@ public sealed class Preflight(IProcessRunner runner)
         var version = compose.Output.Trim().TrimStart('v').Split('+', '-')[0];
         if (compose.Code != 0 || !Version.TryParse(version, out var parsed) || parsed < new Version(2, 24, 4) || parsed.Major != 2)
             throw new UsageException("Docker Compose v2 2.24.4+ is required.");
+    }
+
+    /// <summary>Validate the real Compose document using temporary non-secret inputs before installation writes.</summary>
+    public async Task BundleAsync(string root, Deployment config, CancellationToken token)
+    {
+        var temporary = Directory.CreateTempSubdirectory("wayfarerctl-preflight-");
+        try
+        {
+            var path = Path.Combine(temporary.FullName, "deployment.env");
+            await File.WriteAllTextAsync(path, config.EnvironmentFile(root), token);
+            var result = await runner.RunAsync(config.Compose(temporary.FullName, "config", "--quiet"), null, token);
+            if (result.Code != 0) throw new UsageException("Bundle Compose validation failed; restore the trusted bundle/config.");
+        }
+        finally { temporary.Delete(recursive: true); }
     }
 
     /// <summary>Any labelled resource is existing/partial state, including stopped containers and volumes.</summary>
@@ -72,9 +91,11 @@ public sealed class Preflight(IProcessRunner runner)
             if (result.Code != 0) throw new UsageException("Cannot inspect a Docker network.");
             using var json = JsonDocument.Parse(result.Output);
             var network = json.RootElement[0];
-            var own = network.GetProperty("Labels").TryGetProperty("com.docker.compose.project", out var project) && project.GetString() == config.Project;
+            var own = network.GetProperty("Labels").ValueKind == JsonValueKind.Object && network.GetProperty("Labels").TryGetProperty("com.docker.compose.project", out var project) && project.GetString() == config.Project;
             if (installed && own) continue;
-            foreach (var subnet in network.GetProperty("IPAM").GetProperty("Config").EnumerateArray())
+            var subnets = network.GetProperty("IPAM").GetProperty("Config");
+            if (subnets.ValueKind == JsonValueKind.Null) continue;
+            foreach (var subnet in subnets.EnumerateArray())
                 if (subnet.TryGetProperty("Subnet", out var value) && Overlaps(config.EdgePrefix + ".0/24", value.GetString()!))
                     throw new UsageException("Edge subnet overlaps a Docker network; choose --edge-prefix before setup.");
         }
@@ -86,8 +107,8 @@ public sealed class Preflight(IProcessRunner runner)
                 var mask = Convert.ToUInt32(fields[7], 16);
                 if (mask == 0) continue;
                 var destination = Convert.ToUInt32(fields[1], 16);
-                var candidate = BitConverter.ToUInt32(IPAddress.Parse(config.EdgePrefix + ".0").GetAddressBytes());
-                if ((candidate & mask) == (destination & mask))
+                var route = new IPAddress(BitConverter.GetBytes(destination)) + "/" + System.Numerics.BitOperations.PopCount(mask);
+                if (Overlaps(config.EdgePrefix + ".0/24", route))
                     throw new UsageException("Edge subnet overlaps a host route; choose --edge-prefix.");
             }
     }

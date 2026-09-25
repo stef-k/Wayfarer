@@ -108,7 +108,7 @@ public sealed class Cli(IProcessRunner runner, ITerminal terminal)
         terminal.Write("Stopped. All durable volumes retained."); return 0;
     }
 
-    private async Task<int> UserAsync(string root, Deployment config, string[] args, CancellationToken token)
+    internal async Task<int> UserAsync(string root, Deployment config, string[] args, CancellationToken token)
     {
         var reset = args[1] == "reset-password";
         var password = reset ? terminal.Password(args.Contains("--password-stdin")) : null;
@@ -140,8 +140,15 @@ public sealed class Cli(IProcessRunner runner, ITerminal terminal)
         var options = new List<string> { "logs", "--no-color", "--tail", tail.ToString() };
         if (follow) options.Add("--follow");
         options.Add(service);
-        var result = await runner.RunAsync(config.Compose(root, options.ToArray()), null, token);
-        terminal.Write(result.Output);
+        var secrets = new[] { "db-password", "app-password" }.Select(name => File.ReadAllText(Path.Combine(root, "secrets", name))).ToArray();
+        void Display(string line)
+        {
+            if (secrets.Any(line.Contains) || System.Text.RegularExpressions.Regex.IsMatch(line,
+                "password|token|connectionstring|securitystamp|authorization|-----BEGIN|<key", System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+                terminal.Write("[sensitive log line withheld]");
+            else terminal.Write(new string(line.Where(character => !char.IsControl(character) || character == '\t').ToArray()));
+        }
+        var result = await runner.RunAsync(config.Compose(root, options.ToArray()), null, token, Display);
         return result.Code == 0 ? 0 : 1;
     }
 

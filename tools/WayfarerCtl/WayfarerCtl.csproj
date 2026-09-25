@@ -10,4 +10,7 @@
     <PublishSingleFile>true</PublishSingleFile>
     <InvariantGlobalization>true</InvariantGlobalization>
   </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="Wayfarer.Tests" />
+  </ItemGroup>
 </Project>

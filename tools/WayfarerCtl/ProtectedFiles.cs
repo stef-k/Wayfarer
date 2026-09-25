@@ -41,7 +41,7 @@ public static class ProtectedFiles
                 continue;
             }
             var stat = Inspect(current);
-            if ((stat.Mode & 0xF000) == 0xA000 || stat.User != 0 || (stat.Mode & 0x12) != 0)
+            if ((stat.Mode & 0xF000) == 0xA000 || stat.User != 0 || ((stat.Mode & 0x12) != 0 && (stat.Mode & 0xF200) != 0x4200))
                 throw new UsageException("Installation paths must be root-owned, link-free and not group/world-writable.");
         }
     }
@@ -58,6 +58,7 @@ public static class ProtectedFiles
     /// <summary>Create without replacement; set mode on open before writing any secret bytes.</summary>
     public static void Create(string path, string content, uint owner = 0)
     {
+        if (!OperatingSystem.IsLinux()) throw new PlatformNotSupportedException();
         using var stream = new FileStream(path, new FileStreamOptions
         {
             Mode = FileMode.CreateNew, Access = FileAccess.Write, UnixCreateMode = PrivateFile
@@ -72,6 +73,7 @@ public static class ProtectedFiles
     /// <summary>Separate consumer files carry the same role password; bootstrap uses independent entropy.</summary>
     public static void CreateSecrets(string root)
     {
+        if (!OperatingSystem.IsLinux()) throw new PlatformNotSupportedException();
         var directory = Path.Combine(root, "secrets");
         if (Path.Exists(directory)) throw new UsageException("Existing secrets require explicit recovery; refusing overwrite.");
         Directory.CreateDirectory(directory, PrivateDirectory);

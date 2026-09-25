@@ -5,9 +5,10 @@ Implements [#644](https://github.com/stef-k/Wayfarer/issues/644) against
 [container contract](25-Container-Release-Contract.md),
 [application image](26-Application-Container.md) and
 [publication identity](27-Application-Image-Publication.md).
-This is an advanced/internal precursor to `wayfarerctl`, not the completed #603
-installation product. Guided setup, backup/restore, updates, release tarball and
-`release.json` are not provided. Nothing here migrates a native installation.
+This is the substrate for [wayfarerctl setup and operation](29-Wayfarerctl.md), not the
+completed #603 installation product. The manual commands below are advanced maintenance
+seams. Backup/restore, updates, release tarball and `release.json` remain separate work.
+Nothing here migrates a native installation.
 
 ## Topology and state
 

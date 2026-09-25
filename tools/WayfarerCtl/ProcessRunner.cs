@@ -9,14 +9,14 @@ public sealed record ProcessResult(int Code, string Output);
 public interface IProcessRunner
 {
     /// <summary>Runs an argument array with optional protected stdin and cancellation.</summary>
-    Task<ProcessResult> RunAsync(string[] args, string? input, CancellationToken cancellation);
+    Task<ProcessResult> RunAsync(string[] args, string? input, CancellationToken cancellation, Action<string>? lineOutput = null);
 }
 
 /// <summary>Invokes Docker directly, drains diagnostics privately, and bounds execution.</summary>
 public sealed class ProcessRunner : IProcessRunner
 {
     /// <summary>Clears ambient Compose interpolation/selection and never forwards child stderr.</summary>
-    public async Task<ProcessResult> RunAsync(string[] args, string? input, CancellationToken cancellation)
+    public async Task<ProcessResult> RunAsync(string[] args, string? input, CancellationToken cancellation, Action<string>? lineOutput = null)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellation);
         if (!args.Contains("--follow")) timeout.CancelAfter(TimeSpan.FromMinutes(10));
@@ -41,7 +41,7 @@ public sealed class ProcessRunner : IProcessRunner
             try { if (!process.HasExited) process.Kill(entireProcessTree: true); }
             catch (InvalidOperationException) { }
         });
-        var output = ReadBoundedAsync(process.StandardOutput, timeout.Token);
+        var output = ReadBoundedAsync(process.StandardOutput, timeout.Token, lineOutput);
         var error = ReadBoundedAsync(process.StandardError, timeout.Token);
         if (input is not null) await process.StandardInput.WriteLineAsync(input.AsMemory(), timeout.Token);
         process.StandardInput.Close();
@@ -51,9 +51,15 @@ public sealed class ProcessRunner : IProcessRunner
     }
 
     /// <summary>Drain both pipes without retaining unbounded process or log output.</summary>
-    private static async Task<string> ReadBoundedAsync(StreamReader reader, CancellationToken cancellation)
+    private static async Task<string> ReadBoundedAsync(StreamReader reader, CancellationToken cancellation, Action<string>? lineOutput = null)
     {
         var result = new System.Text.StringBuilder();
+        if (lineOutput is not null)
+        {
+            // Follow is streamed line-by-line through the command's redaction boundary.
+            while (await reader.ReadLineAsync(cancellation) is { } line) lineOutput(line);
+            return "";
+        }
         var buffer = new char[4096];
         int count;
         while ((count = await reader.ReadAsync(buffer, cancellation)) > 0)

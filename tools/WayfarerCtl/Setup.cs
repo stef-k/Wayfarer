@@ -23,6 +23,7 @@ public sealed class Setup(IProcessRunner runner, ITerminal terminal)
     /// <summary>Serialize mutations per installation, without treating a stale lock file as durable state.</summary>
     public static FileStream Lock(string root)
     {
+        if (!OperatingSystem.IsLinux()) throw new PlatformNotSupportedException();
         var path = Path.Combine(root, "operation.lock");
         if (Path.Exists(path)) ProtectedFiles.Check(path, 0);
         else ProtectedFiles.Create(path, "");
@@ -46,10 +47,12 @@ public sealed class Setup(IProcessRunner runner, ITerminal terminal)
         var preflight = new Preflight(runner);
         await preflight.DockerAsync(token);
         await preflight.FreshAsync(config, token);
+        await preflight.BundleAsync(root, config, token);
         terminal.Write($"Preflight passed: {root}; project {config.Project}; {config.Mode}; {config.Hostname}; edge {config.EdgePrefix}.0/24.\n" +
             "Fresh DB and app volumes; protected admin bootstrap precedes web/ingress. Existing/native data is never adopted.");
         var password = terminal.Password(options.ContainsKey("--password-stdin"));
         token.ThrowIfCancellationRequested();
+        if (!OperatingSystem.IsLinux()) throw new PlatformNotSupportedException();
         Directory.CreateDirectory(root, ProtectedFiles.PrivateDirectory);
         using var operationLock = Lock(root);
         // Recheck after taking the lock: another setup may have completed during preflight/password input.
