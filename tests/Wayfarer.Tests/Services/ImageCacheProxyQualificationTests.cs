@@ -28,10 +28,11 @@ public sealed class ImageCacheProxyQualificationTests : TestBase
         var key = ImageProxyHelper.ComputeImageCacheKey(request.Url, request.MaxWidth, request.MaxHeight, request.Quality, request.Optimize);
         var legacyPath = Path.Combine(storage.LegacyRoot, ImageCacheStorage.CreateReference(key));
         Directory.CreateDirectory(storage.LegacyRoot);
-        await File.WriteAllBytesAsync(legacyPath, [1, 2]);
+        var legacyBytes = ImageProxyTestFactory.Raster();
+        await File.WriteAllBytesAsync(legacyPath, legacyBytes);
         var row = new ImageCacheMetadata
         {
-            CacheKey = key, FilePath = legacyPath, ContentType = "image/jpeg", Size = 2,
+            CacheKey = key, FilePath = legacyPath, ContentType = "image/jpeg", Size = legacyBytes.Length,
             CreatedAt = DateTime.UtcNow, LastAccessed = DateTime.UtcNow
         };
         db.ImageCacheMetadata.Add(row);
@@ -53,7 +54,7 @@ public sealed class ImageCacheProxyQualificationTests : TestBase
             await db.SaveChangesAsync();
             var stale = await proxy.GetOrFetchAsync(request, true).WaitAsync(TimeSpan.FromSeconds(5));
             Assert.Equal(ImageProxyResultStatus.StaleHit, stale.Status);
-            Assert.Equal(new byte[] { 1, 2 }, stale.Bytes);
+            Assert.Equal(legacyBytes, stale.Bytes);
             await handler.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
             Assert.True(File.Exists(legacyPath));
             Assert.Equal(legacyPath, row.FilePath);
@@ -64,7 +65,7 @@ public sealed class ImageCacheProxyQualificationTests : TestBase
             Assert.False(File.Exists(legacyPath));
             var current = await proxy.GetOrFetchAsync(request, true);
             Assert.Equal(ImageProxyResultStatus.FreshHit, current.Status);
-            Assert.Equal(new byte[] { 3, 4, 5 }, current.Bytes);
+            Assert.Equal(ImageProxyTestFactory.Raster("png"), current.Bytes);
             Assert.Equal(1, handler.Requests);
         }
         finally
@@ -99,14 +100,14 @@ public sealed class ImageCacheProxyQualificationTests : TestBase
         using var client = new HttpClient(handler);
         var settings = new Mock<IApplicationSettingsService>();
         settings.Setup(x => x.GetSettings()).Returns(new ApplicationSettings());
-        var proxy = new ImageProxyService(client, cache, settings.Object, Mock.Of<IServiceScopeFactory>(),
+        var proxy = new ImageProxyService(client, cache, settings.Object, ImageProxyTestFactory.ScopeFactory(client, cache, settings.Object),
             NullLogger<ImageProxyService>.Instance);
         Assert.Equal(ImageProxyResultStatus.OriginRequired, (await proxy.GetOrFetchAsync(request, false)).Status);
         Assert.Equal(outside, row.FilePath);
         Assert.Equal(0, handler.Requests);
         var fetched = await proxy.GetOrFetchAsync(request, true);
         Assert.Equal(ImageProxyResultStatus.Fetched, fetched.Status);
-        Assert.Equal(new byte[] { 3, 4, 5 }, fetched.Bytes);
+        Assert.Equal(ImageProxyTestFactory.Raster("png"), fetched.Bytes);
         Assert.True(ImageCacheStorage.IsReference(row.FilePath, key));
         Assert.Equal(new byte[] { 7, 8 }, await File.ReadAllBytesAsync(outside));
         Assert.Equal(1, handler.Requests);
@@ -119,13 +120,13 @@ public sealed class ImageCacheProxyQualificationTests : TestBase
         public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public int Requests;
 
-        /// <summary>Returns deterministic opaque bytes without any network connection.</summary>
+        /// <summary>Returns deterministic validated raster bytes without any network connection.</summary>
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             Interlocked.Increment(ref Requests);
             Started.TrySetResult();
             await Release.Task.WaitAsync(cancellationToken);
-            var response = new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent([3, 4, 5]) };
+            var response = new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(ImageProxyTestFactory.Raster("png")) };
             response.Content.Headers.ContentType = new("image/png");
             return response;
         }

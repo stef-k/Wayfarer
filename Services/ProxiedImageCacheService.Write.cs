@@ -32,14 +32,6 @@ public partial class ProxiedImageCacheService
         {
             await _cacheLock.WaitAsync(ct);
             lockTaken = true;
-        }
-        catch
-        {
-            TryDeleteTempImage(tempFilePath);
-            throw;
-        }
-        try
-        {
             var existing = await _dbContext.ImageCacheMetadata.FirstOrDefaultAsync(m => m.CacheKey == cacheKey, ct);
             if (existing != null)
             {

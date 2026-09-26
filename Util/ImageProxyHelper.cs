@@ -96,11 +96,8 @@ public static class ImageProxyHelper
     {
         using var image = LoadSafeRaster(imageBytes);
 
-        // Check if image has transparency (alpha channel)
-        // PNG and WebP formats typically have alpha, JPEG does not
-        bool hasTransparency = image.Metadata.DecodedImageFormat?.Name == "PNG" ||
-                               image.Metadata.DecodedImageFormat?.Name == "WEBP" ||
-                               image.Metadata.DecodedImageFormat?.Name == "GIF";
+        // Preserve the established output route: PNG/GIF to PNG, JPEG/WebP to JPEG.
+        var preservePngOutput = image.Metadata.DecodedImageFormat?.Name is "PNG" or "GIF";
 
         // Calculate new dimensions maintaining aspect ratio
         int targetWidth = image.Width;
@@ -129,7 +126,7 @@ public static class ImageProxyHelper
         // Choose format based on transparency
         using var outputStream = new MemoryStream();
 
-        if (hasTransparency)
+        if (preservePngOutput)
         {
             // Preserve transparency with PNG (for icons, logos, etc.)
             image.SaveAsPng(outputStream, new SixLabors.ImageSharp.Formats.Png.PngEncoder

@@ -23,7 +23,7 @@ namespace Wayfarer.Tests.Controllers;
 /// Public trip viewer behaviors: index search/pagination, view gating, preview, thumbnail proxy.
 /// </summary>
 [Collection(ImageProxyStaticStateTestCollection.Name)]
-public class TripViewerControllerTests : TestBase
+public partial class TripViewerControllerTests : TestBase
 {
     [Fact]
     public async Task View_ReturnsNotFound_WhenPrivate()
@@ -407,7 +407,8 @@ public class TripViewerControllerTests : TestBase
         ITripThumbnailService? thumbnailService = null,
         ITripTagService? tagService = null,
         IProxiedImageCacheService? imageCacheService = null,
-        IApplicationSettingsService? settingsService = null)
+        IApplicationSettingsService? settingsService = null,
+        IImageProxyService? proxyService = null)
     {
         var client = new HttpClient(handler ?? new FakeHandler(new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(ImageProxyTestFactory.Raster("png")) }));
         thumbnailService ??= Mock.Of<ITripThumbnailService>();
@@ -439,7 +440,7 @@ public class TripViewerControllerTests : TestBase
             client,
             thumbnailService,
             tagService,
-            imageProxyService,
+            proxyService ?? imageProxyService,
             settingsService,
             new TripThumbnailStorage(TestDirectory.Storage(CreateTestDirectory())));
         controller.ControllerContext = new ControllerContext

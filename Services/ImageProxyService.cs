@@ -105,7 +105,7 @@ public class ImageProxyService : IImageProxyService
         var cacheKey = ComputeCacheKey(request);
         ct.ThrowIfCancellationRequested();
         var existing = await GetSafeCacheAsync(cacheKey, ct);
-        if (existing.Status == ProxiedImageCacheStatus.FreshHit)
+        if (existing.Status == ProxiedImageCacheStatus.FreshHit && existing.HasBytes)
         {
             return false;
         }
@@ -154,7 +154,9 @@ public class ImageProxyService : IImageProxyService
                 var completion = new TaskCompletionSource<ImageProxyResult>(TaskCreationOptions.RunContinuationsAsynchronously);
                 active = completion.Task;
                 _originWork.Add(cacheKey, active);
-                _ = RunOwnedOriginAsync(request, cacheKey, completion);
+                var deadline = new CancellationTokenSource(OriginDeadline, OriginTimeProvider);
+                // Only admitted work is dispatched; no I/O or synchronous decode runs under the admission lock.
+                _ = Task.Run(() => RunOwnedOriginAsync(request, cacheKey, completion, deadline), CancellationToken.None);
             }
 
             return active.WaitAsync(ct);
@@ -163,12 +165,14 @@ public class ImageProxyService : IImageProxyService
 
     /// <summary>Owns scope, total header/body/cache deadline and admission until actual completion.</summary>
     private async Task RunOwnedOriginAsync(
-        ImageProxyRequest request, string cacheKey, TaskCompletionSource<ImageProxyResult> completion)
+        ImageProxyRequest request, string cacheKey, TaskCompletionSource<ImageProxyResult> completion,
+        CancellationTokenSource deadline)
     {
         ImageProxyResult result;
         try
         {
-            using var deadline = new CancellationTokenSource(OriginDeadline, OriginTimeProvider);
+            using var ownedDeadline = deadline;
+            deadline.Token.ThrowIfCancellationRequested();
             using var scope = _serviceScopeFactory.CreateScope();
             var worker = (ImageProxyService)scope.ServiceProvider.GetRequiredService<IImageProxyService>();
             result = await worker.DownloadOptimizeAndCacheAsync(request, cacheKey, deadline.Token);
@@ -227,7 +231,7 @@ public class ImageProxyService : IImageProxyService
         {
             resp = await _httpClient.GetAsync(request.Url, HttpCompletionOption.ResponseHeadersRead, ct);
         }
-        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        catch (OperationCanceledException)
         {
             throw;
         }

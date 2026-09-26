@@ -33,8 +33,10 @@ public partial class ImageProxyServiceTests
     }
 
     /// <summary>A decoded-resource rejection is TooLarge and never populates the cache.</summary>
-    [Fact]
-    public async Task GetOrFetchAsync_DecodedResourceRejection_DoesNotPopulateCache()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task GetOrFetchAsync_DecodedResourceRejection_DoesNotPopulateCache(bool optimize)
     {
         var handler = new MockHttpMessageHandler(
             HttpStatusCode.OK,
@@ -44,7 +46,7 @@ public partial class ImageProxyServiceTests
         var service = CreateImageProxyService(handler: handler, cacheMock: cacheMock);
 
         var result = await service.GetOrFetchAsync(
-            new ImageProxyRequest("https://example.com/declared-wide.png"),
+            new ImageProxyRequest("https://example.com/declared-wide.png", Optimize: optimize),
             allowOriginFetch: true);
 
         Assert.Equal(ImageProxyResultStatus.TooLarge, result.Status);

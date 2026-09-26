@@ -415,12 +415,9 @@ public class TripViewerController : BaseController
         if (!IsUrlAllowed(url))
             return BadRequest("Invalid or disallowed image URL.");
 
-        // Compute deterministic cache key from all parameters
-        var cacheKey = ComputeImageCacheKey(url, maxWidth, maxHeight, quality, optimize);
-
         var settings = _settingsService.GetSettings();
         var request = new ImageProxyRequest(url, maxWidth, maxHeight, quality, optimize);
-        return await ServeProxyImageAsync(settings, request, cacheKey);
+        return await ServeProxyImageAsync(settings, request);
     }
 
     /// <summary>
@@ -429,12 +426,10 @@ public class TripViewerController : BaseController
     /// </summary>
     /// <param name="settings">Admin application settings (cache expiry, download limit).</param>
     /// <param name="request">The external image request parameters.</param>
-    /// <param name="cacheKey">Pre-computed deterministic cache key.</param>
     /// <returns>Cached or freshly-fetched image file result.</returns>
     private async Task<IActionResult> ServeProxyImageAsync(
         ApplicationSettings settings,
-        ImageProxyRequest request,
-        string cacheKey)
+        ImageProxyRequest request)
     {
         // Compute cache duration and download limit from admin settings
         var maxAgeSeconds = settings.ImageCacheExpiryDays * 86400;
@@ -469,7 +464,8 @@ public class TripViewerController : BaseController
     }
 
     /// <summary>
-    /// Applies browser cache headers and a lightweight cache diagnostic header.
+    /// Applies cache diagnostics and a versioned validator only after resolving safe bytes.
+    /// Returns whether the request matches the validated representation.
     /// </summary>
     private bool SetProxyImageHeaders(int maxAgeSeconds, ImageProxyResult result)
     {
@@ -486,13 +482,6 @@ public class TripViewerController : BaseController
         };
         return Request.Headers.IfNoneMatch == etag;
     }
-
-    /// <summary>
-    /// Computes a deterministic cache key - delegates to <see cref="ImageProxyHelper.ComputeImageCacheKey"/>.
-    /// </summary>
-    private static string ComputeImageCacheKey(
-        string url, int? maxWidth, int? maxHeight, int? quality, bool optimize)
-        => ImageProxyHelper.ComputeImageCacheKey(url, maxWidth, maxHeight, quality, optimize);
 
     /// <summary>
     /// SSRF URL validation - delegates to <see cref="ImageProxyHelper.IsUrlAllowed"/>.
@@ -601,12 +590,9 @@ public class TripViewerController : BaseController
             return BadRequest("Invalid or disallowed image URL.");
         }
 
-        // Compute deterministic cache key (no resize params for cover images)
-        var cacheKey = ComputeImageCacheKey(coverImageUrl, maxWidth: null, maxHeight: null, quality: null, optimize: true);
-
         var settings = _settingsService.GetSettings();
         var request = new ImageProxyRequest(coverImageUrl);
-        return await ServeProxyImageAsync(settings, request, cacheKey);
+        return await ServeProxyImageAsync(settings, request);
     }
 
     /// <summary>

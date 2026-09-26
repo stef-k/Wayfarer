@@ -7,13 +7,15 @@ public interface IProxiedImageCacheService
 {
     /// <summary>
     /// Returns an explicit cache result for the requested key.
-    /// Fresh and stale hits include local bytes; misses and disk failures do not.
+    /// Fresh and stale hits include bounded local bytes; callers must validate their raster content.
+    /// Cancellation covers database, file and cache-lock waits.
     /// </summary>
     Task<ProxiedImageCacheResult> GetAsync(string cacheKey, CancellationToken ct = default);
 
     /// <summary>
     /// Stores processed image bytes under the given cache key.
     /// Existing entries keep old bytes usable unless new bytes and metadata both commit.
+    /// Cancellation retains publication cleanup and propagates to the operation owner.
     /// </summary>
     Task<ProxiedImageCacheStoreResult> SetAsync(string cacheKey, byte[] bytes, string contentType, CancellationToken ct = default);
 
