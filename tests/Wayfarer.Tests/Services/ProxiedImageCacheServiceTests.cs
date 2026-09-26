@@ -12,7 +12,7 @@ namespace Wayfarer.Tests.Services;
 /// Tests for the ProxiedImageCacheService: cache hit/miss, expiry, LRU eviction, and initialization.
 /// </summary>
 [Collection(ImageProxyStaticStateTestCollection.Name)]
-public class ProxiedImageCacheServiceTests : TestBase, IDisposable
+public partial class ProxiedImageCacheServiceTests : TestBase, IDisposable
 {
     private readonly string _tempDir;
 

@@ -73,6 +73,18 @@ public sealed class ImageProxyHelperOptimizationTests
         Assert.Equal(expectedDecision, (int)result.Decision);
     }
 
+    /// <summary>Original-byte validation rejects the same animated inputs as optimized output.</summary>
+    [Theory]
+    [InlineData("gif")]
+    [InlineData("webp")]
+    public void SafeRaster_RejectsAnimationsInBothModes(string format)
+    {
+        var bytes = CreateAnimation(2, format);
+        Assert.Throws<DecodedImageResourceRejectedException>(() => ImageProxyHelper.ValidateRaster(bytes));
+        Assert.Throws<DecodedImageResourceRejectedException>(() =>
+            ImageProxyHelper.OptimizeImage(bytes, null, null, 95, out _));
+    }
+
     /// <summary>An ancillary chunk between WebP frames must not hide the second frame from preflight.</summary>
     [Fact]
     public void Preflight_RejectsWebpFramesSeparatedByAncillaryChunk()

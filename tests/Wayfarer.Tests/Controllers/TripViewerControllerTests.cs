@@ -23,7 +23,7 @@ namespace Wayfarer.Tests.Controllers;
 /// Public trip viewer behaviors: index search/pagination, view gating, preview, thumbnail proxy.
 /// </summary>
 [Collection(ImageProxyStaticStateTestCollection.Name)]
-public class TripViewerControllerTests : TestBase
+public partial class TripViewerControllerTests : TestBase
 {
     [Fact]
     public async Task View_ReturnsNotFound_WhenPrivate()
@@ -251,16 +251,14 @@ public class TripViewerControllerTests : TestBase
     [Fact]
     public async Task ProxyImage_Returns304_WhenIfNoneMatchMatchesETag()
     {
+        var bytes = ImageProxyTestFactory.Raster();
         var cacheMock = new Mock<IProxiedImageCacheService>();
+        cacheMock.Setup(c => c.GetAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ProxiedImageCacheResult(ProxiedImageCacheStatus.FreshHit, bytes, "text/html", null));
         var controller = BuildController(CreateDbContext(), imageCacheService: cacheMock.Object);
-
-        // Compute the expected cache key for the request parameters
-        // Call ProxyImage once to learn the ETag, then test with If-None-Match
         var url = "http://example.com/img.jpg";
-
-        var cacheKey = ImageProxyHelper.ComputeImageCacheKey(url, null, null, null, true);
-
-        controller.ControllerContext.HttpContext.Request.Headers["If-None-Match"] = $"\"{cacheKey}\"";
+        Assert.IsType<FileContentResult>(await controller.ProxyImage(url));
+        controller.Request.Headers.IfNoneMatch = controller.Response.Headers.ETag;
 
         var result = await controller.ProxyImage(url);
 
@@ -271,9 +269,9 @@ public class TripViewerControllerTests : TestBase
     [Fact]
     public async Task ProxyImage_ServesCachedImage_OnCacheHit()
     {
-        var cachedBytes = new byte[] { 0xFF, 0xD8, 0xFF };
+        var cachedBytes = ImageProxyTestFactory.Raster();
         var cacheMock = new Mock<IProxiedImageCacheService>();
-        cacheMock.Setup(s => s.GetAsync(It.IsAny<string>()))
+        cacheMock.Setup(s => s.GetAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ProxiedImageCacheResult(
                 ProxiedImageCacheStatus.FreshHit,
                 cachedBytes,
@@ -341,9 +339,9 @@ public class TripViewerControllerTests : TestBase
             ImageCacheExpiryDays = 180
         });
 
-        var cachedBytes = new byte[] { 0xFF, 0xD8, 0xFF };
+        var cachedBytes = ImageProxyTestFactory.Raster();
         var cacheMock = new Mock<IProxiedImageCacheService>();
-        cacheMock.Setup(s => s.GetAsync(It.IsAny<string>()))
+        cacheMock.Setup(s => s.GetAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ProxiedImageCacheResult(
                 ProxiedImageCacheStatus.FreshHit,
                 cachedBytes,
@@ -373,15 +371,15 @@ public class TripViewerControllerTests : TestBase
 
         var handler = new FakeHandler(() => new HttpResponseMessage(HttpStatusCode.OK)
         {
-            Content = new ByteArrayContent(new byte[] { 1, 2 })
+            Content = new ByteArrayContent(ImageProxyTestFactory.Raster("png"))
             {
                 Headers = { ContentType = new MediaTypeHeaderValue("image/png") }
             }
         });
         var cacheMock = new Mock<IProxiedImageCacheService>();
-        cacheMock.Setup(s => s.GetAsync(It.IsAny<string>()))
+        cacheMock.Setup(s => s.GetAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ProxiedImageCacheResult(ProxiedImageCacheStatus.Miss, null, null, null));
-        cacheMock.Setup(s => s.SetAsync(It.IsAny<string>(), It.IsAny<byte[]>(), It.IsAny<string>()))
+        cacheMock.Setup(s => s.SetAsync(It.IsAny<string>(), It.IsAny<byte[]>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(ProxiedImageCacheStoreResult.Success);
 
         var controller = BuildController(
@@ -409,17 +407,18 @@ public class TripViewerControllerTests : TestBase
         ITripThumbnailService? thumbnailService = null,
         ITripTagService? tagService = null,
         IProxiedImageCacheService? imageCacheService = null,
-        IApplicationSettingsService? settingsService = null)
+        IApplicationSettingsService? settingsService = null,
+        IImageProxyService? proxyService = null)
     {
-        var client = new HttpClient(handler ?? new FakeHandler(new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(new byte[] { 1, 2 }) }));
+        var client = new HttpClient(handler ?? new FakeHandler(new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(ImageProxyTestFactory.Raster("png")) }));
         thumbnailService ??= Mock.Of<ITripThumbnailService>();
         tagService ??= Mock.Of<ITripTagService>();
         if (imageCacheService == null)
         {
             var cacheMock = new Mock<IProxiedImageCacheService>();
-            cacheMock.Setup(c => c.GetAsync(It.IsAny<string>()))
+            cacheMock.Setup(c => c.GetAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(new ProxiedImageCacheResult(ProxiedImageCacheStatus.Miss, null, null, null));
-            cacheMock.Setup(c => c.SetAsync(It.IsAny<string>(), It.IsAny<byte[]>(), It.IsAny<string>()))
+            cacheMock.Setup(c => c.SetAsync(It.IsAny<string>(), It.IsAny<byte[]>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(ProxiedImageCacheStoreResult.Success);
             imageCacheService = cacheMock.Object;
         }
@@ -433,7 +432,7 @@ public class TripViewerControllerTests : TestBase
             client,
             imageCacheService,
             settingsService,
-            Mock.Of<IServiceScopeFactory>(),
+            ImageProxyTestFactory.ScopeFactory(client, imageCacheService, settingsService),
             NullLogger<ImageProxyService>.Instance);
         var controller = new TripViewerController(
             NullLogger<TripViewerController>.Instance,
@@ -441,7 +440,7 @@ public class TripViewerControllerTests : TestBase
             client,
             thumbnailService,
             tagService,
-            imageProxyService,
+            proxyService ?? imageProxyService,
             settingsService,
             new TripThumbnailStorage(TestDirectory.Storage(CreateTestDirectory())));
         controller.ControllerContext = new ControllerContext

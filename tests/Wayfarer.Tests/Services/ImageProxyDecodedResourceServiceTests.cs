@@ -14,11 +14,11 @@ namespace Wayfarer.Tests.Services;
 /// <summary>Focused service coverage for decoded-resource result, cache, logging, and coalescing behavior.</summary>
 public partial class ImageProxyServiceTests
 {
-    /// <summary>Optimize=false bypasses identification and preserves origin bytes and content type.</summary>
+    /// <summary>Optimize=false validates bytes and preserves safe originals with canonical MIME.</summary>
     [Fact]
-    public async Task GetOrFetchAsync_OptimizeFalse_BypassesDecodeAndPreservesResponse()
+    public async Task GetOrFetchAsync_OptimizeFalse_ValidatesAndPreservesResponse()
     {
-        var originBytes = new byte[] { 1, 2, 3 };
+        var originBytes = ImageProxyTestFactory.Raster("png");
         var handler = new MockHttpMessageHandler(HttpStatusCode.OK, originBytes, "image/png");
         var cacheMock = CreateMissingCache();
         var service = CreateImageProxyService(handler: handler, cacheMock: cacheMock);
@@ -33,8 +33,10 @@ public partial class ImageProxyServiceTests
     }
 
     /// <summary>A decoded-resource rejection is TooLarge and never populates the cache.</summary>
-    [Fact]
-    public async Task GetOrFetchAsync_DecodedResourceRejection_DoesNotPopulateCache()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task GetOrFetchAsync_DecodedResourceRejection_DoesNotPopulateCache(bool optimize)
     {
         var handler = new MockHttpMessageHandler(
             HttpStatusCode.OK,
@@ -44,7 +46,7 @@ public partial class ImageProxyServiceTests
         var service = CreateImageProxyService(handler: handler, cacheMock: cacheMock);
 
         var result = await service.GetOrFetchAsync(
-            new ImageProxyRequest("https://example.com/declared-wide.png"),
+            new ImageProxyRequest("https://example.com/declared-wide.png", Optimize: optimize),
             allowOriginFetch: true);
 
         Assert.Equal(ImageProxyResultStatus.TooLarge, result.Status);
@@ -119,7 +121,7 @@ public partial class ImageProxyServiceTests
 
         Assert.Equal(ImageProxyResultStatus.TooLarge, result.Status);
         VerifyNeverStored(cacheMock);
-        cacheMock.Verify(c => c.GetAsync(It.IsAny<string>()), Times.Never);
+        cacheMock.Verify(c => c.GetAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     /// <summary>One coalesced rejection emits one bounded structured policy event without the origin URL.</summary>
@@ -136,7 +138,8 @@ public partial class ImageProxyServiceTests
             new HttpClient(handler),
             cacheMock.Object,
             settingsMock.Object,
-            Mock.Of<IServiceScopeFactory>(),
+            ImageProxyTestFactory.ScopeFactory(new HttpClient(handler), cacheMock.Object, settingsMock.Object,
+                loggerFactory.CreateLogger<ImageProxyService>()),
             loggerFactory.CreateLogger<ImageProxyService>());
         var request = new ImageProxyRequest("https://example.com/private.png?token=secret");
 
@@ -158,14 +161,14 @@ public partial class ImageProxyServiceTests
     private static Mock<IProxiedImageCacheService> CreateMissingCache()
     {
         var cacheMock = new Mock<IProxiedImageCacheService>();
-        cacheMock.Setup(cache => cache.GetAsync(It.IsAny<string>()))
+        cacheMock.Setup(cache => cache.GetAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ProxiedImageCacheResult(ProxiedImageCacheStatus.Miss, null, null, null));
         cacheMock.SetReturnsDefault(Task.FromResult(ProxiedImageCacheStoreResult.Success));
         return cacheMock;
     }
 
     private static void VerifyNeverStored(Mock<IProxiedImageCacheService> cacheMock) =>
-        cacheMock.Verify(cache => cache.SetAsync(It.IsAny<string>(), It.IsAny<byte[]>(), It.IsAny<string>()), Times.Never);
+        cacheMock.Verify(cache => cache.SetAsync(It.IsAny<string>(), It.IsAny<byte[]>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
 
     /// <summary>Deterministically holds one response so a same-key waiter can join it.</summary>
     private sealed class GatedHttpMessageHandler(byte[] bytes, string contentType) : HttpMessageHandler

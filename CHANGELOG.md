@@ -17,6 +17,7 @@
 - Stage new location imports beneath the durable DataRoot with portable logical references; retain bounded same-host legacy compatibility and report both storage roots in Admin Settings (#615). Native Linux deployment prepares the external staging directory without migrating old rows or files.
 
 ### Fixed
+- Harden the public image proxy with byte-validated single-frame JPEG/PNG/GIF/WebP, safe legacy-cache reads and versioned output ETags, direct origin connections without ambient proxies, independent 100-second shared-work deadlines and immediate four-worker admission (503 when busy). Preserve anonymous/mobile URLs and existing resource/cache controls; no schema migration or bulk purge (#654).
 - Fail closed on closed/missing registration settings before account work, and bound selected Identity credential/recovery/token attempts per effective client with 429 retry guidance (#653). Preserve account lockout, admitted flows and mobile bearer APIs. No database migration.
 - Remove shared MVC helpers from action discovery and require the Admin role for ActivityType maintenance (#652). Intended Home/Public routes remain available; no database migration or mobile/API changes.
 - Resolve IANA and Windows timezone identifiers across Linux and Windows, including India’s half-hour offset (#608).

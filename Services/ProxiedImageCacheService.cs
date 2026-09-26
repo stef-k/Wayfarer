@@ -60,8 +60,7 @@ public partial class ProxiedImageCacheService : IProxiedImageCacheService
     /// <summary>
     /// Test-overridable metadata save hook for deterministic persistence-failure coverage.
     /// </summary>
-    private static Func<ApplicationDbContext, Task<int>> _saveMetadataChanges =
-        dbContext => dbContext.SaveChangesAsync();
+    private static Func<ApplicationDbContext, Task<int>>? _saveMetadataChanges;
 
     /// <summary>
     /// Test-only hook that runs after metadata is captured and before file existence is checked.
@@ -103,7 +102,7 @@ public partial class ProxiedImageCacheService : IProxiedImageCacheService
     }
 
     /// <inheritdoc />
-    public async Task<ProxiedImageCacheResult> GetAsync(string cacheKey)
+    public async Task<ProxiedImageCacheResult> GetAsync(string cacheKey, CancellationToken ct = default)
     {
         var settings = _settingsService.GetSettings();
 
@@ -120,7 +119,7 @@ public partial class ProxiedImageCacheService : IProxiedImageCacheService
         try
         {
             var metadata = await _dbContext.ImageCacheMetadata
-                .FirstOrDefaultAsync(m => m.CacheKey == cacheKey);
+                .FirstOrDefaultAsync(m => m.CacheKey == cacheKey, ct);
 
             if (metadata == null)
                 return new ProxiedImageCacheResult(ProxiedImageCacheStatus.Miss, null, null, null);
@@ -134,8 +133,9 @@ public partial class ProxiedImageCacheService : IProxiedImageCacheService
             {
                 try
                 {
-                    await UpdateLastAccessedAsync(metadata);
+                    await UpdateLastAccessedAsync(metadata, ct);
                 }
+                catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
                 catch (Exception ex)
                 {
                     // Non-critical — log and continue serving the cached image
@@ -155,6 +155,7 @@ public partial class ProxiedImageCacheService : IProxiedImageCacheService
                 return new ProxiedImageCacheResult(ProxiedImageCacheStatus.DiskMissingOrError, null, null, null);
             contentType = metadata.ContentType;
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error reading image cache for key {CacheKey}.", cacheKey);
@@ -169,12 +170,13 @@ public partial class ProxiedImageCacheService : IProxiedImageCacheService
 
             if (!File.Exists(filePath))
             {
-                return await HandleMissingCapturedFileAsync(cacheKey, capturedReference, settings);
+                return await HandleMissingCapturedFileAsync(cacheKey, capturedReference, settings, ct);
             }
 
-            var bytes = await File.ReadAllBytesAsync(filePath);
+            var bytes = await ReadBoundedFileAsync(filePath, settings, ct);
             return new ProxiedImageCacheResult(status, bytes, contentType!, filePath);
         }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error reading cached image file for key {CacheKey}.", cacheKey);
@@ -188,17 +190,17 @@ public partial class ProxiedImageCacheService : IProxiedImageCacheService
     private async Task<ProxiedImageCacheResult> HandleMissingCapturedFileAsync(
         string cacheKey,
         string capturedReference,
-        ApplicationSettings settings)
+        ApplicationSettings settings, CancellationToken ct)
     {
-        await _cacheLock.WaitAsync();
+        await _cacheLock.WaitAsync(ct);
         try
         {
             var currentMetadata = await _dbContext.ImageCacheMetadata
-                .FirstOrDefaultAsync(m => m.CacheKey == cacheKey);
+                .FirstOrDefaultAsync(m => m.CacheKey == cacheKey, ct);
 
             if (currentMetadata != null)
             {
-                await _dbContext.Entry(currentMetadata).ReloadAsync();
+                await _dbContext.Entry(currentMetadata).ReloadAsync(ct);
             }
 
             if (currentMetadata == null || _dbContext.Entry(currentMetadata).State == EntityState.Detached)
@@ -212,14 +214,14 @@ public partial class ProxiedImageCacheService : IProxiedImageCacheService
 
             if (!string.Equals(currentMetadata.FilePath, capturedReference, StringComparison.Ordinal))
             {
-                return await ReadConcurrentRefreshFileAsync(currentMetadata, settings);
+                return await ReadConcurrentRefreshFileAsync(currentMetadata, settings, ct);
             }
 
             _logger.LogWarning("Image cache file missing for key {CacheKey}. Removing DB entry.", cacheKey);
             _dbContext.ImageCacheMetadata.Remove(currentMetadata);
             try
             {
-                await SaveMetadataChangesAsync();
+                await SaveMetadataChangesAsync(ct);
             }
             catch
             {
@@ -245,7 +247,7 @@ public partial class ProxiedImageCacheService : IProxiedImageCacheService
     /// </summary>
     private async Task<ProxiedImageCacheResult> ReadConcurrentRefreshFileAsync(
         ImageCacheMetadata metadata,
-        ApplicationSettings settings)
+        ApplicationSettings settings, CancellationToken ct)
     {
         var path = _storage.Resolve(metadata);
         if (path == null || !File.Exists(path))
@@ -261,8 +263,27 @@ public partial class ProxiedImageCacheService : IProxiedImageCacheService
         var status = DateTime.UtcNow - metadata.CreatedAt > maxAge
             ? ProxiedImageCacheStatus.StaleHit
             : ProxiedImageCacheStatus.FreshHit;
-        var bytes = await File.ReadAllBytesAsync(path);
+        var bytes = await ReadBoundedFileAsync(path, settings, ct);
         return new ProxiedImageCacheResult(status, bytes, metadata.ContentType, path);
+    }
+
+    /// <summary>Bounds actual file bytes without trusting legacy metadata size, including concurrent refresh reads.</summary>
+    private static async Task<byte[]?> ReadBoundedFileAsync(
+        string path, ApplicationSettings settings, CancellationToken ct)
+    {
+        await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read,
+            81920, FileOptions.Asynchronous | FileOptions.SequentialScan);
+        var limit = settings.MaxProxyImageDownloadMB * 1024L * 1024;
+        if (stream.Length > limit) return null;
+        using var output = new MemoryStream();
+        var buffer = new byte[81920];
+        int read;
+        while ((read = await stream.ReadAsync(buffer, ct)) > 0)
+        {
+            if (output.Length + read > limit) return null;
+            output.Write(buffer, 0, read);
+        }
+        return output.ToArray();
     }
 
     /// <inheritdoc />
@@ -311,16 +332,16 @@ public partial class ProxiedImageCacheService : IProxiedImageCacheService
     /// Deletes both disk files and DB metadata entries.
     /// Returns the number of entries evicted (0 when no entries remain).
     /// </summary>
-    private async Task<int> EvictLruEntriesAsync()
+    private async Task<int> EvictLruEntriesAsync(CancellationToken ct)
     {
         var entriesToEvict = await _dbContext.ImageCacheMetadata
             .OrderBy(m => m.LastAccessed)
             .Take(LruEvictionBatchSize)
-            .ToListAsync();
+            .ToListAsync(ct);
 
         // Scoped contexts may already track older snapshots; reload intended rows before retirement.
         foreach (var entry in entriesToEvict)
-            await _dbContext.Entry(entry).ReloadAsync();
+            await _dbContext.Entry(entry).ReloadAsync(ct);
         entriesToEvict.RemoveAll(entry => _dbContext.Entry(entry).State == EntityState.Detached);
         if (entriesToEvict.Count == 0)
             return 0;
@@ -330,7 +351,7 @@ public partial class ProxiedImageCacheService : IProxiedImageCacheService
         _dbContext.ImageCacheMetadata.RemoveRange(entriesToEvict);
         try
         {
-            await SaveMetadataChangesAsync();
+            await SaveMetadataChangesAsync(ct);
         }
         catch
         {

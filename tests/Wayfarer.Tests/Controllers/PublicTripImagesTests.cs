@@ -35,10 +35,10 @@ public class PublicTripImagesTests : TestBase
 
         // Mock cache to return a hit so the endpoint serves bytes
         var cacheMock = new Mock<IProxiedImageCacheService>();
-        cacheMock.Setup(c => c.GetAsync(It.IsAny<string>()))
+        cacheMock.Setup(c => c.GetAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ProxiedImageCacheResult(
                 ProxiedImageCacheStatus.FreshHit,
-                new byte[] { 0xFF, 0xD8 },
+                ImageProxyTestFactory.Raster(),
                 "image/jpeg",
                 null));
 
@@ -183,9 +183,13 @@ public class PublicTripImagesTests : TestBase
         });
         db.SaveChanges();
 
-        var cacheKey = Wayfarer.Util.ImageProxyHelper.ComputeImageCacheKey(coverUrl, null, null, null, true);
-        var controller = BuildController(db);
-        controller.ControllerContext.HttpContext.Request.Headers["If-None-Match"] = $"\"{cacheKey}\"";
+        var cache = new Mock<IProxiedImageCacheService>();
+        cache.Setup(c => c.GetAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ProxiedImageCacheResult(ProxiedImageCacheStatus.FreshHit,
+                ImageProxyTestFactory.Raster(), "text/html", null));
+        var controller = BuildController(db, imageCacheService: cache.Object);
+        Assert.IsType<FileContentResult>(await controller.GetCoverImage(tripId));
+        controller.Request.Headers.IfNoneMatch = controller.Response.Headers.ETag;
 
         var result = await controller.GetCoverImage(tripId);
 
@@ -214,10 +218,10 @@ public class PublicTripImagesTests : TestBase
         });
 
         var cacheMock = new Mock<IProxiedImageCacheService>();
-        cacheMock.Setup(c => c.GetAsync(It.IsAny<string>()))
+        cacheMock.Setup(c => c.GetAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ProxiedImageCacheResult(
                 ProxiedImageCacheStatus.FreshHit,
-                new byte[] { 0xFF, 0xD8 },
+                ImageProxyTestFactory.Raster(),
                 "image/jpeg",
                 null));
 
@@ -272,10 +276,10 @@ public class PublicTripImagesTests : TestBase
 
         // Mock cache to return a hit so both requests are served before rate limiting.
         var cacheMock = new Mock<IProxiedImageCacheService>();
-        cacheMock.Setup(c => c.GetAsync(It.IsAny<string>()))
+        cacheMock.Setup(c => c.GetAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ProxiedImageCacheResult(
                 ProxiedImageCacheStatus.FreshHit,
-                new byte[] { 0xFF, 0xD8 },
+                ImageProxyTestFactory.Raster(),
                 "image/jpeg",
                 null));
 
@@ -350,7 +354,7 @@ public class PublicTripImagesTests : TestBase
         if (imageCacheService == null)
         {
             var cacheMock = new Mock<IProxiedImageCacheService>();
-            cacheMock.Setup(c => c.GetAsync(It.IsAny<string>()))
+            cacheMock.Setup(c => c.GetAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(new ProxiedImageCacheResult(ProxiedImageCacheStatus.Miss, null, null, null));
             imageCacheService = cacheMock.Object;
         }
@@ -364,7 +368,7 @@ public class PublicTripImagesTests : TestBase
             client,
             imageCacheService,
             settingsService,
-            Mock.Of<IServiceScopeFactory>(),
+            ImageProxyTestFactory.ScopeFactory(client, imageCacheService, settingsService),
             NullLogger<ImageProxyService>.Instance);
         var controller = new TripViewerController(
             NullLogger<TripViewerController>.Instance,

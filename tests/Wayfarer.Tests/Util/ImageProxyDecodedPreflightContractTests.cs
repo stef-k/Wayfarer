@@ -69,6 +69,9 @@ public sealed class ImageProxyDecodedPreflightContractTests
         Assert.Equal(DecodedImageResourceDecision.TooLarge, result.Decision);
         Assert.Equal("frame-count", result.LimitName);
         Assert.Equal(2, result.Observed);
+        Assert.Throws<DecodedImageResourceRejectedException>(() => ImageProxyHelper.ValidateRaster(bytes));
+        Assert.Throws<DecodedImageResourceRejectedException>(() =>
+            ImageProxyHelper.OptimizeImage(bytes, null, null, 95, out _));
     }
 
     /// <summary>Untrusted or impossible animation declarations are malformed failures.</summary>

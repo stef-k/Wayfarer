@@ -94,24 +94,10 @@ public static class ImageProxyHelper
     /// </summary>
     public static byte[] OptimizeImage(byte[] imageBytes, int? maxWidth, int? maxHeight, int quality, out bool isPng)
     {
-        var preflight = PreflightDecodedResources(imageBytes);
-        if (preflight.Decision == DecodedImageResourceDecision.TooLarge)
-        {
-            throw new DecodedImageResourceRejectedException(preflight);
-        }
+        using var image = LoadSafeRaster(imageBytes);
 
-        if (preflight.Decision == DecodedImageResourceDecision.Failed)
-        {
-            throw new InvalidImageContentException("Image metadata could not be validated.");
-        }
-
-        using var image = DecodedImageResourceLimits.Load(imageBytes.AsSpan());
-
-        // Check if image has transparency (alpha channel)
-        // PNG and WebP formats typically have alpha, JPEG does not
-        bool hasTransparency = image.Metadata.DecodedImageFormat?.Name == "PNG" ||
-                               image.Metadata.DecodedImageFormat?.Name == "WEBP" ||
-                               image.Metadata.DecodedImageFormat?.Name == "GIF";
+        // Preserve the established output route: PNG/GIF to PNG, JPEG/WebP to JPEG.
+        var preservePngOutput = image.Metadata.DecodedImageFormat?.Name is "PNG" or "GIF";
 
         // Calculate new dimensions maintaining aspect ratio
         int targetWidth = image.Width;
@@ -140,7 +126,7 @@ public static class ImageProxyHelper
         // Choose format based on transparency
         using var outputStream = new MemoryStream();
 
-        if (hasTransparency)
+        if (preservePngOutput)
         {
             // Preserve transparency with PNG (for icons, logos, etc.)
             image.SaveAsPng(outputStream, new SixLabors.ImageSharp.Formats.Png.PngEncoder
@@ -161,6 +147,41 @@ public static class ImageProxyHelper
 
         return outputStream.ToArray();
     }
+
+    /// <summary>Validates original bytes with the same bounded decoder used for optimization.</summary>
+    public static string ValidateRaster(byte[] imageBytes)
+    {
+        using var image = LoadSafeRaster(imageBytes);
+        return CanonicalRasterMime(image.Metadata.DecodedImageFormat?.Name);
+    }
+
+    /// <summary>Rejects incidental decoders before resource preflight and full bounded decoding.</summary>
+    private static Image LoadSafeRaster(byte[] imageBytes)
+    {
+        CanonicalRasterMime(Image.DetectFormat(imageBytes).Name);
+        var preflight = PreflightDecodedResources(imageBytes);
+        if (preflight.Decision == DecodedImageResourceDecision.TooLarge)
+        {
+            throw new DecodedImageResourceRejectedException(preflight);
+        }
+
+        if (preflight.Decision == DecodedImageResourceDecision.Failed)
+        {
+            throw new InvalidImageContentException("Image metadata could not be validated.");
+        }
+
+        return DecodedImageResourceLimits.Load(imageBytes.AsSpan());
+    }
+
+    /// <summary>The four supported raster formats, independent of origin or stored MIME claims.</summary>
+    private static string CanonicalRasterMime(string? name) => name?.ToUpperInvariant() switch
+    {
+        "JPEG" => "image/jpeg",
+        "PNG" => "image/png",
+        "GIF" => "image/gif",
+        "WEBP" => "image/webp",
+        _ => throw new InvalidImageContentException("Unsupported image format.")
+    };
 
     /// <summary>
     /// Identifies decoded resource requirements from the downloaded bytes without allocating complete pixel buffers.

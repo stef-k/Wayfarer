@@ -43,7 +43,8 @@ public enum ImageProxyResultStatus
     BadRequest,
     NotFound,
     TooLarge,
-    Failed
+    Failed,
+    Unavailable
 }
 
 /// <summary>

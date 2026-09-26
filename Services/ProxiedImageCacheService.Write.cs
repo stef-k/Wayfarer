@@ -6,7 +6,7 @@ namespace Wayfarer.Services;
 public partial class ProxiedImageCacheService
 {
     /// <inheritdoc />
-    public async Task<ProxiedImageCacheStoreResult> SetAsync(string cacheKey, byte[] bytes, string contentType)
+    public async Task<ProxiedImageCacheStoreResult> SetAsync(string cacheKey, byte[] bytes, string contentType, CancellationToken ct = default)
     {
         var settings = _settingsService.GetSettings();
         if (settings.MaxCacheImageSizeInMB < 0 || !ImageCacheStorage.IsCacheKey(cacheKey))
@@ -17,42 +17,46 @@ public partial class ProxiedImageCacheService
         try
         {
             Directory.CreateDirectory(_storage.CurrentRoot);
-            await File.WriteAllBytesAsync(tempFilePath, bytes);
+            await File.WriteAllBytesAsync(tempFilePath, bytes, ct);
         }
         catch (Exception ex)
         {
             TryDeleteTempImage(tempFilePath);
             _logger.LogError(ex, "Error writing proxy image file for key {CacheKey}.", cacheKey);
+            ct.ThrowIfCancellationRequested();
             return ProxiedImageCacheStoreResult.Failure;
         }
 
-        await _cacheLock.WaitAsync();
+        var lockTaken = false;
         try
         {
-            var existing = await _dbContext.ImageCacheMetadata.FirstOrDefaultAsync(m => m.CacheKey == cacheKey);
+            await _cacheLock.WaitAsync(ct);
+            lockTaken = true;
+            var existing = await _dbContext.ImageCacheMetadata.FirstOrDefaultAsync(m => m.CacheKey == cacheKey, ct);
             if (existing != null)
             {
-                return await ReplaceExistingEntryAsync(existing, tempFilePath, bytes, contentType);
+                return await ReplaceExistingEntryAsync(existing, tempFilePath, bytes, contentType, ct);
             }
 
             var maxSizeBytes = settings.MaxCacheImageSizeInMB * 1024L * 1024L;
             while (Interlocked.Read(ref _currentCacheSize) + bytes.Length > maxSizeBytes)
             {
-                var evictedCount = await EvictLruEntriesAsync();
+                var evictedCount = await EvictLruEntriesAsync(ct);
                 if (evictedCount == 0) break;
             }
 
-            return await StoreNewEntryAsync(cacheKey, filePath, tempFilePath, bytes, contentType);
+            return await StoreNewEntryAsync(cacheKey, filePath, tempFilePath, bytes, contentType, ct);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error caching proxy image for key {CacheKey}.", cacheKey);
+            ct.ThrowIfCancellationRequested();
             return ProxiedImageCacheStoreResult.Failure;
         }
         finally
         {
             TryDeleteTempImage(tempFilePath);
-            _cacheLock.Release();
+            if (lockTaken) _cacheLock.Release();
         }
     }
 
@@ -64,7 +68,7 @@ public partial class ProxiedImageCacheService
         string filePath,
         string tempFilePath,
         byte[] bytes,
-        string contentType)
+        string contentType, CancellationToken ct)
     {
         var metadata = new ImageCacheMetadata
         {
@@ -82,13 +86,14 @@ public partial class ProxiedImageCacheService
         {
             ReplaceImageFileAtomically(tempFilePath, filePath);
             published = true;
-            await SaveMetadataChangesAsync();
+            await SaveMetadataChangesAsync(ct);
             Interlocked.Add(ref _currentCacheSize, bytes.Length);
         }
         catch
         {
             _dbContext.ImageCacheMetadata.Remove(metadata);
             if (published) TryDeleteTempImage(filePath);
+            ct.ThrowIfCancellationRequested();
             return ProxiedImageCacheStoreResult.Failure;
         }
 
@@ -103,7 +108,7 @@ public partial class ProxiedImageCacheService
         ImageCacheMetadata existing,
         string tempFilePath,
         byte[] bytes,
-        string contentType)
+        string contentType, CancellationToken ct)
     {
         var oldFilePath = existing.FilePath;
         var oldContentType = existing.ContentType;
@@ -127,11 +132,12 @@ public partial class ProxiedImageCacheService
             existing.CreatedAt = now;
             existing.LastAccessed = now;
 
-            var saved = await SaveRefreshWithConcurrencyRetryAsync(existing);
+            var saved = await SaveRefreshWithConcurrencyRetryAsync(existing, ct);
             if (!saved)
             {
                 RestoreMetadataValues(existing, oldFilePath, oldContentType, oldSize, oldCreatedAt, oldLastAccessed);
                 TryDeleteTempImage(newFilePath);
+                ct.ThrowIfCancellationRequested();
                 return ProxiedImageCacheStoreResult.Failure;
             }
 
@@ -146,6 +152,7 @@ public partial class ProxiedImageCacheService
             RestoreMetadataValues(existing, oldFilePath, oldContentType, oldSize, oldCreatedAt, oldLastAccessed);
             TryDeleteTempImage(newFilePath);
             _logger.LogError(ex, "Error replacing proxy image file for key {CacheKey}.", existing.CacheKey);
+            ct.ThrowIfCancellationRequested();
             return ProxiedImageCacheStoreResult.Failure;
         }
     }
@@ -154,7 +161,7 @@ public partial class ProxiedImageCacheService
     /// Updates only access time. On xmin conflict, reload every database-current field before
     /// retrying so an old reader cannot restore a retired reference or stale content metadata.
     /// </summary>
-    private async Task UpdateLastAccessedAsync(ImageCacheMetadata metadata)
+    private async Task UpdateLastAccessedAsync(ImageCacheMetadata metadata, CancellationToken ct)
     {
         var entry = _dbContext.Entry(metadata);
         for (var attempt = 0; attempt < 3; attempt++)
@@ -163,12 +170,12 @@ public partial class ProxiedImageCacheService
             metadata.LastAccessed = DateTime.UtcNow;
             try
             {
-                await SaveMetadataChangesAsync();
+                await SaveMetadataChangesAsync(ct);
                 return;
             }
             catch (DbUpdateConcurrencyException)
             {
-                await entry.ReloadAsync();
+                await entry.ReloadAsync(ct);
                 if (entry.State == EntityState.Detached) return;
             }
         }
@@ -177,7 +184,7 @@ public partial class ProxiedImageCacheService
     /// <summary>
     /// Persists the full refresh intent with retry while retaining the uncommitted generation.
     /// </summary>
-    private async Task<bool> SaveRefreshWithConcurrencyRetryAsync(ImageCacheMetadata metadata)
+    private async Task<bool> SaveRefreshWithConcurrencyRetryAsync(ImageCacheMetadata metadata, CancellationToken ct)
     {
         var attempts = 0;
         var updated = false;
@@ -188,13 +195,13 @@ public partial class ProxiedImageCacheService
             try
             {
                 _dbContext.ImageCacheMetadata.Update(metadata);
-                await SaveMetadataChangesAsync();
+                await SaveMetadataChangesAsync(ct);
                 updated = true;
             }
             catch (DbUpdateConcurrencyException ex)
             {
                 var entry = ex.Entries.Single();
-                var databaseValues = await entry.GetDatabaseValuesAsync();
+                var databaseValues = await entry.GetDatabaseValuesAsync(ct);
 
                 if (databaseValues == null)
                 {
@@ -262,7 +269,8 @@ public partial class ProxiedImageCacheService
     /// <summary>
     /// Saves metadata changes using the active production or test hook.
     /// </summary>
-    private Task<int> SaveMetadataChangesAsync() => _saveMetadataChanges(_dbContext);
+    private Task<int> SaveMetadataChangesAsync(CancellationToken ct) =>
+        _saveMetadataChanges?.Invoke(_dbContext) ?? _dbContext.SaveChangesAsync(ct);
 
     /// <summary>
     /// Overrides image replacement for deterministic tests.
@@ -277,7 +285,7 @@ public partial class ProxiedImageCacheService
     /// </summary>
     internal static void SetMetadataSaverForTesting(Func<ApplicationDbContext, Task<int>>? saver)
     {
-        _saveMetadataChanges = saver ?? (dbContext => dbContext.SaveChangesAsync());
+        _saveMetadataChanges = saver;
     }
 
     /// <summary>
