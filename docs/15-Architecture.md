@@ -191,17 +191,20 @@ Role constants defined in `Util/ApplicationRoles.cs`.
 
 ```
 /api/sse/stream/location-update/{userName}
-/api/sse/stream/visits
-/api/sse/stream/job-status
+/api/mobile/sse/visits
+/Admin/Jobs/Sse
 /api/sse/group/{groupId}
 /api/sse/group-notifications
 ```
 
-Public live timelines and unrelated public generic streams retain their existing eligibility rules.
+The generic route accepts only exact ordinal `location-update`; every other type returns 404 before
+database access or subscription. Persisted public/live eligibility is checked before subscription and
+again under the delivery lease for each event. Missing, private, delayed, or invalid Timelines return 404,
+even for authenticated owners. Delayed public Timeline data remains available through HTTP reads.
 `/api/sse/group/{groupId}` is authenticated and authorizes current membership before delivering detailed
 group events. `/api/sse/group-notifications` is authenticated, derives its per-user channel only from
 `NameIdentifier`, and accepts only the exact content-free `invitation-state` and `membership-state` hints.
-The generic route rejects invitation and membership notification prefixes. Clients treat hints only as
+The mobile visits route derives ownership from the bearer token; the Jobs route requires Admin. Clients treat hints only as
 signals to reload authenticated invitation, activity, and joined-group state.
 
 ### Protected import and enrichment stream

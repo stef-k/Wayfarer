@@ -85,19 +85,105 @@ public class SseControllerTests
             culture: null)!;
     }
 
+    /// <summary>Every noncanonical decomposition is rejected before database or transport work.</summary>
+    [Theory]
+    [MemberData(nameof(RejectedGenericRoutes))]
+    public async Task Stream_RejectsNoncanonicalTypesBeforeAnyWork(string type, string id)
+    {
+        var sse = new SseService();
+        // A missing database dependency makes accidental database access fail this test.
+        var controller = CreateController(null!, Mock.Of<IGroupTimelineService>(), CreateUser("owner"), sse);
+        using var cts = new CancellationTokenSource();
+        var stream = controller.Stream(type, id, cts.Token);
+        try
+        {
+            Assert.True(stream.IsCompletedSuccessfully);
+            Assert.Equal(StatusCodes.Status404NotFound, controller.Response.StatusCode);
+            Assert.Empty(controller.Response.Headers);
+            Assert.Empty(Channels(sse));
+            await sse.BroadcastAsync($"{type}-{id}", "{\"synthetic\":true}");
+            Assert.Empty(((MemoryStream)controller.Response.Body).ToArray());
+        }
+        finally
+        {
+            cts.Cancel();
+            await stream;
+        }
+    }
+
+    /// <summary>Enumerates every hyphen split, case variants, and obsolete generic names.</summary>
+    public static IEnumerable<object[]> RejectedGenericRoutes()
+    {
+        string[] channels = ["user-visits-synthetic-user", "group-11111111-1111-1111-1111-111111111111",
+            "admin-job-status", "admin-tile-cache-purge", "pdf-export-synthetic-trip-synthetic-session",
+            "group-notifications-synthetic-user", "import-synthetic-user", "location-update-synthetic-user"];
+        foreach (var channel in channels)
+        {
+            for (var split = 0; split < channel.Length; split++)
+            {
+                if (channel[split] != '-') continue;
+                var type = channel[..split];
+                var id = channel[(split + 1)..];
+                if (type != "location-update") yield return [type, id];
+                yield return [type.ToUpperInvariant(), id];
+                yield return [char.ToUpperInvariant(type[0]) + type[1..], id];
+            }
+        }
+        foreach (var type in new[] { "trip", "visits", "job-status", "enrichment", "enrichment-other",
+            "invitation-update", "Invitation-Update-other", "membership-update", "MEMBERSHIP-UPDATE-other",
+            "unknown", "location_update", "location-update ", "" })
+            yield return [type, "synthetic-user"];
+    }
+
+    /// <summary>Observes registration without changing the shared transport's production interface.</summary>
+    private static System.Collections.IDictionary Channels(SseService sse) =>
+        (System.Collections.IDictionary)typeof(SseService)
+            .GetField("_channels", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(sse)!;
+
+    /// <summary>The sole public family uses the canonical channel and delivers eligible events.</summary>
     [Fact]
-    public async Task Stream_SetsEventStreamHeaders_AndCompletesOnCancellation()
+    public async Task Stream_PublicLiveTimelineDeliversOnExactlyTheServerOwnedChannel()
+    {
+        var databaseName = Guid.NewGuid().ToString();
+        using var services = new ServiceCollection()
+            .AddDbContext<ApplicationDbContext>(options => options.UseInMemoryDatabase(databaseName))
+            .BuildServiceProvider();
+        using var scope = services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        db.Users.Add(new ApplicationUser { Id = "owner", UserName = "alice", DisplayName = "Alice",
+            IsTimelinePublic = true, PublicTimelineTimeThreshold = "now" });
+        await db.SaveChangesAsync();
+        var sse = new SseService();
+        var controller = CreateController(db, Mock.Of<IGroupTimelineService>(), sse: sse,
+            scopeFactory: services.GetRequiredService<IServiceScopeFactory>());
+        using var cts = new CancellationTokenSource();
+        var stream = controller.Stream("location-update", "alice", cts.Token);
+        try
+        {
+            Assert.Equal("location-update-alice", Assert.Single(Channels(sse).Keys.Cast<string>()));
+            Assert.Equal("text/event-stream", controller.Response.ContentType);
+            await sse.BroadcastAsync("location-update-alice", "{\"synthetic\":true}");
+            Assert.Equal("data: {\"synthetic\":true}\n\n",
+                System.Text.Encoding.UTF8.GetString(((MemoryStream)controller.Response.Body).ToArray()));
+        }
+        finally
+        {
+            cts.Cancel();
+            await stream;
+        }
+    }
+
+    /// <summary>Missing persisted users have no public stream entitlement.</summary>
+    [Fact]
+    public async Task Stream_MissingPublicTimelineRejectsBeforeSubscription()
     {
         using var db = CreateDb();
-        var mockTimelineService = new Mock<IGroupTimelineService>();
-        var controller = CreateController(db, mockTimelineService.Object);
-        using var cts = new CancellationTokenSource();
-        cts.CancelAfter(TimeSpan.FromMilliseconds(10));
-
-        await controller.Stream("trip", "abc", cts.Token);
-
-        Assert.Equal("text/event-stream", controller.HttpContext.Response.Headers["Content-Type"].ToString());
-        Assert.True(cts.IsCancellationRequested);
+        var sse = new SseService();
+        var controller = CreateController(db, Mock.Of<IGroupTimelineService>(), sse: sse);
+        await controller.Stream("location-update", "missing", CancellationToken.None);
+        Assert.Equal(StatusCodes.Status404NotFound, controller.Response.StatusCode);
+        Assert.Empty(controller.Response.Headers);
+        Assert.Empty(Channels(sse));
     }
 
     [Theory]
@@ -105,6 +191,8 @@ public class SseControllerTests
     [InlineData(true, null)]
     [InlineData(true, "1d")]
     [InlineData(true, "stale")]
+    [InlineData(true, "")]
+    [InlineData(true, "1z")]
     public async Task Stream_LocationUpdateRejectsNonLiveOrInvalidPublicTimeline(bool isPublic, string? threshold)
     {
         using var db = CreateDb();
@@ -118,11 +206,14 @@ public class SseControllerTests
         };
         db.Users.Add(user);
         await db.SaveChangesAsync();
-        var controller = CreateController(db, Mock.Of<IGroupTimelineService>());
+        var sse = new SseService();
+        var controller = CreateController(db, Mock.Of<IGroupTimelineService>(), CreateUser("user-1"), sse);
 
         await controller.Stream("location-update", "alice", CancellationToken.None);
 
         Assert.Equal(StatusCodes.Status404NotFound, controller.HttpContext.Response.StatusCode);
+        Assert.Empty(controller.Response.Headers);
+        Assert.Empty(Channels(sse));
     }
 
     [Theory]
@@ -288,22 +379,6 @@ public class SseControllerTests
         Assert.DoesNotContain("private", payload, StringComparison.OrdinalIgnoreCase);
     }
 
-    [Theory]
-    [InlineData("group-notifications", false)]
-    [InlineData("GROUP-NOTIFICATIONS", true)]
-    [InlineData("Group-Notifications-extra", true)]
-    public async Task Stream_RejectsProtectedGroupNotificationAliasesBeforeSubscription(string type, bool authenticated)
-    {
-        using var db = CreateDb();
-        var controller = CreateController(db, Mock.Of<IGroupTimelineService>(),
-            authenticated ? CreateUser("caller") : null);
-
-        await controller.Stream(type, "victim", CancellationToken.None);
-
-        Assert.Equal(StatusCodes.Status404NotFound, controller.Response.StatusCode);
-        Assert.NotEqual("text/event-stream", controller.Response.ContentType);
-    }
-
     /// <summary>Missing claim identity cannot own a protected notification channel.</summary>
     [Fact]
     public async Task GroupNotificationStreamWithoutAuthenticatedIdentityIsUnauthorized()
@@ -325,6 +400,23 @@ public class SseControllerTests
         Assert.NotNull(method.GetCustomAttribute<AuthorizeAttribute>());
         Assert.Equal("group-notifications", method.GetCustomAttribute<HttpGetAttribute>()!.Template);
         Assert.Collection(method.GetParameters(), parameter => Assert.Equal(typeof(CancellationToken), parameter.ParameterType));
+    }
+
+    /// <summary>Middleware-owned role and route boundaries cannot be proven by direct invocation.</summary>
+    [Theory]
+    [InlineData(typeof(Wayfarer.Areas.Admin.Controllers.JobsController), "Sse", "Admin")]
+    [InlineData(typeof(Wayfarer.Areas.Admin.Controllers.SettingsController), "TileCachePurgeSse", "Admin")]
+    [InlineData(typeof(SseController), "SubscribeToImportAsync", null)]
+    [InlineData(typeof(SseController), "SubscribeToGroupAsync", null)]
+    public void DedicatedStreamsRetainAuthorizationMetadata(Type owner, string action, string? role)
+    {
+        var method = owner.GetMethod(action)!;
+        var authorization = owner.GetCustomAttributes<AuthorizeAttribute>(true)
+            .Concat(method.GetCustomAttributes<AuthorizeAttribute>(true));
+        Assert.Contains(authorization, attribute => attribute.Roles == role);
+        Assert.Empty(owner.GetCustomAttributes<AllowAnonymousAttribute>(true));
+        Assert.Empty(method.GetCustomAttributes<AllowAnonymousAttribute>(true));
+        Assert.NotNull(method.GetCustomAttribute<HttpGetAttribute>());
     }
 
     /// <summary>The protected stream derives its channel and accepts only exact reload hints.</summary>
@@ -356,33 +448,4 @@ public class SseControllerTests
         Assert.DoesNotContain("unrelated", payload, StringComparison.OrdinalIgnoreCase);
     }
 
-    [Fact]
-    public async Task LegacyCallerSelectedImportChannelIsRejected()
-    {
-        using var db = CreateDb();
-        var controller = CreateController(db, Mock.Of<IGroupTimelineService>(), CreateUser("owner"));
-
-        await controller.Stream("import", "other-user", CancellationToken.None);
-
-        Assert.Equal(StatusCodes.Status404NotFound, controller.Response.StatusCode);
-    }
-
-    [Theory]
-    [InlineData("import")]
-    [InlineData("import-other")]
-    [InlineData("enrichment")]
-    [InlineData("enrichment-other")]
-    [InlineData("invitation-update")]
-    [InlineData("Invitation-Update-other")]
-    [InlineData("membership-update")]
-    [InlineData("MEMBERSHIP-UPDATE-other")]
-    public async Task LegacyGenericRouteRejectsEverySensitiveChannelPrefix(string type)
-    {
-        using var db = CreateDb();
-        var controller = CreateController(db, Mock.Of<IGroupTimelineService>());
-
-        await controller.Stream(type, "foreign-user", CancellationToken.None);
-
-        Assert.Equal(StatusCodes.Status404NotFound, controller.Response.StatusCode);
-    }
 }
