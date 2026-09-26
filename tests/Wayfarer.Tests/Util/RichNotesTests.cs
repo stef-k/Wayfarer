@@ -75,6 +75,18 @@ public sealed class RichNotesTests
         Assert.Equal(output, RichNotes.Normalize(display));
     }
 
+    [Theory]
+    [InlineData(32, true)]
+    [InlineData(33, false)]
+    public void ProxyDepthHasAStableBound(int depth, bool retained)
+    {
+        var source = "https://example.test/image.jpg";
+        for (var i = 0; i < depth; i++) source = "/Public/ProxyImage?url=" + Uri.EscapeDataString(source);
+        var output = RichNotes.Normalize($"<img src=\"{source}\">");
+        Assert.Equal(retained, !string.IsNullOrEmpty(output));
+        Assert.Equal(output, RichNotes.Normalize(output));
+    }
+
     [Fact]
     public void RichMobileFormattingAndLiteralTextSurviveWhileActiveMarkupIsRemoved()
     {

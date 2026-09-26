@@ -237,7 +237,7 @@ public static class RichNotes
         // The DOM already decoded the attribute once; additional HTML decoding corrupts literal entities.
         var current = StripUrlBoundaryControls(value);
         var seen = new HashSet<string>(StringComparer.Ordinal);
-        for (var depth = 0; depth < 32 && seen.Add(current); depth++)
+        for (var depth = 0; depth <= 32 && seen.Add(current); depth++)
         {
             if (!Uri.TryCreate(current, UriKind.RelativeOrAbsolute, out var uri)
                 || !string.Equals(uri.IsAbsoluteUri ? uri.AbsolutePath : uri.OriginalString.Split('?')[0],
