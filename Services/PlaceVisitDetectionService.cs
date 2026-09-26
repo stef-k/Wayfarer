@@ -402,7 +402,7 @@ public class PlaceVisitDetectionService : IPlaceVisitDetectionService
                 : null,
 
             // Notes - truncate if needed
-            NotesHtml = TruncateNotes(place.Notes, settings.VisitedPlaceNotesSnapshotMaxHtmlChars),
+            NotesHtml = Wayfarer.Util.RichNotes.NormalizeForPersistence(TruncateNotes(place.Notes, settings.VisitedPlaceNotesSnapshotMaxHtmlChars)),
 
             // Optional UI snapshots
             IconNameSnapshot = place.IconName,

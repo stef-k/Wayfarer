@@ -1,3 +1,4 @@
+using Wayfarer.Util;
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Wayfarer.Models;
@@ -158,7 +159,7 @@ namespace Wayfarer.Areas.Public.Controllers
                     Country = location.Country,
                     ResolvedFeatureName = location.ResolvedFeatureName,
                     ResolvedFeatureType = location.ResolvedFeatureType,
-                    Notes = location.Notes,
+                    Notes = RichNotes.NormalizeForPersistence(location.Notes),
 
                     // User's latest location unrelated from filtered zoom & viewport but based on threshold
                     // the user has set for his public timeline.

@@ -1,3 +1,4 @@
+using Wayfarer.Util;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
@@ -69,7 +70,7 @@ public class VisitController : BaseController
             Longitude = visit.PlaceLocationSnapshot?.X ?? 0,
             IconNameSnapshot = visit.IconNameSnapshot,
             MarkerColorSnapshot = visit.MarkerColorSnapshot,
-            NotesHtml = visit.NotesHtml,
+            NotesHtml = RichNotes.NormalizeForPersistence(visit.NotesHtml),
             ReturnUrl = GetSafeReturnUrl(returnUrl)
         };
 
@@ -112,7 +113,7 @@ public class VisitController : BaseController
         visit.PlaceLocationSnapshot = new NetTopologySuite.Geometries.Point(model.Longitude, model.Latitude) { SRID = 4326 };
         visit.IconNameSnapshot = model.IconNameSnapshot;
         visit.MarkerColorSnapshot = model.MarkerColorSnapshot;
-        visit.NotesHtml = model.NotesHtml;
+        visit.NotesHtml = RichNotes.NormalizeForPersistence(model.NotesHtml);
 
         await _dbContext.SaveChangesAsync();
 

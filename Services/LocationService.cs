@@ -110,7 +110,7 @@ namespace Wayfarer.Parsers
                     LocationType = l.LocationType,
                     ActivityType = l.ActivityType?.Name ?? "Unknown",
                     ActivityTypeId = l.ActivityTypeId,
-                    Notes = l.Notes,
+                    Notes = RichNotes.NormalizeForPersistence(l.Notes),
                     IsLatestLocation = false,
                     LocationTimeThresholdMinutes = locationTimeThreshold
                 }.WithAddress(l)).ToList();
@@ -266,7 +266,7 @@ namespace Wayfarer.Parsers
                 LocationType = l.LocationType,
                 ActivityType = l.ActivityType?.Name ?? "Unknown",
                 ActivityTypeId = l.ActivityTypeId,
-                Notes = l.Notes,
+                Notes = RichNotes.NormalizeForPersistence(l.Notes),
                 IsLatestLocation = false,
                 LocationTimeThresholdMinutes = locationTimeThreshold
             }.WithAddress(l)).ToList();
@@ -456,7 +456,7 @@ namespace Wayfarer.Parsers
                     LocationType = l.LocationType,
                     ActivityType = l.ActivityType?.Name ?? "Unknown",
                     ActivityTypeId = l.ActivityTypeId,
-                    Notes = l.Notes,
+                    Notes = RichNotes.NormalizeForPersistence(l.Notes),
                     IsLatestLocation = dayLatestLocationId.HasValue && l.Id == dayLatestLocationId.Value,
                     LocationTimeThresholdMinutes = locationTimeThreshold
                 }.WithAddress(l)).ToList();
@@ -538,7 +538,7 @@ namespace Wayfarer.Parsers
                 LocationType = l.LocationType,
                 ActivityType = l.ActivityType?.Name ?? "Unknown",
                 ActivityTypeId = l.ActivityTypeId,
-                Notes = l.Notes,
+                Notes = RichNotes.NormalizeForPersistence(l.Notes),
                 IsLatestLocation = latestLocationId.HasValue && l.Id == latestLocationId.Value,
                 LocationTimeThresholdMinutes = locationTimeThreshold
             }.WithAddress(l)).ToList();

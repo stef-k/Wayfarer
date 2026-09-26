@@ -122,6 +122,7 @@ namespace Wayfarer.Areas.User.Controllers
                 return RedirectToAction("Index", "Home", new { area = "" });
             }
 
+            TripRichNotes.NormalizeDestination(model);
             model.UserId = userId;
             model.UpdatedAt = DateTime.UtcNow;
 

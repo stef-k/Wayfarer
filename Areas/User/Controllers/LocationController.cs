@@ -117,7 +117,7 @@ namespace Wayfarer.Areas.User.Controllers
                             Text = a.Name,
                             Selected = a.Id == defaultActivity?.Id // Set the default selected item
                         }).ToList(),
-                        Notes = model.Notes,
+                        Notes = RichNotes.NormalizeForPersistence(model.Notes),
                         Accuracy = model.Accuracy,
                         Speed = model.Speed,
                         Address = model.Address,
@@ -164,7 +164,7 @@ namespace Wayfarer.Areas.User.Controllers
                     Altitude = model.Altitude,
                     Speed = model.Speed,
                     Address = model.Address,
-                    Notes = model.Notes
+                    Notes = RichNotes.NormalizeForPersistence(model.Notes)
                 };
 
 
@@ -308,7 +308,7 @@ namespace Wayfarer.Areas.User.Controllers
                     }).ToList(),
                     LocalTimestamp = localTs,
                     TimeZoneId = location.TimeZoneId,
-                    Notes = location.Notes,
+                    Notes = RichNotes.NormalizeForPersistence(location.Notes),
                     FullAddress = location.FullAddress,
                     AddressNumber = location.AddressNumber,
                     StreetName = location.StreetName,
@@ -387,7 +387,7 @@ namespace Wayfarer.Areas.User.Controllers
             location.TimeZoneId =
                 CoordinateTimeZoneConverter.GetTimeZoneIdFromCoordinates(model.Latitude, model.Longitude);
             location.ActivityTypeId = model.SelectedActivityId;
-            location.Notes = model.Notes;
+            location.Notes = RichNotes.NormalizeForPersistence(model.Notes);
 
             await _dbContext.SaveChangesAsync(HttpContext.RequestAborted);
             if (transaction != null) await transaction.CommitAsync(HttpContext.RequestAborted);
@@ -542,13 +542,13 @@ namespace Wayfarer.Areas.User.Controllers
                 else if (model.Append)
                 {
                     if (!string.IsNullOrWhiteSpace(model.Notes))
-                        loc.Notes = (loc.Notes ?? "") + model.Notes!;
+                        loc.Notes = RichNotes.NormalizeForPersistence((loc.Notes ?? "") + model.Notes!);
                 }
                 else
                 {
                     loc.Notes = string.IsNullOrWhiteSpace(model.Notes)
                         ? null
-                        : model.Notes;
+                        : RichNotes.NormalizeForPersistence(model.Notes);
                 }
             }
 

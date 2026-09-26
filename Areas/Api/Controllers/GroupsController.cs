@@ -178,7 +178,7 @@ public class GroupsController : ControllerBase
             Speed = t.Loc.Speed,
             LocationType = t.Loc.LocationType,
             ActivityType = t.Loc.ActivityType?.Name,
-            Notes = t.Loc.Notes,
+            Notes = RichNotes.NormalizeForPersistence(t.Loc.Notes),
             IsLatestLocation = true,
             LocationTimeThresholdMinutes = locationTimeThreshold
         }.WithAddress(t.Loc)).ToList();

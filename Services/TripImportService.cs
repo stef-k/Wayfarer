@@ -75,6 +75,7 @@ public partial class TripImportService : ITripImportService
             var mapped = WayfarerKmlAggregateMapper.Map(
                 source, userId, profiles, remapIdentities: createNew,
                 targetTripId: createNew ? null : source.TripId);
+            TripRichNotes.NormalizeDestination(mapped);
             if (createNew) mapped.Name = $"{mapped.Name} (Imported)";
 
             var reconciledTags = await _tagReconciler.ReconcileAsync(source.Tags, cancellationToken);

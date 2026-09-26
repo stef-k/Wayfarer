@@ -154,7 +154,7 @@
                                                     : "null")'
                                 data-area-fill="@area.FillHex"
                                 data-area-name="@area.Name"
-                                data-area-notes="@(area.Notes ?? "")">
+                                data-area-notes="@(Wayfarer.Util.RichNotes.NormalizeForPersistence(area.Notes) ?? "")">
 
                                 @* Layout fix: let the area content column stretch so notes fill available width. *@
                                 <div class="d-flex flex-column flex-grow-1 me-2">

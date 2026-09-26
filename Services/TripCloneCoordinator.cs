@@ -47,6 +47,7 @@ public sealed class TripCloneCoordinator(ApplicationDbContext dbContext)
             if (source.UserId == destinationUserId) return new(TripCloneStatus.AlreadyOwned);
 
             var clone = await ConstructCloneAsync(source, destinationUserId, cancellationToken);
+            TripRichNotes.NormalizeDestination(clone);
             dbContext.Trips.Add(clone);
             await dbContext.SaveChangesAsync(cancellationToken);
             dbContext.ChangeTracker.Clear();

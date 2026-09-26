@@ -52,7 +52,8 @@ const truncateNotes = (html) => {
         }
     }
 
-    return preview;
+    // Extracted note text must stay text when the popup HTML is assembled.
+    return encodeText(preview);
 };
 
 /**

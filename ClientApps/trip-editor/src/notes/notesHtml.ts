@@ -1,5 +1,5 @@
 const forbiddenElements = 'script, style, iframe, object, embed, link, meta, base, form, input, button, textarea, select, option';
-const allowedQuillAlignmentClasses = new Set(['ql-align-center', 'ql-align-right']);
+const allowedQuillAlignmentClasses = new Set(['ql-align-center', 'ql-align-right', 'ql-align-justify']);
 const allowedQuillFontClasses = new Set(['ql-font-serif', 'ql-font-monospace']);
 const allowedQuillListKinds = new Set(['bullet', 'ordered']);
 

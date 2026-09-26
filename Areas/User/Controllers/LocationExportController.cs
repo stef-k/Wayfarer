@@ -69,7 +69,7 @@ public class LocationExportController : Controller
                 { "ReverseGeocodingProvider", loc.ReverseGeocodingProvider },
                 { "ReverseGeocodingStorageMode", loc.ReverseGeocodingStorageMode },
                 { "ReverseGeocodedAt", loc.ReverseGeocodedAt },
-                { "Notes", loc.Notes },
+                { "Notes", Wayfarer.Util.RichNotes.NormalizeForPersistence(loc.Notes) },
                 // Metadata fields
                 { "Source", loc.Source },
                 { "IsUserInvoked", loc.IsUserInvoked },
@@ -132,7 +132,7 @@ public class LocationExportController : Controller
             l.ReverseGeocodingStorageMode,
             // CSV must use the same explicit-offset grammar accepted by history imports.
             ReverseGeocodedAt = l.ReverseGeocodedAt?.ToString("O", CultureInfo.InvariantCulture),
-            Notes = l.Notes,
+            Notes = Wayfarer.Util.RichNotes.NormalizeForPersistence(l.Notes),
             // Metadata fields
             l.Source,
             l.IsUserInvoked,
@@ -195,7 +195,7 @@ public class LocationExportController : Controller
                    || loc.Accuracy.HasValue
                    || loc.Speed.HasValue
                    || !string.IsNullOrWhiteSpace(loc.ActivityType?.Name)
-                   || !string.IsNullOrWhiteSpace(loc.Notes)
+                   || !string.IsNullOrWhiteSpace(Wayfarer.Util.RichNotes.NormalizeForPersistence(loc.Notes))
                    // Metadata fields
                    || !string.IsNullOrWhiteSpace(loc.Source)
                    || loc.IsUserInvoked.HasValue
@@ -255,7 +255,7 @@ public class LocationExportController : Controller
                     WriteGpxExtension(xw, "reverseGeocodingProvider", loc.ReverseGeocodingProvider);
                     WriteGpxExtension(xw, "reverseGeocodingStorageMode", loc.ReverseGeocodingStorageMode);
                     WriteGpxExtension(xw, "reverseGeocodedAt", loc.ReverseGeocodedAt?.ToUniversalTime().ToString("O"));
-                    WriteGpxExtension(xw, "notes", loc.Notes);
+                    WriteGpxExtension(xw, "notes", Wayfarer.Util.RichNotes.NormalizeForPersistence(loc.Notes));
                     // Metadata fields
                     WriteGpxExtension(xw, "source", loc.Source);
                     WriteGpxExtension(xw, "isUserInvoked", loc.IsUserInvoked?.ToString().ToLowerInvariant());
@@ -320,8 +320,8 @@ public class LocationExportController : Controller
                 var timestampUtc = DateTime.SpecifyKind(loc.Timestamp, DateTimeKind.Utc);
                 xw.WriteStartElement("Placemark");
                 xw.WriteElementString("name", timestampUtc.ToString("o"));
-                if (!string.IsNullOrEmpty(loc.Notes))
-                    xw.WriteElementString("description", loc.Notes);
+                if (!string.IsNullOrEmpty(Wayfarer.Util.RichNotes.NormalizeForPersistence(loc.Notes)))
+                    xw.WriteElementString("description", Wayfarer.Util.RichNotes.NormalizeForPersistence(loc.Notes));
 
                 xw.WriteStartElement("ExtendedData");
                 WriteKmlData(xw, "TimestampUtc", timestampUtc.ToString("o"));

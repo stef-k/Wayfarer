@@ -49,12 +49,34 @@ namespace Wayfarer.Util
             if (string.IsNullOrEmpty(htmlContent))
                 return HtmlString.Empty;
 
-            // run regex replace _on the raw HTML_ so existing tags stay intact
-            string linked = _urlInTextRegex.Replace(NormalizeNotesForDisplay(htmlContent), m =>
-                $"<a href=\"{m.Value}\" target=\"_blank\" rel=\"noopener noreferrer\">{m.Value}</a>"
-            );
+            var body = new HtmlParser().ParseDocument(NormalizeNotesForDisplay(htmlContent)).Body!;
+            LinkifyText(body);
+            return new HtmlString(body.InnerHtml);
+        }
 
-            return new HtmlString(linked);
+        /// <summary>Creates anchors only from text nodes, never from serialized attributes or markup.</summary>
+        private static void LinkifyText(INode parent)
+        {
+            foreach (var node in parent.ChildNodes.ToArray())
+            {
+                if (node is IElement element && element.LocalName != "a") LinkifyText(element);
+                if (node is not IText text) continue;
+                var offset = 0;
+                foreach (Match match in _urlRegex.Matches(text.Data))
+                {
+                    parent.InsertBefore(parent.Owner!.CreateTextNode(text.Data[offset..match.Index]), text);
+                    var anchor = parent.Owner.CreateElement("a");
+                    anchor.SetAttribute("href", match.Value);
+                    anchor.SetAttribute("target", "_blank");
+                    anchor.SetAttribute("rel", "noopener noreferrer");
+                    anchor.TextContent = match.Value;
+                    parent.InsertBefore(anchor, text);
+                    offset = match.Index + match.Length;
+                }
+                if (offset == 0) continue;
+                parent.InsertBefore(parent.Owner!.CreateTextNode(text.Data[offset..]), text);
+                parent.RemoveChild(text);
+            }
         }
 
         /// <summary>
@@ -98,33 +120,13 @@ namespace Wayfarer.Util
             if (string.IsNullOrEmpty(htmlContent))
                 return HtmlString.Empty;
 
-            var displayHtml = NormalizeNotesForDisplay(htmlContent);
-            var result = _externalImgSrcRegex.Replace(displayHtml, m =>
+            var body = new HtmlParser().ParseDocument(NormalizeNotesForDisplay(htmlContent)).Body!;
+            foreach (var image in body.QuerySelectorAll("img"))
             {
-                var prefix = m.Groups[1].Value;
-                var url = m.Groups["url"].Value;
-                var suffix = m.Groups[3].Value;
-                var encoded = System.Net.WebUtility.UrlEncode(url);
-                var proxied = $"{prefix}/Public/ProxyImage?url={encoded}{suffix}";
-
-                // Inject loading="lazy" unless the tag already has a loading attribute
-                var hasLoading = _loadingAttrRegex.IsMatch(prefix);
-                if (!hasLoading)
-                {
-                    var afterMatch = displayHtml.AsSpan(m.Index + m.Length);
-                    var closingBracket = afterMatch.IndexOf('>');
-                    if (closingBracket >= 0)
-                        hasLoading = _loadingAttrRegex.IsMatch(
-                            afterMatch[..closingBracket].ToString());
-                }
-
-                if (!hasLoading)
-                    proxied += " loading=\"lazy\"";
-
-                return proxied;
-            });
-
-            return new HtmlString(result);
+                image.SetAttribute("src", "/Public/ProxyImage?url=" + Uri.EscapeDataString(image.GetAttribute("src")!));
+                image.SetAttribute("loading", "lazy");
+            }
+            return new HtmlString(body.InnerHtml);
         }
 
         // Regex to strip HTML tags for content detection
@@ -157,56 +159,8 @@ namespace Wayfarer.Util
             return !string.IsNullOrWhiteSpace(textOnly);
         }
 
-        /// <summary>
-        /// Removes only semantically blank terminal editor artifacts for legacy display.
-        /// Stored HTML remains unchanged and this method is not a general sanitizer.
-        /// </summary>
-        public static string NormalizeNotesForDisplay(string? htmlContent)
-        {
-            if (string.IsNullOrWhiteSpace(htmlContent))
-                return string.Empty;
-
-            var body = _htmlParser.ParseDocument(htmlContent).Body;
-            if (body == null)
-                return string.Empty;
-
-            var changed = false;
-            var passChanged = true;
-            while (passChanged)
-            {
-                passChanged = false;
-                var terminal = body.LastElementChild;
-                if (terminal != null && terminal.LocalName == "p" && IsSemanticallyBlank(terminal))
-                {
-                    terminal.Remove();
-                    changed = true;
-                    passChanged = true;
-                    continue;
-                }
-
-                if (terminal == null || (terminal.LocalName != "ol" && terminal.LocalName != "ul"))
-                    continue;
-
-                while (terminal.LastElementChild?.LocalName == "li" && IsSemanticallyBlank(terminal.LastElementChild))
-                {
-                    terminal.LastElementChild.Remove();
-                    changed = true;
-                    passChanged = true;
-                }
-
-                if (!terminal.Children.Any(child => child.LocalName == "li"))
-                {
-                    terminal.Remove();
-                    changed = true;
-                    passChanged = true;
-                }
-            }
-
-            return changed ? body.InnerHtml.Trim() : htmlContent.Trim();
-        }
-
-        private static bool IsSemanticallyBlank(IElement element) =>
-            string.IsNullOrWhiteSpace((element.TextContent ?? string.Empty).Replace('\u00a0', ' '))
-            && element.QuerySelector("img") == null;
+        /// <summary>Publishes canonical safe rich HTML without changing the stored source.</summary>
+        public static string NormalizeNotesForDisplay(string? htmlContent) =>
+            RichNotes.NormalizeForPersistence(htmlContent) ?? string.Empty;
     }
 }

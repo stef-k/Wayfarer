@@ -687,7 +687,7 @@ return Ok(dto);
             UserId = user.Id,
             RegionId = destRegion.Id,
             Name = request.Name!,
-            Notes = request.Notes,
+            Notes = RichNotes.NormalizeForPersistence(request.Notes),
             Location = location,
             DisplayOrder = displayOrder,
             IconName = iconName,
@@ -702,7 +702,7 @@ return Ok(dto);
         {
             Id = place.Id,
             Name = place.Name,
-            Notes = place.Notes,
+            Notes = RichNotes.NormalizeForPersistence(place.Notes),
             DisplayOrder = place.DisplayOrder,
             IconName = place.IconName,
             ResolvedFeatureName = place.ResolvedFeatureName,
@@ -763,7 +763,7 @@ return Ok(dto);
             new PlaceLifecycleUpdate(
                 targetRegionId,
                 string.IsNullOrWhiteSpace(request.Name) ? place.Name : request.Name,
-                request.Notes ?? place.Notes ?? string.Empty,
+                RichNotes.NormalizeForPersistence(request.Notes ?? place.Notes) ?? string.Empty,
                 place.Address ?? string.Empty,
                 iconName ?? "marker",
                 markerColor ?? "bg-blue",
@@ -783,7 +783,7 @@ return Ok(dto);
         {
             Id = place.Id,
             Name = place.Name,
-            Notes = place.Notes,
+            Notes = RichNotes.NormalizeForPersistence(place.Notes),
             DisplayOrder = place.DisplayOrder,
             IconName = place.IconName,
             ResolvedFeatureName = place.ResolvedFeatureName,
@@ -863,7 +863,7 @@ return Ok(dto);
             TripId = tripId,
             UserId = user.Id,
             Name = request.Name!.Trim(),
-            Notes = request.Notes,
+            Notes = RichNotes.NormalizeForPersistence(request.Notes),
             CoverImageUrl = request.CoverImageUrl,
             Center = center,
             DisplayOrder = displayOrder
@@ -877,7 +877,7 @@ return Ok(dto);
         {
             Id = region.Id,
             Name = region.Name,
-            Notes = region.Notes,
+            Notes = RichNotes.NormalizeForPersistence(region.Notes),
             DisplayOrder = region.DisplayOrder,
             CoverImageUrl = region.CoverImageUrl,
             Center = region.Center != null
@@ -934,11 +934,11 @@ return Ok(dto);
 
         if (request.Notes != null)
         {
-            trip.Notes = request.Notes;
+            trip.Notes = RichNotes.NormalizeForPersistence(request.Notes);
             anyChange = true;
         }
 
-        if (!anyChange) return Ok(new { success = true, message = "No changes applied.", trip = new { trip.Id, trip.Name, trip.Notes } });
+        if (!anyChange) return Ok(new { success = true, message = "No changes applied.", trip = new { trip.Id, trip.Name, Notes = RichNotes.NormalizeForPersistence(trip.Notes) } });
 
         trip.UpdatedAt = DateTime.UtcNow;
         await _dbContext.SaveChangesAsync();
@@ -954,7 +954,7 @@ return Ok(dto);
             await _warmupScheduler.ScheduleWarmupAsync(tripId, immediate: imagesNewlyIntroduced);
         }
 
-        return Ok(new { success = true, trip = new { trip.Id, trip.Name, trip.Notes } });
+        return Ok(new { success = true, trip = new { trip.Id, trip.Name, Notes = RichNotes.NormalizeForPersistence(trip.Notes) } });
     }
 
     /// <summary>
@@ -987,13 +987,13 @@ return Ok(dto);
         if (segment == null) return NotFound("Segment not found.");
         if (segment.Trip.UserId != user.Id) return Unauthorized("Not your segment.");
 
-        var notes = request.Notes ?? segment.Notes;
+        var notes = RichNotes.NormalizeForPersistence(request.Notes ?? segment.Notes);
         if (request.Notes != null)
         {
             if (_dbContext.Database.IsRelational())
             {
                 if (!await SegmentNotesMutation.UpdateRelationalAsync(
-                        _dbContext, segment.TripId, segmentId, user.Id, request.Notes, cancellationToken))
+                        _dbContext, segment.TripId, segmentId, user.Id, notes!, cancellationToken))
                     return NotFound("Segment not found.");
             }
             else
@@ -1002,7 +1002,7 @@ return Ok(dto);
                     .FirstOrDefault(entry => entry.Entity.Id == segmentId)?.Entity
                     ?? new Segment { Id = segmentId, UserId = user.Id, TripId = segment.TripId };
                 if (_dbContext.Entry(notesOnly).State == EntityState.Detached) _dbContext.Attach(notesOnly);
-                notesOnly.Notes = request.Notes;
+                notesOnly.Notes = RichNotes.NormalizeForPersistence(request.Notes);
                 _dbContext.Entry(notesOnly).Property(item => item.Notes).IsModified = true;
                 await _dbContext.SaveChangesAsync(cancellationToken);
             }
@@ -1035,7 +1035,7 @@ return Ok(dto);
             anyChange = true;
         }
 
-        if (request.Notes != null) { region.Notes = request.Notes; anyChange = true; }
+        if (request.Notes != null) { region.Notes = RichNotes.NormalizeForPersistence(request.Notes); anyChange = true; }
         if (request.CoverImageUrl != null) { region.CoverImageUrl = request.CoverImageUrl; anyChange = true; }
 
         if (request.CenterLatitude.HasValue || request.CenterLongitude.HasValue)
@@ -1060,7 +1060,7 @@ return Ok(dto);
         {
             Id = region.Id,
             Name = region.Name,
-            Notes = region.Notes,
+            Notes = RichNotes.NormalizeForPersistence(region.Notes),
             DisplayOrder = region.DisplayOrder,
             CoverImageUrl = region.CoverImageUrl,
             Center = region.Center != null
@@ -1108,7 +1108,7 @@ return Ok(dto);
 
         if (request.Notes != null)
         {
-            area.Notes = request.Notes;
+            area.Notes = RichNotes.NormalizeForPersistence(request.Notes);
             anyChange = true;
         }
 
@@ -1124,14 +1124,14 @@ return Ok(dto);
             anyChange = true;
         }
 
-        if (!anyChange) return Ok(new { success = true, message = "No changes applied.", id = area.Id, notes = area.Notes });
+        if (!anyChange) return Ok(new { success = true, message = "No changes applied.", id = area.Id, notes = RichNotes.NormalizeForPersistence(area.Notes) });
 
         await _dbContext.SaveChangesAsync();
 
         // Schedule background cache warm-up for external images (debounced)
         await _warmupScheduler.ScheduleWarmupAsync(area.Region.TripId);
 
-        return Ok(new { success = true, id = area.Id, notes = area.Notes });
+        return Ok(new { success = true, id = area.Id, notes = RichNotes.NormalizeForPersistence(area.Notes) });
     }
 
     /// <summary>
@@ -1273,7 +1273,7 @@ return Ok(dto);
                     Name = t.Name,
                     OwnerDisplayName = t.User.DisplayName,
                     NotesExcerpt = t.Notes != null ? t.Notes.Substring(0, Math.Min(140, t.Notes.Length)) : null,
-                    Notes = t.Notes, // Full HTML notes (will be word-limited below)
+                    Notes = RichNotes.NormalizeForPersistence(t.Notes), // Full HTML notes (will be word-limited below)
                     CoverImageUrl = t.CoverImageUrl,
                     CenterLat = t.CenterLat,
                     CenterLon = t.CenterLon,
@@ -1311,7 +1311,7 @@ return Ok(dto);
             // Limit HTML notes to 200 words
             if (!string.IsNullOrWhiteSpace(item.Notes))
             {
-                item.Notes = LimitHtmlToWords(item.Notes, 200);
+                item.Notes = RichNotes.NormalizeForPersistence(LimitHtmlToWords(item.Notes, 200));
             }
         }
 

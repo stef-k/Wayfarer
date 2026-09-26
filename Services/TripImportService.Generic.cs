@@ -18,6 +18,7 @@ public partial class TripImportService
             throw new InvalidOperationException("Generic KML upsert is not supported.");
         var parsed = GoogleMyMapsKmlParser.Parse(source, userId, cancellationToken);
         var target = CreateNewShell(parsed.Trip, userId);
+        TripRichNotes.NormalizeDestination(target);
         target.Name = $"{target.Name} (Imported)";
         var importedTagTokens = target.Tags.Select(tag => tag.Slug).ToArray();
         target.Tags.Clear();

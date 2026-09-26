@@ -1,3 +1,4 @@
+using Wayfarer.Util;
 using System.Text.Json;
 using NetTopologySuite.Geometries;
 using NetTopologySuite.IO;
@@ -65,7 +66,7 @@ public static class EditorTripStateMapper
         new(
             trip.Id,
             trip.Name,
-            trip.Notes ?? string.Empty,
+            RichNotes.NormalizeForPersistence(trip.Notes) ?? string.Empty,
             trip.IsPublic,
             trip.ShareProgressEnabled,
             trip.CenterLat.HasValue && trip.CenterLon.HasValue
@@ -87,7 +88,7 @@ public static class EditorTripStateMapper
             region.Id,
             region.TripId,
             region.Name,
-            region.Notes ?? string.Empty,
+            RichNotes.NormalizeForPersistence(region.Notes) ?? string.Empty,
             ToImageReference(region.CoverImageUrl),
             ToCoordinate(region.Center),
             region.DisplayOrder,
@@ -134,7 +135,7 @@ public static class EditorTripStateMapper
             segment.EstimatedDistanceKm,
             segment.EstimatedDuration?.TotalMinutes,
             segment.EstimatedDurationSource.ToString(),
-            segment.Notes ?? string.Empty,
+            RichNotes.NormalizeForPersistence(segment.Notes) ?? string.Empty,
             ToGeoJson(segment.RouteGeometry),
             ToGeoJson(segment.RouteGeometry ?? BuildEffectiveRoute(segment)),
             aggregateConcurrencyToken,
@@ -166,7 +167,7 @@ public static class EditorTripStateMapper
             tripId,
             regionId,
             place.Name,
-            place.Notes ?? string.Empty,
+            RichNotes.NormalizeForPersistence(place.Notes) ?? string.Empty,
             place.Address ?? string.Empty,
             place.ResolvedFeatureName,
             place.ResolvedFeatureType,
@@ -186,7 +187,7 @@ public static class EditorTripStateMapper
             tripId,
             regionId,
             area.Name,
-            area.Notes ?? string.Empty,
+            RichNotes.NormalizeForPersistence(area.Notes) ?? string.Empty,
             string.IsNullOrWhiteSpace(area.FillHex) ? "#ff6600" : area.FillHex,
             ToAreaPolygonGeoJson(tripId, area),
             area.DisplayOrder ?? 0,

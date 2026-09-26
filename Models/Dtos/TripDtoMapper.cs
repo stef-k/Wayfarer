@@ -1,3 +1,4 @@
+using Wayfarer.Util;
 using System.Text.Json;
 using NetTopologySuite.IO;
 using NetTopologySuite.Geometries;
@@ -22,7 +23,7 @@ public static class TripDtoMapper
         {
             Id = trip.Id,
             Name = trip.Name,
-            Notes = trip.Notes,
+            Notes = RichNotes.NormalizeForPersistence(trip.Notes),
             IsPublic = trip.IsPublic,
             CenterLat = trip.CenterLat,
             CenterLon = trip.CenterLon,
@@ -57,7 +58,7 @@ public static class TripDtoMapper
         {
             Id = region.Id,
             Name = region.Name,
-            Notes = region.Notes,
+            Notes = RichNotes.NormalizeForPersistence(region.Notes),
             DisplayOrder = region.DisplayOrder,
             CoverImageUrl = region.CoverImageUrl,
             Center = region.Center is Point pt ? new[] { pt.X, pt.Y } : null,
@@ -85,7 +86,7 @@ public static class TripDtoMapper
         {
             Id = place.Id,
             Name = place.Name,
-            Notes = place.Notes,
+            Notes = RichNotes.NormalizeForPersistence(place.Notes),
             Address = place.Address,
             ResolvedFeatureName = place.ResolvedFeatureName,
             ResolvedFeatureType = place.ResolvedFeatureType,
@@ -125,7 +126,7 @@ public static class TripDtoMapper
         {
             Id = area.Id,
             Name = area.Name,
-            Notes = area.Notes,
+            Notes = RichNotes.NormalizeForPersistence(area.Notes),
             DisplayOrder = area.DisplayOrder,
             FillHex = area.FillHex,
             GeometryGeoJson = geoJson

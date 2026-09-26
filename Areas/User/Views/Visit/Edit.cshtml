@@ -119,8 +119,8 @@
                     <!-- Notes -->
                     <div class="mb-3">
                         <label asp-for="NotesHtml" class="form-label">Notes</label>
-                        <div id="notes" data-notes-content="@Model.NotesHtml"></div>
-                        <input type="hidden" name="NotesHtml" id="hiddenNotes" value="@Model.NotesHtml" />
+                        <div id="notes" data-notes-content="@(Wayfarer.Util.RichNotes.NormalizeForPersistence(Model.NotesHtml))"></div>
+                        <input type="hidden" name="NotesHtml" id="hiddenNotes" value="@(Wayfarer.Util.RichNotes.NormalizeForPersistence(Model.NotesHtml))" />
                         <small class="text-muted">
                             You cannot paste images here. Use the image button from the toolbar to insert an image from a URL.
                         </small>
