@@ -61,13 +61,13 @@ public partial class ImageProxyServiceTests : TestBase
     [Fact]
     public async Task FetchAndCacheAsync_ReturnsTrue_AndCachesImage()
     {
-        // Minimal valid JPEG bytes (SOI + EOI markers)
-        var jpegBytes = new byte[] { 0xFF, 0xD8, 0xFF, 0xD9 };
+        // A fully encoded JPEG must pass byte validation even with an untrusted MIME.
+        var jpegBytes = ImageProxyTestFactory.Raster();
         var handler = new MockHttpMessageHandler(HttpStatusCode.OK, jpegBytes, "application/octet-stream");
         var cacheMock = new Mock<IProxiedImageCacheService>();
 
         // No existing cache entry
-        cacheMock.Setup(c => c.GetAsync(It.IsAny<string>()))
+        cacheMock.Setup(c => c.GetAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ProxiedImageCacheResult(ProxiedImageCacheStatus.Miss, null, null, null));
 
         var service = CreateImageProxyService(handler: handler, cacheMock: cacheMock);
@@ -75,17 +75,17 @@ public partial class ImageProxyServiceTests : TestBase
         var result = await service.FetchAndCacheAsync("https://example.com/photo.jpg");
 
         Assert.True(result);
-        cacheMock.Verify(c => c.SetAsync(It.IsAny<string>(), It.IsAny<byte[]>(), It.IsAny<string>()), Times.Once);
+        cacheMock.Verify(c => c.SetAsync(It.IsAny<string>(), It.IsAny<byte[]>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
     public async Task FetchAndCacheAsync_ReturnsFalse_WhenCacheStoreFails()
     {
-        var handler = new MockHttpMessageHandler(HttpStatusCode.OK, new byte[] { 1, 2, 3 }, "application/octet-stream");
+        var handler = new MockHttpMessageHandler(HttpStatusCode.OK, ImageProxyTestFactory.Raster(), "application/octet-stream");
         var cacheMock = new Mock<IProxiedImageCacheService>();
-        cacheMock.Setup(c => c.GetAsync(It.IsAny<string>()))
+        cacheMock.Setup(c => c.GetAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ProxiedImageCacheResult(ProxiedImageCacheStatus.Miss, null, null, null));
-        cacheMock.Setup(c => c.SetAsync(It.IsAny<string>(), It.IsAny<byte[]>(), It.IsAny<string>()))
+        cacheMock.Setup(c => c.SetAsync(It.IsAny<string>(), It.IsAny<byte[]>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(ProxiedImageCacheStoreResult.Failure);
 
         var service = CreateImageProxyService(handler: handler, cacheMock: cacheMock);
@@ -98,11 +98,11 @@ public partial class ImageProxyServiceTests : TestBase
     [Fact]
     public async Task GetOrFetchAsync_ReturnsFailed_WhenCacheStoreFails()
     {
-        var handler = new MockHttpMessageHandler(HttpStatusCode.OK, new byte[] { 1, 2, 3 }, "application/octet-stream");
+        var handler = new MockHttpMessageHandler(HttpStatusCode.OK, ImageProxyTestFactory.Raster(), "application/octet-stream");
         var cacheMock = new Mock<IProxiedImageCacheService>();
-        cacheMock.Setup(c => c.GetAsync(It.IsAny<string>()))
+        cacheMock.Setup(c => c.GetAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ProxiedImageCacheResult(ProxiedImageCacheStatus.Miss, null, null, null));
-        cacheMock.Setup(c => c.SetAsync(It.IsAny<string>(), It.IsAny<byte[]>(), It.IsAny<string>()))
+        cacheMock.Setup(c => c.SetAsync(It.IsAny<string>(), It.IsAny<byte[]>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(ProxiedImageCacheStoreResult.Failure);
         var service = CreateImageProxyService(handler: handler, cacheMock: cacheMock);
 
@@ -119,7 +119,7 @@ public partial class ImageProxyServiceTests : TestBase
     {
         var handler = new MockHttpMessageHandler(HttpStatusCode.NotFound, Array.Empty<byte>(), "text/html");
         var cacheMock = new Mock<IProxiedImageCacheService>();
-        cacheMock.Setup(c => c.GetAsync(It.IsAny<string>()))
+        cacheMock.Setup(c => c.GetAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ProxiedImageCacheResult(ProxiedImageCacheStatus.Miss, null, null, null));
 
         var service = CreateImageProxyService(handler: handler, cacheMock: cacheMock);
@@ -127,17 +127,17 @@ public partial class ImageProxyServiceTests : TestBase
         var result = await service.FetchAndCacheAsync("https://example.com/missing.jpg");
 
         Assert.False(result);
-        cacheMock.Verify(c => c.SetAsync(It.IsAny<string>(), It.IsAny<byte[]>(), It.IsAny<string>()), Times.Never);
+        cacheMock.Verify(c => c.SetAsync(It.IsAny<string>(), It.IsAny<byte[]>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
     public async Task FetchAndCacheAsync_ReturnsFalse_WhenAlreadyCached()
     {
         var cacheMock = new Mock<IProxiedImageCacheService>();
-        cacheMock.Setup(c => c.GetAsync(It.IsAny<string>()))
+        cacheMock.Setup(c => c.GetAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ProxiedImageCacheResult(
                 ProxiedImageCacheStatus.FreshHit,
-                new byte[] { 1, 2, 3 },
+                ImageProxyTestFactory.Raster(),
                 "image/jpeg",
                 null));
 
@@ -154,7 +154,7 @@ public partial class ImageProxyServiceTests : TestBase
         // Content-Length header indicates 55 MB (exceeds default 50 MB limit)
         var handler = new MockHttpMessageHandler(HttpStatusCode.OK, Array.Empty<byte>(), "image/jpeg", contentLength: 55L * 1024 * 1024);
         var cacheMock = new Mock<IProxiedImageCacheService>();
-        cacheMock.Setup(c => c.GetAsync(It.IsAny<string>()))
+        cacheMock.Setup(c => c.GetAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ProxiedImageCacheResult(ProxiedImageCacheStatus.Miss, null, null, null));
 
         var service = CreateImageProxyService(handler: handler, cacheMock: cacheMock);
@@ -162,7 +162,7 @@ public partial class ImageProxyServiceTests : TestBase
         var result = await service.FetchAndCacheAsync("https://example.com/huge.jpg");
 
         Assert.False(result);
-        cacheMock.Verify(c => c.SetAsync(It.IsAny<string>(), It.IsAny<byte[]>(), It.IsAny<string>()), Times.Never);
+        cacheMock.Verify(c => c.SetAsync(It.IsAny<string>(), It.IsAny<byte[]>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -177,7 +177,7 @@ public partial class ImageProxyServiceTests : TestBase
 
         var handler = new MockHttpMessageHandler(HttpStatusCode.OK, Array.Empty<byte>(), "image/jpeg", contentLength: 12L * 1024 * 1024);
         var cacheMock = new Mock<IProxiedImageCacheService>();
-        cacheMock.Setup(c => c.GetAsync(It.IsAny<string>()))
+        cacheMock.Setup(c => c.GetAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ProxiedImageCacheResult(ProxiedImageCacheStatus.Miss, null, null, null));
 
         var service = CreateImageProxyService(handler: handler, cacheMock: cacheMock, settingsMock: settingsMock);
@@ -185,7 +185,7 @@ public partial class ImageProxyServiceTests : TestBase
         var result = await service.FetchAndCacheAsync("https://example.com/big.jpg");
 
         Assert.False(result);
-        cacheMock.Verify(c => c.SetAsync(It.IsAny<string>(), It.IsAny<byte[]>(), It.IsAny<string>()), Times.Never);
+        cacheMock.Verify(c => c.SetAsync(It.IsAny<string>(), It.IsAny<byte[]>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -194,11 +194,11 @@ public partial class ImageProxyServiceTests : TestBase
         var handler = new CountingHttpMessageHandler(
             () => new HttpResponseMessage(HttpStatusCode.OK)
             {
-                Content = CreateContent(new byte[] { 1, 2, 3 }, "application/octet-stream")
+                Content = CreateContent(ImageProxyTestFactory.Raster(), "application/octet-stream")
             },
             delay: TimeSpan.FromMilliseconds(50));
         var cacheMock = new Mock<IProxiedImageCacheService>();
-        cacheMock.Setup(c => c.GetAsync(It.IsAny<string>()))
+        cacheMock.Setup(c => c.GetAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ProxiedImageCacheResult(ProxiedImageCacheStatus.Miss, null, null, null));
         var service = CreateImageProxyService(handler: handler, cacheMock: cacheMock);
         var request = new ImageProxyRequest("https://example.com/coalesced.bin", Optimize: false);
@@ -208,7 +208,7 @@ public partial class ImageProxyServiceTests : TestBase
 
         Assert.All(results, result => Assert.Equal(ImageProxyResultStatus.Fetched, result.Status));
         Assert.Equal(1, handler.RequestCount);
-        cacheMock.Verify(c => c.SetAsync(It.IsAny<string>(), It.IsAny<byte[]>(), It.IsAny<string>()), Times.Once);
+        cacheMock.Verify(c => c.SetAsync(It.IsAny<string>(), It.IsAny<byte[]>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -217,7 +217,7 @@ public partial class ImageProxyServiceTests : TestBase
         var handler = new CountingHttpMessageHandler(
             () => new HttpResponseMessage(HttpStatusCode.OK)
             {
-                Content = CreateContent(new byte[] { 4, 5, 6 }, "application/octet-stream")
+                Content = CreateContent(ImageProxyTestFactory.Raster(), "application/octet-stream")
             },
             delay: TimeSpan.FromMilliseconds(50));
         var cacheMock = new Mock<IProxiedImageCacheService>();
@@ -229,7 +229,7 @@ public partial class ImageProxyServiceTests : TestBase
 
         Assert.All(results, result => Assert.Equal(ImageProxyResultStatus.Fetched, result.Status));
         Assert.Equal(1, handler.RequestCount);
-        cacheMock.Verify(c => c.SetAsync(It.IsAny<string>(), It.IsAny<byte[]>(), It.IsAny<string>()), Times.Once);
+        cacheMock.Verify(c => c.SetAsync(It.IsAny<string>(), It.IsAny<byte[]>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -242,7 +242,7 @@ public partial class ImageProxyServiceTests : TestBase
         var result = await service.RefreshAsync(new ImageProxyRequest("https://example.com/missing.jpg"));
 
         Assert.Equal(ImageProxyResultStatus.NotFound, result.Status);
-        cacheMock.Verify(c => c.SetAsync(It.IsAny<string>(), It.IsAny<byte[]>(), It.IsAny<string>()), Times.Never);
+        cacheMock.Verify(c => c.SetAsync(It.IsAny<string>(), It.IsAny<byte[]>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]
@@ -250,7 +250,7 @@ public partial class ImageProxyServiceTests : TestBase
     {
         var handler = new SlowCountingHttpMessageHandler();
         var cacheMock = new Mock<IProxiedImageCacheService>();
-        cacheMock.Setup(c => c.GetAsync(It.IsAny<string>()))
+        cacheMock.Setup(c => c.GetAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ProxiedImageCacheResult(ProxiedImageCacheStatus.Miss, null, null, null));
         var service = CreateImageProxyService(handler: handler, cacheMock: cacheMock);
 
@@ -268,11 +268,11 @@ public partial class ImageProxyServiceTests : TestBase
         var handler = new CountingHttpMessageHandler(
             () => new HttpResponseMessage(HttpStatusCode.OK)
             {
-                Content = CreateContent(new byte[] { 7, 8, 9 }, "application/octet-stream")
+                Content = CreateContent(ImageProxyTestFactory.Raster(), "application/octet-stream")
             },
             delay: TimeSpan.FromMilliseconds(50));
         var cacheMock = new Mock<IProxiedImageCacheService>();
-        cacheMock.Setup(c => c.GetAsync(It.IsAny<string>()))
+        cacheMock.Setup(c => c.GetAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ProxiedImageCacheResult(ProxiedImageCacheStatus.Miss, null, null, null));
         var service = CreateImageProxyService(handler: handler, cacheMock: cacheMock);
 
@@ -281,7 +281,7 @@ public partial class ImageProxyServiceTests : TestBase
 
         Assert.Contains(true, results);
         Assert.Equal(1, handler.RequestCount);
-        cacheMock.Verify(c => c.SetAsync(It.IsAny<string>(), It.IsAny<byte[]>(), It.IsAny<string>()), Times.Once);
+        cacheMock.Verify(c => c.SetAsync(It.IsAny<string>(), It.IsAny<byte[]>(), It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
     /// <summary>
@@ -293,7 +293,7 @@ public partial class ImageProxyServiceTests : TestBase
         Mock<IApplicationSettingsService>? settingsMock = null,
         IServiceScopeFactory? scopeFactory = null)
     {
-        handler ??= new MockHttpMessageHandler(HttpStatusCode.OK, new byte[] { 0xFF, 0xD8, 0xFF, 0xD9 }, "image/jpeg");
+        handler ??= new MockHttpMessageHandler(HttpStatusCode.OK, ImageProxyTestFactory.Raster(), "image/jpeg");
         cacheMock ??= new Mock<IProxiedImageCacheService>();
         cacheMock.SetReturnsDefault(Task.FromResult(ProxiedImageCacheStoreResult.Success));
         if (settingsMock == null)
@@ -307,7 +307,7 @@ public partial class ImageProxyServiceTests : TestBase
             httpClient,
             cacheMock.Object,
             settingsMock.Object,
-            scopeFactory ?? Mock.Of<IServiceScopeFactory>(),
+            scopeFactory ?? ImageProxyTestFactory.ScopeFactory(httpClient, cacheMock.Object, settingsMock.Object),
             NullLogger<ImageProxyService>.Instance);
     }
 

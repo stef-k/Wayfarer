@@ -4,6 +4,7 @@ using Moq;
 using Wayfarer.Services;
 using Wayfarer.Util;
 using Xunit;
+using Wayfarer.Tests.Infrastructure;
 
 namespace Wayfarer.Tests.Services;
 
@@ -16,7 +17,7 @@ public partial class ImageProxyServiceTests
     public async Task GetOrFetchAsync_StaleHitSchedulesBackgroundRefresh()
     {
         var probe = new ScheduledRefreshProbe(ImageProxyResultStatus.Fetched);
-        var cacheMock = CreateStaleCacheMock(new byte[] { 9 }, "image/jpeg");
+        var cacheMock = CreateStaleCacheMock(ImageProxyTestFactory.Raster(), "image/jpeg");
         var service = CreateImageProxyService(
             cacheMock: cacheMock,
             scopeFactory: CreateScopeFactory(probe));
@@ -37,7 +38,7 @@ public partial class ImageProxyServiceTests
             ImageProxyResultStatus.Failed,
             ImageProxyResultStatus.Failed,
             ImageProxyResultStatus.Failed);
-        var cacheMock = CreateStaleCacheMock(new byte[] { 8 }, "image/jpeg");
+        var cacheMock = CreateStaleCacheMock(ImageProxyTestFactory.Raster(), "image/jpeg");
         var service = CreateImageProxyService(
             cacheMock: cacheMock,
             scopeFactory: CreateScopeFactory(probe));
@@ -60,7 +61,7 @@ public partial class ImageProxyServiceTests
             ImageProxyResultStatus.Failed,
             ImageProxyResultStatus.Failed,
             ImageProxyResultStatus.Fetched);
-        var cacheMock = CreateStaleCacheMock(new byte[] { 7 }, "image/jpeg");
+        var cacheMock = CreateStaleCacheMock(ImageProxyTestFactory.Raster(), "image/jpeg");
         var service = CreateImageProxyService(
             cacheMock: cacheMock,
             scopeFactory: CreateScopeFactory(probe));
@@ -79,7 +80,7 @@ public partial class ImageProxyServiceTests
     {
         var delayAttempts = new ConcurrentQueue<int>();
         var probe = new ScheduledRefreshProbe(ImageProxyResultStatus.Failed, ImageProxyResultStatus.Fetched);
-        var cacheMock = CreateStaleCacheMock(new byte[] { 6 }, "image/jpeg");
+        var cacheMock = CreateStaleCacheMock(ImageProxyTestFactory.Raster(), "image/jpeg");
         var service = CreateImageProxyService(
             cacheMock: cacheMock,
             scopeFactory: CreateScopeFactory(probe));
@@ -116,7 +117,7 @@ public partial class ImageProxyServiceTests
 
             return ImageProxyResultStatus.Fetched;
         };
-        var cacheMock = CreateStaleCacheMock(new byte[] { 5 }, "image/jpeg");
+        var cacheMock = CreateStaleCacheMock(ImageProxyTestFactory.Raster(), "image/jpeg");
         var service = CreateImageProxyService(
             cacheMock: cacheMock,
             scopeFactory: CreateScopeFactory(probe));
@@ -141,7 +142,7 @@ public partial class ImageProxyServiceTests
             ImageProxyResultStatus.Failed,
             ImageProxyResultStatus.Failed,
             ImageProxyResultStatus.Failed);
-        var cacheMock = CreateStaleCacheMock(new byte[] { 4 }, "image/jpeg");
+        var cacheMock = CreateStaleCacheMock(ImageProxyTestFactory.Raster(), "image/jpeg");
         var service = CreateImageProxyService(
             cacheMock: cacheMock,
             scopeFactory: CreateScopeFactory(probe));
@@ -159,7 +160,7 @@ public partial class ImageProxyServiceTests
     private static Mock<IProxiedImageCacheService> CreateStaleCacheMock(byte[] bytes, string contentType)
     {
         var cacheMock = new Mock<IProxiedImageCacheService>();
-        cacheMock.Setup(c => c.GetAsync(It.IsAny<string>()))
+        cacheMock.Setup(c => c.GetAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new ProxiedImageCacheResult(ProxiedImageCacheStatus.StaleHit, bytes, contentType, null));
         return cacheMock;
     }

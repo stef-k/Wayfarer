@@ -9,13 +9,13 @@ public interface IProxiedImageCacheService
     /// Returns an explicit cache result for the requested key.
     /// Fresh and stale hits include local bytes; misses and disk failures do not.
     /// </summary>
-    Task<ProxiedImageCacheResult> GetAsync(string cacheKey);
+    Task<ProxiedImageCacheResult> GetAsync(string cacheKey, CancellationToken ct = default);
 
     /// <summary>
     /// Stores processed image bytes under the given cache key.
     /// Existing entries keep old bytes usable unless new bytes and metadata both commit.
     /// </summary>
-    Task<ProxiedImageCacheStoreResult> SetAsync(string cacheKey, byte[] bytes, string contentType);
+    Task<ProxiedImageCacheStoreResult> SetAsync(string cacheKey, byte[] bytes, string contentType, CancellationToken ct = default);
 
     /// <summary>
     /// Ensures the cache directory exists and initializes cache size tracking from the database.

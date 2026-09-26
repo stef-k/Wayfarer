@@ -418,13 +418,6 @@ public class TripViewerController : BaseController
         // Compute deterministic cache key from all parameters
         var cacheKey = ComputeImageCacheKey(url, maxWidth, maxHeight, quality, optimize);
 
-        // Return 304 Not Modified if the client already has this version
-        if (Request.Headers.TryGetValue("If-None-Match", out var ifNoneMatch)
-            && ifNoneMatch == $"\"{cacheKey}\"")
-        {
-            return StatusCode(304);
-        }
-
         var settings = _settingsService.GetSettings();
         var request = new ImageProxyRequest(url, maxWidth, maxHeight, quality, optimize);
         return await ServeProxyImageAsync(settings, request, cacheKey);
@@ -446,10 +439,10 @@ public class TripViewerController : BaseController
         // Compute cache duration and download limit from admin settings
         var maxAgeSeconds = settings.ImageCacheExpiryDays * 86400;
 
-        var cached = await _imageProxyService.GetOrFetchAsync(request, allowOriginFetch: false);
+        var cached = await _imageProxyService.GetOrFetchAsync(request, allowOriginFetch: false, HttpContext.RequestAborted);
         if (cached.HasBytes)
         {
-            SetProxyImageHeaders(maxAgeSeconds, cacheKey, cached.Status);
+            if (SetProxyImageHeaders(maxAgeSeconds, cached)) return StatusCode(304);
             return File(cached.Bytes!, cached.ContentType!);
         }
 
@@ -459,16 +452,17 @@ public class TripViewerController : BaseController
         if (ShouldRateLimitProxyOriginRequest())
             return StatusCode(429, "Too many requests. Please try again later.");
 
-        var fetched = await _imageProxyService.GetOrFetchAsync(request, allowOriginFetch: true);
+        var fetched = await _imageProxyService.GetOrFetchAsync(request, allowOriginFetch: true, HttpContext.RequestAborted);
         if (fetched.HasBytes)
         {
-            SetProxyImageHeaders(maxAgeSeconds, cacheKey, fetched.Status);
+            if (SetProxyImageHeaders(maxAgeSeconds, fetched)) return StatusCode(304);
             return File(fetched.Bytes!, fetched.ContentType!);
         }
 
         return fetched.Status switch
         {
             ImageProxyResultStatus.BadRequest => BadRequest("Invalid or disallowed image URL."),
+            ImageProxyResultStatus.Unavailable => StatusCode(503),
             ImageProxyResultStatus.TooLarge => BadRequest("Image too large to proxy."),
             _ => NotFound()
         };
@@ -477,17 +471,20 @@ public class TripViewerController : BaseController
     /// <summary>
     /// Applies browser cache headers and a lightweight cache diagnostic header.
     /// </summary>
-    private void SetProxyImageHeaders(int maxAgeSeconds, string cacheKey, ImageProxyResultStatus status)
+    private bool SetProxyImageHeaders(int maxAgeSeconds, ImageProxyResult result)
     {
         Response.Headers["Cache-Control"] = $"public, max-age={maxAgeSeconds}";
-        Response.Headers["ETag"] = $"\"{cacheKey}\"";
-        Response.Headers["X-Wayfarer-Image-Cache"] = status switch
+        var etag = $"\"raster-v1-{Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(result.Bytes!))}\"";
+        Response.Headers["ETag"] = etag;
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
+        Response.Headers["X-Wayfarer-Image-Cache"] = result.Status switch
         {
             ImageProxyResultStatus.FreshHit => "hit",
             ImageProxyResultStatus.StaleHit => "stale",
             ImageProxyResultStatus.Fetched => "miss",
             _ => "unknown"
         };
+        return Request.Headers.IfNoneMatch == etag;
     }
 
     /// <summary>
@@ -606,13 +603,6 @@ public class TripViewerController : BaseController
 
         // Compute deterministic cache key (no resize params for cover images)
         var cacheKey = ComputeImageCacheKey(coverImageUrl, maxWidth: null, maxHeight: null, quality: null, optimize: true);
-
-        // Return 304 Not Modified if the client already has this version (before rate limit)
-        if (Request.Headers.TryGetValue("If-None-Match", out var ifNoneMatch)
-            && ifNoneMatch == $"\"{cacheKey}\"")
-        {
-            return StatusCode(304);
-        }
 
         var settings = _settingsService.GetSettings();
         var request = new ImageProxyRequest(coverImageUrl);

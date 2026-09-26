@@ -20,7 +20,10 @@ public class ImageProxyService : IImageProxyService
     /// <summary>
     /// Coalesces active origin download and ImageSharp work by image cache key.
     /// </summary>
-    private static readonly ConcurrentDictionary<string, Lazy<Task<ImageProxyResult>>> _originWork = new();
+    private static readonly Dictionary<string, Task<ImageProxyResult>> _originWork = new();
+    private static readonly object OriginWorkLock = new();
+    private static readonly TimeSpan OriginDeadline = TimeSpan.FromSeconds(100);
+    internal static TimeProvider OriginTimeProvider { get; set; } = TimeProvider.System;
 
     /// <summary>
     /// Coalesces bounded stale refresh series by image cache key.
@@ -66,7 +69,8 @@ public class ImageProxyService : IImageProxyService
         }
 
         var cacheKey = ComputeCacheKey(request);
-        var cached = await _imageCacheService.GetAsync(cacheKey);
+        ct.ThrowIfCancellationRequested();
+        var cached = await GetSafeCacheAsync(cacheKey, ct);
         if (cached.Status is ProxiedImageCacheStatus.FreshHit or ProxiedImageCacheStatus.StaleHit && cached.HasBytes)
         {
             if (cached.Status == ProxiedImageCacheStatus.StaleHit)
@@ -87,7 +91,7 @@ public class ImageProxyService : IImageProxyService
 
         return await RunOriginWorkCoalescedAsync(
             cacheKey,
-            () => DownloadOptimizeAndCacheAsync(request, cacheKey, ct),
+            request,
             ct);
     }
 
@@ -99,7 +103,8 @@ public class ImageProxyService : IImageProxyService
             return false;
 
         var cacheKey = ComputeCacheKey(request);
-        var existing = await _imageCacheService.GetAsync(cacheKey);
+        ct.ThrowIfCancellationRequested();
+        var existing = await GetSafeCacheAsync(cacheKey, ct);
         if (existing.Status == ProxiedImageCacheStatus.FreshHit)
         {
             return false;
@@ -109,7 +114,7 @@ public class ImageProxyService : IImageProxyService
             ? await RefreshAsync(request, ct)
             : await RunOriginWorkCoalescedAsync(
                 cacheKey,
-                () => DownloadOptimizeAndCacheAsync(request, cacheKey, ct),
+                request,
                 ct);
 
         return result.Status == ImageProxyResultStatus.Fetched;
@@ -126,42 +131,85 @@ public class ImageProxyService : IImageProxyService
         var cacheKey = ComputeCacheKey(request);
         return RunOriginWorkCoalescedAsync(
             cacheKey,
-            () => DownloadOptimizeAndCacheAsync(request, cacheKey, ct),
+            request,
             ct);
     }
 
     /// <summary>
     /// Runs origin work once per cache key and shares the result with concurrent callers.
     /// </summary>
-    private static async Task<ImageProxyResult> RunOriginWorkCoalescedAsync(
+    private Task<ImageProxyResult> RunOriginWorkCoalescedAsync(
         string cacheKey,
-        Func<Task<ImageProxyResult>> work,
+        ImageProxyRequest request,
         CancellationToken ct)
     {
-        var lazy = new Lazy<Task<ImageProxyResult>>(async () =>
+        ct.ThrowIfCancellationRequested();
+        lock (OriginWorkLock)
         {
-            await _originWorkBudget.WaitAsync(ct).ConfigureAwait(false);
-            try
+            if (!_originWork.TryGetValue(cacheKey, out var active))
             {
-                return await work().ConfigureAwait(false);
-            }
-            finally
-            {
-                _originWorkBudget.Release();
-            }
-        }, LazyThreadSafetyMode.ExecutionAndPublication);
+                if (!_originWorkBudget.Wait(0))
+                    return Task.FromResult(new ImageProxyResult(ImageProxyResultStatus.Unavailable, cacheKey, null, null));
 
-        var active = _originWork.GetOrAdd(cacheKey, lazy);
+                var completion = new TaskCompletionSource<ImageProxyResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+                active = completion.Task;
+                _originWork.Add(cacheKey, active);
+                _ = RunOwnedOriginAsync(request, cacheKey, completion);
+            }
+
+            return active.WaitAsync(ct);
+        }
+    }
+
+    /// <summary>Owns scope, total header/body/cache deadline and admission until actual completion.</summary>
+    private async Task RunOwnedOriginAsync(
+        ImageProxyRequest request, string cacheKey, TaskCompletionSource<ImageProxyResult> completion)
+    {
+        ImageProxyResult result;
         try
         {
-            return await active.Value.ConfigureAwait(false);
+            using var deadline = new CancellationTokenSource(OriginDeadline, OriginTimeProvider);
+            using var scope = _serviceScopeFactory.CreateScope();
+            var worker = (ImageProxyService)scope.ServiceProvider.GetRequiredService<IImageProxyService>();
+            result = await worker.DownloadOptimizeAndCacheAsync(request, cacheKey, deadline.Token);
+            deadline.Token.ThrowIfCancellationRequested();
+        }
+        catch (OperationCanceledException)
+        {
+            result = new ImageProxyResult(ImageProxyResultStatus.Unavailable, cacheKey, null, null);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Image origin work failed for cache key {CacheKey}.", cacheKey);
+            result = new ImageProxyResult(ImageProxyResultStatus.Failed, cacheKey, null, null);
         }
         finally
         {
-            if (ReferenceEquals(active, lazy))
+            lock (OriginWorkLock)
             {
-                _originWork.TryRemove(new KeyValuePair<string, Lazy<Task<ImageProxyResult>>>(cacheKey, lazy));
+                _originWork.Remove(cacheKey);
+                _originWorkBudget.Release();
             }
+        }
+
+        completion.SetResult(result);
+    }
+
+    /// <summary>Legacy cache bytes are untrusted; invalid entries remain inert until replacement or LRU.</summary>
+    private async Task<ProxiedImageCacheResult> GetSafeCacheAsync(string cacheKey, CancellationToken ct)
+    {
+        var cached = await _imageCacheService.GetAsync(cacheKey, ct);
+        if (!cached.HasBytes) return cached;
+        try
+        {
+            var mime = ImageProxyHelper.ValidateRaster(cached.Bytes!);
+            ct.ThrowIfCancellationRequested();
+            return cached with { ContentType = mime };
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception)
+        {
+            return new ProxiedImageCacheResult(ProxiedImageCacheStatus.Miss, null, null, null);
         }
     }
 
@@ -203,16 +251,16 @@ public class ImageProxyService : IImageProxyService
                 return new ImageProxyResult(ImageProxyResultStatus.TooLarge, cacheKey, null, null);
             }
 
-            var contentType = resp.Content.Headers.ContentType?.MediaType ?? "application/octet-stream";
+            string contentType;
             var bytes = await ReadWithLimitAsync(resp, maxBytes, ct);
             if (bytes == null)
             {
                 return new ImageProxyResult(ImageProxyResultStatus.TooLarge, cacheKey, null, null);
             }
 
-            if (request.Optimize && contentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+            try
             {
-                try
+                if (request.Optimize)
                 {
                     bytes = ImageProxyHelper.OptimizeImage(
                         bytes,
@@ -222,24 +270,29 @@ public class ImageProxyService : IImageProxyService
                         out var isPng);
                     contentType = isPng ? "image/png" : "image/jpeg";
                 }
-                catch (DecodedImageResourceRejectedException ex)
+                else
                 {
-                    _logger.LogInformation(
-                        "Rejected image proxy cache key {CacheKey}: {LimitName} observed {Observed}, limit {Limit}.",
-                        cacheKey,
-                        ex.Result.LimitName,
-                        ex.Result.Observed,
-                        ex.Result.Limit);
-                    return new ImageProxyResult(ImageProxyResultStatus.TooLarge, cacheKey, null, null);
-                }
-                catch (Exception)
-                {
-                    _logger.LogDebug("Failed to optimize image for cache key {CacheKey}.", cacheKey);
-                    return new ImageProxyResult(ImageProxyResultStatus.Failed, cacheKey, null, null);
+                    contentType = ImageProxyHelper.ValidateRaster(bytes);
                 }
             }
+            catch (DecodedImageResourceRejectedException ex)
+            {
+                _logger.LogInformation(
+                    "Rejected image proxy cache key {CacheKey}: {LimitName} observed {Observed}, limit {Limit}.",
+                    cacheKey,
+                    ex.Result.LimitName,
+                    ex.Result.Observed,
+                    ex.Result.Limit);
+                return new ImageProxyResult(ImageProxyResultStatus.TooLarge, cacheKey, null, null);
+            }
+            catch (Exception)
+            {
+                _logger.LogDebug("Failed to optimize image for cache key {CacheKey}.", cacheKey);
+                return new ImageProxyResult(ImageProxyResultStatus.Failed, cacheKey, null, null);
+            }
 
-            var stored = await _imageCacheService.SetAsync(cacheKey, bytes, contentType);
+            ct.ThrowIfCancellationRequested();
+            var stored = await _imageCacheService.SetAsync(cacheKey, bytes, contentType, ct);
             if (stored?.Stored != true)
             {
                 _logger.LogWarning("Failed to store proxied image cache entry for {Url}.", request.Url);
@@ -422,7 +475,8 @@ public class ImageProxyService : IImageProxyService
         }
 
         _refreshSeries.Clear();
-        _originWork.Clear();
+        lock (OriginWorkLock) _originWork.Clear();
+        OriginTimeProvider = TimeProvider.System;
         SetRefreshRetryDelayForTesting(null);
         SetRefreshSeriesMaxDurationForTesting(null);
         while (_originWorkBudget.CurrentCount < 4)
