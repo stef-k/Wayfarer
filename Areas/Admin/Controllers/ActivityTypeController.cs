@@ -1,9 +1,12 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Wayfarer.Models;
 
 namespace Wayfarer.Areas.Admin.Controllers
 {
+    /// <summary>Maintains activity types for administrators only.</summary>
+    [Authorize(Roles = "Admin")]
     [Area("Admin")]
     public class ActivityTypeController : BaseController
     {

@@ -7,8 +7,9 @@ using Wayfarer.Models;
 /// <summary>
 /// A base controller class providing common functionality for controllers, including error handling, 
 /// validation, logging, and auditing actions (in both Serilog and PostgreSQL).
+/// Abstract with protected helpers so neither the base nor its helpers are MVC endpoints.
 /// </summary>
-public class BaseController : Controller
+public abstract class BaseController : Controller
 {
     protected readonly ILogger<BaseController> _logger;
     protected readonly ApplicationDbContext _dbContext;
@@ -18,7 +19,7 @@ public class BaseController : Controller
     /// </summary>
     /// <param name="logger">Logger for logging actions.</param>
     /// <param name="dbContext">The database context.</param>
-    public BaseController(ILogger<BaseController> logger, ApplicationDbContext dbContext)
+    protected BaseController(ILogger<BaseController> logger, ApplicationDbContext dbContext)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
@@ -52,7 +53,7 @@ public class BaseController : Controller
     /// and sets a user-friendly alert message in TempData.
     /// </summary>
     /// <param name="ex">The exception that occurred.</param>
-    public void HandleError(Exception ex)
+    protected void HandleError(Exception ex)
     {
         // Log to Serilog (console/file)
         _logger.LogError(ex, "An error occurred during an action.");
@@ -70,7 +71,7 @@ public class BaseController : Controller
     /// <param name="action">The action being performed (e.g., "Password Change", "User Update").</param>
     /// <param name="description">A short description of the action (e.g., "Password changed successfully").</param>
     /// <param name="message">Additional message or details related to the action.</param>
-    public void LogAudit(string action, string description, string message)
+    protected void LogAudit(string action, string description, string message)
     {
         // Create a new AuditLog entry
         string userName = User?.Identity?.Name ?? string.Empty;
@@ -95,7 +96,7 @@ public class BaseController : Controller
     /// </summary>
     /// <param name="action">The action being performed.</param>
     /// <param name="message">A message describing the action.</param>
-    public void LogAction(string action, string message)
+    protected void LogAction(string action, string message)
     {
         // Log to Serilog (console/file)
         _logger.LogInformation($"Action: {action}, Message: {message}");
@@ -106,7 +107,7 @@ public class BaseController : Controller
     /// </summary>
     /// <param name="role">The role that the user should have.</param>
     /// <returns>True if the user is authorized; otherwise, false.</returns>
-    public bool EnsureUserIsAuthorized(string role)
+    protected bool EnsureUserIsAuthorized(string role)
     {
         if (!User.IsInRole(role))
         {
@@ -127,7 +128,7 @@ public class BaseController : Controller
     /// Validates the model state for errors and logs validation failures.
     /// </summary>
     /// <returns>True if the model state is valid; otherwise, false.</returns>
-    public bool ValidateModelState()
+    protected bool ValidateModelState()
     {
         if (!ModelState.IsValid)
         {
@@ -154,7 +155,7 @@ public class BaseController : Controller
     /// <param name="routeValues">An object containing the route parameters (optional).</param>
     /// <param name="area">The area to redirect to (optional).</param>
     /// <returns>A redirect to the specified action.</returns>
-    public IActionResult RedirectWithAlert(string action, string controller, string message, string alertType = "success", object? routeValues = null, string? area = null)
+    protected IActionResult RedirectWithAlert(string action, string controller, string message, string alertType = "success", object? routeValues = null, string? area = null)
     {
         // Set the alert message in TempData
         SetAlert(message, alertType);
@@ -189,7 +190,7 @@ public class BaseController : Controller
     /// </summary>
     /// <param name="roles">Roles as an enumerable, e.g. new[] { "User" }</param>
     /// <returns></returns>
-    public async Task<List<ApplicationUser>> GetUsersByRolesAsync(IEnumerable<string> roles)
+    protected async Task<List<ApplicationUser>> GetUsersByRolesAsync(IEnumerable<string> roles)
     {
         List<ApplicationUser> users = await (from user in _dbContext.Users
                                              join userRole in _dbContext.UserRoles on user.Id equals userRole.UserId

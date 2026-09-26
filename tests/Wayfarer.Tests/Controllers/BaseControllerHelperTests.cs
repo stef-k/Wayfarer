@@ -77,6 +77,17 @@ public class BaseControllerHelperTests : TestBase
 
     private class FakeBaseController : BaseController
     {
+        /// <summary>Exposes validation solely for existing helper tests.</summary>
+        public new bool ValidateModelState() => base.ValidateModelState();
+
+        /// <summary>Exposes role checking solely for existing helper tests.</summary>
+        public new bool EnsureUserIsAuthorized(string role) => base.EnsureUserIsAuthorized(role);
+
+        /// <summary>Exposes alert redirects solely for existing helper tests.</summary>
+        public new IActionResult RedirectWithAlert(string action, string controller, string message,
+            string alertType = "success", object? routeValues = null, string? area = null) =>
+            base.RedirectWithAlert(action, controller, message, alertType, routeValues, area);
+
         public FakeBaseController(ApplicationDbContext db)
             : base(NullLogger<BaseController>.Instance, db)
         {
