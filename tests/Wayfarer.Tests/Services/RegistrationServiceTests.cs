@@ -1,6 +1,5 @@
-using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.RazorPages;
 using Wayfarer.Models;
 using Wayfarer.Parsers;
 using Wayfarer.Tests.Infrastructure;
@@ -8,58 +7,31 @@ using Xunit;
 
 namespace Wayfarer.Tests.Services;
 
-/// <summary>
-/// Registration guard behavior based on application settings.
-/// </summary>
+/// <summary>Missing and closed settings deny registration before any account dependency is used.</summary>
 public class RegistrationServiceTests : TestBase
 {
-    [Fact]
-    public void CheckRegistration_Continues_WhenOpen()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    [InlineData(null)]
+    public async Task Policy_FailsClosed_AndHandlersStopBeforeAccountWork(bool? open)
     {
         var db = CreateDbContext();
-        db.ApplicationSettings.Add(new ApplicationSettings
+        if (open.HasValue)
         {
-            Id = 1,
-            IsRegistrationOpen = true,
-            MaxCacheTileSizeInMB = ApplicationSettings.DefaultMaxCacheTileSizeInMB,
-            UploadSizeLimitMB = ApplicationSettings.DefaultUploadSizeLimitMB
-        });
-        db.SaveChanges();
+            db.ApplicationSettings.Add(new ApplicationSettings { IsRegistrationOpen = open.Value });
+            await db.SaveChangesAsync();
+        }
+        var policy = new RegistrationService(db);
+        Assert.Equal(open == true, policy.IsRegistrationOpen());
+        if (open == true) return; // Open GET/POST side effects are exercised through real routed pages.
 
-        var ctx = new DefaultHttpContext();
-        var service = new RegistrationService(db, BuildConfig());
-
-        service.CheckRegistration(ctx);
-
-        Assert.False(ctx.Response.Headers.ContainsKey("Location"));
-    }
-
-    [Fact]
-    public void CheckRegistration_Redirects_WhenClosed()
-    {
-        var db = CreateDbContext();
-        db.ApplicationSettings.Add(new ApplicationSettings
-        {
-            Id = 1,
-            IsRegistrationOpen = false,
-            MaxCacheTileSizeInMB = ApplicationSettings.DefaultMaxCacheTileSizeInMB,
-            UploadSizeLimitMB = ApplicationSettings.DefaultUploadSizeLimitMB
-        });
-        db.SaveChanges();
-
-        var ctx = new DefaultHttpContext();
-        var service = new RegistrationService(db, BuildConfig());
-
-        service.CheckRegistration(ctx);
-
-        Assert.Equal("/Home/RegistrationClosed", ctx.Response.Headers["Location"]);
-    }
-
-    private static IConfiguration BuildConfig()
-    {
-        return new ServiceCollection()
-            .AddSingleton<IConfiguration>(new ConfigurationBuilder().Build())
-            .BuildServiceProvider()
-            .GetRequiredService<IConfiguration>();
+        // Null account services deliberately make any lookup/mutation beyond the policy fail.
+        var page = new RegisterModel(null!, null!, null!, null!, null!, policy);
+        Assert.Equal("/Home/RegistrationClosed", Assert.IsType<RedirectResult>(await page.OnGetAsync()).Url);
+        Assert.Equal("/Home/RegistrationClosed", Assert.IsType<RedirectResult>(await page.OnPostAsync()).Url);
+        Assert.Empty(db.Users);
+        Assert.Empty(db.UserRoles);
+        Assert.Empty(db.ApiTokens);
     }
 }
