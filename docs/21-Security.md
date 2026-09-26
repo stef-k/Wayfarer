@@ -2,8 +2,8 @@
 
 Identity & Roles
 - ASP.NET Core Identity with roles: `Admin`, `Manager`, `User`.
-- Registration can be open/closed in `ApplicationSettings`.
-- Usernames are the unique login identifier; email is optional and not used for verification flows.
+- Registration GET and POST require an explicitly open `ApplicationSettings` row. Closed or missing settings redirect to `/Home/RegistrationClosed` before account lookup, creation, role assignment or API-token creation. Open registration retains its existing User role, incoming-location token row and username-based confirmation redirect.
+- Usernames are the unique login identifier. Custom registration does not collect email; packaged Identity recovery/confirmation pages remain reachable, with no-op email delivery. The existing username/email confirmation mismatch is unchanged.
 
 Passwords
 - Never commit or document real passwords. For local dev, use throwaway credentials and rotate.
@@ -14,6 +14,15 @@ Account Lockout
 - Accounts are locked after 5 failed login attempts to protect against brute-force attacks.
 - Lockout duration: 15 minutes.
 - Applies to all users including new accounts.
+
+Identity Attempt Admission
+- One application-owned, process-local budget admits **20 attempts per effective client per five-minute fixed window**, shared across usernames and the selected Identity handlers. This leaves room for password retries plus 2FA/recovery while limiting cross-account spraying; the five-failure account lockout remains complementary.
+- Admission covers POST Login, Register, LoginWith2fa, LoginWithRecoveryCode, ForgotPassword, ResetPassword and ResendEmailConfirmation. It also covers GET/HEAD ConfirmEmail with userId/code, ConfirmEmailChange with userId/email/code, and RegisterConfirmation with email. Named-handler fallback uses the same budget.
+- Ordinary form/status GETs, authenticated Manage pages, external-login pages (no providers configured), and `/api/**` are excluded. Reinventory external login if providers are added. Mobile bearer authentication, SSE and token import do not use this component.
+- Only post-forwarding `RemoteIpAddress` identifies the client; mapped IPv4 addresses share the IPv4 budget. Missing addresses are rejected. No forwarding header is parsed by admission.
+- At most **4,096 live client buckets** are stored. Expired entries are removed on subsequent attempts; a full store rejects new clients until expiry rather than evicting live budgets. Existing clients retain their remaining budget. All storage and cleanup work is bounded.
+- Rejections return **429** with whole-second `Retry-After` (remaining window, earliest expiry at capacity, or five minutes for a missing address). Admission runs after authorization/antiforgery and before model binding and handlers. Admitted Identity messages, redirects and account lockout are unchanged.
+- Clients behind one NAT share a budget. Windows begin on the first admitted attempt and reset after five minutes; process restart resets this in-memory state. It is not distributed admission for multiple application instances.
 
 API Tokens
 - **Wayfarer API tokens** (used for mobile app and API authentication) are stored as SHA-256 hashes—never in plain text. If the database is compromised, the tokens cannot be recovered or reused.

@@ -12,8 +12,11 @@ namespace Wayfarer.Services;
 /// </summary>
 public sealed class IdentityAttemptAdmission(TimeProvider clock) : IAsyncResourceFilter
 {
+    /// <summary>Allows password retries plus second-factor/recovery attempts in one client window.</summary>
     public const int AttemptLimit = 20;
+    /// <summary>Hard cap; live entries are never evicted to admit new addresses.</summary>
     public const int ClientLimit = 4096;
+    /// <summary>Fixed window starts on a client's first admitted attempt.</summary>
     public static readonly TimeSpan Window = TimeSpan.FromMinutes(5);
     private readonly object _gate = new();
     private readonly Dictionary<IPAddress, (DateTimeOffset End, int Count)> _clients = new();

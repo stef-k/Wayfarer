@@ -10,6 +10,7 @@ using Microsoft.Extensions.Options;
 using Wayfarer.Areas.Identity.Pages.Account;
 using Wayfarer.Models;
 using Wayfarer.Services;
+using Wayfarer.Util;
 using Wayfarer.Tests.Infrastructure;
 using Xunit;
 
@@ -21,7 +22,7 @@ public sealed class IdentityAttemptRouteTests : TestBase
     [Fact]
     public async Task CompiledPages_PreserveOwnershipAuthorizationAndLockout()
     {
-        await using var app = await IdentityRouteHost.StartAsync(CreateDbContext());
+        await using var app = await IdentityRouteHost.StartAsync(CreateDbContext(), CreateTestDirectory());
         var loader = app.Services.GetRequiredService<PageLoader>();
         var pages = new Dictionary<string, CompiledPageActionDescriptor>();
         foreach (var endpoint in ((IEndpointRouteBuilder)app).DataSources.SelectMany(source => source.Endpoints))
@@ -29,11 +30,11 @@ public sealed class IdentityAttemptRouteTests : TestBase
             if (endpoint.Metadata.GetMetadata<PageActionDescriptor>() is not { AreaName: "Identity" } page) continue;
             pages.TryAdd(page.ViewEnginePath, await loader.LoadAsync(page, endpoint.Metadata));
         }
-        Assert.Equal(typeof(LoginModel), pages["/Account/Login"].ModelTypeInfo.AsType());
-        Assert.Equal(typeof(RegisterModel), pages["/Account/Register"].ModelTypeInfo.AsType());
+        Assert.Equal(typeof(LoginModel), pages["/Account/Login"].ModelTypeInfo!.AsType());
+        Assert.Equal(typeof(RegisterModel), pages["/Account/Register"].ModelTypeInfo!.AsType());
         foreach (var name in new[] { "LoginWith2fa", "LoginWithRecoveryCode", "ForgotPassword", "ResetPassword",
                      "ResendEmailConfirmation", "ConfirmEmail", "ConfirmEmailChange", "RegisterConfirmation" })
-            Assert.Equal("Microsoft.AspNetCore.Identity.UI", pages[$"/Account/{name}"].ModelTypeInfo.Assembly.GetName().Name);
+            Assert.Equal("Microsoft.AspNetCore.Identity.UI", pages[$"/Account/{name}"].ModelTypeInfo!.Assembly.GetName().Name);
         Assert.All(pages.Values, page => Assert.Contains(page.FilterDescriptors,
             filter => filter.Filter.GetType().Name.Contains("AutoValidateAntiforgery")));
         Assert.All(pages.Where(page => page.Key.StartsWith("/Account/Manage/")),
@@ -47,7 +48,10 @@ public sealed class IdentityAttemptRouteTests : TestBase
     [Fact]
     public async Task ExhaustedClient_IsRejectedAcrossPasswordRecoveryAndTokenPages()
     {
-        await using var app = await IdentityRouteHost.StartAsync(CreateDbContext());
+        var db = CreateDbContext();
+        db.ApplicationSettings.Add(new ApplicationSettings());
+        await db.SaveChangesAsync();
+        await using var app = await IdentityRouteHost.StartAsync(db, CreateTestDirectory());
         using var client = app.GetTestClient();
         var token = await IdentityRouteHost.AntiforgeryAsync(client);
         var admission = app.Services.GetRequiredService<IdentityAttemptAdmission>();
@@ -79,7 +83,28 @@ public sealed class IdentityAttemptRouteTests : TestBase
             Assert.NotEqual(HttpStatusCode.TooManyRequests, response.StatusCode);
         }
         using var api = await client.GetAsync("/api/settings");
-        Assert.Equal(HttpStatusCode.OK, api.StatusCode);
+        Assert.True(api.StatusCode == HttpStatusCode.OK, await api.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task ExhaustedClient_MobileBearerStillWorksWithoutBrowserCookies()
+    {
+        var db = CreateDbContext();
+        var user = new ApplicationUser { UserName = "mobile-user", DisplayName = "User", IsActive = true };
+        db.Users.Add(user);
+        db.ApiTokens.Add(new ApiToken { UserId = user.Id, User = user, Name = "existing", TokenHash = ApiTokenService.HashToken("test-bearer") });
+        await db.SaveChangesAsync();
+        await using var app = await IdentityRouteHost.StartAsync(db, CreateTestDirectory());
+        var admission = app.Services.GetRequiredService<IdentityAttemptAdmission>();
+        for (var i = 0; i < IdentityAttemptAdmission.AttemptLimit; i++) admission.Admit(IPAddress.Parse("192.0.2.20"));
+        using var client = app.GetTestClient();
+        using var missing = await client.GetAsync("/api/mobile/groups");
+        Assert.Equal(HttpStatusCode.Unauthorized, missing.StatusCode);
+        Assert.Null(missing.Headers.Location);
+        client.DefaultRequestHeaders.Authorization = new("Bearer", "test-bearer");
+        using var valid = await client.GetAsync("/api/mobile/groups");
+        Assert.Equal(HttpStatusCode.OK, valid.StatusCode);
+        Assert.Equal("[]", await valid.Content.ReadAsStringAsync());
     }
 
     [Theory]
@@ -94,7 +119,7 @@ public sealed class IdentityAttemptRouteTests : TestBase
             db.ApplicationSettings.Add(new ApplicationSettings { IsRegistrationOpen = open.Value });
             await db.SaveChangesAsync();
         }
-        await using var app = await IdentityRouteHost.StartAsync(db);
+        await using var app = await IdentityRouteHost.StartAsync(db, CreateTestDirectory());
         using var scope = app.Services.CreateScope();
         await scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>().CreateAsync(new IdentityRole("User"));
         using var client = app.GetTestClient();
@@ -130,7 +155,7 @@ public sealed class IdentityAttemptRouteTests : TestBase
     public async Task Forwarding_OnlyTrustedPeerCanSelectAnotherClient(string peer, bool rejected)
     {
         var db = CreateDbContext();
-        await using var app = await IdentityRouteHost.StartAsync(db);
+        await using var app = await IdentityRouteHost.StartAsync(db, CreateTestDirectory());
         var admission = app.Services.GetRequiredService<IdentityAttemptAdmission>();
         for (var i = 0; i < IdentityAttemptAdmission.AttemptLimit; i++) admission.Admit(IPAddress.Parse(peer));
         using var client = app.GetTestClient();
