@@ -99,7 +99,7 @@ The app subscribes to Server-Sent Events for instant updates:
 - **Invitation notifications** — new group invitations
 - **Membership changes** — group member updates
 
-SSE automatically reconnects on connection loss.
+SSE retries transient HTTP failures, including admission 429/503. Automatic recovery from remote EOF or body-read failures remains dependent on #674; until that client correction ships, an enforced server disconnect may require a later client action/restart. Explicit Stop remains terminal.
 
 ---
 

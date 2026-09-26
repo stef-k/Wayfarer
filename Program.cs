@@ -517,7 +517,12 @@ static void ConfigureServices(WebApplicationBuilder builder)
     builder.Services.AddScoped<LocationService>();
 
     // Server Send Events Service setup (SSE) used to broadcast messages to clients
+    var sseOptions = builder.Configuration.GetSection("Sse").Get<SseOptions>() ?? new SseOptions();
+    sseOptions.Validate();
+    builder.Services.AddSingleton(sseOptions);
+    builder.Services.AddSingleton<SseAdmission>();
     builder.Services.AddSingleton<SseService>();
+    builder.Services.AddSingleton<GroupSseDeliveryLease>();
 
     // User location stats service
     builder.Services.AddScoped<ILocationStatsService, LocationStatsService>();

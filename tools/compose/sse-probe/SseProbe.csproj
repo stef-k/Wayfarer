@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <!-- Disposable MVC qualification host compiles the branch's actual transport, not a test copy. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../../Services/SseService.cs" Link="SseService.cs" />
+    <Compile Include="../../../Services/SseAdmission.cs" Link="SseAdmission.cs" />
+    <Compile Include="../../../Models/Options/SseOptions.cs" Link="SseOptions.cs" />
+  </ItemGroup>
+</Project>

@@ -340,3 +340,24 @@ pull and full pulled-artifact qualification remain mandatory before #644 accepta
 PR CI runs `tools/release/db_image.py dry-run` against a clean checkout with the same
 build/metadata/full Compose path, without login, package-write permission or push.
 Focused publication tests run with the existing `tools/release/tests` selection.
+
+## SSE proxy qualification (#657)
+
+The managed Caddyfile and external proxy fixture omit `flush_interval -1`.
+[Caddy's streaming documentation](https://caddyserver.com/docs/caddyfile/directives/reverse_proxy#streaming)
+describes automatic immediate flushing for `text/event-stream`; it also describes negative
+flush intervals as preventing upstream cancellation on early downstream disconnect. #673's
+pinned 2.11.4 A/B probes observed prompt cancellation in **both** configurations. Removing
+the redundant override aligns with the documented contract; it is not a demonstrated repair
+of a 2.11.4 cancellation defect. The image digest and production topology are unchanged.
+
+Run `python3 tools/compose/qualify_sse.py` on Linux with Docker and .NET 10. The disposable
+MVC host compiles the actual transport source. The probe reads the production Caddyfile
+and pinned image, substituting only loopback site/upstream addresses. It checks first event,
+the real 20-second heartbeat, downstream close → action `RequestAborted` → zero active
+connections/channels, and a finite JSON response. It removes its own container/temp files.
+
+Local final-config evidence on 2026-09-26: first event 35.8 ms, heartbeat 20.04 s,
+disconnect observed with zero clients/channels in 23.0 ms, finite JSON passed. These are
+loopback HTTP/1.1 observations, not performance percentiles or deployed HTTPS/HTTP2/device
+qualification. Mobile remote-disconnect recovery remains the separate #674 dependency.

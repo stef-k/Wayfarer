@@ -18,6 +18,7 @@ public class MobileSseController : MobileApiController
     private readonly SseService _sseService;
     private readonly IGroupTimelineService _timelineService;
     private readonly MobileSseOptions _options;
+    private readonly GroupSseDeliveryLease _groupDelivery;
 
     public MobileSseController(
         ApplicationDbContext dbContext,
@@ -25,12 +26,14 @@ public class MobileSseController : MobileApiController
         IMobileCurrentUserAccessor userAccessor,
         SseService sseService,
         IGroupTimelineService timelineService,
-        MobileSseOptions options)
+        MobileSseOptions options,
+        GroupSseDeliveryLease groupDelivery)
         : base(dbContext, logger, userAccessor)
     {
         _sseService = sseService;
         _timelineService = timelineService;
         _options = options;
+        _groupDelivery = groupDelivery;
     }
 
     /// <summary>
@@ -51,7 +54,8 @@ public class MobileSseController : MobileApiController
             Response,
             cancellationToken,
             enableHeartbeat: true,
-            heartbeatInterval: _options.HeartbeatInterval);
+            heartbeatInterval: _options.HeartbeatInterval,
+            resolvedUserId: caller.Id);
         return new EmptyResult();
     }
 
@@ -78,7 +82,9 @@ public class MobileSseController : MobileApiController
             Response,
             cancellationToken,
             enableHeartbeat: true,
-            heartbeatInterval: _options.HeartbeatInterval);
+            heartbeatInterval: _options.HeartbeatInterval,
+            deliveryLease: token => _groupDelivery.AcquireAsync(groupId, caller.Id, token),
+            resolvedUserId: caller.Id);
         return new EmptyResult();
     }
 }
