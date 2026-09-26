@@ -66,7 +66,7 @@ public sealed class RichNotesTests
     {
         var original = "https://cdn.example.test/image?a=1&b=2&literal=&amp;";
         var wrapped = original;
-        for (var i = 0; i < 4; i++) wrapped = "/Public/ProxyImage?url=" + Uri.EscapeDataString(wrapped);
+        for (var i = 0; i < 4; i++) wrapped = "https://backend.example.test/Public/ProxyImage?url=" + Uri.EscapeDataString(wrapped);
         var output = RichNotes.Normalize($"<p><img src=\"{wrapped}\"></p>");
         var image = new HtmlParser().ParseDocument(output!).QuerySelector("img")!;
         Assert.Equal(original, image.GetAttribute("src"));

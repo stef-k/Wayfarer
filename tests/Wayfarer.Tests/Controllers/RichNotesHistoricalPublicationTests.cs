@@ -1,6 +1,8 @@
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using NetTopologySuite.Geometries;
+using Location = Wayfarer.Models.Location;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos;
 using Wayfarer.Models.Dtos.Editor;
@@ -19,8 +21,12 @@ public partial class ApiTripsControllerTests
         var user = SeedUserWithToken(db, "tok");
         var trip = new Trip { Id = Guid.NewGuid(), UserId = user.Id, Name = "Trip", Notes = input };
         var region = new Region { Id = Guid.NewGuid(), Trip = trip, UserId = user.Id, Name = "Region", Notes = input };
-        var place = new Place { Id = Guid.NewGuid(), Region = region, UserId = user.Id, Name = "Place", Notes = input };
-        trip.Regions = [region]; region.Places = [place];
+        var place = new Place { Id = Guid.NewGuid(), Region = region, UserId = user.Id, Name = "Place", Notes = input, Location = new Point(23.72, 37.98) { SRID = 4326 } };
+        var area = new Area { Id = Guid.NewGuid(), Region = region, Name = "Area", Notes = input,
+            Geometry = new Polygon(new LinearRing([new(0, 0), new(1, 0), new(1, 1), new(0, 0)])) { SRID = 4326 } };
+        var segment = new Segment { Id = Guid.NewGuid(), Trip = trip, UserId = user.Id, Mode = "walk", Notes = input,
+            FromPlace = place, ToPlace = place };
+        trip.Regions = [region]; region.Places = [place]; region.Areas = [area]; trip.Segments = [segment];
         db.Trips.Add(trip); await db.SaveChangesAsync();
         var controller = BuildController(db, token: "tok");
         var read = Assert.IsType<OkObjectResult>(controller.GetTrip(trip.Id));
@@ -35,6 +41,8 @@ public partial class ApiTripsControllerTests
         Assert.Equal(input, trip.Notes);
         Assert.Equal(input, region.Notes);
         Assert.Equal(input, place.Notes);
+        Assert.Equal(input, area.Notes);
+        Assert.Equal(input, segment.Notes);
         Assert.All(db.ChangeTracker.Entries(), entry => Assert.Equal(EntityState.Unchanged, entry.State));
     }
 }
@@ -48,6 +56,7 @@ public partial class ApiLocationControllerTests
         using var db = CreateDbContext();
         var user = SeedUserWithToken(db, "tok");
         var location = CreateLocation(user.Id, 655);
+        location.Coordinates = new Point(23.72, 37.98) { SRID = 4326 };
         location.Notes = "<p onclick='bad()'>safe</p><script>bad()</script>";
         db.Locations.Add(location); await db.SaveChangesAsync();
         var response = Assert.IsType<OkObjectResult>(await BuildApiController(db, user).Update(location.Id, new LocationUpdateRequestDto()));
