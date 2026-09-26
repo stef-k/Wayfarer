@@ -55,7 +55,7 @@ public partial class ApiLocationControllerTests
         Assert.Equal("<p>safe</p>", copy.Notes);
         Assert.NotSame(location, copy);
         var stamp = location.LocalTimestamp;
-        var timeline = await new Wayfarer.Services.LocationService(db).GetLocationsByDateAsync(
+        var timeline = await new Wayfarer.Parsers.LocationService(db).GetLocationsByDateAsync(
             user.Id, "day", stamp.Year, stamp.Month, stamp.Day);
         Assert.Equal("<p>safe</p>", Assert.Single(timeline.Locations).Notes);
         Assert.Contains("<script>", location.Notes);
