@@ -92,10 +92,15 @@ public partial class ImageProxyServiceTests
         var services = handlers.Select(h => CreateImageProxyService(h, CreateMissingCache())).ToArray();
         var requests = Enumerable.Range(0, 4)
             .Select(i => new ImageProxyRequest($"https://example.com/capacity-{i}", Optimize: false)).ToArray();
-        var tasks = services.Select((s, i) => s.RefreshAsync(requests[i])).ToArray();
+        using var disconnected = new CancellationTokenSource();
+        var tasks = services.Select((s, i) => s.RefreshAsync(requests[i],
+            i == 0 ? disconnected.Token : CancellationToken.None)).ToArray();
         await Task.WhenAll(handlers.Select(h => h.WaitForRequestAsync()));
         try
         {
+            disconnected.Cancel();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => tasks[0]);
+            // Disconnecting the only waiter does not free its still-running origin slot.
             var rejected = await services[0].RefreshAsync(new("https://example.com/fifth"))
                 .WaitAsync(TimeSpan.FromSeconds(5));
             Assert.Equal(ImageProxyResultStatus.Unavailable, rejected.Status);
@@ -108,7 +113,7 @@ public partial class ImageProxyServiceTests
         finally
         {
             foreach (var handler in handlers) handler.Release();
-            await Task.WhenAll(tasks);
+            await Task.WhenAll(tasks.Skip(1));
         }
     }
 

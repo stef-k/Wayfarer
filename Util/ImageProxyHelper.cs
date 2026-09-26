@@ -171,7 +171,6 @@ public static class ImageProxyHelper
         }
 
         return DecodedImageResourceLimits.Load(imageBytes.AsSpan());
-
     }
 
     /// <summary>The four supported raster formats, independent of origin or stored MIME claims.</summary>

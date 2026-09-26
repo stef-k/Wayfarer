@@ -591,8 +591,6 @@ static void ConfigureServices(WebApplicationBuilder builder)
     });
 }
 
-
-
 // Method to configure middleware components such as error handling and performance monitoring
 static async Task ConfigureMiddleware(WebApplication app)
 {
