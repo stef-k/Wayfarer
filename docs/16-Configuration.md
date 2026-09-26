@@ -132,6 +132,42 @@ Secrets
 - Keep tokens, API keys, and passwords out of `appsettings*.json` in production. Use environment variables or secret stores.
 
 
+### SSE admission and transport limits (#657)
+
+One process-local `SseAdmission` owner reserves every stream after its existing controller
+has resolved access, before SSE headers. Configure these `Sse` section keys (environment
+variables use `Sse__` plus the key). All bounds must be positive; identity limits cannot
+exceed the process ceiling. Durations use .NET TimeSpan format, for example `00:00:10`.
+
+| Key | Default | Meaning |
+|---|---|---|
+| `MaxConnections` | 2048 | All active streams in this process |
+| `MaxConnectionsPerUser` | 256 | Resolved user across cookie/bearer, tabs and devices |
+| `MaxConnectionsPerAnonymousIp` | 128 | Anonymous effective IP after trusted forwarding |
+| `SendTimeout` | `00:00:10` | One absolute slot + lease + write + flush deadline |
+| `FanoutConcurrency` | 32 | Recipient workers per broadcast |
+| `BroadcastTimeout` | `00:00:10` | Overall broadcast horizon across worker waves |
+
+Global exhaustion returns **503**; user/IP exhaustion returns **429**. Both include
+`Retry-After: 5`, with no admission queue. Authenticated users do not share an IP cap.
+Mapped IPv4 addresses normalize to IPv4; missing addresses share one fallback bucket.
+Zero-count buckets disappear. These are conservative policy bounds, not measured capacity.
+
+The default supports the measured 206-stream Manager/mobile example, but cannot support
+arbitrarily large unpaginated Manager indexes. Operators can raise the user budget with
+a reviewed global ceiling; aggregate notifications/pagination are separate future work.
+Native-only EventSource pages may need reload or a new action after pre-stream 429/503;
+`Retry-After` alone does not make them retry. Existing explicit page retries are unchanged.
+Mobile automatic recovery after server eviction remains dependent on #674 (remote EOF
+and body-read IOException correction); this server change does not implement that fix.
+
+Each connection permits one active and one waiting send, including heartbeats. Overflow,
+send/heartbeat failure, denied lease, deadline or disconnect ends that connection and
+releases its admission after owned work drains. Fanout skips unattempted recipients when
+its horizon expires without evicting them. Streams have no maximum age. Cooperative
+cancellation cannot forcibly interrupt arbitrary response streams that ignore tokens.
+Heartbeat opt-in is unchanged: mobile/group/PDF default to 20 seconds, Admin to 30 seconds.
+
 ## Generated thumbnails and operational file logs (#625)
 
 Trip thumbnails use `Storage:CacheRoot/thumbnails/trips` and retain the public

@@ -16,6 +16,8 @@ public sealed class GroupSseDeliveryLease(IServiceScopeFactory scopeFactory)
     {
         var scope = scopeFactory.CreateAsyncScope();
         IDbContextTransaction? transaction = null;
+        var transferred = false;
+        Exception? failure = null;
         try
         {
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -26,30 +28,32 @@ public sealed class GroupSseDeliveryLease(IServiceScopeFactory scopeFactory)
                 var groups = await db.Groups.FromSqlInterpolated($"""
                     SELECT * FROM "Groups" WHERE "Id" = {groupId} AND NOT "IsArchived" FOR SHARE NOWAIT
                     """).AsNoTracking().ToListAsync(token);
-                if (groups.Count == 0) return await DenyAsync();
+                if (groups.Count == 0) return null;
                 var members = await db.GroupMembers.FromSqlInterpolated($"""
                     SELECT * FROM "GroupMembers" WHERE "GroupId" = {groupId} AND "UserId" = {userId}
                     AND "Status" = {GroupMember.MembershipStatuses.Active} FOR SHARE NOWAIT
                     """).AsNoTracking().ToListAsync(token);
-                if (members.Count == 0) return await DenyAsync();
+                if (members.Count == 0) return null;
             }
             else if (!await db.Groups.AnyAsync(g => g.Id == groupId && !g.IsArchived, token)
                 || !await db.GroupMembers.AnyAsync(m => m.GroupId == groupId && m.UserId == userId
                     && m.Status == GroupMember.MembershipStatuses.Active, token))
-                return await DenyAsync();
+                return null;
+            transferred = true;
             return new Lease(scope, transaction);
         }
-        catch
+        catch (Exception exception)
         {
-            await DenyAsync();
+            failure = exception;
             throw;
         }
-
-        async Task<IAsyncDisposable?> DenyAsync()
+        finally
         {
-            try { if (transaction is not null) await transaction.DisposeAsync(); }
-            finally { await scope.DisposeAsync(); }
-            return null;
+            if (!transferred)
+            {
+                try { await new Lease(scope, transaction).DisposeAsync(); }
+                catch when (failure is not null) { /* Preserve the acquisition failure. */ }
+            }
         }
     }
 

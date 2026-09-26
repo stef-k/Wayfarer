@@ -236,6 +236,22 @@ Mobile endpoints use Bearer token authentication:
 | `/api/mobile/sse/visits` | Visit notifications for authenticated user |
 | `/api/mobile/sse/group/{groupId}` | Consolidated group events (locations + membership) |
 
+### SSE delivery and revocation
+
+All stream families share [finite admission and send policy](16-Configuration.md#sse-admission-and-transport-limits-657).
+Routes, `data: ...\n\n` events, `:\n\n` heartbeats and initial authorization owners remain unchanged.
+Web/mobile group events acquire fresh persisted eligibility in a separate scope: the group
+must exist and not be archived, and the caller's membership must be Active. PostgreSQL
+locks the qualifying group first, then membership with `FOR SHARE NOWAIT`, holding both
+through bounded write/flush. Lock conflict, cancellation and database failure fail closed.
+No membership query runs for comment heartbeats. Public Timeline keeps its distinct lease.
+
+A pre-existing delivery lease may finish before revocation commits. After committed removal,
+leave, group deletion or user/membership cascade, no new protected frame is allowed. The
+former member does not receive a post-commit `member-removed` exception; remaining members
+can receive it. Already-written bytes cannot be recalled. Lease denial ends the subscription
+and releases admission. Invitation decline/revoke alone is not membership revocation.
+
 ### SSE Event Types
 
 ```json

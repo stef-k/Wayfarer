@@ -9,7 +9,7 @@ internal sealed class SseGateStream(bool flush = false, bool fail = false) : Mem
     internal TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     internal TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     internal int Calls;
-    internal CancellationToken ObservedToken;
+    internal CancellationToken ObservedToken { get; private set; }
 
     public override async Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken token)
     {

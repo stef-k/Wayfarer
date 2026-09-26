@@ -13,14 +13,22 @@ public class SseAdmissionTests
 {
     /// <summary>Manager rows/tabs and mobile streams share the resolved user budget.</summary>
     [Fact]
-    public void DefaultEnvelopeAdmits206Streams()
+    public async Task DefaultEnvelopeAdmits206Streams()
     {
-        var admission = new SseAdmission(new SseOptions());
-        var permits = Enumerable.Range(0, 206).Select(_ => admission.TryAcquire(Context(), "manager")).ToArray();
-        Assert.All(permits, permit => Assert.NotNull(permit));
-        foreach (var permit in permits) permit!.Dispose();
+        var options = new SseOptions();
+        var admission = new SseAdmission(options);
+        var service = new SseService(options, admission);
+        using var request = new CancellationTokenSource();
+        var subscriptions = Enumerable.Range(0, 206)
+            .Select(i => service.SubscribeAsync($"manager-mobile-{i}", Context().Response, request.Token,
+                resolvedUserId: "manager")).ToArray();
+        Assert.Equal(206, service.ActiveConnectionCount);
+        Assert.All(subscriptions, subscription => Assert.False(subscription.IsCompleted));
+        request.Cancel();
+        await Task.WhenAll(subscriptions);
         Assert.Equal(0, admission.ActiveCount);
         Assert.Equal(0, admission.IdentityCount);
+        Assert.Equal(0, service.ChannelCount);
     }
 
     /// <summary>Default boundaries reject immediately with explicit pre-stream retry guidance.</summary>
