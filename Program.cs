@@ -249,6 +249,11 @@ static void ConfigureDatabase(WebApplicationBuilder builder)
 // Method to configure identity, authentication, and user roles
 static void ConfigureIdentity(WebApplicationBuilder builder)
 {
+    // Share one bounded client budget across the selected Identity page handlers.
+    builder.Services.AddSingleton(new IdentityAttemptAdmission(TimeProvider.System));
+    builder.Services.Configure<Microsoft.AspNetCore.Mvc.MvcOptions>(options =>
+        options.Filters.AddService<IdentityAttemptAdmission>());
+
     // Add default identity services for user authentication
     builder.Services.AddDefaultIdentity<ApplicationUser>(options =>
         {

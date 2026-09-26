@@ -2,32 +2,17 @@ using Wayfarer.Models;
 
 namespace Wayfarer.Parsers;
 
+/// <summary>Authoritative registration policy, checked before any account work.</summary>
 public interface IRegistrationService
 {
-    void CheckRegistration(HttpContext context);
+    /// <summary>Only an explicitly open settings row permits registration.</summary>
+    bool IsRegistrationOpen();
 }
 
-public class RegistrationService : IRegistrationService
+/// <summary>Reads the application registration policy; missing settings fail closed.</summary>
+public class RegistrationService(ApplicationDbContext context) : IRegistrationService
 {
-    private readonly ApplicationDbContext _context; // Assuming you're using EF Core for db access
-    private readonly IConfiguration _configuration;
-
-    public RegistrationService(ApplicationDbContext context, IConfiguration configuration)
-    {
-        _context = context;
-        _configuration = configuration;
-    }
-
-    public void CheckRegistration(HttpContext context)
-    {
-        // Fetch the settings from the database (or cache, depending on your design)
-        var settings = _context.ApplicationSettings.OrderBy(s => s.Id).FirstOrDefault();
-        
-        if (settings != null && !settings.IsRegistrationOpen)
-        {
-            // If registration is closed, redirect to a 'Registration Closed' page
-            context.Response.Redirect("/Home/RegistrationClosed");
-        }
-        // No need to do anything if registration is open, execution will continue
-    }
+    /// <inheritdoc />
+    public bool IsRegistrationOpen() =>
+        context.ApplicationSettings.OrderBy(s => s.Id).FirstOrDefault()?.IsRegistrationOpen == true;
 }

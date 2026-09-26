@@ -106,7 +106,7 @@ public class ApplicationSettingsServiceTests : TestBase
     }
 
     [Fact]
-    public void CheckRegistration_RedirectsWhenClosed()
+    public void RegistrationDecision_DeniesWhenClosed()
     {
         var db = CreateDbContext();
         db.ApplicationSettings.Add(new ApplicationSettings
@@ -118,12 +118,7 @@ public class ApplicationSettingsServiceTests : TestBase
         });
         db.SaveChanges();
 
-        var ctx = new DefaultHttpContext();
-        var config = new ServiceCollection().AddSingleton<IConfiguration>(new ConfigurationBuilder().Build()).BuildServiceProvider().GetRequiredService<IConfiguration>();
-        var service = new RegistrationService(db, config);
-
-        service.CheckRegistration(ctx);
-
-        Assert.Equal("/Home/RegistrationClosed", ctx.Response.Headers["Location"]);
+        var service = new RegistrationService(db);
+        Assert.False(service.IsRegistrationOpen());
     }
 }

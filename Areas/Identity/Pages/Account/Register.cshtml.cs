@@ -61,18 +61,21 @@ public class RegisterModel : PageModel
         public string DisplayName { get; set; } = string.Empty;
     }
 
-    public async Task OnGetAsync(string? returnUrl = null)
+    /// <summary>Render registration only when explicitly enabled.</summary>
+    public async Task<IActionResult> OnGetAsync(string? returnUrl = null)
     {
-        // check if the app has registrations open
-        _registrationService.CheckRegistration(HttpContext);
+        // Stop before lookup, user creation, role assignment, or token creation.
+        if (!_registrationService.IsRegistrationOpen()) return Redirect("/Home/RegistrationClosed");
         ReturnUrl = returnUrl ?? Url.Content("~/");
         ExternalLogins = (await _signInManager.GetExternalAuthenticationSchemesAsync()).ToList();
+        return Page();
     }
 
+    /// <summary>Apply registration policy before all account operations.</summary>
     public async Task<IActionResult> OnPostAsync(string? returnUrl = null)
     {
-        // check if the app has registrations open
-        _registrationService.CheckRegistration(HttpContext);
+        // Stop before lookup, user creation, role assignment, or token creation.
+        if (!_registrationService.IsRegistrationOpen()) return Redirect("/Home/RegistrationClosed");
         returnUrl ??= Url.Content("~/");
 
         ExternalLogins = (await _signInManager.GetExternalAuthenticationSchemesAsync()).ToList();
