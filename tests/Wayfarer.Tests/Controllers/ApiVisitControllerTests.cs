@@ -32,6 +32,9 @@ public class ApiVisitControllerTests : TestBase
     {
         var db = CreateDbContext();
         db.Users.Add(TestDataFixtures.CreateUser(id: "u1"));
+        var historical = CreateVisit("u1", "Historical");
+        historical.NotesHtml = "<s>safe</s><script>bad()</script>";
+        db.PlaceVisitEvents.Add(historical);
         db.SaveChanges();
         var controller = BuildController(db, "u1");
 
@@ -41,6 +44,9 @@ public class ApiVisitControllerTests : TestBase
         Assert.NotNull(ok.Value);
         var success = ok.Value.GetType().GetProperty("success")?.GetValue(ok.Value);
         Assert.Equal(true, success);
+        Assert.DoesNotContain("bad()", System.Text.Json.JsonSerializer.Serialize(ok.Value));
+        Assert.Contains("<script>", historical.NotesHtml);
+        Assert.Equal(Microsoft.EntityFrameworkCore.EntityState.Unchanged, db.Entry(historical).State);
     }
 
     [Fact]

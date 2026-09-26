@@ -9,13 +9,13 @@ internal static class TripRichNotes
     /// <summary>Applies the shared policy to all five rich-note domains in the destination aggregate.</summary>
     internal static void NormalizeDestination(Trip trip)
     {
-        trip.Notes = RichNotes.NormalizeForPersistence(trip.Notes);
+        trip.Notes = RichNotes.Normalize(trip.Notes);
         foreach (var region in trip.Regions ?? [])
         {
-            region.Notes = RichNotes.NormalizeForPersistence(region.Notes);
-            foreach (var place in region.Places ?? []) place.Notes = RichNotes.NormalizeForPersistence(place.Notes);
-            foreach (var area in region.Areas ?? []) area.Notes = RichNotes.NormalizeForPersistence(area.Notes);
+            region.Notes = RichNotes.Normalize(region.Notes);
+            foreach (var place in region.Places ?? []) place.Notes = RichNotes.Normalize(place.Notes);
+            foreach (var area in region.Areas ?? []) area.Notes = RichNotes.Normalize(area.Notes);
         }
-        foreach (var segment in trip.Segments ?? []) segment.Notes = RichNotes.NormalizeForPersistence(segment.Notes);
+        foreach (var segment in trip.Segments ?? []) segment.Notes = RichNotes.Normalize(segment.Notes);
     }
 }

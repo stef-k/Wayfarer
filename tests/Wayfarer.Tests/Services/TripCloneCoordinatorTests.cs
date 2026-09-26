@@ -26,6 +26,7 @@ public sealed class TripCloneCoordinatorTests : TestBase
         db.Users.AddRange(owner, destination);
         var source = TestDataFixtures.CreateTrip(owner, "Tuple clone", isPublic: true);
         var region = RegionWithPlaces(source, owner.Id, out var places);
+        source.Notes = "<p onclick='bad()'>clone</p><script>bad()</script>";
         source.Regions = [region];
         SetTuple(places[0], null, null, "mapbox", "permanent");
         SetTuple(places[1], "Tokyo Tower", "building", "geoapify", "persistent");
@@ -37,6 +38,8 @@ public sealed class TripCloneCoordinatorTests : TestBase
 
         db.ChangeTracker.Clear();
         var clone = await LoadTripAggregateAsync(db, result.ClonedTripId!.Value);
+        Assert.Equal("<p>clone</p>", clone.Notes);
+        Assert.Contains("<script>", source.Notes);
         var cloned = clone.Regions.Single().Places.OrderBy(place => place.Name).ToArray();
         Assert.Equal((null, null, "mapbox", "permanent"), Tuple(cloned[0]));
         Assert.Equal(("Tokyo Tower", "building", "geoapify", "persistent"), Tuple(cloned[1]));

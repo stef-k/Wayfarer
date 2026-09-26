@@ -1,4 +1,3 @@
-using System.Net;
 using System.Text.RegularExpressions;
 using AngleSharp.Dom;
 using AngleSharp.Html.Parser;
@@ -54,7 +53,7 @@ public static class RichNotes
     /// <summary>
     /// Canonicalizes and sanitizes rich-notes HTML at storage and publication boundaries.
     /// </summary>
-    public static string? NormalizeForPersistence(string? notesHtml)
+    public static string? Normalize(string? notesHtml)
     {
         if (notesHtml is null) return null;
         if (string.IsNullOrWhiteSpace(notesHtml))
@@ -85,6 +84,10 @@ public static class RichNotes
             ? string.Empty
             : html;
     }
+
+    /// <summary>Derives plain preview text; callers must encode it when placing it into HTML.</summary>
+    public static string? ToPlainText(string? notesHtml) => notesHtml is null
+        ? null : new HtmlParser().ParseDocument(Normalize(notesHtml)!).Body!.TextContent;
 
     private static void NormalizeElement(IElement element)
     {
@@ -189,7 +192,8 @@ public static class RichNotes
         while (changed)
         {
             changed = false;
-            var terminal = body.LastElementChild;
+            var terminal = body.ChildNodes.LastOrDefault(node => node is IElement
+                || node is IText text && !string.IsNullOrWhiteSpace(text.Data)) as IElement;
             if (terminal != null
                 && string.Equals(terminal.TagName, "p", StringComparison.OrdinalIgnoreCase)
                 && IsSemanticallyBlank(terminal))
@@ -233,7 +237,7 @@ public static class RichNotes
         // The DOM already decoded the attribute once; additional HTML decoding corrupts literal entities.
         var current = StripUrlBoundaryControls(value);
         var seen = new HashSet<string>(StringComparer.Ordinal);
-        while (seen.Add(current))
+        for (var depth = 0; depth < 32 && seen.Add(current); depth++)
         {
             if (!Uri.TryCreate(current, UriKind.RelativeOrAbsolute, out var uri)
                 || !string.Equals(uri.IsAbsoluteUri ? uri.AbsolutePath : uri.OriginalString.Split('?')[0],

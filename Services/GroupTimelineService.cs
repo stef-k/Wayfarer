@@ -249,7 +249,7 @@ public class GroupTimelineService : IGroupTimelineService
             LocationType = location.LocationType,
             ActivityType = location.ActivityType?.Name,
             ActivityTypeId = location.ActivityTypeId,
-            Notes = RichNotes.NormalizeForPersistence(location.Notes),
+            Notes = RichNotes.Normalize(location.Notes),
             IsLatestLocation = true,
             LocationTimeThresholdMinutes = threshold
         }.WithAddress(location);

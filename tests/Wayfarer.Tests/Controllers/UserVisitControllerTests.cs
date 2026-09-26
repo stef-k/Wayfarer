@@ -66,7 +66,7 @@ public class UserVisitControllerTests : TestBase
             Longitude = -74.0,
             IconNameSnapshot = "restaurant",
             MarkerColorSnapshot = "bg-red",
-            NotesHtml = "<p>Updated notes</p>",
+            NotesHtml = "<p onclick='bad()'>Updated notes</p><script>bad()</script>",
             ReturnUrl = "/User/Visit"
         };
 

@@ -9,7 +9,6 @@ namespace Wayfarer.Util
 {
     public static class HtmlHelpers
     {
-        private static readonly HtmlParser _htmlParser = new();
         private static readonly Regex _urlRegex = new Regex(
             @"(?<url>https?://[^\s<]+)", 
             RegexOptions.Compiled | RegexOptions.IgnoreCase
@@ -34,14 +33,8 @@ namespace Wayfarer.Util
             return new HtmlString(linked);
         }
         
-        // only match URLs in the rendered HTML, not inside existing tags/attributes
-        private static readonly Regex _urlInTextRegex = new Regex(
-            @"(?<![""'>])\bhttps?://[^\s<]+", 
-            RegexOptions.Compiled | RegexOptions.IgnoreCase
-        );
-        
         /// <summary>
-        /// Leaves the incoming HTML alone except that any bare http(s):// URLs
+        /// Canonicalizes incoming rich notes and wraps bare http(s):// URLs
         /// in text are wrapped in <a>…</a>.
         /// </summary>
         public static IHtmlContent LinkifyHtml(this IHtmlHelper html, string? htmlContent)
@@ -80,13 +73,6 @@ namespace Wayfarer.Util
         }
 
         /// <summary>
-        /// Detects an existing loading attribute (e.g. loading="eager") on an &lt;img&gt; tag.
-        /// Uses word boundary to avoid false positives from class names like "downloading".
-        /// </summary>
-        private static readonly Regex _loadingAttrRegex = new Regex(
-            @"\bloading\s*=", RegexOptions.Compiled | RegexOptions.IgnoreCase);
-
-        /// <summary>
         /// Matches external http(s):// URLs inside &lt;img src="..."&gt; attributes.
         /// </summary>
         private static readonly Regex _externalImgSrcRegex = new Regex(
@@ -113,7 +99,7 @@ namespace Wayfarer.Util
         /// Rewrites external &lt;img src="https://..."&gt; URLs in HTML content to go through
         /// the /Public/ProxyImage cache endpoint, ensuring consistent caching and SSRF protection.
         /// Injects loading="lazy" on proxied images unless the tag already has a loading attribute.
-        /// Leaves relative, data-URI, and already-proxied URLs unchanged.
+        /// Canonicalization removes unsupported sources and unwraps existing display proxies first.
         /// </summary>
         public static IHtmlContent ProxyNotesImages(this IHtmlHelper html, string? htmlContent)
         {
@@ -161,6 +147,6 @@ namespace Wayfarer.Util
 
         /// <summary>Publishes canonical safe rich HTML without changing the stored source.</summary>
         public static string NormalizeNotesForDisplay(string? htmlContent) =>
-            RichNotes.NormalizeForPersistence(htmlContent) ?? string.Empty;
+            RichNotes.Normalize(htmlContent) ?? string.Empty;
     }
 }

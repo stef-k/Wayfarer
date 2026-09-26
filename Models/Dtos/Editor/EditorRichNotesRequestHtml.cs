@@ -9,5 +9,5 @@ internal static class EditorRichNotesRequestHtml
     public static bool ContainsDataImageSource(string? notesHtml) => RichNotes.ContainsDataImageSource(notesHtml);
 
     /// <summary>Editor replacement treats absent notes as empty, unlike legacy patch adapters.</summary>
-    public static string? NormalizeForPersistence(string? notesHtml) => RichNotes.NormalizeForPersistence(notesHtml) ?? string.Empty;
+    public static string? NormalizeForPersistence(string? notesHtml) => RichNotes.Normalize(notesHtml) ?? string.Empty;
 }

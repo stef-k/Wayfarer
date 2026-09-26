@@ -83,7 +83,7 @@
                         {
                         <text> data-route-wkt="@wkt" </text>
                         }
-                        data-segment-notes="@(Wayfarer.Util.RichNotes.NormalizeForPersistence(seg?.Notes) ?? "")">
+                        data-segment-notes="@(Wayfarer.Util.RichNotes.Normalize(seg?.Notes) ?? "")">
 
                         <button type="button" class="segment-selection-button btn btn-link p-0 text-start" aria-label="@journey.AccessibleName">
                             @journey.CompactTrail

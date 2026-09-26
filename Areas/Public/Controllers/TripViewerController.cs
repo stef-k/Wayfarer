@@ -127,7 +127,7 @@ public class TripViewerController : BaseController
                 Id = t.Id,
                 OwnerDisplayName = t.User.DisplayName,
                 Name = t.Name,
-                NotesExcerpt = t.Notes != null ? t.Notes.Substring(0, Math.Min(140, t.Notes.Length)) : null,
+                NotesExcerpt = Wayfarer.Util.RichNotes.ToPlainText(t.Notes),
                 CoverImageUrl = t.CoverImageUrl,
                 CenterLat = t.CenterLat,
                 CenterLon = t.CenterLon,
@@ -153,17 +153,6 @@ public class TripViewerController : BaseController
             // Strip images from HTML notes for excerpt but keep other HTML formatting
             if (!string.IsNullOrWhiteSpace(item.NotesExcerpt))
             {
-                // Remove <img> tags (including self-closing variants and with any attributes)
-                item.NotesExcerpt = Regex.Replace(item.NotesExcerpt, @"<img[^>]*/?>", string.Empty, RegexOptions.IgnoreCase);
-                // Remove background-image CSS properties
-                item.NotesExcerpt = Regex.Replace(item.NotesExcerpt, @"background-image\s*:\s*url\([^)]*\)", string.Empty, RegexOptions.IgnoreCase);
-
-                // Strip ALL HTML tags including incomplete/malformed ones
-                // First strip complete tags
-                item.NotesExcerpt = Regex.Replace(item.NotesExcerpt, "<[^>]*>", string.Empty);
-                // Then strip any remaining < characters (from incomplete tags)
-                item.NotesExcerpt = Regex.Replace(item.NotesExcerpt, "<.*", string.Empty);
-
                 // Trim to 140 characters
                 if (item.NotesExcerpt.Length > 140)
                 {

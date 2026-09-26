@@ -60,7 +60,7 @@ public static class PublicSegmentResolver
             Mode = segment.Mode ?? string.Empty,
             EstimatedDistanceKm = segment.EstimatedDistanceKm,
             EstimatedDurationMinutes = segment.EstimatedDuration?.TotalMinutes,
-            Notes = RichNotes.NormalizeForPersistence(segment.Notes),
+            Notes = RichNotes.Normalize(segment.Notes),
             DisplayOrder = segment.DisplayOrder,
             TransportProfileId = segment.TransportProfileId,
             FromPlaceId = segment.FromPlaceId,

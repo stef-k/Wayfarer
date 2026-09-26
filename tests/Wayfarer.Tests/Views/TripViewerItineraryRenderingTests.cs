@@ -196,7 +196,7 @@ public sealed class TripViewerItineraryRenderingTests
             using var scope = host.Services.CreateScope();
             var trip = WaypointTrip();
             trip.User = new ApplicationUser { DisplayName = "Fixture owner" };
-            trip.Notes = "<p>Before</p><ol><li data-list=\"ordered\">Item</li><li data-list=\"ordered\"><br></li></ol>";
+            trip.Notes = "<script>bad()</script><p onclick='bad()'>Before</p><ol><li data-list=\"ordered\">Item</li><li data-list=\"ordered\"><br></li></ol>";
 
             var viewer = await new HtmlParser().ParseDocumentAsync(await RenderViewerAsync(scope.ServiceProvider, trip));
             var normalNotes = Assert.Single(viewer.QuerySelectorAll("#sidebar-primary .trip-notes.rich-notes-content"));
@@ -211,6 +211,9 @@ public sealed class TripViewerItineraryRenderingTests
             Assert.Contains("rich-notes.css", richNotesStylesheet.GetAttribute("href"));
             var pdfNotes = Assert.Single(pdf.QuerySelectorAll(".notes.rich-notes-content"));
             Assert.Single(pdfNotes.QuerySelectorAll("li"));
+            Assert.Null(pdfNotes.QuerySelector("script, [onclick]"));
+            Assert.Null(normalNotes.QuerySelector("script, [onclick]"));
+            Assert.Contains("<script>", trip.Notes);
 
             var blankTrip = WaypointTrip();
             blankTrip.User = new ApplicationUser { DisplayName = "Fixture owner" };

@@ -171,7 +171,7 @@ public class LocationController : BaseApiController
                 Altitude = dto.Altitude,
                 Speed = dto.Speed,
                 LocationType = dto.LocationType ?? "Manual", // Default to Manual for check-ins
-                Notes = RichNotes.NormalizeForPersistence(dto.Notes),
+                Notes = RichNotes.Normalize(dto.Notes),
                 ActivityTypeId = dto.ActivityTypeId,
 
                 // Metadata fields
@@ -639,7 +639,7 @@ public class LocationController : BaseApiController
                 Altitude = dto.Altitude,
                 Speed = dto.Speed,
                 LocationType = dto.LocationType,
-                Notes = RichNotes.NormalizeForPersistence(dto.Notes),
+                Notes = RichNotes.Normalize(dto.Notes),
                 ActivityTypeId = dto.ActivityTypeId,
 
                 // Metadata fields
@@ -930,7 +930,7 @@ public class LocationController : BaseApiController
             }
             else if (request.Notes != null)
             {
-                location.Notes = RichNotes.NormalizeForPersistence(request.Notes);
+                location.Notes = RichNotes.Normalize(request.Notes);
                 anyChange = true;
             }
 
@@ -1170,7 +1170,7 @@ public class LocationController : BaseApiController
                             l.ReverseGeocodingProvider, l.ReverseGeocodingStorageMode, l.ReverseGeocodedAt).Provider == "geoapify",
                         l.PostCode,
                         l.AddressNumber,
-                        Notes = RichNotes.NormalizeForPersistence(l.Notes),
+                        Notes = RichNotes.Normalize(l.Notes),
                         l.Altitude,
                         l.Accuracy,
                         l.Speed

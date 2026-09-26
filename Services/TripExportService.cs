@@ -161,7 +161,7 @@ namespace Wayfarer.Parsers
                             /* description (wrapped in CDATA) */
                             string.IsNullOrWhiteSpace(p.Notes)
                                 ? null
-                                : new XElement(k + "description", new XCData(Wayfarer.Util.RichNotes.NormalizeForPersistence(p.Notes)!)),
+                                : new XElement(k + "description", new XCData(Wayfarer.Util.RichNotes.Normalize(p.Notes)!)),
                             /* hidden place-id */
                             new XElement(k + "ExtendedData",
                                 new XElement(wf + "PlaceId", p.Id)),
@@ -191,7 +191,7 @@ namespace Wayfarer.Parsers
                         new XElement(k + "styleUrl", "#wf-area"),
                         string.IsNullOrWhiteSpace(a.Notes)
                             ? null
-                            : new XElement(k + "description", new XCData(Wayfarer.Util.RichNotes.NormalizeForPersistence(a.Notes)!)),
+                            : new XElement(k + "description", new XCData(Wayfarer.Util.RichNotes.Normalize(a.Notes)!)),
                         new XElement(k + "Polygon",
                             new XElement(k + "tessellate", 1),
                             new XElement(k + "outerBoundaryIs",

@@ -23,7 +23,7 @@ public static class TripDtoMapper
         {
             Id = trip.Id,
             Name = trip.Name,
-            Notes = RichNotes.NormalizeForPersistence(trip.Notes),
+            Notes = RichNotes.Normalize(trip.Notes),
             IsPublic = trip.IsPublic,
             CenterLat = trip.CenterLat,
             CenterLon = trip.CenterLon,
@@ -58,7 +58,7 @@ public static class TripDtoMapper
         {
             Id = region.Id,
             Name = region.Name,
-            Notes = RichNotes.NormalizeForPersistence(region.Notes),
+            Notes = RichNotes.Normalize(region.Notes),
             DisplayOrder = region.DisplayOrder,
             CoverImageUrl = region.CoverImageUrl,
             Center = region.Center is Point pt ? new[] { pt.X, pt.Y } : null,
@@ -86,7 +86,7 @@ public static class TripDtoMapper
         {
             Id = place.Id,
             Name = place.Name,
-            Notes = RichNotes.NormalizeForPersistence(place.Notes),
+            Notes = RichNotes.Normalize(place.Notes),
             Address = place.Address,
             ResolvedFeatureName = place.ResolvedFeatureName,
             ResolvedFeatureType = place.ResolvedFeatureType,
@@ -126,7 +126,7 @@ public static class TripDtoMapper
         {
             Id = area.Id,
             Name = area.Name,
-            Notes = RichNotes.NormalizeForPersistence(area.Notes),
+            Notes = RichNotes.Normalize(area.Notes),
             DisplayOrder = area.DisplayOrder,
             FillHex = area.FillHex,
             GeometryGeoJson = geoJson

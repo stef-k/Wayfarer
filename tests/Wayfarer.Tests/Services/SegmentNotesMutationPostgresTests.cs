@@ -21,7 +21,7 @@ public sealed class SegmentNotesMutationPostgresTests(PostgresImportTestFixture 
         var before = await SnapshotAsync(context, seed);
 
         Assert.True(await SegmentNotesMutation.UpdateRelationalAsync(
-            context, seed.TripId, seed.SegmentId!.Value, seed.UserId, "mobile notes", CancellationToken.None));
+            context, seed.TripId, seed.SegmentId!.Value, seed.UserId, "mobile notes<script>bad()</script>", CancellationToken.None));
 
         await using var verification = fixture.CreateContext();
         var after = await SnapshotAsync(verification, seed);
@@ -40,7 +40,7 @@ public sealed class SegmentNotesMutationPostgresTests(PostgresImportTestFixture 
         await using var context = fixture.CreateContext(new TripUpdateFailureInterceptor());
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => SegmentNotesMutation.UpdateRelationalAsync(
-            context, seed.TripId, seed.SegmentId!.Value, seed.UserId, "mobile notes", CancellationToken.None));
+            context, seed.TripId, seed.SegmentId!.Value, seed.UserId, "mobile notes<script>bad()</script>", CancellationToken.None));
 
         await using var verification = fixture.CreateContext();
         Assert.Equal(before, await SnapshotAsync(verification, seed));

@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### Changed
+- Canonicalize rich notes at explicit writer and historical publication/export boundaries with one shared AngleSharp policy (#655). Fix full-value obfuscated link schemes and DOM-safe linkification, preserve mobile formatting/image/null contracts, and encode note-derived previews and Group descriptions. No database migration; previously downloaded device-only HTML is outside this server remediation.
 - Add the self-contained Linux AMD64 `wayfarerctl` foundation: protected fresh Compose setup with verified interrupted-setup continuation, contextual help/menus, lifecycle/status/doctor/logs and delegated user recovery (#648). Includes operator documentation; backup/restore/update, final release packaging and native migration remain unimplemented. No application schema migration added.
 - Add an exact-source manual DB-image publication and anonymous full-Compose recovery gate (#644); registry publication remains pending maintainer workflow activation.
 - Add the production Compose substrate with official PG17.11 Debian/PGDG PostGIS3.6.4 image assembly, required immutable DB/app references and pinned Caddy2.11.4, private database networking, managed HTTPS/external loopback modes and disposable integration qualification (#644). Guided lifecycle and release bundle remain pending; no automatic native migration or PostgreSQL major upgrade.

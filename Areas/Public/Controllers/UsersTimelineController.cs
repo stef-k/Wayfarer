@@ -159,7 +159,7 @@ namespace Wayfarer.Areas.Public.Controllers
                     Country = location.Country,
                     ResolvedFeatureName = location.ResolvedFeatureName,
                     ResolvedFeatureType = location.ResolvedFeatureType,
-                    Notes = RichNotes.NormalizeForPersistence(location.Notes),
+                    Notes = RichNotes.Normalize(location.Notes),
 
                     // User's latest location unrelated from filtered zoom & viewport but based on threshold
                     // the user has set for his public timeline.

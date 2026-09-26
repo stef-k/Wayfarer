@@ -16,7 +16,7 @@ internal static class SegmentNotesMutation
         string notes,
         CancellationToken cancellationToken)
     {
-        notes = Wayfarer.Util.RichNotes.NormalizeForPersistence(notes)!;
+        notes = Wayfarer.Util.RichNotes.Normalize(notes)!;
         var updatedAt = DateTime.UtcNow;
         await using var transaction = await context.Database.BeginTransactionAsync(cancellationToken);
         try

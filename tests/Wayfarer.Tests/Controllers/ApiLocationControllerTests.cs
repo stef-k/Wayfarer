@@ -137,7 +137,7 @@ public partial class ApiLocationControllerTests : TestBase
         await db.SaveChangesAsync();
         var controller = BuildApiController(db, user);
 
-        var result = await controller.Update(42, new LocationUpdateRequestDto { Latitude = 1, Longitude = 2, Notes = "updated" });
+        var result = await controller.Update(42, new LocationUpdateRequestDto { Latitude = 1, Longitude = 2, Notes = "updated<script>bad()</script>" });
 
         var ok = Assert.IsType<OkObjectResult>(result);
         var updated = db.Locations.First(l => l.Id == 42);

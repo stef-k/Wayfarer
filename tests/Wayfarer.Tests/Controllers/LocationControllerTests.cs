@@ -37,8 +37,8 @@ namespace Wayfarer.Tests.Controllers;
             db.Users.AddRange(user, other);
 
             db.Locations.AddRange(
-                CreateLocation(user.Id, new DateTime(2024, 6, 1), "US", "CA", "first"),
-                CreateLocation(user.Id, new DateTime(2024, 6, 2), "US", "CA", "second"),
+                CreateLocation(user.Id, new DateTime(2024, 6, 1), "US", "CA", "first", notes: "<script>bad()</script>old"),
+                CreateLocation(user.Id, new DateTime(2024, 6, 2), "US", "CA", "second", notes: "<img src='data:image/png,x'>old"),
                 CreateLocation(user.Id, new DateTime(2024, 6, 3), "US", "NV", place: "skip", notes: "skip"),
                 CreateLocation(other.Id, new DateTime(2024, 6, 1), "US", "CA", place: "other", notes: "other"));
             await db.SaveChangesAsync();
@@ -63,7 +63,7 @@ namespace Wayfarer.Tests.Controllers;
             Assert.Equal(2, returned.AffectedCount);
 
             var updated = db.Locations.Where(l => l.UserId == user.Id && l.Region == "CA").ToList();
-            Assert.All(updated, l => Assert.EndsWith(" appended", l.Notes));
+            Assert.All(updated, l => Assert.Equal("old appended", l.Notes));
 
             var untouched = db.Locations.Single(l => l.Place == "skip");
             Assert.Equal("skip", untouched.Notes);
@@ -129,7 +129,7 @@ namespace Wayfarer.Tests.Controllers;
             Latitude = 10,
             Longitude = 20,
             LocalTimestamp = new DateTime(2024, 6, 1, 8, 0, 0, DateTimeKind.Unspecified),
-            Notes = "Test note"
+            Notes = "Test note<script>bad()</script>"
         };
 
         // Act
@@ -377,7 +377,7 @@ namespace Wayfarer.Tests.Controllers;
             Latitude = 34.0,
             Longitude = -118.0,
             LocalTimestamp = new DateTime(2024, 2, 1, 10, 0, 0, DateTimeKind.Unspecified),
-            Notes = "Updated",
+            Notes = "Updated<script>bad()</script>",
             SelectedActivityId = 1,
             ReturnUrl = "/User/Location/AllLocations"
         };
@@ -498,7 +498,7 @@ namespace Wayfarer.Tests.Controllers;
             Latitude = 33.1,
             Longitude = -117.2,
             LocalTimestamp = new DateTime(2024, 2, 1, 12, 0, 0, DateTimeKind.Unspecified),
-            Notes = "Updated",
+            Notes = "Updated<script>bad()</script>",
             SelectedActivityId = 5,
             ReturnUrl = "/User/Location"
         };

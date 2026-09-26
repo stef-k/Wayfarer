@@ -65,7 +65,7 @@ namespace Wayfarer.Models
         public Location ForPublication()
         {
             var copy = (Location)MemberwiseClone();
-            copy.Notes = Util.RichNotes.NormalizeForPersistence(Notes);
+            copy.Notes = Util.RichNotes.Normalize(Notes);
             return copy;
         }
 
