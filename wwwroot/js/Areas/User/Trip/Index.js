@@ -1023,7 +1023,7 @@ import { copyWithFeedback, escapeEmbedAttribute, handleEmbedCopy } from '../../.
         try {
             const resp = await fetch(`/api/backfill/apply/${currentTripId}`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]')?.value || '',  'Content-Type': 'application/json' },
                 body: JSON.stringify({ createVisits, confirmedSuggestions, deleteVisitIds })
             });
 
@@ -1067,7 +1067,7 @@ import { copyWithFeedback, escapeEmbedAttribute, handleEmbedCopy } from '../../.
             onConfirm: async () => {
                 try {
                     const resp = await fetch(`/api/backfill/clear/${tripId}`, {
-                        method: 'DELETE'
+                        method: 'DELETE', headers: { 'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]')?.value || '' }
                     });
 
                     const result = await resp.json();

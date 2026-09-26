@@ -46,6 +46,7 @@ public class UsersController : ControllerBase
     // DELETE /api/users/{userId}/locations
     [HttpDelete("{userId}/locations")]
     [Authorize]
+    [ValidateAntiForgeryToken]
     public async Task<IActionResult> DeleteAllUserLocations([FromRoute] string userId)
     {
         var userExists = await _dbContext.Users.AnyAsync(u => u.Id == userId);

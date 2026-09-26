@@ -45,7 +45,7 @@ namespace Wayfarer.Areas.Api.Controllers
         /// Gets the authenticated user from cookie identity when present, otherwise falls back to API token.
         /// </summary>
         /// <returns>The ApplicationUser or null if not found.</returns>
-        protected ApplicationUser? GetUserFromTokenOrCookie()
+        protected internal ApplicationUser? GetUserFromTokenOrCookie()
         {
             if (User?.Identity?.IsAuthenticated == true)
             {

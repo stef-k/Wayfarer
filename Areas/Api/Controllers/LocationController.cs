@@ -730,6 +730,7 @@ public class LocationController : BaseApiController
     /// <param name="request"></param>
     /// <returns></returns>
     [HttpPost("bulk-delete")]
+    [ValidateAntiForgeryToken]
     public async Task<IActionResult> BulkDelete([FromBody] BulkDeleteRequest request)
     {
         // Ensure there are location IDs provided
@@ -815,7 +816,7 @@ public class LocationController : BaseApiController
     /// <param name="id">Location ID</param>
     /// <param name="request">Update payload</param>
     /// <returns>200 with updated location on success</returns>
-    [HttpPut("{id:int}")]
+    [HttpPut("{id:int}"), CookieFirstAntiforgery]
     public async Task<IActionResult> Update(int id, [FromBody] LocationUpdateRequestDto request)
     {
         var user = GetUserFromTokenOrCookie();

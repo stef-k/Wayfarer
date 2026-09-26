@@ -126,6 +126,8 @@ const updateActionButtons = (row, status, jobName, jobGroup) => {
     const actionsCell = row.querySelector('td:last-child');
     if (!actionsCell) return;
 
+    // Copy the authentic page token before replacing forms (also supports initially empty rows).
+    const token = document.querySelector('input[name="__RequestVerificationToken"]');
     const isRunning = status === 'Running';
     const isPaused = status === 'Paused';
     const escapedName = escapeHtml(jobName);
@@ -176,6 +178,7 @@ const updateActionButtons = (row, status, jobName, jobGroup) => {
 
     buttonsHtml += '</div>';
     actionsCell.innerHTML = buttonsHtml;
+    if (token) actionsCell.querySelectorAll('form').forEach(form => form.append(token.cloneNode(true)));
 };
 
 /**

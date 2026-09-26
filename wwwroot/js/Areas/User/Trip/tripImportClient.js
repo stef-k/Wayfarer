@@ -14,7 +14,7 @@ export const submitTripImport = async (file, mode, handlers) => {
     formData.append('mode', mode);
 
     try {
-        const response = await handlers.fetchImpl.call(globalThis, '/User/Trip/Import', { method: 'POST', body: formData });
+        const response = await handlers.fetchImpl.call(globalThis, '/User/Trip/Import', { method: 'POST', headers: { 'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]')?.value || '' }, body: formData });
         const payload = await response.json();
         if (payload?.status === 'success' && typeof payload.redirectUrl === 'string') {
             handlers.showNotices?.(Array.isArray(payload.notices) ? payload.notices : []);

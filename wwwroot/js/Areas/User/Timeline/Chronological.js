@@ -200,7 +200,7 @@ document.addEventListener('DOMContentLoaded', () => {
             onConfirm: () => {
                 fetch("/api/Location/bulk-delete", {
                     method: "POST",
-                    headers: {"Content-Type": "application/json"},
+                    headers: { 'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]')?.value || '', "Content-Type": "application/json"},
                     body: JSON.stringify({locationIds: [locationId]})
                 })
                     .then(response => response.json())

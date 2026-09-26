@@ -181,6 +181,7 @@ public class VisitController : BaseApiController
     /// Bulk delete visits.
     /// </summary>
     [HttpPost("bulk-delete")]
+    [ValidateAntiForgeryToken]
     public async Task<IActionResult> BulkDelete([FromBody] BulkDeleteRequest request)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);

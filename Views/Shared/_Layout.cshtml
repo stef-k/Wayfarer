@@ -62,6 +62,11 @@
     </head>
 
     <body data-bs-theme="light" class="site-shell @(embed ? "embed-mode" : "")">
+        @* Stable authentic token for cookie AJAX mutations, including pages with no forms. *@
+        @if (User.Identity?.IsAuthenticated == true)
+        {
+            <div hidden id="browser-antiforgery">@Html.AntiForgeryToken()</div>
+        }
         @if (!embed)
         {
             <header>

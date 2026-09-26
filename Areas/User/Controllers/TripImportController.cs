@@ -24,6 +24,7 @@ public class TripImportController : BaseController
     }
 
     [HttpPost]
+    [ValidateAntiForgeryToken]
     public async Task<IActionResult> Import(
         IFormFile       file,
         TripImportMode  mode = TripImportMode.Auto)

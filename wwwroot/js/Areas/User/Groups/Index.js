@@ -36,7 +36,7 @@
 
   async function leaveGroup(groupId){
     try {
-      const resp = await fetch(`/api/groups/${groupId}/leave`, { method: 'POST' });
+      const resp = await fetch(`/api/groups/${groupId}/leave`, { method: 'POST', headers: { 'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]')?.value || '' } });
       if (resp.ok) {
         const row = tbody.querySelector(`tr[data-group-id="${groupId}"]`);
         if (row) row.remove();

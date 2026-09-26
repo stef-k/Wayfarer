@@ -21,7 +21,7 @@ function handleLocationsDeletion() {
                 fetch(`/api/users/${btn.dataset.userId}/locations`, {
                     method: 'DELETE',
                     credentials: 'include',
-                    headers: { 'Accept': 'application/json' },
+                    headers: { 'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]')?.value || '', 'Accept': 'application/json' },
                 })
                     .then(response => {
                         if (response.status === 204) return;

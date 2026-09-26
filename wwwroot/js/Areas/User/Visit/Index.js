@@ -182,7 +182,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 try {
                     const response = await fetch('/api/Visit/bulk-delete', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { 'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]')?.value || '',  'Content-Type': 'application/json' },
                         body: JSON.stringify({ visitIds: selectedIds })
                     });
                     const data = await response.json();
@@ -530,7 +530,7 @@ const generateVisitModalContent = (v) => {
 const deleteVisit = async (id) => {
     const response = await fetch('/api/Visit/bulk-delete', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]')?.value || '',  'Content-Type': 'application/json' },
         body: JSON.stringify({ visitIds: [id] })
     });
     const data = await response.json();
