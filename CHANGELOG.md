@@ -17,6 +17,7 @@
 - Stage new location imports beneath the durable DataRoot with portable logical references; retain bounded same-host legacy compatibility and report both storage roots in Admin Settings (#615). Native Linux deployment prepares the external staging directory without migrating old rows or files.
 
 ### Fixed
+- Remove shared MVC helpers from action discovery and require the Admin role for ActivityType maintenance (#652). Intended Home/Public routes remain available; no database migration or mobile/API changes.
 - Resolve IANA and Windows timezone identifiers across Linux and Windows, including India’s half-hour offset (#608).
 
 ### Development
