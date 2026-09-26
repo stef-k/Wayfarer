@@ -71,7 +71,8 @@ public class MobileIntegrationTests
             ControllerContext = new ControllerContext { HttpContext = httpContext }
         };
 
-        var sseController = new MobileSseController(db, NullLogger<BaseApiController>.Instance, accessor, sse, timelineService, sseOptions)
+        var sseController = new MobileSseController(db, NullLogger<BaseApiController>.Instance, accessor, sse, timelineService, sseOptions,
+            new GroupSseDeliveryLease(new ServiceCollection().AddSingleton(db).BuildServiceProvider().GetRequiredService<IServiceScopeFactory>()))
         {
             ControllerContext = new ControllerContext { HttpContext = httpContext }
         };

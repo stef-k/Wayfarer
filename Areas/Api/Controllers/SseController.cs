@@ -26,19 +26,22 @@ public class SseController : Controller
     private readonly IGroupTimelineService _timelineService;
     private readonly MobileSseOptions _options;
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly GroupSseDeliveryLease _groupDelivery;
 
     public SseController(
         SseService sse,
         ApplicationDbContext db,
         IGroupTimelineService timelineService,
         MobileSseOptions options,
-        IServiceScopeFactory scopeFactory)
+        IServiceScopeFactory scopeFactory,
+        GroupSseDeliveryLease groupDelivery)
     {
         _sse = sse;
         _db = db;
         _timelineService = timelineService;
         _options = options;
         _scopeFactory = scopeFactory;
+        _groupDelivery = groupDelivery;
     }
 
     /// <summary>
@@ -149,7 +152,8 @@ public class SseController : Controller
             Response,
             ct,
             enableHeartbeat: true,
-            heartbeatInterval: _options.HeartbeatInterval);
+            heartbeatInterval: _options.HeartbeatInterval,
+            deliveryLease: token => _groupDelivery.AcquireAsync(groupId, userId, token));
         return new EmptyResult();
     }
 }

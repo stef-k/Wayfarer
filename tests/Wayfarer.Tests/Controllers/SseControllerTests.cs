@@ -40,12 +40,13 @@ public class SseControllerTests
     {
         var service = sse ?? new SseService();
         var options = new MobileSseOptions();
+        scopeFactory ??= new ServiceCollection().AddSingleton<ApplicationDbContext>(_ => db).BuildServiceProvider().GetRequiredService<IServiceScopeFactory>();
         var controller = new SseController(
             service,
             db,
             timelineService,
             options,
-            scopeFactory ?? new ServiceCollection().BuildServiceProvider().GetRequiredService<IServiceScopeFactory>());
+            scopeFactory, new GroupSseDeliveryLease(scopeFactory));
         var context = new DefaultHttpContext();
         context.Response.Body = new MemoryStream();
         if (user != null)

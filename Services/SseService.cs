@@ -1,105 +1,121 @@
-using System;
 using System.Collections.Concurrent;
 using System.Text;
-using System.Threading;
-using System.Threading.Tasks;
+using Wayfarer.Models.Options;
+using Wayfarer.Services;
 
 namespace Wayfarer.Parsers;
 
-/// <summary>
-/// Server Send Events Service to broadcast messages to clients.
-/// </summary>
+/// <summary>Owns bounded best-effort SSE transport, admission and race-safe channel lifetime.</summary>
 public class SseService
 {
     /// <summary>Exact reload hint for authenticated invitation state.</summary>
     public const string InvitationStateHint = "{\"type\":\"invitation-state\"}";
-
     /// <summary>Exact reload hint for authenticated membership state.</summary>
     public const string MembershipStateHint = "{\"type\":\"membership-state\"}";
-
     private static readonly byte[] HeartbeatPayload = Encoding.UTF8.GetBytes(":\n\n");
+    private readonly ConcurrentDictionary<string, ChannelState> _channels = new();
+    private readonly SseOptions _options;
+    private readonly SseAdmission _admission;
+    internal int ActiveConnectionCount => _admission.ActiveCount;
+    internal int ChannelCount => _channels.Count;
 
-    // channel name -> list of active client streams
-    private readonly ConcurrentDictionary<string, List<ClientConnection>> _channels = new();
-
-    /// <summary>
-    /// Lets clients subscribe to channels.
-    /// </summary>
-    public async Task SubscribeAsync(
-        string channel,
-        HttpResponse response,
-        CancellationToken token,
-        bool enableHeartbeat = false,
-        TimeSpan? heartbeatInterval = null,
-        Func<CancellationToken, Task<IAsyncDisposable?>>? deliveryLease = null,
-        Func<string, bool>? deliveryFilter = null)
+    /// <summary>Constructs the transport with validated application policy.</summary>
+    public SseService(SseOptions options, SseAdmission admission)
     {
-        response.Headers.Append("Content-Type", "text/event-stream");
-        response.Headers.Append("Cache-Control", "no-cache");
-        var client = new ClientConnection(response, HeartbeatPayload, deliveryLease, deliveryFilter);
+        options.Validate();
+        _options = options;
+        _admission = admission;
+    }
 
-        var subscribers = _channels.GetOrAdd(channel, _ => new List<ClientConnection>());
-        lock (subscribers)
-        {
-            subscribers.Add(client);
-        }
+    /// <summary>Uses production defaults for standalone callers.</summary>
+    public SseService() : this(new SseOptions()) { }
 
-        if (enableHeartbeat)
-        {
-            client.StartHeartbeat(heartbeatInterval ?? TimeSpan.FromSeconds(20));
-        }
+    /// <summary>Uses an isolated admission owner for standalone configurations.</summary>
+    public SseService(SseOptions options) : this(options, new SseAdmission(options)) { }
 
+    /// <summary>Admits after controller authorization, then joins all owned work before releasing admission.</summary>
+    public async Task SubscribeAsync(string channel, HttpResponse response, CancellationToken token,
+        bool enableHeartbeat = false, TimeSpan? heartbeatInterval = null,
+        Func<CancellationToken, Task<IAsyncDisposable?>>? deliveryLease = null,
+        Func<string, bool>? deliveryFilter = null, string? resolvedUserId = null)
+    {
+        using var permit = _admission.TryAcquire(response.HttpContext, resolvedUserId);
+        if (permit is null) return;
+        using var client = new ClientConnection(response, token, _options.SendTimeout, deliveryLease, deliveryFilter);
+        ChannelState? state = null;
+        Task heartbeat = Task.CompletedTask;
         try
         {
-            await Task.Delay(Timeout.Infinite, token);
-        }
-        catch (OperationCanceledException)
-        {
-            // client disconnected
+            response.Headers.Append("Content-Type", "text/event-stream");
+            response.Headers.Append("Cache-Control", "no-cache");
+            state = Attach(channel, client);
+            if (enableHeartbeat)
+                heartbeat = client.HeartbeatAsync(heartbeatInterval ?? TimeSpan.FromSeconds(20));
+            await client.Completion;
         }
         finally
         {
-            lock (subscribers)
-            {
-                subscribers.Remove(client);
-            }
-
-            client.Dispose();
+            client.Terminate();
+            if (state is not null) Detach(channel, state, client);
+            await heartbeat;
+            await client.Drained;
         }
     }
 
-    /// <summary>
-    /// Broadcasts a message to subscribed clients.
-    /// </summary>
-    public virtual async Task BroadcastAsync(string channel, string data)
+    private ChannelState Attach(string channel, ClientConnection client)
     {
-        if (!_channels.TryGetValue(channel, out var subscribers))
+        while (true)
         {
-            return;
-        }
-
-        List<ClientConnection> snapshot;
-        lock (subscribers)
-        {
-            snapshot = subscribers.ToList();
-        }
-
-        var bytes = Encoding.UTF8.GetBytes($"data: {data}\n\n");
-
-        foreach (var client in snapshot)
-        {
-            if (!client.Accepts(data)) continue;
-            var success = await client.SendIfEligibleAsync(bytes);
-            if (!success)
+            var state = _channels.GetOrAdd(channel, _ => new ChannelState());
+            lock (state)
             {
-                lock (subscribers)
-                {
-                    subscribers.Remove(client);
-                }
-
-                client.Dispose();
+                // An old candidate may have been retired while this subscriber waited for the monitor.
+                if (!_channels.TryGetValue(channel, out var current) || !ReferenceEquals(current, state)) continue;
+                state.Clients.Add(client);
+                return state;
             }
         }
+    }
+
+    private void Detach(string channel, ChannelState state, ClientConnection client)
+    {
+        lock (state)
+        {
+            state.Clients.Remove(client);
+            if (state.Clients.Count == 0)
+                _channels.TryRemove(new KeyValuePair<string, ChannelState>(channel, state));
+        }
+    }
+
+    /// <summary>Runs a bounded worker set under one horizon; unattempted recipients are not evicted.</summary>
+    public virtual async Task BroadcastAsync(string channel, string data)
+    {
+        if (!_channels.TryGetValue(channel, out var state)) return;
+        ClientConnection[] snapshot;
+        lock (state) snapshot = state.Clients.ToArray();
+        var bytes = Encoding.UTF8.GetBytes($"data: {data}\n\n");
+        using var horizon = new CancellationTokenSource(_options.BroadcastTimeout);
+        var next = -1;
+        async Task WorkerAsync()
+        {
+            while (!horizon.IsCancellationRequested)
+            {
+                var index = Interlocked.Increment(ref next);
+                if (index >= snapshot.Length) return;
+                var client = snapshot[index];
+                try
+                {
+                    if (client.Accepts(data)) await client.SendAsync(bytes, true, horizon.Token);
+                }
+                catch
+                {
+                    // A faulty filter is a connection failure, not a failed durable mutation.
+                    client.Terminate();
+                }
+            }
+        }
+        await Task.WhenAll(Enumerable.Range(0, Math.Min(snapshot.Length, _options.FanoutConcurrency))
+            .Select(_ => WorkerAsync()));
     }
 
     /// <summary>Publishes a content-free reload hint to the affected user's server-owned channel.</summary>
@@ -129,98 +145,117 @@ public class SseService
         }
     }
 
+    /// <summary>The monitor and collection share the dictionary entry's exact lifetime identity.</summary>
+    private sealed class ChannelState
+    {
+        public List<ClientConnection> Clients { get; } = [];
+    }
+
+    /// <summary>Serializes two bounded send owners and joins them before disposing cancellation or semaphore state.</summary>
     private sealed class ClientConnection : IDisposable
     {
         private readonly HttpResponse _response;
-        private readonly byte[] _heartbeatPayload;
+        private readonly TimeSpan _timeout;
+        private readonly Func<CancellationToken, Task<IAsyncDisposable?>>? _lease;
+        private readonly Func<string, bool>? _filter;
+        private readonly CancellationTokenSource _lifetime = new();
+        private readonly CancellationTokenRegistration _requestRegistration;
         private readonly SemaphoreSlim _sendLock = new(1, 1);
-        private readonly Func<CancellationToken, Task<IAsyncDisposable?>>? _deliveryLease;
-        private readonly Func<string, bool>? _deliveryFilter;
-        private Timer? _heartbeatTimer;
-        private bool _disposed;
+        private readonly object _gate = new();
+        private readonly TaskCompletionSource _completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource _drained = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private bool _terminated;
+        private int _pending;
 
-        public ClientConnection(HttpResponse response, byte[] heartbeatPayload,
-            Func<CancellationToken, Task<IAsyncDisposable?>>? deliveryLease, Func<string, bool>? deliveryFilter)
+        public ClientConnection(HttpResponse response, CancellationToken request, TimeSpan timeout,
+            Func<CancellationToken, Task<IAsyncDisposable?>>? lease, Func<string, bool>? filter)
         {
             _response = response;
-            _heartbeatPayload = heartbeatPayload;
-            _deliveryLease = deliveryLease;
-            _deliveryFilter = deliveryFilter;
+            _timeout = timeout;
+            _lease = lease;
+            _filter = filter;
+            _requestRegistration = request.Register(Terminate);
         }
 
-        public bool Accepts(string data) => _deliveryFilter?.Invoke(data) ?? true;
+        public Task Completion => _completion.Task;
+        public Task Drained => _drained.Task;
+        public bool Accepts(string data) => _filter?.Invoke(data) ?? true;
 
-        public void StartHeartbeat(TimeSpan interval)
+        public void Terminate()
         {
-            _heartbeatTimer = new Timer(static state =>
+            lock (_gate)
             {
-                var connection = (ClientConnection)state!;
-                _ = connection.SendHeartbeatAsync();
-            }, this, interval, interval);
-        }
-
-        public async Task<bool> SendAsync(byte[] payload)
-        {
-            if (_disposed)
-            {
-                return false;
+                if (_terminated) return;
+                _terminated = true;
+                _lifetime.Cancel();
+                _completion.TrySetResult();
+                if (_pending == 0) _drained.TrySetResult();
             }
+        }
 
+        public async Task SendAsync(byte[] payload, bool protectedEvent, CancellationToken broadcast = default)
+        {
+            lock (_gate)
+            {
+                if (_terminated) return;
+                if (_pending == 2)
+                {
+                    Terminate();
+                    return;
+                }
+                _pending++;
+            }
+            var acquired = false;
             try
             {
-                await _sendLock.WaitAsync();
-                await _response.Body.WriteAsync(payload, 0, payload.Length);
-                await _response.Body.FlushAsync();
-                return true;
+                using var deadline = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token, broadcast);
+                deadline.CancelAfter(_timeout);
+                await _sendLock.WaitAsync(deadline.Token);
+                acquired = true;
+                await using var lease = protectedEvent && _lease is not null ? await _lease(deadline.Token) : null;
+                if (protectedEvent && _lease is not null && lease is null)
+                {
+                    Terminate();
+                    return;
+                }
+                deadline.Token.ThrowIfCancellationRequested();
+                await _response.Body.WriteAsync(payload, 0, payload.Length, deadline.Token);
+                await _response.Body.FlushAsync(deadline.Token);
             }
             catch
             {
-                return false;
+                // Cancellation, lease errors and write/flush failures all fail closed for this client only.
+                Terminate();
             }
             finally
             {
-                _sendLock.Release();
-            }
-        }
-
-        /// <summary>
-        /// Sends an event only while its subscription remains eligible and its optional delivery lease is held.
-        /// </summary>
-        public async Task<bool> SendIfEligibleAsync(byte[] payload)
-        {
-            IAsyncDisposable? deliveryLease = _deliveryLease is null
-                ? null
-                : await _deliveryLease(CancellationToken.None);
-            if (_deliveryLease is not null && deliveryLease is null)
-            {
-                return false;
-            }
-
-            try
-            {
-                return await SendAsync(payload);
-            }
-            finally
-            {
-                if (deliveryLease is not null)
+                if (acquired) _sendLock.Release();
+                lock (_gate)
                 {
-                    await deliveryLease.DisposeAsync();
+                    _pending--;
+                    if (_terminated && _pending == 0) _drained.TrySetResult();
                 }
             }
         }
 
-        private Task<bool> SendHeartbeatAsync() => SendAsync(_heartbeatPayload);
+        public async Task HeartbeatAsync(TimeSpan interval)
+        {
+            try
+            {
+                using var timer = new PeriodicTimer(interval);
+                while (await timer.WaitForNextTickAsync(_lifetime.Token))
+                    await SendAsync(HeartbeatPayload, false);
+            }
+            catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
+            catch { Terminate(); }
+        }
 
         public void Dispose()
         {
-            if (_disposed)
-            {
-                return;
-            }
-
-            _disposed = true;
-            _heartbeatTimer?.Dispose();
+            // Subscribe joins heartbeat and all admitted sends before reaching this point.
+            _requestRegistration.Dispose();
             _sendLock.Dispose();
+            _lifetime.Dispose();
         }
     }
 }

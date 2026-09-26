@@ -292,7 +292,7 @@ class Stack:
         config = self.directory / 'external.Caddyfile'
         config.write_text('{\n admin off\n skip_install_trust\n auto_https disable_redirects\n}\n'
             f'https://wayfarer.example.org:{self.port} {{\n bind 127.0.0.1\n tls internal\n'
-            ' reverse_proxy 127.0.0.1:18464 {\n flush_interval -1\n }\n}\n')
+            ' reverse_proxy 127.0.0.1:18464\n}\n')
         with (self.directory / 'external.log').open('w') as log:
             process = subprocess.Popen([str(self.directory / 'caddy'), 'run', '--config', str(config),
                 '--adapter', 'caddyfile'], stdout=log, stderr=log,

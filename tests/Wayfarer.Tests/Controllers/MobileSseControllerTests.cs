@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Wayfarer.Areas.Api.Controllers;
 using Wayfarer.Models;
@@ -40,7 +41,8 @@ public class MobileSseControllerTests : TestBase
         }
 
         var accessor = new MobileCurrentUserAccessor(new HttpContextAccessor { HttpContext = httpContext }, db, NullLogger<MobileCurrentUserAccessor>.Instance);
-        var controller = new MobileSseController(db, NullLogger<BaseApiController>.Instance, accessor, sse, timeline, sseOptions)
+        var controller = new MobileSseController(db, NullLogger<BaseApiController>.Instance, accessor, sse, timeline, sseOptions,
+            new GroupSseDeliveryLease(new ServiceCollection().AddSingleton(db).BuildServiceProvider().GetRequiredService<IServiceScopeFactory>()))
         {
             ControllerContext = new ControllerContext { HttpContext = httpContext }
         };
