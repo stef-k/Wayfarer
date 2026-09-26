@@ -455,7 +455,7 @@ static void ConfigureServices(WebApplicationBuilder builder)
 
     // Add controllers with views for MVC routing & ingore JSON property-name case
     builder.Services
-        .AddControllersWithViews()
+        .AddControllersWithViews(options => options.Filters.Add<ApiTokenAdmissionFilter>())
         .AddJsonOptions(o =>
         {
             o.JsonSerializerOptions.PropertyNameCaseInsensitive = true;

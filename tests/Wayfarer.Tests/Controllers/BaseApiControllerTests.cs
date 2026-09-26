@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -41,6 +42,24 @@ public class BaseApiControllerTests : TestBase
         Assert.Equal("u1", found!.Id);
     }
 
+    /// <summary>Cookie identity retains precedence but must resolve an active user before fallback.</summary>
+    [Fact]
+    public void CookieFirstPreservesPrecedenceAndRejectsInactive()
+    {
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser(id: "cookie-user");
+        db.Users.Add(user);
+        db.SaveChanges();
+        var controller = new StubBaseApiController(db);
+        controller.HttpContext.User = new ClaimsPrincipal(new ClaimsIdentity(
+            new[] { new Claim(ClaimTypes.NameIdentifier, user.Id) }, "cookie"));
+        controller.Request.Headers.Authorization = "Bearer invalid";
+        Assert.Equal(user.Id, controller.InvokeCookie()?.Id);
+        user.IsActive = false;
+        db.SaveChanges();
+        Assert.Null(controller.InvokeCookie());
+    }
+
     private sealed class StubBaseApiController : BaseApiController
     {
         public StubBaseApiController(ApplicationDbContext db)
@@ -51,6 +70,8 @@ public class BaseApiControllerTests : TestBase
                 HttpContext = new DefaultHttpContext()
             };
         }
+
+        public ApplicationUser? InvokeCookie() => GetUserFromTokenOrCookie();
 
         public ApplicationUser? InvokeGetUser() => GetUserFromToken();
     }

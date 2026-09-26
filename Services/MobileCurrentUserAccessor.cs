@@ -41,45 +41,12 @@ public class MobileCurrentUserAccessor : IMobileCurrentUserAccessor
             var context = _httpContextAccessor.HttpContext;
             if (context == null) return null;
 
-            var authorization = context.Request.Headers["Authorization"].FirstOrDefault();
-            if (string.IsNullOrWhiteSpace(authorization)) return null;
-
-            var token = authorization.Split(' ').LastOrDefault();
-            if (string.IsNullOrWhiteSpace(token))
-            {
-                _logger.LogWarning("Token is missing or empty.");
-                return null;
-            }
-
-            // Hash the incoming token for comparison with stored hashes
-            var tokenHash = ApiTokenService.HashToken(token);
-
-            // Inbound Wayfarer bearer tokens are stored and compared only as hashes.
-            var apiToken = await _dbContext.ApiTokens
-                .AsNoTracking()
-                .FirstOrDefaultAsync(t => t.TokenHash == tokenHash
-                    || t.Token == token && t.Name.Trim().ToLower() != "mapbox", cancellationToken);
-
-            // Security: Log minimal token info for identification without exposing full secret
-            var tokenInfo = GetSecureTokenInfo(token);
-
-            if (apiToken?.UserId == null)
-            {
-                _logger.LogWarning("Token does not match any user. Token info: {TokenInfo}", tokenInfo);
-                return null;
-            }
-
-            _user = await _dbContext.Users
-                .Include(u => u.ApiTokens)
-                .FirstOrDefaultAsync(u => u.Id == apiToken.UserId, cancellationToken);
-
-            if (_user != null)
-            {
-                _logger.LogDebug("Mobile API request authenticated. UserId: {UserId}", _user.Id);
-            }
-
+            _user = await IncomingApiTokenResolver.ForRequest(context, _dbContext)
+                .ResolveAsync(context, cancellationToken);
             return _user;
         }
+        catch (ApiTokenAdmissionException) { throw; }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to retrieve user from token.");
@@ -89,22 +56,10 @@ public class MobileCurrentUserAccessor : IMobileCurrentUserAccessor
 
     public void Reset()
     {
+        if (_httpContextAccessor.HttpContext is { } context)
+            IncomingApiTokenResolver.ForRequest(context, _dbContext).Reset();
         _resolved = false;
         _user = null;
     }
 
-    /// <summary>
-    /// Gets a secure representation of a token for logging purposes.
-    /// Shows format type and partial identifier without exposing the full secret.
-    /// </summary>
-    /// <param name="token">The token to get info for.</param>
-    /// <returns>A safe string representation for logging.</returns>
-    private static string GetSecureTokenInfo(string? token)
-    {
-        if (string.IsNullOrEmpty(token))
-            return "empty";
-        if (token.StartsWith("wf_") && token.Length >= 7)
-            return $"{token.Substring(0, 7)}... (len={token.Length})";
-        return $"old-format (len={token.Length})";
-    }
 }

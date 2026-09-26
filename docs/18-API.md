@@ -9,7 +9,10 @@ The Wayfarer API provides RESTful endpoints for mobile app integration and exter
 - **Bearer tokens** via per-user `ApiToken` entries.
 - Include header: `Authorization: Bearer <token>`
 - Public endpoints (public trips, public timeline) require no auth.
-- Private resources require token ownership.
+- Private resources require token ownership and an active account. Inactive bearer users receive the endpoint's existing invalid-token **401** envelope. Cookie-first API helpers also require an active cookie user; this does not revoke Identity sessions.
+- Incoming token resolution is shared within each request, preserving SHA-256, supported plaintext, named tokens and provider-token exclusion. No positive token cache survives a request.
+- Nonempty incoming token lookups admit at most **32 globally / 16 per effective IP**, before hashing/database work, without a wait queue. Saturation returns **503 globally / 429 per IP**, with `Retry-After: 5`.
+- Client-IP keys use only `Connection.RemoteIpAddress` after the configured Forwarded Headers middleware, normalizing IPv4-mapped addresses. Remaining forwarding headers are never parsed again. Trusted proxy configuration is unchanged.
 
 Manage your API tokens from **User Settings > API Tokens**:
 
@@ -108,7 +111,7 @@ Authorized `GET /api/trips/{id}` segment objects retain the existing fields and 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | POST | `/api/location/log-location` | Background GPS logging (filters: time, distance, accuracy, duplicates) |
-| POST | `/api/location/check-in` | Manual check-in (rate-limited, bypasses time/distance thresholds) |
+| POST | `/api/location/check-in` | Manual or queued check-in (bounded active work, bypasses time/distance thresholds) |
 | GET | `/api/location/stats` | User location statistics |
 | GET | `/api/location/search` | Search locations with filters (date, activity, address, country, region, city) |
 | POST | `/api/location/get-user-locations` | Get user locations filtered by zoom and bounds |
@@ -126,6 +129,17 @@ Authorized `GET /api/trips/{id}` segment objects retain the existing fields and 
 - Applies to `/api/location/log-location` and `/api/location/check-in`.
 - Repeat the same key to safely retry a request; the server returns the original success response.
 - Keys are shared across both endpoints per user.
+- Malformed keys remain **400**. Persisted replays return the compatible **200** response before ingestion admission or provider work. The unique `(UserId, IdempotencyKey)` index and save-conflict reread arbitrate concurrent first uses; provider side effects before the first save are not guaranteed exactly once.
+
+#### Ingestion admission and mobile recovery
+
+`log-location` and `check-in` share a process-local active-work ceiling of **64 globally / 8 per authenticated user**, across devices and named tokens. New work acquires a permit after persisted replay lookup and holds it through persistence and immediate visit/SSE work. There is no wait queue. Saturation returns **503 globally / 429 per user**, both with `Retry-After: 12`; overload never returns a success-shaped skipped response.
+
+The former CheckIn 10-second spacing and 60/hour quotas are removed. No new request/minute quota applies: normal five-minute GPS, fastest supported one-minute tracking, reconnect overlap and queued recovery at one request per 12 seconds up to 300/hour remain compatible. These concurrency ceilings are protective defaults, not a host throughput guarantee.
+
+Compatibility is pinned to WayfarerMobile `49cf3ab56e9386f7eb9e54b2f5bf215dc92b495c`: background LogLocation queues 429/503; queued CheckIn retains Pending state and its key for 429/503. Inactive-user 401 is terminal and may reject already-queued data, as accepted for #658. Direct manual UI/notification overload may surface as failure without automatic queuing. Anonymous Settings remains a reachability probe, not token validation. No mobile code or client contract changes are required.
+
+The shared token, MVC response, forwarding, cadence/admission and PostgreSQL idempotency regressions exercise these boundaries with fake providers and the guarded test database. They do not qualify production capacity or a mounted mobile device.
 
 #### Third-Party GPS Logger Integration
 
@@ -361,7 +375,7 @@ This ensures visit notifications work reliably regardless of app state.
     - `GET /settings` — fetch server thresholds (time/distance/accuracy) for logging guidance.
     - `GET /activity` — list activity types.
     - `POST /location/log-location` — log background location with filtering (time, distance, accuracy, duplicates).
-    - `POST /location/check-in` — manual check-in with rate limits (bypasses time/distance thresholds).
+    - `POST /location/check-in` — manual/queued check-in with shared active-work admission (bypasses time/distance thresholds).
   - Send `Idempotency-Key: <guid>` for `log-location` and `check-in` to dedupe retries. Reuse the key only for retries of the same queued location.
   - `ITripContentApiService` (explicit `/api/trips/...`):
     - `GET /api/trips` — current user trips.
@@ -392,7 +406,7 @@ This ensures visit notifications work reliably regardless of app state.
 
 - `TrackingCoordinator` manages GPS permission prompts and background capability; platform-specific trackers implement `IBackgroundTracker`.
 - Tracking is independent of GPS activation: GPS may run while timeline logging is disabled (user toggle).
-- Manual check-in uses `/api/location/check-in` with rate limiting (10s min interval, 60/hour) and returns standard responses.
+- Manual and queued check-ins use `/api/location/check-in` with the shared ingestion concurrency ceiling above and unchanged response DTOs.
 
 ### Offline Tiles & Caching
 
