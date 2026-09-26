@@ -35,7 +35,7 @@ namespace Wayfarer.Util
         
         /// <summary>
         /// Canonicalizes incoming rich notes and wraps bare http(s):// URLs
-        /// in text are wrapped in <a>…</a>.
+        /// in text with context-safe <a> elements.
         /// </summary>
         public static IHtmlContent LinkifyHtml(this IHtmlHelper html, string? htmlContent)
         {
@@ -48,12 +48,15 @@ namespace Wayfarer.Util
         }
 
         /// <summary>Creates anchors only from text nodes, never from serialized attributes or markup.</summary>
-        private static void LinkifyText(INode parent)
+        private static void LinkifyText(IElement body)
         {
-            foreach (var node in parent.ChildNodes.ToArray())
+            // Snapshot text nodes outside existing anchors; no recursion over user-controlled depth.
+            var texts = body.QuerySelectorAll("*").Prepend(body)
+                .Where(element => element.Closest("a") is null)
+                .SelectMany(element => element.ChildNodes.OfType<IText>()).ToArray();
+            foreach (var text in texts)
             {
-                if (node is IElement element && element.LocalName != "a") LinkifyText(element);
-                if (node is not IText text) continue;
+                var parent = text.Parent!;
                 var offset = 0;
                 foreach (Match match in _urlRegex.Matches(text.Data))
                 {
@@ -98,7 +101,7 @@ namespace Wayfarer.Util
         /// <summary>
         /// Rewrites external &lt;img src="https://..."&gt; URLs in HTML content to go through
         /// the /Public/ProxyImage cache endpoint, ensuring consistent caching and SSRF protection.
-        /// Injects loading="lazy" on proxied images unless the tag already has a loading attribute.
+        /// Adds loading="lazy" to the canonical image elements.
         /// Canonicalization removes unsupported sources and unwraps existing display proxies first.
         /// </summary>
         public static IHtmlContent ProxyNotesImages(this IHtmlHelper html, string? htmlContent)

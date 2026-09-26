@@ -145,12 +145,12 @@ public class TripViewerController : BaseController
             })
             .ToListAsync();
 
-        // Strip HTML from NotesExcerpt and generate thumbnails
+        // Excerpts are already plain text; trim presentation length and generate thumbnails.
         var thumbnailSize = view == "list" ? "320x180" : "800x450";
 
         foreach (var item in items)
         {
-            // Strip images from HTML notes for excerpt but keep other HTML formatting
+            // Razor encodes this note-derived text; do not reinterpret it as HTML.
             if (!string.IsNullOrWhiteSpace(item.NotesExcerpt))
             {
                 // Trim to 140 characters
