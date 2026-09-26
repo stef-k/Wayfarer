@@ -12,6 +12,7 @@ public class IncomingApiTokenResolver(ApplicationDbContext db, ApiWorkAdmission 
 {
     private static readonly object RequestKey = new();
     private Task<ApplicationUser?>? _resolution;
+    private string? _token;
 
     /// <summary>Gets the single authority shared by all bearer adapters in this request.</summary>
     public static IncomingApiTokenResolver ForRequest(HttpContext context, ApplicationDbContext db)
@@ -34,12 +35,21 @@ public class IncomingApiTokenResolver(ApplicationDbContext db, ApiWorkAdmission 
 
     /// <summary>Resolves the loose legacy Authorization value once per request.</summary>
     public Task<ApplicationUser?> ResolveAsync(HttpContext context, CancellationToken cancellationToken = default) =>
-        _resolution ??= ResolveTokenAsync(context.Request.Headers.Authorization.FirstOrDefault()?.Split(' ').Last(),
+        ResolveTokenAsync(context.Request.Headers.Authorization.FirstOrDefault()?.Split(' ').Last(),
             RateLimitHelper.GetClientIpAddress(context), cancellationToken);
 
     /// <summary>Resolves a supplied token using the same activity and admission authority.</summary>
-    public async Task<ApplicationUser?> ResolveTokenAsync(string? token, string effectiveIp,
+    public Task<ApplicationUser?> ResolveTokenAsync(string? token, string effectiveIp,
         CancellationToken cancellationToken = default)
+    {
+        if (_resolution != null && _token == token) return _resolution;
+        _token = token;
+        return _resolution = ResolveCoreAsync(token, effectiveIp, cancellationToken);
+    }
+
+    /// <summary>Admits one uncached lookup without queuing or retaining token-identity buckets.</summary>
+    private async Task<ApplicationUser?> ResolveCoreAsync(string? token, string effectiveIp,
+        CancellationToken cancellationToken)
     {
         if (string.IsNullOrEmpty(token)) return null;
         using var permit = admission.TryAcquire(effectiveIp, out var status);
@@ -55,7 +65,7 @@ public class IncomingApiTokenResolver(ApplicationDbContext db, ApiWorkAdmission 
     /// <summary>Database seam executed only while a lookup permit is held.</summary>
     protected virtual async Task<ApplicationUser?> LookupAsync(string token, CancellationToken cancellationToken)
     {
-        // Admission precedes hashing and every database lookup. No token-keyed state is retained.
+        // Admission precedes hashing and every database lookup. The process limiter retains only live IP buckets.
         var hash = ApiTokenService.HashToken(token);
         var row = await db.ApiTokens.AsNoTracking().FirstOrDefaultAsync(t => t.TokenHash == hash
             || t.Token == token && t.Name.Trim().ToLower() != "mapbox", cancellationToken).ConfigureAwait(false);

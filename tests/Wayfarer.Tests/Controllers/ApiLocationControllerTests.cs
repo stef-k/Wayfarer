@@ -377,7 +377,7 @@ public partial class ApiLocationControllerTests : TestBase
     }
 
     [Fact]
-    public async Task CheckIn_ReturnsForbid_WhenUserInactive()
+    public async Task CheckIn_ReturnsUnauthorized_WhenUserInactive()
     {
         var db = CreateDbContext();
         var user = TestDataFixtures.CreateUser(id: "api-user", username: "api-user");
@@ -388,7 +388,7 @@ public partial class ApiLocationControllerTests : TestBase
 
         var result = await controller.CheckIn(new GpsLoggerLocationDto { Latitude = 40.7128, Longitude = -74.0060, Timestamp = DateTime.UtcNow });
 
-        Assert.IsType<ForbidResult>(result);
+        Assert.IsType<UnauthorizedObjectResult>(result);
     }
 
     /// <summary>Statistics accept the authenticated principal without requiring a token header.</summary>
@@ -434,7 +434,7 @@ public partial class ApiLocationControllerTests : TestBase
     }
 
     [Fact]
-    public async Task GetChronological_ReturnsForbid_WhenUserInactive()
+    public async Task GetChronological_ReturnsUnauthorized_WhenUserInactive()
     {
         var db = CreateDbContext();
         var user = SeedUserWithToken(db, "tok");
@@ -444,7 +444,7 @@ public partial class ApiLocationControllerTests : TestBase
 
         var result = await controller.GetChronological("day", DateTime.UtcNow.Year, DateTime.UtcNow.Month, DateTime.UtcNow.Day);
 
-        Assert.IsType<ForbidResult>(result);
+        Assert.IsType<UnauthorizedObjectResult>(result);
     }
 
     [Fact]

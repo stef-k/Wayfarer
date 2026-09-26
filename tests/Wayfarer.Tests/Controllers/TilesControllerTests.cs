@@ -265,7 +265,7 @@ public class TilesControllerTests : TestBase
     }
 
     [Fact]
-    public async Task GetTile_RespectXForwardedFor()
+    public async Task GetTile_IgnoresUntrustedXForwardedFor()
     {
         var cacheDir = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(cacheDir);
@@ -284,20 +284,20 @@ public class TilesControllerTests : TestBase
 
         try
         {
-            // First request from client 1
+            // First request is keyed by the post-middleware remote address
             // Use valid coordinates: at z=10, max tile index is 1023
             controller.ControllerContext.HttpContext.Request.Headers["X-Forwarded-For"] = clientIp1;
             var result1 = await controller.GetTile(10, 0, 0);
 
-            // Second request from client 1 should be rate limited
+            // A second request from that remote address is limited
             var result2 = await controller.GetTile(10, 0, 1);
             var statusResult = Assert.IsType<ObjectResult>(result2);
             Assert.Equal(429, statusResult.StatusCode);
 
-            // Request from different client IP should succeed
+            // Changing an untrusted forwarding header cannot evade the same limiter bucket
             controller.ControllerContext.HttpContext.Request.Headers["X-Forwarded-For"] = clientIp2;
             var result3 = await controller.GetTile(10, 0, 2);
-            Assert.IsNotType<ObjectResult>(result3);
+            Assert.Equal(429, Assert.IsType<ObjectResult>(result3).StatusCode);
         }
         finally
         {

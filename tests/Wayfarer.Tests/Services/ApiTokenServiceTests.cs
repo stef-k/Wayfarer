@@ -81,6 +81,9 @@ public class ApiTokenServiceTests : TestBase
 
         Assert.True(valid);
         Assert.False(invalid);
+        user.IsActive = false;
+        await db.SaveChangesAsync();
+        Assert.False(await service.ValidateApiTokenAsync(user.Id, "tok123"));
     }
 
     [Fact]

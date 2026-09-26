@@ -20,7 +20,7 @@ namespace Wayfarer.Tests.Controllers;
 public class ApiLocationControllerNavigationTests : TestBase
 {
     [Fact]
-    public void CheckNavigationAvailability_Forbids_WhenInactive()
+    public void CheckNavigationAvailability_ReturnsUnauthorized_WhenInactive()
     {
         var db = CreateDbContext();
         var user = SeedUserWithToken(db, "tok");
@@ -31,7 +31,7 @@ public class ApiLocationControllerNavigationTests : TestBase
 
         var result = controller.CheckNavigationAvailability("day", today.Year, today.Month, today.Day);
 
-        Assert.IsType<ForbidResult>(result);
+        Assert.IsType<UnauthorizedObjectResult>(result);
     }
 
     private LocationController BuildController(ApplicationDbContext db)

@@ -79,7 +79,7 @@ public class LocationController : BaseApiController
         {
             _logger.LogInformation("Received check-in request.");
 
-            // Idempotency short-circuit to return prior success before rate limiting/validation.
+            // Idempotency short-circuit to return prior success before admission/validation.
             Guid? idempotencyKey = null;
             var idempotencyKeyHeader = Request.Headers[IdempotencyKeyHeaderName].FirstOrDefault();
             if (!string.IsNullOrWhiteSpace(idempotencyKeyHeader))
@@ -103,7 +103,6 @@ public class LocationController : BaseApiController
                 }
             }
 
-            // Basic validation (same as log-location)
             // Persisted replays bypass admission; new work holds the permit through immediate post-write work.
             using var permit = _ingestionAdmission.TryAcquire(user.Id, out var admissionStatus);
             if (permit == null)
@@ -241,8 +240,6 @@ public class LocationController : BaseApiController
             // Update cache with latest location (same as log-location)
             var cacheKey = $"lastLocation_{user.Id}";
             _cache.Set(cacheKey, location, TimeSpan.FromMinutes(30));
-
-
 
             // SSE broadcast (same pattern as log-location and User/LocationController)
             var settings = _settingsService.GetSettings();
@@ -1144,7 +1141,6 @@ public class LocationController : BaseApiController
             var user = GetUserFromToken();
             if (user == null) return Unauthorized(new { success = false, message = "Invalid or missing API token." });
 
-
             var (locations, totalItems) = await _chronologicalLocationService.GetLocationsByDateAsync(
                 user.Id, dateType, year, month, day, CancellationToken.None);
 
@@ -1184,7 +1180,6 @@ public class LocationController : BaseApiController
             var user = GetUserFromToken();
             if (user == null) return Unauthorized(new { hasData = false, message = "Invalid or missing API token." });
 
-
             if (!DateTime.TryParse(date, out var parsedDate))
                 return BadRequest(new { hasData = false, message = "Invalid date format." });
 
@@ -1216,7 +1211,6 @@ public class LocationController : BaseApiController
         {
             var user = GetUserFromToken();
             if (user == null) return Unauthorized(new { success = false, message = "Invalid or missing API token." });
-
 
             // Build date range based on dateType
             DateTime startDate, endDate;
@@ -1278,7 +1272,6 @@ public class LocationController : BaseApiController
         {
             var user = GetUserFromToken();
             if (user == null) return Unauthorized(new { success = false });
-
 
             var now = DateTime.Now;
 

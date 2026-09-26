@@ -24,7 +24,7 @@ public class IncomingApiTokenResolverTests : TestBase
         var user = TestDataFixtures.CreateUser(id: "u1");
         user.IsActive = active;
         if (userExists) db.Users.Add(user);
-        db.ApiTokens.Add(new ApiToken { UserId = user.Id, Name = name,
+        db.ApiTokens.Add(new ApiToken { User = null!, UserId = user.Id, Name = name,
             Token = hashed ? null : "secret", TokenHash = hashed ? ApiTokenService.HashToken("secret") : null });
         await db.SaveChangesAsync();
         var resolver = new IncomingApiTokenResolver(db, new ApiWorkAdmission(32, 16));
@@ -40,8 +40,8 @@ public class IncomingApiTokenResolverTests : TestBase
         using var db = CreateDbContext();
         var user = TestDataFixtures.CreateUser(id: "u1");
         db.Users.Add(user);
-        db.ApiTokens.AddRange(new ApiToken { UserId = user.Id, Name = "phone", Token = "one" },
-            new ApiToken { UserId = user.Id, Name = "tablet", TokenHash = ApiTokenService.HashToken("two") });
+        db.ApiTokens.AddRange(new ApiToken { User = null!, UserId = user.Id, Name = "phone", Token = "one" },
+            new ApiToken { User = null!, UserId = user.Id, Name = "tablet", TokenHash = ApiTokenService.HashToken("two") });
         await db.SaveChangesAsync();
         foreach (var header in new[] { "one", "NotBearer ignored one", "Bearer two" })
         {
@@ -92,7 +92,10 @@ public class IncomingApiTokenResolverTests : TestBase
         else if (outcome == "cancel") completion.SetCanceled();
         else completion.SetResult(outcome == "success" ? TestDataFixtures.CreateUser() : null);
         var resolver = new GatedResolver(db, owner, completion.Task);
-        await Record.ExceptionAsync(() => resolver.ResolveTokenAsync("token", "ip"));
+        var invoke = () => resolver.ResolveTokenAsync("token", "ip");
+        if (outcome == "failure") await Assert.ThrowsAsync<InvalidOperationException>(invoke);
+        else if (outcome == "cancel") await Assert.ThrowsAnyAsync<OperationCanceledException>(invoke);
+        else Assert.Equal(outcome == "success", await invoke() != null);
         Assert.Equal(0, owner.IdentityCount);
     }
 
