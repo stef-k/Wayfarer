@@ -19,7 +19,7 @@ namespace Wayfarer.Tests.Controllers;
 /// <summary>
 /// API Trips controller high-ROI paths.
 /// </summary>
-public class ApiTripsControllerTests : TestBase
+public partial class ApiTripsControllerTests : TestBase
 {
     [Fact]
     public void GetUserTrips_ReturnsUnauthorized_WhenNoToken()

@@ -49,10 +49,11 @@ public class ApiLocationControllerCheckInTests : TestBase
         var db = CreateDbContext();
         var controller = BuildController(db);
 
-        var result = await controller.CheckIn(new GpsLoggerLocationDto { Latitude = 10, Longitude = 20, Timestamp = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc) });
+        var result = await controller.CheckIn(new GpsLoggerLocationDto { Notes = "<p onclick='bad()'>safe</p><script>bad()</script>", Latitude = 10, Longitude = 20, Timestamp = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc) });
 
         var ok = Assert.IsType<OkObjectResult>(result);
         Assert.Equal(1, db.Locations.Count());
+        Assert.Equal("<p>safe</p>", db.Locations.Single().Notes);
     }
 
     /// <summary>

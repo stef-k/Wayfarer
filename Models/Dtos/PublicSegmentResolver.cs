@@ -1,3 +1,4 @@
+using Wayfarer.Util;
 using Microsoft.EntityFrameworkCore;
 using NetTopologySuite.Geometries;
 using NetTopologySuite.IO;
@@ -59,7 +60,7 @@ public static class PublicSegmentResolver
             Mode = segment.Mode ?? string.Empty,
             EstimatedDistanceKm = segment.EstimatedDistanceKm,
             EstimatedDurationMinutes = segment.EstimatedDuration?.TotalMinutes,
-            Notes = segment.Notes,
+            Notes = RichNotes.Normalize(segment.Notes),
             DisplayOrder = segment.DisplayOrder,
             TransportProfileId = segment.TransportProfileId,
             FromPlaceId = segment.FromPlaceId,

@@ -149,9 +149,9 @@
 
                     <div class="form-group">
                         <label for="notes">Add Notes</label>
-                        <div id="notes" data-notes-content="@Model.Notes"></div>
+                        <div id="notes" data-notes-content="@(Wayfarer.Util.RichNotes.Normalize(Model.Notes))"></div>
                         <!-- Hidden input field for the notes content -->
-                        <input type="hidden" name="Notes" id="hiddenNotes" value="@Model.Notes" />
+                        <input type="hidden" name="Notes" id="hiddenNotes" value="@(Wayfarer.Util.RichNotes.Normalize(Model.Notes))" />
                         <small class="text-muted">
                             You cannot paste images in here. Use the image button from the toolbar to insert an image from a URL.
                         </small>

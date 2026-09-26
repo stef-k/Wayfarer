@@ -1031,7 +1031,7 @@ public class VisitBackfillService : IVisitBackfillService
                 : null,
 
             // Notes - truncate if needed
-            NotesHtml = TruncateNotes(place.Notes, settings.VisitedPlaceNotesSnapshotMaxHtmlChars),
+            NotesHtml = Wayfarer.Util.RichNotes.Normalize(TruncateNotes(place.Notes, settings.VisitedPlaceNotesSnapshotMaxHtmlChars)),
 
             // Optional UI snapshots
             IconNameSnapshot = place.IconName,

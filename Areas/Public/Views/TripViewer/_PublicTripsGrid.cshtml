@@ -106,7 +106,7 @@ else
                         @if (!string.IsNullOrWhiteSpace(item.NotesExcerpt))
                         {
                             <p class="card-text text-muted small flex-grow-1">
-                                @Html.Raw(item.NotesExcerpt)
+                                @item.NotesExcerpt
                             </p>
                         }
 

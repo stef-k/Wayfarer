@@ -74,6 +74,8 @@ internal static class LocationImportDeduplicator
         string userId,
         CancellationToken cancellationToken)
     {
+        // Canonicalize the final parsed batch without changing duplicate or recovery ownership.
+        foreach (var location in locations) location.Notes = Wayfarer.Util.RichNotes.Normalize(location.Notes);
         var legacy = locations.Where(location => !location.IdempotencyKey.HasValue).ToList();
         if (legacy.Count > 0)
         {

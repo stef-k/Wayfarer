@@ -5,6 +5,13 @@
   const tbody = document.getElementById('groupsBody');
   if (!tbody) return;
 
+  // Group descriptions remain plain text when inserted into table markup.
+  const encodeText = value => {
+    const span = document.createElement('span');
+    span.textContent = value ?? '';
+    return span.innerHTML;
+  };
+
   async function loadJoined(){
     try {
       const resp = await fetch('/api/groups?scope=joined');
@@ -16,7 +23,7 @@
         tbody.innerHTML = data.map(g => `
           <tr data-group-id="${g.id}">
             <td>${g.name}</td>
-            <td>${g.description||''}</td>
+            <td>${encodeText(g.description)}</td>
             <td></td>
             <td class="text-nowrap">
               <a class="btn btn-sm btn-primary" href="/User/Groups/Map?groupId=${g.id}">Map</a>

@@ -102,7 +102,7 @@ public class HtmlHelpersTests
     [InlineData("<div><p>Nested content</p></div>", true)]
     [InlineData("Plain text without tags", true)]
     [InlineData("<p>Text with &nbsp; space</p>", true)]
-    [InlineData("<img src='test.jpg' alt='Image'>", true)] // Image-only notes are visible content.
+    [InlineData("<img src='https://example.test/test.jpg' alt='Image'>", true)] // Image-only notes are visible content.
     public void HasVisibleContent_ReturnsTrue_ForContentWithText(string input, bool expected)
     {
         var result = HtmlHelpers.HasVisibleContent(input);
@@ -127,36 +127,36 @@ public class HtmlHelpersTests
     }
 
     [Fact]
-    public void ProxyNotesImages_LeavesRelativeImagesAlone()
+    public void ProxyNotesImages_RemovesUnsupportedRelativeImages()
     {
         var helper = Mock.Of<IHtmlHelper>();
         var input = "<img src=\"/images/local.jpg\">";
 
         var result = RenderRaw(helper.ProxyNotesImages(input));
 
-        Assert.Equal(input, result);
+        Assert.Empty(result);
     }
 
     [Fact]
-    public void ProxyNotesImages_LeavesDataUrisAlone()
+    public void ProxyNotesImages_RemovesDataImages()
     {
         var helper = Mock.Of<IHtmlHelper>();
         var input = "<img src=\"data:image/png;base64,iVBOR\">";
 
         var result = RenderRaw(helper.ProxyNotesImages(input));
 
-        Assert.Equal(input, result);
+        Assert.Empty(result);
     }
 
     [Fact]
-    public void ProxyNotesImages_LeavesAlreadyProxiedAlone()
+    public void ProxyNotesImages_CanonicalizesAlreadyProxiedImages()
     {
         var helper = Mock.Of<IHtmlHelper>();
         var input = "<img src=\"/Public/ProxyImage?url=https%3A%2F%2Fexample.com%2Fphoto.jpg\">";
 
         var result = RenderRaw(helper.ProxyNotesImages(input));
 
-        Assert.Equal(input, result);
+        Assert.Equal(input.Replace(">", " loading=\"lazy\">"), result);
     }
 
     [Fact]
@@ -191,8 +191,8 @@ public class HtmlHelpersTests
         // External images should be proxied
         Assert.DoesNotContain("src=\"https://a.com/1.jpg\"", result);
         Assert.DoesNotContain("src=\"https://b.com/2.png\"", result);
-        // Local image should remain unchanged
-        Assert.Contains("src=\"/local.jpg\"", result);
+        // Unsupported local image is removed by the shared authority
+        Assert.DoesNotContain("src=\"/local.jpg\"", result);
         // Proxy URLs should be present (2 external images)
         Assert.Equal(2, System.Text.RegularExpressions.Regex.Matches(result, "/Public/ProxyImage").Count);
         // Both proxied images should have loading="lazy"
@@ -221,8 +221,8 @@ public class HtmlHelpersTests
         var result = RenderRaw(helper.ProxyNotesImages(input));
 
         Assert.Contains("/Public/ProxyImage?url=", result);
-        Assert.Contains("loading=\"eager\"", result);
-        Assert.DoesNotContain("loading=\"lazy\"", result);
+        Assert.DoesNotContain("loading=\"eager\"", result);
+        Assert.Contains("loading=\"lazy\"", result);
     }
 
     [Fact]
@@ -235,8 +235,8 @@ public class HtmlHelpersTests
         var result = RenderRaw(helper.ProxyNotesImages(input));
 
         Assert.Contains("/Public/ProxyImage?url=", result);
-        Assert.Contains("loading=\"eager\"", result);
-        Assert.DoesNotContain("loading=\"lazy\"", result);
+        Assert.DoesNotContain("loading=\"eager\"", result);
+        Assert.Contains("loading=\"lazy\"", result);
     }
 
     [Fact]
@@ -262,7 +262,7 @@ public class HtmlHelpersTests
 
         Assert.Contains("/Public/ProxyImage?url=", result);
         Assert.Contains("loading=\"lazy\"", result);
-        Assert.Contains("/>", result);
+        Assert.EndsWith(">", result);
     }
 
     #endregion

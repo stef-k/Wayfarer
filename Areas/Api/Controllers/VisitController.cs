@@ -126,7 +126,7 @@ public class VisitController : BaseApiController
                 Longitude = v.PlaceLocationSnapshot?.X,
                 v.IconNameSnapshot,
                 v.MarkerColorSnapshot,
-                v.NotesHtml
+                NotesHtml = Wayfarer.Util.RichNotes.Normalize(v.NotesHtml)
             }).ToList();
 
             return Ok(new

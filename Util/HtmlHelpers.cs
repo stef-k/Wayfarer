@@ -9,7 +9,6 @@ namespace Wayfarer.Util
 {
     public static class HtmlHelpers
     {
-        private static readonly HtmlParser _htmlParser = new();
         private static readonly Regex _urlRegex = new Regex(
             @"(?<url>https?://[^\s<]+)", 
             RegexOptions.Compiled | RegexOptions.IgnoreCase
@@ -34,35 +33,47 @@ namespace Wayfarer.Util
             return new HtmlString(linked);
         }
         
-        // only match URLs in the rendered HTML, not inside existing tags/attributes
-        private static readonly Regex _urlInTextRegex = new Regex(
-            @"(?<![""'>])\bhttps?://[^\s<]+", 
-            RegexOptions.Compiled | RegexOptions.IgnoreCase
-        );
-        
         /// <summary>
-        /// Leaves the incoming HTML alone except that any bare http(s):// URLs
-        /// in text are wrapped in <a>…</a>.
+        /// Canonicalizes incoming rich notes and wraps bare http(s):// URLs
+        /// in text with context-safe <a> elements.
         /// </summary>
         public static IHtmlContent LinkifyHtml(this IHtmlHelper html, string? htmlContent)
         {
             if (string.IsNullOrEmpty(htmlContent))
                 return HtmlString.Empty;
 
-            // run regex replace _on the raw HTML_ so existing tags stay intact
-            string linked = _urlInTextRegex.Replace(NormalizeNotesForDisplay(htmlContent), m =>
-                $"<a href=\"{m.Value}\" target=\"_blank\" rel=\"noopener noreferrer\">{m.Value}</a>"
-            );
-
-            return new HtmlString(linked);
+            var body = new HtmlParser().ParseDocument(NormalizeNotesForDisplay(htmlContent)).Body!;
+            LinkifyText(body);
+            return new HtmlString(body.InnerHtml);
         }
 
-        /// <summary>
-        /// Detects an existing loading attribute (e.g. loading="eager") on an &lt;img&gt; tag.
-        /// Uses word boundary to avoid false positives from class names like "downloading".
-        /// </summary>
-        private static readonly Regex _loadingAttrRegex = new Regex(
-            @"\bloading\s*=", RegexOptions.Compiled | RegexOptions.IgnoreCase);
+        /// <summary>Creates anchors only from text nodes, never from serialized attributes or markup.</summary>
+        private static void LinkifyText(IElement body)
+        {
+            // Snapshot text nodes outside existing anchors; no recursion over user-controlled depth.
+            var texts = body.QuerySelectorAll("*").Prepend(body)
+                .Where(element => element.Closest("a") is null)
+                .SelectMany(element => element.ChildNodes.OfType<IText>()).ToArray();
+            foreach (var text in texts)
+            {
+                var parent = text.Parent!;
+                var offset = 0;
+                foreach (Match match in _urlRegex.Matches(text.Data))
+                {
+                    parent.InsertBefore(parent.Owner!.CreateTextNode(text.Data[offset..match.Index]), text);
+                    var anchor = parent.Owner.CreateElement("a");
+                    anchor.SetAttribute("href", match.Value);
+                    anchor.SetAttribute("target", "_blank");
+                    anchor.SetAttribute("rel", "noopener noreferrer");
+                    anchor.TextContent = match.Value;
+                    parent.InsertBefore(anchor, text);
+                    offset = match.Index + match.Length;
+                }
+                if (offset == 0) continue;
+                parent.InsertBefore(parent.Owner!.CreateTextNode(text.Data[offset..]), text);
+                parent.RemoveChild(text);
+            }
+        }
 
         /// <summary>
         /// Matches external http(s):// URLs inside &lt;img src="..."&gt; attributes.
@@ -90,41 +101,21 @@ namespace Wayfarer.Util
         /// <summary>
         /// Rewrites external &lt;img src="https://..."&gt; URLs in HTML content to go through
         /// the /Public/ProxyImage cache endpoint, ensuring consistent caching and SSRF protection.
-        /// Injects loading="lazy" on proxied images unless the tag already has a loading attribute.
-        /// Leaves relative, data-URI, and already-proxied URLs unchanged.
+        /// Adds loading="lazy" to the canonical image elements.
+        /// Canonicalization removes unsupported sources and unwraps existing display proxies first.
         /// </summary>
         public static IHtmlContent ProxyNotesImages(this IHtmlHelper html, string? htmlContent)
         {
             if (string.IsNullOrEmpty(htmlContent))
                 return HtmlString.Empty;
 
-            var displayHtml = NormalizeNotesForDisplay(htmlContent);
-            var result = _externalImgSrcRegex.Replace(displayHtml, m =>
+            var body = new HtmlParser().ParseDocument(NormalizeNotesForDisplay(htmlContent)).Body!;
+            foreach (var image in body.QuerySelectorAll("img"))
             {
-                var prefix = m.Groups[1].Value;
-                var url = m.Groups["url"].Value;
-                var suffix = m.Groups[3].Value;
-                var encoded = System.Net.WebUtility.UrlEncode(url);
-                var proxied = $"{prefix}/Public/ProxyImage?url={encoded}{suffix}";
-
-                // Inject loading="lazy" unless the tag already has a loading attribute
-                var hasLoading = _loadingAttrRegex.IsMatch(prefix);
-                if (!hasLoading)
-                {
-                    var afterMatch = displayHtml.AsSpan(m.Index + m.Length);
-                    var closingBracket = afterMatch.IndexOf('>');
-                    if (closingBracket >= 0)
-                        hasLoading = _loadingAttrRegex.IsMatch(
-                            afterMatch[..closingBracket].ToString());
-                }
-
-                if (!hasLoading)
-                    proxied += " loading=\"lazy\"";
-
-                return proxied;
-            });
-
-            return new HtmlString(result);
+                image.SetAttribute("src", "/Public/ProxyImage?url=" + Uri.EscapeDataString(image.GetAttribute("src")!));
+                image.SetAttribute("loading", "lazy");
+            }
+            return new HtmlString(body.InnerHtml);
         }
 
         // Regex to strip HTML tags for content detection
@@ -157,56 +148,8 @@ namespace Wayfarer.Util
             return !string.IsNullOrWhiteSpace(textOnly);
         }
 
-        /// <summary>
-        /// Removes only semantically blank terminal editor artifacts for legacy display.
-        /// Stored HTML remains unchanged and this method is not a general sanitizer.
-        /// </summary>
-        public static string NormalizeNotesForDisplay(string? htmlContent)
-        {
-            if (string.IsNullOrWhiteSpace(htmlContent))
-                return string.Empty;
-
-            var body = _htmlParser.ParseDocument(htmlContent).Body;
-            if (body == null)
-                return string.Empty;
-
-            var changed = false;
-            var passChanged = true;
-            while (passChanged)
-            {
-                passChanged = false;
-                var terminal = body.LastElementChild;
-                if (terminal != null && terminal.LocalName == "p" && IsSemanticallyBlank(terminal))
-                {
-                    terminal.Remove();
-                    changed = true;
-                    passChanged = true;
-                    continue;
-                }
-
-                if (terminal == null || (terminal.LocalName != "ol" && terminal.LocalName != "ul"))
-                    continue;
-
-                while (terminal.LastElementChild?.LocalName == "li" && IsSemanticallyBlank(terminal.LastElementChild))
-                {
-                    terminal.LastElementChild.Remove();
-                    changed = true;
-                    passChanged = true;
-                }
-
-                if (!terminal.Children.Any(child => child.LocalName == "li"))
-                {
-                    terminal.Remove();
-                    changed = true;
-                    passChanged = true;
-                }
-            }
-
-            return changed ? body.InnerHtml.Trim() : htmlContent.Trim();
-        }
-
-        private static bool IsSemanticallyBlank(IElement element) =>
-            string.IsNullOrWhiteSpace((element.TextContent ?? string.Empty).Replace('\u00a0', ' '))
-            && element.QuerySelector("img") == null;
+        /// <summary>Publishes canonical safe rich HTML without changing the stored source.</summary>
+        public static string NormalizeNotesForDisplay(string? htmlContent) =>
+            RichNotes.Normalize(htmlContent) ?? string.Empty;
     }
 }

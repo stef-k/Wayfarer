@@ -101,7 +101,8 @@ public class GoogleTimelineJsonParser : ILocationDataParser
             Accuracy = accuracy,
             Altitude = altitude,
             Speed = speed,
-            Notes = notes
+            // Timeline metadata is generated plain text, unlike rich KML/GPX notes.
+            Notes = System.Net.WebUtility.HtmlEncode(notes)
         };
     }
 

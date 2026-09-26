@@ -47,10 +47,11 @@ public class ApiLocationControllerLogTests : TestBase
         var db = CreateDbContext();
         var controller = BuildController(db);
 
-        var result = await controller.LogLocation(new GpsLoggerLocationDto { Latitude = 10, Longitude = 20, Timestamp = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc) });
+        var result = await controller.LogLocation(new GpsLoggerLocationDto { Notes = "<p onclick='bad()'>safe</p><script>bad()</script>", Latitude = 10, Longitude = 20, Timestamp = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc) });
 
         var ok = Assert.IsType<OkObjectResult>(result);
         Assert.Equal(1, db.Locations.Count());
+        Assert.Equal("<p>safe</p>", db.Locations.Single().Notes);
 
         // Verify response format: { success: true, skipped: false, locationId: <id> }
         var response = ok.Value;

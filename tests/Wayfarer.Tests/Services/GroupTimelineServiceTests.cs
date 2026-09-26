@@ -136,6 +136,7 @@ public class GroupTimelineServiceTests : TestBase
                 new LocationEntity
                 {
                     UserId = "friend-allowed",
+                    Notes = "<p>safe</p><script>bad()</script>",
                     Coordinates = new NetTopologySuite.Geometries.Point(10, 10) { SRID = 4326 },
                     Timestamp = DateTime.UtcNow, LocalTimestamp = DateTime.UtcNow, TimeZoneId = "UTC"
                 },
@@ -157,6 +158,8 @@ public class GroupTimelineServiceTests : TestBase
         // Assert
         Assert.Single(results);
         Assert.Equal("friend-allowed", results[0].UserId);
+        Assert.Equal("<p>safe</p>", results[0].Notes);
+        Assert.Contains("<script>", db.Locations.Single(l => l.UserId == "friend-allowed").Notes);
     }
 
     [Fact]

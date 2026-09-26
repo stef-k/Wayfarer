@@ -29,7 +29,7 @@ public class TripControllerCreateRedirectTests : TestBase
             Id = tripId,
             Name = "New Trip",
             IsPublic = false,
-            Notes = string.Empty
+            Notes = "<p onclick='bad()'>Safe</p><script>bad()</script>"
         };
 
         var result = await controller.Create(model, "save-edit");
@@ -39,6 +39,7 @@ public class TripControllerCreateRedirectTests : TestBase
         Assert.Equal("Trip", redirect.ControllerName);
         Assert.Equal("User", redirect.RouteValues?["area"]);
         Assert.Equal(tripId, redirect.RouteValues?["id"]);
+        Assert.Equal("<p>Safe</p>", db.Trips.Single().Notes);
     }
 
     private static TripController BuildController(ApplicationDbContext db, string userId)

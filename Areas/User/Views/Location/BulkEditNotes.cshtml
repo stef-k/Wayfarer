@@ -81,8 +81,8 @@
                     <!-- ==== Quill Notes ==== -->
                     <div class="form-group mb-4">
                         <label for="notes" class="form-label">Notes (HTML)</label>
-                        <div id="notes" data-notes-content="@(Model.Notes ?? "")"></div>
-                        <input type="hidden" name="Notes" id="hiddenNotes" value="@(Model.Notes ?? "")"/>
+                        <div id="notes" data-notes-content="@(Wayfarer.Util.RichNotes.Normalize(Model.Notes) ?? "")"></div>
+                        <input type="hidden" name="Notes" id="hiddenNotes" value="@(Wayfarer.Util.RichNotes.Normalize(Model.Notes) ?? "")"/>
                         <small class="text-muted d-block">
                             Use the toolbar to add text, links or images (via URL).
                         </small>

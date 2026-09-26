@@ -102,7 +102,7 @@ public class LocationController : BaseApiController
                 {
                     _logger.LogDebug("Check-in idempotency hit. UserId: {UserId}, Key: {IdempotencyKey}",
                         user.Id, idempotencyKey);
-                    return Ok(new { Message = "Check-in logged successfully", Location = existingLocation });
+                    return Ok(new { Message = "Check-in logged successfully", Location = existingLocation.ForPublication() });
                 }
             }
 
@@ -171,7 +171,7 @@ public class LocationController : BaseApiController
                 Altitude = dto.Altitude,
                 Speed = dto.Speed,
                 LocationType = dto.LocationType ?? "Manual", // Default to Manual for check-ins
-                Notes = dto.Notes,
+                Notes = RichNotes.Normalize(dto.Notes),
                 ActivityTypeId = dto.ActivityTypeId,
 
                 // Metadata fields
@@ -215,7 +215,7 @@ public class LocationController : BaseApiController
                     _logger.LogInformation(ex,
                         "Check-in idempotency conflict resolved. UserId: {UserId}, Key: {IdempotencyKey}",
                         user.Id, idempotencyKey);
-                    return Ok(new { Message = "Check-in logged successfully", Location = existingLocation });
+                    return Ok(new { Message = "Check-in logged successfully", Location = existingLocation.ForPublication() });
                 }
 
                 _logger.LogError(ex, "Failed to save check-in location for user.");
@@ -265,7 +265,7 @@ public class LocationController : BaseApiController
             // Note: Statistics are computed on-demand via GetStatsForUserAsync when needed
 
             // Return same format as log-location
-            return Ok(new { Message = "Check-in logged successfully", Location = location });
+            return Ok(new { Message = "Check-in logged successfully", Location = location.ForPublication() });
         }
     }
 
@@ -639,7 +639,7 @@ public class LocationController : BaseApiController
                 Altitude = dto.Altitude,
                 Speed = dto.Speed,
                 LocationType = dto.LocationType,
-                Notes = dto.Notes,
+                Notes = RichNotes.Normalize(dto.Notes),
                 ActivityTypeId = dto.ActivityTypeId,
 
                 // Metadata fields
@@ -930,7 +930,7 @@ public class LocationController : BaseApiController
             }
             else if (request.Notes != null)
             {
-                location.Notes = request.Notes;
+                location.Notes = RichNotes.Normalize(request.Notes);
                 anyChange = true;
             }
 
@@ -1012,11 +1012,11 @@ public class LocationController : BaseApiController
                 anyChange |= enrichment.ApplyTo(location, DateTimeOffset.UtcNow);
             }
 
-            if (!anyChange) return Ok(new { success = true, message = "No changes applied.", location });
+            if (!anyChange) return Ok(new { success = true, message = "No changes applied.", location = location.ForPublication() });
 
             await _dbContext.SaveChangesAsync();
             _logger.LogDebug("Updated location {LocationId} for user {UserId}", id, user.Id);
-            return Ok(new { success = true, message = "Location updated.", location });
+            return Ok(new { success = true, message = "Location updated.", location = location.ForPublication() });
         }
         catch (OperationCanceledException) when (HttpContext.RequestAborted.IsCancellationRequested)
         {
@@ -1170,7 +1170,7 @@ public class LocationController : BaseApiController
                             l.ReverseGeocodingProvider, l.ReverseGeocodingStorageMode, l.ReverseGeocodedAt).Provider == "geoapify",
                         l.PostCode,
                         l.AddressNumber,
-                        l.Notes,
+                        Notes = RichNotes.Normalize(l.Notes),
                         l.Altitude,
                         l.Accuracy,
                         l.Speed

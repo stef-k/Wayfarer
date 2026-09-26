@@ -58,7 +58,16 @@ namespace Wayfarer.Models
         [MaxLength(16)] public string? ReverseGeocodingStorageMode { get; set; }
         /// <summary>UTC instant at which reverse-geocoding enrichment was persisted.</summary>
         public DateTimeOffset? ReverseGeocodedAt { get; set; }
-        public string? Notes { get; set; }  // This could store plain text, HTML, or Markdown
+        /// <summary>Mixed legacy notes published and persisted as canonical safe rich HTML.</summary>
+        public string? Notes { get; set; }
+
+        /// <summary>Preserves the legacy entity response shape without changing the tracked source.</summary>
+        public Location ForPublication()
+        {
+            var copy = (Location)MemberwiseClone();
+            copy.Notes = Util.RichNotes.Normalize(Notes);
+            return copy;
+        }
 
         #region Metadata Fields
 
