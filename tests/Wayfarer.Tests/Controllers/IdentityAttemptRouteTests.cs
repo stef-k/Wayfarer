@@ -37,6 +37,8 @@ public sealed class IdentityAttemptRouteTests : TestBase
             Assert.Equal("Microsoft.AspNetCore.Identity.UI", pages[$"/Account/{name}"].ModelTypeInfo!.Assembly.GetName().Name);
         Assert.All(pages.Values, page => Assert.Contains(page.FilterDescriptors,
             filter => filter.Filter.GetType().Name.Contains("AutoValidateAntiforgery")));
+        Assert.All(pages.Values, page => Assert.DoesNotContain(page.FilterDescriptors,
+            filter => filter.Filter is Microsoft.AspNetCore.Mvc.IgnoreAntiforgeryTokenAttribute));
         Assert.All(pages.Where(page => page.Key.StartsWith("/Account/Manage/")),
             page => Assert.Contains(page.Value.EndpointMetadata, metadata => metadata is IAuthorizeData));
         var options = app.Services.GetRequiredService<IOptions<IdentityOptions>>().Value;
@@ -76,6 +78,9 @@ public sealed class IdentityAttemptRouteTests : TestBase
         Assert.Equal(HttpStatusCode.TooManyRequests, head.StatusCode);
         using var invalidForm = await client.PostAsync("/Identity/Account/Login", Form("invalid"));
         Assert.Equal(HttpStatusCode.BadRequest, invalidForm.StatusCode);
+        // Missing antiforgery is rejected before the exhausted admission budget or Login handler.
+        using var missingToken = await client.PostAsync("/Identity/Account/Login", new FormUrlEncodedContent([]));
+        Assert.Equal(HttpStatusCode.BadRequest, missingToken.StatusCode);
         foreach (var path in new[] { "Login", "ForgotPasswordConfirmation", "ResetPasswordConfirmation", "ExternalLogin",
                      "ConfirmEmail", "ConfirmEmailChange", "RegisterConfirmation", "Manage" })
         {

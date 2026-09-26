@@ -16,6 +16,9 @@ const createHandlers = (fetchImpl) => {
     };
 };
 
+// The production page renders this field; the caller must copy its value into the header.
+globalThis.document = { querySelector: () => ({ value: 'authentic-page-token' }) };
+
 const sampleFile = new Blob(['kml'], { type: 'application/vnd.google-earth.kml+xml' });
 
 test('reports bounded notices and follows the canonical success URL', async () => {
@@ -73,4 +76,24 @@ test('keeps the duplicate import callback compatible', async () => {
 
     assert.equal(result.duplicates, 1);
     assert.deepEqual(result.errors, []);
+});
+
+
+test('multipart import and duplicate-mode retry retain file/mode and send the page token header', async () => {
+    const calls = [];
+    const { handlers } = createHandlers(async (url, options) => {
+        calls.push({ url, options });
+        return { json: async () => ({ status: 'duplicate' }) };
+    });
+    await submitTripImport(sampleFile, 'Auto', handlers);
+    await submitTripImport(sampleFile, 'CreateNew', handlers);
+    assert.equal(calls.length, 2);
+    for (const [index, { url, options }] of calls.entries()) {
+        assert.equal(url, '/User/Trip/Import');
+        assert.equal(options.method, 'POST');
+        assert.equal(options.headers.RequestVerificationToken, 'authentic-page-token');
+        assert.equal(options.headers['Content-Type'], undefined);
+        assert.equal(options.body.get('mode'), index === 0 ? 'Auto' : 'CreateNew');
+        assert.equal(await options.body.get('file').text(), 'kml');
+    }
 });

@@ -1410,7 +1410,6 @@ return Ok(dto);
     /// <response code="401">If API token is missing or invalid</response>
     /// <response code="404">If trip does not exist</response>
     [HttpPost("{id}/clone")]
-    [Route("api/trips/{id}/clone", Order = 0)]
     public async Task<IActionResult> CloneTrip(Guid id)
     {
         // Require authentication for cloning

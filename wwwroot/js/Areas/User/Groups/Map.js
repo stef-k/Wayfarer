@@ -729,7 +729,7 @@ import {
           if (!myId) return;
           const url = `/api/groups/${groupId}/members/${encodeURIComponent(myId)}/org-peer-visibility-access`;
           const body = { disabled: !toggle.checked };
-          const resp = await fetch(url, { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify(body) });
+          const resp = await fetch(url, { method:'POST', headers:{ 'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]')?.value || '', 'Content-Type':'application/json' }, body: JSON.stringify(body) });
           if (!resp.ok) {
             toggle.checked = !toggle.checked; // revert
             updatePanelState(toggle.checked); // revert visual state

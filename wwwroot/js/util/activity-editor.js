@@ -130,6 +130,7 @@ export const updateLocationActivity = async (locationId, activityTypeId, clearAc
         const response = await fetch(`/api/location/${locationId}`, {
             method: 'PUT',
             headers: {
+                'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]')?.value || '',
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify(payload)

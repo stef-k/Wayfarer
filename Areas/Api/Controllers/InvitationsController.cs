@@ -90,6 +90,7 @@ public class InvitationsController : ControllerBase
 
     // POST /api/invitations -> create by manager/owner
     [HttpPost]
+    [ValidateAntiForgeryToken]
     public async Task<IActionResult> Create([FromBody] InvitationCreateRequest req, CancellationToken ct)
     {
         if (CurrentUserId is null) return Unauthorized();
@@ -132,6 +133,7 @@ public class InvitationsController : ControllerBase
 
     // POST /api/invitations/{id}/accept
     [HttpPost("{id}/accept")]
+    [ValidateAntiForgeryToken]
     public async Task<IActionResult> Accept([FromRoute] Guid id, CancellationToken ct)
     {
         if (CurrentUserId is null) return Unauthorized();
@@ -167,6 +169,7 @@ public class InvitationsController : ControllerBase
     /// <param name="ct">Cancellation token.</param>
     /// <returns>OK if successful, appropriate error status otherwise.</returns>
     [HttpPost("{id}/decline")]
+    [ValidateAntiForgeryToken]
     public async Task<IActionResult> Decline([FromRoute] Guid id, CancellationToken ct)
     {
         if (CurrentUserId is null) return Unauthorized();

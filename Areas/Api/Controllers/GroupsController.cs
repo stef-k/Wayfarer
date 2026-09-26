@@ -45,6 +45,7 @@ public class GroupsController : ControllerBase
     private string? CurrentUserId => User.FindFirstValue(ClaimTypes.NameIdentifier);
 
     [HttpPost]
+    [ValidateAntiForgeryToken]
     public async Task<IActionResult> Create([FromBody] GroupCreateRequest request, CancellationToken ct)
     {
         if (CurrentUserId is null) return Unauthorized();
@@ -285,6 +286,7 @@ public class GroupsController : ControllerBase
 
     // POST /api/groups/{id}/settings/org-peer-visibility
     [HttpPost("{id}/settings/org-peer-visibility")]
+    [ValidateAntiForgeryToken]
     public async Task<IActionResult> ToggleOrgPeerVisibility([FromRoute] Guid id,
         [FromBody] OrgPeerVisibilityToggleRequest req, CancellationToken ct)
     {
@@ -314,6 +316,7 @@ public class GroupsController : ControllerBase
 
     // POST /api/groups/{id}/members/{userId}/org-peer-visibility-access
     [HttpPost("{id}/members/{userId}/org-peer-visibility-access")]
+    [ValidateAntiForgeryToken]
     public async Task<IActionResult> SetMemberOrgPeerVisibilityAccess([FromRoute] Guid id, [FromRoute] string userId,
         [FromBody] OrgPeerVisibilityAccessRequest req, CancellationToken ct)
     {
@@ -438,6 +441,7 @@ public class GroupsController : ControllerBase
 
     // POST /api/groups/{groupId}/leave
     [HttpPost("{groupId}/leave")]
+    [ValidateAntiForgeryToken]
     public async Task<IActionResult> Leave([FromRoute] Guid groupId, CancellationToken ct)
     {
         if (CurrentUserId is null) return Unauthorized();
@@ -466,6 +470,7 @@ public class GroupsController : ControllerBase
 
     // POST /api/groups/{groupId}/members/{userId}/remove
     [HttpPost("{groupId}/members/{userId}/remove")]
+    [ValidateAntiForgeryToken]
     public async Task<IActionResult> RemoveMember([FromRoute] Guid groupId, [FromRoute] string userId,
         CancellationToken ct)
     {

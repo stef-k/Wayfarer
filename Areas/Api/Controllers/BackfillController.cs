@@ -141,6 +141,7 @@ public class BackfillController : BaseApiController
     /// <param name="request">The apply request with visits to create and delete.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     [HttpPost("apply/{tripId:guid}")]
+    [ValidateAntiForgeryToken]
     public async Task<IActionResult> Apply(
         Guid tripId,
         [FromBody] BackfillApplyRequestDto request,
@@ -175,6 +176,7 @@ public class BackfillController : BaseApiController
     /// <param name="tripId">The trip ID.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     [HttpDelete("clear/{tripId:guid}")]
+    [ValidateAntiForgeryToken]
     public async Task<IActionResult> Clear(
         Guid tripId,
         CancellationToken cancellationToken = default)
