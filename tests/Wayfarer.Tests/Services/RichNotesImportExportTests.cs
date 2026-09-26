@@ -4,6 +4,8 @@ using System.Xml.Linq;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Configuration;
+using Moq;
 using NetTopologySuite.Geometries;
 using Wayfarer.Areas.User.Controllers;
 using Wayfarer.Models;
@@ -84,6 +86,16 @@ public sealed class RichNotesImportExportTests : TestBase
             .ImportWayfarerKmlAsync(input, user.Id, TripImportMode.CreateNew);
         Assert.Equal(Safe, db.Places.Single().Notes);
         Assert.Equal(Safe, db.Areas.Single().Notes);
+        // Export is a separate historical boundary: bypass ingress deliberately for both descriptions.
+        db.Places.Single().Notes = Unsafe;
+        db.Areas.Single().Notes = Unsafe;
+        await db.SaveChangesAsync();
+        var exporter = new TripExportService(db, null!, null!, null!, null!,
+            NullLogger<TripExportService>.Instance, Mock.Of<IConfiguration>(), null!, Mock.Of<IImageProxyService>());
+        var exported = XDocument.Parse(exporter.GenerateGoogleMyMapsKml(db.Trips.Single().Id));
+        Assert.All(exported.Descendants(k + "description"), description => Assert.Equal(Safe, description.Value));
+        Assert.Equal(2, exported.Descendants(k + "description").Count());
+        Assert.Equal(Unsafe, db.Places.Single().Notes);
     }
 
     [Theory]
