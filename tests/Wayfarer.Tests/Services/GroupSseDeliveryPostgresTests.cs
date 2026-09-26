@@ -65,6 +65,11 @@ public sealed class GroupSseDeliveryPostgresTests(PostgresImportTestFixture fixt
                 { ControllerContext = new ControllerContext { HttpContext = http } };
             subscription = controller.SubscribeToGroupAsync(group.Id, request.Token);
         }
+        using var remainingBody = new MemoryStream();
+        var remainingResponse = new DefaultHttpContext().Response;
+        remainingResponse.Body = remainingBody;
+        var remainingSubscription = service.SubscribeAsync($"group-{group.Id}", remainingResponse, request.Token,
+            deliveryLease: ct => lease.AcquireAsync(group.Id, owner.Id, ct), resolvedUserId: owner.Id);
         try
         {
             // First heartbeat is a causal registration barrier, not a sleep/poll loop.
@@ -80,12 +85,14 @@ public sealed class GroupSseDeliveryPostgresTests(PostgresImportTestFixture fixt
             await service.BroadcastAsync(channel, "protected-after-removal");
             Assert.Equal(length, body.Length);
             Assert.DoesNotContain("member-removed", Encoding.UTF8.GetString(body.ToArray()));
-            Assert.Equal(0, service.ActiveConnectionCount);
+            Assert.Contains("member-removed", Encoding.UTF8.GetString(remainingBody.ToArray()));
+            Assert.Equal(1, service.ActiveConnectionCount);
         }
         finally
         {
             request.Cancel();
-            await subscription;
+            await Task.WhenAll(subscription, remainingSubscription);
+            Assert.Equal(0, service.ActiveConnectionCount);
             await DeleteGroupAsync(group.Id);
         }
     }

@@ -80,6 +80,36 @@ public class SseLifecycleTests
         Assert.Equal(0, service.ActiveConnectionCount);
     }
 
+    /// <summary>A broadcaster holding a snapshot cannot touch disposed send primitives after request cleanup.</summary>
+    [Fact]
+    public async Task SnapshotCrossingCompletedCancellationIsHarmless()
+    {
+        var service = new SseService();
+        using var request = new CancellationTokenSource();
+        using var release = new ManualResetEventSlim();
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var body = new MemoryStream();
+        var response = new DefaultHttpContext().Response;
+        response.Body = body;
+        var subscription = service.SubscribeAsync("snapshot", response, request.Token, deliveryFilter: _ =>
+        {
+            entered.SetResult();
+            Assert.True(release.Wait(TimeSpan.FromSeconds(5)));
+            return true;
+        });
+        var broadcast = Task.Run(() => service.BroadcastAsync("snapshot", "{}"));
+        try
+        {
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            request.Cancel();
+            await subscription;
+            Assert.Equal(0, service.ChannelCount);
+        }
+        finally { release.Set(); }
+        await broadcast;
+        Assert.Equal(0, body.Length);
+    }
+
     /// <summary>Unique channel churn releases both dictionary entries and all admission buckets.</summary>
     [Fact]
     public async Task ChurnLeavesNoChannelsOrConnections()
