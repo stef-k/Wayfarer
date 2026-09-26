@@ -123,7 +123,7 @@ public class MobileSseControllerTests : TestBase
     public async Task GroupStream_AllowsMemberAndStreams()
     {
         // Arrange
-        var (db, controller, _) = CreateController("token");
+        var (db, controller, sse) = CreateController("token");
         var user = TestDataFixtures.CreateUser(id: "user", username: "me");
         db.Users.Add(user);
 
@@ -149,17 +149,23 @@ public class MobileSseControllerTests : TestBase
         db.ApiTokens.Add(token);
         await db.SaveChangesAsync();
 
-        // Use a longer timeout to allow database operations to complete before cancellation
-        using var cts = new CancellationTokenSource(500);
-
-        // Act
+        // In-memory queries complete before subscription yields; broadcast only synthetic content.
+        using var cts = new CancellationTokenSource();
         var task = controller.SubscribeToGroupAsync(group.Id, cts.Token);
-        await Task.Delay(100);
-        cts.Cancel();
-        var result = await task;
-
-        // Assert
-        Assert.IsType<EmptyResult>(result);
+        try
+        {
+            Assert.Equal("text/event-stream", controller.Response.ContentType);
+            await sse.BroadcastAsync($"group-{Guid.NewGuid()}", "foreign-group");
+            await sse.BroadcastAsync($"group-{group.Id}", "owned-group");
+            var payload = System.Text.Encoding.UTF8.GetString(((MemoryStream)controller.Response.Body).ToArray());
+            Assert.Contains("data: owned-group", payload);
+            Assert.DoesNotContain("foreign-group", payload);
+        }
+        finally
+        {
+            cts.Cancel();
+            Assert.IsType<EmptyResult>(await task);
+        }
     }
 
     #region Visit SSE Endpoint Tests
@@ -181,7 +187,7 @@ public class MobileSseControllerTests : TestBase
     public async Task VisitsStream_AllowsAuthenticatedUser()
     {
         // Arrange
-        var (db, controller, _) = CreateController("token");
+        var (db, controller, sse) = CreateController("token");
         var user = TestDataFixtures.CreateUser(id: "user", username: "visitor");
         db.Users.Add(user);
 
@@ -189,17 +195,23 @@ public class MobileSseControllerTests : TestBase
         db.ApiTokens.Add(token);
         await db.SaveChangesAsync();
 
-        // Use a timeout to allow subscription to start before cancellation
-        using var cts = new CancellationTokenSource(500);
-
-        // Act
+        // Token ownership, not any caller-selected identifier, selects the visit stream.
+        using var cts = new CancellationTokenSource();
         var task = controller.SubscribeToVisitsAsync(cts.Token);
-        await Task.Delay(100);
-        cts.Cancel();
-        var result = await task;
-
-        // Assert
-        Assert.IsType<EmptyResult>(result);
+        try
+        {
+            Assert.Equal("text/event-stream", controller.Response.ContentType);
+            await sse.BroadcastAsync("user-visits-other", "foreign-visit");
+            await sse.BroadcastAsync("user-visits-user", "owned-visit");
+            var payload = System.Text.Encoding.UTF8.GetString(((MemoryStream)controller.Response.Body).ToArray());
+            Assert.Contains("data: owned-visit", payload);
+            Assert.DoesNotContain("foreign-visit", payload);
+        }
+        finally
+        {
+            cts.Cancel();
+            Assert.IsType<EmptyResult>(await task);
+        }
     }
 
     #endregion
