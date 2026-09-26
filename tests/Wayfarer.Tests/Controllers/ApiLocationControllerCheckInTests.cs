@@ -93,7 +93,7 @@ public class ApiLocationControllerCheckInTests : TestBase
     }
 
     [Fact]
-    public async Task CheckIn_ReturnsTooManyRequests_WhenRateLimitedByTime()
+    public async Task CheckIn_IgnoresRetiredSpacingQuota()
     {
         var db = CreateDbContext();
         var cache = new MemoryCache(new MemoryCacheOptions());
@@ -103,12 +103,11 @@ public class ApiLocationControllerCheckInTests : TestBase
 
         var result = await controller.CheckIn(new GpsLoggerLocationDto { Latitude = 10, Longitude = 20, Timestamp = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc) });
 
-        var tooMany = Assert.IsType<ObjectResult>(result);
-        Assert.Equal(429, tooMany.StatusCode);
+        Assert.IsType<OkObjectResult>(result);
     }
 
     [Fact]
-    public async Task CheckIn_ReturnsTooManyRequests_WhenHourlyLimitExceeded()
+    public async Task CheckIn_IgnoresRetiredHourlyQuota()
     {
         var db = CreateDbContext();
         var cache = new MemoryCache(new MemoryCacheOptions());
@@ -118,8 +117,7 @@ public class ApiLocationControllerCheckInTests : TestBase
 
         var result = await controller.CheckIn(new GpsLoggerLocationDto { Latitude = 10, Longitude = 20, Timestamp = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc) });
 
-        var tooMany = Assert.IsType<ObjectResult>(result);
-        Assert.Equal(429, tooMany.StatusCode);
+        Assert.IsType<OkObjectResult>(result);
     }
 
     private LocationController BuildController(ApplicationDbContext db, bool includeAuth = true, IMemoryCache? cache = null)

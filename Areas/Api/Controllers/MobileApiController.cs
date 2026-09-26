@@ -40,14 +40,9 @@ public abstract class MobileApiController : ControllerBase
     protected async Task<(ApplicationUser? user, IActionResult? error)> EnsureAuthenticatedUserAsync(CancellationToken cancellationToken = default)
     {
         var user = await GetCurrentUserAsync(cancellationToken);
-        if (user == null)
+        if (user == null || !user.IsActive)
         {
             return (null, Unauthorized(new { message = "Invalid or missing API token." }));
-        }
-
-        if (!user.IsActive)
-        {
-            return (null, Forbid());
         }
 
         return (user, null);

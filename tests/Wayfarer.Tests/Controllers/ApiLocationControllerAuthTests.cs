@@ -23,7 +23,7 @@ namespace Wayfarer.Tests.Controllers;
 public class ApiLocationControllerAuthTests : TestBase
 {
     [Fact]
-    public async Task CheckIn_ReturnsForbidden_WhenUserInactive()
+    public async Task CheckIn_ReturnsUnauthorized_WhenUserInactive()
     {
         var db = CreateDbContext();
         SeedSettings(db);
@@ -34,7 +34,7 @@ public class ApiLocationControllerAuthTests : TestBase
 
         var result = await controller.CheckIn(new GpsLoggerLocationDto { Latitude = 10, Longitude = 20, Timestamp = DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc) });
 
-        Assert.IsType<ForbidResult>(result);
+        Assert.IsType<UnauthorizedObjectResult>(result);
     }
 
     private LocationController BuildController(ApplicationDbContext db)

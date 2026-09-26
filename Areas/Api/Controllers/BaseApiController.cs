@@ -29,42 +29,11 @@ namespace Wayfarer.Areas.Api.Controllers
         {
             try
             {
-                string? token = Request.Headers["Authorization"].FirstOrDefault()?.Split(" ").Last();
-
-                if (string.IsNullOrEmpty(token))
-                {
-                    _logger.LogWarning("Token is missing or empty.");
-                    return null;
-                }
-
-                // Hash the incoming token for comparison with stored hashes
-                string tokenHash = ApiTokenService.HashToken(token);
-
-                // Inbound Wayfarer bearer tokens are stored and compared only as hashes.
-                ApiToken? apiToken = _dbContext.ApiTokens
-                    .FirstOrDefault(t => t.TokenHash == tokenHash
-                        || t.Token == token && t.Name.Trim().ToLower() != "mapbox");
-
-                // Security: Log minimal token info for identification without exposing full secret
-                string tokenInfo = GetSecureTokenInfo(token);
-
-                if (apiToken?.UserId == null)
-                {
-                    _logger.LogWarning("Token does not match any user. Token info: {TokenInfo}", tokenInfo);
-                    return null;
-                }
-
-                ApplicationUser? user = _dbContext.Users
-                    .Include(u => u.ApiTokens)
-                    .FirstOrDefault(u => u.Id == apiToken.UserId);
-
-                if (user != null)
-                {
-                    _logger.LogDebug("API request authenticated. UserId: {UserId}", user.Id);
-                }
-
-                return user;
+                return Wayfarer.Services.IncomingApiTokenResolver.ForRequest(HttpContext, _dbContext)
+                    .ResolveAsync(HttpContext, HttpContext.RequestAborted).GetAwaiter().GetResult();
             }
+            catch (Wayfarer.Services.ApiTokenAdmissionException) { throw; }
+            catch (OperationCanceledException) when (HttpContext.RequestAborted.IsCancellationRequested) { throw; }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to retrieve user from token.");
@@ -88,7 +57,7 @@ namespace Wayfarer.Areas.Api.Controllers
 
                 return _dbContext.Users
                     .Include(u => u.ApiTokens)
-                    .FirstOrDefault(u => u.Id == userId);
+                    .FirstOrDefault(u => u.Id == userId && u.IsActive);
             }
 
             return GetUserFromToken();
@@ -110,21 +79,6 @@ namespace Wayfarer.Areas.Api.Controllers
                 .FirstOrDefault(c => c.UserId == user.Id && c.ClaimType == ClaimTypes.Role);
 
             return roleClaim?.ClaimValue;
-        }
-
-        /// <summary>
-        /// Gets a secure representation of a token for logging purposes.
-        /// Shows format type and partial identifier without exposing the full secret.
-        /// </summary>
-        /// <param name="token">The token to get info for.</param>
-        /// <returns>A safe string representation for logging.</returns>
-        private static string GetSecureTokenInfo(string? token)
-        {
-            if (string.IsNullOrEmpty(token))
-                return "empty";
-            if (token.StartsWith("wf_") && token.Length >= 7)
-                return $"{token.Substring(0, 7)}... (len={token.Length})";
-            return $"old-format (len={token.Length})";
         }
 
         /// <summary>

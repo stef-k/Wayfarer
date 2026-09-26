@@ -25,9 +25,8 @@ public class LocationController : BaseApiController
     private const int DefaultLocationAccuracyThresholdMeters = 50; // Default to 50 meters
     private const string IdempotencyKeyHeaderName = "Idempotency-Key"; // Idempotency header for retries.
 
-    // Constants for check-in rate limiting
-    private const int CheckInMinIntervalSeconds = 10; // Minimum 10 seconds between check-ins
-    private const int CheckInMaxPerHour = 60; // Maximum 60 check-ins per hour per user
+    // One process-wide active-work owner shared by both ingestion endpoints.
+    private readonly ApiWorkAdmission _ingestionAdmission;
     private readonly IMemoryCache _cache;
     private readonly LocationService _chronologicalLocationService;
     private readonly LocationService _locationService;
@@ -41,9 +40,10 @@ public class LocationController : BaseApiController
         IMemoryCache cache, IApplicationSettingsService settingsService,
         ReverseGeocodingService reverseGeocodingService, LocationService locationService, SseService sse,
         ILocationStatsService statsService, LocationService chronologicalLocationService,
-        IPlaceVisitDetectionService placeVisitDetectionService)
+        IPlaceVisitDetectionService placeVisitDetectionService, ApiWorkAdmission? ingestionAdmission = null)
         : base(dbContext, logger)
     {
+        _ingestionAdmission = ingestionAdmission ?? ApiWorkAdmission.LocationIngestion;
         _cache = cache;
         _settingsService = settingsService;
         _reverseGeocodingService = reverseGeocodingService;
@@ -56,8 +56,8 @@ public class LocationController : BaseApiController
 
     /// <summary>
     ///     Manual check-in endpoint for user-initiated location logging.
-    ///     This endpoint bypasses time/distance thresholds but includes rate limiting
-    ///     to prevent spam and abuse from rapid-fire button pressing or duplicate requests.
+    ///     This endpoint bypasses time/distance thresholds but bounds active work
+    ///     across manual and queued check-ins and background location uploads.
     /// </summary>
     /// <param name="dto">Location data for the check-in</param>
     /// <returns>Check-in result with success status and optional message</returns>
@@ -72,9 +72,6 @@ public class LocationController : BaseApiController
         var user = GetUserFromToken();
         if (user == null)
             return Unauthorized("Invalid or missing API token.");
-
-        if (!user.IsActive)
-            return Forbid("User is not active.");
 
         using (_logger.BeginScope(
                    new Dictionary<string, object>
@@ -107,6 +104,14 @@ public class LocationController : BaseApiController
             }
 
             // Basic validation (same as log-location)
+            // Persisted replays bypass admission; new work holds the permit through immediate post-write work.
+            using var permit = _ingestionAdmission.TryAcquire(user.Id, out var admissionStatus);
+            if (permit == null)
+            {
+                Response.Headers.RetryAfter = "12";
+                return StatusCode(admissionStatus, new { Message = "Location ingestion capacity exceeded." });
+            }
+
             if (dto == null || (dto.Latitude == 0 && dto.Longitude == 0))
             {
                 _logger.LogWarning("Invalid check-in location data received.");
@@ -118,15 +123,6 @@ public class LocationController : BaseApiController
                 _logger.LogWarning("Out-of-range coordinates in check-in: {Latitude}, {Longitude}", dto.Latitude,
                     dto.Longitude);
                 return BadRequest("Latitude or Longitude is out of range.");
-            }
-
-            // Rate limiting for check-ins to prevent spam/abuse
-            var rateLimitResult = await ValidateCheckInRateLimit(user.Id);
-            if (!rateLimitResult.IsAllowed)
-            {
-                _logger.LogWarning("Check-in rate limit exceeded for user {UserId}: {Reason}", user.Id,
-                    rateLimitResult.Reason);
-                return TooManyRequests(rateLimitResult.Reason ?? "Rate limit exceeded");
             }
 
             // Process timestamp and timezone (same as log-location)
@@ -246,8 +242,7 @@ public class LocationController : BaseApiController
             var cacheKey = $"lastLocation_{user.Id}";
             _cache.Set(cacheKey, location, TimeSpan.FromMinutes(30));
 
-            // Update rate limiting tracking
-            await UpdateCheckInRateTracking(user.Id);
+
 
             // SSE broadcast (same pattern as log-location and User/LocationController)
             var settings = _settingsService.GetSettings();
@@ -267,74 +262,6 @@ public class LocationController : BaseApiController
             // Return same format as log-location
             return Ok(new { Message = "Check-in logged successfully", Location = location.ForPublication() });
         }
-    }
-
-    /// <summary>
-    ///     Validates rate limiting for check-in requests to prevent spam and abuse.
-    ///     Implements both time-based interval checking and hourly limits.
-    /// </summary>
-    /// <param name="userId">User ID to check rate limits for</param>
-    /// <returns>Rate limit validation result</returns>
-    private Task<CheckInRateLimitResult> ValidateCheckInRateLimit(string userId)
-    {
-        // Check minimum interval between check-ins
-        var lastCheckInCacheKey = $"lastCheckIn_{userId}";
-        if (_cache.TryGetValue(lastCheckInCacheKey, out DateTime lastCheckInTime))
-        {
-            var timeSinceLastCheckIn = DateTime.UtcNow - lastCheckInTime;
-            if (timeSinceLastCheckIn.TotalSeconds < CheckInMinIntervalSeconds)
-            {
-                var remainingSeconds = CheckInMinIntervalSeconds - (int)timeSinceLastCheckIn.TotalSeconds;
-                return Task.FromResult(new CheckInRateLimitResult
-                {
-                    IsAllowed = false,
-                    Reason = $"Please wait {remainingSeconds} seconds between check-ins."
-                });
-            }
-        }
-
-        // Check hourly limit
-        var hourlyCacheKey = $"checkInCount_{userId}_{DateTime.UtcNow:yyyyMMddHH}";
-        if (_cache.TryGetValue(hourlyCacheKey, out int currentHourlyCount))
-            if (currentHourlyCount >= CheckInMaxPerHour)
-                return Task.FromResult(new CheckInRateLimitResult
-                {
-                    IsAllowed = false,
-                    Reason = $"Maximum {CheckInMaxPerHour} check-ins per hour exceeded. Please try again later."
-                });
-
-        return Task.FromResult(new CheckInRateLimitResult { IsAllowed = true });
-    }
-
-    /// <summary>
-    ///     Updates rate limiting tracking after a successful check-in.
-    /// </summary>
-    /// <param name="userId">User ID to update tracking for</param>
-    private Task UpdateCheckInRateTracking(string userId)
-    {
-        // Update last check-in time
-        var lastCheckInCacheKey = $"lastCheckIn_{userId}";
-        _cache.Set(lastCheckInCacheKey, DateTime.UtcNow, TimeSpan.FromMinutes(5));
-
-        // Update hourly count
-        var hourlyCacheKey = $"checkInCount_{userId}_{DateTime.UtcNow:yyyyMMddHH}";
-        if (_cache.TryGetValue(hourlyCacheKey, out int currentCount))
-            _cache.Set(hourlyCacheKey, currentCount + 1, TimeSpan.FromHours(1));
-        else
-            _cache.Set(hourlyCacheKey, 1, TimeSpan.FromHours(1));
-
-        return Task.CompletedTask;
-    }
-
-    /// <summary>
-    ///     Returns a 429 Too Many Requests response with appropriate headers.
-    /// </summary>
-    /// <param name="message">Rate limit message to return</param>
-    /// <returns>429 status code response</returns>
-    private IActionResult TooManyRequests(string message)
-    {
-        Response.Headers["Retry-After"] = CheckInMinIntervalSeconds.ToString();
-        return StatusCode(429, new { Message = message });
     }
 
     /// <summary>
@@ -471,9 +398,6 @@ public class LocationController : BaseApiController
         if (user == null)
             return Unauthorized("Invalid or missing API token.");
 
-        if (!user.IsActive)
-            return Forbid("User is not active.");
-
         using (_logger.BeginScope(
                    new Dictionary<string, object> { ["RequestId"] = requestId, ["UserId"] = user.Id }))
         {
@@ -501,6 +425,14 @@ public class LocationController : BaseApiController
                         user.Id, idempotencyKey);
                     return Ok(new { success = true, skipped = false, locationId = existingLocation.Id });
                 }
+            }
+
+            // Persisted replays bypass admission; new work holds the permit through immediate post-write work.
+            using var permit = _ingestionAdmission.TryAcquire(user.Id, out var admissionStatus);
+            if (permit == null)
+            {
+                Response.Headers.RetryAfter = "12";
+                return StatusCode(admissionStatus, new { Message = "Location ingestion capacity exceeded." });
             }
 
             if (dto == null || (dto.Latitude == 0 && dto.Longitude == 0))
@@ -1212,7 +1144,6 @@ public class LocationController : BaseApiController
             var user = GetUserFromToken();
             if (user == null) return Unauthorized(new { success = false, message = "Invalid or missing API token." });
 
-            if (!user.IsActive) return Forbid("User is not active.");
 
             var (locations, totalItems) = await _chronologicalLocationService.GetLocationsByDateAsync(
                 user.Id, dateType, year, month, day, CancellationToken.None);
@@ -1253,7 +1184,6 @@ public class LocationController : BaseApiController
             var user = GetUserFromToken();
             if (user == null) return Unauthorized(new { hasData = false, message = "Invalid or missing API token." });
 
-            if (!user.IsActive) return Forbid("User is not active.");
 
             if (!DateTime.TryParse(date, out var parsedDate))
                 return BadRequest(new { hasData = false, message = "Invalid date format." });
@@ -1287,7 +1217,6 @@ public class LocationController : BaseApiController
             var user = GetUserFromToken();
             if (user == null) return Unauthorized(new { success = false, message = "Invalid or missing API token." });
 
-            if (!user.IsActive) return Forbid("User is not active.");
 
             // Build date range based on dateType
             DateTime startDate, endDate;
@@ -1350,7 +1279,6 @@ public class LocationController : BaseApiController
             var user = GetUserFromToken();
             if (user == null) return Unauthorized(new { success = false });
 
-            if (!user.IsActive) return Forbid("User is not active.");
 
             var now = DateTime.Now;
 
@@ -1444,18 +1372,3 @@ public class LocationController : BaseApiController
     }
 }
 
-/// <summary>
-///     Result class for check-in rate limit validation.
-/// </summary>
-public class CheckInRateLimitResult
-{
-    /// <summary>
-    ///     Whether the check-in request is allowed based on rate limits.
-    /// </summary>
-    public bool IsAllowed { get; set; }
-
-    /// <summary>
-    ///     Reason message if the request is not allowed.
-    /// </summary>
-    public string? Reason { get; set; }
-}

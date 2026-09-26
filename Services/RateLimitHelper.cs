@@ -296,44 +296,15 @@ public static class RateLimitHelper
     }
 
     /// <summary>
-    /// Gets the client IP address from an HTTP context, respecting X-Forwarded-For header
-    /// only when the direct connection is from a trusted proxy (localhost or private IP).
-    /// Normalizes IPv4-mapped IPv6 addresses to their IPv4 form to prevent aliasing
-    /// (e.g., "::ffff:192.168.1.1" and "192.168.1.1" map to the same bucket key).
-    /// This prevents spoofing attacks.
+    /// Returns only the post-Forwarded-Headers client address, normalizing mapped IPv4.
+    /// Forwarding header trust belongs exclusively to the configured middleware.
     /// </summary>
-    /// <param name="context">The HTTP context to extract the IP from.</param>
-    /// <returns>The client IP address string.</returns>
     public static string GetClientIpAddress(HttpContext context)
     {
-        var directIp = context.Connection.RemoteIpAddress;
-        var directIpString = directIp?.ToString() ?? "unknown";
-
-        // Only trust X-Forwarded-For if the direct connection is from a trusted proxy
-        if (directIp != null && IsPrivateOrLoopback(directIp))
-        {
-            var forwardedFor = context.Request.Headers["X-Forwarded-For"].FirstOrDefault();
-            if (!string.IsNullOrEmpty(forwardedFor))
-            {
-                var clientIp = forwardedFor.Split(',', StringSplitOptions.RemoveEmptyEntries)
-                    .FirstOrDefault()?.Trim();
-                // Validate as a well-formed IP and normalize to canonical form to prevent
-                // IPv4/IPv6 aliasing from creating separate rate-limit buckets for the same client.
-                if (!string.IsNullOrEmpty(clientIp) && IPAddress.TryParse(clientIp, out var parsed))
-                {
-                    return parsed.IsIPv4MappedToIPv6
-                        ? parsed.MapToIPv4().ToString()
-                        : parsed.ToString();
-                }
-            }
-        }
-
-        // Normalize direct IP the same way as forwarded IPs to prevent IPv4/IPv6 aliasing
-        // (e.g., "::ffff:192.168.1.1" and "192.168.1.1" map to the same rate-limit bucket).
-        if (directIp != null && directIp.IsIPv4MappedToIPv6)
-            return directIp.MapToIPv4().ToString();
-
-        return directIpString;
+        var address = context.Connection.RemoteIpAddress;
+        return address?.IsIPv4MappedToIPv6 == true
+            ? address.MapToIPv4().ToString()
+            : address?.ToString() ?? "unknown";
     }
 
     /// <summary>

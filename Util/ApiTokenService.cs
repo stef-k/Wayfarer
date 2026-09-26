@@ -13,9 +13,12 @@ namespace Wayfarer.Util
     {
         private readonly ApplicationDbContext _dbContext;
         private readonly UserManager<ApplicationUser> _userManager;
+        private readonly IHttpContextAccessor? _httpContextAccessor;
 
-        public ApiTokenService(ApplicationDbContext dbContext, UserManager<ApplicationUser> userManager)
+        public ApiTokenService(ApplicationDbContext dbContext, UserManager<ApplicationUser> userManager,
+            IHttpContextAccessor? httpContextAccessor = null)
         {
+            _httpContextAccessor = httpContextAccessor;
             _dbContext = dbContext;
             _userManager = userManager;
         }
@@ -88,13 +91,17 @@ namespace Wayfarer.Util
         /// <returns>True if API token is found and valid for current User</returns>
         public async Task<bool> ValidateApiTokenAsync(string userId, string token)
         {
-            string tokenHash = HashToken(token);
-
-            ApiToken? apiToken = await _dbContext.ApiTokens
-                .FirstOrDefaultAsync(t => t.UserId == userId && (t.TokenHash == tokenHash
-                    || t.Token == token && t.Name.Trim().ToLower() != "mapbox"));
-
-            return apiToken != null;
+            var context = _httpContextAccessor?.HttpContext;
+            var resolver = context == null
+                ? new Wayfarer.Services.IncomingApiTokenResolver(_dbContext, Wayfarer.Services.ApiWorkAdmission.TokenLookups)
+                : Wayfarer.Services.IncomingApiTokenResolver.ForRequest(context, _dbContext);
+            try
+            {
+                var user = await resolver.ResolveTokenAsync(token, context == null ? "unknown"
+                    : Wayfarer.Services.RateLimitHelper.GetClientIpAddress(context));
+                return user?.Id == userId;
+            }
+            catch (Wayfarer.Services.ApiTokenAdmissionException) { return false; }
         }
 
         /// <summary>

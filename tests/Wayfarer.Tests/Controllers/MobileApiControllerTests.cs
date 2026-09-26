@@ -76,7 +76,7 @@ public class MobileApiControllerTests : TestBase
     }
 
     [Fact]
-    public async Task EnsureAuthenticatedUserAsync_ReturnsForbid_WhenInactive()
+    public async Task EnsureAuthenticatedUserAsync_ReturnsUnauthorized_WhenInactive()
     {
         // Arrange
         var db = CreateDbContext();
@@ -97,6 +97,6 @@ public class MobileApiControllerTests : TestBase
 
         // Assert
         Assert.Null(resolved);
-        Assert.IsType<ForbidResult>(error);
+        Assert.IsType<UnauthorizedObjectResult>(error);
     }
 }
