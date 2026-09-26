@@ -333,7 +333,7 @@ Located at **Admin > Jobs**, the control panel provides:
 - **Trigger Now** — manually fire a job immediately.
 
 **Real-Time Updates:**
-- SSE stream (`/api/sse/stream/job-status`) pushes status changes.
+- SSE stream (`/Admin/Jobs/Sse`) pushes status changes.
 - UI updates automatically without page refresh.
 
 ### Job Persistence

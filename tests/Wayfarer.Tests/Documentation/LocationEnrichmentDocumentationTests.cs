@@ -48,7 +48,7 @@ public sealed class LocationEnrichmentDocumentationTests
         Assert.Contains("relational page reload", protectedImport, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("/api/sse/stream/import-progress", architecture, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("/api/sse/stream/location-update/{userName}", group, StringComparison.Ordinal);
-        Assert.Contains("/api/sse/stream/job-status", group, StringComparison.Ordinal);
+        Assert.Contains("/Admin/Jobs/Sse", group, StringComparison.Ordinal);
     }
 
     [Fact]

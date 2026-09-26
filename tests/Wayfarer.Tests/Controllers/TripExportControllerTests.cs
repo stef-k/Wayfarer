@@ -75,6 +75,35 @@ public class TripExportControllerTests : TestBase
         Assert.Equal("application/pdf", file.ContentType);
     }
 
+    /// <summary>Progress subscriptions retain the public-trip or authenticated-owner boundary.</summary>
+    [Theory]
+    [InlineData(true, false, 200)]
+    [InlineData(false, true, 200)]
+    [InlineData(false, false, 403)]
+    public async Task ExportProgress_RetainsPublicOrOwnerBoundary(bool isPublic, bool isOwner, int status)
+    {
+        using var db = CreateDbContext();
+        var trip = new Trip { Id = Guid.NewGuid(), UserId = "owner", Name = "Trip", IsPublic = isPublic };
+        db.Trips.Add(trip);
+        await db.SaveChangesAsync();
+        var controller = BuildController(db, TestDataFixtures.CreateUser(id: isOwner ? "owner" : "other"),
+            Mock.Of<ITripExportService>(), new SseService());
+        controller.Response.Body = new MemoryStream();
+        if (!isOwner) controller.HttpContext.User = new ClaimsPrincipal(new ClaimsIdentity());
+        using var cts = new CancellationTokenSource();
+        var stream = controller.ExportProgress(trip.Id, "synthetic-session", cts.Token);
+        try
+        {
+            Assert.Equal(status, controller.Response.StatusCode);
+            Assert.Equal(status == 200 ? "text/event-stream" : null, controller.Response.ContentType);
+        }
+        finally
+        {
+            cts.Cancel();
+            await stream;
+        }
+    }
+
     private static TripExportController BuildController(ApplicationDbContext db, ApplicationUser user, ITripExportService exportSvc, SseService? sse = null)
     {
         var controller = new TripExportController(

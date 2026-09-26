@@ -11,7 +11,7 @@ using Wayfarer.Services;
 namespace Wayfarer.Areas.Api.Controllers;
 
 /// <summary>
-/// SSE controller providing both legacy generic streams and the new authenticated group stream.
+/// SSE controller providing public live Timeline streams and dedicated authenticated streams.
 /// </summary>
 [Area("Api")]
 [Route("api/sse")]
@@ -42,40 +42,32 @@ public class SseController : Controller
     }
 
     /// <summary>
-    /// Legacy generic SSE stream endpoint. Routes to channel based on type/id.
-    /// Note: No authentication - maintained for backwards compatibility with non-group streams.
+    /// Anonymous public live Timeline stream. Only the exact location-update type is supported.
     /// </summary>
     [HttpGet("stream/{type}/{id}")]
     public async Task Stream(string type, string id, CancellationToken ct)
     {
-        if (IsProtectedGenericStreamType(type))
+        if (!string.Equals(type, "location-update", StringComparison.Ordinal))
         {
             Response.StatusCode = StatusCodes.Status404NotFound;
             return;
         }
-        if (type == "location-update")
+        var user = await _db.Users
+            .AsNoTracking()
+            .Where(user => user.UserName == id)
+            .Select(user => new { user.IsTimelinePublic, user.PublicTimelineTimeThreshold })
+            .FirstOrDefaultAsync(ct);
+        if (user is null || PublicTimelineEligibilityResolver.Resolve(user.IsTimelinePublic, user.PublicTimelineTimeThreshold) is not { IsEffectivelyPublic: true, IsLive: true })
         {
-            var user = await _db.Users
-                .AsNoTracking()
-                .Where(user => user.UserName == id)
-                .Select(user => new { user.IsTimelinePublic, user.PublicTimelineTimeThreshold })
-                .FirstOrDefaultAsync(ct);
-            if (user is null || PublicTimelineEligibilityResolver.Resolve(user.IsTimelinePublic, user.PublicTimelineTimeThreshold) is not { IsEffectivelyPublic: true, IsLive: true })
-            {
-                Response.StatusCode = StatusCodes.Status404NotFound;
-                return;
-            }
-
-            await _sse.SubscribeAsync(
-                $"{type}-{id}",
-                Response,
-                ct,
-                deliveryLease: cancellationToken => AcquirePublicLocationDeliveryLeaseAsync(id, cancellationToken));
+            Response.StatusCode = StatusCodes.Status404NotFound;
             return;
         }
 
-        var channel = $"{type}-{id}";
-        await _sse.SubscribeAsync(channel, Response, ct);
+        await _sse.SubscribeAsync(
+            "location-update-" + id,
+            Response,
+            ct,
+            deliveryLease: cancellationToken => AcquirePublicLocationDeliveryLeaseAsync(id, cancellationToken));
     }
 
     /// <summary>Subscribes only to the authenticated caller's content-free import progress channel.</summary>
@@ -88,15 +80,6 @@ public class SseController : Controller
         await _sse.SubscribeAsync($"import-{userId}", Response, ct,
             deliveryFilter: data => ImportReloadHints.Contains(data));
         return new EmptyResult();
-    }
-
-    /// <summary>Identifies server-owned channel families that generic callers cannot select.</summary>
-    private static bool IsProtectedGenericStreamType(string type)
-    {
-        string[] protectedTypes = ["import", "enrichment", "invitation-update", "membership-update", "group-notifications"];
-        return protectedTypes.Any(protectedType =>
-            type.Equals(protectedType, StringComparison.OrdinalIgnoreCase)
-            || type.StartsWith($"{protectedType}-", StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>Subscribes only to the authenticated caller's content-free group notification channel.</summary>

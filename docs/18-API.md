@@ -209,17 +209,19 @@ Real-time streaming endpoints for live updates.
 | Endpoint | Description |
 |----------|-------------|
 | `/api/sse/stream/location-update/{userName}` | User location updates |
-| `/api/sse/stream/visits` | Visit start/end notifications |
-| `/api/sse/stream/job-status` | Background job status updates |
+| `/api/mobile/sse/visits` | Bearer-token-owned visit_started notifications |
+| `/Admin/Jobs/Sse` | Background job status updates |
 | `/api/sse/group/{groupId}` | Authenticated, membership-authorized detailed group events |
 | `/api/sse/group-notifications` | Authenticated per-user invitation/membership reload hints |
 
 `/api/sse/group-notifications` accepts no caller-selected identifier. It derives channel ownership from
 `NameIdentifier` and delivers only `{"type":"invitation-state"}` or `{"type":"membership-state"}`.
 Clients reload `GET /api/invitations`, `GET /api/users/activity?sinceHours=24`, and
-`GET /api/groups?scope=joined` for authorized presentation details. The generic route rejects legacy
-invitation and membership notification types case-insensitively. Public timeline, unrelated generic,
-group-specific, admin, and mobile streams retain their separate contracts.
+`GET /api/groups?scope=joined` for authorized presentation details. The generic route accepts only exact ordinal `location-update`; all other types, including case variants
+and alternate hyphen splits, return 404 before database access or subscription. Persisted public/live
+Timeline eligibility is required before subscription and rechecked under a delivery lease for each event.
+Missing, private, delayed, or invalid Timelines return 404 even for authenticated owners. Delayed public
+Timeline remains an HTTP read behavior. Dedicated group, Admin, and mobile streams retain their owners.
 
 ### Protected import and enrichment stream
 
