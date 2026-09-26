@@ -11,14 +11,17 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Hosting;
 using Wayfarer.Models;
+using Wayfarer.Models.Options;
 using Wayfarer.Services;
+using Wayfarer.Services.LocationImports;
 
 namespace Wayfarer.Tests.Infrastructure;
 
 /// <summary>Real production Identity/MVC parts without database migrations, jobs or startup seeding.</summary>
 internal static class IdentityRouteHost
 {
-    public static async Task<WebApplication> StartAsync(ApplicationDbContext db, string root)
+    public static async Task<WebApplication> StartAsync(ApplicationDbContext db, string root,
+        Action<IServiceCollection>? configure = null)
     {
         var assembly = typeof(ApplicationUser).Assembly;
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions
@@ -45,8 +48,13 @@ internal static class IdentityRouteHost
             assembly.GetType("Program")!.GetMethods(BindingFlags.NonPublic | BindingFlags.Static)
                 .Single(method => method.Name.Contains("g__" + name + "|")).Invoke(null, [builder]);
         builder.Services.AddSingleton(db);
+        builder.Services.Configure<StorageOptions>(builder.Configuration.GetSection("Storage"));
+        builder.Services.AddSingleton<StoragePaths>();
+        builder.Services.AddSingleton<LocationImportStagedFiles>();
         builder.Services.Configure<ForwardedHeadersOptions>(options =>
             TrustedProxyConfiguration.Apply(options, ["192.0.2.10"], []));
+        // Routed mutation tests replace only external work at existing service seams.
+        configure?.Invoke(builder.Services);
         var app = builder.Build();
         // Test transport supplies the socket peer; only production forwarding interprets XFF.
         app.Use(async (context, next) =>
@@ -63,6 +71,8 @@ internal static class IdentityRouteHost
             antiforgery.GetAndStoreTokens(context).RequestToken!);
         app.MapRazorPages();
         app.MapControllers();
+        assembly.GetType("Program")!.GetMethods(BindingFlags.NonPublic | BindingFlags.Static)
+            .Single(method => method.Name.Contains("g__ConfigureAreas|")).Invoke(null, [app]);
         await app.StartAsync();
         return app;
     }

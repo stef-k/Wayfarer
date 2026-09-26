@@ -52,9 +52,14 @@ Two-Factor Authentication (2FA)
 - Encourage users to enable 2FA, especially for admin accounts.
 
 CSRF Protection
-- All admin endpoints are protected with anti-forgery tokens.
-- AJAX calls to sensitive endpoints (cache deletion, settings changes) include CSRF tokens.
-- Forms use `@Html.AntiForgeryToken()` and controllers validate with `[ValidateAntiForgeryToken]`.
+- Unsafe Admin mutation POST actions validate antiforgery; read-only navigation does not require it.
+- Protected cookie-authenticated browser mutations require a server-issued request token plus its antiforgery cookie. Forms use `__RequestVerificationToken`; JSON and bodyless callers send `RequestVerificationToken` from the page's hidden token.
+- Trip import sends the header alongside its unchanged multipart body. Header validation avoids an additional early antiforgery form read on valid requests; it does not prevent upload ingress or buffering. Upload limits and staging policy are separate concerns (#662).
+- `PUT /api/Location/{id:int}` preserves cookie-first authority: an authenticated cookie always requires its antiforgery token, regardless of any bearer header. Only a successfully resolved bearer without selected cookie authority proceeds token-free. Inactive/missing cookie accounts do not fall through to bearer.
+- Bearer-only APIs retain their separate credential authority and do not require MVC antiforgery tokens. Read/query POSTs remain token-free where appropriate; no global MVC antiforgery policy is installed.
+- Identity/Razor Pages retain framework automatic antiforgery. Admin Jobs forms rebuilt by SSE copy the authentic page token.
+- Provider-settings navigation can still trigger legacy credential migration. This cookie GET mutation is explicitly tracked in [#679](https://github.com/stef-k/Wayfarer/issues/679); this is not a claim of universal cookie mutation coverage.
+- The unintended unconstrained Trip clone alias was removed; the bearer-only `POST /api/trips/{id}/clone` contract is unchanged.
 
 Rate Limiting
 - **Tile requests** — Anonymous users limited to 500 requests/minute per IP (configurable).
