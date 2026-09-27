@@ -80,8 +80,8 @@ public class VisitBackfillService : IVisitBackfillService
             .ToListAsync(cancellationToken);
 
         _logger.LogInformation(
-            "Backfill analysis for trip {TripId} ({TripName}): {PlaceCount} places, {PlacesWithCoords} with coords, {ExistingVisits} existing visits",
-            tripId, trip.Name, allPlaces.Count, placesWithCoords.Count, existingVisits.Count);
+            "Backfill analysis for trip {TripId}: {PlaceCount} places, {PlacesWithCoords} with coords, {ExistingVisits} existing visits",
+            tripId, allPlaces.Count, placesWithCoords.Count, existingVisits.Count);
 
         if (placesWithCoords.Count == 0)
         {
@@ -544,10 +544,9 @@ public class VisitBackfillService : IVisitBackfillService
         catch (Exception ex)
         {
             // Log error but continue - one failed place shouldn't block the entire analysis
-            _logger.LogError(ex,
-                "Spatial query failed for place {PlaceId} ({PlaceName}) at ({Lat}, {Lon}). " +
-                "This place will be skipped in the analysis.",
-                place.Id, place.Name, place.Location.Y, place.Location.X);
+            _logger.LogError("Spatial query failed for place {PlaceId}. " +
+                "This place will be skipped in the analysis. Failure type: {ExceptionType}",
+                place.Id, ex.GetType().Name);
         }
 
         return new PlaceAnalysisResult
@@ -769,9 +768,8 @@ public class VisitBackfillService : IVisitBackfillService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex,
-                "Batched spatial query failed for {PlaceCount} places. Falling back to individual queries.",
-                places.Count);
+            _logger.LogError("Batched spatial query failed for {PlaceCount} places. Falling back to individual queries. Failure type: {ExceptionType}",
+                places.Count, ex.GetType().Name);
 
             // Fallback to individual queries on error
             return await FindVisitCandidatesIndividuallyAsync(
@@ -1303,9 +1301,8 @@ public class VisitBackfillService : IVisitBackfillService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex,
-                "Suggestion query failed for {PlaceCount} places. Suggestions will be empty.",
-                places.Count);
+            _logger.LogError("Suggestion query failed for {PlaceCount} places. Suggestions will be empty. Failure type: {ExceptionType}",
+                places.Count, ex.GetType().Name);
             return new List<SuggestedVisitDto>();
         }
 
@@ -1491,9 +1488,7 @@ public class VisitBackfillService : IVisitBackfillService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex,
-                "Failed to get candidate locations for place {PlaceId} at ({Lat}, {Lon})",
-                placeId, lat, lon);
+            _logger.LogError("Failed to get candidate locations for place {PlaceId} Failure type: {ExceptionType}", placeId, ex.GetType().Name);
             throw;
         }
 

@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using System.IO;
 using System.Security.Claims;
 using System.Text;
@@ -191,11 +192,31 @@ public class TripImportControllerTests : TestBase
         return new FormFile(stream, 0, stream.Length, "file", "trip.kml");
     }
 
-    private TripImportController BuildController(ITripImportService? service = null)
+    /// <summary>Parser failures can carry imported XML and must not be attached to routine logs.</summary>
+    [Fact]
+    public async Task Import_ParserFailureKeepsSourceOutOfDiagnostics()
+    {
+        using var logs = new TestLogProvider();
+        using var factory = LoggerFactory.Create(builder => builder.AddProvider(logs));
+        var service = new Mock<ITripImportService>();
+        service.Setup(s => s.ImportWayfarerKmlAsync(It.IsAny<Stream>(), "u1", It.IsAny<TripImportMode>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new System.Xml.XmlException("private-xml-663"));
+        var controller = BuildController(service.Object, factory.CreateLogger<BaseController>());
+        ConfigureControllerWithUser(controller, "u1");
+        var result = Assert.IsType<JsonResult>(await controller.Import(CreateFormFile("private-xml-663")));
+        Assert.Equal(400, result.StatusCode);
+        var entry = Assert.Single(logs.Entries);
+        Assert.Null(entry.Exception);
+        Assert.DoesNotContain("private-xml-663", entry.Message + string.Join(",", entry.Fields.Values));
+        Assert.Equal("XmlException", entry.Fields["ExceptionType"]);
+        Assert.Equal("u1", entry.Fields["UserId"]);
+    }
+
+    private TripImportController BuildController(ITripImportService? service = null, ILogger<BaseController>? logger = null)
     {
         service ??= Mock.Of<ITripImportService>();
         return new TripImportController(
-            NullLogger<BaseController>.Instance,
+            logger ?? NullLogger<BaseController>.Instance,
             CreateDbContext(),
             service);
     }

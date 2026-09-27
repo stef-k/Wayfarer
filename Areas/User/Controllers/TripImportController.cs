@@ -61,7 +61,7 @@ public class TripImportController : BaseController
         }
         catch (TripImportValidationException ex)
         {
-            _logger.LogWarning(ex, "Trip import validation failed for user {UserId}", userId);
+            _logger.LogWarning("Trip import validation failed for user {UserId} Failure type: {ExceptionType}; request {RequestId}", userId, ex.GetType().Name, HttpContext.TraceIdentifier);
             return ImportError(StatusCodes.Status422UnprocessableEntity, "validation_failed", "The import contains invalid data.");
         }
         catch (RouteGeometryBudgetException ex)
@@ -76,22 +76,22 @@ public class TripImportController : BaseController
         }
         catch (FormatException ex)
         {
-            _logger.LogWarning(ex, "Trip import KML parsing failed for user {UserId}", userId);
+            _logger.LogWarning("Trip import KML parsing failed for user {UserId} Failure type: {ExceptionType}; request {RequestId}", userId, ex.GetType().Name, HttpContext.TraceIdentifier);
             return ImportError(StatusCodes.Status400BadRequest, "invalid_kml", "The selected file is not a valid KML import.");
         }
         catch (XmlException ex)
         {
-            _logger.LogWarning(ex, "Trip import XML parsing failed for user {UserId}", userId);
+            _logger.LogWarning("Trip import XML parsing failed for user {UserId} Failure type: {ExceptionType}; request {RequestId}", userId, ex.GetType().Name, HttpContext.TraceIdentifier);
             return ImportError(StatusCodes.Status400BadRequest, "invalid_kml", "The selected file is not a valid KML import.");
         }
         catch (InvalidOperationException ex)
         {
-            _logger.LogWarning(ex, "Trip import could not be completed for user {UserId}", userId);
+            _logger.LogWarning("Trip import could not be completed for user {UserId} Failure type: {ExceptionType}; request {RequestId}", userId, ex.GetType().Name, HttpContext.TraceIdentifier);
             return ImportError(StatusCodes.Status400BadRequest, "validation_failed", "The import cannot be applied to this trip.");
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Trip import failed for user {UserId}; trace {TraceIdentifier}", userId, HttpContext.TraceIdentifier);
+            _logger.LogError("Trip import failed for user {UserId}; trace {TraceIdentifier} Failure type: {ExceptionType}; request {RequestId}", userId, HttpContext.TraceIdentifier, ex.GetType().Name, HttpContext.TraceIdentifier);
             return ImportError(StatusCodes.Status500InternalServerError, "import_failed", "Import failed. Please try again.");
         }
     }

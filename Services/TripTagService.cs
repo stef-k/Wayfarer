@@ -338,7 +338,7 @@ WHERE NOT EXISTS (
         }
         catch (DbUpdateException ex)
         {
-            _logger.LogWarning(ex, "Race while creating tag {Tag}", normalized);
+            _logger.LogWarning("Race while creating tag by name. Failure type: {ExceptionType}", ex.GetType().Name);
             return await _dbContext.Tags.FirstAsync(t => t.Name == normalized, cancellationToken);
         }
     }
@@ -366,7 +366,7 @@ WHERE NOT EXISTS (
         }
         catch (DbUpdateException ex)
         {
-            _logger.LogWarning(ex, "Race while creating tag slug {TagSlug}", slug);
+            _logger.LogWarning("Race while creating tag by slug. Failure type: {ExceptionType}", ex.GetType().Name);
             return await _dbContext.Tags.FirstAsync(t => t.Slug == slug, cancellationToken);
         }
     }

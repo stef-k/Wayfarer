@@ -56,10 +56,12 @@ public abstract class BaseController : Controller
     protected void HandleError(Exception ex)
     {
         // Log to Serilog (console/file)
-        _logger.LogError(ex, "An error occurred during an action.");
+        _logger.LogError("An error occurred during an action: {ExceptionType}; request {RequestId}",
+            ex.GetType().Name, HttpContext.TraceIdentifier);
 
         // Log to PostgreSQL for audit purposes
-        LogAudit("Error", "An error occurred during an action.", ex.Message);
+        LogAudit("Error", "An error occurred during an action.",
+            $"{ex.GetType().Name}; request {HttpContext.TraceIdentifier}");
 
         // Optionally, set a user-friendly alert message
         SetAlert("An unexpected error occurred. Please try again later.", "danger");

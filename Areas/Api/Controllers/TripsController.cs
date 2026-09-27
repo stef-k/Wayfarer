@@ -394,7 +394,7 @@ return Ok(dto);
             };
 
             _logger.LogInformation(
-                $"Provided boundary for trip {trip.Name} (ID: {id}) to user {user?.Id ?? "anonymous"}");
+                "Provided boundary for trip {TripId} to user {UserId}", id, user?.Id ?? "anonymous");
 
             return Ok(response);
         }
@@ -505,17 +505,8 @@ return Ok(dto);
             West = minLng.Value - buffer
         };
 
-        // Log detailed information for debugging
-        var latSpan = maxLat.Value - minLat.Value;
-        var lngSpan = maxLng.Value - minLng.Value;
-        _logger.LogInformation("Trip {TripId} ({TripName}) boundary calculation:", trip.Id, trip.Name);
-        _logger.LogInformation("  Raw bounds: Lat({MinLat:F6}, {MaxLat:F6}), Lng({MinLng:F6}, {MaxLng:F6})",
-            minLat.Value, maxLat.Value, minLng.Value, maxLng.Value);
-        _logger.LogInformation("  Span: {LatSpan:F3}° lat × {LngSpan:F3}° lng", latSpan, lngSpan);
-        _logger.LogInformation("  Data points: {TotalPoints}", totalPoints);
-        _logger.LogInformation("  Buffer applied: {Buffer:F4}° (~{BufferKm:F1}km)", buffer, buffer * 111);
-        _logger.LogInformation("  Final bounds: N:{North:F6}, S:{South:F6}, E:{East:F6}, W:{West:F6}",
-            boundingBox.North, boundingBox.South, boundingBox.East, boundingBox.West);
+        // Retain calculation evidence without private names or geographic extents.
+        _logger.LogInformation("Calculated boundary for trip {TripId} from {TotalPoints} points", trip.Id, totalPoints);
 
         return boundingBox;
     }

@@ -17,7 +17,7 @@ public sealed class ApiErrorResponseMiddleware
     /// <summary>
     /// Processes API error responses and preserves their original status after clearing the response body.
     /// </summary>
-    public async Task InvokeAsync(HttpContext context)
+    public async Task InvokeAsync(HttpContext context, ILogger<ApiErrorResponseMiddleware> logger)
     {
         bool isApi = context.Request.Path.StartsWithSegments("/api");
 
@@ -46,6 +46,9 @@ public sealed class ApiErrorResponseMiddleware
         }
         catch (Exception ex) when (isApi && !context.Response.HasStarted)
         {
+            // Keep exception payloads out of both the public envelope and routine diagnostics.
+            logger.LogError("Unhandled API failure {ExceptionType} for {Method} {Path}; request {RequestId}",
+                ex.GetType().Name, context.Request.Method, context.Request.Path, context.TraceIdentifier);
             context.Response.Clear();
             context.Response.StatusCode = StatusCodes.Status500InternalServerError;
             context.Response.ContentType = "application/json";
@@ -54,7 +57,8 @@ public sealed class ApiErrorResponseMiddleware
                 status = 500,
                 error = "Internal Server Error",
                 message = "An unexpected error occurred.",
-                details = ex.Message
+                details = "The request could not be completed.",
+                requestId = context.TraceIdentifier
             }));
         }
     }

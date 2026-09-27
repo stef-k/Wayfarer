@@ -37,7 +37,7 @@ internal static class LocationImportDeduplicator
             if (duplicate)
             {
                 skipped++;
-                logger.LogDebug("Skipping duplicate imported location at {Timestamp}", location.Timestamp);
+                logger.LogDebug("Skipping duplicate imported location.");
             }
             else
             {

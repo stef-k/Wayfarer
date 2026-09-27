@@ -23,7 +23,7 @@ public sealed class TripImportTagReconciler(ApplicationDbContext dbContext, ILog
             if (string.IsNullOrWhiteSpace(token)) continue;
             if (!TryGetCanonicalSlug(token, out var slug))
             {
-                logger.LogWarning("KML import tag token cannot be represented safely: {TagToken}", token);
+                logger.LogWarning("KML import tag token cannot be represented safely.");
                 throw new TripImportValidationException("The import contains an invalid tag.");
             }
             if (!slugs.Contains(slug, StringComparer.Ordinal)) slugs.Add(slug);
@@ -68,7 +68,7 @@ public sealed class TripImportTagReconciler(ApplicationDbContext dbContext, ILog
 
         if (bySlug is not null || byName is not null)
         {
-            logger.LogWarning("KML tag identity conflicts for {TagSlug}: slug={SlugTagId}, name={NameTagId}", slug, bySlug?.Id, byName?.Id);
+            logger.LogWarning("KML tag identity conflicts: slug={SlugTagId}, name={NameTagId}", bySlug?.Id, byName?.Id);
             throw new TripImportValidationException("The import contains an invalid tag.");
         }
 
@@ -84,12 +84,12 @@ public sealed class TripImportTagReconciler(ApplicationDbContext dbContext, ILog
         catch (DbUpdateException ex) when (IsRecognizedTagUniqueConflict(ex))
         {
             dbContext.Entry(candidate).State = EntityState.Detached;
-            logger.LogInformation(ex, "Recognized concurrent KML import tag create for {TagSlug}", slug);
+            logger.LogInformation("Recognized concurrent KML import tag create. Failure type: {ExceptionType}", ex.GetType().Name);
             var winnerBySlug = await dbContext.Tags.FirstOrDefaultAsync(tag => tag.Slug == slug, cancellationToken);
             var winnerByName = await dbContext.Tags.FirstOrDefaultAsync(tag => tag.Name == slug, cancellationToken);
             if (winnerBySlug is not null && winnerByName is not null && winnerBySlug.Id == winnerByName.Id) return winnerBySlug;
 
-            logger.LogWarning("KML tag conflict has no single winner for {TagSlug}; slug={SlugTagId}, name={NameTagId}", slug, winnerBySlug?.Id, winnerByName?.Id);
+            logger.LogWarning("KML tag conflict has no single winner; slug={SlugTagId}, name={NameTagId}", winnerBySlug?.Id, winnerByName?.Id);
             throw new TripImportValidationException("The import contains an invalid tag.");
         }
     }

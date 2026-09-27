@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -66,6 +67,28 @@ public class BaseControllerHelperTests : TestBase
         Assert.Equal("done", controller.TempData["AlertMessage"]);
     }
 
+    /// <summary>Generic MVC errors never copy exception payloads to audit storage or logs.</summary>
+    [Fact]
+    public void HandleError_PreservesFriendlyAlertAndBoundedAudit()
+    {
+        using var logs = new TestLogProvider();
+        using var factory = LoggerFactory.Create(builder => builder.AddProvider(logs));
+        using var db = CreateDbContext();
+        var controller = new FakeBaseController(db, factory.CreateLogger<BaseController>());
+        var context = BuildHttpContextWithUser("user1");
+        context.TraceIdentifier = "request-663";
+        controller.ControllerContext = new ControllerContext { HttpContext = context };
+        controller.TempData = new TempDataDictionary(context, Mock.Of<ITempDataProvider>());
+        controller.HandleError(new InvalidOperationException("secret-exception-663"));
+        var audit = Assert.Single(db.AuditLogs);
+        Assert.Equal("An error occurred during an action.: InvalidOperationException; request request-663", audit.Details);
+        Assert.Equal("An unexpected error occurred. Please try again later.", controller.TempData["AlertMessage"]);
+        Assert.All(logs.Entries, entry => {
+            Assert.Null(entry.Exception);
+            Assert.DoesNotContain("secret-exception-663", entry.Message + string.Join(",", entry.Fields.Values));
+        });
+    }
+
     private static FakeBaseController BuildController(ApplicationDbContext db, string userId, string role = "User")
     {
         var controller = new FakeBaseController(db);
@@ -88,8 +111,11 @@ public class BaseControllerHelperTests : TestBase
             string alertType = "success", object? routeValues = null, string? area = null) =>
             base.RedirectWithAlert(action, controller, message, alertType, routeValues, area);
 
-        public FakeBaseController(ApplicationDbContext db)
-            : base(NullLogger<BaseController>.Instance, db)
+        /// <summary>Exposes generic error handling for privacy regression coverage.</summary>
+        public new void HandleError(Exception exception) => base.HandleError(exception);
+
+        public FakeBaseController(ApplicationDbContext db, ILogger<BaseController>? logger = null)
+            : base(logger ?? NullLogger<BaseController>.Instance, db)
         {
         }
     }

@@ -66,8 +66,7 @@ public sealed partial class TripMapThumbnailGenerator : ITripMapThumbnailGenerat
         // Validate coordinates
         if (centerLat < -90 || centerLat > 90 || centerLon < -180 || centerLon > 180)
         {
-            _logger.LogWarning("Invalid coordinates for trip {TripId}: lat={Lat}, lon={Lon}",
-                tripId, centerLat, centerLon);
+            _logger.LogWarning("Invalid coordinates for trip {TripId}", tripId);
             return null;
         }
 
@@ -110,8 +109,7 @@ public sealed partial class TripMapThumbnailGenerator : ITripMapThumbnailGenerat
             {
                 await PersistThumbnailAsync(filePath, thumbnailBytes, updatedAt, cancellationToken);
 
-                _logger.LogInformation("Generated thumbnail for trip {TripId}: {Width}x{Height}, saved to: {FilePath}",
-                    tripId, width, height, filePath);
+                _logger.LogInformation("Generated thumbnail for trip {TripId}: {Width}x{Height}", tripId, width, height);
 
                 // Add timestamp for browser cache busting
                 return _storage.PublicUrl(tripId, width, height, updatedAt);

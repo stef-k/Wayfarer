@@ -71,11 +71,12 @@ public class BackfillController : BaseApiController
         }
         catch (InvalidOperationException ex)
         {
-            return NotFound(new { success = false, message = ex.Message });
+            return NotFound(new { success = false, message = ex.Message == "Trip not found or access denied."
+                ? "Trip not found or access denied." : "Unable to retrieve backfill information." });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error getting backfill info for trip {TripId}, user {UserId}", tripId, userId);
+            _logger.LogError("Error getting backfill info for trip {TripId}, user {UserId} Failure type: {ExceptionType}", tripId, userId, ex.GetType().Name);
             return StatusCode(500, new { success = false, message = "An error occurred." });
         }
     }
@@ -125,11 +126,12 @@ public class BackfillController : BaseApiController
         }
         catch (InvalidOperationException ex)
         {
-            return NotFound(new { success = false, message = ex.Message });
+            return NotFound(new { success = false, message = ex.Message == "Trip not found or access denied."
+                ? "Trip not found or access denied." : "Unable to retrieve backfill information." });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error during backfill preview for trip {TripId}, user {UserId}", tripId, userId);
+            _logger.LogError("Error during backfill preview for trip {TripId}, user {UserId} Failure type: {ExceptionType}", tripId, userId, ex.GetType().Name);
             return StatusCode(500, new { success = false, message = "An error occurred during analysis." });
         }
     }
@@ -165,7 +167,7 @@ public class BackfillController : BaseApiController
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error applying backfill for trip {TripId}, user {UserId}", tripId, userId);
+            _logger.LogError("Error applying backfill for trip {TripId}, user {UserId} Failure type: {ExceptionType}", tripId, userId, ex.GetType().Name);
             return StatusCode(500, new { success = false, message = "An error occurred while applying changes." });
         }
     }
@@ -196,7 +198,7 @@ public class BackfillController : BaseApiController
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error clearing visits for trip {TripId}, user {UserId}", tripId, userId);
+            _logger.LogError("Error clearing visits for trip {TripId}, user {UserId} Failure type: {ExceptionType}", tripId, userId, ex.GetType().Name);
             return StatusCode(500, new { success = false, message = "An error occurred while clearing visits." });
         }
     }
@@ -266,7 +268,7 @@ public class BackfillController : BaseApiController
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error getting candidate locations for place {PlaceId}, user {UserId}", placeId, userId);
+            _logger.LogError("Error getting candidate locations for place {PlaceId}, user {UserId} Failure type: {ExceptionType}", placeId, userId, ex.GetType().Name);
             return StatusCode(500, new { success = false, message = "An error occurred while retrieving locations." });
         }
     }

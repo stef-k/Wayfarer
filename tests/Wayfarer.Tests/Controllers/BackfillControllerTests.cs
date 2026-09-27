@@ -16,6 +16,20 @@ namespace Wayfarer.Tests.Controllers;
 /// </summary>
 public class BackfillControllerTests : TestBase
 {
+    /// <summary>Same-type infrastructure failures retain the status without exposing internal text.</summary>
+    [Theory]
+    [InlineData("Trip not found or access denied.", "Trip not found or access denied.")]
+    [InlineData("private-backfill-663", "Unable to retrieve backfill information.")]
+    public async Task GetInfo_OnlyPublishesTheKnownNotFoundRule(string failure, string expected)
+    {
+        var service = new Mock<IVisitBackfillService>();
+        service.Setup(s => s.GetInfoAsync("u1", It.IsAny<Guid>(), null, null, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException(failure));
+        var (controller, _, _) = BuildController("u1", service.Object);
+        var result = Assert.IsType<NotFoundObjectResult>(await controller.Info(Guid.NewGuid()));
+        Assert.Equal(expected, result.Value?.GetType().GetProperty("message")?.GetValue(result.Value));
+    }
+
     #region GetCandidateLocations Tests
 
     [Fact]

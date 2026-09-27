@@ -409,7 +409,7 @@ namespace Wayfarer.Areas.Admin.Controllers
                             {
                                 eventType = "failed",
                                 purgeType,
-                                errorMessage = ex.Message
+                                errorMessage = "Cache purge failed. Please try again."
                             }));
                     }
                     catch (Exception broadcastEx)

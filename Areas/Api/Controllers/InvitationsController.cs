@@ -116,17 +116,17 @@ public class InvitationsController : ControllerBase
         }
         catch (InvalidOperationException ex)
         {
-            _logger.LogWarning(ex, "Invitation creation failed - business rule violation");
-            return BadRequest(new { message = ex.Message });
+            _logger.LogWarning("Invitation creation failed - business rule violation");
+            return BadRequest(new { message = GroupOperationErrors.Message(ex, "invite") });
         }
         catch (ArgumentException ex)
         {
-            _logger.LogWarning(ex, "Invitation creation failed - invalid argument");
-            return BadRequest(new { message = ex.Message });
+            _logger.LogWarning("Invitation creation failed - invalid argument");
+            return BadRequest(new { message = GroupOperationErrors.Message(ex, "invite") });
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Invitation creation failed");
+            _logger.LogWarning("Invitation creation failed");
             return BadRequest(new { message = "Failed to create invitation." });
         }
     }
@@ -156,9 +156,9 @@ public class InvitationsController : ControllerBase
         {
             return StatusCode(403, new { message = "You are not authorized to accept this invitation" });
         }
-        catch (InvalidOperationException ex) when (ex.Message.Contains("expired") || ex.Message.Contains("not pending"))
+        catch (InvalidOperationException ex) when (ex.Message is "Invitation expired" or "Invitation is not pending")
         {
-            return Conflict(new { message = ex.Message });
+            return Conflict(new { message = GroupOperationErrors.Message(ex, "accept") });
         }
     }
 
@@ -194,7 +194,7 @@ public class InvitationsController : ControllerBase
         }
         catch (InvalidOperationException ex)
         {
-            return Conflict(new { message = ex.Message });
+            return Conflict(new { message = GroupOperationErrors.Message(ex, "decline") });
         }
     }
 }

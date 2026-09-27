@@ -67,8 +67,7 @@ public class PlaceVisitDetectionService : IPlaceVisitDetectionService
         if (ShouldRejectForAccuracy(accuracyMeters, settings))
         {
             _logger.LogDebug(
-                "Visit detection skipped for user {UserId}: accuracy {Accuracy}m exceeds threshold {Threshold}m",
-                userId, accuracyMeters, settings.VisitedAccuracyRejectMeters);
+                "Visit detection skipped for user {UserId}: poor accuracy", userId);
             return;
         }
 
@@ -224,9 +223,7 @@ public class PlaceVisitDetectionService : IPlaceVisitDetectionService
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex,
-                "Spatial query failed for user {UserId} at ({Lat}, {Lon}). Falling back to no match.",
-                userId, location.Y, location.X);
+            _logger.LogWarning("Spatial query failed for user {UserId}. Falling back to no match. Failure type: {ExceptionType}", userId, ex.GetType().Name);
             return null;
         }
 
@@ -286,8 +283,7 @@ public class PlaceVisitDetectionService : IPlaceVisitDetectionService
         await _dbContext.SaveChangesAsync(cancellationToken);
 
         _logger.LogDebug(
-            "Updated open visit {VisitId} for place {PlaceName}, last seen at {LastSeen}",
-            visit.Id, visit.PlaceNameSnapshot, now);
+            "Updated open visit {VisitId} for place {PlaceId}", visit.Id, visit.PlaceId);
     }
 
     /// <summary>
@@ -323,8 +319,8 @@ public class PlaceVisitDetectionService : IPlaceVisitDetectionService
             await _dbContext.SaveChangesAsync(cancellationToken);
 
             _logger.LogDebug(
-                "Created visit candidate for user {UserId}, place {PlaceName} (hit 1)",
-                userId, place.Name);
+                "Created visit candidate for user {UserId}, place {PlaceId} (hit 1)",
+                userId, place.Id);
             return;
         }
 
@@ -339,8 +335,8 @@ public class PlaceVisitDetectionService : IPlaceVisitDetectionService
             await _dbContext.SaveChangesAsync(cancellationToken);
 
             _logger.LogDebug(
-                "Reset visit candidate for user {UserId}, place {PlaceName} (window expired after {Minutes} min)",
-                userId, place.Name, timeSinceLastHit);
+                "Reset visit candidate for user {UserId}, place {PlaceId} (window expired)",
+                userId, place.Id);
             return;
         }
 
@@ -358,16 +354,16 @@ public class PlaceVisitDetectionService : IPlaceVisitDetectionService
             await _dbContext.SaveChangesAsync(cancellationToken);
 
             _logger.LogDebug(
-                "Confirmed visit for user {UserId}, place {PlaceName} after {Hits} hits",
-                userId, place.Name, candidate.ConsecutiveHits);
+                "Confirmed visit for user {UserId}, place {PlaceId} after {Hits} hits",
+                userId, place.Id, candidate.ConsecutiveHits);
         }
         else
         {
             await _dbContext.SaveChangesAsync(cancellationToken);
 
             _logger.LogDebug(
-                "Updated visit candidate for user {UserId}, place {PlaceName} (hit {Hits}/{Required})",
-                userId, place.Name, candidate.ConsecutiveHits, settings.VisitedRequiredHits);
+                "Updated visit candidate for user {UserId}, place {PlaceId} (hit {Hits}/{Required})",
+                userId, place.Id, candidate.ConsecutiveHits, settings.VisitedRequiredHits);
         }
     }
 
@@ -424,14 +420,14 @@ public class PlaceVisitDetectionService : IPlaceVisitDetectionService
                 JsonSerializer.Serialize(sseEvent));
 
             _logger.LogInformation(
-                "Created visit event {VisitId} for user {UserId}, place {PlaceName} in trip {TripName} (notification sent)",
-                visitEvent.Id, candidate.UserId, place.Name, trip.Name);
+                "Created visit event {VisitId} for user {UserId}, place {PlaceId} in trip {TripId} (notification sent)",
+                visitEvent.Id, candidate.UserId, place.Id, trip.Id);
         }
         else
         {
             _logger.LogInformation(
-                "Created visit event {VisitId} for user {UserId}, place {PlaceName} in trip {TripName} (notification skipped - within cooldown)",
-                visitEvent.Id, candidate.UserId, place.Name, trip.Name);
+                "Created visit event {VisitId} for user {UserId}, place {PlaceId} in trip {TripId} (notification skipped - within cooldown)",
+                visitEvent.Id, candidate.UserId, place.Id, trip.Id);
         }
     }
 
@@ -513,8 +509,7 @@ public class PlaceVisitDetectionService : IPlaceVisitDetectionService
             visit.EndedAtUtc = visit.LastSeenAtUtc;
 
             _logger.LogDebug(
-                "Closed stale visit {VisitId} for place {PlaceName}, ended at {EndedAt}",
-                visit.Id, visit.PlaceNameSnapshot, visit.EndedAtUtc);
+                "Closed stale visit {VisitId} for place {PlaceId}", visit.Id, visit.PlaceId);
         }
 
         if (staleVisits.Count > 0)
