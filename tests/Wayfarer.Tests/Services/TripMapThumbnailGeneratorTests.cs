@@ -47,6 +47,43 @@ public class TripMapThumbnailGeneratorTests : IDisposable
         Assert.Equal(tripId, entry.Fields["TripId"]);
     }
 
+    /// <summary>Routine removals retain trip identity without exposing external storage paths.</summary>
+    [Theory]
+    [InlineData("delete")]
+    [InlineData("invalidate")]
+    [InlineData("orphan")]
+    public async Task ThumbnailRemoval_DiagnosticsOmitStorageRoot(string operation)
+    {
+        using var logs = new TestLogProvider();
+        using var factory = LoggerFactory.Create(b => b.AddProvider(logs));
+        var generator = new TripMapThumbnailGenerator(factory.CreateLogger<TripMapThumbnailGenerator>(), _storage, _config);
+        var tripId = Guid.NewGuid();
+        var path = _storage.Resolve($"{tripId}-800x450.jpg");
+        await File.WriteAllBytesAsync(path, [1]);
+
+        // Storage initialization diagnostics are outside the routine removal boundary.
+        var initialLogCount = logs.Entries.Count;
+        switch (operation)
+        {
+            case "delete":
+                generator.DeleteThumbnails(tripId);
+                break;
+            case "invalidate":
+                generator.InvalidateThumbnails(tripId, DateTime.UtcNow);
+                break;
+            case "orphan":
+                Assert.Equal(1, await generator.CleanupOrphanedThumbnailsAsync(new HashSet<Guid>()));
+                break;
+        }
+
+        Assert.False(File.Exists(path));
+        var entry = Assert.Single(logs.Entries.Skip(initialLogCount));
+        Assert.Equal(LogLevel.Information, entry.Level);
+        Assert.Null(entry.Exception);
+        Assert.DoesNotContain(_root, entry.Message + string.Join(",", entry.Fields.Values));
+        Assert.Equal(tripId, entry.Fields["TripId"]);
+    }
+
     /// <summary>Invalid geographic input is diagnosed by trip identity, never by the supplied coordinate.</summary>
     [Fact]
     public async Task InvalidCoordinates_DiagnosticsOmitPrivateValues()

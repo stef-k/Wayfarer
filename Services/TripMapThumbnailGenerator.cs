@@ -224,7 +224,7 @@ public sealed partial class TripMapThumbnailGenerator : ITripMapThumbnailGenerat
             {
                 if (!TripThumbnailStorage.TryParse(Path.GetFileName(file), out var parsedId) || parsedId != tripId) continue;
                 File.Delete(file);
-                _logger.LogInformation("Deleted thumbnail: {File}", file);
+                _logger.LogInformation("Deleted thumbnail for trip {TripId}", tripId);
             }
         }
         catch (Exception ex)
@@ -252,7 +252,7 @@ public sealed partial class TripMapThumbnailGenerator : ITripMapThumbnailGenerat
                     {
                         File.Delete(file);
                         deleted++;
-                        _logger.LogInformation("Deleted orphaned thumbnail: {File}", file);
+                        _logger.LogInformation("Deleted orphaned thumbnail for trip {TripId}", tripId);
                     }
                 }
             }
@@ -282,7 +282,7 @@ public sealed partial class TripMapThumbnailGenerator : ITripMapThumbnailGenerat
             {
                 if (!TripThumbnailStorage.TryParse(Path.GetFileName(file), out var parsedId) || parsedId != tripId) continue;
                 File.Delete(file);
-                _logger.LogInformation("Invalidated thumbnail for updated trip: {File}", file);
+                _logger.LogInformation("Invalidated thumbnail for updated trip {TripId}", tripId);
             }
         }
         catch (Exception ex)
