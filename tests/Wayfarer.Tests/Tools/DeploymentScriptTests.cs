@@ -168,15 +168,15 @@ public sealed class DeploymentScriptTests
         Assert.Contains("refresh-service.py", File.ReadAllText(RepositoryFile("deployment", "install.sh")));
     }
 
-    /// <summary>Finds source scripts from the test output directory.</summary>
     /// <summary>Proxies pass the application's route-aware browser policy through unchanged.</summary>
     [Fact]
     public void BrowserHeaders_HaveOneDynamicOwner()
     {
         var caddy = File.ReadAllText(RepositoryFile("deploy", "compose", "caddy", "Caddyfile"));
         var nginx = File.ReadAllText(RepositoryFile("deployment", "wayfarer-nginx-vhost.conf"));
+        var activeCaddy = string.Join("\n", caddy.Split('\n').Select(line => line.Split('#')[0]));
         foreach (var header in new[] { "Content-Security-Policy", "X-Frame-Options", "X-Content-Type-Options", "Referrer-Policy" })
-            Assert.DoesNotMatch($@"(?im)^\s*header(?:_down)?\b[^\r\n]*{header}", caddy);
+            Assert.DoesNotContain(header, activeCaddy, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("ALLOWALL", nginx);
         Assert.DoesNotMatch(@"(?im)^\s*add_header\s+(Content-Security-Policy|X-Frame-Options|Referrer-Policy)\b", nginx);
         var staticLocation = Regex.Match(nginx, @"location ~\*[^\{]+\{([^}]+)\}");
@@ -184,6 +184,7 @@ public sealed class DeploymentScriptTests
         Assert.Single(Regex.Matches(nginx, "add_header X-Content-Type-Options").Cast<Match>());
     }
 
+    /// <summary>Finds source scripts from the test output directory.</summary>
     private static string RepositoryFile(params string[] parts) => Path.GetFullPath(
         Path.Combine([AppContext.BaseDirectory, "..", "..", "..", "..", "..", .. parts]));
 }
