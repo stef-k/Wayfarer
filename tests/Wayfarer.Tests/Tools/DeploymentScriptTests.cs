@@ -36,7 +36,8 @@ public sealed class DeploymentScriptTests
     [Fact]
     public void BrowserConsumersUsePreinstalledRuntimeOnly()
     {
-        foreach (var name in new[] { "MapSnapshotService", "TripMapThumbnailGenerator", "TripExportService" })
+        foreach (var name in new[] { "MapSnapshotService", "TripMapThumbnailGenerator", "TripMapThumbnailGenerator.Resources",
+                     "TripExportService", "TripExportService.Pdf" })
         {
             var source = File.ReadAllText(RepositoryFile("Services", name + ".cs"));
             Assert.DoesNotContain("--ignore-certificate-errors", source);
