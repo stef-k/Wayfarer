@@ -1,6 +1,3 @@
-using System.Runtime.InteropServices;
-using Microsoft.Playwright;
-
 namespace Wayfarer.Services;
 
 /// <summary>
@@ -68,71 +65,4 @@ public sealed partial class TripMapThumbnailGenerator
         _replaceThumbnailFile = replacer ?? ReplaceThumbnailFileAtomicallyCore;
     }
 
-    /// <summary>Builds the Chromium launch arguments required for loopback thumbnail capture.</summary>
-    private static List<string> CreateLaunchArguments(string hostResolverRule)
-    {
-        var launchArgs = new List<string>
-        {
-            "--ignore-certificate-errors",
-            "--disable-web-security",
-            $"--host-resolver-rules={hostResolverRule}"
-        };
-
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux) &&
-            RuntimeInformation.OSArchitecture == Architecture.Arm64)
-        {
-            launchArgs.AddRange(new[]
-            {
-                "--no-sandbox",
-                "--disable-dev-shm-usage",
-                "--disable-gpu"
-            });
-        }
-
-        return launchArgs;
-    }
-
-    /// <summary>Closes every created capture resource once and returns the first cleanup failure.</summary>
-    private static async Task<Exception?> DisposeCaptureResourcesAsync(
-        IPage? page,
-        IBrowser? browser,
-        IPlaywright? playwright)
-    {
-        Exception? firstException = null;
-
-        try
-        {
-            if (page != null)
-            {
-                await page.CloseAsync();
-            }
-        }
-        catch (Exception ex)
-        {
-            firstException = ex;
-        }
-
-        try
-        {
-            if (browser != null)
-            {
-                await browser.CloseAsync();
-            }
-        }
-        catch (Exception ex)
-        {
-            firstException ??= ex;
-        }
-
-        try
-        {
-            playwright?.Dispose();
-        }
-        catch (Exception ex)
-        {
-            firstException ??= ex;
-        }
-
-        return firstException;
-    }
 }

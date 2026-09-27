@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Wayfarer.Models;
 using Wayfarer.Parsers;
+using Wayfarer.Services;
 
 namespace Wayfarer.Controllers
 {
@@ -144,8 +145,17 @@ namespace Wayfarer.Controllers
             }
 
             // now call the exporter _outside_ of that try/catch
-            var stream = await _exportSvc.GeneratePdfGuideAsync(trip.Id, progressChannel, cancellationToken);
-            return File(stream, "application/pdf", $"{trip.Name}.pdf");
+            using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, HttpContext.RequestAborted);
+            try
+            {
+                var stream = await _exportSvc.GeneratePdfGuideAsync(trip.Id, progressChannel, linked.Token);
+                return File(stream, "application/pdf", $"{trip.Name}.pdf");
+            }
+            catch (BrowserUnavailableException)
+            {
+                Response.Headers.RetryAfter = "10";
+                return StatusCode(503, "PDF generation is temporarily unavailable. Retry shortly.");
+            }
         }
     }
 }

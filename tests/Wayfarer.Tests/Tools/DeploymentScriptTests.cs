@@ -39,12 +39,19 @@ public sealed class DeploymentScriptTests
         foreach (var name in new[] { "MapSnapshotService", "TripMapThumbnailGenerator", "TripExportService" })
         {
             var source = File.ReadAllText(RepositoryFile("Services", name + ".cs"));
-            Assert.Contains("BrowserRuntime.LaunchAsync(", source);
+            Assert.DoesNotContain("--ignore-certificate-errors", source);
+            Assert.DoesNotContain("--disable-web-security", source);
+            Assert.DoesNotContain("--disable-features=", source);
             Assert.DoesNotContain(".Chromium.LaunchAsync(", source);
             Assert.DoesNotContain("Program.Main", source);
             Assert.DoesNotContain("SetEnvironmentVariable", source);
             Assert.DoesNotContain("ChromeCache", source);
         }
+        var workflow = File.ReadAllText(RepositoryFile("Services", "BrowserWorkflow.cs"));
+        Assert.Contains("BrowserRuntime.LaunchAsync(", workflow);
+        Assert.DoesNotContain("--ignore-certificate-errors", workflow);
+        Assert.DoesNotContain("--disable-web-security", workflow);
+        Assert.DoesNotContain("--disable-features=", workflow);
         var policy = File.ReadAllText(RepositoryFile("Services", "BrowserRuntime.cs"));
         Assert.DoesNotContain("Program.Main", policy);
         Assert.DoesNotContain("Process.Start", policy);

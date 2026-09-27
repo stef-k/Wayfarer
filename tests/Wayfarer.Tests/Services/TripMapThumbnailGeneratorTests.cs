@@ -37,7 +37,7 @@ public class TripMapThumbnailGeneratorTests : IDisposable
         var generator = new TripMapThumbnailGenerator(_logger.Object, _storage, _config);
 
         var result = await generator.GetOrGenerateThumbnailAsync(
-            Guid.NewGuid(), 200, 10, 5, 200, 200, DateTime.UtcNow);
+            Guid.NewGuid(), 200, 10, 5, 800, 450, DateTime.UtcNow);
 
         Assert.Null(result);
     }
@@ -277,7 +277,9 @@ public class TripMapThumbnailGeneratorTests : IDisposable
         playwright.SetupGet(item => item.Chromium).Returns(browserType.Object);
         browserType.Setup(item => item.LaunchAsync(It.IsAny<BrowserTypeLaunchOptions>()))
             .ReturnsAsync(browser.Object);
-        browser.Setup(item => item.NewPageAsync(It.IsAny<BrowserNewPageOptions>()))
+        var context = new Mock<IBrowserContext>();
+        browser.Setup(item => item.NewContextAsync(It.IsAny<BrowserNewContextOptions>())).ReturnsAsync(context.Object);
+        context.Setup(item => item.NewPageAsync())
             .ReturnsAsync(() =>
             {
                 cancellation.Cancel();
@@ -288,7 +290,7 @@ public class TripMapThumbnailGeneratorTests : IDisposable
             Guid.NewGuid(), 10, 20, 5, 800, 450, cancellation.Token,
             () => Task.FromResult(playwright.Object)));
 
-        page.Verify(item => item.CloseAsync(It.IsAny<PageCloseOptions>()), Times.Once);
+        context.Verify(item => item.DisposeAsync(), Times.Once);
         browser.Verify(item => item.CloseAsync(It.IsAny<BrowserCloseOptions>()), Times.Once);
         playwright.Verify(item => item.Dispose(), Times.Once);
     }

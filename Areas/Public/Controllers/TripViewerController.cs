@@ -382,7 +382,7 @@ public class TripViewerController : BaseController
             previewItem.Zoom,
             previewItem.CoverImageUrl,
             previewItem.UpdatedAt,
-            "800x450");
+            "800x450", HttpContext.RequestAborted);
 
         return PartialView("~/Areas/Public/Views/TripViewer/_TripQuickView.cshtml", previewItem);
     }
@@ -489,6 +489,9 @@ public class TripViewerController : BaseController
     [AllowAnonymous]
     public async Task<IActionResult> GetThumbnail(Guid id, string size = "800x450")
     {
+        // Reject unsupported cache identities before querying or generating.
+        if (!BrowserCapturePolicy.IsThumbnailSize(size)) return BadRequest("Supported sizes: 320x180, 800x450.");
+
         // Get trip info needed for thumbnail generation
         var trip = await _dbContext.Trips
             .Where(t => t.IsPublic && t.Id == id)
@@ -518,9 +521,13 @@ public class TripViewerController : BaseController
                 trip.Zoom,
                 trip.CoverImageUrl,
                 trip.UpdatedAt,
-                size);
+                size, HttpContext.RequestAborted);
 
             return Json(new { tripId = id, thumbUrl });
+        }
+        catch (OperationCanceledException) when (HttpContext.RequestAborted.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception ex)
         {
@@ -657,7 +664,7 @@ public class TripViewerController : BaseController
             trip.CenterLon,
             trip.Zoom,
             null, // Do not fall back to cover image — this endpoint serves map snapshots only
-            trip.UpdatedAt);
+            trip.UpdatedAt, cancellationToken: HttpContext.RequestAborted);
 
         // Only the current generated-thumbnail authority may translate public URLs into files.
         if (!_thumbnailStorage.TryResolvePublicUrl(thumbUrl, out var thumbnailPath))
