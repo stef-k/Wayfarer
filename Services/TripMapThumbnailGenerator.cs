@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Runtime.ExceptionServices;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Playwright;
@@ -62,6 +61,8 @@ public sealed partial class TripMapThumbnailGenerator : ITripMapThumbnailGenerat
         DateTime updatedAt,
         CancellationToken cancellationToken = default)
     {
+        BrowserCapturePolicy.ValidateThumbnail(width, height);
+        cancellationToken.ThrowIfCancellationRequested();
         // Validate coordinates
         if (centerLat < -90 || centerLat > 90 || centerLon < -180 || centerLon > 180)
         {
@@ -87,6 +88,9 @@ public sealed partial class TripMapThumbnailGenerator : ITripMapThumbnailGenerat
                 return _storage.PublicUrl(tripId, width, height, updatedAt);
             }
         }
+
+        using var admission = BrowserAdmission.Shared.TryAcquire();
+        if (admission == null) return null;
 
         // Generate new thumbnail by screenshotting the embed view
         try
@@ -119,58 +123,10 @@ public sealed partial class TripMapThumbnailGenerator : ITripMapThumbnailGenerat
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to generate thumbnail for trip {TripId}", tripId);
+            _logger.LogWarning("Thumbnail capture failed for trip {TripId} ({FailureType})", tripId, ex.GetType().Name);
         }
 
         return null;
-    }
-
-    /// <summary>
-    /// Gets the local base URL for Playwright to access the app on the same server.
-    /// Uses http://127.0.0.1:{port} for secure loopback communication.
-    /// </summary>
-    private string GetLocalBaseUrl()
-    {
-        // Try to get Kestrel HTTP endpoint from configuration
-        var httpUrl = _configuration["Kestrel:Endpoints:Http:Url"];
-
-        if (!string.IsNullOrWhiteSpace(httpUrl))
-        {
-            // Parse the port from the URL (e.g., "http://localhost:5000" or "http://*:5000")
-            if (Uri.TryCreate(httpUrl, UriKind.Absolute, out var uri))
-            {
-                return $"http://127.0.0.1:{uri.Port}";
-            }
-
-            // Handle format like "http://*:5000" or "http://+:5000"
-            var portMatch = System.Text.RegularExpressions.Regex.Match(httpUrl, @":(\d+)");
-            if (portMatch.Success && int.TryParse(portMatch.Groups[1].Value, out var portNumber))
-            {
-                return $"http://127.0.0.1:{portNumber}";
-            }
-        }
-
-        // Try ASPNETCORE_URLS environment variable (common in production)
-        var aspnetcoreUrls = Environment.GetEnvironmentVariable("ASPNETCORE_URLS");
-        if (!string.IsNullOrWhiteSpace(aspnetcoreUrls))
-        {
-            // Split by semicolon, look for http:// URL
-            var urls = aspnetcoreUrls.Split(';');
-            foreach (var url in urls)
-            {
-                if (url.Trim().StartsWith("http://", StringComparison.OrdinalIgnoreCase))
-                {
-                    if (Uri.TryCreate(url.Trim(), UriKind.Absolute, out var envUri))
-                    {
-                        return $"http://127.0.0.1:{envUri.Port}";
-                    }
-                }
-            }
-        }
-
-        // Fallback to common default port
-        _logger.LogWarning("Could not determine Kestrel HTTP port from configuration, using default http://127.0.0.1:5000");
-        return "http://127.0.0.1:5000";
     }
 
     /// <summary>
@@ -182,18 +138,13 @@ public sealed partial class TripMapThumbnailGenerator : ITripMapThumbnailGenerat
         double lon,
         int zoom)
     {
-        var authorizedHost = TileCacheService.GetFirstAuthorizedPublicHost(_configuration);
-        if (authorizedHost == null)
-        {
-            return null;
-        }
-
-        var localUri = new Uri(GetLocalBaseUrl());
+        var policy = BrowserCapturePolicy.Resolve(_configuration);
+        if (policy == null) return null;
         var thumbnailZoom = Math.Max(1, zoom - 1);
-        var embedUrl = $"http://{authorizedHost}:{localUri.Port}/Public/Trips/{tripId}" +
+        var embedUrl = policy.Url($"/Public/Trips/{tripId}") +
             $"?embed=true&lat={lat.ToString("F6", CultureInfo.InvariantCulture)}" +
             $"&lon={lon.ToString("F6", CultureInfo.InvariantCulture)}&zoom={thumbnailZoom}";
-        return (embedUrl, $"MAP {authorizedHost} 127.0.0.1");
+        return (embedUrl, policy.HostResolverRule);
     }
 
     /// <summary>
@@ -209,54 +160,22 @@ public sealed partial class TripMapThumbnailGenerator : ITripMapThumbnailGenerat
         CancellationToken cancellationToken,
         Func<Task<IPlaywright>>? playwrightFactory = null)
     {
-        var captureSettings = BuildCaptureSettings(tripId, lat, lon, zoom);
-        if (captureSettings == null)
-        {
-            _logger.LogWarning(
-                "Thumbnail capture skipped for trip {TripId}: no authorized public hostname is configured",
-                tripId);
-            return null;
-        }
-
-        _logger.LogDebug("Capturing thumbnail for trip {TripId} through the loopback endpoint", tripId);
-
-        IPlaywright? playwright = null;
-        IBrowser? browser = null;
-        IPage? page = null;
-        Exception? captureException = null;
+        BrowserCapturePolicy.ValidateThumbnail(width, height);
+        var policy = BrowserCapturePolicy.Resolve(_configuration);
+        var settings = BuildCaptureSettings(tripId, lat, lon, zoom);
+        if (policy == null || settings == null) return null;
+        await using var workflow = await BrowserWorkflow.StartAsync(policy, cancellationToken, playwrightFactory);
         try
         {
-            playwright = await (playwrightFactory?.Invoke() ?? Microsoft.Playwright.Playwright.CreateAsync());
+            await using var context = await workflow.NewContextAsync(width, height);
+            var page = await context.Context.NewPageAsync();
+            var bytes = await CapturePageAsync(page, settings.Value.EmbedUrl, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
-
-            var launchArgs = CreateLaunchArguments(captureSettings.Value.HostResolverRule);
-            browser = await BrowserRuntime.LaunchAsync(playwright, new BrowserTypeLaunchOptions
-            {
-                Headless = true,
-                Args = launchArgs
-            });
-            cancellationToken.ThrowIfCancellationRequested();
-
-            page = await browser.NewPageAsync(new BrowserNewPageOptions
-            {
-                ViewportSize = new ViewportSize { Width = width, Height = height }
-            });
-            cancellationToken.ThrowIfCancellationRequested();
-
-            return await CapturePageAsync(page, captureSettings.Value.EmbedUrl, cancellationToken);
+            return bytes;
         }
-        catch (Exception ex)
+        catch (Exception) when (cancellationToken.IsCancellationRequested)
         {
-            captureException = ex;
-            throw;
-        }
-        finally
-        {
-            var cleanupException = await DisposeCaptureResourcesAsync(page, browser, playwright);
-            if (captureException == null && cleanupException != null)
-            {
-                ExceptionDispatchInfo.Capture(cleanupException).Throw();
-            }
+            throw new OperationCanceledException(cancellationToken);
         }
     }
 
@@ -274,7 +193,7 @@ public sealed partial class TripMapThumbnailGenerator : ITripMapThumbnailGenerat
         cancellationToken.ThrowIfCancellationRequested();
 
         if (response?.Ok != true ||
-            !string.Equals(response.Url, embedUrl, StringComparison.Ordinal))
+            !string.Equals(response.Url, embedUrl, StringComparison.Ordinal) || page.Url != embedUrl)
         {
             return null;
         }

@@ -397,3 +397,25 @@ prove one bounded failure without retry; deployment guards reject runtime
 installer calls in all current consumers. Run the browser category for existing
 PDF/attribution and screenshot evidence, then the built-asset smoke and both Code
 Guard scopes. Final Docker packaging and real native migration remain #603/#604.
+
+### Bounded PDF and thumbnail capture
+
+`BrowserCaptureBoundaryTests` uses the installed Chromium bundle and a local HTTP
+listener to prove first-party resource loading, application-cookie-only transfer,
+redirect/off-origin rejection before contact, blocked service workers and disabled
+WebSocket egress. `TripPdfBrowserTests` exercises the production PDF orchestration
+with a controlled Playwright transport: one launch across 64 maps plus final PDF,
+complete later textual content, exact-once closure, and active caller/deadline
+cancellation. Thumbnail and controller tests own fixed dimensions, cache-hit
+admission bypass, stale-file preservation, public/owner authorization and request
+token propagation.
+
+The existing `tools/compose/qualify.py --image <local-app-image> --db-image <local-db-image>`
+qualification also checks public JPEG/PDF capture, authenticated owner private PDF,
+anonymous private denial and spoofed forwarding headers through managed Caddy.
+Its synthetic owner has both Admin and User roles so the existing User-area map
+page is reachable; production role/authorization rules are unchanged. Build the
+root Dockerfile locally under a test-only tag before this disposable qualification.
+No stable image publication, public-host acceptance or mobile/device qualification
+is implied. Native ARM64 sandbox prerequisites are tracked separately in
+[#681](https://github.com/stef-k/Wayfarer/issues/681).

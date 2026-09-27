@@ -49,7 +49,9 @@ Geoapify reverse geocoding and routing use separate cohesive adapters with fixed
   - Clickable place names → Google search
   - Coordinates → Google Maps links
   - Map snapshots via `MapSnapshotService`
-- Supports cancellation via `CancellationToken`.
+- A PDF holds one of two process-wide, nonqueued browser-work leases and launches Chromium once for all maps and final rendering. Saturation returns 503 with short retry guidance.
+- Generates at most 64 maps (overview, then regions, places and segments in display order); later map images are omitted while the complete textual itinerary remains.
+- A fixed five-minute server deadline and request cancellation close active Chromium work, release admission and return no partial PDF. Individual Playwright operations retain finite timeouts.
 - SSE progress updates during generation.
 - **Key File**: `Services/TripExportService.cs`
 
@@ -77,14 +79,17 @@ Geoapify reverse geocoding and routing use separate cohesive adapters with fixed
 
 ### TripMapThumbnailGenerator
 - Generates map thumbnail images for trips.
-- Uses Playwright to capture map screenshots.
+- Uses Playwright to capture map screenshots at exactly `320x180` or `800x450`; unsupported public `size` values return 400 and internal generation rejects other pairs.
+- Fresh cache hits bypass browser admission. Cache misses share the two-workflow cap with PDF exports and retain cover/placeholder fallbacks when busy.
+- Cancellation propagates through Preview, Thumbnail and MapSnapshot; atomic publication and stale-file preservation remain unchanged.
 - **Key File**: `Services/TripMapThumbnailGenerator.cs`
 
 ### MapSnapshotService
-- Captures map screenshots using Playwright's Chromium.
-- Manages Playwright browser installation and caching.
-- Handles image proxying for Google My Maps integration.
-- Cross-platform support (Windows, Linux x64/ARM64, macOS).
+- Captures fixed `800x800` overview and `600x600` detail maps inside the PDF workflow's existing browser, with a fresh context per map.
+- `BrowserCapturePolicy` derives the single capture origin from the existing authorized `AllowedHosts` authority and configured Kestrel HTTP listener. Missing trusted configuration fails closed; request Host and forwarding headers cannot select capture destinations.
+- Browser requests permit only that exact first-party origin. Transport is pinned to loopback; all redirects are rejected without following them. Off-origin resources, service workers, downloads and WebSockets are blocked. Tiles and note images use existing Wayfarer server endpoints.
+- Private captures transfer only the Identity application cookie (including its chunks), scoped to the capture host. Browser contexts never inherit the entire caller cookie jar.
+- `BrowserRuntime` uses the preinstalled, version-matched Chromium bundle. Capture requires no certificate/web-security bypass or public-DNS hairpinning. Native Linux ARM64 sandbox qualification is tracked in [#681](https://github.com/stef-k/Wayfarer/issues/681) as a separate prerequisite follow-up; this slice does not change Docker platforms.
 - **Key File**: `Services/MapSnapshotService.cs`
 
 ---

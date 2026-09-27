@@ -70,10 +70,10 @@ public sealed class TripThumbnailService : ITripThumbnailService
         string size = "800x450",
         CancellationToken cancellationToken = default)
     {
-        // Parse size string (e.g., "800x450")
-        var parts = size.Split('x');
-        var width = parts.Length >= 1 && int.TryParse(parts[0], out var w) ? w : 800;
-        var height = parts.Length >= 2 && int.TryParse(parts[1], out var h) ? h : 450;
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!BrowserCapturePolicy.IsThumbnailSize(size))
+            throw new ArgumentException("Supported thumbnails are 320x180 and 800x450.", nameof(size));
+        var (width, height) = size == "320x180" ? (320, 180) : (800, 450);
 
         // Priority 1: Map snapshot (if coordinates are available)
         if (lat.HasValue && lon.HasValue && zoom.HasValue)
@@ -88,6 +88,10 @@ public sealed class TripThumbnailService : ITripThumbnailService
                 {
                     return mapUrl;
                 }
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
             }
             catch (Exception ex)
             {

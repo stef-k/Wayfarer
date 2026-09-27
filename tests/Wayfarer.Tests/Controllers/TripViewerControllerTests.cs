@@ -25,6 +25,45 @@ namespace Wayfarer.Tests.Controllers;
 [Collection(ImageProxyStaticStateTestCollection.Name)]
 public partial class TripViewerControllerTests : TestBase
 {
+    /// <summary>Malformed sizes fail before service work, including for missing trips.</summary>
+    [Theory]
+    [InlineData("800x450x1")]
+    [InlineData("999999x999999")]
+    [InlineData("400x300")]
+    public async Task ThumbnailRejectsUnsupportedSize(string size)
+    {
+        var service = new Mock<ITripThumbnailService>(MockBehavior.Strict);
+        var controller = BuildController(CreateDbContext(), thumbnailService: service.Object);
+        Assert.IsType<BadRequestObjectResult>(await controller.GetThumbnail(Guid.NewGuid(), size));
+        service.VerifyNoOtherCalls();
+    }
+
+    /// <summary>All three public browser entry points retain public-only authorization and propagate request abortion.</summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task BrowserRoutesPreservePublicBoundaryAndRequestToken(bool isPublic)
+    {
+        using var db = CreateDbContext();
+        var trip = new Trip { Id = Guid.NewGuid(), UserId = "owner", Name = "Trip", IsPublic = isPublic,
+            CenterLat = 1, CenterLon = 2, Zoom = 3, UpdatedAt = DateTime.UtcNow };
+        db.Users.Add(TestDataFixtures.CreateUser(id: "owner"));
+        db.Trips.Add(trip);
+        await db.SaveChangesAsync();
+        using var abort = new CancellationTokenSource();
+        var service = new Mock<ITripThumbnailService>();
+        service.Setup(s => s.GetThumbUrlAsync(trip.Id, 1, 2, 3, null, trip.UpdatedAt, "800x450", abort.Token))
+            .ReturnsAsync((string?)null);
+        var controller = BuildController(db, thumbnailService: service.Object);
+        controller.HttpContext.RequestAborted = abort.Token;
+        await controller.Preview(trip.Id);
+        await controller.GetThumbnail(trip.Id);
+        await controller.GetMapSnapshot(trip.Id);
+        service.Verify(s => s.GetThumbUrlAsync(trip.Id, 1, 2, 3, null, trip.UpdatedAt, "800x450", abort.Token),
+            isPublic ? Times.Exactly(3) : Times.Never());
+        service.VerifyNoOtherCalls();
+    }
+
     [Fact]
     public async Task View_ReturnsNotFound_WhenPrivate()
     {
