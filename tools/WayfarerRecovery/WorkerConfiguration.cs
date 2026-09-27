@@ -18,6 +18,8 @@ public sealed record WorkerConfiguration
     public int JitterMinutes { get; init; } = 15;
     public int Attempts { get; init; } = 3;
     public int DeadlineSeconds { get; init; } = 600;
+    public string Uploads { get; init; } = "uploads";
+    public string Ring { get; init; } = "data-protection";
     public SourceIdentity Source { get; init; } = new();
 
     /// <summary>Strictly read the host-generated contract, never ambient environment or another policy file.</summary>
@@ -31,6 +33,8 @@ public sealed record WorkerConfiguration
             config.Attempts is < 1 or > 3 || config.DeadlineSeconds is < 30 or > 3600 ||
             config.DestinationKind is not ("local" or "mounted") || config.Source.ExpectedMigrations.Length == 0)
             throw new IOException("Invalid worker configuration.");
+        SafeDirectory.ValidateName(config.Uploads);
+        SafeDirectory.ValidateName(config.Ring);
         return config;
     }
 

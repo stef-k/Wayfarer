@@ -87,8 +87,13 @@ public sealed class SafeDirectory : IDisposable
     public Facts Identity => Inspect(handle);
 
     /// <summary>Enumerate names only; each subsequent open independently enforces links/mount/type rules.</summary>
-    public string[] Names() => Directory.EnumerateFileSystemEntries($"/proc/self/fd/{handle.DangerousGetHandle()}")
-        .Select(Path.GetFileName).Select(name => name!).Order(StringComparer.Ordinal).ToArray();
+    public string[] Names(int limit = ArchiveContract.EntryLimit)
+    {
+        var names = Directory.EnumerateFileSystemEntries($"/proc/self/fd/{handle.DangerousGetHandle()}")
+            .Take(limit + 1).Select(Path.GetFileName).Select(name => name!).ToArray();
+        if (names.Length > limit) throw new IOException("Directory scan limit exceeded.");
+        return names.Order(StringComparer.Ordinal).ToArray();
+    }
 
     /// <summary>Open a child directory on this same mount, retaining its handle throughout traversal.</summary>
     public SafeDirectory Child(string name)

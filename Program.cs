@@ -37,6 +37,13 @@ if (args.Length > 0 && args[0] == "data-protection")
     return;
 }
 
+// Read-only recovery inspection exits before application or scheduler startup.
+if (args is ["recovery-source"])
+{
+    Environment.ExitCode = await RecoverySourceCli.RunAsync(Console.Out, Console.Error);
+    return;
+}
+
 // Lifecycle commands exit before web service registration or scheduler construction.
 if (LifecycleCli.Handles(args))
 {

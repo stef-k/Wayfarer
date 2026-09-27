@@ -1,0 +1,105 @@
+using System.Text.Json;
+using WayfarerRecovery;
+
+namespace WayfarerCtl;
+
+/// <summary>Owns actual maintenance containers through completion/cancellation, not merely Docker client processes.</summary>
+public sealed class BackupCommands(IProcessRunner runner, ITerminal terminal)
+{
+    /// <summary>Validate capability, reserve lifecycle intent under the shared lock and invoke the same worker.</summary>
+    public async Task<int> RunAsync(string root, Deployment config, string[] args, CancellationToken token)
+    {
+        if (args is ["backup", "configure", ..])
+        {
+            var next = await new BackupConfiguration(runner).ConfigureAsync(root, config, args[2..], token);
+            if (next.Backup!.Enabled) await Required(BackupCompose.Command(root, next, "up", "-d", "--no-deps", "--pull", "never", "backup-scheduler"), token);
+            terminal.Write(next.Backup.Enabled ? "Backup configured; scheduler enabled." : "Backup disabled; scheduler stopped.");
+            return 0;
+        }
+        if (File.Exists(Path.Combine(root, "backup-transition.json"))) throw new UsageException("Interrupted backup configuration; run backup configure --recover.");
+        var policy = config.Backup ?? throw new UsageException("Backup is not configured.");
+        BackupCompose.Check(root, config);
+        if (!policy.Enabled && args[0] == "backup") throw new UsageException("Backup disabled.");
+        var control = Path.Combine(root, "recovery-control");
+        var container = config.Project + "-backup-" + Guid.NewGuid().ToString("N");
+        var operation = args[0] == "verify-backup" ? "verify" : args[0];
+        var quiesced = args is ["backup", "--quiesced"];
+        var reservation = Guid.NewGuid().ToString("N");
+        using (var exclusion = new RecoveryLock(Path.Combine(control, "recovery.lock")))
+        {
+            if (File.Exists(Path.Combine(control, "host-operation.json"))) throw new IOException("Unresolved recovery operation.");
+            if (quiesced)
+            {
+                await Required(config.Compose(root, "stop", "--timeout", "70", "wayfarer"), token);
+                await AssertNoWriters(config, token);
+            }
+            ProtectedFiles.Create(Path.Combine(control, "host-operation.json"), JsonSerializer.Serialize(new HostRecoveryOperation(1, reservation, container, quiesced)), 1654);
+        }
+        var stopped = false;
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);
+        deadline.CancelAfter(TimeSpan.FromSeconds(policy.DeadlineSeconds + 30));
+        try
+        {
+            var workerArgs = new List<string> { operation, "--host-operation", reservation };
+            if (operation == "verify" && args.Length == 2) workerArgs.Add(args[1]);
+            await Required(BackupCompose.Command(root, config, ["run", "-d", "--no-deps", "--name", container, "backup-worker", .. workerArgs]), deadline.Token);
+            var wait = await runner.RunAsync(["wait", container], null, deadline.Token);
+            if (wait.Code != 0 || !int.TryParse(wait.Output.Trim(), out var code)) throw new IOException("Worker state unknown.");
+            stopped = true;
+            var logs = await runner.RunAsync(["logs", "--tail", "1", container], null, deadline.Token);
+            if (logs.Code != 0 || logs.Output.Length > 32768) throw new IOException("Worker result unavailable.");
+            using var result = JsonDocument.Parse(logs.Output);
+            Present(result.RootElement);
+            return code == 0 ? 0 : 1;
+        }
+        finally
+        {
+            // Independent cleanup deadline survives Ctrl-C; a lost daemon must never be called successful cancellation.
+            using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(45));
+            if (!stopped)
+            {
+                var stop = await runner.RunAsync(["stop", "--time", "30", container], null, cleanup.Token);
+                var wait = await runner.RunAsync(["wait", container], null, cleanup.Token);
+                stopped = stop.Code == 0 && wait.Code == 0;
+            }
+            if (stopped)
+            {
+                await runner.RunAsync(["rm", container], null, cleanup.Token);
+                using var exclusion = new RecoveryLock(Path.Combine(control, "recovery.lock"));
+                File.Delete(Path.Combine(control, "host-operation.json"));
+            }
+            else terminal.Error("Worker state unknown; recovery reservation retained. Inspect the owned container before recovery.");
+            if (quiesced) terminal.Write("Application remains stopped after deliberate quiesced capture; use start when the protected transition is finished.");
+        }
+    }
+
+    /// <summary>No running container may share the durable application volume during quiesced capture.</summary>
+    private async Task AssertNoWriters(Deployment config, CancellationToken token)
+    {
+        var result = await runner.RunAsync(["ps", "-q", "--filter", "volume=" + config.Project + "_app-data"], null, token);
+        if (result.Code != 0 || !string.IsNullOrWhiteSpace(result.Output)) throw new IOException("Application volume still has an active consumer.");
+    }
+
+    /// <summary>Print only generated UUID/name/state fields, never raw manifest or child diagnostic strings.</summary>
+    private void Present(JsonElement result)
+    {
+        if (result.GetProperty("Schema").GetInt32() != 1) throw new IOException("Unsupported worker result.");
+        if (result.TryGetProperty("Failure", out _)) { terminal.Error("Recovery failed; source/destination/lock or archive validation did not pass."); return; }
+        if (result.TryGetProperty("Archives", out var archives))
+        {
+            foreach (var row in archives.EnumerateArray())
+                terminal.Write("Archive " + row.GetProperty("Archive").GetGuid() + " (listing only; not fully verified)");
+            if (result.GetProperty("More").GetBoolean()) terminal.Write("Additional archives omitted by the listing cap.");
+            return;
+        }
+        terminal.Write("Archive " + result.GetProperty("Archive").GetGuid());
+        if (result.TryGetProperty("IntegrityValid", out var integrity))
+            terminal.Write($"Integrity: {integrity.GetBoolean()}; compatible: {result.GetProperty("CompatibilitySupported").GetBoolean()}");
+        if (result.TryGetProperty("RetentionSucceeded", out var retention)) terminal.Write("Retention succeeded: " + retention.GetBoolean());
+    }
+
+    private async Task Required(string[] arguments, CancellationToken token)
+    {
+        if ((await runner.RunAsync(arguments, null, token)).Code != 0) throw new IOException("Recovery container operation failed.");
+    }
+}

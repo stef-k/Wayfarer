@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Additive inspection assembly runs with the immutable application's existing runtime/dependencies. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../Wayfarer.csproj" />
+    <Compile Include="../../CommandLine/RecoverySourceCli.cs" Link="RecoverySourceCli.cs" />
+  </ItemGroup>
+</Project>

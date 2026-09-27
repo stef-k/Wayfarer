@@ -6,6 +6,19 @@ namespace Wayfarer.Tests.Services;
 /// <summary>CLI contract tests at the command/process seam, without Docker or application-domain mocks.</summary>
 public sealed class WayfarerCtlTests
 {
+    /// <summary>Backup opt-in requires a stable schema2 identity; schema1 remains readable without policy.</summary>
+    [Fact]
+    public void InstallationSchemaRequiresExplicitBackupIdentity()
+    {
+        var legacy = new Deployment { Bundle = "/opt/wayfarer/release", Hostname = "wayfarer.example.org",
+            AppDigest = "sha256:" + new string('a', 64) };
+        legacy.Validate();
+        Assert.Throws<UsageException>(() => (legacy with { Schema = 2 }).Validate());
+        (legacy with { Schema = 2, Installation = Guid.NewGuid() }).Validate();
+        Assert.Throws<UsageException>(() => (legacy with { Installation = Guid.NewGuid() }).Validate());
+        Assert.Throws<UsageException>(() => (legacy with { Schema = 3 }).Validate());
+    }
+
     [Theory]
     [InlineData("help")]
     [InlineData("--help")]

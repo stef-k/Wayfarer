@@ -24,18 +24,32 @@ public static class WorkerCli
                 await RuntimeCheckAsync(token);
                 return 0;
             }
+            string? hostOperation = null;
+            if (arguments.Length >= 3 && arguments[1] == "--host-operation")
+            {
+                hostOperation = arguments[2];
+                arguments = [arguments[0], .. arguments[3..]];
+            }
+            if (arguments is ["schedule"])
+            {
+                await new RecoveryScheduler(WorkerConfiguration.Load("/config/worker.json")).RunAsync(token);
+                return 0;
+            }
             if (arguments is not (["backup"] or ["backups"] or ["verify"] or ["verify", _])) return 2;
             var config = WorkerConfiguration.Load("/config/worker.json");
             var engine = new RecoveryEngine(config);
             if (arguments[0] == "backup")
             {
-                var result = await engine.BackupAsync(null, token);
+                var result = await engine.BackupAsync(null, token, hostOperation);
                 Write(result);
                 return result.RetentionSucceeded ? 0 : 1;
             }
             using var exclusion = new RecoveryLock("/control/recovery.lock");
+            HostRecoveryOperation.Validate(hostOperation);
+            using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);
+            deadline.CancelAfter(TimeSpan.FromSeconds(config.DeadlineSeconds));
             using var destination = config.OpenDestination();
-            var manifests = engine.List(destination);
+            var manifests = engine.List(destination, deadline.Token);
             if (arguments[0] == "backups")
             {
                 Write(new { Schema = 1, Verification = "not-fully-verified", More = manifests.Length > 20,
@@ -50,8 +64,6 @@ public static class WorkerCli
                 ? ArchiveContract.Name(config.Installation, manifests[0].Completed, manifests[0].Archive)
                 : throw new IOException("No complete owned archive.");
             using var staging = new RecoveryTaskDirectory();
-            using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);
-            deadline.CancelAfter(TimeSpan.FromSeconds(config.DeadlineSeconds));
             var verified = await ArchiveVerifier.VerifyAsync(destination, name, staging.Path, config.Source, config.Installation, deadline.Token);
             Write(verified);
             return verified.CompatibilitySupported ? 0 : 1;

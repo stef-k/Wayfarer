@@ -9,22 +9,29 @@ namespace WayfarerRecovery;
 public sealed class RecoveryEngine(WorkerConfiguration config)
 {
     /// <summary>Produce one online set while holding the installation-local recovery exclusion.</summary>
-    public async Task<BackupResult> BackupAsync(DateTimeOffset? slot, CancellationToken token)
+    public async Task<BackupResult> BackupAsync(DateTimeOffset? slot, CancellationToken token, string? hostOperation = null)
     {
         if (!config.Enabled) throw new IOException("Backup disabled.");
         using var exclusion = new RecoveryLock("/control/recovery.lock");
+        return await BackupLockedAsync(slot, token, hostOperation);
+    }
+
+    /// <summary>Shared capture invoked only while the engine or scheduler owns recovery exclusion.</summary>
+    internal async Task<BackupResult> BackupLockedAsync(DateTimeOffset? slot, CancellationToken token, string? hostOperation = null)
+    {
+        var quiesced = HostRecoveryOperation.Validate(hostOperation);
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);
         deadline.CancelAfter(TimeSpan.FromSeconds(config.DeadlineSeconds));
         using var destination = config.OpenDestination();
         using var staging = new RecoveryTaskDirectory();
         var started = DateTimeOffset.UtcNow;
         var database = await DatabaseCapture.CaptureAsync(staging.Path, "/run/secrets/app-password", config.Source, deadline.Token);
-        var uploads = new DirectoryCapture().Capture("/source/uploads", System.IO.Path.Combine(staging.Path, "uploads.tar.gz"), "uploads", deadline.Token);
-        var ring = new DirectoryCapture().Capture("/source/data-protection", System.IO.Path.Combine(staging.Path, "data-protection.tar.gz"), "data-protection", deadline.Token);
+        var uploads = new DirectoryCapture().Capture("/source/" + config.Uploads, System.IO.Path.Combine(staging.Path, "uploads.tar.gz"), "uploads", deadline.Token);
+        var ring = new DirectoryCapture().Capture("/source/" + config.Ring, System.IO.Path.Combine(staging.Path, "data-protection.tar.gz"), "data-protection", deadline.Token);
         var manifest = new RecoveryManifest
         {
             Installation = config.Installation, Archive = Guid.NewGuid(), Started = started, Completed = DateTimeOffset.UtcNow,
-            Source = config.Source, Database = database.Identity, Components = [database.Component, ring, uploads], ScheduledSlot = slot
+            Mode = quiesced ? "quiesced" : "online", Source = config.Source, Database = database.Identity, Components = [database.Component, ring, uploads], ScheduledSlot = slot
         };
         ArchiveContract.Validate(manifest);
         var name = ArchiveContract.Name(config.Installation, manifest.Completed, manifest.Archive);
@@ -43,12 +50,13 @@ public sealed class RecoveryEngine(WorkerConfiguration config)
     }
 
     /// <summary>Listing validates owned complete metadata pairs without claiming full integrity verification.</summary>
-    public RecoveryManifest[] List(SafeDirectory destination)
+    public RecoveryManifest[] List(SafeDirectory destination, CancellationToken token = default)
     {
         var results = new List<RecoveryManifest>();
         var prefix = $"wayfarer-recovery-v1_{config.Installation:D}_";
-        foreach (var name in destination.Names().Where(name => name.StartsWith(prefix, StringComparison.Ordinal) && name.EndsWith(".tar")))
+        foreach (var name in destination.Names(4096).Where(name => name.StartsWith(prefix, StringComparison.Ordinal) && name.EndsWith(".tar")))
         {
+            token.ThrowIfCancellationRequested();
             try
             {
                 using var file = destination.Read(name);
@@ -76,7 +84,7 @@ public sealed class RecoveryEngine(WorkerConfiguration config)
     private async Task RetainAsync(SafeDirectory destination, CancellationToken token)
     {
         var valid = new List<string>();
-        foreach (var manifest in List(destination))
+        foreach (var manifest in List(destination, token))
         {
             using var staging = new RecoveryTaskDirectory();
             var name = ArchiveContract.Name(config.Installation, manifest.Completed, manifest.Archive);

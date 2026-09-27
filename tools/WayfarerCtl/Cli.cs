@@ -53,6 +53,10 @@ public sealed class Cli(IProcessRunner runner, ITerminal terminal)
         if (!File.Exists(Path.Combine(root, "setup-complete")))
             throw new UsageException("Setup incomplete; follow interrupted-setup recovery before lifecycle/user operations.");
         using var operationLock = Setup.Lock(root);
+        if (args[0] is "backup" or "backups" or "verify-backup")
+            return await new BackupCommands(runner, terminal).RunAsync(root, config, args, token);
+        using var recovery = config.Backup is not null ? new WayfarerRecovery.RecoveryLock(Path.Combine(root, "recovery-control/recovery.lock")) : null;
+        if (File.Exists(Path.Combine(root, "recovery-control/host-operation.json"))) throw new IOException("Unresolved recovery operation.");
         if (args[0] == "user") return await UserAsync(root, config, args, token);
         return await LifecycleAsync(root, config, args[0], token);
     }
@@ -60,6 +64,10 @@ public sealed class Cli(IProcessRunner runner, ITerminal terminal)
     /// <summary>Validate all direct argument forms before touching deployment state.</summary>
     public static void ValidateCommand(string[] args)
     {
+        if (args is ["backup", "configure", ..]) { BackupConfiguration.Options(args[2..]); return; }
+        if (args is ["backup"] or ["backup", "--quiesced"] or ["backups"] or ["verify-backup"]) return;
+        if (args is ["verify-backup", var archive] && archive.Length < 256 && archive.StartsWith("wayfarer-recovery-v1_") &&
+            archive.EndsWith(".tar") && !archive.Any(c => char.IsControl(c) || c is '/' or '\\' or ':')) return;
         if (args is ["setup", ..]) { Setup.Options(args[1..]); return; }
         if (args is ["status" or "doctor" or "start" or "stop" or "restart"]) return;
         if (args is ["logs", ..]) { LogOptions(args[1..]); return; }
@@ -99,11 +107,15 @@ public sealed class Cli(IProcessRunner runner, ITerminal terminal)
     /// <summary>No pull, recreate, migration or volume deletion is hidden inside ordinary lifecycle.</summary>
     private async Task<int> LifecycleAsync(string root, Deployment config, string operation, CancellationToken token)
     {
+        if (operation is "stop" or "restart" && config.Backup is not null)
+            await RequiredAsync(BackupCompose.Command(root, config, "stop", "--timeout", "30", "backup-scheduler"), null, token);
         if (operation is "stop" or "restart")
             await RequiredAsync(config.Compose(root, "stop", "--timeout", "70"), null, token);
         if (operation != "stop")
         {
             await RequiredAsync(config.Compose(root, "up", "-d", "--no-recreate", "--pull", "never", "--wait", "--wait-timeout", "180"), null, token);
+            if (config.Backup is { Enabled: true })
+                await RequiredAsync(BackupCompose.Command(root, config, "up", "-d", "--no-deps", "--pull", "never", "backup-scheduler"), null, token);
             return await new Diagnostics(runner, terminal).RunAsync(root, config, true, token);
         }
         terminal.Write("Stopped. All durable volumes retained."); return 0;

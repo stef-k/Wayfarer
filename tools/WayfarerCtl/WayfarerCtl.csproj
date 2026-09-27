@@ -11,6 +11,7 @@
     <InvariantGlobalization>true</InvariantGlobalization>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="../WayfarerRecovery/WayfarerRecovery.csproj" />
     <InternalsVisibleTo Include="Wayfarer.Tests" />
   </ItemGroup>
 </Project>
