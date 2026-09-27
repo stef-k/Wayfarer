@@ -124,7 +124,7 @@ public class InvitationsController : ControllerBase
             _logger.LogWarning("Invitation creation failed - invalid argument");
             return BadRequest(new { message = GroupOperationErrors.Message(ex, "invite") });
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             _logger.LogWarning("Invitation creation failed");
             return BadRequest(new { message = "Failed to create invitation." });

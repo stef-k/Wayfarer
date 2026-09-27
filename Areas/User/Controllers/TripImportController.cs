@@ -91,7 +91,8 @@ public class TripImportController : BaseController
         }
         catch (Exception ex)
         {
-            _logger.LogError("Trip import failed for user {UserId}; trace {TraceIdentifier} Failure type: {ExceptionType}; request {RequestId}", userId, HttpContext.TraceIdentifier, ex.GetType().Name, HttpContext.TraceIdentifier);
+            _logger.LogError("Trip import failed for user {UserId}; failure type {ExceptionType}; request {RequestId}",
+                userId, ex.GetType().Name, HttpContext.TraceIdentifier);
             return ImportError(StatusCodes.Status500InternalServerError, "import_failed", "Import failed. Please try again.");
         }
     }

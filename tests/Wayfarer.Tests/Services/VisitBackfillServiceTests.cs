@@ -1,3 +1,5 @@
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using FluentAssertions;
 using Wayfarer.Models.Dtos;
 using Xunit;
@@ -9,8 +11,30 @@ namespace Wayfarer.Tests.Services;
 /// Since the service relies on PostGIS raw SQL for data retrieval,
 /// these tests verify the ordering and dedup contracts on pre-built DTOs.
 /// </summary>
-public class VisitBackfillServiceTests
+public class VisitBackfillServiceTests : Wayfarer.Tests.Infrastructure.TestBase
 {
+    /// <summary>Backfill analysis retains trip identity and counts without the private trip title.</summary>
+    [Fact]
+    public async Task Preview_DoesNotLogPrivateTripName()
+    {
+        using var db = CreateDbContext();
+        var trip = new Wayfarer.Models.Trip { Id = Guid.NewGuid(), UserId = "u1", Name = "private-trip-663" };
+        db.Trips.Add(trip);
+        await db.SaveChangesAsync();
+        using var logs = new Wayfarer.Tests.Infrastructure.TestLogProvider();
+        using var factory = LoggerFactory.Create(b => b.SetMinimumLevel(LogLevel.Trace).AddProvider(logs));
+        var settings = Moq.Mock.Of<Wayfarer.Parsers.IApplicationSettingsService>(s => s.GetSettings() == new ApplicationSettings());
+        var service = new Wayfarer.Services.VisitBackfillService(db, settings, factory.CreateLogger<Wayfarer.Services.VisitBackfillService>());
+        await service.PreviewAsync("u1", trip.Id, null, null);
+        Assert.NotEmpty(logs.Entries);
+        Assert.All(logs.Entries, entry =>
+        {
+            Assert.Null(entry.Exception);
+            Assert.DoesNotContain("private-trip-663", entry.Message + string.Join(",", entry.Fields.Values));
+        });
+        Assert.Contains(logs.Entries, entry => Equals(entry.Fields.GetValueOrDefault("TripId"), trip.Id));
+    }
+
     /// <summary>
     /// Verifies that suggested visits do not contain duplicate (PlaceId, VisitDate) pairs.
     /// </summary>

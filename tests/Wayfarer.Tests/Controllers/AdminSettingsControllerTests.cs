@@ -373,7 +373,7 @@ public partial class AdminSettingsControllerTests : TestBase
     }
 
     private (SettingsController controller, Mock<IApplicationSettingsService> settingsMock, TileCacheService tileCache)
-        BuildController(ApplicationDbContext? db = null, IApplicationSettingsService? settingsService = null, Wayfarer.Services.LocationImports.LocationImportStagedFiles? files = null)
+        BuildController(ApplicationDbContext? db = null, IApplicationSettingsService? settingsService = null, Wayfarer.Services.LocationImports.LocationImportStagedFiles? files = null, IServiceScopeFactory? scopes = null, SseService? sse = null)
     {
         db ??= CreateDbContext();
 
@@ -414,14 +414,42 @@ public partial class AdminSettingsControllerTests : TestBase
             tileCache,
             Mock.Of<IProxiedImageCacheService>(),
             env.Object,
-            scopeFactory,
-            new SseService());
+            scopes ?? scopeFactory,
+            sse ?? new SseService());
 
         var httpContext = BuildHttpContextWithUser("admin", "Admin");
         controller.ControllerContext = new ControllerContext { HttpContext = httpContext };
         controller.TempData = new TempDataDictionary(httpContext, Mock.Of<ITempDataProvider>());
 
         return (controller, settingsMock!, tileCache);
+    }
+
+    /// <summary>Background purge failures keep their event identity without exposing exception payloads.</summary>
+    [Fact]
+    public async Task PurgeFailure_EmitsBoundedSseEvent()
+    {
+        var scopes = new Mock<IServiceScopeFactory>();
+        scopes.Setup(s => s.CreateScope()).Throws(new IOException("private-purge-path-663"));
+        var sse = new PurgeFailureSse();
+        var (controller, _, _) = BuildController(scopes: scopes.Object, sse: sse);
+        Assert.IsType<AcceptedResult>(controller.DeleteAllMapTileCache());
+        var payload = await sse.Failure.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        using var json = System.Text.Json.JsonDocument.Parse(payload);
+        Assert.Equal("failed", json.RootElement.GetProperty("eventType").GetString());
+        Assert.Equal("all", json.RootElement.GetProperty("purgeType").GetString());
+        Assert.Equal("Cache purge failed. Please try again.", json.RootElement.GetProperty("errorMessage").GetString());
+        Assert.DoesNotContain("private-purge-path-663", payload);
+    }
+
+    /// <summary>Completes when the background worker publishes its actual failure event.</summary>
+    private sealed class PurgeFailureSse : SseService
+    {
+        public TaskCompletionSource<string> Failure { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public override Task BroadcastAsync(string channel, string data)
+        {
+            Failure.TrySetResult(data);
+            return Task.CompletedTask;
+        }
     }
 
     private IServiceScopeFactory BuildScopeFactory(TileCacheService tileCache)

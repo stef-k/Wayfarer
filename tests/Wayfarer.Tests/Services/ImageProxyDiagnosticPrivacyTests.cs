@@ -55,6 +55,36 @@ public sealed class ImageProxyDiagnosticPrivacyTests
         }
     }
 
+    /// <summary>Scoped background failures cannot reintroduce a URL through attached exceptions.</summary>
+    [Fact]
+    public async Task BackgroundRefresh_OmitsOriginException()
+    {
+        ImageProxyService.ResetStaticStateForTesting();
+        ImageProxyService.SetRefreshRetryDelayForTesting(_ => TimeSpan.Zero);
+        using var logs = new TestLogProvider();
+        using var factory = LoggerFactory.Create(b => b.SetMinimumLevel(LogLevel.Trace).AddProvider(logs));
+        var scopes = new Mock<IServiceScopeFactory>();
+        scopes.Setup(s => s.CreateScope()).Throws(new HttpRequestException("origin-exception-663 " + SecretUrl));
+        var cache = new Mock<IProxiedImageCacheService>();
+        cache.Setup(c => c.GetAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new ProxiedImageCacheResult(ProxiedImageCacheStatus.StaleHit, ImageProxyTestFactory.Raster(), "image/jpeg", null));
+        var settings = Mock.Of<IApplicationSettingsService>(s => s.GetSettings() == new ApplicationSettings());
+        using var client = new HttpClient(new FailingOrigin());
+        var proxy = new ImageProxyService(client, cache.Object, settings, scopes.Object, factory.CreateLogger<ImageProxyService>());
+        var result = await proxy.GetOrFetchAsync(new ImageProxyRequest(SecretUrl, Optimize: false), allowOriginFetch: false);
+        Assert.True(await ImageProxyService.WaitForRefreshIdleForTestingAsync(result.CacheKey, TimeSpan.FromSeconds(5)));
+        Assert.Contains(logs.Entries, e => e.Message.Contains("Background image refresh attempt"));
+        Assert.All(logs.Entries, entry =>
+        {
+            Assert.Null(entry.Exception);
+            var text = entry.Message + string.Join(",", entry.Fields.Values);
+            Assert.DoesNotContain("private-path-663", text);
+            Assert.DoesNotContain("private-query-663", text);
+            Assert.DoesNotContain("origin-exception-663", text);
+        });
+        ImageProxyService.ResetStaticStateForTesting();
+    }
+
     /// <summary>Simulates a transport whose exception repeats the full origin URL.</summary>
     private sealed class FailingOrigin : HttpMessageHandler
     {

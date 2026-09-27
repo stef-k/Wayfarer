@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using System.Net;
 using System.Net.Http;
 using System.Security.Claims;
@@ -120,7 +121,58 @@ public class ApiLocationControllerCheckInTests : TestBase
         Assert.IsType<OkObjectResult>(result);
     }
 
-    private LocationController BuildController(ApplicationDbContext db, bool includeAuth = true, IMemoryCache? cache = null)
+    /// <summary>Both ingestion routes keep private request values out of all diagnostic surfaces.</summary>
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task Ingestion_DoesNotLogPrivateValues(bool authenticated, bool checkIn)
+    {
+        using var logs = new TestLogProvider();
+        using var factory = LoggerFactory.Create(b => b.SetMinimumLevel(LogLevel.Trace).AddProvider(logs));
+        using var db = CreateDbContext();
+        var controller = BuildController(db, includeAuth: authenticated, logger: factory.CreateLogger<BaseApiController>());
+        var dto = new GpsLoggerLocationDto { Latitude = 211.663, Longitude = 22.663,
+            Accuracy = 33.663, Speed = 44.663, Altitude = 55.663, Timestamp = DateTime.UtcNow };
+        var result = checkIn ? await controller.CheckIn(dto) : await controller.LogLocation(dto);
+        Assert.IsAssignableFrom<ObjectResult>(result);
+        Assert.Equal(authenticated ? 400 : 401, ((ObjectResult)result).StatusCode);
+        Assert.All(logs.Entries, entry =>
+        {
+            Assert.Null(entry.Exception);
+            var text = entry.Message + string.Join(",", entry.Fields.Values);
+            foreach (var value in new[] { "211.663", "22.663", "33.663", "44.663", "55.663" })
+                Assert.DoesNotContain(value, text);
+        });
+        if (authenticated) Assert.Contains(logs.Entries, e => e.Fields.ContainsKey("UserId"));
+    }
+
+    /// <summary>Successful authenticated ingestion retains location identity but omits GPS values and event time.</summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Ingestion_SuccessLogsOnlyStableIdentity(bool checkIn)
+    {
+        using var logs = new TestLogProvider();
+        using var factory = LoggerFactory.Create(b => b.SetMinimumLevel(LogLevel.Trace).AddProvider(logs));
+        using var db = CreateDbContext();
+        var controller = BuildController(db, logger: factory.CreateLogger<BaseApiController>());
+        var dto = new GpsLoggerLocationDto { Latitude = 11.663, Longitude = 22.663,
+            Accuracy = 3.663, Speed = 4.663, Altitude = 55.663, Timestamp = DateTime.UtcNow };
+        Assert.IsType<OkObjectResult>(checkIn ? await controller.CheckIn(dto) : await controller.LogLocation(dto));
+        Assert.All(logs.Entries, entry =>
+        {
+            Assert.Null(entry.Exception);
+            var text = entry.Message + string.Join(",", entry.Fields.Values);
+            foreach (var value in new[] { "11.663", "22.663", "3.663", "4.663", "55.663" })
+                Assert.DoesNotContain(value, text);
+            Assert.DoesNotContain(entry.Fields.Values, value => value is DateTime or DateTimeOffset);
+        });
+        Assert.Contains(logs.Entries, entry => Equals(entry.Fields.GetValueOrDefault("LocationId"), db.Locations.Single().Id));
+    }
+
+    private LocationController BuildController(ApplicationDbContext db, bool includeAuth = true, IMemoryCache? cache = null, ILogger<BaseApiController>? logger = null)
     {
         SeedSettings(db);
         var user = SeedUserWithToken(db, "tok");
@@ -133,7 +185,7 @@ public class ApiLocationControllerCheckInTests : TestBase
 
         var controller = new LocationController(
             db,
-            NullLogger<BaseApiController>.Instance,
+            logger ?? NullLogger<BaseApiController>.Instance,
             cache,
             settings,
             reverseGeocoding,

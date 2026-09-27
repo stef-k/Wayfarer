@@ -1,3 +1,4 @@
+using Moq;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -38,6 +39,23 @@ public class GroupsControllerTests : TestBase
             HttpContext = BuildHttpContextWithUser(userId, role)
         };
         return controller;
+    }
+
+    /// <summary>Existing duplicate-name feedback survives while same-type internal failures remain private.</summary>
+    [Theory]
+    [InlineData("Group with the same name already exists for owner", true)]
+    [InlineData("private-group-error-663", false)]
+    public async Task Create_OnlyPublishesKnownBusinessOutcome(string failure, bool known)
+    {
+        using var db = CreateDbContext();
+        var service = new Moq.Mock<IGroupService>();
+        service.Setup(s => s.CreateGroupAsync("u1", "Group", null, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException(failure));
+        var controller = new GroupsController(db, service.Object, NullLogger<GroupsController>.Instance, new LocationService(db));
+        ConfigureControllerWithUser(controller, "u1");
+        var result = Assert.IsType<ConflictObjectResult>(await controller.Create(new GroupCreateRequest { Name = "Group" }, default));
+        Assert.Equal(known ? failure : "The operation could not be completed. Please try again.",
+            result.Value?.GetType().GetProperty("message")?.GetValue(result.Value));
     }
 
     [Fact]

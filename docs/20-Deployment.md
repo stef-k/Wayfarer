@@ -544,7 +544,8 @@ sudo systemctl start wayfarer
 ### Audit
 
 - User and admin actions are logged in database and file.
-- Do not log secrets or passwords.
+- Use the API error response's `requestId` to find the existing Serilog `RequestId` (`HttpContext.TraceIdentifier`); no separate correlation identifier is generated.
+- Generic failures record bounded type and operation context rather than raw exception text. Image-origin URLs and private location/import values are omitted even from diagnostic logs. Storage failures retain repair-relevant paths; routine cache operations use resource IDs. Historical audit rows are not rewritten.
 
 ### Retention
 

@@ -41,7 +41,9 @@ Headers & Proxies
 
 Data Privacy
 - Self‑hosted: operators are responsible for retention, backups, and legal compliance.
-- Avoid logging sensitive PII; mask or omit where possible.
+- API unhandled failures preserve the stable 500 envelope with fixed generic `details` and `requestId = HttpContext.TraceIdentifier`. Known group/invitation/backfill rules remain actionable; unrelated failures never become public exception messages. Public timeline and cache-purge SSE failures also use bounded text.
+- Routine diagnostics retain exception types, request/user/resource IDs, counts and fixed outcomes. They omit image-origin URLs/queries, coordinates, GPS/movement values, private trip/place names, visit timestamps and imported XML/tag content. The image-origin typed client suppresses factory HTTP logging as well as unsafe explicit diagnostics.
+- Generic MVC error audits contain bounded exception type and request identity, not exception messages. Real storage initialization and filesystem failures retain repair-relevant paths; routine thumbnail generation and tile hits/writes use resource identity. Historical audit rows are unchanged.
 
 Secrets Management
 - Use environment variables or user‑secrets in development; use secret managers/VAULTs in production.
