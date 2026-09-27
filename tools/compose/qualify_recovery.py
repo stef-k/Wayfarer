@@ -484,6 +484,13 @@ class RecoveryJourney(Journey):
             '/var/lib/wayfarer/uploads/imports/recovery-qualification').strip()
         self.probe_command('verify')
         print('PASS product in-place restore, Identity/provider continuity, uploads and retained old volumes', flush=True)
+        receipt = json.loads(self.host('cat', str(self.install / 'recovery-control/restore.json')).stdout)
+        emergency = next(name for name in self.host('ls', str(self.directory / 'destination')).stdout.splitlines()
+                         if name.endswith(receipt['EmergencyArchive'] + '.tar'))
+        self.ctl('backup', '--quiesced')
+        for suffix in ['', '.sha256', '.restore-hold']:
+            self.host('test', '-f', str(self.directory / 'destination' / (emergency + suffix)))
+        print('PASS emergency archive and checksum survive a later retention=1 capture', flush=True)
         self.clean_root_restore(plan)
 
     def clean_root_restore(self, plan):
