@@ -1,4 +1,10 @@
 using System.Data.Common;
+using System.Security.Claims;
+using System.Text.Json;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
+using Wayfarer.Areas.User.Controllers;
+using Wayfarer.Areas.User.LocationProviderModels;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
@@ -14,6 +20,61 @@ namespace Wayfarer.Tests.Services;
 [Collection(PostgresEnvironmentEvidenceTestCollection.Name)]
 public sealed class LegacyMapboxMigrationRecoveryPostgresTests(PostgresImportTestFixture fixture)
 {
+    /// <summary>Navigation preserves durable legacy, consent, verification, authorization and selection fields.</summary>
+    [PostgresFact]
+    public async Task SettingsNavigation_PreservesDurableProviderAndLegacyState()
+    {
+        var user = await SeedAsync();
+        var credentials = CredentialTestFactory.Create(new EphemeralDataProtectionProvider());
+        await using (var seed = fixture.CreateContext())
+        {
+            var profile = PersonalLocationProviderProfile.Create(user.Id, PersonalLocationProvider.Mapbox);
+            credentials.Replace(profile, "legacy-recovery-sentinel");
+            profile.SetAuthorization(PersonalProviderCapability.Geocoding, true);
+            profile.SetAuthorization(PersonalProviderCapability.Routing, true);
+            profile.GrantPermanentGeocodingConsent(DateTimeOffset.UtcNow);
+            credentials.RecordVerification(profile, PersonalProviderCapability.Geocoding, PersonalProviderVerification.Verified);
+            var selection = PersonalLocationProviderSelection.Create(user.Id);
+            selection.Select(PersonalProviderCapability.Geocoding, PersonalLocationProvider.Mapbox);
+            seed.AddRange(profile, selection);
+            await seed.SaveChangesAsync();
+        }
+        var before = await DurableSnapshotAsync(user.Id);
+        await using (var context = fixture.CreateContext())
+        {
+            var controller = new LocationProviderSettingsController(context, credentials,
+                new LegacyMapboxMigrationService(context, credentials), null!)
+            {
+                ControllerContext = new ControllerContext
+                {
+                    HttpContext = new DefaultHttpContext
+                    {
+                        User = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.NameIdentifier, user.Id)], "test"))
+                    }
+                }
+            };
+            var view = Assert.IsType<ViewResult>(await controller.Index(default));
+            var model = Assert.IsType<LocationProviderSettingsViewModel>(view.Model);
+            Assert.True(model.HasLegacyMapboxRows);
+            Assert.Equal("Ready with mapbox.", model.GeocodingStatus);
+            Assert.Empty(context.ChangeTracker.Entries());
+        }
+        Assert.Equal(before, await DurableSnapshotAsync(user.Id));
+    }
+
+    /// <summary>Reads every persisted authority field and legacy row through a fresh PostgreSQL context.</summary>
+    private async Task<string> DurableSnapshotAsync(string userId)
+    {
+        await using var context = fixture.CreateContext();
+        return JsonSerializer.Serialize(new
+        {
+            Profiles = await context.PersonalLocationProviderProfiles.AsNoTracking().Where(p => p.UserId == userId).ToListAsync(),
+            Selections = await context.PersonalLocationProviderSelections.AsNoTracking().Where(p => p.UserId == userId).ToListAsync(),
+            Legacy = await context.ApiTokens.IgnoreQueryFilters().AsNoTracking().Where(p => p.UserId == userId)
+                .Select(p => new { p.Id, p.Name, p.Token, p.TokenHash }).ToListAsync()
+        });
+    }
+
     /// <summary>Two first-time migrations finish without losing recovery state; a fresh retry converges.</summary>
     [PostgresFact]
     public async Task ConcurrentFirstMigration_ConvergesWithoutDuplicateAuthority()
