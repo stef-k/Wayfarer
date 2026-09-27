@@ -38,6 +38,19 @@ Caddy has no backend attachment or secrets. Only it publishes 80/TCP, 443/TCP an
 as with ordinary Linux bridge networking, a privileged Docker host can still reach
 container addresses. Host administration is outside the network isolation boundary.
 
+## Request-size ownership
+
+Managed Caddy has no request-body limiter. The application owns its fixed 100 MiB
+ceiling and the dynamic Admin policy for the two user multipart upload endpoints.
+Trip KML alone adds a section ceiling derived from its existing XML budget.
+An external proxy may impose an equal or stricter operator-owned ceiling; a stricter
+limit intentionally makes some application-allowed uploads unavailable. It is never
+dynamically synchronized with `UploadSizeLimitMB`. Native Nginx guidance uses 100M.
+The disposable qualification seeds a 1 MiB upload setting before application startup,
+then verifies authenticated, antiforgery-valid Location upload success and a 413
+rejection without new durable file/row state through real managed Caddy. Its existing
+owner removes the temporary project and volumes, including this qualification state.
+
 ## Browser response headers
 
 Managed Caddy passes the application's route-aware CSP, XFO, nosniff and referrer

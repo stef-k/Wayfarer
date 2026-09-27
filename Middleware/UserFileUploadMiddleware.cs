@@ -48,6 +48,23 @@ public sealed class UserFileUploadMiddleware(RequestDelegate next)
         if (!feature.IsReadOnly)
             feature.MaxRequestBodySize = limit;
 
-        await next(context);
+        // MVC catches body exceptions during form/antiforgery reads. Observe the host's actual
+        // 413 without initiating reads or translating ordinary parser/domain validation failures.
+        var originalBody = context.Request.Body;
+        using var body = new UploadBodyStream(originalBody);
+        context.Request.Body = body;
+        context.Response.OnStarting(() =>
+        {
+            if (body.SizeRejected)
+                context.Response.StatusCode = StatusCodes.Status413PayloadTooLarge;
+            return Task.CompletedTask;
+        });
+        try { await next(context); }
+        catch (BadHttpRequestException ex) when (ex.StatusCode == StatusCodes.Status413PayloadTooLarge
+            && !context.Response.HasStarted)
+        {
+            context.Response.StatusCode = StatusCodes.Status413PayloadTooLarge;
+        }
+        finally { context.Request.Body = originalBody; }
     }
 }

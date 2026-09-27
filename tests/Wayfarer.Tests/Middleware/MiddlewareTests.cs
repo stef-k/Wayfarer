@@ -20,11 +20,11 @@ public class MiddlewareTests
         ctx.Features.Set<IHttpMaxRequestBodySizeFeature>(feature);
         var called = false;
         RequestDelegate next = _ => { called = true; return Task.CompletedTask; };
-        var mw = new DynamicRequestSizeMiddleware(next, 1024);
+        var mw = new DynamicRequestSizeMiddleware(next);
 
         await mw.InvokeAsync(ctx);
 
-        Assert.Equal(1024, feature.MaxRequestBodySize);
+        Assert.Equal(100L * 1024 * 1024, feature.MaxRequestBodySize);
         Assert.True(called);
     }
 

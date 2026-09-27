@@ -54,7 +54,7 @@ Two-Factor Authentication (2FA)
 CSRF Protection
 - Unsafe Admin mutation POST actions validate antiforgery; read-only navigation does not require it.
 - Protected cookie-authenticated browser mutations require a server-issued request token plus its antiforgery cookie. Forms use `__RequestVerificationToken`; JSON and bodyless callers send `RequestVerificationToken` from the page's hidden token.
-- Trip import sends the header alongside its unchanged multipart body. Header validation avoids an additional early antiforgery form read on valid requests; it does not prevent upload ingress or buffering. Upload limits and staging policy are separate concerns (#662).
+- Trip import sends the header alongside its unchanged multipart body. Header validation avoids an additional early antiforgery form read on valid requests; it does not prevent upload ingress or buffering. The upload middleware applies the effective request cap before MVC antiforgery/model binding (#662).
 - `PUT /api/Location/{id:int}` preserves cookie-first authority: an authenticated cookie always requires its antiforgery token, regardless of any bearer header. Only a successfully resolved bearer without selected cookie authority proceeds token-free. Inactive/missing cookie accounts do not fall through to bearer.
 - Bearer-only APIs retain their separate credential authority and do not require MVC antiforgery tokens. Read/query POSTs remain token-free where appropriate; no global MVC antiforgery policy is installed.
 - Identity/Razor Pages retain framework automatic antiforgery. Admin Jobs forms rebuilt by SSE copy the authentic page token.
@@ -78,6 +78,7 @@ IP Address Handling
 - Configure trusted proxies in `Program.cs` for your deployment environment.
 
 Uploads & Secrets
+- The fixed application request ceiling is 100 MiB. Only Location-history and Trip KML uploads consume the Admin `-1 / 0 / 1..100 MiB` policy, after authorization and before multipart buffering. Trip KML adds its existing parser-derived section budget; see [configuration](16-Configuration.md). Managed Caddy does not duplicate this policy.
 - Do not store tokens or secrets in exports or logs.
 - Avoid logging PII. Use role-based checks on admin endpoints.
 - API keys are redacted from tile service logs to prevent exposure.

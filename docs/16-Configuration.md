@@ -126,7 +126,11 @@ Reverse Proxy
 - Forwarded headers set in `Program.cs` for nginx or similar. Adjust trusted proxies/networks per environment.
 
 Upload Size
-- Effective upload size is enforced via `ApplicationSettings.UploadSizeLimitMB` in DB and `DynamicRequestSizeMiddleware`.
+- `UploadRequestPolicy` owns the fixed **100 MiB** application-wide request-body ceiling, applied by `DynamicRequestSizeMiddleware`; it is not loaded from the database.
+- `ApplicationSettings.UploadSizeLimitMB` controls only multipart requests to Location-history Upload and Trip KML Import: `-1` disables uploads (403), `0` uses 100 MiB, and integers `1..100` set a lower request ceiling. This includes multipart overhead, not just file bytes. Admin rejects larger values; historical values above 100 normalize to 100 for runtime/display and converge on the next valid save. Values below -1 disable uploads. No schema migration is needed.
+- `UserFileUploadMiddleware` runs after authorization and before MVC antiforgery/form parsing. Declared oversized requests receive 413 without body work; unknown lengths remain bounded by the host request-body feature. An unavailable required host limit fails closed (503).
+- Trip KML additionally limits each multipart section to `4 * WayfarerKmlParser.MaximumDocumentCharacters + 4` bytes (40 MiB plus a four-byte BOM allowance), derived from its unchanged 10 Mi-character XML budget. Location imports retain the configured request ceiling and streaming parsers.
+- Login, ordinary forms, Trip Editor JSON, location/check-in/mobile APIs and SSE do not consume the upload setting. External proxies may impose an equal or stricter operator-owned ceiling; a stricter ceiling intentionally prevents some otherwise allowed uploads and is never dynamically synchronized with the Admin setting.
 
 Secrets
 - Keep tokens, API keys, and passwords out of `appsettings*.json` in production. Use environment variables or secret stores.

@@ -383,7 +383,7 @@ server {
     listen 80;
     server_name yourdomain.com;
 
-    client_max_body_size 250M;
+    client_max_body_size 100M; # Matches UploadRequestPolicy.MaximumRequestBytes (100 MiB).
     access_log /var/log/nginx/wayfarer.access.log combined;
 
     location / {
@@ -538,7 +538,8 @@ sudo systemctl start wayfarer
 ### Middleware
 
 - `PerformanceMonitoringMiddleware` logs request timings.
-- `DynamicRequestSizeMiddleware` sets max request body size from runtime settings.
+- `DynamicRequestSizeMiddleware` applies the fixed 100 MiB application ceiling. The Admin upload setting applies only to the two user file-upload endpoints, after authorization and before form buffering.
+- Native Nginx uses `client_max_body_size 100M` to match that fixed ceiling. An external proxy may impose an equal or stricter operator-owned ceiling; stricter limits intentionally reject some application-allowed uploads. Proxy limits are not dynamically synchronized with `UploadSizeLimitMB`. Managed Caddy adds no body limiter.
 
 ### Audit
 

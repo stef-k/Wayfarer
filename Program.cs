@@ -137,7 +137,7 @@ app.Map("/health/ready", branch => branch.Run(async context =>
 
 // Setting up middleware components, including performance monitoring and error handling
 ConfigureAreas(app);
-ConfigureMiddleware(app).GetAwaiter().GetResult();
+ConfigureMiddleware(app);
 
 #endregion Middleware Setup
 
@@ -594,7 +594,7 @@ static void ConfigureServices(WebApplicationBuilder builder)
 }
 
 // Method to configure middleware components such as error handling and performance monitoring
-static async Task ConfigureMiddleware(WebApplication app)
+static void ConfigureMiddleware(WebApplication app)
 {
     // Response compression must be early in the pipeline to compress all subsequent responses
     app.UseResponseCompression();
