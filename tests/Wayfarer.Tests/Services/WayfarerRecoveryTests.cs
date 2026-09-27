@@ -10,6 +10,27 @@ namespace Wayfarer.Tests.Services;
 [System.Runtime.Versioning.SupportedOSPlatform("linux")]
 public sealed class WayfarerRecoveryTests
 {
+    /// <summary>The shipped extractor restores imports and empty directories with normalized private modes.</summary>
+    [Fact]
+    public void RestoreExtractionPreservesCompleteTreeWithPrivatePermissions()
+    {
+        if (!OperatingSystem.IsLinux()) return;
+        using var fixture = new TestDirectory();
+        var source = Path.Combine(fixture.Path, "source");
+        Directory.CreateDirectory(Path.Combine(source, "imports"));
+        Directory.CreateDirectory(Path.Combine(source, "empty"));
+        File.WriteAllBytes(Path.Combine(source, "imports", "upload"), [0, 255, 3, 4]);
+        var archive = Path.Combine(fixture.Path, "uploads.tar.gz");
+        new DirectoryCapture().Capture(source, archive, "uploads", CancellationToken.None);
+        var target = Path.Combine(fixture.Path, "target");
+        Directory.CreateDirectory(target, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        ArchiveVerifier.ValidateDirectory(archive, target, CancellationToken.None);
+        Assert.Equal(new byte[] { 0, 255, 3, 4 }, File.ReadAllBytes(Path.Combine(target, "imports", "upload")));
+        Assert.True(Directory.Exists(Path.Combine(target, "empty")));
+        Assert.Equal(UnixFileMode.UserRead | UnixFileMode.UserWrite, File.GetUnixFileMode(Path.Combine(target, "imports", "upload")));
+        Assert.Equal(UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute, File.GetUnixFileMode(Path.Combine(target, "empty")));
+    }
+
     [Theory]
     [InlineData("../escape")]
     [InlineData("/absolute")]

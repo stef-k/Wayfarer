@@ -23,6 +23,7 @@ public sealed class RestoreCommands(IProcessRunner runner, ITerminal terminal)
         {
             var config = options.Has("--new-install") ? NewTarget(root, options) : Deployment.Load(root);
             if (!options.Has("--new-install") && !InstallationCompletion.IsComplete(root)) throw new UsageException("Restore requires a completed installation.");
+            if (config.Schema == 1) config = config with { Schema = 2, Installation = Guid.NewGuid() };
             if (options.Has("--new-install"))
             {
                 await new Preflight(runner).FreshAsync(config, token);
@@ -31,6 +32,7 @@ public sealed class RestoreCommands(IProcessRunner runner, ITerminal terminal)
             plan = await new RestorePreparation(runner).PrepareAsync(root, config, options, token);
         }
         terminal.Write(JsonSerializer.Serialize(plan));
+        if (plan.CaptureMode == "online") terminal.Write("Online archive: component capture is not a cross-component transactional snapshot.");
         terminal.Write("Plan SHA-256: " + plan.Hash() + "\nLater writes will be discarded. Candidate writer launch is the rollback cutoff.");
         if (options.Has("--plan")) return 0;
         if (!options.Has("--trust-controlled-backup"))
@@ -53,6 +55,7 @@ public sealed class RestoreCommands(IProcessRunner runner, ITerminal terminal)
         using (var exclusion = new RecoveryLock(Path.Combine(root, "recovery-control/recovery.lock")))
         {
             if (File.Exists(Path.Combine(root, "recovery-control/host-operation.json"))) throw new IOException("Active recovery reservation.");
+            RestoreReceipt.ArchiveResolved(root);
             receipt.Save(root);
         }
         return await ExecuteAsync(root, receipt, token);
@@ -97,8 +100,13 @@ public sealed class RestoreCommands(IProcessRunner runner, ITerminal terminal)
                 throw new UsageException("Clean target changed since planning.");
             await new Preflight(runner).FreshAsync(plan.Target, token);
         }
-        else if (JsonSerializer.Serialize(Deployment.Load(root)) != JsonSerializer.Serialize(plan.Target))
-            throw new UsageException("Installation changed since planning.");
+        else
+        {
+            var current = Deployment.Load(root);
+            if (current.Schema == 1) current = current with { Schema = 2, Installation = plan.Target.Installation };
+            if (JsonSerializer.Serialize(current) != JsonSerializer.Serialize(plan.Target))
+                throw new UsageException("Installation changed since planning.");
+        }
         var directory = RestorePreparation.DirectoryFor(root, plan.Operation);
         var payload = File.ReadAllText(Path.Combine(directory, "payload"));
         if (BackupPolicy.Fingerprint(payload) != plan.RestorePayloadFingerprint ||
@@ -116,35 +124,51 @@ public sealed class RestoreCommands(IProcessRunner runner, ITerminal terminal)
     {
         try
         {
+            if (receipt.Phase == RestorePhase.Authorized)
             using (var exclusion = new RecoveryLock(Path.Combine(root, "recovery-control/recovery.lock")))
             {
                 receipt = await new RestoreFencing(runner).FenceAsync(root, receipt, token);
                 receipt = receipt.Advance(RestorePhase.Fenced);
                 receipt.Save(root);
             }
-            if (!receipt.Plan.NewInstall && !receipt.Plan.WithoutEmergencyBackup)
+            if (receipt.Phase == RestorePhase.Fenced && !receipt.Plan.NewInstall && !receipt.Plan.WithoutEmergencyBackup && receipt.EmergencyArchive is null)
             {
                 var capture = new BackupCommands(runner, terminal);
                 if (await capture.RunAsync(root, receipt.Plan.Target, ["backup", "--quiesced"], token, restoreEmergency: true) != 0 || capture.CompletedArchive is null)
                     throw new IOException("Fresh emergency capture failed.");
-                receipt = receipt with { EmergencyArchive = capture.CompletedArchive };
+                receipt = (RestoreReceipt.Load(root) ?? receipt) with { EmergencyArchive = capture.CompletedArchive };
             }
             using var recovery = new RecoveryLock(Path.Combine(root, "recovery-control/recovery.lock"));
-            receipt = receipt.Advance(RestorePhase.EmergencyVerifiedOrWaived);
-            receipt.Save(root);
+            if (receipt.Phase == RestorePhase.Fenced)
+            {
+                receipt = receipt.Advance(RestorePhase.EmergencyVerifiedOrWaived);
+                receipt.Save(root);
+            }
             await new RestoreFencing(runner).StopOwnedAsync(receipt, token);
-            receipt = receipt.Advance(RestorePhase.Staging);
-            receipt.Save(root);
-            receipt = await new RestoreCandidate(runner).StageAsync(root, receipt, token);
-            receipt = receipt.Advance(RestorePhase.CandidateValidated);
-            receipt.Save(root);
+            if (receipt.Phase == RestorePhase.EmergencyVerifiedOrWaived)
+            {
+                receipt = receipt.Advance(RestorePhase.Staging);
+                receipt.Save(root);
+            }
+            if (receipt.Phase == RestorePhase.Staging)
+            {
+                receipt = await new RestoreCandidate(runner).StageAsync(root, receipt, token);
+                receipt = receipt.Advance(RestorePhase.CandidateValidated);
+                receipt.Save(root);
+            }
             receipt = await new RestoreActivation(runner).ActivateAsync(root, receipt, token);
             terminal.Write($"Restore accepted: {receipt.Plan.Operation:D}. Old volumes and emergency evidence retained.");
             return 0;
         }
-        catch
+        catch (Exception error)
         {
+            if (error is UsageException) terminal.Error(error.Message);
             receipt = RestoreReceipt.Load(root) ?? receipt;
+            if (receipt.Phase == RestorePhase.Accepted)
+            {
+                receipt = receipt with { Phase = RestorePhase.WritesPossible };
+                receipt.Save(root);
+            }
             using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(60));
             try { await new RestoreFencing(runner).StopOwnedAsync(receipt, cleanup.Token); }
             catch { terminal.Error("Restore cleanup uncertain; durable intent retained."); }
@@ -159,8 +183,9 @@ public sealed class RestoreCommands(IProcessRunner runner, ITerminal terminal)
         var receipt = RestoreReceipt.Load(root) ?? throw new UsageException("No restore receipt.");
         var id = options.Get(options.Has("--abort") ? "--abort" : "--resume");
         if (receipt.Plan.Operation.ToString("D") != id) throw new UsageException("Restore operation mismatch.");
-        using var recovery = new RecoveryLock(Path.Combine(root, "recovery-control/recovery.lock"));
-        await new RestoreFencing(runner).StopOwnedAsync(receipt, token);
+        if (receipt.Phase is RestorePhase.Accepted or RestorePhase.Aborted) throw new UsageException("Restore already resolved.");
+        using (var recovery = new RecoveryLock(Path.Combine(root, "recovery-control/recovery.lock")))
+            await new RestoreFencing(runner).StopOwnedAsync(receipt, token);
         if (options.Has("--abort"))
         {
             if (receipt.WritesPossible) throw new UsageException("Writes may have occurred; explicit recovery is required.");
@@ -182,6 +207,22 @@ public sealed class RestoreCommands(IProcessRunner runner, ITerminal terminal)
             terminal.Write("Restore aborted before writer cutoff. Prior authority retained; services remain stopped.");
             return 0;
         }
-        throw new UsageException("Restore resume reconciliation has not yet been implemented.");
+        var directoryPath = RestorePreparation.DirectoryFor(root, receipt.Plan.Operation);
+        var payload = File.ReadAllText(Path.Combine(directoryPath, "payload"));
+        if (BackupPolicy.Fingerprint(payload) != receipt.Plan.RestorePayloadFingerprint)
+            throw new UsageException("Restore payload changed during interruption.");
+        var archiveName = ArchiveContract.Name(receipt.Plan.SourceInstallation, receipt.Plan.Captured, receipt.Plan.Archive);
+        using (var frozen = new SafeDirectory(Path.Combine(directoryPath, "frozen")))
+        using (var archive = frozen.Read(archiveName))
+            if (Convert.ToHexStringLower(await System.Security.Cryptography.SHA256.HashDataAsync(archive, token)) != receipt.Plan.ArchiveSha256)
+                throw new UsageException("Frozen archive differs from authorized plan.");
+        await new RestorePreparation(runner).VerifyAsync(receipt.Plan.Target, directoryPath, receipt.Plan.Operation,
+            payload, archiveName, receipt.Plan.SourceInstallation, token);
+        if (receipt.Phase is RestorePhase.Staging or RestorePhase.CandidateValidated)
+        {
+            receipt = receipt with { CandidateAttempt = checked(receipt.CandidateAttempt + 1), Phase = RestorePhase.Staging };
+            receipt.Save(root);
+        }
+        return await ExecuteAsync(root, receipt, token);
     }
 }

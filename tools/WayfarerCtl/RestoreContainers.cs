@@ -6,20 +6,35 @@ public sealed class RestoreContainers(IProcessRunner runner)
     /// <summary>Wait for the actual container; on failure stop/wait it independently before reporting cleanup.</summary>
     public async Task<string> RunAsync(string name, string[] create, CancellationToken token)
     {
+        Exception? primary = null;
         try
         {
-            await Required(["create", "--name", name, "--restart=no", "--pull=never", .. create], token);
+            var project = name[..name.LastIndexOf("-restore-", StringComparison.Ordinal)];
+            await Required(["create", "--name", name, "--label", "wayfarer.restore-helper=" + project,
+                "--restart=no", "--pull=never", .. create], token);
             await Required(["start", name], token);
             var exit = await Required(["wait", name], token);
             if (exit.Trim() != "0") throw new IOException("Restore helper failed.");
             return await Required(["logs", "--tail", "1", name], token);
         }
+        catch (Exception error) { primary = error; throw; }
         finally
         {
             using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(45));
             // Preserve container evidence. A failed cleanup never authorizes continuation or pointer rollback.
-            await Required(["stop", "--time", "20", name], cleanup.Token);
-            await Required(["wait", name], cleanup.Token);
+            try
+            {
+                var known = await Required(["ps", "-a", "--format", "{{.Names}}"], cleanup.Token);
+                if (known.Split('\n').Contains(name))
+                {
+                    await Required(["stop", "--time", "20", name], cleanup.Token);
+                    await Required(["wait", name], cleanup.Token);
+                }
+            }
+            catch when (primary is not null)
+            {
+                Console.Error.WriteLine("Restore helper cleanup uncertain; original failure retained.");
+            }
         }
     }
 

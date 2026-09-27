@@ -5,8 +5,39 @@ using Xunit;
 namespace Wayfarer.Tests.Services;
 
 /// <summary>Restore storage and irreversible writer boundaries at their deterministic product owners.</summary>
+[System.Runtime.Versioning.SupportedOSPlatform("linux")]
 public sealed class ManagedRestoreTests
 {
+    /// <summary>Destructive authorization has no permissive alias or ambiguous external/owned selector.</summary>
+    [Theory]
+    [InlineData("--yes")]
+    [InlineData("../backup.tar")]
+    [InlineData("--archive relative.tar")]
+    [InlineData("--new-install")]
+    [InlineData("--accept-plan nope")]
+    [InlineData("--resume 00000000-0000-0000-0000-000000000000")]
+    [InlineData("--abort 00000000-0000-0000-0000-000000000001 --plan")]
+    [InlineData("--plan --plan")]
+    public void RestoreRejectsAmbiguousOrImplicitAuthorization(string input) =>
+        Assert.Throws<UsageException>(() => RestoreOptions.Parse(input.Split(' ')));
+
+    /// <summary>Retry generation changes never change the originally authorized archive or canonical plan hash.</summary>
+    [Fact]
+    public void FailedStagingRetryUsesFreshPairedVolumes()
+    {
+        var plan = new RestorePlan(Guid.NewGuid(), "/etc/wayfarer", Config(), Guid.NewGuid(), Guid.NewGuid(),
+            new string('a', 64), DateTimeOffset.UnixEpoch, "quiesced", "bundle", "capture", "restore", null,
+            Guid.NewGuid().ToString("N"), false, false, true);
+        var receipt = new RestoreReceipt { Plan = plan, PlanHash = plan.Hash(), Phase = RestorePhase.Staging };
+        var retry = receipt with { CandidateAttempt = 1 };
+        Assert.NotEqual(receipt.EffectivePlan.CandidateGeneration, retry.EffectivePlan.CandidateGeneration);
+        Assert.Equal(receipt.PlanHash, retry.PlanHash);
+        Assert.Equal(plan.ArchiveSha256, retry.EffectivePlan.ArchiveSha256);
+        foreach (var role in new[] { "db-data", "app-data", "app-cache" })
+            Assert.NotEqual(ActiveStorage.Volume(RestoreCandidate.Configuration(receipt.EffectivePlan), role),
+                ActiveStorage.Volume(RestoreCandidate.Configuration(retry.EffectivePlan), role));
+    }
+
     private static Deployment Config() => new()
     {
         Schema = 2, Installation = Guid.NewGuid(), Bundle = "/opt/wayfarer/bundle",

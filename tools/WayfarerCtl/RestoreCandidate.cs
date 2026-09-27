@@ -11,7 +11,7 @@ public sealed class RestoreCandidate(IProcessRunner runner)
     /// <summary>Persist every owned resource name before creation; failures retain inactive evidence.</summary>
     public async Task<RestoreReceipt> StageAsync(string root, RestoreReceipt receipt, CancellationToken token)
     {
-        var plan = receipt.Plan;
+        var plan = receipt.EffectivePlan;
         var candidate = Configuration(plan);
         var owner = new RestoreContainers(runner);
         var network = Network(plan);
@@ -29,7 +29,10 @@ public sealed class RestoreCandidate(IProcessRunner runner)
             Volumes = [.. receipt.Volumes, .. new[] { "db-data", "app-data", "app-cache" }.Select(role => ActiveStorage.Volume(candidate, role))]
         };
         receipt.Save(root);
-        await owner.Required(["network", "create", "--internal", "--label", "wayfarer.restore=" + plan.Operation.ToString("D"), network], token);
+        await owner.Required(["network", "create", "--internal", "--label", "wayfarer.restore=" + plan.Operation.ToString("D"), "--label", "wayfarer.restore-helper=" + candidate.Project, network], token);
+        var existingVolumes = (await owner.Required(["volume", "ls", "--format", "{{.Name}}"], token)).Split('\n');
+        if (new[] { "db-data", "app-data", "app-cache" }.Any(role => existingVolumes.Contains(ActiveStorage.Volume(candidate, role))))
+            throw new IOException("Candidate volume already exists; a fresh attempt is required.");
         foreach (var role in new[] { "db-data", "app-data", "app-cache" })
             await owner.Required(["volume", "create", "--label", "com.docker.compose.project=" + candidate.Project,
                 "--label", "com.docker.compose.volume=" + role, "--label", "wayfarer.restore=" + plan.Operation.ToString("D"),
@@ -42,7 +45,7 @@ public sealed class RestoreCandidate(IProcessRunner runner)
         await owner.RunAsync(files, [.. RestoreContainers.Unprivileged(), "--network=none", "--volume", payload + ":/worker:ro",
             "--volume", Path.Combine(directory, "verified") + ":/staging:ro", "--volume", ActiveStorage.Volume(candidate, "app-data") + ":/candidate",
             "--entrypoint=/worker", "ghcr.io/stef-k/wayfarer-db@" + candidate.DbDigest, "restore-files"], token);
-        await owner.Required(["create", "--name", db, "--restart=no", "--pull=never", "--network", network, "--network-alias=db",
+        await owner.Required(["create", "--name", db, "--label", "wayfarer.restore-helper=" + candidate.Project, "--restart=no", "--pull=never", "--network", network, "--network-alias=db",
             "--volume", ActiveStorage.Volume(candidate, "db-data") + ":/var/lib/postgresql/data",
             "--volume", Path.Combine(root, "secrets/db-password") + ":/run/secrets/db-password:ro",
             "--volume", Path.Combine(root, "secrets/db-app-password") + ":/run/secrets/app-password:ro",
@@ -51,7 +54,7 @@ public sealed class RestoreCandidate(IProcessRunner runner)
             "ghcr.io/stef-k/wayfarer-db@" + candidate.DbDigest], token);
         await owner.Required(["start", db], token);
         await WaitDatabaseAsync(db, token);
-        var secret = Path.Combine(directory, "bootstrap-secret");
+        var secret = Path.Combine(directory, "bootstrap-secret-" + plan.CandidateGeneration);
         ProtectedFiles.Create(secret, File.ReadAllText(Path.Combine(root, "secrets/db-password")), 1654);
         await owner.RunAsync(sql, [.. RestoreContainers.Unprivileged(), "--network", network, "--volume", payload + ":/worker:ro",
             "--volume", Path.Combine(directory, "verified") + ":/staging:ro", "--volume", secret + ":/run/secrets/db-password:ro",
@@ -67,7 +70,7 @@ public sealed class RestoreCandidate(IProcessRunner runner)
     {
         for (var attempt = 0; attempt < 90; attempt++)
         {
-            var result = await runner.RunAsync(["exec", db, "pg_isready", "-U", "postgres", "-d", "wayfarer"], null, token);
+            var result = await runner.RunAsync(["exec", db, "pg_isready", "-h", "127.0.0.1", "-U", "postgres", "-d", "wayfarer"], null, token);
             if (result.Code == 0) return;
             await Task.Delay(TimeSpan.FromSeconds(2), token);
         }

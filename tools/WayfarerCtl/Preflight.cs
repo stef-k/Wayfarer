@@ -79,6 +79,15 @@ public sealed class Preflight(IProcessRunner runner)
             if (result.Code != 0 || !string.IsNullOrWhiteSpace(result.Output))
                 throw new UsageException("Existing or unverifiable project state: setup refuses mutation. See interrupted-setup recovery.");
         }
+        foreach (var kind in new[] { "volume", "network" })
+        {
+            var named = await runner.RunAsync([kind, "ls", "--format", "{{.Name}}"], null, token);
+            if (named.Code != 0 || named.Output.Split('\n').Any(name => name.StartsWith(config.Project + "_", StringComparison.Ordinal)))
+                throw new UsageException("Existing named project resources prevent clean-target installation.");
+        }
+        var containers = await runner.RunAsync(["ps", "-aq", "--filter", "name=^/" + config.Project + "-"], null, token);
+        if (containers.Code != 0 || !string.IsNullOrWhiteSpace(containers.Output))
+            throw new UsageException("Existing named project container prevents clean-target installation.");
         CheckPorts(config);
         await NetworksAsync(config, token);
     }
@@ -138,7 +147,11 @@ public sealed class Preflight(IProcessRunner runner)
                 if (config.Backup is null || root is null) throw new UsageException("Unknown recovery service.");
                 files += "," + Path.Combine(BackupCompose.DirectoryPath(root, config.Backup), "compose.json");
             }
-            if (Label("project.working_dir") != bundle || Label("project.config_files") != files ||
+            var actualFiles = Label("project.config_files");
+            var transition = root is not null && config.StorageGeneration is not null && actualFiles is not null &&
+                actualFiles.StartsWith(files + "," + Path.Combine(root, "restore-plans") + "/", StringComparison.Ordinal) &&
+                System.Text.RegularExpressions.Regex.IsMatch(actualFiles[files.Length..], @",.*/[a-f0-9]{32}/(transition|exposure)\.yaml$");
+            if (Label("project.working_dir") != bundle || actualFiles != files && !transition ||
                 service is not ("db" or "wayfarer" or "caddy" or "backup-worker" or "backup-scheduler" or "backup-reader" or "backup-destination-check"))
                 throw new UsageException("Retained container belongs to different Compose inputs.");
         }

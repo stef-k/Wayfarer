@@ -19,12 +19,13 @@ public sealed record HostRecoveryOperation(int Schema, string Token, string Cont
         const string path = "/control/host-operation.json";
         if (!File.Exists(path))
         {
-            if (token is not null) throw new IOException("Host reservation missing.");
+            if (token is not null || File.Exists("/control/restore-in-progress")) throw new IOException("Host reservation missing or restore unresolved.");
             return false;
         }
         if (new FileInfo(path).Length > 2048) throw new IOException("Invalid host reservation.");
         var receipt = JsonSerializer.Deserialize<HostRecoveryOperation>(File.ReadAllText(path), ArchiveContract.Json);
-        if (token is null || receipt is null || receipt.Schema != 1 || receipt.Token != token)
+        if (token is null || receipt is null || receipt.Schema != 1 || receipt.Token != token ||
+            File.Exists("/control/restore-in-progress") && !receipt.RestoreHold)
             throw new IOException("Recovery reserved by host.");
         return receipt.Quiesced;
     }

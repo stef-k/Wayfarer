@@ -36,6 +36,11 @@ public sealed class BackupCommands(IProcessRunner runner, ITerminal terminal)
                 await Required(config.Compose(root, "stop", "--timeout", "70", "wayfarer"), token);
                 await AssertNoWriters(config, token);
             }
+            if (restoreEmergency)
+            {
+                var restore = RestoreReceipt.Load(root) ?? throw new IOException("Restore delegation requires durable intent.");
+                (restore with { Containers = [.. restore.Containers, container] }).Save(root);
+            }
             ProtectedFiles.Create(Path.Combine(control, "host-operation.json"), JsonSerializer.Serialize(new HostRecoveryOperation(1, reservation, container, quiesced, restoreEmergency)), 0, 1654);
         }
         var stopped = false;

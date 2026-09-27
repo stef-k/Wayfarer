@@ -30,6 +30,14 @@ public sealed record RestoreReceipt
     public required RestorePlan Plan { get; init; }
     public required string PlanHash { get; init; }
     public RestorePhase Phase { get; init; }
+    /// <summary>Each retry derives a fresh generation while preserving the originally authorized plan hash.</summary>
+    public int CandidateAttempt { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore]
+    public RestorePlan EffectivePlan => CandidateAttempt == 0 ? Plan : Plan with
+    {
+        CandidateGeneration = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(
+            Plan.CandidateGeneration + ":" + CandidateAttempt.ToString(System.Globalization.CultureInfo.InvariantCulture))))[..32]
+    };
     public string[] Containers { get; init; } = [];
     public string[] Volumes { get; init; } = [];
     public Dictionary<string, string> RestartPolicies { get; init; } = new();
@@ -60,7 +68,7 @@ public sealed record RestoreReceipt
     public void Validate(string root)
     {
         Plan.Target.Validate();
-        if (Schema != 1 || !Enum.IsDefined(Phase) || Plan.Root != root || Plan.Operation == Guid.Empty ||
+        if (Schema != 1 || CandidateAttempt is < 0 or > 100 || !Enum.IsDefined(Phase) || Plan.Root != root || Plan.Operation == Guid.Empty ||
             Plan.Archive == Guid.Empty || Plan.SourceInstallation == Guid.Empty || Plan.Target.Installation == Guid.Empty ||
             PlanHash != Plan.Hash() || !System.Text.RegularExpressions.Regex.IsMatch(Plan.CandidateGeneration, "^[a-f0-9]{32}$") ||
             !System.Text.RegularExpressions.Regex.IsMatch(Plan.ArchiveSha256, "^[a-f0-9]{64}$"))
@@ -76,7 +84,27 @@ public sealed record RestoreReceipt
         var temporary = path + "." + Guid.NewGuid().ToString("N");
         ProtectedFiles.Create(temporary, JsonSerializer.Serialize(this));
         File.Move(temporary, path, overwrite: true);
+        var marker = Path.Combine(root, "recovery-control", "restore-in-progress");
+        if (Phase is RestorePhase.Accepted or RestorePhase.Aborted)
+        {
+            if (File.Exists(marker)) File.Delete(marker);
+        }
+        else if (!File.Exists(marker)) ProtectedFiles.Create(marker, Plan.Operation.ToString("D"));
         using var parent = new SafeDirectory(Path.GetDirectoryName(path)!);
+        parent.Flush();
+    }
+
+    /// <summary>Preserve completed operations before another restore can replace the current intent.</summary>
+    public static void ArchiveResolved(string root)
+    {
+        var previous = Load(root);
+        if (previous is null) return;
+        RequireResolved(root);
+        var directory = Path.Combine(root, "recovery-control", "restore-history");
+        Directory.CreateDirectory(directory, ProtectedFiles.PrivateDirectory);
+        var path = Path.Combine(directory, previous.Plan.Operation.ToString("N") + ".json");
+        if (!File.Exists(path)) ProtectedFiles.Create(path, JsonSerializer.Serialize(previous));
+        using var parent = new SafeDirectory(directory);
         parent.Flush();
     }
 
@@ -101,6 +129,28 @@ public sealed record RestoreReceipt
 /// <summary>Central completion owner distinguishes fresh setup from accepted disaster restore.</summary>
 public static class InstallationCompletion
 {
-    public static bool IsComplete(string root) => File.Exists(Path.Combine(root, "setup-complete")) ||
-        RestoreReceipt.Load(root) is { Phase: RestorePhase.Accepted };
+    /// <summary>Restore completion survives subsequent recovery intent without inventing setup stage evidence.</summary>
+    public static bool IsComplete(string root)
+    {
+        if (File.Exists(Path.Combine(root, "setup-complete"))) return true;
+        var path = Path.Combine(root, "restore-complete");
+        if (!File.Exists(path)) return RestoreReceipt.Load(root) is { Phase: RestorePhase.Accepted };
+        ProtectedFiles.SafePath(path);
+        ProtectedFiles.Check(path, 0);
+        if (new FileInfo(path).Length > 64 || !Guid.TryParseExact(File.ReadAllText(path), "D", out var operation) || operation == Guid.Empty)
+            throw new UsageException("Invalid restore completion evidence.");
+        return true;
+    }
+
+    /// <summary>Flush distinct disaster-recovery completion evidence only after an accepted restore.</summary>
+    public static void RecordRestore(string root, RestoreReceipt receipt)
+    {
+        if (receipt.Phase != RestorePhase.Accepted) throw new UsageException("Restore is not accepted.");
+        var path = Path.Combine(root, "restore-complete");
+        var temporary = path + "." + Guid.NewGuid().ToString("N");
+        ProtectedFiles.Create(temporary, receipt.Plan.Operation.ToString("D"));
+        File.Move(temporary, path, true);
+        using var directory = new SafeDirectory(root);
+        directory.Flush();
+    }
 }
