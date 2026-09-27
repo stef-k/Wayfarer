@@ -7,6 +7,10 @@ namespace WayfarerCtl;
 public sealed record Deployment
 {
     public int Schema { get; init; } = 1;
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public Guid Installation { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public BackupPolicy? Backup { get; init; }
     public string Bundle { get; init; } = "";
     public string Project { get; init; } = "wayfarer";
     public string Hostname { get; init; } = "";
@@ -23,8 +27,10 @@ public sealed record Deployment
     /// <summary>Fail closed on unknown schema, identities, input expansion and unsupported proxy topology.</summary>
     public void Validate()
     {
-        if (Schema != 1 || !Path.IsPathFullyQualified(Bundle) || Bundle.IndexOfAny(['\n', '\r', '$', '"', '\'','`']) >= 0)
+        if (Schema is not (1 or 2) || Schema == 1 && (Installation != Guid.Empty || Backup is not null) ||
+            Schema == 2 && Installation == Guid.Empty || !Path.IsPathFullyQualified(Bundle) || Bundle.IndexOfAny(['\n', '\r', '$', '"', '\'','`']) >= 0)
             throw new UsageException("Invalid installation schema or absolute bundle path.");
+        Backup?.Validate();
         if (!Regex.IsMatch(Project, "^[a-z0-9][a-z0-9_-]{0,62}$")) throw new UsageException("Invalid project identity.");
         if (!Regex.IsMatch(AppDigest, "^sha256:[a-f0-9]{64}$") || !Regex.IsMatch(DbDigest, "^sha256:[a-f0-9]{64}$"))
             throw new UsageException("Immutable sha256 application and database digests are required.");
@@ -58,10 +64,13 @@ public sealed record Deployment
         ProtectedFiles.Check(root, 0, directory: true);
         var path = Path.Combine(root, "installation.json");
         ProtectedFiles.Check(path, 0);
+        if (new FileInfo(path).Length > 262144) throw new UsageException("Installation configuration exceeds its bound.");
         var config = JsonSerializer.Deserialize<Deployment>(File.ReadAllText(path), new JsonSerializerOptions
         { UnmappedMemberHandling = System.Text.Json.Serialization.JsonUnmappedMemberHandling.Disallow })
             ?? throw new UsageException("Missing installation identity.");
         config.CheckBundle();
+        if (config.Backup is not null && !File.Exists(Path.Combine(root, "setup-complete")))
+            throw new UsageException("Incomplete setup cannot use backup schema/policy.");
         ProtectedFiles.Check(Path.Combine(root, "deployment.env"), 0);
         if (File.ReadAllText(Path.Combine(root, "deployment.env")) != config.EnvironmentFile(root))
             throw new UsageException("Configuration differs from installation identity; reconcile it explicitly before operation.");

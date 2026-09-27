@@ -41,6 +41,46 @@ public sealed class Diagnostics(IProcessRunner runner, ITerminal terminal)
                 await Required(config.Compose(root, "exec", "-T", "wayfarer", "sh", "-ec",
                     "test -d /var/lib/wayfarer/data-protection; test -r /var/lib/wayfarer/data-protection; test -w /var/lib/wayfarer; test ! -L /var/lib/wayfarer/data-protection; test -n \"$(find /var/lib/wayfarer/data-protection -maxdepth 1 -name 'key-*.xml' -print -quit)\""), token));
         }
+        if (config.Backup is { } backup)
+        {
+            terminal.Write($"Backup source: {backup.Source.ApplicationVersion}; revision: {backup.Source.SourceRevision}; stable identity: {backup.Source.StableIdentity}");
+            terminal.Write($"Backup enabled: {backup.Enabled}; daily UTC minute: {backup.DailyMinute}; jitter minutes: {backup.JitterMinutes}; retention: {backup.Retention}");
+            await Check("Backup payload/generated inputs", () => { BackupCompose.Check(root, config); return Task.CompletedTask; });
+            await Check("Backup destination identity", () =>
+            {
+                using var destination = new WayfarerRecovery.SafeDirectory(backup.Destination);
+                var facts = destination.Identity;
+                if (facts.DeviceMajor != backup.DeviceMajor || facts.DeviceMinor != backup.DeviceMinor || facts.Inode != backup.Inode)
+                    throw new IOException();
+                using var marker = destination.Read(".wayfarer-recovery");
+                if (marker.Length > 128 || new StreamReader(marker).ReadToEnd() != $"wayfarer-recovery-v1\n{config.Installation:D}\n") throw new IOException();
+                return Task.CompletedTask;
+            });
+            await Check("Backup configuration transition", () =>
+            {
+                if (File.Exists(Path.Combine(root, "backup-transition.json"))) throw new IOException();
+                return Task.CompletedTask;
+            });
+            if (backup.Enabled) await Check("Backup scheduler running", async () =>
+            {
+                var id = (await Required(BackupCompose.Command(root, config, "ps", "--quiet", "backup-scheduler"), token)).Trim();
+                if (id.Length == 0) throw new IOException();
+            });
+            await Check("Backup operational receipt", () =>
+            {
+                var path = Path.Combine(root, "recovery-control/state/scheduler.json");
+                if (!File.Exists(path)) { terminal.Write("Backup scheduler: no attempt receipt yet."); return Task.CompletedTask; }
+                if (new FileInfo(path).Length > 4096) throw new IOException();
+                var receipt = JsonSerializer.Deserialize<WayfarerRecovery.SchedulerReceipt>(File.ReadAllText(path), WayfarerRecovery.ArchiveContract.Json) ?? throw new IOException();
+                receipt.Validate();
+                terminal.Write($"Backup last attempt: {receipt.LastAttempt:O}; last success: {receipt.LastSuccess:O}; attempt count: {receipt.Attempts}; succeeded: {receipt.Succeeded}; next retry: {receipt.NextRetry:O}");
+                var failure = receipt.Failure is "none" or "interrupted" or "capture-failed" or "retention-failed" ? receipt.Failure : "invalid-receipt";
+                terminal.Write("Backup last failure: " + failure);
+                if (failure != "none") throw new IOException();
+                return Task.CompletedTask;
+            });
+        }
+        else terminal.Write("Backup: not configured (disabled).");
         if (config.Mode == "external") terminal.Write("WARN External proxy HTTPS/forwarded-header/public-origin qualification remains administrator-owned.");
         return failed ? 1 : 0;
     }

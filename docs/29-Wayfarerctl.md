@@ -3,8 +3,8 @@
 `wayfarerctl` is the Linux AMD64, self-contained C# operator executable introduced
 by #648. It orchestrates the [accepted Compose substrate](28-Production-Compose.md)
 and existing application maintenance commands. This foundation includes fresh setup,
-lifecycle, diagnosis, logs and essential user recovery. **Backup, restore, update,
-uninstall and native migration are not implemented.** #603 is not complete; the
+lifecycle, diagnosis, logs, user recovery and opt-in Compose recovery sets. **Production
+restore, update, uninstall and native migration are not implemented.** #603 is not complete; the
 final versioned release tarball and `release.json` remain separate work.
 
 ## Placement and prerequisites
@@ -260,3 +260,124 @@ genuine application publication remains the #642 release acceptance gate.
 It removes only its random labelled resources. Test-only TLS never changes production
 Caddy automatic HTTPS. This is not public-CA issuance, production/native qualification,
 backup/restore/update acceptance or completion of #603.
+
+## Compose recovery sets
+
+Explicit opt-in on a **completed** installation introduces installation schema 2
+and a stable installation UUID. Existing schema 1 remains readable and backup-disabled;
+status never upgrades it. Older operators reject schema 2. Interrupted setup must
+be completed using its original configuration and setup receipt first.
+
+The trusted additive payload contains the self-contained `wayfarer-recovery` and
+`WayfarerRecoverySource.dll` beside it. The latter executes using the selected
+immutable application's existing runtime and authority owners. It does not replace
+that image or change the original bundle. Publish the worker for Linux x64 and build
+`tools/WayfarerRecoverySource`; copy only the inspector DLL into the payload. Keep
+both root-owned, without writable shared ancestors, and make the worker executable
+but not writable (0555; inspector 0444). The operator records their combined checksum.
+
+```sh
+wayfarerctl backup configure --destination /srv/wayfarer-backups \
+  --payload /etc/wayfarer/releases/recovery-v1/wayfarer-recovery
+wayfarerctl backup
+wayfarerctl backups
+wayfarerctl verify-backup
+wayfarerctl verify-backup <owned-archive-basename>
+wayfarerctl backup configure --disable
+```
+
+The destination must already exist, be dedicated and empty for first configuration,
+and be outside installation, bundle, secrets, Docker and application state. Only
+that directory and its installation marker are provisioned; unrelated contents are
+never recursively chmod/chowned. UID/GID1654 owns the destination at 0700; archive
+files are 0600. No directory is created when a configured destination disappears.
+Protect archives as sensitive credentials/personal data. Checksums detect corruption;
+they do not encrypt, sign or authenticate a compromised destination.
+
+Defaults: daily 03:00 UTC, stable installation jitter of 0–15 minutes, seven complete
+sets, at most three attempts per daily slot, five-minute retry spacing, and one
+catch-up slot. Configure `--time HH:mm` and `--retention 1..100` explicitly as needed.
+Policy lives only in `installation.json`. Generated inputs are compared byte-for-byte
+before use. Previous trusted installation bytes and a transition receipt support
+`backup configure --recover` after interruption. An uncertain running worker blocks
+recovery rather than being declared cancelled. Inspect the named owned container and
+Docker daemon first; never delete `recovery.lock` to clear a busy operation.
+
+For an administrator-mounted filesystem, use `--kind mounted` and a dedicated
+root-owned 0755 propagating parent with exactly one child named `slot`, for example
+`/srv/wayfarer-remote/slot`. The administrator mounts storage and establishes host
+shared propagation; Wayfarer does not manage NAS credentials or mount filesystems.
+Only that parent is bound with one-way `rslave` propagation. Device/inode identity,
+mount separation and installation marker must match. Unmount or substitution fails
+without writing to the local underlay. The daemon must support Linux propagation.
+
+The socket-free scheduler runs in the exact configured DB image as UID/GID1654 with
+no capabilities, read-only root, app-data read-only, app-role secret read-only,
+bounded CPU/memory/processes and 2 GiB private temporary storage. Its operational
+receipt is in local `recovery-control/state`, outside the destination. Restart/replacement
+does not reset slots. Manual and scheduled captures share the same C# engine and
+kernel byte-range lock; manual busy returns 1. Stop/restart/configuration respect
+that lock, and deliberate stop also stops the scheduler. No host .NET, PostgreSQL,
+Python, cron or systemd timer is needed. Status/doctor report policy, destination,
+payload, scheduler and bounded receipt facts. The root-owned 0755 control parent
+protects the root:1654 0660 lock inode and root:1654 0640 host reservation from worker
+replacement. Only the scheduler state directory is UID1654-writable; worker mounts
+keep the control parent read-only and grant write access to the existing lock inode.
+Existing unsafe control ownership fails closed; it is never repaired by replacing a
+potentially held lock.
+
+`backups` and `verify-backup` use a separate network-free service with no application
+password or app-data mount and a read-only destination. Only the existing lock inode
+and private temporary storage are writable. Destination capability checks use another
+network-free service with destination write access but no control, DB secret or source
+mount. Capture/scheduling alone receive backend DB access and source authority.
+
+After interruption, scheduler reconciliation accepts only the exact UTC slot. It
+verifies the committed archive and reapplies retention before recording success;
+retention failure remains visible as `retention-failed` without invalidating the
+archive or recapturing the slot, including after the final capture attempt.
+
+Online capture pairs a coherent exported PostgreSQL snapshot with Uploads and the
+complete resolved active ring captured over time. It is **not an atomic
+cross-component snapshot**. Observed source changes fail capture. Uploads includes
+committed `uploads/imports`; caches, logs, thumbnails, browser/temp, raw DB files,
+Caddy/TLS and host secrets/configuration are excluded. Missing Uploads is an error;
+an existing empty root is valid. No source ownership or contents are changed.
+
+`backup --quiesced` acquires lifecycle exclusion, stops the scheduler and application,
+confirms no other running app-data consumer, then reserves the operation for the
+same worker engine while DB remains running. The host receipt, not a worker flag,
+authorizes the quiesced label. The application remains stopped afterward. Use
+`wayfarerctl start` only when the protected transition is complete. Production
+restore/update/native migration remain separate work.
+
+The archive is an uncompressed USTAR with exactly `manifest.json`, `database.dump`,
+`data-protection.tar.gz`, `uploads.tar.gz` and `SHA256SUMS`. The final `.sha256`
+sidecar is published last and is the complete-pair marker. Retention verifies owned
+complete pairs before deleting oldest excess sets. Before capture, bounded cleanup
+under the shared lock reclaims private UID/GID1654 mode 0600 partials and orphan
+archive/sidecar files older than 24 hours in this installation's exact generated
+namespace. Final orphans also require matching manifest/sidecar identity. Fresh,
+foreign, linked, invalid and wrong-owner files, and complete pairs, are preserved;
+listing/verification never clean or rewrite destination content. A retention failure
+reports the successfully published archive separately.
+Listing scans at most 4096 destination entries and returns at most 20 newest pairs;
+it is explicitly not full verification. Verification bounds bytes, entries, paths,
+manifest and elapsed time, never executes SQL, and distinguishes integrity from
+source/schema compatibility. Unknown compatibility is not restore readiness.
+
+## Disposable reconstruction evidence
+
+`tools/compose/qualify_recovery.py` extends the existing operator/Compose fixture.
+It uses the published binaries, a real non-superuser application dump, full ring and
+import/upload bytes, then reconstructs into another random project's clean volumes.
+The target uses the same DB initialization authority and `pg_restore --exit-on-error`,
+without running EF migration over the restored database. The test checks spatial,
+citext/locale/schema data, a synthetic provider credential through its production
+credential service, and a production Identity token protected before capture. It
+compares source database/files before and after the drill. Fixture-only root
+initialization assigns target UID1654 ownership; this is not a shipped restore command.
+
+No real NAS, production-host recovery, release publication, update or native migration
+is qualified by a disposable fixture. Later lifecycle children must consume this
+archive/worker contract rather than introduce a second recovery implementation.

@@ -60,6 +60,8 @@ public sealed class Preflight(IProcessRunner runner)
         };
         if (config.Mode == "managed")
             expected["caddy"] = "caddy@sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b";
+        if (services.EnumerateObject().Any(service => !expected.ContainsKey(service.Name)))
+            throw new UsageException("Unexpected service in immutable application bundle.");
         foreach (var (name, image) in expected)
         {
             if (!services.TryGetProperty(name, out var service) || service.GetProperty("image").GetString() != image ||
@@ -109,14 +111,14 @@ public sealed class Preflight(IProcessRunner runner)
                 if (inspection.Code != 0) throw new UsageException("Cannot inspect retained project ownership.");
                 using var document = JsonDocument.Parse(inspection.Output);
                 var resource = document.RootElement[0];
-                VerifyRetainedResource(config, kind, resource);
+                VerifyRetainedResource(config, kind, resource, root);
             }
         }
         await NetworksAsync(config, token, installed: true);
     }
 
     /// <summary>Compare retained resource labels and names with the exact persisted Compose identity.</summary>
-    public static void VerifyRetainedResource(Deployment config, string kind, JsonElement resource)
+    public static void VerifyRetainedResource(Deployment config, string kind, JsonElement resource, string? root = null)
     {
         var labels = kind == "container" ? resource.GetProperty("Config").GetProperty("Labels") : resource.GetProperty("Labels");
         string? Label(string key) => labels.ValueKind == JsonValueKind.Object && labels.TryGetProperty("com.docker.compose." + key, out var value) ? value.GetString() : null;
@@ -125,8 +127,14 @@ public sealed class Preflight(IProcessRunner runner)
         {
             var bundle = Path.TrimEndingDirectorySeparator(Path.GetFullPath(config.Bundle));
             var files = Path.Combine(bundle, "compose.yaml") + (config.Mode == "external" ? "," + Path.Combine(bundle, "external.yaml") : "");
+            var service = Label("service");
+            if (service is "backup-worker" or "backup-scheduler" or "backup-reader" or "backup-destination-check")
+            {
+                if (config.Backup is null || root is null) throw new UsageException("Unknown recovery service.");
+                files += "," + Path.Combine(BackupCompose.DirectoryPath(root, config.Backup), "compose.json");
+            }
             if (Label("project.working_dir") != bundle || Label("project.config_files") != files ||
-                Label("service") is not ("db" or "wayfarer" or "caddy"))
+                service is not ("db" or "wayfarer" or "caddy" or "backup-worker" or "backup-scheduler" or "backup-reader" or "backup-destination-check"))
                 throw new UsageException("Retained container belongs to different Compose inputs.");
         }
         else

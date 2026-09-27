@@ -1,7 +1,7 @@
 # Deployment & Operations
 
 The Compose operator foundation now provides secure fresh setup and routine management through
-[`wayfarerctl`](29-Wayfarerctl.md). Final release packaging, backup/restore/update and native
+[`wayfarerctl`](29-Wayfarerctl.md). Opt-in Compose recovery sets are documented there. Final release packaging, production restore/update and native
 migration remain separate #603 work; the existing native path below remains available.
 
 This guide covers installation, deployment, logging, and operational commands for Wayfarer on Linux servers.

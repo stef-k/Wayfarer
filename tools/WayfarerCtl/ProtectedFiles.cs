@@ -55,8 +55,8 @@ public static class ProtectedFiles
             throw new UsageException("Protected file ownership, type or mode is unsafe.");
     }
 
-    /// <summary>Create without replacement; set mode on open before writing any secret bytes.</summary>
-    public static void Create(string path, string content, uint owner = 0)
+    /// <summary>Create without replacement; start private, optionally granting a separate read-only consumer group.</summary>
+    public static void Create(string path, string content, uint owner = 0, uint? readerGroup = null)
     {
         if (!OperatingSystem.IsLinux()) throw new PlatformNotSupportedException();
         using var stream = new FileStream(path, new FileStreamOptions
@@ -67,7 +67,8 @@ public static class ProtectedFiles
         writer.Write(content);
         writer.Flush();
         stream.Flush(flushToDisk: true);
-        if (chown(path, owner, owner) != 0) throw new IOException("Cannot assign protected file ownership.");
+        if (chown(path, owner, readerGroup ?? owner) != 0) throw new IOException("Cannot assign protected file ownership.");
+        if (readerGroup is not null) File.SetUnixFileMode(path, PrivateFile | UnixFileMode.GroupRead);
     }
 
     /// <summary>Separate consumer files carry the same role password; bootstrap uses independent entropy.</summary>

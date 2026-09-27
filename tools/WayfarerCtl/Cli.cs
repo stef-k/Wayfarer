@@ -11,7 +11,7 @@ public sealed class Cli(IProcessRunner runner, ITerminal terminal)
         try { return await DispatchAsync(args, token); }
         catch (System.Text.Json.JsonException) { terminal.Error("Invalid installation JSON configuration; restore the trusted non-secret identity."); return 2; }
         catch (UsageException e) { terminal.Error(e.Message); return 2; }
-        catch (OperationCanceledException) { terminal.Error("Cancelled. State retained; run status/doctor before retrying."); return 1; }
+        catch (OperationCanceledException) { terminal.Error("Cancellation requested. State retained; use status/doctor to confirm worker and operation state before retrying."); return 1; }
         catch (Exception) { terminal.Error("Operation failed. State retained; check Docker access, protected configuration and doctor."); return 1; }
     }
 
@@ -47,12 +47,18 @@ public sealed class Cli(IProcessRunner runner, ITerminal terminal)
         var config = Deployment.Load(root);
         if (args[0] is "status" or "doctor")
             return await new Diagnostics(runner, terminal).RunAsync(root, config, args[0] == "doctor", token);
+        if (File.Exists(Path.Combine(root, "backup-transition.json")) && args is not ["backup", "configure", "--recover"])
+            throw new UsageException("Interrupted backup configuration; run backup configure --recover before mutation.");
         Deployment.CheckSecrets(root);
         await new Preflight(runner).DockerAsync(token);
         if (args[0] == "logs") return await LogsAsync(root, config, args[1..], token);
         if (!File.Exists(Path.Combine(root, "setup-complete")))
             throw new UsageException("Setup incomplete; follow interrupted-setup recovery before lifecycle/user operations.");
         using var operationLock = Setup.Lock(root);
+        if (args[0] is "backup" or "backups" or "verify-backup")
+            return await new BackupCommands(runner, terminal).RunAsync(root, config, args, token);
+        using var recovery = config.Backup is not null ? new WayfarerRecovery.RecoveryLock(Path.Combine(root, "recovery-control/recovery.lock")) : null;
+        if (File.Exists(Path.Combine(root, "recovery-control/host-operation.json"))) throw new IOException("Unresolved recovery operation.");
         if (args[0] == "user") return await UserAsync(root, config, args, token);
         return await LifecycleAsync(root, config, args[0], token);
     }
@@ -60,6 +66,10 @@ public sealed class Cli(IProcessRunner runner, ITerminal terminal)
     /// <summary>Validate all direct argument forms before touching deployment state.</summary>
     public static void ValidateCommand(string[] args)
     {
+        if (args is ["backup", "configure", ..]) { BackupConfiguration.Options(args[2..]); return; }
+        if (args is ["backup"] or ["backup", "--quiesced"] or ["backups"] or ["verify-backup"]) return;
+        if (args is ["verify-backup", var archive] && archive.Length < 256 && archive.StartsWith("wayfarer-recovery-v1_") &&
+            archive.EndsWith(".tar") && !archive.Any(c => char.IsControl(c) || c is '/' or '\\' or ':')) return;
         if (args is ["setup", ..]) { Setup.Options(args[1..]); return; }
         if (args is ["status" or "doctor" or "start" or "stop" or "restart"]) return;
         if (args is ["logs", ..]) { LogOptions(args[1..]); return; }
@@ -75,13 +85,13 @@ public sealed class Cli(IProcessRunner runner, ITerminal terminal)
     /// <summary>The menu supplies command arguments only, keeping maintenance logic in common handlers.</summary>
     private async Task<int> MenuAsync(string root, CancellationToken token)
     {
-        var entries = new[] { "setup", "status", "doctor", "start", "stop", "restart", "logs", "user", "help" };
+        var entries = new[] { "setup", "status", "doctor", "start", "stop", "restart", "logs", "user", "help", "backup", "backups", "verify-backup" };
         while (!token.IsCancellationRequested)
         {
-            terminal.Write("1 Setup  2 Status  3 Doctor  4 Start  5 Stop  6 Restart  7 Logs  8 User recovery  9 Help  0 Exit");
+            terminal.Write("1 Setup  2 Status  3 Doctor  4 Start  5 Stop  6 Restart  7 Logs  8 User recovery  9 Help  10 Backup  11 Backups  12 Verify backup  0 Exit");
             var choice = terminal.Read("> ");
             if (choice is null or "0") return 0;
-            if (!int.TryParse(choice, out var index) || index < 1 || index > entries.Length) { terminal.Error("Choose 0..9."); continue; }
+            if (!int.TryParse(choice, out var index) || index < 1 || index > entries.Length) { terminal.Error("Choose 0..12."); continue; }
             string[] command = [entries[index - 1]];
             if (command[0] == "user")
             {
@@ -99,11 +109,15 @@ public sealed class Cli(IProcessRunner runner, ITerminal terminal)
     /// <summary>No pull, recreate, migration or volume deletion is hidden inside ordinary lifecycle.</summary>
     private async Task<int> LifecycleAsync(string root, Deployment config, string operation, CancellationToken token)
     {
+        if (operation is "stop" or "restart" && config.Backup is not null)
+            await RequiredAsync(BackupCompose.Command(root, config, "stop", "--timeout", "30", "backup-scheduler"), null, token);
         if (operation is "stop" or "restart")
             await RequiredAsync(config.Compose(root, "stop", "--timeout", "70"), null, token);
         if (operation != "stop")
         {
             await RequiredAsync(config.Compose(root, "up", "-d", "--no-recreate", "--pull", "never", "--wait", "--wait-timeout", "180"), null, token);
+            if (config.Backup is { Enabled: true })
+                await RequiredAsync(BackupCompose.Command(root, config, "up", "-d", "--no-deps", "--pull", "never", "backup-scheduler"), null, token);
             return await new Diagnostics(runner, terminal).RunAsync(root, config, true, token);
         }
         terminal.Write("Stopped. All durable volumes retained."); return 0;

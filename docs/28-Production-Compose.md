@@ -7,7 +7,7 @@ Implements [#644](https://github.com/stef-k/Wayfarer/issues/644) against
 [publication identity](27-Application-Image-Publication.md).
 This is the substrate for [wayfarerctl setup and operation](29-Wayfarerctl.md), not the
 completed #603 installation product. The manual commands below are advanced maintenance
-seams. Backup/restore, updates, release tarball and `release.json` remain separate work.
+seams. Opt-in backup uses the additive [operator recovery payload](29-Wayfarerctl.md#compose-recovery-sets). Production restore, updates, release tarball and `release.json` remain separate work.
 Nothing here migrates a native installation.
 
 ## Topology and state
@@ -126,7 +126,7 @@ rebuild indexes through restore and verify application identities and representa
 Greek/Latin data. The PostGIS3.5 → 3.6 boundary needs source-specific qualification;
 this fresh-stack proof does not qualify production migration, downgrade, binary
 extensions or direct data-directory reuse. Glibc reduces the libc change but does
-not remove these migration requirements. Managed backup/recovery remains unimplemented.
+not remove these migration requirements. Compose recovery sets preserve the full resolved ring; production restore remains separate work.
 
 ## Derived database image delivery
 
