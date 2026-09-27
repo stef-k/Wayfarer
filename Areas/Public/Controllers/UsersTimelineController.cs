@@ -119,12 +119,13 @@ namespace Wayfarer.Areas.Public.Controllers
                 return NotFound("User not found or timeline is not public.");
             }
 
+            // Latest selection shares eligibility and remains independent of viewport and zoom.
+            var latestLocation = await projection.Query(_dbContext)
+                .OrderByDescending(l => l.LocalTimestamp)
+                .FirstOrDefaultAsync();
+
             try
             {
-                // Latest selection shares eligibility and the same bounded failure envelope.
-                var latestLocation = await projection.Query(_dbContext)
-                    .OrderByDescending(l => l.LocalTimestamp)
-                    .FirstOrDefaultAsync();
                 var (locationDtos, totalItems) = await _locationService.GetLocationsAsync(
                     request.MinLongitude,
                     request.MinLatitude,

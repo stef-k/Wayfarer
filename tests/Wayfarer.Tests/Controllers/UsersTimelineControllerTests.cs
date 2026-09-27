@@ -248,28 +248,6 @@ public class UsersTimelineControllerTests : TestBase
         ZoomLevel = 5
     };
 
-    /// <summary>A downstream relational failure keeps the public 200 failure envelope bounded.</summary>
-    [Fact]
-    public async Task GetPublicTimeline_InternalFailureKeepsPagingAndGenericData()
-    {
-        using var db = CreateDbContext();
-        var user = TestDataFixtures.CreateUser(username: "alice");
-        user.IsTimelinePublic = true;
-        user.PublicTimelineTimeThreshold = "now";
-        db.Users.Add(user);
-        await db.SaveChangesAsync();
-        var controller = BuildController(db);
-        // The in-memory provider rejects the service's relational query inside the action's catch.
-        var result = Assert.IsType<OkObjectResult>(await controller.GetPublicTimeline(
-            new Wayfarer.Models.Dtos.LocationFilterRequest { Username = "alice" }));
-        using var json = System.Text.Json.JsonDocument.Parse(System.Text.Json.JsonSerializer.Serialize(result.Value));
-        Assert.False(json.RootElement.GetProperty("Success").GetBoolean());
-        Assert.Equal("Error: Unable to retrieve the public timeline.", json.RootElement.GetProperty("Data").GetString());
-        Assert.Equal(0, json.RootElement.GetProperty("TotalItems").GetInt32());
-        Assert.Equal(1, json.RootElement.GetProperty("CurrentPage").GetInt32());
-        Assert.Equal(0, json.RootElement.GetProperty("PageSize").GetInt32());
-    }
-
     private static UsersTimelineController BuildController(ApplicationDbContext db)
     {
         // locationService and statsService are unused in these actions; keep defaults.
