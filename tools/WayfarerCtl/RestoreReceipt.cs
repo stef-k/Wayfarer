@@ -19,6 +19,9 @@ public sealed record RestorePlan(Guid Operation, string Root, Deployment Target,
     string? PreviousGeneration, string CandidateGeneration, bool NewInstall, bool WithoutEmergencyBackup,
     bool ForeignAcknowledged)
 {
+    /// <summary>Bind existing local credentials without retaining their bytes in non-secret evidence.</summary>
+    public string? LocalSecretsFingerprint { get; init; }
+
     /// <summary>Deterministic serialized bytes bind every plan field, including the new target UUID.</summary>
     public string Hash() => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(this))));
 }
@@ -42,6 +45,7 @@ public sealed record RestoreReceipt
     public string[] Volumes { get; init; } = [];
     public Dictionary<string, string> RestartPolicies { get; init; } = new();
     public Guid? EmergencyArchive { get; init; }
+    public string? SecretsFingerprint { get; init; }
     public string? OldConfiguration { get; init; }
     public string? NewConfiguration { get; init; }
 

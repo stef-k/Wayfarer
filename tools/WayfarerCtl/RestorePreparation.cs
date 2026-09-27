@@ -86,8 +86,14 @@ public sealed class RestorePreparation(IProcessRunner runner)
         var plan = new RestorePlan(operation, root, config, source, manifest.Archive, digest, manifest.Completed,
             manifest.Mode, expected.BundleFingerprint, expected.PayloadFingerprint, payloadFingerprint,
             config.StorageGeneration, Guid.NewGuid().ToString("N"), options.Has("--new-install"),
-            options.Has("--without-emergency-backup"), options.Has("--archive"));
+            options.Has("--without-emergency-backup"), options.Has("--archive"))
+        { LocalSecretsFingerprint = options.Has("--new-install") ? null : ProtectedFiles.SecretsFingerprint(root) };
         ProtectedFiles.Create(Path.Combine(directory, "plan.json"), JsonSerializer.Serialize(plan));
+        foreach (var path in new[] { directory, Path.GetDirectoryName(directory)!, root })
+        {
+            using var parent = new SafeDirectory(path);
+            parent.Flush();
+        }
         return plan;
     }
 

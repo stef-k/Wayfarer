@@ -65,6 +65,8 @@ class RecoveryJourney(Journey):
         print('PASS scheduled due capture receipt', flush=True)
         if restore_only:
             self.ctl('backup', '--quiesced')
+            self.restore_refusals()
+            self.restore_boundaries()
             self.restore()
             return
         generation = json.loads(self.host('cat', str(self.install / 'installation.json')).stdout)['Backup']['Generation']
@@ -378,6 +380,89 @@ class RecoveryJourney(Journey):
             "schemaname, tablename), false, true, '')::text) FROM pg_tables WHERE schemaname='public' ORDER BY tablename")
         return hashlib.sha256((files + database).encode()).hexdigest()
 
+    def restore_refusals(self):
+        """Prove pre-mutation refusals and a real pg_restore missing-role failure against fresh candidates."""
+        baseline = self.host('cat', str(self.install / 'installation.json')).stdout
+        config = json.loads(baseline)
+        name = self.ctl('backups').stdout.split(' ')[0]
+        archive = self.directory / 'destination' / name
+        sidecar = str(archive) + '.sha256'
+        checksum = self.host('cat', sidecar).stdout
+        options = ['--restore-payload', str(self.payload / 'wayfarer-recovery')]
+        self.host('tee', sidecar, data='corrupt')
+        assert self.ctl('restore', name, *options, '--plan', check=False).returncode == 1
+        self.host('tee', sidecar, data=checksum)
+        assert self.ctl('restore', '--archive', str(archive), *options, '--plan', check=False).returncode == 2
+        evidence = self.directory / 'incompatible-source.json'
+        source = dict(config['Backup']['Source'])
+        source['ApplicationVersion'] = '0.0.0'
+        self.host('tee', str(evidence), data=json.dumps(source))
+        self.host('chmod', '600', str(evidence))
+        assert self.ctl('restore', name, *options, '--target-evidence', str(evidence), '--plan', check=False).returncode == 1
+        assert self.ctl('restore', '--accept-plan', 'f' * 64, '--trust-controlled-backup', check=False).returncode == 2
+        assert self.host('cat', str(self.install / 'installation.json')).stdout == baseline
+        print('PASS corrupt/incompatible archive, missing foreign acknowledgement and plan mismatch before mutation', flush=True)
+        sql = ['exec', '-T', 'db', 'psql', '-U', 'postgres', '-d', 'wayfarer', '-v', 'ON_ERROR_STOP=1', '-c']
+        self.compose(*sql, 'CREATE ROLE restore_missing; CREATE TABLE restore_owner_probe(id integer); '
+            'ALTER TABLE restore_owner_probe OWNER TO restore_missing; GRANT SELECT ON restore_owner_probe TO wayfarer;')
+        self.ctl('backup', '--quiesced')
+        self.compose(*sql, 'DROP TABLE restore_owner_probe; DROP ROLE restore_missing;')
+        planned = self.ctl('restore', *options, '--without-emergency-backup', '--plan').stdout
+        plan = json.loads(planned.splitlines()[0])
+        accepted = planned.split('Plan SHA-256: ')[1].splitlines()[0]
+        failure = self.ctl('restore', '--accept-plan', accepted, '--trust-controlled-backup', check=False)
+        assert failure.returncode == 1 and 'phase=Staging' in failure.stderr
+        assert self.host('cat', str(self.install / 'installation.json')).stdout == baseline
+        receipt_path = str(self.install / 'recovery-control/restore.json')
+        first = json.loads(self.host('cat', receipt_path).stdout)
+        assert not first['WritesPossible'] and first['EmergencyArchive'] is None
+        assert self.ctl('start', check=False).returncode == 2
+        assert self.ctl('backup', 'configure', '--recover', check=False).returncode == 2
+        assert self.ctl('restore', '--resume', plan['Operation'], check=False).returncode == 1
+        retry = json.loads(self.host('cat', receipt_path).stdout)
+        assert retry['CandidateAttempt'] == 1 and len(set(retry['Volumes'])) == 6
+        self.ctl('restore', '--abort', plan['Operation'])
+        assert self.host('cat', str(self.install / 'installation.json')).stdout == baseline
+        self.compose('up', '-d', '--wait', 'db')
+        self.ctl('backup', '--quiesced')
+        print('PASS actual SQL failure, old authority intact, waiver, blocked lifecycle, fresh retry and pre-writer abort', flush=True)
+
+    def restore_boundaries(self):
+        """Lose acknowledgements at the pointer and real writer boundaries, then exercise product recovery."""
+        options = ['restore', '--restore-payload', str(self.payload / 'wayfarer-recovery'), '--without-emergency-backup']
+        original = self.host('cat', str(self.install / 'installation.json')).stdout
+        for point in ['restore-pointer', 'restore-writer']:
+            planned = self.ctl(*options, '--plan').stdout
+            plan = json.loads(planned.splitlines()[0])
+            accepted = planned.split('Plan SHA-256: ')[1].splitlines()[0]
+            self.host('tee', str(self.directory / 'failure'), data=point)
+            result = self.ctl('restore', '--accept-plan', accepted, '--trust-controlled-backup', check=False)
+            assert result.returncode == 1
+            self.host('rm', str(self.directory / 'failure'))
+            receipt = json.loads(self.host('cat', str(self.install / 'recovery-control/restore.json')).stdout)
+            assert self.ctl('status', check=False).returncode == 1
+            assert self.ctl('start', check=False).returncode == 2
+            for service in ['db', 'wayfarer']:
+                identifier = self.compose('ps', '-aq', service).strip()
+                state = json.loads(run('docker', 'inspect', identifier).stdout)[0]
+                assert not state['State']['Running'] and state['HostConfig']['RestartPolicy']['Name'] == 'no'
+            if point == 'restore-pointer':
+                assert receipt['Phase'] == 5 and not receipt['WritesPossible']
+                self.ctl('restore', '--abort', plan['Operation'])
+                assert self.host('cat', str(self.install / 'installation.json')).stdout == original
+                self.ctl('start')
+                for role in ['db-data', 'app-data']:
+                    assert self.project + '_' + role in self.compose('config')
+                self.ctl('stop')
+                self.compose('up', '-d', '--wait', 'db')
+            else:
+                assert receipt['Phase'] == 7 and receipt['WritesPossible']
+                assert self.ctl('restore', '--abort', plan['Operation'], check=False).returncode == 2
+                self.ctl('restore', '--resume', plan['Operation'])
+                assert self.ctl('doctor').returncode == 0
+                self.ctl('backup', '--quiesced')
+        print('PASS pointer interruption abort mounts, real writer acknowledgement loss, restart fencing and forward-only resume', flush=True)
+
     def restore(self):
         """The shipped operator owns destructive restore; fixture code observes product contracts only."""
         before = json.loads(self.host('cat', str(self.install / 'installation.json')).stdout)
@@ -435,7 +520,7 @@ class RecoveryJourney(Journey):
             ('volume', ['volume', 'ls', '-q'], ['volume', 'rm'])]:
             ids = set()
             for label in ['com.docker.compose.project=', 'wayfarer.restore-helper=']:
-                ids.update(run('docker', *listing, '--filter', label + project).stdout.split())
+                ids.update(run('docker', *listing, '--filter', 'label=' + label + project).stdout.split())
             if ids:
                 run('docker', *removal, *sorted(ids))
 

@@ -45,6 +45,11 @@ public sealed class Cli(IProcessRunner runner, ITerminal terminal)
         ProtectedFiles.RequireRoot();
         if (args[0] == "restore") return await new RestoreCommands(runner, terminal).RunAsync(root, args[1..], token);
         if (args[0] == "setup") return await new Setup(runner, terminal).RunAsync(root, args[1..], token);
+        if (args[0] is "status" or "doctor" && RestoreReceipt.Load(root) is { } restore)
+        {
+            terminal.Write($"Restore: {restore.Plan.Operation:D}; phase: {restore.Phase}; writes possible: {restore.WritesPossible}.");
+            if (restore.Phase is not (RestorePhase.Accepted or RestorePhase.Aborted)) return 1;
+        }
         var config = Deployment.Load(root);
         if (args[0] is "status" or "doctor")
             return await new Diagnostics(runner, terminal).RunAsync(root, config, args[0] == "doctor", token);

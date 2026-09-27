@@ -18,6 +18,7 @@ public sealed class RestoreActivation(IProcessRunner runner)
         if (!File.Exists(overlay)) ProtectedFiles.Create(overlay, ActiveStorage.Render(candidate));
         ActiveStorage.Check(root, candidate);
         using (var directory = new SafeDirectory(Path.GetDirectoryName(overlay)!)) directory.Flush();
+        using (var generations = new SafeDirectory(Path.Combine(root, "storage-generations"))) generations.Flush();
         var temporary = Path.Combine(root, "installation.json." + Guid.NewGuid().ToString("N"));
         ProtectedFiles.Create(temporary, JsonSerializer.Serialize(candidate));
         File.Move(temporary, Path.Combine(root, "installation.json"), overwrite: true);
@@ -56,7 +57,7 @@ public sealed class RestoreActivation(IProcessRunner runner)
             await owner.RunAsync(candidate.Project + "-restore-logs-" + Guid.NewGuid().ToString("N"),
                 ["--network=none", "--read-only", "--user=0", "--cap-drop=ALL", "--cap-add=CHOWN", "--cap-add=FOWNER",
                     "--volume", ActiveStorage.Volume(candidate, "app-logs") + ":/logs", "--entrypoint=sh",
-                    "ghcr.io/stef-k/wayfarer@" + candidate.AppDigest, "-ec", "chown 1654:1654 /logs; chmod 750 /logs"], token);
+                    "ghcr.io/stef-k/wayfarer@" + candidate.AppDigest, "-ec", "if test \"$(stat -c %u:%g /logs)\" = 1654:1654; then test \"$(stat -c %a /logs)\" = 750; else entries=$(find /logs -mindepth 1 -maxdepth 1 -printf x -quit); test -z \"$entries\"; chown 1654:1654 /logs; chmod 750 /logs; fi"], token);
         }
         receipt = receipt with { Containers = receipt.Containers.Concat(new[] { candidate.Project + "-db-1",
             candidate.Project + "-wayfarer-1", candidate.Project + "-caddy-1", candidate.Project + "-backup-scheduler-1" }).Distinct().ToArray() };

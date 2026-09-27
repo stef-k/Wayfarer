@@ -84,6 +84,46 @@ public static class ProtectedFiles
         Create(Path.Combine(directory, "app-password"), app, 1654);
     }
 
+    /// <summary>Fingerprint distinct local credential files without placing secret bytes in restore plans or receipts.</summary>
+    public static string SecretsFingerprint(string root)
+    {
+        Deployment.CheckSecrets(root);
+        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        foreach (var name in new[] { "db-password", "db-app-password", "app-password" })
+            hash.AppendData(SHA256.HashData(File.ReadAllBytes(Path.Combine(root, "secrets", name))));
+        return Convert.ToHexStringLower(hash.GetHashAndReset());
+    }
+
+    /// <summary>Finish secret provisioning only for an explicitly receipted clean-root restore, preserving every existing byte.</summary>
+    public static void ResumeRestoreSecrets(string root)
+    {
+        var receipt = RestoreReceipt.Load(root);
+        if (receipt is not { Plan.NewInstall: true, Phase: RestorePhase.Authorized })
+            throw new UsageException("New restore intent required for secret provisioning.");
+        var directory = Path.Combine(root, "secrets");
+        Directory.CreateDirectory(directory, PrivateDirectory);
+        Check(directory, 0, directory: true);
+        string? app = null;
+        foreach (var (name, owner) in new[] { ("app-password", 1654u), ("db-app-password", 999u) })
+        {
+            var path = Path.Combine(directory, name);
+            if (!File.Exists(path)) continue;
+            Check(path, owner);
+            var value = File.ReadAllText(path);
+            if (!System.Text.RegularExpressions.Regex.IsMatch(value, "^[A-F0-9]{64}$") || app is not null && value != app)
+                throw new UsageException("Existing restore secrets disagree.");
+            app = value;
+        }
+        app ??= Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
+        foreach (var (name, owner) in new[] { ("app-password", 1654u), ("db-app-password", 999u) })
+            if (!File.Exists(Path.Combine(directory, name))) Create(Path.Combine(directory, name), app, owner);
+        if (!File.Exists(Path.Combine(directory, "db-password")))
+            Create(Path.Combine(directory, "db-password"), Convert.ToHexString(RandomNumberGenerator.GetBytes(32)));
+        Deployment.CheckSecrets(root);
+        using var parent = new WayfarerRecovery.SafeDirectory(directory);
+        parent.Flush();
+    }
+
     private static Stat Inspect(string path)
     {
         if (statx(-100, path, 0x100, 0x7ff, out var stat) != 0) throw new UsageException("Required protected path is unavailable.");

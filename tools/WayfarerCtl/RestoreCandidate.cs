@@ -41,7 +41,7 @@ public sealed class RestoreCandidate(IProcessRunner runner)
         await owner.RunAsync(initialize, ["--network=none", "--read-only", "--user=0", "--cap-drop=ALL", "--cap-add=CHOWN",
             "--cap-add=FOWNER", "--security-opt=no-new-privileges:true", "--volume", ActiveStorage.Volume(candidate, "app-data") + ":/candidate",
             "--volume", ActiveStorage.Volume(candidate, "app-cache") + ":/cache", "--entrypoint=sh", "ghcr.io/stef-k/wayfarer@" + candidate.AppDigest,
-            "-ec", "test -z \"$(ls -A /candidate)\"; test -z \"$(ls -A /cache)\"; chown 1654:1654 /candidate /cache; chmod 700 /candidate /cache"], token);
+            "-ec", "entries=$(find /candidate -mindepth 1 -maxdepth 1 -printf x -quit); test -z \"$entries\"; entries=$(find /cache -mindepth 1 -maxdepth 1 -printf x -quit); test -z \"$entries\"; chown 1654:1654 /candidate /cache; chmod 700 /candidate /cache"], token);
         await owner.RunAsync(files, [.. RestoreContainers.Unprivileged(), "--network=none", "--volume", payload + ":/worker:ro",
             "--volume", Path.Combine(directory, "verified") + ":/staging:ro", "--volume", ActiveStorage.Volume(candidate, "app-data") + ":/candidate",
             "--entrypoint=/worker", "ghcr.io/stef-k/wayfarer-db@" + candidate.DbDigest, "restore-files"], token);

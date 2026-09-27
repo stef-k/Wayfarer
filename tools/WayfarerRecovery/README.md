@@ -48,4 +48,4 @@ limited to fixture-owned paths/resources; the recovery worker remains unprivileg
 See the operator documentation for configuration, destination security, no-fallback
 mount propagation, retained interruption receipts, schedule policy, bounded listing,
 cancellation and deliberately stopped quiesced state. Native capture, destructive
-production restore, update, release resolution and ARM remain separate contracts.
+managed restore reuses this format/verifier under the operator lifecycle. Update, release resolution and ARM remain separate contracts.

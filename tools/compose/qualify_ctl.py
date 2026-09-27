@@ -87,6 +87,10 @@ class Journey:
         wrapper.write_text("""#!/bin/sh
 point=$(cat "$WAYFARER_TEST_FAILURE" 2>/dev/null || true)
 case "$point:$*" in
+  restore-pointer:*" create --force-recreate --pull never db wayfarer") exit 1 ;;
+  restore-writer:*" up -d --no-recreate --pull never --wait --wait-timeout 180 wayfarer")
+    /usr/bin/docker "$@" || exit $?
+    exit 1 ;;
   seed:*" database seed"|doctor:*" healthcheck") exit 1 ;;
   admin:*" admin bootstrap admin --stdin"|web:*" 180 wayfarer")
     /usr/bin/docker "$@" || exit $?

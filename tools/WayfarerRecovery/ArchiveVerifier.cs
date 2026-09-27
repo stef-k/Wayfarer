@@ -125,6 +125,7 @@ public static class ArchiveVerifier
             if (entry.DataStream is null && entry.Length != 0) throw new IOException("File data missing.");
             using var output = extract is null ? Stream.Null : ExtractFile(extract, name);
             if (entry.DataStream is not null) CopyBoundedAsync(entry.DataStream, output, entry.Length, token).GetAwaiter().GetResult();
+            if (output is FileStream fileOutput) fileOutput.Flush(flushToDisk: true);
         }
         if (!names.Contains(".")) throw new IOException("Nested root representation missing.");
         // Force gzip to its checksum/trailer rather than accepting a truncated compressed member.
@@ -136,6 +137,17 @@ public static class ArchiveVerifier
             total = checked(total + count);
             if (total > ArchiveContract.ByteLimit || tail.AsSpan(0, count).ContainsAnyExcept((byte)0))
                 throw new IOException("Unexpected nested trailing data.");
+        }
+        if (extract is not null)
+        {
+            // Flush children before parents so activation never commits merely cached directory entries.
+            foreach (var directory in Directory.EnumerateDirectories(extract, "*", SearchOption.AllDirectories)
+                .OrderByDescending(value => value.Length).Append(extract))
+            {
+                token.ThrowIfCancellationRequested();
+                using var owned = new SafeDirectory(directory);
+                owned.Flush();
+            }
         }
     }
 

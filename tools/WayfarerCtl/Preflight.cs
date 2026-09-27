@@ -86,8 +86,21 @@ public sealed class Preflight(IProcessRunner runner)
                 throw new UsageException("Existing named project resources prevent clean-target installation.");
         }
         var containers = await runner.RunAsync(["ps", "-aq", "--filter", "name=^/" + config.Project + "-"], null, token);
-        if (containers.Code != 0 || !string.IsNullOrWhiteSpace(containers.Output))
-            throw new UsageException("Existing named project container prevents clean-target installation.");
+        if (containers.Code != 0) throw new UsageException("Cannot inspect clean-target container names.");
+        foreach (var id in containers.Output.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries))
+        {
+            var inspection = await runner.RunAsync(["inspect", id], null, token);
+            if (inspection.Code != 0) throw new UsageException("Cannot inspect clean-target container ownership.");
+            using var document = JsonDocument.Parse(inspection.Output);
+            var container = document.RootElement[0];
+            var name = container.GetProperty("Name").GetString()!;
+            var labels = container.GetProperty("Config").GetProperty("Labels");
+            if ((!name.StartsWith("/" + config.Project + "-restore-select-", StringComparison.Ordinal) &&
+                 !name.StartsWith("/" + config.Project + "-restore-verify-", StringComparison.Ordinal)) ||
+                labels.ValueKind != JsonValueKind.Object || !labels.TryGetProperty("wayfarer.restore-helper", out var owner) ||
+                owner.GetString() != config.Project || container.GetProperty("State").GetProperty("Running").GetBoolean())
+                throw new UsageException("Existing named project container prevents clean-target installation.");
+        }
         CheckPorts(config);
         await NetworksAsync(config, token);
     }

@@ -44,14 +44,8 @@ public sealed class RestoreCommands(IProcessRunner runner, ITerminal terminal)
             if (terminal.Read("Type " + expected + ": ") != expected) { terminal.Write("Restore cancelled; authoritative state unchanged."); return 1; }
         }
         await RevalidateAsync(root, plan, token);
-        if (plan.NewInstall)
-        {
-            ProtectedFiles.Create(Path.Combine(root, "installation.json"), JsonSerializer.Serialize(plan.Target));
-            ProtectedFiles.CreateSecrets(root);
-            ProtectedFiles.Create(Path.Combine(root, "deployment.env"), plan.Target.EnvironmentFile(root));
-        }
         BackupConfiguration.ProvisionControl(root, true);
-        var receipt = new RestoreReceipt { Plan = plan, PlanHash = plan.Hash() };
+        var receipt = new RestoreReceipt { Plan = plan, PlanHash = plan.Hash(), SecretsFingerprint = plan.LocalSecretsFingerprint };
         using (var exclusion = new RecoveryLock(Path.Combine(root, "recovery-control/recovery.lock")))
         {
             if (File.Exists(Path.Combine(root, "recovery-control/host-operation.json"))) throw new IOException("Active recovery reservation.");
@@ -64,7 +58,7 @@ public sealed class RestoreCommands(IProcessRunner runner, ITerminal terminal)
     /// <summary>Clean-root restoration reuses setup choices and preflight without invoking setup stages.</summary>
     private Deployment NewTarget(string root, RestoreOptions options)
     {
-        if (File.Exists(Path.Combine(root, "installation.json")) || Directory.Exists(Path.Combine(root, "secrets")))
+        if (Directory.EnumerateFileSystemEntries(root).Any(path => Path.GetFileName(path) is not ("operation.lock" or "restore-plans" or "releases")))
             throw new UsageException("New-install restore requires a clean target.");
         var config = new Setup(runner, terminal).ReadChoices(options.Values) with
         {
@@ -107,6 +101,8 @@ public sealed class RestoreCommands(IProcessRunner runner, ITerminal terminal)
             if (JsonSerializer.Serialize(current) != JsonSerializer.Serialize(plan.Target))
                 throw new UsageException("Installation changed since planning.");
         }
+        if (!plan.NewInstall && ProtectedFiles.SecretsFingerprint(root) != plan.LocalSecretsFingerprint)
+            throw new UsageException("Local credentials changed since planning.");
         var directory = RestorePreparation.DirectoryFor(root, plan.Operation);
         var payload = File.ReadAllText(Path.Combine(directory, "payload"));
         if (BackupPolicy.Fingerprint(payload) != plan.RestorePayloadFingerprint ||
@@ -119,11 +115,38 @@ public sealed class RestoreCommands(IProcessRunner runner, ITerminal terminal)
         await new RestorePreparation(runner).VerifyAsync(plan.Target, directory, plan.Operation, payload, name, plan.SourceInstallation, token);
     }
 
+    /// <summary>Only an authorized new-root receipt may finish local file provisioning after interruption.</summary>
+    private static void InitializeNewTarget(string root, Deployment config)
+    {
+        foreach (var (name, content) in new[] { ("installation.json", JsonSerializer.Serialize(config)),
+            ("deployment.env", config.EnvironmentFile(root)) })
+        {
+            var path = Path.Combine(root, name);
+            if (!File.Exists(path)) ProtectedFiles.Create(path, content);
+            ProtectedFiles.Check(path, 0);
+            if (File.ReadAllText(path) != content) throw new UsageException("New restore target configuration changed.");
+        }
+        ProtectedFiles.ResumeRestoreSecrets(root);
+        using var directory = new SafeDirectory(root);
+        directory.Flush();
+    }
+
     /// <summary>Emergency capture delegates to the existing lock-taking worker while host serialization and intent remain held.</summary>
     private async Task<int> ExecuteAsync(string root, RestoreReceipt receipt, CancellationToken token)
     {
         try
         {
+            if (receipt.Plan.NewInstall && receipt.Phase == RestorePhase.Authorized)
+            {
+                InitializeNewTarget(root, receipt.Plan.Target);
+                var fingerprint = ProtectedFiles.SecretsFingerprint(root);
+                if (receipt.SecretsFingerprint is not null && receipt.SecretsFingerprint != fingerprint)
+                    throw new UsageException("New restore credentials changed after provisioning.");
+                receipt = receipt with { SecretsFingerprint = fingerprint };
+                receipt.Save(root);
+            }
+            if (ProtectedFiles.SecretsFingerprint(root) != receipt.SecretsFingerprint)
+                throw new UsageException("Local credentials changed during restore.");
             if (receipt.Phase == RestorePhase.Authorized)
             using (var exclusion = new RecoveryLock(Path.Combine(root, "recovery-control/recovery.lock")))
             {
@@ -133,6 +156,7 @@ public sealed class RestoreCommands(IProcessRunner runner, ITerminal terminal)
             }
             if (receipt.Phase == RestorePhase.Fenced && !receipt.Plan.NewInstall && !receipt.Plan.WithoutEmergencyBackup && receipt.EmergencyArchive is null)
             {
+                await new RestoreFencing(runner).StartEmergencyDatabaseAsync(root, receipt, token);
                 var capture = new BackupCommands(runner, terminal);
                 if (await capture.RunAsync(root, receipt.Plan.Target, ["backup", "--quiesced"], token, restoreEmergency: true) != 0 || capture.CompletedArchive is null)
                     throw new IOException("Fresh emergency capture failed.");
@@ -184,8 +208,21 @@ public sealed class RestoreCommands(IProcessRunner runner, ITerminal terminal)
         var id = options.Get(options.Has("--abort") ? "--abort" : "--resume");
         if (receipt.Plan.Operation.ToString("D") != id) throw new UsageException("Restore operation mismatch.");
         if (receipt.Phase is RestorePhase.Accepted or RestorePhase.Aborted) throw new UsageException("Restore already resolved.");
+        await new RestoreFencing(runner).StopOwnedAsync(receipt, token);
         using (var recovery = new RecoveryLock(Path.Combine(root, "recovery-control/recovery.lock")))
-            await new RestoreFencing(runner).StopOwnedAsync(receipt, token);
+        {
+            var reservationPath = Path.Combine(root, "recovery-control/host-operation.json");
+            if (File.Exists(reservationPath))
+            {
+                var reservation = JsonSerializer.Deserialize<HostRecoveryOperation>(File.ReadAllText(reservationPath), ArchiveContract.Json)
+                    ?? throw new IOException("Invalid restore delegation.");
+                if (!reservation.RestoreHold || !receipt.Containers.Contains(reservation.Container))
+                    throw new IOException("Foreign recovery reservation prevents reconciliation.");
+                File.Delete(reservationPath);
+                using var control = new SafeDirectory(Path.GetDirectoryName(reservationPath)!);
+                control.Flush();
+            }
+        }
         if (options.Has("--abort"))
         {
             if (receipt.WritesPossible) throw new UsageException("Writes may have occurred; explicit recovery is required.");
@@ -202,6 +239,8 @@ public sealed class RestoreCommands(IProcessRunner runner, ITerminal terminal)
                     directory.Flush();
                 }
                 else RestoreActivation.Commit(root, old);
+                if (!receipt.Plan.NewInstall)
+                    await new RestoreContainers(runner).Required(old.Compose(root, "create", "--force-recreate", "--pull", "never", "db", "wayfarer"), token);
             }
             receipt.Advance(RestorePhase.Aborted).Save(root);
             terminal.Write("Restore aborted before writer cutoff. Prior authority retained; services remain stopped.");

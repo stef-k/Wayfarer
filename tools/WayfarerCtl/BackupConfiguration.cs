@@ -192,6 +192,8 @@ public sealed class BackupConfiguration(IProcessRunner runner)
         }
         ProtectedFiles.Check(state, 1654, directory: true);
         control.Flush();
+        using var installation = new SafeDirectory(root);
+        installation.Flush();
     }
 
     internal static string BundleFingerprint(Deployment config)

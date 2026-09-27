@@ -7,7 +7,7 @@ Implements [#644](https://github.com/stef-k/Wayfarer/issues/644) against
 [publication identity](27-Application-Image-Publication.md).
 This is the substrate for [wayfarerctl setup and operation](29-Wayfarerctl.md), not the
 completed #603 installation product. The manual commands below are advanced maintenance
-seams. Opt-in backup uses the additive [operator recovery payload](29-Wayfarerctl.md#compose-recovery-sets). Production restore, updates, release tarball and `release.json` remain separate work.
+seams. Opt-in backup uses the additive [operator recovery payload](29-Wayfarerctl.md#compose-recovery-sets). Exact-target local managed restore uses the [operator restore lifecycle](29-Wayfarerctl.md#managed-restore). Updates, release tarball and `release.json` remain separate work.
 Nothing here migrates a native installation.
 
 ## Topology and state
@@ -126,7 +126,7 @@ rebuild indexes through restore and verify application identities and representa
 Greek/Latin data. The PostGIS3.5 → 3.6 boundary needs source-specific qualification;
 this fresh-stack proof does not qualify production migration, downgrade, binary
 extensions or direct data-directory reuse. Glibc reduces the libc change but does
-not remove these migration requirements. Compose recovery sets preserve the full resolved ring; production restore remains separate work.
+not remove these migration requirements. Compose recovery sets preserve the full resolved ring; managed restore validates that paired authority before activation.
 
 ## Derived database image delivery
 
@@ -252,7 +252,7 @@ Use the same project, configuration and named volumes with `up -d --force-recrea
 state is not in container layers. Stop writers before DB replacement. Keep DB,
 complete key ring and uploads together for recovery; caches/logs are not replacements
 for authoritative data. **Volume deletion destroys state.** Do not use volume removal
-in ordinary lifecycle commands. No safe update/rollback/restore automation exists yet.
+in ordinary lifecycle commands. Managed restore stages fresh generations; automatic updates and general rollback remain unavailable.
 
 CI reuses the application-image dry-run and runs `tools/compose/qualify.py --image
 <local-app-image-ID> --db-image <local-db-image-ID>`. Its test-only override selects that exact local build, an isolated
