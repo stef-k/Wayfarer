@@ -358,6 +358,29 @@ public sealed class WayfarerCtlTests
     public void ResumeRefusesChangedChoices(string options) =>
         Assert.Throws<UsageException>(() => Setup.Options(options.Split(' ')));
 
+    /// <summary>Reconfiguring backup after restore must validate the active overlay at the real installation root.</summary>
+    [Fact]
+    public async Task BundlePreflightKeepsActiveGenerationWhenUsingTemporaryEnvironment()
+    {
+        const string root = "/etc/wayfarer";
+        var config = Config() with { Schema = 3, Installation = Guid.NewGuid(), Mode = "external",
+            StorageGeneration = Guid.NewGuid().ToString("N") };
+        var process = new FakeProcess { Reply = args =>
+        {
+            Assert.Contains(ActiveStorage.OverlayPath(root, config), args);
+            var environment = args[Array.IndexOf(args, "--env-file") + 1];
+            Assert.NotEqual(Path.Combine(root, "deployment.env"), environment);
+            Assert.Equal(config.EnvironmentFile(root), File.ReadAllText(environment));
+            return new ProcessResult(0, System.Text.Json.JsonSerializer.Serialize(new { services = new
+            {
+                wayfarer = new { image = "ghcr.io/stef-k/wayfarer@" + config.AppDigest, platform = "linux/amd64" },
+                db = new { image = "ghcr.io/stef-k/wayfarer-db@" + config.DbDigest, platform = "linux/amd64" }
+            } }));
+        } };
+        await new Preflight(process).BundleAsync(root, config, default);
+        Assert.Single(process.Calls);
+    }
+
     private static Deployment Config() => new() { Bundle = "/bundle", Hostname = "wayfarer.example.org", AppDigest = "sha256:" + new string('a', 64) };
     private static string Join(string[] args) => string.Join(' ', args);
 

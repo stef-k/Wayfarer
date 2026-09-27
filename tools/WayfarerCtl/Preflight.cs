@@ -41,7 +41,10 @@ public sealed class Preflight(IProcessRunner runner)
         {
             var path = Path.Combine(temporary.FullName, "deployment.env");
             await File.WriteAllTextAsync(path, config.EnvironmentFile(root), token);
-            var result = await runner.RunAsync(config.Compose(temporary.FullName, "config", "--format", "json"), null, token);
+            // Only interpolation is temporary; active storage remains rooted at the installation authority.
+            var command = config.Compose(root, "config", "--format", "json");
+            command[Array.IndexOf(command, "--env-file") + 1] = path;
+            var result = await runner.RunAsync(command, null, token);
             if (result.Code != 0) throw new UsageException("Bundle Compose validation failed; restore the trusted bundle/config.");
             using var document = JsonDocument.Parse(result.Output);
             VerifyImages(config, document.RootElement);
