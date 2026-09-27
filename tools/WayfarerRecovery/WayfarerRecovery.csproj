@@ -10,4 +10,9 @@
     <PublishSingleFile>true</PublishSingleFile>
     <InvariantGlobalization>true</InvariantGlobalization>
   </PropertyGroup>
+  <!-- PostgreSQL snapshot coordination and read-only key-ring usability checks. -->
+  <ItemGroup>
+    <PackageReference Include="Npgsql" Version="10.0.3" />
+    <PackageReference Include="Microsoft.AspNetCore.DataProtection.Extensions" Version="10.0.11" />
+  </ItemGroup>
 </Project>

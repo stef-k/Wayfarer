@@ -1,0 +1,133 @@
+using System.Runtime.InteropServices;
+using Microsoft.Win32.SafeHandles;
+
+namespace WayfarerRecovery;
+
+/// <summary>Linux handle-relative no-follow access; names never authorize traversal across links or mounts.</summary>
+public sealed class SafeDirectory : IDisposable
+{
+    private readonly SafeFileHandle handle;
+    private const int ReadOnly = 0, ReadWrite = 2, Create = 0x40, Exclusive = 0x80;
+    private const int DirectoryFlag = 0x10000, NoFollow = 0x20000, CloseOnExec = 0x80000;
+    private const ulong Beneath = 8, NoLinks = 4, NoMounts = 1;
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct OpenHow { public ulong Flags; public ulong Mode; public ulong Resolve; }
+
+    /// <summary>Stable statx facts used to reject unsupported files and detect observed source changes.</summary>
+    [StructLayout(LayoutKind.Explicit, Size = 256)]
+    public struct Facts : IEquatable<Facts>
+    {
+        [FieldOffset(16)] public uint Links;
+        [FieldOffset(20)] public uint User;
+        [FieldOffset(24)] public uint Group;
+        [FieldOffset(28)] public ushort Mode;
+        [FieldOffset(32)] public ulong Inode;
+        [FieldOffset(40)] public ulong Size;
+        [FieldOffset(96)] public long ChangedSeconds;
+        [FieldOffset(104)] public uint ChangedNanos;
+        [FieldOffset(112)] public long ModifiedSeconds;
+        [FieldOffset(120)] public uint ModifiedNanos;
+        [FieldOffset(136)] public uint DeviceMajor;
+        [FieldOffset(140)] public uint DeviceMinor;
+        [FieldOffset(144)] public ulong Mount;
+        public readonly bool IsDirectory => (Mode & 0xf000) == 0x4000;
+        public readonly bool IsFile => (Mode & 0xf000) == 0x8000 && Links == 1;
+        public readonly bool Equals(Facts other) => Inode == other.Inode && Size == other.Size && Mode == other.Mode &&
+            Links == other.Links && DeviceMajor == other.DeviceMajor && DeviceMinor == other.DeviceMinor &&
+            ChangedSeconds == other.ChangedSeconds && ChangedNanos == other.ChangedNanos &&
+            ModifiedSeconds == other.ModifiedSeconds && ModifiedNanos == other.ModifiedNanos;
+    }
+
+    [DllImport("libc", SetLastError = true)]
+    private static extern long syscall(long number, int directory, string path, ref OpenHow how, nuint size);
+    [DllImport("libc", SetLastError = true)]
+    private static extern int statx(SafeFileHandle descriptor, string path, int flags, uint mask, out Facts facts);
+    [DllImport("libc", SetLastError = true)]
+    private static extern int renameat2(SafeFileHandle source, string name, SafeFileHandle target, string destination, uint flags);
+    [DllImport("libc", SetLastError = true)]
+    private static extern int unlinkat(SafeFileHandle descriptor, string name, int flags);
+    [DllImport("libc", SetLastError = true)]
+    private static extern int fsync(SafeFileHandle descriptor);
+
+    /// <summary>Resolve an absolute root without following any symlink ancestor.</summary>
+    public SafeDirectory(string path)
+    {
+        if (!OperatingSystem.IsLinux() || RuntimeInformation.ProcessArchitecture != Architecture.X64)
+            throw new PlatformNotSupportedException();
+        if (!Path.IsPathFullyQualified(path)) throw new IOException("Absolute directory required.");
+        handle = Open(-100, path, ReadOnly | DirectoryFlag, NoLinks);
+    }
+
+    private SafeDirectory(SafeFileHandle descriptor) => handle = descriptor;
+
+    /// <summary>Reject ambiguous archive and directory-relative names before kernel resolution.</summary>
+    public static void ValidateName(string name)
+    {
+        if (name.Length is 0 or > 2048 || name.StartsWith('/') || name.Contains('\\') || name.Contains(':') ||
+            name.Any(char.IsControl) || name.Split('/').Any(part => part is "" or "." or "..") || name.Count(c => c == '/') > 32)
+            throw new IOException("Unsafe relative name.");
+    }
+
+    private static SafeFileHandle Open(int parent, string name, int flags, ulong resolve, ulong mode = 0)
+    {
+        var how = new OpenHow { Flags = (ulong)(flags | NoFollow | CloseOnExec), Resolve = resolve, Mode = mode };
+        var descriptor = syscall(437, parent, name, ref how, (nuint)Marshal.SizeOf<OpenHow>());
+        if (descriptor < 0) throw new IOException("Safe filesystem access failed.");
+        return new SafeFileHandle((IntPtr)descriptor, ownsHandle: true);
+    }
+
+    /// <summary>Inspect an open inode, never a path that may have been replaced since validation.</summary>
+    public static Facts Inspect(SafeFileHandle descriptor)
+    {
+        if (statx(descriptor, "", 0x1000, 0x17ff, out var facts) != 0) throw new IOException("Cannot inspect open inode.");
+        return facts;
+    }
+
+    public Facts Identity => Inspect(handle);
+
+    /// <summary>Enumerate names only; each subsequent open independently enforces links/mount/type rules.</summary>
+    public string[] Names() => Directory.EnumerateFileSystemEntries($"/proc/self/fd/{handle.DangerousGetHandle()}")
+        .Select(Path.GetFileName).Select(name => name!).Order(StringComparer.Ordinal).ToArray();
+
+    /// <summary>Open a child directory on this same mount, retaining its handle throughout traversal.</summary>
+    public SafeDirectory Child(string name)
+    {
+        ValidateName(name);
+        return new SafeDirectory(Open(handle.DangerousGetHandle().ToInt32(), name, DirectoryFlag, Beneath | NoLinks | NoMounts));
+    }
+
+    /// <summary>Read a single-link regular file without crossing another mount.</summary>
+    public FileStream Read(string name)
+    {
+        ValidateName(name);
+        var file = Open(handle.DangerousGetHandle().ToInt32(), name, ReadOnly | 0x800, Beneath | NoLinks | NoMounts);
+        if (!Inspect(file).IsFile) { file.Dispose(); throw new IOException("Unsupported source type or hard link."); }
+        return new FileStream(file, FileAccess.Read);
+    }
+
+    /// <summary>Exclusively create one private destination file; existing content is never overwritten.</summary>
+    public FileStream Write(string name)
+    {
+        ValidateName(name);
+        return new FileStream(Open(handle.DangerousGetHandle().ToInt32(), name, ReadWrite | Create | Exclusive,
+            Beneath | NoLinks | NoMounts, 0x180), FileAccess.ReadWrite);
+    }
+
+    /// <summary>Commit a prepared owned name atomically without replacement and flush its directory.</summary>
+    public void Publish(string partial, string final)
+    {
+        ValidateName(partial); ValidateName(final);
+        if (renameat2(handle, partial, handle, final, 1) != 0 || fsync(handle) != 0)
+            throw new IOException("Destination publication failed.");
+    }
+
+    /// <summary>Remove a previously verified owned regular file relative to this directory.</summary>
+    public void Delete(string name)
+    {
+        using (Read(name)) { }
+        if (unlinkat(handle, name, 0) != 0 || fsync(handle) != 0) throw new IOException("Owned file cleanup failed.");
+    }
+
+    public void Dispose() => handle.Dispose();
+}
