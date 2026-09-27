@@ -8,6 +8,15 @@ namespace Wayfarer.Services.LocationProviders;
 public sealed class LegacyMapboxMigrationService(
     ApplicationDbContext dbContext, PersonalProviderCredentialService credentials)
 {
+    /// <summary>Checks only recognized row existence without materializing or decrypting legacy credentials.</summary>
+    public Task<bool> HasLegacyRowsAsync(string userId, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(userId);
+        return dbContext.ApiTokens.IgnoreQueryFilters().AsNoTracking().AnyAsync(
+            item => item.UserId == userId && item.Name != null && item.Name.Trim().ToLower() == "mapbox"
+                && item.Token != null && item.Token.Trim() != "", cancellationToken);
+    }
+
     /// <summary>Converges the current user's legacy state under one transaction and bounded locks.</summary>
     public async Task<LegacyMapboxMigrationResult> MigrateAsync(string userId, CancellationToken cancellationToken = default)
     {
