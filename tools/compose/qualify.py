@@ -176,8 +176,25 @@ class Stack:
                    f'wayfarer.example.org:{self.port}:127.0.0.1', '--max-time', str(timeout),
                    *args, f'https://wayfarer.example.org:{self.port}{path}', check=check)
 
+    def browser_headers(self):
+        """Prove exact application-owned framing headers survive this proxy without duplicates."""
+        for suffix, embed in [('', False), ('?embed=true', True)]:
+            raw = self.curl(f'/Public/Trips/{TRIP}{suffix}', '-D', '-', '-o', '/dev/null').stdout
+            headers = {}
+            for line in raw.splitlines():
+                if ':' in line:
+                    name, value = line.split(':', 1)
+                    headers.setdefault(name.lower(), []).append(value.strip())
+            assert headers.get('content-security-policy') == [
+                'frame-ancestors *' if embed else "frame-ancestors 'self'"]
+            assert headers.get('x-frame-options', []) == ([] if embed else ['SAMEORIGIN'])
+            assert headers.get('x-content-type-options') == ['nosniff']
+            assert headers.get('referrer-policy') == ['strict-origin-when-cross-origin']
+        print(f'{self.mode}: exact ordinary/embed browser headers passed', flush=True)
+
     def functional(self):
         """Prove real public/static/export/SSE/browser routes through the managed proxy."""
+        self.browser_headers()
         assert self.curl('/health/ready').stdout == 'ready'
         page = self.curl('/Public/Trips', '-H', 'X-Forwarded-Host: spoof.invalid',
                          '-H', 'X-Forwarded-Proto: http', '-H', 'X-Forwarded-For: 203.0.113.99').stdout
@@ -320,6 +337,7 @@ class Stack:
                         break
                     assert process.poll() is None, 'External proxy exited during startup'
                     time.sleep(1)
+                self.browser_headers()
                 assert self.curl('/health/ready').stdout == 'ready'
                 page = self.curl('/Public/Trips', '-H', 'X-Forwarded-Proto: http',
                                  '-H', 'X-Forwarded-Host: spoof.invalid').stdout

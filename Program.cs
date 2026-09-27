@@ -121,6 +121,9 @@ else
 }
 await DataProtectionAuthority.ValidateAsync(app.Services);
 
+// Register before health branches, error handlers and static middleware to cover every response.
+app.UseMiddleware<BrowserResponsePolicyMiddleware>();
+
 // Health responses precede redirects/authentication and never expose dependency diagnostics.
 app.Map("/health/live", branch => branch.Run(context => context.Response.WriteAsync("live")));
 app.Map("/health/ready", branch => branch.Run(async context =>

@@ -255,7 +255,11 @@ public class UsersTimelineControllerTests : TestBase
             NullLogger<BaseController>.Instance,
             db,
             new LocationService(db),
-            new LocationStatsService(db));
+            new LocationStatsService(db))
+        {
+            // Embed rendering marks the real request after public eligibility succeeds.
+            ControllerContext = new ControllerContext { HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext() }
+        };
     }
 
     private sealed class StubStatsService : ILocationStatsService

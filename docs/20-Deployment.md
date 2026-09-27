@@ -399,10 +399,14 @@ server {
         proxy_read_timeout  3600s;
     }
 
-    add_header X-Content-Type-Options "nosniff" always;
-    add_header X-Frame-Options "SAMEORIGIN" always;
+    # Pass application browser headers through, including the public embed exceptions.
 }
 ```
+
+Browser response headers belong to the application. Do not add blanket framing headers
+at the proxy: they would either expose ordinary pages or block intentional public embeds.
+The native template passes dynamic headers through and adds only `nosniff` beside the
+cache header for direct static files, which bypass Kestrel.
 
 ```bash
 sudo ln -s /etc/nginx/sites-available/wayfarer /etc/nginx/sites-enabled/
