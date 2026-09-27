@@ -363,7 +363,7 @@ PR CI runs `tools/release/db_image.py dry-run` against a clean checkout with the
 build/metadata/full Compose path, without login, package-write permission or push.
 Focused publication tests run with the existing `tools/release/tests` selection.
 
-## SSE proxy qualification (#657)
+## SSE proxy qualification (#657 / #690)
 
 The managed Caddyfile and external proxy fixture omit `flush_interval -1`.
 [Caddy's streaming documentation](https://caddyserver.com/docs/caddyfile/directives/reverse_proxy#streaming)
@@ -377,9 +377,22 @@ Run `python3 tools/compose/qualify_sse.py` on Linux with Docker and .NET 10. The
 MVC host compiles the actual transport source. The probe reads the production Caddyfile
 and pinned image, substituting only loopback site/upstream addresses. It checks first event,
 the real 20-second heartbeat, downstream close → action `RequestAborted` → zero active
-connections/channels, and a finite JSON response. It removes its own container/temp files.
+connections/channels, and a finite JSON response. Only after that retirement, a new
+subscription with a distinct identity reconnects through the same running Caddy and
+upstream process, receives the expected event, then closes to final zero clients/channels.
+The second subscription does not repeat the heartbeat wait. Output records subscription
+identities, event/heartbeat/cleanup timings, cancellation state and unchanged process/container
+identity. It removes its own container/temp files.
 
 Local final-config evidence on 2026-09-26: first event 35.8 ms, heartbeat 20.04 s,
 disconnect observed with zero clients/channels in 23.0 ms, finite JSON passed. These are
 loopback HTTP/1.1 observations, not performance percentiles or deployed HTTPS/HTTP2/device
-qualification. Mobile remote-disconnect recovery remains the separate #674 dependency.
+qualification. This historical observation predates #690's reconnect extension; record
+the final probe output with the exact candidate SHA in the qualification PR.
+
+Mobile #674 is resolved by merged [WayfarerMobile PR 284](https://github.com/stef-k/WayfarerMobile/pull/284).
+Accepted source/test compatibility evidence covers remote EOF and non-cancelled I/O
+reconnect while local Stop remains terminal. HTTP 401/403/404 remain terminal and
+existing 429/503 backoff remains. This is not physical-device qualification. The #690
+same-proxy reconnect probe supplies server/proxy transport evidence and does not replace
+those mobile tests.

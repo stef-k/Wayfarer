@@ -86,6 +86,21 @@ the complete Data Protection ring under the durable root. Use read-only root, a 
 temporary mount, no Docker socket and no privilege escalation. Allow 60 seconds for
 ASP.NET/Quartz shutdown; forced termination is a failed graceful-stop observation.
 
+## Browser isolation boundary
+
+The supported Docker baseline is Linux AMD64. Release-matched Playwright Chromium
+is bundled and runs within the non-root, read-only application container boundary.
+With current Playwright 1.62.0 launch behavior, Wayfarer does not set
+`ChromiumSandbox = true`, so the effective Chromium launch includes `--no-sandbox`
+even when Wayfarer supplies no such argument itself.
+
+The verified #651 baseline is application-owned browser egress/content/admission
+controls plus container isolation, not an enabled Chromium renderer sandbox.
+This does not reopen #660's egress/admission/cancellation fixes or authorize privileged,
+SYS_ADMIN, host-IPC or other runtime changes. [#681](https://github.com/stef-k/Wayfarer/issues/681)
+remains open for native Linux ARM64 qualification; AMD64/source evidence cannot close
+it, remove the native compatibility branch or expand Docker platform support.
+
 ## Disposable qualification
 
 Use an isolated PostgreSQL database and non-superuser application owner; provision

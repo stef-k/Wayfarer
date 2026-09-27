@@ -65,9 +65,10 @@ CSRF Protection
 
 Rate Limiting
 - **Tile requests** — Anonymous users limited to 500 requests/minute per IP (configurable).
-- **Check-in endpoint** — Rate-limited to prevent spam (default: 10 second cooldown).
-- **Location logging** — Filtered by time and distance thresholds.
-- Rate limit headers included in API responses.
+- **Incoming API token lookups** — Immediate, nonqueued active-work admission: 32 globally / 16 per effective client.
+- **Location ingestion** — Immediate, nonqueued active-work admission: 64 globally / 8 per authenticated user, shared by LogLocation and CheckIn. Persisted idempotent replay resolves before new ingestion admission.
+- New overloaded work returns 429 for client/user saturation or 503 for global saturation, with the existing `Retry-After` semantics, preserving mobile retry compatibility. These are concurrent-work ceilings, not requests-per-minute quotas.
+- Time/distance recording thresholds remain product filtering; CheckIn has no 10-second cooldown.
 
 XSS Prevention
 - Tile provider attribution is sanitized using HtmlSanitizer before rendering.
@@ -75,9 +76,9 @@ XSS Prevention
 - Rich HTML content (trip notes) rendered in controlled contexts.
 
 IP Address Handling
-- X-Forwarded-For header trusted only from localhost and private IP ranges.
-- Prevents IP spoofing attacks when behind reverse proxies.
-- Configure trusted proxies in `Program.cs` for your deployment environment.
+- ASP.NET Forwarded Headers configuration owns proxy trust: only explicitly configured known proxies/networks are trusted. Private or loopback addresses alone confer no forwarding trust.
+- The supported managed Caddy peer and the documented external-proxy trusted peer are the intended authorities; configure them through `TrustedProxy` as described in [Compose deployment](28-Production-Compose.md).
+- Downstream admission, rate limiting and logging consume the post-forwarding normalized `RemoteIpAddress`; they do not reparse hostile `X-Forwarded-For` headers.
 
 Uploads & Secrets
 - The fixed application request ceiling is 100 MiB. Only Location-history and Trip KML uploads consume the Admin `-1 / 0 / 1..100 MiB` policy, after authorization and before multipart buffering. Trip KML adds its existing parser-derived section budget; see [configuration](16-Configuration.md). Managed Caddy does not duplicate this policy.
@@ -89,14 +90,21 @@ Persistent reverse geocoding never exposes credentials to callers. Provider URLs
 
 Optional provider-returned feature names and types follow the same visibility rules as their Location or Trip Place. They are encoded for presentation and are not emitted through logs, diagnostics, audit errors, SSE, or job history.
 
-Import/enrichment commands derive ownership only from authenticated `NameIdentifier` and require antiforgery validation. Their SSE endpoint derives its channel from that claim; the anonymous generic stream rejects all `import` and `enrichment` prefixes. Content-free events are reload hints only. Filenames, per-Location timestamps, coordinates, addresses, credentials, provider URLs/payloads, stack traces, filesystem paths, and raw exceptions are not emitted or retained as workflow errors.
+Import/enrichment commands derive ownership only from authenticated `NameIdentifier` and require antiforgery validation. Their dedicated SSE endpoint derives its channel from that claim. Content-free events are reload hints only. Filenames, per-Location timestamps, coordinates, addresses, credentials, provider URLs/payloads, stack traces, filesystem paths, and raw exceptions are not emitted or retained as workflow errors.
 
 Per-user group notifications follow the same claim-owned boundary at `/api/sse/group-notifications`.
 The endpoint accepts no user or channel identifier, subscribes only to `group-notifications-{NameIdentifier}`,
-and permits only exact content-free `invitation-state` and `membership-state` hints. Generic invitation and
-membership notification prefixes are rejected case-insensitively. These hints never contain user, group,
+and permits only exact content-free `invitation-state` and `membership-state` hints. These hints never contain user, group,
 invitation, action, or presentation fields; clients reload authenticated durable state. This restriction does
 not alter the detailed events available on membership-authorized `/api/sse/group/{groupId}` streams.
+
+## Generic SSE authorization
+
+The anonymous generic stream admits only exact ordinal `location-update`. Persisted
+public/live eligibility and its delivery lease remain authoritative. Import/enrichment,
+group, group-notification, visit, Admin, PDF/progress and all other protected families
+are reachable only through their dedicated owners. Alternate case, prefix or hyphen
+aliases are not generic authorization mechanisms.
 
 ## Browser response headers
 
