@@ -21,13 +21,17 @@ namespace Wayfarer.Tests.Services;
 public sealed class LegacyMapboxMigrationRecoveryPostgresTests(PostgresImportTestFixture fixture)
 {
     /// <summary>Navigation preserves durable legacy, consent, verification, authorization and selection fields.</summary>
-    [PostgresFact]
-    public async Task SettingsNavigation_PreservesDurableProviderAndLegacyState()
+    [PostgresTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SettingsNavigation_PreservesDurableProviderAndLegacyState(bool pending)
     {
         var user = await SeedAsync();
         var credentials = CredentialTestFactory.Create(new EphemeralDataProtectionProvider());
         await using (var seed = fixture.CreateContext())
         {
+            if (!pending)
+                (await seed.ApiTokens.IgnoreQueryFilters().SingleAsync(p => p.UserId == user.Id)).Token = "\t\u00a0\u3000";
             var profile = PersonalLocationProviderProfile.Create(user.Id, PersonalLocationProvider.Mapbox);
             credentials.Replace(profile, "legacy-recovery-sentinel");
             profile.SetAuthorization(PersonalProviderCapability.Geocoding, true);
@@ -55,7 +59,7 @@ public sealed class LegacyMapboxMigrationRecoveryPostgresTests(PostgresImportTes
             };
             var view = Assert.IsType<ViewResult>(await controller.Index(default));
             var model = Assert.IsType<LocationProviderSettingsViewModel>(view.Model);
-            Assert.True(model.HasLegacyMapboxRows);
+            Assert.Equal(pending, model.HasLegacyMapboxRows);
             Assert.Equal("Ready with mapbox.", model.GeocodingStatus);
             Assert.Empty(context.ChangeTracker.Entries());
         }

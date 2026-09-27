@@ -8,15 +8,20 @@ namespace Wayfarer.Services.LocationProviders;
 public sealed class LegacyMapboxMigrationService(
     ApplicationDbContext dbContext, PersonalProviderCredentialService credentials)
 {
+    // PostgreSQL btrim must use the same Unicode whitespace set as the migration's IsNullOrWhiteSpace filter.
+    private static readonly string LegacyTokenWhitespace = new(Enumerable.Range(0, char.MaxValue + 1)
+        .Select(value => (char)value).Where(char.IsWhiteSpace).ToArray());
+
     /// <summary>Checks only recognized row existence without materializing or decrypting legacy credentials.</summary>
     public Task<bool> HasLegacyRowsAsync(string userId, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(userId);
-        // Match the PostgreSQL migration lock predicate exactly; SELECT EXISTS never returns credential columns.
+        // Match the lock predicate and final whitespace filter; SELECT EXISTS never returns credential columns.
         if (dbContext.Database.IsNpgsql())
             return dbContext.Database.SqlQuery<int>($$"""
                 SELECT 1 AS "Value" FROM "ApiTokens" WHERE "UserId" = {{userId}}
-                AND lower(btrim("Name")) = 'mapbox' AND btrim(COALESCE("Token", '')) <> ''
+                AND lower(btrim("Name")) = 'mapbox'
+                AND btrim(COALESCE("Token", ''), {{LegacyTokenWhitespace}}) <> ''
                 """).AnyAsync(cancellationToken);
         return dbContext.ApiTokens.IgnoreQueryFilters().AsNoTracking().AnyAsync(
             item => item.UserId == userId && item.Name != null && item.Name.Trim().ToLower() == "mapbox"

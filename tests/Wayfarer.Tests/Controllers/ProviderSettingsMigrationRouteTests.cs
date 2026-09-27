@@ -268,6 +268,7 @@ public sealed class ProviderSettingsMigrationRouteTests : TestBase
         new DbContextOptionsBuilder<ApplicationDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString())
             .AddInterceptors(interceptors).Options;
 
+    /// <summary>Opens an independent context against the shared test database options.</summary>
     private static ApplicationDbContext Context(DbContextOptions<ApplicationDbContext> options) =>
         new(options, new ServiceCollection().BuildServiceProvider());
 
