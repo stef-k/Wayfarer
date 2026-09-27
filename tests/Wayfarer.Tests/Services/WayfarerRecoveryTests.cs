@@ -138,6 +138,10 @@ public sealed class WayfarerRecoveryTests
         Assert.InRange(slot.Hour * 60 + slot.Minute, 180, 195);
         Assert.Equal(slot, RecoveryScheduler.DueSlot(config, now.AddHours(1)));
         var state = new SchedulerReceipt(1, slot, 1, true, now, null, Guid.NewGuid(), now, "none");
+        state.Validate();
+        Assert.Throws<IOException>(() => (state with { Schema = 2 }).Validate());
+        Assert.Throws<IOException>(() => (state with { Attempts = 4 }).Validate());
+        Assert.Throws<IOException>(() => (state with { NextRetry = now }).Validate());
         Assert.False(RecoveryScheduler.ShouldAttempt(state, slot, now, 3));
         Assert.False(RecoveryScheduler.ShouldAttempt(state, slot.AddDays(-1), now, 3));
         Assert.True(RecoveryScheduler.ShouldAttempt(state, slot.AddDays(20), now.AddDays(20), 3));

@@ -37,26 +37,19 @@ public sealed class RecoveryScheduler(WorkerConfiguration config)
         HostRecoveryOperation.Validate(null);
         var state = Load();
         var slot = DueSlot(config, now);
-        if (!ShouldAttempt(state, slot, now, config.Attempts)) return;
+        if (state.Slot > slot || state.Slot == slot && state.Succeeded) return;
         var engine = new RecoveryEngine(config);
+        if (!ShouldAttempt(state, slot, now, config.Attempts))
+        {
+            await ReconcileAsync(engine, state, slot, token);
+            return;
+        }
         state = state.Slot == slot ? state : new SchedulerReceipt(1, slot, 0, false, now, null, state.LastArchive, state.LastSuccess, "none");
         state = state with { Attempts = state.Attempts + 1, LastAttempt = now, NextRetry = now.AddMinutes(5), Failure = "interrupted" };
         Save(state); // Missing destinations and interrupted attempts both consume the bounded retry budget.
         try
         {
-            using (var destination = config.OpenDestination())
-            {
-                var committed = engine.List(destination, token).FirstOrDefault(value => value.ScheduledSlot >= slot);
-                if (committed is not null)
-                {
-                    using var staged = new RecoveryTaskDirectory();
-                    var verified = await ArchiveVerifier.VerifyAsync(destination,
-                        ArchiveContract.Name(config.Installation, committed.Completed, committed.Archive), staged.Path, config.Source, config.Installation, token);
-                    if (!verified.CompatibilitySupported) throw new IOException("Committed slot is incompatible.");
-                    Save(state with { Succeeded = true, NextRetry = null, LastArchive = committed.Archive, LastSuccess = committed.Completed, Failure = "none" });
-                    return;
-                }
-            }
+            if (await ReconcileAsync(engine, state, slot, token)) return;
             var result = await engine.BackupLockedAsync(slot, token);
             Save(state with { Succeeded = true, NextRetry = null, LastArchive = result.Archive, LastSuccess = result.Completed,
                 Failure = result.RetentionSucceeded ? "none" : "retention-failed" });
@@ -67,6 +60,20 @@ public sealed class RecoveryScheduler(WorkerConfiguration config)
             Save(state with { Failure = "capture-failed" });
             throw;
         }
+    }
+
+    /// <summary>Published slots remain reconcilable after the final attempt or before its retry deadline.</summary>
+    private async Task<bool> ReconcileAsync(RecoveryEngine engine, SchedulerReceipt state, DateTimeOffset slot, CancellationToken token)
+    {
+        using var destination = config.OpenDestination();
+        var committed = engine.List(destination, token).FirstOrDefault(value => value.ScheduledSlot >= slot);
+        if (committed is null) return false;
+        using var staged = new RecoveryTaskDirectory();
+        var verified = await ArchiveVerifier.VerifyAsync(destination,
+            ArchiveContract.Name(config.Installation, committed.Completed, committed.Archive), staged.Path, config.Source, config.Installation, token);
+        if (!verified.CompatibilitySupported) throw new IOException("Committed slot is incompatible.");
+        Save(state with { Succeeded = true, NextRetry = null, LastArchive = committed.Archive, LastSuccess = committed.Completed, Failure = "none" });
+        return true;
     }
 
     /// <summary>Clock rollback and replacement never replay a completed slot or reset consumed attempts.</summary>
@@ -82,12 +89,8 @@ public sealed class RecoveryScheduler(WorkerConfiguration config)
         using var input = directory.Read("scheduler.json");
         if (input.Length > 4096) throw new IOException("Scheduler receipt exceeds bound.");
         var state = JsonSerializer.Deserialize<SchedulerReceipt>(input, ArchiveContract.Json);
-        if (state is null || state.Schema != 1 || state.Attempts is < 0 or > 3 ||
-            state.Failure is not ("none" or "interrupted" or "capture-failed" or "retention-failed") ||
-            state.Slot.Offset != TimeSpan.Zero || state.LastAttempt.Offset != TimeSpan.Zero ||
-            state.Succeeded && (state.Attempts == 0 || state.NextRetry is not null || state.LastArchive is null || state.LastSuccess is null) ||
-            state.LastAttempt < state.Slot || (state.LastArchive is null) != (state.LastSuccess is null))
-            throw new IOException("Scheduler receipt invalid.");
+        if (state is null) throw new IOException("Scheduler receipt invalid.");
+        state.Validate();
         return state;
     }
 
@@ -113,4 +116,16 @@ public sealed class RecoveryScheduler(WorkerConfiguration config)
 
 /// <summary>Operational evidence only; no policy, secret or destination authority lives in the receipt.</summary>
 public sealed record SchedulerReceipt(int Schema, DateTimeOffset Slot, int Attempts, bool Succeeded,
-    DateTimeOffset LastAttempt, DateTimeOffset? NextRetry, Guid? LastArchive, DateTimeOffset? LastSuccess, string Failure);
+    DateTimeOffset LastAttempt, DateTimeOffset? NextRetry, Guid? LastArchive, DateTimeOffset? LastSuccess, string Failure)
+{
+    /// <summary>Workers and operator diagnostics interpret the same bounded receipt contract.</summary>
+    public void Validate()
+    {
+        if (Schema != 1 || Attempts is < 0 or > 3 ||
+            Failure is not ("none" or "interrupted" or "capture-failed" or "retention-failed") ||
+            Slot.Offset != TimeSpan.Zero || LastAttempt.Offset != TimeSpan.Zero ||
+            Succeeded && (Attempts == 0 || NextRetry is not null || LastArchive is null || LastSuccess is null) ||
+            LastAttempt < Slot || (LastArchive is null) != (LastSuccess is null))
+            throw new IOException("Scheduler receipt invalid.");
+    }
+}

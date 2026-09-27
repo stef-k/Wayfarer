@@ -190,12 +190,14 @@ public sealed class BackupConfiguration(IProcessRunner runner)
     private async Task CheckDestinationAsync(string root, Deployment config, CancellationToken token)
     {
         var name = config.Project + "-destination-check-" + Guid.NewGuid().ToString("N");
+        Exception? primary = null;
         try
         {
             await Required(BackupCompose.Command(root, config, "run", "-d", "--no-deps", "--name", name, "backup-worker", "destination-check"), token);
             var result = await runner.RunAsync(["wait", name], null, token);
             if (result.Code != 0 || result.Output.Trim() != "0") throw new UsageException("Destination write/flush/rename/read/delete capability failed.");
         }
+        catch (Exception error) { primary = error; throw; }
         finally
         {
             using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(45));
@@ -206,7 +208,12 @@ public sealed class BackupConfiguration(IProcessRunner runner)
                 if (waited.Code == 0) await runner.RunAsync(["rm", name], null, cleanup.Token);
                 else throw new IOException("Destination preflight state unknown.");
             }
-            catch (Exception) { throw new IOException("Destination preflight state unknown; inspect owned container before retry."); }
+            catch (Exception)
+            {
+                const string warning = "Destination preflight state unknown; inspect owned container before retry.";
+                if (primary is null) throw new IOException(warning);
+                Console.Error.WriteLine(warning);
+            }
         }
     }
 

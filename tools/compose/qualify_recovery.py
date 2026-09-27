@@ -68,6 +68,20 @@ class RecoveryJourney(Journey):
         before = self.host('cat', str(self.install / 'recovery-control/scheduler.json')).stdout
         self.host(*scheduler_args, 'up', '-d', '--no-deps', '--force-recreate', 'backup-scheduler')
         assert self.host('cat', str(self.install / 'recovery-control/scheduler.json')).stdout == before
+        # Simulate publication followed by death before the final attempt's receipt commit.
+        self.host(*scheduler_args, 'stop', 'backup-scheduler')
+        interrupted = json.loads(before)
+        interrupted.update(Attempts=3, Succeeded=False, Failure='interrupted', NextRetry='2099-01-01T00:00:00+00:00')
+        self.host('tee', str(self.install / 'recovery-control/scheduler.json'), data=json.dumps(interrupted))
+        self.host(*scheduler_args, 'up', '-d', '--no-deps', 'backup-scheduler')
+        deadline = time.monotonic() + 90
+        while True:
+            reconciled = json.loads(self.host('cat', str(self.install / 'recovery-control/scheduler.json')).stdout)
+            if reconciled['Succeeded']: break
+            if time.monotonic() > deadline: raise RuntimeError('exhausted published slot did not reconcile')
+            time.sleep(0.1)
+        assert reconciled['Attempts'] == 3 and reconciled['LastArchive'] == interrupted['LastArchive']
+        print('PASS published final attempt reconciled without retry-budget reset or duplicate capture', flush=True)
         # Host lock owner is a self-contained process with no database or Docker access.
         owner = self.project + '-lock-owner'
         run('docker', 'run', '-di', '--name', owner, '--network', 'none', '--label', 'com.docker.compose.project=' + self.project,
