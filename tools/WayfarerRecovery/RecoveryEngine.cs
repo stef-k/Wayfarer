@@ -106,7 +106,7 @@ public sealed class RecoveryEngine(WorkerConfiguration config)
     {
         var names = destination.Names(4096).ToHashSet(StringComparer.Ordinal);
         var pattern = "^wayfarer-recovery-v1_" + config.Installation.ToString("D") +
-            @"_([0-9]{8}T[0-9]{13}Z)_([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})\.tar(\.sha256)?(\.partial-[a-f0-9]{32})?$";
+            @"_([0-9]{8}T[0-9]{13}Z)_([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})\.tar(\.sha256)?(\.partial-[a-f0-9]{32})?\z";
         foreach (var name in names)
         {
             token.ThrowIfCancellationRequested();

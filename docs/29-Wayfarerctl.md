@@ -314,12 +314,28 @@ without writing to the local underlay. The daemon must support Linux propagation
 The socket-free scheduler runs in the exact configured DB image as UID/GID1654 with
 no capabilities, read-only root, app-data read-only, app-role secret read-only,
 bounded CPU/memory/processes and 2 GiB private temporary storage. Its operational
-receipt is in local `recovery-control`, outside the destination. Restart/replacement
+receipt is in local `recovery-control/state`, outside the destination. Restart/replacement
 does not reset slots. Manual and scheduled captures share the same C# engine and
 kernel byte-range lock; manual busy returns 1. Stop/restart/configuration respect
 that lock, and deliberate stop also stops the scheduler. No host .NET, PostgreSQL,
 Python, cron or systemd timer is needed. Status/doctor report policy, destination,
-payload, scheduler and bounded receipt facts.
+payload, scheduler and bounded receipt facts. The root-owned 0755 control parent
+protects the root:1654 0660 lock inode and root:1654 0640 host reservation from worker
+replacement. Only the scheduler state directory is UID1654-writable; worker mounts
+keep the control parent read-only and grant write access to the existing lock inode.
+Existing unsafe control ownership fails closed; it is never repaired by replacing a
+potentially held lock.
+
+`backups` and `verify-backup` use a separate network-free service with no application
+password or app-data mount and a read-only destination. Only the existing lock inode
+and private temporary storage are writable. Destination capability checks use another
+network-free service with destination write access but no control, DB secret or source
+mount. Capture/scheduling alone receive backend DB access and source authority.
+
+After interruption, scheduler reconciliation accepts only the exact UTC slot. It
+verifies the committed archive and reapplies retention before recording success;
+retention failure remains visible as `retention-failed` without invalidating the
+archive or recapturing the slot, including after the final capture attempt.
 
 Online capture pairs a coherent exported PostgreSQL snapshot with Uploads and the
 complete resolved active ring captured over time. It is **not an atomic
@@ -338,8 +354,13 @@ restore/update/native migration remain separate work.
 The archive is an uncompressed USTAR with exactly `manifest.json`, `database.dump`,
 `data-protection.tar.gz`, `uploads.tar.gz` and `SHA256SUMS`. The final `.sha256`
 sidecar is published last and is the complete-pair marker. Retention verifies owned
-complete pairs before deleting oldest excess sets; foreign/incomplete material is
-preserved. A retention failure reports the successfully published archive separately.
+complete pairs before deleting oldest excess sets. Before capture, bounded cleanup
+under the shared lock reclaims private UID/GID1654 mode 0600 partials and orphan
+archive/sidecar files older than 24 hours in this installation's exact generated
+namespace. Final orphans also require matching manifest/sidecar identity. Fresh,
+foreign, linked, invalid and wrong-owner files, and complete pairs, are preserved;
+listing/verification never clean or rewrite destination content. A retention failure
+reports the successfully published archive separately.
 Listing scans at most 4096 destination entries and returns at most 20 newest pairs;
 it is explicitly not full verification. Verification bounds bytes, entries, paths,
 manifest and elapsed time, never executes SQL, and distinguishes integrity from

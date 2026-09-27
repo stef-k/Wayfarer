@@ -7,7 +7,12 @@ Do not invoke the private worker protocol as an alternative configuration author
 Manual, scheduled and host-reserved quiesced captures share `RecoveryEngine`.
 `installation.json` owns policy; immutable generation files are derived inputs.
 The worker runs as UID/GID1654 inside the exact configured PG17/PostGIS DB image,
-with app-data read-only, no Docker socket, no capabilities and private bounded temp.
+with no Docker socket, no capabilities and private bounded temp. Capture receives
+app-data read-only and backend DB access; offline listing/verification receives neither
+source nor credentials nor network and binds the destination read-only. The stable
+lock inode lives in a root-owned non-writable parent; mutable scheduler receipts live
+in a separate state directory. Exact-slot crash reconciliation reapplies retention,
+and capture reclaims only bounded, day-old, validated owned publication residue.
 The additive `WayfarerRecoverySource.dll` inspects the selected immutable app's real
 storage, Data Protection, readiness and schema owners without changing that image.
 

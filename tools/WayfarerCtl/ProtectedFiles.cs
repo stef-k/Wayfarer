@@ -55,7 +55,7 @@ public static class ProtectedFiles
             throw new UsageException("Protected file ownership, type or mode is unsafe.");
     }
 
-    /// <summary>Create without replacement; set mode on open before writing any secret bytes.</summary>
+    /// <summary>Create without replacement; start private, optionally granting a separate read-only consumer group.</summary>
     public static void Create(string path, string content, uint owner = 0, uint? readerGroup = null)
     {
         if (!OperatingSystem.IsLinux()) throw new PlatformNotSupportedException();

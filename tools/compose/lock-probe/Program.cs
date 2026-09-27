@@ -1,7 +1,7 @@
 using WayfarerRecovery;
 [assembly: System.Runtime.Versioning.SupportedOSPlatform("linux")]
 
-// Qualify the actual shipped primitive/range, independently of database availability.
+// Qualify the shipped lock without DB access, or the real engine publication boundary in a disposable DB fixture.
 try
 {
     if (args is ["scheduler-tick" or "scheduler-crash", var timestamp])

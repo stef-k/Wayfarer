@@ -32,7 +32,7 @@ public sealed class WayfarerCtlTests
             if (operation == "backups")
             {
                 Assert.True(mounts.Single(m => m.GetProperty("target").GetString() == "/control").GetProperty("read_only").GetBoolean());
-                Assert.Single(mounts.Where(m => !m.GetProperty("read_only").GetBoolean()));
+                Assert.Single(mounts, m => !m.GetProperty("read_only").GetBoolean());
             }
             else Assert.DoesNotContain(mounts, m => m.GetProperty("target").GetString()!.StartsWith("/control"));
         }

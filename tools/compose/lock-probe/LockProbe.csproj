@@ -1,5 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- Qualification-only cross-process lock owner; no database or Docker client code. -->
+  <!-- Qualification-only lock owner and recovery crash probe; never included in shipped payloads. -->
   <PropertyGroup>
     <OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings><PublishSingleFile>true</PublishSingleFile><InvariantGlobalization>true</InvariantGlobalization>
