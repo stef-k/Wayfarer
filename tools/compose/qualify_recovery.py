@@ -80,6 +80,14 @@ class RecoveryJourney(Journey):
         assert self.ctl('backup', check=False).returncode == 1
         assert self.ctl('stop', check=False).returncode == 1
         assert self.host(*scheduler_args, 'run', '--rm', '--no-deps', '-T', 'backup-worker', 'backups', check=False).returncode == 1
+        duplicate = self.project + '-duplicate-scheduler'
+        self.host(*scheduler_args, 'run', '-d', '--no-deps', '--name', duplicate, 'backup-worker', 'schedule')
+        deadline = time.monotonic() + 10
+        while 'deferred' not in (run('docker', 'logs', duplicate).stdout + run('docker', 'logs', duplicate).stderr):
+            if time.monotonic() > deadline: raise RuntimeError('duplicate scheduler did not defer to recovery exclusion')
+            time.sleep(0.1)
+        run('docker', 'stop', '--time', '5', duplicate)
+        run('docker', 'rm', duplicate)
         run('docker', 'kill', owner)
         print('PASS host lock contention and owner-death release; scheduler recreation retained receipt', flush=True)
         print(self.ctl('backup').stdout, flush=True)

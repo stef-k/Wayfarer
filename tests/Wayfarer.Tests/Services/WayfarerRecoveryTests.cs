@@ -160,6 +160,7 @@ public sealed class WayfarerRecoveryTests
             ExpectedMigrations = ["20260924220353_StablePersonalCredentialCompanion"]
         };
         ArchiveContract.ValidateSource(source);
+        ArchiveContract.ValidateSource(source with { Kind = "native", ApplicationImage = "", DatabaseImage = "", Project = "", BundleFingerprint = "" });
         Assert.Throws<IOException>(() => ArchiveContract.ValidateSource(source with { ApplicationVersion = "1.0\nunsafe" }));
         Assert.Throws<IOException>(() => ArchiveContract.ValidateSource(source with { ExpectedMigrations = [] }));
         Assert.Throws<IOException>(() => ArchiveContract.ValidateSource(source with { SourceRevision = "unknown" }));
@@ -190,6 +191,14 @@ public sealed class WayfarerRecoveryTests
         await Assert.ThrowsAsync<IOException>(() => ArchiveVerifier.VerifyAsync(directory, "unsafe.tar", staging,
             new SourceIdentity(), Guid.NewGuid(), CancellationToken.None));
         Assert.Empty(Directory.EnumerateFileSystemEntries(staging));
+    }
+
+    /// <summary>Duplicate interpretation fields are rejected identically by listing and full verification.</summary>
+    [Fact]
+    public void DuplicateManifestPropertiesAreRejected()
+    {
+        using var input = new MemoryStream(System.Text.Encoding.UTF8.GetBytes("{\"Format\":\"wayfarer-recovery\",\"Format\":\"other\"}"));
+        Assert.Throws<IOException>(() => ArchiveContract.ReadManifest(input));
     }
 
 }
