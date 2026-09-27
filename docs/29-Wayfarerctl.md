@@ -304,7 +304,7 @@ recovery rather than being declared cancelled. Inspect the named owned container
 Docker daemon first; never delete `recovery.lock` to clear a busy operation.
 
 For an administrator-mounted filesystem, use `--kind mounted` and a dedicated
-propagating parent with exactly one child named `slot`, for example
+root-owned 0755 propagating parent with exactly one child named `slot`, for example
 `/srv/wayfarer-remote/slot`. The administrator mounts storage and establishes host
 shared propagation; Wayfarer does not manage NAS credentials or mount filesystems.
 Only that parent is bound with one-way `rslave` propagation. Device/inode identity,

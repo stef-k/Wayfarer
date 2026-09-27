@@ -36,7 +36,7 @@ public sealed class BackupConfiguration(IProcessRunner runner)
     {
         if (!File.Exists(Path.Combine(root, "setup-complete"))) throw new UsageException("Backup configuration requires completed setup.");
         var options = Options(args);
-        ProvisionControl(root);
+        ProvisionControl(root, config.Backup is null);
         using var exclusion = new RecoveryLock(Path.Combine(root, "recovery-control/recovery.lock"));
         if (config.Backup is not null)
             await Required(BackupCompose.Command(root, config, "stop", "--timeout", "30", "backup-scheduler"), token);
@@ -134,11 +134,13 @@ public sealed class BackupConfiguration(IProcessRunner runner)
         foreach (var forbidden in new[] { root, config.Bundle, "/var/lib/docker", "/var/lib/wayfarer", "/var/cache/wayfarer", "/var/log/wayfarer", "/etc" })
             if (policy.Destination == forbidden || policy.Destination.StartsWith(forbidden + "/", StringComparison.Ordinal))
                 throw new UsageException("Destination overlaps protected host/application state.");
+        ProtectedFiles.SafePath(Path.GetDirectoryName(policy.Destination)!);
         using var destination = new SafeDirectory(policy.Destination);
         if (policy.Kind == "mounted")
         {
             using var parent = new SafeDirectory(Path.GetDirectoryName(policy.Destination)!);
-            if (Path.GetFileName(policy.Destination) != "slot" || !parent.Names().SequenceEqual(new[] { "slot" }) ||
+            if (parent.Identity.User != 0 || parent.Identity.Group != 0 || (parent.Identity.Mode & 0x1ff) != 0x1ed ||
+                Path.GetFileName(policy.Destination) != "slot" || !parent.Names().SequenceEqual(new[] { "slot" }) ||
                 parent.Identity.Mount == destination.Identity.Mount) throw new UsageException("Mounted destination requires a dedicated parent and mounted slot.");
         }
         else if (policy.Kind != "local") throw new UsageException("Destination kind must be local or mounted.");
@@ -157,19 +159,23 @@ public sealed class BackupConfiguration(IProcessRunner runner)
     }
 
     /// <summary>Provision the stable local lock once; existing ownership must match exactly.</summary>
-    private static void ProvisionControl(string root)
+    private static void ProvisionControl(string root, bool bootstrap)
     {
         var directory = Path.Combine(root, "recovery-control");
-        if (!Directory.Exists(directory))
-        {
-            Directory.CreateDirectory(directory, ProtectedFiles.PrivateDirectory);
-            if (chown(directory, 1654, 1654) != 0) throw new IOException("Cannot provision recovery control.");
-            ProtectedFiles.Create(Path.Combine(directory, "recovery.lock"), "", 1654);
-        }
+        if (!Directory.Exists(directory)) Directory.CreateDirectory(directory, ProtectedFiles.PrivateDirectory);
         using var control = new SafeDirectory(directory);
         control.RequireLocalControl();
+        // A crash before initial ownership/lock creation is recoverable only while no backup policy exists.
+        if (bootstrap && control.Names().Length == 0 && control.Identity.User == 0)
+        {
+            ProtectedFiles.Check(directory, 0, directory: true);
+            if (chown(directory, 1654, 1654) != 0) throw new IOException("Cannot provision recovery control.");
+        }
         ProtectedFiles.Check(directory, 1654, directory: true);
-        ProtectedFiles.Check(Path.Combine(directory, "recovery.lock"), 1654);
+        var lockPath = Path.Combine(directory, "recovery.lock");
+        if (bootstrap && control.Names().Length == 0) ProtectedFiles.Create(lockPath, "", 1654);
+        ProtectedFiles.Check(lockPath, 1654);
+        control.Flush();
     }
 
     internal static string BundleFingerprint(Deployment config)

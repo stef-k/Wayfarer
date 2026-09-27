@@ -46,6 +46,7 @@ class RecoveryJourney(Journey):
                      "CREATE TABLE recovery_qualification (id integer PRIMARY KEY, name citext, position geometry(Point,4326), payload bytea); "
                      "ALTER TABLE recovery_qualification OWNER TO wayfarer; "
                      "INSERT INTO recovery_qualification VALUES (1, 'Αθήνα', ST_SetSRID(ST_Point(23.7,37.9),4326), (SELECT decode(string_agg(md5(i::text),''),'hex') FROM generate_series(1,20000) i));")
+        self.host('mkdir', '-m', '700', str(self.install / 'recovery-control'))
         print('PASS completed source application setup', flush=True)
         result = self.ctl('backup', 'configure', '--destination', str(self.directory / 'destination'),
                          '--payload', str(self.payload / 'wayfarer-recovery'))
@@ -150,6 +151,14 @@ class RecoveryJourney(Journey):
                     observation = run('docker', 'logs', worker, check=False).stdout if worker else 'no worker container'
                     raise RuntimeError('actual dump did not reach the cancellation gate: ' + observation[-1000:])
                 time.sleep(0.1)
+            envelope = json.loads(run('docker', 'inspect', worker).stdout)[0]
+            assert envelope['Config']['User'] == '1654:1654'
+            assert envelope['HostConfig']['ReadonlyRootfs'] and not envelope['HostConfig']['Privileged']
+            assert 'ALL' in envelope['HostConfig']['CapDrop']
+            assert set(envelope['NetworkSettings']['Networks']) == {self.project + '_backend'}
+            assert any(m['Destination'] == '/source' and m['Name'] == self.project + '_app-data' and not m['RW']
+                       for m in envelope['Mounts'])
+            assert not any('docker.sock' in m['Destination'] or m.get('Name') == self.project + '_db-data' for m in envelope['Mounts'])
             run('docker', 'kill', '--signal=INT', name)
             controller.communicate(timeout=45)
             assert controller.returncode == 1

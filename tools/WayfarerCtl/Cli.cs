@@ -11,7 +11,7 @@ public sealed class Cli(IProcessRunner runner, ITerminal terminal)
         try { return await DispatchAsync(args, token); }
         catch (System.Text.Json.JsonException) { terminal.Error("Invalid installation JSON configuration; restore the trusted non-secret identity."); return 2; }
         catch (UsageException e) { terminal.Error(e.Message); return 2; }
-        catch (OperationCanceledException) { terminal.Error("Cancelled. State retained; run status/doctor before retrying."); return 1; }
+        catch (OperationCanceledException) { terminal.Error("Cancellation requested. State retained; use status/doctor to confirm worker and operation state before retrying."); return 1; }
         catch (Exception) { terminal.Error("Operation failed. State retained; check Docker access, protected configuration and doctor."); return 1; }
     }
 
