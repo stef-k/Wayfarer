@@ -90,7 +90,7 @@ public sealed class Preflight(IProcessRunner runner)
         var volumes = await runner.RunAsync(["volume", "ls", "--format", "{{.Name}}"], null, token);
         if (volumes.Code != 0) throw new UsageException("Cannot verify retained volumes.");
         var names = volumes.Output.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
-        if (requireDatabase && new[] { "db-data", "app-data", "app-cache", "app-logs" }.Any(name => !names.Contains(config.Project + "_" + name)))
+        if (requireDatabase && new[] { "db-data", "app-data", "app-cache", "app-logs" }.Any(name => !names.Contains(ActiveStorage.Volume(config, name))))
             throw new UsageException("Previously prepared volume is missing; refusing to recreate durable state.");
         foreach (var kind in new[] { "container", "volume", "network" })
         {
@@ -127,6 +127,11 @@ public sealed class Preflight(IProcessRunner runner)
         {
             var bundle = Path.TrimEndingDirectorySeparator(Path.GetFullPath(config.Bundle));
             var files = Path.Combine(bundle, "compose.yaml") + (config.Mode == "external" ? "," + Path.Combine(bundle, "external.yaml") : "");
+            if (config.StorageGeneration is not null)
+            {
+                if (root is null) throw new UsageException("Active generation requires deployment root.");
+                files += "," + ActiveStorage.OverlayPath(root, config);
+            }
             var service = Label("service");
             if (service is "backup-worker" or "backup-scheduler" or "backup-reader" or "backup-destination-check")
             {
@@ -142,7 +147,7 @@ public sealed class Preflight(IProcessRunner runner)
             var name = Label(kind);
             var allowed = kind == "network" ? new[] { "backend", "edge" } :
                 new[] { "db-data", "app-data", "app-cache", "app-logs", "caddy-data", "caddy-config" };
-            if (name is null || !allowed.Contains(name) || resource.GetProperty("Name").GetString() != config.Project + "_" + name)
+            if (name is null || !allowed.Contains(name) || resource.GetProperty("Name").GetString() != (kind == "volume" ? ActiveStorage.Volume(config, name) : config.Project + "_" + name))
                 throw new UsageException("Foreign retained volume/network refused.");
         }
     }

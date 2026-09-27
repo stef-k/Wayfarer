@@ -81,7 +81,7 @@ public sealed class BackupCommands(IProcessRunner runner, ITerminal terminal)
     /// <summary>No running container may share the durable application volume during quiesced capture.</summary>
     private async Task AssertNoWriters(Deployment config, CancellationToken token)
     {
-        var result = await runner.RunAsync(["ps", "-q", "--filter", "volume=" + config.Project + "_app-data"], null, token);
+        var result = await runner.RunAsync(["ps", "-q", "--filter", "volume=" + ActiveStorage.Volume(config, "app-data")], null, token);
         if (result.Code != 0 || !string.IsNullOrWhiteSpace(result.Output)) throw new IOException("Application volume still has an active consumer.");
     }
 

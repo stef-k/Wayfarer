@@ -49,12 +49,14 @@ public sealed class Cli(IProcessRunner runner, ITerminal terminal)
             return await new Diagnostics(runner, terminal).RunAsync(root, config, args[0] == "doctor", token);
         if (File.Exists(Path.Combine(root, "backup-transition.json")) && args is not ["backup", "configure", "--recover"])
             throw new UsageException("Interrupted backup configuration; run backup configure --recover before mutation.");
+        RestoreReceipt.RequireResolved(root);
         Deployment.CheckSecrets(root);
         await new Preflight(runner).DockerAsync(token);
         if (args[0] == "logs") return await LogsAsync(root, config, args[1..], token);
-        if (!File.Exists(Path.Combine(root, "setup-complete")))
+        if (!InstallationCompletion.IsComplete(root))
             throw new UsageException("Setup incomplete; follow interrupted-setup recovery before lifecycle/user operations.");
         using var operationLock = Setup.Lock(root);
+        RestoreReceipt.RequireResolved(root);
         if (args[0] is "backup" or "backups" or "verify-backup")
             return await new BackupCommands(runner, terminal).RunAsync(root, config, args, token);
         using var recovery = config.Backup is not null ? new WayfarerRecovery.RecoveryLock(Path.Combine(root, "recovery-control/recovery.lock")) : null;
