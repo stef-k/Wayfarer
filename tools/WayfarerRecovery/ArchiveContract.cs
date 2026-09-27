@@ -15,6 +15,8 @@ public static class ArchiveContract
     {
         UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
         MaxDepth = 16,
+        RespectRequiredConstructorParameters = true,
+        RespectNullableAnnotations = true,
         WriteIndented = false
     };
 
@@ -44,59 +46,102 @@ public static class ArchiveContract
 /// <summary>Complete recovery-set metadata; source provenance never supplies extraction paths.</summary>
 public sealed record RecoveryManifest
 {
+    [JsonRequired]
     public string Format { get; init; } = "wayfarer-recovery";
+    [JsonRequired]
     public int Version { get; init; } = 1;
+    [JsonRequired]
     public int Schema { get; init; } = 1;
+    [JsonRequired]
     public string Algorithm { get; init; } = "SHA-256";
+    [JsonRequired]
     public Guid Installation { get; init; }
+    [JsonRequired]
     public Guid Archive { get; init; }
+    [JsonRequired]
     public DateTimeOffset Started { get; init; }
+    [JsonRequired]
     public DateTimeOffset Completed { get; init; }
+    [JsonRequired]
     public string Mode { get; init; } = "online";
     public DateTimeOffset? ScheduledSlot { get; init; }
+    [JsonRequired]
     public SourceIdentity Source { get; init; } = new();
+    [JsonRequired]
     public DatabaseIdentity Database { get; init; } = new();
+    [JsonRequired]
     public RecoveryComponent[] Components { get; init; } = [];
 }
 
 /// <summary>Compatibility identity supplied by trusted installation and application owners.</summary>
 public sealed record SourceIdentity
 {
+    [JsonRequired]
     public string Kind { get; init; } = "compose";
+    [JsonRequired]
     public string ApplicationName { get; init; } = "Wayfarer";
+    [JsonRequired]
     public string ApplicationVersion { get; init; } = "";
+    [JsonRequired]
     public string SourceRevision { get; init; } = "";
+    [JsonRequired]
     public string ReleaseStatus { get; init; } = "candidate";
+    [JsonRequired]
     public string ApplicationImage { get; init; } = "";
+    [JsonRequired]
     public string DatabaseImage { get; init; } = "";
+    [JsonRequired]
     public string Platform { get; init; } = "linux/amd64";
+    [JsonRequired]
     public string BundleFingerprint { get; init; } = "";
+    [JsonRequired]
     public string PayloadFingerprint { get; init; } = "";
+    [JsonRequired]
     public string Project { get; init; } = "";
+    [JsonRequired]
     public string WorkerVersion { get; init; } = "";
+    [JsonRequired]
     public int ConfigurationSchema { get; init; } = 2;
+    [JsonRequired]
     public string StableIdentity { get; init; } = "ready";
+    [JsonRequired]
     public string[] ExpectedMigrations { get; init; } = [];
+    [JsonRequired]
     public string QuartzIdentity { get; init; } = "";
 }
 
 /// <summary>Database identity observed from the dump's exported read-only snapshot.</summary>
 public sealed record DatabaseIdentity
 {
+    [JsonRequired]
     public int Major { get; init; }
+    [JsonRequired]
     public string ServerVersion { get; init; } = "";
+    [JsonRequired]
     public string Name { get; init; } = "";
+    [JsonRequired]
     public string PostgisExtension { get; init; } = "";
+    [JsonRequired]
     public string PostgisLibrary { get; init; } = "";
+    [JsonRequired]
     public string Citext { get; init; } = "";
+    [JsonRequired]
     public string Encoding { get; init; } = "";
+    [JsonRequired]
     public string Collation { get; init; } = "";
+    [JsonRequired]
     public string CharacterType { get; init; } = "";
+    [JsonRequired]
     public string LocaleProvider { get; init; } = "";
+    [JsonRequired]
     public string? Locale { get; init; }
+    [JsonRequired]
     public string DumpVersion { get; init; } = "";
+    [JsonRequired]
     public string RestoreVersion { get; init; } = "";
+    [JsonRequired]
     public string[] Migrations { get; init; } = [];
+    [JsonRequired]
     public string TerminalMigration { get; init; } = "";
 }
 

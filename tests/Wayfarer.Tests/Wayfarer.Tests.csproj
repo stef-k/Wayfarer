@@ -35,6 +35,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\Wayfarer.csproj" />
+    <!-- Recovery archive and Linux filesystem behavior at the worker seam. -->
+    <ProjectReference Include="../../tools/WayfarerRecovery/WayfarerRecovery.csproj" />
     <!-- Exercise operator commands through their narrow process/terminal seams. -->
     <ProjectReference Include="..\..\tools\WayfarerCtl\WayfarerCtl.csproj" />
   </ItemGroup>
