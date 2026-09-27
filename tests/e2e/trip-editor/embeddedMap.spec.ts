@@ -128,13 +128,26 @@ test('mounted mobile iframe allows single-touch page scroll, two-touch pan/zoom,
     await expect(zoom).toHaveText(originalZoom!);
     await swipe(cdp, true, true);
     await expect(zoom).not.toHaveText(originalZoom!);
+    const pinchedZoom = Number((await zoom.textContent())!.replace('Zoom: ', ''));
+    await expect.poll(() => Number(new URL(child.url()).searchParams.get('zoom'))).toBe(pinchedZoom);
     const manipulatedUrl = child.url();
+    // A native swipe can keep scrolling after touchEnd; finish it before resetting tap coordinates.
+    const scrollEnded = page.evaluate(() => new Promise<void>(resolve =>
+      document.addEventListener('scrollend', () => resolve(), { once: true })));
     await swipe(cdp, false);
+    await scrollEnded;
     await expect.poll(() => page.evaluate(() => scrollY)).toBeGreaterThan(100);
     expect(child.url()).toBe(manipulatedUrl);
     await page.evaluate(() => scrollTo(0, 0));
-    await frame.getByRole('button', { name: 'Zoom in', exact: true }).tap();
-    await expect.poll(() => child.url()).not.toBe(manipulatedUrl);
+    await expect.poll(() => page.evaluate(() => scrollY)).toBe(0);
+    const zoomIn = frame.getByRole('button', { name: 'Zoom in', exact: true });
+    await expect(zoomIn).toBeVisible();
+    await expect(zoomIn).toHaveAttribute('aria-disabled', 'false');
+    // One ordinary touch must advance the displayed zoom and permalink by exactly one step.
+    await expect(zoom).toHaveText(`Zoom: ${pinchedZoom}`);
+    await zoomIn.tap();
+    await expect(zoom).toHaveText(`Zoom: ${pinchedZoom + 1}`);
+    await expect.poll(() => Number(new URL(child.url()).searchParams.get('zoom'))).toBe(pinchedZoom + 1);
     const popup = page.waitForEvent('popup');
     await frame.getByRole('link', { name: 'Open full view', exact: true }).tap();
     await (await popup).waitForURL(`${baseURL}${path}`);
