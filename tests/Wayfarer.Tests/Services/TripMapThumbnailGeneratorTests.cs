@@ -31,6 +31,75 @@ public class TripMapThumbnailGeneratorTests : IDisposable
         }).Build();
     }
 
+    /// <summary>Successful generation reports dimensions and trip identity without the persisted path.</summary>
+    [Fact]
+    public async Task GeneratedThumbnail_DiagnosticsOmitAbsolutePath()
+    {
+        using var logs = new TestLogProvider();
+        using var factory = LoggerFactory.Create(b => b.AddProvider(logs));
+        var generator = new TripMapThumbnailGenerator(factory.CreateLogger<TripMapThumbnailGenerator>(), _storage, _config,
+            _ => Task.FromResult<byte[]?>([1, 2, 3]));
+        var tripId = Guid.NewGuid();
+        Assert.NotNull(await generator.GetOrGenerateThumbnailAsync(tripId, 11.663, 22.663, 5, 800, 450, DateTime.UtcNow));
+        var entry = Assert.Single(logs.Entries, e => e.Message.StartsWith("Generated thumbnail"));
+        Assert.Null(entry.Exception);
+        Assert.DoesNotContain(_root, entry.Message + string.Join(",", entry.Fields.Values));
+        Assert.Equal(tripId, entry.Fields["TripId"]);
+    }
+
+    /// <summary>Routine removals retain trip identity without exposing external storage paths.</summary>
+    [Theory]
+    [InlineData("delete")]
+    [InlineData("invalidate")]
+    [InlineData("orphan")]
+    public async Task ThumbnailRemoval_DiagnosticsOmitStorageRoot(string operation)
+    {
+        using var logs = new TestLogProvider();
+        using var factory = LoggerFactory.Create(b => b.AddProvider(logs));
+        var generator = new TripMapThumbnailGenerator(factory.CreateLogger<TripMapThumbnailGenerator>(), _storage, _config);
+        var tripId = Guid.NewGuid();
+        var path = _storage.Resolve($"{tripId}-800x450.jpg");
+        await File.WriteAllBytesAsync(path, [1]);
+
+        // Storage initialization diagnostics are outside the routine removal boundary.
+        var initialLogCount = logs.Entries.Count;
+        switch (operation)
+        {
+            case "delete":
+                generator.DeleteThumbnails(tripId);
+                break;
+            case "invalidate":
+                generator.InvalidateThumbnails(tripId, DateTime.UtcNow);
+                break;
+            case "orphan":
+                Assert.Equal(1, await generator.CleanupOrphanedThumbnailsAsync(new HashSet<Guid>()));
+                break;
+        }
+
+        Assert.False(File.Exists(path));
+        var entry = Assert.Single(logs.Entries.Skip(initialLogCount));
+        Assert.Equal(LogLevel.Information, entry.Level);
+        Assert.Null(entry.Exception);
+        Assert.DoesNotContain(_root, entry.Message + string.Join(",", entry.Fields.Values));
+        Assert.Equal(tripId, entry.Fields["TripId"]);
+    }
+
+    /// <summary>Invalid geographic input is diagnosed by trip identity, never by the supplied coordinate.</summary>
+    [Fact]
+    public async Task InvalidCoordinates_DiagnosticsOmitPrivateValues()
+    {
+        using var logs = new TestLogProvider();
+        using var factory = LoggerFactory.Create(b => b.AddProvider(logs));
+        var generator = new TripMapThumbnailGenerator(factory.CreateLogger<TripMapThumbnailGenerator>(), _storage, _config);
+        var tripId = Guid.NewGuid();
+        Assert.Null(await generator.GetOrGenerateThumbnailAsync(tripId, 211.663, 22.663, 5, 800, 450, DateTime.UtcNow));
+        var entry = Assert.Single(logs.Entries, e => e.Message.StartsWith("Invalid coordinates"));
+        Assert.Null(entry.Exception);
+        Assert.DoesNotContain("211.663", entry.Message + string.Join(",", entry.Fields.Values));
+        Assert.DoesNotContain("22.663", entry.Message + string.Join(",", entry.Fields.Values));
+        Assert.Equal(tripId, entry.Fields["TripId"]);
+    }
+
     [Fact]
     public async Task GetOrGenerateThumbnailAsync_ReturnsNull_WhenCoordinatesInvalid()
     {

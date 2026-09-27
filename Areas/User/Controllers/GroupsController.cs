@@ -113,7 +113,7 @@ public class GroupsController : BaseController
         }
         catch (InvalidOperationException ex)
         {
-            ModelState.AddModelError("name", ex.Message);
+            ModelState.AddModelError("name", GroupOperationErrors.Message(ex, "create"));
             return View();
         }
     }
@@ -199,7 +199,7 @@ public class GroupsController : BaseController
         }
         catch (InvalidOperationException ex)
         {
-            return Conflict(new { success = false, message = ex.Message });
+            return Conflict(new { success = false, message = GroupOperationErrors.Message(ex, "invite") });
         }
     }
 
@@ -227,7 +227,7 @@ public class GroupsController : BaseController
         }
         catch (Exception ex)
         {
-            return BadRequest(new { success = false, message = ex.Message });
+            return BadRequest(new { success = false, message = GroupOperationErrors.Message(ex, "remove") });
         }
     }
 

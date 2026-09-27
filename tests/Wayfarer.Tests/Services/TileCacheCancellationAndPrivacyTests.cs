@@ -22,6 +22,25 @@ namespace Wayfarer.Tests.Services;
 [Collection("OutboundBudget")]
 public sealed class TileCacheCancellationAndPrivacyTests
 {
+    /// <summary>Routine cache operations identify the tile without publishing its absolute storage path.</summary>
+    [Fact]
+    public async Task CacheSuccessAndHit_OmitAbsolutePath()
+    {
+        using var harness = new TileCacheTestHarness();
+        using var scope = harness.CreateScope();
+        var service = scope.ServiceProvider.GetRequiredService<TileCacheService>();
+        Assert.True(await service.CacheTileAsync(CanonicalTileUrl(5, 18, 19), "5", "18", "19"));
+        await service.RetrieveTileAsync("5", "18", "19", CanonicalTileUrl(5, 18, 19));
+        var entries = harness.Logs.Entries.Where(e => e.Message.StartsWith("Tile cached for") || e.Message.StartsWith("Tile found in cache for")).ToArray();
+        Assert.Equal(2, entries.Length);
+        Assert.All(entries, entry =>
+        {
+            Assert.Null(entry.Exception);
+            Assert.DoesNotContain(harness.CacheDirectory, entry.Message + string.Join(",", entry.Fields.Values));
+            Assert.True(entry.Fields.ContainsKey("Provider"));
+        });
+    }
+
     /// <summary>Proves caller cancellation is the only transport path classified as cancellation.</summary>
     [Fact]
     public async Task CallerCancelledTransport_EmitsCancellationOnly()

@@ -146,7 +146,7 @@ namespace Wayfarer.Areas.Manager.Controllers;
         }
         catch (Exception ex)
         {
-            SetAlert(ex.Message, "danger");
+            SetAlert(GroupOperationErrors.Message(ex, "invite"), "danger");
         }
         return RedirectToAction(nameof(Members), new { groupId });
     }
@@ -169,11 +169,11 @@ namespace Wayfarer.Areas.Manager.Controllers;
         }
         catch (InvalidOperationException ex)
         {
-            SetAlert(ex.Message, "danger");
+            SetAlert(GroupOperationErrors.Message(ex, "remove"), "danger");
         }
         catch (Exception ex)
         {
-            SetAlert(ex.Message, "danger");
+            SetAlert(GroupOperationErrors.Message(ex, "remove"), "danger");
         }
         return RedirectToAction(nameof(Members), new { groupId });
     }
@@ -258,7 +258,7 @@ namespace Wayfarer.Areas.Manager.Controllers;
         }
         catch (Exception ex)
         {
-            return BadRequest(new { success = false, message = ex.Message });
+            return BadRequest(new { success = false, message = GroupOperationErrors.Message(ex, "invite") });
         }
     }
 
@@ -281,11 +281,11 @@ namespace Wayfarer.Areas.Manager.Controllers;
         }
         catch (InvalidOperationException ex)
         {
-            return BadRequest(new { success = false, message = ex.Message });
+            return BadRequest(new { success = false, message = GroupOperationErrors.Message(ex, "remove") });
         }
         catch (Exception ex)
         {
-            return BadRequest(new { success = false, message = ex.Message });
+            return BadRequest(new { success = false, message = GroupOperationErrors.Message(ex, "remove") });
         }
     }
 
@@ -352,7 +352,7 @@ namespace Wayfarer.Areas.Manager.Controllers;
         }
         catch (InvalidOperationException ex)
         {
-            ModelState.AddModelError("name", ex.Message);
+            ModelState.AddModelError("name", GroupOperationErrors.Message(ex, "create"));
             return View();
         }
     }

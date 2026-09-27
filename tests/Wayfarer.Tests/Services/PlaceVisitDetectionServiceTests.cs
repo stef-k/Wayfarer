@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging.Abstractions;
 using NetTopologySuite.Geometries;
@@ -25,7 +26,7 @@ public class PlaceVisitDetectionServiceTests : TestBase
     /// Creates a test service with default settings.
     /// </summary>
     private (PlaceVisitDetectionService Service, ApplicationDbContext Db, SseService Sse) CreateService(
-        ApplicationSettings? settings = null)
+        ApplicationSettings? settings = null, ILogger<PlaceVisitDetectionService>? logger = null)
     {
         var db = CreateDbContext();
         var cache = new MemoryCache(new MemoryCacheOptions());
@@ -36,7 +37,7 @@ public class PlaceVisitDetectionServiceTests : TestBase
 
         var settingsService = new ApplicationSettingsService(db, cache);
         var sseService = new SseService();
-        var logger = NullLogger<PlaceVisitDetectionService>.Instance;
+        logger ??= NullLogger<PlaceVisitDetectionService>.Instance;
         var service = new PlaceVisitDetectionService(db, settingsService, sseService, logger);
 
         return (service, db, sseService);
@@ -60,6 +61,26 @@ public class PlaceVisitDetectionServiceTests : TestBase
             VisitedMaxSearchRadiusMeters = 150,
             VisitedPlaceNotesSnapshotMaxHtmlChars = 20000
         };
+    }
+
+    /// <summary>Accuracy rejection retains the user and reason without observed GPS values.</summary>
+    [Fact]
+    public async Task ProcessPingAsync_RejectedAccuracyDiagnosticsArePrivate()
+    {
+        using var logs = new TestLogProvider();
+        using var factory = LoggerFactory.Create(b => b.SetMinimumLevel(LogLevel.Trace).AddProvider(logs));
+        var (service, db, _) = CreateService(logger: factory.CreateLogger<PlaceVisitDetectionService>());
+        using (db)
+        {
+            await service.ProcessPingAsync("user-663", new Point(23.663, 37.663) { SRID = 4326 }, 9876.663);
+            var entry = Assert.Single(logs.Entries);
+            Assert.Null(entry.Exception);
+            var text = entry.Message + string.Join(",", entry.Fields.Values);
+            Assert.DoesNotContain("9876.663", text);
+            Assert.DoesNotContain("23.663", text);
+            Assert.DoesNotContain("37.663", text);
+            Assert.Equal("user-663", entry.Fields["UserId"]);
+        }
     }
 
     #region Accuracy Rejection Tests

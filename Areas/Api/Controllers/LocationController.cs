@@ -66,8 +66,7 @@ public class LocationController : BaseApiController
     public async Task<IActionResult> CheckIn([FromBody] GpsLoggerLocationDto dto)
     {
         var requestId = Guid.NewGuid();
-        _logger.LogInformation(
-            $"CHECK-IN: Lat: {dto.Latitude}, Long: {dto.Longitude}, Accuracy: {dto.Accuracy}, Speed: {dto.Speed}, Altitude: {dto.Altitude}");
+        // Request-supplied location values must never enter routine diagnostics.
 
         var user = GetUserFromToken();
         if (user == null)
@@ -119,8 +118,7 @@ public class LocationController : BaseApiController
 
             if (dto.Latitude < -90 || dto.Latitude > 90 || dto.Longitude < -180 || dto.Longitude > 180)
             {
-                _logger.LogWarning("Out-of-range coordinates in check-in: {Latitude}, {Longitude}", dto.Latitude,
-                    dto.Longitude);
+                _logger.LogWarning("Out-of-range coordinates for user {UserId}", user.Id);
                 return BadRequest("Latitude or Longitude is out of range.");
             }
 
@@ -144,9 +142,7 @@ public class LocationController : BaseApiController
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex,
-                    "Failed to convert local time to UTC for check-in coordinates {Lat}, {Lon}",
-                    dto.Latitude, dto.Longitude);
+                _logger.LogError("Failed to convert local time to UTC for user {UserId} Failure type: {ExceptionType}", user.Id, ex.GetType().Name);
                 return StatusCode(500, "Failed to process timestamp and timezone for check-in.");
             }
 
@@ -192,8 +188,7 @@ public class LocationController : BaseApiController
                 _dbContext.Locations.Add(location);
                 await _dbContext.SaveChangesAsync();
 
-                _logger.LogInformation("Check-in location saved with ID {LocationId} at {Timestamp}", location.Id,
-                    location.Timestamp);
+                _logger.LogInformation("Check-in location saved with ID {LocationId}", location.Id);
             }
             catch (OperationCanceledException) when (HttpContext.RequestAborted.IsCancellationRequested)
             {
@@ -207,18 +202,17 @@ public class LocationController : BaseApiController
 
                 if (existingLocation != null)
                 {
-                    _logger.LogInformation(ex,
-                        "Check-in idempotency conflict resolved. UserId: {UserId}, Key: {IdempotencyKey}",
-                        user.Id, idempotencyKey);
+                    _logger.LogInformation("Check-in idempotency conflict resolved. UserId: {UserId}, Key: {IdempotencyKey} Failure type: {ExceptionType}",
+                        user.Id, idempotencyKey, ex.GetType().Name);
                     return Ok(new { Message = "Check-in logged successfully", Location = existingLocation.ForPublication() });
                 }
 
-                _logger.LogError(ex, "Failed to save check-in location for user.");
+                _logger.LogError("Failed to save check-in location for user. Failure type: {ExceptionType}", ex.GetType().Name);
                 return StatusCode(500, "Internal server error while saving check-in location.");
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to save check-in location for user.");
+                _logger.LogError("Failed to save check-in location for user. Failure type: {ExceptionType}", ex.GetType().Name);
                 return StatusCode(500, "Internal server error while saving check-in location.");
             }
 
@@ -234,7 +228,7 @@ public class LocationController : BaseApiController
             catch (Exception ex)
             {
                 // Visit detection is non-critical - log and continue
-                _logger.LogWarning(ex, "Visit detection failed for check-in user {UserId}", user.Id);
+                _logger.LogWarning("Visit detection failed for check-in user {UserId} Failure type: {ExceptionType}", user.Id, ex.GetType().Name);
             }
 
             // Update cache with latest location (same as log-location)
@@ -388,8 +382,7 @@ public class LocationController : BaseApiController
     public async Task<IActionResult> LogLocation([FromBody] GpsLoggerLocationDto dto)
     {
         var requestId = Guid.NewGuid();
-        _logger.LogInformation(
-            $"Lat: {dto.Latitude}, Long: {dto.Longitude}, Accuracy: {dto.Accuracy}, Speed: {dto.Speed}, Altitude: {dto.Altitude}");
+        // Request-supplied location values must never enter routine diagnostics.
 
         var user = GetUserFromToken();
         if (user == null)
@@ -440,8 +433,7 @@ public class LocationController : BaseApiController
 
             if (dto.Latitude < -90 || dto.Latitude > 90 || dto.Longitude < -180 || dto.Longitude > 180)
             {
-                _logger.LogWarning("Out-of-range coordinates: {Latitude}, {Longitude}", dto.Latitude,
-                    dto.Longitude);
+                _logger.LogWarning("Out-of-range coordinates for user {UserId}", user.Id);
                 return BadRequest("Latitude or Longitude is out of range.");
             }
 
@@ -457,8 +449,7 @@ public class LocationController : BaseApiController
             if (dto.Accuracy.HasValue && dto.Accuracy.Value > locationAccuracyThreshold)
             {
                 _logger.LogInformation(
-                    "Location skipped due to poor GPS accuracy. Accuracy: {Accuracy}m, Threshold: {Threshold}m",
-                    dto.Accuracy.Value, locationAccuracyThreshold);
+                    "Location skipped due to poor GPS accuracy for user {UserId}", user.Id);
                 return Ok(new { success = true, skipped = true, locationId = (int?)null });
             }
 
@@ -481,9 +472,7 @@ public class LocationController : BaseApiController
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex,
-                    "Failed to convert local time to UTC for coordinates {Lat}, {Lon}",
-                    dto.Latitude, dto.Longitude);
+                _logger.LogError("Failed to convert local time to UTC for user {UserId} Failure type: {ExceptionType}", user.Id, ex.GetType().Name);
                 return StatusCode(500, "Failed to process timestamp and timezone.");
             }
 
@@ -503,7 +492,7 @@ public class LocationController : BaseApiController
             catch (Exception ex)
             {
                 // Log but do not fail the request - visit detection is non-critical
-                _logger.LogWarning(ex, "Visit detection failed for user {UserId}", user.Id);
+                _logger.LogWarning("Visit detection failed for user {UserId} Failure type: {ExceptionType}", user.Id, ex.GetType().Name);
             }
 
             var cacheKey = $"lastLocation_{user.Id}";
@@ -524,8 +513,7 @@ public class LocationController : BaseApiController
                 if (timeDifference.TotalMinutes < locationTimeThreshold)
                 {
                     _logger.LogInformation(
-                        "Location skipped due to time threshold. TimeDifference: {TimeDiff} mins",
-                        timeDifference.TotalMinutes);
+                        "Location skipped due to time threshold for user {UserId}", user.Id);
                     return Ok(new { success = true, skipped = true, locationId = (int?)null });
                 }
 
@@ -536,8 +524,7 @@ public class LocationController : BaseApiController
                 if (distanceDifference < locationDistanceThreshold)
                 {
                     _logger.LogInformation(
-                        "Location skipped due to distance threshold. DistanceDifference: {DistanceDiff} meters",
-                        distanceDifference);
+                        "Location skipped due to distance threshold for user {UserId}", user.Id);
                     return Ok(new { success = true, skipped = true, locationId = (int?)null });
                 }
             }
@@ -551,8 +538,7 @@ public class LocationController : BaseApiController
             if (duplicateExists)
             {
                 _logger.LogInformation(
-                    "Location skipped due to duplicate LocalTimestamp. UserId: {UserId}, Timestamp: {Timestamp}",
-                    user.Id, utcTimestamp);
+                    "Location skipped due to duplicate LocalTimestamp. UserId: {UserId}", user.Id);
                 return Ok(new { success = true, skipped = true, locationId = (int?)null });
             }
 
@@ -593,8 +579,7 @@ public class LocationController : BaseApiController
                 _dbContext.Locations.Add(location);
                 await _dbContext.SaveChangesAsync();
 
-                _logger.LogInformation("Location saved with ID {LocationId} at {Timestamp}", location.Id,
-                    location.Timestamp);
+                _logger.LogInformation("Location saved with ID {LocationId}", location.Id);
             }
             catch (OperationCanceledException) when (HttpContext.RequestAborted.IsCancellationRequested)
             {
@@ -608,18 +593,17 @@ public class LocationController : BaseApiController
 
                 if (existingLocation != null)
                 {
-                    _logger.LogInformation(ex,
-                        "Log-location idempotency conflict resolved. UserId: {UserId}, Key: {IdempotencyKey}",
-                        user.Id, idempotencyKey);
+                    _logger.LogInformation("Log-location idempotency conflict resolved. UserId: {UserId}, Key: {IdempotencyKey} Failure type: {ExceptionType}",
+                        user.Id, idempotencyKey, ex.GetType().Name);
                     return Ok(new { success = true, skipped = false, locationId = existingLocation.Id });
                 }
 
-                _logger.LogError(ex, "Failed to save location for user.");
+                _logger.LogError("Failed to save location for user. Failure type: {ExceptionType}", ex.GetType().Name);
                 return StatusCode(500, "Internal server error while saving location.");
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to save location for user.");
+                _logger.LogError("Failed to save location for user. Failure type: {ExceptionType}", ex.GetType().Name);
                 return StatusCode(500, "Internal server error while saving location.");
             }
 
@@ -768,7 +752,7 @@ public class LocationController : BaseApiController
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error in bulk-delete.");
+            _logger.LogError("Error in bulk-delete. Failure type: {ExceptionType}", ex.GetType().Name);
             return StatusCode(500,
                 new { success = false, message = "An error occurred while deleting the locations." });
         }
@@ -804,7 +788,7 @@ public class LocationController : BaseApiController
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error deleting location {LocationId} for user {UserId}", id, user.Id);
+            _logger.LogError("Error deleting location {LocationId} for user {UserId} Failure type: {ExceptionType}", id, user.Id, ex.GetType().Name);
             return StatusCode(500, new { success = false, message = "Failed to delete location." });
         }
     }
@@ -922,7 +906,7 @@ public class LocationController : BaseApiController
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Failed processing LocalTimestamp for update on location {LocationId}", id);
+                    _logger.LogError("Failed processing LocalTimestamp for update on location {LocationId} Failure type: {ExceptionType}", id, ex.GetType().Name);
                     return StatusCode(500,
                         new { success = false, message = "Failed to process timestamp and timezone." });
                 }
@@ -954,7 +938,7 @@ public class LocationController : BaseApiController
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error updating location {LocationId} for user {UserId}", id, user.Id);
+            _logger.LogError("Error updating location {LocationId} for user {UserId} Failure type: {ExceptionType}", id, user.Id, ex.GetType().Name);
             return StatusCode(500, new { success = false, message = "Failed to update location." });
         }
     }
@@ -1158,12 +1142,12 @@ public class LocationController : BaseApiController
         }
         catch (ArgumentException ex)
         {
-            _logger.LogError(ex, "Invalid arguments for chronological data request");
+            _logger.LogError("Invalid arguments for chronological data request Failure type: {ExceptionType}", ex.GetType().Name);
             return BadRequest(new { success = false, message = ex.Message });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error getting chronological data");
+            _logger.LogError("Error getting chronological data Failure type: {ExceptionType}", ex.GetType().Name);
             return StatusCode(500, new { success = false, message = "An error occurred while fetching data." });
         }
     }
@@ -1191,7 +1175,7 @@ public class LocationController : BaseApiController
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error checking data availability for date");
+            _logger.LogError("Error checking data availability for date Failure type: {ExceptionType}", ex.GetType().Name);
             return StatusCode(500, new { hasData = false });
         }
     }
@@ -1251,7 +1235,7 @@ public class LocationController : BaseApiController
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error getting chronological stats");
+            _logger.LogError("Error getting chronological stats Failure type: {ExceptionType}", ex.GetType().Name);
             return StatusCode(500, new { success = false, message = "An error occurred while fetching stats." });
         }
     }
@@ -1351,7 +1335,7 @@ public class LocationController : BaseApiController
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error checking navigation availability");
+            _logger.LogError("Error checking navigation availability Failure type: {ExceptionType}", ex.GetType().Name);
             return StatusCode(500, new { success = false });
         }
     }

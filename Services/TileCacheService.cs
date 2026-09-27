@@ -842,7 +842,7 @@ public partial class TileCacheService
             }
 
             TileCacheDiagnostics.CacheWriteOutcome(_logger, cacheWriteOutcome, zoom);
-            _logger.LogInformation("Tile cached at: {TileFilePath}", tileFilePath);
+            _logger.LogInformation("Tile cached for {Provider} z={Zoom} x={X} y={Y}", providerIdentity, zoom, x, y);
 
             // For zoom levels >= DbMetadataZoomThreshold, store or update metadata in the database.
             // tileData is guaranteed non-null here — the null cases (budget exhaustion, HTTP failure)
@@ -1044,7 +1044,7 @@ public partial class TileCacheService
             // 1. Check the file system first.
             if (File.Exists(tileFilePath))
             {
-                _logger.LogDebug("Tile found in cache: {TileFilePath}", tileFilePath);
+                _logger.LogDebug("Tile found in cache for {Provider} z={Zoom} x={X} y={Y}", providerIdentity, zoomLevel, xCoordinate, yCoordinate);
 
                 // Load metadata to check expiry
                 var isExpired = false;
@@ -1265,7 +1265,7 @@ public partial class TileCacheService
             // 2. If the tile is not on disk, but we have a URL, attempt to fetch it.
             if (string.IsNullOrEmpty(tileUrl))
             {
-                _logger.LogWarning("Tile not found and no URL provided: {TileFilePath}", tileFilePath);
+                _logger.LogWarning("Tile not found and no URL provided for {Provider} z={Zoom} x={X} y={Y}", providerIdentity, zoomLevel, xCoordinate, yCoordinate);
                 return TileRetrievalResult.NotFound();
             }
 

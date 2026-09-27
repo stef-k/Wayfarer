@@ -17,6 +17,34 @@ namespace Wayfarer.Tests.Services;
 [Collection(PostgresImportTestCollection.Name)]
 public sealed class PublicTimelineLocationPostgresTests(PostgresImportTestFixture fixture)
 {
+    /// <summary>A downstream relational failure keeps the public 200 failure envelope bounded.</summary>
+    [PostgresFact]
+    public async Task GetPublicTimeline_InternalFailureKeepsPagingAndGenericData()
+    {
+        await using var db = fixture.CreateContext();
+        var user = await fixture.CreateUserAsync();
+        user.IsTimelinePublic = true;
+        user.PublicTimelineTimeThreshold = "now";
+        db.Users.Update(user);
+        await db.SaveChangesAsync();
+        using var unavailable = fixture.CreateContext();
+        unavailable.Dispose();
+        var controller = new UsersTimelineController(NullLogger<BaseController>.Instance, db,
+            new LocationService(unavailable), new LocationStatsService(db))
+        {
+            ControllerContext = new ControllerContext { HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext() }
+        };
+        // The public projection succeeds; only the downstream service context is unavailable.
+        var result = Assert.IsType<OkObjectResult>(await controller.GetPublicTimeline(
+            new Wayfarer.Models.Dtos.LocationFilterRequest { Username = user.UserName! }));
+        using var json = System.Text.Json.JsonDocument.Parse(System.Text.Json.JsonSerializer.Serialize(result.Value));
+        Assert.False(json.RootElement.GetProperty("Success").GetBoolean());
+        Assert.Equal("Error: Unable to retrieve the public timeline.", json.RootElement.GetProperty("Data").GetString());
+        Assert.Equal(0, json.RootElement.GetProperty("TotalItems").GetInt32());
+        Assert.Equal(1, json.RootElement.GetProperty("CurrentPage").GetInt32());
+        Assert.Equal(0, json.RootElement.GetProperty("PageSize").GetInt32());
+    }
+
     /// <summary>Excluded rows alter every summary field; private summaries retain the complete history.</summary>
     [PostgresTheory]
     [InlineData("1d", false, true, false)]

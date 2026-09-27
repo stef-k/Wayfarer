@@ -28,6 +28,11 @@ public sealed class TripImportCompositionLoggingTests
         await Assert.ThrowsAsync<TripImportValidationException>(() => service.ImportWayfarerKmlAsync(
             ToStream(CreateKml(Guid.NewGuid(), "---")), "composition-user", TripImportMode.CreateNew));
 
+        Assert.All(logs.Entries, entry =>
+        {
+            Assert.Null(entry.Exception);
+            Assert.DoesNotContain("---", entry.Message + string.Join(",", entry.Fields.Values));
+        });
         Assert.IsType<TripImportService>(service);
         Assert.IsType<TripImportTagReconciler>(scope.ServiceProvider.GetRequiredService<ITripImportTagReconciler>());
         Assert.Contains(logs.Entries, entry => entry.Level == LogLevel.Warning

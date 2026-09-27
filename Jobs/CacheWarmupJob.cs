@@ -109,7 +109,7 @@ public class CacheWarmupJob : IJob
             catch (Exception ex)
             {
                 failed++;
-                _logger.LogWarning(ex, "CacheWarmupJob: failed to cache image {Url} for trip {TripId}.", url, tripId);
+                _logger.LogWarning("CacheWarmupJob: failed to cache image for trip {TripId}. Failure type: {ExceptionType}", tripId, ex.GetType().Name);
             }
         }
 

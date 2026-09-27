@@ -1,3 +1,4 @@
+using Moq;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -30,6 +31,24 @@ public class InvitationsControllerTests : TestBase
             new NullLogger<InvitationsController>(),
             sse ?? new SseService());
         return ConfigureControllerWithUser(controller, userId);
+    }
+
+    /// <summary>Duplicate pending invitations remain actionable without trusting every InvalidOperationException.</summary>
+    [Theory]
+    [InlineData("A pending invitation already exists for this user in the specified group", true)]
+    [InlineData("private-invitation-error-663", false)]
+    public async Task Create_OnlyPublishesKnownBusinessOutcome(string failure, bool known)
+    {
+        using var db = CreateDbContext();
+        var service = new Mock<IInvitationService>();
+        service.Setup(s => s.InviteUserAsync(It.IsAny<Guid>(), "u1", "u2", null, null, It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException(failure));
+        var controller = new InvitationsController(db, service.Object, NullLogger<InvitationsController>.Instance, new SseService());
+        ConfigureControllerWithUser(controller, "u1");
+        var result = Assert.IsType<BadRequestObjectResult>(await controller.Create(
+            new InvitationCreateRequest { GroupId = Guid.NewGuid(), InviteeUserId = "u2" }, default));
+        Assert.Equal(known ? failure : "The operation could not be completed. Please try again.",
+            result.Value?.GetType().GetProperty("message")?.GetValue(result.Value));
     }
 
     [Fact]

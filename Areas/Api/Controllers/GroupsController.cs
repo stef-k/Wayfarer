@@ -59,8 +59,8 @@ public class GroupsController : ControllerBase
         }
         catch (InvalidOperationException ex)
         {
-            _logger.LogWarning(ex, "Group create failed");
-            return Conflict(new { message = ex.Message });
+            _logger.LogWarning("Group create failed");
+            return Conflict(new { message = GroupOperationErrors.Message(ex, "create") });
         }
     }
 
@@ -464,7 +464,7 @@ public class GroupsController : ControllerBase
         }
         catch (InvalidOperationException ex)
         {
-            return Conflict(new { message = ex.Message });
+            return Conflict(new { message = GroupOperationErrors.Message(ex, "leave") });
         }
     }
 
@@ -494,7 +494,7 @@ public class GroupsController : ControllerBase
         }
         catch (InvalidOperationException ex)
         {
-            return Conflict(new { message = ex.Message });
+            return Conflict(new { message = GroupOperationErrors.Message(ex, "remove") });
         }
     }
 

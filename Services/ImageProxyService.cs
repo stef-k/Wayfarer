@@ -64,7 +64,7 @@ public class ImageProxyService : IImageProxyService
     {
         if (!ImageProxyHelper.IsUrlAllowed(request.Url))
         {
-            _logger.LogDebug("Image URL disallowed by SSRF check: {Url}", request.Url);
+            _logger.LogDebug("Image URL disallowed by SSRF check.");
             return new ImageProxyResult(ImageProxyResultStatus.BadRequest, string.Empty, null, null);
         }
 
@@ -184,7 +184,7 @@ public class ImageProxyService : IImageProxyService
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Image origin work failed for cache key {CacheKey}.", cacheKey);
+            _logger.LogWarning("Image origin work failed for cache key {CacheKey}. Failure type: {ExceptionType}", cacheKey, ex.GetType().Name);
             result = new ImageProxyResult(ImageProxyResultStatus.Failed, cacheKey, null, null);
         }
         finally
@@ -237,7 +237,7 @@ public class ImageProxyService : IImageProxyService
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to download image from {Url}.", request.Url);
+            _logger.LogWarning("Failed to download image for cache key {CacheKey}. Failure type: {ExceptionType}", cacheKey, ex.GetType().Name);
             return new ImageProxyResult(ImageProxyResultStatus.Failed, cacheKey, null, null);
         }
 
@@ -245,13 +245,13 @@ public class ImageProxyService : IImageProxyService
         {
             if (!resp.IsSuccessStatusCode)
             {
-                _logger.LogWarning("Upstream returned {StatusCode} for image {Url}.", (int)resp.StatusCode, request.Url);
+                _logger.LogWarning("Upstream returned {StatusCode} for image {CacheKey}.", (int)resp.StatusCode, cacheKey);
                 return new ImageProxyResult(ImageProxyResultStatus.NotFound, cacheKey, null, null);
             }
 
             if (resp.Content.Headers.ContentLength > maxBytes)
             {
-                _logger.LogWarning("Image too large ({Size} bytes) from {Url}.", resp.Content.Headers.ContentLength, request.Url);
+                _logger.LogWarning("Image too large ({Size} bytes) from {CacheKey}.", resp.Content.Headers.ContentLength, cacheKey);
                 return new ImageProxyResult(ImageProxyResultStatus.TooLarge, cacheKey, null, null);
             }
 
@@ -299,11 +299,11 @@ public class ImageProxyService : IImageProxyService
             var stored = await _imageCacheService.SetAsync(cacheKey, bytes, contentType, ct);
             if (stored?.Stored != true)
             {
-                _logger.LogWarning("Failed to store proxied image cache entry for {Url}.", request.Url);
+                _logger.LogWarning("Failed to store proxied image cache entry for {CacheKey}.", cacheKey);
                 return new ImageProxyResult(ImageProxyResultStatus.Failed, cacheKey, null, null);
             }
 
-            _logger.LogDebug("Cached proxied image: {Url} ({Size} bytes).", request.Url, bytes.Length);
+            _logger.LogDebug("Cached proxied image: {CacheKey} ({Size} bytes).", cacheKey, bytes.Length);
             return new ImageProxyResult(ImageProxyResultStatus.Fetched, cacheKey, bytes, contentType);
         }
     }
@@ -372,8 +372,8 @@ public class ImageProxyService : IImageProxyService
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogWarning(ex, "Background image refresh attempt {Attempt} failed for key {CacheKey}.",
-                        series.Attempts, series.CacheKey);
+                    _logger.LogWarning("Background image refresh attempt {Attempt} failed for key {CacheKey}. Failure type: {ExceptionType}",
+                        series.Attempts, series.CacheKey, ex.GetType().Name);
                 }
 
                 if (series.Attempts >= RefreshSeriesMaxAttempts)

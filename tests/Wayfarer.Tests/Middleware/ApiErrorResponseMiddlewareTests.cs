@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using System.Net;
 using System.Text.Json;
 using FluentAssertions;
@@ -29,6 +30,33 @@ public class ApiErrorResponseMiddlewareTests
         using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         document.RootElement.GetProperty("status").GetInt32().Should().Be(statusCode);
         document.RootElement.GetProperty("error").GetString().Should().Be(error);
+    }
+
+    /// <summary>Unhandled failures keep the envelope and correlate only bounded diagnostic context.</summary>
+    [Fact]
+    public async Task UnhandledFailure_OmitsExceptionAndUsesExistingRequestId()
+    {
+        using var logs = new Wayfarer.Tests.Infrastructure.TestLogProvider();
+        using var factory = LoggerFactory.Create(builder => builder.AddProvider(logs));
+        var context = new Microsoft.AspNetCore.Http.DefaultHttpContext();
+        context.Request.Path = "/api/test-error";
+        context.TraceIdentifier = "request-663";
+        context.Response.Body = new MemoryStream();
+        var middleware = new ApiErrorResponseMiddleware(_ => throw new InvalidOperationException("secret-663"));
+        await middleware.InvokeAsync(context, factory.CreateLogger<ApiErrorResponseMiddleware>());
+        context.Response.Body.Position = 0;
+        var json = await new StreamReader(context.Response.Body).ReadToEndAsync();
+        using var document = JsonDocument.Parse(json);
+        Assert.Equal(500, context.Response.StatusCode);
+        Assert.Equal("Internal Server Error", document.RootElement.GetProperty("error").GetString());
+        Assert.Equal("An unexpected error occurred.", document.RootElement.GetProperty("message").GetString());
+        Assert.Equal("The request could not be completed.", document.RootElement.GetProperty("details").GetString());
+        Assert.Equal("request-663", document.RootElement.GetProperty("requestId").GetString());
+        Assert.DoesNotContain("secret-663", json);
+        var entry = Assert.Single(logs.Entries);
+        Assert.Null(entry.Exception);
+        Assert.DoesNotContain("secret-663", entry.Message + string.Join(",", entry.Fields.Values));
+        Assert.Equal("InvalidOperationException", entry.Fields["ExceptionType"]);
     }
 
     private static async Task<IHost> CreateHostAsync(int statusCode)

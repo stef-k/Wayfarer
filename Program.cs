@@ -566,6 +566,8 @@ static void ConfigureServices(WebApplicationBuilder builder)
         client.DefaultRequestHeaders.UserAgent.ParseAdd(
             Wayfarer.Util.ImageProxyHelper.ProxyUserAgent);
     })
+    // Factory logs expose private origin paths; explicit proxy diagnostics use only cache keys.
+    .RemoveAllLoggers()
     .ConfigurePrimaryHttpMessageHandler(() => Wayfarer.Util.ImageOriginTransport.CreateHandler());
 
     // Cache warm-up job and debounced scheduler

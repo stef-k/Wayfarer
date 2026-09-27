@@ -183,11 +183,12 @@ namespace Wayfarer.Areas.Public.Controllers
             }
             catch (Exception e)
             {
-                _logger.LogError(e.Message);
+                _logger.LogError("Public timeline failed: {ExceptionType}; request {RequestId}",
+                    e.GetType().Name, HttpContext.TraceIdentifier);
                 return Ok(new
                 {
                     Success = false,
-                    Data = $"Error: {e.Message}",
+                    Data = "Error: Unable to retrieve the public timeline.",
                     TotalItems = 0,
                     CurrentPage = 1,
                     PageSize = 0

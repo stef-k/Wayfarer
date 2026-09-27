@@ -102,8 +102,7 @@ public class VisitCleanupJob : IJob
             visit.EndedAtUtc = visit.LastSeenAtUtc;
 
             _logger.LogDebug(
-                "Closed stale visit {VisitId} for place {PlaceName}, ended at {EndedAt}",
-                visit.Id, visit.PlaceNameSnapshot, visit.EndedAtUtc);
+                "Closed stale visit {VisitId} for place {PlaceId}", visit.Id, visit.PlaceId);
         }
 
         if (staleVisits.Count > 0)
