@@ -165,12 +165,6 @@ app.Lifetime.ApplicationStopping.Register(TileCacheService.StopOutboundBudget);
 
 app.Run();
 
-static Task<long> LoadUploadSizeLimitFromDatabaseAsync()
-{
-    // Your logic to load the size limit from the database
-    return Task.FromResult(100L * 1024 * 1024); // example: 100MB
-}
-
 #region Methods
 
 // Method to handle the password reset command
@@ -655,9 +649,8 @@ static async Task ConfigureMiddleware(WebApplication app)
         imageCacheService.Initialize();
     }
 
-    // Load upload size limit from settings
-    var maxRequestSize = await LoadUploadSizeLimitFromDatabaseAsync();
-    app.UseMiddleware<DynamicRequestSizeMiddleware>(maxRequestSize);
+    // Fixed application ceiling; admin upload policy is applied after endpoint authorization.
+    app.UseMiddleware<DynamicRequestSizeMiddleware>();
 
     // Force HTTPS in the app
     app.UseHttpsRedirection();
@@ -668,6 +661,7 @@ static async Task ConfigureMiddleware(WebApplication app)
     // Configure routing and authorization; compiled assets retain their existing pipeline.
     app.UseRouting();
     app.UseAuthorization();
+    app.UseMiddleware<UserFileUploadMiddleware>();
     app.UseStaticFiles();
 
     // Serve documentation at /docs/ - works locally and matches GitHub Pages structure

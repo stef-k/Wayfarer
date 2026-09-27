@@ -57,10 +57,8 @@ namespace Wayfarer.Parsers
                 settings.MaxCacheTileSizeInMB = ApplicationSettings.DefaultMaxCacheTileSizeInMB;
             }
 
-            if (settings.UploadSizeLimitMB == 0)
-            {
-                settings.UploadSizeLimitMB = ApplicationSettings.DefaultUploadSizeLimitMB;
-            }
+            // Expose the effective historical/default value; the next valid Admin save converges it.
+            settings.UploadSizeLimitMB = Wayfarer.Util.UploadRequestPolicy.EffectiveMiB(settings.UploadSizeLimitMB);
 
             // Only a recognized preset can safely supply missing legacy attribution.
             // Unknown and custom providers must never be mislabeled as OpenStreetMap.
