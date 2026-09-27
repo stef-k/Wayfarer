@@ -38,15 +38,31 @@ public sealed class BackupConfiguration(IProcessRunner runner)
             await Required(BackupCompose.Command(root, config, "stop", "--timeout", "30", "backup-scheduler"), token);
         if (options.ContainsKey("--recover"))
         {
-            BackupGeneration.Recover(root);
+            if (File.Exists(Path.Combine(root, "backup-transition.json"))) BackupGeneration.Recover(root);
+            var reservationPath = Path.Combine(root, "recovery-control/host-operation.json");
+            if (File.Exists(reservationPath))
+            {
+                var receipt = JsonSerializer.Deserialize<HostRecoveryOperation>(File.ReadAllText(reservationPath), ArchiveContract.Json)
+                    ?? throw new UsageException("Invalid recovery reservation.");
+                if (!System.Text.RegularExpressions.Regex.IsMatch(receipt.Container, "^" + System.Text.RegularExpressions.Regex.Escape(config.Project) + "-backup-[a-f0-9]{32}$"))
+                    throw new UsageException("Unknown recovery container identity.");
+                var running = await runner.RunAsync(["ps", "-q", "--filter", "name=^/" + receipt.Container + "$"], null, token);
+                if (running.Code != 0 || running.Output.Trim().Length != 0) throw new IOException("Recovery worker running or state unknown.");
+                File.Delete(reservationPath);
+            }
             return Deployment.Load(root);
         }
-        var installation = config.Installation == Guid.Empty ? Guid.NewGuid() : config.Installation;
+        if (File.Exists(Path.Combine(root, "recovery-control/host-operation.json"))) throw new IOException("Unresolved recovery operation; use configure --recover.");
+        var identityPath = Path.Combine(root, "backup-identity");
+        if (config.Installation == Guid.Empty && !File.Exists(identityPath)) ProtectedFiles.Create(identityPath, Guid.NewGuid().ToString("D"));
+        if (config.Installation == Guid.Empty) ProtectedFiles.Check(identityPath, 0);
+        var installation = config.Installation == Guid.Empty ? Guid.Parse(File.ReadAllText(identityPath)) : config.Installation;
         BackupPolicy policy;
         if (options.ContainsKey("--disable")) policy = (config.Backup ?? throw new UsageException("Backup is not configured.")) with { Enabled = false };
         else
         {
-            var retention = options.TryGetValue("--retention", out var count) && int.TryParse(count, out var parsed) ? parsed : 7;
+            if (!int.TryParse(options.GetValueOrDefault("--retention", "7"), out var retention) || retention is < 1 or > 100)
+                throw new UsageException("Retention must be 1..100.");
             var time = options.GetValueOrDefault("--time", "03:00");
             if (!TimeOnly.TryParseExact(time, "HH:mm", out var daily)) throw new UsageException("Daily time must be HH:mm UTC.");
             var payload = options["--payload"];
@@ -69,15 +85,17 @@ public sealed class BackupConfiguration(IProcessRunner runner)
                     ApplicationImage = "ghcr.io/stef-k/wayfarer@" + config.AppDigest,
                     DatabaseImage = "ghcr.io/stef-k/wayfarer-db@" + config.DbDigest,
                     Project = config.Project, BundleFingerprint = BundleFingerprint(config),
-                    PayloadFingerprint = policy.PayloadSha256, WorkerVersion = "1"
+                    PayloadFingerprint = policy.PayloadSha256, WorkerVersion = typeof(WorkerConfiguration).Assembly.GetName().Version!.ToString()
                 } };
         }
         policy = policy with { Generation = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(32)) };
         var next = config with { Schema = 2, Installation = installation, Backup = policy };
         next.Validate(); policy.CheckPayload();
-        BackupGeneration.Commit(root, next);
+        BackupGeneration.Stage(root, next);
         BackupCompose.Check(root, next);
         await Required(BackupCompose.Command(root, next, "config", "--quiet"), token);
+        if (policy.Enabled) await CheckDestinationAsync(root, next, token);
+        BackupGeneration.Commit(root, next);
         BackupGeneration.Recover(root);
         return next;
     }
@@ -94,7 +112,14 @@ public sealed class BackupConfiguration(IProcessRunner runner)
         using var document = JsonDocument.Parse(result.Output);
         if (document.RootElement.GetProperty("Schema").GetInt32() != 1 || document.RootElement.GetProperty("ApplicationName").GetString() != "Wayfarer")
             throw new UsageException("Unsupported source inspection contract.");
-        return document.RootElement.Clone();
+        var image = await runner.RunAsync(["image", "inspect", "ghcr.io/stef-k/wayfarer@" + config.AppDigest,
+            "--format", "{{index .Config.Labels \"org.opencontainers.image.revision\"}}"], null, token);
+        var revision = image.Output.Trim();
+        if (image.Code != 0 || !System.Text.RegularExpressions.Regex.IsMatch(revision, "^[a-f0-9]{40}$"))
+            throw new UsageException("Immutable application source revision unavailable.");
+        var values = document.RootElement.Deserialize<Dictionary<string, JsonElement>>()!;
+        values["SourceRevision"] = JsonSerializer.SerializeToElement(revision);
+        return JsonSerializer.SerializeToElement(values);
     }
 
     /// <summary>Prepare only this dedicated empty destination, never recursively change administrator content.</summary>
@@ -136,6 +161,8 @@ public sealed class BackupConfiguration(IProcessRunner runner)
             if (chown(directory, 1654, 1654) != 0) throw new IOException("Cannot provision recovery control.");
             ProtectedFiles.Create(Path.Combine(directory, "recovery.lock"), "", 1654);
         }
+        using var control = new SafeDirectory(directory);
+        control.RequireLocalControl();
         ProtectedFiles.Check(directory, 1654, directory: true);
         ProtectedFiles.Check(Path.Combine(directory, "recovery.lock"), 1654);
     }
@@ -146,6 +173,30 @@ public sealed class BackupConfiguration(IProcessRunner runner)
         foreach (var name in new[] { "compose.yaml", "external.yaml", "caddy/Caddyfile", "db/20-wayfarer.sh" })
             hash.AppendData(SHA256.HashData(File.ReadAllBytes(Path.Combine(config.Bundle, name))));
         return Convert.ToHexStringLower(hash.GetHashAndReset());
+    }
+
+    /// <summary>Own the actual preflight container so cancelled configuration cannot leave a destination writer behind.</summary>
+    private async Task CheckDestinationAsync(string root, Deployment config, CancellationToken token)
+    {
+        var name = config.Project + "-destination-check-" + Guid.NewGuid().ToString("N");
+        try
+        {
+            await Required(BackupCompose.Command(root, config, "run", "-d", "--no-deps", "--name", name, "backup-worker", "destination-check"), token);
+            var result = await runner.RunAsync(["wait", name], null, token);
+            if (result.Code != 0 || result.Output.Trim() != "0") throw new UsageException("Destination write/flush/rename/read/delete capability failed.");
+        }
+        finally
+        {
+            using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(45));
+            try
+            {
+                await runner.RunAsync(["stop", "--time", "30", name], null, cleanup.Token);
+                var waited = await runner.RunAsync(["wait", name], null, cleanup.Token);
+                if (waited.Code == 0) await runner.RunAsync(["rm", name], null, cleanup.Token);
+                else throw new IOException("Destination preflight state unknown.");
+            }
+            catch (Exception) { throw new IOException("Destination preflight state unknown; inspect owned container before retry."); }
+        }
     }
 
     private async Task Required(string[] arguments, CancellationToken token)

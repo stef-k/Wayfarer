@@ -9,6 +9,7 @@ public sealed class DirectoryCapture
 {
     private int entries;
     private long bytes;
+    private readonly Dictionary<string, SafeDirectory.Facts> directories = new(StringComparer.Ordinal);
     private readonly Dictionary<string, SafeDirectory.Facts> inventory = new(StringComparer.Ordinal);
 
     /// <summary>Capture all regular content; missing roots, links, mounts and changed sources fail closed.</summary>
@@ -23,6 +24,12 @@ public sealed class DirectoryCapture
             // An explicit root preserves legitimate empty Uploads as a real archive.
             tar.WriteEntry(Entry(TarEntryType.Directory, "."));
             Walk(root, "", tar, token);
+            foreach (var (name, expected) in directories)
+            {
+                token.ThrowIfCancellationRequested();
+                using var current = root.Child(name);
+                if (!expected.Equals(current.Identity)) throw new IOException("Source directory changed during capture.");
+            }
             foreach (var (name, expected) in inventory)
             {
                 token.ThrowIfCancellationRequested();
@@ -53,6 +60,7 @@ public sealed class DirectoryCapture
             {
                 using (child)
                 {
+                    directories.Add(relative, child.Identity);
                     writer.WriteEntry(Entry(TarEntryType.Directory, relative));
                     Walk(child, relative + "/", writer, token);
                 }

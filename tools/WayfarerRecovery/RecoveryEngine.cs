@@ -45,7 +45,7 @@ public sealed class RecoveryEngine(WorkerConfiguration config)
         await PublishAsync(destination, staging.Path, name, deadline.Token);
         var retained = true;
         try { await RetainAsync(destination, deadline.Token); }
-        catch (IOException) { retained = false; }
+        catch (Exception error) when (error is IOException or OperationCanceledException or UnauthorizedAccessException) { retained = false; }
         return new BackupResult(1, manifest.Archive, name, manifest.Completed, retained);
     }
 
@@ -177,6 +177,6 @@ public sealed class RecoveryTaskDirectory : IDisposable
     public void Dispose()
     {
         try { Directory.Delete(Path, recursive: true); }
-        catch (IOException) { Console.Error.WriteLine("Private task cleanup failed; prior result remains authoritative."); }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException) { Console.Error.WriteLine("Private task cleanup failed; prior result remains authoritative."); }
     }
 }

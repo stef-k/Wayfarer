@@ -35,6 +35,30 @@ public static class WorkerCli
                 await new RecoveryScheduler(WorkerConfiguration.Load("/config/worker.json")).RunAsync(token);
                 return 0;
             }
+            if (arguments is ["destination-check"])
+            {
+                var configuration = WorkerConfiguration.Load("/config/worker.json");
+                using var destination = configuration.OpenDestination();
+                var name = ".wayfarer-probe-" + configuration.Installation.ToString("D") + "-" + Guid.NewGuid().ToString("N");
+                var owned = name;
+                var completed = false;
+                try
+                {
+                    using (var output = destination.Write(name)) { output.Write("probe"u8); output.Flush(true); }
+                    destination.Publish(name, name + ".committed");
+                    owned = name + ".committed";
+                    using var input = destination.Read(owned);
+                    if (new StreamReader(input).ReadToEnd() != "probe") throw new IOException("Destination readback failed.");
+                    completed = true;
+                }
+                finally
+                {
+                    try { destination.Delete(owned); }
+                    catch (IOException) when (!completed) { Console.Error.WriteLine("Destination probe cleanup failed; primary result retained."); }
+                }
+                Write(new { Schema = 1, Destination = "ready" });
+                return 0;
+            }
             if (arguments is not (["backup"] or ["backups"] or ["verify"] or ["verify", _])) return 2;
             var config = WorkerConfiguration.Load("/config/worker.json");
             var engine = new RecoveryEngine(config);

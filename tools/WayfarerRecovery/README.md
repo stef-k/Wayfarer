@@ -1,76 +1,46 @@
-# Recovery worker development checkpoint
+# Compose recovery engine
 
-This is an **incomplete implementation of #533**, not a supported backup feature.
-The existing `wayfarerctl` commands and installation schema are unchanged.
-Do not configure a production installation to invoke this worker.
+`wayfarer-recovery` is a bundle-owned self-contained Linux AMD64 executable.
+The administrator-facing owner is [wayfarerctl](../../docs/29-Wayfarerctl.md#compose-recovery-sets).
+Do not invoke the private worker protocol as an alternative configuration authority.
 
-The current code introduces the bundle-owned self-contained C# worker, Linux
-handle-relative file access and byte-range locking, initial custom-dump capture,
-archive models, verification, publication and retention. These paths still need
-integration and further contract validation before release.
+Manual, scheduled and host-reserved quiesced captures share `RecoveryEngine`.
+`installation.json` owns policy; immutable generation files are derived inputs.
+The worker runs as UID/GID1654 inside the exact configured PG17/PostGIS DB image,
+with app-data read-only, no Docker socket, no capabilities and private bounded temp.
+The additive `WayfarerRecoverySource.dll` inspects the selected immutable app's real
+storage, Data Protection, readiness and schema owners without changing that image.
 
-## Completed local evidence
-
-The starting main revision was `835627d07fee37f723ea9facd92706076fcfcad1`.
-The accepted image used for disposable qualification was:
+Archive v1 has exactly five top-level USTAR members:
 
 ```text
-ghcr.io/stef-k/wayfarer-db@sha256:bd9b3bbfe1e879b56b0742646c18d0dcc9ec95180095f8f6d02e03b54feeeb61
+manifest.json
+database.dump
+data-protection.tar.gz
+uploads.tar.gz
+SHA256SUMS
 ```
 
-Local checks demonstrated:
+The manifest binds installation/archive UUIDs, UTC intervals, online/quiesced mode,
+optional scheduled slot, app version/source SHA/image, DB image/version/extensions/
+locale/migration history, stable Data Protection name, worker/payload/bundle identity
+and component sizes/SHA-256. No credentials, key identifiers or uploaded filenames
+are public metadata. The adjacent final archive SHA-256 sidecar commits the pair.
+Integrity is independent of restore compatibility. Checksums are not signatures.
 
-- The published self-contained worker runs as UID/GID1654 with read-only root,
-  no capabilities, no network, no-new-privileges, init, and bounded memory/CPU.
-  Its runtime check exercises tar/gzip, SHA-256, JSON and PostgreSQL17.11 tooling.
-- A disposable fresh database initialized by the shipped DB initialization script
-  permits a custom-format dump by the non-superuser `wayfarer` role, followed by
-  successful `pg_restore --list`. This was not a complete application database.
-- Host and container C# processes using the same recovery-lock implementation
-  demonstrate contention and acquisition after host-owner death, without DB access.
-- An unchanged UID1654 container using a dedicated `rslave` parent observes host
-  unmount and replacement-mount events. Privileged fixture setup touched only an
-  isolated temporary mount; the worker itself had no privileges. This is propagation
-  evidence, not complete remote-destination/no-fallback product qualification.
-- A separate disposable probe using the worker's dependencies performs a Data
-  Protection round-trip and captures its synthetic ring in the accepted DB image.
-  This is not production credential/authentication continuity or restore evidence.
-- Twelve focused tests cover binary import bytes larger than the text-runner cap,
-  empty Uploads, unsafe names and symlinks, non-overwriting publication, required
-  manifest fields, and corruption rejection without source mutation.
+Run focused product tests:
 
-Run the focused tests with:
-
-```bash
-dotnet test tests/Wayfarer.Tests/Wayfarer.Tests.csproj \
-  --filter FullyQualifiedName~WayfarerRecoveryTests
+```sh
+dotnet test tests/Wayfarer.Tests --filter 'FullyQualifiedName~WayfarerRecoveryTests|FullyQualifiedName~WayfarerCtlTests'
 ```
 
-No architecture stop condition has been demonstrated by these checks.
+Maintained disposable qualification is `tools/compose/qualify_recovery.py`, extending
+the existing operator fixture with actual published binaries and a second clean
+Compose reconstruction. `recovery-probe` and `lock-probe` are qualification-only
+programs and are not part of the shipped payload. Their root mount/volume setup is
+limited to fixture-owned paths/resources; the recovery worker remains unprivileged.
 
-## Still required before #533 acceptance
-
-- Schema2 installation identity and explicit backup configuration, including
-  interrupted-write recovery, immutable additive payload validation and derived inputs.
-- Resolved application source/readiness/schema authority integration and complete
-  source compatibility validation; current capture paths alone are not sufficient.
-- Administrator `backup`, `backups`, `verify-backup`, status/doctor integration,
-  owned-container cancellation, and complete bounded structured result handling.
-- Container-native scheduler, receipts, catch-up/retry/reconciliation, and lifecycle
-  coordination using the same recovery exclusion.
-- Evidence-driven quiesced capture.
-- Complete destination permission/mount/marker provisioning and validation, including
-  unavailable/substituted/read-only/full destinations and no underlay fallback.
-- Complete archive safety/compatibility, publication-crash, retention, cancellation
-  and primary-error/cleanup behavior validation. Current tests are not exhaustive
-  acceptance evidence for these initial implementations.
-- Shipped-worker CI execution inside the accepted image and complete Compose/operator
-  qualification, including manual/list/verify and scheduled/competing executions.
-- Full application DB + matching ring + Uploads reconstruction into a second clean
-  disposable Compose project, protected-provider and authentication continuity,
-  and proof that the source application state remains unchanged.
-- Operator/recovery documentation and changelog, final exact-head CI, and independent
-  exact-head review.
-
-Keep the PR draft/unmerged and #533/#603 open. Do not treat this checkpoint as
-implementation completion or production recovery qualification.
+See the operator documentation for configuration, destination security, no-fallback
+mount propagation, retained interruption receipts, schedule policy, bounded listing,
+cancellation and deliberately stopped quiesced state. Native capture, destructive
+production restore, update, release resolution and ARM remain separate contracts.

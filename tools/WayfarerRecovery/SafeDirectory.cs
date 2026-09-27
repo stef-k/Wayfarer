@@ -47,6 +47,11 @@ public sealed class SafeDirectory : IDisposable
     private static extern int renameat2(SafeFileHandle source, string name, SafeFileHandle target, string destination, uint flags);
     [DllImport("libc", SetLastError = true)]
     private static extern int unlinkat(SafeFileHandle descriptor, string name, int flags);
+    [StructLayout(LayoutKind.Explicit, Size = 120)]
+    private struct FileSystemFacts { [FieldOffset(0)] public long Type; }
+    [DllImport("libc", SetLastError = true)]
+    private static extern int fstatfs(SafeFileHandle descriptor, out FileSystemFacts facts);
+
     [DllImport("libc", SetLastError = true)]
     private static extern int fsync(SafeFileHandle descriptor);
 
@@ -85,6 +90,13 @@ public sealed class SafeDirectory : IDisposable
     }
 
     public Facts Identity => Inspect(handle);
+
+    /// <summary>Recovery control must reside on a supported persistent local Linux filesystem, never NAS/FUSE.</summary>
+    public void RequireLocalControl()
+    {
+        if (fstatfs(handle, out var facts) != 0 || facts.Type is not (0xef53 or 0x58465342 or 0x9123683e or 0x794c7630 or 0x2fc12fc1))
+            throw new IOException("Recovery control requires a persistent local Linux filesystem.");
+    }
 
     /// <summary>Enumerate names only; each subsequent open independently enforces links/mount/type rules.</summary>
     public string[] Names(int limit = ArchiveContract.EntryLimit)
@@ -132,6 +144,12 @@ public sealed class SafeDirectory : IDisposable
     {
         using (Read(name)) { }
         if (unlinkat(handle, name, 0) != 0 || fsync(handle) != 0) throw new IOException("Owned file cleanup failed.");
+    }
+
+    /// <summary>Durably commit directory entry changes such as operational receipt/configuration renames.</summary>
+    public void Flush()
+    {
+        if (fsync(handle) != 0) throw new IOException("Directory durability failed.");
     }
 
     public void Dispose() => handle.Dispose();

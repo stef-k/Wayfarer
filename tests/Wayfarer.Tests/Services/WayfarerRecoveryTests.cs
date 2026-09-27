@@ -117,4 +117,52 @@ public sealed class WayfarerRecoveryTests
         Assert.False(Directory.Exists(Path.Combine(fixture.Path, "unused")));
     }
 
+    /// <summary>Listing refuses excessive scan work even when none of the names is an owned archive.</summary>
+    [Fact]
+    public void DirectoryScanHasAnInputBound()
+    {
+        using var fixture = new TestDirectory();
+        for (var i = 0; i < 5; i++) File.WriteAllText(Path.Combine(fixture.Path, i.ToString()), "foreign");
+        using var directory = new SafeDirectory(fixture.Path);
+        Assert.Throws<IOException>(() => directory.Names(4));
+        Assert.Equal(5, directory.Names(5).Length);
+    }
+
+    /// <summary>Daily UTC jitter is stable; long downtime selects one slot and clock rollback cannot replay success.</summary>
+    [Fact]
+    public void SchedulerCatchupRetryAndRollbackRemainBounded()
+    {
+        var config = new WorkerConfiguration { Installation = Guid.Parse("53300000-0000-0000-0000-000000000001") };
+        var now = new DateTimeOffset(2026, 9, 27, 12, 0, 0, TimeSpan.Zero);
+        var slot = RecoveryScheduler.DueSlot(config, now);
+        Assert.InRange(slot.Hour * 60 + slot.Minute, 180, 195);
+        Assert.Equal(slot, RecoveryScheduler.DueSlot(config, now.AddHours(1)));
+        var state = new SchedulerReceipt(1, slot, 1, true, now, null, Guid.NewGuid(), now, "none");
+        Assert.False(RecoveryScheduler.ShouldAttempt(state, slot, now, 3));
+        Assert.False(RecoveryScheduler.ShouldAttempt(state, slot.AddDays(-1), now, 3));
+        Assert.True(RecoveryScheduler.ShouldAttempt(state, slot.AddDays(20), now.AddDays(20), 3));
+        Assert.False(RecoveryScheduler.ShouldAttempt(state with { Succeeded = false, Attempts = 3 }, slot, now, 3));
+        Assert.False(RecoveryScheduler.ShouldAttempt(state with { Succeeded = false, NextRetry = now.AddMinutes(1) }, slot, now, 3));
+        Assert.True(RecoveryScheduler.ShouldAttempt(state with { Succeeded = false, NextRetry = now.AddMinutes(-1) }, slot, now, 3));
+    }
+
+    /// <summary>Manifest/source strings are bounded inert data, never terminal or command fragments.</summary>
+    [Fact]
+    public void SourceIdentityRejectsControlCharactersAndPartialSchema()
+    {
+        var source = new SourceIdentity
+        {
+            ApplicationVersion = "1.9.19", SourceRevision = new string('a', 40),
+            ApplicationImage = "ghcr.io/stef-k/wayfarer@sha256:" + new string('b', 64),
+            DatabaseImage = "ghcr.io/stef-k/wayfarer-db@sha256:" + new string('c', 64),
+            BundleFingerprint = new string('d', 64), PayloadFingerprint = new string('e', 64),
+            Project = "fixture", WorkerVersion = "1", QuartzIdentity = "wayfarer-quartz-schema-v1",
+            ExpectedMigrations = ["20260924220353_StablePersonalCredentialCompanion"]
+        };
+        ArchiveContract.ValidateSource(source);
+        Assert.Throws<IOException>(() => ArchiveContract.ValidateSource(source with { ApplicationVersion = "1.0\nunsafe" }));
+        Assert.Throws<IOException>(() => ArchiveContract.ValidateSource(source with { ExpectedMigrations = [] }));
+        Assert.Throws<IOException>(() => ArchiveContract.ValidateSource(source with { SourceRevision = "unknown" }));
+    }
+
 }

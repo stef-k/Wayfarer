@@ -32,6 +32,12 @@ public static class ArchiveContract
             manifest.Completed < manifest.Started || manifest.Mode is not ("online" or "quiesced") ||
             manifest.Source.Kind is not ("compose" or "native") || manifest.Source.ApplicationName != "Wayfarer" ||
             manifest.Components.Length != 3) throw new IOException("Unsupported recovery manifest.");
+        ValidateSource(manifest.Source);
+        ValidateDatabase(manifest.Database);
+        if (!manifest.Database.Migrations.SequenceEqual(manifest.Source.ExpectedMigrations) ||
+            manifest.Started.Offset != TimeSpan.Zero || manifest.Completed.Offset != TimeSpan.Zero ||
+            manifest.ScheduledSlot?.Offset is { } offset && offset != TimeSpan.Zero)
+            throw new IOException("Inconsistent archive identity.");
         for (var i = 0; i < 3; i++)
         {
             var component = manifest.Components[i];
@@ -41,6 +47,42 @@ public static class ArchiveContract
                 throw new IOException("Invalid recovery component.");
         }
     }
+    /// <summary>All externally supplied identity strings have bounded syntax before listing or compatibility use.</summary>
+    public static void ValidateSource(SourceIdentity source)
+    {
+        if (source.ApplicationName != "Wayfarer" || source.Platform != "linux/amd64" || source.ConfigurationSchema != 2 ||
+            source.StableIdentity != "ready" || source.ReleaseStatus is not ("candidate" or "released") ||
+            !Regex.IsMatch(source.SourceRevision, "^[a-f0-9]{40}$") ||
+            !Regex.IsMatch(source.BundleFingerprint, "^[a-f0-9]{64}$") || !Regex.IsMatch(source.PayloadFingerprint, "^[a-f0-9]{64}$") ||
+            !Regex.IsMatch(source.ApplicationImage, "^ghcr.io/stef-k/wayfarer@sha256:[a-f0-9]{64}$") ||
+            !Regex.IsMatch(source.DatabaseImage, "^ghcr.io/stef-k/wayfarer-db@sha256:[a-f0-9]{64}$") ||
+            !Regex.IsMatch(source.Project, "^[a-z0-9][a-z0-9_-]{0,62}$") ||
+            !Regex.IsMatch(source.ApplicationVersion, "^[0-9][A-Za-z0-9.+-]{0,127}$") ||
+            !Regex.IsMatch(source.WorkerVersion, "^[0-9][A-Za-z0-9.+-]{0,63}$") ||
+            !Regex.IsMatch(source.QuartzIdentity, "^[A-Za-z0-9.-]{1,128}$"))
+            throw new IOException("Invalid source identity.");
+        ValidateMigrations(source.ExpectedMigrations);
+    }
+
+    /// <summary>Database facts remain inert bounded metadata; supported compatibility is checked separately.</summary>
+    private static void ValidateDatabase(DatabaseIdentity database)
+    {
+        foreach (var text in new[] { database.ServerVersion, database.Name, database.PostgisExtension, database.PostgisLibrary,
+            database.Citext, database.Encoding, database.Collation, database.CharacterType, database.LocaleProvider,
+            database.DumpVersion, database.RestoreVersion })
+            if (text.Length is 0 or > 256 || text.Any(char.IsControl)) throw new IOException("Invalid database identity.");
+        if (database.Locale is { } locale && (locale.Length > 256 || locale.Any(char.IsControl))) throw new IOException("Invalid locale.");
+        ValidateMigrations(database.Migrations);
+        if (database.Major is < 1 or > 100 || database.TerminalMigration != database.Migrations[^1])
+            throw new IOException("Invalid terminal schema identity.");
+    }
+
+    private static void ValidateMigrations(string[] migrations)
+    {
+        if (migrations.Length is 0 or > 1000 || migrations.Any(value => !Regex.IsMatch(value, "^[0-9]{14}_[A-Za-z0-9_]{1,160}$")) ||
+            !migrations.SequenceEqual(migrations.Distinct().Order(StringComparer.Ordinal))) throw new IOException("Invalid migration history.");
+    }
+
 }
 
 /// <summary>Complete recovery-set metadata; source provenance never supplies extraction paths.</summary>

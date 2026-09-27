@@ -30,26 +30,33 @@ public sealed class RecoveryScheduler(WorkerConfiguration config)
     /// <summary>Recheck receipts and destination publication under the same exclusion used by manual backup.</summary>
     public async Task TickAsync(DateTimeOffset now, CancellationToken token)
     {
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);
+        deadline.CancelAfter(TimeSpan.FromSeconds(config.DeadlineSeconds));
+        token = deadline.Token;
         using var exclusion = new RecoveryLock("/control/recovery.lock");
         HostRecoveryOperation.Validate(null);
         var state = Load();
         var slot = DueSlot(config, now);
-        if (state.Slot > slot || state.Slot == slot && (state.Succeeded || state.Attempts >= config.Attempts || state.NextRetry > now)) return;
+        if (!ShouldAttempt(state, slot, now, config.Attempts)) return;
         var engine = new RecoveryEngine(config);
-        using (var destination = config.OpenDestination())
-        {
-            var committed = engine.List(destination, token).FirstOrDefault(value => value.ScheduledSlot >= slot);
-            if (committed is not null)
-            {
-                Save(new SchedulerReceipt(1, committed.ScheduledSlot!.Value, 1, true, now, null, committed.Archive, committed.Completed, "none"));
-                return;
-            }
-        }
         state = state.Slot == slot ? state : new SchedulerReceipt(1, slot, 0, false, now, null, state.LastArchive, state.LastSuccess, "none");
         state = state with { Attempts = state.Attempts + 1, LastAttempt = now, NextRetry = now.AddMinutes(5), Failure = "interrupted" };
-        Save(state); // An interrupted attempt consumes retry budget.
+        Save(state); // Missing destinations and interrupted attempts both consume the bounded retry budget.
         try
         {
+            using (var destination = config.OpenDestination())
+            {
+                var committed = engine.List(destination, token).FirstOrDefault(value => value.ScheduledSlot >= slot);
+                if (committed is not null)
+                {
+                    using var staged = new RecoveryTaskDirectory();
+                    var verified = await ArchiveVerifier.VerifyAsync(destination,
+                        ArchiveContract.Name(config.Installation, committed.Completed, committed.Archive), staged.Path, config.Source, config.Installation, token);
+                    if (!verified.CompatibilitySupported) throw new IOException("Committed slot is incompatible.");
+                    Save(state with { Succeeded = true, NextRetry = null, LastArchive = committed.Archive, LastSuccess = committed.Completed, Failure = "none" });
+                    return;
+                }
+            }
             var result = await engine.BackupLockedAsync(slot, token);
             Save(state with { Succeeded = true, NextRetry = null, LastArchive = result.Archive, LastSuccess = result.Completed,
                 Failure = result.RetentionSucceeded ? "none" : "retention-failed" });
@@ -61,6 +68,10 @@ public sealed class RecoveryScheduler(WorkerConfiguration config)
             throw;
         }
     }
+
+    /// <summary>Clock rollback and replacement never replay a completed slot or reset consumed attempts.</summary>
+    public static bool ShouldAttempt(SchedulerReceipt state, DateTimeOffset slot, DateTimeOffset now, int attempts) =>
+        state.Slot < slot || state.Slot == slot && !state.Succeeded && state.Attempts < attempts && !(state.NextRetry > now);
 
     /// <summary>Corrupt receipts are never reset to a fresh schedule.</summary>
     private static SchedulerReceipt Load()
@@ -90,6 +101,8 @@ public sealed class RecoveryScheduler(WorkerConfiguration config)
                 stream.Flush(flushToDisk: true);
             }
             File.Move(temporary, "/control/scheduler.json", overwrite: true);
+            using var directory = new SafeDirectory("/control");
+            directory.Flush();
         }
         finally { if (File.Exists(temporary)) File.Delete(temporary); }
     }

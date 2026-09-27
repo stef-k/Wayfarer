@@ -42,7 +42,12 @@ public static class ArchiveVerifier
         var compatible = manifest.Source.ApplicationImage == expected.ApplicationImage &&
             manifest.Source.DatabaseImage == expected.DatabaseImage && manifest.Source.SourceRevision == expected.SourceRevision &&
             manifest.Source.ApplicationName == expected.ApplicationName && manifest.Source.QuartzIdentity == expected.QuartzIdentity &&
-            manifest.Database.Major == 17 && manifest.Database.Migrations.SequenceEqual(expected.ExpectedMigrations);
+            manifest.Source.ApplicationVersion == expected.ApplicationVersion && manifest.Source.Platform == expected.Platform &&
+            manifest.Source.StableIdentity == "ready" && manifest.Database.Major == 17 && manifest.Database.Name == "wayfarer" &&
+            manifest.Database.Encoding == "UTF8" && manifest.Database.PostgisExtension == "3.6.4" && manifest.Database.Citext == "1.6" &&
+            manifest.Database.Collation == "C.UTF-8" && manifest.Database.CharacterType == "C.UTF-8" && manifest.Database.LocaleProvider == "c" &&
+            manifest.Database.PostgisExtension == manifest.Database.PostgisLibrary &&
+            manifest.Database.Migrations.SequenceEqual(expected.ExpectedMigrations);
         return new VerifyResult(1, true, compatible, manifest.Archive, name, manifest.Mode);
     }
 
@@ -64,6 +69,10 @@ public static class ArchiveVerifier
             await using var output = new FileStream(Path.Combine(staging, entry.Name), FileMode.CreateNew, FileAccess.Write, FileShare.None);
             await CopyBoundedAsync(entry.DataStream, output, entry.Length, token);
         }
+        var padding = new byte[4096];
+        int trailing;
+        while ((trailing = await archive.ReadAsync(padding, token)) != 0)
+            if (padding.AsSpan(0, trailing).ContainsAnyExcept((byte)0)) throw new IOException("Unexpected outer trailing data.");
         if (!names.SetEquals(ArchiveContract.Members)) throw new IOException("Recovery component missing.");
         var bytes = await File.ReadAllBytesAsync(Path.Combine(staging, "manifest.json"), token);
         using var document = JsonDocument.Parse(bytes, new JsonDocumentOptions { MaxDepth = 16 });
@@ -133,6 +142,7 @@ public static class ArchiveVerifier
             using var output = extract is null ? Stream.Null : ExtractFile(extract, name);
             if (entry.DataStream is not null) CopyBoundedAsync(entry.DataStream, output, entry.Length, token).GetAwaiter().GetResult();
         }
+        if (!names.Contains(".")) throw new IOException("Nested root representation missing.");
         // Force gzip to its checksum/trailer rather than accepting a truncated compressed member.
         var tail = new byte[4096];
         int count;

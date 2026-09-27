@@ -242,3 +242,22 @@ jobs:
           # Resolve actual locally built content. Never manufacture a registry/release digest or publish it.
           python3 tools/compose/qualify_ctl.py --executable "$RUNNER_TEMP/wayfarerctl/wayfarerctl" \
             --app-digest "${image_digest#*@}"
+      - name: Publish recovery payload and qualification probes
+        run: |
+          dotnet publish tools/WayfarerRecovery -c Release -r linux-x64 --self-contained true -o "$RUNNER_TEMP/recovery"
+          dotnet build tools/WayfarerRecoverySource -c Release
+          dotnet build tools/compose/recovery-probe -c Release
+          dotnet publish tools/compose/lock-probe -c Release -r linux-x64 --self-contained true -o "$RUNNER_TEMP/lock-probe"
+          cp "$RUNNER_TEMP/lock-probe/LockProbe" "$RUNNER_TEMP/recovery/lock-probe"
+      - name: Qualify shipped recovery runtime and complete clean Compose reconstruction
+        run: |
+          docker run --rm --network none --user 1654:1654 --read-only --cap-drop ALL --security-opt no-new-privileges --init \
+            --memory 512m --cpus 1 --pids-limit 64 --tmpfs /tmp:uid=1654,gid=1654,mode=0700,size=67108864 \
+            --mount "type=bind,src=$RUNNER_TEMP/recovery/wayfarer-recovery,dst=/worker,readonly" --entrypoint /worker \
+            ghcr.io/stef-k/wayfarer-db@sha256:bd9b3bbfe1e879b56b0742646c18d0dcc9ec95180095f8f6d02e03b54feeeb61 runtime-check
+          image_ref="$(python3 -c 'import json,os; e=json.load(open(os.environ["RUNNER_TEMP"]+"/image-evidence.json")); print(e["image"]+":"+e["tag"])')"
+          image_digest="$(docker image inspect "$image_ref" --format '{{index .RepoDigests 0}}')"
+          python3 -B tools/compose/qualify_recovery.py --executable "$RUNNER_TEMP/wayfarerctl/wayfarerctl" \
+            --worker "$RUNNER_TEMP/recovery/wayfarer-recovery" \
+            --inspector tools/WayfarerRecoverySource/bin/Release/net10.0/WayfarerRecoverySource.dll \
+            --probe tools/compose/recovery-probe/bin/Release/net10.0/RecoveryProbe.dll --app-digest "${image_digest#*@}"

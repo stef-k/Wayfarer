@@ -31,7 +31,9 @@ internal static class RecoverySourceCli
             var storage = new StoragePaths(Options.Create(builder.Configuration.GetSection("Storage").Get<StorageOptions>() ?? new()), builder.Environment);
             var ring = DataProtectionAuthority.ResolveKeyRing(builder.Configuration, builder.Environment);
             if (storage.DataRoot != "/var/lib/wayfarer" || !ring.Path.StartsWith(storage.DataRoot + "/", StringComparison.Ordinal) ||
-                !Directory.Exists(storage.Uploads) || !Directory.Exists(ring.Path))
+                !Directory.Exists(storage.Uploads) || !Directory.Exists(ring.Path) ||
+                storage.TempRoot.StartsWith(storage.DataRoot + "/", StringComparison.Ordinal) ||
+                ring.Path == storage.Uploads || ring.Path.StartsWith(storage.Uploads + "/", StringComparison.Ordinal))
                 throw new IOException("Unsupported Compose source authority.");
             builder.Services.AddDataProtection().SetApplicationName(DataProtectionAuthority.StableApplicationName)
                 .PersistKeysToFileSystem(new DirectoryInfo(ring.Path)).DisableAutomaticKeyGeneration();

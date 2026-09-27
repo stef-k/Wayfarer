@@ -30,6 +30,7 @@ public sealed class BackupCommands(IProcessRunner runner, ITerminal terminal)
             if (File.Exists(Path.Combine(control, "host-operation.json"))) throw new IOException("Unresolved recovery operation.");
             if (quiesced)
             {
+                await Required(BackupCompose.Command(root, config, "stop", "--timeout", "30", "backup-scheduler"), token);
                 await Required(config.Compose(root, "stop", "--timeout", "70", "wayfarer"), token);
                 await AssertNoWriters(config, token);
             }
@@ -55,6 +56,8 @@ public sealed class BackupCommands(IProcessRunner runner, ITerminal terminal)
         finally
         {
             // Independent cleanup deadline survives Ctrl-C; a lost daemon must never be called successful cancellation.
+            try
+            {
             using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(45));
             if (!stopped)
             {
@@ -69,6 +72,8 @@ public sealed class BackupCommands(IProcessRunner runner, ITerminal terminal)
                 File.Delete(Path.Combine(control, "host-operation.json"));
             }
             else terminal.Error("Worker state unknown; recovery reservation retained. Inspect the owned container before recovery.");
+            }
+            catch (Exception) { terminal.Error("Worker cleanup state unknown; recovery reservation retained. Prior operation outcome remains authoritative."); }
             if (quiesced) terminal.Write("Application remains stopped after deliberate quiesced capture; use start when the protected transition is finished.");
         }
     }
@@ -88,7 +93,12 @@ public sealed class BackupCommands(IProcessRunner runner, ITerminal terminal)
         if (result.TryGetProperty("Archives", out var archives))
         {
             foreach (var row in archives.EnumerateArray())
-                terminal.Write("Archive " + row.GetProperty("Archive").GetGuid() + " (listing only; not fully verified)");
+            {
+                var name = row.GetProperty("Name").GetString()!;
+                WayfarerRecovery.SafeDirectory.ValidateName(name);
+                if (!System.Text.RegularExpressions.Regex.IsMatch(name, "^wayfarer-recovery-v1_[a-f0-9-]{36}_[0-9]{8}T[0-9]{13}Z_[a-f0-9-]{36}\\.tar$")) throw new IOException("Invalid worker archive identity.");
+                terminal.Write(name + " (listing only; not fully verified)");
+            }
             if (result.GetProperty("More").GetBoolean()) terminal.Write("Additional archives omitted by the listing cap.");
             return;
         }

@@ -33,6 +33,7 @@ public sealed record WorkerConfiguration
             config.Attempts is < 1 or > 3 || config.DeadlineSeconds is < 30 or > 3600 ||
             config.DestinationKind is not ("local" or "mounted") || config.Source.ExpectedMigrations.Length == 0)
             throw new IOException("Invalid worker configuration.");
+        ArchiveContract.ValidateSource(config.Source);
         SafeDirectory.ValidateName(config.Uploads);
         SafeDirectory.ValidateName(config.Ring);
         return config;

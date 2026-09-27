@@ -35,7 +35,9 @@ public static class DatabaseCapture
             await using (var readOnly = new NpgsqlCommand("SET TRANSACTION READ ONLY", connection, transaction))
                 await readOnly.ExecuteNonQueryAsync(token);
             var identity = await IdentityAsync(connection, transaction, token);
-            if (identity.Major != 17 || identity.PostgisExtension != identity.PostgisLibrary ||
+            if (identity.Major != 17 || identity.PostgisExtension != "3.6.4" || identity.PostgisExtension != identity.PostgisLibrary ||
+                identity.Citext != "1.6" || identity.Encoding != "UTF8" || identity.Collation != "C.UTF-8" ||
+                identity.CharacterType != "C.UTF-8" || identity.LocaleProvider != "c" ||
                 identity.Migrations.Length == 0 || !identity.Migrations.SequenceEqual(source.ExpectedMigrations))
                 throw new IOException("Unsupported database/schema identity.");
             await using var export = new NpgsqlCommand("SELECT pg_export_snapshot()", connection, transaction);
@@ -55,7 +57,12 @@ public static class DatabaseCapture
                 Convert.ToHexStringLower(await SHA256.HashDataAsync(dump, token)), started, DateTimeOffset.UtcNow);
             return (component, identity);
         }
-        finally { if (File.Exists(passfile)) File.Delete(passfile); }
+        finally
+        {
+            try { if (File.Exists(passfile)) File.Delete(passfile); }
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+            { Console.Error.WriteLine("Private credential cleanup failed; primary result retained."); }
+        }
     }
 
     private static async Task<DatabaseIdentity> IdentityAsync(NpgsqlConnection connection, NpgsqlTransaction transaction, CancellationToken token)
