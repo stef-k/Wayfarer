@@ -152,6 +152,8 @@ Provider contact requires the active selection, an authorized and currently veri
 
 ## Legacy Mapbox migration
 
+![Read-only provider settings showing pending legacy migration and its explicit action](images/provider-settings-migration.png)
+
 Settings navigation (`GET /User/LocationProviderSettings` and its conventional `Index` alias) is strictly read-only. A current-user, no-tracking existence query shows pending legacy Mapbox migration without retrieving or displaying legacy credential material. It does not migrate, repair selection, change consent or verification, retire plaintext, contact providers, or schedule work.
 
 The settings-owned migration command is an explicit authenticated User-role `POST /User/LocationProviderSettings/MigrateLegacyMapbox`. The normal Razor form supplies antiforgery protection; ownership comes only from the authenticated identity claim, never route or form values. The command redirects back to the read-only page with a bounded, credential-free result:
