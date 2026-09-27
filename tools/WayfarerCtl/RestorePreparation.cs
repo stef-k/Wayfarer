@@ -83,9 +83,7 @@ public sealed class RestorePreparation(IProcessRunner runner)
         }
         File.SetUnixFileMode(frozen, ProtectedFiles.PrivateDirectory | UnixFileMode.GroupRead | UnixFileMode.GroupExecute);
         if (chown(frozen, 0, 1654) != 0) throw new IOException("Frozen ownership failed.");
-        await VerifyAsync(config, directory, operation, payload, name, source, token);
-        using var manifestFile = File.OpenRead(Path.Combine(directory, "verified", "manifest.json"));
-        var manifest = ArchiveContract.ReadManifest(manifestFile);
+        var manifest = await VerifyAsync(config, directory, operation, payload, name, source, token);
         await CheckImageAsync(config, expected, token);
         var plan = new RestorePlan(operation, root, config, source, manifest.Archive, digest, manifest.Completed,
             manifest.Mode, expected.BundleFingerprint, expected.PayloadFingerprint, payloadFingerprint,
@@ -147,17 +145,24 @@ public sealed class RestorePreparation(IProcessRunner runner)
     }
 
     /// <summary>All parser writes are bounded operation storage, with no source volume, DB secret or network access.</summary>
-    public async Task VerifyAsync(Deployment config, string directory, Guid operation, string payload, string name, Guid source, CancellationToken token)
+    public async Task<VerifiedRestoreArchive> VerifyAsync(Deployment config, string directory, Guid operation, string payload, string name, Guid source, CancellationToken token)
     {
         var staging = Path.Combine(directory, "verified");
         if (Directory.Exists(staging)) Directory.Move(staging, staging + "-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(staging, ProtectedFiles.PrivateDirectory);
         if (chown(staging, 1654, 1654) != 0) throw new IOException("Staging ownership failed.");
-        await new RestoreContainers(runner).RunAsync(config.Project + "-restore-verify-" + operation.ToString("N") + "-" + Guid.NewGuid().ToString("N"),
+        var output = await new RestoreContainers(runner).RunAsync(config.Project + "-restore-verify-" + operation.ToString("N") + "-" + Guid.NewGuid().ToString("N"),
             [.. RestoreContainers.Unprivileged(), "--network=none", "--volume", payload + ":/worker:ro",
                 "--volume", Path.Combine(directory, "frozen") + ":/frozen:ro",
                 "--volume", Path.Combine(directory, "source.json") + ":/target/source.json:ro",
                 "--volume", staging + ":/staging:rw", "--entrypoint=/worker", "ghcr.io/stef-k/wayfarer-db@" + config.DbDigest,
                 "restore-verify", name, source.ToString("D")], token);
+        if (output.Length > 1024) throw new IOException("Restore verification result exceeds bound.");
+        var verified = JsonSerializer.Deserialize<VerifiedRestoreArchive>(output, ArchiveContract.Json)
+            ?? throw new IOException("Missing restore verification result.");
+        if (verified.Archive == Guid.Empty || verified.Mode is not ("online" or "quiesced") ||
+            ArchiveContract.Name(source, verified.Completed, verified.Archive) != name)
+            throw new IOException("Restore verification identity mismatch.");
+        return verified;
     }
 }

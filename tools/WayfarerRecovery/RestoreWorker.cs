@@ -36,7 +36,7 @@ public static class RestoreWorker
             if (manifest.Source.Kind != "compose" || manifest.Source.BundleFingerprint != expected.BundleFingerprint ||
                 manifest.Source.PayloadFingerprint != expected.PayloadFingerprint || manifest.Database.Locale is not null)
                 throw new IOException("Target bundle, capture payload or locale differs.");
-            Console.WriteLine(JsonSerializer.Serialize(result, ArchiveContract.Json));
+            Console.WriteLine(JsonSerializer.Serialize(new VerifiedRestoreArchive(manifest.Archive, manifest.Completed, manifest.Mode), ArchiveContract.Json));
             return 0;
         }
         if (args is ["restore-files"])
@@ -68,3 +68,6 @@ public static class RestoreWorker
         return 2;
     }
 }
+
+/// <summary>Bounded verified metadata returned by the unprivileged parser; no archive members cross this process boundary.</summary>
+public sealed record VerifiedRestoreArchive(Guid Archive, DateTimeOffset Completed, string Mode);
