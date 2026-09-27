@@ -28,6 +28,25 @@ public class MiddlewareTests
         Assert.True(called);
     }
 
+    /// <summary>A read-only limit is safe only when it is present, bounded and no looser than 100 MiB.</summary>
+    [Theory]
+    [InlineData(false, null, 503)]
+    [InlineData(true, null, 503)]
+    [InlineData(true, 104857601L, 503)]
+    [InlineData(true, 104857600L, 200)]
+    [InlineData(true, 1024L, 200)]
+    public async Task GlobalCeiling_ReadOnlyFeatureRetainsFailClosedBoundary(bool present, long? limit, int status)
+    {
+        var context = new DefaultHttpContext();
+        var feature = new TestMaxRequestBodySizeFeature { IsReadOnly = true, MaxRequestBodySize = limit };
+        if (present) context.Features.Set<IHttpMaxRequestBodySizeFeature>(feature);
+        var called = false;
+        await new DynamicRequestSizeMiddleware(_ => { called = true; return Task.CompletedTask; }).InvokeAsync(context);
+        Assert.Equal(status, context.Response.StatusCode);
+        Assert.Equal(status == 200, called);
+        Assert.Equal(limit, feature.MaxRequestBodySize);
+    }
+
     [Fact]
     public async Task PerformanceMonitoringMiddleware_LogsElapsed()
     {
@@ -49,7 +68,7 @@ public class MiddlewareTests
 
     private sealed class TestMaxRequestBodySizeFeature : IHttpMaxRequestBodySizeFeature
     {
-        public bool IsReadOnly => false;
+        public bool IsReadOnly { get; init; }
         public long? MaxRequestBodySize { get; set; }
     }
 }

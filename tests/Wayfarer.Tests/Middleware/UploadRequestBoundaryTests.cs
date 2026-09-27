@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
@@ -96,6 +97,46 @@ public sealed class UploadRequestBoundaryTests : TestBase
         var section = trip.MethodInfo.GetCustomAttributes(typeof(RequestFormLimitsAttribute), false).Cast<RequestFormLimitsAttribute>().Single();
         Assert.Equal(4 * WayfarerKmlParser.MaximumDocumentCharacters + 4, section.MultipartBodyLengthLimit);
         Assert.Empty(location.MethodInfo.GetCustomAttributes(typeof(RequestFormLimitsAttribute), false));
+    }
+
+    /// <summary>Body-consuming errors retain their response when the same Kestrel request is re-executed.</summary>
+    [Theory]
+    [InlineData(false, 422)]
+    [InlineData(true, 500)]
+    public async Task GlobalCeiling_AllowsSafeErrorReExecution(bool throwException, int expectedStatus)
+    {
+        using var host = await new HostBuilder().ConfigureWebHost(web => web.UseKestrel()
+            .UseUrls("http://127.0.0.1:0").ConfigureServices(services => services.AddRouting())
+            .Configure(app =>
+            {
+                // Match production ordering: both error handlers re-enter the size middleware.
+                app.UseExceptionHandler("/Home/Error");
+                app.UseStatusCodePagesWithReExecute("/Error/{0}");
+                app.UseMiddleware<DynamicRequestSizeMiddleware>();
+                app.UseRouting();
+                app.UseEndpoints(endpoints =>
+                {
+                    endpoints.MapPost("/consume", async context =>
+                    {
+                        await context.Request.Body.CopyToAsync(Stream.Null);
+                        if (throwException) throw new InvalidOperationException("Controlled request failure");
+                        context.Response.StatusCode = StatusCodes.Status422UnprocessableEntity;
+                    });
+                    endpoints.Map("/Home/Error", ReportActiveCeiling);
+                    endpoints.Map("/Error/{status}", ReportActiveCeiling);
+                });
+            })).StartAsync();
+        using var client = Client(host, false);
+        using var response = await client.PostAsync("/consume", new StringContent("read before error"));
+        Assert.Equal(expectedStatus, (int)response.StatusCode);
+        Assert.Equal("True:104857600", await response.Content.ReadAsStringAsync());
+    }
+
+    /// <summary>Proves the rerouted handler was reached with Kestrel's already-enforced read-only ceiling.</summary>
+    private static Task ReportActiveCeiling(HttpContext context)
+    {
+        var feature = context.Features.Get<IHttpMaxRequestBodySizeFeature>()!;
+        return context.Response.WriteAsync($"{feature.IsReadOnly}:{feature.MaxRequestBodySize}");
     }
 
     /// <summary>Supplies the admin policy and observes authorization-before-settings ordering.</summary>

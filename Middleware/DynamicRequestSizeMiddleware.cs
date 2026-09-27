@@ -10,13 +10,17 @@ public sealed class DynamicRequestSizeMiddleware(RequestDelegate next)
     public async Task InvokeAsync(HttpContext context)
     {
         var feature = context.Features.Get<IHttpMaxRequestBodySizeFeature>();
-        if (feature is null || feature.IsReadOnly)
+        // Error/status handlers re-enter this pipeline after body consumption. A read-only
+        // feature is safe only when its already-active ceiling remains bounded by our maximum.
+        if (feature is null || (feature.IsReadOnly &&
+            (feature.MaxRequestBodySize is null || feature.MaxRequestBodySize > UploadRequestPolicy.MaximumRequestBytes)))
         {
             context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
             return;
         }
 
-        feature.MaxRequestBodySize = UploadRequestPolicy.MaximumRequestBytes;
+        if (!feature.IsReadOnly)
+            feature.MaxRequestBodySize = UploadRequestPolicy.MaximumRequestBytes;
         if (context.Request.ContentLength > UploadRequestPolicy.MaximumRequestBytes)
         {
             context.Response.StatusCode = StatusCodes.Status413PayloadTooLarge;
