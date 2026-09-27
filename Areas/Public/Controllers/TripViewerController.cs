@@ -277,6 +277,8 @@ public class TripViewerController : BaseController
             ViewBag.VisitEvents = owner ? visitEvents : new List<PlaceVisitEvent>();
         }
 
+        // Only the successfully resolved public embed opts into external framing.
+        if (embed) Wayfarer.Middleware.BrowserResponsePolicyMiddleware.AllowPublicEmbed(HttpContext);
         return View("~/Views/Trip/Viewer.cshtml", trip);
     }
 

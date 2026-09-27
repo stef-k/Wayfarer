@@ -66,6 +66,14 @@ The application uses ASP.NET Areas for logical separation:
 - Public origin comes from the browser's effective HTTPS origin, not an independently reconstructed server Host. `Program.cs` already processes trusted forwarded scheme/host headers before routing; proxy deployments must expose Wayfarer at the intended public HTTPS address. HTTP and clearly local/internal origins produce an explicit copy error. A public hostname is never inferred from the backend hostname or a hard-coded deployment name. Relative Timeline navigation uses the same browser origin.
 - Future map embeds must consume these owners and provide a canonical public non-embed full-view route. Cross-frame scrolling requires mounted browser evidence; handler tests alone are insufficient. See the focused iframe test in `tests/e2e/trip-editor/embeddedMap.spec.ts`. Physical-device Safari/Android behavior remains separate from Chromium mobile emulation evidence.
 
+### Browser response policy
+
+`BrowserResponsePolicyMiddleware` owns framing, content-type sniffing and referrer headers.
+It registers before error/static middleware and applies the policy when the response starts.
+Only the public Trip action with `embed=true` and the dedicated public Timeline embed action
+opt in after visibility checks. Only successful HTML responses keep that permission;
+errors and re-executed responses remain restrictive. See [Security](21-Security.md#browser-response-headers).
+
 ### Base Controllers
 
 - `Controllers/BaseController` — shared helpers for MVC controllers (logging, alerts, titles).

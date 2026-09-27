@@ -94,3 +94,22 @@ and permits only exact content-free `invitation-state` and `membership-state` hi
 membership notification prefixes are rejected case-insensitively. These hints never contain user, group,
 invitation, action, or presentation fields; clients reload authenticated durable state. This restriction does
 not alter the detailed events available on membership-authorized `/api/sse/group/{groupId}` streams.
+
+## Browser response headers
+
+The application emits `Content-Security-Policy: frame-ancestors 'self'`,
+`X-Frame-Options: SAMEORIGIN`, `X-Content-Type-Options: nosniff`, and
+`Referrer-Policy: strict-origin-when-cross-origin` on ordinary responses, including
+Identity, API, static assets, thumbnails, health, redirects and errors.
+
+Only successful public HTML embeds at `/Public/Trips/{id}?embed=true` and
+`/Public/Users/Timeline/{username}/embed` use `frame-ancestors *` and omit XFO.
+The controllers must first confirm public eligibility; missing/private resources and
+failed renders retain the restrictive policy. Normal public Trip/Timeline pages do too.
+Same-origin framing remains supported for export download fallbacks.
+
+This CSP intentionally contains only the framing directive. Embedding requires no CORS
+policy. The referrer policy preserves full same-origin Referer for tile abuse checks,
+limits cross-origin disclosure to the origin, and suppresses HTTPS-to-HTTP referrers.
+Image proxy, bearer API and local mobile WebView contracts are unchanged.
+Proxies must pass these application headers through without adding conflicting values.

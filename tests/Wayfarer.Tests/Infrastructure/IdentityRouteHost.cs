@@ -63,6 +63,7 @@ internal static class IdentityRouteHost
                 context.Request.Headers["X-Test-Peer"].FirstOrDefault() ?? "192.0.2.20");
             await next(context);
         });
+        app.UseMiddleware<Wayfarer.Middleware.BrowserResponsePolicyMiddleware>();
         app.UseForwardedHeaders();
         app.UseRouting();
         app.UseAuthentication();

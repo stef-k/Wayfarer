@@ -38,6 +38,15 @@ Caddy has no backend attachment or secrets. Only it publishes 80/TCP, 443/TCP an
 as with ordinary Linux bridge networking, a privileged Docker host can still reach
 container addresses. Host administration is outside the network isolation boundary.
 
+## Browser response headers
+
+Managed Caddy passes the application's route-aware CSP, XFO, nosniff and referrer
+headers through unchanged. Do not add `header` or `header_down` overrides or duplicate
+embed route matchers. Ordinary pages permit only same-origin framing; the two successful
+public map embed documents permit external parents. See [Security](21-Security.md#browser-response-headers).
+`tools/compose/qualify.py` checks exact singleton header values for ordinary and embed
+Trip responses through both managed Caddy and its existing external-proxy fixture.
+
 ## Exact third-party image decision
 
 Live manifest/config, executable and signed-package checks on 2026-09-25 established:

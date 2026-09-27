@@ -600,6 +600,8 @@ static void ConfigureServices(WebApplicationBuilder builder)
 static async Task ConfigureMiddleware(WebApplication app)
 {
     // Response compression must be early in the pipeline to compress all subsequent responses
+    // Register before error handlers and static middleware so every response has one browser policy.
+    app.UseMiddleware<BrowserResponsePolicyMiddleware>();
     app.UseResponseCompression();
 
     // CRITICAL: Add this as the FIRST middleware to process forwarded headers from nginx

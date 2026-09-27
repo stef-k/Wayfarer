@@ -169,6 +169,21 @@ public sealed class DeploymentScriptTests
     }
 
     /// <summary>Finds source scripts from the test output directory.</summary>
+    /// <summary>Proxies pass the application's route-aware browser policy through unchanged.</summary>
+    [Fact]
+    public void BrowserHeaders_HaveOneDynamicOwner()
+    {
+        var caddy = File.ReadAllText(RepositoryFile("deploy", "compose", "caddy", "Caddyfile"));
+        var nginx = File.ReadAllText(RepositoryFile("deployment", "wayfarer-nginx-vhost.conf"));
+        foreach (var header in new[] { "Content-Security-Policy", "X-Frame-Options", "X-Content-Type-Options", "Referrer-Policy" })
+            Assert.DoesNotMatch($@"(?im)^\s*header(?:_down)?\b[^\r\n]*{header}", caddy);
+        Assert.DoesNotContain("ALLOWALL", nginx);
+        Assert.DoesNotMatch(@"(?im)^\s*add_header\s+(Content-Security-Policy|X-Frame-Options|Referrer-Policy)\b", nginx);
+        var staticLocation = Regex.Match(nginx, @"location ~\*[^\{]+\{([^}]+)\}");
+        Assert.Contains("add_header X-Content-Type-Options \"nosniff\" always;", staticLocation.Groups[1].Value);
+        Assert.Single(Regex.Matches(nginx, "add_header X-Content-Type-Options").Cast<Match>());
+    }
+
     private static string RepositoryFile(params string[] parts) => Path.GetFullPath(
         Path.Combine([AppContext.BaseDirectory, "..", "..", "..", "..", "..", .. parts]));
 }

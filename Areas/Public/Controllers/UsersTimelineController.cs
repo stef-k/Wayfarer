@@ -95,6 +95,8 @@ namespace Wayfarer.Areas.Public.Controllers
                 SetPageTitle($"{user.UserName} Timeline");
             }
 
+            // Effective public eligibility above is required before allowing external framing.
+            Wayfarer.Middleware.BrowserResponsePolicyMiddleware.AllowPublicEmbed(HttpContext);
             return View("Embed");
         }
 
