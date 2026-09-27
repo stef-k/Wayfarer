@@ -38,13 +38,13 @@ def ready(url, process):
     raise TimeoutError('Disposable endpoint did not start')
 
 
-def probe(upstream, proxy):
-    """Assert event, real heartbeat, MVC cancellation, channel retirement and finite response."""
+def subscription(upstream, proxy, *, heartbeat_required):
+    """Observe one stream, actively close it, and require its MVC cancellation and full retirement."""
     ident = uuid.uuid4().hex
     started = time.monotonic()
     with socket.create_connection(('127.0.0.1', proxy), timeout=5) as connection:
         connection.sendall(f'GET /sse/{ident} HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n'.encode())
-        connection.settimeout(25)
+        connection.settimeout(5)
         data = b''
         while b'data: {"ready":true}\n\n' not in data:
             chunk = connection.recv(4096)
@@ -53,13 +53,16 @@ def probe(upstream, proxy):
             data += chunk
         event = time.monotonic() - started
         assert event < 5, event
-        while b':\n\n' not in data:
-            chunk = connection.recv(4096)
-            if not chunk:
-                raise RuntimeError('EOF before heartbeat')
-            data += chunk
-        heartbeat = time.monotonic() - started
-        assert 19 <= heartbeat < 25, heartbeat
+        heartbeat = None
+        if heartbeat_required:
+            connection.settimeout(25)
+            while b':\n\n' not in data:
+                chunk = connection.recv(4096)
+                if not chunk:
+                    raise RuntimeError('EOF before heartbeat')
+                data += chunk
+            heartbeat = time.monotonic() - started
+            assert 19 <= heartbeat < 25, heartbeat
         connection.shutdown(socket.SHUT_RDWR)
     closed = time.monotonic()
     state = None
@@ -70,9 +73,29 @@ def probe(upstream, proxy):
         time.sleep(0.01)
     assert state == {'cancelled': True, 'sameToken': True, 'clients': 0, 'channels': 0}, state
     disconnect = time.monotonic() - closed
+    return {'subscription': ident, 'event_ms': event * 1000, 'heartbeat_s': heartbeat,
+            'disconnect_ms': disconnect * 1000, 'state': state}
+
+
+def probe(upstream, proxy):
+    """Require full first retirement before finite control and a distinct reconnect on the same endpoints."""
+    first = subscription(upstream, proxy, heartbeat_required=True)
+    print(json.dumps({'first': first}), flush=True)
     assert fetch(f'http://127.0.0.1:{proxy}/normal') == {'normal': True}
-    print(json.dumps({'event_ms': event * 1000, 'heartbeat_s': heartbeat,
-                      'disconnect_ms': disconnect * 1000, 'state': state, 'finite_request': 'passed'}))
+    print(json.dumps({'finite_request': 'passed'}), flush=True)
+    reconnect = subscription(upstream, proxy, heartbeat_required=False)
+    assert reconnect['subscription'] != first['subscription']
+    print(json.dumps({'reconnect': reconnect}), flush=True)
+
+
+def proxy_identity(name):
+    """Read bounded Docker process identity so restart/replacement cannot count as reconnect recovery."""
+    result = subprocess.run(['docker', 'inspect', '--format',
+                             '{{.Id}} {{.State.StartedAt}} {{.RestartCount}} {{.State.Running}}', name],
+                            check=True, capture_output=True, text=True)
+    identity = result.stdout.strip()
+    assert identity.endswith(' 0 true'), identity
+    return identity
 
 
 def main():
@@ -99,8 +122,13 @@ def main():
                                 '--platform', 'linux/amd64', '-v', f'{caddyfile}:/etc/caddy/Caddyfile:ro',
                                 image], check=True, capture_output=True)
                 ready(f'http://127.0.0.1:{proxy}/normal', host)
-                print('Caddy image:', image)
+                print('Caddy image:', image, flush=True)
+                identity = proxy_identity(name)
                 probe(upstream, proxy)
+                assert host.poll() is None, 'Upstream exited during qualification'
+                assert proxy_identity(name) == identity, 'Caddy restarted/replaced during qualification'
+                print(json.dumps({'upstream_pid': host.pid, 'caddy_identity': identity,
+                                  'same_proxy_upstream': True}), flush=True)
             except Exception:
                 log.seek(0)
                 print(log.read())
