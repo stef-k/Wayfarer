@@ -63,6 +63,31 @@ public sealed class BrowserResponsePolicyTests
         AssertHeaders(response, false);
     }
 
+    /// <summary>Status-page re-execution cannot inherit a marker from the failed original render.</summary>
+    [Fact]
+    public async Task StatusReexecution_RemainsRestrictive()
+    {
+        using var host = await new HostBuilder().ConfigureWebHost(web => web.UseTestServer().Configure(app =>
+        {
+            app.UseMiddleware<BrowserResponsePolicyMiddleware>();
+            app.UseStatusCodePagesWithReExecute("/error");
+            app.Run(async context =>
+            {
+                if (context.Request.Path != "/error")
+                {
+                    BrowserResponsePolicyMiddleware.AllowPublicEmbed(context);
+                    context.Response.StatusCode = 404;
+                    return;
+                }
+                context.Response.ContentType = "text/html";
+                await context.Response.WriteAsync("not found");
+            });
+        })).StartAsync();
+        using var response = await host.GetTestClient().GetAsync("/");
+        Assert.Equal(404, (int)response.StatusCode);
+        AssertHeaders(response, false);
+    }
+
     /// <summary>Exact singleton values also reject duplicate proxy/framework policies.</summary>
     internal static void AssertHeaders(HttpResponseMessage response, bool embed)
     {

@@ -121,6 +121,9 @@ else
 }
 await DataProtectionAuthority.ValidateAsync(app.Services);
 
+// Register before health branches, error handlers and static middleware to cover every response.
+app.UseMiddleware<BrowserResponsePolicyMiddleware>();
+
 // Health responses precede redirects/authentication and never expose dependency diagnostics.
 app.Map("/health/live", branch => branch.Run(context => context.Response.WriteAsync("live")));
 app.Map("/health/ready", branch => branch.Run(async context =>
@@ -600,8 +603,6 @@ static void ConfigureServices(WebApplicationBuilder builder)
 static async Task ConfigureMiddleware(WebApplication app)
 {
     // Response compression must be early in the pipeline to compress all subsequent responses
-    // Register before error handlers and static middleware so every response has one browser policy.
-    app.UseMiddleware<BrowserResponsePolicyMiddleware>();
     app.UseResponseCompression();
 
     // CRITICAL: Add this as the FIRST middleware to process forwarded headers from nginx

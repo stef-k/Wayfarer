@@ -1,4 +1,6 @@
 using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
+using Wayfarer.Services;
 using Wayfarer.Models;
 using Wayfarer.Tests.Infrastructure;
 using Wayfarer.Tests.Middleware;
@@ -24,7 +26,11 @@ public sealed class BrowserResponseRouteTests : TestBase
         db.Trips.AddRange(trip, privateTrip);
         db.ApplicationSettings.Add(new ApplicationSettings());
         await db.SaveChangesAsync();
-        await using var app = await IdentityRouteHost.StartAsync(db, CreateTestDirectory());
+        await using var app = await IdentityRouteHost.StartAsync(db, CreateTestDirectory(), services =>
+        {
+            services.AddSingleton<TripThumbnailStorage>();
+            services.AddSingleton<TileCacheStorage>();
+        });
         using var client = app.GetTestClient();
         var cases = new (string Path, int Status, bool Embed)[]
         {
@@ -43,7 +49,7 @@ public sealed class BrowserResponseRouteTests : TestBase
         foreach (var (path, status, embed) in cases)
         {
             using var response = await client.GetAsync(path);
-            Assert.Equal(status, (int)response.StatusCode);
+            Assert.True(status == (int)response.StatusCode, $"{path}: {response.StatusCode} {await response.Content.ReadAsStringAsync()}");
             BrowserResponsePolicyTests.AssertHeaders(response, embed);
         }
     }
