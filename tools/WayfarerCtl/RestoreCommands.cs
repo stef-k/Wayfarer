@@ -174,6 +174,15 @@ public sealed class RestoreCommands(IProcessRunner runner, ITerminal terminal)
                 receipt = receipt with { SecretsFingerprint = fingerprint };
                 receipt.Save(root);
             }
+            if (BackupConfiguration.BundleFingerprint(receipt.Plan.Target) != receipt.Plan.BundleFingerprint)
+                throw new UsageException("Trusted bundle changed during restore.");
+            if (receipt.Phase < RestorePhase.ActivationIntent)
+            {
+                var current = Deployment.Load(root);
+                if (current.Schema == 1) current = current with { Schema = 2, Installation = receipt.Plan.Target.Installation };
+                if (JsonSerializer.Serialize(current) != JsonSerializer.Serialize(receipt.Plan.Target))
+                    throw new UsageException("Installation changed during restore.");
+            }
             if (ProtectedFiles.SecretsFingerprint(root) != receipt.SecretsFingerprint)
                 throw new UsageException("Local credentials changed during restore.");
             if (receipt.Phase == RestorePhase.Authorized)

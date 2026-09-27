@@ -509,7 +509,16 @@ that discards candidate writes require a separate explicit administrative decisi
 `tools/compose/qualify_recovery.py --restore-only` runs the published product operator
 against disposable Linux AMD64 Compose installations. It checks in-place and clean-root
 restore, retained volumes, Uploads/import bytes, synthetic protected provider credentials
-and pre-capture production Identity tokens. The normal selection additionally exercises
-#533 capture/retention/locking and cancellation. No fixture evidence qualifies a real
-NAS, production host, M6 cutover, public stable distribution or whole-system #603 closure.
+and pre-capture production Identity tokens. It also exercises actual SQL failure and
+cancellation, extraction and offline-validation failures, interrupted pointer activation,
+writer acknowledgement loss, forward-only recovery, repeat restore and emergency retention.
+The normal selection additionally exercises #533 capture/retention/locking and cancellation.
+
+`python3 tools/compose/qualify_restore_daemon.py` independently proves the restart-policy
+fence across a real restart of a disposable nested Docker daemon, with a positive restart
+control. It requires privileged fixture containers and local Docker binaries; it has no
+host Docker socket or network, and does not restart the host daemon.
+
+No fixture evidence qualifies a real NAS, production host, M6 cutover, public stable
+distribution or whole-system #603 closure.
 Historical release acquisition, updates, native migration, ARM and #604 remain separate.
