@@ -11,6 +11,8 @@ public sealed class LocationProviderSettingsViewModel
     public string? ActiveRoutingProvider { get; init; }
     public string GeocodingStatus { get; init; } = "No provider selected. Verify a credential, then choose it.";
     public string RoutingStatus { get; init; } = "No provider selected. Verify Geoapify, then choose it.";
+    /// <summary>Existence-only legacy assessment signal; never contains credential material.</summary>
+    public bool HasLegacyMapboxRows { get; init; }
     public LegacyMapboxMigrationState LegacyMigrationState { get; init; }
 }
 

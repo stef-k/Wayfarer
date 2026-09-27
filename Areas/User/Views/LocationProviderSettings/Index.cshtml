@@ -2,8 +2,21 @@
 
 <h1>Personal location providers</h1>
 <p>Credentials are protected and never displayed again or sent to WayfarerMobile. <a href="/docs/#/24-Personal-Location-Providers">Read the credential and usage guide</a>.</p>
-@if (Model.LegacyMigrationState is Wayfarer.Models.LocationProviders.LegacyMapboxMigrationState.Conflict or Wayfarer.Models.LocationProviders.LegacyMapboxMigrationState.ProtectedCredentialUnavailable)
-{ <div class="alert alert-danger">Legacy Mapbox migration needs explicit recovery. No provider contact is authorized and no stored value was removed.</div> }
+@* Migration recovery status does not override capability eligibility or saved selection. *@
+@if (Model.LegacyMigrationState == Wayfarer.Models.LocationProviders.LegacyMapboxMigrationState.Conflict)
+{ <div class="alert alert-danger">Legacy Mapbox migration needs recovery. Conflicting stored values were retained.</div> }
+else if (Model.LegacyMigrationState == Wayfarer.Models.LocationProviders.LegacyMapboxMigrationState.ProtectedCredentialUnavailable)
+{ <div class="alert alert-danger">The protected Mapbox credential cannot currently be read or trusted. Retained legacy recovery copies were not retired.</div> }
+else if (Model.LegacyMigrationState == Wayfarer.Models.LocationProviders.LegacyMapboxMigrationState.Revoked)
+{ <div class="alert alert-warning">Mapbox remains revoked. Migration cannot reactivate it.</div> }
+else if (Model.HasLegacyMapboxRows)
+{ <div class="alert alert-warning">Legacy Mapbox migration pending. Assess and migrate the stored legacy credential explicitly below.</div> }
+@if (Model.HasLegacyMapboxRows)
+{
+    <form asp-action="MigrateLegacyMapbox" method="post" class="mb-3">
+        <button class="btn btn-outline-primary" type="submit">Migrate legacy Mapbox credential</button>
+    </form>
+}
 <div class="alert alert-info">Wayfarer records only its own contacts. Other applications can consume the provider account allowance; use a dedicated Wayfarer key when possible. Multiple keys may still share one provider allowance.</div>
 @if (TempData["ProviderStatus"] is string providerStatus) { <div class="alert alert-info">@providerStatus</div> }
 <div asp-validation-summary="All" class="text-danger"></div>

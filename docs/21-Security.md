@@ -60,7 +60,7 @@ CSRF Protection
 - `PUT /api/Location/{id:int}` preserves cookie-first authority: an authenticated cookie always requires its antiforgery token, regardless of any bearer header. Only a successfully resolved bearer without selected cookie authority proceeds token-free. Inactive/missing cookie accounts do not fall through to bearer.
 - Bearer-only APIs retain their separate credential authority and do not require MVC antiforgery tokens. Read/query POSTs remain token-free where appropriate; no global MVC antiforgery policy is installed.
 - Identity/Razor Pages retain framework automatic antiforgery. Admin Jobs forms rebuilt by SSE copy the authentic page token.
-- Provider-settings navigation can still trigger legacy credential migration. This cookie GET mutation is explicitly tracked in [#679](https://github.com/stef-k/Wayfarer/issues/679); this is not a claim of universal cookie mutation coverage.
+- Provider-settings navigation is read-only. Settings-owned legacy Mapbox migration requires an authenticated User-role, antiforgery-protected POST with ownership derived only from the identity claim (#679). Existing provider-contact/background preparation may still converge legacy state internally under its own authority; see [the migration lifecycle](24-Personal-Location-Providers.md#legacy-mapbox-migration).
 - The unintended unconstrained Trip clone alias was removed; the bearer-only `POST /api/trips/{id}/clone` contract is unchanged.
 
 Rate Limiting

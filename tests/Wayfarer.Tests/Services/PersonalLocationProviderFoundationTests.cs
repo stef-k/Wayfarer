@@ -236,8 +236,11 @@ public sealed class PersonalLocationProviderFoundationTests : TestBase
         Assert.Equal(2, await db.ApiTokens.IgnoreQueryFilters().CountAsync());
     }
 
-    [Fact]
-    public async Task LegacyMigration_MatchingProtectedValueWinsAndEnablesOnlyGeocoding()
+    /// <summary>Matching protected credentials preserve routing while clearing only the established geocoding authority.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task LegacyMigration_MatchingProtectedValuePreservesRoutingAndClearsGeocodingSelection(bool routingAuthorized)
     {
         var db = CreateDbContext();
         var user = TestDataFixtures.CreateUser(id: "matching-user", username: "matching");
@@ -245,7 +248,12 @@ public sealed class PersonalLocationProviderFoundationTests : TestBase
         var owner = Wayfarer.Tests.Infrastructure.CredentialTestFactory.Create(new EphemeralDataProtectionProvider());
         var profile = PersonalLocationProviderProfile.Create(user.Id, PersonalLocationProvider.Mapbox);
         owner.Replace(profile, "matching-key");
-        db.Add(profile);
+        profile.SetAuthorization(PersonalProviderCapability.Routing, routingAuthorized);
+        profile.GrantPermanentGeocodingConsent(DateTimeOffset.UtcNow);
+        owner.RecordVerification(profile, PersonalProviderCapability.Geocoding, PersonalProviderVerification.Verified);
+        var selection = PersonalLocationProviderSelection.Create(user.Id);
+        selection.Select(PersonalProviderCapability.Geocoding, PersonalLocationProvider.Mapbox);
+        db.AddRange(profile, selection);
         db.ApiTokens.Add(new ApiToken
         { Id = 8401, Name = "Mapbox", Token = "matching-key", UserId = user.Id, User = user });
         await db.SaveChangesAsync();
@@ -255,7 +263,10 @@ public sealed class PersonalLocationProviderFoundationTests : TestBase
         Assert.True(result.ProtectedCredentialReady);
         Assert.Equal("matching-key", owner.Read(profile).Credential);
         Assert.True(profile.GeocodingAuthorized);
-        Assert.False(profile.RoutingAuthorized);
+        Assert.Equal(routingAuthorized, profile.RoutingAuthorized);
+        Assert.False(profile.HasCurrentPermanentGeocodingConsent());
+        Assert.Equal(PersonalProviderVerification.Unverified, profile.GeocodingVerification);
+        Assert.Null(selection.GeocodingProviderKey);
         Assert.Empty(await db.ApiTokens.IgnoreQueryFilters().ToListAsync());
     }
 }

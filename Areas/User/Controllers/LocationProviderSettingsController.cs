@@ -20,13 +20,32 @@ public sealed class LocationProviderSettingsController(
     IImportEnrichmentHandoff? enrichmentCommands = null,
     PersonalProviderSetupService? setup = null) : Controller
 {
-    /// <summary>Displays masked provider authority and provider-native usage status.</summary>
+    /// <summary>Displays read-only masked provider authority and pending legacy migration status.</summary>
+    [HttpGet]
     public async Task<IActionResult> Index(CancellationToken cancellationToken)
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (userId == null) return Challenge();
-        await migration.MigrateAsync(userId, cancellationToken);
         return View(await BuildAsync(userId, cancellationToken));
+    }
+
+    /// <summary>Explicitly evaluates legacy migration for the authenticated owner and reports only bounded status.</summary>
+    [HttpPost, ValidateAntiForgeryToken]
+    public async Task<IActionResult> MigrateLegacyMapbox(CancellationToken cancellationToken)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (userId == null) return Challenge();
+        var result = await migration.MigrateAsync(userId, cancellationToken);
+        TempData["ProviderStatus"] = result.State switch
+        {
+            LegacyMapboxMigrationState.Migrated => "Legacy Mapbox credential safely prepared. Existing consent, verification and explicit provider selection requirements still govern Mapbox use.",
+            LegacyMapboxMigrationState.None => "No legacy Mapbox credential currently requires conversion.",
+            LegacyMapboxMigrationState.Conflict => "Legacy Mapbox migration needs recovery. Conflicting stored recovery copies were retained.",
+            LegacyMapboxMigrationState.ProtectedCredentialUnavailable => "The protected Mapbox credential cannot currently be read or trusted. Legacy recovery copies were retained.",
+            LegacyMapboxMigrationState.Revoked => "Mapbox remains revoked. Migration did not reactivate it; legacy recovery copies were retained.",
+            _ => throw new InvalidOperationException("Unrecognized legacy migration outcome.")
+        };
+        return RedirectToAction(nameof(Index));
     }
 
     /// <summary>Replaces a credential only when nonblank and changes explicit capability selections independently.</summary>
@@ -194,6 +213,7 @@ public sealed class LocationProviderSettingsController(
         var activeRouting = selection?.RoutingProviderKey;
         return new()
         {
+            HasLegacyMapboxRows = await migration.HasLegacyRowsAsync(userId, cancellationToken),
             Profiles = views, ActiveGeocodingProvider = activeGeocoding,
             ActiveRoutingProvider = activeRouting,
             GeocodingStatus = SelectionStatus(activeGeocoding, views, PersonalProviderCapability.Geocoding),

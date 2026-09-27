@@ -38,6 +38,7 @@ public sealed class AntiforgeryDescriptorTests : TestBase
         User.LocationImport.CancelEnrichment User.LocationImport.RetryDeferredEnrichment
         User.LocationImport.RepairIncompleteAddresses User.LocationImport.StartImport User.LocationImport.StopImport
         User.LocationImport.Delete User.LocationImport.Upload
+        User.LocationProviderSettings.MigrateLegacyMapbox
         User.LocationProviderSettings.SaveProfile User.LocationProviderSettings.SaveCredential
         User.LocationProviderSettings.ChooseProvider User.LocationProviderSettings.ConsentMapboxPermanent
         User.LocationProviderSettings.VerifyMapboxPermanent User.LocationProviderSettings.VerifyGeoapify
@@ -107,7 +108,7 @@ public sealed class AntiforgeryDescriptorTests : TestBase
         Assert.Equal("api/Location/{id:int}", mixed.AttributeRouteInfo!.Template);
         Assert.DoesNotContain(mixed.FilterDescriptors, filter => filter.Filter is IgnoreAntiforgeryTokenAttribute
             or ValidateAntiForgeryTokenAttribute or AutoValidateAntiforgeryTokenAttribute);
-        // Deliberate query exceptions; provider settings Index remains separately tracked GET migration debt.
+        // Deliberate read-only queries, including provider settings navigation.
         foreach (var key in (QueryActions + " User.LocationProviderSettings.Index")
                      .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries))
         {
@@ -115,6 +116,28 @@ public sealed class AntiforgeryDescriptorTests : TestBase
             Assert.NotEmpty(matches);
             Assert.All(matches, NoValidation);
         }
+    }
+
+    /// <summary>Conventional settings routes separate User-authorized GET navigation from the protected command.</summary>
+    [Fact]
+    public async Task ProviderSettings_SeparatesReadAndCommandDescriptors()
+    {
+        await using var app = await IdentityRouteHost.StartAsync(CreateDbContext(), CreateTestDirectory());
+        var all = app.Services.GetRequiredService<IActionDescriptorCollectionProvider>().ActionDescriptors.Items
+            .OfType<ControllerActionDescriptor>().ToArray();
+        var index = Assert.Single(all, action => Key(action) == "User.LocationProviderSettings.Index");
+        var command = Assert.Single(all, action => Key(action) == "User.LocationProviderSettings.MigrateLegacyMapbox");
+        Assert.Equal(["GET"], Methods(index));
+        Assert.Equal(["POST"], Methods(command));
+        foreach (var action in new[] { index, command })
+        {
+            Assert.Null(action.AttributeRouteInfo);
+            Assert.Contains(action.EndpointMetadata.OfType<Microsoft.AspNetCore.Authorization.IAuthorizeData>(),
+                metadata => metadata.Roles == "User");
+            Assert.DoesNotContain(action.EndpointMetadata, metadata => metadata is Microsoft.AspNetCore.Authorization.IAllowAnonymous);
+        }
+        Assert.Single(command.Parameters);
+        Assert.Equal(typeof(CancellationToken), command.Parameters[0].ParameterType);
     }
 
     /// <summary>The intended mobile clone POST survives while the accidental unconstrained alias disappears.</summary>
