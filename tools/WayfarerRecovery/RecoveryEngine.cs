@@ -46,6 +46,13 @@ public sealed class RecoveryEngine(WorkerConfiguration config)
             var result = await ArchiveVerifier.VerifyAsync(local, name, verification.Path, config.Source, config.Installation, deadline.Token);
             if (!result.CompatibilitySupported) throw new IOException("Captured source compatibility failed.");
         }
+        if (HostRecoveryOperation.RequiresHold(hostOperation))
+        {
+            using var hold = destination.Write(name + ".restore-hold");
+            hold.Write(System.Text.Encoding.UTF8.GetBytes(manifest.Archive.ToString("D") + "\n"));
+            hold.Flush(true);
+            destination.Flush();
+        }
         await PublishAsync(destination, staging.Path, name, deadline.Token);
         PublicationCommitted?.Invoke();
         var retained = await CompleteRetentionAsync(destination, deadline.Token);
@@ -91,7 +98,7 @@ public sealed class RecoveryEngine(WorkerConfiguration config)
             }
             catch (Exception error) when (error is IOException or JsonException or ArgumentException) { /* Incomplete/unowned pairs are ignored. */ }
         }
-        return results.OrderByDescending(value => value.Completed).ToArray();
+        return results.OrderByDescending(value => value.Completed).ThenByDescending(value => ArchiveContract.Name(value.Installation, value.Completed, value.Archive), StringComparer.Ordinal).ToArray();
     }
 
     /// <summary>Publication stays valid when retention fails; both capture and reconciliation report the same outcome.</summary>
@@ -168,7 +175,9 @@ public sealed class RecoveryEngine(WorkerConfiguration config)
             }
             catch (Exception error) when (error is IOException or JsonException or System.Security.Cryptography.CryptographicException) { }
         }
-        foreach (var name in valid.Skip(config.Retention))
+        var held = destination.Names(4096).Where(name => name.EndsWith(".restore-hold", StringComparison.Ordinal))
+            .Select(name => name[..^13]).ToHashSet(StringComparer.Ordinal);
+        foreach (var name in valid.Where(name => !held.Contains(name)).Skip(config.Retention))
         {
             using var current = config.OpenDestination();
             // Remove the commit marker first; interrupted deletion never leaves a false complete set.

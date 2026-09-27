@@ -169,7 +169,7 @@ public sealed class Setup(IProcessRunner runner, ITerminal terminal)
         if ((await runner.RunAsync(command, input, token)).Code != 0) throw new IOException("Setup step failed.");
     }
 
-    private Deployment ReadChoices(Dictionary<string, string> options)
+    internal Deployment ReadChoices(Dictionary<string, string> options)
     {
         string Choice(string key, string prompt, string? fallback = null)
         {

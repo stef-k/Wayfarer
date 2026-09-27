@@ -160,7 +160,7 @@ public sealed class BackupConfiguration(IProcessRunner runner)
     }
 
     /// <summary>Provision the stable local lock once; existing ownership must match exactly.</summary>
-    private static void ProvisionControl(string root, bool bootstrap)
+    internal static void ProvisionControl(string root, bool bootstrap)
     {
         var directory = Path.Combine(root, "recovery-control");
         if (!Directory.Exists(directory)) Directory.CreateDirectory(directory, ProtectedFiles.PrivateDirectory);

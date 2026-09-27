@@ -43,6 +43,7 @@ public sealed class Cli(IProcessRunner runner, ITerminal terminal)
         ValidateCommand(args);
         Preflight.Platform();
         ProtectedFiles.RequireRoot();
+        if (args[0] == "restore") return await new RestoreCommands(runner, terminal).RunAsync(root, args[1..], token);
         if (args[0] == "setup") return await new Setup(runner, terminal).RunAsync(root, args[1..], token);
         var config = Deployment.Load(root);
         if (args[0] is "status" or "doctor")
@@ -68,6 +69,7 @@ public sealed class Cli(IProcessRunner runner, ITerminal terminal)
     /// <summary>Validate all direct argument forms before touching deployment state.</summary>
     public static void ValidateCommand(string[] args)
     {
+        if (args is ["restore", ..]) { RestoreOptions.Parse(args[1..]); return; }
         if (args is ["backup", "configure", ..]) { BackupConfiguration.Options(args[2..]); return; }
         if (args is ["backup"] or ["backup", "--quiesced"] or ["backups"] or ["verify-backup"]) return;
         if (args is ["verify-backup", var archive] && archive.Length < 256 && archive.StartsWith("wayfarer-recovery-v1_") &&

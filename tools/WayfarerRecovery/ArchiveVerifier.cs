@@ -97,8 +97,8 @@ public static class ArchiveVerifier
             throw new IOException("Internal checksums disagree.");
     }
 
-    /// <summary>Validate bounded USTAR regular files/directories; optional extraction is only to a task-owned ring copy.</summary>
-    private static void ValidateDirectory(string path, string? extract, CancellationToken token)
+    /// <summary>Validate bounded USTAR regular files/directories; optional extraction is only to an empty task-owned unprivileged target.</summary>
+    public static void ValidateDirectory(string path, string? extract, CancellationToken token)
     {
         using var file = File.OpenRead(path);
         using var gzip = new GZipStream(file, CompressionMode.Decompress);
@@ -119,7 +119,7 @@ public static class ArchiveVerifier
             if (entry.EntryType == TarEntryType.Directory)
             {
                 if (entry.Length != 0) throw new IOException("Directory carries data.");
-                if (extract is not null) Directory.CreateDirectory(Path.Combine(extract, name));
+                if (extract is not null) Directory.CreateDirectory(Path.Combine(extract, name), UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
                 continue;
             }
             if (entry.DataStream is null && entry.Length != 0) throw new IOException("File data missing.");
@@ -142,7 +142,7 @@ public static class ArchiveVerifier
     private static Stream ExtractFile(string root, string name)
     {
         var path = Path.Combine(root, name);
-        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
         return new FileStream(path, new FileStreamOptions
         { Mode = FileMode.CreateNew, Access = FileAccess.Write, UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite });
     }
