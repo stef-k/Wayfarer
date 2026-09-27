@@ -16,35 +16,65 @@ public static class BackupCompose
         return config.Compose(root, ["-f", Path.Combine(DirectoryPath(root, policy), "compose.json"), "--profile", "backup", .. arguments]);
     }
 
-    /// <summary>One security envelope for manual and socket-free scheduled execution in the exact DB image.</summary>
+    /// <summary>Select the least authority needed by the fixed private worker operation.</summary>
+    public static string ServiceFor(string operation) => operation switch
+    {
+        "backup" => "backup-worker",
+        "backups" or "verify" => "backup-reader",
+        "destination-check" => "backup-destination-check",
+        _ => throw new UsageException("Unsupported recovery operation.")
+    };
+
+    /// <summary>Capture alone receives source/DB authority; offline parsing has a read-only destination and no network.</summary>
     public static string Render(string root, Deployment config)
     {
         var policy = config.Backup ?? throw new UsageException("Backup is not configured.");
         var generation = DirectoryPath(root, policy);
+        var control = Path.Combine(root, "recovery-control");
         object Bind(string source, string target, bool readOnly, string propagation = "rprivate") => new
         { type = "bind", source, target, read_only = readOnly, bind = new { create_host_path = false, propagation } };
-        var mounts = new object[]
+        object Service(string operation)
         {
-            Bind(policy.Payload, "/worker/wayfarer-recovery", true),
-            Bind(Path.Combine(generation, "worker.json"), "/config/worker.json", true),
-            Bind(Path.Combine(root, "recovery-control"), "/control", false),
-            new { type = "volume", source = "app-data", target = "/source", read_only = true, volume = new { nocopy = true } },
-            policy.Kind == "local" ? Bind(policy.Destination, "/destination/slot", false) :
-                Bind(Path.GetDirectoryName(policy.Destination)!, "/destination", false, "rslave")
-        };
-        object Service(bool scheduler) => new
-        {
-            image = "ghcr.io/stef-k/wayfarer-db@" + config.DbDigest, platform = "linux/amd64",
-            profiles = new[] { "backup" }, user = "1654:1654", read_only = true, init = true,
-            cap_drop = new[] { "ALL" }, security_opt = new[] { "no-new-privileges:true" },
-            entrypoint = new[] { "/worker/wayfarer-recovery" }, command = new[] { scheduler ? "schedule" : "backup" },
-            restart = scheduler ? "unless-stopped" : "no", stop_grace_period = "30s",
-            cpus = 1, mem_limit = "512m", pids_limit = 64,
-            tmpfs = new[] { "/tmp:uid=1654,gid=1654,mode=0700,size=2147483648" },
-            networks = new[] { "backend" }, secrets = new[] { "app-password" }, volumes = mounts
-        };
+            var scheduler = operation == "schedule";
+            var capture = scheduler || operation == "backup";
+            var probe = operation == "destination-check";
+            var mounts = new List<object>
+            {
+                Bind(policy.Payload, "/worker/wayfarer-recovery", true),
+                Bind(Path.Combine(generation, "worker.json"), "/config/worker.json", true),
+                policy.Kind == "local" ? Bind(policy.Destination, "/destination/slot", !capture && !probe) :
+                    Bind(Path.GetDirectoryName(policy.Destination)!, "/destination", !capture && !probe, "rslave")
+            };
+            if (!probe)
+            {
+                mounts.Add(Bind(control, "/control", true));
+                mounts.Add(Bind(Path.Combine(control, "recovery.lock"), "/control/recovery.lock", false));
+            }
+            if (scheduler) mounts.Add(Bind(Path.Combine(control, "state"), "/control/state", false));
+            if (capture) mounts.Add(new { type = "volume", source = "app-data", target = "/source", read_only = true, volume = new { nocopy = true } });
+            var service = new Dictionary<string, object>
+            {
+                ["image"] = "ghcr.io/stef-k/wayfarer-db@" + config.DbDigest, ["platform"] = "linux/amd64",
+                ["profiles"] = new[] { "backup" }, ["user"] = "1654:1654", ["read_only"] = true, ["init"] = true,
+                ["cap_drop"] = new[] { "ALL" }, ["security_opt"] = new[] { "no-new-privileges:true" },
+                ["entrypoint"] = new[] { "/worker/wayfarer-recovery" }, ["command"] = new[] { operation },
+                ["restart"] = scheduler ? "unless-stopped" : "no", ["stop_grace_period"] = "30s",
+                ["cpus"] = 1, ["mem_limit"] = "512m", ["pids_limit"] = 64,
+                ["tmpfs"] = new[] { "/tmp:uid=1654,gid=1654,mode=0700,size=2147483648" }, ["volumes"] = mounts
+            };
+            if (capture)
+            {
+                service["networks"] = new[] { "backend" };
+                service["secrets"] = new[] { "app-password" };
+            }
+            else service["network_mode"] = "none";
+            return service;
+        }
         return JsonSerializer.Serialize(new { services = new Dictionary<string, object>
-        { ["backup-worker"] = Service(false), ["backup-scheduler"] = Service(true) } });
+        {
+            ["backup-worker"] = Service("backup"), ["backup-scheduler"] = Service("schedule"),
+            ["backup-reader"] = Service("backups"), ["backup-destination-check"] = Service("destination-check")
+        } });
     }
 
     /// <summary>Check every derived byte against installation authority before executing a maintenance service.</summary>

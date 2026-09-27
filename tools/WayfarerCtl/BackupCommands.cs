@@ -34,7 +34,7 @@ public sealed class BackupCommands(IProcessRunner runner, ITerminal terminal)
                 await Required(config.Compose(root, "stop", "--timeout", "70", "wayfarer"), token);
                 await AssertNoWriters(config, token);
             }
-            ProtectedFiles.Create(Path.Combine(control, "host-operation.json"), JsonSerializer.Serialize(new HostRecoveryOperation(1, reservation, container, quiesced)), 1654);
+            ProtectedFiles.Create(Path.Combine(control, "host-operation.json"), JsonSerializer.Serialize(new HostRecoveryOperation(1, reservation, container, quiesced)), 0, 1654);
         }
         var stopped = false;
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);
@@ -43,7 +43,7 @@ public sealed class BackupCommands(IProcessRunner runner, ITerminal terminal)
         {
             var workerArgs = new List<string> { operation, "--host-operation", reservation };
             if (operation == "verify" && args.Length == 2) workerArgs.Add(args[1]);
-            await Required(BackupCompose.Command(root, config, ["run", "-d", "--no-deps", "--name", container, "backup-worker", .. workerArgs]), deadline.Token);
+            await Required(BackupCompose.Command(root, config, ["run", "-d", "--no-deps", "--name", container, BackupCompose.ServiceFor(operation), .. workerArgs]), deadline.Token);
             var wait = await runner.RunAsync(["wait", container], null, deadline.Token);
             if (wait.Code != 0 || !int.TryParse(wait.Output.Trim(), out var code)) throw new IOException("Worker state unknown.");
             stopped = true;

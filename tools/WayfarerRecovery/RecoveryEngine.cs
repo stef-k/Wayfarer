@@ -8,6 +8,9 @@ namespace WayfarerRecovery;
 /// <summary>One recovery-set owner for manual/scheduled capture, verification, publication and retention.</summary>
 public sealed class RecoveryEngine(WorkerConfiguration config)
 {
+    /// <summary>Qualification-only crash gate after durable publication and before retention; never configured by worker input.</summary>
+    internal Action? PublicationCommitted { get; init; }
+
     /// <summary>Produce one online set while holding the installation-local recovery exclusion.</summary>
     public async Task<BackupResult> BackupAsync(DateTimeOffset? slot, CancellationToken token, string? hostOperation = null)
     {
@@ -23,6 +26,7 @@ public sealed class RecoveryEngine(WorkerConfiguration config)
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);
         deadline.CancelAfter(TimeSpan.FromSeconds(config.DeadlineSeconds));
         using var destination = config.OpenDestination();
+        CleanupStale(destination, DateTimeOffset.UtcNow, deadline.Token);
         using var staging = new RecoveryTaskDirectory();
         var started = DateTimeOffset.UtcNow;
         var database = await DatabaseCapture.CaptureAsync(staging.Path, "/run/secrets/app-password", config.Source, deadline.Token);
@@ -43,9 +47,8 @@ public sealed class RecoveryEngine(WorkerConfiguration config)
             if (!result.CompatibilitySupported) throw new IOException("Captured source compatibility failed.");
         }
         await PublishAsync(destination, staging.Path, name, deadline.Token);
-        var retained = true;
-        try { await RetainAsync(destination, deadline.Token); }
-        catch (Exception error) when (error is IOException or OperationCanceledException or UnauthorizedAccessException) { retained = false; }
+        PublicationCommitted?.Invoke();
+        var retained = await CompleteRetentionAsync(destination, deadline.Token);
         return new BackupResult(1, manifest.Archive, name, manifest.Completed, retained);
     }
 
@@ -89,6 +92,65 @@ public sealed class RecoveryEngine(WorkerConfiguration config)
             catch (Exception error) when (error is IOException or JsonException or ArgumentException) { /* Incomplete/unowned pairs are ignored. */ }
         }
         return results.OrderByDescending(value => value.Completed).ToArray();
+    }
+
+    /// <summary>Publication stays valid when retention fails; both capture and reconciliation report the same outcome.</summary>
+    internal async Task<bool> CompleteRetentionAsync(SafeDirectory destination, CancellationToken token)
+    {
+        try { await RetainAsync(destination, token); return true; }
+        catch (Exception error) when (error is IOException or OperationCanceledException or UnauthorizedAccessException) { return false; }
+    }
+
+    /// <summary>Under recovery exclusion, reclaim day-old private residue in this installation's exact publication namespace.</summary>
+    internal void CleanupStale(SafeDirectory destination, DateTimeOffset now, CancellationToken token)
+    {
+        var names = destination.Names(4096).ToHashSet(StringComparer.Ordinal);
+        var pattern = "^wayfarer-recovery-v1_" + config.Installation.ToString("D") +
+            @"_([0-9]{8}T[0-9]{13}Z)_([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})\.tar(\.sha256)?(\.partial-[a-f0-9]{32})?$";
+        foreach (var name in names)
+        {
+            token.ThrowIfCancellationRequested();
+            var match = System.Text.RegularExpressions.Regex.Match(name, pattern);
+            if (!match.Success || !DateTimeOffset.TryParseExact(match.Groups[1].Value, "yyyyMMdd'T'HHmmssfffffff'Z'",
+                    System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.AssumeUniversal, out var completed) ||
+                !Guid.TryParseExact(match.Groups[2].Value, "D", out var archive) || archive == Guid.Empty) continue;
+            var canonical = ArchiveContract.Name(config.Installation, completed, archive);
+            var partial = match.Groups[4].Success;
+            var sidecar = match.Groups[3].Success;
+            if (!partial && names.Contains(sidecar ? canonical : canonical + ".sha256")) continue;
+            SafeDirectory.Facts facts;
+            try
+            {
+                using var file = destination.Read(name);
+                facts = SafeDirectory.Inspect(file.SafeFileHandle);
+                if (facts.User != 1654 || facts.Group != 1654 || (facts.Mode & 0x1ff) != 0x180 ||
+                    facts.ModifiedSeconds > now.AddDays(-1).ToUnixTimeSeconds()) continue;
+                // A final orphan must additionally carry its exact manifest/sidecar identity. Partials can be truncated anywhere.
+                if (!partial && sidecar)
+                {
+                    if (file.Length > 512) continue;
+                    var checksum = new StreamReader(file, leaveOpen: true).ReadToEnd();
+                    if (checksum.Length != 64 + 2 + canonical.Length + 1 || checksum[64..] != "  " + canonical + "\n" ||
+                        !checksum[..64].All(c => c is >= '0' and <= '9' or >= 'a' and <= 'f')) continue;
+                }
+                else if (!partial)
+                {
+                    using var tar = new TarReader(file, leaveOpen: true);
+                    var entry = tar.GetNextEntry();
+                    if (entry?.Name != "manifest.json" || entry.Format != TarEntryFormat.Ustar ||
+                        entry.EntryType != TarEntryType.RegularFile || entry.Length > ArchiveContract.ManifestLimit || entry.DataStream is null) continue;
+                    var manifest = ArchiveContract.ReadManifest(entry.DataStream);
+                    ArchiveContract.Validate(manifest);
+                    if (manifest.Installation != config.Installation || canonical != ArchiveContract.Name(manifest.Installation, manifest.Completed, manifest.Archive)) continue;
+                }
+            }
+            catch (Exception error) when (error is IOException or JsonException or ArgumentException)
+            { continue; } // Invalid, linked, truncated or foreign entries are never deletion authority.
+            using var current = config.OpenDestination();
+            using var candidate = current.Read(name);
+            if (!facts.Equals(SafeDirectory.Inspect(candidate.SafeFileHandle))) throw new IOException("Residue changed during cleanup.");
+            current.Delete(name);
+        }
     }
 
     /// <summary>Only verified complete sets from this installation become retention candidates.</summary>

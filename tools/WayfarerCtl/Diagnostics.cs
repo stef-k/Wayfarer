@@ -68,7 +68,7 @@ public sealed class Diagnostics(IProcessRunner runner, ITerminal terminal)
             });
             await Check("Backup operational receipt", () =>
             {
-                var path = Path.Combine(root, "recovery-control/scheduler.json");
+                var path = Path.Combine(root, "recovery-control/state/scheduler.json");
                 if (!File.Exists(path)) { terminal.Write("Backup scheduler: no attempt receipt yet."); return Task.CompletedTask; }
                 if (new FileInfo(path).Length > 4096) throw new IOException();
                 var receipt = JsonSerializer.Deserialize<WayfarerRecovery.SchedulerReceipt>(File.ReadAllText(path), WayfarerRecovery.ArchiveContract.Json) ?? throw new IOException();

@@ -7,6 +7,42 @@ namespace Wayfarer.Tests.Services;
 [System.Runtime.Versioning.SupportedOSPlatform("linux")]
 public sealed class WayfarerCtlTests
 {
+    /// <summary>Offline parsing cannot inherit DB credentials/network, source access or destination write authority.</summary>
+    [Theory]
+    [InlineData("local")]
+    [InlineData("mounted")]
+    public void RecoveryComposeRestrictsAuthorityByOperation(string kind)
+    {
+        var config = new Deployment { Backup = new BackupPolicy
+        { Kind = kind, Destination = "/backups/slot", Payload = "/release/worker" } };
+        using var document = System.Text.Json.JsonDocument.Parse(BackupCompose.Render("/etc/wayfarer", config));
+        var services = document.RootElement.GetProperty("services");
+        Assert.Equal("backup-reader", BackupCompose.ServiceFor("backups"));
+        Assert.Equal("backup-reader", BackupCompose.ServiceFor("verify"));
+        foreach (var operation in new[] { "backups", "destination-check" })
+        {
+            var service = services.GetProperty(BackupCompose.ServiceFor(operation));
+            Assert.Equal("none", service.GetProperty("network_mode").GetString());
+            Assert.False(service.TryGetProperty("networks", out _));
+            Assert.False(service.TryGetProperty("secrets", out _));
+            var mounts = service.GetProperty("volumes").EnumerateArray().ToArray();
+            Assert.DoesNotContain(mounts, mount => mount.GetProperty("target").GetString() == "/source");
+            var destination = mounts.Single(mount => mount.GetProperty("target").GetString()!.StartsWith("/destination"));
+            Assert.Equal(operation == "backups", destination.GetProperty("read_only").GetBoolean());
+            if (operation == "backups")
+            {
+                Assert.True(mounts.Single(m => m.GetProperty("target").GetString() == "/control").GetProperty("read_only").GetBoolean());
+                Assert.Single(mounts.Where(m => !m.GetProperty("read_only").GetBoolean()));
+            }
+            else Assert.DoesNotContain(mounts, m => m.GetProperty("target").GetString()!.StartsWith("/control"));
+        }
+        var scheduler = services.GetProperty("backup-scheduler");
+        Assert.Equal("backend", scheduler.GetProperty("networks")[0].GetString());
+        Assert.Equal("app-password", scheduler.GetProperty("secrets")[0].GetString());
+        Assert.Contains(scheduler.GetProperty("volumes").EnumerateArray(), m =>
+            m.GetProperty("target").GetString() == "/control/state" && !m.GetProperty("read_only").GetBoolean());
+    }
+
     /// <summary>Backup opt-in requires a stable schema2 identity; schema1 remains readable without policy.</summary>
     [Fact]
     public void InstallationSchemaRequiresExplicitBackupIdentity()

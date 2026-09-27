@@ -165,16 +165,31 @@ public sealed class BackupConfiguration(IProcessRunner runner)
         if (!Directory.Exists(directory)) Directory.CreateDirectory(directory, ProtectedFiles.PrivateDirectory);
         using var control = new SafeDirectory(directory);
         control.RequireLocalControl();
-        // A crash before initial ownership/lock creation is recoverable only while no backup policy exists.
-        if (bootstrap && control.Names().Length == 0 && control.Identity.User == 0)
-        {
-            ProtectedFiles.Check(directory, 0, directory: true);
-            if (chown(directory, 1654, 1654) != 0) throw new IOException("Cannot provision recovery control.");
-        }
-        ProtectedFiles.Check(directory, 1654, directory: true);
+        // Bootstrap may resume after individual creates, but never repairs an existing unsafe lock or parent.
+        if (bootstrap && control.Identity.User == 0 && (control.Identity.Mode & 0x1ff) == 0x1c0)
+            File.SetUnixFileMode(directory, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute |
+                UnixFileMode.GroupRead | UnixFileMode.GroupExecute | UnixFileMode.OtherRead | UnixFileMode.OtherExecute);
+        if (control.Identity.User != 0 || control.Identity.Group != 0 || (control.Identity.Mode & 0x1ff) != 0x1ed)
+            throw new IOException("Recovery control parent must be root-owned mode 0755.");
         var lockPath = Path.Combine(directory, "recovery.lock");
-        if (bootstrap && control.Names().Length == 0) ProtectedFiles.Create(lockPath, "", 1654);
-        ProtectedFiles.Check(lockPath, 1654);
+        if (bootstrap && !Path.Exists(lockPath))
+        {
+            ProtectedFiles.Create(lockPath, "", 0, 1654);
+            File.SetUnixFileMode(lockPath, ProtectedFiles.PrivateFile | UnixFileMode.GroupRead | UnixFileMode.GroupWrite);
+        }
+        using (var file = control.Read("recovery.lock"))
+        {
+            var facts = SafeDirectory.Inspect(file.SafeFileHandle);
+            if (facts.User != 0 || facts.Group != 1654 || (facts.Mode & 0x1ff) != 0x1b0)
+                throw new IOException("Unsafe recovery lock ownership.");
+        }
+        var state = Path.Combine(directory, "state");
+        if (bootstrap && !Path.Exists(state))
+        {
+            Directory.CreateDirectory(state, ProtectedFiles.PrivateDirectory);
+            if (chown(state, 1654, 1654) != 0) throw new IOException("Cannot provision scheduler state.");
+        }
+        ProtectedFiles.Check(state, 1654, directory: true);
         control.Flush();
     }
 
@@ -193,7 +208,7 @@ public sealed class BackupConfiguration(IProcessRunner runner)
         Exception? primary = null;
         try
         {
-            await Required(BackupCompose.Command(root, config, "run", "-d", "--no-deps", "--name", name, "backup-worker", "destination-check"), token);
+            await Required(BackupCompose.Command(root, config, "run", "-d", "--no-deps", "--name", name, BackupCompose.ServiceFor("destination-check"), "destination-check"), token);
             var result = await runner.RunAsync(["wait", name], null, token);
             if (result.Code != 0 || result.Output.Trim() != "0") throw new UsageException("Destination write/flush/rename/read/delete capability failed.");
         }

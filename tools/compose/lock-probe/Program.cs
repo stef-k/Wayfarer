@@ -4,6 +4,22 @@ using WayfarerRecovery;
 // Qualify the actual shipped primitive/range, independently of database availability.
 try
 {
+    if (args is ["scheduler-tick" or "scheduler-crash", var timestamp])
+    {
+        var scheduler = new RecoveryScheduler(WorkerConfiguration.Load("/config/worker.json"))
+        {
+            // Terminate after actual durable publication, before any retention or success receipt.
+            PublicationCommitted = args[0] == "scheduler-crash" ? () => Environment.Exit(137) : null
+        };
+        await scheduler.TickAsync(DateTimeOffset.Parse(timestamp, System.Globalization.CultureInfo.InvariantCulture), CancellationToken.None);
+        return 0;
+    }
+    if (args is ["capture-slot", var slot])
+    {
+        await new RecoveryEngine(WorkerConfiguration.Load("/config/worker.json"))
+            .BackupAsync(DateTimeOffset.Parse(slot, System.Globalization.CultureInfo.InvariantCulture), CancellationToken.None);
+        return 0;
+    }
     using var exclusion = new RecoveryLock(args.Single());
     Console.WriteLine("acquired");
     Console.Out.Flush();

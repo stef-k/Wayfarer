@@ -11,6 +11,8 @@ import subprocess
 from pathlib import Path
 import shutil
 import tempfile
+import uuid
+from datetime import datetime, timedelta
 from qualify_ctl import Journey, run, HOST
 from qualify import Stack
 
@@ -49,12 +51,12 @@ class RecoveryJourney(Journey):
         self.host('mkdir', '-m', '700', str(self.install / 'recovery-control'))
         print('PASS completed source application setup', flush=True)
         result = self.ctl('backup', 'configure', '--destination', str(self.directory / 'destination'),
-                         '--payload', str(self.payload / 'wayfarer-recovery'))
+                         '--payload', str(self.payload / 'wayfarer-recovery'), '--retention', '1')
         print(result.stdout, flush=True)
         # Wait on the committed scheduler receipt, not an assumed capture duration.
         deadline = time.monotonic() + 90
         while True:
-            receipt = self.host('cat', str(self.install / 'recovery-control/scheduler.json'), check=False)
+            receipt = self.host('cat', str(self.install / 'recovery-control/state/scheduler.json'), check=False)
             if receipt.returncode == 0 and json.loads(receipt.stdout)['Succeeded']:
                 break
             if time.monotonic() > deadline:
@@ -65,23 +67,12 @@ class RecoveryJourney(Journey):
         scheduler_args = ['docker', 'compose', '--project-name', self.project, '--project-directory', str(self.bundle),
                           '--env-file', str(self.install / 'deployment.env'), '-f', str(self.bundle / 'compose.yaml'),
                           '-f', str(self.bundle / 'external.yaml'), '-f', str(self.install / 'recovery-generations' / generation / 'compose.json'), '--profile', 'backup']
-        before = self.host('cat', str(self.install / 'recovery-control/scheduler.json')).stdout
+        before = self.host('cat', str(self.install / 'recovery-control/state/scheduler.json')).stdout
         self.host(*scheduler_args, 'up', '-d', '--no-deps', '--force-recreate', 'backup-scheduler')
-        assert self.host('cat', str(self.install / 'recovery-control/scheduler.json')).stdout == before
-        # Simulate publication followed by death before the final attempt's receipt commit.
+        assert self.host('cat', str(self.install / 'recovery-control/state/scheduler.json')).stdout == before
         self.host(*scheduler_args, 'stop', 'backup-scheduler')
-        interrupted = json.loads(before)
-        interrupted.update(Attempts=3, Succeeded=False, Failure='interrupted', NextRetry='2099-01-01T00:00:00+00:00')
-        self.host('tee', str(self.install / 'recovery-control/scheduler.json'), data=json.dumps(interrupted))
-        self.host(*scheduler_args, 'up', '-d', '--no-deps', 'backup-scheduler')
-        deadline = time.monotonic() + 90
-        while True:
-            reconciled = json.loads(self.host('cat', str(self.install / 'recovery-control/scheduler.json')).stdout)
-            if reconciled['Succeeded']: break
-            if time.monotonic() > deadline: raise RuntimeError('exhausted published slot did not reconcile')
-            time.sleep(0.1)
-        assert reconciled['Attempts'] == 3 and reconciled['LastArchive'] == interrupted['LastArchive']
-        print('PASS published final attempt reconciled without retry-budget reset or duplicate capture', flush=True)
+        self.scheduler_reconciliation(scheduler_args, json.loads(before))
+        self.restricted_authority(scheduler_args)
         # Host lock owner is a self-contained process with no database or Docker access.
         owner = self.project + '-lock-owner'
         run('docker', 'run', '-di', '--name', owner, '--network', 'none', '--label', 'com.docker.compose.project=' + self.project,
@@ -91,11 +82,12 @@ class RecoveryJourney(Journey):
         while 'acquired' not in run('docker', 'logs', owner).stdout:
             if time.monotonic() > deadline: raise RuntimeError('lock probe did not acquire')
             time.sleep(0.1)
+        self.lock_ownership()
         assert self.ctl('backup', check=False).returncode == 1
         assert self.ctl('stop', check=False).returncode == 1
-        assert self.host(*scheduler_args, 'run', '--rm', '--no-deps', '-T', 'backup-worker', 'backups', check=False).returncode == 1
+        assert self.host(*scheduler_args, 'run', '--rm', '--no-deps', '-T', 'backup-reader', 'backups', check=False).returncode == 1
         duplicate = self.project + '-duplicate-scheduler'
-        self.host(*scheduler_args, 'run', '-d', '--no-deps', '--name', duplicate, 'backup-worker', 'schedule')
+        self.host(*scheduler_args, 'run', '-d', '--no-deps', '--name', duplicate, 'backup-scheduler', 'schedule')
         deadline = time.monotonic() + 10
         while 'deferred' not in (run('docker', 'logs', duplicate).stdout + run('docker', 'logs', duplicate).stderr):
             if time.monotonic() > deadline: raise RuntimeError('duplicate scheduler did not defer to recovery exclusion')
@@ -104,6 +96,7 @@ class RecoveryJourney(Journey):
         run('docker', 'rm', duplicate)
         run('docker', 'kill', owner)
         print('PASS host lock contention and owner-death release; scheduler recreation retained receipt', flush=True)
+        self.stale_residue()
         print(self.ctl('backup').stdout, flush=True)
         print(self.ctl('backups').stdout, flush=True)
         print(self.ctl('verify-backup').stdout, flush=True)
@@ -125,6 +118,120 @@ class RecoveryJourney(Journey):
         assert self.snapshot() == source_before
         print('PASS complete clean Compose reconstruction; source state unchanged', flush=True)
         self.mounted_destination()
+
+    def restricted_authority(self, compose):
+        """Inspect actual offline services and exercise their negative filesystem authority as UID1654."""
+        for service in ['backup-reader', 'backup-destination-check']:
+            name = self.project + '-' + service
+            script = 'test ! -e /source; test ! -e /run/secrets/app-password; '
+            if service == 'backup-reader':
+                script += ('test ! -w /control; test ! -w /control/state; '
+                           'test -w /control/recovery.lock; test ! -w /destination/slot; '
+                           '! touch /destination/slot/forbidden; ! touch /control/host-operation.json')
+            else:
+                script += 'test ! -e /control; test -w /destination/slot'
+            self.host(*compose, 'run', '-d', '--no-deps', '--name', name, '--entrypoint', 'sh', service, '-ec', script)
+            envelope = json.loads(run('docker', 'inspect', name).stdout)[0]
+            assert envelope['Config']['User'] == '1654:1654'
+            assert envelope['HostConfig']['NetworkMode'] == 'none'
+            assert not any(m['Destination'] in ['/source', '/run/secrets/app-password'] for m in envelope['Mounts'])
+            destination = next(m for m in envelope['Mounts'] if m['Destination'] == '/destination/slot')
+            assert destination['RW'] == (service == 'backup-destination-check')
+            assert run('docker', 'wait', name).stdout.strip() == '0'
+            run('docker', 'rm', name)
+        print('PASS actual offline verification/probe envelopes have no DB network, secret or source authority', flush=True)
+
+    def lock_ownership(self):
+        """Even a writable control bind cannot give the participant directory-entry or reservation authority."""
+        control = self.install / 'recovery-control'
+        before = self.host('stat', '-c', '%d:%i', str(control / 'recovery.lock')).stdout
+        self.host('tee', str(control / 'host-operation.json'), data='root-owned reservation')
+        self.host('chown', '0:1654', str(control / 'host-operation.json'))
+        self.host('chmod', '640', str(control / 'host-operation.json'))
+        run('docker', 'run', '--rm', '--network', 'none', '--user', '1654:1654', '--cap-drop', 'ALL',
+            '-v', str(control) + ':/control', HOST, 'sh', '-ec',
+            'test -r /control/host-operation.json; test -w /control/recovery.lock; '
+            '! rm /control/recovery.lock; ! mv /control/recovery.lock /control/replaced; '
+            '! chmod 600 /control/recovery.lock; ! touch /control/new-lock; '
+            '! sh -c "echo forged > /control/host-operation.json"; ! rm /control/host-operation.json; '
+            'touch /control/state/receipt-probe; rm /control/state/receipt-probe')
+        assert self.host('stat', '-c', '%d:%i', str(control / 'recovery.lock')).stdout == before
+        assert self.host('cat', str(control / 'host-operation.json')).stdout == 'root-owned reservation'
+        self.host('rm', str(control / 'host-operation.json'))
+        print('PASS participant cannot replace/chmod lock or forge/unlink host reservation; state remains writable', flush=True)
+
+    def scheduler_reconciliation(self, compose, previous):
+        """Use real publications and process death at the pre-retention boundary; never infer this window from completed capture."""
+        receipt = self.install / 'recovery-control/state/scheduler.json'
+        slot = datetime.fromisoformat(previous['Slot']) + timedelta(days=1)
+        now = (slot + timedelta(hours=1)).isoformat()
+        probe = ['run', '--rm', '--no-deps', '-T', '--volume', str(self.lock_probe) + ':/lock-probe:ro',
+                 '--entrypoint', '/lock-probe', 'backup-scheduler']
+        self.host(*compose, *probe, 'capture-slot', (slot + timedelta(days=1)).isoformat())
+        interrupted = dict(previous, Slot=slot.isoformat(), LastAttempt=slot.isoformat(), Attempts=3,
+                           Succeeded=False, Failure='interrupted', NextRetry=None)
+        self.host('tee', str(receipt), data=json.dumps(interrupted))
+        self.host(*compose, *probe, 'scheduler-tick', now)
+        assert json.loads(self.host('cat', str(receipt)).stdout) == interrupted
+        # Permit exactly the final attempt, then kill its process after sidecar publication.
+        interrupted['Attempts'] = 2
+        self.host('tee', str(receipt), data=json.dumps(interrupted))
+        crashed = self.host(*compose, *probe, 'scheduler-crash', now, check=False)
+        assert crashed.returncode == 137
+        after_crash = json.loads(self.host('cat', str(receipt)).stdout)
+        assert after_crash['Attempts'] == 3 and not after_crash['Succeeded'] and after_crash['Failure'] == 'interrupted'
+        destination = self.directory / 'destination'
+        committed = self.host('sh', '-ec', 'ls ' + str(destination) + '/*.tar.sha256').stdout.split()
+        assert len(committed) == 2  # Retention=1 has not run, unlike the previous lost-receipt simulation.
+        # Read-only destination permits verification but forces reconciliation retention to fail visibly.
+        readonly_probe = probe[:4] + ['--volume', str(destination) + ':/destination/slot:ro'] + probe[4:]
+        self.host(*compose, *readonly_probe, 'scheduler-tick', now)
+        failed = json.loads(self.host('cat', str(receipt)).stdout)
+        assert failed['Succeeded'] and failed['Failure'] == 'retention-failed' and failed['Slot'] == after_crash['Slot']
+        assert self.host('sh', '-ec', 'ls ' + str(destination) + '/*.tar.sha256').stdout.split() == committed
+        # Replay the same crash receipt with writable storage: exact-slot reconciliation must finish retention.
+        self.host('tee', str(receipt), data=json.dumps(after_crash))
+        self.host(*compose, *probe, 'scheduler-tick', now)
+        reconciled = json.loads(self.host('cat', str(receipt)).stdout)
+        assert reconciled['Succeeded'] and reconciled['Failure'] == 'none' and reconciled['Attempts'] == 3
+        assert reconciled['Slot'] == after_crash['Slot'] and reconciled['LastArchive'] == failed['LastArchive']
+        assert len(self.host('sh', '-ec', 'ls ' + str(destination) + '/*.tar.sha256').stdout.split()) == 1
+        print('PASS exact-slot reconciliation rejects later slot; actual post-publication death and retention failure reconcile without recapture', flush=True)
+
+    def stale_residue(self):
+        """Only stale installation-owned private partials and validated orphan archives may be reclaimed."""
+        destination = self.directory / 'destination'
+        archive = self.host('sh', '-ec', 'ls ' + str(destination) + '/*.tar').stdout.strip()
+        base = Path(archive).name
+        installation = json.loads(self.host('cat', str(self.install / 'installation.json')).stdout)['Installation']
+        partial = base + '.partial-' + uuid.uuid4().hex
+        side_partial = base + '.sha256.partial-' + uuid.uuid4().hex
+        foreign = partial.replace(installation, str(uuid.uuid4()))
+        fresh = base + '.partial-' + uuid.uuid4().hex
+        linked = base + '.partial-' + uuid.uuid4().hex
+        root_owned = base + '.partial-' + uuid.uuid4().hex
+        hardlinked = base + '.partial-' + uuid.uuid4().hex
+        invalid = base.replace(base[-40:-4], str(uuid.uuid4()))
+        for name in [partial, side_partial, foreign, fresh, root_owned, invalid]:
+            self.host('tee', str(destination / name), data='incomplete')
+            self.host('chmod', '600', str(destination / name))
+            if name != root_owned: self.host('chown', '1654:1654', str(destination / name))
+            if name != fresh: self.host('touch', '-d', '2 days ago', str(destination / name))
+        self.host('ln', '-s', str(destination / foreign), str(destination / linked))
+        self.host('ln', str(destination / fresh), str(destination / hardlinked))
+        self.host('mv', archive + '.sha256', archive + '.sha256.saved')
+        self.host('touch', '-d', '2 days ago', archive)
+        # Read-only listing must not perform cleanup as a side effect.
+        self.ctl('backups')
+        self.host('test', '-e', str(destination / partial))
+        self.ctl('backup')
+        for name in [base, partial, side_partial]:
+            assert self.host('test', '-e', str(destination / name), check=False).returncode == 1
+        for name in [foreign, fresh, linked, root_owned, hardlinked, invalid, base + '.sha256.saved']:
+            self.host('test', '-e', str(destination / name))
+        # Fixture-only removal lets subsequent restore qualification choose a known valid archive.
+        self.host('rm', *[str(destination / name) for name in [foreign, fresh, linked, root_owned, hardlinked, invalid, base + '.sha256.saved']])
+        print('PASS stale partial/orphan cleanup preserves fresh, foreign, invalid, linked and wrong-owner files', flush=True)
 
     def configuration_interruption(self):
         """A receipted pre-commit crash retains the previous installation and blocks ordinary mutation."""

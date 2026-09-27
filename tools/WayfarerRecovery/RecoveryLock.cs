@@ -30,11 +30,14 @@ public sealed class RecoveryLock : IDisposable
             throw new PlatformNotSupportedException("Recovery locking requires Linux AMD64.");
         using var directory = new SafeDirectory(Path.GetDirectoryName(path)!);
         directory.RequireLocalControl();
+        var parent = directory.Identity;
+        if (parent.User != 0 || parent.Group != 0 || (parent.Mode & 0x1ff) != 0x1ed)
+            throw new IOException("Unsafe recovery lock parent.");
         var descriptor = open(path, 2 | 0x20000 | 0x80000); // O_RDWR | O_NOFOLLOW | O_CLOEXEC.
         if (descriptor < 0) throw new IOException("Recovery lock is unavailable.");
         handle = new SafeFileHandle((IntPtr)descriptor, ownsHandle: true);
         var facts = SafeDirectory.Inspect(handle);
-        if (!facts.IsFile || facts.User != 1654 || facts.Group != 1654 || (facts.Mode & 0x1ff) != 0x180)
+        if (!facts.IsFile || facts.User != 0 || facts.Group != 1654 || (facts.Mode & 0x1ff) != 0x1b0)
         {
             handle.Dispose();
             throw new IOException("Unsafe recovery lock identity.");

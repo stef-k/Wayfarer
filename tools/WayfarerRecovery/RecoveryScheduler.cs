@@ -6,6 +6,9 @@ namespace WayfarerRecovery;
 /// <summary>One UTC daily slot with bounded catch-up/retry, durable receipts and publication reconciliation.</summary>
 public sealed class RecoveryScheduler(WorkerConfiguration config)
 {
+    /// <summary>Qualification-only gate uses the engine's real publication boundary, without a worker protocol fault flag.</summary>
+    internal Action? PublicationCommitted { get; init; }
+
     /// <summary>Deterministic installation jitter never changes on restart or container replacement.</summary>
     public static DateTimeOffset DueSlot(WorkerConfiguration config, DateTimeOffset now)
     {
@@ -38,7 +41,7 @@ public sealed class RecoveryScheduler(WorkerConfiguration config)
         var state = Load();
         var slot = DueSlot(config, now);
         if (state.Slot > slot || state.Slot == slot && state.Succeeded) return;
-        var engine = new RecoveryEngine(config);
+        var engine = new RecoveryEngine(config) { PublicationCommitted = PublicationCommitted };
         if (!ShouldAttempt(state, slot, now, config.Attempts))
         {
             await ReconcileAsync(engine, state, slot, token);
@@ -66,13 +69,16 @@ public sealed class RecoveryScheduler(WorkerConfiguration config)
     private async Task<bool> ReconcileAsync(RecoveryEngine engine, SchedulerReceipt state, DateTimeOffset slot, CancellationToken token)
     {
         using var destination = config.OpenDestination();
-        var committed = engine.List(destination, token).FirstOrDefault(value => value.ScheduledSlot >= slot);
+        var committed = engine.List(destination, token).FirstOrDefault(value => value.ScheduledSlot == slot);
         if (committed is null) return false;
         using var staged = new RecoveryTaskDirectory();
         var verified = await ArchiveVerifier.VerifyAsync(destination,
             ArchiveContract.Name(config.Installation, committed.Completed, committed.Archive), staged.Path, config.Source, config.Installation, token);
         if (!verified.CompatibilitySupported) throw new IOException("Committed slot is incompatible.");
-        Save(state with { Succeeded = true, NextRetry = null, LastArchive = committed.Archive, LastSuccess = committed.Completed, Failure = "none" });
+        var retained = await engine.CompleteRetentionAsync(destination, token);
+        Save(state with { Slot = slot, Attempts = Math.Max(1, state.Slot == slot ? state.Attempts : 0),
+            LastAttempt = state.LastAttempt < slot ? slot : state.LastAttempt, Succeeded = true, NextRetry = null,
+            LastArchive = committed.Archive, LastSuccess = committed.Completed, Failure = retained ? "none" : "retention-failed" });
         return true;
     }
 
@@ -83,9 +89,9 @@ public sealed class RecoveryScheduler(WorkerConfiguration config)
     /// <summary>Corrupt receipts are never reset to a fresh schedule.</summary>
     private static SchedulerReceipt Load()
     {
-        const string path = "/control/scheduler.json";
+        const string path = "/control/state/scheduler.json";
         if (!File.Exists(path)) return new(1, DateTimeOffset.MinValue, 0, false, DateTimeOffset.MinValue, null, null, null, "none");
-        using var directory = new SafeDirectory("/control");
+        using var directory = new SafeDirectory("/control/state");
         using var input = directory.Read("scheduler.json");
         if (input.Length > 4096) throw new IOException("Scheduler receipt exceeds bound.");
         var state = JsonSerializer.Deserialize<SchedulerReceipt>(input, ArchiveContract.Json);
@@ -97,7 +103,7 @@ public sealed class RecoveryScheduler(WorkerConfiguration config)
     /// <summary>Private atomic receipt replacement survives container recreation and does not touch destination state.</summary>
     private static void Save(SchedulerReceipt state)
     {
-        var temporary = "/control/.scheduler-" + Guid.NewGuid().ToString("N");
+        var temporary = "/control/state/.scheduler-" + Guid.NewGuid().ToString("N");
         try
         {
             using (var stream = new FileStream(temporary, new FileStreamOptions
@@ -106,8 +112,8 @@ public sealed class RecoveryScheduler(WorkerConfiguration config)
                 JsonSerializer.Serialize(stream, state, ArchiveContract.Json);
                 stream.Flush(flushToDisk: true);
             }
-            File.Move(temporary, "/control/scheduler.json", overwrite: true);
-            using var directory = new SafeDirectory("/control");
+            File.Move(temporary, "/control/state/scheduler.json", overwrite: true);
+            using var directory = new SafeDirectory("/control/state");
             directory.Flush();
         }
         finally { if (File.Exists(temporary)) File.Delete(temporary); }
