@@ -8,6 +8,29 @@ namespace Wayfarer.Tests.Services;
 [System.Runtime.Versioning.SupportedOSPlatform("linux")]
 public sealed class ManagedRestoreTests
 {
+    /// <summary>Persistent helper names cannot authorize a replacement foreign container or another durable generation.</summary>
+    [Theory]
+    [InlineData("other", "wayfarer_app-data", false)]
+    [InlineData("wayfarer", "foreign_app-data", false)]
+    [InlineData("wayfarer", "wayfarer_app-data", true)]
+    public void ReconciliationRequiresActualOwnedMounts(string project, string volume, bool accepted)
+    {
+        var target = Config();
+        var plan = new RestorePlan(Guid.NewGuid(), "/etc/wayfarer", target, Guid.NewGuid(), Guid.NewGuid(),
+            new string('a', 64), DateTimeOffset.UnixEpoch, "quiesced", "bundle", "capture", "restore", null,
+            Guid.NewGuid().ToString("N"), false, false, true);
+        var receipt = new RestoreReceipt { Plan = plan, PlanHash = plan.Hash() };
+        var container = JsonSerializer.SerializeToElement(new
+        {
+            Name = "/wayfarer-wayfarer-1",
+            Config = new { Image = "ghcr.io/stef-k/wayfarer@" + target.AppDigest,
+                Labels = new Dictionary<string, string> { ["com.docker.compose.project"] = project } },
+            Mounts = new[] { new { Type = "volume", Name = volume, Destination = "/var/lib/wayfarer" } }
+        });
+        if (accepted) RestoreFencing.VerifyOwned(receipt, container);
+        else Assert.Throws<IOException>(() => RestoreFencing.VerifyOwned(receipt, container));
+    }
+
     /// <summary>Destructive authorization has no permissive alias or ambiguous external/owned selector.</summary>
     [Theory]
     [InlineData("--yes")]

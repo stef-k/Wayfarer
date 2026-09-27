@@ -52,9 +52,13 @@ public sealed class RestoreActivation(IProcessRunner runner)
         await owner.Required(Compose("config", "--quiet"), token);
         if (receipt.Plan.NewInstall)
         {
+            var logsInitializer = candidate.Project + "-restore-logs-" + Guid.NewGuid().ToString("N");
+            receipt = receipt with { Containers = [.. receipt.Containers, logsInitializer],
+                Volumes = receipt.Volumes.Append(ActiveStorage.Volume(candidate, "app-logs")).Distinct().ToArray() };
+            receipt.Save(root);
             await owner.Required(["volume", "create", "--label", "com.docker.compose.project=" + candidate.Project,
                 "--label", "com.docker.compose.volume=app-logs", ActiveStorage.Volume(candidate, "app-logs")], token);
-            await owner.RunAsync(candidate.Project + "-restore-logs-" + Guid.NewGuid().ToString("N"),
+            await owner.RunAsync(logsInitializer,
                 ["--network=none", "--read-only", "--user=0", "--cap-drop=ALL", "--cap-add=CHOWN", "--cap-add=FOWNER",
                     "--volume", ActiveStorage.Volume(candidate, "app-logs") + ":/logs", "--entrypoint=sh",
                     "ghcr.io/stef-k/wayfarer@" + candidate.AppDigest, "-ec", "if test \"$(stat -c %u:%g /logs)\" = 1654:1654; then test \"$(stat -c %a /logs)\" = 750; else entries=$(find /logs -mindepth 1 -maxdepth 1 -printf x -quit); test -z \"$entries\"; chown 1654:1654 /logs; chmod 750 /logs; fi"], token);
@@ -70,8 +74,10 @@ public sealed class RestoreActivation(IProcessRunner runner)
             receipt.Save(root);
         }
         await owner.Required(Compose("up", "-d", "--no-recreate", "--pull", "never", "--wait", "--wait-timeout", "180", "db"), token);
-        await new RestoreCandidate(runner).InspectAsync(root, candidate, directory, candidate.Project + "_backend",
-            candidate.Project + "-restore-canonical-" + Guid.NewGuid().ToString("N"), token);
+        var canonicalInspector = candidate.Project + "-restore-canonical-" + Guid.NewGuid().ToString("N");
+        receipt = receipt with { Containers = [.. receipt.Containers, canonicalInspector] };
+        receipt.Save(root);
+        await new RestoreCandidate(runner).InspectAsync(root, candidate, directory, candidate.Project + "_backend", canonicalInspector, token);
         if (receipt.Phase == RestorePhase.ActivatedStopped)
         {
             receipt = receipt.Advance(RestorePhase.WritesPossible);

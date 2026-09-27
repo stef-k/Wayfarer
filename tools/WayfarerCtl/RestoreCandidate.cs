@@ -54,12 +54,21 @@ public sealed class RestoreCandidate(IProcessRunner runner)
             "ghcr.io/stef-k/wayfarer-db@" + candidate.DbDigest], token);
         await owner.Required(["start", db], token);
         await WaitDatabaseAsync(db, token);
+        var identity = await owner.Required(["exec", db, "psql", "-U", "postgres", "-d", "wayfarer", "-At", "-c",
+            "SELECT current_setting('server_version_num')::int / 10000, " +
+            "(SELECT extversion FROM pg_extension WHERE extname='postgis'), postgis_lib_version(), " +
+            "(SELECT extversion FROM pg_extension WHERE extname='citext'), pg_encoding_to_char(encoding), " +
+            "datcollate, datctype, datlocprovider, coalesce(datlocale,'') FROM pg_database WHERE datname=current_database();"], token);
+        if (identity.Trim() != "17|3.6.4|3.6.4|1.6|UTF8|C.UTF-8|C.UTF-8|c|")
+            throw new IOException("Candidate DB contract differs before SQL restore.");
         var secret = Path.Combine(directory, "bootstrap-secret-" + plan.CandidateGeneration);
         ProtectedFiles.Create(secret, File.ReadAllText(Path.Combine(root, "secrets/db-password")), 1654);
         await owner.RunAsync(sql, [.. RestoreContainers.Unprivileged(), "--network", network, "--volume", payload + ":/worker:ro",
             "--volume", Path.Combine(directory, "verified") + ":/staging:ro", "--volume", secret + ":/run/secrets/db-password:ro",
             "--entrypoint=/worker", "ghcr.io/stef-k/wayfarer-db@" + candidate.DbDigest, "restore-database"], token);
-        await InspectAsync(root, candidate, directory, network, inspect, token);
+        var credentialStatus = await InspectAsync(root, candidate, directory, network, inspect, token);
+        receipt = receipt with { ProtectedCredentialStatus = credentialStatus };
+        receipt.Save(root);
         await owner.Required(["stop", "--time", "60", db], token);
         await owner.Required(["wait", db], token);
         return receipt;
@@ -78,7 +87,7 @@ public sealed class RestoreCandidate(IProcessRunner runner)
     }
 
     /// <summary>Product-owned schema, credentials and ring inspection has no edge/provider egress or writable ring.</summary>
-    public async Task InspectAsync(string root, Deployment candidate, string directory, string network, string name, CancellationToken token)
+    public async Task<string> InspectAsync(string root, Deployment candidate, string directory, string network, string name, CancellationToken token)
     {
         var payload = File.ReadAllText(Path.Combine(directory, "payload"));
         var inspector = Path.Combine(Path.GetDirectoryName(payload)!, "WayfarerRecoverySource.dll");
@@ -98,5 +107,7 @@ public sealed class RestoreCandidate(IProcessRunner runner)
             !facts.GetProperty("ExpectedMigrations").Deserialize<string[]>()!.SequenceEqual(expected.ExpectedMigrations) ||
             facts.GetProperty("Uploads").GetString() != "uploads" || facts.GetProperty("Ring").GetString() != "data-protection")
             throw new IOException("Candidate product identity mismatch.");
+        var credentials = facts.GetProperty("ProtectedCredentials").GetString();
+        return credentials is "none present" or "readable" ? credentials : throw new IOException("Invalid protected credential evidence.");
     }
 }

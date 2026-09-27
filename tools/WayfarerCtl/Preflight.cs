@@ -96,7 +96,8 @@ public sealed class Preflight(IProcessRunner runner)
             var name = container.GetProperty("Name").GetString()!;
             var labels = container.GetProperty("Config").GetProperty("Labels");
             if ((!name.StartsWith("/" + config.Project + "-restore-select-", StringComparison.Ordinal) &&
-                 !name.StartsWith("/" + config.Project + "-restore-verify-", StringComparison.Ordinal)) ||
+                 !name.StartsWith("/" + config.Project + "-restore-verify-", StringComparison.Ordinal) &&
+                 !name.StartsWith("/" + config.Project + "-restore-version-", StringComparison.Ordinal)) ||
                 labels.ValueKind != JsonValueKind.Object || !labels.TryGetProperty("wayfarer.restore-helper", out var owner) ||
                 owner.GetString() != config.Project || container.GetProperty("State").GetProperty("Running").GetBoolean())
                 throw new UsageException("Existing named project container prevents clean-target installation.");

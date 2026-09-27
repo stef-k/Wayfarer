@@ -9,6 +9,27 @@ public sealed class RestoreCommands(IProcessRunner runner, ITerminal terminal)
     /// <summary>Plan before mutation, acquire locks in host/recovery order, and retain truthful durable failure phase.</summary>
     public async Task<int> RunAsync(string root, string[] args, CancellationToken token)
     {
+        try { return await DispatchAsync(root, args, token); }
+        catch (UsageException) { throw; }
+        catch (JsonException) { throw; }
+        catch (Exception)
+        {
+            var outcome = "unknown; inspect status/doctor";
+            try
+            {
+                var intent = RestoreReceipt.Load(root);
+                outcome = intent is null || intent.Phase is RestorePhase.Accepted or RestorePhase.Aborted
+                    ? "unchanged" : intent.Phase.ToString();
+            }
+            catch { /* Invalid intent must never be reported as unchanged. */ }
+            terminal.Error("Restore incomplete; phase=" + outcome + ".");
+            return 1;
+        }
+    }
+
+    /// <summary>Selection and confirmation precede durable mutation; redirected input cannot authorize implicitly.</summary>
+    private async Task<int> DispatchAsync(string root, string[] args, CancellationToken token)
+    {
         var options = RestoreOptions.Parse(args);
         ProtectedFiles.SafePath(root);
         if (!Directory.Exists(root)) Directory.CreateDirectory(root, ProtectedFiles.PrivateDirectory);
@@ -31,12 +52,20 @@ public sealed class RestoreCommands(IProcessRunner runner, ITerminal terminal)
             }
             plan = await new RestorePreparation(runner).PrepareAsync(root, config, options, token);
         }
+        options.CheckPlan(plan);
         terminal.Write(JsonSerializer.Serialize(plan));
         if (plan.CaptureMode == "online") terminal.Write("Online archive: component capture is not a cross-component transactional snapshot.");
         terminal.Write("Plan SHA-256: " + plan.Hash() + "\nLater writes will be discarded. Candidate writer launch is the rollback cutoff.");
         if (options.Has("--plan")) return 0;
         if (!options.Has("--trust-controlled-backup"))
-            throw new UsageException("Explicit --trust-controlled-backup provenance acknowledgement is required before SQL execution.");
+        {
+            if (!terminal.Interactive) throw new UsageException("Explicit --trust-controlled-backup provenance acknowledgement is required before SQL execution.");
+            if (terminal.Read("Checksums do not authenticate this archive. Type I TRUST THIS BACKUP to acknowledge controlled custody: ") != "I TRUST THIS BACKUP")
+            {
+                terminal.Write("Restore cancelled; phase=unchanged.");
+                return 1;
+            }
+        }
         if (!options.Has("--accept-plan"))
         {
             if (!terminal.Interactive) throw new UsageException("Redirected execution requires --accept-plan SHA256.");
@@ -181,12 +210,14 @@ public sealed class RestoreCommands(IProcessRunner runner, ITerminal terminal)
                 receipt.Save(root);
             }
             receipt = await new RestoreActivation(runner).ActivateAsync(root, receipt, token);
+            terminal.Write($"Protected provider credentials: {receipt.ProtectedCredentialStatus}.");
             terminal.Write($"Restore accepted: {receipt.Plan.Operation:D}. Old volumes and emergency evidence retained.");
             return 0;
         }
         catch (Exception error)
         {
-            if (error is UsageException) terminal.Error(error.Message);
+            if (error is UsageException || error is IOException && error.TargetSite?.DeclaringType?.Namespace == "WayfarerCtl")
+                terminal.Error(error.Message);
             receipt = RestoreReceipt.Load(root) ?? receipt;
             if (receipt.Phase == RestorePhase.Accepted)
             {
@@ -194,9 +225,10 @@ public sealed class RestoreCommands(IProcessRunner runner, ITerminal terminal)
                 receipt.Save(root);
             }
             using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+            var runtime = receipt.Phase == RestorePhase.Authorized && receipt.Containers.Length == 0 ? "unchanged" : "fenced";
             try { await new RestoreFencing(runner).StopOwnedAsync(receipt, cleanup.Token); }
-            catch { terminal.Error("Restore cleanup uncertain; durable intent retained."); }
-            terminal.Error($"Restore incomplete: {receipt.Plan.Operation:D}; phase={receipt.Phase}; writes-possible={receipt.WritesPossible}. Installation remains fenced.");
+            catch { runtime = "unknown"; terminal.Error("Restore cleanup uncertain; durable intent retained."); }
+            terminal.Error($"Restore incomplete: {receipt.Plan.Operation:D}; phase={receipt.Phase}; writes-possible={receipt.WritesPossible}; runtime={runtime}. Reconciliation required.");
             return 1;
         }
     }

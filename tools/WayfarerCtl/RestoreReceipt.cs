@@ -45,6 +45,7 @@ public sealed record RestoreReceipt
     public string[] Volumes { get; init; } = [];
     public Dictionary<string, string> RestartPolicies { get; init; } = new();
     public Guid? EmergencyArchive { get; init; }
+    public string? ProtectedCredentialStatus { get; init; }
     public string? SecretsFingerprint { get; init; }
     public string? OldConfiguration { get; init; }
     public string? NewConfiguration { get; init; }

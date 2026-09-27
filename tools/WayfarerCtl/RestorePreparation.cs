@@ -13,6 +13,10 @@ public sealed class RestorePreparation(IProcessRunner runner)
 
     public static string DirectoryFor(string root, Guid operation) => Path.Combine(root, "restore-plans", operation.ToString("N"));
 
+    /// <summary>The configured trusted recovery payload supplies restore by default; an independent payload may be explicit.</summary>
+    private static string Payload(Deployment config, RestoreOptions options) => options.Has("--restore-payload")
+        ? options.Get("--restore-payload") : config.Backup?.Payload ?? throw new UsageException("Trusted --restore-payload is required for an unconfigured target.");
+
     /// <summary>Prepare only non-authoritative private disk staging; archive parsing runs in an unprivileged helper.</summary>
     public async Task<RestorePlan> PrepareAsync(string root, Deployment config, RestoreOptions options, CancellationToken token)
     {
@@ -29,7 +33,7 @@ public sealed class RestorePreparation(IProcessRunner runner)
         {
             var policy = config.Backup!;
             BackupCompose.Check(root, config);
-            var restorePayload = options.Get("--restore-payload");
+            var restorePayload = Payload(config, options);
             new BackupPolicy { Payload = restorePayload, PayloadSha256 = BackupPolicy.Fingerprint(restorePayload) }.CheckPayload();
             var mounts = policy.Kind == "local"
                 ? new[] { "--volume", destination + ":/destination/slot:ro" }
@@ -67,7 +71,7 @@ public sealed class RestorePreparation(IProcessRunner runner)
             output.Flush();
         }
         var expected = TargetEvidence(config, options);
-        var payload = options.Get("--restore-payload");
+        var payload = Payload(config, options);
         var payloadFingerprint = BackupPolicy.Fingerprint(payload);
         new BackupPolicy { Payload = payload, PayloadSha256 = payloadFingerprint }.CheckPayload();
         ProtectedFiles.Create(Path.Combine(directory, "source.json"), JsonSerializer.Serialize(expected), 0, 1654);
@@ -136,6 +140,10 @@ public sealed class RestorePreparation(IProcessRunner runner)
                 actual.GetProperty("Config").GetProperty("Labels").GetProperty("org.opencontainers.image.revision").GetString() != expected.SourceRevision)
                 throw new UsageException("Local application source revision mismatch.");
         }
+        var version = await containers.RunAsync(config.Project + "-restore-version-" + Guid.NewGuid().ToString("N"),
+            [.. RestoreContainers.Unprivileged(), "--network=none", "--entrypoint=dotnet", expected.ApplicationImage, "Wayfarer.dll", "version"], token);
+        if (version.Trim() != "Wayfarer " + expected.ApplicationVersion)
+            throw new UsageException("Compiled local application version mismatch.");
     }
 
     /// <summary>All parser writes are bounded operation storage, with no source volume, DB secret or network access.</summary>

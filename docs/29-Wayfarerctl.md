@@ -389,7 +389,9 @@ wayfarerctl restore <owned-archive-basename> --restore-payload /opt/recovery/way
 wayfarerctl restore --accept-plan <printed-sha256> --trust-controlled-backup
 ```
 
-Without a basename, the newest structurally complete owned pair is selected by
+The configured recovery payload is the default restore payload; specify
+`--restore-payload` when using a separate trusted restore release. Without a basename,
+the newest structurally complete owned pair is selected by
 completion time and name. A failed full verification never falls back to an older
 pair. Basenames must match the generated v1 format and select only the configured
 destination. External pairs require a literal absolute path, the adjacent exact-name
@@ -404,7 +406,8 @@ The plan binds archive hash/UUID/source, target UUID/configuration, old/candidat
 storage generations, payload identities, emergency policy and the writer cutoff.
 Execution revalidates retained bytes and local authority under host serialization.
 Redirected input is never approval; use the exact printed plan hash. Interactive
-execution requires `--trust-controlled-backup` and typing exactly
+execution requires an explicit controlled-custody acknowledgement (or
+`--trust-controlled-backup`) followed by typing exactly
 `RESTORE <target-installation-uuid> <archive-uuid>`. EOF/decline leaves authority unchanged.
 There is no `--yes` or `--skip-lock`.
 

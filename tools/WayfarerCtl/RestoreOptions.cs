@@ -45,6 +45,22 @@ public sealed record RestoreOptions(Dictionary<string, string> Values, string? B
         return result;
     }
 
+    /// <summary>Restated destructive choices cannot alter an accepted frozen plan.</summary>
+    public void CheckPlan(RestorePlan plan)
+    {
+        if (Has("--new-install") && !plan.NewInstall || Has("--without-emergency-backup") && !plan.WithoutEmergencyBackup ||
+            Has("--source-installation") && Get("--source-installation") != plan.SourceInstallation.ToString("D"))
+            throw new UsageException("Restore choices differ from the accepted plan.");
+        var selected = Has("--archive") ? Path.GetFileName(Get("--archive")) : Basename;
+        if (selected is not null && selected != WayfarerRecovery.ArchiveContract.Name(plan.SourceInstallation, plan.Captured, plan.Archive))
+            throw new UsageException("Archive selection differs from the accepted plan.");
+        foreach (var (key, expected) in new[] { ("--bundle", plan.Target.Bundle), ("--hostname", plan.Target.Hostname),
+            ("--project", plan.Target.Project), ("--mode", plan.Target.Mode), ("--app-digest", plan.Target.AppDigest),
+            ("--db-digest", plan.Target.DbDigest), ("--edge-prefix", plan.Target.EdgePrefix),
+            ("--loopback-port", plan.Target.LoopbackPort.ToString(System.Globalization.CultureInfo.InvariantCulture)) })
+            if (Has(key) && Get(key) != expected) throw new UsageException("Target choices differ from the accepted plan.");
+    }
+
     /// <summary>Only the generated v1 publication namespace is selectable.</summary>
     public static void ValidateBasename(string name)
     {

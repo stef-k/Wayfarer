@@ -15,6 +15,7 @@ import uuid
 from datetime import datetime, timedelta
 from qualify_ctl import Journey, run, HOST
 from qualify import Stack
+from qualify_restore_cancellation import qualify_sql_cancellation
 
 
 class RecoveryJourney(Journey):
@@ -66,6 +67,7 @@ class RecoveryJourney(Journey):
         if restore_only:
             self.ctl('backup', '--quiesced')
             self.restore_refusals()
+            qualify_sql_cancellation(self)
             self.restore_boundaries()
             self.restore()
             return
@@ -431,7 +433,7 @@ class RecoveryJourney(Journey):
         """Lose acknowledgements at the pointer and real writer boundaries, then exercise product recovery."""
         options = ['restore', '--restore-payload', str(self.payload / 'wayfarer-recovery'), '--without-emergency-backup']
         original = self.host('cat', str(self.install / 'installation.json')).stdout
-        for point in ['restore-pointer', 'restore-writer']:
+        for point in ['restore-files', 'restore-validation', 'restore-pointer', 'restore-writer']:
             planned = self.ctl(*options, '--plan').stdout
             plan = json.loads(planned.splitlines()[0])
             accepted = planned.split('Plan SHA-256: ')[1].splitlines()[0]
@@ -446,8 +448,8 @@ class RecoveryJourney(Journey):
                 identifier = self.compose('ps', '-aq', service).strip()
                 state = json.loads(run('docker', 'inspect', identifier).stdout)[0]
                 assert not state['State']['Running'] and state['HostConfig']['RestartPolicy']['Name'] == 'no'
-            if point == 'restore-pointer':
-                assert receipt['Phase'] == 5 and not receipt['WritesPossible']
+            if point != 'restore-writer':
+                assert receipt['Phase'] == (5 if point == 'restore-pointer' else 3) and not receipt['WritesPossible']
                 self.ctl('restore', '--abort', plan['Operation'])
                 assert self.host('cat', str(self.install / 'installation.json')).stdout == original
                 self.ctl('start')
@@ -461,7 +463,7 @@ class RecoveryJourney(Journey):
                 self.ctl('restore', '--resume', plan['Operation'])
                 assert self.ctl('doctor').returncode == 0
                 self.ctl('backup', '--quiesced')
-        print('PASS pointer interruption abort mounts, real writer acknowledgement loss, restart fencing and forward-only resume', flush=True)
+        print('PASS filesystem/validation failures, pointer abort mounts, real writer acknowledgement loss, fencing and forward-only resume', flush=True)
 
     def restore(self):
         """The shipped operator owns destructive restore; fixture code observes product contracts only."""

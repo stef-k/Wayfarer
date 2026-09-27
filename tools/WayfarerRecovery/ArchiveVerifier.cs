@@ -124,7 +124,7 @@ public static class ArchiveVerifier
             }
             if (entry.DataStream is null && entry.Length != 0) throw new IOException("File data missing.");
             using var output = extract is null ? Stream.Null : ExtractFile(extract, name);
-            if (entry.DataStream is not null) CopyBoundedAsync(entry.DataStream, output, entry.Length, token).GetAwaiter().GetResult();
+            if (entry.DataStream is not null) CopyBoundedAsync(entry.DataStream, output, entry.Length, token, verifyOutput: extract is not null).GetAwaiter().GetResult();
             if (output is FileStream fileOutput) fileOutput.Flush(flushToDisk: true);
         }
         if (!names.Contains(".")) throw new IOException("Nested root representation missing.");
@@ -156,7 +156,7 @@ public static class ArchiveVerifier
         var path = Path.Combine(root, name);
         Directory.CreateDirectory(Path.GetDirectoryName(path)!, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
         return new FileStream(path, new FileStreamOptions
-        { Mode = FileMode.CreateNew, Access = FileAccess.Write, UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite });
+        { Mode = FileMode.CreateNew, Access = FileAccess.ReadWrite, UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite });
     }
 
     private static string ReadText(Stream stream, int limit)
@@ -166,8 +166,9 @@ public static class ArchiveVerifier
         return reader.ReadToEnd();
     }
 
-    private static async Task CopyBoundedAsync(Stream input, Stream output, long expected, CancellationToken token)
+    private static async Task CopyBoundedAsync(Stream input, Stream output, long expected, CancellationToken token, bool verifyOutput = false)
     {
+        using var digest = verifyOutput ? IncrementalHash.CreateHash(HashAlgorithmName.SHA256) : null;
         var buffer = new byte[65536];
         long copied = 0;
         int count;
@@ -175,9 +176,19 @@ public static class ArchiveVerifier
         {
             copied = checked(copied + count);
             if (copied > expected) throw new IOException("Archive member size mismatch.");
+            digest?.AppendData(buffer.AsSpan(0, count));
             await output.WriteAsync(buffer.AsMemory(0, count), token);
         }
         if (copied != expected) throw new IOException("Truncated archive member.");
+        if (digest is not null && output is FileStream file)
+        {
+            file.Flush(flushToDisk: true);
+            file.Position = 0;
+            var expectedHash = digest.GetHashAndReset();
+            var actualHash = await SHA256.HashDataAsync(file, token);
+            if (!expectedHash.SequenceEqual(actualHash))
+                throw new IOException("Extracted file readback mismatch.");
+        }
     }
 }
 
