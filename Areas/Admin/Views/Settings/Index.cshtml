@@ -476,27 +476,28 @@
                                 <partial name="_UploadStorage" />
 
                                 <label for="UploadSizeLimitMB" class="form-label">
-                                    Maximum Upload Size (currently: <code>@Model.UploadSizeLimitMB</code> MB):
+                                    User Upload Request Limit (currently: <code>@Model.UploadSizeLimitMB</code> MiB):
                                 </label>
 
                                 <div class="input-group">
                                     <input asp-for="UploadSizeLimitMB"
                                            class="form-control"
                                            type="number"
-                                           step="0.1"
-                                           min="-1"/>
-                                    <span class="input-group-text">MB</span>
+                                           step="1"
+                                           min="-1"
+                                           max="@ApplicationSettings.DefaultUploadSizeLimitMB"/>
+                                    <span class="input-group-text">MiB</span>
                                 </div>
 
                                 <span asp-validation-for="UploadSizeLimitMB" class="text-danger"></span>
                             </div>
 
                             <div class="form-text">
-                                • Used to allow users to upload location data files, such as exported Google Timeline
-                                JSON data.<br/>
-                                • Set to <code>-1</code> to disable uploads entirely.<br/>
-                                • Set to <code>0</code> to use the default:
-                                <code>@ApplicationSettings.DefaultUploadSizeLimitMB MB</code>.<br/>
+                                • Limits complete Location-history and Trip KML upload requests, including multipart overhead.<br/>
+                                • Set <code>-1</code> to disable these file uploads, <code>0</code> for the default,
+                                or an integer from <code>1..100</code> MiB.<br/>
+                                • The fixed application maximum is <code>@ApplicationSettings.DefaultUploadSizeLimitMB MiB</code>.
+                                Trip KML also has a parser-derived file-section limit. Other forms and JSON APIs are unaffected by this setting.<br/>
                             </div>
                         </div>
                         <hr/>

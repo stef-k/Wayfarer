@@ -399,8 +399,9 @@ public class MyCustomJob : IJob
 2. `LocationImportJob` scheduled to process file.
 3. `LocationImportService` parses and persists data.
 4. Progress updates sent via SSE.
-5. Upload size limit enforced by `DynamicRequestSizeMiddleware`.
-6. Limit configured via `ApplicationSettings.UploadSizeLimitMB`.
+5. `DynamicRequestSizeMiddleware` applies the fixed 100 MiB application request ceiling owned by `UploadRequestPolicy`.
+6. After authorization, `UserFileUploadMiddleware` applies `ApplicationSettings.UploadSizeLimitMB` only to the two marked Location/Trip upload actions, before antiforgery/form buffering. Disabled uploads return 403; declared oversized bodies return 413. See [configuration](16-Configuration.md) for effective settings and host failure behavior.
+7. Trip KML alone adds a parser-derived multipart section cap (40 MiB + 4 bytes), retaining the existing XML/geometry budgets. Location-history staging, streaming and durable cleanup remain unchanged.
 
 ---
 

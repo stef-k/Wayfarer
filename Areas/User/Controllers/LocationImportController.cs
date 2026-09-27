@@ -244,7 +244,11 @@ namespace Wayfarer.Areas.User.Controllers
             ViewBag.AcceptedExtensions = string.Join(",", acceptedExtensions);
 
             var uploadSettings = _dbContext.ApplicationSettings.OrderBy(s => s.Id).FirstOrDefault();
-            ViewBag.UploadLimit = (uploadSettings?.UploadSizeLimitMB ?? ApplicationSettings.DefaultUploadSizeLimitMB).ToString();
+            // Display the same effective policy used before multipart buffering.
+            var effectiveLimit = Wayfarer.Util.UploadRequestPolicy.EffectiveMiB(
+                uploadSettings?.UploadSizeLimitMB ?? ApplicationSettings.DefaultUploadSizeLimitMB);
+            ViewBag.UploadLimit = effectiveLimit.ToString();
+            ViewBag.UploadsDisabled = effectiveLimit < 0;
         }
 
         /// <summary>Preserves the submitted model and required view data after validation failure.</summary>
@@ -257,6 +261,7 @@ namespace Wayfarer.Areas.User.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
+        [Wayfarer.Middleware.UserFileUpload]
         public async Task<IActionResult> Upload(LocationImportUploadViewModel model)
         {
             if (!ModelState.IsValid)

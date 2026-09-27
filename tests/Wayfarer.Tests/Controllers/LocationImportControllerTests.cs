@@ -356,11 +356,17 @@ public class LocationImportControllerTests : TestBase
         Assert.Equal("warning", controller.TempData["AlertType"]);
     }
 
-    [Fact]
-    public void Upload_Get_ReturnsView_WithFileTypes()
+    /// <summary>The upload page reports the effective policy, including disabled historical values.</summary>
+    [Theory]
+    [InlineData(100, "100", false)]
+    [InlineData(0, "100", false)]
+    [InlineData(102400, "100", false)]
+    [InlineData(-1, "-1", true)]
+    [InlineData(-2, "-1", true)]
+    public void Upload_Get_ReturnsView_WithFileTypes(int configured, string effective, bool disabled)
     {
         var db = CreateDbContext();
-        db.ApplicationSettings.Add(new ApplicationSettings { Id = 1, UploadSizeLimitMB = 100 });
+        db.ApplicationSettings.Add(new ApplicationSettings { Id = 1, UploadSizeLimitMB = configured });
         db.SaveChanges();
         var user = TestDataFixtures.CreateUser(id: "u1");
         var controller = BuildController(db, user, Mock.Of<IScheduler>());
@@ -370,7 +376,8 @@ public class LocationImportControllerTests : TestBase
         var view = Assert.IsType<ViewResult>(result);
         Assert.NotNull(view.ViewData["FileTypes"]);
         Assert.NotNull(view.ViewData["AcceptedExtensions"]);
-        Assert.Equal("100", view.ViewData["UploadLimit"]);
+        Assert.Equal(effective, view.ViewData["UploadLimit"]);
+        Assert.Equal(disabled, view.ViewData["UploadsDisabled"]);
     }
 
     private static LocationImport NewImport(int id, string userId, ImportStatus status)

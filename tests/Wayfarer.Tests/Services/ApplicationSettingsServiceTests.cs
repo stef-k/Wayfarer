@@ -38,6 +38,19 @@ public class ApplicationSettingsServiceTests : TestBase
         Assert.Equal(ApplicationSettings.DefaultUploadSizeLimitMB, settings1.UploadSizeLimitMB);
     }
 
+    /// <summary>Historical impossible settings are exposed as the effective supported policy.</summary>
+    [Theory]
+    [InlineData(102400, 100)]
+    [InlineData(-2, -1)]
+    public void GetSettings_NormalizesHistoricalUploadLimit(int configured, int expected)
+    {
+        var db = CreateDbContext();
+        db.ApplicationSettings.Add(new ApplicationSettings { UploadSizeLimitMB = configured });
+        db.SaveChanges();
+        var service = new ApplicationSettingsService(db, new MemoryCache(new MemoryCacheOptions()));
+        Assert.Equal(expected, service.GetSettings().UploadSizeLimitMB);
+    }
+
     [Fact]
     public void RefreshSettings_ReloadsFromDb()
     {

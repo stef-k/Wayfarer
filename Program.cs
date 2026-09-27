@@ -137,7 +137,7 @@ app.Map("/health/ready", branch => branch.Run(async context =>
 
 // Setting up middleware components, including performance monitoring and error handling
 ConfigureAreas(app);
-ConfigureMiddleware(app).GetAwaiter().GetResult();
+ConfigureMiddleware(app);
 
 #endregion Middleware Setup
 
@@ -164,12 +164,6 @@ if (!app.Environment.IsDevelopment()
 app.Lifetime.ApplicationStopping.Register(TileCacheService.StopOutboundBudget);
 
 app.Run();
-
-static Task<long> LoadUploadSizeLimitFromDatabaseAsync()
-{
-    // Your logic to load the size limit from the database
-    return Task.FromResult(100L * 1024 * 1024); // example: 100MB
-}
 
 #region Methods
 
@@ -600,7 +594,7 @@ static void ConfigureServices(WebApplicationBuilder builder)
 }
 
 // Method to configure middleware components such as error handling and performance monitoring
-static async Task ConfigureMiddleware(WebApplication app)
+static void ConfigureMiddleware(WebApplication app)
 {
     // Response compression must be early in the pipeline to compress all subsequent responses
     app.UseResponseCompression();
@@ -655,9 +649,8 @@ static async Task ConfigureMiddleware(WebApplication app)
         imageCacheService.Initialize();
     }
 
-    // Load upload size limit from settings
-    var maxRequestSize = await LoadUploadSizeLimitFromDatabaseAsync();
-    app.UseMiddleware<DynamicRequestSizeMiddleware>(maxRequestSize);
+    // Fixed application ceiling; admin upload policy is applied after endpoint authorization.
+    app.UseMiddleware<DynamicRequestSizeMiddleware>();
 
     // Force HTTPS in the app
     app.UseHttpsRedirection();
@@ -668,6 +661,7 @@ static async Task ConfigureMiddleware(WebApplication app)
     // Configure routing and authorization; compiled assets retain their existing pipeline.
     app.UseRouting();
     app.UseAuthorization();
+    app.UseMiddleware<UserFileUploadMiddleware>();
     app.UseStaticFiles();
 
     // Serve documentation at /docs/ - works locally and matches GitHub Pages structure

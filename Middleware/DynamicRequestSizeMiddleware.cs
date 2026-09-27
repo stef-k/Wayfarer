@@ -1,22 +1,32 @@
 using Microsoft.AspNetCore.Http.Features;
+using Wayfarer.Util;
 
-namespace Wayfarer.Middleware
+namespace Wayfarer.Middleware;
+
+/// <summary>Applies the fixed application ceiling before any request body is consumed.</summary>
+public sealed class DynamicRequestSizeMiddleware(RequestDelegate next)
 {
-    public class DynamicRequestSizeMiddleware
+    /// <summary>Sets the compatibility ceiling; later endpoint limits may further restrict it.</summary>
+    public async Task InvokeAsync(HttpContext context)
     {
-        private readonly RequestDelegate _next;
-        private readonly long _maxRequestSize;
-
-        public DynamicRequestSizeMiddleware(RequestDelegate next, long maxRequestSize)
+        var feature = context.Features.Get<IHttpMaxRequestBodySizeFeature>();
+        // Error/status handlers re-enter this pipeline after body consumption. A read-only
+        // feature is safe only when its already-active ceiling remains bounded by our maximum.
+        if (feature is null || (feature.IsReadOnly &&
+            (feature.MaxRequestBodySize is null || feature.MaxRequestBodySize > UploadRequestPolicy.MaximumRequestBytes)))
         {
-            _next = next;
-            _maxRequestSize = maxRequestSize;
+            context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+            return;
         }
 
-        public async Task InvokeAsync(HttpContext context)
+        if (!feature.IsReadOnly)
+            feature.MaxRequestBodySize = UploadRequestPolicy.MaximumRequestBytes;
+        if (context.Request.ContentLength > UploadRequestPolicy.MaximumRequestBytes)
         {
-            context.Features.Get<IHttpMaxRequestBodySizeFeature>()!.MaxRequestBodySize = _maxRequestSize;
-            await _next(context);
+            context.Response.StatusCode = StatusCodes.Status413PayloadTooLarge;
+            return;
         }
+
+        await next(context);
     }
 }

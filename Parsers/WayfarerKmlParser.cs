@@ -11,6 +11,12 @@ namespace Wayfarer.Parsers;
 /// <summary>Safely classifies and parses versioned Wayfarer-native KML into detached transport data.</summary>
 public static class WayfarerKmlParser
 {
+    /// <summary>Existing XML character budget for the materialized Trip import document.</summary>
+    public const long MaximumDocumentCharacters = 10 * 1024 * 1024;
+
+    /// <summary>Encoding-safe section ceiling: four bytes per character plus a UTF-32 BOM.</summary>
+    public const long MaximumEncodedDocumentBytes = 4 * MaximumDocumentCharacters + 4;
+
     private static readonly XNamespace Kml = "http://www.opengis.net/kml/2.2";
     private static readonly CultureInfo Invariant = CultureInfo.InvariantCulture;
     private static readonly HashSet<string> V2OnlyFields =
@@ -81,7 +87,7 @@ public static class WayfarerKmlParser
         Async = async,
         DtdProcessing = DtdProcessing.Prohibit,
         XmlResolver = null,
-        MaxCharactersInDocument = 10 * 1024 * 1024,
+        MaxCharactersInDocument = MaximumDocumentCharacters,
         IgnoreComments = true
     };
 

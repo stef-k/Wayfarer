@@ -131,7 +131,7 @@ class Stack:
         self.sql('''INSERT INTO "AspNetUserRoles" ("UserId","RoleId")
             SELECT u."Id",r."Id" FROM "AspNetUsers" u CROSS JOIN "AspNetRoles" r
             WHERE u."UserName"='compose-admin' AND r."Name"='User' ON CONFLICT DO NOTHING;''')
-        self.sql('UPDATE "ApplicationSettings" SET "ProxyImageRateLimitEnabled"=true, "ProxyImageRateLimitPerMinute"=1;')
+        self.sql('UPDATE "ApplicationSettings" SET "ProxyImageRateLimitEnabled"=true, "ProxyImageRateLimitPerMinute"=1, "UploadSizeLimitMB"=1;')
         self.compose('up', '-d', '--wait', '--wait-timeout', '180')
         self.connect()
         assert self.compose('exec', '-T', 'caddy', 'caddy', 'version').stdout.startswith('v2.11.4 ')
@@ -215,6 +215,7 @@ class Stack:
         logs = run('docker', 'logs', self.container('wayfarer')).stdout
         assert 'Map snapshot rate limit exceeded for IP: 172.30.65.1' in logs
         self.authenticate()
+        self.upload_boundary()
         # The same real trip becomes private only inside this disposable qualification database.
         self.sql(f'UPDATE "Trips" SET "IsPublic"=false WHERE "Id"=\'{TRIP}\';')
         try:
@@ -226,6 +227,35 @@ class Stack:
         finally:
             self.sql(f'UPDATE "Trips" SET "IsPublic"=true WHERE "Id"=\'{TRIP}\';')
         print('Managed TLS/page/static/spoofed-host/export/SSE/thumbnail/PDF passed', flush=True)
+
+    def upload_boundary(self):
+        """Prove a small configured application limit through real Caddy and normal form antiforgery."""
+        cookies = str(self.directory / 'cookies')
+        page = self.curl('/User/LocationImport/Upload', '-b', cookies, '-c', cookies).stdout
+        token = re.search(r'name="__RequestVerificationToken" type="hidden" value="([^"]+)"', page).group(1)
+        upload = self.directory / 'history.csv'
+        upload.write_text('timestamp,latitude,longitude\n2026-01-01T00:00:00Z,37.9,23.7\n')
+        count = 'SELECT count(*) FROM "LocationImports";'
+        before = int(self.sql(count))
+        response = self.curl('/User/LocationImport/Upload', '-b', cookies,
+            '-F', '__RequestVerificationToken=' + token, '-F', 'FileType=Csv',
+            '-F', 'File=@' + str(upload), '-o', '/dev/null', '-w', '%{http_code}')
+        assert response.stdout == '302', response.stdout
+        assert int(self.sql(count)) == before + 1
+        files = self.compose('exec', '-T', 'wayfarer', 'sh', '-ec',
+            'find /var/lib/wayfarer/uploads/imports -type f | sort').stdout
+        # Slightly exceed 1 MiB; no giant fixture or proxy body-size directive is needed.
+        with upload.open('wb') as body:
+            body.truncate(1024 * 1024 + 1)
+        response = self.curl('/User/LocationImport/Upload', '-b', cookies,
+            '-F', '__RequestVerificationToken=' + token, '-F', 'FileType=Csv',
+            '-F', 'File=@' + str(upload), '-o', '/dev/null', '-w', '%{http_code}', check=False)
+        assert response.stdout == '413', response.stdout
+        assert int(self.sql(count)) == before + 1
+        assert files == self.compose('exec', '-T', 'wayfarer', 'sh', '-ec',
+            'find /var/lib/wayfarer/uploads/imports -type f | sort').stdout
+        upload.unlink()
+        print('Managed Caddy: valid upload staged once; oversized request 413 with no new file/row', flush=True)
 
     def authenticate(self):
         """Use the real antiforgery login and retain its encrypted cookie across replacement."""

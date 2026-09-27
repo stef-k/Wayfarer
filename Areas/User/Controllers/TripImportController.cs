@@ -25,6 +25,8 @@ public class TripImportController : BaseController
 
     [HttpPost]
     [ValidateAntiForgeryToken]
+    [Wayfarer.Middleware.UserFileUpload]
+    [RequestFormLimits(MultipartBodyLengthLimit = Wayfarer.Parsers.WayfarerKmlParser.MaximumEncodedDocumentBytes)]
     public async Task<IActionResult> Import(
         IFormFile       file,
         TripImportMode  mode = TripImportMode.Auto)

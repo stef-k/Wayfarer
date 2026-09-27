@@ -11,7 +11,8 @@ public class ApplicationSettings
     public const int DefaultImageCacheExpiryDays = 90;
     public const int DefaultMaxCacheTileSizeInMB = 1024;
     public const int DefaultMaxCacheMbtilesSizeInMB = 6144;
-    public const int DefaultUploadSizeLimitMB = 100;
+    /// <summary>Default user upload request ceiling, matching the fixed application maximum.</summary>
+    public const int DefaultUploadSizeLimitMB = Wayfarer.Util.UploadRequestPolicy.MaximumRequestMiB;
     public const string DefaultTileProviderKey = "osm";
     public const string DefaultTileProviderUrlTemplate = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
     public const string DefaultTileProviderAttribution = "&copy; OpenStreetMap contributors";
@@ -220,10 +221,10 @@ public class ApplicationSettings
     [Required]
     public bool IsRegistrationOpen { get; set; } = false;
     
-    // Application uploads file size limit in Megabytes, default is 100 MB
+    /// <summary>User multipart request ceiling in MiB: -1 disables, 0 defaults, 1..100 limits.</summary>
     [Required]
-    [Range(-1, 102400)]
-    public int UploadSizeLimitMB { get; set; } = 100;
+    [Range(-1, Wayfarer.Util.UploadRequestPolicy.MaximumRequestMiB)]
+    public int UploadSizeLimitMB { get; set; } = DefaultUploadSizeLimitMB;
 
     // === Trip Place Auto-Visited Settings ===
 
