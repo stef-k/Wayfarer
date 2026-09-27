@@ -12,6 +12,7 @@ public static class BackupCompose
     public static string[] Command(string root, Deployment config, params string[] arguments)
     {
         var policy = config.Backup ?? throw new UsageException("Backup is not configured.");
+        Check(root, config);
         return config.Compose(root, ["-f", Path.Combine(DirectoryPath(root, policy), "compose.json"), "--profile", "backup", .. arguments]);
     }
 
@@ -51,6 +52,10 @@ public static class BackupCompose
     {
         var policy = config.Backup ?? throw new UsageException("Backup is not configured.");
         policy.CheckPayload();
+        if (policy.Source.BundleFingerprint != BackupConfiguration.BundleFingerprint(config) ||
+            policy.Source.ApplicationImage != "ghcr.io/stef-k/wayfarer@" + config.AppDigest ||
+            policy.Source.DatabaseImage != "ghcr.io/stef-k/wayfarer-db@" + config.DbDigest || policy.Source.Project != config.Project)
+            throw new UsageException("Recovery source/bundle identity changed; no application update is allowed.");
         var directory = DirectoryPath(root, policy);
         foreach (var (name, expected) in new[]
         {

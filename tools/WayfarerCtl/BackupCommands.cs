@@ -12,8 +12,8 @@ public sealed class BackupCommands(IProcessRunner runner, ITerminal terminal)
         if (args is ["backup", "configure", ..])
         {
             var next = await new BackupConfiguration(runner).ConfigureAsync(root, config, args[2..], token);
-            if (next.Backup!.Enabled) await Required(BackupCompose.Command(root, next, "up", "-d", "--no-deps", "--pull", "never", "backup-scheduler"), token);
-            terminal.Write(next.Backup.Enabled ? "Backup configured; scheduler enabled." : "Backup disabled; scheduler stopped.");
+            if (next.Backup?.Enabled == true) await Required(BackupCompose.Command(root, next, "up", "-d", "--no-deps", "--pull", "never", "backup-scheduler"), token);
+            terminal.Write(next.Backup?.Enabled == true ? "Backup configured; scheduler enabled." : "Backup disabled; scheduler stopped.");
             return 0;
         }
         if (File.Exists(Path.Combine(root, "backup-transition.json"))) throw new UsageException("Interrupted backup configuration; run backup configure --recover.");
@@ -58,20 +58,20 @@ public sealed class BackupCommands(IProcessRunner runner, ITerminal terminal)
             // Independent cleanup deadline survives Ctrl-C; a lost daemon must never be called successful cancellation.
             try
             {
-            using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(45));
-            if (!stopped)
-            {
-                var stop = await runner.RunAsync(["stop", "--time", "30", container], null, cleanup.Token);
-                var wait = await runner.RunAsync(["wait", container], null, cleanup.Token);
-                stopped = stop.Code == 0 && wait.Code == 0;
-            }
-            if (stopped)
-            {
-                await runner.RunAsync(["rm", container], null, cleanup.Token);
-                using var exclusion = new RecoveryLock(Path.Combine(control, "recovery.lock"));
-                File.Delete(Path.Combine(control, "host-operation.json"));
-            }
-            else terminal.Error("Worker state unknown; recovery reservation retained. Inspect the owned container before recovery.");
+                using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(45));
+                if (!stopped)
+                {
+                    var stop = await runner.RunAsync(["stop", "--time", "30", container], null, cleanup.Token);
+                    var wait = await runner.RunAsync(["wait", container], null, cleanup.Token);
+                    stopped = stop.Code == 0 && wait.Code == 0;
+                }
+                if (stopped)
+                {
+                    await runner.RunAsync(["rm", container], null, cleanup.Token);
+                    using var exclusion = new RecoveryLock(Path.Combine(control, "recovery.lock"));
+                    File.Delete(Path.Combine(control, "host-operation.json"));
+                }
+                else terminal.Error("Worker state unknown; recovery reservation retained. Inspect the owned container before recovery.");
             }
             catch (Exception) { terminal.Error("Worker cleanup state unknown; recovery reservation retained. Prior operation outcome remains authoritative."); }
             if (quiesced) terminal.Write("Application remains stopped after deliberate quiesced capture; use start when the protected transition is finished.");

@@ -37,25 +37,7 @@ public static class WorkerCli
             }
             if (arguments is ["destination-check"])
             {
-                var configuration = WorkerConfiguration.Load("/config/worker.json");
-                using var destination = configuration.OpenDestination();
-                var name = ".wayfarer-probe-" + configuration.Installation.ToString("D") + "-" + Guid.NewGuid().ToString("N");
-                var owned = name;
-                var completed = false;
-                try
-                {
-                    using (var output = destination.Write(name)) { output.Write("probe"u8); output.Flush(true); }
-                    destination.Publish(name, name + ".committed");
-                    owned = name + ".committed";
-                    using var input = destination.Read(owned);
-                    if (new StreamReader(input).ReadToEnd() != "probe") throw new IOException("Destination readback failed.");
-                    completed = true;
-                }
-                finally
-                {
-                    try { destination.Delete(owned); }
-                    catch (IOException) when (!completed) { Console.Error.WriteLine("Destination probe cleanup failed; primary result retained."); }
-                }
+                CheckDestination();
                 Write(new { Schema = 1, Destination = "ready" });
                 return 0;
             }
@@ -79,7 +61,8 @@ public static class WorkerCli
                 Write(new { Schema = 1, Verification = "not-fully-verified", More = manifests.Length > 20,
                     Archives = manifests.Take(20).Select(value => new
                     {
-                        value.Archive, value.Completed, value.Mode,
+                        value.Archive, value.Completed, value.Mode, value.Source.ApplicationVersion,
+                        SchemaIdentity = value.Database.TerminalMigration,
                         Name = ArchiveContract.Name(value.Installation, value.Completed, value.Archive)
                     }) });
                 return 0;
@@ -88,12 +71,44 @@ public static class WorkerCli
                 ? ArchiveContract.Name(config.Installation, manifests[0].Completed, manifests[0].Archive)
                 : throw new IOException("No complete owned archive.");
             using var staging = new RecoveryTaskDirectory();
-            var verified = await ArchiveVerifier.VerifyAsync(destination, name, staging.Path, config.Source, config.Installation, deadline.Token);
-            Write(verified);
-            return verified.CompatibilitySupported ? 0 : 1;
+            try
+            {
+                var verified = await ArchiveVerifier.VerifyAsync(destination, name, staging.Path, config.Source, config.Installation, deadline.Token);
+                Write(verified);
+                return verified.CompatibilitySupported ? 0 : 1;
+            }
+            catch (Exception error) when (error is IOException or JsonException or CryptographicException or ArgumentException)
+            {
+                Write(new { Schema = 1, IntegrityValid = false, CompatibilitySupported = false, Failure = "archive-invalid" });
+                return 1;
+            }
         }
         catch (OperationCanceledException) { Write(new { Schema = 1, Success = false, Failure = "cancelled-or-deadline" }); return 1; }
         catch (Exception) { Write(new { Schema = 1, Success = false, Failure = "recovery-validation-or-operation-failed" }); return 1; }
+    }
+
+    /// <summary>Probe only private destination-owned names; preserve a primary failure if cleanup also fails.</summary>
+    private static void CheckDestination()
+    {
+        var configuration = WorkerConfiguration.Load("/config/worker.json");
+        using var probeDestination = configuration.OpenDestination();
+        var probeName = ".wayfarer-probe-" + configuration.Installation.ToString("D") + "-" + Guid.NewGuid().ToString("N");
+        var owned = probeName;
+        var completed = false;
+        try
+        {
+            using (var output = probeDestination.Write(probeName)) { output.Write("probe"u8); output.Flush(true); }
+            probeDestination.Publish(probeName, probeName + ".committed");
+            owned = probeName + ".committed";
+            using var input = probeDestination.Read(owned);
+            if (new StreamReader(input).ReadToEnd() != "probe") throw new IOException("Destination readback failed.");
+            completed = true;
+        }
+        finally
+        {
+            try { probeDestination.Delete(owned); }
+            catch (IOException) when (!completed) { Console.Error.WriteLine("Destination probe cleanup failed; primary result retained."); }
+        }
     }
 
     private static void Write<T>(T result) => Console.WriteLine(JsonSerializer.Serialize(result, ArchiveContract.Json));

@@ -60,6 +60,7 @@ public sealed class RecoveryEngine(WorkerConfiguration config)
             try
             {
                 using var file = destination.Read(name);
+                if (file.Length > ArchiveContract.ByteLimit) continue;
                 using var sidecar = destination.Read(name + ".sha256");
                 if (sidecar.Length > 512) continue;
                 var checksum = new StreamReader(sidecar).ReadToEnd();
@@ -69,11 +70,21 @@ public sealed class RecoveryEngine(WorkerConfiguration config)
                 var entry = tar.GetNextEntry();
                 if (entry?.Name != "manifest.json" || entry.Format != TarEntryFormat.Ustar ||
                     entry.EntryType != TarEntryType.RegularFile || entry.Length > ArchiveContract.ManifestLimit || entry.DataStream is null) continue;
-                var manifest = JsonSerializer.Deserialize<RecoveryManifest>(entry.DataStream, ArchiveContract.Json);
+                var manifest = ArchiveContract.ReadManifest(entry.DataStream);
                 if (manifest is null || manifest.Installation != config.Installation ||
                     name != ArchiveContract.Name(config.Installation, manifest.Completed, manifest.Archive)) continue;
                 ArchiveContract.Validate(manifest);
-                results.Add(manifest);
+                var structureValid = true;
+                foreach (var member in ArchiveContract.Members[1..])
+                {
+                    token.ThrowIfCancellationRequested();
+                    var component = tar.GetNextEntry();
+                    if (component is null || component.Name != member || component.Format != TarEntryFormat.Ustar ||
+                        component.EntryType != TarEntryType.RegularFile || component.Length < 0 || component.Length > ArchiveContract.ByteLimit ||
+                        member == "SHA256SUMS" && component.Length > 1024)
+                    { structureValid = false; break; }
+                }
+                if (structureValid && tar.GetNextEntry() is null) results.Add(manifest);
             }
             catch (Exception error) when (error is IOException or JsonException or ArgumentException) { /* Incomplete/unowned pairs are ignored. */ }
         }

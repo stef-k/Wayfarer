@@ -23,6 +23,10 @@ public sealed class BackupConfiguration(IProcessRunner runner)
         }
         if (!result.ContainsKey("--destination") || !result.ContainsKey("--payload"))
             throw new UsageException("backup configure requires --destination and --payload.");
+        if (!int.TryParse(result.GetValueOrDefault("--retention", "7"), out var retention) || retention is < 1 or > 100 ||
+            result.GetValueOrDefault("--kind", "local") is not ("local" or "mounted") ||
+            !TimeOnly.TryParseExact(result.GetValueOrDefault("--time", "03:00"), "HH:mm", out _))
+            throw new UsageException("Invalid retention, destination kind or UTC schedule.");
         BackupPolicy.LiteralPath(result["--destination"]); BackupPolicy.LiteralPath(result["--payload"]);
         return result;
     }
@@ -72,6 +76,7 @@ public sealed class BackupConfiguration(IProcessRunner runner)
                 Destination = options["--destination"], Kind = options.GetValueOrDefault("--kind", "local"), Payload = payload,
                 PayloadSha256 = BackupPolicy.Fingerprint(payload), Retention = retention, DailyMinute = daily.Hour * 60 + daily.Minute
             };
+            await new Preflight(runner).BundleAsync(root, config, token);
             var source = await InspectAsync(root, config, payload, token);
             var facts = Destination(root, config, policy, installation);
             policy = policy with { DeviceMajor = facts.DeviceMajor, DeviceMinor = facts.DeviceMinor, Inode = facts.Inode,
@@ -167,7 +172,7 @@ public sealed class BackupConfiguration(IProcessRunner runner)
         ProtectedFiles.Check(Path.Combine(directory, "recovery.lock"), 1654);
     }
 
-    private static string BundleFingerprint(Deployment config)
+    internal static string BundleFingerprint(Deployment config)
     {
         using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
         foreach (var name in new[] { "compose.yaml", "external.yaml", "caddy/Caddyfile", "db/20-wayfarer.sh" })

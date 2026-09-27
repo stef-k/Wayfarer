@@ -47,6 +47,8 @@ public sealed class Cli(IProcessRunner runner, ITerminal terminal)
         var config = Deployment.Load(root);
         if (args[0] is "status" or "doctor")
             return await new Diagnostics(runner, terminal).RunAsync(root, config, args[0] == "doctor", token);
+        if (File.Exists(Path.Combine(root, "backup-transition.json")) && args is not ["backup", "configure", "--recover"])
+            throw new UsageException("Interrupted backup configuration; run backup configure --recover before mutation.");
         Deployment.CheckSecrets(root);
         await new Preflight(runner).DockerAsync(token);
         if (args[0] == "logs") return await LogsAsync(root, config, args[1..], token);
@@ -83,13 +85,13 @@ public sealed class Cli(IProcessRunner runner, ITerminal terminal)
     /// <summary>The menu supplies command arguments only, keeping maintenance logic in common handlers.</summary>
     private async Task<int> MenuAsync(string root, CancellationToken token)
     {
-        var entries = new[] { "setup", "status", "doctor", "start", "stop", "restart", "logs", "user", "help" };
+        var entries = new[] { "setup", "status", "doctor", "start", "stop", "restart", "logs", "user", "help", "backup", "backups", "verify-backup" };
         while (!token.IsCancellationRequested)
         {
-            terminal.Write("1 Setup  2 Status  3 Doctor  4 Start  5 Stop  6 Restart  7 Logs  8 User recovery  9 Help  0 Exit");
+            terminal.Write("1 Setup  2 Status  3 Doctor  4 Start  5 Stop  6 Restart  7 Logs  8 User recovery  9 Help  10 Backup  11 Backups  12 Verify backup  0 Exit");
             var choice = terminal.Read("> ");
             if (choice is null or "0") return 0;
-            if (!int.TryParse(choice, out var index) || index < 1 || index > entries.Length) { terminal.Error("Choose 0..9."); continue; }
+            if (!int.TryParse(choice, out var index) || index < 1 || index > entries.Length) { terminal.Error("Choose 0..12."); continue; }
             string[] command = [entries[index - 1]];
             if (command[0] == "user")
             {

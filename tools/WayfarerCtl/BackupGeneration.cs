@@ -42,6 +42,7 @@ public static class BackupGeneration
     {
         var path = Path.Combine(root, "backup-transition.json");
         ProtectedFiles.Check(path, 0);
+        if (new FileInfo(path).Length > 1048576) throw new UsageException("Backup transition exceeds its bound.");
         var transition = JsonSerializer.Deserialize<Transition>(File.ReadAllText(path)) ?? throw new UsageException("Invalid backup transition.");
         var current = File.ReadAllText(Path.Combine(root, "installation.json"));
         if (current != transition.Previous && current != transition.Next) throw new UsageException("Ambiguous interrupted backup configuration.");

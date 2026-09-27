@@ -17,6 +17,7 @@ public sealed class DirectoryCapture
     {
         var started = DateTimeOffset.UtcNow;
         using var root = new SafeDirectory(source);
+        var rootBefore = root.Identity;
         using (var file = new FileStream(output, FileMode.CreateNew, FileAccess.Write, FileShare.None))
         using (var gzip = new GZipStream(file, CompressionLevel.Optimal))
         using (var tar = new TarWriter(gzip, TarEntryFormat.Ustar))
@@ -38,6 +39,7 @@ public sealed class DirectoryCapture
                     throw new IOException("Source changed during capture.");
             }
         }
+        if (!rootBefore.Equals(root.Identity)) throw new IOException("Source root changed during capture.");
         using var result = File.OpenRead(output);
         return new RecoveryComponent(logicalName, Path.GetFileName(output), result.Length,
             Convert.ToHexStringLower(SHA256.HashData(result)), started, DateTimeOffset.UtcNow);

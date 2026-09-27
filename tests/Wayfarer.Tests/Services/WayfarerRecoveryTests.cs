@@ -165,4 +165,31 @@ public sealed class WayfarerRecoveryTests
         Assert.Throws<IOException>(() => ArchiveContract.ValidateSource(source with { SourceRevision = "unknown" }));
     }
 
+    /// <summary>Even a matching final checksum cannot authorize unexpected members, links or path escape.</summary>
+    [Theory]
+    [InlineData("../escape", false)]
+    [InlineData("unexpected", false)]
+    [InlineData("uploads.tar.gz", true)]
+    public async Task UnsafeOuterMembersFailBeforeToolsOrExtraction(string member, bool link)
+    {
+        using var fixture = new TestDirectory();
+        var archive = Path.Combine(fixture.Path, "unsafe.tar");
+        using (var output = File.Create(archive))
+        using (var writer = new TarWriter(output, TarEntryFormat.Ustar))
+        {
+            var entry = new UstarTarEntry(link ? TarEntryType.SymbolicLink : TarEntryType.RegularFile, member);
+            if (link) entry.LinkName = "/outside";
+            else entry.DataStream = new MemoryStream([1, 2, 3]);
+            writer.WriteEntry(entry);
+        }
+        var digest = Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(await File.ReadAllBytesAsync(archive)));
+        await File.WriteAllTextAsync(archive + ".sha256", digest + "  unsafe.tar\n");
+        using var directory = new SafeDirectory(fixture.Path);
+        var staging = Path.Combine(fixture.Path, "staging");
+        Directory.CreateDirectory(staging);
+        await Assert.ThrowsAsync<IOException>(() => ArchiveVerifier.VerifyAsync(directory, "unsafe.tar", staging,
+            new SourceIdentity(), Guid.NewGuid(), CancellationToken.None));
+        Assert.Empty(Directory.EnumerateFileSystemEntries(staging));
+    }
+
 }

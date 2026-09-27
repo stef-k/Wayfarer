@@ -7,7 +7,9 @@ namespace WayfarerCtl;
 public sealed record Deployment
 {
     public int Schema { get; init; } = 1;
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
     public Guid Installation { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public BackupPolicy? Backup { get; init; }
     public string Bundle { get; init; } = "";
     public string Project { get; init; } = "wayfarer";
@@ -62,6 +64,7 @@ public sealed record Deployment
         ProtectedFiles.Check(root, 0, directory: true);
         var path = Path.Combine(root, "installation.json");
         ProtectedFiles.Check(path, 0);
+        if (new FileInfo(path).Length > 262144) throw new UsageException("Installation configuration exceeds its bound.");
         var config = JsonSerializer.Deserialize<Deployment>(File.ReadAllText(path), new JsonSerializerOptions
         { UnmappedMemberHandling = System.Text.Json.Serialization.JsonUnmappedMemberHandling.Disallow })
             ?? throw new UsageException("Missing installation identity.");

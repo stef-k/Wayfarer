@@ -28,10 +28,10 @@ public sealed record WorkerConfiguration
         if (new FileInfo(path).Length > ArchiveContract.ManifestLimit) throw new IOException("Worker configuration too large.");
         var config = JsonSerializer.Deserialize<WorkerConfiguration>(File.ReadAllText(path), ArchiveContract.Json)
             ?? throw new IOException("Worker configuration missing.");
-        if (config.Schema != 1 || config.Installation == Guid.Empty || config.Generation.Length != 64 ||
+        if (config.Schema != 1 || config.Installation == Guid.Empty || config.Generation.Length != 64 || !config.Generation.All(c => c is >= '0' and <= '9' or >= 'a' and <= 'f') ||
             config.Retention is < 1 or > 100 || config.DailyMinute is < 0 or >= 1440 || config.JitterMinutes is < 0 or > 15 ||
             config.Attempts is < 1 or > 3 || config.DeadlineSeconds is < 30 or > 3600 ||
-            config.DestinationKind is not ("local" or "mounted") || config.Source.ExpectedMigrations.Length == 0)
+            config.DestinationKind is not ("local" or "mounted") || config.Source.ExpectedMigrations.Length == 0 || config.Source.Kind != "compose")
             throw new IOException("Invalid worker configuration.");
         ArchiveContract.ValidateSource(config.Source);
         SafeDirectory.ValidateName(config.Uploads);

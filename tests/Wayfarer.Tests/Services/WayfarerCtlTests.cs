@@ -4,6 +4,7 @@ using Xunit;
 namespace Wayfarer.Tests.Services;
 
 /// <summary>CLI contract tests at the command/process seam, without Docker or application-domain mocks.</summary>
+[System.Runtime.Versioning.SupportedOSPlatform("linux")]
 public sealed class WayfarerCtlTests
 {
     /// <summary>Backup opt-in requires a stable schema2 identity; schema1 remains readable without policy.</summary>
@@ -17,6 +18,25 @@ public sealed class WayfarerCtlTests
         (legacy with { Schema = 2, Installation = Guid.NewGuid() }).Validate();
         Assert.Throws<UsageException>(() => (legacy with { Installation = Guid.NewGuid() }).Validate());
         Assert.Throws<UsageException>(() => (legacy with { Schema = 3 }).Validate());
+    }
+
+    /// <summary>New grammar accepts bounded backup commands and rejects arbitrary path selections before host access.</summary>
+    [Theory]
+    [InlineData("backup configure --retention 7")]
+    [InlineData("backup configure --destination /tmp/a --payload relative")]
+    [InlineData("backup configure --destination /tmp/a --payload /tmp/p --kind mounted --kind local")]
+    [InlineData("verify-backup /tmp/archive.tar")]
+    [InlineData("verify-backup wayfarer-recovery-v1_../archive.tar")]
+    public void InvalidBackupGrammarFailsClosed(string arguments) =>
+        Assert.Throws<UsageException>(() => Cli.ValidateCommand(arguments.Split(' ')));
+
+    /// <summary>Schema1 serialization remains byte-shape compatible with operators predating backup fields.</summary>
+    [Fact]
+    public void LegacySerializationOmitsNewBackupFields()
+    {
+        var json = System.Text.Json.JsonSerializer.Serialize(new Deployment());
+        Assert.DoesNotContain("Installation", json);
+        Assert.DoesNotContain("Backup", json);
     }
 
     [Theory]

@@ -20,6 +20,29 @@ public static class ArchiveContract
         WriteIndented = false
     };
 
+    /// <summary>Listing and full verification share strict JSON interpretation, including duplicate-property rejection.</summary>
+    public static RecoveryManifest ReadManifest(Stream input)
+    {
+        using var document = JsonDocument.Parse(input, new JsonDocumentOptions { MaxDepth = 16 });
+        RejectDuplicates(document.RootElement);
+        return document.RootElement.Deserialize<RecoveryManifest>(Json) ?? throw new IOException("Manifest missing.");
+    }
+
+    private static void RejectDuplicates(JsonElement element)
+    {
+        if (element.ValueKind == JsonValueKind.Object)
+        {
+            var names = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var property in element.EnumerateObject())
+            {
+                if (!names.Add(property.Name)) throw new IOException("Duplicate manifest property.");
+                RejectDuplicates(property.Value);
+            }
+        }
+        else if (element.ValueKind == JsonValueKind.Array)
+            foreach (var item in element.EnumerateArray()) RejectDuplicates(item);
+    }
+
     /// <summary>Only generated identities are permitted in filesystem names.</summary>
     public static string Name(Guid installation, DateTimeOffset completion, Guid archive) =>
         $"wayfarer-recovery-v1_{installation:D}_{completion.UtcDateTime:yyyyMMddTHHmmssfffffffZ}_{archive:D}.tar";
@@ -53,14 +76,20 @@ public static class ArchiveContract
         if (source.ApplicationName != "Wayfarer" || source.Platform != "linux/amd64" || source.ConfigurationSchema != 2 ||
             source.StableIdentity != "ready" || source.ReleaseStatus is not ("candidate" or "released") ||
             !Regex.IsMatch(source.SourceRevision, "^[a-f0-9]{40}$") ||
-            !Regex.IsMatch(source.BundleFingerprint, "^[a-f0-9]{64}$") || !Regex.IsMatch(source.PayloadFingerprint, "^[a-f0-9]{64}$") ||
-            !Regex.IsMatch(source.ApplicationImage, "^ghcr.io/stef-k/wayfarer@sha256:[a-f0-9]{64}$") ||
-            !Regex.IsMatch(source.DatabaseImage, "^ghcr.io/stef-k/wayfarer-db@sha256:[a-f0-9]{64}$") ||
-            !Regex.IsMatch(source.Project, "^[a-z0-9][a-z0-9_-]{0,62}$") ||
+            !Regex.IsMatch(source.PayloadFingerprint, "^[a-f0-9]{64}$") ||
             !Regex.IsMatch(source.ApplicationVersion, "^[0-9][A-Za-z0-9.+-]{0,127}$") ||
             !Regex.IsMatch(source.WorkerVersion, "^[0-9][A-Za-z0-9.+-]{0,63}$") ||
             !Regex.IsMatch(source.QuartzIdentity, "^[A-Za-z0-9.-]{1,128}$"))
             throw new IOException("Invalid source identity.");
+        if (source.Kind == "compose")
+        {
+            if (!Regex.IsMatch(source.BundleFingerprint, "^[a-f0-9]{64}$") ||
+                !Regex.IsMatch(source.ApplicationImage, "^ghcr.io/stef-k/wayfarer@sha256:[a-f0-9]{64}$") ||
+                !Regex.IsMatch(source.DatabaseImage, "^ghcr.io/stef-k/wayfarer-db@sha256:[a-f0-9]{64}$") ||
+                !Regex.IsMatch(source.Project, "^[a-z0-9][a-z0-9_-]{0,62}$")) throw new IOException("Invalid Compose provenance.");
+        }
+        else if (source.Kind != "native" || source.ApplicationImage != "" || source.DatabaseImage != "" || source.Project != "" || source.BundleFingerprint != "")
+            throw new IOException("Unsupported source provenance.");
         ValidateMigrations(source.ExpectedMigrations);
     }
 

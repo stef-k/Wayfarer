@@ -28,7 +28,6 @@ public static class ArchiveVerifier
         if (manifest.Installation != installation || name != ArchiveContract.Name(installation, manifest.Completed, manifest.Archive))
             throw new IOException("Archive ownership/name mismatch.");
         await VerifyComponentsAsync(manifest, staging, token);
-        await DatabaseCapture.RunAsync("pg_restore", ["--list", Path.Combine(staging, "database.dump")], null, token);
         ValidateDirectory(Path.Combine(staging, "uploads.tar.gz"), null, token);
         var keys = Path.Combine(staging, "keys");
         Directory.CreateDirectory(keys, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
@@ -39,7 +38,8 @@ public static class ArchiveVerifier
             builder.SetApplicationName("Wayfarer").DisableAutomaticKeyGeneration());
         var protector = provider.CreateProtector("Wayfarer.Recovery.Verify.v1");
         if (protector.Unprotect(protector.Protect("ready")) != "ready") throw new IOException("Key ring is unusable.");
-        var compatible = manifest.Source.ApplicationImage == expected.ApplicationImage &&
+        await DatabaseCapture.RunAsync("pg_restore", ["--list", Path.Combine(staging, "database.dump")], null, token);
+        var compatible = manifest.Source.Kind == expected.Kind && manifest.Source.ApplicationImage == expected.ApplicationImage &&
             manifest.Source.DatabaseImage == expected.DatabaseImage && manifest.Source.SourceRevision == expected.SourceRevision &&
             manifest.Source.ApplicationName == expected.ApplicationName && manifest.Source.QuartzIdentity == expected.QuartzIdentity &&
             manifest.Source.ApplicationVersion == expected.ApplicationVersion && manifest.Source.Platform == expected.Platform &&
@@ -75,24 +75,8 @@ public static class ArchiveVerifier
             if (padding.AsSpan(0, trailing).ContainsAnyExcept((byte)0)) throw new IOException("Unexpected outer trailing data.");
         if (!names.SetEquals(ArchiveContract.Members)) throw new IOException("Recovery component missing.");
         var bytes = await File.ReadAllBytesAsync(Path.Combine(staging, "manifest.json"), token);
-        using var document = JsonDocument.Parse(bytes, new JsonDocumentOptions { MaxDepth = 16 });
-        RejectDuplicates(document.RootElement);
-        return JsonSerializer.Deserialize<RecoveryManifest>(bytes, ArchiveContract.Json) ?? throw new IOException("Manifest missing.");
-    }
-
-    private static void RejectDuplicates(JsonElement element)
-    {
-        if (element.ValueKind == JsonValueKind.Object)
-        {
-            var names = new HashSet<string>(StringComparer.Ordinal);
-            foreach (var property in element.EnumerateObject())
-            {
-                if (!names.Add(property.Name)) throw new IOException("Duplicate manifest property.");
-                RejectDuplicates(property.Value);
-            }
-        }
-        else if (element.ValueKind == JsonValueKind.Array)
-            foreach (var item in element.EnumerateArray()) RejectDuplicates(item);
+        using var manifestStream = new MemoryStream(bytes);
+        return ArchiveContract.ReadManifest(manifestStream);
     }
 
     private static async Task VerifyComponentsAsync(RecoveryManifest manifest, string staging, CancellationToken token)

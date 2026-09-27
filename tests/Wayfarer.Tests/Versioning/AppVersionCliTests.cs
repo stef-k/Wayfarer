@@ -21,6 +21,7 @@ public class AppVersionCliTests
         "  admin bootstrap|reset <user> --stdin  Protected password input.",
         "  user find <user>                Print only matching user ID/name.",
         "  healthcheck                     Probe container readiness on loopback.",
+        "  recovery-source                 Read-only Compose recovery source inspection.",
         "  reset-password <user> <pass>    Deprecated native compatibility.",
         "  data-protection <command>       Inspect or prepare stable credential companions.",
         "  help                            Show this help text.",

@@ -53,6 +53,12 @@ internal static class RecoverySourceCli
             if (protector.Unprotect(protector.Protect("ready")) != "ready") throw new IOException("Unusable ring.");
             if (!(await scope.ServiceProvider.GetRequiredService<StableIdentityReadiness>().StatusAsync(deadline.Token)).Ready)
                 throw new IOException("Stable authority is not ready.");
+            // Fingerprint the validated schema, allowing the DB-image worker to detect later drift in its dump snapshot.
+            var quartz = await db.Database.SqlQueryRaw<string>("""
+                SELECT md5(string_agg(table_name || ':' || column_name || ':' || data_type || ':' || is_nullable,
+                    '|' ORDER BY table_name, ordinal_position)) AS "Value"
+                FROM information_schema.columns WHERE table_schema=current_schema() AND left(table_name,5)='qrtz_'
+                """).SingleAsync(deadline.Token);
             var version = new AppVersionProvider().Version;
             var revision = typeof(ApplicationDbContext).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion?.Split('+').Last() ?? "";
             await output.WriteLineAsync(JsonSerializer.Serialize(new
@@ -61,7 +67,7 @@ internal static class RecoverySourceCli
                 Ring = Path.GetRelativePath(storage.DataRoot, ring.Path), ApplicationVersion = version,
                 SourceRevision = revision, ApplicationName = DataProtectionAuthority.StableApplicationName,
                 ExpectedMigrations = db.Database.GetMigrations().ToArray(),
-                QuartzIdentity = "wayfarer-quartz-schema-v1"
+                QuartzIdentity = quartz
             }));
             return 0;
         }

@@ -43,6 +43,7 @@ public sealed class Diagnostics(IProcessRunner runner, ITerminal terminal)
         }
         if (config.Backup is { } backup)
         {
+            terminal.Write($"Backup source: {backup.Source.ApplicationVersion}; revision: {backup.Source.SourceRevision}; stable identity: {backup.Source.StableIdentity}");
             terminal.Write($"Backup enabled: {backup.Enabled}; daily UTC minute: {backup.DailyMinute}; jitter minutes: {backup.JitterMinutes}; retention: {backup.Retention}");
             await Check("Backup payload/generated inputs", () => { BackupCompose.Check(root, config); return Task.CompletedTask; });
             await Check("Backup destination identity", () =>
@@ -71,7 +72,10 @@ public sealed class Diagnostics(IProcessRunner runner, ITerminal terminal)
                 if (!File.Exists(path)) { terminal.Write("Backup scheduler: no attempt receipt yet."); return Task.CompletedTask; }
                 if (new FileInfo(path).Length > 4096) throw new IOException();
                 var receipt = JsonSerializer.Deserialize<WayfarerRecovery.SchedulerReceipt>(File.ReadAllText(path), WayfarerRecovery.ArchiveContract.Json) ?? throw new IOException();
-                terminal.Write($"Backup last attempt: {receipt.LastAttempt:O}; last success: {receipt.LastSuccess:O}; attempt count: {receipt.Attempts}; succeeded: {receipt.Succeeded}");
+                terminal.Write($"Backup last attempt: {receipt.LastAttempt:O}; last success: {receipt.LastSuccess:O}; attempt count: {receipt.Attempts}; succeeded: {receipt.Succeeded}; next retry: {receipt.NextRetry:O}");
+                var failure = receipt.Failure is "none" or "interrupted" or "capture-failed" or "retention-failed" ? receipt.Failure : "invalid-receipt";
+                terminal.Write("Backup last failure: " + failure);
+                if (failure != "none") throw new IOException();
                 return Task.CompletedTask;
             });
         }

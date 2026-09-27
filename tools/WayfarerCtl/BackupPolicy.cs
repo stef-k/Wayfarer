@@ -33,6 +33,7 @@ public sealed record BackupPolicy
             JitterMinutes is < 0 or > 15 || Attempts is < 1 or > 3 || DeadlineSeconds is < 30 or > 3600 ||
             !Regex.IsMatch(PayloadSha256, "^[a-f0-9]{64}$") || !Regex.IsMatch(Generation, "^[a-f0-9]{64}$"))
             throw new UsageException("Invalid backup policy.");
+        ArchiveContract.ValidateSource(Source);
         SafeDirectory.ValidateName(Uploads); SafeDirectory.ValidateName(Ring);
     }
 
@@ -63,7 +64,11 @@ public sealed record BackupPolicy
         foreach (var path in new[] { payload, Path.Combine(Path.GetDirectoryName(payload)!, "WayfarerRecoverySource.dll") })
         {
             ProtectedFiles.SafePath(path);
-            hash.AppendData(SHA256.HashData(File.ReadAllBytes(path)));
+            using var parent = new SafeDirectory(Path.GetDirectoryName(path)!);
+            using var file = parent.Read(Path.GetFileName(path));
+            var facts = SafeDirectory.Inspect(file.SafeFileHandle);
+            if (facts.User != 0 || (facts.Mode & 0x92) != 0) throw new UsageException("Payload files must be immutable and root-owned.");
+            hash.AppendData(SHA256.HashData(file));
         }
         return Convert.ToHexStringLower(hash.GetHashAndReset());
     }

@@ -83,7 +83,10 @@ public sealed class RecoveryScheduler(WorkerConfiguration config)
         if (input.Length > 4096) throw new IOException("Scheduler receipt exceeds bound.");
         var state = JsonSerializer.Deserialize<SchedulerReceipt>(input, ArchiveContract.Json);
         if (state is null || state.Schema != 1 || state.Attempts is < 0 or > 3 ||
-            state.Failure is not ("none" or "interrupted" or "capture-failed" or "retention-failed"))
+            state.Failure is not ("none" or "interrupted" or "capture-failed" or "retention-failed") ||
+            state.Slot.Offset != TimeSpan.Zero || state.LastAttempt.Offset != TimeSpan.Zero ||
+            state.Succeeded && (state.Attempts == 0 || state.NextRetry is not null || state.LastArchive is null || state.LastSuccess is null) ||
+            state.LastAttempt < state.Slot || (state.LastArchive is null) != (state.LastSuccess is null))
             throw new IOException("Scheduler receipt invalid.");
         return state;
     }

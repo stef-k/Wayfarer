@@ -60,6 +60,8 @@ public sealed class Preflight(IProcessRunner runner)
         };
         if (config.Mode == "managed")
             expected["caddy"] = "caddy@sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b";
+        if (services.EnumerateObject().Any(service => !expected.ContainsKey(service.Name)))
+            throw new UsageException("Unexpected service in immutable application bundle.");
         foreach (var (name, image) in expected)
         {
             if (!services.TryGetProperty(name, out var service) || service.GetProperty("image").GetString() != image ||
