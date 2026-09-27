@@ -23,17 +23,50 @@ public sealed class LegacyMapboxMigrationRecoveryPostgresTests(PostgresImportTes
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(15));
         var gate = new FirstProfileReadGate();
         await using var first = fixture.CreateContext(gate);
-        await using var second = fixture.CreateContext();
+        await using var second = fixture.CreateContext(new CompetingMigrationGate(gate));
         var firstTask = new LegacyMapboxMigrationService(first, credentials).MigrateAsync(user.Id, deadline.Token);
         await gate.Reached.Task.WaitAsync(deadline.Token);
         try
         {
-            // The first transaction has observed no profile but has not locked legacy rows yet.
+            // The competitor either waits on absent-row serialization or exposes the old stale-profile race.
             await new LegacyMapboxMigrationService(second, credentials).MigrateAsync(user.Id, deadline.Token);
         }
         finally { gate.Release.TrySetResult(); }
         await firstTask.WaitAsync(deadline.Token);
         await AssertConvergedAndRetryAsync(user.Id, credentials);
+    }
+
+    /// <summary>Concurrent first assessment of conflicting rows must retain both copies without duplicate profiles.</summary>
+    [PostgresFact]
+    public async Task ConcurrentFirstConflict_PreservesRecoveryCopies()
+    {
+        var user = await SeedAsync();
+        await using (var seed = fixture.CreateContext())
+        {
+            seed.ApiTokens.Add(new ApiToken
+            {
+                UserId = user.Id, User = await seed.Users.SingleAsync(p => p.Id == user.Id),
+                Name = "Mapbox", Token = "different-recovery-sentinel"
+            });
+            await seed.SaveChangesAsync();
+        }
+        var credentials = CredentialTestFactory.Create(new EphemeralDataProtectionProvider());
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        var gate = new FirstProfileReadGate();
+        await using var first = fixture.CreateContext(gate);
+        await using var second = fixture.CreateContext(new CompetingMigrationGate(gate));
+        var firstTask = new LegacyMapboxMigrationService(first, credentials).MigrateAsync(user.Id, deadline.Token);
+        await gate.Reached.Task.WaitAsync(deadline.Token);
+        try { await new LegacyMapboxMigrationService(second, credentials).MigrateAsync(user.Id, deadline.Token); }
+        finally { gate.Release.TrySetResult(); }
+        Assert.Equal(LegacyMapboxMigrationState.Conflict, (await firstTask.WaitAsync(deadline.Token)).State);
+        await using var retry = fixture.CreateContext();
+        Assert.Equal(LegacyMapboxMigrationState.Conflict,
+            (await new LegacyMapboxMigrationService(retry, credentials).MigrateAsync(user.Id)).State);
+        await using var verify = fixture.CreateContext();
+        Assert.Single(await verify.PersonalLocationProviderProfiles.Where(p => p.UserId == user.Id).ToListAsync());
+        Assert.Equal(2, await verify.ApiTokens.IgnoreQueryFilters().CountAsync(p => p.UserId == user.Id));
+        Assert.Empty(await verify.PersonalLocationProviderSelections.Where(p => p.UserId == user.Id).ToListAsync());
     }
 
     /// <summary>Cancellation after actual protected persistence rolls back, retaining plaintext for a fresh retry.</summary>
@@ -70,6 +103,11 @@ public sealed class LegacyMapboxMigrationRecoveryPostgresTests(PostgresImportTes
             Name = " MapBox ", Token = "legacy-recovery-sentinel"
         });
         await context.SaveChangesAsync();
+        context.ChangeTracker.Clear();
+        var migration = new LegacyMapboxMigrationService(context,
+            CredentialTestFactory.Create(new EphemeralDataProtectionProvider()));
+        Assert.True(await migration.HasLegacyRowsAsync(user.Id));
+        Assert.Empty(context.ChangeTracker.Entries());
         return user;
     }
 
@@ -81,6 +119,7 @@ public sealed class LegacyMapboxMigrationRecoveryPostgresTests(PostgresImportTes
             await using var context = fixture.CreateContext();
             var result = await new LegacyMapboxMigrationService(context, credentials).MigrateAsync(userId);
             Assert.Equal(LegacyMapboxMigrationState.Migrated, result.State);
+            Assert.False(await new LegacyMapboxMigrationService(context, credentials).HasLegacyRowsAsync(userId));
             Assert.True(result.ProtectedCredentialReady);
             await using var verify = fixture.CreateContext();
             var profile = await verify.PersonalLocationProviderProfiles.SingleAsync(p => p.UserId == userId);
@@ -105,6 +144,25 @@ public sealed class LegacyMapboxMigrationRecoveryPostgresTests(PostgresImportTes
                 && Reached.TrySetResult())
                 await Release.Task.WaitAsync(cancellationToken);
             return result;
+        }
+    }
+
+    /// <summary>Releases the first attempt when the competitor requests serialization, or has read a stale absent profile.</summary>
+    private sealed class CompetingMigrationGate(FirstProfileReadGate first) : DbCommandInterceptor
+    {
+        public override ValueTask<InterceptionResult<int>> NonQueryExecutingAsync(DbCommand command,
+            CommandEventData eventData, InterceptionResult<int> result, CancellationToken cancellationToken = default)
+        {
+            if (command.CommandText.Contains("pg_advisory_xact_lock")) first.Release.TrySetResult();
+            return ValueTask.FromResult(result);
+        }
+
+        public override ValueTask<DbDataReader> ReaderExecutedAsync(DbCommand command,
+            CommandExecutedEventData eventData, DbDataReader result, CancellationToken cancellationToken = default)
+        {
+            if (command.CommandText.Contains("PersonalLocationProviderProfiles") && command.CommandText.Contains("FOR UPDATE"))
+                first.Release.TrySetResult();
+            return ValueTask.FromResult(result);
         }
     }
 

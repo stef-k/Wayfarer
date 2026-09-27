@@ -152,7 +152,22 @@ Provider contact requires the active selection, an authorized and currently veri
 
 ## Legacy Mapbox migration
 
-On the authenticated user’s provider-settings entry and common geocoding resolver, Wayfarer recognizes only trimmed, case-insensitive exact `Mapbox` names. It never performs a startup-wide scan. One unambiguous value is protected, read back through production Data Protection, compared in memory, and only then are exact matching legacy rows retired. Generic geocoding is authorized for compatibility; routing is not. Migration never grants Permanent consent or selects Mapbox, so migrated profiles are configured but paused, unverified, and inactive. Maintainer-managed family accounts must be migrated explicitly after the compatible backend is deployed.
+Settings navigation (`GET /User/LocationProviderSettings` and its conventional `Index` alias) is strictly read-only. A current-user, no-tracking existence query shows pending legacy Mapbox migration without retrieving or displaying legacy credential material. It does not migrate, repair selection, change consent or verification, retire plaintext, contact providers, or schedule work.
+
+The settings-owned migration command is an explicit authenticated User-role `POST /User/LocationProviderSettings/MigrateLegacyMapbox`. The normal Razor form supplies antiforgery protection; ownership comes only from the authenticated identity claim, never route or form values. The command redirects back to the read-only page with a bounded, credential-free result:
+
+- Pending legacy rows offer the explicit migration action.
+- Migrated credentials remain subject to existing consent, verification and explicit provider selection requirements.
+- No conversion needed means no legacy credential currently requires conversion.
+- Conflict requires recovery and retains conflicting stored values. This migration outcome does not itself disable independently eligible protected provider authority; readiness still comes from capability eligibility and selection.
+- Unavailable protected credentials retain legacy recovery copies; restore readability under the existing key-ring recovery procedure.
+- Revoked profiles remain revoked and retain legacy recovery copies. Migration never reactivates them.
+
+Migration remains an internal compatibility preparation step in `PersonalProviderContactGate.PreparePersistentGeocodingAsync` (including durable background enrichment), geocoding `AdmitAsync`, and `AdmitMapboxPermanentVerificationAsync`. These retain their existing provider/background authority; migration is not globally browser-command-only. There is no startup-wide scan or ordinary provider fallback that directly reads legacy plaintext. Plaintext can remain longer until a protected settings command or retained preparation path runs.
+
+The migration owner recognizes only trimmed, case-insensitive exact `Mapbox` names. One unambiguous value is protected, read back through stable production Data Protection, and compared to the trimmed legacy value before matching plaintext rows are retired atomically with profile/selection changes. Revoked, ambiguous, conflicting or unreadable states retain recovery copies. Interruption rolls back; deliberate protected-readback failure may commit prepared protected state while retaining plaintext. A transaction-scoped per-user migration lock handles absent-profile races before the existing selection → Mapbox profile → legacy-row lock order, without creating a selection row. Retries converge.
+
+Successful new protection disables routing authority. A matching existing readable protected credential preserves existing routing semantics. Both successful branches retain only the established geocoding compatibility authorization, clear Permanent consent/geocoding verification and Mapbox geocoding selection, and never grant consent or select Mapbox. GET shows actual current eligibility/selection even when an older migrated profile still needs the service's selection cleanup; only a later protected/internal migration invocation performs that cleanup. Maintainer-managed family accounts must be migrated explicitly after the compatible backend is deployed.
 
 ## Mapbox Permanent Geocoding
 

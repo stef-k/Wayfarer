@@ -12,6 +12,12 @@ public sealed class LegacyMapboxMigrationService(
     public Task<bool> HasLegacyRowsAsync(string userId, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(userId);
+        // Match the PostgreSQL migration lock predicate exactly; SELECT EXISTS never returns credential columns.
+        if (dbContext.Database.IsNpgsql())
+            return dbContext.Database.SqlQuery<int>($$"""
+                SELECT 1 AS "Value" FROM "ApiTokens" WHERE "UserId" = {{userId}}
+                AND lower(btrim("Name")) = 'mapbox' AND btrim(COALESCE("Token", '')) <> ''
+                """).AnyAsync(cancellationToken);
         return dbContext.ApiTokens.IgnoreQueryFilters().AsNoTracking().AnyAsync(
             item => item.UserId == userId && item.Name != null && item.Name.Trim().ToLower() == "mapbox"
                 && item.Token != null && item.Token.Trim() != "", cancellationToken);
@@ -23,6 +29,13 @@ public sealed class LegacyMapboxMigrationService(
         ArgumentException.ThrowIfNullOrWhiteSpace(userId);
         await using var transaction = dbContext.Database.IsRelational()
             ? await dbContext.Database.BeginTransactionAsync(cancellationToken) : null;
+
+        // Row locks cannot serialize a first assessment when profile/selection rows do not exist.
+        // This transaction-scoped, migration-only user lock precedes the established row-lock order.
+        // Hash collisions can only serialize unrelated users; commit/rollback releases the lock.
+        if (dbContext.Database.IsNpgsql())
+            await dbContext.Database.ExecuteSqlInterpolatedAsync(
+                $"SELECT pg_advisory_xact_lock(hashtextextended({"legacy-mapbox-migration:" + userId}, 0))", cancellationToken);
 
         var selection = await LockSelectionAsync(userId, cancellationToken);
         var profile = await LockProfileAsync(userId, cancellationToken);

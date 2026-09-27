@@ -49,6 +49,9 @@ public sealed class ProviderSettingsMigrationRouteTests : TestBase
         saves.Reject = true;
         using var logs = new TestLogProvider();
         var http = new Mock<IHttpClientFactory>(MockBehavior.Strict);
+        var handler = new Mock<HttpMessageHandler>(MockBehavior.Strict);
+        using var providerClient = new HttpClient(handler.Object, disposeHandler: false);
+        http.Setup(factory => factory.CreateClient(It.IsAny<string>())).Returns(providerClient);
         await using var app = await IdentityRouteHost.StartAsync(db, CreateTestDirectory(), services =>
         {
             services.AddSingleton(credentials);
@@ -76,8 +79,9 @@ public sealed class ProviderSettingsMigrationRouteTests : TestBase
         using var postIndex = await client.PostAsync(Root + "/Index", null);
         Assert.Equal(HttpStatusCode.MethodNotAllowed, postIndex.StatusCode);
         Assert.Equal(before, await SnapshotAsync(options));
-        AssertPrivate(JsonSerializer.Serialize(logs.Entries.Select(entry => new { entry.Message, entry.Fields })), db);
-        http.VerifyNoOtherCalls();
+        AssertPrivate(string.Join("\n", logs.Entries.Select(entry => entry.Message + entry.Exception
+            + string.Join(" ", entry.Fields.Select(field => field.Value?.ToString())))), db);
+        handler.VerifyNoOtherCalls();
     }
 
     /// <summary>A genuine Razor token is required, and submitted route/form ownership never overrides the cookie claim.</summary>
@@ -128,7 +132,60 @@ public sealed class ProviderSettingsMigrationRouteTests : TestBase
         Assert.Equal(PersonalProviderVerification.Unverified, profile.GeocodingVerification);
         Assert.Empty(await verify.PersonalLocationProviderSelections.ToListAsync());
         Assert.Equal(OtherSecret, (await verify.ApiTokens.IgnoreQueryFilters().SingleAsync()).Token);
-        AssertPrivate(JsonSerializer.Serialize(logs.Entries.Select(entry => new { entry.Message, entry.Fields })), db);
+        AssertPrivate(string.Join("\n", logs.Entries.Select(entry => entry.Message + entry.Exception
+            + string.Join(" ", entry.Fields.Select(field => field.Value?.ToString())))), db);
+    }
+
+    /// <summary>Normal blocked/no-op outcomes are successful credential-free command evaluations with PRG.</summary>
+    [Theory]
+    [InlineData("empty", "No legacy Mapbox credential currently requires conversion.")]
+    [InlineData("conflict", "Conflicting stored recovery copies were retained.")]
+    [InlineData("unavailable", "Legacy recovery copies were retained.")]
+    [InlineData("revoked", "Migration did not reactivate it")]
+    public async Task Command_ReportsBoundedRecoveryOutcomes(string state, string expected)
+    {
+        var options = Options();
+        await using var db = Context(options);
+        var credentials = CredentialTestFactory.Create(new EphemeralDataProtectionProvider());
+        await SeedAsync(db, credentials, state);
+        var controller = new LocationProviderSettingsController(db, credentials,
+            new LegacyMapboxMigrationService(db, credentials), null!);
+        ConfigureControllerWithUser(controller, "owner");
+        controller.TempData = new Microsoft.AspNetCore.Mvc.ViewFeatures.TempDataDictionary(
+            controller.HttpContext, Mock.Of<Microsoft.AspNetCore.Mvc.ViewFeatures.ITempDataProvider>());
+        var result = Assert.IsType<RedirectToActionResult>(await controller.MigrateLegacyMapbox(default));
+        Assert.Equal("Index", result.ActionName);
+        var status = Assert.IsType<string>(controller.TempData["ProviderStatus"]);
+        Assert.Contains(expected, status);
+        AssertPrivate(status, db);
+        await using var verify = Context(options);
+        Assert.Equal(state == "empty" ? 1 : 2, await verify.ApiTokens.IgnoreQueryFilters().CountAsync());
+    }
+
+    /// <summary>Cancellation and unexpected persistence errors escape rather than becoming successful TempData results.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Command_PropagatesFailureWithoutSuccessStatus(bool cancel)
+    {
+        var saves = new RejectUnexpectedSave();
+        var options = Options(saves);
+        await using var db = Context(options);
+        var credentials = CredentialTestFactory.Create(new EphemeralDataProtectionProvider());
+        await SeedAsync(db, credentials, "pending");
+        var before = await SnapshotAsync(options);
+        saves.Reject = true;
+        var controller = new LocationProviderSettingsController(db, credentials,
+            new LegacyMapboxMigrationService(db, credentials), null!);
+        ConfigureControllerWithUser(controller, "owner");
+        controller.TempData = new Microsoft.AspNetCore.Mvc.ViewFeatures.TempDataDictionary(
+            controller.HttpContext, Mock.Of<Microsoft.AspNetCore.Mvc.ViewFeatures.ITempDataProvider>());
+        if (cancel)
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => controller.MigrateLegacyMapbox(new CancellationToken(true)));
+        else
+            await Assert.ThrowsAsync<InvalidOperationException>(() => controller.MigrateLegacyMapbox(default));
+        Assert.Empty(controller.TempData);
+        Assert.Equal(before, await SnapshotAsync(options));
     }
 
     /// <summary>Both endpoints retain the established anonymous challenge and non-User denial.</summary>
@@ -175,9 +232,9 @@ public sealed class ProviderSettingsMigrationRouteTests : TestBase
         var other = TestDataFixtures.CreateUser(id: "other");
         db.AddRange(owner, other, new ApplicationSettings());
         db.ApiTokens.Add(new ApiToken { User = other, UserId = other.Id, Name = "Mapbox", Token = OtherSecret });
-        if (state is not ("migrated" or "cleanup"))
+        if (state is not ("migrated" or "cleanup" or "empty"))
             db.ApiTokens.Add(new ApiToken { User = owner, UserId = owner.Id, Name = " MaPbOx ", Token = LegacySecret });
-        if (state != "pending")
+        if (state is not ("pending" or "empty"))
         {
             var profile = PersonalLocationProviderProfile.Create(owner.Id, PersonalLocationProvider.Mapbox);
             credentials.Replace(profile, "protected-settings-privacy-sentinel");
