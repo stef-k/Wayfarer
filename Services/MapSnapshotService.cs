@@ -17,7 +17,7 @@ public sealed class MapSnapshotService
         cancellationToken.ThrowIfCancellationRequested();
         var url = workflow.Policy.Url(path);
         await using var context = await workflow.NewContextAsync(width, height, cookies);
-        var page = await context.NewPageAsync();
+        var page = await context.Context.NewPageAsync();
         var response = await page.GotoAsync(url, new PageGotoOptions
         {
             WaitUntil = WaitUntilState.NetworkIdle, Timeout = 30000
@@ -30,6 +30,9 @@ public sealed class MapSnapshotService
         {
             await page.WaitForFunctionAsync("() => !!window.__leafletImageUrl", null,
                 new PageWaitForFunctionOptions { Timeout = 30000 });
+            var dataUri = await page.EvaluateAsync<string>("() => window.__leafletImageUrl");
+            cancellationToken.ThrowIfCancellationRequested();
+            return Convert.FromBase64String(dataUri[(dataUri.IndexOf(',') + 1)..]);
         }
         catch (TimeoutException)
         {

@@ -30,6 +30,10 @@ public partial class TripExportService
         { throw new OperationCanceledException(cancellationToken); }
         catch (Exception) when (deadline.IsCancellationRequested)
         { throw new BrowserUnavailableException("PDF generation exceeded the five-minute deadline."); }
+        catch (PlaywrightException)
+        { throw new BrowserUnavailableException("PDF browser capture failed. Retry shortly."); }
+        catch (TimeoutException)
+        { throw new BrowserUnavailableException("PDF browser operation timed out. Retry shortly."); }
     }
 
     /// <summary>
@@ -48,7 +52,7 @@ public partial class TripExportService
             if (!string.IsNullOrEmpty(progressChannel))
             {
                 await _sseService.BroadcastAsync(progressChannel,
-                    System.Text.Json.JsonSerializer.Serialize(new { message }));
+                    System.Text.Json.JsonSerializer.Serialize(new { message })).WaitAsync(cancellationToken);
             }
         }
 
@@ -204,7 +208,7 @@ public partial class TripExportService
         // Razor ➜ HTML
         await ReportProgress("📝 Rendering PDF template...");
         var html = await _razor.RenderViewToStringAsync(
-            "~/Views/Trip/Print.cshtml", vm);
+            "~/Views/Trip/Print.cshtml", vm).WaitAsync(cancellationToken);
 
         var baseUrl = policy.Origin.GetLeftPart(UriPartial.Authority);
         html = Regex.Replace(html,
@@ -228,7 +232,7 @@ public partial class TripExportService
         cancellationToken.ThrowIfCancellationRequested();
 
         await using var pdfContext = await workflow.NewContextAsync(800, 800, cookie);
-        var page = await pdfContext.NewPageAsync();
+        var page = await pdfContext.Context.NewPageAsync();
         await ReportProgress("📄 Generating PDF document...");
         await page.SetContentAsync(html, new PageSetContentOptions
         {
@@ -256,7 +260,7 @@ public partial class TripExportService
    text-align:center;"">
   Page <span class=""pageNumber""></span> of <span class=""totalPages""></span>
 </div>"
-        });
+        }).WaitAsync(TimeSpan.FromSeconds(30), cancellationToken);
 
         await ReportProgress("✅ PDF ready! Starting download...");
         cancellationToken.ThrowIfCancellationRequested();

@@ -60,7 +60,11 @@ internal sealed class BrowserCapturePolicy
         var original = context.Request.Cookies[name];
         if (original?.StartsWith("chunks-", StringComparison.Ordinal) == true &&
             int.TryParse(original.AsSpan(7), out var count))
+        {
+            // A partial/malformed chunk marker is not an application ticket; never allocate from its count.
+            if (value == original || count <= 0 || count > context.Request.Cookies.Count) return [];
             for (var i = 1; i <= count; i++) names.Add($"{name}C{i}");
+        }
         return names.Select(key => new Cookie
         {
             Name = key, Value = context.Request.Cookies[key]!, Domain = Origin.Host, Path = "/", HttpOnly = true,
@@ -73,7 +77,15 @@ internal sealed class BrowserCapturePolicy
     {
         context.SetDefaultTimeout(30000);
         context.SetDefaultNavigationTimeout(30000);
-        await context.RouteWebSocketAsync("**/*", socket => socket.CloseAsync());
+        // Never connect a routed socket to a server, including sockets initiated by dedicated workers.
+        await context.RouteWebSocketAsync("**/*", _ => { });
+        // Fail page/frame constructors synchronously rather than exposing Playwright's mock-open socket.
+        await context.AddInitScriptAsync("""
+            Object.defineProperty(globalThis, 'WebSocket', {
+                value: class { constructor() { throw new DOMException('Capture sockets are disabled', 'SecurityError'); } },
+                writable: false, configurable: false
+            });
+            """);
         await context.RouteAsync("**/*", async route =>
         {
             try

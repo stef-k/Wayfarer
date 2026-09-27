@@ -104,6 +104,54 @@ public class TripExportControllerTests : TestBase
         }
     }
 
+    /// <summary>PDF preserves public/owner authorization and never invokes the renderer for another private viewer.</summary>
+    [Theory]
+    [InlineData(true, null, true)]
+    [InlineData(false, null, false)]
+    [InlineData(false, "other", false)]
+    [InlineData(false, "owner", true)]
+    public async Task PdfAuthorization(bool isPublic, string? viewer, bool allowed)
+    {
+        using var db = CreateDbContext();
+        var trip = new Trip { Id = Guid.NewGuid(), UserId = "owner", Name = "Trip", IsPublic = isPublic };
+        db.Trips.Add(trip);
+        await db.SaveChangesAsync();
+        var service = new Mock<ITripExportService>();
+        service.Setup(s => s.GeneratePdfGuideAsync(trip.Id, null, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new MemoryStream([1]));
+        var controller = BuildController(db, TestDataFixtures.CreateUser(id: viewer ?? "anonymous"), service.Object);
+        if (viewer == null) controller.HttpContext.User = new ClaimsPrincipal(new ClaimsIdentity());
+        var result = await controller.ExportPdf(trip.Id);
+        if (allowed) Assert.IsType<FileStreamResult>(result);
+        else Assert.IsType<ForbidResult>(result);
+        service.Verify(s => s.GeneratePdfGuideAsync(trip.Id, null, It.IsAny<CancellationToken>()),
+            allowed ? Times.Once() : Times.Never());
+    }
+
+    /// <summary>Saturation produces a bounded retry response and the service token observes request abortion.</summary>
+    [Fact]
+    public async Task PdfUnavailableHasRetryGuidanceAndRequestCancellation()
+    {
+        using var db = CreateDbContext();
+        var trip = new Trip { Id = Guid.NewGuid(), UserId = "owner", Name = "Trip", IsPublic = true };
+        db.Trips.Add(trip);
+        await db.SaveChangesAsync();
+        using var abort = new CancellationTokenSource();
+        var service = new Mock<ITripExportService>();
+        service.Setup(s => s.GeneratePdfGuideAsync(trip.Id, null, It.IsAny<CancellationToken>()))
+            .Returns<Guid, string?, CancellationToken>((_, _, token) =>
+            {
+                abort.Cancel();
+                Assert.True(token.IsCancellationRequested);
+                throw new Wayfarer.Services.BrowserUnavailableException("busy");
+            });
+        var controller = BuildController(db, TestDataFixtures.CreateUser(), service.Object);
+        controller.HttpContext.RequestAborted = abort.Token;
+        var result = Assert.IsType<ObjectResult>(await controller.ExportPdf(trip.Id));
+        Assert.Equal(503, result.StatusCode);
+        Assert.Equal("10", controller.Response.Headers.RetryAfter);
+    }
+
     private static TripExportController BuildController(ApplicationDbContext db, ApplicationUser user, ITripExportService exportSvc, SseService? sse = null)
     {
         var controller = new TripExportController(

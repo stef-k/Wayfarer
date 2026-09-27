@@ -1,4 +1,6 @@
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
@@ -71,6 +73,7 @@ public sealed class BrowserCaptureBoundaryTests
         await using var server = builder.Build();
         var deniedContacts = 0;
         var firstPartyContacts = 0;
+        string? capturedCookie = null;
         server.MapGet("/{**path}", async context =>
         {
             if (context.Request.Host.Host != "wayfarer.example.org") Interlocked.Increment(ref deniedContacts);
@@ -80,6 +83,7 @@ public sealed class BrowserCaptureBoundaryTests
                 context.Response.Redirect($"http://127.0.0.1:{context.Request.Host.Port}/forbidden");
                 return;
             }
+            if (context.Request.Path == "/private") capturedCookie = context.Request.Headers.Cookie;
             context.Response.ContentType = "text/html";
             await context.Response.WriteAsync("<html><body>capture</body></html>");
         });
@@ -88,19 +92,39 @@ public sealed class BrowserCaptureBoundaryTests
         var port = new Uri(address).Port;
         var policy = BrowserCapturePolicy.Resolve(Configuration("wayfarer.example.org", address))!;
         await using var workflow = await BrowserWorkflow.StartAsync(policy, CancellationToken.None);
-        await using var context = await workflow.NewContextAsync(800, 450);
-        var page = await context.NewPageAsync();
+        var services = new ServiceCollection();
+        services.AddAuthentication().AddCookie(IdentityConstants.ApplicationScheme);
+        using var provider = services.BuildServiceProvider();
+        var caller = new DefaultHttpContext { RequestServices = provider };
+        caller.Request.Headers.Cookie = ".AspNetCore.Identity.Application=owner-ticket; unrelated=secret";
+        var cookies = policy.ApplicationCookies(caller);
+        Assert.Single(cookies);
+        await using var context = await workflow.NewContextAsync(800, 450, cookies);
+        var page = await context.Context.NewPageAsync();
         Assert.True((await page.GotoAsync(policy.Url("/")))!.Ok);
-        Assert.True(await page.EvaluateAsync<bool>("async () => (await fetch('/resource')).ok"));
+        Assert.True(await page.EvaluateAsync<bool>("async () => (await fetch('/private')).ok"));
+        Assert.Equal(".AspNetCore.Identity.Application=owner-ticket", capturedCookie);
         Assert.False(await page.EvaluateAsync<bool>("async url => { try { await fetch(url); return true; } catch { return false; } }",
             $"http://127.0.0.1:{port}/forbidden"));
         Assert.False(await page.EvaluateAsync<bool>("async () => { try { await fetch('/redirect'); return true; } catch { return false; } }"));
         Assert.False(await page.EvaluateAsync<bool>("async () => { try { await navigator.serviceWorker.register('/worker.js'); return true; } catch { return false; } }"));
-        Assert.Equal("closed", await page.EvaluateAsync<string>("url => new Promise(resolve => { const ws = new WebSocket(url); ws.onopen = () => resolve('open'); ws.onclose = () => resolve('closed'); ws.onerror = () => resolve('closed'); })",
+        Assert.Equal("closed", await page.EvaluateAsync<string>("url => new Promise(resolve => { let ws; try { ws = new WebSocket(url); } catch { resolve('closed'); return; } ws.onopen = () => resolve('open'); ws.onclose = () => resolve('closed'); ws.onerror = () => resolve('closed'); })",
             $"ws://127.0.0.1:{port}/socket"));
         await Assert.ThrowsAsync<PlaywrightException>(() => page.GotoAsync(policy.Url("/redirect")));
         Assert.True(firstPartyContacts >= 3);
         Assert.Equal(0, deniedContacts);
+    }
+
+    /// <summary>PDF viewports are closed independently of public thumbnail dimensions.</summary>
+    [Theory]
+    [InlineData(800, 800, true)]
+    [InlineData(600, 600, true)]
+    [InlineData(800, 450, false)]
+    [InlineData(10000, 10000, false)]
+    public void PdfMapVariantsAreFixed(int width, int height, bool valid)
+    {
+        if (valid) BrowserCapturePolicy.ValidateMap(width, height);
+        else Assert.Throws<ArgumentOutOfRangeException>(() => BrowserCapturePolicy.ValidateMap(width, height));
     }
 
     /// <summary>Builds only explicit test listener/authority configuration.</summary>

@@ -66,7 +66,7 @@ internal sealed class BrowserWorkflow : IAsyncDisposable
             var browser = await BrowserRuntime.LaunchAsync(playwright, new BrowserTypeLaunchOptions
             {
                 Headless = true, Args = LaunchArguments(policy), Timeout = 30000
-            });
+            }).WaitAsync(token);
             return new BrowserWorkflow(playwright, browser, policy, token);
         }
         catch { playwright.Dispose(); throw; }
@@ -82,7 +82,7 @@ internal sealed class BrowserWorkflow : IAsyncDisposable
     }
 
     /// <summary>Every isolated capture context receives the same policy before cookies or pages.</summary>
-    internal async Task<IBrowserContext> NewContextAsync(int width, int height, IEnumerable<Cookie>? cookies = null)
+    internal async Task<BrowserCaptureContext> NewContextAsync(int width, int height, IEnumerable<Cookie>? cookies = null)
     {
         var context = await _browser.NewContextAsync(new BrowserNewContextOptions
         {
@@ -93,9 +93,9 @@ internal sealed class BrowserWorkflow : IAsyncDisposable
         {
             await Policy.ConfigureAsync(context);
             if (cookies != null) await context.AddCookiesAsync(cookies);
-            return context;
+            return new BrowserCaptureContext(context);
         }
-        catch { await context.CloseAsync(); throw; }
+        catch { await new BrowserCaptureContext(context).DisposeAsync(); throw; }
     }
 
     /// <summary>Cancellation and ordinary disposal share one bounded close operation.</summary>
@@ -115,5 +115,20 @@ internal sealed class BrowserWorkflow : IAsyncDisposable
     {
         await _cancellation.DisposeAsync();
         await CloseAsync();
+    }
+}
+
+/// <summary>Bounds context teardown; the workflow closes the owning process if a context cannot close promptly.</summary>
+internal sealed class BrowserCaptureContext(IBrowserContext context) : IAsyncDisposable
+{
+    internal IBrowserContext Context { get; } = context;
+    private int _disposed;
+
+    /// <summary>Closes once without masking capture failure; browser disposal remains the final resource boundary.</summary>
+    public async ValueTask DisposeAsync()
+    {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+        try { await Context.CloseAsync().WaitAsync(TimeSpan.FromSeconds(10)); }
+        catch (Exception) { /* The workflow still closes the browser and disposes its driver. */ }
     }
 }

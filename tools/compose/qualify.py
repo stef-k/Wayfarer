@@ -127,6 +127,10 @@ class Stack:
                      data=self.password + '\n')
         self.sql(f'''INSERT INTO "Trips" ("Id","UserId","Name","IsPublic","ShareProgressEnabled","UpdatedAt","CenterLat","CenterLon","Zoom")
             SELECT '{TRIP}',"Id",'Compose qualification',true,false,now(),37.9,23.7,3 FROM "AspNetUsers" WHERE "UserName"='compose-admin';''')
+        # Private capture uses the existing User-area page; the synthetic owner needs that product role too.
+        self.sql('''INSERT INTO "AspNetUserRoles" ("UserId","RoleId")
+            SELECT u."Id",r."Id" FROM "AspNetUsers" u CROSS JOIN "AspNetRoles" r
+            WHERE u."UserName"='compose-admin' AND r."Name"='User' ON CONFLICT DO NOTHING;''')
         self.sql('UPDATE "ApplicationSettings" SET "ProxyImageRateLimitEnabled"=true, "ProxyImageRateLimitPerMinute"=1;')
         self.compose('up', '-d', '--wait', '--wait-timeout', '180')
         self.connect()
@@ -194,6 +198,16 @@ class Stack:
         logs = run('docker', 'logs', self.container('wayfarer')).stdout
         assert 'Map snapshot rate limit exceeded for IP: 172.30.65.1' in logs
         self.authenticate()
+        # The same real trip becomes private only inside this disposable qualification database.
+        self.sql(f'UPDATE "Trips" SET "IsPublic"=false WHERE "Id"=\'{TRIP}\';')
+        try:
+            denied = self.curl(f'/Trip/ExportPdf/{TRIP}', '-o', '/dev/null', '-w', '%{http_code}', check=False)
+            assert denied.stdout in {'302', '403', '404'}, denied.stdout
+            self.curl(f'/Trip/ExportPdf/{TRIP}', '-b', str(self.directory / 'cookies'),
+                      '-o', str(self.directory / 'private.pdf'))
+            assert (self.directory / 'private.pdf').read_bytes().startswith(b'%PDF')
+        finally:
+            self.sql(f'UPDATE "Trips" SET "IsPublic"=true WHERE "Id"=\'{TRIP}\';')
         print('Managed TLS/page/static/spoofed-host/export/SSE/thumbnail/PDF passed', flush=True)
 
     def authenticate(self):

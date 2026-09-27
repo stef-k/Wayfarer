@@ -109,7 +109,7 @@ public class TripThumbnailServiceTests
         var tripId = Guid.NewGuid();
 
         // Act - should not throw
-        var result = service.GetThumbUrl(tripId, null, null, null, null, "400x300");
+        var result = service.GetThumbUrl(tripId, null, null, null, null, "320x180");
 
         // Assert
         Assert.NotNull(result);
@@ -239,7 +239,7 @@ public class TripThumbnailServiceTests
     }
 
     [Fact]
-    public async Task GetThumbUrlAsync_ParsesCustomSizeParameter()
+    public async Task GetThumbUrlAsync_AcceptsSmallProductVariant()
     {
         // Arrange
         var tripId = Guid.NewGuid();
@@ -247,7 +247,7 @@ public class TripThumbnailServiceTests
         _mockGenerator
             .Setup(g => g.GetOrGenerateThumbnailAsync(
                 tripId, 40.7128, -74.0060, 10,
-                400, 300, // Expect parsed dimensions
+                320, 180, // Expect parsed dimensions
                 It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync("/thumbs/test.jpg");
 
@@ -255,36 +255,40 @@ public class TripThumbnailServiceTests
 
         // Act
         var result = await service.GetThumbUrlAsync(
-            tripId, 40.7128, -74.0060, 10, null, DateTime.UtcNow, "400x300");
+            tripId, 40.7128, -74.0060, 10, null, DateTime.UtcNow, "320x180");
 
         // Assert
         Assert.Equal("/thumbs/test.jpg", result);
         _mockGenerator.Verify(g => g.GetOrGenerateThumbnailAsync(
-            tripId, 40.7128, -74.0060, 10, 400, 300,
+            tripId, 40.7128, -74.0060, 10, 320, 180,
             It.IsAny<DateTime>(), It.IsAny<CancellationToken>()), Times.Once);
     }
 
-    [Fact]
-    public async Task GetThumbUrlAsync_UsesDefaultSize_WhenParsingFails()
+    /// <summary>Malformed dimensions never reach the generator, including when no map coordinates exist.</summary>
+    [Theory]
+    [InlineData("invalid")]
+    [InlineData("800x450x1")]
+    [InlineData("999999x999999")]
+    [InlineData("400x300")]
+    public async Task GetThumbUrlAsync_RejectsUnsupportedSize(string size)
     {
-        // Arrange
-        var tripId = Guid.NewGuid();
-
-        _mockGenerator
-            .Setup(g => g.GetOrGenerateThumbnailAsync(
-                tripId, 40.7128, -74.0060, 10,
-                800, 450, // Default dimensions
-                It.IsAny<DateTime>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync("/thumbs/test.jpg");
-
         var service = new TripThumbnailService(_mockLogger.Object, _mockEnv.Object, _mockGenerator.Object);
+        await Assert.ThrowsAsync<ArgumentException>(() => service.GetThumbUrlAsync(
+            Guid.NewGuid(), null, null, null, null, DateTime.UtcNow, size));
+        _mockGenerator.VerifyNoOtherCalls();
+    }
 
-        // Act
-        var result = await service.GetThumbUrlAsync(
-            tripId, 40.7128, -74.0060, 10, null, DateTime.UtcNow, "invalid");
-
-        // Assert
-        Assert.Equal("/thumbs/test.jpg", result);
+    /// <summary>Caller cancellation cannot turn into a cover/placeholder fallback.</summary>
+    [Fact]
+    public async Task GetThumbUrlAsync_PropagatesActiveCancellation()
+    {
+        using var source = new CancellationTokenSource();
+        _mockGenerator.Setup(g => g.GetOrGenerateThumbnailAsync(It.IsAny<Guid>(), It.IsAny<double>(),
+            It.IsAny<double>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<DateTime>(), source.Token))
+            .Returns(() => { source.Cancel(); throw new OperationCanceledException(source.Token); });
+        var service = new TripThumbnailService(_mockLogger.Object, _mockEnv.Object, _mockGenerator.Object);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => service.GetThumbUrlAsync(
+            Guid.NewGuid(), 1, 2, 3, "https://example.org/cover", DateTime.UtcNow, cancellationToken: source.Token));
     }
 
     [Fact]

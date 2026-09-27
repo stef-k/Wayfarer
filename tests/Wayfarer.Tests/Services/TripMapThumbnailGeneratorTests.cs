@@ -138,6 +138,7 @@ public class TripMapThumbnailGeneratorTests : IDisposable
         var response = new Mock<IResponse>();
         response.SetupGet(item => item.Ok).Returns(true);
         response.SetupGet(item => item.Url).Returns(embedUrl);
+        page.SetupGet(item => item.Url).Returns(embedUrl);
         page.Setup(item => item.GotoAsync(embedUrl, It.IsAny<PageGotoOptions>()))
             .ReturnsAsync(response.Object);
         var styled = new TaskCompletionSource<IElementHandle>();
@@ -290,7 +291,7 @@ public class TripMapThumbnailGeneratorTests : IDisposable
             Guid.NewGuid(), 10, 20, 5, 800, 450, cancellation.Token,
             () => Task.FromResult(playwright.Object)));
 
-        context.Verify(item => item.DisposeAsync(), Times.Once);
+        context.Verify(item => item.CloseAsync(It.IsAny<BrowserContextCloseOptions>()), Times.Once);
         browser.Verify(item => item.CloseAsync(It.IsAny<BrowserCloseOptions>()), Times.Once);
         playwright.Verify(item => item.Dispose(), Times.Once);
     }
@@ -353,119 +354,38 @@ public class TripMapThumbnailGeneratorTests : IDisposable
         Assert.False(File.Exists(file));
     }
 
+    /// <summary>Fresh files bypass full admission; stale work is rejected without capture or replacement.</summary>
     [Fact]
-    public void GetLocalBaseUrl_ParsesKestrelHttpUrl_WithValidUri()
+    public async Task CacheHitBypassesAdmissionAndSaturatedMissPreservesStaleFile()
     {
-        var config = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["Kestrel:Endpoints:Http:Url"] = "http://localhost:5500"
-            })
-            .Build();
-        var generator = new TripMapThumbnailGenerator(_logger.Object, _storage, config);
-
-        var result = InvokeGetLocalBaseUrl(generator);
-
-        Assert.Equal("http://127.0.0.1:5500", result);
+        var calls = 0;
+        var generator = new TripMapThumbnailGenerator(_logger.Object, _storage, _config,
+            _ => { calls++; return Task.FromResult<byte[]?>([9]); });
+        var id = Guid.NewGuid();
+        var updated = DateTime.UtcNow.AddMinutes(-1);
+        var path = _storage.Resolve($"{id}-800x450.jpg");
+        await File.WriteAllBytesAsync(path, [1, 2]);
+        File.SetLastWriteTimeUtc(path, updated.AddSeconds(1));
+        using var first = BrowserAdmission.Shared.TryAcquire();
+        using var second = BrowserAdmission.Shared.TryAcquire();
+        Assert.NotNull(await generator.GetOrGenerateThumbnailAsync(id, 1, 2, 3, 800, 450, updated));
+        Assert.Null(await generator.GetOrGenerateThumbnailAsync(id, 1, 2, 3, 800, 450, updated.AddMinutes(2)));
+        Assert.Equal(0, calls);
+        Assert.Equal(new byte[] { 1, 2 }, await File.ReadAllBytesAsync(path));
     }
 
-    [Fact]
-    public void GetLocalBaseUrl_ParsesKestrelHttpUrl_WithWildcard()
+    /// <summary>Unsupported dimensions cannot create cache files even for direct internal callers.</summary>
+    [Theory]
+    [InlineData(0, 0)]
+    [InlineData(800, 451)]
+    [InlineData(99999, 99999)]
+    public async Task InvalidDimensionsNeverCaptureOrPublish(int width, int height)
     {
-        var config = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["Kestrel:Endpoints:Http:Url"] = "http://*:8080"
-            })
-            .Build();
-        var generator = new TripMapThumbnailGenerator(_logger.Object, _storage, config);
-
-        var result = InvokeGetLocalBaseUrl(generator);
-
-        Assert.Equal("http://127.0.0.1:8080", result);
-    }
-
-    [Fact]
-    public void GetLocalBaseUrl_ParsesKestrelHttpUrl_WithPlusSign()
-    {
-        var config = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["Kestrel:Endpoints:Http:Url"] = "http://+:3000"
-            })
-            .Build();
-        var generator = new TripMapThumbnailGenerator(_logger.Object, _storage, config);
-
-        var result = InvokeGetLocalBaseUrl(generator);
-
-        Assert.Equal("http://127.0.0.1:3000", result);
-    }
-
-    [Fact]
-    public void GetLocalBaseUrl_UsesAspNetCoreUrls_WhenKestrelNotSet()
-    {
-        var originalEnvVar = Environment.GetEnvironmentVariable("ASPNETCORE_URLS");
-        try
-        {
-            Environment.SetEnvironmentVariable("ASPNETCORE_URLS", "http://localhost:7000;https://localhost:7001");
-            var config = new ConfigurationBuilder().Build();
-            var generator = new TripMapThumbnailGenerator(_logger.Object, _storage, config);
-
-            var result = InvokeGetLocalBaseUrl(generator);
-
-            Assert.Equal("http://127.0.0.1:7000", result);
-        }
-        finally
-        {
-            Environment.SetEnvironmentVariable("ASPNETCORE_URLS", originalEnvVar);
-        }
-    }
-
-    [Fact]
-    public void GetLocalBaseUrl_ReturnsFallback_WhenNoConfigFound()
-    {
-        var originalEnvVar = Environment.GetEnvironmentVariable("ASPNETCORE_URLS");
-        try
-        {
-            Environment.SetEnvironmentVariable("ASPNETCORE_URLS", null);
-            var config = new ConfigurationBuilder().Build();
-            var generator = new TripMapThumbnailGenerator(_logger.Object, _storage, config);
-
-            var result = InvokeGetLocalBaseUrl(generator);
-
-            Assert.Equal("http://127.0.0.1:5000", result);
-        }
-        finally
-        {
-            Environment.SetEnvironmentVariable("ASPNETCORE_URLS", originalEnvVar);
-        }
-    }
-
-    [Fact]
-    public void GetLocalBaseUrl_SkipsHttpsUrls_InAspNetCoreUrls()
-    {
-        var originalEnvVar = Environment.GetEnvironmentVariable("ASPNETCORE_URLS");
-        try
-        {
-            Environment.SetEnvironmentVariable("ASPNETCORE_URLS", "https://localhost:7001;http://localhost:6000");
-            var config = new ConfigurationBuilder().Build();
-            var generator = new TripMapThumbnailGenerator(_logger.Object, _storage, config);
-
-            var result = InvokeGetLocalBaseUrl(generator);
-
-            Assert.Equal("http://127.0.0.1:6000", result);
-        }
-        finally
-        {
-            Environment.SetEnvironmentVariable("ASPNETCORE_URLS", originalEnvVar);
-        }
-    }
-
-    private static string InvokeGetLocalBaseUrl(TripMapThumbnailGenerator generator)
-    {
-        var method = typeof(TripMapThumbnailGenerator).GetMethod("GetLocalBaseUrl",
-            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-        return (string)method!.Invoke(generator, null)!;
+        var generator = new TripMapThumbnailGenerator(_logger.Object, _storage, _config,
+            _ => throw new InvalidOperationException("Must not capture"));
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() => generator.GetOrGenerateThumbnailAsync(
+            Guid.NewGuid(), 1, 2, 3, width, height, DateTime.UtcNow));
+        Assert.Empty(Directory.GetFiles(_storage.Root));
     }
 
     public void Dispose()

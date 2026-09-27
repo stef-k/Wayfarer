@@ -123,7 +123,7 @@ public sealed partial class TripMapThumbnailGenerator : ITripMapThumbnailGenerat
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to generate thumbnail for trip {TripId}", tripId);
+            _logger.LogWarning("Thumbnail capture failed for trip {TripId} ({FailureType})", tripId, ex.GetType().Name);
         }
 
         return null;
@@ -168,7 +168,7 @@ public sealed partial class TripMapThumbnailGenerator : ITripMapThumbnailGenerat
         try
         {
             await using var context = await workflow.NewContextAsync(width, height);
-            var page = await context.NewPageAsync();
+            var page = await context.Context.NewPageAsync();
             var bytes = await CapturePageAsync(page, settings.Value.EmbedUrl, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
             return bytes;
@@ -193,7 +193,7 @@ public sealed partial class TripMapThumbnailGenerator : ITripMapThumbnailGenerat
         cancellationToken.ThrowIfCancellationRequested();
 
         if (response?.Ok != true ||
-            !string.Equals(response.Url, embedUrl, StringComparison.Ordinal))
+            !string.Equals(response.Url, embedUrl, StringComparison.Ordinal) || page.Url != embedUrl)
         {
             return null;
         }
