@@ -6,6 +6,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Wayfarer.Models;
@@ -37,6 +38,7 @@ internal static class RecoverySourceCli
                 throw new IOException("Unsupported Compose source authority.");
             builder.Services.AddDataProtection().SetApplicationName(DataProtectionAuthority.StableApplicationName)
                 .PersistKeysToFileSystem(new DirectoryInfo(ring.Path)).DisableAutomaticKeyGeneration();
+            builder.Services.AddScoped<IPasswordHasher<ApplicationUser>, PasswordHasher<ApplicationUser>>();
             builder.Services.AddScoped<PersonalProviderCredentialService>();
             builder.Services.AddScoped<StableIdentityReadiness>();
             builder.Services.AddDbContext<ApplicationDbContext>(options => options.UseNpgsql(
@@ -49,9 +51,28 @@ internal static class RecoverySourceCli
             var validate = readiness.GetMethod("ValidateSchemaAsync", BindingFlags.Static | BindingFlags.NonPublic)
                 ?? throw new IOException("Unsupported application inspection capability.");
             await (Task)validate.Invoke(null, [db, deadline.Token])!;
+            var ready = readiness.GetMethod("IsReadyAsync", BindingFlags.Static | BindingFlags.NonPublic)
+                ?? throw new IOException("Unsupported secure readiness capability.");
+            if (!await (Task<bool>)ready.Invoke(null, [app.Services, deadline.Token])!)
+                throw new IOException("Secure administrator/reference state is not ready.");
+            var databaseReady = await db.Database.SqlQueryRaw<bool>("""
+                SELECT (current_setting('server_version_num')::int / 10000 = 17
+                    AND current_database()='wayfarer' AND pg_encoding_to_char(encoding)='UTF8'
+                    AND datcollate='C.UTF-8' AND datctype='C.UTF-8' AND datlocprovider='c' AND datlocale IS NULL
+                    AND (SELECT extversion FROM pg_extension WHERE extname='postgis')='3.6.4'
+                    AND postgis_lib_version()='3.6.4'
+                    AND (SELECT extversion FROM pg_extension WHERE extname='citext')='1.6'
+                    AND current_user='wayfarer'
+                    AND NOT (SELECT rolsuper OR rolcreatedb OR rolcreaterole FROM pg_roles WHERE rolname=current_user)
+                    AND NOT EXISTS (SELECT FROM pg_tables WHERE schemaname='public'
+                        AND tablename <> 'spatial_ref_sys' AND tableowner <> 'wayfarer')) AS "Value"
+                FROM pg_database WHERE datname=current_database()
+                """).SingleAsync(deadline.Token);
+            if (!databaseReady) throw new IOException("Database identity/ownership differs from restore contract.");
             var protector = scope.ServiceProvider.GetRequiredService<IDataProtectionProvider>().CreateProtector("Wayfarer.Recovery.Inspection.v1");
             if (protector.Unprotect(protector.Protect("ready")) != "ready") throw new IOException("Unusable ring.");
-            if (!(await scope.ServiceProvider.GetRequiredService<StableIdentityReadiness>().StatusAsync(deadline.Token)).Ready)
+            var credentialStatus = await scope.ServiceProvider.GetRequiredService<StableIdentityReadiness>().StatusAsync(deadline.Token);
+            if (!credentialStatus.Ready)
                 throw new IOException("Stable authority is not ready.");
             // Fingerprint the validated schema, allowing the DB-image worker to detect later drift in its dump snapshot.
             var quartz = await db.Database.SqlQueryRaw<string>("""
@@ -63,7 +84,7 @@ internal static class RecoverySourceCli
             var revision = typeof(ApplicationDbContext).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion?.Split('+').Last() ?? "";
             await output.WriteLineAsync(JsonSerializer.Serialize(new
             {
-                Schema = 1, Uploads = Path.GetRelativePath(storage.DataRoot, storage.Uploads),
+                Schema = 1, ProtectedCredentials = credentialStatus.Active == 0 ? "none present" : "readable", Uploads = Path.GetRelativePath(storage.DataRoot, storage.Uploads),
                 Ring = Path.GetRelativePath(storage.DataRoot, ring.Path), ApplicationVersion = version,
                 SourceRevision = revision, ApplicationName = DataProtectionAuthority.StableApplicationName,
                 ExpectedMigrations = db.Database.GetMigrations().ToArray(),

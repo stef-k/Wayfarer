@@ -14,6 +14,25 @@ try
         await scheduler.TickAsync(DateTimeOffset.Parse(timestamp, System.Globalization.CultureInfo.InvariantCulture), CancellationToken.None);
         return 0;
     }
+    if (args is ["emergency-pending-death" or "emergency-fail" or "emergency-hold-death" or "emergency-archive-death" or "emergency-committed-death", var reservation])
+    {
+        var engine = new RecoveryEngine(WorkerConfiguration.Load("/config/worker.json"))
+        {
+            HoldCreating = args[0] == "emergency-pending-death" ? () => Environment.Exit(137) : null,
+            HoldCreated = () =>
+            {
+                if (args[0] == "emergency-fail") throw new IOException("Injected publication failure.");
+                if (args[0] == "emergency-hold-death") Environment.Exit(137);
+            },
+            MemberPublished = member =>
+            {
+                if (args[0] == "emergency-archive-death" && member.EndsWith(".tar")) Environment.Exit(137);
+            },
+            PublicationCommitted = args[0] == "emergency-committed-death" ? () => Environment.Exit(137) : null
+        };
+        await engine.BackupAsync(null, CancellationToken.None, reservation);
+        return 0;
+    }
     if (args is ["capture-slot", var slot])
     {
         await new RecoveryEngine(WorkerConfiguration.Load("/config/worker.json"))

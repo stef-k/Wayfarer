@@ -87,6 +87,46 @@ class Journey:
         wrapper.write_text("""#!/bin/sh
 point=$(cat "$WAYFARER_TEST_FAILURE" 2>/dev/null || true)
 case "$point:$*" in
+  restore-cancel:*" restore-database")
+    /usr/bin/docker "$@" || exit $?
+    printf ready > "$WAYFARER_TEST_FAILURE.ready"
+    while ! test -e "$WAYFARER_TEST_FAILURE.go"; do sleep 0.1; done
+    exit 0 ;;
+  restore-files:*" restore-files")
+    remaining=$#
+    while test "$remaining" -gt 0; do
+      value=$1; shift
+      case "$value" in *:/candidate) value="$value:ro" ;; esac
+      set -- "$@" "$value"
+      remaining=$((remaining-1))
+    done ;;
+  restore-validation:*"-inspect "*" /inspection.dll")
+    remaining=$#
+    while test "$remaining" -gt 0; do
+      value=$1; shift
+      case "$value" in --env=Database__PasswordFile=*) value=--env=Database__PasswordFile=/missing-credential ;; esac
+      set -- "$@" "$value"
+      remaining=$((remaining-1))
+    done ;;
+  restore-restart-death:*" update --restart=unless-stopped "*)
+    /usr/bin/docker "$@" || exit $?
+    kill -KILL "$PPID"
+    exit 137 ;;
+  restore-capacity:*"-restore-capacity-"*)
+    # Real bounded filesystem is substituted only for the read-only capacity probe mount.
+    remaining=$#
+    while test "$remaining" -gt 0; do
+      value=$1; shift
+      case "$value" in type=bind,source=*,target=/storage,readonly)
+        value="type=bind,source=$(dirname "$WAYFARER_TEST_FAILURE")/capacity-small,target=/storage,readonly" ;;
+      esac
+      set -- "$@" "$value"
+      remaining=$((remaining-1))
+    done ;;
+  restore-pointer:*" create --force-recreate --pull never db wayfarer") exit 1 ;;
+  restore-writer:*" up -d --no-recreate --pull never --wait --wait-timeout 180 wayfarer")
+    /usr/bin/docker "$@" || exit $?
+    exit 1 ;;
   seed:*" database seed"|doctor:*" healthcheck") exit 1 ;;
   admin:*" admin bootstrap admin --stdin"|web:*" 180 wayfarer")
     /usr/bin/docker "$@" || exit $?

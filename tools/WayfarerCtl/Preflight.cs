@@ -41,7 +41,10 @@ public sealed class Preflight(IProcessRunner runner)
         {
             var path = Path.Combine(temporary.FullName, "deployment.env");
             await File.WriteAllTextAsync(path, config.EnvironmentFile(root), token);
-            var result = await runner.RunAsync(config.Compose(temporary.FullName, "config", "--format", "json"), null, token);
+            // Only interpolation is temporary; active storage remains rooted at the installation authority.
+            var command = config.Compose(root, "config", "--format", "json");
+            command[Array.IndexOf(command, "--env-file") + 1] = path;
+            var result = await runner.RunAsync(command, null, token);
             if (result.Code != 0) throw new UsageException("Bundle Compose validation failed; restore the trusted bundle/config.");
             using var document = JsonDocument.Parse(result.Output);
             VerifyImages(config, document.RootElement);
@@ -79,6 +82,29 @@ public sealed class Preflight(IProcessRunner runner)
             if (result.Code != 0 || !string.IsNullOrWhiteSpace(result.Output))
                 throw new UsageException("Existing or unverifiable project state: setup refuses mutation. See interrupted-setup recovery.");
         }
+        foreach (var kind in new[] { "volume", "network" })
+        {
+            var named = await runner.RunAsync([kind, "ls", "--format", "{{.Name}}"], null, token);
+            if (named.Code != 0 || named.Output.Split('\n').Any(name => name.StartsWith(config.Project + "_", StringComparison.Ordinal)))
+                throw new UsageException("Existing named project resources prevent clean-target installation.");
+        }
+        var containers = await runner.RunAsync(["ps", "-aq", "--filter", "name=^/" + config.Project + "-"], null, token);
+        if (containers.Code != 0) throw new UsageException("Cannot inspect clean-target container names.");
+        foreach (var id in containers.Output.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries))
+        {
+            var inspection = await runner.RunAsync(["inspect", id], null, token);
+            if (inspection.Code != 0) throw new UsageException("Cannot inspect clean-target container ownership.");
+            using var document = JsonDocument.Parse(inspection.Output);
+            var container = document.RootElement[0];
+            var name = container.GetProperty("Name").GetString()!;
+            var labels = container.GetProperty("Config").GetProperty("Labels");
+            if ((!name.StartsWith("/" + config.Project + "-restore-select-", StringComparison.Ordinal) &&
+                 !name.StartsWith("/" + config.Project + "-restore-verify-", StringComparison.Ordinal) &&
+                 !name.StartsWith("/" + config.Project + "-restore-version-", StringComparison.Ordinal)) ||
+                labels.ValueKind != JsonValueKind.Object || !labels.TryGetProperty("wayfarer.restore-helper", out var owner) ||
+                owner.GetString() != config.Project || container.GetProperty("State").GetProperty("Running").GetBoolean())
+                throw new UsageException("Existing named project container prevents clean-target installation.");
+        }
         CheckPorts(config);
         await NetworksAsync(config, token);
     }
@@ -90,7 +116,7 @@ public sealed class Preflight(IProcessRunner runner)
         var volumes = await runner.RunAsync(["volume", "ls", "--format", "{{.Name}}"], null, token);
         if (volumes.Code != 0) throw new UsageException("Cannot verify retained volumes.");
         var names = volumes.Output.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
-        if (requireDatabase && new[] { "db-data", "app-data", "app-cache", "app-logs" }.Any(name => !names.Contains(config.Project + "_" + name)))
+        if (requireDatabase && new[] { "db-data", "app-data", "app-cache", "app-logs" }.Any(name => !names.Contains(ActiveStorage.Volume(config, name))))
             throw new UsageException("Previously prepared volume is missing; refusing to recreate durable state.");
         foreach (var kind in new[] { "container", "volume", "network" })
         {
@@ -127,13 +153,22 @@ public sealed class Preflight(IProcessRunner runner)
         {
             var bundle = Path.TrimEndingDirectorySeparator(Path.GetFullPath(config.Bundle));
             var files = Path.Combine(bundle, "compose.yaml") + (config.Mode == "external" ? "," + Path.Combine(bundle, "external.yaml") : "");
+            if (config.StorageGeneration is not null)
+            {
+                if (root is null) throw new UsageException("Active generation requires deployment root.");
+                files += "," + ActiveStorage.OverlayPath(root, config);
+            }
             var service = Label("service");
             if (service is "backup-worker" or "backup-scheduler" or "backup-reader" or "backup-destination-check")
             {
                 if (config.Backup is null || root is null) throw new UsageException("Unknown recovery service.");
                 files += "," + Path.Combine(BackupCompose.DirectoryPath(root, config.Backup), "compose.json");
             }
-            if (Label("project.working_dir") != bundle || Label("project.config_files") != files ||
+            var actualFiles = Label("project.config_files");
+            var transition = root is not null && config.StorageGeneration is not null && actualFiles is not null &&
+                actualFiles.StartsWith(files + "," + Path.Combine(root, "restore-plans") + "/", StringComparison.Ordinal) &&
+                System.Text.RegularExpressions.Regex.IsMatch(actualFiles[files.Length..], @",.*/[a-f0-9]{32}/(transition|exposure)\.yaml$");
+            if (Label("project.working_dir") != bundle || actualFiles != files && !transition ||
                 service is not ("db" or "wayfarer" or "caddy" or "backup-worker" or "backup-scheduler" or "backup-reader" or "backup-destination-check"))
                 throw new UsageException("Retained container belongs to different Compose inputs.");
         }
@@ -142,7 +177,7 @@ public sealed class Preflight(IProcessRunner runner)
             var name = Label(kind);
             var allowed = kind == "network" ? new[] { "backend", "edge" } :
                 new[] { "db-data", "app-data", "app-cache", "app-logs", "caddy-data", "caddy-config" };
-            if (name is null || !allowed.Contains(name) || resource.GetProperty("Name").GetString() != config.Project + "_" + name)
+            if (name is null || !allowed.Contains(name) || resource.GetProperty("Name").GetString() != (kind == "volume" ? ActiveStorage.Volume(config, name) : config.Project + "_" + name))
                 throw new UsageException("Foreign retained volume/network refused.");
         }
     }

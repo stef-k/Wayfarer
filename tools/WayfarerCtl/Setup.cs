@@ -38,6 +38,7 @@ public sealed class Setup(IProcessRunner runner, ITerminal terminal)
 
     public async Task<int> RunAsync(string root, string[] args, CancellationToken token)
     {
+        RestoreReceipt.RequireResolved(root);
         var options = Options(args);
         if (options.ContainsKey("--resume")) return await ResumeAsync(root, options, token);
         var config = ReadChoices(options);
@@ -78,7 +79,7 @@ public sealed class Setup(IProcessRunner runner, ITerminal terminal)
         ProtectedFiles.Check(root, 0, directory: true);
         using var operationLock = Lock(root);
         var config = Deployment.Load(root);
-        if (File.Exists(Path.Combine(root, "setup-complete")))
+        if (InstallationCompletion.IsComplete(root))
             throw new UsageException("Setup is already complete; use status/doctor or lifecycle commands.");
         var progress = SetupProgress.Load(root, config);
         var preflight = new Preflight(runner);
@@ -168,7 +169,7 @@ public sealed class Setup(IProcessRunner runner, ITerminal terminal)
         if ((await runner.RunAsync(command, input, token)).Code != 0) throw new IOException("Setup step failed.");
     }
 
-    private Deployment ReadChoices(Dictionary<string, string> options)
+    internal Deployment ReadChoices(Dictionary<string, string> options)
     {
         string Choice(string key, string prompt, string? fallback = null)
         {

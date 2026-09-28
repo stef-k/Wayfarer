@@ -34,7 +34,8 @@ public sealed class BackupConfiguration(IProcessRunner runner)
     /// <summary>Stop the owned scheduler, acquire recovery exclusion and commit one complete generation.</summary>
     public async Task<Deployment> ConfigureAsync(string root, Deployment config, string[] args, CancellationToken token)
     {
-        if (!File.Exists(Path.Combine(root, "setup-complete"))) throw new UsageException("Backup configuration requires completed setup.");
+        if (!InstallationCompletion.IsComplete(root)) throw new UsageException("Backup configuration requires completed setup.");
+        RestoreReceipt.RequireResolved(root);
         var options = Options(args);
         ProvisionControl(root, config.Backup is null);
         using var exclusion = new RecoveryLock(Path.Combine(root, "recovery-control/recovery.lock"));
@@ -94,7 +95,7 @@ public sealed class BackupConfiguration(IProcessRunner runner)
                 } };
         }
         policy = policy with { Generation = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(32)) };
-        var next = config with { Schema = 2, Installation = installation, Backup = policy };
+        var next = config with { Schema = Math.Max(2, config.Schema), Installation = installation, Backup = policy };
         next.Validate(); policy.CheckPayload();
         BackupGeneration.Stage(root, next);
         BackupCompose.Check(root, next);
@@ -110,7 +111,7 @@ public sealed class BackupConfiguration(IProcessRunner runner)
     {
         var inspector = Path.Combine(Path.GetDirectoryName(payload)!, "WayfarerRecoverySource.dll");
         var result = await runner.RunAsync(config.Compose(root, "run", "--rm", "--no-deps", "-T", "--volume",
-            inspector + ":/inspection/WayfarerRecoverySource.dll:ro", "--volume", config.Project + "_app-data:/var/lib/wayfarer:ro",
+            inspector + ":/inspection/WayfarerRecoverySource.dll:ro", "--volume", ActiveStorage.Volume(config, "app-data") + ":/var/lib/wayfarer:ro",
             "--entrypoint", "dotnet", "wayfarer", "exec", "--runtimeconfig", "/app/Wayfarer.runtimeconfig.json",
             "--depsfile", "/app/Wayfarer.deps.json", "/inspection/WayfarerRecoverySource.dll"), null, token);
         if (result.Code != 0 || result.Output.Length > ArchiveContract.ManifestLimit) throw new UsageException("Application recovery source inspection failed.");
@@ -159,7 +160,7 @@ public sealed class BackupConfiguration(IProcessRunner runner)
     }
 
     /// <summary>Provision the stable local lock once; existing ownership must match exactly.</summary>
-    private static void ProvisionControl(string root, bool bootstrap)
+    internal static void ProvisionControl(string root, bool bootstrap)
     {
         var directory = Path.Combine(root, "recovery-control");
         if (!Directory.Exists(directory)) Directory.CreateDirectory(directory, ProtectedFiles.PrivateDirectory);
@@ -191,6 +192,8 @@ public sealed class BackupConfiguration(IProcessRunner runner)
         }
         ProtectedFiles.Check(state, 1654, directory: true);
         control.Flush();
+        using var installation = new SafeDirectory(root);
+        installation.Flush();
     }
 
     internal static string BundleFingerprint(Deployment config)

@@ -13,10 +13,13 @@ public sealed class Diagnostics(IProcessRunner runner, ITerminal terminal)
     public async Task<int> RunAsync(string root, Deployment config, bool doctor, CancellationToken token, bool finishingSetup = false)
     {
         terminal.Write($"Deployment: {root}\nConfig: {root}/installation.json\nMode: {config.Mode}; hostname: {config.Hostname}; project: {config.Project}");
+        var restore = RestoreReceipt.Load(root);
+        if (restore is not null) terminal.Write($"Restore: {restore.Plan.Operation:D}; phase: {restore.Phase}; writes possible: {restore.WritesPossible}.");
+        if (restore is not null && restore.Phase is not (RestorePhase.Accepted or RestorePhase.Aborted)) failed = true;
         await Check("Docker/Compose", async () => await new Preflight(runner).DockerAsync(token));
         await Check("Bundle/config and immutable references", () => { config.CheckBundle(); return Task.CompletedTask; });
         await Check("Secret ownership/modes and consumer copies", () => { Deployment.CheckSecrets(root); return Task.CompletedTask; });
-        if (!File.Exists(Path.Combine(root, "setup-complete")) && !finishingSetup)
+        if (!InstallationCompletion.IsComplete(root) && !finishingSetup)
         {
             failed = true; terminal.Write("FAIL Setup incomplete; follow interrupted-setup recovery guide.");
         }
@@ -127,7 +130,7 @@ public sealed class Diagnostics(IProcessRunner runner, ITerminal terminal)
         };
         foreach (var (volume, target) in targets)
             if (!mounts.Any(mount => mount.GetProperty("Type").GetString() == "volume" && mount.GetProperty("Destination").GetString() == target &&
-                mount.GetProperty("Name").GetString() == config.Project + "_" + volume && mount.GetProperty("RW").GetBoolean())) throw new IOException();
+                mount.GetProperty("Name").GetString() == ActiveStorage.Volume(config, volume) && mount.GetProperty("RW").GetBoolean())) throw new IOException();
         CheckPorts(container, config, service);
         if (service == "wayfarer")
         {
@@ -174,7 +177,7 @@ public sealed class Diagnostics(IProcessRunner runner, ITerminal terminal)
         foreach (var network in new[] { "backend", "edge" })
             await Required(["network", "inspect", config.Project + "_" + network], token);
         foreach (var volume in config.Mode == "managed" ? new[] { "app-data", "app-cache", "app-logs", "db-data", "caddy-data", "caddy-config" } : new[] { "app-data", "app-cache", "app-logs", "db-data" })
-            await Required(["volume", "inspect", config.Project + "_" + volume], token);
+            await Required(["volume", "inspect", ActiveStorage.Volume(config, volume)], token);
     }
 
     /// <summary>Normal certificate validation, no redirects/proxy environment; bounded public/loopback proof.</summary>

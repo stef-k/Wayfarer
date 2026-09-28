@@ -6,8 +6,10 @@ namespace WayfarerCtl;
 /// <summary>Owns actual maintenance containers through completion/cancellation, not merely Docker client processes.</summary>
 public sealed class BackupCommands(IProcessRunner runner, ITerminal terminal)
 {
+    public Guid? CompletedArchive { get; private set; }
+
     /// <summary>Validate capability, reserve lifecycle intent under the shared lock and invoke the same worker.</summary>
-    public async Task<int> RunAsync(string root, Deployment config, string[] args, CancellationToken token)
+    public async Task<int> RunAsync(string root, Deployment config, string[] args, CancellationToken token, bool restoreEmergency = false)
     {
         if (args is ["backup", "configure", ..])
         {
@@ -34,7 +36,12 @@ public sealed class BackupCommands(IProcessRunner runner, ITerminal terminal)
                 await Required(config.Compose(root, "stop", "--timeout", "70", "wayfarer"), token);
                 await AssertNoWriters(config, token);
             }
-            ProtectedFiles.Create(Path.Combine(control, "host-operation.json"), JsonSerializer.Serialize(new HostRecoveryOperation(1, reservation, container, quiesced)), 0, 1654);
+            if (restoreEmergency)
+            {
+                var restore = RestoreReceipt.Load(root) ?? throw new IOException("Restore delegation requires durable intent.");
+                (restore with { Containers = [.. restore.Containers, container] }).Save(root);
+            }
+            ProtectedFiles.Create(Path.Combine(control, "host-operation.json"), JsonSerializer.Serialize(new HostRecoveryOperation(1, reservation, container, quiesced, restoreEmergency)), 0, 1654);
         }
         var stopped = false;
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);
@@ -51,6 +58,7 @@ public sealed class BackupCommands(IProcessRunner runner, ITerminal terminal)
             if (logs.Code != 0 || logs.Output.Length > 32768) throw new IOException("Worker result unavailable.");
             using var result = JsonDocument.Parse(logs.Output);
             Present(result.RootElement);
+            if (code == 0 && result.RootElement.TryGetProperty("Archive", out var archive)) CompletedArchive = archive.GetGuid();
             return code == 0 ? 0 : 1;
         }
         finally
@@ -81,7 +89,7 @@ public sealed class BackupCommands(IProcessRunner runner, ITerminal terminal)
     /// <summary>No running container may share the durable application volume during quiesced capture.</summary>
     private async Task AssertNoWriters(Deployment config, CancellationToken token)
     {
-        var result = await runner.RunAsync(["ps", "-q", "--filter", "volume=" + config.Project + "_app-data"], null, token);
+        var result = await runner.RunAsync(["ps", "-q", "--filter", "volume=" + ActiveStorage.Volume(config, "app-data")], null, token);
         if (result.Code != 0 || !string.IsNullOrWhiteSpace(result.Output)) throw new IOException("Application volume still has an active consumer.");
     }
 

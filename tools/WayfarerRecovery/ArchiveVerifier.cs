@@ -28,10 +28,10 @@ public static class ArchiveVerifier
         if (manifest.Installation != installation || name != ArchiveContract.Name(installation, manifest.Completed, manifest.Archive))
             throw new IOException("Archive ownership/name mismatch.");
         await VerifyComponentsAsync(manifest, staging, token);
-        ValidateDirectory(Path.Combine(staging, "uploads.tar.gz"), null, token);
+        var uploadsBytes = ValidateDirectory(Path.Combine(staging, "uploads.tar.gz"), null, token);
         var keys = Path.Combine(staging, "keys");
         Directory.CreateDirectory(keys, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
-        ValidateDirectory(Path.Combine(staging, "data-protection.tar.gz"), keys, token);
+        var ringBytes = ValidateDirectory(Path.Combine(staging, "data-protection.tar.gz"), keys, token);
         // The private extracted copy is used only to prove usable key material; automatic generation stays disabled.
         if (!Directory.EnumerateFiles(keys, "key-*.xml").Any()) throw new IOException("Key ring is empty.");
         var provider = DataProtectionProvider.Create(new DirectoryInfo(keys), builder =>
@@ -48,7 +48,8 @@ public static class ArchiveVerifier
             manifest.Database.Collation == "C.UTF-8" && manifest.Database.CharacterType == "C.UTF-8" && manifest.Database.LocaleProvider == "c" &&
             manifest.Database.PostgisExtension == manifest.Database.PostgisLibrary &&
             manifest.Database.Migrations.SequenceEqual(expected.ExpectedMigrations);
-        return new VerifyResult(1, true, compatible, manifest.Archive, name, manifest.Mode);
+        return new VerifyResult(1, true, compatible, manifest.Archive, name, manifest.Mode)
+        { ExpandedFileBytes = checked(uploadsBytes + ringBytes) };
     }
 
     private static async Task<RecoveryManifest> ReadOuterAsync(Stream archive, string staging, CancellationToken token)
@@ -97,8 +98,8 @@ public static class ArchiveVerifier
             throw new IOException("Internal checksums disagree.");
     }
 
-    /// <summary>Validate bounded USTAR regular files/directories; optional extraction is only to a task-owned ring copy.</summary>
-    private static void ValidateDirectory(string path, string? extract, CancellationToken token)
+    /// <summary>Validate bounded USTAR regular files/directories; optional extraction is only to an empty task-owned unprivileged target.</summary>
+    public static long ValidateDirectory(string path, string? extract, CancellationToken token)
     {
         using var file = File.OpenRead(path);
         using var gzip = new GZipStream(file, CompressionMode.Decompress);
@@ -119,12 +120,18 @@ public static class ArchiveVerifier
             if (entry.EntryType == TarEntryType.Directory)
             {
                 if (entry.Length != 0) throw new IOException("Directory carries data.");
-                if (extract is not null) Directory.CreateDirectory(Path.Combine(extract, name));
+                if (extract is not null) Directory.CreateDirectory(Path.Combine(extract, name), UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
                 continue;
             }
             if (entry.DataStream is null && entry.Length != 0) throw new IOException("File data missing.");
+            if (extract is not null)
+            {
+                using var target = new SafeDirectory(extract);
+                if (target.AvailableBytes < checked(entry.Length + 1073741824L)) throw new IOException("Insufficient extraction capacity including reserve.");
+            }
             using var output = extract is null ? Stream.Null : ExtractFile(extract, name);
-            if (entry.DataStream is not null) CopyBoundedAsync(entry.DataStream, output, entry.Length, token).GetAwaiter().GetResult();
+            if (entry.DataStream is not null) CopyBoundedAsync(entry.DataStream, output, entry.Length, token, verifyOutput: extract is not null).GetAwaiter().GetResult();
+            if (output is FileStream fileOutput) fileOutput.Flush(flushToDisk: true);
         }
         if (!names.Contains(".")) throw new IOException("Nested root representation missing.");
         // Force gzip to its checksum/trailer rather than accepting a truncated compressed member.
@@ -137,14 +144,26 @@ public static class ArchiveVerifier
             if (total > ArchiveContract.ByteLimit || tail.AsSpan(0, count).ContainsAnyExcept((byte)0))
                 throw new IOException("Unexpected nested trailing data.");
         }
+        if (extract is not null)
+        {
+            // Flush children before parents so activation never commits merely cached directory entries.
+            foreach (var directory in Directory.EnumerateDirectories(extract, "*", SearchOption.AllDirectories)
+                .OrderByDescending(value => value.Length).Append(extract))
+            {
+                token.ThrowIfCancellationRequested();
+                using var owned = new SafeDirectory(directory);
+                owned.Flush();
+            }
+        }
+        return total;
     }
 
     private static Stream ExtractFile(string root, string name)
     {
         var path = Path.Combine(root, name);
-        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
         return new FileStream(path, new FileStreamOptions
-        { Mode = FileMode.CreateNew, Access = FileAccess.Write, UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite });
+        { Mode = FileMode.CreateNew, Access = FileAccess.ReadWrite, UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite });
     }
 
     private static string ReadText(Stream stream, int limit)
@@ -154,8 +173,9 @@ public static class ArchiveVerifier
         return reader.ReadToEnd();
     }
 
-    private static async Task CopyBoundedAsync(Stream input, Stream output, long expected, CancellationToken token)
+    private static async Task CopyBoundedAsync(Stream input, Stream output, long expected, CancellationToken token, bool verifyOutput = false)
     {
+        using var digest = verifyOutput ? IncrementalHash.CreateHash(HashAlgorithmName.SHA256) : null;
         var buffer = new byte[65536];
         long copied = 0;
         int count;
@@ -163,11 +183,25 @@ public static class ArchiveVerifier
         {
             copied = checked(copied + count);
             if (copied > expected) throw new IOException("Archive member size mismatch.");
+            digest?.AppendData(buffer.AsSpan(0, count));
             await output.WriteAsync(buffer.AsMemory(0, count), token);
         }
         if (copied != expected) throw new IOException("Truncated archive member.");
+        if (digest is not null && output is FileStream file)
+        {
+            file.Flush(flushToDisk: true);
+            file.Position = 0;
+            var expectedHash = digest.GetHashAndReset();
+            var actualHash = await SHA256.HashDataAsync(file, token);
+            if (!expectedHash.SequenceEqual(actualHash))
+                throw new IOException("Extracted file readback mismatch.");
+        }
     }
 }
 
 /// <summary>Integrity and configured-source compatibility are separate observations, never a restore authorization.</summary>
-public sealed record VerifyResult(int Schema, bool IntegrityValid, bool CompatibilitySupported, Guid Archive, string Name, string Mode);
+public sealed record VerifyResult(int Schema, bool IntegrityValid, bool CompatibilitySupported, Guid Archive, string Name, string Mode)
+{
+    /// <summary>Verified uncompressed file bytes, including bounded padding, for restore capacity accounting.</summary>
+    public long ExpandedFileBytes { get; init; }
+}

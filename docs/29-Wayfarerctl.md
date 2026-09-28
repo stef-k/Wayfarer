@@ -3,8 +3,8 @@
 `wayfarerctl` is the Linux AMD64, self-contained C# operator executable introduced
 by #648. It orchestrates the [accepted Compose substrate](28-Production-Compose.md)
 and existing application maintenance commands. This foundation includes fresh setup,
-lifecycle, diagnosis, logs, user recovery and opt-in Compose recovery sets. **Production
-restore, update, uninstall and native migration are not implemented.** #603 is not complete; the
+lifecycle, diagnosis, logs, user recovery, opt-in Compose recovery sets and managed
+restore to an independently trusted exact local target. **Update, uninstall and native migration are not implemented.** #603 is not complete; the
 final versioned release tarball and `release.json` remain separate work.
 
 ## Placement and prerequisites
@@ -348,8 +348,7 @@ an existing empty root is valid. No source ownership or contents are changed.
 confirms no other running app-data consumer, then reserves the operation for the
 same worker engine while DB remains running. The host receipt, not a worker flag,
 authorizes the quiesced label. The application remains stopped afterward. Use
-`wayfarerctl start` only when the protected transition is complete. Production
-restore/update/native migration remain separate work.
+`wayfarerctl start` only when the protected transition is complete. Managed restore uses the same capture engine; update/native migration remain separate work.
 
 The archive is an uncompressed USTAR with exactly `manifest.json`, `database.dump`,
 `data-protection.tar.gz`, `uploads.tar.gz` and `SHA256SUMS`. The final `.sha256`
@@ -366,18 +365,184 @@ it is explicitly not full verification. Verification bounds bytes, entries, path
 manifest and elapsed time, never executes SQL, and distinguishes integrity from
 source/schema compatibility. Unknown compatibility is not restore readiness.
 
-## Disposable reconstruction evidence
+## Managed restore
 
-`tools/compose/qualify_recovery.py` extends the existing operator/Compose fixture.
-It uses the published binaries, a real non-superuser application dump, full ring and
-import/upload bytes, then reconstructs into another random project's clean volumes.
-The target uses the same DB initialization authority and `pg_restore --exit-on-error`,
-without running EF migration over the restored database. The test checks spatial,
-citext/locale/schema data, a synthetic provider credential through its production
-credential service, and a production Identity token protected before capture. It
-compares source database/files before and after the drill. Fixture-only root
-initialization assigns target UID1654 ownership; this is not a shipped restore command.
+`restore` restores a matched database, complete Data Protection ring and durable
+Uploads (including imports) into fresh volumes. It never reloads the active DB,
+merges key rings, migrates EF, seeds reference data or bootstraps an administrator.
+Checksums prove integrity, not authenticity. Execute only archives from a known,
+controlled custody chain; there is no untrusted archive import mode.
 
-No real NAS, production-host recovery, release publication, update or native migration
-is qualified by a disposable fixture. Later lifecycle children must consume this
-archive/worker contract rather than introduce a second recovery implementation.
+Use a trusted local application bundle, immutable application and DB images already
+loaded into Docker, trusted capture evidence and the current restore payload. Restore
+never pulls images or selects a release from manifest strings. The exact contract
+includes Linux AMD64, application digest/version/revision, bundle fingerprint,
+PG17/PostGIS3.6.4/citext1.6, UTF8/C.UTF-8 libc locale, ordered EF migrations, Quartz
+structure and stable Data Protection identity `Wayfarer`. The historical capture
+payload fingerprint is independent of the restore payload fingerprint.
+
+### Select, plan and authorize
+
+```bash
+wayfarerctl restore --restore-payload /opt/recovery/wayfarer-recovery --plan
+wayfarerctl restore <owned-archive-basename> --restore-payload /opt/recovery/wayfarer-recovery --plan
+wayfarerctl restore --accept-plan <printed-sha256> --trust-controlled-backup
+```
+
+The configured recovery payload is the default restore payload; specify
+`--restore-payload` when using a separate trusted restore release. Without a basename,
+the newest structurally complete owned pair is selected by
+completion time and name. A failed full verification never falls back to an older
+pair. Basenames must match the generated v1 format and select only the configured
+destination. External pairs require a literal absolute path, the adjacent exact-name
+`.sha256` sidecar and `--source-installation <manifest-source-uuid>`. This acknowledges
+provenance; it does not authenticate the source. An external source UUID/project may
+differ from the local installation while the exact release contract must still match.
+
+Planning copies the selected pair using no-follow/single-link reads into private,
+disk-backed `restore-plans/<operation>` storage and verifies those frozen bytes with
+an unprivileged, network-free helper. Source replacement cannot retarget execution.
+The plan binds archive hash/UUID/source, target UUID/configuration, old/candidate
+storage generations, payload identities, emergency policy and the writer cutoff.
+Execution revalidates retained bytes and local authority under host serialization.
+Redirected input is never approval; use the exact printed plan hash. Interactive
+execution requires an explicit controlled-custody acknowledgement (or
+`--trust-controlled-backup`) followed by typing exactly
+`RESTORE <target-installation-uuid> <archive-uuid>`. EOF/decline leaves authority unchanged.
+There is no `--yes` or `--skip-lock`.
+
+An online archive is not a transactional snapshot across the DB and filesystem.
+Plan conservatively around its capture interval and the later writes being discarded.
+Staging uses local persistent disk, not the backup worker's 2 GiB tmpfs. Archive and
+nested component byte bounds remain 100 GiB, with 100,000 nested entries; allow space
+for the frozen pair, verified components, extracted verification ring and fresh
+DB/filesystem volumes. Reverification stops and reconciles the exact operation's helpers,
+then reclaims superseded verification trees before extraction; plan, execution and resume
+retain only one verified component tree. Frozen bytes and failed candidate volumes remain
+retained. Do not delete operation storage while a restore remains unresolved.
+
+Capacity preflight measures available deployment/Docker/destination space, which already
+excludes retained old and failed generations. Before freezing it budgets the frozen pair
+and component staging; nested ring extraction checks expanded writes. Before fencing and
+activation it reserves candidate file bytes, cache bootstrap, emergency output/spooling and
+one GiB of operating headroom. DB/index/WAL allowance is the greater of one GiB, four times
+the dump, and twice the observed old DB footprint. This is an obvious-shortage gate, not a
+restore-size guarantee: compressed SQL cannot predict all database/index/WAL growth.
+The checks conservatively include allocations even when the filesystems are separate.
+An insufficient-capacity result retains old volumes and backups; it never deletes them to
+make space.
+
+### Emergency recovery set and fencing
+
+An existing installation gets a fresh verified quiesced emergency set after app,
+Quartz, scheduler and proxy fencing. The existing #533 engine owns capture,
+verification, publication and retention. The current capture payload must understand
+restore holds. Its archive is permanently held outside ordinary retention and has no
+scheduled slot. The hold is durably published before the archive/sidecar pair. Failed or
+interrupted publication is reconciled under the recovery lock: private pending holds and
+owned holds without a complete pair are reclaimed; committed held pairs remain protected.
+A stale online backup is not a substitute.
+
+For a genuinely broken source or unavailable destination/capacity, include
+`--without-emergency-backup` when planning. The waiver is bound into the authorization
+hash and removes that recovery protection. It cannot be added during execution of a
+different plan. A proven clean new installation needs no emergency capture.
+
+Actual owned restart policies are recorded, then disabled before stopping writers.
+The candidate database runs on an isolated internal network, with no published port,
+old DB mount, Docker socket or production network. Root initialization sees only
+empty candidate volume roots. Extraction runs as UID1654, rejects links/traversal and
+unsupported entries, preserves empty directories, and normalizes dirs/files to
+0700/0600. Candidate SQL uses only local bootstrap authority inside that isolation.
+Offline product validation checks schema, database facts, secure admin/reference
+state and active protected credentials with key generation disabled and no provider
+egress. An empty credential inventory is reported as “none present.”
+
+### Clean-host disaster recovery
+
+Start from a clean deployment root; do not partially run setup first:
+
+```bash
+wayfarerctl --deployment-root /etc/wayfarer restore --new-install \
+  --archive /protected/wayfarer-recovery-v1_<source>_<time>_<archive>.tar \
+  --source-installation <source-uuid> --bundle /opt/wayfarer/bundle \
+  --hostname maps.example.org --project wayfarer --mode external \
+  --edge-prefix 172.30.64 --loopback-port 8080 \
+  --app-digest sha256:<trusted-app-digest> --db-digest sha256:<trusted-db-digest> \
+  --capture-payload /opt/capture/wayfarer-recovery \
+  --restore-payload /opt/restore/wayfarer-recovery \
+  --target-evidence /protected/source.json --plan
+wayfarerctl --deployment-root /etc/wayfarer restore \
+  --accept-plan <printed-sha256> --trust-controlled-backup
+```
+
+`source.json` is the independently trusted `SourceIdentity` evidence retained from
+capture preparation, not an archive-extracted manifest. The capture executable and
+its adjacent `WayfarerRecoverySource.dll` must match that evidence. The restore
+executable has its own adjacent trusted inspection assembly. Host/platform, Docker,
+Compose, bundle, hostname, project, network and port validation reuse setup owners.
+A new target UUID and local secrets are generated. Restored users/password hashes,
+security stamps, settings, Quartz data, provider profiles, ring and Uploads remain
+archive authority. Completion uses `restore-complete`, never fabricated setup stages.
+Backup begins unconfigured. Managed Caddy obtains certificates normally; source TLS,
+NAS credentials, proxy configuration, caches and logs are not restored.
+
+### Activation, recovery and retained evidence
+
+Schema 3 stores one generated active storage identity for DB, app-data and fresh
+rebuildable cache. Schemas 1/2 remain readable and resolve canonical names. Immutable
+storage overlays preserve the original bundle and route lifecycle, diagnostics,
+source inspection and backup to the same generation. Old operators reject schema 3.
+One atomic installation pointer commits all three roles. Local hostname/project,
+proxy choices, secrets, backup destination/policy and scheduler receipts are retained.
+
+The protected receipt progresses through authorized, fenced, emergency verified or
+waived, staging, candidate validated, activation intent, activated stopped, writes
+possible and accepted. Intent is flushed before irreversible boundaries. External
+loopback exposure stays removed until private readiness succeeds; managed Caddy starts
+after application postflight. Scheduler restart follows successful postflight. The receipt
+stays at writes possible throughout restart-policy restoration and durable `restore-complete`
+publication. Accepted is the final checkpoint and only then clears restore intent. A failure
+or process death during finalization still requires forward-only resume; completion is never
+inferred from an Accepted receipt when its completion marker is absent.
+
+```bash
+wayfarerctl status
+wayfarerctl doctor
+wayfarerctl restore --resume <operation-uuid>
+wayfarerctl restore --abort <operation-uuid>
+```
+
+Ordinary mutation, including `backup configure --recover`, refuses unresolved restore
+intent. Resume rechecks frozen bytes and resource authority; failed staging uses a
+fresh generated attempt, never partial SQL continuation. Abort is allowed only before
+a candidate application writer could have run, and leaves services stopped. Once
+writes may have occurred, retain the candidate pointer and fence the installation;
+there is no automatic return to old data. Exit 1 reports the phase and write cutoff
+state; exit 2 indicates usage/configuration/authorization mismatch, and exit 0 requires
+accepted restore. Old DB/app-data/cache, failed candidate residue, frozen bytes and
+held emergency archives are not automatically deleted. Later cleanup and recovery
+that discards candidate writes require a separate explicit administrative decision.
+
+## Disposable restore evidence
+
+`tools/compose/qualify_recovery.py --restore-only` runs the published product operator
+against disposable Linux AMD64 Compose installations. It checks in-place and clean-root
+restore, retained volumes, Uploads/import bytes, synthetic protected provider credentials
+and pre-capture production Identity tokens. It also exercises actual SQL failure and
+cancellation, extraction and offline-validation failures, interrupted pointer activation,
+writer acknowledgement loss, forward-only recovery, repeat restore and emergency retention.
+The maintained lifecycle extension also covers restart-restoration process death, completion
+write failure, bounded repeated verification, a real small-filesystem capacity refusal and
+emergency-worker deaths before and after publication. Both full and restore-only selections
+include these lifecycle regressions.
+The normal selection additionally exercises #533 capture/retention/locking and cancellation.
+
+`python3 tools/compose/qualify_restore_daemon.py` independently proves the restart-policy
+fence across a real restart of a disposable nested Docker daemon, with a positive restart
+control. It requires privileged fixture containers and local Docker binaries; it has no
+host Docker socket or network, and does not restart the host daemon.
+
+No fixture evidence qualifies a real NAS, production host, M6 cutover, public stable
+distribution or whole-system #603 closure.
+Historical release acquisition, updates, native migration, ARM and #604 remain separate.

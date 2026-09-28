@@ -24,6 +24,8 @@ public static class WorkerCli
                 await RuntimeCheckAsync(token);
                 return 0;
             }
+            if (arguments.Length > 0 && arguments[0].StartsWith("restore-", StringComparison.Ordinal))
+                return await RestoreWorker.RunAsync(arguments, token);
             string? hostOperation = null;
             if (arguments.Length >= 3 && arguments[1] == "--host-operation")
             {

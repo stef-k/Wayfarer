@@ -11,6 +11,15 @@ public sealed class RecoveryEngine(WorkerConfiguration config)
     /// <summary>Qualification-only crash gate after durable publication and before retention; never configured by worker input.</summary>
     internal Action? PublicationCommitted { get; init; }
 
+    /// <summary>Qualification-only death during a private hold write, before atomic publication.</summary>
+    internal Action? HoldCreating { get; init; }
+
+    /// <summary>Qualification-only interruption at the durable hold/publication boundary.</summary>
+    internal Action? HoldCreated { get; init; }
+
+    /// <summary>Qualification-only death after a real archive rename, before its commit marker.</summary>
+    internal Action<string>? MemberPublished { get; init; }
+
     /// <summary>Produce one online set while holding the installation-local recovery exclusion.</summary>
     public async Task<BackupResult> BackupAsync(DateTimeOffset? slot, CancellationToken token, string? hostOperation = null)
     {
@@ -46,7 +55,29 @@ public sealed class RecoveryEngine(WorkerConfiguration config)
             var result = await ArchiveVerifier.VerifyAsync(local, name, verification.Path, config.Source, config.Installation, deadline.Token);
             if (!result.CompatibilitySupported) throw new IOException("Captured source compatibility failed.");
         }
-        await PublishAsync(destination, staging.Path, name, deadline.Token);
+        try
+        {
+            if (HostRecoveryOperation.RequiresHold(hostOperation))
+            {
+                var pending = name + ".restore-hold.partial-" + Guid.NewGuid().ToString("N");
+                using (var hold = destination.Write(pending))
+                {
+                    HoldCreating?.Invoke();
+                    hold.Write(Encoding.UTF8.GetBytes(manifest.Archive.ToString("D") + "\n"));
+                    hold.Flush(true);
+                }
+                destination.Publish(pending, name + ".restore-hold");
+            }
+            HoldCreated?.Invoke();
+            await PublishAsync(destination, staging.Path, name, deadline.Token);
+        }
+        catch
+        {
+            // Reconcile against the actual pair: publication may have committed before acknowledgement failed.
+            try { CleanupStale(destination, DateTimeOffset.UtcNow, CancellationToken.None); }
+            catch (IOException) { Console.Error.WriteLine("Publication residue remains for locked reconciliation."); }
+            throw;
+        }
         PublicationCommitted?.Invoke();
         var retained = await CompleteRetentionAsync(destination, deadline.Token);
         return new BackupResult(1, manifest.Archive, name, manifest.Completed, retained);
@@ -91,7 +122,7 @@ public sealed class RecoveryEngine(WorkerConfiguration config)
             }
             catch (Exception error) when (error is IOException or JsonException or ArgumentException) { /* Incomplete/unowned pairs are ignored. */ }
         }
-        return results.OrderByDescending(value => value.Completed).ToArray();
+        return results.OrderByDescending(value => value.Completed).ThenByDescending(value => ArchiveContract.Name(value.Installation, value.Completed, value.Archive), StringComparer.Ordinal).ToArray();
     }
 
     /// <summary>Publication stays valid when retention fails; both capture and reconciliation report the same outcome.</summary>
@@ -101,12 +132,12 @@ public sealed class RecoveryEngine(WorkerConfiguration config)
         catch (Exception error) when (error is IOException or OperationCanceledException or UnauthorizedAccessException) { return false; }
     }
 
-    /// <summary>Under recovery exclusion, reclaim day-old private residue in this installation's exact publication namespace.</summary>
+    /// <summary>Under recovery exclusion, reclaim uncommitted holds immediately and other owned publication residue after one day.</summary>
     internal void CleanupStale(SafeDirectory destination, DateTimeOffset now, CancellationToken token)
     {
         var names = destination.Names(4096).ToHashSet(StringComparer.Ordinal);
         var pattern = "^wayfarer-recovery-v1_" + config.Installation.ToString("D") +
-            @"_([0-9]{8}T[0-9]{13}Z)_([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})\.tar(\.sha256)?(\.partial-[a-f0-9]{32})?\z";
+            @"_([0-9]{8}T[0-9]{13}Z)_([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})\.tar(\.sha256)?(\.partial-[a-f0-9]{32})?(\.restore-hold(?:\.partial-[a-f0-9]{32})?)?\z";
         foreach (var name in names)
         {
             token.ThrowIfCancellationRequested();
@@ -115,25 +146,35 @@ public sealed class RecoveryEngine(WorkerConfiguration config)
                     System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.AssumeUniversal, out var completed) ||
                 !Guid.TryParseExact(match.Groups[2].Value, "D", out var archive) || archive == Guid.Empty) continue;
             var canonical = ArchiveContract.Name(config.Installation, completed, archive);
+            var hold = match.Groups[5].Success;
+            if (hold && (match.Groups[3].Success || match.Groups[4].Success)) continue;
+            var pendingHold = hold && match.Groups[5].Value.Contains(".partial-", StringComparison.Ordinal);
             var partial = match.Groups[4].Success;
             var sidecar = match.Groups[3].Success;
-            if (!partial && names.Contains(sidecar ? canonical : canonical + ".sha256")) continue;
+            if (hold ? !pendingHold && names.Contains(canonical) && names.Contains(canonical + ".sha256") :
+                !partial && names.Contains(sidecar ? canonical : canonical + ".sha256")) continue;
             SafeDirectory.Facts facts;
             try
             {
                 using var file = destination.Read(name);
                 facts = SafeDirectory.Inspect(file.SafeFileHandle);
                 if (facts.User != 1654 || facts.Group != 1654 || (facts.Mode & 0x1ff) != 0x180 ||
-                    facts.ModifiedSeconds > now.AddDays(-1).ToUnixTimeSeconds()) continue;
+                    !hold && facts.ModifiedSeconds > now.AddDays(-1).ToUnixTimeSeconds()) continue;
                 // A final orphan must additionally carry its exact manifest/sidecar identity. Partials can be truncated anywhere.
-                if (!partial && sidecar)
+                if (hold && !pendingHold)
+                {
+                    // Also reconcile a pre-transactional worker's interrupted final hold write.
+                    if (file.Length > 37 || !(archive.ToString("D") + "\n").StartsWith(
+                        new StreamReader(file, leaveOpen: true).ReadToEnd(), StringComparison.Ordinal)) continue;
+                }
+                else if (!hold && !partial && sidecar)
                 {
                     if (file.Length > 512) continue;
                     var checksum = new StreamReader(file, leaveOpen: true).ReadToEnd();
                     if (checksum.Length != 64 + 2 + canonical.Length + 1 || checksum[64..] != "  " + canonical + "\n" ||
                         !checksum[..64].All(c => c is >= '0' and <= '9' or >= 'a' and <= 'f')) continue;
                 }
-                else if (!partial)
+                else if (!hold && !partial)
                 {
                     using var tar = new TarReader(file, leaveOpen: true);
                     var entry = tar.GetNextEntry();
@@ -168,7 +209,9 @@ public sealed class RecoveryEngine(WorkerConfiguration config)
             }
             catch (Exception error) when (error is IOException or JsonException or System.Security.Cryptography.CryptographicException) { }
         }
-        foreach (var name in valid.Skip(config.Retention))
+        var held = destination.Names(4096).Where(name => name.EndsWith(".restore-hold", StringComparison.Ordinal))
+            .Select(name => name[..^13]).ToHashSet(StringComparer.Ordinal);
+        foreach (var name in valid.Where(name => !held.Contains(name)).Skip(config.Retention))
         {
             using var current = config.OpenDestination();
             // Remove the commit marker first; interrupted deletion never leaves a false complete set.
@@ -227,6 +270,7 @@ public sealed class RecoveryEngine(WorkerConfiguration config)
                 using var current = config.OpenDestination();
                 current.Publish(partial, member);
                 owned.Remove(partial);
+                MemberPublished?.Invoke(member);
             }
             using var finalIdentity = config.OpenDestination();
         }

@@ -15,6 +15,8 @@ import uuid
 from datetime import datetime, timedelta
 from qualify_ctl import Journey, run, HOST
 from qualify import Stack
+from qualify_restore_cancellation import qualify_sql_cancellation
+from qualify_restore_lifecycle import qualify_restore_lifecycle, assert_single_staging
 
 
 class RecoveryJourney(Journey):
@@ -34,7 +36,7 @@ class RecoveryJourney(Journey):
         self.lock_probe = self.directory / 'lock-probe'
         shutil.copy2(Path(worker).parent / 'lock-probe', self.lock_probe)
 
-    def recovery(self):
+    def recovery(self, restore_only=False):
         """Setup uses existing authority; source inspection must work without changing the app image."""
         self.ctl('setup', '--bundle', str(self.bundle), '--hostname', 'wayfarer.example.org',
                  '--app-digest', self.digest, '--project', self.project, '--edge-prefix', '172.30.69',
@@ -63,6 +65,14 @@ class RecoveryJourney(Journey):
                 raise RuntimeError('scheduled capture did not commit its bounded receipt')
             time.sleep(0.1)
         print('PASS scheduled due capture receipt', flush=True)
+        if restore_only:
+            self.ctl('backup', '--quiesced')
+            self.restore_refusals()
+            qualify_sql_cancellation(self)
+            self.restore_boundaries()
+            qualify_restore_lifecycle(self)
+            self.restore()
+            return
         generation = json.loads(self.host('cat', str(self.install / 'installation.json')).stdout)['Backup']['Generation']
         scheduler_args = ['docker', 'compose', '--project-name', self.project, '--project-directory', str(self.bundle),
                           '--env-file', str(self.install / 'deployment.env'), '-f', str(self.bundle / 'compose.yaml'),
@@ -95,6 +105,7 @@ class RecoveryJourney(Journey):
         run('docker', 'stop', '--time', '5', duplicate)
         run('docker', 'rm', duplicate)
         run('docker', 'kill', owner)
+        run('docker', 'rm', owner)
         print('PASS host lock contention and owner-death release; scheduler recreation retained receipt', flush=True)
         self.stale_residue()
         print(self.ctl('backup').stdout, flush=True)
@@ -114,9 +125,9 @@ class RecoveryJourney(Journey):
         source_before = self.snapshot()
         self.ctl('backup', '--quiesced')
         assert self.snapshot() == source_before
+        qualify_restore_lifecycle(self)
         self.restore()
-        assert self.snapshot() == source_before
-        print('PASS complete clean Compose reconstruction; source state unchanged', flush=True)
+        print('PASS product restore qualification', flush=True)
         self.mounted_destination()
 
     def restricted_authority(self, compose):
@@ -374,47 +385,177 @@ class RecoveryJourney(Journey):
             "schemaname, tablename), false, true, '')::text) FROM pg_tables WHERE schemaname='public' ORDER BY tablename")
         return hashlib.sha256((files + database).encode()).hexdigest()
 
+    def restore_refusals(self):
+        """Prove pre-mutation refusals and a real pg_restore missing-role failure against fresh candidates."""
+        baseline = self.host('cat', str(self.install / 'installation.json')).stdout
+        config = json.loads(baseline)
+        name = self.ctl('backups').stdout.split(' ')[0]
+        archive = self.directory / 'destination' / name
+        sidecar = str(archive) + '.sha256'
+        checksum = self.host('cat', sidecar).stdout
+        options = ['--restore-payload', str(self.payload / 'wayfarer-recovery')]
+        self.host('tee', sidecar, data='corrupt')
+        assert self.ctl('restore', name, *options, '--plan', check=False).returncode == 1
+        self.host('tee', sidecar, data=checksum)
+        assert self.ctl('restore', '--archive', str(archive), *options, '--plan', check=False).returncode == 2
+        evidence = self.directory / 'incompatible-source.json'
+        source = dict(config['Backup']['Source'])
+        source['ApplicationVersion'] = '0.0.0'
+        self.host('tee', str(evidence), data=json.dumps(source))
+        self.host('chmod', '600', str(evidence))
+        assert self.ctl('restore', name, *options, '--target-evidence', str(evidence), '--plan', check=False).returncode == 1
+        assert self.ctl('restore', '--accept-plan', 'f' * 64, '--trust-controlled-backup', check=False).returncode == 2
+        assert self.host('cat', str(self.install / 'installation.json')).stdout == baseline
+        print('PASS corrupt/incompatible archive, missing foreign acknowledgement and plan mismatch before mutation', flush=True)
+        sql = ['exec', '-T', 'db', 'psql', '-U', 'postgres', '-d', 'wayfarer', '-v', 'ON_ERROR_STOP=1', '-c']
+        self.compose(*sql, 'CREATE ROLE restore_missing; CREATE TABLE restore_owner_probe(id integer); '
+            'ALTER TABLE restore_owner_probe OWNER TO restore_missing; GRANT SELECT ON restore_owner_probe TO wayfarer;')
+        self.ctl('backup', '--quiesced')
+        self.compose(*sql, 'DROP TABLE restore_owner_probe; DROP ROLE restore_missing;')
+        planned = self.ctl('restore', *options, '--without-emergency-backup', '--plan').stdout
+        plan = json.loads(planned.splitlines()[0])
+        accepted = planned.split('Plan SHA-256: ')[1].splitlines()[0]
+        staging_size = assert_single_staging(self, plan)
+        failure = self.ctl('restore', '--accept-plan', accepted, '--trust-controlled-backup', check=False)
+        assert failure.returncode == 1 and 'phase=Staging' in failure.stderr, failure.stderr
+        assert assert_single_staging(self, plan) == staging_size
+        assert self.host('cat', str(self.install / 'installation.json')).stdout == baseline
+        receipt_path = str(self.install / 'recovery-control/restore.json')
+        first = json.loads(self.host('cat', receipt_path).stdout)
+        assert not first['WritesPossible'] and first['EmergencyArchive'] is None
+        assert self.ctl('start', check=False).returncode == 2
+        assert self.ctl('backup', 'configure', '--recover', check=False).returncode == 2
+        assert self.ctl('restore', '--resume', plan['Operation'], check=False).returncode == 1
+        retry = json.loads(self.host('cat', receipt_path).stdout)
+        assert retry['CandidateAttempt'] == 1 and len(set(retry['Volumes'])) == 6
+        assert assert_single_staging(self, plan) == staging_size
+        assert self.ctl('restore', '--resume', plan['Operation'], check=False).returncode == 1
+        assert assert_single_staging(self, plan) == staging_size
+        self.ctl('restore', '--abort', plan['Operation'])
+        assert self.host('cat', str(self.install / 'installation.json')).stdout == baseline
+        self.compose('up', '-d', '--wait', 'db')
+        self.ctl('backup', '--quiesced')
+        print('PASS actual SQL failure, old authority intact, waiver, blocked lifecycle, fresh retry and pre-writer abort', flush=True)
+
+    def restore_boundaries(self):
+        """Lose acknowledgements at the pointer and real writer boundaries, then exercise product recovery."""
+        options = ['restore', '--restore-payload', str(self.payload / 'wayfarer-recovery'), '--without-emergency-backup']
+        original = self.host('cat', str(self.install / 'installation.json')).stdout
+        for point in ['restore-files', 'restore-validation', 'restore-pointer', 'restore-writer']:
+            planned = self.ctl(*options, '--plan').stdout
+            plan = json.loads(planned.splitlines()[0])
+            accepted = planned.split('Plan SHA-256: ')[1].splitlines()[0]
+            self.host('tee', str(self.directory / 'failure'), data=point)
+            result = self.ctl('restore', '--accept-plan', accepted, '--trust-controlled-backup', check=False)
+            assert result.returncode == 1
+            self.host('rm', str(self.directory / 'failure'))
+            receipt = json.loads(self.host('cat', str(self.install / 'recovery-control/restore.json')).stdout)
+            assert self.ctl('status', check=False).returncode == 1
+            assert self.ctl('start', check=False).returncode == 2
+            for service in ['db', 'wayfarer']:
+                identifier = self.compose('ps', '-aq', service).strip()
+                state = json.loads(run('docker', 'inspect', identifier).stdout)[0]
+                assert not state['State']['Running'] and state['HostConfig']['RestartPolicy']['Name'] == 'no'
+            if point != 'restore-writer':
+                assert receipt['Phase'] == (5 if point == 'restore-pointer' else 3) and not receipt['WritesPossible']
+                self.ctl('restore', '--abort', plan['Operation'])
+                assert self.host('cat', str(self.install / 'installation.json')).stdout == original
+                self.ctl('start')
+                for role in ['db-data', 'app-data']:
+                    assert self.project + '_' + role in self.compose('config')
+                self.ctl('stop')
+                self.compose('up', '-d', '--wait', 'db')
+            else:
+                assert receipt['Phase'] == 7 and receipt['WritesPossible']
+                assert self.ctl('restore', '--abort', plan['Operation'], check=False).returncode == 2
+                self.ctl('restore', '--resume', plan['Operation'])
+                assert self.ctl('doctor').returncode == 0
+                self.ctl('backup', '--quiesced')
+        print('PASS filesystem/validation failures, pointer abort mounts, real writer acknowledgement loss, fencing and forward-only resume', flush=True)
+
     def restore(self):
-        # Extract only our just-verified owned fixture archive; this is deliberately not shipped restore UX.
-        with tempfile.TemporaryDirectory(prefix='wayfarer-533-restore-') as directory:
-            target = Stack(directory, 'ghcr.io/stef-k/wayfarer@' + self.digest,
-                           'ghcr.io/stef-k/wayfarer-db@' + __import__('qualify_ctl').DB)
-            try:
-                target.prepare()
-                run('docker', 'run', '--rm', '--network', 'none', '-v', str(self.directory) + ':/source:ro',
-                    '-v', directory + ':/target', HOST, 'sh', '-ec',
-                    'archive=$(ls /source/destination/*.tar | sort | tail -1); mkdir /target/archive; '
-                    'tar -xf "$archive" -C /target/archive; cp /source/probe/auth-token /target/auth-token; '
-                    'chmod 755 /target/archive; chmod 644 /target/archive/* /target/auth-token')
-                target.compose('up', '-d', '--wait', 'db')
-                target.compose('run', '--rm', '--no-deps', '--user', '0', '--entrypoint', 'sh', '-v', directory + '/archive:/archive:ro',
-                               'wayfarer', '-ec', 'mkdir -p /var/lib/wayfarer/data-protection /var/lib/wayfarer/uploads; '
-                               'tar -xzf /archive/data-protection.tar.gz -C /var/lib/wayfarer/data-protection; '
-                               'tar -xzf /archive/uploads.tar.gz -C /var/lib/wayfarer/uploads; '
-                               'chown -R 1654:1654 /var/lib/wayfarer /var/cache/wayfarer /var/log/wayfarer')
-                db = target.container('db')
-                run('docker', 'cp', directory + '/archive/database.dump', db + ':/tmp/recovery.dump')
-                target.compose('exec', '-T', 'db', 'pg_restore', '--exit-on-error', '-U', 'postgres', '-d', 'wayfarer', '/tmp/recovery.dump')
-                target.database_semantics()
-                assert target.sql('SELECT id, name, ST_AsText(position), octet_length(payload) FROM recovery_qualification') == '1|Αθήνα|POINT(23.7 37.9)|320000'
-                assert target.compose('run', '--rm', '--no-deps', '-T', '--entrypoint', 'cat', 'wayfarer',
-                                      '/var/lib/wayfarer/uploads/imports/recovery-qualification').stdout.strip() == 'durable'
-                inspection = target.compose('run', '--rm', '--no-deps', '-T', '--volume',
-                    str(self.payload / 'WayfarerRecoverySource.dll') + ':/inspection/WayfarerRecoverySource.dll:ro',
-                    '--entrypoint', 'dotnet', 'wayfarer', 'exec', '--runtimeconfig', '/app/Wayfarer.runtimeconfig.json',
-                    '--depsfile', '/app/Wayfarer.deps.json', '/inspection/WayfarerRecoverySource.dll').stdout
-                manifest = json.loads(Path(directory, 'archive/manifest.json').read_text())
-                assert json.loads(inspection)['ExpectedMigrations'] == manifest['Database']['Migrations']
-                assert manifest['Mode'] == 'quiesced'
-                assert Path(directory, 'archive/database.dump').stat().st_size > 262144
-                print(target.compose('run', '--rm', '--no-deps', '-T', '--volume', str(self.probe) + ':/probe-bin/RecoveryProbe.dll:ro',
-                                     '--volume', directory + '/auth-token:/probe/auth-token:ro', '--entrypoint', 'dotnet', 'wayfarer', 'exec',
-                                     '--runtimeconfig', '/app/Wayfarer.runtimeconfig.json', '--depsfile', '/app/Wayfarer.deps.json',
-                                     '/probe-bin/RecoveryProbe.dll', 'verify').stdout, flush=True)
-            finally:
-                target.cleanup()
-                run('docker', 'run', '--rm', '--network', 'none', '-v', directory + ':/target', HOST,
-                    'chown', '-R', str(__import__('os').getuid()) + ':' + str(__import__('os').getgid()), '/target')
+        """The shipped operator owns destructive restore; fixture code observes product contracts only."""
+        before = json.loads(self.host('cat', str(self.install / 'installation.json')).stdout)
+        options = ['restore', '--restore-payload', str(self.payload / 'wayfarer-recovery')]
+        planned = self.ctl(*options, '--plan').stdout
+        plan = json.loads(planned.splitlines()[0])
+        plan_hash = planned.split('Plan SHA-256: ')[1].splitlines()[0]
+        result = self.ctl('restore', '--accept-plan', plan_hash, '--trust-controlled-backup')
+        print(result.stdout, flush=True)
+        after = json.loads(self.host('cat', str(self.install / 'installation.json')).stdout)
+        assert after['Schema'] == 3 and after['Installation'] == before['Installation']
+        assert after['Backup'] == before['Backup']
+        for role in ['db-data', 'app-data', 'app-cache']:
+            run('docker', 'volume', 'inspect', self.project + '_' + role)
+            run('docker', 'volume', 'inspect', self.project + '_' + role + '_' + after['StorageGeneration'])
+        assert 'durable' == self.compose('exec', '-T', 'wayfarer', 'cat',
+            '/var/lib/wayfarer/uploads/imports/recovery-qualification').strip()
+        self.probe_command('verify')
+        print('PASS product in-place restore, Identity/provider continuity, uploads and retained old volumes', flush=True)
+        receipt = json.loads(self.host('cat', str(self.install / 'recovery-control/restore.json')).stdout)
+        emergency = next(name for name in self.host('ls', str(self.directory / 'destination')).stdout.splitlines()
+                         if name.endswith(receipt['EmergencyArchive'] + '.tar'))
+        self.ctl('backup', '--quiesced')
+        for suffix in ['', '.sha256', '.restore-hold']:
+            self.host('test', '-f', str(self.directory / 'destination' / (emergency + suffix)))
+        print('PASS emergency archive and checksum survive a later retention=1 capture', flush=True)
+        self.clean_root_restore(plan)
+
+    def clean_root_restore(self, plan):
+        """Disaster restore uses a new local UUID/secrets without any setup stages or backup policy."""
+        from qualify_ctl import DB
+        target = self.directory / 'disaster-installation'
+        project = self.project + '-disaster'
+        operation = plan['Operation'].replace('-', '')
+        frozen = self.install / 'restore-plans' / operation / 'frozen'
+        archive = self.host('find', str(frozen), '-maxdepth', '1', '-name', '*.tar').stdout.strip()
+        evidence = self.install / 'restore-plans' / operation / 'source.json'
+        options = ['restore', '--new-install', '--archive', archive, '--source-installation', plan['SourceInstallation'],
+            '--bundle', str(self.bundle), '--hostname', 'wayfarer.example.org', '--app-digest', self.digest,
+            '--db-digest', DB, '--mode', 'external', '--project', project, '--edge-prefix', '172.30.70',
+            '--loopback-port', str(self.free_port()), '--restore-payload', str(self.payload / 'wayfarer-recovery'),
+            '--capture-payload', str(self.payload / 'wayfarer-recovery'), '--target-evidence', str(evidence)]
+        def ctl(*args):
+            return self.host('/ctl/wayfarerctl', '--deployment-root', str(target), *args)
+        try:
+            planned = ctl(*options, '--plan').stdout
+            accepted = planned.split('Plan SHA-256: ')[1].splitlines()[0]
+            print(ctl('restore', '--accept-plan', accepted, '--trust-controlled-backup').stdout, flush=True)
+            restored = json.loads(self.host('cat', str(target / 'installation.json')).stdout)
+            assert restored['Installation'] != plan['SourceInstallation']
+            assert 'Backup' not in restored
+            assert self.host('test', '-e', str(target / 'setup-progress.json'), check=False).returncode == 1
+            ctl('doctor')
+            print('PASS product clean-root restore, new UUID, no setup stages, backup unconfigured', flush=True)
+        finally:
+            self.cleanup_project(project)
+
+    def cleanup_project(self, project):
+        """Reap only this fixture's labelled restore helpers before releasing their retained volumes."""
+        for kind, listing, removal in [('container', ['ps', '-aq'], ['rm', '-f']),
+            ('network', ['network', 'ls', '-q'], ['network', 'rm']),
+            ('volume', ['volume', 'ls', '-q'], ['volume', 'rm'])]:
+            ids = set()
+            for label in ['com.docker.compose.project=', 'wayfarer.restore-helper=']:
+                ids.update(run('docker', *listing, '--filter', 'label=' + label + project).stdout.split())
+            if ids:
+                run('docker', *removal, *sorted(ids))
+
+    def cleanup(self):
+        self.cleanup_project(self.project)
+        super().cleanup()
+
+    def compose(self, *args):
+        """Observe the same installation-owned generation as the operator after activation."""
+        current = self.host('cat', str(self.install / 'installation.json'), check=False)
+        overlay = []
+        if current.returncode == 0:
+            generation = json.loads(current.stdout).get('StorageGeneration')
+            if generation:
+                overlay = ['-f', str(self.install / 'storage-generations' / generation / 'compose.json')]
+        return self.host('docker', 'compose', '--project-name', self.project, '--env-file',
+            str(self.install / 'deployment.env'), '-f', str(self.bundle / 'compose.yaml'),
+            '-f', str(self.bundle / 'external.yaml'), *overlay, *args).stdout
 
 
 def main():
@@ -424,12 +565,19 @@ def main():
     parser.add_argument('--inspector', required=True)
     parser.add_argument('--probe', required=True)
     parser.add_argument('--app-digest', required=True)
+    parser.add_argument('--restore-only', action='store_true', help='Run the managed restore journey without repeating backup regression matrices.')
     args = parser.parse_args()
     with tempfile.TemporaryDirectory(prefix='wayfarer-533-') as directory:
         journey = RecoveryJourney(directory, args.executable, args.app_digest, args.worker, args.inspector, args.probe)
         try:
             journey.prepare()
-            journey.recovery()
+            journey.recovery(args.restore_only)
+        except Exception:
+            # Bounded non-secret ownership evidence before fixture cleanup, never raw container environment.
+            ids = run('docker', 'ps', '-aq', '--filter', 'label=com.docker.compose.project=' + journey.project).stdout.split()
+            for identifier in ids:
+                print(run('docker', 'inspect', '--format', '{{.Name}} {{json .Config.Labels}} {{json .Mounts}}', identifier).stdout, flush=True)
+            raise
         finally:
             journey.cleanup()
 

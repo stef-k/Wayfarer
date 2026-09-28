@@ -18,6 +18,11 @@ public static class Help
         ["backup configure"] = "backup configure --destination PATH --payload /immutable/path/wayfarer-recovery [--kind local|mounted] [--retention 1..100] [--time HH:mm]\n  Explicit completed-installation opt-in; backup configure --disable or --recover.",
         ["backups"] = "backups — newest owned complete pairs, capped at 20; listing is not full verification.",
         ["verify-backup"] = "verify-backup [owned-basename] — non-destructive integrity and compatibility check; default newest pair.",
+        ["restore"] = "restore [owned-basename] --restore-payload PATH [--plan | --accept-plan SHA256]\n" +
+            "  External: --archive ABSOLUTE_ARCHIVE --source-installation UUID. SQL requires --trust-controlled-backup.\n" +
+            "  New host: --new-install plus trusted setup choices, --db-digest, --capture-payload and --target-evidence.\n" +
+            "  Default emergency capture; --without-emergency-backup is a plan-bound destructive waiver.\n" +
+            "  Recovery: restore --resume UUID | restore --abort UUID. Abort is forbidden after possible writer launch.",
         ["status"] = "status — read-only service, health, image/version, DB and setup assessment",
         ["doctor"] = "doctor — bounded PASS/WARN/FAIL diagnosis; unhealthy checks return 1",
         ["start"] = "start — start configured services and wait for health; never update or migrate",
@@ -41,6 +46,6 @@ public static class Help
             "Exit: 0 success, 1 operation failure/cancelled/unhealthy, 2 invalid usage/config.\n" +
             "Use root and a trusted bundle. Passwords are never command arguments; protect stdin files.\n" +
             "Do not paste passwords, tokens or connection strings into options.\n" +
-            "Production restore, update, native migration and uninstall are not implemented.";
+            "Managed restore requires an exact trusted local target. Update, native migration and uninstall are not implemented.";
     }
 }
