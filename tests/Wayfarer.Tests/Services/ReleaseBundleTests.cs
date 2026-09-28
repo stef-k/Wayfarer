@@ -159,6 +159,12 @@ public sealed class ReleaseBundleTests : IDisposable
         var config = new Deployment { Schema = 4, Release = ReleaseAuthority.From(bundle), Bundle = directory,
             Hostname = "wayfarer.example.org", AppDigest = bundle.Manifest.Images.ApplicationDigest, StorageGeneration = generation };
         config.Validate();
+        var identity = Guid.NewGuid();
+        var target = RestoreCommands.WithRestoreIdentity(config, identity);
+        Assert.Equal(4, target.Schema);
+        Assert.Equal(identity, target.Installation);
+        Assert.Equal(config.Release, target.Release);
+        Assert.Equal(target, RestoreCommands.WithRestoreIdentity(target, Guid.NewGuid()));
         Assert.Equal("wayfarer_db-data" + (generation is null ? "" : "_" + generation), ActiveStorage.Volume(config, "db-data"));
         Assert.Throws<UsageException>(() => (config with { Schema = 1 }).Validate());
     }

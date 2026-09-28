@@ -44,7 +44,7 @@ public sealed class RestoreCommands(IProcessRunner runner, ITerminal terminal)
         {
             var config = options.Has("--new-install") ? NewTarget(root, options) : Deployment.Load(root);
             if (!options.Has("--new-install") && !InstallationCompletion.IsComplete(root)) throw new UsageException("Restore requires a completed installation.");
-            if (config.Schema == 1) config = config with { Schema = 2, Installation = Guid.NewGuid() };
+            config = WithRestoreIdentity(config, Guid.NewGuid());
             if (options.Has("--new-install"))
             {
                 await new Preflight(runner).FreshAsync(config, token);
@@ -83,6 +83,10 @@ public sealed class RestoreCommands(IProcessRunner runner, ITerminal terminal)
         }
         return await ExecuteAsync(root, receipt, token);
     }
+
+    /// <summary>Restore alone assigns an absent UUID; adoption preserves legacy absence and the release schema.</summary>
+    internal static Deployment WithRestoreIdentity(Deployment config, Guid installation) => config.Installation == Guid.Empty
+        ? config with { Schema = Math.Max(2, config.Schema), Installation = installation } : config;
 
     /// <summary>Clean-root restoration reuses setup choices and preflight without invoking setup stages.</summary>
     private Deployment NewTarget(string root, RestoreOptions options)
@@ -127,7 +131,7 @@ public sealed class RestoreCommands(IProcessRunner runner, ITerminal terminal)
         else
         {
             var current = Deployment.Load(root);
-            if (current.Schema == 1) current = current with { Schema = 2, Installation = plan.Target.Installation };
+            current = WithRestoreIdentity(current, plan.Target.Installation);
             if (JsonSerializer.Serialize(current) != JsonSerializer.Serialize(plan.Target))
                 throw new UsageException("Installation changed since planning.");
         }
@@ -181,7 +185,7 @@ public sealed class RestoreCommands(IProcessRunner runner, ITerminal terminal)
             if (receipt.Phase < RestorePhase.ActivationIntent)
             {
                 var current = Deployment.Load(root);
-                if (current.Schema == 1) current = current with { Schema = 2, Installation = receipt.Plan.Target.Installation };
+                current = WithRestoreIdentity(current, receipt.Plan.Target.Installation);
                 if (JsonSerializer.Serialize(current) != JsonSerializer.Serialize(receipt.Plan.Target))
                     throw new UsageException("Installation changed during restore.");
             }
