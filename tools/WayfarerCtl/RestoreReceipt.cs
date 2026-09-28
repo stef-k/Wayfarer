@@ -134,10 +134,16 @@ public sealed record RestoreReceipt
 /// <summary>Central completion owner distinguishes fresh setup from accepted disaster restore.</summary>
 public static class InstallationCompletion
 {
-    /// <summary>Restore completion survives subsequent recovery intent without inventing setup stage evidence.</summary>
+    /// <summary>Ordinary lifecycle readiness requires durable completion and no unresolved restore.</summary>
     public static bool IsComplete(string root)
     {
         if (RestoreReceipt.Load(root) is { Phase: not (RestorePhase.Accepted or RestorePhase.Aborted) }) return false;
+        return HasCompletionEvidence(root);
+    }
+
+    /// <summary>Historical completion permits reading existing backup configuration during restore without authorizing lifecycle mutation.</summary>
+    public static bool HasCompletionEvidence(string root)
+    {
         if (File.Exists(Path.Combine(root, "setup-complete"))) return true;
         var path = Path.Combine(root, "restore-complete");
         if (!File.Exists(path)) return false;

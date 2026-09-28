@@ -73,7 +73,7 @@ public sealed record Deployment
         { UnmappedMemberHandling = System.Text.Json.Serialization.JsonUnmappedMemberHandling.Disallow })
             ?? throw new UsageException("Missing installation identity.");
         config.CheckBundle();
-        if (config.Backup is not null && !InstallationCompletion.IsComplete(root))
+        if (config.Backup is not null && !InstallationCompletion.HasCompletionEvidence(root))
             throw new UsageException("Incomplete setup cannot use backup schema/policy.");
         ProtectedFiles.Check(Path.Combine(root, "deployment.env"), 0);
         if (File.ReadAllText(Path.Combine(root, "deployment.env")) != config.EnvironmentFile(root))
