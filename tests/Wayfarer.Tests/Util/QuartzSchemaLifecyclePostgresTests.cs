@@ -123,6 +123,101 @@ public sealed class QuartzSchemaLifecyclePostgresTests(PostgresImportTestFixture
         if (failure is not null) ExceptionDispatchInfo.Capture(failure).Throw();
     }
 
+    /// <summary>Same release supports fresh and upgraded layouts with different legacy restore identities.</summary>
+    [System.Runtime.Versioning.SupportedOSPlatform("linux")]
+    [PostgresFact]
+    public async Task FreshAndUpgradedSchemas_ShareCompatibilityButPreserveLegacyEvidence()
+    {
+        fixture.RequireAvailable();
+        await using var connection = fixture.CreateConnection();
+        await connection.OpenAsync();
+        var schema = $"quartz_699_{Guid.NewGuid():N}";
+        Exception? failure = null;
+        try
+        {
+            await ExecuteAsync(connection, $"CREATE SCHEMA {schema}");
+            await ExecuteAsync(connection, $"SET search_path TO {schema}");
+            await QuartzSchemaInstaller.EnsureQuartzTablesExistAsync(connection, CancellationToken.None);
+            await QuartzSchemaInstaller.ValidateAsync(connection, CancellationToken.None);
+            var fresh = await RecoveryIdentityAsync(connection);
+            var contract = QuartzSchemaInstaller.RecoveryCompatibilityContract;
+            var snapshot = await SnapshotAsync(connection);
+            var freshLogical = await RecoveryIdentityAsync(connection, physicalOrder: false);
+            // Reproduce the supported pre-3.19 column set, then run the actual additive upgrade owner.
+            await ExecuteAsync(connection, "ALTER TABLE qrtz_triggers DROP COLUMN misfire_orig_fire_time, " +
+                "DROP COLUMN execution_group, DROP COLUMN preferred_node, DROP COLUMN preferred_node_auto");
+            await ExecuteAsync(connection, "ALTER TABLE qrtz_fired_triggers DROP COLUMN execution_group");
+            await QuartzSchemaInstaller.EnsureQuartzTablesExistAsync(connection, CancellationToken.None);
+            await QuartzSchemaInstaller.ValidateAsync(connection, CancellationToken.None);
+            var upgraded = await RecoveryIdentityAsync(connection);
+            Assert.Equal(freshLogical, await RecoveryIdentityAsync(connection, physicalOrder: false));
+            Assert.NotEqual(fresh, upgraded);
+            Assert.Equal(contract, QuartzSchemaInstaller.RecoveryCompatibilityContract);
+            Assert.Equal(snapshot, await SnapshotAsync(connection));
+            var source = Wayfarer.Tests.Services.RecoveryCompatibilityTests.Source(3) with { QuartzSnapshotFingerprint = snapshot };
+            await using (var transaction = await connection.BeginTransactionAsync(System.Data.IsolationLevel.RepeatableRead))
+            {
+                await ExecuteAsync(connection, "SET TRANSACTION READ ONLY");
+                await WayfarerRecovery.DatabaseCapture.ValidateQuartzSnapshotAsync(connection, transaction, source, CancellationToken.None);
+                var legacy = Wayfarer.Tests.Services.RecoveryCompatibilityTests.Source(2) with { QuartzIdentity = upgraded };
+                await WayfarerRecovery.DatabaseCapture.ValidateQuartzSnapshotAsync(connection, transaction, legacy, CancellationToken.None);
+                await Assert.ThrowsAsync<IOException>(() => WayfarerRecovery.DatabaseCapture.ValidateQuartzSnapshotAsync(
+                    connection, transaction, legacy with { QuartzIdentity = fresh }, CancellationToken.None));
+                await transaction.CommitAsync();
+            }
+            // A meaningful column-bound change is independent of ordinal history and must reject capture.
+            await ExecuteAsync(connection, "ALTER TABLE qrtz_triggers ALTER COLUMN execution_group TYPE varchar(201)");
+            Assert.NotEqual(snapshot, await SnapshotAsync(connection));
+            await using (var transaction = await connection.BeginTransactionAsync(System.Data.IsolationLevel.RepeatableRead))
+            {
+                await ExecuteAsync(connection, "SET TRANSACTION READ ONLY");
+                await Assert.ThrowsAsync<IOException>(() => WayfarerRecovery.DatabaseCapture.ValidateQuartzSnapshotAsync(
+                    connection, transaction, source, CancellationToken.None));
+                await transaction.CommitAsync();
+            }
+            await Assert.ThrowsAsync<InvalidOperationException>(() => QuartzSchemaInstaller.ValidateAsync(connection, CancellationToken.None));
+            Console.WriteLine($"#701 fresh={fresh}; upgraded={upgraded}; contract={contract}; snapshot={snapshot}");
+        }
+        catch (Exception exception)
+        {
+            failure = exception;
+        }
+        finally
+        {
+            try
+            {
+                await ExecuteAsync(connection, "SET search_path TO public");
+                await ExecuteAsync(connection, $"DROP SCHEMA IF EXISTS {schema} CASCADE");
+            }
+            catch (Exception exception)
+            {
+                failure = CombineFailures(failure, exception);
+            }
+        }
+        if (failure is not null) ExceptionDispatchInfo.Capture(failure).Throw();
+    }
+
+    /// <summary>Use the shared production canonical catalog algorithm.</summary>
+    private static async Task<string> SnapshotAsync(NpgsqlConnection connection)
+    {
+        await using var command = new NpgsqlCommand(Wayfarer.Util.QuartzSnapshot.CanonicalSql, connection);
+        return (string)(await command.ExecuteScalarAsync())!;
+    }
+
+    /// <summary>Use exactly the physical-column-order identity emitted by the existing recovery inspection owner.</summary>
+    private static async Task<string> RecoveryIdentityAsync(NpgsqlConnection connection, bool physicalOrder = true)
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT md5(string_agg(table_name || ':' || column_name || ':' || data_type || ':' || is_nullable,
+                '|' ORDER BY table_name, ordinal_position))
+            FROM information_schema.columns WHERE table_schema=current_schema() AND left(table_name,5)='qrtz_'
+            """;
+        // Retain the accepted reproducer: legacy physical identities differ while logical columns agree.
+        if (!physicalOrder) command.CommandText = command.CommandText.Replace("ordinal_position", "column_name", StringComparison.Ordinal);
+        return (string)(await command.ExecuteScalarAsync())!;
+    }
+
     /// <summary>Keeps the original test failure first while exposing a cleanup failure.</summary>
     private static Exception CombineFailures(Exception? failure, Exception cleanupFailure) => failure is null
         ? cleanupFailure

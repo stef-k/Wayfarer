@@ -12,6 +12,8 @@
   </PropertyGroup>
   <!-- PostgreSQL snapshot coordination and read-only key-ring usability checks. -->
   <ItemGroup>
+    <!-- One catalog algorithm shared by inspection and exported-snapshot capture. -->
+    <Compile Include="../../Util/QuartzSnapshot.cs" Link="QuartzSnapshot.cs" />
     <InternalsVisibleTo Include="LockProbe" />
     <PackageReference Include="Npgsql" Version="10.0.3" />
     <PackageReference Include="Microsoft.AspNetCore.DataProtection.Extensions" Version="10.0.11" />

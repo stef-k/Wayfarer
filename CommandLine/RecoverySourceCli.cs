@@ -74,21 +74,22 @@ internal static class RecoverySourceCli
             var credentialStatus = await scope.ServiceProvider.GetRequiredService<StableIdentityReadiness>().StatusAsync(deadline.Token);
             if (!credentialStatus.Ready)
                 throw new IOException("Stable authority is not ready.");
-            // Fingerprint the validated schema, allowing the DB-image worker to detect later drift in its dump snapshot.
-            var quartz = await db.Database.SqlQueryRaw<string>("""
-                SELECT md5(string_agg(table_name || ':' || column_name || ':' || data_type || ':' || is_nullable,
-                    '|' ORDER BY table_name, ordinal_position)) AS "Value"
-                FROM information_schema.columns WHERE table_schema=current_schema() AND left(table_name,5)='qrtz_'
-                """).SingleAsync(deadline.Token);
+            // Read the loaded image's owner, never a contract compiled into the additive inspection payload.
+            var quartzOwner = typeof(ApplicationDbContext).Assembly.GetType("QuartzSchemaInstaller", throwOnError: true)!;
+            var contract = quartzOwner.GetProperty("RecoveryCompatibilityContract", BindingFlags.Public | BindingFlags.Static)
+                ?.GetValue(null) as string;
+            // Keep legacy inspection available for already-configured targets and historical application images.
+            var quartz = await db.Database.SqlQueryRaw<string>(Wayfarer.Util.QuartzSnapshot.LegacySql).SingleAsync(deadline.Token);
+            var snapshot = await db.Database.SqlQueryRaw<string>(Wayfarer.Util.QuartzSnapshot.CanonicalSql).SingleAsync(deadline.Token);
             var version = new AppVersionProvider().Version;
             var revision = typeof(ApplicationDbContext).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion?.Split('+').Last() ?? "";
             await output.WriteLineAsync(JsonSerializer.Serialize(new
             {
-                Schema = 1, ProtectedCredentials = credentialStatus.Active == 0 ? "none present" : "readable", Uploads = Path.GetRelativePath(storage.DataRoot, storage.Uploads),
+                Schema = contract is null ? 1 : 2, ProtectedCredentials = credentialStatus.Active == 0 ? "none present" : "readable", Uploads = Path.GetRelativePath(storage.DataRoot, storage.Uploads),
                 Ring = Path.GetRelativePath(storage.DataRoot, ring.Path), ApplicationVersion = version,
                 SourceRevision = revision, ApplicationName = DataProtectionAuthority.StableApplicationName,
                 ExpectedMigrations = db.Database.GetMigrations().ToArray(),
-                QuartzIdentity = quartz
+                QuartzIdentity = quartz, QuartzCompatibilityContract = contract, QuartzSnapshotFingerprint = snapshot
             }));
             return 0;
         }

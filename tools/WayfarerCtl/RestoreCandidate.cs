@@ -103,11 +103,18 @@ public sealed class RestoreCandidate(IProcessRunner runner)
         var expected = JsonSerializer.Deserialize<WayfarerRecovery.SourceIdentity>(File.ReadAllText(Path.Combine(directory, "source.json")))!;
         var facts = actual.RootElement;
         if (facts.GetProperty("ApplicationVersion").GetString() != expected.ApplicationVersion ||
-            facts.GetProperty("ApplicationName").GetString() != "Wayfarer" || facts.GetProperty("QuartzIdentity").GetString() != expected.QuartzIdentity ||
+            facts.GetProperty("ApplicationName").GetString() != "Wayfarer" || !QuartzMatches(facts, expected) ||
             !facts.GetProperty("ExpectedMigrations").Deserialize<string[]>()!.SequenceEqual(expected.ExpectedMigrations) ||
             facts.GetProperty("Uploads").GetString() != "uploads" || facts.GetProperty("Ring").GetString() != "data-protection")
             throw new IOException("Candidate product identity mismatch.");
         var credentials = facts.GetProperty("ProtectedCredentials").GetString();
         return credentials is "none present" or "readable" ? credentials : throw new IOException("Invalid protected credential evidence.");
     }
+    /// <summary>Candidate inspection always validates product schema; only legacy targets demand physical equality.</summary>
+    private static bool QuartzMatches(JsonElement facts, WayfarerRecovery.SourceIdentity expected) =>
+        expected.ConfigurationSchema == 2
+            ? facts.GetProperty("QuartzIdentity").GetString() == expected.QuartzIdentity
+            : facts.GetProperty("Schema").GetInt32() == 2 &&
+                facts.GetProperty("QuartzCompatibilityContract").GetString() == expected.QuartzCompatibilityContract;
+
 }

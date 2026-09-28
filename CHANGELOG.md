@@ -25,6 +25,7 @@
 - Stage new location imports beneath the durable DataRoot with portable logical references; retain bounded same-host legacy compatibility and report both storage roots in Admin Settings (#615). Native Linux deployment prepares the external staging directory without migrating old rows or files.
 
 ### Fixed
+- Separate release-owned Quartz recovery compatibility from capture snapshot drift with source schema 3; preserve schema-2 policies and bounded exact-release historical restore, without table reordering or weakening managed restore provenance (#701).
 - Restrict Compose recovery listing/verification to network-free, source-free services; protect the shared lock and host reservation from worker replacement, reclaim bounded stale owned crash residue, and reconcile exact scheduled slots with retention outcomes after publication (#533).
 - Make personal-provider settings navigation read-only and move settings-owned legacy Mapbox migration behind an authenticated antiforgery-protected POST (#679). Show credential-free pending/recovery status without overriding eligibility, preserve internal compatibility preparation and verified-readback retirement, and serialize concurrent first-time migration assessments. No schema migration.
 - Sanitize API/MVC/timeline/SSE errors and private image, location, visit, import and tag diagnostics. Preserve business messages and API statuses, correlate generic API failures with the existing request ID, and suppress image-origin HTTP factory logs. No database migration or mobile change (#663).

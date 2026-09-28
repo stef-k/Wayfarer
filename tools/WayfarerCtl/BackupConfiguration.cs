@@ -87,7 +87,10 @@ public sealed class BackupConfiguration(IProcessRunner runner)
                     ApplicationVersion = source.GetProperty("ApplicationVersion").GetString()!,
                     SourceRevision = source.GetProperty("SourceRevision").GetString()!,
                     ExpectedMigrations = source.GetProperty("ExpectedMigrations").Deserialize<string[]>()!,
-                    QuartzIdentity = source.GetProperty("QuartzIdentity").GetString()!,
+                    ConfigurationSchema = 3,
+                    QuartzCompatibilityContract = source.GetProperty("QuartzCompatibilityContract").GetString()!,
+                    QuartzSnapshotFingerprint = source.GetProperty("QuartzSnapshotFingerprint").GetString()!,
+                    SupportedLegacySourceSchemas = [2],
                     ApplicationImage = "ghcr.io/stef-k/wayfarer@" + config.AppDigest,
                     DatabaseImage = "ghcr.io/stef-k/wayfarer-db@" + config.DbDigest,
                     Project = config.Project, BundleFingerprint = BundleFingerprint(config),
@@ -116,7 +119,7 @@ public sealed class BackupConfiguration(IProcessRunner runner)
             "--depsfile", "/app/Wayfarer.deps.json", "/inspection/WayfarerRecoverySource.dll"), null, token);
         if (result.Code != 0 || result.Output.Length > ArchiveContract.ManifestLimit) throw new UsageException("Application recovery source inspection failed.");
         using var document = JsonDocument.Parse(result.Output);
-        if (document.RootElement.GetProperty("Schema").GetInt32() != 1 || document.RootElement.GetProperty("ApplicationName").GetString() != "Wayfarer")
+        if (document.RootElement.GetProperty("Schema").GetInt32() != 2 || document.RootElement.GetProperty("ApplicationName").GetString() != "Wayfarer")
             throw new UsageException("Unsupported source inspection contract.");
         var image = await runner.RunAsync(["image", "inspect", "ghcr.io/stef-k/wayfarer@" + config.AppDigest,
             "--format", "{{index .Config.Labels \"org.opencontainers.image.revision\"}}"], null, token);
