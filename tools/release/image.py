@@ -83,7 +83,7 @@ def inspect_image(release: dict, image: str) -> dict:
     actual_labels = inspected["Config"].get("Labels") or {}
     if any(actual_labels.get(key) != value for key, value in labels(release).items()):
         raise version.ValidationError("image OCI metadata does not match release")
-    compiled = run("docker", "run", "--rm", "--read-only", "--network", "none", image, "version")
+    compiled = run("docker", "run", "--rm", "--pull=never", "--read-only", "--network", "none", image, "version")
     if compiled != f"Wayfarer {release['version']}":
         raise version.ValidationError("compiled version does not match release")
     return inspected
