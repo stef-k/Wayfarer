@@ -580,7 +580,8 @@ def main():
                 journey.executable = journey.release_bundle / "wayfarerctl"
             journey.prepare()
             if args.release_bundle:
-                journey.host('cp', str(journey.release_bundle / 'caddy/Caddyfile'), str(journey.bundle / 'caddy/Caddyfile'))
+                for name in ('compose.yaml', 'caddy/Caddyfile'):
+                    journey.host('cp', str(journey.release_bundle / name), str(journey.bundle / name))
             journey.recovery(args.restore_only)
         except Exception:
             # Bounded non-secret ownership evidence before fixture cleanup, never raw container environment.

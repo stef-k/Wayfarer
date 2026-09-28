@@ -86,7 +86,7 @@ def assemble(output: Path, app_digest: str, capture_directory: Path | None = Non
             raise version.ValidationError('invalid historical application source')
         release['sourceRevision'] = evidence['SourceRevision']
     payloads = (*PAYLOADS, *CAPTURE_PAYLOADS) if evidence else PAYLOADS
-    ref = f'{image.IMAGE}@{app_digest}' 
+    ref = f'{image.IMAGE}@{app_digest}'
     actual = image.inspect_image(release, ref)
     if ref not in actual.get('RepoDigests', []):
         raise version.ValidationError('digest is not present in local repository identity')
