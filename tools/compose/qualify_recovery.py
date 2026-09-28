@@ -577,6 +577,7 @@ def main():
             if args.release_bundle:
                 journey.release_bundle = Path(directory) / 'release-input'
                 shutil.copytree(args.release_bundle, journey.release_bundle)
+                journey.executable = journey.release_bundle / "wayfarerctl"
             journey.prepare()
             if args.release_bundle:
                 journey.host('cp', str(journey.release_bundle / 'caddy/Caddyfile'), str(journey.bundle / 'caddy/Caddyfile'))

@@ -249,6 +249,11 @@ jobs:
           dotnet build tools/compose/recovery-probe -c Release
           dotnet publish tools/compose/lock-probe -c Release -r linux-x64 --self-contained true -o "$RUNNER_TEMP/lock-probe"
           cp "$RUNNER_TEMP/lock-probe/LockProbe" "$RUNNER_TEMP/recovery/lock-probe"
+      - name: Assemble offline candidate release authority
+        run: |
+          image_ref="$(python3 -c 'import json,os; e=json.load(open(os.environ["RUNNER_TEMP"]+"/image-evidence.json")); print(e["image"]+":"+e["tag"])')"
+          image_digest="$(docker image inspect "$image_ref" --format '{{index .RepoDigests 0}}')"
+          python3 tools/release/bundle.py --app-digest "${image_digest#*@}" --output "$RUNNER_TEMP/release"
       - name: Qualify shipped recovery runtime and complete clean Compose reconstruction
         run: |
           docker run --rm --network none --user 1654:1654 --read-only --cap-drop ALL --security-opt no-new-privileges --init \
@@ -260,4 +265,5 @@ jobs:
           python3 -B tools/compose/qualify_recovery.py --executable "$RUNNER_TEMP/wayfarerctl/wayfarerctl" \
             --worker "$RUNNER_TEMP/recovery/wayfarer-recovery" \
             --inspector tools/WayfarerRecoverySource/bin/Release/net10.0/WayfarerRecoverySource.dll \
-            --probe tools/compose/recovery-probe/bin/Release/net10.0/RecoveryProbe.dll --app-digest "${image_digest#*@}"
+            --probe tools/compose/recovery-probe/bin/Release/net10.0/RecoveryProbe.dll --app-digest "${image_digest#*@}" \
+            --release-bundle "$(python3 -c 'import os,pathlib; print(next(pathlib.Path(os.environ["RUNNER_TEMP"],"release").glob("candidate-*")))')"
