@@ -164,3 +164,12 @@ This is disposable development evidence, not production-host or Compose qualific
 
 The production Compose substrate is now described in [Compose deployment](28-Production-Compose.md);
 its managed/external topology does not complete the later guided lifecycle product.
+
+## Offline bundle image qualification
+
+Local release bundles bind immutable application/DB/Caddy digests and Linux AMD64.
+The release validator independently checks local Docker identity, OCI source/version,
+compiled application version, the application-owned offline schema/resource contract,
+and the exact bundled operator/recovery protocol. Helpers run without network, Docker
+socket, installation data or secrets. Missing images prevent execution-ready status;
+no pull is attempted. See [the local release contract](25-Container-Release-Contract.md#local-release-authority-v1).

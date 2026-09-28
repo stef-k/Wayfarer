@@ -133,6 +133,7 @@ public static class WorkerCli
         var digest = Convert.ToHexStringLower(SHA256.HashData(content));
         var version = await DatabaseCapture.RunAsync("pg_dump", ["--version"], null, token);
         if (!version.StartsWith("pg_dump (PostgreSQL) 17.")) throw new IOException("Unsupported dump tool.");
-        Write(new { Schema = 1, Runtime = "ready", Digest = digest, Tool = version.Trim() });
+        Write(new { Schema = 1, Runtime = "ready", Digest = digest, Tool = version.Trim(),
+            Version = typeof(WorkerCli).Assembly.GetName().Version!.ToString() });
     }
 }

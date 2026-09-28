@@ -103,8 +103,12 @@ def test_image_metadata_and_evidence(monkeypatch, tmp_path):
                "image": image.IMAGE, "source": image.SOURCE, "platform": image.PLATFORM}
     inspected = {"Id": "sha256:" + "b" * 64, "Os": "linux", "Architecture": "amd64",
                  "Config": {"Labels": image.labels(release)}}
-    monkeypatch.setattr(image, "run", lambda *a: json.dumps([inspected])
-                        if a[1:3] == ("image", "inspect") else "Wayfarer 1.4.0")
+    def inspect_or_probe(*args):
+        if args[1:3] == ("image", "inspect"):
+            return json.dumps([inspected])
+        assert "--pull=never" in args  # Offline qualification cannot acquire a concurrently removed image.
+        return "Wayfarer 1.4.0"
+    monkeypatch.setattr(image, "run", inspect_or_probe)
     assert image.inspect_image(release, "fixture") == inspected
     result = image.evidence(release, inspected, "sha256:" + "c" * 64, "fixture")
     output = tmp_path / "image.json"

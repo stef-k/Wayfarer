@@ -91,7 +91,7 @@ public sealed class RecoveryCompatibilityTests
     };
 
     /// <summary>Valid inert manifest metadata for the classification seam, without claiming verified archive bytes.</summary>
-    private static RecoveryManifest Manifest(SourceIdentity source) => new()
+    internal static RecoveryManifest Manifest(SourceIdentity source) => new()
     {
         Source = source, Installation = Guid.NewGuid(), Archive = Guid.NewGuid(),
         Started = DateTimeOffset.UnixEpoch, Completed = DateTimeOffset.UnixEpoch, Mode = "quiesced",

@@ -44,7 +44,7 @@ public sealed class RestoreCommands(IProcessRunner runner, ITerminal terminal)
         {
             var config = options.Has("--new-install") ? NewTarget(root, options) : Deployment.Load(root);
             if (!options.Has("--new-install") && !InstallationCompletion.IsComplete(root)) throw new UsageException("Restore requires a completed installation.");
-            if (config.Schema == 1) config = config with { Schema = 2, Installation = Guid.NewGuid() };
+            config = WithRestoreIdentity(config, Guid.NewGuid());
             if (options.Has("--new-install"))
             {
                 await new Preflight(runner).FreshAsync(config, token);
@@ -84,6 +84,10 @@ public sealed class RestoreCommands(IProcessRunner runner, ITerminal terminal)
         return await ExecuteAsync(root, receipt, token);
     }
 
+    /// <summary>Restore alone assigns an absent UUID; adoption preserves legacy absence and the release schema.</summary>
+    internal static Deployment WithRestoreIdentity(Deployment config, Guid installation) => config.Installation == Guid.Empty
+        ? config with { Schema = Math.Max(2, config.Schema), Installation = installation } : config;
+
     /// <summary>Clean-root restoration reuses setup choices and preflight without invoking setup stages.</summary>
     private Deployment NewTarget(string root, RestoreOptions options)
     {
@@ -117,6 +121,7 @@ public sealed class RestoreCommands(IProcessRunner runner, ITerminal terminal)
     /// <summary>Bind execution to unchanged target authority and reverify only frozen bytes after interruption.</summary>
     private async Task RevalidateAsync(string root, RestorePlan plan, CancellationToken token)
     {
+        ReleaseDispatch.RequireOwner(root, plan);
         if (plan.NewInstall)
         {
             if (File.Exists(Path.Combine(root, "installation.json")) || Directory.Exists(Path.Combine(root, "secrets")))
@@ -126,7 +131,7 @@ public sealed class RestoreCommands(IProcessRunner runner, ITerminal terminal)
         else
         {
             var current = Deployment.Load(root);
-            if (current.Schema == 1) current = current with { Schema = 2, Installation = plan.Target.Installation };
+            current = WithRestoreIdentity(current, plan.Target.Installation);
             if (JsonSerializer.Serialize(current) != JsonSerializer.Serialize(plan.Target))
                 throw new UsageException("Installation changed since planning.");
         }
@@ -165,6 +170,7 @@ public sealed class RestoreCommands(IProcessRunner runner, ITerminal terminal)
     {
         try
         {
+            ReleaseDispatch.RequireOwner(root, receipt.Plan);
             if (receipt.Plan.NewInstall && receipt.Phase == RestorePhase.Authorized)
             {
                 InitializeNewTarget(root, receipt.Plan.Target);
@@ -179,7 +185,7 @@ public sealed class RestoreCommands(IProcessRunner runner, ITerminal terminal)
             if (receipt.Phase < RestorePhase.ActivationIntent)
             {
                 var current = Deployment.Load(root);
-                if (current.Schema == 1) current = current with { Schema = 2, Installation = receipt.Plan.Target.Installation };
+                current = WithRestoreIdentity(current, receipt.Plan.Target.Installation);
                 if (JsonSerializer.Serialize(current) != JsonSerializer.Serialize(receipt.Plan.Target))
                     throw new UsageException("Installation changed during restore.");
             }
@@ -243,6 +249,7 @@ public sealed class RestoreCommands(IProcessRunner runner, ITerminal terminal)
     private async Task<int> RecoverAsync(string root, RestoreOptions options, CancellationToken token)
     {
         var receipt = RestoreReceipt.Load(root) ?? throw new UsageException("No restore receipt.");
+        ReleaseDispatch.RequireOwner(root, receipt.Plan);
         var id = options.Get(options.Has("--abort") ? "--abort" : "--resume");
         if (receipt.Plan.Operation.ToString("D") != id) throw new UsageException("Restore operation mismatch.");
         if (receipt.Phase is RestorePhase.Accepted or RestorePhase.Aborted) throw new UsageException("Restore already resolved.");

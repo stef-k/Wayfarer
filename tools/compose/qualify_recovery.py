@@ -65,6 +65,9 @@ class RecoveryJourney(Journey):
                 raise RuntimeError('scheduled capture did not commit its bounded receipt')
             time.sleep(0.1)
         print('PASS scheduled due capture receipt', flush=True)
+        if getattr(self, "release_bundle", None):
+            from qualify_release import qualify_release
+            qualify_release(self)
         if restore_only:
             self.ctl('backup', '--quiesced')
             self.restore_refusals()
@@ -483,7 +486,7 @@ class RecoveryJourney(Journey):
         result = self.ctl('restore', '--accept-plan', plan_hash, '--trust-controlled-backup')
         print(result.stdout, flush=True)
         after = json.loads(self.host('cat', str(self.install / 'installation.json')).stdout)
-        assert after['Schema'] == 3 and after['Installation'] == before['Installation']
+        assert after['Schema'] == (4 if 'Release' in before else 3) and after['Installation'] == before['Installation']
         assert after['Backup'] == before['Backup']
         for role in ['db-data', 'app-data', 'app-cache']:
             run('docker', 'volume', 'inspect', self.project + '_' + role)
@@ -566,11 +569,19 @@ def main():
     parser.add_argument('--probe', required=True)
     parser.add_argument('--app-digest', required=True)
     parser.add_argument('--restore-only', action='store_true', help='Run the managed restore journey without repeating backup regression matrices.')
+    parser.add_argument('--release-bundle', help='Qualify immutable local release adoption before recovery.')
     args = parser.parse_args()
     with tempfile.TemporaryDirectory(prefix='wayfarer-533-') as directory:
         journey = RecoveryJourney(directory, args.executable, args.app_digest, args.worker, args.inspector, args.probe)
         try:
+            if args.release_bundle:
+                journey.release_bundle = Path(directory) / 'release-input'
+                shutil.copytree(args.release_bundle, journey.release_bundle)
+                journey.executable = journey.release_bundle / "wayfarerctl"
             journey.prepare()
+            if args.release_bundle:
+                for name in ('compose.yaml', 'caddy/Caddyfile'):
+                    journey.host('cp', str(journey.release_bundle / name), str(journey.bundle / name))
             journey.recovery(args.restore_only)
         except Exception:
             # Bounded non-secret ownership evidence before fixture cleanup, never raw container environment.

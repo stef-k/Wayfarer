@@ -19,6 +19,10 @@ public sealed record RestorePlan(Guid Operation, string Root, Deployment Target,
     string? PreviousGeneration, string CandidateGeneration, bool NewInstall, bool WithoutEmergencyBackup,
     bool ForeignAcknowledged)
 {
+    /// <summary>Exact retained operator owner survives a later active release change.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public ReleaseAuthority? OperatorOwner { get; init; }
+
     /// <summary>Bind existing local credentials without retaining their bytes in non-secret evidence.</summary>
     public string? LocalSecretsFingerprint { get; init; }
 
@@ -73,6 +77,8 @@ public sealed record RestoreReceipt
     public void Validate(string root)
     {
         Plan.Target.Validate();
+        Plan.OperatorOwner?.Validate();
+        if (Plan.OperatorOwner != Plan.Target.Release) throw new UsageException("Restore release/operator owner mismatch.");
         if (Schema != 1 || CandidateAttempt is < 0 or > 100 || !Enum.IsDefined(Phase) || Plan.Root != root || Plan.Operation == Guid.Empty ||
             Plan.Archive == Guid.Empty || Plan.SourceInstallation == Guid.Empty || Plan.Target.Installation == Guid.Empty ||
             PlanHash != Plan.Hash() || !System.Text.RegularExpressions.Regex.IsMatch(Plan.CandidateGeneration, "^[a-f0-9]{32}$") ||

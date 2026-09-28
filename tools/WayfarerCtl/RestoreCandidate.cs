@@ -6,7 +6,7 @@ namespace WayfarerCtl;
 public sealed class RestoreCandidate(IProcessRunner runner)
 {
     public static string Network(RestorePlan plan) => plan.Target.Project + "-restore-" + plan.CandidateGeneration;
-    public static Deployment Configuration(RestorePlan plan) => plan.Target with { Schema = 3, StorageGeneration = plan.CandidateGeneration };
+    public static Deployment Configuration(RestorePlan plan) => plan.Target with { Schema = plan.Target.Release is null ? 3 : 4, StorageGeneration = plan.CandidateGeneration };
 
     /// <summary>Persist every owned resource name before creation; failures retain inactive evidence.</summary>
     public async Task<RestoreReceipt> StageAsync(string root, RestoreReceipt receipt, CancellationToken token)

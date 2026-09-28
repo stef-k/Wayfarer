@@ -72,7 +72,7 @@ public sealed class RestorePreparation(IProcessRunner runner)
             digest = Convert.ToHexStringLower(await SHA256.HashDataAsync(archive, token));
             output.Flush();
         }
-        var expected = TargetEvidence(config, options);
+        var expected = TargetEvidence(root, config, options);
         var payload = Payload(config, options);
         var payloadFingerprint = BackupPolicy.Fingerprint(payload);
         new BackupPolicy { Payload = payload, PayloadSha256 = payloadFingerprint }.CheckPayload();
@@ -91,7 +91,8 @@ public sealed class RestorePreparation(IProcessRunner runner)
             manifest.Mode, expected.BundleFingerprint, expected.PayloadFingerprint, payloadFingerprint,
             config.StorageGeneration, Guid.NewGuid().ToString("N"), options.Has("--new-install"),
             options.Has("--without-emergency-backup"), options.Has("--archive"))
-        { LocalSecretsFingerprint = options.Has("--new-install") ? null : ProtectedFiles.SecretsFingerprint(root) };
+        { LocalSecretsFingerprint = options.Has("--new-install") ? null : ProtectedFiles.SecretsFingerprint(root),
+            OperatorOwner = ReleaseDispatch.CurrentOwner(root, config) };
         ProtectedFiles.Create(Path.Combine(directory, "plan.json"), JsonSerializer.Serialize(plan));
         foreach (var path in new[] { directory, Path.GetDirectoryName(directory)!, root })
         {
@@ -102,7 +103,7 @@ public sealed class RestorePreparation(IProcessRunner runner)
     }
 
     /// <summary>Capture evidence is independent of the restore payload and never comes from archive-selected files.</summary>
-    private static SourceIdentity TargetEvidence(Deployment config, RestoreOptions options)
+    private static SourceIdentity TargetEvidence(string root, Deployment config, RestoreOptions options)
     {
         SourceIdentity expected;
         if (options.Has("--target-evidence"))
@@ -113,6 +114,13 @@ public sealed class RestorePreparation(IProcessRunner runner)
             using var file = parent.Read(Path.GetFileName(path));
             if (file.Length > ArchiveContract.ManifestLimit) throw new UsageException("Target evidence exceeds bound.");
             expected = JsonSerializer.Deserialize<SourceIdentity>(file, ArchiveContract.Json) ?? throw new UsageException("Missing target evidence.");
+        }
+        else if (config.Release is { } release)
+        {
+            var bundle = ReleaseStore.Select(root, release);
+            var currentCapture = bundle.Target(config.Project, true);
+            expected = config.Backup?.Source.PayloadFingerprint == currentCapture.PayloadFingerprint
+                ? currentCapture : bundle.Target(config.Project);
         }
         else expected = config.Backup?.Source ?? throw new UsageException("Independent --target-evidence is required.");
         ArchiveContract.ValidateSource(expected);

@@ -2,9 +2,9 @@
 
 The #642 pipeline publishes only `ghcr.io/stef-k/wayfarer` for `linux/amd64`, using
 [the accepted application Dockerfile and runtime checks](26-Application-Container.md).
-Compose, Caddy, `wayfarerctl`, final `release.json` and the version-matched deployment
-bundle remain later #603 work. This image is not yet a complete supported self-hosting
-distribution. The PostgreSQL/PostGIS image decision remains unresolved downstream.
+The version-matched local candidate bundle now binds Compose, Caddy, `wayfarerctl`,
+recovery payloads and the accepted PostgreSQL/PostGIS image through `release.json`.
+Public stable bundle distribution remains a separate #603 acceptance gate.
 
 ## Authorization and identity
 
@@ -116,3 +116,13 @@ and lifecycle work is accepted.
 
 The production Compose substrate is now described in [Compose deployment](28-Production-Compose.md);
 its managed/external topology does not complete the later guided lifecycle product.
+
+## Local candidate bundle consumer
+
+The local bundle assembler now consumes the same version and OCI identity owners,
+requiring an actual locally available immutable application digest and exact source.
+Candidate archive names contain `candidate`, version and full source SHA. Planned stable
+archives remain `wayfarer-vX.Y.Z-linux-amd64.tar.gz` with an external `SHA256SUMS`.
+Local integrity does not establish publisher authenticity, anonymous pull availability
+or GitHub asset provenance. This slice neither publishes stable bundles nor resolves
+network releases. See [local bundle assembly](25-Container-Release-Contract.md#local-release-authority-v1).
