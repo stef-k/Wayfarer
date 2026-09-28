@@ -97,11 +97,11 @@ public sealed class RestoreActivation(IProcessRunner runner)
         if (candidate.Backup is { Enabled: true })
             await owner.Required(BackupCompose.Command(root, candidate, "up", "-d", "--force-recreate", "--pull", "never", "backup-scheduler"), token);
         // All required postflight gates passed before normal restart policy is enabled.
-        receipt = receipt.Advance(RestorePhase.Accepted);
-        receipt.Save(root);
         var active = (await owner.Required(candidate.Compose(root, "ps", "-q"), token)).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
         foreach (var id in active) await owner.Required(["update", "--restart=unless-stopped", id], token);
         InstallationCompletion.RecordRestore(root, receipt);
+        receipt = receipt.Advance(RestorePhase.Accepted);
+        receipt.Save(root);
         return receipt;
     }
     /// <summary>Inspect actual created mounts/images/restart policies before any canonical candidate writer can launch.</summary>

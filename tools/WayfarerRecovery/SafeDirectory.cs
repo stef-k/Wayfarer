@@ -48,7 +48,12 @@ public sealed class SafeDirectory : IDisposable
     [DllImport("libc", SetLastError = true)]
     private static extern int unlinkat(SafeFileHandle descriptor, string name, int flags);
     [StructLayout(LayoutKind.Explicit, Size = 120)]
-    private struct FileSystemFacts { [FieldOffset(0)] public long Type; }
+    private struct FileSystemFacts
+    {
+        [FieldOffset(0)] public long Type;
+        [FieldOffset(8)] public long BlockSize;
+        [FieldOffset(32)] public ulong AvailableBlocks;
+    }
     [DllImport("libc", SetLastError = true)]
     private static extern int fstatfs(SafeFileHandle descriptor, out FileSystemFacts facts);
 
@@ -150,6 +155,32 @@ public sealed class SafeDirectory : IDisposable
     public void Flush()
     {
         if (fsync(handle) != 0) throw new IOException("Directory durability failed.");
+    }
+
+    /// <summary>Available bytes on this open filesystem exclude blocks reserved from ordinary writers.</summary>
+    public long AvailableBytes
+    {
+        get
+        {
+            if (fstatfs(handle, out var facts) != 0 || facts.BlockSize <= 0) throw new IOException("Cannot inspect capacity.");
+            return checked((long)facts.AvailableBlocks * facts.BlockSize);
+        }
+    }
+
+    /// <summary>Reclaim only private verification trees, refusing links, mount crossings and excessive depth.</summary>
+    public void Clear(int depth = 0)
+    {
+        if (depth > 33) throw new IOException("Staging cleanup depth exceeded.");
+        foreach (var name in Names())
+        {
+            SafeDirectory? child = null;
+            try { child = Child(name); }
+            catch (IOException) { Delete(name); }
+            if (child is null) continue;
+            using (child) child.Clear(depth + 1);
+            if (unlinkat(handle, name, 0x200) != 0) throw new IOException("Staging directory cleanup failed.");
+        }
+        Flush();
     }
 
     public void Dispose() => handle.Dispose();

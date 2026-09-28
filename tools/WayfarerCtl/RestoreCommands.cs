@@ -185,6 +185,7 @@ public sealed class RestoreCommands(IProcessRunner runner, ITerminal terminal)
             }
             if (ProtectedFiles.SecretsFingerprint(root) != receipt.SecretsFingerprint)
                 throw new UsageException("Local credentials changed during restore.");
+            await new RestoreCapacity(runner).CheckAsync(root, receipt, token);
             if (receipt.Phase == RestorePhase.Authorized)
             using (var exclusion = new RecoveryLock(Path.Combine(root, "recovery-control/recovery.lock")))
             {
@@ -218,6 +219,7 @@ public sealed class RestoreCommands(IProcessRunner runner, ITerminal terminal)
                 receipt = receipt.Advance(RestorePhase.CandidateValidated);
                 receipt.Save(root);
             }
+            await new RestoreCapacity(runner).CheckAsync(root, receipt, token);
             receipt = await new RestoreActivation(runner).ActivateAsync(root, receipt, token);
             terminal.Write($"Protected provider credentials: {receipt.ProtectedCredentialStatus}.");
             terminal.Write($"Restore accepted: {receipt.Plan.Operation:D}. Old volumes and emergency evidence retained.");
@@ -228,11 +230,6 @@ public sealed class RestoreCommands(IProcessRunner runner, ITerminal terminal)
             if (error is UsageException || error is IOException && error.TargetSite?.DeclaringType?.Namespace == "WayfarerCtl")
                 terminal.Error(error.Message);
             receipt = RestoreReceipt.Load(root) ?? receipt;
-            if (receipt.Phase == RestorePhase.Accepted)
-            {
-                receipt = receipt with { Phase = RestorePhase.WritesPossible };
-                receipt.Save(root);
-            }
             using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(60));
             var runtime = receipt.Phase == RestorePhase.Authorized && receipt.Containers.Length == 0 ? "unchanged" : "fenced";
             try { await new RestoreFencing(runner).StopOwnedAsync(receipt, cleanup.Token); }

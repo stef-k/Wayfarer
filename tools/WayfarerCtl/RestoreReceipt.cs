@@ -137,9 +137,10 @@ public static class InstallationCompletion
     /// <summary>Restore completion survives subsequent recovery intent without inventing setup stage evidence.</summary>
     public static bool IsComplete(string root)
     {
+        if (RestoreReceipt.Load(root) is { Phase: not (RestorePhase.Accepted or RestorePhase.Aborted) }) return false;
         if (File.Exists(Path.Combine(root, "setup-complete"))) return true;
         var path = Path.Combine(root, "restore-complete");
-        if (!File.Exists(path)) return RestoreReceipt.Load(root) is { Phase: RestorePhase.Accepted };
+        if (!File.Exists(path)) return false;
         ProtectedFiles.SafePath(path);
         ProtectedFiles.Check(path, 0);
         if (new FileInfo(path).Length > 64 || !Guid.TryParseExact(File.ReadAllText(path), "D", out var operation) || operation == Guid.Empty)
@@ -147,10 +148,10 @@ public static class InstallationCompletion
         return true;
     }
 
-    /// <summary>Flush distinct disaster-recovery completion evidence only after an accepted restore.</summary>
+    /// <summary>Flush distinct disaster-recovery completion evidence after postflight and restart restoration, before the final Accepted checkpoint.</summary>
     public static void RecordRestore(string root, RestoreReceipt receipt)
     {
-        if (receipt.Phase != RestorePhase.Accepted) throw new UsageException("Restore is not accepted.");
+        if (receipt.Phase != RestorePhase.WritesPossible) throw new UsageException("Restore has not reached finalization.");
         var path = Path.Combine(root, "restore-complete");
         var temporary = path + "." + Guid.NewGuid().ToString("N");
         ProtectedFiles.Create(temporary, receipt.Plan.Operation.ToString("D"));

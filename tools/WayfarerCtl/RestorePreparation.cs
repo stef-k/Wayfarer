@@ -44,6 +44,8 @@ public sealed class RestorePreparation(IProcessRunner runner)
                     .. mounts, "--entrypoint=/worker", "ghcr.io/stef-k/wayfarer-db@" + config.DbDigest, "restore-select"], token)).Trim();
         }
         RestoreOptions.ValidateBasename(name);
+        using (var selected = input.Read(name))
+            RestoreCapacity.Require(directory, checked(selected.Length * 2));
         var frozen = Path.Combine(directory, "frozen");
         Directory.CreateDirectory(frozen, ProtectedFiles.PrivateDirectory);
         string digest;
@@ -148,10 +150,30 @@ public sealed class RestorePreparation(IProcessRunner runner)
     public async Task<VerifiedRestoreArchive> VerifyAsync(Deployment config, string directory, Guid operation, string payload, string name, Guid source, CancellationToken token)
     {
         var staging = Path.Combine(directory, "verified");
-        if (Directory.Exists(staging)) Directory.Move(staging, staging + "-" + Guid.NewGuid().ToString("N"));
+        // Reconcile actual helpers before reclaiming their bind mount, including pre-fix UUID-suffixed helpers.
+        var owner = new RestoreContainers(runner);
+        var prefix = config.Project + "-restore-verify-" + operation.ToString("N");
+        var helpers = (await owner.Required(["ps", "-a", "--filter", "label=wayfarer.restore-helper=" + config.Project,
+            "--format", "{{.Names}}"], token)).Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        foreach (var helper in helpers.Where(name => name == prefix || name.StartsWith(prefix + "-", StringComparison.Ordinal)))
+        {
+            await owner.Required(["stop", "--time", "20", helper], token);
+            await owner.Required(["wait", helper], token);
+            await owner.Required(["rm", helper], token);
+        }
+        foreach (var previous in Directory.EnumerateDirectories(directory, "verified*"))
+        {
+            var leaf = Path.GetFileName(previous);
+            if (leaf != "verified" && !(leaf.StartsWith("verified-", StringComparison.Ordinal) &&
+                Guid.TryParseExact(leaf[9..], "N", out _))) throw new IOException("Unknown verification staging.");
+            using (var owned = new SafeDirectory(previous)) owned.Clear();
+            Directory.Delete(previous);
+        }
+        using (var frozen = new SafeDirectory(Path.Combine(directory, "frozen")))
+        using (var archive = frozen.Read(name)) RestoreCapacity.Require(directory, archive.Length);
         Directory.CreateDirectory(staging, ProtectedFiles.PrivateDirectory);
         if (chown(staging, 1654, 1654) != 0) throw new IOException("Staging ownership failed.");
-        var output = await new RestoreContainers(runner).RunAsync(config.Project + "-restore-verify-" + operation.ToString("N") + "-" + Guid.NewGuid().ToString("N"),
+        var output = await new RestoreContainers(runner).RunAsync(prefix,
             [.. RestoreContainers.Unprivileged(), "--network=none", "--volume", payload + ":/worker:ro",
                 "--volume", Path.Combine(directory, "frozen") + ":/frozen:ro",
                 "--volume", Path.Combine(directory, "source.json") + ":/target/source.json:ro",
@@ -163,6 +185,9 @@ public sealed class RestorePreparation(IProcessRunner runner)
         if (verified.Archive == Guid.Empty || verified.Mode is not ("online" or "quiesced") ||
             ArchiveContract.Name(source, verified.Completed, verified.Archive) != name)
             throw new IOException("Restore verification identity mismatch.");
+        var capacity = Path.Combine(directory, "capacity.json");
+        if (File.Exists(capacity)) File.Delete(capacity);
+        ProtectedFiles.Create(capacity, JsonSerializer.Serialize(verified));
         return verified;
     }
 }

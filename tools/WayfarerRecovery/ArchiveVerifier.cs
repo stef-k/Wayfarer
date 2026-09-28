@@ -28,10 +28,10 @@ public static class ArchiveVerifier
         if (manifest.Installation != installation || name != ArchiveContract.Name(installation, manifest.Completed, manifest.Archive))
             throw new IOException("Archive ownership/name mismatch.");
         await VerifyComponentsAsync(manifest, staging, token);
-        ValidateDirectory(Path.Combine(staging, "uploads.tar.gz"), null, token);
+        var uploadsBytes = ValidateDirectory(Path.Combine(staging, "uploads.tar.gz"), null, token);
         var keys = Path.Combine(staging, "keys");
         Directory.CreateDirectory(keys, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
-        ValidateDirectory(Path.Combine(staging, "data-protection.tar.gz"), keys, token);
+        var ringBytes = ValidateDirectory(Path.Combine(staging, "data-protection.tar.gz"), keys, token);
         // The private extracted copy is used only to prove usable key material; automatic generation stays disabled.
         if (!Directory.EnumerateFiles(keys, "key-*.xml").Any()) throw new IOException("Key ring is empty.");
         var provider = DataProtectionProvider.Create(new DirectoryInfo(keys), builder =>
@@ -48,7 +48,8 @@ public static class ArchiveVerifier
             manifest.Database.Collation == "C.UTF-8" && manifest.Database.CharacterType == "C.UTF-8" && manifest.Database.LocaleProvider == "c" &&
             manifest.Database.PostgisExtension == manifest.Database.PostgisLibrary &&
             manifest.Database.Migrations.SequenceEqual(expected.ExpectedMigrations);
-        return new VerifyResult(1, true, compatible, manifest.Archive, name, manifest.Mode);
+        return new VerifyResult(1, true, compatible, manifest.Archive, name, manifest.Mode)
+        { ExpandedFileBytes = checked(uploadsBytes + ringBytes) };
     }
 
     private static async Task<RecoveryManifest> ReadOuterAsync(Stream archive, string staging, CancellationToken token)
@@ -98,7 +99,7 @@ public static class ArchiveVerifier
     }
 
     /// <summary>Validate bounded USTAR regular files/directories; optional extraction is only to an empty task-owned unprivileged target.</summary>
-    public static void ValidateDirectory(string path, string? extract, CancellationToken token)
+    public static long ValidateDirectory(string path, string? extract, CancellationToken token)
     {
         using var file = File.OpenRead(path);
         using var gzip = new GZipStream(file, CompressionMode.Decompress);
@@ -123,6 +124,11 @@ public static class ArchiveVerifier
                 continue;
             }
             if (entry.DataStream is null && entry.Length != 0) throw new IOException("File data missing.");
+            if (extract is not null)
+            {
+                using var target = new SafeDirectory(extract);
+                if (target.AvailableBytes < checked(entry.Length + 1073741824L)) throw new IOException("Insufficient extraction capacity including reserve.");
+            }
             using var output = extract is null ? Stream.Null : ExtractFile(extract, name);
             if (entry.DataStream is not null) CopyBoundedAsync(entry.DataStream, output, entry.Length, token, verifyOutput: extract is not null).GetAwaiter().GetResult();
             if (output is FileStream fileOutput) fileOutput.Flush(flushToDisk: true);
@@ -149,6 +155,7 @@ public static class ArchiveVerifier
                 owned.Flush();
             }
         }
+        return total;
     }
 
     private static Stream ExtractFile(string root, string name)
@@ -193,4 +200,8 @@ public static class ArchiveVerifier
 }
 
 /// <summary>Integrity and configured-source compatibility are separate observations, never a restore authorization.</summary>
-public sealed record VerifyResult(int Schema, bool IntegrityValid, bool CompatibilitySupported, Guid Archive, string Name, string Mode);
+public sealed record VerifyResult(int Schema, bool IntegrityValid, bool CompatibilitySupported, Guid Archive, string Name, string Mode)
+{
+    /// <summary>Verified uncompressed file bytes, including bounded padding, for restore capacity accounting.</summary>
+    public long ExpandedFileBytes { get; init; }
+}

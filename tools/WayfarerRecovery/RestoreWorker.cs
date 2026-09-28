@@ -36,7 +36,8 @@ public static class RestoreWorker
             if (manifest.Source.Kind != "compose" || manifest.Source.BundleFingerprint != expected.BundleFingerprint ||
                 manifest.Source.PayloadFingerprint != expected.PayloadFingerprint || manifest.Database.Locale is not null)
                 throw new IOException("Target bundle, capture payload or locale differs.");
-            Console.WriteLine(JsonSerializer.Serialize(new VerifiedRestoreArchive(manifest.Archive, manifest.Completed, manifest.Mode), ArchiveContract.Json));
+            Console.WriteLine(JsonSerializer.Serialize(new VerifiedRestoreArchive(manifest.Archive, manifest.Completed, manifest.Mode)
+            { ExpandedFileBytes = result.ExpandedFileBytes, DatabaseDumpBytes = manifest.Components.Single(component => component.Member == "database.dump").Length }, ArchiveContract.Json));
             return 0;
         }
         if (args is ["restore-files"])
@@ -70,4 +71,9 @@ public static class RestoreWorker
 }
 
 /// <summary>Bounded verified metadata returned by the unprivileged parser; no archive members cross this process boundary.</summary>
-public sealed record VerifiedRestoreArchive(Guid Archive, DateTimeOffset Completed, string Mode);
+public sealed record VerifiedRestoreArchive(Guid Archive, DateTimeOffset Completed, string Mode)
+{
+    /// <summary>Verified expanded files and compressed dump size inform an obvious-capacity estimate, never a size guarantee.</summary>
+    public long ExpandedFileBytes { get; init; }
+    public long DatabaseDumpBytes { get; init; }
+}
