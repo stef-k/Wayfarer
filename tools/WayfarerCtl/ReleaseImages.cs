@@ -8,6 +8,8 @@ public sealed class ReleaseImagesVerifier(IProcessRunner runner)
     /// <summary>Missing images are unavailable; any available but contradictory identity is a hard failure.</summary>
     public async Task<bool> VerifyAsync(ReleaseBundle bundle, CancellationToken token)
     {
+        ProtectedFiles.SafePath(bundle.Directory);
+        bundle = ReleaseBundle.Validate(bundle.Directory, installed: true);
         var manifest = bundle.Manifest;
         var images = manifest.Images;
         var available = true;
@@ -32,16 +34,23 @@ public sealed class ReleaseImagesVerifier(IProcessRunner runner)
         if (!available) return false;
         var containers = new RestoreContainers(runner);
         var prefix = "wayfarer-release-restore-" + Guid.NewGuid().ToString("N");
-        var version = await containers.RunAsync(prefix + "-version",
+        var version = await ProbeAsync(containers, prefix + "-version",
             [.. RestoreContainers.Unprivileged(), "--network=none", "--entrypoint=dotnet",
                 "ghcr.io/stef-k/wayfarer@" + images.ApplicationDigest, "Wayfarer.dll", "version"], token);
         if (version.Trim() != "Wayfarer " + manifest.Application.CompiledVersion) throw new IOException("Compiled version mismatch.");
-        var worker = await containers.RunAsync(prefix + "-worker",
+        var worker = await ProbeAsync(containers, prefix + "-worker",
             [.. RestoreContainers.Unprivileged(), "--network=none", "--volume", Path.Combine(bundle.Directory, "wayfarer-recovery") + ":/worker:ro",
                 "--entrypoint=/worker", "ghcr.io/stef-k/wayfarer-db@" + images.DatabaseDigest, "runtime-check"], token);
         using var runtime = JsonDocument.Parse(worker);
-        if (runtime.RootElement.GetProperty("Schema").GetInt32() != 1) throw new IOException("Recovery runtime contract mismatch.");
-        var contract = await containers.RunAsync(prefix + "-contract",
+        if (runtime.RootElement.GetProperty("Schema").GetInt32() != 1 ||
+            runtime.RootElement.GetProperty("Version").GetString() != manifest.Application.WorkerVersion) throw new IOException("Recovery runtime contract mismatch.");
+        var protocol = await ProbeAsync(containers, prefix + "-operator",
+            [.. RestoreContainers.Unprivileged(), "--network=none", "--volume", Path.Combine(bundle.Directory, "wayfarerctl") + ":/operator:ro",
+                "--entrypoint=/operator", "ghcr.io/stef-k/wayfarer-db@" + images.DatabaseDigest, "release", "protocol"], token);
+        using var actualOperator = JsonDocument.Parse(protocol);
+        if (!JsonElement.DeepEquals(actualOperator.RootElement, JsonSerializer.SerializeToElement(manifest.Operator)))
+            throw new IOException("Bundled operator protocol/version mismatch.");
+        var contract = await ProbeAsync(containers, prefix + "-contract",
             [.. RestoreContainers.Unprivileged(), "--network=none", "--volume",
                 Path.Combine(bundle.Directory, "WayfarerRecoverySource.dll") + ":/inspection.dll:ro",
                 "--entrypoint=dotnet", "ghcr.io/stef-k/wayfarer@" + images.ApplicationDigest,
@@ -54,8 +63,25 @@ public sealed class ReleaseImagesVerifier(IProcessRunner runner)
                 throw new IOException("Application-owned release compatibility differs from manifest.");
         if (actualContract.RootElement.EnumerateObject().Count() != expected.EnumerateObject().Count() - 1)
             throw new IOException("Incomplete application release contract.");
-        foreach (var name in new[] { "version", "worker", "contract" })
-            await containers.Required(["rm", prefix + "-" + name], token);
         return true;
+    }
+
+    /// <summary>Stateless probes retain no installation data; reap only our confirmed-stopped named helper.</summary>
+    private async Task<string> ProbeAsync(RestoreContainers containers, string name, string[] command, CancellationToken token)
+    {
+        Exception? primary = null;
+        try { return await containers.RunAsync(name, command, token); }
+        catch (Exception error) { primary = error; throw; }
+        finally
+        {
+            using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            try
+            {
+                var state = await runner.RunAsync(["inspect", "--format", "{{.State.Running}}", name], null, cleanup.Token);
+                if (state.Code == 0 && state.Output.Trim() == "false")
+                    await containers.Required(["rm", name], cleanup.Token);
+            }
+            catch when (primary is not null) { Console.Error.WriteLine("Release probe cleanup failed; original failure retained."); }
+        }
     }
 }

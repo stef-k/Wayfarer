@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### Changed
+- Add strict offline release.json v1 candidate bundles, immutable placement, metadata-only adoption, retained operator dispatch and schema-3 restore target reconstruction from release-owned Quartz compatibility (#699). No update, download, stable publication or database migration.
 - Keep managed restore unresolved until restart policies and completion evidence are durable; reclaim superseded verification staging, preflight obvious capacity shortages and reconcile uncommitted emergency holds (#695, #697).
 - Add explicit exact-target managed Compose restore with frozen archive plans, isolated durable generations, protected recovery intent, emergency archive holds and local-artifact clean-root recovery (#695). Preserve local policy/secrets and old volumes; no EF migration, image acquisition or production cutover.
 - Add opt-in schema2 Compose recovery sets through `wayfarerctl backup`, `backups` and `verify-backup` (#533), using one self-contained C# worker in the configured DB image, a socket-free scheduler, shared recovery exclusion, full ring/Uploads/import capture and deliberate quiesced orchestration. Include clean disposable Compose reconstruction with protected-credential and Identity continuity. Production restore/update/native migration remain separate; no EF migration.

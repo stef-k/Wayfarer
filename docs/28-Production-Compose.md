@@ -396,3 +396,14 @@ reconnect while local Stop remains terminal. HTTP 401/403/404 remain terminal an
 existing 429/503 backoff remains. This is not physical-device qualification. The #690
 same-proxy reconnect probe supplies server/proxy transport evidence and does not replace
 those mobile tests.
+
+## Retained local release bundles
+
+Validated offline bundles install immutably beneath the explicit deployment root's
+`releases/` directory. Candidate names cannot collide with stable `vX.Y.Z` names.
+Import uses protected staging and no-replacement publication; it does not select a
+new application release, run migration or recreate containers. Explicit adoption adds
+schema-4 installation release authority while preserving runtime inputs and local
+policy. Every subsequent installation load validates retained bytes and matching
+runtime inputs. Current/previous bundles and images have no automatic garbage collection.
+See [operator adoption and dispatch](29-Wayfarerctl.md#immutable-local-release-bundles).

@@ -116,3 +116,13 @@ and lifecycle work is accepted.
 
 The production Compose substrate is now described in [Compose deployment](28-Production-Compose.md);
 its managed/external topology does not complete the later guided lifecycle product.
+
+## Local candidate bundle consumer
+
+The local bundle assembler now consumes the same version and OCI identity owners,
+requiring an actual locally available immutable application digest and exact source.
+Candidate archive names contain `candidate`, version and full source SHA. Planned stable
+archives remain `wayfarer-vX.Y.Z-linux-amd64.tar.gz` with an external `SHA256SUMS`.
+Local integrity does not establish publisher authenticity, anonymous pull availability
+or GitHub asset provenance. This slice neither publishes stable bundles nor resolves
+network releases. See [local bundle assembly](25-Container-Release-Contract.md#local-release-authority-v1).

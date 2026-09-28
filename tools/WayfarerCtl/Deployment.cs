@@ -79,6 +79,7 @@ public sealed record Deployment
         { UnmappedMemberHandling = System.Text.Json.Serialization.JsonUnmappedMemberHandling.Disallow })
             ?? throw new UsageException("Missing installation identity.");
         config.CheckBundle();
+        if (config.Release is { } release) ReleaseStore.Select(root, release).Corroborate(config);
         if (config.Release is not null) ReleaseStore.Select(root, config.Release);
         if (config.Backup is not null && !InstallationCompletion.HasCompletionEvidence(root))
             throw new UsageException("Incomplete setup cannot use backup schema/policy.");

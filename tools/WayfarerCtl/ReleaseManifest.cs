@@ -42,8 +42,12 @@ public static class ReleaseContract
     public const string DatabaseDigest = "sha256:bd9b3bbfe1e879b56b0742646c18d0dcc9ec95180095f8f6d02e03b54feeeb61";
     public const string CaddyDigest = "sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b";
     public static readonly string[] Payloads = ["compose.yaml", "external.yaml", "caddy/Caddyfile", "db/20-wayfarer.sh",
-        "config/deployment.env.example", "wayfarerctl", "wayfarer-recovery", "WayfarerRecoverySource.dll"];
+        "config/deployment.env.example", "compose.sh", "INSTALL.md", "wayfarerctl", "wayfarer-recovery", "WayfarerRecoverySource.dll"];
     public static readonly string[] Directories = ["caddy", "db", "config"];
+
+    /// <summary>Independent protocol declaration emitted by the exact bundled operator.</summary>
+    public static ReleaseOperator CurrentOperator => new(ReleaseCommands.OperatorVersion, "1.9.19", 1,
+        [1], [1, 2, 3, 4], [1], [1], []);
 
     /// <summary>Reject duplicate JSON keys before strict required-constructor deserialization.</summary>
     public static ReleaseManifest Read(Stream stream)
@@ -124,7 +128,7 @@ public static class ReleaseContract
             throw new IOException("Operator cannot use this release.");
     }
 
-    public static int Mode(string path) => path is "wayfarerctl" or "wayfarer-recovery" or "db/20-wayfarer.sh" ? 493 : 420;
+    public static int Mode(string path) => path is "wayfarerctl" or "wayfarer-recovery" or "compose.sh" or "db/20-wayfarer.sh" ? 493 : 420;
     public static bool Hash(string value) => Match(value, "[a-f0-9]{64}");
     public static bool VersionSyntax(string value) => Match(value, "(0|[1-9][0-9]{0,5})\\.(0|[1-9][0-9]{0,5})\\.(0|[1-9][0-9]{0,5})");
     private static bool Match(string value, string pattern) => Regex.IsMatch(value, "\\A(?:" + pattern + ")\\z");

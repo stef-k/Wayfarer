@@ -40,8 +40,15 @@ public sealed class Cli(IProcessRunner runner, ITerminal terminal)
             terminal.Write("wayfarerctl " + typeof(Cli).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion +
                 "\nDeployed Wayfarer: use status (independent image identity)."); return 0;
         }
+        if (args is ["release", "protocol"])
+        {
+            terminal.Write(System.Text.Json.JsonSerializer.Serialize(ReleaseContract.CurrentOperator));
+            return 0;
+        }
         ValidateCommand(args);
         Preflight.Platform();
+        if (args is ["release", "inspect" or "target", ..])
+            return await new ReleaseCommands(runner, terminal).RunAsync(root, args[1..], token);
         ProtectedFiles.RequireRoot();
         if (args[0] == "dispatch") return await ReleaseDispatch.RunAsync(root, args[1..], token);
         if (args[0] == "release") return await new ReleaseCommands(runner, terminal).RunAsync(root, args[1..], token);
@@ -76,6 +83,7 @@ public sealed class Cli(IProcessRunner runner, ITerminal terminal)
     /// <summary>Validate all direct argument forms before touching deployment state.</summary>
     public static void ValidateCommand(string[] args)
     {
+        if (args is ["version"] or ["release", "protocol"] or ["help"]) return;
         if (args is ["dispatch", ..] && args.Length > 1 && args[1] != "dispatch") { ValidateCommand(args[1..]); return; }
         if (args is ["release", ..]) { ReleaseCommands.Validate(args[1..]); return; }
         if (args is ["restore", ..]) { RestoreOptions.Parse(args[1..]); return; }

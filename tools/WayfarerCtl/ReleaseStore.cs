@@ -39,9 +39,10 @@ public static class ReleaseStore
         if (destination.Names().Contains(candidate.Manifest.Name)) return Same(final, candidate.Fingerprint);
         var stageName = ".stage-" + Guid.NewGuid().ToString("N");
         var stage = Path.Combine(releases, stageName);
-        Directory.CreateDirectory(stage, ProtectedFiles.PrivateDirectory);
         // Incomplete stages have no authority. A fixed receipt outside payload documents their sole owner.
         ProtectedFiles.Create(Path.Combine(releases, stageName + ".json"), JsonSerializer.Serialize(ReleaseAuthority.From(candidate)));
+        destination.Flush();
+        Directory.CreateDirectory(stage, ProtectedFiles.PrivateDirectory);
         destination.Flush();
         using var original = new SafeDirectory(source);
         foreach (var name in ReleaseContract.Directories)

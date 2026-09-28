@@ -399,7 +399,7 @@ explicit trusted provenance, isolated SQL staging and offline product validation
 remain mandatory; production Quartz validation is the final restored-schema owner.
 
 The outer archive remains version 1. No EF migration or Quartz table reordering is
-introduced. Retained release bundles (#699) and managed update remain separate work.
+introduced. Retained release bundles now reconstruct this target contract; managed update remains separate work.
 
 ## Managed restore
 
@@ -582,3 +582,49 @@ host Docker socket or network, and does not restart the host daemon.
 No fixture evidence qualifies a real NAS, production host, M6 cutover, public stable
 distribution or whole-system #603 closure.
 Historical release acquisition, updates, native migration, ARM and #604 remain separate.
+
+## Immutable local release bundles
+
+`release inspect /absolute/bundle` checks strict v1 metadata, exact inventory, hashes,
+modes and link-free files without Docker/DB access. `release target /absolute/bundle project`
+exports schema-3 trusted target facts. The required snapshot field is zero (no capture
+observation); restore ignores it. Legacy schema-2 archives pass only the exact-release
+bridge accepted in #701. Never configure capture from this target-only evidence.
+
+Root-only commands are `release verify-images`, `release import` and `release adopt`,
+each with one absolute trusted directory. Executable image probes require root-owned,
+non-writable input ancestry. Import may retain unavailable images but reports
+`not-qualified`; adoption requires all images/payloads verified and a completed matching
+installation. It preserves UUID/project/hostname, secrets, backup policy, storage and
+all runtime inputs. It adds schema 4 and a release reference atomically. Adoption must
+use the exact bundled operator. Legacy source evidence corroborates actual bytes;
+historical archives and persisted backup source policies are never rewritten.
+
+Installed paths are `releases/vX.Y.Z/` or `releases/candidate-vX.Y.Z-FULLSHA/`.
+Different bytes at an occupied name fail. `.stage-ID` plus a root-owned sibling receipt
+records interrupted placement; `release reconcile .stage-ID` publishes only a complete
+matching stage. Partial stages are retained as evidence, never selected or auto-deleted.
+Directory import is the supported offline seam. Tarball extraction is not implemented;
+assembly emits deterministic tarballs and external checksums for trusted distribution.
+Checksums do not authenticate publishers.
+
+Keep a stable bootstrap executable at a fixed root-owned path. Invoke
+`/usr/local/lib/wayfarer-bootstrap/wayfarerctl --deployment-root /etc/wayfarer dispatch COMMAND`.
+A local wrapper may supply that fixed prefix with literal arguments; no cwd/PATH or
+manifest-provided path selects the child. The bootstrap is never replaced by lifecycle
+commands. Ordinary dispatch selects validated installation authority. Restore resume
+and abort select the receipt's original retained owner and verify its exact executable
+hash; direct invocation also enforces that owner. Existing receipts without owners
+retain their explicit original-operator recovery path. Operator inspect/use/resume
+support is separate from application version ordering; unknown protocols fail closed.
+
+Adopted in-place restore reconstructs target evidence from retained release bytes,
+without reading the current DB or trusting archive metadata. Clean-root restore may use
+`release target` output with the existing `--target-evidence` and explicit capture/restore
+payload options. The target still requires provenance acknowledgement before SQL and
+application-owned offline candidate validation before activation.
+
+There is no update, network resolver, release/image pruning or implicit activation.
+The [shipped offline instructions](../tools/release/INSTALL.md) describe layout and
+commands. Run the existing Compose recovery qualifier with `--release-bundle PATH`
+to include import, adoption, placement recovery and retained operator/target evidence.

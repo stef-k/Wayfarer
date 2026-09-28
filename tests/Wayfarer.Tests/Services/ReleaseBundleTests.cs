@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using WayfarerCtl;
+using WayfarerRecovery;
 using Xunit;
 
 namespace Wayfarer.Tests.Services;
@@ -101,6 +102,63 @@ public sealed class ReleaseBundleTests : IDisposable
         ReleaseContract.Validate(manifest with { Sources = [boundary] });
         Assert.Throws<IOException>(() => ReleaseContract.Validate(manifest with { Sources = [boundary with { ExactOrderedPrefix = false }] }));
         Assert.Throws<IOException>(() => ReleaseContract.Validate(manifest with { Sources = [boundary with { TerminalMigration = "unknown" }] }));
+    }
+
+    /// <summary>Retained targets support both capture schemas without selecting historical physical layout.</summary>
+    [Fact]
+    public void RetainedTargetBridgesLegacyAndIgnoresCaptureSnapshots()
+    {
+        var target = ReleaseBundle.Validate(directory).Target("fixture");
+        Assert.Equal(3, target.ConfigurationSchema);
+        Assert.Null(target.QuartzIdentity);
+        Assert.Equal(QuartzSchemaInstaller.RecoveryCompatibilityContract, target.QuartzCompatibilityContract);
+        var captured = target with { QuartzSnapshotFingerprint = new string('e', 32) };
+        Assert.True(ArchiveVerifier.IsCompatible(RecoveryCompatibilityTests.Manifest(captured), target));
+        var legacy = target with { ConfigurationSchema = 2, QuartzIdentity = new string('f', 32),
+            QuartzCompatibilityContract = null, QuartzSnapshotFingerprint = null, SupportedLegacySourceSchemas = null };
+        Assert.True(ArchiveVerifier.IsCompatible(RecoveryCompatibilityTests.Manifest(legacy), target));
+        ReleaseBundle.Validate(directory).Corroborate(legacy);
+        Assert.False(ArchiveVerifier.IsCompatible(RecoveryCompatibilityTests.Manifest(legacy), target with { SupportedLegacySourceSchemas = [] }));
+        Assert.False(ArchiveVerifier.IsCompatible(RecoveryCompatibilityTests.Manifest(legacy), target with { SourceRevision = new string('b', 40) }));
+    }
+
+    /// <summary>Every inventory role is mandatory; traversal, aliases and duplicate entries cannot replace one.</summary>
+    [Theory]
+    [InlineData("../compose.yaml")]
+    [InlineData("/compose.yaml")]
+    [InlineData("caddy\\Caddyfile")]
+    [InlineData("wayfarerctl")]
+    public void InventoryRejectsAmbiguousPaths(string path)
+    {
+        var manifest = Manifest();
+        manifest.Files[0] = manifest.Files[0] with { Path = path };
+        Assert.Throws<IOException>(() => ReleaseContract.Validate(manifest));
+    }
+
+    /// <summary>Inert syntax does not prove executable compatibility; minimum protocol is independent of app SemVer.</summary>
+    [Fact]
+    public void InspectionAndUseHaveSeparateCompatibilityDecisions()
+    {
+        var manifest = Manifest() with { Operator = Manifest().Operator with { Version = "2.0.0", MinimumVersion = "2.0.0" } };
+        ReleaseContract.Validate(manifest);
+        Assert.Throws<IOException>(() => ReleaseContract.RequireUse(manifest, "1.9.19"));
+        ReleaseContract.RequireUse(manifest, "2.0.0");
+        Assert.Throws<IOException>(() => ReleaseContract.Validate(manifest with
+        { Application = manifest.Application with { SupportedLegacySourceSchemas = [2, 2] } }));
+    }
+
+    /// <summary>Release adoption preserves both canonical and previously restored storage selection.</summary>
+    [Theory]
+    [InlineData(null)]
+    [InlineData("0123456789abcdef0123456789abcdef")]
+    public void SchemaFourRetainsStorageGeneration(string? generation)
+    {
+        var bundle = ReleaseBundle.Validate(directory);
+        var config = new Deployment { Schema = 4, Release = ReleaseAuthority.From(bundle), Bundle = directory,
+            Hostname = "wayfarer.example.org", AppDigest = bundle.Manifest.Images.ApplicationDigest, StorageGeneration = generation };
+        config.Validate();
+        Assert.Equal("wayfarer_db-data" + (generation is null ? "" : "_" + generation), ActiveStorage.Volume(config, "db-data"));
+        Assert.Throws<UsageException>(() => (config with { Schema = 1 }).Validate());
     }
 
     private ReleaseManifest Manifest() => new(1, 1, 1, "candidate", "1.9.19", null,

@@ -78,6 +78,7 @@ public sealed record RestoreReceipt
     {
         Plan.Target.Validate();
         Plan.OperatorOwner?.Validate();
+        if (Plan.OperatorOwner != Plan.Target.Release) throw new UsageException("Restore release/operator owner mismatch.");
         if (Schema != 1 || CandidateAttempt is < 0 or > 100 || !Enum.IsDefined(Phase) || Plan.Root != root || Plan.Operation == Guid.Empty ||
             Plan.Archive == Guid.Empty || Plan.SourceInstallation == Guid.Empty || Plan.Target.Installation == Guid.Empty ||
             PlanHash != Plan.Hash() || !System.Text.RegularExpressions.Regex.IsMatch(Plan.CandidateGeneration, "^[a-f0-9]{32}$") ||

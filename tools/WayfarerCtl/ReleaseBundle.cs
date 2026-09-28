@@ -105,6 +105,21 @@ public sealed record ReleaseBundle(string Directory, ReleaseManifest Manifest, s
             installed && (facts.User != 0 || facts.Group != 0)) throw new IOException("Unsafe release payload type/mode/owner/size.");
     }
 
+    /// <summary>Adopted runtime inputs must continue to match the retained authority on every load.</summary>
+    public void Corroborate(Deployment config)
+    {
+        if (config.AppDigest != Manifest.Images.ApplicationDigest || config.DbDigest != Manifest.Images.DatabaseDigest)
+            throw new IOException("Installation image identity contradicts release.");
+        foreach (var path in ReleaseContract.Payloads.Take(5))
+        {
+            ProtectedFiles.SafePath(Path.Combine(config.Bundle, path));
+            using var parent = new SafeDirectory(config.Bundle);
+            using var file = parent.Read(path);
+            if (Convert.ToHexStringLower(SHA256.HashData(file)) != Manifest.Files.Single(entry => entry.Path == path).Sha256)
+                throw new IOException("Installation runtime inputs contradict release.");
+        }
+    }
+
     /// <summary>Legacy facts corroborate actual retained bytes; they never select or replace them.</summary>
     public void Corroborate(SourceIdentity evidence)
     {

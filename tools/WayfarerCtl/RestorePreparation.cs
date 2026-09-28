@@ -72,7 +72,7 @@ public sealed class RestorePreparation(IProcessRunner runner)
             digest = Convert.ToHexStringLower(await SHA256.HashDataAsync(archive, token));
             output.Flush();
         }
-        var expected = TargetEvidence(config, options);
+        var expected = TargetEvidence(root, config, options);
         var payload = Payload(config, options);
         var payloadFingerprint = BackupPolicy.Fingerprint(payload);
         new BackupPolicy { Payload = payload, PayloadSha256 = payloadFingerprint }.CheckPayload();
@@ -103,7 +103,7 @@ public sealed class RestorePreparation(IProcessRunner runner)
     }
 
     /// <summary>Capture evidence is independent of the restore payload and never comes from archive-selected files.</summary>
-    private static SourceIdentity TargetEvidence(Deployment config, RestoreOptions options)
+    private static SourceIdentity TargetEvidence(string root, Deployment config, RestoreOptions options)
     {
         SourceIdentity expected;
         if (options.Has("--target-evidence"))
@@ -115,6 +115,7 @@ public sealed class RestorePreparation(IProcessRunner runner)
             if (file.Length > ArchiveContract.ManifestLimit) throw new UsageException("Target evidence exceeds bound.");
             expected = JsonSerializer.Deserialize<SourceIdentity>(file, ArchiveContract.Json) ?? throw new UsageException("Missing target evidence.");
         }
+        else if (config.Release is { } release) expected = ReleaseStore.Select(root, release).Target(config.Project);
         else expected = config.Backup?.Source ?? throw new UsageException("Independent --target-evidence is required.");
         ArchiveContract.ValidateSource(expected);
         var capture = options.Has("--capture-payload") ? options.Get("--capture-payload") : config.Backup?.Payload

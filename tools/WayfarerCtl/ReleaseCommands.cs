@@ -47,7 +47,13 @@ public sealed class ReleaseCommands(IProcessRunner runner, ITerminal terminal)
             return 0;
         }
         if (!available) throw new UsageException("Adoption requires all local images to be verified.");
-        using (var exclusion = Setup.Lock(root)) Adopt(root, bundle);
+        using (var exclusion = Setup.Lock(root))
+        {
+            // Pin protected installed bytes before metadata adoption; mutable input cannot race the image probes.
+            var installed = ReleaseStore.Import(root, bundle.Directory);
+            if (installed.Fingerprint != bundle.Fingerprint) throw new IOException("Release changed before adoption.");
+            Adopt(root, installed);
+        }
         Describe(bundle, true);
         return 0;
     }
@@ -59,17 +65,9 @@ public sealed class ReleaseCommands(IProcessRunner runner, ITerminal terminal)
         if (!InstallationCompletion.IsComplete(root) || File.Exists(Path.Combine(root, "backup-transition.json")) ||
             File.Exists(Path.Combine(root, "recovery-control/host-operation.json"))) throw new IOException("Unresolved installation operation.");
         var config = Deployment.Load(root);
+        using var recovery = config.Backup is null ? null : new RecoveryLock(Path.Combine(root, "recovery-control/recovery.lock"));
         ReleaseDispatch.RequireExecutable(bundle);
-        if (config.AppDigest != bundle.Manifest.Images.ApplicationDigest || config.DbDigest != bundle.Manifest.Images.DatabaseDigest)
-            throw new IOException("Current installation images contradict release.");
-        foreach (var path in ReleaseContract.Payloads.Take(5))
-        {
-            ProtectedFiles.SafePath(Path.Combine(config.Bundle, path));
-            using var parent = new SafeDirectory(config.Bundle);
-            using var file = parent.Read(path);
-            if (Convert.ToHexStringLower(SHA256.HashData(file)) != bundle.Manifest.Files.Single(entry => entry.Path == path).Sha256)
-                throw new IOException("Current bundle differs; adoption cannot change runtime inputs.");
-        }
+        bundle.Corroborate(config);
         if (config.Backup is { } backup)
         {
             backup.CheckPayload();

@@ -314,3 +314,29 @@ non-root/write-boundary, health and browser evidence before release support is c
 #533 redesign, production Docker/Compose/CLI, image publication, external proxy
 qualification, backup/restore/update and #604 M6 migration remain with later children.
 No runtime/configuration/database changes are introduced by this document.
+
+## Local release authority v1
+
+`release.json` schema 1 / bundle contract 1 / configuration schema 1 now owns
+local release identity. `tools/release/bundle.py --app-digest sha256:... --output /absolute/new-output`
+assembles a clean committed source into an explicit candidate directory and deterministic
+candidate tarball with external `SHA256SUMS`. It reuses Version.props and the image
+identity owner; the selected local image must match the exact source SHA and version.
+No registry push, tag, GitHub Release, image pull or installation activation occurs.
+Stable metadata is understood only as trusted offline provenance; this command authors
+candidates only. Ordinary stable publication remains a separate acceptance gate.
+
+The exact inventory is `compose.yaml`, `external.yaml`, `caddy/Caddyfile`,
+`db/20-wayfarer.sh`, `config/deployment.env.example`, `compose.sh`, `INSTALL.md`,
+`wayfarerctl`, `wayfarer-recovery`, `WayfarerRecoverySource.dll`, plus `release.json`.
+Every payload has SHA-256, regular-file type and fixed mode. The canonical fingerprint
+hashes `wayfarer-release:1:1\n`, the SHA-256 of exact manifest bytes, then each ordinally
+sorted UTF-8 path plus newline and its binary SHA-256. Paths/timestamps are not authority.
+The legacy four-file fingerprint remains only for existing recovery compatibility.
+
+The manifest binds complete EF history, terminal migration, Quartz resource digest and
+release compatibility token, explicit legacy recovery-source schemas, stable Wayfarer
+Data Protection identity, uploads/ring layout and credential readiness. No installation
+UUID, PostgreSQL physical ordinal or capture snapshot belongs in it. Forward source
+boundaries require explicit source version/fingerprint and exact migration prefix;
+current candidates declare no supported update sources. See [operator commands](29-Wayfarerctl.md#immutable-local-release-bundles).
