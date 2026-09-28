@@ -5,7 +5,7 @@ by #648. It orchestrates the [accepted Compose substrate](28-Production-Compose.
 and existing application maintenance commands. This foundation includes fresh setup,
 lifecycle, diagnosis, logs, user recovery, opt-in Compose recovery sets and managed
 restore to an independently trusted exact local target. **Update, uninstall and native migration are not implemented.** #603 is not complete; the
-final versioned release tarball and `release.json` remain separate work.
+local candidate tarball and `release.json` are supported; public stable distribution remains separate.
 
 ## Placement and prerequisites
 
@@ -16,8 +16,9 @@ Remote Docker contexts, Docker Desktop, rootless daemons and arbitrary host bind
 mounts are not supported. No host .NET runtime/SDK, Python, Node/npm or PostgreSQL
 installation is needed to run the executable. Docker socket access is administrative.
 
-Obtain the executable and complete trusted Compose source/bundle together. Pending
-final release packaging, a maintainer can publish the executable from source:
+Obtain the executable and complete trusted bundle together; prefer the
+[local candidate assembler](25-Container-Release-Contract.md#local-release-authority-v1).
+For explicit legacy source workflows, a maintainer can publish the executable from source:
 
 ```sh
 dotnet publish tools/WayfarerCtl/WayfarerCtl.csproj -c Release \

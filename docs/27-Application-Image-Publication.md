@@ -2,9 +2,9 @@
 
 The #642 pipeline publishes only `ghcr.io/stef-k/wayfarer` for `linux/amd64`, using
 [the accepted application Dockerfile and runtime checks](26-Application-Container.md).
-Compose, Caddy, `wayfarerctl`, final `release.json` and the version-matched deployment
-bundle remain later #603 work. This image is not yet a complete supported self-hosting
-distribution. The PostgreSQL/PostGIS image decision remains unresolved downstream.
+The version-matched local candidate bundle now binds Compose, Caddy, `wayfarerctl`,
+recovery payloads and the accepted PostgreSQL/PostGIS image through `release.json`.
+Public stable bundle distribution remains a separate #603 acceptance gate.
 
 ## Authorization and identity
 
