@@ -20,7 +20,9 @@ namespace Wayfarer.Tests.Controllers;
 
 /// <summary>
 /// Admin settings controller basics.
+/// Shares purge-guard isolation with the tile-cache maintenance tests.
 /// </summary>
+[Collection("OutboundBudget")]
 public partial class AdminSettingsControllerTests : TestBase
 {
     [Fact]
