@@ -1,5 +1,36 @@
 # Testing
 
+## Application-image PR scope
+
+The `application-image` check is created on every PR. After checkout,
+`tools/ci/application_image_scope.py` compares the PR base's merge base with its
+head using local Git objects. NUL-delimited paths and disabled rename detection
+cover deleted paths and both sides of renames, including unusual filenames.
+Invalid SHAs or unavailable diff evidence select full qualification.
+
+The classifier owns the sensitive path list. Delivery/qualification directories,
+workflows, Docker and build/runtime metadata, migrations and Quartz resources
+select the existing full image/DB/Compose/operator/recovery commands. Explicit
+application owners come from `LifecycleCli`, `RecoverySourceCli`, startup/readiness
+and the recovery probe: EF context/configuration/seeding, Identity/reference state,
+Data Protection/credential readiness, storage, secrets, version and browser runtime.
+When moving these responsibilities, update the classifier in the same PR.
+The classifier itself always selects heavy qualification.
+
+Unrelated MVC, services, views, UI, ordinary tests, documentation and maintenance
+scripts can finish without Docker or .NET setup in this job. Classifier tests run
+in the ordinary `test` job using standard-library Python, so tests/docs alone can
+exercise the cheap branch without changing classifier implementation.
+
+A successful no-op check is valid exact-head evidence only for the diff classified
+as non-sensitive; it is not fresh image/lifecycle qualification. Independent review
+must inspect the logged decision and matched paths/reasons. The ordinary `test`
+and cleanup-safety checks retain their existing responsibilities.
+
+Run focused tests with `python3 -m unittest discover -s tools/ci/tests -v`.
+To inspect a real diff, run `python3 tools/ci/application_image_scope.py --base
+<full-base-sha> --head <full-head-sha>` (on one line). No API lookup is used.
+
 ## Code Guard
 
 Install the published distribution with `pipx install agent-code-guard==0.3.1` (or an isolated Python virtual environment), then run `code-guard --version` and `code-guard doctor --json`. Doctor must report healthy installation, configuration, Git, skill, and parser providers.
