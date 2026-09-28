@@ -79,6 +79,8 @@ public sealed class RestoreCapacity(IProcessRunner runner)
         {
             output = await owner.RunAsync(name,
             ["--network=none", "--read-only", "--user=0", "--cap-drop=ALL", "--cap-add=DAC_READ_SEARCH",
+                // Override the DB image's declared volume so this probe cannot create a writable anonymous DB volume.
+                "--tmpfs=/var/lib/postgresql/data:ro,mode=000,size=65536",
                 "--security-opt=no-new-privileges:true", .. mounts, "--entrypoint=sh",
                 "ghcr.io/stef-k/wayfarer-db@" + plan.Target.DbDigest, "-ec", script], token);
         }

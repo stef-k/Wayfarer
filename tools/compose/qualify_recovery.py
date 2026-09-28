@@ -417,7 +417,7 @@ class RecoveryJourney(Journey):
         accepted = planned.split('Plan SHA-256: ')[1].splitlines()[0]
         staging_size = assert_single_staging(self, plan)
         failure = self.ctl('restore', '--accept-plan', accepted, '--trust-controlled-backup', check=False)
-        assert failure.returncode == 1 and 'phase=Staging' in failure.stderr
+        assert failure.returncode == 1 and 'phase=Staging' in failure.stderr, failure.stderr
         assert assert_single_staging(self, plan) == staging_size
         assert self.host('cat', str(self.install / 'installation.json')).stdout == baseline
         receipt_path = str(self.install / 'recovery-control/restore.json')
