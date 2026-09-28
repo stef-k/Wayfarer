@@ -156,8 +156,11 @@ public sealed record RecoveryManifest
 }
 
 /// <summary>Compatibility identity supplied by trusted installation and application owners.</summary>
-public sealed record SourceIdentity
+public sealed record SourceIdentity : IJsonOnDeserialized
 {
+    // Track wire presence separately from values so mixed explicit-null fields cannot masquerade as absence.
+    private int quartzFields;
+
     [JsonRequired]
     public string Kind { get; init; } = "compose";
     [JsonRequired]
@@ -190,16 +193,24 @@ public sealed record SourceIdentity
     public string[] ExpectedMigrations { get; init; } = [];
     /// <summary>Schema-2 physical capture/target identity only; absent from schema 3.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? QuartzIdentity { get; init; }
+    public string? QuartzIdentity { get; init { field = value; quartzFields |= 1; } }
     /// <summary>Schema-3 release-owned compatibility token, independent of catalog history.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? QuartzCompatibilityContract { get; init; }
+    public string? QuartzCompatibilityContract { get; init { field = value; quartzFields |= 2; } }
     /// <summary>Schema-3 capture evidence only; never compared with a restore target.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? QuartzSnapshotFingerprint { get; init; }
+    public string? QuartzSnapshotFingerprint { get; init { field = value; quartzFields |= 4; } }
     /// <summary>Bounded legacy support used only from independently trusted schema-3 target evidence.</summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public int[]? SupportedLegacySourceSchemas { get; init; }
+    public int[]? SupportedLegacySourceSchemas { get; init { field = value; quartzFields |= 8; } }
+
+    /// <summary>Require exactly the version's wire fields before any consumer can interpret source evidence.</summary>
+    void IJsonOnDeserialized.OnDeserialized()
+    {
+        if (quartzFields != (ConfigurationSchema == 2 ? 1 : 14))
+            throw new IOException("Missing or mixed Quartz identity fields.");
+        ArchiveContract.ValidateSource(this);
+    }
 }
 
 /// <summary>Database identity observed from the dump's exported read-only snapshot.</summary>

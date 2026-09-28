@@ -55,6 +55,12 @@ public sealed class RecoveryCompatibilityTests
             ArchiveContract.ValidateSource(parsed);
             Assert.Equal(json, JsonSerializer.Serialize(parsed, ArchiveContract.Json));
         }
+        var legacyJson = JsonSerializer.Serialize(Source(2), ArchiveContract.Json);
+        Assert.Throws<IOException>(() => JsonSerializer.Deserialize<SourceIdentity>(
+            legacyJson[..^1] + ",\"QuartzSnapshotFingerprint\":null}", ArchiveContract.Json));
+        var newJson = JsonSerializer.Serialize(Source(3), ArchiveContract.Json);
+        Assert.Throws<IOException>(() => JsonSerializer.Deserialize<SourceIdentity>(
+            newJson[..^1] + ",\"QuartzIdentity\":null}", ArchiveContract.Json));
         foreach (var malformed in new[]
         {
             Source(2) with { QuartzCompatibilityContract = "new" }, Source(2) with { QuartzSnapshotFingerprint = new string('a', 32) },
@@ -64,8 +70,8 @@ public sealed class RecoveryCompatibilityTests
             Source(3) with { SupportedLegacySourceSchemas = [3] }, Source(3) with { ConfigurationSchema = 4 }
         })
         {
-            var parsed = JsonSerializer.Deserialize<SourceIdentity>(JsonSerializer.Serialize(malformed), ArchiveContract.Json)!;
-            Assert.Throws<IOException>(() => ArchiveContract.ValidateSource(parsed));
+            Assert.Throws<IOException>(() => JsonSerializer.Deserialize<SourceIdentity>(
+                JsonSerializer.Serialize(malformed), ArchiveContract.Json));
         }
     }
 
