@@ -416,8 +416,21 @@ Plan conservatively around its capture interval and the later writes being disca
 Staging uses local persistent disk, not the backup worker's 2 GiB tmpfs. Archive and
 nested component byte bounds remain 100 GiB, with 100,000 nested entries; allow space
 for the frozen pair, verified components, extracted verification ring and fresh
-DB/filesystem volumes. Failed attempts retain evidence and consume additional space.
-Do not delete operation storage while a restore remains unresolved.
+DB/filesystem volumes. Reverification stops and reconciles the exact operation's helpers,
+then reclaims superseded verification trees before extraction; plan, execution and resume
+retain only one verified component tree. Frozen bytes and failed candidate volumes remain
+retained. Do not delete operation storage while a restore remains unresolved.
+
+Capacity preflight measures available deployment/Docker/destination space, which already
+excludes retained old and failed generations. Before freezing it budgets the frozen pair
+and component staging; nested ring extraction checks expanded writes. Before fencing and
+activation it reserves candidate file bytes, cache bootstrap, emergency output/spooling and
+one GiB of operating headroom. DB/index/WAL allowance is the greater of one GiB, four times
+the dump, and twice the observed old DB footprint. This is an obvious-shortage gate, not a
+restore-size guarantee: compressed SQL cannot predict all database/index/WAL growth.
+The checks conservatively include allocations even when the filesystems are separate.
+An insufficient-capacity result retains old volumes and backups; it never deletes them to
+make space.
 
 ### Emergency recovery set and fencing
 
@@ -425,7 +438,10 @@ An existing installation gets a fresh verified quiesced emergency set after app,
 Quartz, scheduler and proxy fencing. The existing #533 engine owns capture,
 verification, publication and retention. The current capture payload must understand
 restore holds. Its archive is permanently held outside ordinary retention and has no
-scheduled slot. A stale online backup is not a substitute.
+scheduled slot. The hold is durably published before the archive/sidecar pair. Failed or
+interrupted publication is reconciled under the recovery lock: private pending holds and
+owned holds without a complete pair are reclaimed; committed held pairs remain protected.
+A stale online backup is not a substitute.
 
 For a genuinely broken source or unavailable destination/capacity, include
 `--without-emergency-backup` when planning. The waiver is bound into the authorization
@@ -484,7 +500,11 @@ The protected receipt progresses through authorized, fenced, emergency verified 
 waived, staging, candidate validated, activation intent, activated stopped, writes
 possible and accepted. Intent is flushed before irreversible boundaries. External
 loopback exposure stays removed until private readiness succeeds; managed Caddy starts
-after application postflight. Scheduler restart follows successful postflight.
+after application postflight. Scheduler restart follows successful postflight. The receipt
+stays at writes possible throughout restart-policy restoration and durable `restore-complete`
+publication. Accepted is the final checkpoint and only then clears restore intent. A failure
+or process death during finalization still requires forward-only resume; completion is never
+inferred from an Accepted receipt when its completion marker is absent.
 
 ```bash
 wayfarerctl status
@@ -512,6 +532,10 @@ restore, retained volumes, Uploads/import bytes, synthetic protected provider cr
 and pre-capture production Identity tokens. It also exercises actual SQL failure and
 cancellation, extraction and offline-validation failures, interrupted pointer activation,
 writer acknowledgement loss, forward-only recovery, repeat restore and emergency retention.
+The maintained lifecycle extension also covers restart-restoration process death, completion
+write failure, bounded repeated verification, a real small-filesystem capacity refusal and
+emergency-worker deaths before and after publication. Both full and restore-only selections
+include these lifecycle regressions.
 The normal selection additionally exercises #533 capture/retention/locking and cancellation.
 
 `python3 tools/compose/qualify_restore_daemon.py` independently proves the restart-policy

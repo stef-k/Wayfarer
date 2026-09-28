@@ -96,7 +96,15 @@ public sealed class RestoreActivation(IProcessRunner runner)
         await Diagnostics.EndpointAsync(candidate, token, source.ApplicationVersion);
         if (candidate.Backup is { Enabled: true })
             await owner.Required(BackupCompose.Command(root, candidate, "up", "-d", "--force-recreate", "--pull", "never", "backup-scheduler"), token);
-        // All required postflight gates passed before normal restart policy is enabled.
+        return await FinishAsync(root, receipt, token);
+    }
+
+    /// <summary>Postflight has passed; keep intent unresolved until restart policies and completion evidence are durable.</summary>
+    public async Task<RestoreReceipt> FinishAsync(string root, RestoreReceipt receipt, CancellationToken token)
+    {
+        if (receipt.Phase != RestorePhase.WritesPossible) throw new UsageException("Restore has not reached finalization.");
+        var candidate = RestoreCandidate.Configuration(receipt.EffectivePlan);
+        var owner = new RestoreContainers(runner);
         var active = (await owner.Required(candidate.Compose(root, "ps", "-q"), token)).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
         foreach (var id in active) await owner.Required(["update", "--restart=unless-stopped", id], token);
         InstallationCompletion.RecordRestore(root, receipt);

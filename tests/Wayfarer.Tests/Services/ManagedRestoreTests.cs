@@ -61,6 +61,70 @@ public sealed class ManagedRestoreTests
                 ActiveStorage.Volume(RestoreCandidate.Configuration(retry.EffectivePlan), role));
     }
 
+    /// <summary>A failed actual restart update cannot persist Accepted or fabricate completion evidence.</summary>
+    [Fact]
+    public async Task RestartRestorationFailureLeavesFinalCheckpointUncommitted()
+    {
+        if (!OperatingSystem.IsLinux()) return;
+        using var fixture = new Wayfarer.Tests.Infrastructure.TestDirectory();
+        Directory.CreateDirectory(Path.Combine(fixture.Path, "recovery-control"));
+        var plan = new RestorePlan(Guid.NewGuid(), fixture.Path, Config(), Guid.NewGuid(), Guid.NewGuid(),
+            new string('a', 64), DateTimeOffset.UnixEpoch, "quiesced", "bundle", "capture", "restore", null,
+            Guid.NewGuid().ToString("N"), true, true, true);
+        var receipt = new RestoreReceipt { Plan = plan, PlanHash = plan.Hash(), Phase = RestorePhase.WritesPossible };
+        var runner = new FailingRestartRunner();
+        await Assert.ThrowsAsync<IOException>(() => new RestoreActivation(runner).FinishAsync(fixture.Path, receipt, CancellationToken.None));
+        Assert.True(runner.UpdateAttempted);
+        Assert.False(File.Exists(RestoreReceipt.PathFor(fixture.Path)));
+        Assert.False(File.Exists(Path.Combine(fixture.Path, "restore-complete")));
+        Assert.False(InstallationCompletion.IsComplete(fixture.Path));
+        Assert.Throws<UsageException>(() => receipt.Advance(RestorePhase.Aborted));
+    }
+
+    /// <summary>Returns a real-looking canonical ID, then refuses the first policy update.</summary>
+    private sealed class FailingRestartRunner : IProcessRunner
+    {
+        public bool UpdateAttempted { get; private set; }
+        public Task<ProcessResult> RunAsync(string[] args, string? input, CancellationToken cancellation, Action<string>? lineOutput = null)
+        {
+            if (args.Contains("ps")) return Task.FromResult(new ProcessResult(0, "canonical-db"));
+            Assert.Equal(new[] { "update", "--restart=unless-stopped", "canonical-db" }, args);
+            UpdateAttempted = true;
+            return Task.FromResult(new ProcessResult(1, "policy update failed"));
+        }
+    }
+
+    /// <summary>Capacity includes file bytes, DB/index/WAL allowance, cache and a separate operating reserve.</summary>
+    [Fact]
+    public void CapacityRefusesObviousShortageWithoutTreatingDumpAsDatabaseSize()
+    {
+        var required = RestoreCapacity.CandidateBytes(10, 20, 3 * RestoreCapacity.Reserve);
+        Assert.Equal(7 * RestoreCapacity.Reserve + 20, required);
+        Assert.Throws<IOException>(() => RestoreCapacity.Check(required, required));
+        RestoreCapacity.Check(required + RestoreCapacity.Reserve, required);
+        Assert.Throws<OverflowException>(() => RestoreCapacity.CandidateBytes(long.MaxValue, 0, 0));
+    }
+
+    /// <summary>Superseded verification data is reclaimed without following a link into retained evidence.</summary>
+    [Fact]
+    public void VerificationCleanupRefusesLinkedEvidence()
+    {
+        if (!OperatingSystem.IsLinux()) return;
+        using var fixture = new Wayfarer.Tests.Infrastructure.TestDirectory();
+        var staging = Path.Combine(fixture.Path, "verified");
+        Directory.CreateDirectory(Path.Combine(staging, "keys"));
+        File.WriteAllText(Path.Combine(staging, "keys", "key.xml"), "old");
+        using var owned = new WayfarerRecovery.SafeDirectory(staging);
+        owned.Clear();
+        Assert.Empty(Directory.EnumerateFileSystemEntries(staging));
+        var evidence = Path.Combine(fixture.Path, "frozen");
+        File.WriteAllText(evidence, "retained");
+        File.CreateSymbolicLink(Path.Combine(staging, "database.dump"), evidence);
+        Assert.Throws<IOException>(() => owned.Clear());
+        Assert.Equal("retained", File.ReadAllText(evidence));
+        File.Delete(Path.Combine(staging, "database.dump"));
+    }
+
     private static Deployment Config() => new()
     {
         Schema = 2, Installation = Guid.NewGuid(), Bundle = "/opt/wayfarer/bundle",

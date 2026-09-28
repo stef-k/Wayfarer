@@ -108,6 +108,21 @@ case "$point:$*" in
       set -- "$@" "$value"
       remaining=$((remaining-1))
     done ;;
+  restore-restart-death:*" update --restart=unless-stopped "*)
+    /usr/bin/docker "$@" || exit $?
+    kill -KILL "$PPID"
+    exit 137 ;;
+  restore-capacity:*"-restore-capacity-"*)
+    # Real bounded filesystem is substituted only for the read-only capacity probe mount.
+    remaining=$#
+    while test "$remaining" -gt 0; do
+      value=$1; shift
+      case "$value" in type=bind,source=*,target=/storage,readonly)
+        value="type=bind,source=$(dirname "$WAYFARER_TEST_FAILURE")/capacity-small,target=/storage,readonly" ;;
+      esac
+      set -- "$@" "$value"
+      remaining=$((remaining-1))
+    done ;;
   restore-pointer:*" create --force-recreate --pull never db wayfarer") exit 1 ;;
   restore-writer:*" up -d --no-recreate --pull never --wait --wait-timeout 180 wayfarer")
     /usr/bin/docker "$@" || exit $?

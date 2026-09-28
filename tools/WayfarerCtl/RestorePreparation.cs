@@ -157,8 +157,16 @@ public sealed class RestorePreparation(IProcessRunner runner)
             "--format", "{{.Names}}"], token)).Split('\n', StringSplitOptions.RemoveEmptyEntries);
         foreach (var helper in helpers.Where(name => name == prefix || name.StartsWith(prefix + "-", StringComparison.Ordinal)))
         {
-            await owner.Required(["stop", "--time", "20", helper], token);
-            await owner.Required(["wait", helper], token);
+            using var actual = JsonDocument.Parse(await owner.Required(["inspect", helper], token));
+            var container = actual.RootElement[0];
+            if (!container.GetProperty("Mounts").EnumerateArray().Any(mount =>
+                mount.GetProperty("Source").GetString() == staging && mount.GetProperty("Destination").GetString() == "/staging"))
+                throw new IOException("Verification helper mount changed; staging retained.");
+            if (container.GetProperty("State").GetProperty("Status").GetString() != "created")
+            {
+                await owner.Required(["stop", "--time", "20", helper], token);
+                await owner.Required(["wait", helper], token);
+            }
             await owner.Required(["rm", helper], token);
         }
         foreach (var previous in Directory.EnumerateDirectories(directory, "verified*"))

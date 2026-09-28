@@ -16,6 +16,7 @@ from datetime import datetime, timedelta
 from qualify_ctl import Journey, run, HOST
 from qualify import Stack
 from qualify_restore_cancellation import qualify_sql_cancellation
+from qualify_restore_lifecycle import qualify_restore_lifecycle, assert_single_staging
 
 
 class RecoveryJourney(Journey):
@@ -69,6 +70,7 @@ class RecoveryJourney(Journey):
             self.restore_refusals()
             qualify_sql_cancellation(self)
             self.restore_boundaries()
+            qualify_restore_lifecycle(self)
             self.restore()
             return
         generation = json.loads(self.host('cat', str(self.install / 'installation.json')).stdout)['Backup']['Generation']
@@ -123,6 +125,7 @@ class RecoveryJourney(Journey):
         source_before = self.snapshot()
         self.ctl('backup', '--quiesced')
         assert self.snapshot() == source_before
+        qualify_restore_lifecycle(self)
         self.restore()
         print('PASS product restore qualification', flush=True)
         self.mounted_destination()
@@ -412,8 +415,10 @@ class RecoveryJourney(Journey):
         planned = self.ctl('restore', *options, '--without-emergency-backup', '--plan').stdout
         plan = json.loads(planned.splitlines()[0])
         accepted = planned.split('Plan SHA-256: ')[1].splitlines()[0]
+        staging_size = assert_single_staging(self, plan)
         failure = self.ctl('restore', '--accept-plan', accepted, '--trust-controlled-backup', check=False)
         assert failure.returncode == 1 and 'phase=Staging' in failure.stderr
+        assert assert_single_staging(self, plan) == staging_size
         assert self.host('cat', str(self.install / 'installation.json')).stdout == baseline
         receipt_path = str(self.install / 'recovery-control/restore.json')
         first = json.loads(self.host('cat', receipt_path).stdout)
@@ -423,6 +428,9 @@ class RecoveryJourney(Journey):
         assert self.ctl('restore', '--resume', plan['Operation'], check=False).returncode == 1
         retry = json.loads(self.host('cat', receipt_path).stdout)
         assert retry['CandidateAttempt'] == 1 and len(set(retry['Volumes'])) == 6
+        assert assert_single_staging(self, plan) == staging_size
+        assert self.ctl('restore', '--resume', plan['Operation'], check=False).returncode == 1
+        assert assert_single_staging(self, plan) == staging_size
         self.ctl('restore', '--abort', plan['Operation'])
         assert self.host('cat', str(self.install / 'installation.json')).stdout == baseline
         self.compose('up', '-d', '--wait', 'db')
