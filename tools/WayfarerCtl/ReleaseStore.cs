@@ -45,11 +45,11 @@ public static class ReleaseStore
         Directory.CreateDirectory(stage, ProtectedFiles.PrivateDirectory);
         destination.Flush();
         using var original = new SafeDirectory(source);
-        foreach (var name in ReleaseContract.Directories)
+        foreach (var name in ReleaseContract.Folders(candidate.Manifest))
             Directory.CreateDirectory(Path.Combine(stage, name), ProtectedFiles.PrivateDirectory);
         using (var target = new SafeDirectory(stage))
         {
-            foreach (var name in ReleaseContract.Payloads.Append("release.json"))
+            foreach (var name in ReleaseContract.Inventory(candidate.Manifest).Append("release.json"))
             {
                 using var input = original.Read(name);
                 using var output = target.Write(name);
@@ -58,7 +58,7 @@ public static class ReleaseStore
                 output.Flush(true);
                 File.SetUnixFileMode(Path.Combine(stage, name), (UnixFileMode)ReleaseContract.Mode(name));
             }
-            foreach (var name in ReleaseContract.Directories)
+            foreach (var name in ReleaseContract.Folders(candidate.Manifest))
             {
                 using var child = target.Child(name);
                 child.Flush();

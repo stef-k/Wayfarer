@@ -8,11 +8,14 @@ namespace WayfarerCtl;
 public sealed record ReleaseManifest(int Schema, int BundleContract, int ConfigurationSchema,
     string Status, string Version, string? Tag, string Repository, string SourceRevision, string Platform,
     ReleaseImages Images, ReleaseApplication Application, ReleaseOperator Operator,
-    ReleaseSourceBoundary[] Sources, ReleaseFile[] Files)
+    ReleaseSourceBoundary[] Sources, ReleaseFile[] Files, ReleaseCapture? LegacyCapture)
 {
     /// <summary>Candidate names cannot collide with the stable publication namespace.</summary>
     public string Name => Status == "stable" ? "v" + Version : "candidate-v" + Version + "-" + SourceRevision;
 }
+
+/// <summary>Optional independently retained historical capture pair; no installation or Quartz snapshot facts.</summary>
+public sealed record ReleaseCapture(string WorkerVersion, string ReleaseStatus);
 
 /// <summary>Index and selected platform digest are distinct even when a single-platform artifact uses the same value.</summary>
 public sealed record ReleaseImages(string ApplicationRepository, string ApplicationDigest, string PlatformDigest, string OciVersion,
@@ -43,7 +46,12 @@ public static class ReleaseContract
     public const string CaddyDigest = "sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b";
     public static readonly string[] Payloads = ["compose.yaml", "external.yaml", "caddy/Caddyfile", "db/20-wayfarer.sh",
         "config/deployment.env.example", "compose.sh", "INSTALL.md", "wayfarerctl", "wayfarer-recovery", "WayfarerRecoverySource.dll"];
+    public static readonly string[] CapturePayloads = ["capture/wayfarer-recovery", "capture/WayfarerRecoverySource.dll"];
     public static readonly string[] Directories = ["caddy", "db", "config"];
+
+    /// <summary>Only the explicitly versioned historical capture pair may extend the fixed inventory.</summary>
+    public static string[] Inventory(ReleaseManifest manifest) => manifest.LegacyCapture is null ? Payloads : [.. Payloads, .. CapturePayloads];
+    public static string[] Folders(ReleaseManifest manifest) => manifest.LegacyCapture is null ? Directories : [.. Directories, "capture"];
 
     /// <summary>Independent protocol declaration emitted by the exact bundled operator.</summary>
     public static ReleaseOperator CurrentOperator => new(ReleaseCommands.OperatorVersion, "1.9.19", 1,
@@ -99,6 +107,8 @@ public static class ReleaseContract
             app.Migrations.Any(migration => !Match(migration, "[0-9]{14}_[A-Za-z0-9_]{1,160}")) ||
             !app.Migrations.SequenceEqual(app.Migrations.Distinct().Order(StringComparer.Ordinal)) ||
             app.TerminalMigration != app.Migrations[^1]) throw new IOException("Unsupported application compatibility.");
+        if (value.LegacyCapture is { } capture && (!Match(capture.WorkerVersion, "[0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+") ||
+            capture.ReleaseStatus is not ("candidate" or "released"))) throw new IOException("Unsupported legacy capture authority.");
         ValidateOperator(value.Operator);
         if (value.Sources.Length > 100 || value.Sources.Select(source => source.Fingerprint).Distinct().Count() != value.Sources.Length)
             throw new IOException("Ambiguous source boundaries.");
@@ -106,7 +116,7 @@ public static class ReleaseContract
             if (!VersionSyntax(source.Version) || !Hash(source.Fingerprint) || !app.Migrations.Contains(source.TerminalMigration) ||
                 !source.ExactOrderedPrefix || source.RetryRestriction is not ("none" or "manual-recovery") ||
                 source.Warning.Length > 1024 || source.Warning.Any(char.IsControl)) throw new IOException("Unsupported source boundary.");
-        if (!value.Files.Select(file => file.Path).Order(StringComparer.Ordinal).SequenceEqual(Payloads.Order(StringComparer.Ordinal)))
+        if (!value.Files.Select(file => file.Path).Order(StringComparer.Ordinal).SequenceEqual(Inventory(value).Order(StringComparer.Ordinal)))
             throw new IOException("Release inventory differs from contract.");
         foreach (var file in value.Files)
             if (!Hash(file.Sha256) || file.Type != "file" || file.Mode != Mode(file.Path))
@@ -129,7 +139,13 @@ public static class ReleaseContract
             throw new IOException("Operator cannot use this release.");
     }
 
-    public static int Mode(string path) => path is "wayfarerctl" or "wayfarer-recovery" or "compose.sh" or "db/20-wayfarer.sh" ? 493 : 420;
+    public static int Mode(string path) => path switch
+    {
+        "wayfarerctl" or "wayfarer-recovery" or "capture/wayfarer-recovery" => 365,
+        "WayfarerRecoverySource.dll" or "capture/WayfarerRecoverySource.dll" => 292,
+        "compose.sh" or "db/20-wayfarer.sh" => 493,
+        _ => 420
+    };
     public static bool Hash(string value) => Match(value, "[a-f0-9]{64}");
     public static bool VersionSyntax(string value) => Match(value, "(0|[1-9][0-9]{0,5})\\.(0|[1-9][0-9]{0,5})\\.(0|[1-9][0-9]{0,5})");
     private static bool Match(string value, string pattern) => Regex.IsMatch(value, "\\A(?:" + pattern + ")\\z");

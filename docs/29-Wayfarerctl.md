@@ -629,3 +629,15 @@ There is no update, network resolver, release/image pruning or implicit activati
 The [shipped offline instructions](../tools/release/INSTALL.md) describe layout and
 commands. Run the existing Compose recovery qualifier with `--release-bundle PATH`
 to include import, adoption, placement recovery and retained operator/target evidence.
+
+Historical capture pairs can be retained via the assembler's explicit
+`--capture-directory` and `--capture-evidence` inputs. Actual files and local image
+identity remain mandatory; installation evidence only corroborates them. The optional
+fixed `capture/` inventory binds their hashes and historical worker version/status.
+It stores neither UUID/project nor old Quartz identity. `release corroborate BUNDLE SOURCE`
+checks that independent source evidence against either retained capture profile.
+`release target BUNDLE PROJECT current` explicitly selects the new pair; the default
+selects the historical pair when present. Existing backup policies remain unchanged.
+Legacy images without the #701 property require the pinned accepted Quartz SQL resource;
+unknown legacy resource contracts are rejected. Full application/source/image/migration
+identity and post-restore product validation remain mandatory.

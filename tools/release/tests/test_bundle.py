@@ -18,7 +18,7 @@ def test_archive_is_reproducible_and_checksum_external(tmp_path):
         path = source / name
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(name)
-    (source / 'release.json').write_text(json.dumps({'Version': '1.9.19', 'SourceRevision': 'a' * 40}))
+    (source / 'release.json').write_text(json.dumps({'Version': '1.9.19', 'SourceRevision': 'a' * 40, 'Files': [{'Path': name} for name in bundle.PAYLOADS]}))
     first, second = tmp_path / 'first', tmp_path / 'second'
     first.mkdir()
     second.mkdir()

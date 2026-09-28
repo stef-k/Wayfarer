@@ -14,6 +14,8 @@ public sealed class ReleaseCommands(IProcessRunner runner, ITerminal terminal)
     public static void Validate(string[] args)
     {
         if (args is ["inspect" or "verify-images" or "import" or "adopt", var path]) { BackupPolicy.LiteralPath(path); return; }
+        if (args is ["target", _, _, "current" or "legacy"]) { Validate(args[..3]); return; }
+        if (args is ["corroborate", var input, var evidence]) { BackupPolicy.LiteralPath(input); BackupPolicy.LiteralPath(evidence); return; }
         if (args is ["target", var bundle, var project]) { BackupPolicy.LiteralPath(bundle);
             if (System.Text.RegularExpressions.Regex.IsMatch(project, "\\A[a-z0-9][a-z0-9_-]{0,62}\\z")) return; }
         if (args is ["reconcile", var stage] && System.Text.RegularExpressions.Regex.IsMatch(stage, "\\A\\.stage-[a-f0-9]{32}\\z")) return;
@@ -31,9 +33,19 @@ public sealed class ReleaseCommands(IProcessRunner runner, ITerminal terminal)
             return 0;
         }
         var bundle = ReleaseBundle.Validate(args[1]);
+        if (args[0] == "corroborate")
+        {
+            using var parent = new SafeDirectory(Path.GetDirectoryName(args[2])!);
+            using var input = parent.Read(Path.GetFileName(args[2]));
+            if (input.Length > ArchiveContract.ManifestLimit) throw new IOException("Source evidence exceeds bound.");
+            bundle.Corroborate(JsonSerializer.Deserialize<SourceIdentity>(input, ArchiveContract.Json)
+                ?? throw new IOException("Missing source evidence."));
+            Describe(bundle, false);
+            return 0;
+        }
         if (args[0] == "target")
         {
-            terminal.Write(JsonSerializer.Serialize(bundle.Target(args[2]), ArchiveContract.Json));
+            terminal.Write(JsonSerializer.Serialize(bundle.Target(args[2], args is [_, _, _, "current"]), ArchiveContract.Json));
             return 0;
         }
         if (args[0] == "inspect") { Describe(bundle, false); return 0; }
@@ -71,7 +83,7 @@ public sealed class ReleaseCommands(IProcessRunner runner, ITerminal terminal)
         if (config.Backup is { } backup)
         {
             backup.CheckPayload();
-            if (backup.PayloadSha256 != bundle.Target(config.Project).PayloadFingerprint) throw new IOException("Current recovery payload differs.");
+            if (backup.PayloadSha256 != backup.Source.PayloadFingerprint) throw new IOException("Current recovery payload differs.");
             bundle.Corroborate(backup.Source);
         }
         var installed = ReleaseStore.Import(root, bundle.Directory);

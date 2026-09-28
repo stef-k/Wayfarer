@@ -329,7 +329,9 @@ candidates only. Ordinary stable publication remains a separate acceptance gate.
 The exact inventory is `compose.yaml`, `external.yaml`, `caddy/Caddyfile`,
 `db/20-wayfarer.sh`, `config/deployment.env.example`, `compose.sh`, `INSTALL.md`,
 `wayfarerctl`, `wayfarer-recovery`, `WayfarerRecoverySource.dll`, plus `release.json`.
-Every payload has SHA-256, regular-file type and fixed mode. The canonical fingerprint
+The optional versioned `LegacyCapture` adds only `capture/wayfarer-recovery` and
+`capture/WayfarerRecoverySource.dll`; it retains historical capture bytes separately
+from current recovery execution. Every payload has SHA-256, regular-file type and fixed mode. The canonical fingerprint
 hashes `wayfarer-release:1:1\n`, the SHA-256 of exact manifest bytes, then each ordinally
 sorted UTF-8 path plus newline and its binary SHA-256. Paths/timestamps are not authority.
 The legacy four-file fingerprint remains only for existing recovery compatibility.

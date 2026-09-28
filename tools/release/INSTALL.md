@@ -43,3 +43,20 @@ non-authoritative evidence; they never select an operator or replace current byt
 
 Managed update, network acquisition, stable publication and automatic activation are
 not implemented. Retain current and previous bundles and their pinned local images.
+
+For a pre-existing capture pair, the maintainer assembler accepts both
+`--capture-directory /trusted/pair` and `--capture-evidence /trusted/source.json`.
+The evidence must be independently retained installation SourceIdentity, never an
+archive-selected manifest. Only worker version/release status enter `LegacyCapture`;
+actual historical files are hashed under the fixed optional `capture/` inventory.
+The application digest/revision/version and exact migration/resource facts are still
+verified against local image bytes. No installation identifier or Quartz snapshot is
+copied into release metadata. A legacy image lacking the #701 property is supported
+only through the explicitly pinned accepted Quartz SQL resource; unknown resources fail.
+
+Target export selects the historical pair when present; append `current` to select
+the newly bundled pair explicitly. An adopted installation selects the profile that
+matches its independently persisted capture policy. Adoption never refreshes that
+policy. Prepare the complete desired inventory before import: an occupied release
+name is never repaired or expanded in place. Recovery helpers are mode 0555/0444 to
+satisfy the existing immutable capture-payload contract.

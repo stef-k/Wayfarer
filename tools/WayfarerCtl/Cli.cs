@@ -47,7 +47,7 @@ public sealed class Cli(IProcessRunner runner, ITerminal terminal)
         }
         ValidateCommand(args);
         Preflight.Platform();
-        if (args is ["release", "inspect" or "target", ..])
+        if (args is ["release", "inspect" or "target" or "corroborate", ..])
             return await new ReleaseCommands(runner, terminal).RunAsync(root, args[1..], token);
         ProtectedFiles.RequireRoot();
         if (args[0] == "dispatch") return await ReleaseDispatch.RunAsync(root, args[1..], token);

@@ -8,7 +8,7 @@ public static class Help
         ["help"] = "help [command [subcommand]] — contextual help; aliases --help and -h",
         ["version"] = "version — CLI version (deployed Wayfarer identity is reported by status)",
         ["release"] = "release inspect|verify-images|import|adopt /absolute/bundle\n" +
-            "  target /absolute/bundle project; reconcile .stage-ID. Offline trusted directories only; no pulls or activation.",
+            "  target /absolute/bundle project [current|legacy]; corroborate /absolute/bundle /absolute/source.json; reconcile .stage-ID. Offline trusted directories only; no pulls or activation.",
         ["dispatch"] = "dispatch COMMAND — invoke the retained operator; restore --resume/--abort uses its receipt owner.",
         ["setup"] = "setup --bundle PATH --hostname DNS --app-digest sha256:HEX [--mode managed|external]\n" +
             "  [--project NAME] [--edge-prefix 172.30.64] [--loopback-port 8080] [--password-stdin]\n" +

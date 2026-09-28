@@ -115,7 +115,13 @@ public sealed class RestorePreparation(IProcessRunner runner)
             if (file.Length > ArchiveContract.ManifestLimit) throw new UsageException("Target evidence exceeds bound.");
             expected = JsonSerializer.Deserialize<SourceIdentity>(file, ArchiveContract.Json) ?? throw new UsageException("Missing target evidence.");
         }
-        else if (config.Release is { } release) expected = ReleaseStore.Select(root, release).Target(config.Project);
+        else if (config.Release is { } release)
+        {
+            var bundle = ReleaseStore.Select(root, release);
+            var currentCapture = bundle.Target(config.Project, true);
+            expected = config.Backup?.Source.PayloadFingerprint == currentCapture.PayloadFingerprint
+                ? currentCapture : bundle.Target(config.Project);
+        }
         else expected = config.Backup?.Source ?? throw new UsageException("Independent --target-evidence is required.");
         ArchiveContract.ValidateSource(expected);
         var capture = options.Has("--capture-payload") ? options.Get("--capture-payload") : config.Backup?.Payload

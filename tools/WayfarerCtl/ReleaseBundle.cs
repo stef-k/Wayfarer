@@ -8,17 +8,19 @@ namespace WayfarerCtl;
 public sealed record ReleaseBundle(string Directory, ReleaseManifest Manifest, string Fingerprint)
 {
     /// <summary>Reconstruct the release-level archive target solely from retained release bytes and a local project identity.</summary>
-    public SourceIdentity Target(string project)
+    public SourceIdentity Target(string project, bool currentCapture = false)
     {
+        var capture = currentCapture ? null : Manifest.LegacyCapture;
         var result = new SourceIdentity
         {
             ApplicationVersion = Manifest.Application.CompiledVersion, SourceRevision = Manifest.SourceRevision,
-            ReleaseStatus = Manifest.Status == "stable" ? "released" : "candidate",
+            ReleaseStatus = capture?.ReleaseStatus ?? (Manifest.Status == "stable" ? "released" : "candidate"),
             ApplicationImage = "ghcr.io/stef-k/wayfarer@" + Manifest.Images.ApplicationDigest,
             DatabaseImage = "ghcr.io/stef-k/wayfarer-db@" + Manifest.Images.DatabaseDigest,
             BundleFingerprint = LegacyFingerprint(["compose.yaml", "external.yaml", "caddy/Caddyfile", "db/20-wayfarer.sh"]),
-            PayloadFingerprint = LegacyFingerprint(["wayfarer-recovery", "WayfarerRecoverySource.dll"]),
-            Project = project, WorkerVersion = Manifest.Application.WorkerVersion,
+            PayloadFingerprint = LegacyFingerprint(capture is null
+                ? ["wayfarer-recovery", "WayfarerRecoverySource.dll"] : ReleaseContract.CapturePayloads),
+            Project = project, WorkerVersion = capture?.WorkerVersion ?? Manifest.Application.WorkerVersion,
             ExpectedMigrations = Manifest.Application.Migrations, ConfigurationSchema = 3,
             QuartzCompatibilityContract = Manifest.Application.QuartzCompatibilityContract,
             SupportedLegacySourceSchemas = Manifest.Application.SupportedLegacySourceSchemas,
@@ -48,8 +50,8 @@ public sealed record ReleaseBundle(string Directory, ReleaseManifest Manifest, s
         CheckFile(manifestFile, 420, installed, ArchiveContract.ManifestLimit);
         var manifestFacts = SafeDirectory.Inspect(manifestFile.SafeFileHandle);
         var manifest = ReleaseContract.Read(manifestFile);
-        var expected = ReleaseContract.Payloads.Append("release.json").Order(StringComparer.Ordinal).ToArray();
-        var actual = Inventory(root, "", installed).Order(StringComparer.Ordinal).ToArray();
+        var expected = ReleaseContract.Inventory(manifest).Append("release.json").Order(StringComparer.Ordinal).ToArray();
+        var actual = Inventory(root, "", installed, manifest).Order(StringComparer.Ordinal).ToArray();
         if (!actual.SequenceEqual(expected)) throw new IOException("Unexpected or missing release content.");
         manifestFile.Position = 0;
         using var fingerprint = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
@@ -71,20 +73,20 @@ public sealed record ReleaseBundle(string Directory, ReleaseManifest Manifest, s
         return new ReleaseBundle(directory, manifest, Convert.ToHexStringLower(fingerprint.GetHashAndReset()));
     }
 
-    private static IEnumerable<string> Inventory(SafeDirectory root, string prefix, bool installed)
+    private static IEnumerable<string> Inventory(SafeDirectory root, string prefix, bool installed, ReleaseManifest manifest)
     {
         foreach (var name in root.Names(16))
         {
             var path = prefix + name;
-            if (ReleaseContract.Directories.Contains(path))
+            if (ReleaseContract.Folders(manifest).Contains(path))
             {
                 using var child = root.Child(name);
                 CheckDirectory(child, installed);
-                foreach (var file in Inventory(child, path + "/", installed)) yield return file;
+                foreach (var file in Inventory(child, path + "/", installed, manifest)) yield return file;
             }
             else
             {
-                if (!ReleaseContract.Payloads.Contains(path) && path != "release.json") throw new IOException("Unexpected release entry.");
+                if (!ReleaseContract.Inventory(manifest).Contains(path) && path != "release.json") throw new IOException("Unexpected release entry.");
                 using var file = root.Read(name);
                 yield return path;
             }
@@ -124,7 +126,7 @@ public sealed record ReleaseBundle(string Directory, ReleaseManifest Manifest, s
     public void Corroborate(SourceIdentity evidence)
     {
         ArchiveContract.ValidateSource(evidence);
-        var target = Target(evidence.Project);
+        var target = Target(evidence.Project, evidence.PayloadFingerprint == Target(evidence.Project, true).PayloadFingerprint);
         if (evidence.Kind != target.Kind || evidence.ApplicationVersion != target.ApplicationVersion ||
             evidence.SourceRevision != target.SourceRevision || evidence.ApplicationImage != target.ApplicationImage ||
             evidence.DatabaseImage != target.DatabaseImage || evidence.BundleFingerprint != target.BundleFingerprint ||

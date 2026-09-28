@@ -50,7 +50,9 @@ public sealed class ReleaseBundleTests : IDisposable
     [InlineData("WayfarerRecoverySource.dll")]
     public void PayloadTamperingFails(string path)
     {
+        File.SetUnixFileMode(Path.Combine(directory, path), (UnixFileMode)420);
         File.AppendAllText(Path.Combine(directory, path), "tampered");
+        File.SetUnixFileMode(Path.Combine(directory, path), (UnixFileMode)ReleaseContract.Mode(path));
         Assert.Throws<IOException>(() => ReleaseBundle.Validate(directory));
     }
 
@@ -161,6 +163,32 @@ public sealed class ReleaseBundleTests : IDisposable
         Assert.Throws<UsageException>(() => (config with { Schema = 1 }).Validate());
     }
 
+    /// <summary>Historical helper bytes remain an explicit retained profile, never copied into the new capture identity.</summary>
+    [Fact]
+    public void HistoricalCapturePairIsInventoriedAndCorroboratedWithoutQuartzHistory()
+    {
+        Directory.CreateDirectory(Path.Combine(directory, "capture"));
+        var files = Manifest().Files.ToList();
+        foreach (var path in ReleaseContract.CapturePayloads)
+        {
+            File.WriteAllText(Path.Combine(directory, path), "old:" + path);
+            File.SetUnixFileMode(Path.Combine(directory, path), (UnixFileMode)ReleaseContract.Mode(path));
+            files.Add(new(path, Convert.ToHexStringLower(SHA256.HashData(File.ReadAllBytes(Path.Combine(directory, path)))), "file", ReleaseContract.Mode(path)));
+        }
+        Save(Manifest() with { LegacyCapture = new("1.9.18.0", "candidate"), Files = files.ToArray() });
+        var bundle = ReleaseBundle.Validate(directory);
+        var historical = bundle.Target("fixture");
+        var current = bundle.Target("fixture", true);
+        Assert.NotEqual(current.PayloadFingerprint, historical.PayloadFingerprint);
+        Assert.Equal("1.9.18.0", historical.WorkerVersion);
+        bundle.Corroborate(historical);
+        bundle.Corroborate(current);
+        var legacy = historical with { ConfigurationSchema = 2, QuartzIdentity = new string('f', 32),
+            QuartzCompatibilityContract = null, QuartzSnapshotFingerprint = null, SupportedLegacySourceSchemas = null };
+        Assert.True(ArchiveVerifier.IsCompatible(RecoveryCompatibilityTests.Manifest(legacy), historical));
+        Assert.False(ArchiveVerifier.IsCompatible(RecoveryCompatibilityTests.Manifest(legacy), current));
+    }
+
     private ReleaseManifest Manifest() => new(1, 1, 1, "candidate", "1.9.19", null,
         "https://github.com/stef-k/Wayfarer", new string('a', 40), "linux/amd64",
         new("ghcr.io/stef-k/wayfarer", "sha256:" + new string('b', 64), "sha256:" + new string('b', 64), "1.9.19", ReleaseContract.DatabaseDigest,
@@ -169,7 +197,7 @@ public sealed class ReleaseBundleTests : IDisposable
             "Wayfarer", "uploads", "data-protection", "ready", "1.9.19.0"),
         new("1.9.19", "1.9.19", 1, [1], [1, 2, 3, 4], [1], [1], []), [],
         ReleaseContract.Payloads.Select(path => new ReleaseFile(path,
-            Convert.ToHexStringLower(SHA256.HashData(File.ReadAllBytes(Path.Combine(directory, path)))), "file", ReleaseContract.Mode(path))).ToArray());
+            Convert.ToHexStringLower(SHA256.HashData(File.ReadAllBytes(Path.Combine(directory, path)))), "file", ReleaseContract.Mode(path))).ToArray(), null);
 
     private void Save(ReleaseManifest manifest)
     {

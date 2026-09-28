@@ -63,6 +63,17 @@ public sealed class ReleaseImagesVerifier(IProcessRunner runner)
                 throw new IOException("Application-owned release compatibility differs from manifest.");
         if (actualContract.RootElement.EnumerateObject().Count() != expected.EnumerateObject().Count() - 1)
             throw new IOException("Incomplete application release contract.");
+        if (manifest.LegacyCapture is { } capture)
+        {
+            var legacy = await ProbeAsync(containers, prefix + "-capture",
+                [.. RestoreContainers.Unprivileged(), "--network=none", "--volume",
+                    Path.Combine(bundle.Directory, "capture/wayfarer-recovery") + ":/worker:ro",
+                    "--entrypoint=/worker", "ghcr.io/stef-k/wayfarer-db@" + images.DatabaseDigest, "runtime-check"], token);
+            using var legacyRuntime = JsonDocument.Parse(legacy);
+            if (legacyRuntime.RootElement.GetProperty("Schema").GetInt32() != 1 ||
+                legacyRuntime.RootElement.TryGetProperty("Version", out var observed) && observed.GetString() != capture.WorkerVersion)
+                throw new IOException("Historical capture runtime differs from its retained contract.");
+        }
         return true;
     }
 
