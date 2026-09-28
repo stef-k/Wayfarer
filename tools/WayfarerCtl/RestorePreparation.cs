@@ -91,7 +91,8 @@ public sealed class RestorePreparation(IProcessRunner runner)
             manifest.Mode, expected.BundleFingerprint, expected.PayloadFingerprint, payloadFingerprint,
             config.StorageGeneration, Guid.NewGuid().ToString("N"), options.Has("--new-install"),
             options.Has("--without-emergency-backup"), options.Has("--archive"))
-        { LocalSecretsFingerprint = options.Has("--new-install") ? null : ProtectedFiles.SecretsFingerprint(root) };
+        { LocalSecretsFingerprint = options.Has("--new-install") ? null : ProtectedFiles.SecretsFingerprint(root),
+            OperatorOwner = ReleaseDispatch.CurrentOwner(root, config) };
         ProtectedFiles.Create(Path.Combine(directory, "plan.json"), JsonSerializer.Serialize(plan));
         foreach (var path in new[] { directory, Path.GetDirectoryName(directory)!, root })
         {

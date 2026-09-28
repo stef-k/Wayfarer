@@ -43,6 +43,8 @@ public sealed class Cli(IProcessRunner runner, ITerminal terminal)
         ValidateCommand(args);
         Preflight.Platform();
         ProtectedFiles.RequireRoot();
+        if (args[0] == "dispatch") return await ReleaseDispatch.RunAsync(root, args[1..], token);
+        if (args[0] == "release") return await new ReleaseCommands(runner, terminal).RunAsync(root, args[1..], token);
         if (args[0] == "restore") return await new RestoreCommands(runner, terminal).RunAsync(root, args[1..], token);
         if (args[0] == "setup") return await new Setup(runner, terminal).RunAsync(root, args[1..], token);
         if (args[0] is "status" or "doctor" && RestoreReceipt.Load(root) is { } restore)
@@ -74,6 +76,8 @@ public sealed class Cli(IProcessRunner runner, ITerminal terminal)
     /// <summary>Validate all direct argument forms before touching deployment state.</summary>
     public static void ValidateCommand(string[] args)
     {
+        if (args is ["dispatch", ..] && args.Length > 1 && args[1] != "dispatch") { ValidateCommand(args[1..]); return; }
+        if (args is ["release", ..]) { ReleaseCommands.Validate(args[1..]); return; }
         if (args is ["restore", ..]) { RestoreOptions.Parse(args[1..]); return; }
         if (args is ["backup", "configure", ..]) { BackupConfiguration.Options(args[2..]); return; }
         if (args is ["backup"] or ["backup", "--quiesced"] or ["backups"] or ["verify-backup"]) return;

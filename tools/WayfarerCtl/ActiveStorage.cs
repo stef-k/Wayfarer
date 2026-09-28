@@ -12,7 +12,7 @@ public static class ActiveStorage
     /// <summary>Older schemas always select canonical storage; schema three requires a generated UUID.</summary>
     public static void Validate(Deployment config)
     {
-        if (config.Schema == 3 ? !Regex.IsMatch(config.StorageGeneration ?? "", "^[a-f0-9]{32}$") : config.StorageGeneration is not null)
+        if (config.Schema == 3 || config.Schema == 4 && config.StorageGeneration is not null ? !Regex.IsMatch(config.StorageGeneration ?? "", "^[a-f0-9]{32}$") : config.StorageGeneration is not null)
             throw new UsageException("Invalid active storage generation for installation schema.");
     }
 

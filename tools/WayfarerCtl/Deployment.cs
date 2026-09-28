@@ -14,6 +14,9 @@ public sealed record Deployment
     /// <summary>One locally generated identity selects the complete active durable generation.</summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public string? StorageGeneration { get; init; }
+    /// <summary>Optional retained release identity; old operators reject this additive unknown field.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public ReleaseAuthority? Release { get; init; }
     public string Bundle { get; init; } = "";
     public string Project { get; init; } = "wayfarer";
     public string Hostname { get; init; } = "";
@@ -30,9 +33,12 @@ public sealed record Deployment
     /// <summary>Fail closed on unknown schema, identities, input expansion and unsupported proxy topology.</summary>
     public void Validate()
     {
-        if (Schema is not (1 or 2 or 3) || Schema == 1 && (Installation != Guid.Empty || Backup is not null) ||
-            Schema >= 2 && Installation == Guid.Empty || !Path.IsPathFullyQualified(Bundle) || Bundle.IndexOfAny(['\n', '\r', '$', '"', '\'','`']) >= 0)
+        if (Schema is not (1 or 2 or 3 or 4) || Schema == 1 && (Installation != Guid.Empty || Backup is not null) ||
+            Schema is 2 or 3 && Installation == Guid.Empty || !Path.IsPathFullyQualified(Bundle) || Bundle.IndexOfAny(['\n', '\r', '$', '"', '\'','`']) >= 0)
             throw new UsageException("Invalid installation schema or absolute bundle path.");
+        Release?.Validate();
+        if ((Schema == 4) != (Release is not null) || Backup is not null && Installation == Guid.Empty)
+            throw new UsageException("Release authority requires installation schema four.");
         ActiveStorage.Validate(this);
         Backup?.Validate();
         if (!Regex.IsMatch(Project, "^[a-z0-9][a-z0-9_-]{0,62}$")) throw new UsageException("Invalid project identity.");
@@ -73,6 +79,7 @@ public sealed record Deployment
         { UnmappedMemberHandling = System.Text.Json.Serialization.JsonUnmappedMemberHandling.Disallow })
             ?? throw new UsageException("Missing installation identity.");
         config.CheckBundle();
+        if (config.Release is not null) ReleaseStore.Select(root, config.Release);
         if (config.Backup is not null && !InstallationCompletion.HasCompletionEvidence(root))
             throw new UsageException("Incomplete setup cannot use backup schema/policy.");
         ProtectedFiles.Check(Path.Combine(root, "deployment.env"), 0);

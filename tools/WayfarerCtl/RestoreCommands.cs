@@ -117,6 +117,7 @@ public sealed class RestoreCommands(IProcessRunner runner, ITerminal terminal)
     /// <summary>Bind execution to unchanged target authority and reverify only frozen bytes after interruption.</summary>
     private async Task RevalidateAsync(string root, RestorePlan plan, CancellationToken token)
     {
+        ReleaseDispatch.RequireOwner(root, plan);
         if (plan.NewInstall)
         {
             if (File.Exists(Path.Combine(root, "installation.json")) || Directory.Exists(Path.Combine(root, "secrets")))
@@ -165,6 +166,7 @@ public sealed class RestoreCommands(IProcessRunner runner, ITerminal terminal)
     {
         try
         {
+            ReleaseDispatch.RequireOwner(root, receipt.Plan);
             if (receipt.Plan.NewInstall && receipt.Phase == RestorePhase.Authorized)
             {
                 InitializeNewTarget(root, receipt.Plan.Target);
@@ -243,6 +245,7 @@ public sealed class RestoreCommands(IProcessRunner runner, ITerminal terminal)
     private async Task<int> RecoverAsync(string root, RestoreOptions options, CancellationToken token)
     {
         var receipt = RestoreReceipt.Load(root) ?? throw new UsageException("No restore receipt.");
+        ReleaseDispatch.RequireOwner(root, receipt.Plan);
         var id = options.Get(options.Has("--abort") ? "--abort" : "--resume");
         if (receipt.Plan.Operation.ToString("D") != id) throw new UsageException("Restore operation mismatch.");
         if (receipt.Phase is RestorePhase.Accepted or RestorePhase.Aborted) throw new UsageException("Restore already resolved.");
