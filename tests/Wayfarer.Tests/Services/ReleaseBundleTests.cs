@@ -163,7 +163,7 @@ public sealed class ReleaseBundleTests : IDisposable
 
     private ReleaseManifest Manifest() => new(1, 1, 1, "candidate", "1.9.19", null,
         "https://github.com/stef-k/Wayfarer", new string('a', 40), "linux/amd64",
-        new("sha256:" + new string('b', 64), "sha256:" + new string('b', 64), "1.9.19", ReleaseContract.DatabaseDigest,
+        new("ghcr.io/stef-k/wayfarer", "sha256:" + new string('b', 64), "sha256:" + new string('b', 64), "1.9.19", ReleaseContract.DatabaseDigest,
             ReleaseContract.CaddyDigest, 17, "3.6.4", "1.6", "UTF8", "C.UTF-8", "C.UTF-8", "c"),
         new("1.9.19", ["20260101000000_Initial"], "20260101000000_Initial", "wayfarer-quartz-postgres-v1", [2], new string('d', 64),
             "Wayfarer", "uploads", "data-protection", "ready", "1.9.19.0"),

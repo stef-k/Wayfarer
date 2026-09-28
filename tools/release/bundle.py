@@ -102,7 +102,7 @@ def assemble(output: Path, app_digest: str) -> Path:
     manifest = {'Schema': 1, 'BundleContract': 1, 'ConfigurationSchema': 1, 'Status': 'candidate',
         'Version': release['version'], 'Tag': None, 'Repository': image.SOURCE,
         'SourceRevision': release['sourceRevision'], 'Platform': image.PLATFORM,
-        'Images': {'ApplicationDigest': app_digest, 'PlatformDigest': app_digest, 'OciVersion': release['version'],
+        'Images': {'ApplicationRepository': image.IMAGE, 'ApplicationDigest': app_digest, 'PlatformDigest': app_digest, 'OciVersion': release['version'],
                    'DatabaseDigest': DB, 'CaddyDigest': CADDY, 'PostgreSqlMajor': 17, 'Postgis': '3.6.4',
                    'Citext': '1.6', 'Encoding': 'UTF8', 'Collation': 'C.UTF-8', 'CharacterType': 'C.UTF-8', 'LocaleProvider': 'c'},
         'Application': application, 'Operator': operator, 'Sources': [],

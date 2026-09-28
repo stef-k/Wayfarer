@@ -22,6 +22,13 @@ def qualify_release(journey):
     assert journey.host('cat', str(journey.install / 'installation.json')).stdout == original
     installed = journey.install / 'releases' / imported['Release']
     assert json.loads(journey.ctl('release', 'import', str(source)).stdout)['Fingerprint'] == imported['Fingerprint']
+    manifest_path = source / 'release.json'
+    manifest_bytes = journey.host('cat', str(manifest_path)).stdout
+    contradictory = json.loads(manifest_bytes)
+    contradictory['SourceRevision'] = 'f' * 40
+    write_json(journey, manifest_path, contradictory)
+    assert journey.ctl('release', 'verify-images', str(source), check=False).returncode != 0
+    journey.host('tee', str(manifest_path), data=manifest_bytes)
     # Exact installed payload corruption must fail even though its namespace is trusted.
     journey.host('cp', str(installed / 'compose.yaml'), str(journey.directory / 'compose.saved'))
     journey.host('tee', str(installed / 'compose.yaml'), data='tampered')

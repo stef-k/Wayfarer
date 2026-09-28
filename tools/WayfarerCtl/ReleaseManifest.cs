@@ -15,7 +15,7 @@ public sealed record ReleaseManifest(int Schema, int BundleContract, int Configu
 }
 
 /// <summary>Index and selected platform digest are distinct even when a single-platform artifact uses the same value.</summary>
-public sealed record ReleaseImages(string ApplicationDigest, string PlatformDigest, string OciVersion,
+public sealed record ReleaseImages(string ApplicationRepository, string ApplicationDigest, string PlatformDigest, string OciVersion,
     string DatabaseDigest, string CaddyDigest, int PostgreSqlMajor, string Postgis, string Citext,
     string Encoding, string Collation, string CharacterType, string LocaleProvider);
 
@@ -85,7 +85,7 @@ public static class ReleaseContract
             value.Repository != "https://github.com/stef-k/Wayfarer" || !Match(value.SourceRevision, "[a-f0-9]{40}") ||
             value.Platform != "linux/amd64") throw new IOException("Unsupported release identity.");
         var images = value.Images;
-        if (!Match(images.ApplicationDigest, "sha256:[a-f0-9]{64}") || !Match(images.PlatformDigest, "sha256:[a-f0-9]{64}") ||
+        if (images.ApplicationRepository != "ghcr.io/stef-k/wayfarer" || !Match(images.ApplicationDigest, "sha256:[a-f0-9]{64}") || !Match(images.PlatformDigest, "sha256:[a-f0-9]{64}") ||
             images.OciVersion != value.Version || images.DatabaseDigest != DatabaseDigest || images.CaddyDigest != CaddyDigest ||
             images.PostgreSqlMajor != 17 || images.Postgis != "3.6.4" || images.Citext != "1.6" || images.Encoding != "UTF8" ||
             images.Collation != "C.UTF-8" || images.CharacterType != "C.UTF-8" || images.LocaleProvider != "c")
@@ -116,6 +116,7 @@ public static class ReleaseContract
     private static void ValidateOperator(ReleaseOperator value)
     {
         if (!VersionSyntax(value.Version) || !VersionSyntax(value.MinimumVersion) || value.Contract != 1 ||
+            System.Version.Parse(value.MinimumVersion) > System.Version.Parse(value.Version) ||
             !value.ManifestSchemas.SequenceEqual(new[] { 1 }) || !value.InstallationSchemas.SequenceEqual(new[] { 1, 2, 3, 4 }) ||
             !value.ArchiveSchemas.SequenceEqual(new[] { 1 }) || !value.RestoreReceiptSchemas.SequenceEqual(new[] { 1 }) ||
             value.UpdateReceiptSchemas.Length != 0) throw new IOException("Unsupported operator contract.");

@@ -87,7 +87,12 @@ public static class ReleaseStore
         var authority = JsonSerializer.Deserialize<ReleaseAuthority>(receipt, ArchiveContract.Json)
             ?? throw new IOException("Missing placement receipt.");
         authority.Validate();
-        if (parent.Names().Contains(authority.Name)) return Select(root, authority);
+        if (parent.Names().Contains(authority.Name))
+        {
+            var published = Select(root, authority);
+            if (!parent.Names().Contains(stageName)) parent.Delete(stageName + ".json");
+            return published;
+        }
         var staged = Same(Path.Combine(releases, stageName), authority.Fingerprint);
         if (ReleaseAuthority.From(staged) != authority) throw new IOException("Placement owner differs.");
         parent.Publish(stageName, authority.Name);
