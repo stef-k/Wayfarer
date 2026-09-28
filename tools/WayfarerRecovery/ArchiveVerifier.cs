@@ -39,18 +39,37 @@ public static class ArchiveVerifier
         var protector = provider.CreateProtector("Wayfarer.Recovery.Verify.v1");
         if (protector.Unprotect(protector.Protect("ready")) != "ready") throw new IOException("Key ring is unusable.");
         await DatabaseCapture.RunAsync("pg_restore", ["--list", Path.Combine(staging, "database.dump")], null, token);
-        var compatible = manifest.Source.Kind == expected.Kind && manifest.Source.ApplicationImage == expected.ApplicationImage &&
+        return new VerifyResult(1, true, IsCompatible(manifest, expected), manifest.Archive, name, manifest.Mode)
+        { ExpandedFileBytes = checked(uploadsBytes + ringBytes) };
+    }
+
+    /// <summary>Classify validated metadata only; callers must still verify bytes and require trusted SQL provenance.</summary>
+    public static bool IsCompatible(RecoveryManifest manifest, SourceIdentity expected)
+    {
+        ArchiveContract.Validate(manifest);
+        ArchiveContract.ValidateSource(expected);
+        return manifest.Source.Kind == expected.Kind && manifest.Source.ApplicationImage == expected.ApplicationImage &&
             manifest.Source.DatabaseImage == expected.DatabaseImage && manifest.Source.SourceRevision == expected.SourceRevision &&
-            manifest.Source.ApplicationName == expected.ApplicationName && manifest.Source.QuartzIdentity == expected.QuartzIdentity &&
+            manifest.Source.ApplicationName == expected.ApplicationName && QuartzCompatible(manifest.Source, expected) &&
             manifest.Source.ApplicationVersion == expected.ApplicationVersion && manifest.Source.Platform == expected.Platform &&
             manifest.Source.StableIdentity == "ready" && manifest.Database.Major == 17 && manifest.Database.Name == "wayfarer" &&
             manifest.Database.Encoding == "UTF8" && manifest.Database.PostgisExtension == "3.6.4" && manifest.Database.Citext == "1.6" &&
             manifest.Database.Collation == "C.UTF-8" && manifest.Database.CharacterType == "C.UTF-8" && manifest.Database.LocaleProvider == "c" &&
             manifest.Database.PostgisExtension == manifest.Database.PostgisLibrary &&
             manifest.Database.Migrations.SequenceEqual(expected.ExpectedMigrations);
-        return new VerifyResult(1, true, compatible, manifest.Archive, name, manifest.Mode)
-        { ExpandedFileBytes = checked(uploadsBytes + ringBytes) };
     }
+
+    /// <summary>Only target-owned support can bridge legacy evidence; new snapshots are not target authority.</summary>
+    private static bool QuartzCompatible(SourceIdentity source, SourceIdentity target) => target.ConfigurationSchema switch
+    {
+        2 => source.ConfigurationSchema == 2 && source.QuartzIdentity == target.QuartzIdentity,
+        3 => source.ConfigurationSchema == 3
+            ? source.QuartzCompatibilityContract == target.QuartzCompatibilityContract
+            : target.SupportedLegacySourceSchemas!.Contains(2) &&
+                source.BundleFingerprint == target.BundleFingerprint && source.PayloadFingerprint == target.PayloadFingerprint &&
+                source.WorkerVersion == target.WorkerVersion && source.ReleaseStatus == target.ReleaseStatus,
+        _ => false
+    };
 
     private static async Task<RecoveryManifest> ReadOuterAsync(Stream archive, string staging, CancellationToken token)
     {

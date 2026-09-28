@@ -365,6 +365,42 @@ it is explicitly not full verification. Verification bounds bytes, entries, path
 manifest and elapsed time, never executes SQL, and distinguishes integrity from
 source/schema compatibility. Unknown compatibility is not restore readiness.
 
+### Versioned Quartz recovery identity
+
+New explicit `backup configure` inspections produce `Source.ConfigurationSchema=3`.
+`QuartzSchemaInstaller` owns `wayfarer-quartz-postgres-v1`, the release compatibility
+contract shared by fresh and supported additive-upgrade layouts. It changes only
+when product restore compatibility changes. The inspector reads this authority from
+the loaded application image, without web/jobs or database mutation. Older images
+without that capability cannot be newly configured as schema 3; their existing
+schema-2 backup policies remain usable without automatic rewriting.
+
+Schema 3 separately records `QuartzSnapshotFingerprint`: MD5 over PostgreSQL JSON
+column tuples ordered by table/column name under C collation. Facts include type,
+UDT identity, nullability, length/precision, defaults, identity and generation
+attributes for `qrtz_` columns in the current schema. It excludes physical ordinal
+and user data. This is capture drift evidence, not an authenticity check or release
+contract. Capture recomputes it inside the read-only snapshot exported to `pg_dump`;
+a mismatch fails before dumping. EF migration and DB/extension checks still apply.
+
+Legacy schema 2 retains its original `QuartzIdentity` algorithm (table/column/type/
+nullability in physical ordinal order) and capture equality. Historical archives and
+persisted policies are never rewritten. A schema-2 target still requires exact
+legacy Quartz equality and rejects schema-3 archives. A schema-3 target compares
+only the release Quartz contract for schema-3 archives, not their snapshot values.
+
+A schema-3 target accepts schema-2 archives only when its independently trusted
+`SupportedLegacySourceSchemas` explicitly includes `2`. Application version/source/
+image, database image/major/extensions, full EF history, stable Data Protection
+application identity, bundle/capture payload, worker version and release status must
+match. Archive metadata cannot grant legacy support. This is bounded exact-release
+compatibility, not permission to import arbitrary old releases. Archive integrity,
+explicit trusted provenance, isolated SQL staging and offline product validation
+remain mandatory; production Quartz validation is the final restored-schema owner.
+
+The outer archive remains version 1. No EF migration or Quartz table reordering is
+introduced. Retained release bundles (#699) and managed update remain separate work.
+
 ## Managed restore
 
 `restore` restores a matched database, complete Data Protection ring and durable

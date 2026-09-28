@@ -73,14 +73,25 @@ public static class ArchiveContract
     /// <summary>All externally supplied identity strings have bounded syntax before listing or compatibility use.</summary>
     public static void ValidateSource(SourceIdentity source)
     {
-        if (source.ApplicationName != "Wayfarer" || source.Platform != "linux/amd64" || source.ConfigurationSchema != 2 ||
+        if (source.ApplicationName != "Wayfarer" || source.Platform != "linux/amd64" || source.ConfigurationSchema is not (2 or 3) ||
             source.StableIdentity != "ready" || source.ReleaseStatus is not ("candidate" or "released") ||
             !Regex.IsMatch(source.SourceRevision, "^[a-f0-9]{40}$") ||
             !Regex.IsMatch(source.PayloadFingerprint, "^[a-f0-9]{64}$") ||
             !Regex.IsMatch(source.ApplicationVersion, "^[0-9][A-Za-z0-9.+-]{0,127}$") ||
-            !Regex.IsMatch(source.WorkerVersion, "^[0-9][A-Za-z0-9.+-]{0,63}$") ||
-            !Regex.IsMatch(source.QuartzIdentity, "^[A-Za-z0-9.-]{1,128}$"))
+            !Regex.IsMatch(source.WorkerVersion, "^[0-9][A-Za-z0-9.+-]{0,63}$"))
             throw new IOException("Invalid source identity.");
+        if (source.ConfigurationSchema == 2)
+        {
+            if (source.QuartzIdentity is null || !Regex.IsMatch(source.QuartzIdentity, "^[A-Za-z0-9.-]{1,128}$") ||
+                source.QuartzCompatibilityContract is not null || source.QuartzSnapshotFingerprint is not null ||
+                source.SupportedLegacySourceSchemas is not null) throw new IOException("Mixed legacy source identity.");
+        }
+        else if (source.QuartzIdentity is not null || source.QuartzCompatibilityContract is null ||
+            !Regex.IsMatch(source.QuartzCompatibilityContract, "^[A-Za-z0-9.-]{1,128}$") ||
+            source.QuartzSnapshotFingerprint is null || !Regex.IsMatch(source.QuartzSnapshotFingerprint, "^[a-f0-9]{32}$") ||
+            source.SupportedLegacySourceSchemas is null || source.SupportedLegacySourceSchemas.Length > 1 ||
+            source.SupportedLegacySourceSchemas.Any(schema => schema != 2))
+            throw new IOException("Invalid versioned Quartz source identity.");
         if (source.Kind == "compose")
         {
             if (!Regex.IsMatch(source.BundleFingerprint, "^[a-f0-9]{64}$") ||
@@ -177,8 +188,18 @@ public sealed record SourceIdentity
     public string StableIdentity { get; init; } = "ready";
     [JsonRequired]
     public string[] ExpectedMigrations { get; init; } = [];
-    [JsonRequired]
-    public string QuartzIdentity { get; init; } = "";
+    /// <summary>Schema-2 physical capture/target identity only; absent from schema 3.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? QuartzIdentity { get; init; }
+    /// <summary>Schema-3 release-owned compatibility token, independent of catalog history.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? QuartzCompatibilityContract { get; init; }
+    /// <summary>Schema-3 capture evidence only; never compared with a restore target.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? QuartzSnapshotFingerprint { get; init; }
+    /// <summary>Bounded legacy support used only from independently trusted schema-3 target evidence.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public int[]? SupportedLegacySourceSchemas { get; init; }
 }
 
 /// <summary>Database identity observed from the dump's exported read-only snapshot.</summary>

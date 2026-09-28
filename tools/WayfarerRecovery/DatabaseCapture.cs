@@ -40,13 +40,7 @@ public static class DatabaseCapture
                 identity.CharacterType != "C.UTF-8" || identity.LocaleProvider != "c" ||
                 identity.Migrations.Length == 0 || !identity.Migrations.SequenceEqual(source.ExpectedMigrations))
                 throw new IOException("Unsupported database/schema identity.");
-            await using (var quartz = new NpgsqlCommand("""
-                SELECT md5(string_agg(table_name || ':' || column_name || ':' || data_type || ':' || is_nullable,
-                    '|' ORDER BY table_name, ordinal_position))
-                FROM information_schema.columns WHERE table_schema=current_schema() AND left(table_name,5)='qrtz_'
-                """, connection, transaction))
-                if (await quartz.ExecuteScalarAsync(token) as string != source.QuartzIdentity)
-                    throw new IOException("Quartz schema changed since source inspection.");
+            await ValidateQuartzSnapshotAsync(connection, transaction, source, token);
             await using var export = new NpgsqlCommand("SELECT pg_export_snapshot()", connection, transaction);
             var snapshot = (string)(await export.ExecuteScalarAsync(token) ?? throw new IOException("Snapshot unavailable."));
             var path = Path.Combine(staging, "database.dump");
@@ -70,6 +64,18 @@ public static class DatabaseCapture
             catch (Exception error) when (error is IOException or UnauthorizedAccessException)
             { Console.Error.WriteLine("Private credential cleanup failed; primary result retained."); }
         }
+    }
+
+    /// <summary>Verify source inspection against the same read-only transaction exported to pg_dump.</summary>
+    public static async Task ValidateQuartzSnapshotAsync(NpgsqlConnection connection, NpgsqlTransaction transaction,
+        SourceIdentity source, CancellationToken token)
+    {
+        ArchiveContract.ValidateSource(source);
+        var sql = source.ConfigurationSchema == 2 ? Wayfarer.Util.QuartzSnapshot.LegacySql : Wayfarer.Util.QuartzSnapshot.CanonicalSql;
+        var expected = source.ConfigurationSchema == 2 ? source.QuartzIdentity : source.QuartzSnapshotFingerprint;
+        await using var command = new NpgsqlCommand(sql, connection, transaction);
+        if (await command.ExecuteScalarAsync(token) as string != expected)
+            throw new IOException("Quartz schema changed since source inspection.");
     }
 
     private static async Task<DatabaseIdentity> IdentityAsync(NpgsqlConnection connection, NpgsqlTransaction transaction, CancellationToken token)

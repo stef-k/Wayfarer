@@ -7,6 +7,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
   <ItemGroup>
+    <!-- One catalog algorithm shared by inspection and exported-snapshot capture. -->
+    <Compile Include="../../Util/QuartzSnapshot.cs" Link="QuartzSnapshot.cs" />
     <ProjectReference Include="../../Wayfarer.csproj" />
     <Compile Include="../../CommandLine/RecoverySourceCli.cs" Link="RecoverySourceCli.cs" />
   </ItemGroup>

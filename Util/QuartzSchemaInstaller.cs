@@ -7,6 +7,9 @@ using Wayfarer.Models;
 /// <summary>Owns installation and alignment of Wayfarer's PostgreSQL Quartz schema.</summary>
 public static class QuartzSchemaInstaller
 {
+    /// <summary>Release-owned restore compatibility; change deliberately when supported semantics change.</summary>
+    public static string RecoveryCompatibilityContract => "wayfarer-quartz-postgres-v1";
+
     private const int AdvisoryLockNamespace = 1463898454;
     private const int AdvisoryLockResource = 478;
 
