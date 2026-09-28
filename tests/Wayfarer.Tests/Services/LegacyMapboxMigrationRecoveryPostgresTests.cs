@@ -18,8 +18,40 @@ namespace Wayfarer.Tests.Services;
 
 /// <summary>Qualifies absent-row concurrency and transactional recovery at the migration owner.</summary>
 [Collection(PostgresEnvironmentEvidenceTestCollection.Name)]
-public sealed class LegacyMapboxMigrationRecoveryPostgresTests(PostgresImportTestFixture fixture)
+public sealed class LegacyMapboxMigrationRecoveryPostgresTests : IAsyncLifetime
 {
+    // Each xUnit case owns its rows; collection lifetime would retain them during environment evidence.
+    private readonly PostgresImportTestFixture fixture = new();
+
+    /// <summary>Attaches this case's owner to the guarded reusable PostgreSQL database.</summary>
+    public Task InitializeAsync() => fixture.InitializeAsync();
+
+    /// <summary>Removes only this case's rows before another case in the collection starts.</summary>
+    public Task DisposeAsync() => fixture.DisposeAsync();
+
+    /// <summary>Case disposal removes its user and dependent rows while preserving another owner's data.</summary>
+    [PostgresFact]
+    public async Task CaseLifetime_CleansOwnedRowsAndPreservesOtherOwner()
+    {
+        var retained = await fixture.CreateUserAsync();
+        var scenario = new LegacyMapboxMigrationRecoveryPostgresTests();
+        await scenario.InitializeAsync();
+        ApplicationUser owned;
+        try
+        {
+            owned = await scenario.SeedAsync();
+            await using var seeded = fixture.CreateContext();
+            Assert.True(await seeded.Users.AnyAsync(user => user.Id == owned.Id));
+            Assert.True(await seeded.ApiTokens.IgnoreQueryFilters().AnyAsync(token => token.UserId == owned.Id));
+        }
+        finally { await scenario.DisposeAsync(); }
+
+        await using var verify = fixture.CreateContext();
+        Assert.False(await verify.Users.AnyAsync(user => user.Id == owned.Id));
+        Assert.False(await verify.ApiTokens.IgnoreQueryFilters().AnyAsync(token => token.UserId == owned.Id));
+        Assert.True(await verify.Users.AnyAsync(user => user.Id == retained.Id));
+    }
+
     /// <summary>Navigation preserves durable legacy, consent, verification, authorization and selection fields.</summary>
     [PostgresTheory]
     [InlineData(false)]
