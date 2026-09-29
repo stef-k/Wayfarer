@@ -97,9 +97,10 @@ def migration_failure(journey):
     """A real nonzero target helper leaves source history unchanged and cannot be retried or accepted."""
     plan, digest = plan_update(journey)
     journey.host('tee', str(journey.directory / 'failure'), data='update-failure')
-    assert journey.ctl('update', '--accept-plan', digest, check=False).returncode == 1
+    failure = journey.ctl('update', '--accept-plan', digest, check=False)
+    assert failure.returncode == 1, failure.stderr
     receipt = update_receipt(journey)
-    assert receipt['Phase'] == 3 and receipt['MigrationExit'] != 0
+    assert receipt['Phase'] == 3 and receipt['MigrationExit'] != 0, (receipt['Phase'], failure.stderr)
     history = journey.compose('exec', '-T', 'db', 'psql', '-U', 'postgres', '-d', 'wayfarer', '-At', '-c',
         'SELECT "MigrationId" FROM "__EFMigrationsHistory" ORDER BY "MigrationId";').splitlines()
     assert history == plan['Current']['Backup']['Source']['ExpectedMigrations']
