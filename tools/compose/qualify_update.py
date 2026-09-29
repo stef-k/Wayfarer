@@ -33,9 +33,10 @@ esac
     migration_failure(journey)
     plan, digest = plan_update(journey)
     journey.host('tee', str(journey.directory / 'failure'), data='update-ack')
-    assert journey.ctl('update', '--accept-plan', digest, check=False).returncode != 0
+    failure = journey.ctl('update', '--accept-plan', digest, check=False)
+    assert failure.returncode != 0, failure.stderr
     receipt = update_receipt(journey)
-    assert receipt['Phase'] == 3 and receipt['RecoveryArchive'] and receipt['RecoverySha256']
+    assert receipt['Phase'] == 3 and receipt['RecoveryArchive'] and receipt['RecoverySha256'], failure.stderr
     helper = receipt['MigrationContainer']
     started = journey.host('docker', 'inspect', '--format', '{{.State.StartedAt}}', helper).stdout
     assert journey.ctl('start', check=False).returncode != 0
