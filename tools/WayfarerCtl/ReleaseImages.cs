@@ -78,7 +78,7 @@ public sealed class ReleaseImagesVerifier(IProcessRunner runner)
     }
 
     /// <summary>Stateless probes retain no installation data; reap only our confirmed-stopped named helper.</summary>
-    private async Task<string> ProbeAsync(RestoreContainers containers, string name, string[] command, CancellationToken token)
+    internal async Task<string> ProbeAsync(RestoreContainers containers, string name, string[] command, CancellationToken token)
     {
         Exception? primary = null;
         try { return await containers.RunAsync(name, command, token); }

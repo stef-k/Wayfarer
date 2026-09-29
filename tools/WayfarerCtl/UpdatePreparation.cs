@@ -114,11 +114,10 @@ public sealed class UpdatePreparation(IProcessRunner runner)
     {
         var name = config.Project + "-restore-update-inspect-" + operation.ToString("N") + "-" + Guid.NewGuid().ToString("N");
         var owner = new RestoreContainers(runner);
-        var output = await owner.RunAsync(name, [.. Maintenance(root, config), "--volume",
+        var output = await new ReleaseImagesVerifier(runner).ProbeAsync(owner, name, [.. Maintenance(root, config), "--volume",
             Path.Combine(bundle.Directory, "WayfarerRecoverySource.dll") + ":/inspection.dll:ro", "--entrypoint=dotnet",
             "ghcr.io/stef-k/wayfarer@" + config.AppDigest, "exec", "--runtimeconfig", "/app/Wayfarer.runtimeconfig.json",
             "--depsfile", "/app/Wayfarer.deps.json", "/inspection.dll"], token);
-        await owner.Required(["rm", name], token);
         using var document = JsonDocument.Parse(output);
         var facts = document.RootElement;
         var app = bundle.Manifest.Application;
@@ -150,13 +149,12 @@ public sealed class UpdatePreparation(IProcessRunner runner)
         BackupPolicy.LiteralPath(dockerRoot);
         if (dockerRoot.IndexOfAny([',', ':']) >= 0) throw new IOException("Unsupported Docker storage path.");
         var name = config.Project + "-restore-update-capacity-" + Guid.NewGuid().ToString("N");
-        var output = await owner.RunAsync(name, ["--network=none", "--read-only", "--user=0", "--cap-drop=ALL",
+        var output = await new ReleaseImagesVerifier(runner).ProbeAsync(owner, name, ["--network=none", "--read-only", "--user=0", "--cap-drop=ALL",
             "--cap-add=DAC_READ_SEARCH", "--security-opt=no-new-privileges:true", "--tmpfs=/var/lib/postgresql/data:ro,mode=000,size=65536",
             "--mount", "type=bind,source=" + dockerRoot + ",target=/storage,readonly",
             "--mount", "type=volume,source=" + ActiveStorage.Volume(config, "app-data") + ",target=/files,readonly",
             "--entrypoint=sh", "ghcr.io/stef-k/wayfarer-db@" + config.DbDigest, "-ec",
             "df -Pk /storage | tail -1 | awk '{printf \"%s \", $4}'; du -sk /files | awk '{print $1}'"], token);
-        await owner.Required(["rm", name], token);
         var observed = output.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)
             .Select(item => checked(long.Parse(item, System.Globalization.CultureInfo.InvariantCulture) * 1024)).ToArray();
         if (observed.Length != 2 || observed.Any(item => item < 0)) throw new IOException("Unknown storage capacity.");

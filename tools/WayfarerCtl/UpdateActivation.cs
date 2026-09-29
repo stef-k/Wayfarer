@@ -52,6 +52,7 @@ public sealed class UpdateActivation(IProcessRunner runner)
         {
             await owner.Required(target.Compose(root, "-f", privateOverlay, "up", "-d", "--no-recreate", "--pull", "never", "--wait", "--wait-timeout", "180", "wayfarer"), token);
             await owner.Required(target.Compose(root, "exec", "-T", "wayfarer", "dotnet", "Wayfarer.dll", "healthcheck"), token);
+            await PrivateEndpointAsync(root, receipt, target, token);
             var evidence = await new UpdatePreparation(runner).InspectAsync(root, target,
                 ReleaseStore.Select(root, target.Release!), receipt.Plan.Operation, token);
             receipt = (receipt with { Reconciliation = evidence }).Advance(UpdatePhase.PostflightConfirmed);
@@ -84,6 +85,24 @@ public sealed class UpdateActivation(IProcessRunner runner)
             receipt.Save(root);
         }
         return receipt;
+    }
+
+    /// <summary>The local Linux host probes the exact target's backend address before any port is published.</summary>
+    private async Task PrivateEndpointAsync(string root, UpdateReceipt receipt, Deployment target, CancellationToken token)
+    {
+        var owner = new RestoreContainers(runner);
+        var id = (await owner.Required(target.Compose(root, "ps", "-q", "wayfarer"), token)).Trim();
+        if (!receipt.Containers.Contains(id)) throw new IOException("Private target container identity changed.");
+        using var document = JsonDocument.Parse(await owner.Required(["inspect", id], token));
+        UpdateRuntime.VerifyService(root, target, "wayfarer", document.RootElement[0]);
+        var value = document.RootElement[0].GetProperty("NetworkSettings").GetProperty("Networks")
+            .GetProperty(target.Project + "_backend").GetProperty("IPAddress").GetString();
+        if (!System.Net.IPAddress.TryParse(value, out var address) || address.AddressFamily != System.Net.Sockets.AddressFamily.InterNetwork)
+            throw new IOException("Private target address unavailable.");
+        var version = ReleaseStore.Select(root, target.Release!).Manifest.Version;
+        await Diagnostics.EndpointAsync(target, token, version, address);
+        var compiled = await owner.Required(target.Compose(root, "exec", "-T", "wayfarer", "dotnet", "Wayfarer.dll", "version"), token);
+        if (compiled.Trim() != "Wayfarer " + version) throw new IOException("Private target compiled version differs.");
     }
 
     /// <summary>Immutable prepared inputs allow crash-safe activation without rewriting a running operator or legacy env file.</summary>
