@@ -109,6 +109,7 @@ sudo /opt/wayfarer-bootstrap/bundle/wayfarerctl release inspect /opt/wayfarer-bo
 # Uses the product anonymous bounded path, exact image pulls and normal immutable import.
 sudo /opt/wayfarer-bootstrap/bundle/wayfarerctl release acquire "${release#v}"
 sudo /opt/wayfarer-bootstrap/bundle/wayfarerctl setup --bundle "/etc/wayfarer/releases/$release"
+sudo "/etc/wayfarer/releases/$release/wayfarerctl" release adopt "/etc/wayfarer/releases/$release"
 ```
 
 Setup prompts for the remaining trusted configuration/admin password, including

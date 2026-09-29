@@ -71,25 +71,13 @@ public sealed class PublicReleaseAcquisition(IProcessRunner runner)
         ProtectedFiles.RequireRoot();
         ProtectedFiles.SafePath(root);
         ProtectedFiles.Check(root, 0, directory: true);
-        using var client = new HttpClient(new SocketsHttpHandler
-        {
-            AllowAutoRedirect = false, UseCookies = false, UseProxy = false,
-            Credentials = null, ConnectTimeout = TimeSpan.FromSeconds(15)
-        }) { Timeout = Timeout.InfiniteTimeSpan };
-        client.DefaultRequestHeaders.UserAgent.ParseAdd("wayfarerctl/1");
-        var release = await ResolveAsync(client, selector, token);
         var stage = Path.Combine(root, ".acquire-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(stage, ProtectedFiles.PrivateDirectory);
         ReleaseBundle retained;
         Exception? primary = null;
         try
         {
-            var archive = Path.Combine(stage, "download.gz");
-            await DownloadAsync(client, release, archive, token);
-            var bundle = await ReleaseArchive.ExtractAsync(archive, stage, token);
-            if (bundle.Manifest.Status != "stable" || bundle.Manifest.Version != release.Version || bundle.Manifest.Tag != release.Tag)
-                throw new IOException("Downloaded bundle contradicts public release identity.");
-            ReleaseContract.RequireUse(bundle.Manifest, ReleaseCommands.OperatorVersion);
+            var bundle = await StageAsync(stage, selector, token);
             retained = ReleaseStore.Import(root, bundle.Directory);
         }
         catch (Exception error) { primary = error; throw; }
@@ -101,6 +89,25 @@ public sealed class PublicReleaseAcquisition(IProcessRunner runner)
         }
         await PullAsync(retained, token);
         return retained;
+    }
+
+    /// <summary>Anonymous read-only staging shared by acquisition and stable authoring; it never imports, pulls or executes downloaded payloads.</summary>
+    internal static async Task<ReleaseBundle> StageAsync(string stage, string selector, CancellationToken token)
+    {
+        using var client = new HttpClient(new SocketsHttpHandler
+        {
+            AllowAutoRedirect = false, UseCookies = false, UseProxy = false,
+            Credentials = null, ConnectTimeout = TimeSpan.FromSeconds(15)
+        }) { Timeout = Timeout.InfiniteTimeSpan };
+        client.DefaultRequestHeaders.UserAgent.ParseAdd("wayfarerctl/1");
+        var release = await ResolveAsync(client, selector, token);
+        var archive = Path.Combine(stage, "download.gz");
+        await DownloadAsync(client, release, archive, token);
+        var bundle = await ReleaseArchive.ExtractAsync(archive, stage, token);
+        if (bundle.Manifest.Status != "stable" || bundle.Manifest.Version != release.Version || bundle.Manifest.Tag != release.Tag)
+            throw new IOException("Downloaded bundle contradicts public release identity.");
+        ReleaseContract.RequireUse(bundle.Manifest, ReleaseCommands.OperatorVersion);
+        return bundle;
     }
 
     /// <summary>Pull only validated immutable references with an empty Docker client credential configuration.</summary>

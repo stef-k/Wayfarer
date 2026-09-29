@@ -73,17 +73,11 @@ def previous(tag: str) -> str | None:
 
 def acquire_source(tag: str, directory: Path, operator: Path) -> tuple[dict, str]:
     """Validate public source bytes before extraction/execution; only the current trusted operator is run."""
-    import bundle
-    facts = asset(metadata(tag), tag)
-    subprocess.run(['gh', 'release', 'download', tag, '--repo', REPOSITORY, '--pattern', facts['name'],
-                    '--dir', str(directory)], check=True)
-    archive = directory / facts['name']
-    if archive.stat().st_size != facts['size'] or 'sha256:' + bundle.digest(archive) != facts['digest']:
-        raise version.ValidationError('previous public asset size/digest mismatch')
-    # Reuse the shipped in-process extractor; publication does not execute prior-release payloads.
+    # The same anonymous product owner validates metadata/digest and safely stages the public source.
+    # Never execute the previous bundle's operator: only this freshly built trusted operator is invoked.
     stage = directory / 'stage'
     stage.mkdir(mode=0o700)
-    subprocess.run([str(operator), 'release', 'unpack', str(archive), str(stage)], check=True)
+    subprocess.run([str(operator), 'release', 'unpack', tag[1:], str(stage)], check=True)
     source = stage / 'bundle'
     inspected = json.loads(subprocess.run([str(operator), 'release', 'inspect', str(source)],
                            check=True, text=True, capture_output=True).stdout)

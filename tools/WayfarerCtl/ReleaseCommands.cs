@@ -15,7 +15,8 @@ public sealed class ReleaseCommands(IProcessRunner runner, ITerminal terminal)
     {
         if (args is ["unpack", var archive, var stagePath])
         {
-            BackupPolicy.LiteralPath(archive);
+            if (Path.IsPathFullyQualified(archive)) BackupPolicy.LiteralPath(archive);
+            else PublicRelease.Selector(archive);
             BackupPolicy.LiteralPath(stagePath);
             return;
         }
@@ -40,7 +41,10 @@ public sealed class ReleaseCommands(IProcessRunner runner, ITerminal terminal)
                 throw new UsageException("Unpack requires an existing empty private staging directory.");
             using var stage = new SafeDirectory(args[2]);
             stage.RequireLocalControl();
-            Describe(await ReleaseArchive.ExtractAsync(args[1], args[2], token), false);
+            var staged = Path.IsPathFullyQualified(args[1])
+                ? await ReleaseArchive.ExtractAsync(args[1], args[2], token)
+                : await PublicReleaseAcquisition.StageAsync(args[2], args[1], token);
+            Describe(staged, false);
             return 0;
         }
         if (args[0] == "reconcile")

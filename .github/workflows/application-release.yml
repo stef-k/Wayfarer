@@ -154,6 +154,7 @@ jobs:
           # A disposable root-only stdin file follows the shipped protected-password convention.
           sudo sh -c 'umask 077; printf "Acceptance-Aa1!%s\n" "$(openssl rand -hex 16)" > /tmp/wayfarer-public-acceptance/password'
           sudo sh -c 'exec "$1/wayfarerctl" --deployment-root /tmp/wayfarer-public-acceptance/install setup --bundle "$1" --hostname wayfarer.example.org --app-digest "$2" --project wayfarer-public-acceptance --edge-prefix 172.30.69 --mode external --loopback-port 18080 --password-stdin < /tmp/wayfarer-public-acceptance/password' sh "$bundle" "$app_digest"
+          sudo "$bundle/wayfarerctl" --deployment-root /tmp/wayfarer-public-acceptance/install release adopt "$bundle"
           sudo "$bundle/wayfarerctl" --deployment-root /tmp/wayfarer-public-acceptance/install doctor
           sudo "$bundle/wayfarerctl" --deployment-root /tmp/wayfarer-public-acceptance/install stop
       - name: Preserve real public acceptance evidence

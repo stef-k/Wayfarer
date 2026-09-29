@@ -610,7 +610,9 @@ records interrupted placement; `release reconcile .stage-ID` publishes only a co
 matching stage. Partial stages are retained as evidence, never selected or auto-deleted.
 Directory import remains the offline seam. `release unpack ARCHIVE EMPTY_PRIVATE_STAGE`
 uses the bounded in-process extractor for trusted offline authoring/bootstrap preparation;
-it never imports or pulls. Assembly emits deterministic tarballs and external checksums.
+it never imports or pulls. The authoring overload `release unpack X.Y.Z STAGE`
+uses the same anonymous metadata/digest/staging owner to inspect a public prior source
+without executing its payloads. Assembly emits deterministic tarballs and external checksums.
 Checksums do not authenticate publishers.
 
 Keep a stable bootstrap executable at a fixed root-owned path. Invoke
