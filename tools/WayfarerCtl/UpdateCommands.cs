@@ -54,6 +54,12 @@ public sealed class UpdateCommands(IProcessRunner runner, ITerminal terminal)
             if (options.Resume is not null || options.Abort is not null)
                 await ReconcileCaptureAsync(root, receipt, token);
             if (options.Abort is not null) return await AbortAsync(root, receipt, token);
+            if (options.Resume is not null && receipt.Phase is >= UpdatePhase.Fenced and <= UpdatePhase.MigrationConfirmed)
+            {
+                using var recovery = new RecoveryLock(Path.Combine(root, "recovery-control/recovery.lock"));
+                await new UpdateRuntime(runner).StopWritersAsync(root, receipt, token);
+                await new UpdateRuntime(runner).StartDatabaseAsync(root, receipt, token);
+            }
             return await ExecuteAsync(root, receipt, options.Resume is not null, token);
         }
         catch (Exception error)
@@ -217,6 +223,8 @@ public sealed class UpdateCommands(IProcessRunner runner, ITerminal terminal)
         using var recovery = new RecoveryLock(Path.Combine(root, "recovery-control/recovery.lock"));
         if (File.Exists(Path.Combine(root, "recovery-control/host-operation.json"))) throw new IOException("Delegated recovery requires reconciliation.");
         var owner = new RestoreContainers(runner);
+        receipt = await new UpdateRuntime(runner).FenceAsync(root, receipt, token);
+        await new UpdateRuntime(runner).StartDatabaseAsync(root, receipt, token);
         await new UpdatePreparation(runner).InspectAsync(root, receipt.Plan.Current,
             ReleaseStore.Select(root, receipt.Plan.Current.Release!), receipt.Plan.Operation, token);
         foreach (var (id, policy) in receipt.RestartPolicies) await owner.Required(["update", "--restart=" + policy, id], token);

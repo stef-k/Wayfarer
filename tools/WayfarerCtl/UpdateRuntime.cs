@@ -66,6 +66,27 @@ public sealed class UpdateRuntime(IProcessRunner runner)
         }
     }
 
+    /// <summary>Daemon-loss recovery starts only the exact receipted DB with its unchanged volume and restart disabled.</summary>
+    public async Task StartDatabaseAsync(string root, UpdateReceipt receipt, CancellationToken token)
+    {
+        var owner = new RestoreContainers(runner);
+        var config = receipt.Plan.Current;
+        var id = (await owner.Required(config.Compose(root, "ps", "-aq", "db"), token)).Trim();
+        if (!receipt.Containers.Contains(id)) throw new IOException("Receipted update database is unavailable.");
+        using var document = JsonDocument.Parse(await owner.Required(["inspect", id], token));
+        VerifyService(root, config, "db", document.RootElement[0]);
+        await owner.Required(["update", "--restart=no", id], token);
+        if (!document.RootElement[0].GetProperty("State").GetProperty("Running").GetBoolean())
+            await owner.Required(["start", id], token);
+        for (var attempt = 0; attempt < 60; attempt++)
+        {
+            var ready = await runner.RunAsync(["exec", id, "pg_isready", "-h", "127.0.0.1", "-U", "postgres", "-d", "wayfarer"], null, token);
+            if (ready.Code == 0) return;
+            await Task.Delay(TimeSpan.FromSeconds(2), token);
+        }
+        throw new IOException("Receipted update database did not become ready.");
+    }
+
     /// <summary>Both durable volumes and the DB network must have no foreign or remaining application writers.</summary>
     public async Task RequireExclusiveAsync(UpdateReceipt receipt, CancellationToken token)
     {
