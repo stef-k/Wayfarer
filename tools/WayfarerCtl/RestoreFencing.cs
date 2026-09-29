@@ -36,7 +36,7 @@ public sealed class RestoreFencing(IProcessRunner runner)
                 using var document = JsonDocument.Parse(await owner.Required(["inspect", consumer], token));
                 if (!IsRetainedHelper(root, config, document.RootElement[0]))
                     throw new IOException("Unknown durable volume consumer prevents restore.");
-                policies[consumer] = "no";
+                // Already stopped with restart=no: retain this helper under its original receipt owner.
             }
         }
         receipt = receipt with { RestartPolicies = policies, Containers = policies.Keys.ToArray() };
