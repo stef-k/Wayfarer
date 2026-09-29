@@ -10,6 +10,14 @@ def qualify_update(journey):
     # Child-process fault injection reuses the fixture's existing Docker boundary.
     wrapper = journey.host('cat', str(journey.directory / 'docker-test')).stdout
     injection = '''case "$point:$*" in
+  update-failure:*" database migrate")
+    remaining=$#
+    while test "$remaining" -gt 0; do
+      value=$1; shift
+      case "$value" in --env=Database__PasswordFile=*) value=--env=Database__PasswordFile=/missing-credential ;; esac
+      set -- "$@" "$value"
+      remaining=$((remaining-1))
+    done ;;
   update-ack:*" start "*)
     for helper; do :; done
     operation=$(/usr/bin/docker inspect --format '{{index .Config.Labels "wayfarer.update"}}' "$helper" 2>/dev/null)
@@ -22,6 +30,7 @@ def qualify_update(journey):
 esac
 '''
     journey.host('tee', str(journey.directory / 'docker-test'), data=wrapper.replace('exec /usr/bin/docker "$@"', injection + 'exec /usr/bin/docker "$@"'))
+    migration_failure(journey)
     plan, digest = plan_update(journey)
     journey.host('tee', str(journey.directory / 'failure'), data='update-ack')
     assert journey.ctl('update', '--accept-plan', digest, check=False).returncode != 0
@@ -81,3 +90,24 @@ def plan_update(journey):
     """Authorize only the exact canonical hash printed by the published operator."""
     output = journey.ctl('update', '--bundle', str(journey.update_bundle), '--plan').stdout
     return json.loads(output.splitlines()[0]), output.split('Plan SHA-256: ')[1].splitlines()[0]
+
+
+def migration_failure(journey):
+    """A real nonzero target helper leaves source history unchanged and cannot be retried or accepted."""
+    plan, digest = plan_update(journey)
+    journey.host('tee', str(journey.directory / 'failure'), data='update-failure')
+    assert journey.ctl('update', '--accept-plan', digest, check=False).returncode == 1
+    receipt = update_receipt(journey)
+    assert receipt['Phase'] == 3 and receipt['MigrationExit'] != 0
+    history = journey.compose('exec', '-T', 'db', 'psql', '-U', 'postgres', '-d', 'wayfarer', '-At', '-c',
+        'SELECT "MigrationId" FROM "__EFMigrationsHistory" ORDER BY "MigrationId";').splitlines()
+    assert history == plan['Current']['Backup']['Source']['ExpectedMigrations']
+    started = journey.host('docker', 'inspect', '--format', '{{.State.StartedAt}}', receipt['MigrationContainer']).stdout
+    journey.host('tee', str(journey.directory / 'failure'), data='')
+    # A stopped DB represents daemon-loss resource state; resume must reconcile that exact DB, without relaunching migration.
+    journey.host('docker', 'stop', journey.project + '-db-1')
+    assert journey.ctl('update', '--resume', plan['Operation'], check=False).returncode == 1
+    assert update_receipt(journey)['Phase'] == 3
+    assert journey.host('docker', 'inspect', '--format', '{{.State.StartedAt}}', receipt['MigrationContainer']).stdout == started
+    journey.ctl('update', '--restore', plan['Operation'])
+    print('PASS real nonzero migration, unchanged source history, exact stopped-DB reconciliation and no blind retry', flush=True)

@@ -126,9 +126,13 @@ public sealed class UpdateCommands(IProcessRunner runner, ITerminal terminal)
         }
         if (receipt.Phase == UpdatePhase.Fenced || resumed && receipt.Phase == UpdatePhase.RecoveryVerified)
         {
-            await runtime.StopWritersAsync(root, receipt, token);
-            await runtime.RequireExclusiveAsync(receipt, token);
-            await new UpdatePreparation(runner).CapacityAsync(root, receipt.Plan.Current, token);
+            using (var recovery = new RecoveryLock(Path.Combine(root, "recovery-control/recovery.lock")))
+            {
+                await runtime.StopWritersAsync(root, receipt, token);
+                await runtime.StartDatabaseAsync(root, receipt, token);
+                await runtime.RequireExclusiveAsync(receipt, token);
+                await new UpdatePreparation(runner).CapacityAsync(root, receipt.Plan.Current, token);
+            }
             var capture = new BackupCommands(runner, terminal);
             if (await capture.RunAsync(root, receipt.Plan.Current, ["backup", "--quiesced"], token, updateRecovery: true) != 0 || capture.CompletedArchive is null)
                 throw new IOException("Fresh verified held recovery capture failed.");
