@@ -69,6 +69,24 @@ def archive(bundle: Path, output: Path) -> Path:
                     tar.addfile(info, source)
     with (output / (target.name + '.sha256' if manifest.get('Status') == 'stable' else 'SHA256SUMS')).open('x') as sums:
         sums.write(f'{digest(target)}  {target.name}\n')
+    if manifest.get('Status') == 'stable':
+        bootstrap_archive(bundle, output)
+    return target
+
+
+def bootstrap_archive(bundle: Path, output: Path) -> Path:
+    """Package the exact canonical operator bytes once, with the ordinary executable name and fixed mode."""
+    target = output / 'wayfarerctl-linux-amd64.tar.gz'
+    operator = bundle / 'wayfarerctl'
+    with target.open('xb') as raw, gzip.GzipFile(filename='', mode='wb', fileobj=raw, mtime=0) as compressed:
+        with tarfile.open(fileobj=compressed, mode='w', format=tarfile.USTAR_FORMAT) as tar:
+            info = tarfile.TarInfo('wayfarerctl')
+            info.size = operator.stat().st_size
+            info.mode = mode('wayfarerctl')
+            with operator.open('rb') as source:
+                tar.addfile(info, source)
+    with (output / (target.name + '.sha256')).open('x') as sums:
+        sums.write(f'{digest(target)}  {target.name}\n')
     return target
 
 
@@ -190,8 +208,7 @@ def main() -> int:
                 raise version.ValidationError('publication requires the official release workflow')
             # Stop BEFORE rebuilding any already-public stable identity, including partial sidecar-only publication.
             existing = public_bundle.metadata(args.tag)
-            name = public_bundle.asset_name(args.tag)
-            if any(item['name'] in (name, name + '.sha256') for item in existing['assets']):
+            if any(item['name'] in public_bundle.asset_names(args.tag) for item in existing['assets']):
                 raise version.ValidationError('stable asset already exists; inspect retained evidence, do not rebuild')
         result = assemble(args.output.resolve(), args.app_digest, args.capture_directory, args.capture_evidence,
                           stable=args.stable, tag=args.tag, source=args.source)
@@ -201,6 +218,8 @@ def main() -> int:
             archive_path = args.output / public_bundle.asset_name(args.tag)
             publication = dict(tag=args.tag, source=args.source, bundleFingerprint=inspected['Fingerprint'],
                 asset=archive_path.name, assetDigest='sha256:' + digest(archive_path), imageDigest=args.app_digest,
+                platform=image.PLATFORM, operatorSha256=digest(result / 'wayfarerctl'),
+                assets={name: 'sha256:' + digest(args.output / name) for name in public_bundle.asset_names(args.tag)},
                 sources=json.loads((result / 'release.json').read_text())['Sources'], status='intended; upload pending')
             image.write_evidence(args.output / 'publication.json', publication)
             version.stable_source(args.tag, args.source)

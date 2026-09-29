@@ -138,11 +138,14 @@ remains unchanged. Add `--publish` only in the official release workflow.
 
 After anonymous application qualification, `application-release.yml` anonymously pulls
 the accepted DB/Caddy digests, builds the self-contained payloads, validates with the
-bundled operator and uploads `wayfarer-vX.Y.Z-linux-amd64.tar.gz` plus
+bundled operator and packages its exact bytes into `wayfarerctl-linux-amd64.tar.gz`,
+containing only the executable named `wayfarerctl`. It uploads that bootstrap plus
+its `.sha256` sidecar and `wayfarer-vX.Y.Z-linux-amd64.tar.gz` plus
 `wayfarer-vX.Y.Z-linux-amd64.tar.gz.sha256`. Only this job has `contents: write`;
 image publication retains `packages: write`. No PAT, release creation or mutable
-`latest` bundle alias is used. Upload never uses clobber. Occupied archive/sidecar names
-stop **before assembly** on reruns. Inspect the retained intended archive/checksum,
+`latest` bundle alias is used. Upload never uses clobber. Any occupied bootstrap,
+deployment archive or sidecar identity stops **before assembly** on reruns.
+Inspect the retained intended archive/checksum,
 manifest and `publication.json`, compare the REST asset digest, and reconcile manually;
 uncertain or different bytes cannot be rebuilt or replaced under the same identity.
 
@@ -161,12 +164,18 @@ compatibility plus an exact ordered migration prefix and no reference seeding.
 An advertised prior bundle that is invalid or incompatible fails publication; no silent
 source omission or search for a different update target occurs.
 
-The real `public-compose-acceptance` job uses a fresh runner, empty Docker credentials,
-the product `release acquire X.Y.Z` path, and representative fresh external Compose
-setup/doctor/stop. Publication evidence records tag/source/fingerprint/asset digest/
-image digest and the public job retains acquisition evidence. PR CI covers deterministic
+The real `public-compose-acceptance` job downloads the public bootstrap tarball on a
+fresh native runner and checks it against the retained publication evidence's verified
+asset digest before extraction. It runs setup without bundle/version/digest arguments;
+that anonymous latest-stable path acquires the canonical bundle and exact images,
+then exercises representative external Compose setup and retained-dispatch doctor/stop.
+The extracted bootstrap executable must match the acquired bundle's operator bytes.
+Publication evidence records tag/source/platform/operator hash/bundle fingerprint/all
+asset digests/image digest; the public job retains setup/acquisition evidence. PR CI covers deterministic
 logic and the existing candidate recovery/update journey. It creates no stable release.
 No public stable bundle is claimed shipped by this implementation: #713 and #603 remain
-open until the next genuine stable workflow passes. A baseline claims no stable-to-stable
+open until the next genuine stable workflow passes on both supported platforms after
+#715 adds ARM64. Do not publish the first Compose stable before #715 is accepted.
+A baseline claims no stable-to-stable
 migration; #704 candidate real-migration evidence remains the migration proof until a
 second genuine public Compose release exists.

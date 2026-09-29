@@ -86,6 +86,22 @@ public sealed class PublicReleaseTests
         Assert.Throws<UsageException>(() => ReleaseCommands.Validate(["acquire", "https://evil.example"]));
     }
 
+    /// <summary>Online setup accepts only exact versions and cannot mix local or injected release authority.</summary>
+    [Fact]
+    public void PublicSetupGrammarKeepsOneReleaseSelector()
+    {
+        Cli.ValidateCommand(["setup"]);
+        Cli.ValidateCommand(["setup", "--version", "1.9.20"]);
+        Cli.ValidateCommand(["setup", "--bundle", "/trusted/bundle"]);
+        foreach (var options in new[]
+        {
+            "--version latest", "--version v1.9.20", "--version https://evil.example",
+            "--version 1.9.20 --bundle /trusted/bundle", "--app-digest sha256:" + new string('a', 64),
+            "--resume --version 1.9.20"
+        })
+            Assert.Throws<UsageException>(() => Setup.Options(options.Split(' ')));
+    }
+
     private static Dictionary<string, object> Metadata() => new()
     {
         ["tag_name"] = "v1.9.20", ["name"] = "v1.9.20", ["draft"] = false, ["prerelease"] = false,

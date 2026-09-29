@@ -1,209 +1,123 @@
 # Install & Self-Hosting
 
-## Overview
+Wayfarer's recommended production path is guided Docker/Compose setup through
+`wayfarerctl`: one small bootstrap archive and one setup command. The operator manages
+the bundled PostgreSQL/PostGIS database, application and managed Caddy HTTPS proxy.
 
-Wayfarer is designed for self-hosting by power users, small businesses, and organizations on their own infrastructure. Whether you're running on a Raspberry Pi, home server, VPS, or dedicated server, Wayfarer gives you full control over your location data and trip planning.
+**Availability:** this implementation awaits the first genuine Compose stable release.
+v1.9.19 and earlier contain source releases only and are not retrofitted. #713 remains
+open until real public installation acceptance passes; #715 must add and qualify
+ARM64 before that first Compose stable is published. The flow below applies to the
+future release carrying these assets, not to an already-shipped public bootstrap.
 
----
+## Guided production installation
 
-## Quick Start
+Prepare:
 
-### Core Dependencies
+- Linux AMD64 with normal Unix file ownership/modes; ARM64 support is owned by #715.
+- Docker Engine using its local daemon and Compose v2 2.24.4 or newer.
+- Root/sudo access and space for exact images, retained releases and durable volumes.
+- A public DNS hostname. For managed HTTPS, point it at the host and make ports
+  80/TCP, 443/TCP and 443/UDP available. An existing proxy can use external mode.
+- Outbound HTTPS to public GitHub/GHCR and the pinned Caddy registry.
 
-- **.NET 10 SDK** - Application build/runtime
-- **PostgreSQL 13+** with **PostGIS extension** - Database
-- **Nginx** (or similar reverse proxy) - Recommended for production
-- **Node.js 24.x/npm** - Build-host tooling for Trip Editor Vite assets
+Obtain `wayfarerctl-linux-amd64.tar.gz` from the official stable
+[Wayfarer Release](https://github.com/stef-k/Wayfarer/releases). Verify its SHA-256
+against that exact Release asset's REST `digest` before extracting or running it.
+The matching `.sha256` sidecar is a convenience integrity check, not publisher
+authentication. See the [operator guide](29-Wayfarerctl.md#placement-and-prerequisites)
+for the verification and protected placement details.
 
-PostgreSQL 13+ remains the documented general self-hosting/runtime minimum. The maintainer development environment and guarded relational test fixtures use PostgreSQL 17 as their qualification baseline; that test baseline does not itself raise the runtime minimum.
+In a trusted fresh directory:
 
-### Optional: PDF Export Feature
-
-If you want to export trips as PDF documents, you'll need:
-
-- **Chrome system libraries** (Linux only)
-- Preinstall the release-matched Playwright Chromium bundle and required OS libraries using the [native provisioning workflow](20-Deployment.md#6-install-chromium-runtime-dependencies-pdf-export). Browser operations never download or install it.
-- No manual Chrome installation needed - it's handled automatically!
-
-**Linux users:** See [Install Chromium Runtime Dependencies (PDF export)](20-Deployment.md#6-install-chromium-runtime-dependencies-pdf-export)
-
-**Windows users:** No additional setup needed - Chrome downloads automatically.
-
-> **Note:** If PDF export doesn't work after installation, see the [PDF Export / Playwright Issues](20-Deployment.md#pdf-export--playwright-issues) guide.
-
-### Basic Setup Steps
-
-1. **Install dependencies** (.NET 10, PostgreSQL + PostGIS, Nginx, Node.js/npm on build hosts)
-2. **Create database and user** with PostGIS enabled
-3. **Clone or download** Wayfarer
-4. **Configure connection string** in `appsettings.json`
-5. **Run the application** - Database tables and initial data are created automatically
-6. **Login as admin** and change the default password
-
-### Default Admin Credentials
-
-On first run, Wayfarer automatically creates:
-
-- **Username:** `admin`
-- **Password:** `Admin1!`
-
-**⚠️ Change this password immediately after first login!**
-
----
-
-## What Gets Initialized Automatically
-
-When you first run Wayfarer, it automatically:
-
-- ✅ Creates all database tables via migrations
-- ✅ Seeds system roles (Admin, Manager, User)
-- ✅ Creates the default admin user
-- ✅ Initializes application settings with defaults
-- ✅ Seeds 69 predefined activity types for location categorization
-
-**No manual database setup or SQL scripts needed!**
-
----
-
-## Platform-Specific Quick Start
-
-### Linux (Ubuntu/Debian)
-
-```bash
-# Install core dependencies
-# 1) Add Microsoft package repo for .NET (required on a fresh system)
-wget https://packages.microsoft.com/config/debian/12/packages-microsoft-prod.deb -O packages-microsoft-prod.deb
-sudo dpkg -i packages-microsoft-prod.deb && rm packages-microsoft-prod.deb
-sudo apt update
-# 2) Install packages
-sudo apt install -y dotnet-sdk-10.0 postgresql postgis nginx
-
-# 3) Install Node.js 24.x/npm on hosts that build deployments
-# deployment/install.sh installs or verifies this automatically.
-curl -fsSL https://deb.nodesource.com/setup_24.x | sudo -E bash -
-sudo apt install -y nodejs
-
-# Install Chrome dependencies (for PDF export)
-sudo apt install -y libnss3 libgbm1 libasound2 libatk-bridge2.0-0 \
-    libcups2 libdrm2 libpango-1.0-0 libcairo2
-
-# Create database
-# (Optional) create a dedicated DB user, matching install.sh defaults
-sudo -u postgres psql -c "CREATE USER wayfarer_user WITH PASSWORD 'your-strong-password';"
-sudo -u postgres createdb wayfarer
-sudo -u postgres psql wayfarer -c "CREATE EXTENSION postgis;"
-sudo -u postgres psql wayfarer -c "CREATE EXTENSION citext;"
-
-If you use deployment/install.sh, it will prompt for DB name/user/password and create the database and extensions automatically (defaults: wayfarer / wayfarer_user).
-
-# Clone and configure
-git clone https://github.com/yourusername/wayfarer.git
-cd wayfarer
-nano appsettings.json  # Set your connection string
-
-# Run
-dotnet run
+```sh
+tar -xzf wayfarerctl-linux-amd64.tar.gz
+chmod +x wayfarerctl
+sudo ./wayfarerctl setup
 ```
 
-The primary maintainer development baseline is Ubuntu 24.04 on Linux/WSL2, .NET 10, PostgreSQL 17/PostGIS, and Node 24 LTS. PostgreSQL 17 here is the maintainer/guarded-test qualification baseline, not a change to the PostgreSQL 13+ general self-hosting/runtime minimum above. Keep WSL source on its Linux filesystem; see [Setup](14-Setup.md#linuxwsl-development) for the nvm and frontend workflow.
+The archive contains exactly `wayfarerctl`. Bare `setup` resolves the latest official
+stable release for this platform, downloads and checks its exact deployment asset,
+imports a validated retained bundle, and pulls/verifies only immutable image digests.
+It then asks for your hostname, proxy mode and a hidden, confirmed administrator
+password before running the existing protected setup sequence. Image identities come
+from validated `release.json`; you do not copy digests or locate a bundle manually.
+This is guided setup and requires administrator input.
 
-### Windows (alternative development path)
+The production host needs no repository clone, .NET SDK/runtime, Node/npm, Python,
+`unzip`, native PostgreSQL, Nginx or Certbot installation. The operator does not install
+host packages or configure the Docker daemon. Docker Desktop, remote contexts and
+rootless Docker are outside the accepted production topology.
 
-1. Install .NET 10 SDK from [microsoft.com/dotnet](https://dotnet.microsoft.com/download)
-2. Install PostgreSQL + PostGIS from [postgresql.org (Windows installer)](https://www.postgresql.org/download/windows/) or [enterprisedb.com](https://www.enterprisedb.com/downloads/postgres-postgresql-downloads)
-3. Install Node.js 24.x/npm for Trip Editor Vite builds
-4. Clone the repository
-5. Configure `appsettings.Development.json` with your connection string
-6. Run `dotnet restore` then `dotnet run`
-7. Visit `http://localhost:5000`
+Setup creates the protected `admin` account with your chosen password. Ordinary web
+startup does not migrate, seed or create an administrator; no `admin/Admin1!` default
+is accepted. After setup, sign in, review **Admin > Settings**, keep registration
+closed unless deliberately enabled, and enable account two-factor authentication.
 
----
+Installation state defaults to `/etc/wayfarer`. Preserve its secrets, retained release
+bytes and durable volumes. Keep the bootstrap at a fixed root-owned path; after setup,
+use `wayfarerctl dispatch COMMAND` to run the exact retained operator, including after
+updates. See [operations and recovery](29-Wayfarerctl.md) and the
+[Compose topology](28-Production-Compose.md).
 
-## Production Deployment
+## Exact versions and explicit local bundles
 
-For detailed production deployment instructions including:
+To install one exact public stable release through the same acquisition path:
 
-- System user setup and security
-- Nginx reverse proxy configuration with SSE/WebSocket support
-- HTTPS setup with Let's Encrypt/Certbot
-- Systemd service configuration
-- Directory permissions and structure
-- Log rotation and monitoring
-- Update procedures and troubleshooting
-
-**→ See the comprehensive [Deployment Guide](20-Deployment.md)**
-
----
-
-## Configuration
-
-### Connection String
-
-Edit `appsettings.json`:
-
-```json
-{
-  "ConnectionStrings": {
-    "DefaultConnection": "Host=localhost;Database=wayfarer;Username=youruser;Password=yourpassword"
-  }
-}
+```sh
+sudo ./wayfarerctl setup --version X.Y.Z
 ```
 
-> ⚠️ **Important:** The connection strings in `appsettings.json` and `appsettings.Development.json` contain **placeholder passwords** (e.g., `CHANGE_ME_BEFORE_DEPLOY`). You **must** replace these with your own secure database credentials before running the application. Never use the placeholder values in production.
+For controlled staging, offline installation, recovery or troubleshooting, use a
+trusted, complete canonical local bundle instead:
 
-### Important Settings
+```sh
+sudo ./wayfarerctl setup --bundle /absolute/trusted/bundle
+```
 
-- **`Storage:LogRoot`** - Where application logs are written (ensure directory exists and is writable)
-- **`Storage:CacheRoot`** - New map tiles use its `tiles` subdirectory. `CacheSettings:TileCacheDirectory` is retained only to locate old native tiles; it is not the new-write location.
-- **`AllowedHosts`** - Configure semicolon-separated exact public DNS hostnames in production; do not use wildcards, IP literals, localhost/private names, or ports
+`--version` and `--bundle` are mutually exclusive. Local setup validates the platform
+and `release.json`, derives the same immutable identities, requires the exact images
+already available and verified locally, and enters the same setup engine. It skips
+network release discovery/download. The full deployment archive and its checksum
+remain a secondary distribution path; see the [shipped instructions](../tools/release/INSTALL.md).
 
-### Environment-Specific Configuration
+Network failure leaves retained releases intact. If the selected release is source-only
+or lacks the matching deployment asset, setup stops clearly; it does not search for
+another release. Interrupted lifecycle work uses `setup --resume` with the original
+protected receipt, configuration and secrets.
 
-- **Development:** Use `appsettings.Development.json`
-- **Production:** Use `appsettings.Production.json`
-- Set `ASPNETCORE_ENVIRONMENT` environment variable to switch between environments
+## Development and advanced native/manual installation
 
----
+Source builds are a development or advanced manual path. Their dependencies are
+.NET 10 SDK, Node 24 LTS/npm and PostgreSQL with PostGIS. The general native runtime
+minimum remains PostgreSQL 13+; maintainer development and relational tests use
+PostgreSQL 17. Ubuntu 24.04 on Linux/WSL2 is the primary development baseline; keep
+WSL checkouts on the Linux filesystem. Windows remains an alternative development
+path. See [development setup](14-Setup.md) for connection strings, frontend builds
+and local application startup.
 
-## Admin Setup
+Native/manual production requires explicit migrations, reference seeding and protected
+administrator bootstrap before web startup. It also requires an administrator-managed
+proxy/TLS configuration, service identity, storage permissions and preinstalled,
+release-matched Playwright Chromium/runtime libraries. Browser operations do not
+download or install Chromium. See the [advanced deployment guide](20-Deployment.md)
+for the maintenance sequence and systemd/Nginx material. This is separate from the
+guided Compose installation; native-to-Compose migration is not implemented here.
 
-After installation:
+## Configuration and ongoing operation
 
-1. **Sign in as admin** using the seeded credentials (change password immediately!)
-2. **Review Application Settings:**
-   - Location tracking thresholds
-   - Upload size limits
-   - Tile cache size
-   - Registration open/closed
-3. **Configure security:**
-   - Set up HTTPS (use Let's Encrypt for free SSL certificates)
-   - Enable two-factor authentication from your account settings
-   - Rotate API tokens regularly
-4. **Create users:**
-   - Open registration for self-service
-   - Or manually create user accounts through the admin panel
+Use the [configuration reference](16-Configuration.md) for storage, AllowedHosts,
+trusted proxies and development/native connection strings. Placeholder database
+passwords in `appsettings*.json` must be replaced through protected configuration on
+those manual paths. Guided Compose setup creates distinct protected DB credentials
+and consumer-specific secret files; changing them is not database password rotation.
 
----
+Use the [operator guide](29-Wayfarerctl.md) for status/doctor, lifecycle, protected user
+recovery, opt-in recovery sets and managed restore/update. `update --plan` can acquire
+the latest stable target, but execution still requires the explicit plan hash. The
+first Compose stable is a fresh-install baseline, not an upgrade from source-only
+history. Retain DB data and the complete application volume, including uploads and
+Data Protection keys, together; caches are rebuildable and not recovery substitutes.
 
-## Security Essentials
-
-- **HTTPS Required:** Always run behind HTTPS in production (use Let's Encrypt/Certbot)
-- **Change Default Credentials:** Immediately change the admin password
-- **Keep API Tokens Secret:** Treat API tokens like passwords
-- **Regular Updates:** Pull latest code and apply updates regularly
-- **Backup Database:** Schedule regular PostgreSQL backups
-- **Firewall Configuration:** Only expose ports 80, 443, and SSH
-- You can let `deployment/install.sh` install Certbot and request a Let’s Encrypt certificate automatically (recommended for first-time setup), or run Certbot manually later.
-
----
-
-## Getting Help
-
-- **Detailed Installation:** [Developer Deployment Guide](20-Deployment.md)
-- **Configuration Reference:** [Developer Configuration Guide](16-Configuration.md)
-- **Troubleshooting:** [User Troubleshooting Guide](10-Troubleshooting.md)
-- **GitHub Issues:** Report bugs and request features
-
----
-
-**Ready to deploy?** Check out the [full deployment guide](20-Deployment.md) for step-by-step instructions!
+For help, see [troubleshooting](09-Troubleshooting.md) or open a
+[GitHub issue](https://github.com/stef-k/Wayfarer/issues).

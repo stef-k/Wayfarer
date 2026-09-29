@@ -2,6 +2,7 @@
   - [User Guide](00-User-Guide.md)
   - [Getting Started](01-Getting-Started.md)
   - [Install & Self-Hosting](02-Install-and-Dependencies.md)
+  - [Operate Wayfarer with wayfarerctl](29-Wayfarerctl.md)
   - [Features](03-Features.md)
   - [Trips](04-Trips.md)
   - [Groups](05-Groups.md)
@@ -22,8 +23,9 @@
   - [Database](19-Database.md)
   - [Deployment](20-Deployment.md)
   - [Container & Release Contract](25-Container-Release-Contract.md)
+  - [Compose Deployment](28-Production-Compose.md)
+  - [wayfarerctl Operator Guide](29-Wayfarerctl.md)
   - [Security](21-Security.md)
   - [Personal Location Providers](24-Personal-Location-Providers.md)
   - [Testing](22-Testing.md)
   - [Versioning](23-Versioning.md)
-

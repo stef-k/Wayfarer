@@ -14,13 +14,15 @@ public static class Help
         ["update"] = "update [X.Y.Z] --plan | --bundle /trusted/local/bundle --plan | --accept-plan SHA256\n" +
             "  Recovery: --resume UUID | --abort UUID (before migration only) | --restore UUID.\n" +
             "  Requires fresh held quiesced recovery. Forward-only; retained old images are not rollback. Public acquisition only prepares the existing plan.",
-        ["setup"] = "setup --bundle PATH --hostname DNS --app-digest sha256:HEX [--mode managed|external]\n" +
+        ["setup"] = "setup [--version X.Y.Z | --bundle PATH] [--hostname DNS] [--mode managed|external]\n" +
             "  [--project NAME] [--edge-prefix 172.30.64] [--loopback-port 8080] [--password-stdin]\n" +
-            "  Interactive terminal prompts for omitted required inputs. Fresh installation only.\n" +
+            "  Default: acquire latest public stable. --version selects one exact stable; --bundle uses a canonical local release.\n" +
+            "  Image identities come from validated release.json. Interactive prompts ask for hostname/proxy/admin choices. Fresh installation only.\n" +
+            "  Local raw/candidate qualification only: --bundle PATH --app-digest sha256:HEX (never a stable override).\n" +
             "  Continue owned partial setup: setup --resume [--password-stdin] [--retry-admin]\n" +
             "  Resume verifies original config/bundle/secrets; --retry-admin explicitly retries an uncertain bootstrap.\n" +
             "  Secures the protected admin account; application password policy applies.\n" +
-            "  Example: wayfarerctl setup --bundle /etc/wayfarer/releases/vX.Y.Z",
+            "  Example: sudo ./wayfarerctl setup",
         ["backup"] = "backup [--quiesced] — capture DB, complete active key ring and durable Uploads. Quiesced leaves the app stopped.",
         ["backup configure"] = "backup configure --destination PATH --payload /immutable/path/wayfarer-recovery [--kind local|mounted] [--retention 1..100] [--time HH:mm]\n  Explicit completed-installation opt-in; backup configure --disable or --recover.",
         ["backups"] = "backups — newest owned complete pairs, capped at 20; listing is not full verification.",

@@ -30,9 +30,18 @@ def metadata(tag: str) -> dict:
     return json.loads(text)
 
 
-def asset(release: dict, tag: str) -> dict:
+def asset_names(tag: str) -> tuple[str, ...]:
+    """The entire platform's create-only publication identity includes both archives and sidecars."""
+    deployment = asset_name(tag)
+    bootstrap = 'wayfarerctl-linux-amd64.tar.gz'
+    return deployment, deployment + '.sha256', bootstrap, bootstrap + '.sha256'
+
+
+def asset(release: dict, tag: str, name: str | None = None) -> dict:
     """Require the same stable release/asset digest boundary as anonymous operator acquisition."""
-    expected = asset_name(tag)
+    expected = name or asset_name(tag)
+    if expected not in asset_names(tag):
+        raise version.ValidationError('unsupported public asset identity')
     if (release.get('tag_name') != tag or release.get('name') != tag or
             release.get('draft') is not False or release.get('prerelease') is not False or
             release.get('html_url') != f'{image.SOURCE}/releases/tag/{tag}' or
@@ -115,13 +124,14 @@ def publish(directory: Path, tag: str) -> dict:
     """Never clobber/rebuild occupied identities; a rerun must reconcile using retained intended bytes."""
     import bundle
     release = metadata(tag)
-    archive = directory / asset_name(tag)
-    checksum = directory / (archive.name + '.sha256')
-    names = {archive.name, checksum.name}
+    names = asset_names(tag)
     if any(item['name'] in names for item in release['assets']):
         raise version.ValidationError('stable asset identity already occupied; reconcile retained publication evidence, never rebuild/clobber')
-    subprocess.run(['gh', 'release', 'upload', tag, '--repo', REPOSITORY, str(archive), str(checksum)], check=True)
-    facts = asset(metadata(tag), tag)
-    if facts['size'] != archive.stat().st_size or facts['digest'] != 'sha256:' + bundle.digest(archive):
-        raise version.ValidationError('uploaded asset digest differs; stop and reconcile, never overwrite')
+    subprocess.run(['gh', 'release', 'upload', tag, '--repo', REPOSITORY, *[str(directory / name) for name in names]], check=True)
+    uploaded = metadata(tag)
+    facts = {name: asset(uploaded, tag, name) for name in names}
+    for name, value in facts.items():
+        path = directory / name
+        if value['size'] != path.stat().st_size or value['digest'] != 'sha256:' + bundle.digest(path):
+            raise version.ValidationError('uploaded asset digest differs; stop and reconcile, never overwrite')
     return facts

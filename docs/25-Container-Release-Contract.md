@@ -155,8 +155,12 @@ matching image first; any subsequent upgrade is a separate managed operation.
 A digest proves identity, not publisher trust: obtain metadata from the project's
 release channel and verify checksums against that trusted release metadata.
 
-Publish `wayfarer-vX.Y.Z-linux-amd64.tar.gz` and
-`wayfarer-vX.Y.Z-linux-amd64.tar.gz.sha256` as version-matched GitHub Release assets.
+Publish the primary `wayfarerctl-linux-amd64.tar.gz` bootstrap and its
+`wayfarerctl-linux-amd64.tar.gz.sha256` sidecar together with the secondary
+`wayfarer-vX.Y.Z-linux-amd64.tar.gz` deployment archive and
+`wayfarer-vX.Y.Z-linux-amd64.tar.gz.sha256` on the exact stable GitHub Release.
+The bootstrap contains exactly `wayfarerctl`, copied from the canonical bundle's
+operator bytes with identical SHA-256, never a second build or implementation.
 The checksum sidecar provides human/offline integrity evidence, not publisher
 authentication. Automatic acquisition uses the GitHub Release Asset REST `digest`
 field as transport-integrity authority. The inspectable bundle contains `compose.yaml`,
@@ -166,6 +170,23 @@ Start `bundleContractVersion` and `configurationSchemaVersion` at 1. `release.js
 owns the fields above and the CLI compatibility requirement. Exact JSON serialization
 is owned by the release/bundle child; consumers must reject unsupported contract
 versions, not silently improvise. No source clone or host .NET/Python is needed.
+
+The ordinary installation is verified bootstrap extraction followed by
+`sudo ./wayfarerctl setup`. Bare setup acquires latest stable through the shared
+public acquisition owner; `setup --version X.Y.Z` uses the same exact-version
+resolver. The secondary `setup --bundle /absolute/trusted/bundle` skips network
+discovery/download and requires exact local images. These selectors are mutually
+exclusive. Both routes derive immutable application/DB/Caddy identity from validated
+`release.json`, retain one canonical bundle and enter the existing setup engine.
+No administrator-supplied stable digest or second installer is permitted. Bootstrap
+bytes never self-update; retained-release dispatch owns subsequent lifecycle work.
+See [Install & Self-Hosting](02-Install-and-Dependencies.md) and
+[operator guidance](29-Wayfarerctl.md).
+
+Public Compose assets are not claimed shipped by this implementation. #713's first
+genuine-stable acceptance requires #715's AMD64/ARM64 publication and fresh anonymous
+bootstrap/setup qualification on both platforms before issue closure. Do not publish
+the first Compose stable before that platform expansion is accepted.
 
 GHCR packages must be explicitly public and verified by anonymous digest pull from
 a clean client. A public repository alone is insufficient. Publishing uses scoped
