@@ -5,7 +5,7 @@ using WayfarerRecovery;
 
 namespace WayfarerCtl;
 
-/// <summary>Explicit offline import, validation, source export and metadata-only adoption.</summary>
+/// <summary>Public prefetch and explicit offline import, validation, source export and metadata-only adoption.</summary>
 public sealed class ReleaseCommands(IProcessRunner runner, ITerminal terminal)
 {
     public static string OperatorVersion => typeof(Cli).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()!.InformationalVersion;
@@ -26,7 +26,7 @@ public sealed class ReleaseCommands(IProcessRunner runner, ITerminal terminal)
         if (args is ["target", var bundle, var project]) { BackupPolicy.LiteralPath(bundle);
             if (System.Text.RegularExpressions.Regex.IsMatch(project, "\\A[a-z0-9][a-z0-9_-]{0,62}\\z")) return; }
         if (args is ["reconcile", var stage] && System.Text.RegularExpressions.Regex.IsMatch(stage, "\\A\\.stage-[a-f0-9]{32}\\z")) return;
-        throw new UsageException("Use release inspect|verify-images|import|adopt /absolute/bundle, target /absolute/bundle project, or reconcile .stage-ID.");
+        throw new UsageException("Use release acquire X.Y.Z|latest, inspect|verify-images|import|adopt /absolute/bundle, unpack ARCHIVE STAGE, target BUNDLE PROJECT, or reconcile .stage-ID.");
     }
 
     /// <summary>Inspection and target export never claim images are execution-ready.</summary>

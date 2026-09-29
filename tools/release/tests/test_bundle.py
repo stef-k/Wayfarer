@@ -114,3 +114,12 @@ def test_publication_does_not_clobber_or_rebuild_occupied_identity(monkeypatch, 
     monkeypatch.setattr(public_bundle.subprocess, 'run', lambda *args, **kwargs: pytest.fail('must not upload'))
     with pytest.raises(version.ValidationError, match='occupied'):
         public_bundle.publish(tmp_path, 'v1.9.20')
+
+
+def test_stable_authoring_requires_exact_published_application_descriptor(monkeypatch):
+    """A locally correct image cannot substitute for a different stable tag descriptor."""
+    import pytest
+    import version
+    monkeypatch.setattr(bundle.image, 'run', lambda *args: json.dumps(dict(Descriptor=dict(digest='sha256:' + 'a' * 64))))
+    with pytest.raises(version.ValidationError, match='exact supplied digest'):
+        bundle.stable_image(dict(tag='v1.9.20'), 'sha256:' + 'b' * 64)

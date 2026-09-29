@@ -106,6 +106,7 @@ public sealed class PublicReleaseAcquisition(IProcessRunner runner)
     /// <summary>Pull only validated immutable references with an empty Docker client credential configuration.</summary>
     internal async Task PullAsync(ReleaseBundle bundle, CancellationToken token)
     {
+        bundle = ReleaseBundle.Validate(bundle.Directory, installed: true);
         var config = Path.Combine(Path.GetDirectoryName(bundle.Directory)!, ".pull-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(config, ProtectedFiles.PrivateDirectory);
         try

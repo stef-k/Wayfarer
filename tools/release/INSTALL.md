@@ -3,11 +3,14 @@
 This directory is a candidate qualification artifact unless `release.json` explicitly
 records stable status. Checksums prove integrity, not publisher authenticity. Obtain
 these bytes from a trusted administrator/maintainer or the exact public stable Release.
-This implementation does not claim a public Compose stable has shipped; real release acceptance remains required. The target host needs Linux AMD64, Docker/Compose and root, not an SDK.
+This implementation does not claim a public Compose stable has shipped; real release
+acceptance remains required. The target host needs Linux AMD64, Docker/Compose and
+root, not an SDK.
 
 Use a previously trusted operator to run `release inspect /absolute/bundle` and
 `release verify-images /absolute/bundle`. Missing local images mean the bundle is not
-execution-ready. These commands never pull images. Offline import accepts an already-extracted trusted directory. `release unpack ARCHIVE
+execution-ready. These commands never pull images. Offline import accepts an
+already-extracted trusted directory. `release unpack ARCHIVE
 EMPTY_PRIVATE_STAGE` safely extracts to `STAGE/bundle` without importing or pulling.
 Candidate checksums remain in `SHA256SUMS`; stable archives use a versioned `.sha256` sidecar.
 
@@ -50,7 +53,8 @@ may have started, `update --restore UUID` transfers ownership to managed restore
 the held old-release archive into a fresh generation; an old image is not rollback.
 Retain current/previous bundles, operators, images, receipts and recovery holds.
 Public acquisition can prepare these same inputs; real stable release-to-release
-qualification remains a separate operational gate. See the repository operator documentation for phase and recovery details.
+qualification remains a separate operational gate. See the repository operator
+documentation for phase and recovery details.
 
 For a pre-existing capture pair, the maintainer assembler accepts both
 `--capture-directory /trusted/pair` and `--capture-evidence /trusted/source.json`.
@@ -107,7 +111,8 @@ sudo /opt/wayfarer-bootstrap/bundle/wayfarerctl release acquire "${release#v}"
 sudo /opt/wayfarer-bootstrap/bundle/wayfarerctl setup --bundle "/etc/wayfarer/releases/$release"
 ```
 
-Setup prompts for the remaining trusted configuration/admin password. Keep this
+Setup prompts for the remaining trusted configuration/admin password, including
+`Images.ApplicationDigest` from the validated retained `release.json`. Keep this
 bootstrap fixed; retained-release `dispatch` selects exact installed operators after
 transitions. It does not update its own executable. No curl-pipe-shell is used.
 

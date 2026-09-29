@@ -72,6 +72,16 @@ def archive(bundle: Path, output: Path) -> Path:
     return target
 
 
+def stable_image(release: dict, digest: str) -> None:
+    """Bind the stable tag's registry descriptor, immutable manifest and tested config to the exact published digest."""
+    ref = f"{image.IMAGE}:{release['tag']}"
+    descriptor = json.loads(image.run('docker', 'manifest', 'inspect', '--verbose', ref))
+    if not isinstance(descriptor, dict) or descriptor.get('Descriptor', {}).get('digest') != digest:
+        raise version.ValidationError('published stable application tag does not match the exact supplied digest')
+    actual = image.inspect_image(release, f'{image.IMAGE}@{digest}')
+    image.manifest_matches(ref, digest, image.config_digest(actual))
+
+
 def release_manifest(release: dict, app_digest: str, application: dict, operator: dict,
                      bundle: Path, payloads: tuple, stable: bool, evidence: dict | None) -> dict:
     """One v1 manifest constructor for candidate and exact-source stable authoring, with no installed facts."""
@@ -99,9 +109,7 @@ def assemble(output: Path, app_digest: str, capture_directory: Path | None = Non
         raise version.ValidationError('tag/source require explicit --stable')
     release = image.identity(tag if stable else None, source if stable else None)
     if stable:
-        # Require the existing published tag to resolve to this exact single-platform manifest/config.
-        actual = image.inspect_image(release, f'{image.IMAGE}@{app_digest}')
-        image.manifest_matches(f'{image.IMAGE}:{tag}', app_digest, image.config_digest(actual))
+        stable_image(release, app_digest)
     evidence = None
     if capture_directory or capture_evidence:
         if not (capture_directory and capture_evidence) or capture_evidence.stat().st_size > 131072:
@@ -195,6 +203,7 @@ def main() -> int:
                 asset=archive_path.name, assetDigest='sha256:' + digest(archive_path), imageDigest=args.app_digest,
                 sources=json.loads((result / 'release.json').read_text())['Sources'], status='intended; upload pending')
             image.write_evidence(args.output / 'publication.json', publication)
+            version.stable_source(args.tag, args.source)
             public_bundle.publish(args.output.resolve(), args.tag)
             image.write_evidence(args.output / 'publication.json', {**publication, 'status': 'uploaded; public acceptance pending'})
         print(result)

@@ -228,6 +228,7 @@ public sealed class ReleaseBundleTests : IDisposable
     [InlineData("duplicate")]
     [InlineData("link")]
     [InlineData("huge")]
+    [InlineData("extension")]
     public async Task PublicArchiveUsesFixedInventoryAndNormalValidator(string change)
     {
         var stage = Path.Combine(directory, "extraction");
@@ -242,8 +243,9 @@ public sealed class ReleaseBundleTests : IDisposable
                 using var data = File.OpenRead(Path.Combine(directory, name));
                 writer.WriteEntry(new UstarTarEntry(TarEntryType.RegularFile, name) { DataStream = data, Mode = (UnixFileMode)511 });
             }
+            if (change == "extension") writer.WriteEntry(new PaxTarEntry(TarEntryType.RegularFile, "config/bad"));
             if (change == "link") writer.WriteEntry(new UstarTarEntry(TarEntryType.SymbolicLink, "config/bad") { LinkName = "/etc/passwd" });
-            else if (change != "valid" && change != "huge")
+            else if (change != "valid" && change != "huge" && change != "extension")
                 writer.WriteEntry(new UstarTarEntry(TarEntryType.RegularFile, change == "duplicate" ? "compose.yaml" : change));
         }
         if (change == "huge")

@@ -13,6 +13,10 @@ public static class ReleaseArchive
     /// <summary>Only fixed regular files can be created, exclusively, below an owned empty staging directory.</summary>
     public static async Task<ReleaseBundle> ExtractAsync(string archive, string stage, CancellationToken token)
     {
+        using (var directory = new SafeDirectory(stage))
+            if ((directory.Identity.Mode & 0xfff) != 448) throw new IOException("Extraction staging must be private mode 0700.");
+        var size = new FileInfo(archive).Length;
+        if (size <= 0 || size > PublicRelease.ArchiveLimit) throw new IOException("Compressed archive exceeds bound.");
         var expanded = Path.Combine(stage, "expanded.tar");
         using (var source = File.OpenRead(archive))
         using (var gzip = new GZipStream(source, CompressionMode.Decompress))
