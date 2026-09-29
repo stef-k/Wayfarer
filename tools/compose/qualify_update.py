@@ -215,6 +215,8 @@ public sealed class UpdateQualification : Migration
             shutil.copyfile(operator / 'wayfarerctl', executable)
             executable.chmod(0o555)
             manifest = json.loads((bundle / 'release.json').read_text())
+            # The shared source operator owns both candidates; retain its actual protocol/version.
+            manifest['Operator'] = json.loads(run(str(executable), 'release', 'protocol'))
             next(entry for entry in manifest['Files'] if entry['Path'] == 'wayfarerctl')['Sha256'] = hashlib.sha256(executable.read_bytes()).hexdigest()
             if bundle == target:
                 inspected = json.loads(run(str(source / 'wayfarerctl'), 'release', 'inspect', str(source)))
