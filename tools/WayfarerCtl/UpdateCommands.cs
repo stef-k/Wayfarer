@@ -92,8 +92,16 @@ public sealed class UpdateCommands(IProcessRunner runner, ITerminal terminal)
             throw new IOException("Retained source deployment inputs changed.");
         if (ProtectedFiles.SecretsFingerprint(root) != receipt.Plan.SecretsFingerprint)
             throw new IOException("Update credentials changed.");
+        if (receipt.NewConfiguration is not null)
+        {
+            var activated = JsonSerializer.Deserialize<Deployment>(receipt.NewConfiguration, ArchiveContract.Json)!;
+            target.Corroborate(activated);
+            target.Corroborate(activated.Backup!.Source);
+            activated.Backup.CheckPayload();
+        }
         var current = File.ReadAllText(Path.Combine(root, "installation.json"));
-        if (current != receipt.Plan.OldConfiguration && current != receipt.NewConfiguration)
+        if (receipt.Phase < UpdatePhase.ActivationIntent && current != receipt.Plan.OldConfiguration ||
+            current != receipt.Plan.OldConfiguration && current != receipt.NewConfiguration)
             throw new IOException("Update installation authority changed.");
     }
 

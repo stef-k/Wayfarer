@@ -96,6 +96,27 @@ public sealed record UpdateReceipt
             Plan.Current.Installation == Guid.Empty || Plan.Current.Installation != Plan.Target.Installation ||
             Plan.Current.Project != Plan.Target.Project || Plan.Current.StorageGeneration != Plan.Target.StorageGeneration)
             throw new IOException("Invalid update receipt authority.");
+        if (Phase >= UpdatePhase.RecoveryVerified && Phase != UpdatePhase.Aborted &&
+            (RecoveryArchive is null || RecoveryArchive == Guid.Empty || RecoveryName is null || !ReleaseContract.Hash(RecoverySha256 ?? "")))
+            throw new IOException("Update phase lacks held recovery evidence.");
+        if (MigrationPossible && MigrationContainer != Plan.Current.Project + "-update-migrate-" + Plan.Operation.ToString("N"))
+            throw new IOException("Update phase lacks exact migration helper intent.");
+        if (Phase != UpdatePhase.Aborted && (Phase >= UpdatePhase.ActivationIntent) != (NewConfiguration is not null))
+            throw new IOException("Update activation phase/configuration mismatch.");
+        if (NewConfiguration is not null)
+        {
+            var next = JsonSerializer.Deserialize<Deployment>(NewConfiguration, ArchiveContract.Json)
+                ?? throw new IOException("Missing target configuration.");
+            next.Validate();
+            if (JsonSerializer.Serialize(next with { Backup = Plan.Target.Backup }) != JsonSerializer.Serialize(Plan.Target))
+                throw new IOException("Target configuration exceeds update authorization.");
+            var backup = next.Backup ?? throw new IOException("Target recovery binding missing.");
+            var previous = Plan.Target.Backup!;
+            if (backup.Generation != PlanHash || backup.Payload != Path.Combine(Plan.Target.Bundle, "wayfarer-recovery") ||
+                JsonSerializer.Serialize(backup with { Generation = previous.Generation, Payload = previous.Payload,
+                    PayloadSha256 = previous.PayloadSha256, Source = previous.Source }) != JsonSerializer.Serialize(previous))
+                throw new IOException("Target backup policy exceeds update authorization.");
+        }
     }
 
     /// <summary>Flush intent before mutation; an unresolved marker also excludes independent recovery workers.</summary>
