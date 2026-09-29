@@ -342,3 +342,18 @@ Data Protection identity, uploads/ring layout and credential readiness. No insta
 UUID, PostgreSQL physical ordinal or capture snapshot belongs in it. Forward source
 boundaries require explicit source version/fingerprint and exact migration prefix;
 current candidates declare no supported update sources. See [operator commands](29-Wayfarerctl.md#immutable-local-release-bundles).
+
+
+## Trusted-local forward update
+
+The #704 operator consumes two independently retained local release authorities.
+Only explicit source fingerprints with an exact ordered migration prefix permit
+forward migration; SemVer ordering alone is insufficient. DB/Caddy identities and
+physical storage remain unchanged. Migration starts only behind durable intent,
+writer/ingress fencing and a fresh held verified quiesced recovery set. Target
+private validation precedes exposure and scheduler reconciliation. Old release,
+operator, image and recovery evidence remain retained. Failed-update recovery uses
+a durable ownership join to #695 restore, never old-image rollback or receipt deletion.
+See [update phases and commands](29-Wayfarerctl.md#trusted-local-managed-forward-update).
+Network acquisition, public stable distribution and genuine stable release-to-release
+acceptance remain deferred; disposable candidates must be labelled truthfully.

@@ -39,6 +39,7 @@ public sealed class Setup(IProcessRunner runner, ITerminal terminal)
     public async Task<int> RunAsync(string root, string[] args, CancellationToken token)
     {
         RestoreReceipt.RequireResolved(root);
+        UpdateReceipt.RequireResolved(root);
         var options = Options(args);
         if (options.ContainsKey("--resume")) return await ResumeAsync(root, options, token);
         var config = ReadChoices(options);

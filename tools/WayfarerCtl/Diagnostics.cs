@@ -181,24 +181,25 @@ public sealed class Diagnostics(IProcessRunner runner, ITerminal terminal)
     }
 
     /// <summary>Normal certificate validation, no redirects/proxy environment; bounded public/loopback proof.</summary>
-    public static async Task EndpointAsync(Deployment config, CancellationToken token, string? expectedVersion = null)
+    public static async Task EndpointAsync(Deployment config, CancellationToken token, string? expectedVersion = null, IPAddress? privateAddress = null)
     {
         // Caddy may still be completing ACME after its process starts. Keep the wait bounded.
         for (var attempt = 0; ; attempt++)
         {
-            try { await EndpointOnceAsync(config, token, expectedVersion); return; }
+            try { await EndpointOnceAsync(config, token, expectedVersion, privateAddress); return; }
             catch (Exception error) when (attempt < 5 && !token.IsCancellationRequested &&
                 error is HttpRequestException or IOException or TaskCanceledException)
             { await Task.Delay(TimeSpan.FromSeconds(2), token); }
         }
     }
 
-    /// <summary>One certificate-validating HTTP attempt, with response and version identity checks.</summary>
-    private static async Task EndpointOnceAsync(Deployment config, CancellationToken token, string? expectedVersion)
+    /// <summary>Check live/ready on the public seam or an inspected private IPv4 address; public managed ingress also checks version over TLS.</summary>
+    private static async Task EndpointOnceAsync(Deployment config, CancellationToken token, string? expectedVersion, IPAddress? privateAddress)
     {
         using var handler = new HttpClientHandler { AllowAutoRedirect = false, UseProxy = false };
         using var client = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(10) };
-        var origin = config.Mode == "managed" ? "https://" + config.Hostname : "http://127.0.0.1:" + config.LoopbackPort;
+        var origin = privateAddress is not null ? "http://" + privateAddress + ":8080" :
+            config.Mode == "managed" ? "https://" + config.Hostname : "http://127.0.0.1:" + config.LoopbackPort;
         foreach (var path in new[] { "/health/live", "/health/ready" })
         {
             using var request = new HttpRequestMessage(HttpMethod.Get, origin + path);
@@ -207,7 +208,7 @@ public sealed class Diagnostics(IProcessRunner runner, ITerminal terminal)
             var body = await response.Content.ReadAsStringAsync(token);
             if (response.StatusCode != HttpStatusCode.OK || body != (path.EndsWith("live") ? "live" : "ready")) throw new IOException();
         }
-        if (config.Mode == "managed")
+        if (config.Mode == "managed" && privateAddress is null)
         {
             using var response = await client.GetAsync(origin + "/api/version", token);
             response.EnsureSuccessStatusCode();

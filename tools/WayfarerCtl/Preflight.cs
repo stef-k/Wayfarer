@@ -34,7 +34,10 @@ public sealed class Preflight(IProcessRunner runner)
     }
 
     /// <summary>Validate the real Compose document using temporary non-secret inputs before installation writes.</summary>
-    public async Task BundleAsync(string root, Deployment config, CancellationToken token)
+    public async Task BundleAsync(string root, Deployment config, CancellationToken token) => await ResolveAsync(root, config, token);
+
+    /// <summary>Return validated resolved Compose evidence with installation-root storage and secret paths preserved.</summary>
+    internal async Task<JsonElement> ResolveAsync(string root, Deployment config, CancellationToken token)
     {
         var temporary = Directory.CreateTempSubdirectory("wayfarerctl-preflight-");
         try
@@ -48,6 +51,7 @@ public sealed class Preflight(IProcessRunner runner)
             if (result.Code != 0) throw new UsageException("Bundle Compose validation failed; restore the trusted bundle/config.");
             using var document = JsonDocument.Parse(result.Output);
             VerifyImages(config, document.RootElement);
+            return document.RootElement.Clone();
         }
         finally { temporary.Delete(recursive: true); }
     }
@@ -165,8 +169,9 @@ public sealed class Preflight(IProcessRunner runner)
                 files += "," + Path.Combine(BackupCompose.DirectoryPath(root, config.Backup), "compose.json");
             }
             var actualFiles = Label("project.config_files");
-            var transition = root is not null && config.StorageGeneration is not null && actualFiles is not null &&
-                actualFiles.StartsWith(files + "," + Path.Combine(root, "restore-plans") + "/", StringComparison.Ordinal) &&
+            var transition = root is not null && actualFiles is not null &&
+                (actualFiles.StartsWith(files + "," + Path.Combine(root, "restore-plans") + "/", StringComparison.Ordinal) ||
+                 actualFiles.StartsWith(files + "," + Path.Combine(root, "update-plans") + "/", StringComparison.Ordinal)) &&
                 System.Text.RegularExpressions.Regex.IsMatch(actualFiles[files.Length..], @",.*/[a-f0-9]{32}/(transition|exposure)\.yaml$");
             if (Label("project.working_dir") != bundle || actualFiles != files && !transition ||
                 service is not ("db" or "wayfarer" or "caddy" or "backup-worker" or "backup-scheduler" or "backup-reader" or "backup-destination-check"))

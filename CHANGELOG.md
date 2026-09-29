@@ -3,6 +3,8 @@
 ## [Unreleased]
 
 ### Changed
+- Recheck exclusive durable-state ownership immediately before failed-update restore handoff; reproduce the candidate migration boundary from the exact head and exercise the existing update journey in lifecycle-sensitive image CI (#704, #710). No product migration or stable release.
+- Add explicit trusted-local managed forward update with canonical plans, durable migration cutoffs, fresh held quiesced recovery, same-generation target activation, private postflight, retained release evidence and durable update-to-restore ownership handoff (#704). No network resolver, stable distribution, native migration, PostgreSQL major upgrade or image rollback.
 - Add strict offline release.json v1 candidate bundles, immutable placement, metadata-only adoption, retained operator dispatch and schema-3 restore target reconstruction from release-owned Quartz compatibility (#699). No update, download, stable publication or database migration.
 - Keep managed restore unresolved until restart policies and completion evidence are durable; reclaim superseded verification staging, preflight obvious capacity shortages and reconcile uncommitted emergency holds (#695, #697).
 - Add explicit exact-target managed Compose restore with frozen archive plans, isolated durable generations, protected recovery intent, emergency archive holds and local-artifact clean-root recovery (#695). Preserve local policy/secrets and old volumes; no EF migration, image acquisition or production cutover.

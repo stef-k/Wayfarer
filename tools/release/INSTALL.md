@@ -41,8 +41,16 @@ Incomplete placement retains `.stage-ID` and its protected sibling receipt. Use
 `release reconcile .stage-ID` only for a complete stage. Partial stages remain clearly
 non-authoritative evidence; they never select an operator or replace current bytes.
 
-Managed update, network acquisition, stable publication and automatic activation are
-not implemented. Retain current and previous bundles and their pinned local images.
+Explicit trusted-local update is available through `update --bundle PATH --plan`
+and `update --accept-plan SHA256`; use `update --resume UUID` or pre-migration
+`update --abort UUID` after interruption. It requires an explicitly compatible later
+release, already-present images, adopted current authority and a fresh held quiesced
+recovery set. Migration is forward-only in the current generation. After migration
+may have started, `update --restore UUID` transfers ownership to managed restore of
+the held old-release archive into a fresh generation; an old image is not rollback.
+Retain current/previous bundles, operators, images, receipts and recovery holds.
+Network acquisition, stable publication and stable release-to-release qualification
+remain separate. See the repository operator documentation for phase and recovery details.
 
 For a pre-existing capture pair, the maintainer assembler accepts both
 `--capture-directory /trusted/pair` and `--capture-evidence /trusted/source.json`.

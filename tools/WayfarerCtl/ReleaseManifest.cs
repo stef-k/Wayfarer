@@ -55,7 +55,7 @@ public static class ReleaseContract
 
     /// <summary>Independent protocol declaration emitted by the exact bundled operator.</summary>
     public static ReleaseOperator CurrentOperator => new(ReleaseCommands.OperatorVersion, "1.9.19", 1,
-        [1], [1, 2, 3, 4], [1], [1], []);
+        [1], [1, 2, 3, 4], [1], [1], [1]);
 
     /// <summary>Reject duplicate JSON keys before strict required-constructor deserialization.</summary>
     public static ReleaseManifest Read(Stream stream)
@@ -129,7 +129,7 @@ public static class ReleaseContract
             System.Version.Parse(value.MinimumVersion) > System.Version.Parse(value.Version) ||
             !value.ManifestSchemas.SequenceEqual(new[] { 1 }) || !value.InstallationSchemas.SequenceEqual(new[] { 1, 2, 3, 4 }) ||
             !value.ArchiveSchemas.SequenceEqual(new[] { 1 }) || !value.RestoreReceiptSchemas.SequenceEqual(new[] { 1 }) ||
-            value.UpdateReceiptSchemas.Length != 0) throw new IOException("Unsupported operator contract.");
+            !value.UpdateReceiptSchemas.SequenceEqual(Array.Empty<int>()) && !value.UpdateReceiptSchemas.SequenceEqual(new[] { 1 })) throw new IOException("Unsupported operator contract.");
     }
 
     /// <summary>Inspect permission is distinct from activation and exact receipt ownership.</summary>

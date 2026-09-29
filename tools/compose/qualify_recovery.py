@@ -65,6 +65,10 @@ class RecoveryJourney(Journey):
                 raise RuntimeError('scheduled capture did not commit its bounded receipt')
             time.sleep(0.1)
         print('PASS scheduled due capture receipt', flush=True)
+        if getattr(self, "update_bundle", None):
+            from qualify_update import qualify_update
+            qualify_update(self)
+            return
         if getattr(self, "release_bundle", None):
             from qualify_release import qualify_release
             qualify_release(self)
@@ -539,7 +543,7 @@ class RecoveryJourney(Journey):
             ('network', ['network', 'ls', '-q'], ['network', 'rm']),
             ('volume', ['volume', 'ls', '-q'], ['volume', 'rm'])]:
             ids = set()
-            for label in ['com.docker.compose.project=', 'wayfarer.restore-helper=']:
+            for label in ['com.docker.compose.project=', 'wayfarer.restore-helper=', 'wayfarer.update-project=']:
                 ids.update(run('docker', *listing, '--filter', 'label=' + label + project).stdout.split())
             if ids:
                 run('docker', *removal, *sorted(ids))
@@ -553,12 +557,17 @@ class RecoveryJourney(Journey):
         current = self.host('cat', str(self.install / 'installation.json'), check=False)
         overlay = []
         if current.returncode == 0:
-            generation = json.loads(current.stdout).get('StorageGeneration')
+            config = json.loads(current.stdout)
+            generation = config.get('StorageGeneration')
+            bundle = Path(config['Bundle'])
+            authority = config.get('Release')
+            retained_env = self.install / 'deployment-generations' / authority['Fingerprint'] / 'deployment.env' if authority else None
+            environment = retained_env if retained_env and self.host('test', '-f', str(retained_env), check=False).returncode == 0 else self.install / 'deployment.env'
             if generation:
                 overlay = ['-f', str(self.install / 'storage-generations' / generation / 'compose.json')]
         return self.host('docker', 'compose', '--project-name', self.project, '--env-file',
-            str(self.install / 'deployment.env'), '-f', str(self.bundle / 'compose.yaml'),
-            '-f', str(self.bundle / 'external.yaml'), *overlay, *args).stdout
+            str(environment), '-f', str(bundle / 'compose.yaml'),
+            '-f', str(bundle / 'external.yaml'), *overlay, *args).stdout
 
 
 def main():
@@ -569,6 +578,7 @@ def main():
     parser.add_argument('--probe', required=True)
     parser.add_argument('--app-digest', required=True)
     parser.add_argument('--restore-only', action='store_true', help='Run the managed restore journey without repeating backup regression matrices.')
+    parser.add_argument('--update-bundle', help='Target candidate for the bounded managed update journey.')
     parser.add_argument('--release-bundle', help='Qualify immutable local release adoption before recovery.')
     args = parser.parse_args()
     with tempfile.TemporaryDirectory(prefix='wayfarer-533-') as directory:
@@ -578,6 +588,9 @@ def main():
                 journey.release_bundle = Path(directory) / 'release-input'
                 shutil.copytree(args.release_bundle, journey.release_bundle)
                 journey.executable = journey.release_bundle / "wayfarerctl"
+            if args.update_bundle:
+                journey.update_bundle = Path(directory) / 'update-input'
+                shutil.copytree(args.update_bundle, journey.update_bundle)
             journey.prepare()
             if args.release_bundle:
                 for name in ('compose.yaml', 'caddy/Caddyfile'):

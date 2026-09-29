@@ -205,6 +205,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Classify application-image scope
         id: image-scope
         env:
@@ -290,3 +291,26 @@ jobs:
             --inspector tools/WayfarerRecoverySource/bin/Release/net10.0/WayfarerRecoverySource.dll \
             --probe tools/compose/recovery-probe/bin/Release/net10.0/RecoveryProbe.dll --app-digest "${image_digest#*@}" \
             --release-bundle "$(python3 -c 'import os,pathlib; print(next(pathlib.Path(os.environ["RUNNER_TEMP"],"release").glob("candidate-*")))')"
+      # Reuse the same lifecycle-sensitive lane and journey; fixture DDL never enters product migrations.
+      - name: Prepare reproducible disposable update target
+        if: steps.image-scope.outputs.run_application_image == 'true'
+        run: |
+          python3 -B tools/compose/qualify_update.py \
+            --source-bundle "$(python3 -c 'import os,pathlib; print(next(pathlib.Path(os.environ["RUNNER_TEMP"],"release").glob("candidate-*")))')" \
+            --output "$RUNNER_TEMP/update"
+      - name: Qualify real managed update and restore ownership boundary
+        if: steps.image-scope.outputs.run_application_image == 'true'
+        run: |
+          image_digest="$(python3 -c 'import json,os; print(json.load(open(os.environ["RUNNER_TEMP"]+"/update/source/release.json"))["Images"]["ApplicationDigest"])')"
+          target_bundle="$(python3 -c 'import json,os; print(json.load(open(os.environ["RUNNER_TEMP"]+"/update/evidence.json"))["targetBundle"])')"
+          python3 -B tools/compose/qualify_recovery.py --executable "$RUNNER_TEMP/wayfarerctl/wayfarerctl" \
+            --worker "$RUNNER_TEMP/recovery/wayfarer-recovery" \
+            --inspector tools/WayfarerRecoverySource/bin/Release/net10.0/WayfarerRecoverySource.dll \
+            --probe tools/compose/recovery-probe/bin/Release/net10.0/RecoveryProbe.dll --app-digest "$image_digest" \
+            --release-bundle "$RUNNER_TEMP/update/source" --update-bundle "$target_bundle"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always() && steps.image-scope.outputs.run_application_image == 'true'
+        with:
+          name: update-qualification-provenance
+          path: ${{ runner.temp }}/update/evidence.json
+          if-no-files-found: warn

@@ -52,19 +52,17 @@ public sealed class Cli(IProcessRunner runner, ITerminal terminal)
         ProtectedFiles.RequireRoot();
         if (args[0] == "dispatch") return await ReleaseDispatch.RunAsync(root, args[1..], token);
         if (args[0] == "release") return await new ReleaseCommands(runner, terminal).RunAsync(root, args[1..], token);
+        if (args[0] == "update") return await new UpdateCommands(runner, terminal).RunAsync(root, args[1..], token);
         if (args[0] == "restore") return await new RestoreCommands(runner, terminal).RunAsync(root, args[1..], token);
         if (args[0] == "setup") return await new Setup(runner, terminal).RunAsync(root, args[1..], token);
-        if (args[0] is "status" or "doctor" && RestoreReceipt.Load(root) is { } restore)
-        {
-            terminal.Write($"Restore: {restore.Plan.Operation:D}; phase: {restore.Phase}; writes possible: {restore.WritesPossible}.");
-            if (restore.Phase is not (RestorePhase.Accepted or RestorePhase.Aborted)) return 1;
-        }
+        if (args[0] is "status" or "doctor" && ReportIntent(root)) return 1;
         var config = Deployment.Load(root);
         if (args[0] is "status" or "doctor")
             return await new Diagnostics(runner, terminal).RunAsync(root, config, args[0] == "doctor", token);
         if (File.Exists(Path.Combine(root, "backup-transition.json")) && args is not ["backup", "configure", "--recover"])
             throw new UsageException("Interrupted backup configuration; run backup configure --recover before mutation.");
         RestoreReceipt.RequireResolved(root);
+        UpdateReceipt.RequireResolved(root);
         Deployment.CheckSecrets(root);
         await new Preflight(runner).DockerAsync(token);
         if (args[0] == "logs") return await LogsAsync(root, config, args[1..], token);
@@ -72,6 +70,7 @@ public sealed class Cli(IProcessRunner runner, ITerminal terminal)
             throw new UsageException("Setup incomplete; follow interrupted-setup recovery before lifecycle/user operations.");
         using var operationLock = Setup.Lock(root);
         RestoreReceipt.RequireResolved(root);
+        UpdateReceipt.RequireResolved(root);
         if (args[0] is "backup" or "backups" or "verify-backup")
             return await new BackupCommands(runner, terminal).RunAsync(root, config, args, token);
         using var recovery = config.Backup is not null ? new WayfarerRecovery.RecoveryLock(Path.Combine(root, "recovery-control/recovery.lock")) : null;
@@ -80,12 +79,31 @@ public sealed class Cli(IProcessRunner runner, ITerminal terminal)
         return await LifecycleAsync(root, config, args[0], token);
     }
 
+    /// <summary>Report both sides of an unresolved ownership handoff before ordinary deployment loading can reject transition state.</summary>
+    private bool ReportIntent(string root)
+    {
+        var unresolved = false;
+        if (UpdateReceipt.Load(root) is { } update)
+        {
+            terminal.Write($"Update: {update.Plan.Operation:D}; phase: {update.Phase}; migration possible: {update.MigrationPossible}; " +
+                $"writes possible: {update.WritesPossible}; restore: {update.RestoreOperation}; recovered by restore: {update.RestoreAccepted}.");
+            unresolved = !update.Resolved;
+        }
+        if (RestoreReceipt.Load(root) is { } restore)
+        {
+            terminal.Write($"Restore: {restore.Plan.Operation:D}; phase: {restore.Phase}; writes possible: {restore.WritesPossible}.");
+            unresolved |= restore.Phase is not (RestorePhase.Accepted or RestorePhase.Aborted);
+        }
+        return unresolved;
+    }
+
     /// <summary>Validate all direct argument forms before touching deployment state.</summary>
     public static void ValidateCommand(string[] args)
     {
         if (args is ["version"] or ["release", "protocol"] or ["help"]) return;
         if (args is ["dispatch", ..] && args.Length > 1 && args[1] != "dispatch") { ValidateCommand(args[1..]); return; }
         if (args is ["release", ..]) { ReleaseCommands.Validate(args[1..]); return; }
+        if (args is ["update", ..]) { UpdateOptions.Parse(args[1..]); return; }
         if (args is ["restore", ..]) { RestoreOptions.Parse(args[1..]); return; }
         if (args is ["backup", "configure", ..]) { BackupConfiguration.Options(args[2..]); return; }
         if (args is ["backup"] or ["backup", "--quiesced"] or ["backups"] or ["verify-backup"]) return;
