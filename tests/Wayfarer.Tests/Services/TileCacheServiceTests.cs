@@ -927,20 +927,15 @@ public partial class TileCacheServiceTests : TestBase
     }
 
     /// <summary>
-    /// Verifies that once all burst tokens are consumed and the replenisher hasn't ticked yet,
-    /// further acquire attempts time out (return false) rather than blocking forever.
+    /// Verifies that acquisition from a drained budget with replenishment stopped returns false
+    /// under bounded cancellation rather than blocking forever.
     /// </summary>
     [Fact]
     public async Task OutboundBudget_AcquireAsync_ReturnsFalse_WhenBudgetExhausted()
     {
-        TileCacheService.OutboundBudget.ResetForTesting();
-
-        // Consume all burst tokens.
-        for (int i = 0; i < TileCacheService.OutboundBudget.BurstCapacity; i++)
-        {
-            await TileCacheService.OutboundBudget.AcquireAsync();
-        }
-
+        TileCacheService.OutboundBudget.DrainForTesting();
+        // Exercise the real drained semaphore while replenishment remains stopped.
+        TileCacheService.OutboundBudget.SetAcquireOverrideForTesting(null);
         // Use a short timeout to verify exhaustion without waiting the full AcquireTimeout.
         using var cts = new CancellationTokenSource(TimeSpan.FromMilliseconds(100));
         bool acquired;
@@ -951,6 +946,10 @@ public partial class TileCacheServiceTests : TestBase
         catch (OperationCanceledException)
         {
             acquired = false;
+        }
+        finally
+        {
+            TileCacheService.OutboundBudget.ResetForTesting();
         }
 
         Assert.False(acquired, "Should not acquire a token when budget is exhausted");
