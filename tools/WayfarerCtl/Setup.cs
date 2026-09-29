@@ -72,12 +72,15 @@ public sealed class Setup(IProcessRunner runner, ITerminal terminal,
             bundle = await PrepareBundleAsync(root, options, token);
             if (bundle is not null)
             {
-                if (!await new ReleaseImagesVerifier(runner).VerifyAsync(bundle, token))
-                    throw new UsageException("Local setup requires the bundle's exact images already present and verified.");
                 Directory.CreateDirectory(root, ProtectedFiles.PrivateDirectory);
                 ProtectedFiles.Check(root, 0, directory: true);
                 using var preparation = Lock(root);
-                bundle = ReleaseStore.Import(root, bundle.Directory);
+                // Image probes execute only protected retained payloads, never the administrator's extraction directory.
+                var retained = ReleaseStore.Import(root, bundle.Directory);
+                if (retained.Fingerprint != bundle.Fingerprint) throw new IOException("Local bundle changed during setup preparation.");
+                bundle = retained;
+                if (!await new ReleaseImagesVerifier(runner).VerifyAsync(bundle, token))
+                    throw new UsageException("Local setup requires the bundle's exact images already present and verified.");
             }
         }
         var config = ReadChoices(options, bundle);
