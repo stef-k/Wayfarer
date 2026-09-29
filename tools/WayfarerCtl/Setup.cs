@@ -3,13 +3,14 @@ using System.Text.Json;
 namespace WayfarerCtl;
 
 /// <summary>Fresh-install coordinator with explicit continuation of verified, owned partial state.</summary>
-public sealed class Setup(IProcessRunner runner, ITerminal terminal)
+public sealed class Setup(IProcessRunner runner, ITerminal terminal,
+    Func<string, string, CancellationToken, Task<ReleaseBundle>>? acquire = null)
 {
     /// <summary>Parse a bounded setup surface; reject duplicate/unknown options before any host access.</summary>
     public static Dictionary<string, string> Options(string[] args)
     {
         var result = new Dictionary<string, string>();
-        var valued = new[] { "--bundle", "--hostname", "--app-digest", "--mode", "--project", "--edge-prefix", "--loopback-port" };
+        var valued = new[] { "--bundle", "--version", "--hostname", "--app-digest", "--mode", "--project", "--edge-prefix", "--loopback-port" };
         for (var i = 0; i < args.Length; i++)
         {
             var key = args[i];
@@ -21,6 +22,12 @@ public sealed class Setup(IProcessRunner runner, ITerminal terminal)
             throw new UsageException("--retry-admin requires --resume.");
         if (result.ContainsKey("--resume") && result.Keys.Any(key => key is not ("--resume" or "--retry-admin" or "--password-stdin")))
             throw new UsageException("Resume uses the original protected configuration; setup choices cannot change.");
+        if (result.TryGetValue("--version", out var version) && !ReleaseContract.VersionSyntax(version))
+            throw new UsageException("--version requires an exact stable X.Y.Z.");
+        if (result.ContainsKey("--version") && result.ContainsKey("--bundle"))
+            throw new UsageException("--version and --bundle are mutually exclusive.");
+        if (result.ContainsKey("--app-digest") && !result.ContainsKey("--bundle"))
+            throw new UsageException("Public setup derives image identities from release.json; --app-digest is only for local candidate qualification.");
         return result;
     }
 
@@ -36,14 +43,13 @@ public sealed class Setup(IProcessRunner runner, ITerminal terminal)
         catch { stream.Dispose(); throw; }
     }
 
+    /// <summary>Prepare one retained release before entering the existing protected setup lifecycle.</summary>
     public async Task<int> RunAsync(string root, string[] args, CancellationToken token)
     {
         RestoreReceipt.RequireResolved(root);
         UpdateReceipt.RequireResolved(root);
         var options = Options(args);
         if (options.ContainsKey("--resume")) return await ResumeAsync(root, options, token);
-        var config = ReadChoices(options);
-        config.CheckBundle();
         ProtectedFiles.SafePath(root);
         if (Directory.Exists(root))
         {
@@ -53,6 +59,29 @@ public sealed class Setup(IProcessRunner runner, ITerminal terminal)
         }
         var preflight = new Preflight(runner);
         await preflight.DockerAsync(token);
+        ReleaseBundle? bundle;
+        if (!options.ContainsKey("--bundle"))
+        {
+            Directory.CreateDirectory(root, ProtectedFiles.PrivateDirectory);
+            ProtectedFiles.Check(root, 0, directory: true);
+            using var preparation = Lock(root);
+            bundle = await PrepareBundleAsync(root, options, token);
+        }
+        else
+        {
+            bundle = await PrepareBundleAsync(root, options, token);
+            if (bundle is not null)
+            {
+                if (!await new ReleaseImagesVerifier(runner).VerifyAsync(bundle, token))
+                    throw new UsageException("Local setup requires the bundle's exact images already present and verified.");
+                Directory.CreateDirectory(root, ProtectedFiles.PrivateDirectory);
+                ProtectedFiles.Check(root, 0, directory: true);
+                using var preparation = Lock(root);
+                bundle = ReleaseStore.Import(root, bundle.Directory);
+            }
+        }
+        var config = ReadChoices(options, bundle);
+        config.CheckBundle();
         await preflight.FreshAsync(config, token);
         await preflight.BundleAsync(root, config, token);
         terminal.Write($"Preflight passed: {root}; project {config.Project}; {config.Mode}; {config.Hostname}; edge {config.EdgePrefix}.0/24.\n" +
@@ -170,7 +199,28 @@ public sealed class Setup(IProcessRunner runner, ITerminal terminal)
         if ((await runner.RunAsync(command, input, token)).Code != 0) throw new IOException("Setup step failed.");
     }
 
-    internal Deployment ReadChoices(Dictionary<string, string> options)
+    /// <summary>Use the public acquisition owner or validate an explicit local bundle; neither path selects setup policy.</summary>
+    internal async Task<ReleaseBundle?> PrepareBundleAsync(string root, Dictionary<string, string> options, CancellationToken token)
+    {
+        if (!options.TryGetValue("--bundle", out var path))
+            return await (acquire ?? new PublicReleaseAcquisition(runner).AcquireAsync)(root, options.GetValueOrDefault("--version", "latest"), token);
+        BackupPolicy.LiteralPath(path);
+        if (!File.Exists(Path.Combine(path, "release.json")))
+        {
+            // The existing disposable Compose qualifier supplies raw templates and an explicit local image digest.
+            if (options.ContainsKey("--app-digest")) return null;
+            throw new UsageException("Local setup requires a canonical release.json bundle.");
+        }
+        var bundle = ReleaseBundle.Validate(path);
+        ReleaseContract.RequireUse(bundle.Manifest, ReleaseCommands.OperatorVersion);
+        if (options.TryGetValue("--app-digest", out var digest) &&
+            (bundle.Manifest.Status == "stable" || digest != bundle.Manifest.Images.ApplicationDigest))
+            throw new UsageException("Setup image identities are owned by validated release.json; stable digest overrides are unsupported.");
+        return bundle;
+    }
+
+    /// <summary>Prompt only for administrator choices; canonical release metadata owns application, DB and pinned Caddy identity.</summary>
+    internal Deployment ReadChoices(Dictionary<string, string> options, ReleaseBundle? bundle = null)
     {
         string Choice(string key, string prompt, string? fallback = null)
         {
@@ -184,9 +234,12 @@ public sealed class Setup(IProcessRunner runner, ITerminal terminal)
         if (!int.TryParse(port, out var number)) throw new UsageException("Invalid loopback port.");
         return new Deployment
         {
-            Bundle = Choice("--bundle", "Absolute trusted bundle directory"),
+            Schema = bundle is null ? 1 : 4,
+            Release = bundle is null ? null : ReleaseAuthority.From(bundle),
+            Bundle = bundle?.Directory ?? options["--bundle"],
             Hostname = Choice("--hostname", "Public DNS hostname"),
-            AppDigest = Choice("--app-digest", "Application sha256 digest from genuine release evidence"),
+            AppDigest = bundle?.Manifest.Images.ApplicationDigest ?? options["--app-digest"],
+            DbDigest = bundle?.Manifest.Images.DatabaseDigest ?? ReleaseContract.DatabaseDigest,
             Mode = mode, LoopbackPort = number,
             Project = options.GetValueOrDefault("--project", "wayfarer"),
             EdgePrefix = options.GetValueOrDefault("--edge-prefix", "172.30.64")

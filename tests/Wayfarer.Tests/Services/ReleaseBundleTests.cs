@@ -272,6 +272,61 @@ public sealed class ReleaseBundleTests : IDisposable
         else await Assert.ThrowsAnyAsync<IOException>(() => ReleaseArchive.ExtractAsync(archive, stage, default));
     }
 
+    /// <summary>Latest and exact setup route through the shared acquisition seam and derive retained image authority.</summary>
+    [Theory]
+    [InlineData("latest")]
+    [InlineData("1.9.19")]
+    public async Task OnlineSetupDerivesReleaseIdentityWithoutBundleOrDigestInput(string selector)
+    {
+        Save(Manifest() with { Status = "stable", Tag = "v1.9.19" });
+        var bundle = ReleaseBundle.Validate(directory);
+        var calls = 0;
+        var setup = new Setup(new ProcessRunner(), new SetupTerminal(), (root, version, token) =>
+        {
+            Assert.Equal("/etc/wayfarer", root);
+            Assert.Equal(selector, version);
+            calls++;
+            return Task.FromResult(bundle);
+        });
+        var options = Setup.Options(selector == "latest" ? [] : ["--version", selector]);
+        options.Add("--hostname", "wayfarer.example.org");
+        var acquired = await setup.PrepareBundleAsync("/etc/wayfarer", options, default);
+        var config = setup.ReadChoices(options, acquired);
+        Assert.Equal(1, calls);
+        Assert.Equal(directory, config.Bundle);
+        Assert.Equal(bundle.Manifest.Images.ApplicationDigest, config.AppDigest);
+        Assert.Equal(bundle.Manifest.Images.DatabaseDigest, config.DbDigest);
+        Assert.Equal(ReleaseAuthority.From(bundle), config.Release);
+        Assert.Equal(4, config.Schema);
+        config.Validate();
+    }
+
+    /// <summary>Canonical local setup skips discovery, rejects stable digest overrides and validates platform before setup.</summary>
+    [Fact]
+    public async Task LocalSetupUsesValidatedMetadataWithoutNetwork()
+    {
+        Save(Manifest() with { Status = "stable", Tag = "v1.9.19" });
+        var setup = new Setup(new ProcessRunner(), new SetupTerminal(), (_, _, _) => throw new Exception("Unexpected network acquisition"));
+        var options = Setup.Options(["--bundle", directory, "--hostname", "wayfarer.example.org"]);
+        var local = await setup.PrepareBundleAsync("/etc/wayfarer", options, default);
+        Assert.Equal(Manifest().Images.ApplicationDigest, setup.ReadChoices(options, local).AppDigest);
+        options.Add("--app-digest", Manifest().Images.ApplicationDigest);
+        await Assert.ThrowsAsync<UsageException>(() => setup.PrepareBundleAsync("/etc/wayfarer", options, default));
+        options.Remove("--app-digest");
+        Save(Manifest() with { Status = "stable", Tag = "v1.9.19", Platform = "linux/arm64" });
+        await Assert.ThrowsAsync<IOException>(() => setup.PrepareBundleAsync("/etc/wayfarer", options, default));
+    }
+
+    /// <summary>Release identity must never require an interactive prompt when hostname/default choices are supplied.</summary>
+    private sealed class SetupTerminal : ITerminal
+    {
+        public bool Interactive => false;
+        public void Write(string message) { }
+        public void Error(string message) { }
+        public string? Read(string prompt) => throw new Exception("Unexpected setup prompt");
+        public string Password(bool fromStdin) => throw new Exception("Unexpected password input during preparation");
+    }
+
     private ReleaseManifest Manifest() => new(1, 1, 1, "candidate", "1.9.19", null,
         "https://github.com/stef-k/Wayfarer", new string('a', 40), "linux/amd64",
         new("ghcr.io/stef-k/wayfarer", "sha256:" + new string('b', 64), "sha256:" + new string('b', 64), "1.9.19", ReleaseContract.DatabaseDigest,

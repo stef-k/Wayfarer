@@ -59,6 +59,14 @@ def test_stable_manifest_and_archive_use_exact_public_identity(tmp_path):
     assert a.read_bytes() == b.read_bytes()
     assert (first / (a.name + '.sha256')).read_text() == f'{bundle.digest(a)}  {a.name}\n'
     assert not (first / 'SHA256SUMS').exists()
+    bootstrap = first / 'wayfarerctl-linux-amd64.tar.gz'
+    assert bootstrap.read_bytes() == (second / bootstrap.name).read_bytes()
+    with tarfile.open(bootstrap) as operator_archive:
+        assert operator_archive.getnames() == ['wayfarerctl']
+        entry = operator_archive.getmembers()[0]
+        assert entry.isfile() and entry.mode == 0o555
+        assert operator_archive.extractfile(entry).read() == (source / 'wayfarerctl').read_bytes()
+    assert (first / (bootstrap.name + '.sha256')).read_text() == f'{bundle.digest(bootstrap)}  {bootstrap.name}\n'
 
 
 def test_stable_source_boundary_is_exact_and_incompatibility_blocks():
@@ -109,11 +117,19 @@ def test_publication_does_not_clobber_or_rebuild_occupied_identity(monkeypatch, 
     import pytest
     import public_bundle
     import version
-    releases = dict(assets=[dict(name='wayfarer-v1.9.20-linux-amd64.tar.gz.sha256')])
+    releases = dict(assets=[])
     monkeypatch.setattr(public_bundle, 'metadata', lambda tag: releases)
     monkeypatch.setattr(public_bundle.subprocess, 'run', lambda *args, **kwargs: pytest.fail('must not upload'))
-    with pytest.raises(version.ValidationError, match='occupied'):
-        public_bundle.publish(tmp_path, 'v1.9.20')
+    for name in public_bundle.asset_names('v1.9.20'):
+        releases['assets'] = [dict(name=name)]
+        with pytest.raises(version.ValidationError, match='occupied'):
+            public_bundle.publish(tmp_path, 'v1.9.20')
+        monkeypatch.setenv('GITHUB_EVENT_NAME', 'release')
+        monkeypatch.setenv('GITHUB_REPOSITORY', public_bundle.REPOSITORY)
+        monkeypatch.setattr(sys, 'argv', ['bundle.py', '--stable', '--publish', '--tag', 'v1.9.20',
+                                        '--source', 'a' * 40, '--app-digest', 'sha256:' + 'b' * 64, '--output', str(tmp_path)])
+        monkeypatch.setattr(bundle, 'assemble', lambda *args, **kwargs: pytest.fail('must not rebuild'))
+        assert bundle.main() == 1
 
 
 def test_stable_authoring_requires_exact_published_application_descriptor(monkeypatch):
