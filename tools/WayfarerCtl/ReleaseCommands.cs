@@ -74,6 +74,7 @@ public sealed class ReleaseCommands(IProcessRunner runner, ITerminal terminal)
     private static void Adopt(string root, ReleaseBundle bundle)
     {
         RestoreReceipt.RequireResolved(root);
+        UpdateReceipt.RequireResolved(root);
         if (!InstallationCompletion.IsComplete(root) || File.Exists(Path.Combine(root, "backup-transition.json")) ||
             File.Exists(Path.Combine(root, "recovery-control/host-operation.json"))) throw new IOException("Unresolved installation operation.");
         var config = Deployment.Load(root);

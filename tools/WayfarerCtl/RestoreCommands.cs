@@ -38,6 +38,7 @@ public sealed class RestoreCommands(IProcessRunner runner, ITerminal terminal)
         await new Preflight(runner).DockerAsync(token);
         if (options.Has("--resume") || options.Has("--abort")) return await RecoverAsync(root, options, token);
         RestoreReceipt.RequireResolved(root);
+        UpdateReceipt.RequireResolved(root);
         RestorePlan plan;
         if (options.Has("--accept-plan")) plan = LoadPlan(root, options.Get("--accept-plan"));
         else
@@ -80,6 +81,53 @@ public sealed class RestoreCommands(IProcessRunner runner, ITerminal terminal)
             if (File.Exists(Path.Combine(root, "recovery-control/host-operation.json"))) throw new IOException("Active recovery reservation.");
             RestoreReceipt.ArchiveResolved(root);
             receipt.Save(root);
+        }
+        return await ExecuteAsync(root, receipt, token);
+    }
+
+    /// <summary>Explicit failed-update recovery binds the held archive to retained old authority before granting restore ownership.</summary>
+    internal async Task<int> HandoffAsync(string root, UpdateReceipt update, CancellationToken token)
+    {
+        if (!update.MigrationPossible) throw new UsageException("Before migration use update abort.");
+        await new UpdateRuntime(runner).StopWritersAsync(root, update, token);
+        if (update.MigrationContainer is not null)
+        {
+            var owner = new RestoreContainers(runner);
+            using var inspection = JsonDocument.Parse(await owner.Required(["inspect", update.MigrationContainer], token));
+            if (inspection.RootElement[0].GetProperty("Id").GetString() != update.MigrationContainerId ||
+                inspection.RootElement[0].GetProperty("State").GetProperty("Running").GetBoolean())
+                throw new IOException("Migration helper must terminate before restore handoff.");
+        }
+        await UpdateCommands.VerifyRecoveryAsync(update, token);
+        RestoreReceipt receipt;
+        using (var recovery = new RecoveryLock(Path.Combine(root, "recovery-control/recovery.lock")))
+        {
+            var existing = RestoreReceipt.Load(root);
+            if (update.RestoreOperation is not null && existing?.Plan.Operation == update.RestoreOperation)
+            {
+                UpdateRestoreHandoff.Require(root, existing.Plan);
+                receipt = existing;
+            }
+            else
+            {
+                RestoreReceipt.RequireResolved(root);
+                var path = Path.Combine(update.Plan.Current.Backup!.Destination, update.RecoveryName!);
+                var options = RestoreOptions.Parse(["--archive", path, "--source-installation", update.Plan.Current.Installation.ToString("D"),
+                    "--without-emergency-backup", "--trust-controlled-backup", "--plan"]);
+                var plan = await new RestorePreparation(runner).PrepareAsync(root, update.Plan.Current, options, token);
+                plan = plan with { FromUpdate = update.Plan.Operation };
+                receipt = new RestoreReceipt { Plan = plan, PlanHash = plan.Hash(), SecretsFingerprint = plan.LocalSecretsFingerprint,
+                    Phase = RestorePhase.Fenced, Containers = update.Containers, RestartPolicies = update.RestartPolicies };
+                update = update with { RestoreOperation = plan.Operation };
+                update.Save(root);
+                RestoreReceipt.ArchiveResolved(root);
+                receipt.Save(root);
+            }
+        }
+        if (receipt.Phase == RestorePhase.Accepted)
+        {
+            UpdateRestoreHandoff.Complete(root, receipt);
+            return 0;
         }
         return await ExecuteAsync(root, receipt, token);
     }
@@ -182,7 +230,8 @@ public sealed class RestoreCommands(IProcessRunner runner, ITerminal terminal)
             }
             if (BackupConfiguration.BundleFingerprint(receipt.Plan.Target) != receipt.Plan.BundleFingerprint)
                 throw new UsageException("Trusted bundle changed during restore.");
-            if (receipt.Phase < RestorePhase.ActivationIntent)
+            if (receipt.Plan.FromUpdate is not null) UpdateRestoreHandoff.Require(root, receipt.Plan);
+            if (receipt.Phase < RestorePhase.ActivationIntent && receipt.Plan.FromUpdate is null)
             {
                 var current = Deployment.Load(root);
                 current = WithRestoreIdentity(current, receipt.Plan.Target.Installation);
@@ -227,6 +276,7 @@ public sealed class RestoreCommands(IProcessRunner runner, ITerminal terminal)
             }
             await new RestoreCapacity(runner).CheckAsync(root, receipt, token);
             receipt = await new RestoreActivation(runner).ActivateAsync(root, receipt, token);
+            UpdateRestoreHandoff.Complete(root, receipt);
             terminal.Write($"Protected provider credentials: {receipt.ProtectedCredentialStatus}.");
             terminal.Write($"Restore accepted: {receipt.Plan.Operation:D}. Old volumes and emergency evidence retained.");
             return 0;
@@ -270,6 +320,7 @@ public sealed class RestoreCommands(IProcessRunner runner, ITerminal terminal)
         }
         if (options.Has("--abort"))
         {
+            if (receipt.Plan.FromUpdate is not null) throw new UsageException("Update-owned restore cannot abort into mutated old storage; resume restore.");
             if (receipt.WritesPossible) throw new UsageException("Writes may have occurred; explicit recovery is required.");
             if (receipt.Phase >= RestorePhase.ActivationIntent)
             {

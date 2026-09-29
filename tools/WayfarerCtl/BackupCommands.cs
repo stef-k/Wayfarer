@@ -9,8 +9,9 @@ public sealed class BackupCommands(IProcessRunner runner, ITerminal terminal)
     public Guid? CompletedArchive { get; private set; }
 
     /// <summary>Validate capability, reserve lifecycle intent under the shared lock and invoke the same worker.</summary>
-    public async Task<int> RunAsync(string root, Deployment config, string[] args, CancellationToken token, bool restoreEmergency = false)
+    public async Task<int> RunAsync(string root, Deployment config, string[] args, CancellationToken token, bool restoreEmergency = false, bool updateRecovery = false)
     {
+        if (!updateRecovery && !restoreEmergency) UpdateReceipt.RequireResolved(root);
         if (args is ["backup", "configure", ..])
         {
             var next = await new BackupConfiguration(runner).ConfigureAsync(root, config, args[2..], token);
@@ -41,7 +42,12 @@ public sealed class BackupCommands(IProcessRunner runner, ITerminal terminal)
                 var restore = RestoreReceipt.Load(root) ?? throw new IOException("Restore delegation requires durable intent.");
                 (restore with { Containers = [.. restore.Containers, container] }).Save(root);
             }
-            ProtectedFiles.Create(Path.Combine(control, "host-operation.json"), JsonSerializer.Serialize(new HostRecoveryOperation(1, reservation, container, quiesced, restoreEmergency)), 0, 1654);
+            if (updateRecovery)
+            {
+                var update = UpdateReceipt.Load(root) ?? throw new IOException("Update delegation requires intent.");
+                if (update.Phase != UpdatePhase.Fenced || !quiesced) throw new IOException("Invalid update capture phase.");
+            }
+            ProtectedFiles.Create(Path.Combine(control, "host-operation.json"), JsonSerializer.Serialize(new HostRecoveryOperation(1, reservation, container, quiesced, restoreEmergency, updateRecovery)), 0, 1654);
         }
         var stopped = false;
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);

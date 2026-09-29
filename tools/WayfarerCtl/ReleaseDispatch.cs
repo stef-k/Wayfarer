@@ -24,7 +24,9 @@ public static class ReleaseDispatch
     {
         if (args.Length == 0 || args[0] == "dispatch") throw new UsageException("dispatch requires one ordinary command.");
         var resume = args is ["restore", "--resume" or "--abort", ..];
-        var selected = Select(root, resume);
+        var selected = args is ["update", "--resume" or "--abort" or "--restore", ..]
+            ? ReleaseStore.Select(root, (UpdateReceipt.Load(root) ?? throw new UsageException("Missing update owner.")).Plan.OperatorOwner)
+            : Select(root, resume);
         var executable = Path.Combine(selected.Directory, "wayfarerctl");
         var start = new ProcessStartInfo(executable) { UseShellExecute = false };
         start.ArgumentList.Add("--deployment-root");

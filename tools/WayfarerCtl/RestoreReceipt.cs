@@ -23,6 +23,10 @@ public sealed record RestorePlan(Guid Operation, string Root, Deployment Target,
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public ReleaseAuthority? OperatorOwner { get; init; }
 
+    /// <summary>Optional exact update operation granting the retained old target under a durable ownership join.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public Guid? FromUpdate { get; init; }
+
     /// <summary>Bind existing local credentials without retaining their bytes in non-secret evidence.</summary>
     public string? LocalSecretsFingerprint { get; init; }
 
@@ -143,6 +147,7 @@ public static class InstallationCompletion
     /// <summary>Ordinary lifecycle readiness requires durable completion and no unresolved restore.</summary>
     public static bool IsComplete(string root)
     {
+        if (UpdateReceipt.Load(root) is { Resolved: false }) return false;
         if (RestoreReceipt.Load(root) is { Phase: not (RestorePhase.Accepted or RestorePhase.Aborted) }) return false;
         return HasCompletionEvidence(root);
     }

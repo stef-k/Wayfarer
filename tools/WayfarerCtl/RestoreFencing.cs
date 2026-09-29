@@ -117,7 +117,13 @@ public sealed class RestoreFencing(IProcessRunner runner)
         if (Label("com.docker.compose.project") != config.Project && Label("wayfarer.restore-helper") != config.Project)
             throw new IOException("Recorded container was replaced by foreign authority.");
         var image = container.GetProperty("Config").GetProperty("Image").GetString();
-        if (image != "ghcr.io/stef-k/wayfarer@" + config.AppDigest && image != "ghcr.io/stef-k/wayfarer-db@" + config.DbDigest &&
+        string? updateImage = null;
+        if (receipt.Plan.FromUpdate is not null)
+        {
+            UpdateRestoreHandoff.Require(receipt.Plan.Root, receipt.Plan);
+            updateImage = "ghcr.io/stef-k/wayfarer@" + UpdateReceipt.Load(receipt.Plan.Root)!.Plan.Target.AppDigest;
+        }
+        if (image != updateImage && image != "ghcr.io/stef-k/wayfarer@" + config.AppDigest && image != "ghcr.io/stef-k/wayfarer-db@" + config.DbDigest &&
             image != "caddy@sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b")
             throw new IOException("Recorded container image identity changed.");
         var allowed = receipt.Volumes.Concat(new[] { "db-data", "app-data", "app-cache", "app-logs", "caddy-data", "caddy-config" }

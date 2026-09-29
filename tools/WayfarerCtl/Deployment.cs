@@ -83,11 +83,18 @@ public sealed record Deployment
         if (config.Release is not null) ReleaseStore.Select(root, config.Release);
         if (config.Backup is not null && !InstallationCompletion.HasCompletionEvidence(root))
             throw new UsageException("Incomplete setup cannot use backup schema/policy.");
-        ProtectedFiles.Check(Path.Combine(root, "deployment.env"), 0);
-        if (File.ReadAllText(Path.Combine(root, "deployment.env")) != config.EnvironmentFile(root))
+        ProtectedFiles.Check(config.EnvironmentPath(root), 0);
+        if (File.ReadAllText(config.EnvironmentPath(root)) != config.EnvironmentFile(root))
             throw new UsageException("Configuration differs from installation identity; reconcile it explicitly before operation.");
         ActiveStorage.Check(root, config);
         return config;
+    }
+
+    /// <summary>Immutable release-specific inputs let one installation pointer commit the deployment transition.</summary>
+    public string EnvironmentPath(string root)
+    {
+        var retained = Release is null ? null : Path.Combine(root, "deployment-generations", Release.Fingerprint, "deployment.env");
+        return retained is not null && File.Exists(retained) ? retained : Path.Combine(root, "deployment.env");
     }
 
     /// <summary>Literal non-secret interpolation file; credentials are always bounded mounted files.</summary>
@@ -100,7 +107,7 @@ public sealed record Deployment
     public string[] Compose(string root, params string[] arguments)
     {
         var prefix = new List<string> { "compose", "--project-name", Project, "--project-directory", Bundle,
-            "--env-file", Path.Combine(root, "deployment.env"), "-f", Path.Combine(Bundle, "compose.yaml") };
+            "--env-file", EnvironmentPath(root), "-f", Path.Combine(Bundle, "compose.yaml") };
         if (Mode == "managed") prefix.AddRange(["--profile", "managed"]);
         else prefix.AddRange(["-f", Path.Combine(Bundle, "external.yaml")]);
         if (StorageGeneration is not null) prefix.AddRange(["-f", ActiveStorage.OverlayPath(root, this)]);

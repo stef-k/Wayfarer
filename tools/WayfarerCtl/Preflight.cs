@@ -165,8 +165,9 @@ public sealed class Preflight(IProcessRunner runner)
                 files += "," + Path.Combine(BackupCompose.DirectoryPath(root, config.Backup), "compose.json");
             }
             var actualFiles = Label("project.config_files");
-            var transition = root is not null && config.StorageGeneration is not null && actualFiles is not null &&
-                actualFiles.StartsWith(files + "," + Path.Combine(root, "restore-plans") + "/", StringComparison.Ordinal) &&
+            var transition = root is not null && actualFiles is not null &&
+                (actualFiles.StartsWith(files + "," + Path.Combine(root, "restore-plans") + "/", StringComparison.Ordinal) ||
+                 actualFiles.StartsWith(files + "," + Path.Combine(root, "update-plans") + "/", StringComparison.Ordinal)) &&
                 System.Text.RegularExpressions.Regex.IsMatch(actualFiles[files.Length..], @",.*/[a-f0-9]{32}/(transition|exposure)\.yaml$");
             if (Label("project.working_dir") != bundle || actualFiles != files && !transition ||
                 service is not ("db" or "wayfarer" or "caddy" or "backup-worker" or "backup-scheduler" or "backup-reader" or "backup-destination-check"))

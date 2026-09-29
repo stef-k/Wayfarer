@@ -40,7 +40,8 @@ public sealed record UpdateReceipt
     public Guid? RestoreOperation { get; init; }
     public bool MigrationPossible => Phase >= UpdatePhase.MigrationStarted && Phase != UpdatePhase.Aborted;
     public bool WritesPossible => Phase >= UpdatePhase.WritesPossible && Phase != UpdatePhase.Aborted;
-    public bool Resolved => Phase is UpdatePhase.Accepted or UpdatePhase.Aborted;
+    public bool RestoreAccepted { get; init; }
+    public bool Resolved => Phase is UpdatePhase.Accepted or UpdatePhase.Aborted || RestoreAccepted;
     public static string PathFor(string root) => Path.Combine(root, "recovery-control", "update.json");
 
     /// <summary>Only contiguous forward steps or pre-migration abort may change the cutoff.</summary>

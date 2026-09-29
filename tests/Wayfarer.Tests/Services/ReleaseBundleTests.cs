@@ -72,7 +72,7 @@ public sealed class ReleaseBundleTests : IDisposable
     {
         var manifest = Manifest();
         foreach (var invalid in new[] { manifest with { Schema = 2 }, manifest with { ConfigurationSchema = 2 },
-            manifest with { BundleContract = 2 }, manifest with { Operator = manifest.Operator with { UpdateReceiptSchemas = [1] } },
+            manifest with { BundleContract = 2 }, manifest with { Operator = manifest.Operator with { UpdateReceiptSchemas = [2] } },
             manifest with { Status = "candidate", Tag = "v1.9.19" }, manifest with { Status = "stable", Tag = null } })
             Assert.Throws<IOException>(() => ReleaseContract.Validate(invalid));
         ReleaseContract.RequireUse(manifest, "1.9.19");
