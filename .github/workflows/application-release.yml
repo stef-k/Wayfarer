@@ -79,3 +79,88 @@ jobs:
           name: image-evidence
           path: ${{ runner.temp }}/image-evidence.json
           if-no-files-found: error
+
+  # Only this job can create Release assets; package publication remains in its existing job.
+  deployment-bundle:
+    needs: [publish, anonymous-pull]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Pull accepted exact dependencies anonymously
+        env:
+          IMAGE_DIGEST: ${{ needs.publish.outputs.digest }}
+          DOCKER_CONFIG: ${{ runner.temp }}/anonymous-docker
+        run: |
+          mkdir -m 700 "$DOCKER_CONFIG"
+          docker pull --platform linux/amd64 "ghcr.io/stef-k/wayfarer@$IMAGE_DIGEST"
+          docker pull --platform linux/amd64 ghcr.io/stef-k/wayfarer-db@sha256:bd9b3bbfe1e879b56b0742646c18d0dcc9ec95180095f8f6d02e03b54feeeb61
+          docker pull --platform linux/amd64 caddy@sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b
+      - name: Assemble, validate and upload stable assets once
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          RELEASE_SOURCE: ${{ github.sha }}
+          IMAGE_DIGEST: ${{ needs.publish.outputs.digest }}
+          DOCKER_CONFIG: ${{ runner.temp }}/anonymous-docker
+        run: |
+          python3 -B tools/release/bundle.py --stable --publish --tag "$RELEASE_TAG" --source "$RELEASE_SOURCE" \
+            --app-digest "$IMAGE_DIGEST" --output "$RUNNER_TEMP/deployment"
+      - name: Retain intended bytes and publication provenance for reconciliation
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: deployment-publication
+          path: |
+            ${{ runner.temp }}/deployment/*.tar.gz
+            ${{ runner.temp }}/deployment/*.sha256
+            ${{ runner.temp }}/deployment/publication.json
+            ${{ runner.temp }}/deployment/v*/release.json
+            ${{ runner.temp }}/deployment/v*/wayfarerctl
+          if-no-files-found: warn
+
+  # Operational acceptance runs only for a genuine stable release, on a fresh unauthenticated Docker client.
+  public-compose-acceptance:
+    needs: deployment-bundle
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: deployment-publication
+          path: ${{ runner.temp }}/publication
+      - name: Acquire exact public bytes and images, then exercise fresh setup and doctor
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          # The artifact supplies only a trusted current bootstrap; acquisition itself reads public GitHub/GHCR with no token.
+          sudo install -d -m 700 /tmp/wayfarer-public-acceptance
+          sudo install -m 555 "$RUNNER_TEMP/publication/$RELEASE_TAG/wayfarerctl" /tmp/wayfarer-public-acceptance/bootstrap
+          sudo /tmp/wayfarer-public-acceptance/bootstrap --deployment-root /tmp/wayfarer-public-acceptance/install \
+            release acquire "${RELEASE_TAG#v}" | tee "$RUNNER_TEMP/acquisition.json"
+          bundle="/tmp/wayfarer-public-acceptance/install/releases/$RELEASE_TAG"
+          app_digest="$(sudo cat "$bundle/release.json" | python3 -c 'import json,sys; print(json.load(sys.stdin)["Images"]["ApplicationDigest"])')"
+          # A disposable root-only stdin file follows the shipped protected-password convention.
+          sudo sh -c 'umask 077; printf "Acceptance-Aa1!%s\n" "$(openssl rand -hex 16)" > /tmp/wayfarer-public-acceptance/password'
+          sudo sh -c 'exec "$1/wayfarerctl" --deployment-root /tmp/wayfarer-public-acceptance/install setup --bundle "$1" --hostname wayfarer.example.org --app-digest "$2" --project wayfarer-public-acceptance --edge-prefix 172.30.69 --mode external --loopback-port 18080 --password-stdin < /tmp/wayfarer-public-acceptance/password' sh "$bundle" "$app_digest"
+          sudo "$bundle/wayfarerctl" --deployment-root /tmp/wayfarer-public-acceptance/install release adopt "$bundle"
+          sudo "$bundle/wayfarerctl" --deployment-root /tmp/wayfarer-public-acceptance/install doctor
+          sudo "$bundle/wayfarerctl" --deployment-root /tmp/wayfarer-public-acceptance/install stop
+      - name: Preserve real public acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: public-compose-acceptance
+          path: ${{ runner.temp }}/acquisition.json
+          if-no-files-found: warn

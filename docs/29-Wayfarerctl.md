@@ -608,8 +608,11 @@ Installed paths are `releases/vX.Y.Z/` or `releases/candidate-vX.Y.Z-FULLSHA/`.
 Different bytes at an occupied name fail. `.stage-ID` plus a root-owned sibling receipt
 records interrupted placement; `release reconcile .stage-ID` publishes only a complete
 matching stage. Partial stages are retained as evidence, never selected or auto-deleted.
-Directory import is the supported offline seam. Tarball extraction is not implemented;
-assembly emits deterministic tarballs and external checksums for trusted distribution.
+Directory import remains the offline seam. `release unpack ARCHIVE EMPTY_PRIVATE_STAGE`
+uses the bounded in-process extractor for trusted offline authoring/bootstrap preparation;
+it never imports or pulls. The authoring overload `release unpack X.Y.Z STAGE`
+uses the same anonymous metadata/digest/staging owner to inspect a public prior source
+without executing its payloads. Assembly emits deterministic tarballs and external checksums.
 Checksums do not authenticate publishers.
 
 Keep a stable bootstrap executable at a fixed root-owned path. Invoke
@@ -628,7 +631,7 @@ without reading the current DB or trusting archive metadata. Clean-root restore 
 payload options. The target still requires provenance acknowledgement before SQL and
 application-owned offline candidate validation before activation.
 
-There is no network resolver, release/image pruning or implicit activation.
+Public stable acquisition is described below. There is no release/image pruning or implicit activation.
 The [shipped offline instructions](../tools/release/INSTALL.md) describe layout and
 commands. Run the existing Compose recovery qualifier with `--release-bundle PATH`
 to include import, adoption, placement recovery and retained operator/target evidence.
@@ -649,8 +652,9 @@ identity and post-restore product validation remain mandatory.
 ## Trusted-local managed forward update
 
 Use an already extracted, administrator-trusted local `release.json` bundle and
-already present immutable images. No download, latest-version discovery, image
-pull, PostgreSQL major upgrade, reference seeding or native migration is performed.
+already present immutable images with `--bundle`. Public planning can acquire these
+inputs first; the lifecycle performs no PostgreSQL major upgrade, reference seeding
+or native migration.
 The current installation must already have schema-4 retained release authority,
 a compatible retained operator, and an enabled, usable recovery destination.
 
@@ -753,3 +757,52 @@ existing recovery qualification and this update journey on lifecycle-sensitive
 exact PR heads. Its update observations include real migration failure, lost
 acknowledgement, private postflight failure, foreign-consumer refusal before
 restore ownership transfer, and forward update followed by post-update restore.
+
+
+## Public stable acquisition and update planning
+
+```sh
+wayfarerctl release acquire X.Y.Z
+wayfarerctl release acquire latest
+wayfarerctl update --plan
+wayfarerctl update X.Y.Z --plan
+wayfarerctl update --bundle /trusted/extracted/bundle --plan
+wayfarerctl update --accept-plan <printed-sha256>
+```
+
+`release acquire` downloads one exact public stable Wayfarer deployment asset. Discovery
+is only GitHub's project release-by-tag/latest endpoint. Strict metadata requires exact
+tag/name/project, non-draft/non-prerelease status, one uploaded versioned asset,
+bounded nonzero size and GitHub REST's SHA-256 asset digest. No token, cookies,
+installation metadata or arbitrary URL/repository/channel is accepted. The checksum
+sidecar is human/offline integrity evidence and cannot authenticate the publisher.
+
+HTTPS download starts at the deterministic project URL and permits only the fixed
+GitHub release-asset CDN redirect. Connect, request and read deadlines are finite;
+cancellation reaches streaming, extraction and Docker. The download is limited to
+512 MiB; metadata to 1 MiB; uncompressed archive to 768 MiB and each payload to
+256 MiB (manifest to the existing 128 KiB bound). Only the fixed regular-file USTAR
+inventory is accepted. Links, special/sparse/extension entries, path aliases, duplicate
+names, nonzero trailers and overwrite attempts fail. Archive mode bits are ignored.
+Private root-owned staging receives fixed contract modes, then `ReleaseBundle.Validate`
+and `ReleaseStore.Import` grant immutable retained authority. Download/extraction
+failure leaves existing complete releases intact; abandoned `.acquire-ID` directories
+are non-authoritative and may be removed by the administrator after confirming no
+acquisition is active. Existing `.stage-ID` import reconciliation semantics are unchanged.
+
+Only the bundle's immutable application/accepted DB/Caddy references are pulled,
+with an empty Docker credential configuration, then `ReleaseImagesVerifier` rechecks
+the images/payload protocols. Pull/verification failure retains the validated bundle
+as not execution-ready. Success reports path, fingerprint and version. No setup,
+migration, activation, pointer switch or bootstrap replacement is performed.
+
+`update --plan` acquires latest; `update X.Y.Z --plan` acquires that exact version.
+Both feed the existing #704 local planner and receipts. Latest being current/older,
+source-only, or lacking the exact current fingerprint fails without fallback target
+search. Destructive execution still requires the printed plan hash. Offline import/
+planning remain available when public acquisition is unavailable.
+
+The first future public Compose stable may be a fresh-install/restore baseline with
+no sources. Later stable publication binds one compatible immediate prior deployable
+public bundle; incompatible or invalid prior authority blocks publication. Never
+retrofit v1.9.19/source-only history. See [publication and real acceptance](27-Application-Image-Publication.md#stable-compose-distribution).

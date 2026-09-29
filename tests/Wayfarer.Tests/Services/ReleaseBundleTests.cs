@@ -1,4 +1,6 @@
 using System.Security.Cryptography;
+using System.Formats.Tar;
+using System.IO.Compression;
 using System.Text;
 using System.Text.Json;
 using WayfarerCtl;
@@ -217,6 +219,57 @@ public sealed class ReleaseBundleTests : IDisposable
             target with { Manifest = target.Manifest with { Application = target.Manifest.Application with { Migrations = ["20260929000000_Forward"] } } }, true));
         Assert.Throws<UsageException>(() => UpdateOptions.Boundary(source,
             target with { Manifest = target.Manifest with { Sources = [boundary with { ReferenceSeeding = true }] } }, true));
+    }
+
+    /// <summary>Public extraction grants the same fingerprint and ignores archive modes; aliases, links and huge headers fail.</summary>
+    [Theory]
+    [InlineData("valid")]
+    [InlineData("../compose.yaml")]
+    [InlineData("duplicate")]
+    [InlineData("link")]
+    [InlineData("huge")]
+    [InlineData("extension")]
+    public async Task PublicArchiveUsesFixedInventoryAndNormalValidator(string change)
+    {
+        var stage = Path.Combine(directory, "extraction");
+        var expected = ReleaseBundle.Validate(directory);
+        var archive = Path.Combine(directory, "archive.gz");
+        using (var output = File.Create(archive))
+        using (var gzip = new GZipStream(output, CompressionMode.Compress))
+        using (var writer = new TarWriter(gzip, TarEntryFormat.Ustar))
+        {
+            foreach (var name in ReleaseContract.Payloads.Append("release.json"))
+            {
+                using var data = File.OpenRead(Path.Combine(directory, name));
+                writer.WriteEntry(new UstarTarEntry(TarEntryType.RegularFile, name) { DataStream = data, Mode = (UnixFileMode)511 });
+            }
+            if (change == "extension") writer.WriteEntry(new PaxTarEntry(TarEntryType.RegularFile, "config/bad"));
+            if (change == "link") writer.WriteEntry(new UstarTarEntry(TarEntryType.SymbolicLink, "config/bad") { LinkName = "/etc/passwd" });
+            else if (change != "valid" && change != "huge" && change != "extension")
+                writer.WriteEntry(new UstarTarEntry(TarEntryType.RegularFile, change == "duplicate" ? "compose.yaml" : change));
+        }
+        if (change == "huge")
+        {
+            // A valid checksummed oversized header must fail before trying to read its advertised data.
+            byte[] raw;
+            using (var gzip = new GZipStream(File.OpenRead(archive), CompressionMode.Decompress))
+            using (var buffer = new MemoryStream()) { gzip.CopyTo(buffer); raw = buffer.ToArray(); }
+            Encoding.ASCII.GetBytes("77777777777\0").CopyTo(raw, 124);
+            Array.Fill(raw, (byte)' ', 148, 8);
+            var checksum = raw.Take(512).Sum(value => (int)value);
+            Encoding.ASCII.GetBytes(Convert.ToString(checksum, 8).PadLeft(6, '0') + "\0 ").CopyTo(raw, 148);
+            using var output = File.Create(archive);
+            using var compressed = new GZipStream(output, CompressionMode.Compress);
+            compressed.Write(raw);
+        }
+        Directory.CreateDirectory(stage, ProtectedFiles.PrivateDirectory);
+        if (change == "valid")
+        {
+            var actual = await ReleaseArchive.ExtractAsync(archive, stage, default);
+            Assert.Equal(expected.Fingerprint, actual.Fingerprint);
+            await Assert.ThrowsAsync<IOException>(() => ReleaseArchive.ExtractAsync(archive, stage, default));
+        }
+        else await Assert.ThrowsAnyAsync<IOException>(() => ReleaseArchive.ExtractAsync(archive, stage, default));
     }
 
     private ReleaseManifest Manifest() => new(1, 1, 1, "candidate", "1.9.19", null,

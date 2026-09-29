@@ -5,7 +5,7 @@ using WayfarerRecovery;
 
 namespace WayfarerCtl;
 
-/// <summary>Explicit offline import, validation, source export and metadata-only adoption.</summary>
+/// <summary>Public prefetch and explicit offline import, validation, source export and metadata-only adoption.</summary>
 public sealed class ReleaseCommands(IProcessRunner runner, ITerminal terminal)
 {
     public static string OperatorVersion => typeof(Cli).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()!.InformationalVersion;
@@ -13,23 +13,56 @@ public sealed class ReleaseCommands(IProcessRunner runner, ITerminal terminal)
     /// <summary>All local-artifact grammar is checked before filesystem or Docker work.</summary>
     public static void Validate(string[] args)
     {
+        if (args is ["unpack", var archive, var stagePath])
+        {
+            if (Path.IsPathFullyQualified(archive)) BackupPolicy.LiteralPath(archive);
+            else PublicRelease.Selector(archive);
+            BackupPolicy.LiteralPath(stagePath);
+            return;
+        }
+        if (args is ["acquire", var selector]) { PublicRelease.Selector(selector); return; }
         if (args is ["inspect" or "verify-images" or "import" or "adopt", var path]) { BackupPolicy.LiteralPath(path); return; }
         if (args is ["target", _, _, "current" or "legacy"]) { Validate(args[..3]); return; }
         if (args is ["corroborate", var input, var evidence]) { BackupPolicy.LiteralPath(input); BackupPolicy.LiteralPath(evidence); return; }
         if (args is ["target", var bundle, var project]) { BackupPolicy.LiteralPath(bundle);
             if (System.Text.RegularExpressions.Regex.IsMatch(project, "\\A[a-z0-9][a-z0-9_-]{0,62}\\z")) return; }
         if (args is ["reconcile", var stage] && System.Text.RegularExpressions.Regex.IsMatch(stage, "\\A\\.stage-[a-f0-9]{32}\\z")) return;
-        throw new UsageException("Use release inspect|verify-images|import|adopt /absolute/bundle, target /absolute/bundle project, or reconcile .stage-ID.");
+        throw new UsageException("Use release acquire X.Y.Z|latest, inspect|verify-images|import|adopt /absolute/bundle, unpack ARCHIVE STAGE, target BUNDLE PROJECT, or reconcile .stage-ID.");
     }
 
     /// <summary>Inspection and target export never claim images are execution-ready.</summary>
     public async Task<int> RunAsync(string root, string[] args, CancellationToken token)
     {
         Validate(args);
+        if (args[0] == "unpack")
+        {
+            // Offline authoring/bootstrap helper: the caller owns private empty staging, never installed placement.
+            if (!Directory.Exists(args[2]) || Directory.EnumerateFileSystemEntries(args[2]).Any())
+                throw new UsageException("Unpack requires an existing empty private staging directory.");
+            using var stage = new SafeDirectory(args[2]);
+            stage.RequireLocalControl();
+            var staged = Path.IsPathFullyQualified(args[1])
+                ? await ReleaseArchive.ExtractAsync(args[1], args[2], token)
+                : await PublicReleaseAcquisition.StageAsync(args[2], args[1], token);
+            Describe(staged, false);
+            return 0;
+        }
         if (args[0] == "reconcile")
         {
             using var exclusion = Setup.Lock(root);
             Describe(ReleaseStore.Reconcile(root, args[1]), false);
+            return 0;
+        }
+        if (args[0] == "acquire")
+        {
+            ProtectedFiles.SafePath(root);
+            Directory.CreateDirectory(root, ProtectedFiles.PrivateDirectory);
+            ProtectedFiles.Check(root, 0, directory: true);
+            using var exclusion = Setup.Lock(root);
+            await new Preflight(runner).DockerAsync(token);
+            var acquired = await new PublicReleaseAcquisition(runner).AcquireAsync(root, args[1], token);
+            terminal.Write(JsonSerializer.Serialize(new { Path = acquired.Directory, acquired.Fingerprint,
+                acquired.Manifest.Version, Images = "execution-ready", Publisher = "public-stable-GitHub", Integrity = "GitHub-asset-SHA256" }));
             return 0;
         }
         var bundle = ReleaseBundle.Validate(args[1]);

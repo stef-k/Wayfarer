@@ -1,15 +1,18 @@
-# Offline release bundle v1
+# Release bundle v1
 
 This directory is a candidate qualification artifact unless `release.json` explicitly
 records stable status. Checksums prove integrity, not publisher authenticity. Obtain
-these bytes from a trusted administrator/maintainer. No public stable asset availability
-is implied. The target host needs Linux AMD64, Docker/Compose and root, not an SDK.
+these bytes from a trusted administrator/maintainer or the exact public stable Release.
+This implementation does not claim a public Compose stable has shipped; real release
+acceptance remains required. The target host needs Linux AMD64, Docker/Compose and
+root, not an SDK.
 
 Use a previously trusted operator to run `release inspect /absolute/bundle` and
 `release verify-images /absolute/bundle`. Missing local images mean the bundle is not
-execution-ready. These commands never pull images. Offline import currently accepts
-an already-extracted trusted directory only; tarball import is not implemented. The
-archive's SHA-256 is in the external `SHA256SUMS`, never in its own manifest.
+execution-ready. These commands never pull images. Offline import accepts an
+already-extracted trusted directory. `release unpack ARCHIVE
+EMPTY_PRIVATE_STAGE` safely extracts to `STAGE/bundle` without importing or pulling.
+Candidate checksums remain in `SHA256SUMS`; stable archives use a versioned `.sha256` sidecar.
 
 Create a root-owned mode-0700 deployment root if it does not exist. Run
 `wayfarerctl --deployment-root /etc/wayfarer release import /absolute/bundle`.
@@ -49,8 +52,9 @@ recovery set. Migration is forward-only in the current generation. After migrati
 may have started, `update --restore UUID` transfers ownership to managed restore of
 the held old-release archive into a fresh generation; an old image is not rollback.
 Retain current/previous bundles, operators, images, receipts and recovery holds.
-Network acquisition, stable publication and stable release-to-release qualification
-remain separate. See the repository operator documentation for phase and recovery details.
+Public acquisition can prepare these same inputs; real stable release-to-release
+qualification remains a separate operational gate. See the repository operator
+documentation for phase and recovery details.
 
 For a pre-existing capture pair, the maintainer assembler accepts both
 `--capture-directory /trusted/pair` and `--capture-evidence /trusted/source.json`.
@@ -68,3 +72,60 @@ matches its independently persisted capture policy. Adoption never refreshes tha
 policy. Prepare the complete desired inventory before import: an occupied release
 name is never repaired or expanded in place. Recovery helpers are mode 0555/0444 to
 satisfy the existing immutable capture-payload contract.
+
+
+## Public bootstrap and ordinary updates
+
+The public stable artifact is `wayfarer-vX.Y.Z-linux-amd64.tar.gz`, with a matching
+`.tar.gz.sha256` sidecar on that exact GitHub Release. Linux AMD64, Docker Engine/
+Compose v2 and root are required. The host needs no clone, .NET SDK, Node/npm or Python.
+No host package or Docker daemon configuration is installed by this distribution.
+
+For the **next genuine stable containing this capability**, choose its exact version
+and obtain the archive/sidecar through HTTPS. The following trusted-release bootstrap
+uses ordinary Linux download/checksum/archive utilities. First compare the archive
+SHA-256 with the Release asset's published REST `digest` (`sha256:<64 lowercase hex>`)
+from `https://api.github.com/repos/stef-k/Wayfarer/releases/tags/vX.Y.Z`; the sidecar
+is a convenience integrity check, not publisher authentication. Do not run downloaded
+payloads before this provenance/integrity verification.
+
+```sh
+# Replace X.Y.Z with the genuine Compose stable release; no mutable latest asset exists.
+release=vX.Y.Z
+asset=wayfarer-$release-linux-amd64.tar.gz
+sudo install -d -m 700 /opt/wayfarer-bootstrap
+cd /opt/wayfarer-bootstrap
+sudo curl --fail --location --proto '=https' --proto-redir '=https' --max-time 600 \
+  --output "$asset" "https://github.com/stef-k/Wayfarer/releases/download/$release/$asset"
+sudo curl --fail --location --proto '=https' --proto-redir '=https' --max-time 60 \
+  --output "$asset.sha256" "https://github.com/stef-k/Wayfarer/releases/download/$release/$asset.sha256"
+# Compare this hash to the published REST asset digest, then check the sidecar.
+sudo sha256sum "$asset"
+sudo sha256sum --check "$asset.sha256"
+# Only extract the verified trusted publisher archive into a fresh root-owned directory.
+sudo install -d -m 700 /opt/wayfarer-bootstrap/bundle
+sudo tar --extract --gzip --file "$asset" --directory /opt/wayfarer-bootstrap/bundle --no-same-owner
+sudo /opt/wayfarer-bootstrap/bundle/wayfarerctl release inspect /opt/wayfarer-bootstrap/bundle
+# Uses the product anonymous bounded path, exact image pulls and normal immutable import.
+sudo /opt/wayfarer-bootstrap/bundle/wayfarerctl release acquire "${release#v}"
+sudo /opt/wayfarer-bootstrap/bundle/wayfarerctl setup --bundle "/etc/wayfarer/releases/$release"
+sudo "/etc/wayfarer/releases/$release/wayfarerctl" release adopt "/etc/wayfarer/releases/$release"
+```
+
+Setup prompts for the remaining trusted configuration/admin password, including
+`Images.ApplicationDigest` from the validated retained `release.json`. Keep this
+bootstrap fixed; retained-release `dispatch` selects exact installed operators after
+transitions. It does not update its own executable. No curl-pipe-shell is used.
+
+`release acquire X.Y.Z|latest` only prefetches validated retained bytes/images and
+reports path/fingerprint/version. `update --plan` uses latest stable; `update X.Y.Z
+--plan` uses the exact release. Both feed the unchanged #704 plan/receipt lifecycle;
+`update --accept-plan HASH` remains destructive authorization. Current/older targets,
+missing assets or missing exact source compatibility fail without fallback search.
+Offline `release import PATH` and `update --bundle PATH --plan` remain available.
+
+The first public Compose stable may have `Sources=[]`: fresh setup/restore only,
+with no invented update from source-only v1.9.19 or older. Subsequent publication binds
+one exact compatible prior public Compose bundle or fails. The issue remains open
+until genuine stable publication and fresh anonymous acquisition/setup/doctor pass;
+PR candidate migration proof does not claim stable-to-stable migration.

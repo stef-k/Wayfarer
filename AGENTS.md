@@ -77,6 +77,7 @@
 - The implementation agent must stop with the PR unmerged and the implementation issue open after reporting the exact PR head SHA, validation evidence, Code Guard result, and known debt. It must not merge its own PR or close its issue as completed.
 - The exact PR head must receive an independent review separate from the implementation pass before merge. For the maintainer workflow, Codex implements and ChatGPT reviews the live GitHub exact head; implementation-time self-review, subagent review, or an unrecorded internal review is not a substitute for this gate.
 - Any commit after independent review invalidates that review. Re-run proportionate validation/CI and independently review the new exact head before merge.
+- Expensive qualification from a previously successful head may be reused when the exact delta since that head is proven outside that qualification's scope; the current head still requires applicable cheap checks and independent review.
 - Merge and issue closure require all three: successful exact-head CI, independent review with no blocking findings, and maintainer acceptance.
 - Pending, failed, cancelled, or missing checks are not successful merge evidence. For a clear infrastructure stall, cancel and rerun the unchanged workflow at most once before reporting the infrastructure failure.
 - Documentation-only PRs may skip the expensive test steps, but the required `test` job must still complete successfully through its documented fast path and the independent-review gate still applies.
