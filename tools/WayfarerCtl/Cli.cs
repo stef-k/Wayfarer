@@ -55,16 +55,7 @@ public sealed class Cli(IProcessRunner runner, ITerminal terminal)
         if (args[0] == "update") return await new UpdateCommands(runner, terminal).RunAsync(root, args[1..], token);
         if (args[0] == "restore") return await new RestoreCommands(runner, terminal).RunAsync(root, args[1..], token);
         if (args[0] == "setup") return await new Setup(runner, terminal).RunAsync(root, args[1..], token);
-        if (args[0] is "status" or "doctor" && RestoreReceipt.Load(root) is { } restore)
-        {
-            terminal.Write($"Restore: {restore.Plan.Operation:D}; phase: {restore.Phase}; writes possible: {restore.WritesPossible}.");
-            if (restore.Phase is not (RestorePhase.Accepted or RestorePhase.Aborted)) return 1;
-        }
-        if (args[0] is "status" or "doctor" && UpdateReceipt.Load(root) is { } update)
-        {
-            terminal.Write($"Update: {update.Plan.Operation:D}; phase: {update.Phase}; migration possible: {update.MigrationPossible}; writes possible: {update.WritesPossible}; restore: {update.RestoreOperation}.");
-            if (!update.Resolved) return 1;
-        }
+        if (args[0] is "status" or "doctor" && ReportIntent(root)) return 1;
         var config = Deployment.Load(root);
         if (args[0] is "status" or "doctor")
             return await new Diagnostics(runner, terminal).RunAsync(root, config, args[0] == "doctor", token);
@@ -86,6 +77,24 @@ public sealed class Cli(IProcessRunner runner, ITerminal terminal)
         if (File.Exists(Path.Combine(root, "recovery-control/host-operation.json"))) throw new IOException("Unresolved recovery operation.");
         if (args[0] == "user") return await UserAsync(root, config, args, token);
         return await LifecycleAsync(root, config, args[0], token);
+    }
+
+    /// <summary>Report both sides of an unresolved ownership handoff before ordinary deployment loading can reject transition state.</summary>
+    private bool ReportIntent(string root)
+    {
+        var unresolved = false;
+        if (UpdateReceipt.Load(root) is { } update)
+        {
+            terminal.Write($"Update: {update.Plan.Operation:D}; phase: {update.Phase}; migration possible: {update.MigrationPossible}; " +
+                $"writes possible: {update.WritesPossible}; restore: {update.RestoreOperation}; recovered by restore: {update.RestoreAccepted}.");
+            unresolved = !update.Resolved;
+        }
+        if (RestoreReceipt.Load(root) is { } restore)
+        {
+            terminal.Write($"Restore: {restore.Plan.Operation:D}; phase: {restore.Phase}; writes possible: {restore.WritesPossible}.");
+            unresolved |= restore.Phase is not (RestorePhase.Accepted or RestorePhase.Aborted);
+        }
+        return unresolved;
     }
 
     /// <summary>Validate all direct argument forms before touching deployment state.</summary>
