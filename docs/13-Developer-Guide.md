@@ -15,6 +15,8 @@ Contents
 - [18 — API & Mobile Integration](18-API.md)
 - [19 — Database](19-Database.md)
 - [20 — Deployment](20-Deployment.md)
+- [25 — Container & Release Contract](25-Container-Release-Contract.md)
+- [28 — Production Compose](28-Production-Compose.md)
+- [29 — wayfarerctl Operator Guide](29-Wayfarerctl.md)
 - [21 — Security](21-Security.md)
 - [22 — Testing](22-Testing.md)
-

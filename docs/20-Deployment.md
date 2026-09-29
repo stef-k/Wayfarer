@@ -1,12 +1,40 @@
 # Deployment & Operations
 
-The Compose operator foundation now provides secure fresh setup and routine management through
-[`wayfarerctl`](29-Wayfarerctl.md). Opt-in Compose recovery sets are documented there. Final release packaging, production restore/update and native
-migration remain separate #603 work; the existing native path below remains available.
+## Guided Compose deployment
 
-This guide covers installation, deployment, logging, and operational commands for Wayfarer on Linux servers.
+The primary production path is the small official `wayfarerctl-linux-amd64.tar.gz`
+bootstrap on Linux AMD64 with Docker Engine, Compose v2 2.24.4+ and root/sudo access.
+After verifying its GitHub Release asset SHA-256, extract it in a trusted directory:
 
-For the planned Docker distribution, see the normative [container and release contract](25-Container-Release-Contract.md). The [application image and explicit maintenance commands](26-Application-Container.md) are implemented; Compose/publication remain planned. This guide remains the native/manual deployment path.
+```sh
+tar -xzf wayfarerctl-linux-amd64.tar.gz
+chmod +x wayfarerctl
+sudo ./wayfarerctl setup
+```
+
+Setup anonymously discovers/acquires/verifies the latest stable deployment bundle and
+its immutable images, derives image identities from `release.json`, then guides the
+administrator through hostname, proxy and password choices. `setup --version X.Y.Z`
+selects an exact online stable; `setup --bundle /absolute/trusted/bundle` is the
+secondary local/offline seam with exact images already present. They share one setup
+engine. No source clone or native .NET/Node/PostgreSQL/Nginx/Certbot installation is
+needed for this production path.
+
+**Availability:** public bootstrap/bundle assets await the first genuine Compose
+stable release; v1.9.19 and earlier remain source-only. #713 acceptance stays open
+until real publication/install qualification passes, including #715's ARM64 expansion
+before that first release. These instructions do not claim public assets have shipped.
+
+See [Install & Self-Hosting](02-Install-and-Dependencies.md) for prerequisites and
+verification, and the [operator guide](29-Wayfarerctl.md) for installation root,
+retained-release dispatch, diagnosis, lifecycle, recovery and authorized update plans.
+The [container/release contract](25-Container-Release-Contract.md) and
+[Compose guide](28-Production-Compose.md) describe the accepted deployment boundaries.
+
+## Advanced native/manual deployment
+
+The remaining systemd/Nginx/source-build instructions are an advanced manual path.
+Native-to-Compose migration remains separate work under #603.
 
 Production startup no longer migrates, seeds or creates an administrator. Existing native install/deploy helpers do not replace the explicit maintenance sequence below; run it with the service identity and its protected configuration before starting/restarting. Configure `TrustedProxy__Addresses__0=127.0.0.1` (and `::1` as a second entry if used) for native loopback nginx.
 

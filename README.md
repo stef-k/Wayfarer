@@ -1,12 +1,36 @@
 # Wayfarer
 
-The Compose operator foundation provides secure fresh setup and routine management through
-[`wayfarerctl`](docs/29-Wayfarerctl.md). Final release packaging, backup/restore/update and
-native migration remain separate #603 work; the native path below remains available.
-
 [![Tests](https://github.com/stef-k/Wayfarer/actions/workflows/tests.yml/badge.svg)](https://github.com/stef-k/Wayfarer/actions/workflows/tests.yml)
 
 Wayfarer is a self-hosted travel companion that lets you keep a private location timeline, plan trips, and optionally share real-time progress with trusted people. The web app runs on ASP.NET Core and PostgreSQL/PostGIS, and a companion mobile app (WayfarerMobile) can stream live GPS updates or manual check-ins straight to your server.
+
+## Guided self-hosting
+
+The recommended production path is one small bootstrap and one guided Docker/Compose
+setup command. On a supported Linux AMD64 host with Docker Engine, Compose v2 and
+sudo/root access, obtain `wayfarerctl-linux-amd64.tar.gz` from the official stable
+[GitHub Release](https://github.com/stef-k/Wayfarer/releases), verify its Release asset
+SHA-256, then extract it in a trusted directory:
+
+```sh
+tar -xzf wayfarerctl-linux-amd64.tar.gz
+chmod +x wayfarerctl
+sudo ./wayfarerctl setup
+```
+
+Setup discovers, acquires and verifies the matching stable deployment bundle and exact
+images, then guides you through hostname, proxy and administrator-password choices.
+You do not need a source clone, .NET/Node/PostgreSQL/Nginx/Certbot installation, a
+manually selected deployment bundle or copied image digests on this path.
+See [Install & Self-Hosting](docs/02-Install-and-Dependencies.md) and the
+[operator guide](docs/29-Wayfarerctl.md) for prerequisites, exact-version/offline setup,
+retained release dispatch, recovery and update planning.
+
+**Release availability:** the lean install implementation is awaiting its first genuine
+Compose stable release. v1.9.19 and earlier are source-only. Public installation
+acceptance remains open under #713 and requires #715's ARM64 expansion before the
+first Compose stable is published. The commands above apply to that future release;
+they do not claim these public assets already exist.
 
 ## Screenshots
 
@@ -86,11 +110,11 @@ If you expose Wayfarer publicly, you are responsible for:
 * **Audit logs** — track all admin actions for compliance.
 * **Log viewer** — real-time application log viewing with search.
 
-## Get Started
+## Development (source checkout)
 
 ```bash
 dotnet restore
-dotnet ef database update   # apply Postgres/PostGIS migrations
+dotnet run --no-launch-profile -- database migrate
 dotnet run                  # launch locally (reads appsettings.Development.json)
 ```
 
@@ -132,25 +156,11 @@ The Trip Editor publish output must include
 `wwwroot/vite/trip-editor/manifest.json` and the CSS/JS files referenced by that
 manifest.
 
-1. Sign in with the seeded `admin` / `Admin1!` account and change the password.
-
-> **Warning**
-> Do not expose the app publicly until the seeded admin password is changed and registration is disabled.
-
-2. Configure thresholds, cache limits, and registration mode under **Admin > Settings**.
-3. Invite users or enable open registration; managers only see data from users who trust them.
-4. (Optional) Configure a protected personal location-provider profile; see the [credential, switching, privacy, and usage guide](docs/24-Personal-Location-Providers.md).
-
-> **Note:** The `appsettings.json` files contain placeholder database passwords. For production, configure credentials via systemd environment variables—see the [Deployment Guide](https://stef-k.github.io/Wayfarer/#/developer/26-Deployment).
-
-### Production Notes
-
-For real deployments, it's recommended to:
-
-* keep public registration disabled unless you explicitly want open signups
-* run behind a reverse proxy (Nginx / Caddy) with HTTPS
-* store secrets (DB credentials, tokens) via environment variables (systemd), not in `appsettings.json`
-* enable request limiting for API endpoints that accept GPS updates
+For source development, see [development setup](docs/14-Setup.md). Production web
+startup does not migrate, seed or create a default administrator. Native/manual
+installations require the [explicit maintenance sequence](docs/20-Deployment.md#post-installation).
+After guided Compose setup, sign in as `admin` with the password you chose, configure
+**Admin > Settings**, and keep public registration disabled unless deliberately enabled.
 
 ## Documentation
 

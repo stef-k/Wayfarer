@@ -76,56 +76,68 @@ satisfy the existing immutable capture-payload contract.
 
 ## Public bootstrap and ordinary updates
 
-The public stable artifact is `wayfarer-vX.Y.Z-linux-amd64.tar.gz`, with a matching
-`.tar.gz.sha256` sidecar on that exact GitHub Release. Linux AMD64, Docker Engine/
-Compose v2 and root are required. The host needs no clone, .NET SDK, Node/npm or Python.
-No host package or Docker daemon configuration is installed by this distribution.
+The primary public asset is `wayfarerctl-linux-amd64.tar.gz`, with its
+`wayfarerctl-linux-amd64.tar.gz.sha256` sidecar on the exact stable GitHub Release.
+It contains exactly the executable `wayfarerctl`, byte-identical to this canonical
+bundle's operator. It is packaged from those bytes with no second build. #715 adds
+`wayfarerctl-linux-arm64.tar.gz` before the first public Compose stable; this slice
+supports AMD64 only. Linux AMD64, Docker Engine, Compose v2 2.24.4+ and root are
+required. The host needs no clone, SDK/runtime, Node/npm, Python or `unzip`.
+No host package or Docker daemon configuration is installed.
 
-For the **next genuine stable containing this capability**, choose its exact version
-and obtain the archive/sidecar through HTTPS. The following trusted-release bootstrap
-uses ordinary Linux download/checksum/archive utilities. First compare the archive
-SHA-256 with the Release asset's published REST `digest` (`sha256:<64 lowercase hex>`)
-from `https://api.github.com/repos/stef-k/Wayfarer/releases/tags/vX.Y.Z`; the sidecar
-is a convenience integrity check, not publisher authentication. Do not run downloaded
-payloads before this provenance/integrity verification.
+For the next genuine stable containing this capability, obtain the bootstrap from
+its official GitHub Release. Before extraction or execution, compare its SHA-256
+with the exact Release asset's REST `digest` (`sha256:<64 lowercase hex>`) at
+`https://api.github.com/repos/stef-k/Wayfarer/releases/tags/vX.Y.Z`. The sidecar is
+human/offline integrity evidence, not publisher authentication. Use a fresh trusted
+root-owned directory for the verified bootstrap:
 
 ```sh
-# Replace X.Y.Z with the genuine Compose stable release; no mutable latest asset exists.
-release=vX.Y.Z
-asset=wayfarer-$release-linux-amd64.tar.gz
-sudo install -d -m 700 /opt/wayfarer-bootstrap
-cd /opt/wayfarer-bootstrap
-sudo curl --fail --location --proto '=https' --proto-redir '=https' --max-time 600 \
-  --output "$asset" "https://github.com/stef-k/Wayfarer/releases/download/$release/$asset"
-sudo curl --fail --location --proto '=https' --proto-redir '=https' --max-time 60 \
-  --output "$asset.sha256" "https://github.com/stef-k/Wayfarer/releases/download/$release/$asset.sha256"
-# Compare this hash to the published REST asset digest, then check the sidecar.
-sudo sha256sum "$asset"
-sudo sha256sum --check "$asset.sha256"
-# Only extract the verified trusted publisher archive into a fresh root-owned directory.
-sudo install -d -m 700 /opt/wayfarer-bootstrap/bundle
-sudo tar --extract --gzip --file "$asset" --directory /opt/wayfarer-bootstrap/bundle --no-same-owner
-sudo /opt/wayfarer-bootstrap/bundle/wayfarerctl release inspect /opt/wayfarer-bootstrap/bundle
-# Uses the product anonymous bounded path, exact image pulls and normal immutable import.
-sudo /opt/wayfarer-bootstrap/bundle/wayfarerctl release acquire "${release#v}"
-sudo /opt/wayfarer-bootstrap/bundle/wayfarerctl setup --bundle "/etc/wayfarer/releases/$release"
-sudo "/etc/wayfarer/releases/$release/wayfarerctl" release adopt "/etc/wayfarer/releases/$release"
+sha256sum wayfarerctl-linux-amd64.tar.gz   # compare against that Release asset digest
+sha256sum --check wayfarerctl-linux-amd64.tar.gz.sha256  # optional sidecar check
+tar -xzf wayfarerctl-linux-amd64.tar.gz
+chmod +x wayfarerctl
+sudo ./wayfarerctl setup
 ```
 
-Setup prompts for the remaining trusted configuration/admin password, including
-`Images.ApplicationDigest` from the validated retained `release.json`. Keep this
-bootstrap fixed; retained-release `dispatch` selects exact installed operators after
-transitions. It does not update its own executable. No curl-pipe-shell is used.
+Bare setup validates the host, discovers latest stable through the existing public
+resolver, verifies/downloads/extracts/imports the platform's canonical deployment
+bundle, pulls/reverifies its exact immutable images and enters the existing setup
+engine. Application/DB/Caddy identity comes from validated `release.json`, never
+administrator-copied digests. Guided choices cover hostname/proxy/admin password.
+No curl-pipe-shell or separate installer is used.
+
+```sh
+sudo ./wayfarerctl setup --version X.Y.Z  # same resolver, one exact public stable
+sudo ./wayfarerctl setup --bundle /absolute/trusted/bundle  # secondary local/offline seam
+```
+
+These selectors are mutually exclusive. The full `wayfarer-vX.Y.Z-linux-amd64.tar.gz`
+deployment archive plus `.tar.gz.sha256` remains supported for controlled staging,
+recovery, mirrors and troubleshooting. Local setup skips discovery/download, validates
+its canonical metadata/platform, derives identities, verifies already-local exact
+images and uses the same import/setup owners. New canonical installs record schema-4
+retained authority; separate adoption is only needed for existing matching installations.
+The raw/candidate qualification seam can retain explicit digest injection; stable
+setup does not accept that override.
+
+Keep the bootstrap fixed and root-owned; `wayfarerctl dispatch COMMAND` selects the
+exact retained operator after installation/update transitions. The bootstrap does
+not replace itself. Retain previous bundles/operators/images/receipts/recovery holds.
 
 `release acquire X.Y.Z|latest` only prefetches validated retained bytes/images and
-reports path/fingerprint/version. `update --plan` uses latest stable; `update X.Y.Z
---plan` uses the exact release. Both feed the unchanged #704 plan/receipt lifecycle;
-`update --accept-plan HASH` remains destructive authorization. Current/older targets,
-missing assets or missing exact source compatibility fail without fallback search.
-Offline `release import PATH` and `update --bundle PATH --plan` remain available.
+reports path/fingerprint/version. Anonymous GitHub/GHCR acquisition requires no
+credentials and pulls only validated immutable image references, never mutable
+latest tags. `update --plan` uses latest stable; `update X.Y.Z --plan` uses the exact
+release. Both feed the unchanged #704 plan/receipt lifecycle; `update --accept-plan
+HASH` remains destructive authorization. Current/older targets, missing assets or
+missing exact source compatibility fail without fallback search. Offline `release
+import PATH` and `update --bundle PATH --plan` remain available during network failure.
 
 The first public Compose stable may have `Sources=[]`: fresh setup/restore only,
 with no invented update from source-only v1.9.19 or older. Subsequent publication binds
-one exact compatible prior public Compose bundle or fails. The issue remains open
-until genuine stable publication and fresh anonymous acquisition/setup/doctor pass;
-PR candidate migration proof does not claim stable-to-stable migration.
+one exact compatible prior public Compose bundle or fails. No stable assets are
+claimed shipped here. #713/#603 remain open until the next genuine stable passes
+publication, public bootstrap byte equality and fresh anonymous native setup/doctor
+on AMD64 and ARM64 after #715. Do not publish that first Compose stable before #715
+is accepted. PR candidate migration proof does not claim stable-to-stable migration.

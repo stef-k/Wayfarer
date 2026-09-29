@@ -128,6 +128,14 @@ jobs:
             ${{ runner.temp }}/deployment/v*/wayfarerctl
           if-no-files-found: warn
 
+      - name: Retain publication evidence without executable payloads
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: deployment-publication-evidence
+          path: ${{ runner.temp }}/deployment/publication.json
+          if-no-files-found: warn
+
   # Operational acceptance runs only for a genuine stable release, on a fresh unauthenticated Docker client.
   public-compose-acceptance:
     needs: deployment-bundle
@@ -138,29 +146,40 @@ jobs:
     steps:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          name: deployment-publication
+          name: deployment-publication-evidence
           path: ${{ runner.temp }}/publication
-      - name: Acquire exact public bytes and images, then exercise fresh setup and doctor
+      - name: Install from the public lean bootstrap, then exercise fresh setup and doctor
         env:
           RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
-          # The artifact supplies only a trusted current bootstrap; acquisition itself reads public GitHub/GHCR with no token.
+          set -euo pipefail
+          # Retained publication evidence supplies expected digests, never an executable or deployment input.
+          # The native fresh runner obtains only the public bootstrap; setup discovers the public bundle anonymously.
           sudo install -d -m 700 /tmp/wayfarer-public-acceptance
-          sudo install -m 555 "$RUNNER_TEMP/publication/$RELEASE_TAG/wayfarerctl" /tmp/wayfarer-public-acceptance/bootstrap
-          sudo /tmp/wayfarer-public-acceptance/bootstrap --deployment-root /tmp/wayfarer-public-acceptance/install \
-            release acquire "${RELEASE_TAG#v}" | tee "$RUNNER_TEMP/acquisition.json"
-          bundle="/tmp/wayfarer-public-acceptance/install/releases/$RELEASE_TAG"
-          app_digest="$(sudo cat "$bundle/release.json" | python3 -c 'import json,sys; print(json.load(sys.stdin)["Images"]["ApplicationDigest"])')"
+          asset=wayfarerctl-linux-amd64.tar.gz
+          curl --fail --location --proto '=https' --proto-redir '=https' --max-time 600 \
+            --output "$RUNNER_TEMP/$asset" "https://github.com/stef-k/Wayfarer/releases/download/$RELEASE_TAG/$asset"
+          expected="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["assets"][sys.argv[2]].removeprefix("sha256:"))' "$RUNNER_TEMP/publication/publication.json" "$asset")"
+          printf '%s  %s\n' "$expected" "$RUNNER_TEMP/$asset" | sha256sum --check
+          sudo install -d -m 700 /tmp/wayfarer-public-acceptance/bootstrap
+          sudo tar --extract --gzip --file "$RUNNER_TEMP/$asset" --directory /tmp/wayfarer-public-acceptance/bootstrap --no-same-owner
+          bootstrap=/tmp/wayfarer-public-acceptance/bootstrap/wayfarerctl
+          sudo chmod 555 "$bootstrap"
           # A disposable root-only stdin file follows the shipped protected-password convention.
           sudo sh -c 'umask 077; printf "Acceptance-Aa1!%s\n" "$(openssl rand -hex 16)" > /tmp/wayfarer-public-acceptance/password'
-          sudo sh -c 'exec "$1/wayfarerctl" --deployment-root /tmp/wayfarer-public-acceptance/install setup --bundle "$1" --hostname wayfarer.example.org --app-digest "$2" --project wayfarer-public-acceptance --edge-prefix 172.30.69 --mode external --loopback-port 18080 --password-stdin < /tmp/wayfarer-public-acceptance/password' sh "$bundle" "$app_digest"
-          sudo "$bundle/wayfarerctl" --deployment-root /tmp/wayfarer-public-acceptance/install release adopt "$bundle"
-          sudo "$bundle/wayfarerctl" --deployment-root /tmp/wayfarer-public-acceptance/install doctor
-          sudo "$bundle/wayfarerctl" --deployment-root /tmp/wayfarer-public-acceptance/install stop
+          # No --bundle, --version or digest injection: this is the ordinary latest-stable setup route.
+          sudo sh -c 'exec "$1" --deployment-root /tmp/wayfarer-public-acceptance/install setup --hostname wayfarer.example.org --project wayfarer-public-acceptance --edge-prefix 172.30.69 --mode external --loopback-port 18080 --password-stdin < /tmp/wayfarer-public-acceptance/password' sh "$bootstrap" | tee "$RUNNER_TEMP/setup.log"
+          bundle="/tmp/wayfarer-public-acceptance/install/releases/$RELEASE_TAG"
+          sudo cmp "$bootstrap" "$bundle/wayfarerctl"
+          sudo "$bootstrap" --deployment-root /tmp/wayfarer-public-acceptance/install dispatch release inspect "$bundle" | tee "$RUNNER_TEMP/acquisition.json"
+          sudo "$bootstrap" --deployment-root /tmp/wayfarer-public-acceptance/install dispatch doctor
+          sudo "$bootstrap" --deployment-root /tmp/wayfarer-public-acceptance/install dispatch stop
       - name: Preserve real public acceptance evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: public-compose-acceptance
-          path: ${{ runner.temp }}/acquisition.json
+          path: |
+            ${{ runner.temp }}/acquisition.json
+            ${{ runner.temp }}/setup.log
           if-no-files-found: warn

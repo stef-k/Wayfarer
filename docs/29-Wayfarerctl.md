@@ -4,8 +4,11 @@
 by #648. It orchestrates the [accepted Compose substrate](28-Production-Compose.md)
 and existing application maintenance commands. This foundation includes fresh setup,
 lifecycle, diagnosis, logs, user recovery, opt-in Compose recovery sets and managed
-restore to an independently trusted exact local target, and explicit trusted-local forward update. **Uninstall and native migration are not implemented.** #603 is not complete; the
-local candidate tarball and `release.json` are supported; public stable distribution remains separate.
+restore to an independently trusted exact local target, and managed forward update.
+Public stable acquisition and guided setup share the retained `release.json` authority.
+**Uninstall and native migration are not implemented.** #603 is not complete.
+The first genuine public Compose stable has not shipped: #713 remains open for real
+acceptance, including #715's ARM64 expansion before first stable publication.
 
 ## Placement and prerequisites
 
@@ -16,18 +19,45 @@ Remote Docker contexts, Docker Desktop, rootless daemons and arbitrary host bind
 mounts are not supported. No host .NET runtime/SDK, Python, Node/npm or PostgreSQL
 installation is needed to run the executable. Docker socket access is administrative.
 
-Obtain the executable and complete trusted bundle together; prefer the
-[local candidate assembler](25-Container-Release-Contract.md#local-release-authority-v1).
-For explicit legacy source workflows, a maintainer can publish the executable from source:
+The primary public asset is `wayfarerctl-linux-amd64.tar.gz` on the exact official
+stable GitHub Release, with a matching `.sha256` sidecar. It contains exactly one
+executable named `wayfarerctl`, byte-identical to the operator in that release's
+canonical deployment bundle. It is assembled from those existing bytes, never built
+as a second operator. #715 adds the corresponding `linux-arm64` asset before the
+first public Compose stable; this implementation supports AMD64 only.
+
+Obtain the tarball through the official
+[Release page](https://github.com/stef-k/Wayfarer/releases). Compare its SHA-256 with
+the asset's REST `digest` (`sha256:<64 lowercase hex>`) at the exact tag endpoint
+`https://api.github.com/repos/stef-k/Wayfarer/releases/tags/vX.Y.Z` before extraction
+or execution. The sidecar is an optional human/offline integrity check and is not
+publisher authentication. Extract only verified trusted bytes in a fresh directory:
+
+```sh
+sha256sum wayfarerctl-linux-amd64.tar.gz   # compare with that Release asset digest
+sha256sum --check wayfarerctl-linux-amd64.tar.gz.sha256  # if the sidecar was obtained
+tar -xzf wayfarerctl-linux-amd64.tar.gz
+chmod +x wayfarerctl
+sudo ./wayfarerctl setup
+```
+
+Choose a root-owned protected bootstrap directory for ongoing use, for example
+`/usr/local/lib/wayfarer-bootstrap/`. Keep this executable fixed; installed operations
+use `dispatch` below. No host package installation, daemon configuration, source clone,
+SDK, Python, `unzip` or curl-pipe-shell bootstrap is involved.
+
+The full `wayfarer-vX.Y.Z-linux-amd64.tar.gz` deployment archive remains the secondary
+explicit/local distribution seam. For development/qualification use the
+[candidate assembler](25-Container-Release-Contract.md#local-release-authority-v1).
+A maintainer can build the self-contained operator from source:
 
 ```sh
 dotnet publish tools/WayfarerCtl/WayfarerCtl.csproj -c Release \
   -r linux-x64 --self-contained true -o /absolute/published-ctl
 ```
 
-This is a maintainer build instruction, not a host runtime prerequisite. Place the
-executable on the administrator PATH, for example `/usr/local/bin/wayfarerctl`.
-Place `deploy/compose/` contents intact under an immutable root-owned bundle directory:
+This is a maintainer build instruction, not a host runtime prerequisite. Guided setup
+retains canonical bundles automatically. The installation layout is:
 
 ```text
 /etc/wayfarer/                       root:root 0700
@@ -86,14 +116,29 @@ a free prefix. Setup does not alter other networks, routes, listeners or install
 From an interactive root terminal:
 
 ```sh
-wayfarerctl setup --bundle /etc/wayfarer/releases/vX.Y.Z
+sudo ./wayfarerctl setup
 ```
 
-Choose managed/external mode, public DNS hostname and the genuine application's
-`sha256:` digest from trusted release evidence. External mode also asks for its
-loopback port. The database defaults to the accepted published derived DB digest
-`sha256:bd9b3bbfe1e879b56b0742646c18d0dcc9ec95180095f8f6d02e03b54feeeb61`.
-Never substitute a base-image digest, local image ID or mutable tag as release evidence.
+The recommended fresh install is bare setup after extracting the lean bootstrap.
+With no `--bundle`, setup resolves latest stable,
+uses the existing anonymous bounded public acquisition owner to verify/download/
+extract/import the matching platform bundle, and pulls/reverifies its exact images.
+`setup --version X.Y.Z` selects one exact stable through that same resolver;
+`--version` and `--bundle` are mutually exclusive. Missing assets and network failures
+stop without fallback search, database mutation or a current-release switch.
+
+For `wayfarerctl setup --bundle /absolute/trusted/bundle`, setup skips network discovery/download,
+validates the canonical `release.json` bundle/platform, verifies already-local exact
+images and imports through the same `ReleaseStore`. Both routes derive application,
+accepted DB and pinned Caddy identities from validated release metadata, record
+schema-4 retained release authority during fresh setup, and enter the same setup
+engine. No digest copying or separate post-setup adoption is required. Existing
+installations still use explicit `release adopt` where applicable.
+
+Choose managed/external mode and a public DNS hostname. External mode also asks for
+its loopback port. Image identities are never an ordinary administrator prompt.
+The existing disposable candidate/raw-template qualification seam retains explicit
+`--bundle PATH --app-digest sha256:HEX`; stable bundles reject that override.
 
 Preflight checks the host, daemon/Compose, bundle/config, paths, existing project state,
 network overlap and listeners, then prints a non-secret plan. The administrator
@@ -111,8 +156,7 @@ line from a root-owned0600 file. Placeholder values below are deliberately nonfu
 
 ```sh
 wayfarerctl --deployment-root /etc/wayfarer setup \
-  --bundle /etc/wayfarer/releases/vX.Y.Z \
-  --hostname maps.your-domain.tld --app-digest sha256:RELEASE_DIGEST \
+  --version X.Y.Z --hostname maps.your-domain.tld \
   --mode external --loopback-port 8080 --edge-prefix 172.30.64 \
   --project wayfarer --password-stdin < /root/wayfarer-admin-input
 ```
@@ -151,7 +195,7 @@ status/doctor before retrying an interrupted operation.
 | `help setup`, `setup --help` | Contextual setup options and example |
 | `user --help`, `user reset-password --help` | Recovery usage and password protection |
 | `version` | Compiled CLI version; deployed app identity is independently reported by status |
-| `setup` | `--bundle`, `--hostname`, `--app-digest`; optional `--mode`, `--project`, `--edge-prefix`, `--loopback-port`, `--password-stdin` |
+| `setup` | Latest public stable by default; `--version X.Y.Z` or `--bundle PATH`; `--hostname` or interactive choices, optional `--mode`, `--project`, `--edge-prefix`, `--loopback-port`, `--password-stdin` |
 | `status` | Read-only config/root/mode, service health, app image/version, DB/PostGIS/citext, setup assessment |
 | `doctor` | PASS/WARN/FAIL aggregation, nonzero when unhealthy; mounts/volumes/networks/keys/proxy included |
 | `start` | Starts existing configuration; bounded readiness wait; no pull/migration/recreation |
