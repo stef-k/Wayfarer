@@ -47,10 +47,17 @@ public sealed class RestoreFencing(IProcessRunner runner)
     }
 
     /// <summary>Stopped helpers from retained receipt history may share the active generation but never regain restart authority.</summary>
-    private static bool IsRetainedHelper(string root, Deployment config, JsonElement container)
+    internal static bool IsRetainedHelper(string root, Deployment config, JsonElement container)
     {
         if (container.GetProperty("State").GetProperty("Running").GetBoolean() ||
             container.GetProperty("HostConfig").GetProperty("RestartPolicy").GetProperty("Name").GetString() != "no") return false;
+        if (UpdateReceipt.Load(root) is { } update &&
+            container.GetProperty("Id").GetString() == update.MigrationContainerId &&
+            update.Plan.Current.Project == config.Project &&
+            container.GetProperty("Config").GetProperty("Image").GetString() == "ghcr.io/stef-k/wayfarer@" + update.Plan.Target.AppDigest &&
+            container.GetProperty("Config").GetProperty("Labels").GetProperty("wayfarer.update").GetString() == update.Plan.Operation.ToString("D") &&
+            container.GetProperty("Mounts").EnumerateArray().All(mount => !mount.GetProperty("RW").GetBoolean() || mount.GetProperty("Type").GetString() == "tmpfs"))
+            return true;
         var directory = Path.Combine(root, "recovery-control", "restore-history");
         if (!Directory.Exists(directory)) return false;
         var name = container.GetProperty("Name").GetString()!.TrimStart('/');

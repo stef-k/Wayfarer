@@ -23,6 +23,17 @@ public sealed record UpdateOptions(string? Bundle = null, bool Plan = false, str
         throw new UsageException("Use update --bundle /trusted/bundle --plan, --accept-plan SHA256, or --resume|--abort|--restore OPERATION.");
     }
 
+    /// <summary>Candidate execution exists only in explicitly compiled disposable qualification operators.</summary>
+    internal static bool QualificationCandidates(string root, string project)
+    {
+#if UPDATE_QUALIFICATION
+        return root.StartsWith("/tmp/wayfarer-533-", StringComparison.Ordinal) &&
+            System.Text.RegularExpressions.Regex.IsMatch(project, "^wayfarer-648-[a-f0-9]{10}$");
+#else
+        return false;
+#endif
+    }
+
     /// <summary>Ordering does not grant compatibility: the exact retained source fingerprint must be declared.</summary>
     public static ReleaseSourceBoundary Boundary(ReleaseBundle current, ReleaseBundle target, bool candidates = false)
     {

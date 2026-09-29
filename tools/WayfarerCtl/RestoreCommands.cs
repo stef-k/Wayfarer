@@ -302,6 +302,11 @@ public sealed class RestoreCommands(IProcessRunner runner, ITerminal terminal)
         ReleaseDispatch.RequireOwner(root, receipt.Plan);
         var id = options.Get(options.Has("--abort") ? "--abort" : "--resume");
         if (receipt.Plan.Operation.ToString("D") != id) throw new UsageException("Restore operation mismatch.");
+        if (receipt.Phase == RestorePhase.Accepted && receipt.Plan.FromUpdate is not null)
+        {
+            UpdateRestoreHandoff.Complete(root, receipt);
+            return 0;
+        }
         if (receipt.Phase is RestorePhase.Accepted or RestorePhase.Aborted) throw new UsageException("Restore already resolved.");
         await new RestoreFencing(runner).StopOwnedAsync(receipt, token);
         using (var recovery = new RecoveryLock(Path.Combine(root, "recovery-control/recovery.lock")))

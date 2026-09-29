@@ -195,6 +195,30 @@ public sealed class ReleaseBundleTests : IDisposable
         Assert.False(ArchiveVerifier.IsCompatible(RecoveryCompatibilityTests.Manifest(legacy), current));
     }
 
+    /// <summary>A later version alone cannot grant update authority; candidate qualification still demands an exact source prefix.</summary>
+    [Fact]
+    public void UpdateRequiresExplicitSourceAndExactPrefixEvenForCandidates()
+    {
+        var source = ReleaseBundle.Validate(directory);
+        var manifest = source.Manifest;
+        var boundary = new ReleaseSourceBoundary(manifest.Version, source.Fingerprint,
+            manifest.Application.TerminalMigration, true, false, "manual-recovery", "candidate qualification");
+        var target = source with { Manifest = manifest with
+        {
+            Version = "1.9.20", Operator = ReleaseContract.CurrentOperator, Sources = [boundary],
+            Images = manifest.Images with { ApplicationDigest = "sha256:" + new string('e', 64) },
+            Application = manifest.Application with { Migrations = [.. manifest.Application.Migrations, "20260929000000_Forward"] }
+        } };
+        Assert.Throws<UsageException>(() => UpdateOptions.Boundary(source, target));
+        Assert.Equal(boundary, UpdateOptions.Boundary(source, target, candidates: true));
+        Assert.Throws<UsageException>(() => UpdateOptions.Boundary(source,
+            target with { Manifest = target.Manifest with { Sources = [boundary with { Fingerprint = new string('f', 64) }] } }, true));
+        Assert.Throws<UsageException>(() => UpdateOptions.Boundary(source,
+            target with { Manifest = target.Manifest with { Application = target.Manifest.Application with { Migrations = ["20260929000000_Forward"] } } }, true));
+        Assert.Throws<UsageException>(() => UpdateOptions.Boundary(source,
+            target with { Manifest = target.Manifest with { Sources = [boundary with { ReferenceSeeding = true }] } }, true));
+    }
+
     private ReleaseManifest Manifest() => new(1, 1, 1, "candidate", "1.9.19", null,
         "https://github.com/stef-k/Wayfarer", new string('a', 40), "linux/amd64",
         new("ghcr.io/stef-k/wayfarer", "sha256:" + new string('b', 64), "sha256:" + new string('b', 64), "1.9.19", ReleaseContract.DatabaseDigest,

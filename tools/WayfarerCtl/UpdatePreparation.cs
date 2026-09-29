@@ -21,7 +21,7 @@ public sealed class UpdatePreparation(IProcessRunner runner)
         Deployment.CheckSecrets(root);
         var source = ReleaseStore.Select(root, current.Release);
         var target = ReleaseStore.Import(root, path);
-        var boundary = UpdateOptions.Boundary(source, target);
+        var boundary = UpdateOptions.Boundary(source, target, UpdateOptions.QualificationCandidates(root, current.Project));
         var owner = ReleaseDispatch.CurrentOwner(root, current)!;
         await VerifyAsync(root, current, source, token);
         if (!await new ReleaseImagesVerifier(runner).VerifyAsync(target, token)) throw new IOException("Target images unavailable locally.");
@@ -53,8 +53,29 @@ public sealed class UpdatePreparation(IProcessRunner runner)
         bundle.Corroborate(config.Backup.Source);
         BackupCompose.Check(root, config);
         if (!await new ReleaseImagesVerifier(runner).VerifyAsync(bundle, token)) throw new IOException("Retained source images unavailable.");
-        await new Preflight(runner).ResumeAsync(root, config, token, requireDatabase: true);
+        await VerifyRuntimeAsync(root, config, token);
         await new Preflight(runner).BundleAsync(root, config, token);
+    }
+
+    /// <summary>Inspect active physical resources without rejecting deliberately retained inactive generations.</summary>
+    private async Task VerifyRuntimeAsync(string root, Deployment config, CancellationToken token)
+    {
+        var owner = new RestoreContainers(runner);
+        foreach (var role in new[] { "db-data", "app-data", "app-cache", "app-logs" })
+        {
+            using var volume = JsonDocument.Parse(await owner.Required(["volume", "inspect", ActiveStorage.Volume(config, role)], token));
+            Preflight.VerifyRetainedResource(config, "volume", volume.RootElement[0], root);
+        }
+        await new Preflight(runner).NetworksAsync(config, token, installed: true);
+        foreach (var service in config.Mode == "managed" ? new[] { "db", "wayfarer", "caddy" } : new[] { "db", "wayfarer" })
+        {
+            var id = (await owner.Required(config.Compose(root, "ps", "-aq", service), token)).Trim();
+            if (id.Length == 0 || id.Any(char.IsWhiteSpace)) throw new IOException("Ambiguous current service identity.");
+            using var document = JsonDocument.Parse(await owner.Required(["inspect", id], token));
+            var container = document.RootElement[0];
+            Preflight.VerifyRetainedResource(config, "container", container, root);
+            UpdateRuntime.VerifyService(root, config, service, container);
+        }
     }
 
     /// <summary>Application-owned exact EF/Quartz, DB-role, Identity, DP and Uploads validation has only internal DB access.</summary>
@@ -103,7 +124,7 @@ public sealed class UpdatePreparation(IProcessRunner runner)
             "--mount", "type=bind,source=" + dockerRoot + ",target=/storage,readonly",
             "--mount", "type=volume,source=" + ActiveStorage.Volume(config, "app-data") + ",target=/files,readonly",
             "--entrypoint=sh", "ghcr.io/stef-k/wayfarer-db@" + config.DbDigest, "-ec",
-            "df -Pk /storage | tail -1 | awk '{print $4}'; du -sk /files | awk '{print $1}'"], token);
+            "df -Pk /storage | tail -1 | awk '{printf \"%s \", $4}'; du -sk /files | awk '{print $1}'"], token);
         await owner.Required(["rm", name], token);
         var observed = output.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)
             .Select(item => checked(long.Parse(item, System.Globalization.CultureInfo.InvariantCulture) * 1024)).ToArray();

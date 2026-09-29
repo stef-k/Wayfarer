@@ -4,6 +4,7 @@ using Xunit;
 namespace Wayfarer.Tests.Services;
 
 /// <summary>Only new update authorization and irreversible migration boundaries are tested here.</summary>
+[System.Runtime.Versioning.SupportedOSPlatform("linux")]
 public sealed class ManagedUpdateTests
 {
     /// <summary>Update has no implicit acceptance, network selection or lock/recovery waiver.</summary>

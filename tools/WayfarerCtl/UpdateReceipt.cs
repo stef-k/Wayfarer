@@ -28,6 +28,7 @@ public sealed record UpdateReceipt
     public required string PlanHash { get; init; }
     public UpdatePhase Phase { get; init; }
     public Dictionary<string, string> RestartPolicies { get; init; } = new();
+    public Dictionary<string, string> ServiceRestartPolicies { get; init; } = new();
     public string[] Containers { get; init; } = [];
     public Guid? RecoveryArchive { get; init; }
     public string? RecoveryName { get; init; }

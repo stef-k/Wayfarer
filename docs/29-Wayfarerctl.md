@@ -4,7 +4,7 @@
 by #648. It orchestrates the [accepted Compose substrate](28-Production-Compose.md)
 and existing application maintenance commands. This foundation includes fresh setup,
 lifecycle, diagnosis, logs, user recovery, opt-in Compose recovery sets and managed
-restore to an independently trusted exact local target. **Update, uninstall and native migration are not implemented.** #603 is not complete; the
+restore to an independently trusted exact local target, and explicit trusted-local forward update. **Uninstall and native migration are not implemented.** #603 is not complete; the
 local candidate tarball and `release.json` are supported; public stable distribution remains separate.
 
 ## Placement and prerequisites
@@ -54,7 +54,7 @@ project is `wayfarer`; `setup --project NAME` persists a distinct initial projec
 Do not edit `deployment.env` independently: it must match `installation.json`.
 Both are inspectable non-secret files; discrepancy fails closed. Treat deliberate
 configuration repair as advanced maintenance with writers stopped. A changed image
-is an update, which this CLI does not implement. No implicit image pull or migration
+requires the explicit managed update authorization below. No implicit image pull or migration
 occurs during start/restart. Bundle/config parents must be root-owned and not writable
 by others; symlink paths and unsafe secret files are refused.
 
@@ -349,7 +349,7 @@ an existing empty root is valid. No source ownership or contents are changed.
 confirms no other running app-data consumer, then reserves the operation for the
 same worker engine while DB remains running. The host receipt, not a worker flag,
 authorizes the quiesced label. The application remains stopped afterward. Use
-`wayfarerctl start` only when the protected transition is complete. Managed restore uses the same capture engine; update/native migration remain separate work.
+`wayfarerctl start` only when the protected transition is complete. Managed restore and update use the same capture engine; native migration remains separate work.
 
 The archive is an uncompressed USTAR with exactly `manifest.json`, `database.dump`,
 `data-protection.tar.gz`, `uploads.tar.gz` and `SHA256SUMS`. The final `.sha256`
@@ -400,7 +400,7 @@ explicit trusted provenance, isolated SQL staging and offline product validation
 remain mandatory; production Quartz validation is the final restored-schema owner.
 
 The outer archive remains version 1. No EF migration or Quartz table reordering is
-introduced. Retained release bundles now reconstruct this target contract; managed update remains separate work.
+introduced. Retained release bundles now reconstruct this target contract; managed update uses the independently retained source and target authorities below.
 
 ## Managed restore
 
@@ -582,7 +582,7 @@ host Docker socket or network, and does not restart the host daemon.
 
 No fixture evidence qualifies a real NAS, production host, M6 cutover, public stable
 distribution or whole-system #603 closure.
-Historical release acquisition, updates, native migration, ARM and #604 remain separate.
+Historical release acquisition, native migration, ARM and #604 remain separate.
 
 ## Immutable local release bundles
 
@@ -625,7 +625,7 @@ without reading the current DB or trusting archive metadata. Clean-root restore 
 payload options. The target still requires provenance acknowledgement before SQL and
 application-owned offline candidate validation before activation.
 
-There is no update, network resolver, release/image pruning or implicit activation.
+There is no network resolver, release/image pruning or implicit activation.
 The [shipped offline instructions](../tools/release/INSTALL.md) describe layout and
 commands. Run the existing Compose recovery qualifier with `--release-bundle PATH`
 to include import, adoption, placement recovery and retained operator/target evidence.
@@ -641,3 +641,83 @@ selects the historical pair when present. Existing backup policies remain unchan
 Legacy images without the #701 property require the pinned accepted Quartz SQL resource;
 unknown legacy resource contracts are rejected. Full application/source/image/migration
 identity and post-restore product validation remain mandatory.
+
+
+## Trusted-local managed forward update
+
+Use an already extracted, administrator-trusted local `release.json` bundle and
+already present immutable images. No download, latest-version discovery, image
+pull, PostgreSQL major upgrade, reference seeding or native migration is performed.
+The current installation must already have schema-4 retained release authority,
+a compatible retained operator, and an enabled, usable recovery destination.
+
+```sh
+wayfarerctl update --bundle /trusted/extracted/target-bundle --plan
+wayfarerctl update --accept-plan <printed-sha256>
+wayfarerctl update --resume <operation-uuid>
+wayfarerctl update --abort <operation-uuid>
+```
+
+The canonical plan binds installation/project/storage, exact current and target
+release fingerprints, old configuration bytes, credential fingerprints, migration
+delta, capacity requirement and retained operator owner. The target must be strictly
+later and explicitly authorize the exact source fingerprint/version/schema. Current
+complete migrations must be an exact ordered prefix. Same-version repair, downgrade,
+image-only replacement, unknown boundaries and required reference seeding are refused.
+Planning stages local evidence without stopping services or changing application data.
+Execution always requires the exact plan hash; there is no generic `--yes`.
+
+The protected `recovery-control/update.json` records these forward phases:
+
+```text
+Authorized -> Fenced -> RecoveryVerified -> MigrationStarted
+-> MigrationConfirmed -> ActivationIntent -> TargetActivatedStopped
+-> WritesPossible -> PostflightConfirmed -> Accepted
+```
+
+Host operation exclusion precedes shared recovery exclusion. The operator records
+restart policies, fences app/Quartz/scheduler/proxy writers, and requires a **fresh,
+verified, transactionally held quiesced recovery set**. A recent archive is never a
+substitute. Pre-migration resume recaptures when continuous fencing cannot be proved.
+After `MigrationStarted`, the pre-update archive is never replaced.
+
+`MigrationStarted` is durable before the single named target-image maintenance
+container can launch `dotnet Wayfarer.dll database migrate`. It runs as UID1654 with
+a read-only root and app-data/DP mount, app-role secret, internal DB network, bounded
+resources and no public/provider network, Docker socket or archive destination.
+Lost acknowledgement remains mutation-uncertain. Resume inspects the exact helper
+and independently validates complete target EF/Quartz, DB and secure readiness;
+it never blindly reruns migration. Partial or incompatible state requires restore.
+
+Forward update preserves the same DB/app-data/cache generation. Immutable target
+Compose inputs and backup bindings are prepared before one atomic installation
+pointer commits the new release. The target starts with restart disabled and ingress
+fenced. Offline and private postflight precede ingress, endpoint checks, scheduler
+resumption, restart-policy restoration and durable acceptance. `status` and `doctor`
+report unresolved update intent even during an installation-pointer transition.
+Ordinary mutating commands refuse unresolved intent.
+
+Abort is permitted only before migration may have started and after old authority
+and delegated recovery are reconciled. It retains held evidence and leaves services
+stopped for explicit `start`. After migration, an old image is **not database
+rollback**. Explicit recovery is:
+
+```sh
+wayfarerctl update --restore <operation-uuid>
+# If interrupted after ownership transfer:
+wayfarerctl dispatch restore --resume <restore-operation-uuid>
+```
+
+This decision durably joins the update and #695 restore receipts to the held archive
+and retained old ReleaseAuthority. It restores into a fresh paired generation while
+lifecycle mutation stays fenced. Update intent is retained, and recovery completion
+is recorded separately from forward `Accepted`. Resume dispatch selects the exact
+receipted operator, even after the active release changes; executables are never
+replaced in place. Keep old bundles, operator/recovery payloads, image digests,
+configuration evidence, receipts and held archives. Cleanup is out of scope.
+
+Stable public release-to-release acceptance remains deferred. Disposable candidate
+qualification uses an explicitly compiled `UPDATE_QUALIFICATION` operator restricted
+to the existing random temporary recovery fixture; ordinary published operators
+reject candidate update execution. The controlled test migration is not a product
+migration or an official stable release.

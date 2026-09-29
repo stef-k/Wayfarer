@@ -45,7 +45,7 @@ public sealed class BackupCommands(IProcessRunner runner, ITerminal terminal)
             if (updateRecovery)
             {
                 var update = UpdateReceipt.Load(root) ?? throw new IOException("Update delegation requires intent.");
-                if (update.Phase != UpdatePhase.Fenced || !quiesced) throw new IOException("Invalid update capture phase.");
+                if (update.Phase is not (UpdatePhase.Fenced or UpdatePhase.RecoveryVerified) || !quiesced) throw new IOException("Invalid update capture phase.");
             }
             ProtectedFiles.Create(Path.Combine(control, "host-operation.json"), JsonSerializer.Serialize(new HostRecoveryOperation(1, reservation, container, quiesced, restoreEmergency, updateRecovery)), 0, 1654);
         }

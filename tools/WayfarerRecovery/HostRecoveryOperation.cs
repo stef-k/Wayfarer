@@ -3,7 +3,7 @@ using System.Text.Json;
 namespace WayfarerRecovery;
 
 /// <summary>Host-created lifecycle evidence, protected by recovery exclusion; never a public skip-lock flag.</summary>
-public sealed record HostRecoveryOperation(int Schema, string Token, string Container, bool Quiesced, bool RestoreHold = false, bool UpdateHold = false)
+public sealed record HostRecoveryOperation(int Schema, string Token, string Container, bool Quiesced, bool RestoreHold = false, [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)] bool UpdateHold = false)
 {
     /// <summary>Only the exact delegated host reservation may request a permanent emergency retention hold.</summary>
     public static bool RequiresHold(string? token)

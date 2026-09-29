@@ -67,7 +67,15 @@ public sealed class UpdateActivation(IProcessRunner runner)
             BackupCompose.Check(root, target);
             await owner.Required(BackupCompose.Command(root, target, "up", "-d", "--force-recreate", "--pull", "never", "backup-scheduler"), token);
             receipt = await RecordServicesAsync(root, receipt, target, token);
-            foreach (var id in receipt.Containers) await owner.Required(["update", "--restart=unless-stopped", id], token);
+            foreach (var id in receipt.Containers)
+            {
+                using var document = JsonDocument.Parse(await owner.Required(["inspect", id], token));
+                var service = document.RootElement[0].GetProperty("Config").GetProperty("Labels")
+                    .GetProperty("com.docker.compose.service").GetString()!;
+                if (service is not ("db" or "wayfarer" or "caddy" or "backup-scheduler")) continue;
+                var policy = receipt.ServiceRestartPolicies.GetValueOrDefault(service, "unless-stopped");
+                await owner.Required(["update", "--restart=" + policy, id], token);
+            }
             var completion = Path.Combine(directory, "completed");
             if (!File.Exists(completion)) ProtectedFiles.Create(completion, receipt.PlanHash);
             using var parent = new SafeDirectory(directory);
@@ -133,6 +141,7 @@ public sealed class UpdateActivation(IProcessRunner runner)
             var id = (await owner.Required(target.Compose(root, "ps", "-aq", service), token)).Trim();
             using var document = JsonDocument.Parse(await owner.Required(["inspect", id], token));
             var value = document.RootElement[0];
+            UpdateRuntime.VerifyService(root, target, service, value);
             if (value.GetProperty("State").GetProperty("Running").GetBoolean() ||
                 value.GetProperty("HostConfig").GetProperty("RestartPolicy").GetProperty("Name").GetString() != "no" ||
                 value.GetProperty("Config").GetProperty("Image").GetString() != (service == "db" ?

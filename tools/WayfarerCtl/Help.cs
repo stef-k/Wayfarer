@@ -10,6 +10,9 @@ public static class Help
         ["release"] = "release inspect|verify-images|import|adopt /absolute/bundle\n" +
             "  target /absolute/bundle project [current|legacy]; corroborate /absolute/bundle /absolute/source.json; reconcile .stage-ID. Offline trusted directories only; no pulls or activation.",
         ["dispatch"] = "dispatch COMMAND — invoke the retained operator; restore --resume/--abort uses its receipt owner.",
+        ["update"] = "update --bundle /trusted/local/bundle --plan | --accept-plan SHA256\n" +
+            "  Recovery: --resume UUID | --abort UUID (before migration only) | --restore UUID.\n" +
+            "  Requires fresh held quiesced recovery. Forward-only; retained old images are not rollback. No network acquisition.",
         ["setup"] = "setup --bundle PATH --hostname DNS --app-digest sha256:HEX [--mode managed|external]\n" +
             "  [--project NAME] [--edge-prefix 172.30.64] [--loopback-port 8080] [--password-stdin]\n" +
             "  Interactive terminal prompts for omitted required inputs. Fresh installation only.\n" +

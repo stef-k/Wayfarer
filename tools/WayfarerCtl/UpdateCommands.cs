@@ -52,7 +52,7 @@ public sealed class UpdateCommands(IProcessRunner runner, ITerminal terminal)
             if (options.Restore is not null) return await new RestoreCommands(runner, terminal).HandoffAsync(root, receipt, token);
             if (receipt.RestoreOperation is not null) throw new UsageException("Lifecycle ownership transferred; resume the receipted restore.");
             if (options.Abort is not null) return await AbortAsync(root, receipt, token);
-            return await ExecuteAsync(root, receipt, token);
+            return await ExecuteAsync(root, receipt, options.Resume is not null, token);
         }
         catch (Exception)
         {
@@ -80,7 +80,7 @@ public sealed class UpdateCommands(IProcessRunner runner, ITerminal terminal)
         RequireOwner(root, receipt.Plan);
         var source = ReleaseStore.Select(root, receipt.Plan.Current.Release!);
         var target = ReleaseStore.Select(root, receipt.Plan.Target.Release!);
-        UpdateOptions.Boundary(source, target);
+        UpdateOptions.Boundary(source, target, UpdateOptions.QualificationCandidates(root, receipt.Plan.Current.Project));
         if (ProtectedFiles.SecretsFingerprint(root) != receipt.Plan.SecretsFingerprint)
             throw new IOException("Update credentials changed.");
         var current = File.ReadAllText(Path.Combine(root, "installation.json"));
@@ -89,7 +89,7 @@ public sealed class UpdateCommands(IProcessRunner runner, ITerminal terminal)
     }
 
     /// <summary>Delegate fresh capture only while host exclusion remains owned, then regain recovery exclusion before migration.</summary>
-    private async Task<int> ExecuteAsync(string root, UpdateReceipt receipt, CancellationToken token)
+    private async Task<int> ExecuteAsync(string root, UpdateReceipt receipt, bool resumed, CancellationToken token)
     {
         var runtime = new UpdateRuntime(runner);
         if (receipt.Phase == UpdatePhase.Authorized)
@@ -99,7 +99,7 @@ public sealed class UpdateCommands(IProcessRunner runner, ITerminal terminal)
             receipt = receipt.Advance(UpdatePhase.Fenced);
             receipt.Save(root);
         }
-        if (receipt.Phase == UpdatePhase.Fenced)
+        if (receipt.Phase == UpdatePhase.Fenced || resumed && receipt.Phase == UpdatePhase.RecoveryVerified)
         {
             await runtime.StopWritersAsync(root, receipt, token);
             await runtime.RequireExclusiveAsync(receipt, token);
@@ -108,7 +108,7 @@ public sealed class UpdateCommands(IProcessRunner runner, ITerminal terminal)
             if (await capture.RunAsync(root, receipt.Plan.Current, ["backup", "--quiesced"], token, updateRecovery: true) != 0 || capture.CompletedArchive is null)
                 throw new IOException("Fresh verified held recovery capture failed.");
             receipt = await BindRecoveryAsync(root, receipt, capture.CompletedArchive.Value, token);
-            receipt = receipt.Advance(UpdatePhase.RecoveryVerified);
+            if (receipt.Phase == UpdatePhase.Fenced) receipt = receipt.Advance(UpdatePhase.RecoveryVerified);
             receipt.Save(root);
         }
         using var exclusion = new RecoveryLock(Path.Combine(root, "recovery-control/recovery.lock"));
