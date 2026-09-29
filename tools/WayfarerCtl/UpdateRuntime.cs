@@ -95,11 +95,14 @@ public sealed class UpdateRuntime(IProcessRunner runner)
         using var network = JsonDocument.Parse(await owner.Required(["network", "inspect", config.Project + "_backend"], token));
         var facts = network.RootElement[0];
         if (!facts.GetProperty("Internal").GetBoolean()) throw new IOException("Database network is not internal.");
-        foreach (var peer in facts.GetProperty("Containers").EnumerateObject())
+        var attached = (await owner.Required(["ps", "-aq", "--no-trunc", "--filter", "network=" + config.Project + "_backend"], token))
+            .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+        foreach (var peer in facts.GetProperty("Containers").EnumerateObject().Select(value => value.Name).Concat(attached).Distinct())
         {
-            using var document = JsonDocument.Parse(await owner.Required(["inspect", peer.Name], token));
+            using var document = JsonDocument.Parse(await owner.Required(["inspect", peer], token));
             var container = document.RootElement[0];
-            if (!receipt.Containers.Contains(peer.Name) ||
+            if (!receipt.Containers.Contains(peer) && RestoreFencing.IsRetainedHelper(receipt.Plan.Root, config, container)) continue;
+            if (!receipt.Containers.Contains(peer) ||
                 container.GetProperty("State").GetProperty("Running").GetBoolean() &&
                 container.GetProperty("Config").GetProperty("Labels").GetProperty("com.docker.compose.service").GetString() != "db" ||
                 container.GetProperty("HostConfig").GetProperty("RestartPolicy").GetProperty("Name").GetString() != "no")
@@ -152,7 +155,7 @@ public sealed class UpdateRuntime(IProcessRunner runner)
             receipt.Save(root);
             var id = (await owner.Required(["create", "--name", name, "--label", "wayfarer.update=" + receipt.Plan.Operation.ToString("D"),
                 "--label", "wayfarer.update-project=" + receipt.Plan.Current.Project,
-                "--restart=no", "--pull=never", .. UpdatePreparation.Maintenance(root, receipt.Plan.Target), "--entrypoint=dotnet",
+                "--restart=no", "--pull=never", "--log-opt=max-size=1m", "--log-opt=max-file=1", .. UpdatePreparation.Maintenance(root, receipt.Plan.Target), "--entrypoint=dotnet",
                 "ghcr.io/stef-k/wayfarer@" + receipt.Plan.Target.AppDigest, "Wayfarer.dll", "database", "migrate"], token)).Trim();
             receipt = receipt with { MigrationContainerId = id };
             receipt.Save(root);
@@ -160,19 +163,45 @@ public sealed class UpdateRuntime(IProcessRunner runner)
             await owner.Required(["wait", id], token);
         }
         if (receipt.Phase != UpdatePhase.MigrationStarted) return receipt;
-        using var inspection = JsonDocument.Parse(await owner.Required(["inspect", receipt.MigrationContainer!], token));
-        var helper = inspection.RootElement[0];
-        if (helper.GetProperty("Id").GetString() != receipt.MigrationContainerId ||
-            helper.GetProperty("Config").GetProperty("Labels").GetProperty("wayfarer.update").GetString() != receipt.Plan.Operation.ToString("D") ||
-            helper.GetProperty("Config").GetProperty("Image").GetString() != "ghcr.io/stef-k/wayfarer@" + receipt.Plan.Target.AppDigest ||
-            helper.GetProperty("State").GetProperty("Running").GetBoolean())
-            throw new IOException("Migration helper unresolved; wait for exact helper termination before resume.");
-        receipt = receipt with { MigrationExit = helper.GetProperty("State").GetProperty("ExitCode").GetInt32() };
-        receipt.Save(root);
+        receipt = await ReconcileMigrationAsync(root, receipt, token);
         // Independent target inspection, not exit code, proves complete EF/Quartz/secure readiness.
         var evidence = await preparation.InspectAsync(root, receipt.Plan.Target, target, receipt.Plan.Operation, token);
         receipt = (receipt with { Reconciliation = evidence }).Advance(UpdatePhase.MigrationConfirmed);
         receipt.Save(root);
         return receipt;
     }
+    /// <summary>Lost create/start acknowledgement binds only the planned hardened helper; proven absence never authorizes another launch.</summary>
+    public async Task<UpdateReceipt> ReconcileMigrationAsync(string root, UpdateReceipt receipt, CancellationToken token)
+    {
+        var owner = new RestoreContainers(runner);
+        var inspection = await runner.RunAsync(["inspect", receipt.MigrationContainer!], null, token);
+        if (inspection.Code != 0)
+        {
+            var names = (await owner.Required(["ps", "-a", "--format", "{{.Names}}"], token)).Split('\n');
+            var labelled = await owner.Required(["ps", "-aq", "--filter", "label=wayfarer.update=" + receipt.Plan.Operation.ToString("D")], token);
+            if (names.Contains(receipt.MigrationContainer) || !string.IsNullOrWhiteSpace(labelled))
+                throw new IOException("Migration helper absence cannot be proven.");
+            return receipt;
+        }
+        using var document = JsonDocument.Parse(inspection.Output);
+        var helper = document.RootElement[0];
+        var config = helper.GetProperty("Config");
+        var host = helper.GetProperty("HostConfig");
+        var id = helper.GetProperty("Id").GetString();
+        if (receipt.MigrationContainerId is not null && id != receipt.MigrationContainerId ||
+            config.GetProperty("Labels").GetProperty("wayfarer.update").GetString() != receipt.Plan.Operation.ToString("D") ||
+            config.GetProperty("Image").GetString() != "ghcr.io/stef-k/wayfarer@" + receipt.Plan.Target.AppDigest ||
+            config.GetProperty("User").GetString() != "1654:1654" || !host.GetProperty("ReadonlyRootfs").GetBoolean() ||
+            host.GetProperty("Privileged").GetBoolean() || host.GetProperty("RestartPolicy").GetProperty("Name").GetString() != "no" ||
+            host.GetProperty("NetworkMode").GetString() != receipt.Plan.Current.Project + "_backend" ||
+            !config.GetProperty("Cmd").Deserialize<string[]>()!.SequenceEqual(new[] { "Wayfarer.dll", "database", "migrate" }) ||
+            helper.GetProperty("Mounts").EnumerateArray().Any(mount => mount.GetProperty("RW").GetBoolean() && mount.GetProperty("Type").GetString() != "tmpfs"))
+            throw new IOException("Migration helper authority changed.");
+        if (helper.GetProperty("State").GetProperty("Running").GetBoolean())
+            throw new IOException("Migration helper still running; reconcile termination before forward resume or restore.");
+        receipt = receipt with { MigrationContainerId = id, MigrationExit = helper.GetProperty("State").GetProperty("ExitCode").GetInt32() };
+        receipt.Save(root);
+        return receipt;
+    }
+
 }

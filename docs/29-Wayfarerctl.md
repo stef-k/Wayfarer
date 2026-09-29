@@ -51,8 +51,11 @@ another installation. Every operation uses the persisted absolute bundle path an
 project name; never move/rename these to attempt an update. The default Compose
 project is `wayfarer`; `setup --project NAME` persists a distinct initial project.
 
-Do not edit `deployment.env` independently: it must match `installation.json`.
-Both are inspectable non-secret files; discrepancy fails closed. Treat deliberate
+Do not edit deployment inputs independently: they must match `installation.json`.
+Initially they are in `deployment.env`; after update the active immutable file is
+`deployment-generations/<release-fingerprint>/deployment.env`. The old root file is
+retained evidence, not active Compose input. Use the operator to select the active file.
+These are inspectable non-secret files; discrepancy fails closed. Treat deliberate
 configuration repair as advanced maintenance with writers stopped. A changed image
 requires the explicit managed update authorization below. No implicit image pull or migration
 occurs during start/restart. Bundle/config parents must be root-owned and not writable

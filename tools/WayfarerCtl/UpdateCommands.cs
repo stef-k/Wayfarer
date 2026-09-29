@@ -51,11 +51,15 @@ public sealed class UpdateCommands(IProcessRunner runner, ITerminal terminal)
             Revalidate(root, receipt);
             if (options.Restore is not null) return await new RestoreCommands(runner, terminal).HandoffAsync(root, receipt, token);
             if (receipt.RestoreOperation is not null) throw new UsageException("Lifecycle ownership transferred; resume the receipted restore.");
+            if (options.Resume is not null || options.Abort is not null)
+                await ReconcileCaptureAsync(root, receipt, token);
             if (options.Abort is not null) return await AbortAsync(root, receipt, token);
             return await ExecuteAsync(root, receipt, options.Resume is not null, token);
         }
-        catch (Exception)
+        catch (Exception error)
         {
+            if (error is UsageException || error is IOException && error.TargetSite?.DeclaringType?.Namespace == "WayfarerCtl")
+                terminal.Error(error.Message);
             receipt = UpdateReceipt.Load(root) ?? receipt;
             using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(60));
             try { await new UpdateRuntime(runner).StopWritersAsync(root, receipt, cleanup.Token); }
@@ -81,6 +85,11 @@ public sealed class UpdateCommands(IProcessRunner runner, ITerminal terminal)
         var source = ReleaseStore.Select(root, receipt.Plan.Current.Release!);
         var target = ReleaseStore.Select(root, receipt.Plan.Target.Release!);
         UpdateOptions.Boundary(source, target, UpdateOptions.QualificationCandidates(root, receipt.Plan.Current.Project));
+        source.Corroborate(receipt.Plan.Current);
+        receipt.Plan.Current.Backup!.CheckPayload();
+        source.Corroborate(receipt.Plan.Current.Backup.Source);
+        if (File.ReadAllText(receipt.Plan.Current.EnvironmentPath(root)) != receipt.Plan.OldEnvironment)
+            throw new IOException("Retained source deployment inputs changed.");
         if (ProtectedFiles.SecretsFingerprint(root) != receipt.Plan.SecretsFingerprint)
             throw new IOException("Update credentials changed.");
         var current = File.ReadAllText(Path.Combine(root, "installation.json"));
@@ -107,11 +116,12 @@ public sealed class UpdateCommands(IProcessRunner runner, ITerminal terminal)
             var capture = new BackupCommands(runner, terminal);
             if (await capture.RunAsync(root, receipt.Plan.Current, ["backup", "--quiesced"], token, updateRecovery: true) != 0 || capture.CompletedArchive is null)
                 throw new IOException("Fresh verified held recovery capture failed.");
-            receipt = await BindRecoveryAsync(root, receipt, capture.CompletedArchive.Value, token);
+            receipt = await BindRecoveryAsync(root, UpdateReceipt.Load(root)!, capture.CompletedArchive.Value, token);
             if (receipt.Phase == UpdatePhase.Fenced) receipt = receipt.Advance(UpdatePhase.RecoveryVerified);
             receipt.Save(root);
         }
         using var exclusion = new RecoveryLock(Path.Combine(root, "recovery-control/recovery.lock"));
+        if (File.Exists(Path.Combine(root, "recovery-control/host-operation.json"))) throw new IOException("Delegated capture requires reconciliation.");
         await VerifyRecoveryAsync(receipt, token);
         receipt = await runtime.MigrateAsync(root, receipt, token);
         receipt = await new UpdateActivation(runner).ActivateAsync(root, receipt, token);
@@ -147,6 +157,46 @@ public sealed class UpdateCommands(IProcessRunner runner, ITerminal terminal)
         using var archive = destination.Read(receipt.RecoveryName);
         if (Convert.ToHexStringLower(await SHA256.HashDataAsync(archive, token)) != receipt.RecoverySha256)
             throw new IOException("Held recovery bytes changed.");
+    }
+
+    /// <summary>Reconcile only this operation's exact delegated backup; interrupted capture is recaptured, never mistaken for migration.</summary>
+    private async Task ReconcileCaptureAsync(string root, UpdateReceipt receipt, CancellationToken token)
+    {
+        var path = Path.Combine(root, "recovery-control/host-operation.json");
+        if (receipt.MigrationPossible)
+        {
+            if (File.Exists(path)) throw new IOException("Unexpected capture reservation after migration cutoff.");
+            return;
+        }
+        var container = receipt.CaptureContainer;
+        if (File.Exists(path))
+        {
+            ProtectedFiles.Check(path, 0);
+            if (new FileInfo(path).Length > 2048) throw new IOException("Invalid capture reservation.");
+            var reservation = JsonSerializer.Deserialize<HostRecoveryOperation>(File.ReadAllText(path), ArchiveContract.Json)!;
+            if (!reservation.UpdateHold || !reservation.Quiesced || reservation.Container != container)
+                throw new IOException("Capture reservation does not belong to this update.");
+        }
+        if (container is null) return;
+        var owner = new RestoreContainers(runner);
+        var names = (await owner.Required(["ps", "-a", "--format", "{{.Names}}"], token)).Split('\n');
+        if (names.Contains(container))
+        {
+            using var document = JsonDocument.Parse(await owner.Required(["inspect", container], token));
+            Preflight.VerifyRetainedResource(receipt.Plan.Current, "container", document.RootElement[0], root);
+            if (document.RootElement[0].GetProperty("Config").GetProperty("Image").GetString() !=
+                "ghcr.io/stef-k/wayfarer-db@" + receipt.Plan.Current.DbDigest) throw new IOException("Capture helper image changed.");
+            if (document.RootElement[0].GetProperty("State").GetProperty("Status").GetString() != "created")
+            {
+                await owner.Required(["stop", "--time", "30", container], token);
+                await owner.Required(["wait", container], token);
+            }
+            await owner.Required(["rm", container], token);
+        }
+        using var recovery = new RecoveryLock(Path.Combine(root, "recovery-control/recovery.lock"));
+        if (File.Exists(path)) File.Delete(path);
+        using var control = new SafeDirectory(Path.GetDirectoryName(path)!);
+        control.Flush();
     }
 
     /// <summary>Abort can restore restart policies only while exact old authority remains before any migration launch.</summary>

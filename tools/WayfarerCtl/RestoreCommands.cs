@@ -91,13 +91,7 @@ public sealed class RestoreCommands(IProcessRunner runner, ITerminal terminal)
         if (!update.MigrationPossible) throw new UsageException("Before migration use update abort.");
         await new UpdateRuntime(runner).StopWritersAsync(root, update, token);
         if (update.MigrationContainer is not null)
-        {
-            var owner = new RestoreContainers(runner);
-            using var inspection = JsonDocument.Parse(await owner.Required(["inspect", update.MigrationContainer], token));
-            if (inspection.RootElement[0].GetProperty("Id").GetString() != update.MigrationContainerId ||
-                inspection.RootElement[0].GetProperty("State").GetProperty("Running").GetBoolean())
-                throw new IOException("Migration helper must terminate before restore handoff.");
-        }
+            update = await new UpdateRuntime(runner).ReconcileMigrationAsync(root, update, token);
         await UpdateCommands.VerifyRecoveryAsync(update, token);
         RestoreReceipt receipt;
         using (var recovery = new RecoveryLock(Path.Combine(root, "recovery-control/recovery.lock")))

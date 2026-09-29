@@ -26,7 +26,7 @@ public sealed class UpdatePreparation(IProcessRunner runner)
         await VerifyAsync(root, current, source, token);
         if (!await new ReleaseImagesVerifier(runner).VerifyAsync(target, token)) throw new IOException("Target images unavailable locally.");
         var next = current with { Bundle = target.Directory, AppDigest = target.Manifest.Images.ApplicationDigest, Release = ReleaseAuthority.From(target) };
-        await new Preflight(runner).BundleAsync(root, next, token);
+        await TopologyAsync(root, current, next, source, target, token);
         var operation = Guid.NewGuid();
         var facts = await InspectAsync(root, current, source, operation, token);
         var capacity = await CapacityAsync(root, current, token);
@@ -43,6 +43,37 @@ public sealed class UpdatePreparation(IProcessRunner runner)
         using var plans = new SafeDirectory(Path.GetDirectoryName(directory)!);
         plans.Flush();
         return plan;
+    }
+
+    /// <summary>Only release paths and application image identity may change authority; physical topology and proxy/bootstrap configuration stay fixed.</summary>
+    private async Task TopologyAsync(string root, Deployment current, Deployment target, ReleaseBundle source, ReleaseBundle next, CancellationToken token)
+    {
+        foreach (var path in new[] { "caddy/Caddyfile", "db/20-wayfarer.sh" })
+            if (source.Manifest.Files.Single(file => file.Path == path).Sha256 != next.Manifest.Files.Single(file => file.Path == path).Sha256)
+                throw new IOException("Update changes DB bootstrap or proxy authority.");
+        var preflight = new Preflight(runner);
+        var before = await preflight.ResolveAsync(root, current, token);
+        var after = await preflight.ResolveAsync(root, target, token);
+        foreach (var key in new[] { "networks", "volumes", "secrets" })
+            Compare(before, after, key, current.Bundle, target.Bundle);
+        foreach (var service in current.Mode == "managed" ? new[] { "db", "wayfarer", "caddy" } : new[] { "db", "wayfarer" })
+            foreach (var key in new[] { "networks", "network_mode", "ports", "volumes", "secrets", "user", "privileged", "read_only", "cap_add", "cap_drop" })
+                Compare(before.GetProperty("services").GetProperty(service), after.GetProperty("services").GetProperty(service),
+                    key, current.Bundle, target.Bundle);
+    }
+
+    /// <summary>Normalize only the exact retained bundle directory; installation-owned paths remain literal comparison inputs.</summary>
+    private static void Compare(JsonElement before, JsonElement after, string key, string oldBundle, string newBundle)
+    {
+        var oldExists = before.TryGetProperty(key, out var oldValue);
+        var newExists = after.TryGetProperty(key, out var newValue);
+        if (oldExists != newExists) throw new IOException("Target deployment topology changed.");
+        if (!oldExists) return;
+        var oldPrefix = JsonSerializer.Serialize(oldBundle)[1..^1] + "/";
+        var newPrefix = JsonSerializer.Serialize(newBundle)[1..^1] + "/";
+        using var left = JsonDocument.Parse(oldValue.GetRawText().Replace(oldPrefix, "@bundle/", StringComparison.Ordinal));
+        using var right = JsonDocument.Parse(newValue.GetRawText().Replace(newPrefix, "@bundle/", StringComparison.Ordinal));
+        if (!JsonElement.DeepEquals(left.RootElement, right.RootElement)) throw new IOException("Target deployment topology changed.");
     }
 
     /// <summary>Current runtime resource identities and payloads must agree independently with retained release metadata.</summary>

@@ -9,7 +9,8 @@ public static class UpdateRestoreHandoff
     /// <summary>Restore may target the retained old release only when both exact operation identities agree.</summary>
     public static void Require(string root, RestorePlan plan)
     {
-        var update = UpdateReceipt.Load(root) ?? throw new IOException("Update handoff receipt missing.");
+        var update = plan.FromUpdate is { } operation ? UpdateReceipt.Find(root, operation) : null;
+        if (update is null) throw new IOException("Update handoff receipt missing.");
         if (plan.FromUpdate != update.Plan.Operation || update.RestoreOperation != plan.Operation ||
             !update.MigrationPossible || plan.Archive != update.RecoveryArchive || plan.ArchiveSha256 != update.RecoverySha256 ||
             plan.Target.Release != update.Plan.Current.Release || plan.OperatorOwner != update.Plan.OperatorOwner ||
@@ -23,7 +24,9 @@ public static class UpdateRestoreHandoff
         if (restore.Plan.FromUpdate is null) return;
         Require(root, restore.Plan);
         if (restore.Phase != RestorePhase.Accepted) throw new IOException("Restore handoff has not accepted.");
-        var update = UpdateReceipt.Load(root)!;
+        var update = UpdateReceipt.Find(root, restore.Plan.FromUpdate.Value)!;
+        if (update.RestoreAccepted) return;
+        if (UpdateReceipt.Load(root)?.Plan.Operation != update.Plan.Operation) throw new IOException("Active update ownership changed.");
         (update with { RestoreAccepted = true }).Save(root);
     }
 }

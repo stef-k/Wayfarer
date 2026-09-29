@@ -16,14 +16,15 @@ def qualify_update(journey):
     if test -n "$operation"; then
       /usr/bin/docker "$@" || exit $?
       /usr/bin/docker wait "$helper" >/dev/null
-      exit 1
+      kill -KILL "$PPID"
+      exit 137
     fi ;;
 esac
 '''
     journey.host('tee', str(journey.directory / 'docker-test'), data=wrapper.replace('exec /usr/bin/docker "$@"', injection + 'exec /usr/bin/docker "$@"'))
     plan, digest = plan_update(journey)
     journey.host('tee', str(journey.directory / 'failure'), data='update-ack')
-    assert journey.ctl('update', '--accept-plan', digest, check=False).returncode == 1
+    assert journey.ctl('update', '--accept-plan', digest, check=False).returncode != 0
     receipt = update_receipt(journey)
     assert receipt['Phase'] == 3 and receipt['RecoveryArchive'] and receipt['RecoverySha256']
     helper = receipt['MigrationContainer']

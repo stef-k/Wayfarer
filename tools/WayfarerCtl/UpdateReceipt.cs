@@ -30,6 +30,7 @@ public sealed record UpdateReceipt
     public Dictionary<string, string> RestartPolicies { get; init; } = new();
     public Dictionary<string, string> ServiceRestartPolicies { get; init; } = new();
     public string[] Containers { get; init; } = [];
+    public string? CaptureContainer { get; init; }
     public Guid? RecoveryArchive { get; init; }
     public string? RecoveryName { get; init; }
     public string? RecoverySha256 { get; init; }
@@ -64,6 +65,23 @@ public sealed record UpdateReceipt
         var receipt = JsonSerializer.Deserialize<UpdateReceipt>(File.ReadAllText(path), ArchiveContract.Json)
             ?? throw new IOException("Missing update receipt.");
         receipt.Validate(root);
+        return receipt;
+    }
+
+    /// <summary>Resolve retained operation evidence by UUID; history remains authority after a later update begins.</summary>
+    public static UpdateReceipt? Find(string root, Guid operation)
+    {
+        var current = Load(root);
+        if (current?.Plan.Operation == operation) return current;
+        var path = Path.Combine(root, "recovery-control", "update-history", operation.ToString("N") + ".json");
+        if (!File.Exists(path)) return null;
+        ProtectedFiles.SafePath(path);
+        ProtectedFiles.Check(path, 0);
+        if (new FileInfo(path).Length > 1048576) throw new IOException("Retained update receipt exceeds bound.");
+        var receipt = JsonSerializer.Deserialize<UpdateReceipt>(File.ReadAllText(path), ArchiveContract.Json)
+            ?? throw new IOException("Missing retained update receipt.");
+        receipt.Validate(root);
+        if (receipt.Plan.Operation != operation) throw new IOException("Retained update operation mismatch.");
         return receipt;
     }
 

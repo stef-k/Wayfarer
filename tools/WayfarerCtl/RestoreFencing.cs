@@ -51,18 +51,13 @@ public sealed class RestoreFencing(IProcessRunner runner)
     {
         if (container.GetProperty("State").GetProperty("Running").GetBoolean() ||
             container.GetProperty("HostConfig").GetProperty("RestartPolicy").GetProperty("Name").GetString() != "no") return false;
-        if (UpdateReceipt.Load(root) is { } update &&
-            container.GetProperty("Id").GetString() == update.MigrationContainerId &&
-            update.Plan.Current.Project == config.Project &&
-            container.GetProperty("Config").GetProperty("Image").GetString() == "ghcr.io/stef-k/wayfarer@" + update.Plan.Target.AppDigest &&
-            container.GetProperty("Config").GetProperty("Labels").GetProperty("wayfarer.update").GetString() == update.Plan.Operation.ToString("D") &&
-            container.GetProperty("Mounts").EnumerateArray().All(mount => !mount.GetProperty("RW").GetBoolean() || mount.GetProperty("Type").GetString() == "tmpfs"))
-            return true;
+        if (IsUpdateHelper(root, config, container)) return true;
         var directory = Path.Combine(root, "recovery-control", "restore-history");
-        if (!Directory.Exists(directory)) return false;
+        var paths = new[] { RestoreReceipt.PathFor(root) }.Where(File.Exists).Concat(Directory.Exists(directory)
+            ? Directory.EnumerateFiles(directory, "*.json").Take(100) : Array.Empty<string>());
         var name = container.GetProperty("Name").GetString()!.TrimStart('/');
         var id = container.GetProperty("Id").GetString()!;
-        foreach (var path in Directory.EnumerateFiles(directory, "*.json").Take(100))
+        foreach (var path in paths)
         {
             ProtectedFiles.SafePath(path);
             ProtectedFiles.Check(path, 0);
@@ -74,6 +69,23 @@ public sealed class RestoreFencing(IProcessRunner runner)
             VerifyOwned(previous, container);
             return true;
         }
+        return false;
+    }
+
+    /// <summary>A stopped retained migration helper remains receipted evidence, not a foreign writable consumer.</summary>
+    private static bool IsUpdateHelper(string root, Deployment config, JsonElement container)
+    {
+        var helperLabels = container.GetProperty("Config").GetProperty("Labels");
+        if (helperLabels.ValueKind == JsonValueKind.Object && helperLabels.TryGetProperty("wayfarer.update", out var updateLabel) &&
+            Guid.TryParseExact(updateLabel.GetString(), "D", out var updateOperation) &&
+            UpdateReceipt.Find(root, updateOperation) is { } update &&
+            container.GetProperty("Id").GetString() == update.MigrationContainerId &&
+            update.Plan.Current.Project == config.Project &&
+            container.GetProperty("Config").GetProperty("Image").GetString() == "ghcr.io/stef-k/wayfarer@" + update.Plan.Target.AppDigest &&
+            container.GetProperty("Config").GetProperty("Labels").GetProperty("wayfarer.update").GetString() == update.Plan.Operation.ToString("D") &&
+            container.GetProperty("Mounts").EnumerateArray().All(mount => !mount.GetProperty("RW").GetBoolean() || mount.GetProperty("Type").GetString() == "tmpfs"))
+            return !container.GetProperty("State").GetProperty("Running").GetBoolean() &&
+                container.GetProperty("HostConfig").GetProperty("RestartPolicy").GetProperty("Name").GetString() == "no";
         return false;
     }
 
@@ -119,6 +131,7 @@ public sealed class RestoreFencing(IProcessRunner runner)
     public static void VerifyOwned(RestoreReceipt receipt, JsonElement container)
     {
         var config = receipt.Plan.Target;
+        if (IsUpdateHelper(receipt.Plan.Root, config, container)) return;
         var labels = container.GetProperty("Config").GetProperty("Labels");
         string? Label(string key) => labels.ValueKind == JsonValueKind.Object && labels.TryGetProperty(key, out var value) ? value.GetString() : null;
         if (Label("com.docker.compose.project") != config.Project && Label("wayfarer.restore-helper") != config.Project)
@@ -128,7 +141,7 @@ public sealed class RestoreFencing(IProcessRunner runner)
         if (receipt.Plan.FromUpdate is not null)
         {
             UpdateRestoreHandoff.Require(receipt.Plan.Root, receipt.Plan);
-            updateImage = "ghcr.io/stef-k/wayfarer@" + UpdateReceipt.Load(receipt.Plan.Root)!.Plan.Target.AppDigest;
+            updateImage = "ghcr.io/stef-k/wayfarer@" + UpdateReceipt.Find(receipt.Plan.Root, receipt.Plan.FromUpdate.Value)!.Plan.Target.AppDigest;
         }
         if (image != updateImage && image != "ghcr.io/stef-k/wayfarer@" + config.AppDigest && image != "ghcr.io/stef-k/wayfarer-db@" + config.DbDigest &&
             image != "caddy@sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b")
