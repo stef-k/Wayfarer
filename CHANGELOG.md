@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### Changed
+- Add exact-source stable Compose bundle publication and anonymous bounded acquisition (#713), reusing release.json v1, immutable import/image verification and #704 update plans. Publish versioned archive/checksum assets once; first public Compose stable is a fresh-install baseline without invented historical update sources. Real public release acceptance remains pending; no schema migration or bootstrap self-update.
 - Recheck exclusive durable-state ownership immediately before failed-update restore handoff; reproduce the candidate migration boundary from the exact head and exercise the existing update journey in lifecycle-sensitive image CI (#704, #710). No product migration or stable release.
 - Add explicit trusted-local managed forward update with canonical plans, durable migration cutoffs, fresh held quiesced recovery, same-generation target activation, private postflight, retained release evidence and durable update-to-restore ownership handoff (#704). No network resolver, stable distribution, native migration, PostgreSQL major upgrade or image rollback.
 - Add strict offline release.json v1 candidate bundles, immutable placement, metadata-only adoption, retained operator dispatch and schema-3 restore target reconstruction from release-owned Quartz compatibility (#699). No update, download, stable publication or database migration.

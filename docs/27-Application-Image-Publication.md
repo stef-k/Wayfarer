@@ -122,7 +122,51 @@ its managed/external topology does not complete the later guided lifecycle produ
 The local bundle assembler now consumes the same version and OCI identity owners,
 requiring an actual locally available immutable application digest and exact source.
 Candidate archive names contain `candidate`, version and full source SHA. Planned stable
-archives remain `wayfarer-vX.Y.Z-linux-amd64.tar.gz` with an external `SHA256SUMS`.
+archives remain `wayfarer-vX.Y.Z-linux-amd64.tar.gz` with a versioned `.tar.gz.sha256` sidecar.
 Local integrity does not establish publisher authenticity, anonymous pull availability
-or GitHub asset provenance. This slice neither publishes stable bundles nor resolves
-network releases. See [local bundle assembly](25-Container-Release-Contract.md#local-release-authority-v1).
+or GitHub asset provenance. The existing release workflow now publishes stable bundles after anonymous image
+qualification; public acquisition and the operational acceptance gate are described below. See [local bundle assembly](25-Container-Release-Contract.md#local-release-authority-v1).
+
+
+## Stable Compose distribution
+
+Explicit `bundle.py --stable --tag vX.Y.Z --source FULLSHA --app-digest sha256:...`
+reuses `version.py` and `image.py`: clean HEAD, local/remote tag, Version.props and
+published non-draft/non-prerelease Release must agree. The already-published application
+manifest/config must match the exact digest and Linux AMD64 image. Candidate assembly
+remains unchanged. Add `--publish` only in the official release workflow.
+
+After anonymous application qualification, `application-release.yml` anonymously pulls
+the accepted DB/Caddy digests, builds the self-contained payloads, validates with the
+bundled operator and uploads `wayfarer-vX.Y.Z-linux-amd64.tar.gz` plus
+`wayfarer-vX.Y.Z-linux-amd64.tar.gz.sha256`. Only this job has `contents: write`;
+image publication retains `packages: write`. No PAT, release creation or mutable
+`latest` bundle alias is used. Upload never uses clobber. Occupied archive/sidecar names
+stop **before assembly** on reruns. Inspect the retained intended archive/checksum,
+manifest and `publication.json`, compare the REST asset digest, and reconcile manually;
+uncertain or different bytes cannot be rebuilt or replaced under the same identity.
+
+The checksum sidecar supports human/offline integrity checks; it does not authenticate
+a publisher. Automatic acquisition requires GitHub REST's exact lowercase
+`sha256:<64 hex>` asset digest, one uploaded matching asset and bounded nonzero size.
+The project/tag/name/status are fixed. The download URL is constructed from validated
+identity; only GitHub's fixed HTTPS release-asset CDN may receive its redirect.
+
+The first future genuine Compose stable is a baseline with `Sources=[]`. Source-only
+v1.9.19 and earlier releases remain untouched. Later publication locates the highest
+earlier stable that advertises the deployment asset, validates its public digest,
+extracts with the current shipped operator and validates its stable manifest. It binds
+one exact version/fingerprint/terminal migration only after DB/Caddy and topology
+compatibility plus an exact ordered migration prefix and no reference seeding.
+An advertised prior bundle that is invalid or incompatible fails publication; no silent
+source omission or search for a different update target occurs.
+
+The real `public-compose-acceptance` job uses a fresh runner, empty Docker credentials,
+the product `release acquire X.Y.Z` path, and representative fresh external Compose
+setup/doctor/stop. Publication evidence records tag/source/fingerprint/asset digest/
+image digest and the public job retains acquisition evidence. PR CI covers deterministic
+logic and the existing candidate recovery/update journey. It creates no stable release.
+No public stable bundle is claimed shipped by this implementation: #713 and #603 remain
+open until the next genuine stable workflow passes. A baseline claims no stable-to-stable
+migration; #704 candidate real-migration evidence remains the migration proof until a
+second genuine public Compose release exists.

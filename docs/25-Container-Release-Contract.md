@@ -323,8 +323,9 @@ assembles a clean committed source into an explicit candidate directory and dete
 candidate tarball with external `SHA256SUMS`. It reuses Version.props and the image
 identity owner; the selected local image must match the exact source SHA and version.
 No registry push, tag, GitHub Release, image pull or installation activation occurs.
-Stable metadata is understood only as trusted offline provenance; this command authors
-candidates only. Ordinary stable publication remains a separate acceptance gate.
+Explicit `--stable --tag vX.Y.Z --source FULLSHA` authors stable metadata only after
+the existing exact published-source/image checks. The same workflow creates versioned
+archive/checksum assets without overwrite. See [stable publication](27-Application-Image-Publication.md#stable-compose-distribution).
 
 The exact inventory is `compose.yaml`, `external.yaml`, `caddy/Caddyfile`,
 `db/20-wayfarer.sh`, `config/deployment.env.example`, `compose.sh`, `INSTALL.md`,
@@ -355,5 +356,7 @@ private validation precedes exposure and scheduler reconciliation. Old release,
 operator, image and recovery evidence remain retained. Failed-update recovery uses
 a durable ownership join to #695 restore, never old-image rollback or receipt deletion.
 See [update phases and commands](29-Wayfarerctl.md#trusted-local-managed-forward-update).
-Network acquisition, public stable distribution and genuine stable release-to-release
-acceptance remain deferred; disposable candidates must be labelled truthfully.
+Public acquisition prepares retained validated bytes and exact images before this same
+local lifecycle. It grants no migration or activation authorization. The first genuine
+public stable Compose acceptance and later stable-to-stable proof remain release gates;
+disposable candidates must be labelled truthfully.
