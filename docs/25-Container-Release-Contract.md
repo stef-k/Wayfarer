@@ -155,9 +155,12 @@ matching image first; any subsequent upgrade is a separate managed operation.
 A digest proves identity, not publisher trust: obtain metadata from the project's
 release channel and verify checksums against that trusted release metadata.
 
-Publish `wayfarer-vX.Y.Z-linux-amd64.tar.gz` and `SHA256SUMS` as version-matched
-GitHub Release assets. The inspectable bundle contains `compose.yaml`, non-secret
-configuration template/schema, Caddy template, `release.json`, operator docs, the
+Publish `wayfarer-vX.Y.Z-linux-amd64.tar.gz` and
+`wayfarer-vX.Y.Z-linux-amd64.tar.gz.sha256` as version-matched GitHub Release assets.
+The checksum sidecar provides human/offline integrity evidence, not publisher
+authentication. Automatic acquisition uses the GitHub Release Asset REST `digest`
+field as transport-integrity authority. The inspectable bundle contains `compose.yaml`,
+non-secret configuration template/schema, Caddy template, `release.json`, operator docs, the
 self-contained `wayfarerctl` Linux x64 executable and minimal install/bootstrap glue.
 Start `bundleContractVersion` and `configurationSchemaVersion` at 1. `release.json`
 owns the fields above and the CLI compatibility requirement. Exact JSON serialization
