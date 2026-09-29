@@ -16,7 +16,9 @@ public sealed class UpdateCommands(IProcessRunner runner, ITerminal terminal)
         if (options.Plan)
         {
             using var recovery = new RecoveryLock(Path.Combine(root, "recovery-control/recovery.lock"));
-            var plan = await new UpdatePreparation(runner).PrepareAsync(root, options.Bundle!, token);
+            var path = options.Bundle ?? (await new PublicReleaseAcquisition(runner)
+                .AcquireAsync(root, options.PublicVersion!, token)).Directory;
+            var plan = await new UpdatePreparation(runner).PrepareAsync(root, path, token);
             terminal.Write(JsonSerializer.Serialize(plan));
             terminal.Write("Plan SHA-256: " + plan.Hash());
             terminal.Write("MigrationStarted ends safe old-runtime activation. Recovery requires the held archive and managed restore.");

@@ -13,6 +13,13 @@ public sealed class ReleaseCommands(IProcessRunner runner, ITerminal terminal)
     /// <summary>All local-artifact grammar is checked before filesystem or Docker work.</summary>
     public static void Validate(string[] args)
     {
+        if (args is ["unpack", var archive, var stagePath])
+        {
+            BackupPolicy.LiteralPath(archive);
+            BackupPolicy.LiteralPath(stagePath);
+            return;
+        }
+        if (args is ["acquire", var selector]) { PublicRelease.Selector(selector); return; }
         if (args is ["inspect" or "verify-images" or "import" or "adopt", var path]) { BackupPolicy.LiteralPath(path); return; }
         if (args is ["target", _, _, "current" or "legacy"]) { Validate(args[..3]); return; }
         if (args is ["corroborate", var input, var evidence]) { BackupPolicy.LiteralPath(input); BackupPolicy.LiteralPath(evidence); return; }
@@ -26,10 +33,32 @@ public sealed class ReleaseCommands(IProcessRunner runner, ITerminal terminal)
     public async Task<int> RunAsync(string root, string[] args, CancellationToken token)
     {
         Validate(args);
+        if (args[0] == "unpack")
+        {
+            // Offline authoring/bootstrap helper: the caller owns private empty staging, never installed placement.
+            if (!Directory.Exists(args[2]) || Directory.EnumerateFileSystemEntries(args[2]).Any())
+                throw new UsageException("Unpack requires an existing empty private staging directory.");
+            using var stage = new SafeDirectory(args[2]);
+            stage.RequireLocalControl();
+            Describe(await ReleaseArchive.ExtractAsync(args[1], args[2], token), false);
+            return 0;
+        }
         if (args[0] == "reconcile")
         {
             using var exclusion = Setup.Lock(root);
             Describe(ReleaseStore.Reconcile(root, args[1]), false);
+            return 0;
+        }
+        if (args[0] == "acquire")
+        {
+            ProtectedFiles.SafePath(root);
+            Directory.CreateDirectory(root, ProtectedFiles.PrivateDirectory);
+            ProtectedFiles.Check(root, 0, directory: true);
+            using var exclusion = Setup.Lock(root);
+            await new Preflight(runner).DockerAsync(token);
+            var acquired = await new PublicReleaseAcquisition(runner).AcquireAsync(root, args[1], token);
+            terminal.Write(JsonSerializer.Serialize(new { Path = acquired.Directory, acquired.Fingerprint,
+                acquired.Manifest.Version, Images = "execution-ready", Publisher = "public-stable-GitHub", Integrity = "GitHub-asset-SHA256" }));
             return 0;
         }
         var bundle = ReleaseBundle.Validate(args[1]);

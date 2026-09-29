@@ -8,11 +8,12 @@ public static class Help
         ["help"] = "help [command [subcommand]] — contextual help; aliases --help and -h",
         ["version"] = "version — CLI version (deployed Wayfarer identity is reported by status)",
         ["release"] = "release inspect|verify-images|import|adopt /absolute/bundle\n" +
-            "  target /absolute/bundle project [current|legacy]; corroborate /absolute/bundle /absolute/source.json; reconcile .stage-ID. Offline trusted directories only; no pulls or activation.",
+            "  target /absolute/bundle project [current|legacy]; corroborate /absolute/bundle /absolute/source.json; reconcile .stage-ID; unpack /absolute/archive /absolute/empty-private-stage.\n" +
+            "  acquire X.Y.Z|latest — anonymous stable download/import and exact image pulls; no activation.",
         ["dispatch"] = "dispatch COMMAND — invoke the retained operator; restore --resume/--abort uses its receipt owner.",
-        ["update"] = "update --bundle /trusted/local/bundle --plan | --accept-plan SHA256\n" +
+        ["update"] = "update [X.Y.Z] --plan | --bundle /trusted/local/bundle --plan | --accept-plan SHA256\n" +
             "  Recovery: --resume UUID | --abort UUID (before migration only) | --restore UUID.\n" +
-            "  Requires fresh held quiesced recovery. Forward-only; retained old images are not rollback. No network acquisition.",
+            "  Requires fresh held quiesced recovery. Forward-only; retained old images are not rollback. Public acquisition only prepares the existing plan.",
         ["setup"] = "setup --bundle PATH --hostname DNS --app-digest sha256:HEX [--mode managed|external]\n" +
             "  [--project NAME] [--edge-prefix 172.30.64] [--loopback-port 8080] [--password-stdin]\n" +
             "  Interactive terminal prompts for omitted required inputs. Fresh installation only.\n" +
@@ -52,6 +53,6 @@ public static class Help
             "Exit: 0 success, 1 operation failure/cancelled/unhealthy, 2 invalid usage/config.\n" +
             "Use root and a trusted bundle. Passwords are never command arguments; protect stdin files.\n" +
             "Do not paste passwords, tokens or connection strings into options.\n" +
-            "Managed restore requires an exact trusted local target. Update, native migration and uninstall are not implemented.";
+            "Managed restore requires an exact trusted local target. Update requires an explicit accepted plan. Native migration and uninstall are not implemented.";
     }
 }

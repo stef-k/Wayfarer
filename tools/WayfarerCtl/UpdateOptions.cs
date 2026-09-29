@@ -1,11 +1,17 @@
 namespace WayfarerCtl;
 
-/// <summary>Exact update grammar has no bypass, network resolver, or implicit non-interactive authorization.</summary>
+/// <summary>Exact update grammar has no bypass or implicit non-interactive authorization.</summary>
 public sealed record UpdateOptions(string? Bundle = null, bool Plan = false, string? Accept = null,
-    Guid? Resume = null, Guid? Abort = null, Guid? Restore = null)
+    Guid? Resume = null, Guid? Abort = null, Guid? Restore = null, string? PublicVersion = null)
 {
     public static UpdateOptions Parse(string[] args)
     {
+        if (args is ["--plan"]) return new(Plan: true, PublicVersion: "latest");
+        if (args is [var version, "--plan"])
+        {
+            if (!ReleaseContract.VersionSyntax(version)) throw new UsageException("Update requires an exact X.Y.Z version.");
+            return new(Plan: true, PublicVersion: version);
+        }
         if (args is ["--bundle", var bundle, "--plan"])
         {
             BackupPolicy.LiteralPath(bundle);
@@ -20,7 +26,7 @@ public sealed record UpdateOptions(string? Bundle = null, bool Plan = false, str
                 "--restore" => new(Restore: operation),
                 _ => throw new UsageException("Unknown update recovery action.")
             };
-        throw new UsageException("Use update --bundle /trusted/bundle --plan, --accept-plan SHA256, or --resume|--abort|--restore OPERATION.");
+        throw new UsageException("Use update [X.Y.Z] --plan, --bundle /trusted/bundle --plan, --accept-plan SHA256, or --resume|--abort|--restore OPERATION.");
     }
 
     /// <summary>Candidate execution exists only in explicitly compiled disposable qualification operators.</summary>
