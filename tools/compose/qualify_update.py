@@ -62,6 +62,8 @@ esac
     journey.ctl('restore', '--accept-plan', digest, '--trust-controlled-backup')
     journey.probe_command('verify')
     assert configuration(journey)['Release'] == target['Release']
+    assert journey.compose('exec', '-T', 'wayfarer', 'cat',
+        '/var/lib/wayfarer/uploads/imports/recovery-qualification').strip() == 'durable'
     print('PASS same-generation forward activation, secure data continuity, target backup binding and post-update managed restore', flush=True)
 
 
