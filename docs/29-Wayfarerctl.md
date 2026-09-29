@@ -713,7 +713,9 @@ wayfarerctl dispatch restore --resume <restore-operation-uuid>
 
 This decision durably joins the update and #695 restore receipts to the held archive
 and retained old ReleaseAuthority. It restores into a fresh paired generation while
-lifecycle mutation stays fenced. Update intent is retained, and recovery completion
+lifecycle mutation stays fenced. After archive preparation and immediately before
+receipt transfer, the existing update exclusivity check rejects newly attached
+foreign durable-volume or backend-network consumers under recovery exclusion. Update intent is retained, and recovery completion
 is recorded separately from forward `Accepted`. Resume dispatch selects the exact
 receipted operator, even after the active release changes; executables are never
 replaced in place. Keep old bundles, operator/recovery payloads, image digests,
@@ -724,3 +726,30 @@ qualification uses an explicitly compiled `UPDATE_QUALIFICATION` operator restri
 to the existing random temporary recovery fixture; ordinary published operators
 reject candidate update execution. The controlled test migration is not a product
 migration or an official stable release.
+
+
+To reproduce the real migration boundary from a clean exact head, first build the
+source image and candidate bundle with the existing `tools/release/image.py dry-run`
+and `tools/release/bundle.py` commands, then run:
+
+```bash
+python3 -B tools/compose/qualify_update.py --source-bundle /absolute/source-candidate --output /absolute/new-update-output
+```
+
+The recipe clones that head into a disposable local checkout, increments only its
+patch version, and adds `20990101000000_UpdateQualification`, which creates one
+empty table through EF. Fixed commit identity/time and the exact parent make the
+target source reproducible; `evidence.json` records both commits, migration and
+actual built image digest. Image bytes can depend on upstream package feeds.
+No product migration, Git tag, registry push or stable release is created. Only
+the output candidate copies receive the bounded qualification operator and exact
+source boundary. The original source bundle stays unchanged.
+
+Use the emitted `sourceBundle` and `targetBundle` as `--release-bundle` and
+`--update-bundle` in the existing `tools/compose/qualify_recovery.py` command,
+with its usual published worker, inspector, probe and source app digest. The
+application-image workflow contains the complete commands and runs both the
+existing recovery qualification and this update journey on lifecycle-sensitive
+exact PR heads. Its update observations include real migration failure, lost
+acknowledgement, private postflight failure, foreign-consumer refusal before
+restore ownership transfer, and forward update followed by post-update restore.

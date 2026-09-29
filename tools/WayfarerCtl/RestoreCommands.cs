@@ -110,6 +110,8 @@ public sealed class RestoreCommands(IProcessRunner runner, ITerminal terminal)
                     "--without-emergency-backup", "--trust-controlled-backup", "--plan"]);
                 var plan = await new RestorePreparation(runner).PrepareAsync(root, update.Plan.Current, options, token);
                 plan = plan with { FromUpdate = update.Plan.Operation };
+                // Archive preparation can be long: refresh exclusivity under recovery exclusion before transferring ownership.
+                await new UpdateRuntime(runner).RequireExclusiveAsync(update, token);
                 receipt = new RestoreReceipt { Plan = plan, PlanHash = plan.Hash(), SecretsFingerprint = plan.LocalSecretsFingerprint,
                     Phase = RestorePhase.Fenced, Containers = update.Containers, RestartPolicies = update.RestartPolicies };
                 update = update with { RestoreOperation = plan.Operation };
