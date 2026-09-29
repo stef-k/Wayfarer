@@ -33,7 +33,7 @@ public sealed class UpdatePreparation(IProcessRunner runner)
         var plan = new UpdatePlan(operation, root, current, next, owner, boundary,
             target.Manifest.Application.Migrations.Skip(source.Manifest.Application.Migrations.Length).ToArray(),
             File.ReadAllText(Path.Combine(root, "installation.json")), File.ReadAllText(current.EnvironmentPath(root)),
-            ProtectedFiles.SecretsFingerprint(root), capacity);
+            ProtectedFiles.SecretsFingerprint(root), capacity) { TargetMigrations = target.Manifest.Application.Migrations };
         var directory = DirectoryFor(root, operation);
         Directory.CreateDirectory(directory, ProtectedFiles.PrivateDirectory);
         ProtectedFiles.Create(Path.Combine(directory, "plan.json"), JsonSerializer.Serialize(plan));
@@ -140,7 +140,7 @@ public sealed class UpdatePreparation(IProcessRunner runner)
         "--env=Database__PasswordFile=/run/secrets/app-password"];
 
     /// <summary>Bound conservative recovery and migration headroom by observed DB size; retain a filesystem operating reserve.</summary>
-    public async Task<long> CapacityAsync(string root, Deployment config, CancellationToken token)
+    public async Task<UpdateCapacity> CapacityAsync(string root, Deployment config, CancellationToken token)
     {
         var owner = new RestoreContainers(runner);
         var value = await owner.Required(config.Compose(root, "exec", "-T", "db", "psql", "-U", "postgres", "-d", "wayfarer", "-At", "-c",
@@ -164,7 +164,9 @@ public sealed class UpdatePreparation(IProcessRunner runner)
         RestoreCapacity.Require(root, required);
         RestoreCapacity.Require(config.Backup!.Destination, required);
         RestoreCapacity.Check(observed[0], required);
-        return required;
+        using var local = new SafeDirectory(root);
+        using var destination = new SafeDirectory(config.Backup.Destination);
+        return new UpdateCapacity(required, local.AvailableBytes, destination.AvailableBytes, observed[0], size, observed[1]);
     }
 
     /// <summary>Only a locally generated protected plan can authorize non-interactive execution.</summary>

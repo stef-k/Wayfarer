@@ -85,6 +85,8 @@ public sealed class UpdateCommands(IProcessRunner runner, ITerminal terminal)
         var source = ReleaseStore.Select(root, receipt.Plan.Current.Release!);
         var target = ReleaseStore.Select(root, receipt.Plan.Target.Release!);
         UpdateOptions.Boundary(source, target, UpdateOptions.QualificationCandidates(root, receipt.Plan.Current.Project));
+        if (!target.Manifest.Application.Migrations.SequenceEqual(receipt.Plan.TargetMigrations))
+            throw new IOException("Target migration inventory changed from plan.");
         source.Corroborate(receipt.Plan.Current);
         receipt.Plan.Current.Backup!.CheckPayload();
         source.Corroborate(receipt.Plan.Current.Backup.Source);

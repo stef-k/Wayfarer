@@ -15,10 +15,19 @@ public enum UpdatePhase
 /// <summary>Canonical forward authorization binds independently retained releases and the unchanged physical generation.</summary>
 public sealed record UpdatePlan(Guid Operation, string Root, Deployment Current, Deployment Target,
     ReleaseAuthority OperatorOwner, ReleaseSourceBoundary Boundary, string[] MigrationDelta,
-    string OldConfiguration, string OldEnvironment, string SecretsFingerprint, long RequiredCapacity)
+    string OldConfiguration, string OldEnvironment, string SecretsFingerprint, UpdateCapacity Capacity)
 {
+    public int UpdateProtocol { get; init; } = 1;
+    public string RecoveryRequirement { get; init; } = "fresh-verified-quiesced-held";
+    public string Fencing { get; init; } = "stop-app-jobs-ingress-scheduler;restart=no";
+    public string Postflight { get; init; } = "exact-EF-Quartz-DB-DP-Identity-credentials-Uploads;private-before-ingress";
+    public string[] TargetMigrations { get; init; } = [];
     public string Hash() => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(this))));
 }
+
+/// <summary>Bounded observed capacity evidence, including retained-data overhead and operating reserve.</summary>
+public sealed record UpdateCapacity(long RequiredBytes, long RootAvailableBytes, long DestinationAvailableBytes,
+    long DockerAvailableBytes, long DatabaseBytes, long ApplicationBytes);
 
 /// <summary>Protected forward intent retains resource, recovery and activation evidence until explicit acceptance.</summary>
 public sealed record UpdateReceipt
@@ -91,6 +100,12 @@ public sealed record UpdateReceipt
         Plan.Current.Validate();
         Plan.Target.Validate();
         Plan.OperatorOwner.Validate();
+        if (Plan.UpdateProtocol != 1 || Plan.RecoveryRequirement != "fresh-verified-quiesced-held" ||
+            Plan.Fencing != "stop-app-jobs-ingress-scheduler;restart=no" ||
+            Plan.Postflight != "exact-EF-Quartz-DB-DP-Identity-credentials-Uploads;private-before-ingress" ||
+            Plan.Current.Backup is null ||
+            !Plan.Current.Backup.Source.ExpectedMigrations.Concat(Plan.MigrationDelta).SequenceEqual(Plan.TargetMigrations))
+            throw new IOException("Unsupported update plan contract.");
         if (Schema != 1 || !Enum.IsDefined(Phase) || Plan.Root != root || Plan.Operation == Guid.Empty ||
             PlanHash != Plan.Hash() || Plan.Current.Release is null || Plan.Target.Release is null ||
             Plan.Current.Installation == Guid.Empty || Plan.Current.Installation != Plan.Target.Installation ||
