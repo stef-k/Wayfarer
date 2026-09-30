@@ -55,8 +55,8 @@ Never put credentials in image builds, command arguments or ordinary environment
 a bounded CIDR. Additional indexed entries are allowed. With no entries forwarding is
 disabled, including loopback. Native nginx operators must explicitly configure their
 loopback peer. Exactly one trusted hop may supply scheme, host and client IP; untrusted
-headers are ignored. Set `AllowedHosts` to the actual public hostname. Proxy topology,
-TLS and Caddy topology belong to [Compose deployment](28-Production-Compose.md).
+headers are ignored. Set `AllowedHosts` to the actual public hostname. Proxy, TLS
+and Caddy topology belong to [Compose deployment](28-Production-Compose.md).
 
 `/health/live` returns cheap HTTP liveness. `/health/ready` performs a bounded local DB
 compatibility/bootstrap probe and returns only `ready` (200) or `not ready` (503).

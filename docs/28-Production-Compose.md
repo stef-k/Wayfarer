@@ -329,7 +329,7 @@ The publisher builds the shared pinned recipe and verifies actual Debian package
 PostgreSQL executable versions against OCI metadata. AMD64 runs the full disposable
 Compose gate (including executable PostGIS SQL, locale/citext and dump/restore); ARM64
 runs the bounded fresh-cluster and thumbnail/PDF rendering gate before push.
-Only its publishing job receives `packages: write`, using `GITHUB_TOKEN` over
+Native publication and index assembly receive `packages: write`, using `GITHUB_TOKEN` over
 stdin. No PAT is needed. Native AMD64 and ARM64 jobs each bind a tested manifest/config;
 the existing manual workflow joins them into one immutable DB index only after both
 anonymous qualification jobs pass. OCI and

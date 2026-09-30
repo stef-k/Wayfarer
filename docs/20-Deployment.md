@@ -211,8 +211,9 @@ sudo env PLAYWRIGHT_BROWSERS_PATH=/opt/wayfarer-browsers \
 Set `Environment=PLAYWRIGHT_BROWSERS_PATH=/opt/wayfarer-browsers` in the native
 systemd service override and restart after provisioning. Retain version-matched
 bundles for releases still eligible for rollback. Development/test installation
-is also explicit; see [Testing](22-Testing.md#net-playwright-rendering-test).
-The #603 image child owns packaging these same dependencies into the final image.
+is also explicit; see [Testing](22-Testing.md#trip-editor-browser-preflight).
+The [application container](26-Application-Container.md) owns packaging these same
+dependencies into the final image.
 There is no application executable override or host-location scanning.
 
 Playwright owns process-scoped profiles and downloads in OS temporary storage and
