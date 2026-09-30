@@ -12,6 +12,23 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import bundle
 
 
+@pytest.mark.parametrize("platform", bundle.image.PLATFORMS)
+def test_stable_database_pin_requires_both_native_platforms(monkeypatch, platform):
+    """Stable publication cannot start from the historical single-platform DB identity."""
+    import version
+    monkeypatch.setattr(bundle.image, 'PLATFORM', platform)
+    entries = [{'digest': 'sha256:' + char * 64, 'platform': {'os': 'linux', 'architecture': arch}}
+               for char, arch in (('b', 'amd64'), ('c', 'arm64'))]
+    monkeypatch.setattr(bundle.image, 'run', lambda *args: json.dumps({'manifests': entries}))
+    assert bundle.stable_database_digest('sha256:' + 'a' * 64) == entries[0 if platform == 'linux/amd64' else 1]['digest']
+    entries.pop()
+    with pytest.raises(version.ValidationError, match='exactly one'):
+        bundle.stable_database_digest('sha256:' + 'a' * 64)
+    monkeypatch.setattr(bundle.image, 'run', lambda *args: json.dumps({'config': {'digest': 'sha256:' + 'd' * 64}}))
+    with pytest.raises(version.ValidationError, match='two-platform DB index pin'):
+        bundle.stable_database_digest('sha256:' + 'a' * 64)
+
+
 def test_archive_is_reproducible_and_checksum_external(tmp_path):
     """Location and mtime do not affect archive identity; inventory has no self-checksum."""
     source = tmp_path / 'source'

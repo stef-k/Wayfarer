@@ -305,10 +305,11 @@ consume its qualified **registry manifest digest** and retained evidence, never 
 mutable tag or local image ID. A refreshed recipe requires a new reviewed source and
 publication identity. Existing identities are never overwritten, including reruns.
 
-The publisher builds the unchanged pinned recipe, verifies actual Debian package and
-PostgreSQL executable versions against OCI metadata, and runs the full disposable
-Compose gate (including executable PostGIS SQL, locale/citext and dump/restore) before
-push. Only its publishing job receives `packages: write`, using `GITHUB_TOKEN` over
+The publisher builds the shared pinned recipe and verifies actual Debian package and
+PostgreSQL executable versions against OCI metadata. AMD64 runs the full disposable
+Compose gate (including executable PostGIS SQL, locale/citext and dump/restore); ARM64
+runs the bounded fresh-cluster and thumbnail/PDF rendering gate before push.
+Only its publishing job receives `packages: write`, using `GITHUB_TOKEN` over
 stdin. No PAT is needed. Native AMD64 and ARM64 jobs each bind a tested manifest/config;
 the existing manual workflow joins them into one immutable DB index only after both
 anonymous qualification jobs pass. OCI and
@@ -321,7 +322,7 @@ workflow, retarget tags or delete immutable evidence.
 `db-publication-amd64` / `db-publication-arm64` JSON is uploaded before the anonymous job starts, even if a
 post-push registry check fails. A fresh runner with read-only repository permission
 uses an empty Docker client configuration to pull only the captured digest. It checks
-platform, OCI/package/executable identity, then repeats the entire Compose gate with
+platform, OCI/package/executable identity, then repeats its native Compose gate with
 that pulled DB reference and `pull_policy: never`. The DB is never rebuilt in this
 job. The application companion is built locally from the same source in each job.
 Only successful `db-evidence` records anonymous/full Compose acceptance. Preserve
@@ -424,3 +425,5 @@ while app release metadata distinguishes its shared index from the selected mani
 The DB package/executable, Debian/glibc, locale, volumes and non-superuser contracts
 remain identical. A new two-platform public DB index must be published and its exact
 identity pinned through review before the first genuine Compose stable can ship.
+Stable application publication rejects the historical single-platform DB pin before
+building or pushing any application manifest; both native DB selections are required.

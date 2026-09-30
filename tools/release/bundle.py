@@ -102,6 +102,20 @@ def stable_image(release: dict, digest: str) -> str:
     return selected
 
 
+def stable_database_digest(index: str) -> str:
+    """Require the reviewed DB index to support both platforms before any stable app publication."""
+    if not image.DIGEST.fullmatch(index):
+        raise version.ValidationError('an immutable reviewed DB index is required')
+    reference = 'ghcr.io/stef-k/wayfarer-db@' + index
+    manifest = json.loads(image.run('docker', 'manifest', 'inspect', reference))
+    if 'manifests' not in manifest:
+        raise version.ValidationError('stable publication requires the reviewed two-platform DB index pin')
+    selected = {platform: image.selected_digest(reference, platform) for platform in image.PLATFORMS}
+    if len(set(selected.values())) != 2:
+        raise version.ValidationError('DB index must bind distinct native platform manifests')
+    return selected[image.PLATFORM]
+
+
 def release_manifest(release: dict, app_digest: str, application: dict, operator: dict,
                      bundle: Path, payloads: tuple, stable: bool, evidence: dict | None,
                      platform_digest: str | None = None, db_digest: str = DB) -> dict:
@@ -131,7 +145,7 @@ def assemble(output: Path, app_digest: str, capture_directory: Path | None = Non
     release = image.identity(tag if stable else None, source if stable else None)
     platform_digest = stable_image(release, app_digest) if stable else app_digest
     if stable:
-        db_digest = image.selected_digest('ghcr.io/stef-k/wayfarer-db@' + db_digest)
+        db_digest = stable_database_digest(db_digest)
     evidence = None
     if capture_directory or capture_evidence:
         if not (capture_directory and capture_evidence) or capture_evidence.stat().st_size > 131072:
