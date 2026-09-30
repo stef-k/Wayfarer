@@ -1,6 +1,7 @@
 """Disposable integration of the real Compose substrate; requires Docker, Python3 and curl."""
 import argparse
 import json
+import platform
 from pathlib import Path
 import re
 import secrets
@@ -76,7 +77,8 @@ class Stack:
 
     def write_env(self):
         """Keep secrets outside interpolation and select a bounded host loopback endpoint."""
-        self.env.write_text(f'PUBLIC_HOST=wayfarer.example.org\nWAYFARER_DIGEST=sha256:{"0" * 64}\n'
+        native = {'x86_64': 'linux/amd64', 'aarch64': 'linux/arm64'}[platform.machine()]
+        self.env.write_text(f'WAYFARER_PLATFORM={native}\nPUBLIC_HOST=wayfarer.example.org\nWAYFARER_DIGEST=sha256:{"0" * 64}\n'
             f'DB_DIGEST=sha256:{"0" * 64}\nPROXY_MODE={self.mode}\nEDGE_PREFIX=172.30.65\n'
             f'DB_PASSWORD_FILE={self.directory}/db-password\n'
             f'APP_PASSWORD_FILE={self.directory}/app-password\n'
@@ -398,6 +400,7 @@ class Stack:
 def main():
     """Run the bounded integration; retain failure logs without printing secret values."""
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--native-only', action='store_true', help='Qualify the native DB/image boundary without the architecture-neutral lifecycle matrix.')
     parser.add_argument('--image', required=True, help='locally built image ID from image dry-run')
     parser.add_argument('--db-image', required=True, help='locally built DB image ID from deploy/compose/db')
     args = parser.parse_args()
@@ -407,6 +410,8 @@ def main():
             stack.prepare()
             stack.config_checks()
             stack.initialize()
+            if args.native_only:
+                return
             stack.functional()
             stack.exposure()
             stack.persistence()

@@ -145,6 +145,7 @@ def publish_index(release: dict, directory: Path, output: Path) -> None:
     for fact in facts:
         if any(fact.get(key) != release[key] for key in ("image", "sourceRevision", "version", "tag")) or not fact.get("qualification", "").startswith("anonymous pull"):
             raise version.ValidationError("index inputs must be qualified exact-source release artifacts")
+    for fact in facts:
         manifest_matches(repository + "@" + fact["platformDigest"], fact["platformDigest"], fact["configDigest"])
     ref = repository + ":" + release["tag"]
     require_absent(ref)

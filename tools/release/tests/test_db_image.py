@@ -44,14 +44,14 @@ def test_publication_preserves_digest_before_anonymous_gate(monkeypatch, tmp_pat
     monkeypatch.setattr(db, 'qualify', lambda *a: calls.append('qualify') or {'Id': 'sha256:' + 'b' * 64})
     monkeypatch.setattr(db, 'identity', lambda *a: calls.append('identity'))
     digest = 'sha256:' + 'c' * 64
-    monkeypatch.setattr(image, 'run', lambda *a: calls.append('push') or f'tag: digest: {digest} size: 42')
+    monkeypatch.setattr(image, 'run', lambda *a: calls.append(a[1]) or f'tag: digest: {digest} size: 42')
     def fail_manifest(*args):
         raise version.ValidationError('registry unavailable after push')
     monkeypatch.setattr(image, 'manifest_matches', fail_manifest)
     output = tmp_path / 'publication.json'
     with pytest.raises(version.ValidationError, match='registry unavailable'):
         db.publish(release, 'app', output)
-    assert calls == ['absence', 'build', 'qualify', 'identity', 'absence', 'push']
+    assert calls == ['absence', 'absence', 'build', 'qualify', 'identity', 'absence', 'absence', 'tag', 'push']
     assert json.loads(output.read_text())['manifestDigest'] == digest
     assert json.loads(output.read_text())['qualification'] == 'pushed; anonymous qualification pending'
 

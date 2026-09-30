@@ -16,8 +16,15 @@ concurrency:
 jobs:
   publish:
     if: github.repository == 'stef-k/Wayfarer' && !github.event.release.draft && !github.event.release.prerelease
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
+    strategy:
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
     permissions:
       contents: read
       packages: write
@@ -47,14 +54,21 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: image-publication
+          name: image-publication-${{ matrix.arch }}
           path: ${{ runner.temp }}/image-publication.json
           if-no-files-found: warn
 
   # A fresh runner and empty Docker config prove distribution without publisher credentials.
   anonymous-pull:
     needs: publish
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 15
     permissions:
       contents: read
@@ -64,27 +78,82 @@ jobs:
           ref: ${{ github.sha }}
           fetch-depth: 0
           persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: image-publication-${{ matrix.arch }}
+          path: ${{ runner.temp }}/publication
+      - name: Read this platform's retained pushed digest
+        id: publication
+        run: python3 -c 'import json,os; print("digest="+json.load(open(os.environ["RUNNER_TEMP"]+"/publication/image-publication.json"))["platformDigest"])' >> "$GITHUB_OUTPUT"
       - name: Pull and qualify exactly the published digest
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ github.event.release.tag_name }}
           RELEASE_SOURCE: ${{ github.sha }}
-          IMAGE_DIGEST: ${{ needs.publish.outputs.digest }}
-        run: python3 tools/release/image.py qualify --tag "$RELEASE_TAG" --source "$RELEASE_SOURCE" --digest "$IMAGE_DIGEST" --output "$RUNNER_TEMP/image-evidence.json"
+          IMAGE_DIGEST: ${{ steps.publication.outputs.digest }}
+        run: python3 tools/release/image.py qualify --tag "$RELEASE_TAG" --source "$RELEASE_SOURCE" --digest "$IMAGE_DIGEST" --output "$RUNNER_TEMP/image-evidence-${{ matrix.arch }}.json"
       - name: Explain public visibility gate
         if: failure()
         run: echo 'Anonymous qualification failed. If GHCR denied access, the maintainer must set the Wayfarer package visibility to public. Preserve the published digest; rerun only this failed job, never rebuild or overwrite the stable tag.'
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: image-evidence
-          path: ${{ runner.temp }}/image-evidence.json
+          name: image-evidence-${{ matrix.arch }}
+          path: ${{ runner.temp }}/image-evidence-${{ matrix.arch }}.json
           if-no-files-found: error
+
+  # A single stable tag binds the two exact native manifests after both anonymous gates.
+  publish-index:
+    needs: anonymous-pull
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      digest: ${{ steps.index.outputs.digest }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: image-evidence-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/platforms
+      - name: Authenticate only the index publishing client
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+      - name: Publish one immutable release index from already qualified digests
+        id: index
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          RELEASE_SOURCE: ${{ github.sha }}
+        run: python3 tools/release/image.py index --tag "$RELEASE_TAG" --source "$RELEASE_SOURCE" --inputs "$RUNNER_TEMP/platforms" --output "$RUNNER_TEMP/image-index.json"
+      - name: Logout index publishing client
+        if: always()
+        run: docker logout ghcr.io
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: image-index
+          path: ${{ runner.temp }}/image-index.json
+          if-no-files-found: warn
 
   # Only this job can create Release assets; package publication remains in its existing job.
   deployment-bundle:
-    needs: [publish, anonymous-pull]
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
+    needs: [publish-index, anonymous-pull]
+    strategy:
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
     permissions:
       contents: write
     steps:
@@ -98,19 +167,22 @@ jobs:
           dotnet-version: '10.0.x'
       - name: Pull accepted exact dependencies anonymously
         env:
-          IMAGE_DIGEST: ${{ needs.publish.outputs.digest }}
+          IMAGE_DIGEST: ${{ needs.publish-index.outputs.digest }}
           DOCKER_CONFIG: ${{ runner.temp }}/anonymous-docker
         run: |
           mkdir -m 700 "$DOCKER_CONFIG"
-          docker pull --platform linux/amd64 "ghcr.io/stef-k/wayfarer@$IMAGE_DIGEST"
-          docker pull --platform linux/amd64 ghcr.io/stef-k/wayfarer-db@sha256:bd9b3bbfe1e879b56b0742646c18d0dcc9ec95180095f8f6d02e03b54feeeb61
-          docker pull --platform linux/amd64 caddy@sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b
+          platform=linux/${{ matrix.arch }}
+          app_digest="$(python3 -B -c 'import sys; sys.path.insert(0,"tools/release"); import image; print(image.selected_digest(sys.argv[1]))' "ghcr.io/stef-k/wayfarer@$IMAGE_DIGEST")"
+          db_digest="$(python3 -B -c 'import sys; sys.path.insert(0,"tools/release"); import image,bundle; print(image.selected_digest("ghcr.io/stef-k/wayfarer-db@"+bundle.DB))')"
+          docker pull --platform "$platform" "ghcr.io/stef-k/wayfarer@$app_digest"
+          docker pull --platform "$platform" "ghcr.io/stef-k/wayfarer-db@$db_digest"
+          docker pull --platform "$platform" caddy@sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b
       - name: Assemble, validate and upload stable assets once
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ github.event.release.tag_name }}
           RELEASE_SOURCE: ${{ github.sha }}
-          IMAGE_DIGEST: ${{ needs.publish.outputs.digest }}
+          IMAGE_DIGEST: ${{ needs.publish-index.outputs.digest }}
           DOCKER_CONFIG: ${{ runner.temp }}/anonymous-docker
         run: |
           python3 -B tools/release/bundle.py --stable --publish --tag "$RELEASE_TAG" --source "$RELEASE_SOURCE" \
@@ -119,7 +191,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: deployment-publication
+          name: deployment-publication-${{ matrix.arch }}
           path: |
             ${{ runner.temp }}/deployment/*.tar.gz
             ${{ runner.temp }}/deployment/*.sha256
@@ -132,21 +204,28 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: deployment-publication-evidence
+          name: deployment-publication-evidence-${{ matrix.arch }}
           path: ${{ runner.temp }}/deployment/publication.json
           if-no-files-found: warn
 
   # Operational acceptance runs only for a genuine stable release, on a fresh unauthenticated Docker client.
   public-compose-acceptance:
     needs: deployment-bundle
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 20
     permissions:
       contents: read
     steps:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          name: deployment-publication-evidence
+          name: deployment-publication-evidence-${{ matrix.arch }}
           path: ${{ runner.temp }}/publication
       - name: Install from the public lean bootstrap, then exercise fresh setup and doctor
         env:
@@ -156,7 +235,7 @@ jobs:
           # Retained publication evidence supplies expected digests, never an executable or deployment input.
           # The native fresh runner obtains only the public bootstrap; setup discovers the public bundle anonymously.
           sudo install -d -m 700 /tmp/wayfarer-public-acceptance
-          asset=wayfarerctl-linux-amd64.tar.gz
+          asset=wayfarerctl-linux-${{ matrix.arch }}.tar.gz
           curl --fail --location --proto '=https' --proto-redir '=https' --max-time 600 \
             --output "$RUNNER_TEMP/$asset" "https://github.com/stef-k/Wayfarer/releases/download/$RELEASE_TAG/$asset"
           expected="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["assets"][sys.argv[2]].removeprefix("sha256:"))' "$RUNNER_TEMP/publication/publication.json" "$asset")"
@@ -178,7 +257,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: public-compose-acceptance
+          name: public-compose-acceptance-${{ matrix.arch }}
           path: |
             ${{ runner.temp }}/acquisition.json
             ${{ runner.temp }}/setup.log

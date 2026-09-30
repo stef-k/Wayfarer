@@ -202,3 +202,37 @@ def test_image_rejects_wrong_platform_or_compiled_version(monkeypatch, architect
                         if a[1:3] == ("image", "inspect") else compiled)
     with pytest.raises(version.ValidationError):
         image.inspect_image(release, "fixture")
+
+
+@pytest.mark.parametrize("selected", image.PLATFORMS)
+def test_index_selection_requires_one_exact_supported_manifest(monkeypatch, selected):
+    """One immutable release index resolves only its exact native manifest; duplicates and missing platforms fail."""
+    ref = image.IMAGE + "@sha256:" + "a" * 64
+    entries = [{"digest": "sha256:" + char * 64, "platform": {"os": "linux", "architecture": arch}}
+               for char, arch in (("b", "amd64"), ("c", "arm64"))]
+    monkeypatch.setattr(image, "run", lambda *args: json.dumps({"manifests": entries}))
+    expected = entries[0 if selected == "linux/amd64" else 1]
+    assert image.selected_digest(ref, selected) == expected["digest"]
+    entries.append(expected.copy())
+    with pytest.raises(version.ValidationError, match="exactly one"):
+        image.selected_digest(ref, selected)
+    entries.clear()
+    with pytest.raises(version.ValidationError, match="exactly one"):
+        image.selected_digest(ref, selected)
+    with pytest.raises(version.ValidationError):
+        image.selected_digest(ref, "linux/arm/v7")
+
+
+def test_index_publication_rejects_mixed_release_or_duplicate_platform_before_write(monkeypatch, tmp_path):
+    """Native evidence cannot combine distinct sources or masquerade as two supported architectures."""
+    release = {"image": image.IMAGE, "tag": "v1.4.0", "version": "1.4.0", "sourceRevision": "a" * 40}
+    evidence = {**release, "platform": "linux/amd64", "qualification": "anonymous pull passed"}
+    (tmp_path / "amd64.json").write_text(json.dumps(evidence))
+    (tmp_path / "arm64.json").write_text(json.dumps(evidence))
+    monkeypatch.setattr(image, "require_absent", lambda *args: pytest.fail("invalid evidence reached publication"))
+    with pytest.raises(version.ValidationError, match="two distinct"):
+        image.publish_index(release, tmp_path, tmp_path / "result")
+    (tmp_path / "arm64.json").write_text(json.dumps({**evidence, "platform": "linux/arm64", "sourceRevision": "b" * 40}))
+    monkeypatch.setattr(image, "manifest_matches", lambda *args: None)
+    with pytest.raises(version.ValidationError, match="exact-source"):
+        image.publish_index(release, tmp_path, tmp_path / "result")

@@ -36,9 +36,9 @@ class RecoveryJourney(Journey):
         self.lock_probe = self.directory / 'lock-probe'
         shutil.copy2(Path(worker).parent / 'lock-probe', self.lock_probe)
 
-    def recovery(self, restore_only=False):
+    def recovery(self, restore_only=False, native_only=False):
         """Setup uses existing authority; source inspection must work without changing the app image."""
-        self.ctl('setup', '--bundle', str(self.bundle), '--hostname', 'wayfarer.example.org',
+        self.ctl('setup', '--bundle', str(self.release_bundle if native_only else self.bundle), '--hostname', 'wayfarer.example.org',
                  '--app-digest', self.digest, '--project', self.project, '--edge-prefix', '172.30.69',
                  '--mode', 'external', '--loopback-port', str(self.loopback),
                  '--password-stdin', data=self.password + '\n')
@@ -65,6 +65,12 @@ class RecoveryJourney(Journey):
                 raise RuntimeError('scheduled capture did not commit its bounded receipt')
             time.sleep(0.1)
         print('PASS scheduled due capture receipt', flush=True)
+        if native_only:
+            self.ctl('doctor')
+            self.ctl('verify-backup')
+            self.ctl('stop')
+            print('PASS native canonical setup/doctor/stop and DB-image recovery payload boundary', flush=True)
+            return
         if getattr(self, "update_bundle", None):
             from qualify_update import qualify_update
             qualify_update(self)
@@ -577,10 +583,13 @@ def main():
     parser.add_argument('--inspector', required=True)
     parser.add_argument('--probe', required=True)
     parser.add_argument('--app-digest', required=True)
+    parser.add_argument('--native-only', action='store_true', help='One native canonical setup/doctor/stop and recovery-helper journey.')
     parser.add_argument('--restore-only', action='store_true', help='Run the managed restore journey without repeating backup regression matrices.')
     parser.add_argument('--update-bundle', help='Target candidate for the bounded managed update journey.')
     parser.add_argument('--release-bundle', help='Qualify immutable local release adoption before recovery.')
     args = parser.parse_args()
+    if args.native_only and not args.release_bundle:
+        parser.error('--native-only requires the canonical --release-bundle')
     with tempfile.TemporaryDirectory(prefix='wayfarer-533-') as directory:
         journey = RecoveryJourney(directory, args.executable, args.app_digest, args.worker, args.inspector, args.probe)
         try:
@@ -595,7 +604,7 @@ def main():
             if args.release_bundle:
                 for name in ('compose.yaml', 'caddy/Caddyfile'):
                     journey.host('cp', str(journey.release_bundle / name), str(journey.bundle / name))
-            journey.recovery(args.restore_only)
+            journey.recovery(args.restore_only, args.native_only)
         except Exception:
             # Bounded non-secret ownership evidence before fixture cleanup, never raw container environment.
             ids = run('docker', 'ps', '-aq', '--filter', 'label=com.docker.compose.project=' + journey.project).stdout.split()

@@ -85,7 +85,7 @@ def qualify(release, ref, app_image):
     """Run the accepted full Compose gate, including actual PostGIS SQL and dump/restore."""
     inspected = inspect_payload(release, ref)
     subprocess.run([sys.executable, 'tools/compose/qualify.py', '--image', app_image,
-                    '--db-image', ref], cwd=version.REPO_ROOT, check=True)
+                    '--db-image', ref, *(['--native-only'] if image.PLATFORM == 'linux/arm64' else [])], cwd=version.REPO_ROOT, check=True)
     return inspected
 
 

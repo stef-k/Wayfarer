@@ -29,7 +29,14 @@ concurrency:
 jobs:
   publish:
     if: github.repository == 'stef-k/Wayfarer' && inputs.digest == ''
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 40
     permissions:
       contents: read
@@ -67,7 +74,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: db-publication
+          name: db-publication-${{ matrix.arch }}
           path: ${{ runner.temp }}/db-publication.json
           if-no-files-found: warn
 
@@ -76,7 +83,14 @@ jobs:
     if: >-
       always() && github.repository == 'stef-k/Wayfarer' &&
       (needs.publish.result == 'success' || (needs.publish.result == 'skipped' && inputs.digest != ''))
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 40
     permissions:
       contents: read
@@ -91,20 +105,73 @@ jobs:
           persist-credentials: false
       - name: Build and qualify only the application companion
         run: python3 tools/release/image.py dry-run --output "$RUNNER_TEMP/app.json"
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        if: inputs.digest == ''
+        with:
+          name: db-publication-${{ matrix.arch }}
+          path: ${{ runner.temp }}/publication
+      - name: Read the published platform or select the recorded recovery index
+        id: publication
+        env:
+          RECORDED_DIGEST: ${{ inputs.digest }}
+        run: |
+          if test -n "$RECORDED_DIGEST"; then
+            digest="$(python3 -B -c 'import sys; sys.path.insert(0,"tools/release"); import image; print(image.selected_digest(sys.argv[1]))' "ghcr.io/stef-k/wayfarer-db@$RECORDED_DIGEST")"
+          else
+            digest="$(python3 -c 'import json,os; print(json.load(open(os.environ["RUNNER_TEMP"]+"/publication/db-publication.json"))["platformDigest"])')"
+          fi
+          printf 'digest=%s\n' "$digest" >> "$GITHUB_OUTPUT"
       - name: Pull exact DB artifact anonymously and run full Compose qualification
         env:
           SOURCE: ${{ inputs.source }}
           DB_VERSION: ${{ inputs.db_version }}
-          DB_DIGEST: ${{ inputs.digest || needs.publish.outputs.digest }}
+          DB_DIGEST: ${{ steps.publication.outputs.digest }}
         run: |
           app_image="$(python3 -c 'import json,os; e=json.load(open(os.environ["RUNNER_TEMP"]+"/app.json")); print(e["image"]+":"+e["tag"])')"
           python3 tools/release/db_image.py qualify --source "$SOURCE" --db-version "$DB_VERSION" \
-            --digest "$DB_DIGEST" --app-image "$app_image" --output "$RUNNER_TEMP/db-evidence.json"
+            --digest "$DB_DIGEST" --app-image "$app_image" --output "$RUNNER_TEMP/db-evidence-${{ matrix.arch }}.json"
       - name: Explain public visibility and recovery gate
         if: failure()
         run: echo 'If GHCR denied anonymous access, set wayfarer-db package visibility to public. Preserve db-publication digest; rerun only this failed job or dispatch recovery with that digest. Never rerun publication or overwrite its identity.'
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: db-evidence
-          path: ${{ runner.temp }}/db-evidence.json
+          name: db-evidence-${{ matrix.arch }}
+          path: ${{ runner.temp }}/db-evidence-${{ matrix.arch }}.json
           if-no-files-found: error
+
+  # The same manual DB publication joins qualified native manifests; it never creates an app release.
+  publish-index:
+    needs: anonymous-pull
+    if: inputs.digest == ''
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ inputs.source }}
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: db-evidence-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/platforms
+      - name: Authenticate only the index publishing client
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+      - name: Bind the two qualified native DB manifests into one immutable index
+        env:
+          SOURCE: ${{ inputs.source }}
+          DB_VERSION: ${{ inputs.db_version }}
+        run: python3 tools/release/db_image.py index --source "$SOURCE" --db-version "$DB_VERSION" --inputs "$RUNNER_TEMP/platforms" --output "$RUNNER_TEMP/db-index.json"
+      - name: Logout index publishing client
+        if: always()
+        run: docker logout ghcr.io
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: db-index
+          path: ${{ runner.temp }}/db-index.json
+          if-no-files-found: warn
