@@ -56,12 +56,12 @@ internal static class RecoverySourceCli
             if (!await (Task<bool>)ready.Invoke(null, [app.Services, deadline.Token])!)
                 throw new IOException("Secure administrator/reference state is not ready.");
             var databaseReady = await db.Database.SqlQueryRaw<bool>("""
-                SELECT (current_setting('server_version_num')::int / 10000 = 17
+                SELECT (current_setting('server_version') = '18.6 (Debian 18.6-1.pgdg12+2)'
                     AND current_database()='wayfarer' AND pg_encoding_to_char(encoding)='UTF8'
                     AND datcollate='C.UTF-8' AND datctype='C.UTF-8' AND datlocprovider='c' AND datlocale IS NULL
                     AND (SELECT extversion FROM pg_extension WHERE extname='postgis')='3.6.4'
                     AND postgis_lib_version()='3.6.4'
-                    AND (SELECT extversion FROM pg_extension WHERE extname='citext')='1.6'
+                    AND (SELECT extversion FROM pg_extension WHERE extname='citext')='1.8'
                     AND current_user='wayfarer'
                     AND NOT (SELECT rolsuper OR rolcreatedb OR rolcreaterole FROM pg_roles WHERE rolname=current_user)
                     AND NOT EXISTS (SELECT FROM pg_tables WHERE schemaname='public'

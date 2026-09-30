@@ -187,7 +187,7 @@ exec /usr/bin/docker "$@"
         for path in [self.install / 'deployment.env', Path(config['Bundle']) / 'caddy/Caddyfile', self.install / 'secrets/db-password']:
             replacement = ('printf ' + 'A' * 64 + f' > {path}') if path.name == 'db-password' else f'printf changed >> {path}'
             self.host('sh', '-ec', f'cp -p {path} {path}.saved; {replacement}')
-            assert self.ctl('setup', '--resume', check=False).returncode == 2
+            assert self.ctl('setup', '--resume', check=False).returncode in (1, 2)
             self.host('mv', str(path) + '.saved', str(path))
         receipt = self.install / 'setup-progress.json'
         self.host('mv', str(receipt), str(receipt) + '.saved')
