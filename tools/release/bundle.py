@@ -44,7 +44,7 @@ def digest(path: Path) -> str:
 
 def probe(ref: str, entry: str, *args: str, mount: Path | None = None) -> str:
     """No network, daemon socket, installation mounts or writable root in payload probes."""
-    command = ['docker', 'run', '--rm', '--pull=never', '--platform=linux/amd64', '--network=none',
+    command = ['docker', 'run', '--rm', '--pull=never', '--platform=' + image.PLATFORM, '--network=none',
                '--user=1654:1654', '--read-only', '--cap-drop=ALL', '--security-opt=no-new-privileges',
                '--memory=512m', '--pids-limit=64', '--tmpfs=/tmp:uid=1654,gid=1654,mode=0700,size=67108864']
     if mount:
@@ -55,7 +55,7 @@ def probe(ref: str, entry: str, *args: str, mount: Path | None = None) -> str:
 def archive(bundle: Path, output: Path) -> Path:
     """Reproducible USTAR/gzip bytes; checksum lives beside the archive, never inside it."""
     manifest = json.loads((bundle / 'release.json').read_text())
-    name = f"wayfarer-candidate-v{manifest['Version']}-{manifest['SourceRevision']}-linux-amd64.tar.gz"
+    name = f"wayfarer-candidate-v{manifest['Version']}-{manifest['SourceRevision']}-{manifest['Platform'].replace('/', '-')}.tar.gz"
     if manifest.get("Status") == "stable":
         name = public_bundle.asset_name(manifest["Tag"])
     target = output / name
@@ -76,7 +76,7 @@ def archive(bundle: Path, output: Path) -> Path:
 
 def bootstrap_archive(bundle: Path, output: Path) -> Path:
     """Package the exact canonical operator bytes once, with the ordinary executable name and fixed mode."""
-    target = output / 'wayfarerctl-linux-amd64.tar.gz'
+    target = output / ('wayfarerctl-' + json.loads((bundle / 'release.json').read_text())['Platform'].replace('/', '-') + '.tar.gz')
     operator = bundle / 'wayfarerctl'
     with target.open('xb') as raw, gzip.GzipFile(filename='', mode='wb', fileobj=raw, mtime=0) as compressed:
         with tarfile.open(fileobj=compressed, mode='w', format=tarfile.USTAR_FORMAT) as tar:
@@ -90,24 +90,27 @@ def bootstrap_archive(bundle: Path, output: Path) -> Path:
     return target
 
 
-def stable_image(release: dict, digest: str) -> None:
+def stable_image(release: dict, digest: str) -> str:
     """Bind the stable tag's registry descriptor, immutable manifest and tested config to the exact published digest."""
     ref = f"{image.IMAGE}:{release['tag']}"
-    descriptor = json.loads(image.run('docker', 'manifest', 'inspect', '--verbose', ref))
-    if not isinstance(descriptor, dict) or descriptor.get('Descriptor', {}).get('digest') != digest:
+    descriptor = image.run('docker', 'buildx', 'imagetools', 'inspect', ref)
+    if re.findall(r'^Digest:\s+(sha256:[a-f0-9]{64})$', descriptor, re.MULTILINE) != [digest]:
         raise version.ValidationError('published stable application tag does not match the exact supplied digest')
-    actual = image.inspect_image(release, f'{image.IMAGE}@{digest}')
-    image.manifest_matches(ref, digest, image.config_digest(actual))
+    selected = image.selected_digest(f'{image.IMAGE}@{digest}')
+    actual = image.inspect_image(release, f'{image.IMAGE}@{selected}')
+    image.manifest_matches(f'{image.IMAGE}@{selected}', selected, image.config_digest(actual))
+    return selected
 
 
 def release_manifest(release: dict, app_digest: str, application: dict, operator: dict,
-                     bundle: Path, payloads: tuple, stable: bool, evidence: dict | None) -> dict:
+                     bundle: Path, payloads: tuple, stable: bool, evidence: dict | None,
+                     platform_digest: str | None = None, db_digest: str = DB) -> dict:
     """One v1 manifest constructor for candidate and exact-source stable authoring, with no installed facts."""
     return {'Schema': 1, 'BundleContract': 1, 'ConfigurationSchema': 1, 'Status': 'stable' if stable else 'candidate',
         'Version': release['version'], 'Tag': release['tag'] if stable else None, 'Repository': image.SOURCE,
         'SourceRevision': release['sourceRevision'], 'Platform': image.PLATFORM,
-        'Images': {'ApplicationRepository': image.IMAGE, 'ApplicationDigest': app_digest, 'PlatformDigest': app_digest, 'OciVersion': release['version'],
-                   'DatabaseDigest': DB, 'CaddyDigest': CADDY, 'PostgreSqlMajor': 17, 'Postgis': '3.6.4',
+        'Images': {'ApplicationRepository': image.IMAGE, 'ApplicationDigest': app_digest, 'PlatformDigest': platform_digest or app_digest, 'OciVersion': release['version'],
+                   'DatabaseDigest': db_digest, 'CaddyDigest': CADDY, 'PostgreSqlMajor': 17, 'Postgis': '3.6.4',
                    'Citext': '1.6', 'Encoding': 'UTF8', 'Collation': 'C.UTF-8', 'CharacterType': 'C.UTF-8', 'LocaleProvider': 'c'},
         'Application': application, 'Operator': operator, 'Sources': [],
         'LegacyCapture': {'WorkerVersion': evidence['WorkerVersion'], 'ReleaseStatus': evidence['ReleaseStatus']} if evidence else None,
@@ -115,9 +118,9 @@ def release_manifest(release: dict, app_digest: str, application: dict, operator
 
 def assemble(output: Path, app_digest: str, capture_directory: Path | None = None,
              capture_evidence: Path | None = None, *, stable: bool = False,
-             tag: str | None = None, source: str | None = None) -> Path:
+             tag: str | None = None, source: str | None = None, db_digest: str = DB) -> Path:
     """Reuse version/image authorities and publish only three bounded lifecycle payloads."""
-    if not image.DIGEST.fullmatch(app_digest):
+    if not image.DIGEST.fullmatch(app_digest) or not image.DIGEST.fullmatch(db_digest):
         raise version.ValidationError('an actual immutable local application digest is required')
     if image.run('git', 'status', '--porcelain', '--untracked-files=normal'):
         raise version.ValidationError('assembly requires a clean committed source tree')
@@ -126,8 +129,9 @@ def assemble(output: Path, app_digest: str, capture_directory: Path | None = Non
     if not stable and (tag or source):
         raise version.ValidationError('tag/source require explicit --stable')
     release = image.identity(tag if stable else None, source if stable else None)
+    platform_digest = stable_image(release, app_digest) if stable else app_digest
     if stable:
-        stable_image(release, app_digest)
+        db_digest = image.selected_digest('ghcr.io/stef-k/wayfarer-db@' + db_digest)
     evidence = None
     if capture_directory or capture_evidence:
         if not (capture_directory and capture_evidence) or capture_evidence.stat().st_size > 131072:
@@ -137,7 +141,7 @@ def assemble(output: Path, app_digest: str, capture_directory: Path | None = Non
             raise version.ValidationError('invalid historical application source')
         release['sourceRevision'] = evidence['SourceRevision']
     payloads = (*PAYLOADS, *CAPTURE_PAYLOADS) if evidence else PAYLOADS
-    ref = f'{image.IMAGE}@{app_digest}'
+    ref = f'{image.IMAGE}@{platform_digest}'
     actual = image.inspect_image(release, ref)
     if ref not in actual.get('RepoDigests', []):
         raise version.ValidationError('digest is not present in local repository identity')
@@ -147,7 +151,7 @@ def assemble(output: Path, app_digest: str, capture_directory: Path | None = Non
     with tempfile.TemporaryDirectory(prefix='wayfarer-bundle-publish-') as temporary:
         temp = Path(temporary)
         for project, destination in [('WayfarerCtl', 'operator'), ('WayfarerRecovery', 'worker')]:
-            subprocess.run(['dotnet', 'publish', f'tools/{project}', '-c', 'Release', '-r', 'linux-x64',
+            subprocess.run(['dotnet', 'publish', f'tools/{project}', '-c', 'Release', '-r', image.RID,
                             '--self-contained', 'true', '-o', str(temp / destination)], check=True)
         subprocess.run(['dotnet', 'build', 'tools/WayfarerRecoverySource', '-c', 'Release'], check=True)
         for name in PAYLOADS[:6]:
@@ -167,10 +171,10 @@ def assemble(output: Path, app_digest: str, capture_directory: Path | None = Non
         (bundle / name).chmod(mode(name))
     application = json.loads(probe(ref, 'dotnet', 'exec', '--runtimeconfig', '/app/Wayfarer.runtimeconfig.json',
         '--depsfile', '/app/Wayfarer.deps.json', '/payload.dll', 'release-contract', mount=bundle / 'WayfarerRecoverySource.dll'))
-    worker = json.loads(probe('ghcr.io/stef-k/wayfarer-db@' + DB, '/payload', 'runtime-check', mount=bundle / 'wayfarer-recovery'))
+    worker = json.loads(probe('ghcr.io/stef-k/wayfarer-db@' + db_digest, '/payload', 'runtime-check', mount=bundle / 'wayfarer-recovery'))
     application['WorkerVersion'] = worker['Version']
-    operator = json.loads(probe('ghcr.io/stef-k/wayfarer-db@' + DB, '/payload', 'release', 'protocol', mount=bundle / 'wayfarerctl'))
-    manifest = release_manifest(release, app_digest, application, operator, bundle, payloads, stable, evidence)
+    operator = json.loads(probe('ghcr.io/stef-k/wayfarer-db@' + db_digest, '/payload', 'release', 'protocol', mount=bundle / 'wayfarerctl'))
+    manifest = release_manifest(release, app_digest, application, operator, bundle, payloads, stable, evidence, platform_digest, db_digest)
     if stable:
         prior = public_bundle.previous(tag)
         if prior:
@@ -191,6 +195,7 @@ def main() -> int:
     """Explicit stable mode shares exact-source identity and preserves candidate/offline authoring."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--app-digest', required=True)
+    parser.add_argument('--db-digest', default=DB, help='Exact executable DB manifest, or the accepted index in stable mode')
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--capture-directory', type=Path, help='Explicit historical worker/inspection pair to retain unchanged')
     parser.add_argument('--capture-evidence', type=Path, help='Independent configured SourceIdentity; never an archive manifest')
@@ -211,7 +216,7 @@ def main() -> int:
             if any(item['name'] in public_bundle.asset_names(args.tag) for item in existing['assets']):
                 raise version.ValidationError('stable asset already exists; inspect retained evidence, do not rebuild')
         result = assemble(args.output.resolve(), args.app_digest, args.capture_directory, args.capture_evidence,
-                          stable=args.stable, tag=args.tag, source=args.source)
+                          stable=args.stable, tag=args.tag, source=args.source, db_digest=args.db_digest)
         if args.publish:
             inspected = json.loads(subprocess.run([str(result / 'wayfarerctl'), 'release', 'inspect', str(result)],
                                    check=True, text=True, capture_output=True).stdout)

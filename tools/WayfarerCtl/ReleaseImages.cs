@@ -11,32 +11,34 @@ public sealed class ReleaseImagesVerifier(IProcessRunner runner)
         ProtectedFiles.SafePath(bundle.Directory);
         bundle = ReleaseBundle.Validate(bundle.Directory, installed: true);
         var manifest = bundle.Manifest;
+        ReleaseContract.RequireUse(manifest, ReleaseCommands.OperatorVersion);
         var images = manifest.Images;
         var available = true;
-        foreach (var (repository, digest) in new[] { ("ghcr.io/stef-k/wayfarer", images.ApplicationDigest),
+        // Publication binds the release index; offline probes execute only the exact selected manifest.
+        foreach (var (repository, digest) in new[] { ("ghcr.io/stef-k/wayfarer", images.PlatformDigest),
             ("ghcr.io/stef-k/wayfarer-db", images.DatabaseDigest), ("caddy", images.CaddyDigest) })
         {
             var result = await runner.RunAsync(["image", "inspect", repository + "@" + digest], null, token);
             if (result.Code != 0) { available = false; continue; }
             using var document = JsonDocument.Parse(result.Output);
             var actual = document.RootElement[0];
-            if (actual.GetProperty("Os").GetString() != "linux" || actual.GetProperty("Architecture").GetString() != "amd64" ||
+            if (actual.GetProperty("Os").GetString() != "linux" || actual.GetProperty("Architecture").GetString() != manifest.Platform.Split('/')[1] ||
                 !actual.GetProperty("RepoDigests").EnumerateArray().Any(value => value.GetString() == repository + "@" + digest))
                 throw new IOException("Local image digest/platform mismatch.");
             if (repository != "ghcr.io/stef-k/wayfarer") continue;
             var labels = actual.GetProperty("Config").GetProperty("Labels");
             if (labels.GetProperty("org.opencontainers.image.source").GetString() != manifest.Repository ||
                 labels.GetProperty("org.opencontainers.image.revision").GetString() != manifest.SourceRevision ||
-                labels.GetProperty("org.opencontainers.image.version").GetString() != images.OciVersion ||
-                images.PlatformDigest != images.ApplicationDigest)
-                throw new IOException("Local application OCI identity mismatch; OCI indexes are not supported by v1.");
+                labels.GetProperty("org.opencontainers.image.version").GetString() != images.OciVersion)
+                throw new IOException("Local application OCI identity mismatch.");
         }
         if (!available) return false;
         var containers = new RestoreContainers(runner);
         var prefix = "wayfarer-release-restore-" + Guid.NewGuid().ToString("N");
+        await VerifyDatabaseAsync(containers, prefix, images.DatabaseDigest, token);
         var version = await ProbeAsync(containers, prefix + "-version",
             [.. RestoreContainers.Unprivileged(), "--network=none", "--entrypoint=dotnet",
-                "ghcr.io/stef-k/wayfarer@" + images.ApplicationDigest, "Wayfarer.dll", "version"], token);
+                "ghcr.io/stef-k/wayfarer@" + images.PlatformDigest, "Wayfarer.dll", "version"], token);
         if (version.Trim() != "Wayfarer " + manifest.Application.CompiledVersion) throw new IOException("Compiled version mismatch.");
         var worker = await ProbeAsync(containers, prefix + "-worker",
             [.. RestoreContainers.Unprivileged(), "--network=none", "--volume", Path.Combine(bundle.Directory, "wayfarer-recovery") + ":/worker:ro",
@@ -53,7 +55,7 @@ public sealed class ReleaseImagesVerifier(IProcessRunner runner)
         var contract = await ProbeAsync(containers, prefix + "-contract",
             [.. RestoreContainers.Unprivileged(), "--network=none", "--volume",
                 Path.Combine(bundle.Directory, "WayfarerRecoverySource.dll") + ":/inspection.dll:ro",
-                "--entrypoint=dotnet", "ghcr.io/stef-k/wayfarer@" + images.ApplicationDigest,
+                "--entrypoint=dotnet", "ghcr.io/stef-k/wayfarer@" + images.PlatformDigest,
                 "exec", "--runtimeconfig", "/app/Wayfarer.runtimeconfig.json", "--depsfile", "/app/Wayfarer.deps.json",
                 "/inspection.dll", "release-contract"], token);
         using var actualContract = JsonDocument.Parse(contract);
@@ -75,6 +77,19 @@ public sealed class ReleaseImagesVerifier(IProcessRunner runner)
                 throw new IOException("Historical capture runtime differs from its retained contract.");
         }
         return true;
+    }
+
+    /// <summary>A release-specific DB manifest must preserve the exact accepted executable/package contract.</summary>
+    private async Task VerifyDatabaseAsync(RestoreContainers containers, string prefix, string digest, CancellationToken token)
+    {
+        foreach (var (package, expected) in new[] { ("postgresql-17", "17.11-1.pgdg12+2"),
+            ("postgresql-17-postgis-3", "3.6.4+dfsg-2.pgdg12+1"), ("postgresql-17-postgis-3-scripts", "3.6.4+dfsg-2.pgdg12+1") })
+        {
+            var installed = await ProbeAsync(containers, prefix + "-" + package,
+                [.. RestoreContainers.Unprivileged(), "--network=none", "--entrypoint=dpkg-query",
+                    "ghcr.io/stef-k/wayfarer-db@" + digest, "-W", "-f=${Version}", package], token);
+            if (installed.Trim() != expected) throw new IOException("DB package differs from the accepted release contract.");
+        }
     }
 
     /// <summary>Stateless probes retain no installation data; reap only our confirmed-stopped named helper.</summary>

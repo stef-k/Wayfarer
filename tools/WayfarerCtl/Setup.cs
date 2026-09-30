@@ -217,7 +217,7 @@ public sealed class Setup(IProcessRunner runner, ITerminal terminal,
         var bundle = ReleaseBundle.Validate(path);
         ReleaseContract.RequireUse(bundle.Manifest, ReleaseCommands.OperatorVersion);
         if (options.TryGetValue("--app-digest", out var digest) &&
-            (bundle.Manifest.Status == "stable" || digest != bundle.Manifest.Images.ApplicationDigest))
+            (bundle.Manifest.Status == "stable" || digest != bundle.Manifest.Images.PlatformDigest))
             throw new UsageException("Setup image identities are owned by validated release.json; stable digest overrides are unsupported.");
         return bundle;
     }
@@ -238,10 +238,11 @@ public sealed class Setup(IProcessRunner runner, ITerminal terminal,
         return new Deployment
         {
             Schema = bundle is null ? 1 : 4,
+            Platform = bundle?.Manifest.Platform ?? WayfarerRecovery.NativePlatform.Current,
             Release = bundle is null ? null : ReleaseAuthority.From(bundle),
             Bundle = bundle?.Directory ?? options["--bundle"],
             Hostname = Choice("--hostname", "Public DNS hostname"),
-            AppDigest = bundle?.Manifest.Images.ApplicationDigest ?? options["--app-digest"],
+            AppDigest = bundle?.Manifest.Images.PlatformDigest ?? options["--app-digest"],
             DbDigest = bundle?.Manifest.Images.DatabaseDigest ?? ReleaseContract.DatabaseDigest,
             Mode = mode, LoopbackPort = number,
             Project = options.GetValueOrDefault("--project", "wayfarer"),

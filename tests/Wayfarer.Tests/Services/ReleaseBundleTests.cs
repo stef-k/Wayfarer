@@ -208,7 +208,7 @@ public sealed class ReleaseBundleTests : IDisposable
         var target = source with { Manifest = manifest with
         {
             Version = "1.9.20", Operator = ReleaseContract.CurrentOperator, Sources = [boundary],
-            Images = manifest.Images with { ApplicationDigest = "sha256:" + new string('e', 64) },
+            Images = manifest.Images with { ApplicationDigest = "sha256:" + new string('e', 64), PlatformDigest = "sha256:" + new string('e', 64) },
             Application = manifest.Application with { Migrations = [.. manifest.Application.Migrations, "20260929000000_Forward"] }
         } };
         Assert.Throws<UsageException>(() => UpdateOptions.Boundary(source, target));

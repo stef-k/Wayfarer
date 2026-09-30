@@ -3,7 +3,7 @@ name: wayfarer
 services:
   wayfarer:
     image: ghcr.io/stef-k/wayfarer@${WAYFARER_DIGEST:?immutable application digest required}
-    platform: linux/amd64
+    platform: ${WAYFARER_PLATFORM:?Validated release platform required}
     read_only: true
     init: true
     restart: unless-stopped
@@ -41,7 +41,7 @@ services:
   db:
     # Wayfarer packaging: official PG17.11 Bookworm + signed PGDG PostGIS3.6.4.
     image: ghcr.io/stef-k/wayfarer-db@${DB_DIGEST:?immutable database digest required}
-    platform: linux/amd64
+    platform: ${WAYFARER_PLATFORM:?Validated release platform required}
     restart: unless-stopped
     stop_grace_period: 60s
     environment:
@@ -64,7 +64,7 @@ services:
   caddy:
     # Official Caddy2.11.4; immutable index, with platform constrained below.
     image: caddy@sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b
-    platform: linux/amd64
+    platform: ${WAYFARER_PLATFORM:?Validated release platform required}
     profiles: [managed]
     restart: unless-stopped
     stop_grace_period: 70s

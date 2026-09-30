@@ -84,6 +84,7 @@ public sealed class BackupConfiguration(IProcessRunner runner)
                 Uploads = source.GetProperty("Uploads").GetString()!, Ring = source.GetProperty("Ring").GetString()!,
                 Source = new SourceIdentity
                 {
+                    Platform = config.RuntimePlatform,
                     ApplicationVersion = source.GetProperty("ApplicationVersion").GetString()!,
                     SourceRevision = source.GetProperty("SourceRevision").GetString()!,
                     ExpectedMigrations = source.GetProperty("ExpectedMigrations").Deserialize<string[]>()!,

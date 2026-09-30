@@ -80,7 +80,7 @@ public sealed class Preflight(IProcessRunner runner)
         foreach (var (name, image) in expected)
         {
             if (!services.TryGetProperty(name, out var service) || service.GetProperty("image").GetString() != image ||
-                service.GetProperty("platform").GetString() != "linux/amd64")
+                service.GetProperty("platform").GetString() != config.RuntimePlatform)
                 throw new UsageException("Bundle resolved image/platform differs from accepted immutable configuration.");
         }
     }

@@ -20,9 +20,11 @@ public sealed record PublicRelease(string Version, string Tag, string Asset, lon
     }
 
     /// <summary>Require exact project/release/upload identity and the REST asset digest, never metadata URLs.</summary>
-    public static PublicRelease Parse(ReadOnlyMemory<byte> json, string selector)
+    public static PublicRelease Parse(ReadOnlyMemory<byte> json, string selector, string? platform = null)
     {
         Selector(selector);
+        platform ??= WayfarerRecovery.NativePlatform.Current;
+        if (!WayfarerRecovery.NativePlatform.Supported(platform)) throw new IOException("Unsupported public platform.");
         if (json.Length > MetadataLimit) throw new IOException("Release metadata exceeds bound.");
         using var document = JsonDocument.Parse(json, new JsonDocumentOptions { MaxDepth = 16 });
         Unique(document.RootElement);
@@ -34,7 +36,7 @@ public sealed record PublicRelease(string Version, string Tag, string Asset, lon
             value.GetProperty("html_url").GetString() != Repository + "/releases/tag/" + tag ||
             !Regex.IsMatch(value.GetProperty("url").GetString() ?? "", "\\Ahttps://api.github.com/repos/stef-k/Wayfarer/releases/[1-9][0-9]*\\z"))
             throw new UsageException("Public release identity is not an exact stable Wayfarer release.");
-        var asset = "wayfarer-" + tag + "-linux-amd64.tar.gz";
+        var asset = "wayfarer-" + tag + "-" + platform.Replace('/', '-') + ".tar.gz";
         var matches = value.GetProperty("assets").EnumerateArray().Where(item => item.GetProperty("name").GetString() == asset).ToArray();
         if (matches.Length != 1) throw new UsageException("Stable release must contain exactly one deployment asset; source-only releases are unsupported.");
         var uploaded = matches[0];
@@ -118,9 +120,9 @@ public sealed class PublicReleaseAcquisition(IProcessRunner runner)
         Directory.CreateDirectory(config, ProtectedFiles.PrivateDirectory);
         try
         {
-            foreach (var reference in new[] { "ghcr.io/stef-k/wayfarer@" + bundle.Manifest.Images.ApplicationDigest,
+            foreach (var reference in new[] { "ghcr.io/stef-k/wayfarer@" + bundle.Manifest.Images.PlatformDigest,
                 "ghcr.io/stef-k/wayfarer-db@" + bundle.Manifest.Images.DatabaseDigest, "caddy@" + bundle.Manifest.Images.CaddyDigest })
-                if ((await runner.RunAsync(["--config", config, "pull", "--platform", "linux/amd64", reference], null, token)).Code != 0)
+                if ((await runner.RunAsync(["--config", config, "pull", "--platform", bundle.Manifest.Platform, reference], null, token)).Code != 0)
                     throw new UsageException("Exact anonymous image pull failed; validated bundle retained, images not execution-ready.");
             if (!await new ReleaseImagesVerifier(runner).VerifyAsync(bundle, token))
                 throw new UsageException("Image verification failed; validated bundle retained, images not execution-ready.");

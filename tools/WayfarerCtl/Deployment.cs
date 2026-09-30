@@ -23,12 +23,18 @@ public sealed record Deployment
     public string Mode { get; init; } = "managed";
     public string AppDigest { get; init; } = "";
     public string DbDigest { get; init; } = "sha256:bd9b3bbfe1e879b56b0742646c18d0dcc9ec95180095f8f6d02e03b54feeeb61";
+    /// <summary>Selected native release platform; absent historical configurations retain AMD64.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? Platform { get; init; }
+    /// <summary>Legacy installations have the original fixed AMD64 authority.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string RuntimePlatform => Platform ?? "linux/amd64";
     public string EdgePrefix { get; init; } = "172.30.64";
     public int LoopbackPort { get; init; } = 8080;
 
     public static readonly string[] EnvironmentKeys = ["PUBLIC_HOST", "WAYFARER_DIGEST", "DB_DIGEST", "PROXY_MODE",
         "EDGE_PREFIX", "DB_PASSWORD_FILE", "DB_APP_PASSWORD_FILE", "APP_PASSWORD_FILE", "EXTERNAL_PROXY_ADDRESS",
-        "LOOPBACK_ADDRESS", "LOOPBACK_PORT"];
+        "LOOPBACK_ADDRESS", "LOOPBACK_PORT", "WAYFARER_PLATFORM"];
 
     /// <summary>Fail closed on unknown schema, identities, input expansion and unsupported proxy topology.</summary>
     public void Validate()
@@ -37,6 +43,8 @@ public sealed record Deployment
             Schema is 2 or 3 && Installation == Guid.Empty || !Path.IsPathFullyQualified(Bundle) || Bundle.IndexOfAny(['\n', '\r', '$', '"', '\'','`']) >= 0)
             throw new UsageException("Invalid installation schema or absolute bundle path.");
         Release?.Validate();
+        if (!WayfarerRecovery.NativePlatform.Supported(RuntimePlatform) || RuntimePlatform != WayfarerRecovery.NativePlatform.Current)
+            throw new UsageException("Deployment platform must match the supported native operator/host.");
         if ((Schema == 4) != (Release is not null) || Backup is not null && Installation == Guid.Empty)
             throw new UsageException("Release authority requires installation schema four.");
         ActiveStorage.Validate(this);
@@ -101,7 +109,8 @@ public sealed record Deployment
     public string EnvironmentFile(string root) => $"PUBLIC_HOST={Hostname}\nWAYFARER_DIGEST={AppDigest}\nDB_DIGEST={DbDigest}\n" +
         $"PROXY_MODE={Mode}\nEDGE_PREFIX={EdgePrefix}\nDB_PASSWORD_FILE={root}/secrets/db-password\n" +
         $"DB_APP_PASSWORD_FILE={root}/secrets/db-app-password\nAPP_PASSWORD_FILE={root}/secrets/app-password\n" +
-        $"EXTERNAL_PROXY_ADDRESS={EdgePrefix}.1\nLOOPBACK_ADDRESS=127.0.0.1\nLOOPBACK_PORT={LoopbackPort}\n";
+        $"EXTERNAL_PROXY_ADDRESS={EdgePrefix}.1\nLOOPBACK_ADDRESS=127.0.0.1\nLOOPBACK_PORT={LoopbackPort}\n" +
+        (Platform is null ? "" : $"WAYFARER_PLATFORM={RuntimePlatform}\n");
 
     /// <summary>Fixed project and explicit mode prevent ambient Compose files/profiles selecting resources.</summary>
     public string[] Compose(string root, params string[] arguments)

@@ -13,9 +13,9 @@ public sealed record ReleaseBundle(string Directory, ReleaseManifest Manifest, s
         var capture = currentCapture ? null : Manifest.LegacyCapture;
         var result = new SourceIdentity
         {
-            ApplicationVersion = Manifest.Application.CompiledVersion, SourceRevision = Manifest.SourceRevision,
+            Platform = Manifest.Platform, ApplicationVersion = Manifest.Application.CompiledVersion, SourceRevision = Manifest.SourceRevision,
             ReleaseStatus = capture?.ReleaseStatus ?? (Manifest.Status == "stable" ? "released" : "candidate"),
-            ApplicationImage = "ghcr.io/stef-k/wayfarer@" + Manifest.Images.ApplicationDigest,
+            ApplicationImage = "ghcr.io/stef-k/wayfarer@" + Manifest.Images.PlatformDigest,
             DatabaseImage = "ghcr.io/stef-k/wayfarer-db@" + Manifest.Images.DatabaseDigest,
             BundleFingerprint = LegacyFingerprint(["compose.yaml", "external.yaml", "caddy/Caddyfile", "db/20-wayfarer.sh"]),
             PayloadFingerprint = LegacyFingerprint(capture is null
@@ -110,7 +110,7 @@ public sealed record ReleaseBundle(string Directory, ReleaseManifest Manifest, s
     /// <summary>Adopted runtime inputs must continue to match the retained authority on every load.</summary>
     public void Corroborate(Deployment config)
     {
-        if (config.AppDigest != Manifest.Images.ApplicationDigest || config.DbDigest != Manifest.Images.DatabaseDigest)
+        if (config.RuntimePlatform != Manifest.Platform || config.AppDigest != Manifest.Images.PlatformDigest || config.DbDigest != Manifest.Images.DatabaseDigest)
             throw new IOException("Installation image identity contradicts release.");
         foreach (var path in ReleaseContract.Payloads.Take(5))
         {
@@ -127,7 +127,7 @@ public sealed record ReleaseBundle(string Directory, ReleaseManifest Manifest, s
     {
         ArchiveContract.ValidateSource(evidence);
         var target = Target(evidence.Project, evidence.PayloadFingerprint == Target(evidence.Project, true).PayloadFingerprint);
-        if (evidence.Kind != target.Kind || evidence.ApplicationVersion != target.ApplicationVersion ||
+        if (evidence.Platform != target.Platform || evidence.Kind != target.Kind || evidence.ApplicationVersion != target.ApplicationVersion ||
             evidence.SourceRevision != target.SourceRevision || evidence.ApplicationImage != target.ApplicationImage ||
             evidence.DatabaseImage != target.DatabaseImage || evidence.BundleFingerprint != target.BundleFingerprint ||
             evidence.PayloadFingerprint != target.PayloadFingerprint || evidence.WorkerVersion != target.WorkerVersion ||

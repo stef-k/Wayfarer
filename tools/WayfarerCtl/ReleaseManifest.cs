@@ -91,10 +91,10 @@ public static class ReleaseContract
             value.Status is not ("candidate" or "stable") || !VersionSyntax(value.Version) ||
             value.Tag != (value.Status == "stable" ? "v" + value.Version : null) ||
             value.Repository != "https://github.com/stef-k/Wayfarer" || !Match(value.SourceRevision, "[a-f0-9]{40}") ||
-            value.Platform != "linux/amd64") throw new IOException("Unsupported release identity.");
+            !NativePlatform.Supported(value.Platform)) throw new IOException("Unsupported release identity.");
         var images = value.Images;
         if (images.ApplicationRepository != "ghcr.io/stef-k/wayfarer" || !Match(images.ApplicationDigest, "sha256:[a-f0-9]{64}") || !Match(images.PlatformDigest, "sha256:[a-f0-9]{64}") ||
-            images.OciVersion != value.Version || images.DatabaseDigest != DatabaseDigest || images.CaddyDigest != CaddyDigest ||
+            images.OciVersion != value.Version || !Match(images.DatabaseDigest, "sha256:[a-f0-9]{64}") || images.CaddyDigest != CaddyDigest ||
             images.PostgreSqlMajor != 17 || images.Postgis != "3.6.4" || images.Citext != "1.6" || images.Encoding != "UTF8" ||
             images.Collation != "C.UTF-8" || images.CharacterType != "C.UTF-8" || images.LocaleProvider != "c")
             throw new IOException("Unsupported release image contract.");
@@ -135,6 +135,7 @@ public static class ReleaseContract
     /// <summary>Inspect permission is distinct from activation and exact receipt ownership.</summary>
     public static void RequireUse(ReleaseManifest manifest, string operatorVersion)
     {
+        if (manifest.Platform != NativePlatform.Current) throw new IOException("Release platform differs from the native operator/host.");
         if (!VersionSyntax(operatorVersion) || System.Version.Parse(operatorVersion) < System.Version.Parse(manifest.Operator.MinimumVersion))
             throw new IOException("Operator cannot use this release.");
     }

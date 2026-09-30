@@ -25,7 +25,7 @@ public sealed class UpdatePreparation(IProcessRunner runner)
         var owner = ReleaseDispatch.CurrentOwner(root, current)!;
         await VerifyAsync(root, current, source, token);
         if (!await new ReleaseImagesVerifier(runner).VerifyAsync(target, token)) throw new IOException("Target images unavailable locally.");
-        var next = current with { Bundle = target.Directory, AppDigest = target.Manifest.Images.ApplicationDigest, Release = ReleaseAuthority.From(target) };
+        var next = current with { Bundle = target.Directory, AppDigest = target.Manifest.Images.PlatformDigest, Platform = target.Manifest.Platform, Release = ReleaseAuthority.From(target) };
         await TopologyAsync(root, current, next, source, target, token);
         var operation = Guid.NewGuid();
         var facts = await InspectAsync(root, current, source, operation, token);
