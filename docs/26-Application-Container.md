@@ -2,8 +2,9 @@
 
 Implements the application side of [the accepted contract](25-Container-Release-Contract.md)
 for #640. [Stable application-image publication](27-Application-Image-Publication.md)
-is implemented separately by #642/#715. The shared Compose lifecycle supports
-Linux AMD64 and ARM64; first genuine public stable acceptance remains pending.
+owns image distribution separately. The shared Compose lifecycle supports Linux
+AMD64 and ARM64. Maintainer sequencing starts at
+[Versioning and Release Operations](23-Versioning.md).
 
 ## Explicit maintenance
 
@@ -99,7 +100,8 @@ controls plus container isolation, not an enabled Chromium renderer sandbox.
 This does not reopen #660's egress/admission/cancellation fixes or authorize privileged,
 SYS_ADMIN, host-IPC or other runtime changes. [#681](https://github.com/stef-k/Wayfarer/issues/681)
 remains open for native Linux ARM64 qualification; AMD64/source evidence cannot close
-it or remove the native compatibility branch. #715 owns the separate Compose ARM64 gate.
+it or remove the native compatibility branch. Compose uses separate native ARM64 CI
+and [public distribution qualification](27-Application-Image-Publication.md#stable-compose-distribution).
 
 ## Disposable qualification
 
@@ -112,12 +114,10 @@ thumbnail output under the cache root and keys under the data root. Check UID, a
 of build tools and write denial on app/browser payloads. Stop with SIGTERM and inspect
 exit status and Quartz completion. Remove only the owned containers/database/state.
 
-Recheck `postgis/postgis:17-3.5` before every qualification. On 2026-09-25 it still
-resolved to the research-only old PostgreSQL 17.5 digest recorded in #638. It is not
-approved for production. The maintained isolated host test database is PostgreSQL
-17.11/PostGIS 3.6.4; evidence using that fallback does not qualify the production 3.5
-image family. #644 now records the maintained Alpine3.5 selection and fresh-cluster
-compatibility boundary in [Compose deployment](28-Production-Compose.md).
+Use [Compose's DB recipe and qualification owner](28-Production-Compose.md#exact-third-party-image-decision)
+for current container DB selection. The 2026-09-25 observation below used an isolated
+host PG17.11/PostGIS 3.6.4 fallback after rejecting the stale `postgis/postgis:17-3.5`
+artifact; it does not qualify that rejected image family or the later PG18 baseline.
 
 A one-shot command uses the same mount set as the web process. For example, after
 preparing the task-owned directories, the non-secret connection settings file and
@@ -162,8 +162,8 @@ frontend built-asset smoke passed. Browser host qualification required the Noble
 library and explicit browser-cache path; the image installs its own dependencies.
 This is disposable development evidence, not production-host or Compose qualification.
 
-The production Compose substrate is now described in [Compose deployment](28-Production-Compose.md);
-its managed/external topology does not complete the later guided lifecycle product.
+The production Compose substrate is described in [Compose deployment](28-Production-Compose.md);
+guided operation belongs to [wayfarerctl](29-Wayfarerctl.md).
 
 ## Offline bundle image qualification
 

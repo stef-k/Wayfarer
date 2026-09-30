@@ -20,14 +20,11 @@ selects an exact online stable; `setup --bundle /absolute/trusted/bundle` is the
 secondary local/offline seam with exact images already present. They share one setup
 engine. No source clone or native .NET/Node/PostgreSQL/Nginx/Certbot installation is
 needed for this production path.
-The Compose baseline is PostgreSQL 18.6 + PostGIS 3.6.4 on Debian Bookworm.
-First public Compose stable publication awaits the reviewed two-platform PG18 DB
-index pin (#718); native/manual and development database requirements are unchanged.
-
-**Availability:** public bootstrap/bundle assets await the first genuine Compose
-stable release; v1.9.19 and earlier remain source-only. #713 acceptance stays open
-until real publication/install qualification passes, including #715's ARM64 expansion
-before that first release. These instructions do not claim public assets have shipped.
+The Compose baseline is PostgreSQL 18.6 + PostGIS 3.6.4 on Debian Bookworm;
+native/manual and development database requirements are unchanged. Check
+[release availability](02-Install-and-Dependencies.md#availability) before using the
+public bootstrap path. Maintainer publication starts at
+[Versioning and Release Operations](23-Versioning.md).
 
 See [Install & Self-Hosting](02-Install-and-Dependencies.md) for prerequisites and
 verification, and the [operator guide](29-Wayfarerctl.md) for installation root,

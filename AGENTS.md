@@ -71,6 +71,9 @@
 
 ## Commit & Pull Request Guidelines
 
+- Before changing application versions, release metadata, container/image publication,
+  database release authority, bundles, bootstrap/release assets or release workflows,
+  read [Versioning and Release Operations](docs/23-Versioning.md) and follow its authority links.
 - Clear, imperative commits. Conventional Commits welcome (e.g., `feat(trips): ...`, `chore: ...`).
 - PRs must include: description, linked issues, screenshots for UI changes, test plan/steps, and DB migration notes when relevant.
 - The GitHub Actions `test` check on the current PR head is necessary merge evidence, but green CI is not sufficient authorization to merge. Poll the actual check until it reports success; do not rely on `gh pr checks --required` or `gh pr merge --auto` unless branch protection and auto-merge enforcement have first been verified.
