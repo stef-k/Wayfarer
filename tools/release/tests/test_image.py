@@ -236,3 +236,43 @@ def test_index_publication_rejects_mixed_release_or_duplicate_platform_before_wr
     monkeypatch.setattr(image, "manifest_matches", lambda *args: None)
     with pytest.raises(version.ValidationError, match="exact-source"):
         image.publish_index(release, tmp_path, tmp_path / "result")
+
+
+@pytest.mark.parametrize("contradiction", [False, True])
+def test_published_index_binds_both_tested_manifests_and_retains_pending_identity(monkeypatch, tmp_path, contradiction):
+    """The index selects the tested manifests; a contradictory registry result retains the already-created digest."""
+    release = {"image": image.IMAGE, "tag": "v1.4.0", "version": "1.4.0", "sourceRevision": "a" * 40}
+    inputs = tmp_path / "inputs"
+    inputs.mkdir()
+    facts = [{**release, "platform": platform, "platformDigest": "sha256:" + char * 64,
+              "configDigest": "sha256:" + "d" * 64, "qualification": "anonymous pull passed"}
+             for platform, char in zip(image.PLATFORMS, "bc")]
+    for fact in facts:
+        (inputs / (fact["platform"].split("/")[1] + ".json")).write_text(json.dumps(fact))
+    index = "sha256:" + "e" * 64
+    created = []
+    def registry(*args):
+        if args[1:4] == ("buildx", "imagetools", "create"):
+            created.append(args)
+            return ""
+        if args[1:4] == ("buildx", "imagetools", "inspect"):
+            return "Digest: " + index
+        if args[-1].endswith(index):
+            return json.dumps({"manifests": [{"digest": index if contradiction else fact["platformDigest"],
+                "platform": {"os": "linux", "architecture": fact["platform"].split("/")[1]}} for fact in facts]})
+        return json.dumps({"config": {"digest": facts[0]["configDigest"]}})
+    monkeypatch.setattr(image, "run", registry)
+    monkeypatch.setattr(image, "require_absent", lambda ref: None)
+    monkeypatch.setenv("GITHUB_OUTPUT", str(tmp_path / "outputs"))
+    output = tmp_path / "index.json"
+    if contradiction:
+        with pytest.raises(version.ValidationError, match="contradicts"):
+            image.publish_index(release, inputs, output)
+        assert not (tmp_path / "outputs").exists()
+    else:
+        image.publish_index(release, inputs, output)
+        assert (tmp_path / "outputs").read_text() == "digest=" + index + "\n"
+    assert created[0][-2:] == tuple(image.IMAGE + "@" + fact["platformDigest"] for fact in facts)
+    result = json.loads(output.read_text())
+    assert result["manifestDigest"] == index and result["platforms"] == facts
+    assert ("verification pending" in result["qualification"]) == contradiction
