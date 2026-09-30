@@ -36,8 +36,8 @@ jobs:
           ref: ${{ github.sha }}
           fetch-depth: 0
           persist-credentials: false
-      - name: Require the reviewed two-platform DB index before any application publication
-        run: python3 -B -c 'import sys; sys.path.insert(0,"tools/release"); import bundle; print(bundle.stable_database_digest(bundle.DB))'
+      - name: Validate accepted DB publication evidence before any application publication
+        run: python3 -B -c 'import sys; sys.path.insert(0,"tools/release"); import bundle; print(bundle.stable_database_digest())'
       - name: Authenticate only the publishing client
         env:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -175,7 +175,7 @@ jobs:
           mkdir -m 700 "$DOCKER_CONFIG"
           platform=linux/${{ matrix.arch }}
           app_digest="$(python3 -B -c 'import sys; sys.path.insert(0,"tools/release"); import image; print(image.selected_digest(sys.argv[1]))' "ghcr.io/stef-k/wayfarer@$IMAGE_DIGEST")"
-          db_digest="$(python3 -B -c 'import sys; sys.path.insert(0,"tools/release"); import bundle; print(bundle.stable_database_digest(bundle.DB))')"
+          db_digest="$(python3 -B -c 'import sys; sys.path.insert(0,"tools/release"); import bundle; print(bundle.stable_database_digest())')"
           docker pull --platform "$platform" "ghcr.io/stef-k/wayfarer@$app_digest"
           docker pull --platform "$platform" "ghcr.io/stef-k/wayfarer-db@$db_digest"
           docker pull --platform "$platform" caddy@sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b

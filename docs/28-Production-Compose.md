@@ -140,10 +140,14 @@ The production Compose file consumes `ghcr.io/stef-k/wayfarer-db@${DB_DIGEST}` w
 no build context. A target host neither builds Wayfarer nor installs PGDG packages.
 `DB_DIGEST` must be the published, qualified **derived image manifest**, never the
 PostgreSQL base digest, a local image ID or a guessed reference. As with the pending
-first application publication, source/CI qualification is not proof of anonymous
-registry availability. Until DB publication and digest capture are complete, this
-source bundle is not ready for ordinary deployment. The release bundle must carry
-the accepted digest; do not retain Alpine as an implicit fallback.
+first application publication, source/CI qualification alone is not proof of anonymous
+registry availability. Stable assembly reads the reviewed publication evidence in
+`tools/release/database-release.json`, verifies its immutable index and both native
+manifest/config pairs from GHCR, and records only the selected native DB digest in
+`release.json`. The initial authority is the unchanged `db-index.json` from successful
+[run 36772792692](https://github.com/stef-k/Wayfarer/actions/runs/36772792692), covering
+PostgreSQL 18.6 + PostGIS 3.6.4 on AMD64/ARM64. Application publication and first public
+Compose stable acceptance remain separate gates.
 
 Maintainer/CI assembly and disposable qualification use:
 
@@ -309,6 +313,17 @@ independently of the application release number. Later complete release bundles 
 consume its qualified **registry manifest digest** and retained evidence, never its
 mutable tag or local image ID. A refreshed recipe requires a new reviewed source and
 publication identity. Existing identities are never overwritten, including reruns.
+
+A DB refresh has two reviewed source transitions: recipe change/review, followed by
+DB-only publication and anonymous qualification; then a separate evidence-promotion
+PR replaces `tools/release/database-release.json` with the actual reviewed
+`db-index.json` artifact. Ordinary application releases consume that committed
+authority without editing DB metadata or source. The top-level `platform` is runner
+provenance; only `platforms[]` selects the two supported native manifests. The
+pre-publication application gate fails if evidence is invalid or unavailable.
+Candidates continue to require explicit locally built native `--db-digest` and
+validate against the current recipe; accepted stable evidence remains independent
+of recipe changes. No mutable tag or remote latest-DB discovery supplies authority.
 
 The publisher builds the shared pinned recipe and verifies actual Debian package and
 PostgreSQL executable versions against OCI metadata. AMD64 runs the full disposable

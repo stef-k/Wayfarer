@@ -4,6 +4,8 @@
 
 ### Changed
 
+- Promote the reviewed two-platform DB publication artifact to `tools/release/database-release.json` as stable release authority (#720). Validate immutable index/native/config evidence before application publication and bundle assembly; preserve explicit locally built candidate DB selection. No DB rebuild, version change or application release.
+
 - Adopt PostgreSQL 18.6 (`18.6-1.pgdg12+2`) + PGDG PostGIS 3.6.4 as the initial AMD64/ARM64 Compose baseline (#718). Mount the official PG18 parent volume and adapt recovery/update probes, exact runtime checks and canonical candidate qualification. Keep native/development database requirements unchanged; no DB-major migration or image publication. The first public stable remains gated on genuine PG18 DB index publication and a separate reviewed pin.
 
 - Add generic Linux ARM64 Compose release support alongside AMD64 (#715): native application/DB images and operator/recovery payloads, Playwright 1.63 Chrome-for-Testing, exact platform selection, platform-qualified bootstrap/deployment archives and native ARM64 CI. Share lifecycle, recovery and one release index; correct AArch64 filesystem flag constants. No EF migration, Pi-specific path, native/systemd change or cross-architecture migration. First genuine public stable acceptance remains pending.

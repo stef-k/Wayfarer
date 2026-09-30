@@ -349,7 +349,7 @@ No runtime/configuration/database changes are introduced by this document.
 ## Local release authority v1
 
 `release.json` schema 1 / bundle contract 1 / configuration schema 1 now owns
-local release identity. `tools/release/bundle.py --app-digest sha256:... --output /absolute/new-output`
+local release identity. `tools/release/bundle.py --app-digest sha256:... --db-digest sha256:... --output /absolute/new-output`
 assembles a clean committed source into an explicit candidate directory and deterministic
 candidate tarball with external `SHA256SUMS`. It reuses Version.props and the image
 identity owner; the selected local image must match the exact source SHA and version.
@@ -357,6 +357,17 @@ No registry push, tag, GitHub Release, image pull or installation activation occ
 Explicit `--stable --tag vX.Y.Z --source FULLSHA` authors stable metadata only after
 the existing exact published-source/image checks. The same workflow creates versioned
 archive/checksum assets without overwrite. See [stable publication](27-Application-Image-Publication.md#stable-compose-distribution).
+
+Stable DB authority is the committed `tools/release/database-release.json`, promoted
+unchanged from the reviewed DB publication workflow's `db-index.json` artifact.
+The resolver validates provenance/package consistency, exactly one `linux/amd64`
+and one `linux/arm64` entry, immutable index selection and both native manifest/config
+pairs before use. Its top-level `platform` records the publication runner only;
+`platforms[]` owns selection. Canonical `Images.DatabaseDigest` carries the selected
+native manifest, never the index. Stable mode rejects `--db-digest`; candidate mode
+requires an explicit locally built native digest and qualifies the current recipe.
+Accepted evidence does not depend on the current candidate recipe's versions or
+Dockerfile. The existing release/runtime compatibility checks still apply.
 
 The exact inventory is `compose.yaml`, `external.yaml`, `caddy/Caddyfile`,
 `db/20-wayfarer.sh`, `config/deployment.env.example`, `compose.sh`, `INSTALL.md`,
