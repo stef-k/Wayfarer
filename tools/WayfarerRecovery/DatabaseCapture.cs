@@ -35,8 +35,9 @@ public static class DatabaseCapture
             await using (var readOnly = new NpgsqlCommand("SET TRANSACTION READ ONLY", connection, transaction))
                 await readOnly.ExecuteNonQueryAsync(token);
             var identity = await IdentityAsync(connection, transaction, token);
-            if (identity.Major != 17 || identity.PostgisExtension != "3.6.4" || identity.PostgisExtension != identity.PostgisLibrary ||
-                identity.Citext != "1.6" || identity.Encoding != "UTF8" || identity.Collation != "C.UTF-8" ||
+            if (identity.Major != 18 || identity.ServerVersion != "18.6 (Debian 18.6-1.pgdg12+2)" ||
+                identity.PostgisExtension != "3.6.4" || identity.PostgisExtension != identity.PostgisLibrary ||
+                identity.Citext != "1.8" || identity.Encoding != "UTF8" || identity.Collation != "C.UTF-8" ||
                 identity.CharacterType != "C.UTF-8" || identity.LocaleProvider != "c" ||
                 identity.Migrations.Length == 0 || !identity.Migrations.SequenceEqual(source.ExpectedMigrations))
                 throw new IOException("Unsupported database/schema identity.");
