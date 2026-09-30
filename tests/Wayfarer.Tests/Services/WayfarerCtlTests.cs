@@ -275,6 +275,16 @@ public sealed class WayfarerCtlTests
         Assert.Single(process.Calls);
     }
 
+    /// <summary>A supported daemon of the other architecture fails before Compose or lifecycle mutation.</summary>
+    [Fact]
+    public async Task DockerDaemonMustMatchNativeOperatorArchitecture()
+    {
+        var foreign = WayfarerRecovery.NativePlatform.Current == "linux/amd64" ? "linux/aarch64" : "linux/x86_64";
+        var process = new FakeProcess { Reply = _ => new(0, foreign) };
+        await Assert.ThrowsAsync<UsageException>(() => new Preflight(process).DockerAsync(default));
+        Assert.Single(process.Calls);
+    }
+
     /// <summary>A new invocation consumes the durable checkpoint, preserving completed mutations after each boundary.</summary>
     [Theory]
     [InlineData(5, 1)] // Migration committed; seed fails.

@@ -45,6 +45,22 @@ public sealed class ReleaseBundleTests : IDisposable
         finally { Directory.Move(directory + "-moved", directory); }
     }
 
+    /// <summary>Inert inspection supports both platforms; execution and recovery targets retain the native manifest.</summary>
+    [Fact]
+    public void IndexIdentityCannotReplaceNativeExecutionOrRecoveryIdentity()
+    {
+        var manifest = Manifest() with { Platform = NativePlatform.Current };
+        Save(manifest with { Images = manifest.Images with { ApplicationDigest = "sha256:" + new string('e', 64) } });
+        var bundle = ReleaseBundle.Validate(directory);
+        var target = bundle.Target("fixture");
+        Assert.Equal("ghcr.io/stef-k/wayfarer@" + manifest.Images.PlatformDigest, target.ApplicationImage);
+        var other = NativePlatform.Current == "linux/amd64" ? "linux/arm64" : "linux/amd64";
+        ReleaseContract.Validate(bundle.Manifest with { Platform = other });
+        Assert.Throws<IOException>(() => ReleaseContract.RequireUse(bundle.Manifest with { Platform = other }, "1.9.19"));
+        Assert.Throws<IOException>(() => bundle.Corroborate(target with { Platform = other }));
+        Assert.False(ArchiveVerifier.IsCompatible(RecoveryCompatibilityTests.Manifest(target with { Platform = other }), target));
+    }
+
     [Theory]
     [InlineData("compose.yaml")]
     [InlineData("wayfarerctl")]
@@ -219,6 +235,8 @@ public sealed class ReleaseBundleTests : IDisposable
             target with { Manifest = target.Manifest with { Application = target.Manifest.Application with { Migrations = ["20260929000000_Forward"] } } }, true));
         Assert.Throws<UsageException>(() => UpdateOptions.Boundary(source,
             target with { Manifest = target.Manifest with { Sources = [boundary with { ReferenceSeeding = true }] } }, true));
+        Assert.Throws<UsageException>(() => UpdateOptions.Boundary(source,
+            target with { Manifest = target.Manifest with { Platform = "linux/arm64" } }, true));
     }
 
     /// <summary>Public extraction grants the same fingerprint and ignores archive modes; aliases, links and huge headers fail.</summary>
