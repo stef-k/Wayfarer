@@ -1,0 +1,57 @@
+{
+  "image": "ghcr.io/stef-k/wayfarer-db",
+  "source": "https://github.com/stef-k/Wayfarer",
+  "sourceRevision": "98d28f948d430ba2c9fa2b4b3e62880333717720",
+  "version": "pg18.6-postgis3.6.4-bookworm",
+  "tag": "pg18.6-postgis3.6.4-bookworm-98d28f948d430ba2c9fa2b4b3e62880333717720",
+  "platform": "linux/amd64",
+  "packages": {
+    "postgresql-18": "18.6-1.pgdg12+2",
+    "postgresql-18-postgis-3": "3.6.4+dfsg-2.pgdg12+1",
+    "postgresql-18-postgis-3-scripts": "3.6.4+dfsg-2.pgdg12+1"
+  },
+  "manifestDigest": "sha256:d60311362a2c7c71c2808704e526f7da1dcd9b30909a16f0c312e932db3f13f8",
+  "platforms": [
+    {
+      "image": "ghcr.io/stef-k/wayfarer-db",
+      "source": "https://github.com/stef-k/Wayfarer",
+      "sourceRevision": "98d28f948d430ba2c9fa2b4b3e62880333717720",
+      "version": "pg18.6-postgis3.6.4-bookworm",
+      "tag": "pg18.6-postgis3.6.4-bookworm-98d28f948d430ba2c9fa2b4b3e62880333717720",
+      "platform": "linux/amd64",
+      "packages": {
+        "postgresql-18": "18.6-1.pgdg12+2",
+        "postgresql-18-postgis-3": "3.6.4+dfsg-2.pgdg12+1",
+        "postgresql-18-postgis-3-scripts": "3.6.4+dfsg-2.pgdg12+1"
+      },
+      "baseImage": "postgres:18.6-bookworm@sha256:3725f4e2499eef5134592b3b4ab79a543ed7f8e533b05b5b637af926630f6650",
+      "manifestDigest": "sha256:d3a2cbd395146b22e3784dff6cc8af969b046384eee0d6fe7a15da8953a571a4",
+      "platformDigest": "sha256:d3a2cbd395146b22e3784dff6cc8af969b046384eee0d6fe7a15da8953a571a4",
+      "configDigest": "sha256:e9ea46592c92b4553525ce6704cd09a4ef20a5448d7018a56c746389b1ab40bb",
+      "qualification": "anonymous pull and full Compose qualification passed",
+      "workflowRun": "https://github.com/stef-k/Wayfarer/actions/runs/36772792692",
+      "workflowAttempt": "1"
+    },
+    {
+      "image": "ghcr.io/stef-k/wayfarer-db",
+      "source": "https://github.com/stef-k/Wayfarer",
+      "sourceRevision": "98d28f948d430ba2c9fa2b4b3e62880333717720",
+      "version": "pg18.6-postgis3.6.4-bookworm",
+      "tag": "pg18.6-postgis3.6.4-bookworm-98d28f948d430ba2c9fa2b4b3e62880333717720",
+      "platform": "linux/arm64",
+      "packages": {
+        "postgresql-18": "18.6-1.pgdg12+2",
+        "postgresql-18-postgis-3": "3.6.4+dfsg-2.pgdg12+1",
+        "postgresql-18-postgis-3-scripts": "3.6.4+dfsg-2.pgdg12+1"
+      },
+      "baseImage": "postgres:18.6-bookworm@sha256:3725f4e2499eef5134592b3b4ab79a543ed7f8e533b05b5b637af926630f6650",
+      "manifestDigest": "sha256:7b98847fd026f03ce07eaf7206302b37474bc261b5469554b9e41efa73ab48e9",
+      "platformDigest": "sha256:7b98847fd026f03ce07eaf7206302b37474bc261b5469554b9e41efa73ab48e9",
+      "configDigest": "sha256:4b854fdb6d391fd05656b49236ae18476040395dd30b26b90388f630a095b4dc",
+      "qualification": "anonymous pull and full Compose qualification passed",
+      "workflowRun": "https://github.com/stef-k/Wayfarer/actions/runs/36772792692",
+      "workflowAttempt": "1"
+    }
+  ],
+  "qualification": "two qualified native manifests bound to immutable index"
+}
