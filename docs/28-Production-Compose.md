@@ -127,7 +127,7 @@ of every Unicode case/collation between libc implementations.
 
 For #604, inspect source PG/PostGIS versions, extension usage, encoding, locale
 provider/version and collation-dependent uniqueness before logical dump/restore.
-Use the selected image's PG17 tools and explicitly provision compatible extensions;
+Use the selected image's PG18 tools and explicitly provision compatible extensions;
 rebuild indexes through restore and verify application identities and representative
 Greek/Latin data. The PostGIS3.5 → 3.6 boundary needs source-specific qualification;
 this fresh-stack proof does not qualify production migration, downgrade, binary

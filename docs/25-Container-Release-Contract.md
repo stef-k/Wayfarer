@@ -126,7 +126,7 @@ extension provisioning and grants the application/migration role required schema
 rights. Readiness uses bundled `pg_isready`; this only proves connection acceptance,
 not credentials, extension availability, schema compatibility or application health.
 
-No host DB port is published. Never mount this PG17 directory into another major.
+No host DB port is published. Never mount this PG18 directory into another major.
 Ordinary Wayfarer updates keep the DB major fixed; PostgreSQL major upgrades need a
 separate explicit backup/restore or pg_upgrade contract and qualification. PostGIS
 extension upgrades likewise require an explicit tested step, not tag drift.
