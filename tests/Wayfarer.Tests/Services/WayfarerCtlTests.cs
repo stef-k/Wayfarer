@@ -17,6 +17,10 @@ public sealed class WayfarerCtlTests
         { Kind = kind, Destination = "/backups/slot", Payload = "/release/worker" } };
         using var document = System.Text.Json.JsonDocument.Parse(BackupCompose.Render("/etc/wayfarer", config));
         var services = document.RootElement.GetProperty("services");
+        // Recovery tools never receive the database image's implicit writable PG18 parent volume.
+        foreach (var service in services.EnumerateObject())
+            Assert.Contains(service.Value.GetProperty("tmpfs").EnumerateArray(), mount =>
+                mount.GetString() == "/var/lib/postgresql:ro,mode=000,size=65536");
         Assert.Equal("backup-reader", BackupCompose.ServiceFor("backups"));
         Assert.Equal("backup-reader", BackupCompose.ServiceFor("verify"));
         foreach (var operation in new[] { "backups", "destination-check" })

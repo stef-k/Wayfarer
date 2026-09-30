@@ -86,10 +86,12 @@ class RecoveryJourney(Journey):
             qualify_restore_lifecycle(self)
             self.restore()
             return
-        generation = json.loads(self.host('cat', str(self.install / 'installation.json')).stdout)['Backup']['Generation']
-        scheduler_args = ['docker', 'compose', '--project-name', self.project, '--project-directory', str(self.bundle),
-                          '--env-file', str(self.install / 'deployment.env'), '-f', str(self.bundle / 'compose.yaml'),
-                          '-f', str(self.bundle / 'external.yaml'), '-f', str(self.install / 'recovery-generations' / generation / 'compose.json'), '--profile', 'backup']
+        # Scheduler recreation retains the canonical installed bundle's exact Compose ownership labels.
+        installed = json.loads(self.host('cat', str(self.install / 'installation.json')).stdout)
+        generation, bundle = installed['Backup']['Generation'], Path(installed['Bundle'])
+        scheduler_args = ['docker', 'compose', '--project-name', self.project, '--project-directory', str(bundle),
+                          '--env-file', str(self.install / 'deployment.env'), '-f', str(bundle / 'compose.yaml'),
+                          '-f', str(bundle / 'external.yaml'), '-f', str(self.install / 'recovery-generations' / generation / 'compose.json'), '--profile', 'backup']
         before = self.host('cat', str(self.install / 'recovery-control/state/scheduler.json')).stdout
         self.host(*scheduler_args, 'up', '-d', '--no-deps', '--force-recreate', 'backup-scheduler')
         assert self.host('cat', str(self.install / 'recovery-control/state/scheduler.json')).stdout == before

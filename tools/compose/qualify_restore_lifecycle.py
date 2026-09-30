@@ -104,7 +104,7 @@ def qualify_finalization(journey):
         assert result.returncode != 0
         journey.host('rm', '-f', str(failure))
         receipt = json.loads(journey.host('cat', str(journey.install / 'recovery-control/restore.json')).stdout)
-        assert receipt['Phase'] == 7 and receipt['WritesPossible']
+        assert receipt['Phase'] == 7 and receipt['WritesPossible'], f"phase={receipt['Phase']}; {result.stderr}"
         journey.host('test', '-f', str(journey.install / 'recovery-control/restore-in-progress'))
         assert journey.ctl('start', check=False).returncode == 2
         assert journey.ctl('restore', '--abort', plan['Operation'], check=False).returncode == 2
