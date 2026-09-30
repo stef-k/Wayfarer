@@ -56,7 +56,7 @@ a bounded CIDR. Additional indexed entries are allowed. With no entries forwardi
 disabled, including loopback. Native nginx operators must explicitly configure their
 loopback peer. Exactly one trusted hop may supply scheme, host and client IP; untrusted
 headers are ignored. Set `AllowedHosts` to the actual public hostname. Proxy topology,
-TLS and Caddy remain later work.
+TLS and Caddy topology belong to [Compose deployment](28-Production-Compose.md).
 
 `/health/live` returns cheap HTTP liveness. `/health/ready` performs a bounded local DB
 compatibility/bootstrap probe and returns only `ready` (200) or `not ready` (503).
@@ -135,7 +135,7 @@ docker run --rm --read-only --network host \
 ```
 
 Here host networking is a disposable test attachment to a loopback test DB, not the
-future production topology. Repeat with `database seed`; use `-i` and protected stdin
+production topology. Repeat with `database seed`; use `-i` and protected stdin
 for bootstrap. Omit the command for web startup. The environment file contains a
 password-free connection string, `Database__PasswordFile=/run/secrets/database-password`
 and a specific `AllowedHosts`. Healthcheck sends that allowed Host over loopback.

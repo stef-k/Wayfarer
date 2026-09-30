@@ -1,17 +1,22 @@
-# Stable application-image publication
+# Application Image and Stable Bundle Publication
 
-The #642 pipeline publishes only `ghcr.io/stef-k/wayfarer` for `linux/amd64` and `linux/arm64`, using
-[the accepted application Dockerfile and runtime checks](26-Application-Container.md).
-The version-matched local candidate bundle now binds Compose, Caddy, `wayfarerctl`,
-recovery payloads and the accepted PostgreSQL/PostGIS image through `release.json`.
-Public stable bundle distribution remains a separate #603 acceptance gate.
+This page owns application-image/index publication, anonymous qualification, stable
+bundle/bootstrap assets and public installation acceptance for `linux/amd64` and
+`linux/arm64`. Start with [Versioning and Release Operations](23-Versioning.md) to
+choose the release path. Build/runtime detail belongs to
+[the application container](26-Application-Container.md); immutable identity/trust
+semantics belong to [the release contract](25-Container-Release-Contract.md).
+DB publication and accepted evidence promotion remain with
+[Production Compose](28-Production-Compose.md#derived-db-publication-and-recovery).
 
 ## Authorization and identity
 
 `.github/workflows/application-release.yml` runs only on a published non-draft,
 non-prerelease GitHub Release in `stef-k/Wayfarer`. Prepare an actual release through
 the existing version/tag/release process; do not create a stable release for testing.
-The workflow creates or retargets neither Git tags nor GitHub Releases.
+The workflow creates or retargets neither Git tags nor GitHub Releases. Before any
+application publication, it verifies the committed accepted DB evidence; see
+[accepted DB authority](25-Container-Release-Contract.md#local-release-authority-v1).
 
 Before building, `tools/release/version.py` requires:
 
@@ -57,6 +62,7 @@ Download the `image-publication` and successful `image-evidence` Actions artifac
 
 ```sh
 gh run download RUN_ID -n image-publication-amd64 -D /absolute/evidence/publication-amd64
+gh run download RUN_ID -n image-publication-arm64 -D /absolute/evidence/publication-arm64
 gh run download RUN_ID -n image-evidence-amd64 -D /absolute/evidence/qualified-amd64
 gh run download RUN_ID -n image-evidence-arm64 -D /absolute/evidence/qualified-arm64
 gh run download RUN_ID -n image-index -D /absolute/evidence/index
@@ -67,8 +73,8 @@ manifest/platform/config digests, pinned Dockerfile base images, workflow run/at
 and qualification status. Publication evidence is retained before the anonymous gate;
 only `anonymous pull and smoke passed` records successful distribution qualification.
 Actions retention applies: preserve these artifacts with the real release evidence.
-This is image-specific evidence for the future bundle owner, not the final
-`release.json` schema or an incomplete deployment archive.
+These are image-specific records. The deployment publication artifacts below own
+canonical bundle and bootstrap byte evidence.
 
 ## Anonymous qualification and first publication
 
@@ -114,34 +120,33 @@ its local tag is not release evidence. Unit tests exercise stable source rejecti
 registry overwrite/error handling and digest evidence. PR CI runs both paths without
 creating fake releases or changing registry state. No database migration is introduced.
 
-**Pending acceptance:** no real stable package was published to test #642. The first
-subsequent real stable release must prove actual GHCR push, repository linkage,
-public visibility, anonymous exact-digest pull and the resulting qualified evidence.
-Dry-run/CI success does not satisfy that production-publication gate. Release notes
-for that release must retain the application-image-only stage until #603's bundle
-and lifecycle work is accepted.
-
-The production Compose substrate is now described in [Compose deployment](28-Production-Compose.md);
-its managed/external topology does not complete the later guided lifecycle product.
+Dry-run/CI success does not prove public distribution. A genuine stable release must
+retain successful GHCR publication, repository linkage, anonymous exact-digest image
+qualification and [public Compose acceptance](#stable-compose-distribution).
+Current user-facing availability belongs to
+[Install & Self-Hosting](02-Install-and-Dependencies.md#availability).
 
 ## Local candidate bundle consumer
 
 The local bundle assembler now consumes the same version and OCI identity owners,
 requiring an actual locally available immutable application digest and exact source.
-Candidate archive names contain `candidate`, version and full source SHA. Planned stable
-archives remain `wayfarer-vX.Y.Z-linux-amd64.tar.gz` with a versioned `.tar.gz.sha256` sidecar.
+Candidate archive names contain `candidate`, version and full source SHA. Stable
+archives use `wayfarer-vX.Y.Z-linux-amd64.tar.gz` or the ARM64 equivalent, with a versioned `.tar.gz.sha256` sidecar.
 Local integrity does not establish publisher authenticity, anonymous pull availability
-or GitHub asset provenance. The existing release workflow now publishes stable bundles after anonymous image
+or GitHub asset provenance. The release workflow publishes stable bundles after anonymous image
 qualification; public acquisition and the operational acceptance gate are described below. See [local bundle assembly](25-Container-Release-Contract.md#local-release-authority-v1).
 
 
 ## Stable Compose distribution
 
-Explicit `bundle.py --stable --tag vX.Y.Z --source FULLSHA --app-digest sha256:...`
+Explicit `python3 tools/release/bundle.py --stable --tag vX.Y.Z --source FULLSHA
+--app-digest sha256:... --output /absolute/new-output`
 reuses `version.py` and `image.py`: clean HEAD, local/remote tag, Version.props and
 published non-draft/non-prerelease Release must agree. The already-published application
-index/selected manifest/config must match the exact digest and native Linux platform. Candidate assembly
-remains unchanged. Add `--publish` only in the official release workflow.
+index/selected manifest/config must match the exact digest and native Linux platform.
+Candidate assembly remains separate and requires its explicit locally built native
+DB digest; stable assembly reads `database-release.json` and rejects `--db-digest`.
+Add `--publish` only in the official release workflow.
 
 After anonymous application qualification, `application-release.yml` anonymously pulls
 the accepted DB/Caddy digests, builds the self-contained payloads, validates with the
@@ -162,7 +167,7 @@ a publisher. Automatic acquisition requires GitHub REST's exact lowercase
 The project/tag/name/status are fixed. The download URL is constructed from validated
 identity; only GitHub's fixed HTTPS release-asset CDN may receive its redirect.
 
-The first future genuine Compose stable is a baseline with `Sources=[]`. Source-only
+A release with no earlier deployable public bundle is a baseline with `Sources=[]`. Source-only
 v1.9.19 and earlier releases remain untouched. Later publication locates the highest
 earlier stable that advertises the deployment asset, validates its public digest,
 extracts with the current shipped operator and validates its stable manifest. It binds
@@ -180,9 +185,10 @@ The extracted bootstrap executable must match the acquired bundle's operator byt
 Publication evidence records tag/source/platform/operator hash/bundle fingerprint/all
 asset digests/image digest; the public job retains setup/acquisition evidence. PR CI covers deterministic
 logic and the existing candidate recovery/update journey. It creates no stable release.
-No public stable bundle is claimed shipped by this implementation: #713 and #603 remain
-open until the next genuine stable workflow passes on both supported platforms after
-#715 adds ARM64. Do not publish the first Compose stable before #715 is accepted.
-A baseline claims no stable-to-stable
-migration; #704 candidate real-migration evidence remains the migration proof until a
-second genuine public Compose release exists.
+Acceptance requires all native publication/anonymous-pull, index, deployment-bundle
+and `public-compose-acceptance` jobs to succeed on both supported platforms. Preserve
+`deployment-publication-{amd64,arm64}`, `deployment-publication-evidence-{amd64,arm64}`
+and `public-compose-acceptance-{amd64,arm64}` alongside image evidence beyond Actions
+retention. A baseline claims no stable-to-stable migration; candidate real-migration
+evidence remains separate until a second compatible genuine public release supplies
+that proof.
