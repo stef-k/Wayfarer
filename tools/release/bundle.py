@@ -23,7 +23,6 @@ PAYLOADS = ('compose.yaml', 'external.yaml', 'caddy/Caddyfile', 'db/20-wayfarer.
             'config/deployment.env.example', 'compose.sh', 'INSTALL.md', 'wayfarerctl',
             'wayfarer-recovery', 'WayfarerRecoverySource.dll')
 CAPTURE_PAYLOADS = ('capture/wayfarer-recovery', 'capture/WayfarerRecoverySource.dll')
-DB = 'sha256:bd9b3bbfe1e879b56b0742646c18d0dcc9ec95180095f8f6d02e03b54feeeb61'
 CADDY = 'sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b'
 
 
@@ -104,23 +103,72 @@ def stable_image(release: dict, digest: str) -> str:
     return selected
 
 
-def stable_database_digest(index: str) -> str:
-    """Require the reviewed DB index to support both platforms before any stable app publication."""
-    if not image.DIGEST.fullmatch(index):
-        raise version.ValidationError('an immutable reviewed DB index is required')
-    reference = 'ghcr.io/stef-k/wayfarer-db@' + index
-    manifest = json.loads(image.run('docker', 'manifest', 'inspect', reference))
-    if 'manifests' not in manifest:
-        raise version.ValidationError('stable publication requires the reviewed two-platform DB index pin')
-    selected = {platform: image.selected_digest(reference, platform) for platform in image.PLATFORMS}
-    if len(set(selected.values())) != 2:
-        raise version.ValidationError('DB index must bind distinct native platform manifests')
-    return selected[image.PLATFORM]
+def accepted_database() -> dict:
+    """Read promoted DB publication evidence independently of the current candidate recipe."""
+    try:
+        evidence = json.loads(Path(__file__).with_name('database-release.json').read_text())
+        if evidence['image'] != 'ghcr.io/stef-k/wayfarer-db' or evidence['source'] != image.SOURCE:
+            raise version.ValidationError('accepted DB repository/source mismatch')
+        if (not re.fullmatch(r'[a-f0-9]{40}', evidence['sourceRevision'])
+                or evidence['tag'] != evidence['version'] + '-' + evidence['sourceRevision']
+                or not image.DIGEST.fullmatch(evidence['manifestDigest'])
+                or evidence['qualification'] != 'two qualified native manifests bound to immutable index'):
+            raise version.ValidationError('invalid accepted DB publication identity/qualification')
+        family = re.fullmatch(r'pg([0-9]+\.[0-9]+)-postgis([0-9]+\.[0-9]+\.[0-9]+)-([a-z][a-z0-9]*)', evidence['version'])
+        if not family:
+            raise version.ValidationError('invalid accepted DB package family')
+        postgres, postgis, suite = family.groups()
+        package = 'postgresql-' + postgres.split('.')[0]
+        packages = evidence['packages']
+        if (set(packages) != {package, package + '-postgis-3', package + '-postgis-3-scripts'}
+                or not re.fullmatch(re.escape(postgres) + r'-[0-9][a-z0-9.+~]*', packages[package])
+                or not re.fullmatch(re.escape(postgis) + r'\+dfsg-[0-9][a-z0-9.+~]*', packages[package + '-postgis-3'])
+                or packages[package + '-postgis-3-scripts'] != packages[package + '-postgis-3']):
+            raise version.ValidationError('inconsistent accepted DB version/packages')
+        facts = evidence['platforms']
+        if (not isinstance(facts, list) or len(facts) != 2
+                or {fact['platform'] for fact in facts} != set(image.PLATFORMS)):
+            raise version.ValidationError('accepted DB requires exactly one evidence entry per supported platform')
+        for fact in facts:
+            if any(fact[key] != evidence[key] for key in ('image', 'source', 'sourceRevision', 'version', 'tag', 'packages')):
+                raise version.ValidationError('accepted DB platform contradicts common evidence')
+            if (not image.DIGEST.fullmatch(fact['manifestDigest'])
+                    or fact['manifestDigest'] != fact['platformDigest']
+                    or not image.DIGEST.fullmatch(fact['configDigest'])
+                    or not re.fullmatch(re.escape(f'postgres:{postgres}-{suite}@') + r'sha256:[a-f0-9]{64}', fact['baseImage'])
+                    or fact['qualification'] != 'anonymous pull and full Compose qualification passed'
+                    or not re.fullmatch(re.escape(image.SOURCE) + r'/actions/runs/[1-9][0-9]*', fact['workflowRun'])
+                    or not re.fullmatch(r'[1-9][0-9]*', fact['workflowAttempt'])):
+                raise version.ValidationError('invalid accepted native DB digest/base/qualification')
+        if (len({fact['manifestDigest'] for fact in facts}) != 2
+                or any(fact['manifestDigest'] == evidence['manifestDigest'] for fact in facts)
+                or facts[0]['baseImage'] != facts[1]['baseImage']):
+            raise version.ValidationError('accepted DB requires distinct native manifests and one pinned base')
+        return evidence
+    except (OSError, ValueError, KeyError, TypeError, AttributeError) as error:
+        raise version.ValidationError(f'invalid accepted DB evidence: {error}') from error
+
+
+def stable_database_digest() -> str:
+    """Bind the promoted immutable index and both native configs before selecting this platform."""
+    evidence = accepted_database()
+    reference = evidence['image'] + '@' + evidence['manifestDigest']
+    try:
+        manifest = json.loads(image.run('docker', 'manifest', 'inspect', reference))
+        if not isinstance(manifest.get('manifests'), list) or len(manifest['manifests']) != 2:
+            raise version.ValidationError('accepted DB index must contain exactly two native manifests')
+        for fact in evidence['platforms']:
+            if image.selected_digest(reference, fact['platform']) != fact['manifestDigest']:
+                raise version.ValidationError('accepted DB index contradicts recorded native manifest')
+            image.manifest_matches(evidence['image'] + '@' + fact['manifestDigest'], fact['manifestDigest'], fact['configDigest'])
+    except (ValueError, KeyError, TypeError, AttributeError) as error:
+        raise version.ValidationError(f'invalid accepted DB registry evidence: {error}') from error
+    return next(fact['manifestDigest'] for fact in evidence['platforms'] if fact['platform'] == image.PLATFORM)
 
 
 def release_manifest(release: dict, app_digest: str, application: dict, operator: dict,
                      bundle: Path, payloads: tuple, stable: bool, evidence: dict | None,
-                     platform_digest: str | None = None, db_digest: str = DB) -> dict:
+                     platform_digest: str | None = None, *, db_digest: str) -> dict:
     """One v1 manifest constructor for candidate and exact-source stable authoring, with no installed facts."""
     return {'Schema': 1, 'BundleContract': 1, 'ConfigurationSchema': 1, 'Status': 'stable' if stable else 'candidate',
         'Version': release['version'], 'Tag': release['tag'] if stable else None, 'Repository': image.SOURCE,
@@ -134,12 +182,14 @@ def release_manifest(release: dict, app_digest: str, application: dict, operator
 
 def assemble(output: Path, app_digest: str, capture_directory: Path | None = None,
              capture_evidence: Path | None = None, *, stable: bool = False,
-             tag: str | None = None, source: str | None = None, db_digest: str = DB) -> Path:
+             tag: str | None = None, source: str | None = None, db_digest: str | None = None) -> Path:
     """Reuse version/image authorities and publish only three bounded lifecycle payloads."""
-    if not image.DIGEST.fullmatch(app_digest) or not image.DIGEST.fullmatch(db_digest):
+    if stable and db_digest is not None:
+        raise version.ValidationError('--db-digest is an unsupported override in stable mode')
+    if not stable and (db_digest is None or not image.DIGEST.fullmatch(db_digest)):
+        raise version.ValidationError('candidate assembly requires an explicit native DB manifest digest')
+    if not image.DIGEST.fullmatch(app_digest):
         raise version.ValidationError('an actual immutable local application digest is required')
-    if not stable and db_digest == DB:
-        raise version.ValidationError('candidate assembly requires an explicit native PG18 DB manifest digest')
     if image.run('git', 'status', '--porcelain', '--untracked-files=normal'):
         raise version.ValidationError('assembly requires a clean committed source tree')
     if stable and (not tag or not source or capture_directory or capture_evidence):
@@ -149,7 +199,7 @@ def assemble(output: Path, app_digest: str, capture_directory: Path | None = Non
     release = image.identity(tag if stable else None, source if stable else None)
     platform_digest = stable_image(release, app_digest) if stable else app_digest
     if stable:
-        db_digest = stable_database_digest(db_digest)
+        db_digest = stable_database_digest()
     evidence = None
     if capture_directory or capture_evidence:
         if not (capture_directory and capture_evidence) or capture_evidence.stat().st_size > 131072:
@@ -163,13 +213,15 @@ def assemble(output: Path, app_digest: str, capture_directory: Path | None = Non
     actual = image.inspect_image(release, ref)
     if ref not in actual.get('RepoDigests', []):
         raise version.ValidationError('digest is not present in local repository identity')
-    import db_image
-    database = json.loads(image.run('docker', 'image', 'inspect', 'ghcr.io/stef-k/wayfarer-db@' + db_digest))[0]
-    db_source = database['Config']['Labels']['org.opencontainers.image.revision']
-    if not re.fullmatch('[a-f0-9]{40}', db_source):
-        raise version.ValidationError('invalid DB source identity')
-    db_image.inspect_payload({'sourceRevision': db_source, 'version': db_image.DB_VERSION},
-                             'ghcr.io/stef-k/wayfarer-db@' + db_digest)
+    if not stable:
+        # Candidates qualify the current recipe; stable DB bytes were independently published/qualified.
+        import db_image
+        database = json.loads(image.run('docker', 'image', 'inspect', 'ghcr.io/stef-k/wayfarer-db@' + db_digest))[0]
+        db_source = database['Config']['Labels']['org.opencontainers.image.revision']
+        if not re.fullmatch('[a-f0-9]{40}', db_source):
+            raise version.ValidationError('invalid DB source identity')
+        db_image.inspect_payload({'sourceRevision': db_source, 'version': db_image.DB_VERSION},
+                                 'ghcr.io/stef-k/wayfarer-db@' + db_digest)
     output.mkdir(parents=True, exist_ok=False)
     bundle = output / (tag if stable else f"candidate-v{release['version']}-{release['sourceRevision']}")
     bundle.mkdir(mode=0o755)
@@ -199,7 +251,7 @@ def assemble(output: Path, app_digest: str, capture_directory: Path | None = Non
     worker = json.loads(probe('ghcr.io/stef-k/wayfarer-db@' + db_digest, '/payload', 'runtime-check', mount=bundle / 'wayfarer-recovery'))
     application['WorkerVersion'] = worker['Version']
     operator = json.loads(probe('ghcr.io/stef-k/wayfarer-db@' + db_digest, '/payload', 'release', 'protocol', mount=bundle / 'wayfarerctl'))
-    manifest = release_manifest(release, app_digest, application, operator, bundle, payloads, stable, evidence, platform_digest, db_digest)
+    manifest = release_manifest(release, app_digest, application, operator, bundle, payloads, stable, evidence, platform_digest, db_digest=db_digest)
     if stable:
         prior = public_bundle.previous(tag)
         if prior:
@@ -220,7 +272,7 @@ def main() -> int:
     """Explicit stable mode shares exact-source identity and preserves candidate/offline authoring."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--app-digest', required=True)
-    parser.add_argument('--db-digest', default=DB, help='Exact executable DB manifest, or the accepted index in stable mode')
+    parser.add_argument('--db-digest', help='Required exact locally built native DB manifest in candidate mode; unsupported in stable mode')
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--capture-directory', type=Path, help='Explicit historical worker/inspection pair to retain unchanged')
     parser.add_argument('--capture-evidence', type=Path, help='Independent configured SourceIdentity; never an archive manifest')

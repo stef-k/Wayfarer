@@ -140,10 +140,14 @@ The production Compose file consumes `ghcr.io/stef-k/wayfarer-db@${DB_DIGEST}` w
 no build context. A target host neither builds Wayfarer nor installs PGDG packages.
 `DB_DIGEST` must be the published, qualified **derived image manifest**, never the
 PostgreSQL base digest, a local image ID or a guessed reference. As with the pending
-first application publication, source/CI qualification is not proof of anonymous
-registry availability. Until DB publication and digest capture are complete, this
-source bundle is not ready for ordinary deployment. The release bundle must carry
-the accepted digest; do not retain Alpine as an implicit fallback.
+first application publication, source/CI qualification alone is not proof of anonymous
+registry availability. Stable assembly reads the reviewed publication evidence in
+`tools/release/database-release.json`, verifies its immutable index and both native
+manifest/config pairs from GHCR, and records only the selected native DB digest in
+`release.json`. The initial authority is the unchanged `db-index.json` from successful
+[run 36772792692](https://github.com/stef-k/Wayfarer/actions/runs/36772792692), covering
+PostgreSQL 18.6 + PostGIS 3.6.4 on AMD64/ARM64. Application publication and first public
+Compose stable acceptance remain separate gates.
 
 Maintainer/CI assembly and disposable qualification use:
 
@@ -310,6 +314,17 @@ consume its qualified **registry manifest digest** and retained evidence, never 
 mutable tag or local image ID. A refreshed recipe requires a new reviewed source and
 publication identity. Existing identities are never overwritten, including reruns.
 
+A DB refresh has two reviewed source transitions: recipe change/review, followed by
+DB-only publication and anonymous qualification; then a separate evidence-promotion
+PR replaces `tools/release/database-release.json` with the actual reviewed
+`db-index.json` artifact. Ordinary application releases consume that committed
+authority without editing DB metadata or source. The top-level `platform` is runner
+provenance; only `platforms[]` selects the two supported native manifests. The
+pre-publication application gate fails if evidence is invalid or unavailable.
+Candidates continue to require explicit locally built native `--db-digest` and
+validate against the current recipe; accepted stable evidence remains independent
+of recipe changes. No mutable tag or remote latest-DB discovery supplies authority.
+
 The publisher builds the shared pinned recipe and verifies actual Debian package and
 PostgreSQL executable versions against OCI metadata. AMD64 runs the full disposable
 Compose gate (including executable PostGIS SQL, locale/citext and dump/restore); ARM64
@@ -428,15 +443,13 @@ that validated platform to app, DB and Caddy; recovery/update helpers use the sa
 release platform. Each canonical bundle pins the executable DB platform manifest,
 while app release metadata distinguishes its shared index from the selected manifest.
 The DB package/executable, Debian/glibc, locale, volumes and non-superuser contracts
-remain identical. A new two-platform public DB index must be published and its exact
-identity pinned through review before the first genuine Compose stable can ship.
-Stable application publication rejects the historical single-platform DB pin before
-building or pushing any application manifest; both native DB selections are required.
+remain identical. Stable application publication validates the committed accepted
+DB evidence and both native selections before building or pushing any application
+manifest. See [derived DB publication and recovery](#derived-db-publication-and-recovery)
+for the separate reviewed evidence-promotion contract.
 
 #718 candidate qualification supplies the exact locally built native PG18 DB manifest
-to the canonical bundle assembler. The existing stable DB pin remains the historical
-PG17 single-platform artifact, so the stable-publication guard remains closed. After
-this source change is reviewed and merged, the existing DB-only workflow publishes
-and qualifies both native manifests and their index; a separate reviewed pin PR must
-select that real index before any first public Compose stable. No image is published
-by the implementation PR.
+to the canonical bundle assembler. Stable assembly instead consumes the reviewed
+PG18 publication artifact in `tools/release/database-release.json`. The historical
+C# serialization fallback remains outside stable DB authority. First public Compose
+stable acceptance remains pending; this evidence-promotion PR publishes no image.
