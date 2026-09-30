@@ -5,6 +5,11 @@ records stable status. Checksums prove integrity, not publisher authenticity. Ob
 these bytes from a trusted administrator/maintainer or the exact public stable Release.
 The target host needs native Linux AMD64 or ARM64, Docker/Compose and root, not an SDK.
 
+When consulting repository documentation on GitHub, select the exact `SourceRevision`
+recorded in this bundle's `release.json`, or its matching stable `Tag`. Repository
+file references below refer to that source revision, keeping the guidance aligned
+with the bundled operator.
+
 Use a previously trusted operator to run `release inspect /absolute/bundle` and
 `release verify-images /absolute/bundle`. Missing local images mean the bundle is not
 execution-ready. These commands never pull images. Offline import accepts an
@@ -50,15 +55,15 @@ recovery set. Migration is forward-only in the current generation. After migrati
 may have started, `update --restore UUID` transfers ownership to managed restore of
 the held old-release archive into a fresh generation; an old image is not rollback.
 Retain current/previous bundles, operators, images, receipts and recovery holds.
-Public acquisition can prepare these same inputs. See the
-[operator guide](https://github.com/stef-k/Wayfarer/blob/main/docs/29-Wayfarerctl.md#trusted-local-managed-forward-update)
+Public acquisition can prepare these same inputs. See `docs/29-Wayfarerctl.md`
 for phase and recovery details.
 
 Some bundles retain an independently trusted historical recovery capture pair under
 `capture/`, described by `LegacyCapture` in `release.json`. Its exact files are part
 of the immutable hashed inventory; do not select capture authority from an archive
 manifest. Maintainer assembly requirements belong to the
-[local release contract](https://github.com/stef-k/Wayfarer/blob/main/docs/25-Container-Release-Contract.md#local-release-authority-v1).
+local release contract in `docs/25-Container-Release-Contract.md`
+(`Local release authority v1`).
 
 Target export selects the historical pair when present; append `current` to select
 the newly bundled pair explicitly. An adopted installation selects the profile that
@@ -141,5 +146,5 @@ PostGIS 3.6.4 (`3.6.4+dfsg-2.pgdg12+1`) on Bookworm. The durable DB volume mount
 Use the bundle's exact native DB manifest; do not substitute an index, mutable tag,
 different major or an existing PG17 physical cluster. DB-major migration is outside
 ordinary setup/update. See the
-[operator guide](https://github.com/stef-k/Wayfarer/blob/main/docs/29-Wayfarerctl.md)
+operator guide in `docs/29-Wayfarerctl.md`
 for ongoing operation and recovery.
