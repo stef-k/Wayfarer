@@ -443,15 +443,13 @@ that validated platform to app, DB and Caddy; recovery/update helpers use the sa
 release platform. Each canonical bundle pins the executable DB platform manifest,
 while app release metadata distinguishes its shared index from the selected manifest.
 The DB package/executable, Debian/glibc, locale, volumes and non-superuser contracts
-remain identical. A new two-platform public DB index must be published and its exact
-identity pinned through review before the first genuine Compose stable can ship.
-Stable application publication rejects the historical single-platform DB pin before
-building or pushing any application manifest; both native DB selections are required.
+remain identical. Stable application publication validates the committed accepted
+DB evidence and both native selections before building or pushing any application
+manifest. See [derived DB publication and recovery](#derived-db-publication-and-recovery)
+for the separate reviewed evidence-promotion contract.
 
 #718 candidate qualification supplies the exact locally built native PG18 DB manifest
-to the canonical bundle assembler. The existing stable DB pin remains the historical
-PG17 single-platform artifact, so the stable-publication guard remains closed. After
-this source change is reviewed and merged, the existing DB-only workflow publishes
-and qualifies both native manifests and their index; a separate reviewed pin PR must
-select that real index before any first public Compose stable. No image is published
-by the implementation PR.
+to the canonical bundle assembler. Stable assembly instead consumes the reviewed
+PG18 publication artifact in `tools/release/database-release.json`. The historical
+C# serialization fallback remains outside stable DB authority. First public Compose
+stable acceptance remains pending; this evidence-promotion PR publishes no image.
