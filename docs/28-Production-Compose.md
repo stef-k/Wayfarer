@@ -5,9 +5,10 @@ Implements [#644](https://github.com/stef-k/Wayfarer/issues/644) against
 [container contract](25-Container-Release-Contract.md),
 [application image](26-Application-Container.md) and
 [publication identity](27-Application-Image-Publication.md).
-This is the substrate for [wayfarerctl setup and operation](29-Wayfarerctl.md), not the
-completed #603 installation product. The manual commands below are advanced maintenance
-seams. Opt-in backup uses the additive [operator recovery payload](29-Wayfarerctl.md#compose-recovery-sets). Exact-target local managed restore uses the [operator restore lifecycle](29-Wayfarerctl.md#managed-restore). Updates, release tarball and `release.json` remain separate work.
+This page owns the Compose substrate and DB publication/promotion procedure.
+Maintainers start at [Versioning and Release Operations](23-Versioning.md).
+The manual commands below are advanced maintenance seams; ordinary setup, updates,
+backup and restore belong to [wayfarerctl](29-Wayfarerctl.md).
 Nothing here migrates a native installation.
 
 ## Topology and state
@@ -71,8 +72,8 @@ Historical manifest/config, executable and signed-package checks on 2026-09-25 e
 | PostGIS project `17-3.5-alpine` | PG17.11, PostGIS3.5.7, Alpine3.24.1/musl | Qualified alternative, superseded by practical glibc route |
 | PostGIS project `17-3.6-alpine` | PG17.11, PostGIS3.6.4, Alpine3.24.1/musl | Available; does not resolve the libc concern |
 
-The project Debian `17-3.6` tag does not resolve; its source Dockerfile is a
-placeholder. Current `17-3.5` index remains
+At that investigation, the project Debian `17-3.6` tag did not resolve; its source
+Dockerfile was a placeholder. The observed `17-3.5` index was
 `sha256:01a6a70e41e6c4467c8f55f6063555ed72db2d6662cd0d571040d42eadaeb6f6`.
 The rejected Alpine selection was
 `sha256:894f570c0cf0664ed5576a8fd5d5bfb8fb1b19d592885b686c3a88c8bd90c41f`;
@@ -139,15 +140,16 @@ not remove these migration requirements. Compose recovery sets preserve the full
 The production Compose file consumes `ghcr.io/stef-k/wayfarer-db@${DB_DIGEST}` with
 no build context. A target host neither builds Wayfarer nor installs PGDG packages.
 `DB_DIGEST` must be the published, qualified **derived image manifest**, never the
-PostgreSQL base digest, a local image ID or a guessed reference. As with the pending
-first application publication, source/CI qualification alone is not proof of anonymous
+PostgreSQL base digest, a local image ID or a guessed reference. Source/CI
+qualification alone is not proof of anonymous
 registry availability. Stable assembly reads the reviewed publication evidence in
 `tools/release/database-release.json`, verifies its immutable index and both native
 manifest/config pairs from GHCR, and records only the selected native DB digest in
 `release.json`. The initial authority is the unchanged `db-index.json` from successful
 [run 36772792692](https://github.com/stef-k/Wayfarer/actions/runs/36772792692), covering
-PostgreSQL 18.6 + PostGIS 3.6.4 on AMD64/ARM64. Application publication and first public
-Compose stable acceptance remain separate gates.
+PostgreSQL 18.6 + PostGIS 3.6.4 on AMD64/ARM64. This is retained DB publication evidence;
+application/bundle publication and public installation acceptance belong to
+[application publication](27-Application-Image-Publication.md).
 
 Maintainer/CI assembly and disposable qualification use:
 
@@ -162,8 +164,9 @@ python3 tools/compose/qualify.py --image "$application_image_id" \
 Publication must preserve the qualified artifact, record source revision/package
 versions and registry manifest digest, then prove an anonymous pull and rerun the
 Compose gate against that exact pulled artifact before declaring release acceptance.
-Do not rebuild under an existing release identity. Final release tarball/metadata
-and general lifecycle publication orchestration remain later #603 work.
+Do not rebuild under an existing release identity. Follow
+[the DB publication procedure](#derived-db-publication-and-recovery) and
+[release orchestration](23-Versioning.md) for publication/promotion sequencing.
 
 Caddy is official `caddy:2-alpine`, executable **2.11.4** on Alpine3.23.6, pinned index
 `sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b`;
@@ -184,8 +187,8 @@ no shell expansion, quoted values or passwords. Set the public DNS hostname,
 application and derived DB `sha256:` digests from genuine release evidence, mode and secret paths.
 The application reference becomes `ghcr.io/stef-k/wayfarer@sha256:...`.
 The DB reference becomes `ghcr.io/stef-k/wayfarer-db@sha256:...`; Caddy is pinned directly in Compose.
-No released application digest is fabricated by this slice; first real publication
-acceptance under #642 remains required for ordinary anonymous deployment.
+Use validated release metadata for those identities. Ordinary guided setup generates
+these inputs through [the operator](29-Wayfarerctl.md#fresh-guided-setup).
 
 Choose an unused private `172.16-31.x.0/24` via `EDGE_PREFIX`; `.1` is its gateway,
 `.3` is Caddy. Do not overlap host/VPN routes or another Docker network. The default
@@ -314,22 +317,19 @@ consume its qualified **registry manifest digest** and retained evidence, never 
 mutable tag or local image ID. A refreshed recipe requires a new reviewed source and
 publication identity. Existing identities are never overwritten, including reruns.
 
-A DB refresh has two reviewed source transitions: recipe change/review, followed by
-DB-only publication and anonymous qualification; then a separate evidence-promotion
-PR replaces `tools/release/database-release.json` with the actual reviewed
-`db-index.json` artifact. Ordinary application releases consume that committed
-authority without editing DB metadata or source. The top-level `platform` is runner
-provenance; only `platforms[]` selects the two supported native manifests. The
-pre-publication application gate fails if evidence is invalid or unavailable.
-Candidates continue to require explicit locally built native `--db-digest` and
-validate against the current recipe; accepted stable evidence remains independent
-of recipe changes. No mutable tag or remote latest-DB discovery supplies authority.
+Stable application/bundle tooling consumes
+[`tools/release/database-release.json`](../tools/release/database-release.json).
+Publishing a DB image does not promote that accepted authority; use the separate
+[evidence-promotion PR](#accepted-db-evidence-promotion) below. Recipe changes and
+accepted registry evidence remain independent. Immutable validation, supported
+platform selection and candidate/stable bundle behavior are owned by
+[the release contract](25-Container-Release-Contract.md#local-release-authority-v1).
 
 The publisher builds the shared pinned recipe and verifies actual Debian package and
 PostgreSQL executable versions against OCI metadata. AMD64 runs the full disposable
 Compose gate (including executable PostGIS SQL, locale/citext and dump/restore); ARM64
 runs the bounded fresh-cluster and thumbnail/PDF rendering gate before push.
-Only its publishing job receives `packages: write`, using `GITHUB_TOKEN` over
+Native publication and index assembly receive `packages: write`, using `GITHUB_TOKEN` over
 stdin. No PAT is needed. Native AMD64 and ARM64 jobs each bind a tested manifest/config;
 the existing manual workflow joins them into one immutable DB index only after both
 anonymous qualification jobs pass. OCI and
@@ -345,49 +345,81 @@ uses an empty Docker client configuration to pull only the captured digest. It c
 platform, OCI/package/executable identity, then repeats its native Compose gate with
 that pulled DB reference and `pull_policy: never`. The DB is never rebuilt in this
 job. The application companion is built locally from the same source in each job.
-Only successful `db-evidence` records anonymous/full Compose acceptance. Preserve
-both artifacts beyond Actions retention with the later bundle's release evidence.
+Only successful `db-evidence-{amd64,arm64}` records native anonymous qualification.
+Preserve both publication and qualification artifacts with the index evidence below.
 
 ### Maintainer activation and exact-source dispatch
 
 [GitHub requires a manual workflow on the default branch before dispatch](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow).
-While #645 remains unmerged, publication is blocked until a separately reviewed and
-maintainer-accepted activation makes this workflow available on the default branch.
-Do not merge #645 or create a fake application release to bypass this gate. The
-implementation environment has no scoped package-write token; local/PR evidence
-therefore does not establish a public derived digest. Once activation is authorized,
-dispatch the reviewed PR branch/ref with its exact full head (verify it has not moved):
+The workflow is available there. After recipe review, merge and explicit maintainer
+publication authorization, dispatch a ref resolving to the exact accepted full source
+SHA. The workflow requires that SHA to equal its selected ref; verify it has not moved.
+Local/PR dry runs do not authorize or prove registry publication.
 
 ```sh
 gh workflow run database-image.yml --ref REVIEWED_REF \
   -f source=FULL_REVIEWED_SHA -f db_version=pg18.6-postgis3.6.4-bookworm
 gh run list --workflow database-image.yml
 gh run watch RUN_ID --exit-status
-gh run download RUN_ID -n db-publication -D /absolute/evidence/db-publication
+gh run download RUN_ID -n db-publication-amd64 -D /absolute/evidence/publication-amd64
+gh run download RUN_ID -n db-publication-arm64 -D /absolute/evidence/publication-arm64
+gh run download RUN_ID -n db-evidence-amd64 -D /absolute/evidence/qualified-amd64
+gh run download RUN_ID -n db-evidence-arm64 -D /absolute/evidence/qualified-arm64
+gh run download RUN_ID -n db-index -D /absolute/evidence/index
 ```
 
 If the new GHCR package is private, preserve `manifestDigest` from that artifact,
 then set the **wayfarer-db** package visibility to **public** in GitHub package
 settings. [Public GHCR packages support anonymous pulls](https://docs.github.com/en/packages/learn-github-packages/configuring-a-packages-access-control-and-visibility).
-Rerun only the failed anonymous job (`gh run rerun RUN_ID --failed` when it alone
-failed), or explicitly recover without any publication job:
+Rerun only failed anonymous jobs (`gh run rerun RUN_ID --failed` when only those
+jobs failed). If a recorded two-platform index already exists, a separate recovery
+dispatch can qualify its native selections without any publication job:
 
 ```sh
 gh workflow run database-image.yml --ref REVIEWED_REF \
   -f source=FULL_REVIEWED_SHA -f db_version=pg18.6-postgis3.6.4-bookworm \
-  -f digest=sha256:RECORDED_DERIVED_MANIFEST
-gh run download RECOVERY_RUN_ID -n db-evidence -D /absolute/evidence/db-qualified
+  -f digest=sha256:RECORDED_TWO_PLATFORM_INDEX
+gh run watch RECOVERY_RUN_ID --exit-status
+gh run download RECOVERY_RUN_ID -n db-evidence-amd64 -D /absolute/evidence/recovered-amd64
+gh run download RECOVERY_RUN_ID -n db-evidence-arm64 -D /absolute/evidence/recovered-arm64
 ```
 
+The recovery input must resolve both recorded native platforms; a lone native
+manifest cannot qualify both runners. Recovery dispatch skips index publication
+as well as native publication. If no index exists yet, recover the original run's
+anonymous jobs from their retained native artifacts, then complete its index job.
 Never rerun the publishing job after a push, including interrupted runs. If digest
 recording was interrupted, inspect registry/run evidence; do not rebuild or delete
 the existing tag. Authentication failure during the absence check also requires a
 maintainer access investigation, not relaxed absence checks. A successful public
-pull and full pulled-artifact qualification remain mandatory before #644 acceptance.
+pull and pulled-artifact native qualification remain mandatory before promotion.
 
 PR CI runs `tools/release/db_image.py dry-run` against a clean checkout with the same
 build/metadata/full Compose path, without login, package-write permission or push.
 Focused publication tests run with the existing `tools/release/tests` selection.
+
+### Accepted DB evidence promotion
+
+After successful native publication, anonymous qualification and index assembly,
+preserve all five artifacts above beyond Actions retention. Independently review
+`db-index.json` against the exact recipe source, package/base-image facts and native
+qualification evidence. Promotion is a separate reviewed source change:
+
+```sh
+gh run download RUN_ID -n db-index -D /absolute/new-evidence-directory
+cp /absolute/new-evidence-directory/db-index.json tools/release/database-release.json
+```
+
+Copy the actual artifact unchanged; do not reconstruct a subset or select by a mutable
+tag. Validate and independently review the promotion PR under repository rules before
+merge. The initial accepted artifact came from
+[run 36772792692](https://github.com/stef-k/Wayfarer/actions/runs/36772792692), promoted
+by [PR #722](https://github.com/stef-k/Wayfarer/pull/722).
+Ordinary application releases require no DB metadata/source change while this accepted
+baseline is unchanged. Application publication verifies it before pushing; canonical
+bundles retain their own exact native DB identity. Promotion does not update installations
+or authorize a DB-major/extension upgrade. Continue through
+[release orchestration](23-Versioning.md#choose-the-release-path).
 
 ## SSE proxy qualification (#657 / #690)
 
@@ -448,8 +480,5 @@ DB evidence and both native selections before building or pushing any applicatio
 manifest. See [derived DB publication and recovery](#derived-db-publication-and-recovery)
 for the separate reviewed evidence-promotion contract.
 
-#718 candidate qualification supplies the exact locally built native PG18 DB manifest
-to the canonical bundle assembler. Stable assembly instead consumes the reviewed
-PG18 publication artifact in `tools/release/database-release.json`. The historical
-C# serialization fallback remains outside stable DB authority. First public Compose
-stable acceptance remains pending; this evidence-promotion PR publishes no image.
+Candidate/stable DB selection and the historical serialization fallback are described
+in [the release contract](25-Container-Release-Contract.md#local-release-authority-v1).

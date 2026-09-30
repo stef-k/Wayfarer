@@ -2,9 +2,12 @@
 
 Normative design for [#638](https://github.com/stef-k/Wayfarer/issues/638), under
 [#603](https://github.com/stef-k/Wayfarer/issues/603). Investigated 2026-09-25 against
-main `d49deb52aa0ff29121ffaca807fc522ba8877d4c`. This records the architecture for
-later children; it does not announce an available Docker distribution. Independent
-exact-head review and maintainer acceptance remain required before merge.
+main `d49deb52aa0ff29121ffaca807fc522ba8877d4c`; subsequent accepted changes are
+incorporated below. This page owns identity, trust and compatibility semantics.
+Maintainer sequencing belongs to [Versioning and Release Operations](23-Versioning.md);
+publication procedures and evidence belong to
+[application publication](27-Application-Image-Publication.md) and
+[DB publication](28-Production-Compose.md#derived-db-publication-and-recovery).
 
 ## Support boundary
 
@@ -20,7 +23,7 @@ Native/manual deployment remains available through [Deployment](20-Deployment.md
 Raspberry Pi 5 with 64-bit Ubuntu Server is an example generic ARM64 host.
 The operator, host, local daemon and bundle must agree on platform; cross-architecture
 setup/update/restore fail closed. Native/systemd ARM browser qualification stays in #681.
-#715 uses native `ubuntu-24.04-arm` CI, with one canonical external-mode setup/doctor/stop
+Native ARM64 qualification uses `ubuntu-24.04-arm` CI, with one canonical external-mode setup/doctor/stop
 and recovery-helper journey; QEMU-only evidence cannot qualify this contract.
 
 ## Application image
@@ -162,20 +165,20 @@ matching image first; any subsequent upgrade is a separate managed operation.
 A digest proves identity, not publisher trust: obtain metadata from the project's
 release channel and verify checksums against that trusted release metadata.
 
-Publish the primary `wayfarerctl-linux-amd64.tar.gz` bootstrap and its
-`wayfarerctl-linux-amd64.tar.gz.sha256` sidecar together with the secondary
-`wayfarer-vX.Y.Z-linux-amd64.tar.gz` deployment archive and
-`wayfarer-vX.Y.Z-linux-amd64.tar.gz.sha256` on the exact stable GitHub Release.
+For each supported architecture, publish the primary `wayfarerctl-linux-<arch>.tar.gz`
+bootstrap and its `.tar.gz.sha256` sidecar together with the secondary
+`wayfarer-vX.Y.Z-linux-<arch>.tar.gz` deployment archive and its `.tar.gz.sha256`
+sidecar on the exact stable GitHub Release (`<arch>` is `amd64` or `arm64`).
 The bootstrap contains exactly `wayfarerctl`, copied from the canonical bundle's
 operator bytes with identical SHA-256, never a second build or implementation.
 The checksum sidecar provides human/offline integrity evidence, not publisher
 authentication. Automatic acquisition uses the GitHub Release Asset REST `digest`
 field as transport-integrity authority. The inspectable bundle contains `compose.yaml`,
 non-secret configuration template/schema, Caddy template, `release.json`, operator docs, the
-self-contained `wayfarerctl` Linux x64 executable and minimal install/bootstrap glue.
+self-contained native `wayfarerctl` executable and minimal install/bootstrap glue.
 Start `bundleContractVersion` and `configurationSchemaVersion` at 1. `release.json`
 owns the fields above and the CLI compatibility requirement. Exact JSON serialization
-is owned by the release/bundle child; consumers must reject unsupported contract
+is owned by the release tooling; consumers must reject unsupported contract
 versions, not silently improvise. No source clone or host .NET/Python is needed.
 
 The ordinary installation is verified bootstrap extraction followed by
@@ -190,18 +193,13 @@ bytes never self-update; retained-release dispatch owns subsequent lifecycle wor
 See [Install & Self-Hosting](02-Install-and-Dependencies.md) and
 [operator guidance](29-Wayfarerctl.md).
 
-Public Compose assets are not claimed shipped by this implementation. #713's first
-genuine-stable acceptance requires #715's AMD64/ARM64 publication and fresh anonymous
-bootstrap/setup qualification on both platforms before issue closure. Do not publish
-the first Compose stable before that platform expansion is accepted.
-
 GHCR packages must be explicitly public and verified by anonymous digest pull from
 a clean client. A public repository alone is insufficient. Publishing uses scoped
 Actions `GITHUB_TOKEN` with `packages: write`, linked to the source repository;
 ordinary operators need no registry credential. Private testing may use appropriate
-read access, but cannot qualify public installation. The application-only publication
-pipeline is documented in [image publication](27-Application-Image-Publication.md);
-its first real stable release remains the public-distribution acceptance gate.
+read access, but cannot qualify public installation. The application/bundle publication
+pipeline and real public-installation gate are documented in
+[image publication](27-Application-Image-Publication.md).
 
 ## Configuration, secrets and project identity
 
@@ -231,8 +229,8 @@ forwarded-header/security implementation belongs to the readiness/proxy children
 
 Secrets are protected generated files, directory 0700 and files 0600, mounted
 read-only only into consumers under `/run/secrets`. DB uses `POSTGRES_PASSWORD_FILE`;
-Wayfarer needs an explicit file-based connection-secret reader in the readiness
-child (ASP.NET configuration does **not** automatically support arbitrary `_FILE`
+Wayfarer uses its [explicit file-based connection-secret reader](26-Application-Container.md#configuration-and-health)
+(ASP.NET configuration does **not** automatically support arbitrary `_FILE`
 variables). Local Compose file secrets are bind mounts, not an encrypted secret
 store: provision host ownership/readability for the actual container UID, and do not
 assume Compose `uid`/`gid` remaps file ownership. Never put secrets in argv, image
@@ -241,11 +239,12 @@ Administrator password bootstrap/reset uses protected input/stdin, never the exi
 password-argv CLI. Generated metadata records digests/config versions/project state,
 contains no secrets and is reconstructable from verified bundle/runtime evidence.
 
-## Lifecycle ownership to implement
+## Lifecycle ownership
 
-These are required future behavior, **not commands/endpoints available on main**.
-Keep maintenance in the application executable using existing EF/seeding authorities;
+Maintenance stays in the application executable using existing EF/seeding authorities;
 no SDK/EF tool installation, shell SQL migration engine or parallel domain logic.
+[Application maintenance](26-Application-Container.md#explicit-maintenance) and
+[operator procedures](29-Wayfarerctl.md) describe the implemented commands.
 
 | Operation | Required owner and failure boundary |
 | --- | --- |
@@ -264,7 +263,7 @@ readiness → enable public ingress. Seed must not leave the known native defaul
 password as an accepted ready state. Update/restore must quiesce app and Quartz
 writers, verify the recovery boundary before mutation, run target-image maintenance,
 and activate only after success. Maintenance never starts web/jobs. Serialize these
-operations under the later lifecycle owner's installation lock; do not race two
+operations under the operator's installation lock; do not race two
 maintenance containers. Failed migration/seed/bootstrap leaves ingress closed and
 app stopped/not ready. No automatic downgrade after a partially applied migration.
 A restart cannot masquerade as an authorized update or restore.
@@ -278,24 +277,28 @@ private shared-memory sizing require final browser-image qualification. Do not c
 Playwright testing recommendations such as host IPC or SYS_ADMIN into production
 without evidence. Preserve the existing browser behavior in this contract slice.
 
-## Evidence and implementation gaps
+## Historical architecture evidence and implementation gaps
+
+The observations in this section describe the original 2026-09-25 investigation,
+before the application image and operator children. They are provenance, not current
+startup/publication instructions; use the specialized owners linked above.
 
 Original #638 inspection (2026-09-25): `Wayfarer.csproj` targets net10.0 with Playwright 1.62.0;
-`Version.props` and latest GitHub Release are 1.9.19/v1.9.19. Publishing is currently
-framework-dependent by default; frontend builds are explicit in `deployment/deploy.sh`.
-`Program.cs` validates DP, installs Quartz tables, seeds DB and starts hosted jobs;
-`ApplicationDbContextSeed` calls `MigrateAsync` and creates the default admin.
-There is no dedicated health endpoint/healthcheck command. `/api/version`, version
-CLI and response header expose compiled version, not readiness or image identity.
-Current password reset accepts argv. These are readiness-child changes, not claims
-that wrapping today's binary in Compose is safe.
+`Version.props` and latest GitHub Release were 1.9.19/v1.9.19. Publishing was
+framework-dependent by default; frontend builds were explicit in `deployment/deploy.sh`.
+`Program.cs` validated DP, installed Quartz tables, seeded DB and started hosted jobs;
+`ApplicationDbContextSeed` called `MigrateAsync` and created the default admin.
+There was no dedicated health endpoint/healthcheck command. `/api/version`, version
+CLI and response header exposed compiled version, not readiness or image identity.
+Password reset accepted argv. Those gaps required the later readiness child before
+container startup could be qualified.
 
 `StoragePaths` uses platform user/XDG defaults outside Production; Production supplies
 the four roots above. F2 globally selects `Wayfarer` and stable ciphertext; explicit
 native ring overrides and bounded previous-default handling remain authoritative.
-The only current Actions workflow is PR `tests.yml`, with a documentation-only fast
-path; there is no release/image publishing pipeline. `tools/release/version.py`
-checks metadata/tags/releases but does not publish them.
+At that inspection, the only Actions workflow was PR `tests.yml`, with a documentation-only
+fast path; there was no release/image publishing pipeline. `tools/release/version.py`
+checked metadata/tags/releases without publishing them.
 
 Reuse [#631 / PR #632 evidence](https://github.com/stef-k/Wayfarer/pull/632): published
 read-only application startup/static serving and real thumbnail production succeeded
@@ -342,9 +345,10 @@ non-root/write-boundary, health and browser evidence before release support is c
   [Compose secrets](https://docs.docker.com/compose/how-tos/use-secrets/) describes
   per-service read-only file delivery. These capabilities do not implement the bundle.
 
-#533 redesign, production Docker/Compose/CLI, image publication, external proxy
-qualification, backup/restore/update and #604 M6 migration remain with later children.
-No runtime/configuration/database changes are introduced by this document.
+At the original investigation, #533 redesign, production Docker/Compose/CLI,
+image publication, external proxy qualification, backup/restore/update and #604 M6
+migration were assigned to later children. The investigation itself changed no
+runtime/configuration/database behavior.
 
 ## Local release authority v1
 
@@ -368,6 +372,18 @@ native manifest, never the index. Stable mode rejects `--db-digest`; candidate m
 requires an explicit locally built native digest and qualifies the current recipe.
 Accepted evidence does not depend on the current candidate recipe's versions or
 Dockerfile. The existing release/runtime compatibility checks still apply.
+The historical `ReleaseContract.DatabaseDigest` raw-serialization fallback is not
+accepted stable publication authority.
+
+Historical capture assembly accepts `--capture-directory /trusted/pair` with
+`--capture-evidence /trusted/source.json`: independently retained installation
+`SourceIdentity`, never an archive-selected manifest. Only worker version/release
+status enter `LegacyCapture`; historical files are hashed under the fixed `capture/`
+inventory. Application digest/revision/version and migration/resource facts remain
+verified against local image bytes. No installation identifier or Quartz snapshot
+enters release metadata. A legacy image without release-contract inspection is
+supported only through the explicitly pinned accepted Quartz SQL resource; unknown
+resources fail closed. See [operator target export](29-Wayfarerctl.md#immutable-local-release-bundles).
 
 The exact inventory is `compose.yaml`, `external.yaml`, `caddy/Caddyfile`,
 `db/20-wayfarer.sh`, `config/deployment.env.example`, `compose.sh`, `INSTALL.md`,
@@ -399,6 +415,6 @@ operator, image and recovery evidence remain retained. Failed-update recovery us
 a durable ownership join to #695 restore, never old-image rollback or receipt deletion.
 See [update phases and commands](29-Wayfarerctl.md#trusted-local-managed-forward-update).
 Public acquisition prepares retained validated bytes and exact images before this same
-local lifecycle. It grants no migration or activation authorization. The first genuine
-public stable Compose acceptance and later stable-to-stable proof remain release gates;
-disposable candidates must be labelled truthfully.
+local lifecycle. It grants no migration or activation authorization. See
+[public acceptance](23-Versioning.md#public-acceptance-and-availability) for release
+evidence requirements; disposable candidates must be labelled truthfully.

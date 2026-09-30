@@ -3,9 +3,12 @@
 This directory is a candidate qualification artifact unless `release.json` explicitly
 records stable status. Checksums prove integrity, not publisher authenticity. Obtain
 these bytes from a trusted administrator/maintainer or the exact public stable Release.
-This implementation does not claim a public Compose stable has shipped; real release
-acceptance remains required. The target host needs native Linux AMD64 or ARM64, Docker/Compose and
-root, not an SDK.
+The target host needs native Linux AMD64 or ARM64, Docker/Compose and root, not an SDK.
+
+When consulting repository documentation on GitHub, select the exact `SourceRevision`
+recorded in this bundle's `release.json`, or its matching stable `Tag`. Repository
+file references below refer to that source revision, keeping the guidance aligned
+with the bundled operator.
 
 Use a previously trusted operator to run `release inspect /absolute/bundle` and
 `release verify-images /absolute/bundle`. Missing local images mean the bundle is not
@@ -52,19 +55,15 @@ recovery set. Migration is forward-only in the current generation. After migrati
 may have started, `update --restore UUID` transfers ownership to managed restore of
 the held old-release archive into a fresh generation; an old image is not rollback.
 Retain current/previous bundles, operators, images, receipts and recovery holds.
-Public acquisition can prepare these same inputs; real stable release-to-release
-qualification remains a separate operational gate. See the repository operator
-documentation for phase and recovery details.
+Public acquisition can prepare these same inputs. See `docs/29-Wayfarerctl.md`
+for phase and recovery details.
 
-For a pre-existing capture pair, the maintainer assembler accepts both
-`--capture-directory /trusted/pair` and `--capture-evidence /trusted/source.json`.
-The evidence must be independently retained installation SourceIdentity, never an
-archive-selected manifest. Only worker version/release status enter `LegacyCapture`;
-actual historical files are hashed under the fixed optional `capture/` inventory.
-The application digest/revision/version and exact migration/resource facts are still
-verified against local image bytes. No installation identifier or Quartz snapshot is
-copied into release metadata. A legacy image lacking the #701 property is supported
-only through the explicitly pinned accepted Quartz SQL resource; unknown resources fail.
+Some bundles retain an independently trusted historical recovery capture pair under
+`capture/`, described by `LegacyCapture` in `release.json`. Its exact files are part
+of the immutable hashed inventory; do not select capture authority from an archive
+manifest. Maintainer assembly requirements belong to the
+local release contract in `docs/25-Container-Release-Contract.md`
+(`Local release authority v1`).
 
 Target export selects the historical pair when present; append `current` to select
 the newly bundled pair explicitly. An adopted installation selects the profile that
@@ -86,8 +85,8 @@ The examples below show AMD64; substitute the ARM64 archive on ARM64. Raspberry 
 with 64-bit Ubuntu Server follows this same generic ARM64 path. The host needs no clone, SDK/runtime, Node/npm, Python or `unzip`.
 No host package or Docker daemon configuration is installed.
 
-For the next genuine stable containing this capability, obtain the bootstrap from
-its official GitHub Release. Before extraction or execution, compare its SHA-256
+For a stable release, obtain its bootstrap from the official GitHub Release.
+Before extraction or execution, compare its SHA-256
 with the exact Release asset's REST `digest` (`sha256:<64 lowercase hex>`) at
 `https://api.github.com/repos/stef-k/Wayfarer/releases/tags/vX.Y.Z`. The sidecar is
 human/offline integrity evidence, not publisher authentication. Use a fresh trusted
@@ -131,22 +130,21 @@ not replace itself. Retain previous bundles/operators/images/receipts/recovery h
 reports path/fingerprint/version. Anonymous GitHub/GHCR acquisition requires no
 credentials and pulls only validated immutable image references, never mutable
 latest tags. `update --plan` uses latest stable; `update X.Y.Z --plan` uses the exact
-release. Both feed the unchanged #704 plan/receipt lifecycle; `update --accept-plan
+release. Both feed the managed plan/receipt lifecycle; `update --accept-plan
 HASH` remains destructive authorization. Current/older targets, missing assets or
 missing exact source compatibility fail without fallback search. Offline `release
 import PATH` and `update --bundle PATH --plan` remain available during network failure.
 
-The first public Compose stable may have `Sources=[]`: fresh setup/restore only,
-with no invented update from source-only v1.9.19 or older. Subsequent publication binds
-one exact compatible prior public Compose bundle or fails. No stable assets are
-claimed shipped here. #713/#603 remain open until the next genuine stable passes
-publication, public bootstrap byte equality and fresh anonymous native setup/doctor
-on both AMD64 and ARM64. Do not publish that first Compose stable before #715
-is accepted. PR candidate migration proof does not claim stable-to-stable migration.
+A bundle with `Sources=[]` permits fresh setup/restore but supplies no forward-update
+source. An update target must explicitly support your installed release fingerprint;
+source-only releases are not implicit update sources. Inspect the bundle's actual
+compatibility metadata before planning an update.
 
 The Compose database baseline is PostgreSQL 18.6 (`18.6-1.pgdg12+2`) plus PGDG
 PostGIS 3.6.4 (`3.6.4+dfsg-2.pgdg12+1`) on Bookworm. The durable DB volume mounts
 `/var/lib/postgresql`; the official image owns `PGDATA=/var/lib/postgresql/18/docker`.
-The first public Compose stable remains gated on genuine two-platform DB publication
-and a separately reviewed index pin. This is a fresh-install baseline correction,
-with no released PG17 Compose installation or major-upgrade path.
+Use the bundle's exact native DB manifest; do not substitute an index, mutable tag,
+different major or an existing PG17 physical cluster. DB-major migration is outside
+ordinary setup/update. See the
+operator guide in `docs/29-Wayfarerctl.md`
+for ongoing operation and recovery.

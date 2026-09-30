@@ -28,19 +28,15 @@ See [Install & Self-Hosting](docs/02-Install-and-Dependencies.md) and the
 [operator guide](docs/29-Wayfarerctl.md) for prerequisites, exact-version/offline setup,
 retained release dispatch, recovery and update planning.
 
-**Release availability:** the lean install implementation is awaiting its first genuine
-Compose stable release. v1.9.19 and earlier are source-only. Public installation
-acceptance remains open under #713 and requires #715's ARM64 expansion before the
-first Compose stable is published. The commands above apply to that future release;
-they do not claim these public assets already exist.
+Check [release availability](docs/02-Install-and-Dependencies.md#availability) before
+using this public installation path. Maintainers use
+[Versioning and Release Operations](docs/23-Versioning.md) for release preparation.
 
 ## Screenshots
 
 [![Public timeline](docs/images/public-timeline.JPG)](docs/images/public-timeline.JPG)
 
 [![Segment editing](docs/images/segment-edit-2.JPG)](docs/images/segment-edit-2.JPG)
-
-The initial Compose database baseline is PostgreSQL 18.6 + PostGIS 3.6.4 on Debian Bookworm. The first public Compose stable still awaits the reviewed AMD64/ARM64 DB index pin (#718).
 
 ## Security Model & Intended Use
 

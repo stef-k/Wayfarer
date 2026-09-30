@@ -6,9 +6,10 @@ and existing application maintenance commands. This foundation includes fresh se
 lifecycle, diagnosis, logs, user recovery, opt-in Compose recovery sets and managed
 restore to an independently trusted exact local target, and managed forward update.
 Public stable acquisition and guided setup share the retained `release.json` authority.
-**Uninstall and native migration are not implemented.** #603 is not complete.
-The first genuine public Compose stable has not shipped: #713 remains open for real
-acceptance, including #715's ARM64 expansion before first stable publication.
+**Uninstall and native migration are not implemented.** Check
+[release availability](02-Install-and-Dependencies.md#availability) before public
+acquisition. Maintainer release work starts at
+[Versioning and Release Operations](23-Versioning.md).
 
 ## Placement and prerequisites
 
@@ -306,8 +307,9 @@ performs a disposable real external setup, generated secret ownership, migrated/
 DB and protected admin, status/doctor, validated local TLS via a separate test Caddy,
 restart with authentication/key/upload persistence and user password recovery.
 CI uses the actual local image-store digest from the existing application-image dry run;
-this is local candidate evidence, not a published registry/release manifest. The first
-genuine application publication remains the #642 release acceptance gate.
+this is local candidate evidence, not a published registry/release manifest. Public
+distribution requires the separate
+[release acceptance gate](27-Application-Image-Publication.md#stable-compose-distribution).
 It removes only its random labelled resources. Test-only TLS never changes production
 Caddy automatic HTTPS. This is not public-CA issuance, production/native qualification,
 backup/restore/update acceptance or completion of #603.
@@ -849,10 +851,10 @@ source-only, or lacking the exact current fingerprint fails without fallback tar
 search. Destructive execution still requires the printed plan hash. Offline import/
 planning remain available when public acquisition is unavailable.
 
-The first future public Compose stable may be a fresh-install/restore baseline with
-no sources. Later stable publication binds one compatible immediate prior deployable
-public bundle; incompatible or invalid prior authority blocks publication. Never
-retrofit v1.9.19/source-only history. See [publication and real acceptance](27-Application-Image-Publication.md#stable-compose-distribution).
+A baseline bundle with no supported source fingerprints permits fresh setup/restore,
+not an update from source-only history. Update planning requires the exact installed
+fingerprint in the target's supported sources. Maintainer source-boundary selection
+belongs to [stable publication](27-Application-Image-Publication.md#stable-compose-distribution).
 
 Compose fresh setup and restore use PostgreSQL 18.6 with one durable DB volume at
 `/var/lib/postgresql`; the official image owns its nested `18/docker` PGDATA.
@@ -860,6 +862,4 @@ Fresh setup requires canonical `release.json` so its exact native DB manifest co
 from reviewed release metadata. Raw-template fresh setup cannot fall back to the
 historical PG17 digest. Explicit raw clean-root recovery retains its existing
 trusted target-evidence and exact DB-digest requirements; it does not upgrade majors.
-The first public Compose stable still awaits DB-only native publication and a
-separate reviewed PG18 index pin (#718). Native/development PostgreSQL requirements
-are unchanged.
+Native/development PostgreSQL requirements are unchanged.
