@@ -314,3 +314,76 @@ jobs:
           name: update-qualification-provenance
           path: ${{ runner.temp }}/update/evidence.json
           if-no-files-found: warn
+
+  # Native execution owns ARM64-specific facts; architecture-neutral matrices remain in the AMD64 lane.
+  application-image-arm64:
+    permissions:
+      contents: read
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Classify application-image scope
+        id: image-scope
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: python3 tools/ci/application_image_scope.py --base "$BASE_SHA" --head "$HEAD_SHA"
+      - name: Use a disposable native Docker daemon with the containerd image store
+        if: steps.image-scope.outputs.run_application_image == 'true'
+        uses: docker/setup-docker-action@e43656e248c0bd0647d3f5c195d116aacf6fcaf4 # v4
+        with:
+          version: v29.1.3
+          daemon-config: '{"features":{"containerd-snapshotter":true}}'
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        if: steps.image-scope.outputs.run_application_image == 'true'
+        with:
+          dotnet-version: '10.0.x'
+      - name: Build and qualify native application/browser payload
+        if: steps.image-scope.outputs.run_application_image == 'true'
+        run: python3 tools/release/image.py dry-run --output "$RUNNER_TEMP/image-evidence.json"
+      - name: Build the exact native PostgreSQL/PostGIS recipe and prove its fresh cluster boundary
+        if: steps.image-scope.outputs.run_application_image == 'true'
+        run: |
+          app_ref="$(python3 -c 'import json,os; e=json.load(open(os.environ["RUNNER_TEMP"]+"/image-evidence.json")); print(e["image"]+":"+e["tag"])')"
+          python3 tools/release/db_image.py dry-run --source "$(git rev-parse HEAD)" \
+            --db-version pg17.11-postgis3.6.4-bookworm --app-image "$app_ref" --output "$RUNNER_TEMP/db-evidence.json"
+      - name: Publish native recovery payload and existing probes
+        if: steps.image-scope.outputs.run_application_image == 'true'
+        run: |
+          dotnet publish tools/WayfarerCtl -c Release -r linux-arm64 --self-contained true -o "$RUNNER_TEMP/wayfarerctl"
+          dotnet publish tools/WayfarerRecovery -c Release -r linux-arm64 --self-contained true -o "$RUNNER_TEMP/recovery"
+          dotnet build tools/WayfarerRecoverySource -c Release
+          dotnet build tools/compose/recovery-probe -c Release
+          dotnet publish tools/compose/lock-probe -c Release -r linux-arm64 --self-contained true -o "$RUNNER_TEMP/lock-probe"
+          cp "$RUNNER_TEMP/lock-probe/LockProbe" "$RUNNER_TEMP/recovery/lock-probe"
+      - name: Assemble and validate the native canonical bundle
+        if: steps.image-scope.outputs.run_application_image == 'true'
+        run: |
+          app_ref="$(python3 -c 'import json,os; e=json.load(open(os.environ["RUNNER_TEMP"]+"/image-evidence.json")); print(e["image"]+":"+e["tag"])')"
+          db_ref="$(python3 -c 'import json,os; e=json.load(open(os.environ["RUNNER_TEMP"]+"/db-evidence.json")); print(e["image"]+":"+e["tag"])')"
+          app_digest="$(docker image inspect "$app_ref" --format '{{index .RepoDigests 0}}')"
+          db_digest="$(docker image inspect "$db_ref" --format '{{index .RepoDigests 0}}')"
+          python3 tools/release/bundle.py --app-digest "${app_digest#*@}" --db-digest "${db_digest#*@}" --output "$RUNNER_TEMP/release"
+      - name: Exercise native canonical setup, doctor, stop and the DB-image recovery worker
+        if: steps.image-scope.outputs.run_application_image == 'true'
+        run: |
+          bundle="$(python3 -c 'import os,pathlib; print(next(pathlib.Path(os.environ["RUNNER_TEMP"],"release").glob("candidate-*")))')"
+          app_digest="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]+"/release.json"))["Images"]["PlatformDigest"])' "$bundle")"
+          python3 -B tools/compose/qualify_recovery.py --native-only --release-bundle "$bundle" \
+            --executable "$RUNNER_TEMP/wayfarerctl/wayfarerctl" --worker "$RUNNER_TEMP/recovery/wayfarer-recovery" \
+            --inspector tools/WayfarerRecoverySource/bin/Release/net10.0/WayfarerRecoverySource.dll \
+            --probe tools/compose/recovery-probe/bin/Release/net10.0/RecoveryProbe.dll --app-digest "$app_digest"
+      - name: Retain exact native image and bundle evidence
+        if: always() && steps.image-scope.outputs.run_application_image == 'true'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: arm64-compose-qualification
+          path: |
+            ${{ runner.temp }}/image-evidence.json
+            ${{ runner.temp }}/db-evidence.json
+            ${{ runner.temp }}/release/candidate-*/release.json
+          if-no-files-found: warn

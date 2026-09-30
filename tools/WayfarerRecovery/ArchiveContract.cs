@@ -73,7 +73,7 @@ public static class ArchiveContract
     /// <summary>All externally supplied identity strings have bounded syntax before listing or compatibility use.</summary>
     public static void ValidateSource(SourceIdentity source)
     {
-        if (source.ApplicationName != "Wayfarer" || source.Platform != "linux/amd64" || source.ConfigurationSchema is not (2 or 3) ||
+        if (source.ApplicationName != "Wayfarer" || !NativePlatform.Supported(source.Platform) || source.ConfigurationSchema is not (2 or 3) ||
             source.StableIdentity != "ready" || source.ReleaseStatus is not ("candidate" or "released") ||
             !Regex.IsMatch(source.SourceRevision, "^[a-f0-9]{40}$") ||
             !Regex.IsMatch(source.PayloadFingerprint, "^[a-f0-9]{64}$") ||

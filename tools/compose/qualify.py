@@ -1,6 +1,7 @@
 """Disposable integration of the real Compose substrate; requires Docker, Python3 and curl."""
 import argparse
 import json
+import platform
 from pathlib import Path
 import re
 import secrets
@@ -76,7 +77,8 @@ class Stack:
 
     def write_env(self):
         """Keep secrets outside interpolation and select a bounded host loopback endpoint."""
-        self.env.write_text(f'PUBLIC_HOST=wayfarer.example.org\nWAYFARER_DIGEST=sha256:{"0" * 64}\n'
+        native = {'x86_64': 'linux/amd64', 'aarch64': 'linux/arm64'}[platform.machine()]
+        self.env.write_text(f'WAYFARER_PLATFORM={native}\nPUBLIC_HOST=wayfarer.example.org\nWAYFARER_DIGEST=sha256:{"0" * 64}\n'
             f'DB_DIGEST=sha256:{"0" * 64}\nPROXY_MODE={self.mode}\nEDGE_PREFIX=172.30.65\n'
             f'DB_PASSWORD_FILE={self.directory}/db-password\n'
             f'APP_PASSWORD_FILE={self.directory}/app-password\n'
@@ -138,7 +140,7 @@ class Stack:
         for service in ['db', 'caddy']:
             info = json.loads(run('docker', 'inspect', self.container(service)).stdout)[0]
             image_info = json.loads(run('docker', 'image', 'inspect', info['Image']).stdout)[0]
-            assert image_info['Os'] == 'linux' and image_info['Architecture'] == 'amd64'
+            assert image_info['Os'] == 'linux' and image_info['Architecture'] == {'x86_64': 'amd64', 'aarch64': 'arm64'}[platform.machine()]
             print(service + ': ' + info['Config']['Image'], flush=True)
 
     def database_semantics(self, database='wayfarer'):
@@ -192,6 +194,13 @@ class Stack:
             assert headers.get('referrer-policy') == ['strict-origin-when-cross-origin']
         print(f'{self.mode}: exact ordinary/embed browser headers passed', flush=True)
 
+    def rendering(self):
+        """Exercise the same real application map-thumbnail and PDF routes on each native image."""
+        self.curl(f'/Public/Trips/{TRIP}/MapSnapshot', '-o', str(self.directory / 'map.jpg'))
+        assert (self.directory / 'map.jpg').read_bytes().startswith(b'\xff\xd8')
+        self.curl(f'/Trip/ExportPdf/{TRIP}', '-o', str(self.directory / 'trip.pdf'))
+        assert (self.directory / 'trip.pdf').read_bytes().startswith(b'%PDF')
+
     def functional(self):
         """Prove real public/static/export/SSE/browser routes through the managed proxy."""
         self.browser_headers()
@@ -203,10 +212,7 @@ class Stack:
         assert '<kml' in self.curl(f'/Trip/ExportWayfarerKml/{TRIP}').stdout
         stream = self.curl(f'/Trip/ExportProgress/{TRIP}?sessionId=compose', timeout=23, check=False)
         assert stream.returncode == 28 and ':\n\n' in stream.stdout, stream.stdout
-        self.curl(f'/Public/Trips/{TRIP}/MapSnapshot', '-o', str(self.directory / 'map.jpg'))
-        assert (self.directory / 'map.jpg').read_bytes().startswith(b'\xff\xd8')
-        self.curl(f'/Trip/ExportPdf/{TRIP}', '-o', str(self.directory / 'trip.pdf'))
-        assert (self.directory / 'trip.pdf').read_bytes().startswith(b'%PDF')
+        self.rendering()
         # Different forged client IPs must not escape the same real-client bucket.
         for spoof in ['203.0.113.98', '203.0.113.99']:
             response = self.curl(f'/Public/Trips/{TRIP}/MapSnapshot', '-H', f'X-Forwarded-For: {spoof}',
@@ -398,6 +404,7 @@ class Stack:
 def main():
     """Run the bounded integration; retain failure logs without printing secret values."""
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--native-only', action='store_true', help='Qualify the native DB/image boundary without the architecture-neutral lifecycle matrix.')
     parser.add_argument('--image', required=True, help='locally built image ID from image dry-run')
     parser.add_argument('--db-image', required=True, help='locally built DB image ID from deploy/compose/db')
     args = parser.parse_args()
@@ -407,6 +414,9 @@ def main():
             stack.prepare()
             stack.config_checks()
             stack.initialize()
+            if args.native_only:
+                stack.rendering()
+                return
             stack.functional()
             stack.exposure()
             stack.persistence()

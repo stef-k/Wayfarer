@@ -15,11 +15,11 @@ METADATA_LIMIT = 1024 * 1024
 
 
 def asset_name(tag: str) -> str:
-    """One versioned AMD64 identity, with no mutable aliases."""
+    """One versioned native platform identity, with no mutable aliases."""
     version.parse_semver(tag.removeprefix('v'))
     if not tag.startswith('v'):
         raise version.ValidationError('stable tag required')
-    return f'wayfarer-{tag}-linux-amd64.tar.gz'
+    return f'wayfarer-{tag}-{image.PLATFORM.replace("/", "-")}.tar.gz'
 
 
 def metadata(tag: str) -> dict:
@@ -33,7 +33,7 @@ def metadata(tag: str) -> dict:
 def asset_names(tag: str) -> tuple[str, ...]:
     """The entire platform's create-only publication identity includes both archives and sidecars."""
     deployment = asset_name(tag)
-    bootstrap = 'wayfarerctl-linux-amd64.tar.gz'
+    bootstrap = 'wayfarerctl-' + image.PLATFORM.replace('/', '-') + '.tar.gz'
     return deployment, deployment + '.sha256', bootstrap, bootstrap + '.sha256'
 
 

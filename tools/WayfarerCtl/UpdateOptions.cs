@@ -46,8 +46,8 @@ public sealed record UpdateOptions(string? Bundle = null, bool Plan = false, str
         var source = current.Manifest;
         var next = target.Manifest;
         if ((!candidates && (source.Status != "stable" || next.Status != "stable")) ||
-            Version.Parse(next.Version) <= Version.Parse(source.Version) ||
-            source.Images.ApplicationDigest == next.Images.ApplicationDigest ||
+            source.Platform != next.Platform || Version.Parse(next.Version) <= Version.Parse(source.Version) ||
+            source.Images.PlatformDigest == next.Images.PlatformDigest ||
             source.Images.DatabaseDigest != next.Images.DatabaseDigest || source.Images.CaddyDigest != next.Images.CaddyDigest)
             throw new UsageException("Update requires a later supported release and unchanged DB/proxy authority.");
         var boundary = next.Sources.SingleOrDefault(value => value.Fingerprint == current.Fingerprint && value.Version == source.Version)

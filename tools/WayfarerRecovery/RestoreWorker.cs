@@ -28,6 +28,7 @@ public static class RestoreWorker
             var expected = await JsonSerializer.DeserializeAsync<SourceIdentity>(evidence, ArchiveContract.Json, token)
                 ?? throw new IOException("Target evidence missing.");
             ArchiveContract.ValidateSource(expected);
+            if (expected.Platform != NativePlatform.Current) throw new IOException("Restore target platform differs from native worker.");
             using var frozen = new SafeDirectory("/frozen");
             var result = await ArchiveVerifier.VerifyAsync(frozen, name, "/staging", expected, installation, token);
             if (!result.CompatibilitySupported) throw new IOException("Incompatible archive.");

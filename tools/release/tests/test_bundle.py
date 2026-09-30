@@ -6,8 +6,27 @@ from pathlib import Path
 import sys
 import tarfile
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import bundle
+
+
+@pytest.mark.parametrize("platform", bundle.image.PLATFORMS)
+def test_stable_database_pin_requires_both_native_platforms(monkeypatch, platform):
+    """Stable publication cannot start from the historical single-platform DB identity."""
+    import version
+    monkeypatch.setattr(bundle.image, 'PLATFORM', platform)
+    entries = [{'digest': 'sha256:' + char * 64, 'platform': {'os': 'linux', 'architecture': arch}}
+               for char, arch in (('b', 'amd64'), ('c', 'arm64'))]
+    monkeypatch.setattr(bundle.image, 'run', lambda *args: json.dumps({'manifests': entries}))
+    assert bundle.stable_database_digest('sha256:' + 'a' * 64) == entries[0 if platform == 'linux/amd64' else 1]['digest']
+    entries.pop()
+    with pytest.raises(version.ValidationError, match='exactly one'):
+        bundle.stable_database_digest('sha256:' + 'a' * 64)
+    monkeypatch.setattr(bundle.image, 'run', lambda *args: json.dumps({'config': {'digest': 'sha256:' + 'd' * 64}}))
+    with pytest.raises(version.ValidationError, match='two-platform DB index pin'):
+        bundle.stable_database_digest('sha256:' + 'a' * 64)
 
 
 def test_archive_is_reproducible_and_checksum_external(tmp_path):
@@ -18,7 +37,7 @@ def test_archive_is_reproducible_and_checksum_external(tmp_path):
         path = source / name
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(name)
-    (source / 'release.json').write_text(json.dumps({'Version': '1.9.19', 'SourceRevision': 'a' * 40, 'Files': [{'Path': name} for name in bundle.PAYLOADS]}))
+    (source / 'release.json').write_text(json.dumps({'Version': '1.9.19', 'Platform': bundle.image.PLATFORM, 'SourceRevision': 'a' * 40, 'Files': [{'Path': name} for name in bundle.PAYLOADS]}))
     first, second = tmp_path / 'first', tmp_path / 'second'
     first.mkdir()
     second.mkdir()
@@ -33,7 +52,8 @@ def test_archive_is_reproducible_and_checksum_external(tmp_path):
     assert not (first / 'wayfarerctl-linux-amd64.tar.gz').exists()
 
 
-def test_stable_manifest_and_archive_use_exact_public_identity(tmp_path):
+@pytest.mark.parametrize("platform", bundle.image.PLATFORMS)
+def test_stable_manifest_and_archive_use_exact_public_identity(tmp_path, monkeypatch, platform):
     """Controlled release facts construct v1 stable baseline bytes without creating a GitHub release."""
     source = tmp_path / 'source'
     source.mkdir()
@@ -41,6 +61,8 @@ def test_stable_manifest_and_archive_use_exact_public_identity(tmp_path):
         path = source / name
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(name)
+    monkeypatch.setattr(bundle.image, 'PLATFORM', platform)
+    suffix = platform.replace('/', '-')
     facts = dict(tag='v1.9.20', version='1.9.20', sourceRevision='b' * 40)
     digest = 'sha256:' + 'c' * 64
     manifest = bundle.release_manifest(facts, digest, {}, {}, source, bundle.PAYLOADS, True, None)
@@ -56,11 +78,11 @@ def test_stable_manifest_and_archive_use_exact_public_identity(tmp_path):
     first.mkdir()
     second.mkdir()
     a, b = bundle.archive(source, first), bundle.archive(source, second)
-    assert a.name == 'wayfarer-v1.9.20-linux-amd64.tar.gz'
+    assert a.name == f'wayfarer-v1.9.20-{suffix}.tar.gz'
     assert a.read_bytes() == b.read_bytes()
     assert (first / (a.name + '.sha256')).read_text() == f'{bundle.digest(a)}  {a.name}\n'
     assert not (first / 'SHA256SUMS').exists()
-    bootstrap = first / 'wayfarerctl-linux-amd64.tar.gz'
+    bootstrap = first / f'wayfarerctl-{suffix}.tar.gz'
     assert bootstrap.read_bytes() == (second / bootstrap.name).read_bytes()
     with tarfile.open(bootstrap) as operator_archive:
         assert operator_archive.getnames() == ['wayfarerctl']

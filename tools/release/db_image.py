@@ -51,7 +51,7 @@ def base_image():
 
 
 def build(release):
-    """Load one AMD64 artifact from the accepted recipe without a registry exporter."""
+    """Load one native artifact from the accepted shared recipe without a registry exporter."""
     ref = f"{IMAGE}:{release['tag']}"
     command = ['docker', 'buildx', 'build', '--platform', image.PLATFORM, '--load',
                '--provenance=false', '--sbom=false', '--tag', ref]
@@ -65,9 +65,14 @@ def inspect_payload(release, ref):
     """Check platform, source/package labels and installed PostgreSQL executable/packages."""
     inspected = json.loads(image.run('docker', 'image', 'inspect', ref))[0]
     if f"{inspected['Os']}/{inspected['Architecture']}" != image.PLATFORM:
-        raise version.ValidationError('DB platform must be linux/amd64')
+        raise version.ValidationError('DB platform must match the native release platform')
     actual = inspected['Config'].get('Labels') or {}
-    if any(actual.get(key) != value for key, value in labels(release).items()):
+    expected_labels = labels(release)
+    # The index contains the original AMD64 base manifest; retain that already-published label identity.
+    legacy_base = 'postgres:17.11-bookworm@sha256:91eb910c44c7ed13f7f1a4ccadaa9ca72ef14cddc04cacb6e070e48eb44731a3'
+    if actual.get('org.opencontainers.image.base.name') == legacy_base and image.PLATFORM == 'linux/amd64':
+        expected_labels['org.opencontainers.image.base.name'] = legacy_base
+    if any(actual.get(key) != value for key, value in expected_labels.items()):
         raise version.ValidationError('DB OCI identity mismatch')
     for package, expected in PACKAGES.items():
         installed = image.run('docker', 'run', '--rm', '--network', 'none', '--read-only',
@@ -85,7 +90,7 @@ def qualify(release, ref, app_image):
     """Run the accepted full Compose gate, including actual PostGIS SQL and dump/restore."""
     inspected = inspect_payload(release, ref)
     subprocess.run([sys.executable, 'tools/compose/qualify.py', '--image', app_image,
-                    '--db-image', ref], cwd=version.REPO_ROOT, check=True)
+                    '--db-image', ref, *(['--native-only'] if image.PLATFORM == 'linux/arm64' else [])], cwd=version.REPO_ROOT, check=True)
     return inspected
 
 
@@ -106,11 +111,15 @@ def publish(release, app_image, output):
             or os.environ.get('GITHUB_SHA') != release['sourceRevision']):
         raise version.ValidationError('publication requires exact-source official manual workflow')
     ref = f"{IMAGE}:{release['tag']}"
+    published = ref + '-' + image.PLATFORM.split('/')[1]
     image.require_absent(ref)
+    image.require_absent(published)
     inspected = qualify(release, build(release), app_image)
     identity(release['sourceRevision'], release['version'])
     image.require_absent(ref)
-    pushed = image.run('docker', 'push', '--platform', image.PLATFORM, ref)
+    image.require_absent(published)
+    image.run('docker', 'tag', ref, published)
+    pushed = image.run('docker', 'push', '--platform', image.PLATFORM, published)
     matches = re.findall(r'^\S+: digest: (sha256:[0-9a-f]{64}) size: \d+$', pushed, re.MULTILINE)
     if len(matches) != 1:
         raise version.ValidationError('push digest unavailable; inspect registry/run, never republish')
@@ -146,16 +155,25 @@ def anonymous(release, digest, app_image, output):
 def main():
     """Keep PR dry runs non-publishing and recovery qualification strictly non-mutating."""
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('command', choices=['dry-run', 'publish', 'qualify'])
+    parser.add_argument('command', choices=['dry-run', 'publish', 'qualify', 'index'])
+    parser.add_argument('--inputs', type=Path)
     parser.add_argument('--source', required=True)
     parser.add_argument('--db-version', required=True)
-    parser.add_argument('--app-image', required=True, help='qualified local application image')
+    parser.add_argument('--app-image', help='qualified local application image; unnecessary for index assembly')
     parser.add_argument('--digest', default='')
     parser.add_argument('--output', required=True, type=Path)
     args = parser.parse_args()
     try:
         release = identity(args.source, args.db_version)
-        if args.command == 'publish':
+        if args.command == 'index':
+            if (os.environ.get('GITHUB_EVENT_NAME') != 'workflow_dispatch' or
+                    os.environ.get('GITHUB_REPOSITORY') != 'stef-k/Wayfarer' or
+                    os.environ.get('GITHUB_SHA') != release['sourceRevision'] or args.inputs is None):
+                raise version.ValidationError('index publication requires exact-source official manual workflow and inputs')
+            image.publish_index(release, args.inputs, args.output)
+        elif not args.app_image:
+            raise version.ValidationError('--app-image required for native payload qualification')
+        elif args.command == 'publish':
             publish(release, args.app_image, args.output)
         elif args.command == 'qualify':
             anonymous(release, args.digest, args.app_image, args.output)

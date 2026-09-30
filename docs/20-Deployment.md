@@ -3,8 +3,9 @@
 ## Guided Compose deployment
 
 The primary production path is the small official `wayfarerctl-linux-amd64.tar.gz`
-bootstrap on Linux AMD64 with Docker Engine, Compose v2 2.24.4+ and root/sudo access.
-After verifying its GitHub Release asset SHA-256, extract it in a trusted directory:
+or `wayfarerctl-linux-arm64.tar.gz` bootstrap on Linux AMD64 or ARM64 with Docker Engine, Compose v2 2.24.4+ and root/sudo access.
+After verifying its GitHub Release asset SHA-256, extract it in a trusted directory
+(AMD64 example; use the ARM64 archive on ARM64):
 
 ```sh
 tar -xzf wayfarerctl-linux-amd64.tar.gz

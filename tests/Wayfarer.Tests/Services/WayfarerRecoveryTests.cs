@@ -10,6 +10,15 @@ namespace Wayfarer.Tests.Services;
 [System.Runtime.Versioning.SupportedOSPlatform("linux")]
 public sealed class WayfarerRecoveryTests
 {
+    /// <summary>Only the supported ABIs receive their kernel-defined directory/no-follow flags.</summary>
+    [Fact]
+    public void NativeOpenFlagsPreserveBothSupportedAbis()
+    {
+        Assert.Equal((0x10000, 0x20000), NativePlatform.OpenFlags(System.Runtime.InteropServices.Architecture.X64));
+        Assert.Equal((0x4000, 0x8000), NativePlatform.OpenFlags(System.Runtime.InteropServices.Architecture.Arm64));
+        Assert.Throws<PlatformNotSupportedException>(() => NativePlatform.OpenFlags(System.Runtime.InteropServices.Architecture.Arm));
+    }
+
     /// <summary>The shipped extractor restores imports and empty directories with normalized private modes.</summary>
     [Fact]
     public void RestoreExtractionPreservesCompleteTreeWithPrivatePermissions()

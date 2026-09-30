@@ -126,7 +126,7 @@ public sealed class RestorePreparation(IProcessRunner runner)
         ArchiveContract.ValidateSource(expected);
         var capture = options.Has("--capture-payload") ? options.Get("--capture-payload") : config.Backup?.Payload
             ?? throw new UsageException("Trusted capture payload evidence is required.");
-        if (expected.Kind != "compose" || expected.PayloadFingerprint != BackupPolicy.Fingerprint(capture) ||
+        if (expected.Platform != config.RuntimePlatform || expected.Kind != "compose" || expected.PayloadFingerprint != BackupPolicy.Fingerprint(capture) ||
             expected.BundleFingerprint != BackupConfiguration.BundleFingerprint(config) ||
             expected.ApplicationImage != "ghcr.io/stef-k/wayfarer@" + config.AppDigest ||
             expected.DatabaseImage != "ghcr.io/stef-k/wayfarer-db@" + config.DbDigest)
@@ -142,7 +142,7 @@ public sealed class RestorePreparation(IProcessRunner runner)
         {
             using var document = JsonDocument.Parse(await containers.Required(["image", "inspect", image], token));
             var actual = document.RootElement[0];
-            if (actual.GetProperty("Os").GetString() != "linux" || actual.GetProperty("Architecture").GetString() != "amd64")
+            if (actual.GetProperty("Os").GetString() != "linux" || actual.GetProperty("Architecture").GetString() != config.RuntimePlatform.Split('/')[1])
                 throw new UsageException("Local image platform mismatch.");
             if (image == expected.ApplicationImage &&
                 actual.GetProperty("Config").GetProperty("Labels").GetProperty("org.opencontainers.image.revision").GetString() != expected.SourceRevision)

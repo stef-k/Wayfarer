@@ -253,8 +253,9 @@ public sealed class WayfarerCtlTests
     public void UnsupportedHostFailsClosed()
     {
         Assert.Throws<UsageException>(() => Preflight.CheckPlatform(false, System.Runtime.InteropServices.Architecture.X64));
-        Assert.Throws<UsageException>(() => Preflight.CheckPlatform(true, System.Runtime.InteropServices.Architecture.Arm64));
+        Assert.Throws<UsageException>(() => Preflight.CheckPlatform(true, System.Runtime.InteropServices.Architecture.Arm));
         Preflight.CheckPlatform(true, System.Runtime.InteropServices.Architecture.X64);
+        Preflight.CheckPlatform(true, System.Runtime.InteropServices.Architecture.Arm64);
     }
 
     [Fact]
@@ -270,6 +271,16 @@ public sealed class WayfarerCtlTests
     public async Task UnavailableDockerFailsBeforeOtherPreflightWork()
     {
         var process = new FakeProcess { Reply = _ => new(1, "unavailable") };
+        await Assert.ThrowsAsync<UsageException>(() => new Preflight(process).DockerAsync(default));
+        Assert.Single(process.Calls);
+    }
+
+    /// <summary>A supported daemon of the other architecture fails before Compose or lifecycle mutation.</summary>
+    [Fact]
+    public async Task DockerDaemonMustMatchNativeOperatorArchitecture()
+    {
+        var foreign = WayfarerRecovery.NativePlatform.Current == "linux/amd64" ? "linux/aarch64" : "linux/x86_64";
+        var process = new FakeProcess { Reply = _ => new(0, foreign) };
         await Assert.ThrowsAsync<UsageException>(() => new Preflight(process).DockerAsync(default));
         Assert.Single(process.Calls);
     }

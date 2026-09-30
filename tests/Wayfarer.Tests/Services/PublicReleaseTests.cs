@@ -11,6 +11,22 @@ namespace Wayfarer.Tests.Services;
 [System.Runtime.Versioning.SupportedOSPlatform("linux")]
 public sealed class PublicReleaseTests
 {
+    /// <summary>The common resolver selects exactly the supported native platform's asset, with no fallback.</summary>
+    [Fact]
+    public void PlatformSelectionNeverFallsBackToAnotherArchitecture()
+    {
+        var metadata = Metadata();
+        var arm = Asset();
+        arm["name"] = "wayfarer-v1.9.20-linux-arm64.tar.gz";
+        metadata["assets"] = new[] { Asset(), arm };
+        var bytes = JsonSerializer.SerializeToUtf8Bytes(metadata);
+        Assert.Equal(arm["name"], PublicRelease.Parse(bytes, "latest", "linux/arm64").Asset);
+        Assert.Equal(Asset()["name"], PublicRelease.Parse(bytes, "latest", "linux/amd64").Asset);
+        metadata["assets"] = new[] { Asset() };
+        Assert.Throws<UsageException>(() => PublicRelease.Parse(JsonSerializer.SerializeToUtf8Bytes(metadata), "latest", "linux/arm64"));
+        Assert.Throws<IOException>(() => PublicRelease.Parse(bytes, "latest", "linux/arm/v7"));
+    }
+
     /// <summary>Source-only releases, ambiguous assets and metadata redirects never grant acquisition authority.</summary>
     [Fact]
     public void MetadataRequiresExactStableIdentityAndRestDigest()

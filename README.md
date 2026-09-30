@@ -7,10 +7,12 @@ Wayfarer is a self-hosted travel companion that lets you keep a private location
 ## Guided self-hosting
 
 The recommended production path is one small bootstrap and one guided Docker/Compose
-setup command. On a supported Linux AMD64 host with Docker Engine, Compose v2 and
-sudo/root access, obtain `wayfarerctl-linux-amd64.tar.gz` from the official stable
+setup command. On a supported Linux AMD64 or ARM64 host with Docker Engine, Compose v2 and
+sudo/root access, obtain `wayfarerctl-linux-amd64.tar.gz` (AMD64) or
+`wayfarerctl-linux-arm64.tar.gz` (ARM64) from the official stable
 [GitHub Release](https://github.com/stef-k/Wayfarer/releases), verify its Release asset
-SHA-256, then extract it in a trusted directory:
+SHA-256, then extract it in a trusted directory. The commands below show AMD64; use
+the ARM64 archive name on ARM64 (for example a Raspberry Pi 5 with 64-bit Ubuntu Server):
 
 ```sh
 tar -xzf wayfarerctl-linux-amd64.tar.gz

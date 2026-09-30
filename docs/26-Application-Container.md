@@ -2,8 +2,8 @@
 
 Implements the application side of [the accepted contract](25-Container-Release-Contract.md)
 for #640. [Stable application-image publication](27-Application-Image-Publication.md)
-is implemented separately by #642. The full Compose distribution and host lifecycle
-CLI remain unavailable. Only Linux AMD64 is qualified.
+is implemented separately by #642/#715. The shared Compose lifecycle supports
+Linux AMD64 and ARM64; first genuine public stable acceptance remains pending.
 
 ## Explicit maintenance
 
@@ -70,7 +70,7 @@ docker build --platform linux/amd64 -t wayfarer:qualification .
 ```
 
 The Dockerfile pins Noble .NET 10 build/runtime and build-only Node 24 image digests.
-It publishes framework-dependent Release linux-x64 with frontend assets, compiled Razor,
+It publishes framework-dependent Release linux-x64 (AMD64) or linux-arm64 (ARM64) with frontend assets, compiled Razor,
 docs, migrations and the embedded Quartz SQL. The published Playwright driver installs
 its matching Chromium and Noble dependency set during build. The final image retains
 that private driver but no general Node/npm, SDK or PowerShell.
@@ -88,9 +88,9 @@ ASP.NET/Quartz shutdown; forced termination is a failed graceful-stop observatio
 
 ## Browser isolation boundary
 
-The supported Docker baseline is Linux AMD64. Release-matched Playwright Chromium
+The supported Docker platforms are Linux AMD64 and ARM64. Release-matched Playwright Chromium
 is bundled and runs within the non-root, read-only application container boundary.
-With current Playwright 1.62.0 launch behavior, Wayfarer does not set
+With Playwright 1.63.0 launch behavior, Wayfarer does not set
 `ChromiumSandbox = true`, so the effective Chromium launch includes `--no-sandbox`
 even when Wayfarer supplies no such argument itself.
 
@@ -99,7 +99,7 @@ controls plus container isolation, not an enabled Chromium renderer sandbox.
 This does not reopen #660's egress/admission/cancellation fixes or authorize privileged,
 SYS_ADMIN, host-IPC or other runtime changes. [#681](https://github.com/stef-k/Wayfarer/issues/681)
 remains open for native Linux ARM64 qualification; AMD64/source evidence cannot close
-it, remove the native compatibility branch or expand Docker platform support.
+it or remove the native compatibility branch. #715 owns the separate Compose ARM64 gate.
 
 ## Disposable qualification
 
@@ -167,7 +167,7 @@ its managed/external topology does not complete the later guided lifecycle produ
 
 ## Offline bundle image qualification
 
-Local release bundles bind immutable application/DB/Caddy digests and Linux AMD64.
+Local release bundles bind immutable application/DB/Caddy digests and their selected Linux AMD64 or ARM64 platform.
 The release validator independently checks local Docker identity, OCI source/version,
 compiled application version, the application-owned offline schema/resource contract,
 and the exact bundled operator/recovery protocol. Helpers run without network, Docker

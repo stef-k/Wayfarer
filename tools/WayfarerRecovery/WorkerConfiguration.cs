@@ -34,6 +34,7 @@ public sealed record WorkerConfiguration
             config.DestinationKind is not ("local" or "mounted") || config.Source.ExpectedMigrations.Length == 0 || config.Source.Kind != "compose")
             throw new IOException("Invalid worker configuration.");
         ArchiveContract.ValidateSource(config.Source);
+        if (config.Source.Platform != NativePlatform.Current) throw new IOException("Recovery source platform differs from native worker.");
         SafeDirectory.ValidateName(config.Uploads);
         SafeDirectory.ValidateName(config.Ring);
         return config;

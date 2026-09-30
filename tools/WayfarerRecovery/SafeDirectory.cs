@@ -8,7 +8,10 @@ public sealed class SafeDirectory : IDisposable
 {
     private readonly SafeFileHandle handle;
     private const int ReadOnly = 0, ReadWrite = 2, Create = 0x40, Exclusive = 0x80;
-    private const int DirectoryFlag = 0x10000, NoFollow = 0x20000, CloseOnExec = 0x80000;
+    private static readonly (int Directory, int NoFollow) Flags = NativePlatform.OpenFlags(RuntimeInformation.ProcessArchitecture);
+    private static int DirectoryFlag => Flags.Directory;
+    private static int NoFollow => Flags.NoFollow;
+    private const int CloseOnExec = 0x80000;
     private const ulong Beneath = 8, NoLinks = 4, NoMounts = 1;
 
     [StructLayout(LayoutKind.Sequential)]
@@ -63,8 +66,7 @@ public sealed class SafeDirectory : IDisposable
     /// <summary>Resolve an absolute root without following any symlink ancestor.</summary>
     public SafeDirectory(string path)
     {
-        if (!OperatingSystem.IsLinux() || RuntimeInformation.ProcessArchitecture != Architecture.X64)
-            throw new PlatformNotSupportedException();
+        _ = NativePlatform.Current;
         if (!Path.IsPathFullyQualified(path)) throw new IOException("Absolute directory required.");
         handle = Open(-100, path, ReadOnly | DirectoryFlag, NoLinks);
     }

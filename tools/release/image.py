@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import platform
 import re
 import subprocess
 import sys
@@ -17,7 +18,19 @@ import version
 
 IMAGE = "ghcr.io/stef-k/wayfarer"
 SOURCE = "https://github.com/stef-k/Wayfarer"
-PLATFORM = "linux/amd64"
+PLATFORMS = ("linux/amd64", "linux/arm64")
+
+
+def native_platform(machine: str | None = None) -> str:
+    """Only native Linux AMD64 and ARM64 may build or execute release payloads."""
+    architecture = {"x86_64": "amd64", "amd64": "amd64", "aarch64": "arm64", "arm64": "arm64"}.get(machine or platform.machine())
+    if platform.system() != "Linux" or architecture is None:
+        raise version.ValidationError("native Linux AMD64 or ARM64 is required")
+    return "linux/" + architecture
+
+
+PLATFORM = native_platform()
+RID = "linux-x64" if PLATFORM == "linux/amd64" else "linux-arm64"
 DIGEST = re.compile(r"sha256:[0-9a-f]{64}")
 
 
@@ -51,7 +64,7 @@ def labels(release: dict) -> dict:
 
 
 def build(release: dict) -> str:
-    """Build the root Dockerfile as one AMD64 image with no registry exporter."""
+    """Build the root Dockerfile for this native platform with no registry exporter."""
 
     image = f"{IMAGE}:{release['tag']}"
     command = ["docker", "buildx", "build", "--platform", PLATFORM, "--load",
@@ -79,7 +92,7 @@ def inspect_image(release: dict, image: str) -> dict:
 
     inspected = json.loads(run("docker", "image", "inspect", image))[0]
     if f"{inspected['Os']}/{inspected['Architecture']}" != PLATFORM:
-        raise version.ValidationError("image platform does not match linux/amd64")
+        raise version.ValidationError("image platform does not match the native release platform")
     actual_labels = inspected["Config"].get("Labels") or {}
     if any(actual_labels.get(key) != value for key, value in labels(release).items()):
         raise version.ValidationError("image OCI metadata does not match release")
@@ -105,6 +118,52 @@ def manifest_matches(image: str, digest: str, config_digest: str) -> None:
     manifest = json.loads(run("docker", "manifest", "inspect", image))
     if "manifests" in manifest or manifest.get("config", {}).get("digest") != config_digest:
         raise version.ValidationError("expected the tested single-platform image manifest")
+
+
+def selected_digest(reference: str, selected: str = PLATFORM) -> str:
+    """Resolve exactly one supported platform from an immutable OCI index; reject ambiguous descriptors."""
+    if selected not in PLATFORMS or not DIGEST.fullmatch(reference.rsplit("@", 1)[-1]):
+        raise version.ValidationError("immutable supported platform selection required")
+    manifest = json.loads(run("docker", "manifest", "inspect", reference))
+    if "manifests" not in manifest:
+        return reference.rsplit("@", 1)[1]
+    matches = [item["digest"] for item in manifest["manifests"]
+               if item.get("platform", {}).get("os") == "linux"
+               and item.get("platform", {}).get("architecture") == selected.split("/")[1]
+               and item.get("platform", {}).get("variant", "") in ("", "v8")]
+    if len(matches) != 1 or not DIGEST.fullmatch(matches[0]):
+        raise version.ValidationError("index must contain exactly one matching platform manifest")
+    return matches[0]
+
+
+def publish_index(release: dict, directory: Path, output: Path) -> None:
+    """Join two already anonymously qualified native artifacts into one create-only release identity."""
+    facts = [json.loads(path.read_text()) for path in sorted(directory.glob("*.json"))]
+    if len(facts) != 2 or {fact.get("platform") for fact in facts} != set(PLATFORMS):
+        raise version.ValidationError("two distinct native platform evidence files required")
+    repository = release["image"]
+    for fact in facts:
+        if any(fact.get(key) != release[key] for key in ("image", "sourceRevision", "version", "tag")) or not fact.get("qualification", "").startswith("anonymous pull"):
+            raise version.ValidationError("index inputs must be qualified exact-source release artifacts")
+    for fact in facts:
+        manifest_matches(repository + "@" + fact["platformDigest"], fact["platformDigest"], fact["configDigest"])
+    ref = repository + ":" + release["tag"]
+    require_absent(ref)
+    run("docker", "buildx", "imagetools", "create", "--tag", ref,
+        *[repository + "@" + fact["platformDigest"] for fact in facts])
+    inspected = run("docker", "buildx", "imagetools", "inspect", ref)
+    matches = re.findall(r"^Digest:\s+(sha256:[0-9a-f]{64})$", inspected, re.MULTILINE)
+    if len(matches) != 1:
+        raise version.ValidationError("index digest unavailable; reconcile registry, never republish")
+    digest = matches[0]
+    evidence = {**release, "manifestDigest": digest, "platforms": facts, "qualification": "index created; verification pending"}
+    write_evidence(output, evidence)
+    for fact in facts:
+        if selected_digest(repository + "@" + digest, fact["platform"]) != fact["platformDigest"]:
+            raise version.ValidationError("published index contradicts qualified native artifact")
+    write_evidence(output, {**evidence, "qualification": "two qualified native manifests bound to immutable index"})
+    with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as stream:
+        stream.write(f"digest={digest}\n")
 
 
 def config_digest(inspected: dict) -> str:
@@ -142,13 +201,17 @@ def publish(release: dict, output: Path) -> None:
     """Build/test once, recheck identity/absence, push one tag and preserve its digest."""
 
     image = f"{IMAGE}:{release['tag']}"
+    published = image + "-" + PLATFORM.split("/")[1]
     require_absent(image)
+    require_absent(published)
     build(release)
     inspected = qualify(release, image)
     version.stable_source(release["tag"], release["sourceRevision"])
     require_absent(image)
+    require_absent(published)
+    run("docker", "tag", image, published)
     # --platform publishes a single manifest even on containerd-backed Docker engines.
-    pushed = run("docker", "push", "--platform", PLATFORM, image)
+    pushed = run("docker", "push", "--platform", PLATFORM, published)
     matches = re.findall(r"^\S+: digest: (sha256:[0-9a-f]{64}) size: \d+$", pushed, re.MULTILINE)
     if len(matches) != 1:
         raise version.ValidationError("push completed without one digest; inspect registry, do not republish")
@@ -185,7 +248,8 @@ def main() -> int:
     """Expose a non-push PR path and explicit stable publication/qualification paths."""
 
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=["dry-run", "publish", "qualify"])
+    parser.add_argument("command", choices=["dry-run", "publish", "qualify", "index"])
+    parser.add_argument("--inputs", type=Path)
     parser.add_argument("--tag")
     parser.add_argument("--source")
     parser.add_argument("--digest")
@@ -194,13 +258,16 @@ def main() -> int:
     try:
         if args.command != "dry-run" and not (args.tag and args.source):
             raise version.ValidationError("stable operations require --tag and --source")
-        if args.command == "publish" and (
+        if args.command in ("publish", "index") and (
             os.environ.get("GITHUB_EVENT_NAME") != "release"
             or os.environ.get("GITHUB_REPOSITORY") != "stef-k/Wayfarer"
         ):
             raise version.ValidationError("publication requires the official release workflow")
         release = identity(args.tag, args.source)
-        if args.command == "publish":
+        if args.command == "index":
+            if args.inputs is None: raise version.ValidationError("qualified native --inputs required")
+            publish_index(release, args.inputs, args.output)
+        elif args.command == "publish":
             publish(release, args.output)
         elif args.command == "qualify":
             anonymous(release, args.digest or "", args.output)

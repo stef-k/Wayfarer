@@ -54,7 +54,7 @@ public static class BackupCompose
             if (capture) mounts.Add(new { type = "volume", source = "app-data", target = "/source", read_only = true, volume = new { nocopy = true } });
             var service = new Dictionary<string, object>
             {
-                ["image"] = "ghcr.io/stef-k/wayfarer-db@" + config.DbDigest, ["platform"] = "linux/amd64",
+                ["image"] = "ghcr.io/stef-k/wayfarer-db@" + config.DbDigest, ["platform"] = config.RuntimePlatform,
                 ["profiles"] = new[] { "backup" }, ["user"] = "1654:1654", ["read_only"] = true, ["init"] = true,
                 ["cap_drop"] = new[] { "ALL" }, ["security_opt"] = new[] { "no-new-privileges:true" },
                 ["entrypoint"] = new[] { "/worker/wayfarer-recovery" }, ["command"] = new[] { operation },
