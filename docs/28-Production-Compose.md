@@ -13,7 +13,7 @@ Nothing here migrates a native installation.
 ## Topology and state
 
 `deploy/compose/` is self-contained bundle source: no source/build mount or local
-application toolchain is needed on the target host. Linux AMD64 Docker Engine and
+application toolchain is needed on the target host. Linux AMD64 or ARM64 Docker Engine and
 Compose 2.24.4+ with Bash are required. Keep the extracted directory intact.
 The default project is `wayfarer`; persist any alternative `-p` project selection
 and use it for every command. Generated container names are not interfaces.
@@ -80,9 +80,10 @@ the investigated 3.6 Alpine digest was
 `sha256:a8ffa9afeea4ad6eada171fa2afdb57cd3eb90f92ce20156aa2cb8411d70e0cd`.
 No third-party convenience image or PostgreSQL major change is introduced.
 
-`db/Dockerfile` pins the official PostgreSQL17.11 Bookworm **AMD64 base manifest**
-`sha256:91eb910c44c7ed13f7f1a4ccadaa9ca72ef14cddc04cacb6e070e48eb44731a3`
-(index `sha256:639ab7ceb90e13123085b741fb31ef493fba25463002f6da665352e7b534b652`).
+`db/Dockerfile` pins the official PostgreSQL17.11 Bookworm **multi-platform index**
+`sha256:639ab7ceb90e13123085b741fb31ef493fba25463002f6da665352e7b534b652`.
+Its AMD64 manifest remains `sha256:91eb910c44c7ed13f7f1a4ccadaa9ca72ef14cddc04cacb6e070e48eb44731a3`;
+ARM64 uses `sha256:75731e2765e7d0c8bb7dea960ef3bdcde68d16314991ab2057a2a74ea0fff257`.
 It installs exact matching `postgresql-17-postgis-3` and `-scripts` versions from
 PGDG using the base's repository/signing key, and rejects a changed server package.
 There is no source compilation, replacement entrypoint, runtime package installation
@@ -159,6 +160,8 @@ Caddy is official `caddy:2-alpine`, executable **2.11.4** on Alpine3.23.6, pinne
 `sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b`;
 selected Linux AMD64 manifest
 `sha256:040e9f7480b80b6d4a7e5013a21159b950a63dcbdb956e38abe2387fb28d9ec0`.
+The same immutable index selects ARM64 manifest
+`sha256:c802bf2721a427e961b9fd6a194c3888a180de9990b43f8530a02bd6be017e17`.
 No plugins are added. Refresh either image only in a reviewed new bundle/source
 revision after live version/security review and this integration qualification.
 Never change PostgreSQL major through an image refresh; PostGIS upgrades also need
@@ -306,14 +309,16 @@ The publisher builds the unchanged pinned recipe, verifies actual Debian package
 PostgreSQL executable versions against OCI metadata, and runs the full disposable
 Compose gate (including executable PostGIS SQL, locale/citext and dump/restore) before
 push. Only its publishing job receives `packages: write`, using `GITHUB_TOKEN` over
-stdin. No PAT is needed. The single AMD64 manifest binds the tested config; OCI and
+stdin. No PAT is needed. Native AMD64 and ARM64 jobs each bind a tested manifest/config;
+the existing manual workflow joins them into one immutable DB index only after both
+anonymous qualification jobs pass. OCI and
 JSON evidence include source, exact package versions and official base reference.
 The workflow serializes DB writes and requires explicit registry absence before build
 and immediately before push. Authentication/network/ambiguous errors fail closed.
 GHCR has no conditional create-only push: other package writers must not race this
 workflow, retarget tags or delete immutable evidence.
 
-`db-publication` JSON is uploaded before the anonymous job starts, even if a
+`db-publication-amd64` / `db-publication-arm64` JSON is uploaded before the anonymous job starts, even if a
 post-push registry check fails. A fresh runner with read-only repository permission
 uses an empty Docker client configuration to pull only the captured digest. It checks
 platform, OCI/package/executable identity, then repeats the entire Compose gate with
@@ -407,3 +412,15 @@ schema-4 installation release authority while preserving runtime inputs and loca
 policy. Every subsequent installation load validates retained bytes and matching
 runtime inputs. Current/previous bundles and images have no automatic garbage collection.
 See [operator adoption and dispatch](29-Wayfarerctl.md#immutable-local-release-bundles).
+
+
+## Native platform selection
+
+`wayfarerctl` derives `WAYFARER_PLATFORM` from the supported native host and selected
+release. It is not an arbitrary configuration option. One Compose template applies
+that validated platform to app, DB and Caddy; recovery/update helpers use the same
+release platform. Each canonical bundle pins the executable DB platform manifest,
+while app release metadata distinguishes its shared index from the selected manifest.
+The DB package/executable, Debian/glibc, locale, volumes and non-superuser contracts
+remain identical. A new two-platform public DB index must be published and its exact
+identity pinned through review before the first genuine Compose stable can ship.

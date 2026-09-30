@@ -8,14 +8,20 @@ exact-head review and maintainer acceptance remain required before merge.
 
 ## Support boundary
 
-The first bundle targets Linux Docker Engine with Compose v2, `linux/amd64`, one
+The first bundle targets Linux Docker Engine with Compose v2, `linux/amd64` or `linux/arm64`, one
 host, one Wayfarer instance and one bundled database. Use a supported Docker host
 with local filesystems supporting Unix ownership, atomic rename and durable writes.
 The host need not be Ubuntu; Ubuntu 24.04 is the application image OS. WSL is a
-development environment, not separate production qualification. ARM, Docker Desktop,
+development environment, not separate production qualification. 32-bit ARM, Docker Desktop,
 Swarm, Kubernetes, HA and shared/network database volumes are outside initial support.
 No host .NET, Node, Python, PostgreSQL, Nginx or Certbot is required by the bundle.
 Native/manual deployment remains available through [Deployment](20-Deployment.md).
+
+Raspberry Pi 5 with 64-bit Ubuntu Server is an example generic ARM64 host.
+The operator, host, local daemon and bundle must agree on platform; cross-architecture
+setup/update/restore fail closed. Native/systemd ARM browser qualification stays in #681.
+#715 uses native `ubuntu-24.04-arm` CI, with one canonical external-mode setup/doctor/stop
+and recovery-helper journey; QEMU-only evidence cannot qualify this contract.
 
 ## Application image
 
@@ -27,7 +33,7 @@ release, never by rebuilding an already published release identity. Reassess the
 family before upstream .NET/OS support ends. Do not use Alpine, chiseled/distroless,
 or the Playwright test image as the initial final application base.
 
-Publish framework-dependent Release `linux-x64`, without trimming, AOT or single-file
+Publish framework-dependent Release `linux-x64` for AMD64 or `linux-arm64` for ARM64, without trimming, AOT or single-file
 packing. Build Node 24/npm and MvcFrontendKit assets before publish; retain generated
 CSS, `wwwroot/dist`, Trip Editor manifest/assets, compiled Razor, docs,
 `frontend.config.yaml`, EF migrations and embedded `Scripts/tables_postgres.sql`.
@@ -44,8 +50,8 @@ application-writable or overlaid by state mounts. Work directory/content root is
 Provision Chromium at image build time using the **published release's** Playwright
 installer and its `install-deps chromium` package set on Noble. Copy/install browser
 binaries under `/opt/wayfarer-browsers`; set `PLAYWRIGHT_BROWSERS_PATH` to that path.
-Microsoft.Playwright 1.62.0 currently requires Chromium/headless-shell revision 1234
-(151.0.7922.34); derive future revisions from its shipped `browsers.json`, not this
+Microsoft.Playwright 1.63.0 requires Chromium/headless-shell revision 1243
+(153.0.8010.12), including the Chrome-for-Testing Linux ARM64 build; derive future revisions from its shipped `browsers.json`, not this
 snapshot. Include fonts and Linux libraries, particularly `libasound2t64` providing
 `libasound.so.2`. No runtime download, system-Chromium fallback or browser cache volume.
 
@@ -92,7 +98,7 @@ backup operation, not the ordinary web service. No NAS mounting/credentials fram
 ## Database contract
 
 Select a narrowly scoped Wayfarer-owned DB image assembled from the official
-`postgres:17.11-bookworm` Linux AMD64 digest and signed PGDG PostGIS **3.6.4**
+`postgres:17.11-bookworm` multi-platform index with exact AMD64/ARM64 manifests and signed PGDG PostGIS **3.6.4**
 packages. PostgreSQL **17 only**, Debian/glibc and the PG17 data-volume path remain
 fixed. #644's [image investigation and qualification](28-Production-Compose.md#exact-third-party-image-decision)
 rejects the stale project Debian image and supersedes the proposed Alpine exception.
@@ -142,7 +148,7 @@ Every stable release binds:
 
 - human release version/tag and full source SHA;
 - compiled app version and OCI source/revision/version labels;
-- immutable Wayfarer manifest digest and `linux/amd64` platform (record index and
+- immutable Wayfarer index digest and the selected `linux/amd64` or `linux/arm64` platform (record index and
   selected platform digest separately if an index is published);
 - exact PostgreSQL/PostGIS and Caddy image digests;
 - bundle checksum, bundle contract version and configuration schema version;
@@ -273,7 +279,7 @@ without evidence. Preserve the existing browser behavior in this contract slice.
 
 ## Evidence and implementation gaps
 
-Current-main inspection: `Wayfarer.csproj` targets net10.0 with Playwright 1.62.0;
+Original #638 inspection (2026-09-25): `Wayfarer.csproj` targets net10.0 with Playwright 1.62.0;
 `Version.props` and latest GitHub Release are 1.9.19/v1.9.19. Publishing is currently
 framework-dependent by default; frontend builds are explicit in `deployment/deploy.sh`.
 `Program.cs` validates DP, installs Quartz tables, seeds DB and starts hosted jobs;

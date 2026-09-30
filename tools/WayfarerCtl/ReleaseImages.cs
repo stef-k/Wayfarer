@@ -25,8 +25,15 @@ public sealed class ReleaseImagesVerifier(IProcessRunner runner)
             if (actual.GetProperty("Os").GetString() != "linux" || actual.GetProperty("Architecture").GetString() != manifest.Platform.Split('/')[1] ||
                 !actual.GetProperty("RepoDigests").EnumerateArray().Any(value => value.GetString() == repository + "@" + digest))
                 throw new IOException("Local image digest/platform mismatch.");
-            if (repository != "ghcr.io/stef-k/wayfarer") continue;
             var labels = actual.GetProperty("Config").GetProperty("Labels");
+            if (repository == "ghcr.io/stef-k/wayfarer-db")
+            {
+                if (labels.GetProperty("org.opencontainers.image.source").GetString() != manifest.Repository ||
+                    labels.GetProperty("org.opencontainers.image.version").GetString() != "pg17.11-postgis3.6.4-bookworm")
+                    throw new IOException("Local DB release ownership/package family mismatch.");
+                continue;
+            }
+            if (repository != "ghcr.io/stef-k/wayfarer") continue;
             if (labels.GetProperty("org.opencontainers.image.source").GetString() != manifest.Repository ||
                 labels.GetProperty("org.opencontainers.image.revision").GetString() != manifest.SourceRevision ||
                 labels.GetProperty("org.opencontainers.image.version").GetString() != images.OciVersion)

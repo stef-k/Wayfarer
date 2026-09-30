@@ -4,6 +4,8 @@
 
 ### Changed
 
+- Add generic Linux ARM64 Compose release support alongside AMD64 (#715): native application/DB images and operator/recovery payloads, Playwright 1.63 Chrome-for-Testing, exact platform selection, platform-qualified bootstrap/deployment archives and native ARM64 CI. Share lifecycle, recovery and one release index; correct AArch64 filesystem flag constants. No EF migration, Pi-specific path, native/systemd change or cross-architecture migration. First genuine public stable acceptance remains pending.
+
 - Complete #713's lean Linux AMD64 bootstrap and guided public installation: publish `wayfarerctl-linux-amd64.tar.gz` from the canonical bundle operator, let bare/exact-version setup reuse public acquisition, and derive canonical local/online image identities from validated release metadata. Promote Compose self-hosting in public documentation. Preserve release/acquisition/update authority; first real stable acceptance remains pending #715 and both platforms. No schema migration or bootstrap self-replacement.
 - Add exact-source stable Compose bundle publication and anonymous bounded acquisition (#713), reusing release.json v1, immutable import/image verification and #704 update plans. Publish versioned archive/checksum assets once; first public Compose stable is a fresh-install baseline without invented historical update sources. Real public release acceptance remains pending; no schema migration or bootstrap self-update.
 - Recheck exclusive durable-state ownership immediately before failed-update restore handoff; reproduce the candidate migration boundary from the exact head and exercise the existing update journey in lifecycle-sensitive image CI (#704, #710). No product migration or stable release.

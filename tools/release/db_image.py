@@ -67,7 +67,12 @@ def inspect_payload(release, ref):
     if f"{inspected['Os']}/{inspected['Architecture']}" != image.PLATFORM:
         raise version.ValidationError('DB platform must match the native release platform')
     actual = inspected['Config'].get('Labels') or {}
-    if any(actual.get(key) != value for key, value in labels(release).items()):
+    expected_labels = labels(release)
+    # The index contains the original AMD64 base manifest; retain that already-published label identity.
+    legacy_base = 'postgres:17.11-bookworm@sha256:91eb910c44c7ed13f7f1a4ccadaa9ca72ef14cddc04cacb6e070e48eb44731a3'
+    if actual.get('org.opencontainers.image.base.name') == legacy_base and image.PLATFORM == 'linux/amd64':
+        expected_labels['org.opencontainers.image.base.name'] = legacy_base
+    if any(actual.get(key) != value for key, value in expected_labels.items()):
         raise version.ValidationError('DB OCI identity mismatch')
     for package, expected in PACKAGES.items():
         installed = image.run('docker', 'run', '--rm', '--network', 'none', '--read-only',

@@ -140,7 +140,7 @@ class Stack:
         for service in ['db', 'caddy']:
             info = json.loads(run('docker', 'inspect', self.container(service)).stdout)[0]
             image_info = json.loads(run('docker', 'image', 'inspect', info['Image']).stdout)[0]
-            assert image_info['Os'] == 'linux' and image_info['Architecture'] == 'amd64'
+            assert image_info['Os'] == 'linux' and image_info['Architecture'] == {'x86_64': 'amd64', 'aarch64': 'arm64'}[platform.machine()]
             print(service + ': ' + info['Config']['Image'], flush=True)
 
     def database_semantics(self, database='wayfarer'):
@@ -194,6 +194,13 @@ class Stack:
             assert headers.get('referrer-policy') == ['strict-origin-when-cross-origin']
         print(f'{self.mode}: exact ordinary/embed browser headers passed', flush=True)
 
+    def rendering(self):
+        """Exercise the same real application map-thumbnail and PDF routes on each native image."""
+        self.curl(f'/Public/Trips/{TRIP}/MapSnapshot', '-o', str(self.directory / 'map.jpg'))
+        assert (self.directory / 'map.jpg').read_bytes().startswith(b'\xff\xd8')
+        self.curl(f'/Trip/ExportPdf/{TRIP}', '-o', str(self.directory / 'trip.pdf'))
+        assert (self.directory / 'trip.pdf').read_bytes().startswith(b'%PDF')
+
     def functional(self):
         """Prove real public/static/export/SSE/browser routes through the managed proxy."""
         self.browser_headers()
@@ -205,10 +212,7 @@ class Stack:
         assert '<kml' in self.curl(f'/Trip/ExportWayfarerKml/{TRIP}').stdout
         stream = self.curl(f'/Trip/ExportProgress/{TRIP}?sessionId=compose', timeout=23, check=False)
         assert stream.returncode == 28 and ':\n\n' in stream.stdout, stream.stdout
-        self.curl(f'/Public/Trips/{TRIP}/MapSnapshot', '-o', str(self.directory / 'map.jpg'))
-        assert (self.directory / 'map.jpg').read_bytes().startswith(b'\xff\xd8')
-        self.curl(f'/Trip/ExportPdf/{TRIP}', '-o', str(self.directory / 'trip.pdf'))
-        assert (self.directory / 'trip.pdf').read_bytes().startswith(b'%PDF')
+        self.rendering()
         # Different forged client IPs must not escape the same real-client bucket.
         for spoof in ['203.0.113.98', '203.0.113.99']:
             response = self.curl(f'/Public/Trips/{TRIP}/MapSnapshot', '-H', f'X-Forwarded-For: {spoof}',
@@ -411,6 +415,7 @@ def main():
             stack.config_checks()
             stack.initialize()
             if args.native_only:
+                stack.rendering()
                 return
             stack.functional()
             stack.exposure()

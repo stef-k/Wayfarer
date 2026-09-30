@@ -4,7 +4,7 @@ This directory is a candidate qualification artifact unless `release.json` expli
 records stable status. Checksums prove integrity, not publisher authenticity. Obtain
 these bytes from a trusted administrator/maintainer or the exact public stable Release.
 This implementation does not claim a public Compose stable has shipped; real release
-acceptance remains required. The target host needs Linux AMD64, Docker/Compose and
+acceptance remains required. The target host needs native Linux AMD64 or ARM64, Docker/Compose and
 root, not an SDK.
 
 Use a previously trusted operator to run `release inspect /absolute/bundle` and
@@ -76,13 +76,14 @@ satisfy the existing immutable capture-payload contract.
 
 ## Public bootstrap and ordinary updates
 
-The primary public asset is `wayfarerctl-linux-amd64.tar.gz`, with its
-`wayfarerctl-linux-amd64.tar.gz.sha256` sidecar on the exact stable GitHub Release.
+The primary public assets are `wayfarerctl-linux-amd64.tar.gz` and
+`wayfarerctl-linux-arm64.tar.gz`, each with its matching `.sha256` sidecar on the
+exact stable GitHub Release.
 It contains exactly the executable `wayfarerctl`, byte-identical to this canonical
-bundle's operator. It is packaged from those bytes with no second build. #715 adds
-`wayfarerctl-linux-arm64.tar.gz` before the first public Compose stable; this slice
-supports AMD64 only. Linux AMD64, Docker Engine, Compose v2 2.24.4+ and root are
-required. The host needs no clone, SDK/runtime, Node/npm, Python or `unzip`.
+bundle's operator. It is packaged from those bytes with no second build. Native
+Linux AMD64 or ARM64, matching Docker Engine, Compose v2 2.24.4+ and root are required.
+The examples below show AMD64; substitute the ARM64 archive on ARM64. Raspberry Pi 5
+with 64-bit Ubuntu Server follows this same generic ARM64 path. The host needs no clone, SDK/runtime, Node/npm, Python or `unzip`.
 No host package or Docker daemon configuration is installed.
 
 For the next genuine stable containing this capability, obtain the bootstrap from
@@ -113,6 +114,7 @@ sudo ./wayfarerctl setup --bundle /absolute/trusted/bundle  # secondary local/of
 ```
 
 These selectors are mutually exclusive. The full `wayfarer-vX.Y.Z-linux-amd64.tar.gz`
+or `wayfarer-vX.Y.Z-linux-arm64.tar.gz`
 deployment archive plus `.tar.gz.sha256` remains supported for controlled staging,
 recovery, mirrors and troubleshooting. Local setup skips discovery/download, validates
 its canonical metadata/platform, derives identities, verifies already-local exact
@@ -139,5 +141,5 @@ with no invented update from source-only v1.9.19 or older. Subsequent publicatio
 one exact compatible prior public Compose bundle or fails. No stable assets are
 claimed shipped here. #713/#603 remain open until the next genuine stable passes
 publication, public bootstrap byte equality and fresh anonymous native setup/doctor
-on AMD64 and ARM64 after #715. Do not publish that first Compose stable before #715
+on both AMD64 and ARM64. Do not publish that first Compose stable before #715
 is accepted. PR candidate migration proof does not claim stable-to-stable migration.

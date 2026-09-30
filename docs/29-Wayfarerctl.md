@@ -1,6 +1,6 @@
 # Operate Wayfarer with wayfarerctl
 
-`wayfarerctl` is the Linux AMD64, self-contained C# operator executable introduced
+`wayfarerctl` is the Linux AMD64/ARM64, self-contained C# operator executable introduced
 by #648. It orchestrates the [accepted Compose substrate](28-Production-Compose.md)
 and existing application maintenance commands. This foundation includes fresh setup,
 lifecycle, diagnosis, logs, user recovery, opt-in Compose recovery sets and managed
@@ -12,19 +12,22 @@ acceptance, including #715's ARM64 expansion before first stable publication.
 
 ## Placement and prerequisites
 
-Use Linux AMD64 Docker Engine with the **local** `/var/run/docker.sock`, Compose v2
+Use native Linux AMD64 or ARM64 Docker Engine with the **local** `/var/run/docker.sock`, Compose v2
 2.24.4 or newer, and a filesystem supporting Unix ownership/modes. Run management
 as root: setup must create distinct secret files owned by root, UID999 and UID1654.
 Remote Docker contexts, Docker Desktop, rootless daemons and arbitrary host bind
 mounts are not supported. No host .NET runtime/SDK, Python, Node/npm or PostgreSQL
 installation is needed to run the executable. Docker socket access is administrative.
 
-The primary public asset is `wayfarerctl-linux-amd64.tar.gz` on the exact official
+The primary public assets are `wayfarerctl-linux-amd64.tar.gz` and
+`wayfarerctl-linux-arm64.tar.gz` on the exact official
 stable GitHub Release, with a matching `.sha256` sidecar. It contains exactly one
 executable named `wayfarerctl`, byte-identical to the operator in that release's
 canonical deployment bundle. It is assembled from those existing bytes, never built
-as a second operator. #715 adds the corresponding `linux-arm64` asset before the
-first public Compose stable; this implementation supports AMD64 only.
+as a second operator. Each platform uses the same commands and lifecycle. The native
+operator, host, Docker daemon and selected bundle must agree; cross-architecture
+setup, update and restore fail closed. Raspberry Pi 5 with 64-bit Ubuntu Server is
+an example ARM64 host, with no Pi-specific commands or deployment path.
 
 Obtain the tarball through the official
 [Release page](https://github.com/stef-k/Wayfarer/releases). Compare its SHA-256 with
@@ -56,7 +59,7 @@ dotnet publish tools/WayfarerCtl/WayfarerCtl.csproj -c Release \
   -r linux-x64 --self-contained true -o /absolute/published-ctl
 ```
 
-This is a maintainer build instruction, not a host runtime prerequisite. Guided setup
+Use `-r linux-arm64` on ARM64. This is a maintainer build instruction, not a host runtime prerequisite. Guided setup
 retains canonical bundles automatically. The installation layout is:
 
 ```text
@@ -460,7 +463,7 @@ controlled custody chain; there is no untrusted archive import mode.
 Use a trusted local application bundle, immutable application and DB images already
 loaded into Docker, trusted capture evidence and the current restore payload. Restore
 never pulls images or selects a release from manifest strings. The exact contract
-includes Linux AMD64, application digest/version/revision, bundle fingerprint,
+includes the selected Linux AMD64/ARM64 platform, application digest/version/revision, bundle fingerprint,
 PG17/PostGIS3.6.4/citext1.6, UTF8/C.UTF-8 libc locale, ordered EF migrations, Quartz
 structure and stable Data Protection identity `Wayfarer`. The historical capture
 payload fingerprint is independent of the restore payload fingerprint.

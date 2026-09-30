@@ -7,19 +7,29 @@ config=$1
 shift
 [[ $config == /* && -f $config ]] || fail 'an absolute configuration file is required'
 # The file is the authority; ambient deployment values must not fill missing inputs.
-unset PUBLIC_HOST WAYFARER_DIGEST DB_DIGEST PROXY_MODE EDGE_PREFIX DB_PASSWORD_FILE DB_APP_PASSWORD_FILE APP_PASSWORD_FILE EXTERNAL_PROXY_ADDRESS LOOPBACK_ADDRESS LOOPBACK_PORT
+unset PUBLIC_HOST WAYFARER_PLATFORM WAYFARER_DIGEST DB_DIGEST PROXY_MODE EDGE_PREFIX DB_PASSWORD_FILE DB_APP_PASSWORD_FILE APP_PASSWORD_FILE EXTERNAL_PROXY_ADDRESS LOOPBACK_ADDRESS LOOPBACK_PORT
 # Parse literals only; never execute the operator file or expand shell substitutions.
 while IFS= read -r line || [[ -n $line ]]; do
     [[ -z $line || $line == \#* ]] && continue
     [[ $line =~ ^([A-Z_]+)=(.*)$ ]] || fail 'expected literal KEY=value'
     key=${BASH_REMATCH[1]}; value=${BASH_REMATCH[2]}
     case $key in
-        PUBLIC_HOST|WAYFARER_DIGEST|DB_DIGEST|PROXY_MODE|EDGE_PREFIX|DB_PASSWORD_FILE|DB_APP_PASSWORD_FILE|APP_PASSWORD_FILE|EXTERNAL_PROXY_ADDRESS|LOOPBACK_ADDRESS|LOOPBACK_PORT) ;;
+        PUBLIC_HOST|WAYFARER_PLATFORM|WAYFARER_DIGEST|DB_DIGEST|PROXY_MODE|EDGE_PREFIX|DB_PASSWORD_FILE|DB_APP_PASSWORD_FILE|APP_PASSWORD_FILE|EXTERNAL_PROXY_ADDRESS|LOOPBACK_ADDRESS|LOOPBACK_PORT) ;;
         *) fail 'unknown configuration key' ;;
     esac
     [[ $value != *'$'* && $value != *'"'* && $value != *"'"* && $value != *'`'* ]] || fail 'values must be literal, without quoting/interpolation'
     export "$key=$value"
 done < "$config"
+# The deployment, native host and local Docker daemon must agree; cross-architecture emulation is unsupported.
+case "$(uname -m)" in
+    x86_64) native_platform=linux/amd64 ;;
+    aarch64) native_platform=linux/arm64 ;;
+    *) fail 'native Linux AMD64 or ARM64 required' ;;
+esac
+[[ $(uname -s) == Linux && ${WAYFARER_PLATFORM:-} == "$native_platform" ]] || fail 'release platform must match native Linux host'
+daemon_platform=$(docker info --format '{{.OSType}}/{{.Architecture}}') || fail 'local Docker daemon unavailable'
+case "$daemon_platform" in linux/x86_64) daemon_platform=linux/amd64 ;; linux/aarch64) daemon_platform=linux/arm64 ;; esac
+[[ $daemon_platform == "$native_platform" ]] || fail 'Docker daemon must match the native release platform'
 [[ ${WAYFARER_DIGEST:-} =~ ^sha256:[0-9a-f]{64}$ ]] || fail 'immutable application sha256 digest required'
 [[ ${DB_DIGEST:-} =~ ^sha256:[0-9a-f]{64}$ ]] || fail 'immutable database sha256 digest required'
 [[ ${PUBLIC_HOST:-} =~ ^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)+$ && ${#PUBLIC_HOST} -le 253 ]] || fail 'DNS hostname required'

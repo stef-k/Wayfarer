@@ -1,6 +1,6 @@
 # Stable application-image publication
 
-The #642 pipeline publishes only `ghcr.io/stef-k/wayfarer` for `linux/amd64`, using
+The #642 pipeline publishes only `ghcr.io/stef-k/wayfarer` for `linux/amd64` and `linux/arm64`, using
 [the accepted application Dockerfile and runtime checks](26-Application-Container.md).
 The version-matched local candidate bundle now binds Compose, Caddy, `wayfarerctl`,
 recovery payloads and the accepted PostgreSQL/PostGIS image through `release.json`.
@@ -22,12 +22,13 @@ Before building, `tools/release/version.py` requires:
   and name both equal `vX.Y.Z`, following the existing release-tool contract.
 
 Checkout uses the event SHA, never moving main. These checks run again before push.
-The root Dockerfile builds a Release linux-x64 application; OCI source, full revision
+The shared root Dockerfile builds Release linux-x64 (AMD64) or linux-arm64 (ARM64); OCI source, full revision
 and version labels are generated from the validated identity. Running `version` in
 the built image must report exactly `Wayfarer X.Y.Z`. Labels aid inspection; the
 registry digest is the immutable distribution identity.
 
-Only the publication job receives `packages: write`; all jobs have `contents: read`.
+Only native image publication and index assembly receive `packages: write`; deployment
+asset publication alone receives `contents: write`. Other jobs have `contents: read`.
 Authentication uses the scoped `GITHUB_TOKEN`, passed through stdin, with logout on
 completion/failure. No PAT, secret build argument, release-asset write or admin scope
 is required. New release-path Actions are pinned to commit SHAs. PR image validation
@@ -35,7 +36,9 @@ has read-only permissions and calls only the non-push dry-run command.
 
 ## Stable tags and evidence
 
-Only `ghcr.io/stef-k/wayfarer:vX.Y.Z` is pushed; there is no `latest`. Publication is
+The stable `ghcr.io/stef-k/wayfarer:vX.Y.Z` tag identifies one multi-platform release.
+Create-only `vX.Y.Z-amd64` and `vX.Y.Z-arm64` staging tags retain its native manifests;
+they are publication details, not independent version streams. There is no `latest`. Publication is
 serialized by release tag and checks registry absence both before building and
 immediately before push. Existing tags, authentication failures and ambiguous registry
 errors fail closed. A dependency/base patch requires a new Wayfarer version, not a
@@ -43,16 +46,20 @@ rerun that overwrites the old image. Repository/package administrators must also
 preserve tags: GHCR does not provide a conditional create-only push, so unrelated
 writers must not race this workflow or retarget/delete stable images.
 
-The pipeline deliberately pushes a single AMD64 manifest, with provenance/SBOM index
-creation disabled. `manifestDigest` and `platformDigest` therefore agree. It checks
-that this digest's manifest references the tested image config. No index or additional
-architecture is supported by this slice.
+Each native runner builds and qualifies one manifest with automatic provenance/SBOM
+indexes disabled. Fresh native anonymous-pull jobs repeat the same browser smoke.
+Only after both succeed does `publish-index` join those exact digests and verify its
+AMD64/ARM64 descriptors. Bundles record the shared index in `ApplicationDigest` and
+the exact executable manifest in `PlatformDigest`; Compose and helpers execute only
+that selected manifest. The index does not create another lifecycle authority.
 
 Download the `image-publication` and successful `image-evidence` Actions artifacts:
 
 ```sh
-gh run download RUN_ID -n image-publication -D /absolute/evidence/publication
-gh run download RUN_ID -n image-evidence -D /absolute/evidence/qualified
+gh run download RUN_ID -n image-publication-amd64 -D /absolute/evidence/publication-amd64
+gh run download RUN_ID -n image-evidence-amd64 -D /absolute/evidence/qualified-amd64
+gh run download RUN_ID -n image-evidence-arm64 -D /absolute/evidence/qualified-arm64
+gh run download RUN_ID -n image-index -D /absolute/evidence/index
 ```
 
 The JSON records image/tag, source URL/full SHA, compiled version, platform,
@@ -133,15 +140,15 @@ qualification; public acquisition and the operational acceptance gate are descri
 Explicit `bundle.py --stable --tag vX.Y.Z --source FULLSHA --app-digest sha256:...`
 reuses `version.py` and `image.py`: clean HEAD, local/remote tag, Version.props and
 published non-draft/non-prerelease Release must agree. The already-published application
-manifest/config must match the exact digest and Linux AMD64 image. Candidate assembly
+index/selected manifest/config must match the exact digest and native Linux platform. Candidate assembly
 remains unchanged. Add `--publish` only in the official release workflow.
 
 After anonymous application qualification, `application-release.yml` anonymously pulls
 the accepted DB/Caddy digests, builds the self-contained payloads, validates with the
-bundled operator and packages its exact bytes into `wayfarerctl-linux-amd64.tar.gz`,
-containing only the executable named `wayfarerctl`. It uploads that bootstrap plus
+bundled operator and packages its exact native bytes into `wayfarerctl-linux-amd64.tar.gz`
+or `wayfarerctl-linux-arm64.tar.gz`, containing only the executable named `wayfarerctl`. It uploads that bootstrap plus
 its `.sha256` sidecar and `wayfarer-vX.Y.Z-linux-amd64.tar.gz` plus
-`wayfarer-vX.Y.Z-linux-amd64.tar.gz.sha256`. Only this job has `contents: write`;
+`wayfarer-vX.Y.Z-linux-amd64.tar.gz.sha256` (and the equivalent ARM64 pair). Only this job has `contents: write`;
 image publication retains `packages: write`. No PAT, release creation or mutable
 `latest` bundle alias is used. Upload never uses clobber. Any occupied bootstrap,
 deployment archive or sidecar identity stops **before assembly** on reruns.

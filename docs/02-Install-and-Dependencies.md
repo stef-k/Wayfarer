@@ -14,21 +14,22 @@ future release carrying these assets, not to an already-shipped public bootstrap
 
 Prepare:
 
-- Linux AMD64 with normal Unix file ownership/modes; ARM64 support is owned by #715.
+- Linux AMD64 or ARM64 with normal Unix file ownership/modes; 32-bit ARM is unsupported.
 - Docker Engine using its local daemon and Compose v2 2.24.4 or newer.
 - Root/sudo access and space for exact images, retained releases and durable volumes.
 - A public DNS hostname. For managed HTTPS, point it at the host and make ports
   80/TCP, 443/TCP and 443/UDP available. An existing proxy can use external mode.
 - Outbound HTTPS to public GitHub/GHCR and the pinned Caddy registry.
 
-Obtain `wayfarerctl-linux-amd64.tar.gz` from the official stable
+Obtain `wayfarerctl-linux-amd64.tar.gz` (AMD64) or `wayfarerctl-linux-arm64.tar.gz`
+(ARM64) from the official stable
 [Wayfarer Release](https://github.com/stef-k/Wayfarer/releases). Verify its SHA-256
 against that exact Release asset's REST `digest` before extracting or running it.
 The matching `.sha256` sidecar is a convenience integrity check, not publisher
 authentication. See the [operator guide](29-Wayfarerctl.md#placement-and-prerequisites)
 for the verification and protected placement details.
 
-In a trusted fresh directory:
+In a trusted fresh directory (AMD64 example; substitute the ARM64 archive on ARM64):
 
 ```sh
 tar -xzf wayfarerctl-linux-amd64.tar.gz

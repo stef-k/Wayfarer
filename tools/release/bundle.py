@@ -145,6 +145,14 @@ def assemble(output: Path, app_digest: str, capture_directory: Path | None = Non
     actual = image.inspect_image(release, ref)
     if ref not in actual.get('RepoDigests', []):
         raise version.ValidationError('digest is not present in local repository identity')
+    if db_digest != DB or stable:
+        import db_image
+        database = json.loads(image.run('docker', 'image', 'inspect', 'ghcr.io/stef-k/wayfarer-db@' + db_digest))[0]
+        db_source = database['Config']['Labels']['org.opencontainers.image.revision']
+        if not re.fullmatch('[a-f0-9]{40}', db_source):
+            raise version.ValidationError('invalid DB source identity')
+        db_image.inspect_payload({'sourceRevision': db_source, 'version': db_image.DB_VERSION},
+                                 'ghcr.io/stef-k/wayfarer-db@' + db_digest)
     output.mkdir(parents=True, exist_ok=False)
     bundle = output / (tag if stable else f"candidate-v{release['version']}-{release['sourceRevision']}")
     bundle.mkdir(mode=0o755)

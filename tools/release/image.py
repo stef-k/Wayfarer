@@ -122,7 +122,7 @@ def manifest_matches(image: str, digest: str, config_digest: str) -> None:
 
 def selected_digest(reference: str, selected: str = PLATFORM) -> str:
     """Resolve exactly one supported platform from an immutable OCI index; reject ambiguous descriptors."""
-    if selected not in PLATFORMS or "@sha256:" not in reference:
+    if selected not in PLATFORMS or not DIGEST.fullmatch(reference.rsplit("@", 1)[-1]):
         raise version.ValidationError("immutable supported platform selection required")
     manifest = json.loads(run("docker", "manifest", "inspect", reference))
     if "manifests" not in manifest:
