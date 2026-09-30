@@ -38,8 +38,8 @@ class RecoveryJourney(Journey):
 
     def recovery(self, restore_only=False, native_only=False):
         """Setup uses existing authority; source inspection must work without changing the app image."""
-        self.ctl('setup', '--bundle', str(self.release_bundle if native_only else self.bundle), '--hostname', 'wayfarer.example.org',
-                 '--app-digest', self.digest, '--project', self.project, '--edge-prefix', '172.30.69',
+        self.ctl('setup', '--bundle', str(self.release_bundle), '--hostname', 'wayfarer.example.org',
+                 '--project', self.project, '--edge-prefix', '172.30.69',
                  '--mode', 'external', '--loopback-port', str(self.loopback),
                  '--password-stdin', data=self.password + '\n')
         self.compose('exec', '-T', 'wayfarer', 'sh', '-ec',
@@ -516,7 +516,7 @@ class RecoveryJourney(Journey):
 
     def clean_root_restore(self, plan):
         """Disaster restore uses a new local UUID/secrets without any setup stages or backup policy."""
-        from qualify_ctl import DB
+        database = json.loads(self.host('cat', str(self.install / 'installation.json')).stdout)['DbDigest']
         target = self.directory / 'disaster-installation'
         project = self.project + '-disaster'
         operation = plan['Operation'].replace('-', '')
@@ -525,7 +525,7 @@ class RecoveryJourney(Journey):
         evidence = self.install / 'restore-plans' / operation / 'source.json'
         options = ['restore', '--new-install', '--archive', archive, '--source-installation', plan['SourceInstallation'],
             '--bundle', str(self.bundle), '--hostname', 'wayfarer.example.org', '--app-digest', self.digest,
-            '--db-digest', DB, '--mode', 'external', '--project', project, '--edge-prefix', '172.30.70',
+            '--db-digest', database, '--mode', 'external', '--project', project, '--edge-prefix', '172.30.70',
             '--loopback-port', str(self.free_port()), '--restore-payload', str(self.payload / 'wayfarer-recovery'),
             '--capture-payload', str(self.payload / 'wayfarer-recovery'), '--target-evidence', str(evidence)]
         def ctl(*args):
@@ -558,22 +558,6 @@ class RecoveryJourney(Journey):
         self.cleanup_project(self.project)
         super().cleanup()
 
-    def compose(self, *args):
-        """Observe the same installation-owned generation as the operator after activation."""
-        current = self.host('cat', str(self.install / 'installation.json'), check=False)
-        overlay = []
-        if current.returncode == 0:
-            config = json.loads(current.stdout)
-            generation = config.get('StorageGeneration')
-            bundle = Path(config['Bundle'])
-            authority = config.get('Release')
-            retained_env = self.install / 'deployment-generations' / authority['Fingerprint'] / 'deployment.env' if authority else None
-            environment = retained_env if retained_env and self.host('test', '-f', str(retained_env), check=False).returncode == 0 else self.install / 'deployment.env'
-            if generation:
-                overlay = ['-f', str(self.install / 'storage-generations' / generation / 'compose.json')]
-        return self.host('docker', 'compose', '--project-name', self.project, '--env-file',
-            str(environment), '-f', str(bundle / 'compose.yaml'),
-            '-f', str(bundle / 'external.yaml'), *overlay, *args).stdout
 
 
 def main():
@@ -586,10 +570,8 @@ def main():
     parser.add_argument('--native-only', action='store_true', help='One native canonical setup/doctor/stop and recovery-helper journey.')
     parser.add_argument('--restore-only', action='store_true', help='Run the managed restore journey without repeating backup regression matrices.')
     parser.add_argument('--update-bundle', help='Target candidate for the bounded managed update journey.')
-    parser.add_argument('--release-bundle', help='Qualify immutable local release adoption before recovery.')
+    parser.add_argument('--release-bundle', required=True, help='Canonical candidate with the locally built native DB manifest.')
     args = parser.parse_args()
-    if args.native_only and not args.release_bundle:
-        parser.error('--native-only requires the canonical --release-bundle')
     with tempfile.TemporaryDirectory(prefix='wayfarer-533-') as directory:
         journey = RecoveryJourney(directory, args.executable, args.app_digest, args.worker, args.inspector, args.probe)
         try:

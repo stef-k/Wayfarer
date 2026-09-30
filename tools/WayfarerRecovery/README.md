@@ -6,7 +6,7 @@ Do not invoke the private worker protocol as an alternative configuration author
 
 Manual, scheduled and host-reserved quiesced captures share `RecoveryEngine`.
 `installation.json` owns policy; immutable generation files are derived inputs.
-The worker runs as UID/GID1654 inside the exact configured PG17/PostGIS DB image,
+The worker runs as UID/GID1654 inside the exact configured PG18.6/PostGIS DB image,
 with no Docker socket, no capabilities and private bounded temp. Capture receives
 app-data read-only and backend DB access; offline listing/verification receives neither
 source nor credentials nor network and binds the destination read-only. The stable

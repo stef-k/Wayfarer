@@ -43,10 +43,7 @@ def qualify_release(journey):
     journey.host('tee', str(journey.install / 'installation.json'), data=original)
     journey.ctl('release', 'adopt', str(source))
     adopted = json.loads(journey.host('cat', str(journey.install / 'installation.json')).stdout)
-    retained = dict(adopted)
-    retained.pop('Release')
-    retained['Schema'] = config['Schema']
-    assert retained == config and before == journey.snapshot()
+    assert adopted == config and before == journey.snapshot()
     assert journey.ctl('dispatch', 'version').stdout.startswith('wayfarerctl ')
     target = json.loads(journey.ctl('release', 'target', str(installed), journey.project).stdout)
     assert target['QuartzSnapshotFingerprint'] == '0' * 32 and 'QuartzIdentity' not in target
