@@ -88,7 +88,7 @@ It installs exact matching `postgresql-18-postgis-3` and `-scripts` versions fro
 PGDG using the base's repository/signing key, and rejects a changed server package.
 There is no source compilation, replacement entrypoint, runtime package installation
 or baked-in cluster/secret. Existing Compose initialization creates only required
-`postgis` and `citext` extensions in the application DB. PostgreSQL supplies citext1.6.
+`postgis` and `citext` extensions in the application DB. PostgreSQL 18.6 supplies citext1.8 (confirmed from its installed control file and upstream `REL_18_6` source); exact release/recovery checks require that version.
 Live signed Bookworm indexes on 2026-09-30 bind `postgresql-18=18.6-1.pgdg12+2` and both PostGIS packages at `3.6.4+dfsg-2.pgdg12+1` on AMD64 and ARM64.
 The base retains UID/GID999. Compose mounts the one durable `db-data` volume at
 `/var/lib/postgresql`; the official image owns `PGDATA=/var/lib/postgresql/18/docker`.

@@ -127,7 +127,7 @@ def release_manifest(release: dict, app_digest: str, application: dict, operator
         'SourceRevision': release['sourceRevision'], 'Platform': image.PLATFORM,
         'Images': {'ApplicationRepository': image.IMAGE, 'ApplicationDigest': app_digest, 'PlatformDigest': platform_digest or app_digest, 'OciVersion': release['version'],
                    'DatabaseDigest': db_digest, 'CaddyDigest': CADDY, 'PostgreSqlMajor': 18, 'Postgis': '3.6.4',
-                   'Citext': '1.6', 'Encoding': 'UTF8', 'Collation': 'C.UTF-8', 'CharacterType': 'C.UTF-8', 'LocaleProvider': 'c'},
+                   'Citext': '1.8', 'Encoding': 'UTF8', 'Collation': 'C.UTF-8', 'CharacterType': 'C.UTF-8', 'LocaleProvider': 'c'},
         'Application': application, 'Operator': operator, 'Sources': [],
         'LegacyCapture': {'WorkerVersion': evidence['WorkerVersion'], 'ReleaseStatus': evidence['ReleaseStatus']} if evidence else None,
         'Files': [{'Path': name, 'Sha256': digest(bundle / name), 'Type': 'file', 'Mode': mode(name)} for name in sorted(payloads)]}

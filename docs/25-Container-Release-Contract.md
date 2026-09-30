@@ -328,7 +328,7 @@ non-root/write-boundary, health and browser evidence before release support is c
 - Disposable database proof: pulled `postgis/postgis:17-3.5` at digest
   `sha256:01a6a70e41e6c4467c8f55f6063555ed72db2d6662cd0d571040d42eadaeb6f6`,
   ran with network disabled, no published ports and tmpfs PGDATA. SQL reported
-  PostgreSQL 17.5, PostGIS 3.5.2 and successfully created citext 1.6. Container was
+  PostgreSQL 17.5, PostGIS 3.5.2 and successfully created citext 1.8. Container was
   stopped/removed. This proves extension availability, not current security fitness:
   the observed PG17 patch is older than current upstream 17.x metadata. The image
   child must obtain a maintained/patched artifact in this family or explicitly

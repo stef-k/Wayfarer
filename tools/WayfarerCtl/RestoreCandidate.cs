@@ -59,7 +59,7 @@ public sealed class RestoreCandidate(IProcessRunner runner)
             "(SELECT extversion FROM pg_extension WHERE extname='postgis'), postgis_lib_version(), " +
             "(SELECT extversion FROM pg_extension WHERE extname='citext'), pg_encoding_to_char(encoding), " +
             "datcollate, datctype, datlocprovider, coalesce(datlocale,'') FROM pg_database WHERE datname=current_database();"], token);
-        if (identity.Trim() != "18.6 (Debian 18.6-1.pgdg12+2)|3.6.4|3.6.4|1.6|UTF8|C.UTF-8|C.UTF-8|c|")
+        if (identity.Trim() != "18.6 (Debian 18.6-1.pgdg12+2)|3.6.4|3.6.4|1.8|UTF8|C.UTF-8|C.UTF-8|c|")
             throw new IOException("Candidate DB contract differs before SQL restore.");
         var secret = Path.Combine(directory, "bootstrap-secret-" + plan.CandidateGeneration);
         ProtectedFiles.Create(secret, File.ReadAllText(Path.Combine(root, "secrets/db-password")), 1654);

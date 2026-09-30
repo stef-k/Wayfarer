@@ -30,7 +30,7 @@ public sealed class Diagnostics(IProcessRunner runner, ITerminal terminal)
         {
             var result = await Required(config.Compose(root, "exec", "-T", "db", "psql", "-U", "postgres", "-d", "wayfarer", "-At", "-c",
                 "SELECT current_setting('server_version'), postgis_lib_version(), (SELECT extversion FROM pg_extension WHERE extname='citext');"), token);
-            if (result.Trim() != "18.6 (Debian 18.6-1.pgdg12+2)|3.6.4|1.6") throw new IOException();
+            if (result.Trim() != "18.6 (Debian 18.6-1.pgdg12+2)|3.6.4|1.8") throw new IOException();
             terminal.Write("DB/PostGIS/citext: " + result.Trim());
         });
         await Check("Application readiness (schema/admin/DB)", async () =>

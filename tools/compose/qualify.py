@@ -152,7 +152,7 @@ class Stack:
         assert self.sql("SELECT string_agg(v, ',' ORDER BY v) "
                         "FROM (VALUES ('α'),('é'),('Α'),('E'),('É')) AS sample(v);", database) == 'E,É,é,Α,α'
         assert self.sql("SELECT extname || ':' || extversion FROM pg_extension "
-                        "WHERE extname IN ('postgis','citext') ORDER BY extname;", database) == 'citext:1.6\npostgis:3.6.4'
+                        "WHERE extname IN ('postgis','citext') ORDER BY extname;", database) == 'citext:1.8\npostgis:3.6.4'
 
     def container(self, service):
         """Resolve by Compose service identity; never depend on generated names."""

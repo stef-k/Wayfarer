@@ -96,7 +96,7 @@ public static class ReleaseContract
         var images = value.Images;
         if (images.ApplicationRepository != "ghcr.io/stef-k/wayfarer" || !Match(images.ApplicationDigest, "sha256:[a-f0-9]{64}") || !Match(images.PlatformDigest, "sha256:[a-f0-9]{64}") ||
             images.OciVersion != value.Version || !Match(images.DatabaseDigest, "sha256:[a-f0-9]{64}") || images.CaddyDigest != CaddyDigest ||
-            images.PostgreSqlMajor != 18 || images.Postgis != "3.6.4" || images.Citext != "1.6" || images.Encoding != "UTF8" ||
+            images.PostgreSqlMajor != 18 || images.Postgis != "3.6.4" || images.Citext != "1.8" || images.Encoding != "UTF8" ||
             images.Collation != "C.UTF-8" || images.CharacterType != "C.UTF-8" || images.LocaleProvider != "c")
             throw new IOException("Unsupported release image contract.");
         var app = value.Application;

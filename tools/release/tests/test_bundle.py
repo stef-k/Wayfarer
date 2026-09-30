@@ -78,6 +78,7 @@ def test_stable_manifest_and_archive_use_exact_public_identity(tmp_path, monkeyp
     assert manifest['Sources'] == [] and manifest['LegacyCapture'] is None
     assert manifest['Images']['ApplicationDigest'] == manifest['Images']['PlatformDigest'] == digest
     assert manifest['Images']['PostgreSqlMajor'] == 18
+    assert manifest['Images']['Citext'] == '1.8'
     assert set(manifest) == {'Schema', 'BundleContract', 'ConfigurationSchema', 'Status', 'Version', 'Tag',
                              'Repository', 'SourceRevision', 'Platform', 'Images', 'Application', 'Operator',
                              'Sources', 'LegacyCapture', 'Files'}

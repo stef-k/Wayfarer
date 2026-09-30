@@ -464,7 +464,7 @@ Use a trusted local application bundle, immutable application and DB images alre
 loaded into Docker, trusted capture evidence and the current restore payload. Restore
 never pulls images or selects a release from manifest strings. The exact contract
 includes the selected Linux AMD64/ARM64 platform, application digest/version/revision, bundle fingerprint,
-PG18.6 (`18.6-1.pgdg12+2`)/PostGIS3.6.4/citext1.6, UTF8/C.UTF-8 libc locale, ordered EF migrations, Quartz
+PG18.6 (`18.6-1.pgdg12+2`)/PostGIS3.6.4/citext1.8, UTF8/C.UTF-8 libc locale, ordered EF migrations, Quartz
 structure and stable Data Protection identity `Wayfarer`. The historical capture
 payload fingerprint is independent of the restore payload fingerprint.
 
