@@ -153,13 +153,16 @@ def stable_database_digest() -> str:
     """Bind the promoted immutable index and both native configs before selecting this platform."""
     evidence = accepted_database()
     reference = evidence['image'] + '@' + evidence['manifestDigest']
-    manifest = json.loads(image.run('docker', 'manifest', 'inspect', reference))
-    if not isinstance(manifest.get('manifests'), list) or len(manifest['manifests']) != 2:
-        raise version.ValidationError('accepted DB index must contain exactly two native manifests')
-    for fact in evidence['platforms']:
-        if image.selected_digest(reference, fact['platform']) != fact['manifestDigest']:
-            raise version.ValidationError('accepted DB index contradicts recorded native manifest')
-        image.manifest_matches(evidence['image'] + '@' + fact['manifestDigest'], fact['manifestDigest'], fact['configDigest'])
+    try:
+        manifest = json.loads(image.run('docker', 'manifest', 'inspect', reference))
+        if not isinstance(manifest.get('manifests'), list) or len(manifest['manifests']) != 2:
+            raise version.ValidationError('accepted DB index must contain exactly two native manifests')
+        for fact in evidence['platforms']:
+            if image.selected_digest(reference, fact['platform']) != fact['manifestDigest']:
+                raise version.ValidationError('accepted DB index contradicts recorded native manifest')
+            image.manifest_matches(evidence['image'] + '@' + fact['manifestDigest'], fact['manifestDigest'], fact['configDigest'])
+    except (ValueError, KeyError, TypeError, AttributeError) as error:
+        raise version.ValidationError(f'invalid accepted DB registry evidence: {error}') from error
     return next(fact['manifestDigest'] for fact in evidence['platforms'] if fact['platform'] == image.PLATFORM)
 
 

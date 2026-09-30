@@ -100,7 +100,7 @@ def test_incomplete_accepted_database_fails_closed(database_registry, kind):
     assert calls == []
 
 
-@pytest.mark.parametrize('kind', ['native-index', 'missing', 'duplicate', 'extra', 'digest', 'config'])
+@pytest.mark.parametrize('kind', ['native-index', 'missing', 'duplicate', 'extra', 'digest', 'config', 'malformed'])
 def test_registry_contradictions_fail_closed(database_registry, kind):
     """Live index selection and both tested native config identities must match recorded evidence."""
     evidence, _, registry, _ = database_registry
@@ -115,8 +115,10 @@ def test_registry_contradictions_fail_closed(database_registry, kind):
         entries.append(entries[0])
     elif kind == 'digest':
         entries[1]['digest'] = 'sha256:' + 'a' * 64
-    else:
+    elif kind == 'config':
         registry[evidence['platforms'][1]['manifestDigest']]['config']['digest'] = 'sha256:' + 'a' * 64
+    else:
+        entries[1] = None
     with pytest.raises(version.ValidationError):
         bundle.stable_database_digest()
 
@@ -128,13 +130,16 @@ def test_candidate_requires_explicit_native_database(tmp_path, monkeypatch):
         bundle.assemble(tmp_path / 'bundle', 'sha256:' + 'a' * 64)
 
 
-def test_stable_cli_rejects_database_override(tmp_path, monkeypatch, capsys):
-    """Stable CLI input cannot override committed DB authority."""
+@pytest.mark.parametrize('stable,expected', [(True, 'unsupported'), (False, 'explicit native')])
+def test_cli_enforces_database_mode(tmp_path, monkeypatch, capsys, stable, expected):
+    """Stable CLI rejects overrides; candidate CLI requires an explicit DB manifest."""
     monkeypatch.setattr(bundle.image, 'run', lambda *args: pytest.fail('invalid input must fail before work'))
-    monkeypatch.setattr(sys, 'argv', ['bundle.py', '--stable', '--tag', 'v1.9.20', '--source', 'a' * 40,
-        '--app-digest', 'sha256:' + 'b' * 64, '--db-digest', 'sha256:' + 'c' * 64, '--output', str(tmp_path)])
+    arguments = ['bundle.py', '--app-digest', 'sha256:' + 'b' * 64, '--output', str(tmp_path)]
+    if stable:
+        arguments += ['--stable', '--tag', 'v1.9.20', '--source', 'a' * 40, '--db-digest', 'sha256:' + 'c' * 64]
+    monkeypatch.setattr(sys, 'argv', arguments)
     assert bundle.main() == 1
-    assert 'unsupported' in capsys.readouterr().err
+    assert expected in capsys.readouterr().err
 
 
 def test_candidate_assembly_checks_explicit_digest_against_current_recipe(tmp_path, monkeypatch):
@@ -199,7 +204,7 @@ def test_archive_is_reproducible_and_checksum_external(tmp_path):
 
 
 @pytest.mark.parametrize("platform", bundle.image.PLATFORMS)
-def test_stable_manifest_and_archive_use_exact_public_identity(tmp_path, monkeypatch, platform):
+def test_stable_manifest_and_archive_use_exact_public_identity(database_registry, tmp_path, monkeypatch, platform):
     """Controlled release facts construct v1 stable baseline bytes without creating a GitHub release."""
     source = tmp_path / 'source'
     source.mkdir()
@@ -211,8 +216,8 @@ def test_stable_manifest_and_archive_use_exact_public_identity(tmp_path, monkeyp
     suffix = platform.replace('/', '-')
     facts = dict(tag='v1.9.20', version='1.9.20', sourceRevision='b' * 40)
     digest = 'sha256:' + 'c' * 64
-    database = json.loads(Path(bundle.__file__).with_name('database-release.json').read_text())
-    native = next(fact['manifestDigest'] for fact in database['platforms'] if fact['platform'] == platform)
+    database, _, _, _ = database_registry
+    native = bundle.stable_database_digest()
     manifest = bundle.release_manifest(facts, digest, {}, {}, source, bundle.PAYLOADS, True, None, db_digest=native)
     assert manifest['Schema'] == 1 and manifest['Status'] == 'stable'
     assert manifest['Tag'] == facts['tag'] and manifest['SourceRevision'] == facts['sourceRevision']
