@@ -29,7 +29,7 @@ public sealed class ReleaseImagesVerifier(IProcessRunner runner)
             if (repository == "ghcr.io/stef-k/wayfarer-db")
             {
                 if (labels.GetProperty("org.opencontainers.image.source").GetString() != manifest.Repository ||
-                    labels.GetProperty("org.opencontainers.image.version").GetString() != "pg17.11-postgis3.6.4-bookworm")
+                    labels.GetProperty("org.opencontainers.image.version").GetString() != "pg18.6-postgis3.6.4-bookworm")
                     throw new IOException("Local DB release ownership/package family mismatch.");
                 continue;
             }
@@ -89,14 +89,19 @@ public sealed class ReleaseImagesVerifier(IProcessRunner runner)
     /// <summary>A release-specific DB manifest must preserve the exact accepted executable/package contract.</summary>
     private async Task VerifyDatabaseAsync(RestoreContainers containers, string prefix, string digest, CancellationToken token)
     {
-        foreach (var (package, expected) in new[] { ("postgresql-17", "17.11-1.pgdg12+2"),
-            ("postgresql-17-postgis-3", "3.6.4+dfsg-2.pgdg12+1"), ("postgresql-17-postgis-3-scripts", "3.6.4+dfsg-2.pgdg12+1") })
+        foreach (var (package, expected) in new[] { ("postgresql-18", "18.6-1.pgdg12+2"),
+            ("postgresql-18-postgis-3", "3.6.4+dfsg-2.pgdg12+1"), ("postgresql-18-postgis-3-scripts", "3.6.4+dfsg-2.pgdg12+1") })
         {
             var installed = await ProbeAsync(containers, prefix + "-" + package,
                 [.. RestoreContainers.Unprivileged(), "--network=none", "--entrypoint=dpkg-query",
                     "ghcr.io/stef-k/wayfarer-db@" + digest, "-W", "-f=${Version}", package], token);
             if (installed.Trim() != expected) throw new IOException("DB package differs from the accepted release contract.");
         }
+        var executable = await ProbeAsync(containers, prefix + "-postgres",
+            [.. RestoreContainers.Unprivileged(), "--network=none", "--entrypoint=postgres",
+                "ghcr.io/stef-k/wayfarer-db@" + digest, "--version"], token);
+        if (executable.Trim() != "postgres (PostgreSQL) 18.6 (Debian 18.6-1.pgdg12+2)")
+            throw new IOException("DB executable differs from the accepted release contract.");
     }
 
     /// <summary>Stateless probes retain no installation data; reap only our confirmed-stopped named helper.</summary>

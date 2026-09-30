@@ -335,6 +335,25 @@ public sealed class ReleaseBundleTests : IDisposable
         await Assert.ThrowsAsync<IOException>(() => setup.PrepareBundleAsync("/etc/wayfarer", options, default));
     }
 
+    /// <summary>Fresh PG18 setup must obtain its exact DB manifest from canonical release metadata.</summary>
+    [Fact]
+    public async Task RawSetupCannotSelectTheHistoricalPg17Digest()
+    {
+        File.Delete(Path.Combine(directory, "release.json"));
+        var setup = new Setup(new ProcessRunner(), new SetupTerminal());
+        var options = Setup.Options(["--bundle", directory, "--app-digest", "sha256:" + new string('b', 64)]);
+        await Assert.ThrowsAsync<UsageException>(() => setup.PrepareBundleAsync("/etc/wayfarer", options, default));
+    }
+
+    /// <summary>The first Compose release accepts major 18 and rejects the unreleased PG17 baseline.</summary>
+    [Fact]
+    public void ReleaseRequiresPostgreSql18()
+    {
+        var manifest = Manifest();
+        ReleaseContract.Validate(manifest with { Images = manifest.Images with { PostgreSqlMajor = 18 } });
+        Assert.Throws<IOException>(() => ReleaseContract.Validate(manifest with { Images = manifest.Images with { PostgreSqlMajor = 17 } }));
+    }
+
     /// <summary>Release identity must never require an interactive prompt when hostname/default choices are supplied.</summary>
     private sealed class SetupTerminal : ITerminal
     {
@@ -348,7 +367,7 @@ public sealed class ReleaseBundleTests : IDisposable
     private ReleaseManifest Manifest() => new(1, 1, 1, "candidate", "1.9.19", null,
         "https://github.com/stef-k/Wayfarer", new string('a', 40), "linux/amd64",
         new("ghcr.io/stef-k/wayfarer", "sha256:" + new string('b', 64), "sha256:" + new string('b', 64), "1.9.19", ReleaseContract.DatabaseDigest,
-            ReleaseContract.CaddyDigest, 17, "3.6.4", "1.6", "UTF8", "C.UTF-8", "C.UTF-8", "c"),
+            ReleaseContract.CaddyDigest, 18, "3.6.4", "1.6", "UTF8", "C.UTF-8", "C.UTF-8", "c"),
         new("1.9.19", ["20260101000000_Initial"], "20260101000000_Initial", "wayfarer-quartz-postgres-v1", [2], new string('d', 64),
             "Wayfarer", "uploads", "data-protection", "ready", "1.9.19.0"),
         new("1.9.19", "1.9.19", 1, [1], [1, 2, 3, 4], [1], [1], []), [],

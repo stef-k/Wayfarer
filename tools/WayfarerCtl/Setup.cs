@@ -210,8 +210,7 @@ public sealed class Setup(IProcessRunner runner, ITerminal terminal,
         BackupPolicy.LiteralPath(path);
         if (!File.Exists(Path.Combine(path, "release.json")))
         {
-            // The existing disposable Compose qualifier supplies raw templates and an explicit local image digest.
-            if (options.ContainsKey("--app-digest")) return null;
+            // PG18 has no public DB pin yet; only canonical metadata can select its native manifest.
             throw new UsageException("Local setup requires a canonical release.json bundle.");
         }
         var bundle = ReleaseBundle.Validate(path);

@@ -118,7 +118,7 @@ class Stack:
         self.compose('run', '--rm', '--no-deps', '--user', '0', '--entrypoint', 'sh', 'wayfarer', '-ec',
             'chown 1654:1654 /var/lib/wayfarer /var/cache/wayfarer /var/log/wayfarer; '
             'chmod 700 /var/lib/wayfarer; chmod 750 /var/cache/wayfarer /var/log/wayfarer')
-        assert self.sql("SELECT current_setting('server_version'), postgis_lib_version();") == '17.11 (Debian 17.11-1.pgdg12+2)|3.6.4'
+        assert self.sql("SELECT current_setting('server_version'), postgis_lib_version();") == '18.6 (Debian 18.6-1.pgdg12+2)|3.6.4'
         self.database_semantics()
         self.sql("""CREATE TABLE compose_db_probe (label citext UNIQUE, point geometry(Point,4326));
             INSERT INTO compose_db_probe VALUES ('Άλφα', ST_SetSRID(ST_MakePoint(23.7,37.9),4326));""")
@@ -308,7 +308,7 @@ class Stack:
         assert self.identities() == before
         assert self.curl('/Admin/Users', '-b', str(self.directory / 'cookies'),
                          '-o', '/dev/null', '-w', '%{http_code}').stdout == '200'
-        # Backup tools run inside the selected PG17 image; restore into another disposable DB.
+        # Backup tools run inside the selected PG18 image; restore into another disposable DB.
         self.compose('exec', '-T', 'db', 'sh', '-ec',
             'pg_dump -U postgres -Fc wayfarer > /tmp/qualification.dump; '
             'createdb -U postgres restored; pg_restore -U postgres --exit-on-error -d restored /tmp/qualification.dump; '

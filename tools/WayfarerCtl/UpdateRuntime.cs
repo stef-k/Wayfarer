@@ -144,7 +144,7 @@ public sealed class UpdateRuntime(IProcessRunner runner)
         if (container.GetProperty("Config").GetProperty("Image").GetString() != expected)
             throw new IOException("Actual service image differs from release authority.");
         if (service == "caddy") return;
-        var roles = service == "db" ? new[] { ("db-data", "/var/lib/postgresql/data") } :
+        var roles = service == "db" ? new[] { ("db-data", "/var/lib/postgresql") } :
             new[] { ("app-data", "/var/lib/wayfarer"), ("app-cache", "/var/cache/wayfarer") };
         foreach (var (role, destination) in roles)
             if (!container.GetProperty("Mounts").EnumerateArray().Any(mount => mount.GetProperty("Type").GetString() == "volume" &&

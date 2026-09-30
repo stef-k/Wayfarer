@@ -39,7 +39,7 @@ services:
       db:
         condition: service_healthy
   db:
-    # Wayfarer packaging: official PG17.11 Bookworm + signed PGDG PostGIS3.6.4.
+    # Wayfarer packaging: official PG18.6 Bookworm + signed PGDG PostGIS3.6.4.
     image: ghcr.io/stef-k/wayfarer-db@${DB_DIGEST:?immutable database digest required}
     platform: ${WAYFARER_PLATFORM:?Validated release platform required}
     restart: unless-stopped
@@ -52,7 +52,8 @@ services:
       - source: db-app-password
         target: app-password
     volumes:
-      - db-data:/var/lib/postgresql/data
+      # PG18 owns PGDATA=/var/lib/postgresql/18/docker inside this durable parent.
+      - db-data:/var/lib/postgresql
       - ./db/20-wayfarer.sh:/docker-entrypoint-initdb.d/20-wayfarer.sh:ro
     networks: [backend]
     healthcheck:

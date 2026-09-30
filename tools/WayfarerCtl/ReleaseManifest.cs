@@ -42,6 +42,7 @@ public sealed record ReleaseFile(string Path, string Sha256, string Type, int Mo
 /// <summary>Strict v1 syntax shared by inspection, placement, adoption and dispatch.</summary>
 public static class ReleaseContract
 {
+    /// <summary>Historical PG17 serialization fallback; fresh setup requires a canonical native PG18 DB manifest.</summary>
     public const string DatabaseDigest = "sha256:bd9b3bbfe1e879b56b0742646c18d0dcc9ec95180095f8f6d02e03b54feeeb61";
     public const string CaddyDigest = "sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b";
     public static readonly string[] Payloads = ["compose.yaml", "external.yaml", "caddy/Caddyfile", "db/20-wayfarer.sh",
@@ -95,7 +96,7 @@ public static class ReleaseContract
         var images = value.Images;
         if (images.ApplicationRepository != "ghcr.io/stef-k/wayfarer" || !Match(images.ApplicationDigest, "sha256:[a-f0-9]{64}") || !Match(images.PlatformDigest, "sha256:[a-f0-9]{64}") ||
             images.OciVersion != value.Version || !Match(images.DatabaseDigest, "sha256:[a-f0-9]{64}") || images.CaddyDigest != CaddyDigest ||
-            images.PostgreSqlMajor != 17 || images.Postgis != "3.6.4" || images.Citext != "1.6" || images.Encoding != "UTF8" ||
+            images.PostgreSqlMajor != 18 || images.Postgis != "3.6.4" || images.Citext != "1.6" || images.Encoding != "UTF8" ||
             images.Collation != "C.UTF-8" || images.CharacterType != "C.UTF-8" || images.LocaleProvider != "c")
             throw new IOException("Unsupported release image contract.");
         var app = value.Application;

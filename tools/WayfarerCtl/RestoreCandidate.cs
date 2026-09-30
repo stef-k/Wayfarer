@@ -46,7 +46,7 @@ public sealed class RestoreCandidate(IProcessRunner runner)
             "--volume", Path.Combine(directory, "verified") + ":/staging:ro", "--volume", ActiveStorage.Volume(candidate, "app-data") + ":/candidate",
             "--entrypoint=/worker", "ghcr.io/stef-k/wayfarer-db@" + candidate.DbDigest, "restore-files"], token);
         await owner.Required(["create", "--name", db, "--label", "wayfarer.restore-helper=" + candidate.Project, "--restart=no", "--pull=never", "--network", network, "--network-alias=db",
-            "--volume", ActiveStorage.Volume(candidate, "db-data") + ":/var/lib/postgresql/data",
+            "--volume", ActiveStorage.Volume(candidate, "db-data") + ":/var/lib/postgresql",
             "--volume", Path.Combine(root, "secrets/db-password") + ":/run/secrets/db-password:ro",
             "--volume", Path.Combine(root, "secrets/db-app-password") + ":/run/secrets/app-password:ro",
             "--volume", Path.Combine(candidate.Bundle, "db/20-wayfarer.sh") + ":/docker-entrypoint-initdb.d/20-wayfarer.sh:ro",
@@ -55,11 +55,11 @@ public sealed class RestoreCandidate(IProcessRunner runner)
         await owner.Required(["start", db], token);
         await WaitDatabaseAsync(db, token);
         var identity = await owner.Required(["exec", db, "psql", "-U", "postgres", "-d", "wayfarer", "-At", "-c",
-            "SELECT current_setting('server_version_num')::int / 10000, " +
+            "SELECT current_setting('server_version'), " +
             "(SELECT extversion FROM pg_extension WHERE extname='postgis'), postgis_lib_version(), " +
             "(SELECT extversion FROM pg_extension WHERE extname='citext'), pg_encoding_to_char(encoding), " +
             "datcollate, datctype, datlocprovider, coalesce(datlocale,'') FROM pg_database WHERE datname=current_database();"], token);
-        if (identity.Trim() != "17|3.6.4|3.6.4|1.6|UTF8|C.UTF-8|C.UTF-8|c|")
+        if (identity.Trim() != "18.6 (Debian 18.6-1.pgdg12+2)|3.6.4|3.6.4|1.6|UTF8|C.UTF-8|C.UTF-8|c|")
             throw new IOException("Candidate DB contract differs before SQL restore.");
         var secret = Path.Combine(directory, "bootstrap-secret-" + plan.CandidateGeneration);
         ProtectedFiles.Create(secret, File.ReadAllText(Path.Combine(root, "secrets/db-password")), 1654);

@@ -95,6 +95,30 @@ def test_payload_rejects_labels_that_hide_wrong_installed_packages(monkeypatch, 
         db.inspect_payload(release, 'db')
 
 
+@pytest.mark.parametrize('layout', ['official', 'pg17', 'nested'])
+def test_payload_requires_exact_pg18_packages_executable_and_layout(monkeypatch, release, layout):
+    """A PG18 label cannot authorize old storage or a different executable/package revision."""
+    root = '/var/lib/postgresql' if layout != 'pg17' else '/var/lib/postgresql/data'
+    pgdata = '/var/lib/postgresql/18/docker' if layout != 'nested' else root
+    inspected = {'Os': 'linux', 'Architecture': 'amd64', 'Config': {
+        'Labels': db.labels(release), 'Env': ['PGDATA=' + pgdata], 'Volumes': {root: {}}}}
+    packages = {'postgresql-18': '18.6-1.pgdg12+2',
+                'postgresql-18-postgis-3': '3.6.4+dfsg-2.pgdg12+1',
+                'postgresql-18-postgis-3-scripts': '3.6.4+dfsg-2.pgdg12+1'}
+    def run(*args):
+        if args[1] == 'image':
+            return json.dumps([inspected])
+        if args[-1] == '--version':
+            return 'postgres (PostgreSQL) 18.6 (Debian 18.6-1.pgdg12+2)'
+        return packages[args[-1]]
+    monkeypatch.setattr(image, 'run', run)
+    if layout == 'official':
+        assert db.inspect_payload(release, 'db') == inspected
+    else:
+        with pytest.raises(version.ValidationError, match='layout'):
+            db.inspect_payload(release, 'db')
+
+
 def test_dry_run_cannot_claim_registry_identity(monkeypatch, tmp_path, release):
     """The PR CLI only builds/qualifies locally and emits null registry digests."""
     output = tmp_path / 'dry.json'

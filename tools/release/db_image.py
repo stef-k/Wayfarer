@@ -15,10 +15,10 @@ import version
 
 IMAGE = 'ghcr.io/stef-k/wayfarer-db'
 RECIPE = 'deploy/compose/db'
-DB_VERSION = 'pg17.11-postgis3.6.4-bookworm'
-PACKAGES = {'postgresql-17': '17.11-1.pgdg12+2',
-            'postgresql-17-postgis-3': '3.6.4+dfsg-2.pgdg12+1',
-            'postgresql-17-postgis-3-scripts': '3.6.4+dfsg-2.pgdg12+1'}
+DB_VERSION = 'pg18.6-postgis3.6.4-bookworm'
+PACKAGES = {'postgresql-18': '18.6-1.pgdg12+2',
+            'postgresql-18-postgis-3': '3.6.4+dfsg-2.pgdg12+1',
+            'postgresql-18-postgis-3-scripts': '3.6.4+dfsg-2.pgdg12+1'}
 
 
 def identity(source, db_version):
@@ -68,21 +68,22 @@ def inspect_payload(release, ref):
         raise version.ValidationError('DB platform must match the native release platform')
     actual = inspected['Config'].get('Labels') or {}
     expected_labels = labels(release)
-    # The index contains the original AMD64 base manifest; retain that already-published label identity.
-    legacy_base = 'postgres:17.11-bookworm@sha256:91eb910c44c7ed13f7f1a4ccadaa9ca72ef14cddc04cacb6e070e48eb44731a3'
-    if actual.get('org.opencontainers.image.base.name') == legacy_base and image.PLATFORM == 'linux/amd64':
-        expected_labels['org.opencontainers.image.base.name'] = legacy_base
     if any(actual.get(key) != value for key, value in expected_labels.items()):
         raise version.ValidationError('DB OCI identity mismatch')
     for package, expected in PACKAGES.items():
         installed = image.run('docker', 'run', '--rm', '--network', 'none', '--read-only',
+                              '--tmpfs=/var/lib/postgresql:ro,mode=000,size=65536',
                               '--entrypoint', 'dpkg-query', ref, '-W', '-f=${Version}', package)
         if installed != expected:
             raise version.ValidationError(f'unexpected installed package: {package}')
     actual_version = image.run('docker', 'run', '--rm', '--network', 'none', '--read-only',
+                               '--tmpfs=/var/lib/postgresql:ro,mode=000,size=65536',
                                '--entrypoint', 'postgres', ref, '--version')
-    if actual_version != 'postgres (PostgreSQL) 17.11 (Debian 17.11-1.pgdg12+2)':
+    if actual_version != 'postgres (PostgreSQL) 18.6 (Debian 18.6-1.pgdg12+2)':
         raise version.ValidationError('unexpected PostgreSQL executable')
+    if (inspected['Config'].get('Volumes') != {'/var/lib/postgresql': {}}
+            or 'PGDATA=/var/lib/postgresql/18/docker' not in inspected['Config'].get('Env', [])):
+        raise version.ValidationError('unexpected PostgreSQL data layout')
     return inspected
 
 

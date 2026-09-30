@@ -49,6 +49,8 @@ def probe(ref: str, entry: str, *args: str, mount: Path | None = None) -> str:
                '--memory=512m', '--pids-limit=64', '--tmpfs=/tmp:uid=1654,gid=1654,mode=0700,size=67108864']
     if mount:
         command += ['--volume', f'{mount}:/payload.dll:ro' if mount.suffix == '.dll' else f'{mount}:/payload:ro']
+    if ref.startswith('ghcr.io/stef-k/wayfarer-db@'):
+        command += ['--tmpfs=/var/lib/postgresql:ro,mode=000,size=65536']
     return image.run(*command, '--entrypoint=' + entry, ref, *args)
 
 
@@ -124,7 +126,7 @@ def release_manifest(release: dict, app_digest: str, application: dict, operator
         'Version': release['version'], 'Tag': release['tag'] if stable else None, 'Repository': image.SOURCE,
         'SourceRevision': release['sourceRevision'], 'Platform': image.PLATFORM,
         'Images': {'ApplicationRepository': image.IMAGE, 'ApplicationDigest': app_digest, 'PlatformDigest': platform_digest or app_digest, 'OciVersion': release['version'],
-                   'DatabaseDigest': db_digest, 'CaddyDigest': CADDY, 'PostgreSqlMajor': 17, 'Postgis': '3.6.4',
+                   'DatabaseDigest': db_digest, 'CaddyDigest': CADDY, 'PostgreSqlMajor': 18, 'Postgis': '3.6.4',
                    'Citext': '1.6', 'Encoding': 'UTF8', 'Collation': 'C.UTF-8', 'CharacterType': 'C.UTF-8', 'LocaleProvider': 'c'},
         'Application': application, 'Operator': operator, 'Sources': [],
         'LegacyCapture': {'WorkerVersion': evidence['WorkerVersion'], 'ReleaseStatus': evidence['ReleaseStatus']} if evidence else None,
@@ -136,6 +138,8 @@ def assemble(output: Path, app_digest: str, capture_directory: Path | None = Non
     """Reuse version/image authorities and publish only three bounded lifecycle payloads."""
     if not image.DIGEST.fullmatch(app_digest) or not image.DIGEST.fullmatch(db_digest):
         raise version.ValidationError('an actual immutable local application digest is required')
+    if not stable and db_digest == DB:
+        raise version.ValidationError('candidate assembly requires an explicit native PG18 DB manifest digest')
     if image.run('git', 'status', '--porcelain', '--untracked-files=normal'):
         raise version.ValidationError('assembly requires a clean committed source tree')
     if stable and (not tag or not source or capture_directory or capture_evidence):
@@ -159,14 +163,13 @@ def assemble(output: Path, app_digest: str, capture_directory: Path | None = Non
     actual = image.inspect_image(release, ref)
     if ref not in actual.get('RepoDigests', []):
         raise version.ValidationError('digest is not present in local repository identity')
-    if db_digest != DB or stable:
-        import db_image
-        database = json.loads(image.run('docker', 'image', 'inspect', 'ghcr.io/stef-k/wayfarer-db@' + db_digest))[0]
-        db_source = database['Config']['Labels']['org.opencontainers.image.revision']
-        if not re.fullmatch('[a-f0-9]{40}', db_source):
-            raise version.ValidationError('invalid DB source identity')
-        db_image.inspect_payload({'sourceRevision': db_source, 'version': db_image.DB_VERSION},
-                                 'ghcr.io/stef-k/wayfarer-db@' + db_digest)
+    import db_image
+    database = json.loads(image.run('docker', 'image', 'inspect', 'ghcr.io/stef-k/wayfarer-db@' + db_digest))[0]
+    db_source = database['Config']['Labels']['org.opencontainers.image.revision']
+    if not re.fullmatch('[a-f0-9]{40}', db_source):
+        raise version.ValidationError('invalid DB source identity')
+    db_image.inspect_payload({'sourceRevision': db_source, 'version': db_image.DB_VERSION},
+                             'ghcr.io/stef-k/wayfarer-db@' + db_digest)
     output.mkdir(parents=True, exist_ok=False)
     bundle = output / (tag if stable else f"candidate-v{release['version']}-{release['sourceRevision']}")
     bundle.mkdir(mode=0o755)

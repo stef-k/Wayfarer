@@ -244,7 +244,7 @@ jobs:
           image_id="$(docker image inspect "$(python3 -c 'import json,os; e=json.load(open(os.environ["RUNNER_TEMP"]+"/image-evidence.json")); print(e["image"]+":"+e["tag"])')" --format '{{.Id}}')"
           # Same DB build/metadata/full qualification path as publication, with no login/push.
           python3 tools/release/db_image.py dry-run --source "$(git rev-parse HEAD)" \
-            --db-version pg17.11-postgis3.6.4-bookworm --app-image "$image_id" \
+            --db-version pg18.6-postgis3.6.4-bookworm --app-image "$image_id" \
             --output "$RUNNER_TEMP/db-dry-run.json"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: steps.image-scope.outputs.run_application_image == 'true'
@@ -350,7 +350,7 @@ jobs:
         run: |
           app_ref="$(python3 -c 'import json,os; e=json.load(open(os.environ["RUNNER_TEMP"]+"/image-evidence.json")); print(e["image"]+":"+e["tag"])')"
           python3 tools/release/db_image.py dry-run --source "$(git rev-parse HEAD)" \
-            --db-version pg17.11-postgis3.6.4-bookworm --app-image "$app_ref" --output "$RUNNER_TEMP/db-evidence.json"
+            --db-version pg18.6-postgis3.6.4-bookworm --app-image "$app_ref" --output "$RUNNER_TEMP/db-evidence.json"
       - name: Publish native recovery payload and existing probes
         if: steps.image-scope.outputs.run_application_image == 'true'
         run: |

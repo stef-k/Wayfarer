@@ -1,18 +1,18 @@
-# Wayfarer-owned packaging only: official PG17 Debian base plus signed PGDG packages.
+# Wayfarer-owned packaging only: official PG18 Debian base plus signed PGDG packages.
 # Refresh pins together in a reviewed revision; never apt-upgrade a running database.
-FROM postgres:17.11-bookworm@sha256:639ab7ceb90e13123085b741fb31ef493fba25463002f6da665352e7b534b652
+FROM postgres:18.6-bookworm@sha256:3725f4e2499eef5134592b3b4ab79a543ed7f8e533b05b5b637af926630f6650
 
 LABEL org.opencontainers.image.source="https://github.com/stef-k/Wayfarer" \
       org.opencontainers.image.title="Wayfarer PostgreSQL/PostGIS" \
-      org.opencontainers.image.description="PostgreSQL 17.11 and PGDG PostGIS 3.6.4 on Debian Bookworm"
+      org.opencontainers.image.description="PostgreSQL 18.6 and PGDG PostGIS 3.6.4 on Debian Bookworm"
 
 # The base owns PGDG's signing key/repository and PostgreSQL entrypoint/data layout.
 # Pin both extension packages; reject an unexpected server upgrade during assembly.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-        postgresql-17-postgis-3=3.6.4+dfsg-2.pgdg12+1 \
-        postgresql-17-postgis-3-scripts=3.6.4+dfsg-2.pgdg12+1 \
-    && test "$(dpkg-query -W -f='${Version}' postgresql-17)" = '17.11-1.pgdg12+2' \
+        postgresql-18-postgis-3=3.6.4+dfsg-2.pgdg12+1 \
+        postgresql-18-postgis-3-scripts=3.6.4+dfsg-2.pgdg12+1 \
+    && test "$(dpkg-query -W -f='${Version}' postgresql-18)" = '18.6-1.pgdg12+2' \
     && rm -rf /var/lib/apt/lists/*
 
 # No credentials, init policy, app migrations or data are baked into this image.
