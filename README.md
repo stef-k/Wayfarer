@@ -40,6 +40,8 @@ they do not claim these public assets already exist.
 
 [![Segment editing](docs/images/segment-edit-2.JPG)](docs/images/segment-edit-2.JPG)
 
+The initial Compose database baseline is PostgreSQL 18.6 + PostGIS 3.6.4 on Debian Bookworm. The first public Compose stable still awaits the reviewed AMD64/ARM64 DB index pin (#718).
+
 ## Security Model & Intended Use
 
 Wayfarer is a privacy-first, self-hosted location timeline and trip companion for individuals, families, and teams who want to keep their data on their own infrastructure.

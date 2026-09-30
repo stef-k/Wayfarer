@@ -66,7 +66,7 @@ These are container targets; logical names are Compose volume keys, project scop
 | `/var/cache/wayfarer` | `app-cache`, 1654:1654 | Rebuildable tiles, images, thumbnails |
 | `/var/log/wayfarer` | `app-logs`, 1654:1654 | Operational logs, bounded retention |
 | `/tmp/wayfarer` | Disposable tmpfs, 1654:1654 | Browser/application temporary work |
-| `/var/lib/postgresql/data` | `db-data`, upstream postgres identity | Authoritative PostgreSQL 17 cluster |
+| `/var/lib/postgresql` | `db-data`, upstream postgres identity | Authoritative PostgreSQL 18 cluster; upstream PGDATA is `/var/lib/postgresql/18/docker` |
 | Caddy `/data`, `/config` | `caddy-data`, `caddy-config`, image-appropriate owner | TLS/account state and generated proxy state |
 | `/run/secrets` | Selected read-only protected file mounts | Secrets, never image content |
 
@@ -98,12 +98,13 @@ backup operation, not the ordinary web service. No NAS mounting/credentials fram
 ## Database contract
 
 Select a narrowly scoped Wayfarer-owned DB image assembled from the official
-`postgres:17.11-bookworm` multi-platform index with exact AMD64/ARM64 manifests and signed PGDG PostGIS **3.6.4**
-packages. PostgreSQL **17 only**, Debian/glibc and the PG17 data-volume path remain
-fixed. #644's [image investigation and qualification](28-Production-Compose.md#exact-third-party-image-decision)
+`postgres:18.6-bookworm` multi-platform index with exact AMD64/ARM64 manifests and signed PGDG PostGIS **3.6.4**
+packages. PostgreSQL **18.6 only** (`18.6-1.pgdg12+2`), PostGIS **3.6.4**
+(`3.6.4+dfsg-2.pgdg12+1`) and Debian/glibc are fixed by #718. Compose mounts
+`/var/lib/postgresql`; upstream owns `PGDATA=/var/lib/postgresql/18/docker`.
+There is no released PG17 Compose baseline or PG17→PG18 migration path. #644's [image investigation and qualification](28-Production-Compose.md#exact-third-party-image-decision)
 rejects the stale project Debian image and supersedes the proposed Alpine exception.
-The bounded refinement is PostGIS3.5.x → 3.6.x using the PostgreSQL project's
-package distribution; Wayfarer owns image assembly, qualification and publication,
+The recipe uses the PostgreSQL project's signed package distribution; Wayfarer owns image assembly, qualification and publication,
 not a fork of PostgreSQL/PostGIS. Prefer a maintained official-project artifact
 when it can satisfy this contract again.
 
@@ -125,7 +126,7 @@ extension provisioning and grants the application/migration role required schema
 rights. Readiness uses bundled `pg_isready`; this only proves connection acceptance,
 not credentials, extension availability, schema compatibility or application health.
 
-No host DB port is published. Never mount this PG17 directory into another major.
+No host DB port is published. Never mount this PG18 directory into another major.
 Ordinary Wayfarer updates keep the DB major fixed; PostgreSQL major upgrades need a
 separate explicit backup/restore or pg_upgrade contract and qualification. PostGIS
 extension upgrades likewise require an explicit tested step, not tag drift.

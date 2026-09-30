@@ -52,8 +52,9 @@ public static class ArchiveVerifier
             manifest.Source.DatabaseImage == expected.DatabaseImage && manifest.Source.SourceRevision == expected.SourceRevision &&
             manifest.Source.ApplicationName == expected.ApplicationName && QuartzCompatible(manifest.Source, expected) &&
             manifest.Source.ApplicationVersion == expected.ApplicationVersion && manifest.Source.Platform == expected.Platform &&
-            manifest.Source.StableIdentity == "ready" && manifest.Database.Major == 17 && manifest.Database.Name == "wayfarer" &&
-            manifest.Database.Encoding == "UTF8" && manifest.Database.PostgisExtension == "3.6.4" && manifest.Database.Citext == "1.6" &&
+            manifest.Source.StableIdentity == "ready" && manifest.Database.Major == 18 &&
+            manifest.Database.ServerVersion == "18.6 (Debian 18.6-1.pgdg12+2)" && manifest.Database.Name == "wayfarer" &&
+            manifest.Database.Encoding == "UTF8" && manifest.Database.PostgisExtension == "3.6.4" && manifest.Database.Citext == "1.8" &&
             manifest.Database.Collation == "C.UTF-8" && manifest.Database.CharacterType == "C.UTF-8" && manifest.Database.LocaleProvider == "c" &&
             manifest.Database.PostgisExtension == manifest.Database.PostgisLibrary &&
             manifest.Database.Migrations.SequenceEqual(expected.ExpectedMigrations);

@@ -204,7 +204,10 @@ public sealed class UpdateQualification : Migration
         # Reuse existing image and bundle owners, with a candidate-only local image tag.
         build = "import sys; sys.path.insert(0, 'tools/release'); import image; r=image.identity(None,None); r['tag']='candidate-update-'+r['sourceRevision']; ref=image.build(r); print(image.inspect_image(r,ref)['RepoDigests'][0].split('@')[1])"
         digest = run('python3', '-B', '-c', build, cwd=checkout).splitlines()[-1]
-        run('python3', '-B', 'tools/release/bundle.py', '--app-digest', digest, '--output', str(output / 'target'), cwd=checkout)
+        # Forward updates retain the source candidate's exact database image authority.
+        run('python3', '-B', 'tools/release/bundle.py', '--app-digest', digest,
+            '--db-digest', source_manifest['Images']['DatabaseDigest'],
+            '--output', str(output / 'target'), cwd=checkout)
         target = next((output / 'target').glob('candidate-*'))
         operator = Path(temporary) / 'operator'
         run('dotnet', 'publish', 'tools/WayfarerCtl', '-c', 'Release', '-r', 'linux-x64',

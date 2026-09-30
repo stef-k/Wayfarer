@@ -4,6 +4,8 @@
 
 ### Changed
 
+- Adopt PostgreSQL 18.6 (`18.6-1.pgdg12+2`) + PGDG PostGIS 3.6.4 as the initial AMD64/ARM64 Compose baseline (#718). Mount the official PG18 parent volume and adapt recovery/update probes, exact runtime checks and canonical candidate qualification. Keep native/development database requirements unchanged; no DB-major migration or image publication. The first public stable remains gated on genuine PG18 DB index publication and a separate reviewed pin.
+
 - Add generic Linux ARM64 Compose release support alongside AMD64 (#715): native application/DB images and operator/recovery payloads, Playwright 1.63 Chrome-for-Testing, exact platform selection, platform-qualified bootstrap/deployment archives and native ARM64 CI. Share lifecycle, recovery and one release index; correct AArch64 filesystem flag constants. No EF migration, Pi-specific path, native/systemd change or cross-architecture migration. First genuine public stable acceptance remains pending.
 
 - Complete #713's lean Linux AMD64 bootstrap and guided public installation: publish `wayfarerctl-linux-amd64.tar.gz` from the canonical bundle operator, let bare/exact-version setup reuse public acquisition, and derive canonical local/online image identities from validated release metadata. Promote Compose self-hosting in public documentation. Preserve release/acquisition/update authority; first real stable acceptance remains pending #715 and both platforms. No schema migration or bootstrap self-replacement.

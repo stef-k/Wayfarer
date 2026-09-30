@@ -42,7 +42,7 @@ public sealed class RestoreContainers(IProcessRunner runner)
     public static string[] Unprivileged() => ["--platform=" + WayfarerRecovery.NativePlatform.Current, "--user=1654:1654", "--read-only",
         "--cap-drop=ALL", "--security-opt=no-new-privileges:true", "--init", "--cpus=1", "--memory=512m",
         "--pids-limit=64", "--tmpfs=/tmp:uid=1654,gid=1654,mode=0700,size=67108864",
-        "--tmpfs=/var/lib/postgresql/data:ro,mode=000,size=65536"];
+        "--tmpfs=/var/lib/postgresql:ro,mode=000,size=65536"];
 
     public async Task<string> Required(string[] command, CancellationToken token)
     {

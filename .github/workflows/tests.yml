@@ -244,7 +244,7 @@ jobs:
           image_id="$(docker image inspect "$(python3 -c 'import json,os; e=json.load(open(os.environ["RUNNER_TEMP"]+"/image-evidence.json")); print(e["image"]+":"+e["tag"])')" --format '{{.Id}}')"
           # Same DB build/metadata/full qualification path as publication, with no login/push.
           python3 tools/release/db_image.py dry-run --source "$(git rev-parse HEAD)" \
-            --db-version pg17.11-postgis3.6.4-bookworm --app-image "$image_id" \
+            --db-version pg18.6-postgis3.6.4-bookworm --app-image "$image_id" \
             --output "$RUNNER_TEMP/db-dry-run.json"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: steps.image-scope.outputs.run_application_image == 'true'
@@ -255,14 +255,6 @@ jobs:
       - name: Publish self-contained Linux AMD64 operator executable
         if: steps.image-scope.outputs.run_application_image == 'true'
         run: dotnet publish tools/WayfarerCtl/WayfarerCtl.csproj -c Release -r linux-x64 --self-contained true -o "$RUNNER_TEMP/wayfarerctl"
-      - name: Qualify operator setup, diagnostics, restart and account recovery
-        if: steps.image-scope.outputs.run_application_image == 'true'
-        run: |
-          image_ref="$(python3 -c 'import json,os; e=json.load(open(os.environ["RUNNER_TEMP"]+"/image-evidence.json")); print(e["image"]+":"+e["tag"])')"
-          image_digest="$(docker image inspect "$image_ref" --format '{{index .RepoDigests 0}}')"
-          # Resolve actual locally built content. Never manufacture a registry/release digest or publish it.
-          python3 tools/compose/qualify_ctl.py --executable "$RUNNER_TEMP/wayfarerctl/wayfarerctl" \
-            --app-digest "${image_digest#*@}"
       - name: Publish recovery payload and qualification probes
         if: steps.image-scope.outputs.run_application_image == 'true'
         run: |
@@ -276,14 +268,27 @@ jobs:
         run: |
           image_ref="$(python3 -c 'import json,os; e=json.load(open(os.environ["RUNNER_TEMP"]+"/image-evidence.json")); print(e["image"]+":"+e["tag"])')"
           image_digest="$(docker image inspect "$image_ref" --format '{{index .RepoDigests 0}}')"
-          python3 tools/release/bundle.py --app-digest "${image_digest#*@}" --output "$RUNNER_TEMP/release"
+          db_ref="$(python3 -c 'import json,os; e=json.load(open(os.environ["RUNNER_TEMP"]+"/db-dry-run.json")); print(e["image"]+":"+e["tag"])')"
+          db_digest="$(docker image inspect "$db_ref" --format '{{index .RepoDigests 0}}')"
+          python3 tools/release/bundle.py --app-digest "${image_digest#*@}" --db-digest "${db_digest#*@}" --output "$RUNNER_TEMP/release"
+      - name: Qualify operator setup, diagnostics, restart and account recovery
+        if: steps.image-scope.outputs.run_application_image == 'true'
+        run: |
+          image_ref="$(python3 -c 'import json,os; e=json.load(open(os.environ["RUNNER_TEMP"]+"/image-evidence.json")); print(e["image"]+":"+e["tag"])')"
+          image_digest="$(docker image inspect "$image_ref" --format '{{index .RepoDigests 0}}')"
+          # Resolve actual locally built content. Never manufacture a registry/release digest or publish it.
+          python3 tools/compose/qualify_ctl.py --executable "$RUNNER_TEMP/wayfarerctl/wayfarerctl" \
+            --app-digest "${image_digest#*@}" \
+            --release-bundle "$(python3 -c 'import os,pathlib; print(next(pathlib.Path(os.environ["RUNNER_TEMP"],"release").glob("candidate-*")))')"
       - name: Qualify shipped recovery runtime and complete clean Compose reconstruction
         if: steps.image-scope.outputs.run_application_image == 'true'
         run: |
+          bundle="$(python3 -c 'import os,pathlib; print(next(pathlib.Path(os.environ["RUNNER_TEMP"],"release").glob("candidate-*")))')"
+          db_digest="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]+"/release.json"))["Images"]["DatabaseDigest"])' "$bundle")"
           docker run --rm --network none --user 1654:1654 --read-only --cap-drop ALL --security-opt no-new-privileges --init \
             --memory 512m --cpus 1 --pids-limit 64 --tmpfs /tmp:uid=1654,gid=1654,mode=0700,size=67108864 \
             --mount "type=bind,src=$RUNNER_TEMP/recovery/wayfarer-recovery,dst=/worker,readonly" --entrypoint /worker \
-            ghcr.io/stef-k/wayfarer-db@sha256:bd9b3bbfe1e879b56b0742646c18d0dcc9ec95180095f8f6d02e03b54feeeb61 runtime-check
+            --tmpfs /var/lib/postgresql:ro,mode=000,size=65536 "ghcr.io/stef-k/wayfarer-db@$db_digest" runtime-check
           image_ref="$(python3 -c 'import json,os; e=json.load(open(os.environ["RUNNER_TEMP"]+"/image-evidence.json")); print(e["image"]+":"+e["tag"])')"
           image_digest="$(docker image inspect "$image_ref" --format '{{index .RepoDigests 0}}')"
           python3 -B tools/compose/qualify_recovery.py --executable "$RUNNER_TEMP/wayfarerctl/wayfarerctl" \
@@ -350,7 +355,7 @@ jobs:
         run: |
           app_ref="$(python3 -c 'import json,os; e=json.load(open(os.environ["RUNNER_TEMP"]+"/image-evidence.json")); print(e["image"]+":"+e["tag"])')"
           python3 tools/release/db_image.py dry-run --source "$(git rev-parse HEAD)" \
-            --db-version pg17.11-postgis3.6.4-bookworm --app-image "$app_ref" --output "$RUNNER_TEMP/db-evidence.json"
+            --db-version pg18.6-postgis3.6.4-bookworm --app-image "$app_ref" --output "$RUNNER_TEMP/db-evidence.json"
       - name: Publish native recovery payload and existing probes
         if: steps.image-scope.outputs.run_application_image == 'true'
         run: |

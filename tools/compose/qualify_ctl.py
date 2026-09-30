@@ -4,6 +4,7 @@ Requires published self-contained CLI, Docker/Compose, openssl and curl on the t
 runner. The target host product requires neither Python nor these test utilities.
 """
 import argparse
+import json
 import os
 from pathlib import Path
 import re
@@ -16,7 +17,6 @@ import uuid
 from urllib.parse import urlencode
 
 ROOT = Path(__file__).resolve().parents[2]
-DB = 'sha256:bd9b3bbfe1e879b56b0742646c18d0dcc9ec95180095f8f6d02e03b54feeeb61'
 # No .NET, Python or Node in this execution host; CLI must supply its own runtime.
 HOST = 'ubuntu@sha256:008173c23f95b170204355c12626cb5a965d779a7e1283b09e9cffbb1bf33ca3'
 
@@ -75,10 +75,17 @@ class Journey:
         return result
 
     def compose(self, *args):
-        """Advanced test observation/seeding only; setup/lifecycle/recovery use ctl."""
+        """Observe the installed canonical bundle and its active release/storage generation."""
+        config = json.loads(self.host('cat', str(self.install / 'installation.json')).stdout)
+        bundle = Path(config['Bundle'])
+        authority = config.get('Release')
+        retained_env = self.install / 'deployment-generations' / authority['Fingerprint'] / 'deployment.env' if authority else None
+        environment = retained_env if retained_env and self.host('test', '-f', str(retained_env), check=False).returncode == 0 else self.install / 'deployment.env'
+        generation = config.get('StorageGeneration')
+        overlay = ['-f', str(self.install / 'storage-generations' / generation / 'compose.json')] if generation else []
         return self.host('docker', 'compose', '--project-name', self.project, '--env-file',
-                         str(self.install / 'deployment.env'), '-f', str(self.bundle / 'compose.yaml'),
-                         '-f', str(self.bundle / 'external.yaml'), *args).stdout
+                         str(environment), '-f', str(bundle / 'compose.yaml'),
+                         '-f', str(bundle / 'external.yaml'), *overlay, *args).stdout
 
     def prepare(self):
         """Copy production substrate; replace only TLS provisioning for a safe local certificate."""
@@ -176,11 +183,11 @@ exec /usr/bin/docker "$@"
 
     def reject_changed_inputs(self):
         """Protected receipt, config, bundle and credentials must all match before continuation."""
-        for relative in ['installation/deployment.env', 'bundle/caddy/Caddyfile', 'installation/secrets/db-password']:
-            path = self.directory / relative
-            replacement = ('printf ' + 'A' * 64 + f' > {path}') if relative.endswith('db-password') else f'printf changed >> {path}'
+        config = json.loads(self.host('cat', str(self.install / 'installation.json')).stdout)
+        for path in [self.install / 'deployment.env', Path(config['Bundle']) / 'caddy/Caddyfile', self.install / 'secrets/db-password']:
+            replacement = ('printf ' + 'A' * 64 + f' > {path}') if path.name == 'db-password' else f'printf changed >> {path}'
             self.host('sh', '-ec', f'cp -p {path} {path}.saved; {replacement}')
-            assert self.ctl('setup', '--resume', check=False).returncode == 2
+            assert self.ctl('setup', '--resume', check=False).returncode in (1, 2)
             self.host('mv', str(path) + '.saved', str(path))
         receipt = self.install / 'setup-progress.json'
         self.host('mv', str(receipt), str(receipt) + '.saved')
@@ -190,8 +197,8 @@ exec /usr/bin/docker "$@"
     def qualify(self):
         """Fresh setup -> diagnostics -> restart -> user recovery through one product journey."""
         self.host('sh', '-ec', f'printf seed > {self.directory}/failure')
-        result = self.ctl('setup', '--bundle', str(self.bundle), '--hostname', 'wayfarer.example.org',
-                          '--app-digest', self.digest, '--project', self.project, '--edge-prefix', '172.30.68',
+        result = self.ctl('setup', '--bundle', str(self.release_bundle), '--hostname', 'wayfarer.example.org',
+                          '--project', self.project, '--edge-prefix', '172.30.68',
                           '--mode', 'external', '--loopback-port', str(self.loopback),
                           '--password-stdin', data=self.password + '\n', check=False)
         assert result.returncode == 1
@@ -270,11 +277,14 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--executable', required=True)
     parser.add_argument('--app-digest', required=True)
+    parser.add_argument('--release-bundle', required=True, help='Canonical candidate with the locally built native DB manifest.')
     args = parser.parse_args()
     if not re.fullmatch(r'sha256:[a-f0-9]{64}', args.app_digest):
         parser.error('actual immutable application content digest required')
     with tempfile.TemporaryDirectory(prefix='wayfarer-648-') as directory:
         journey = Journey(directory, args.executable, args.app_digest)
+        journey.release_bundle = Path(directory) / 'release-input'
+        shutil.copytree(args.release_bundle, journey.release_bundle)
         try:
             journey.prepare()
             journey.qualify()

@@ -168,7 +168,7 @@ public sealed class UpdateActivation(IProcessRunner runner)
                 throw new IOException("Unexpected target service authority.");
             var ports = value.GetProperty("HostConfig").GetProperty("PortBindings");
             if (ports.ValueKind == JsonValueKind.Object && ports.EnumerateObject().Any()) throw new IOException("Target exposed before private postflight.");
-            foreach (var (role, destination) in service == "db" ? new[] { ("db-data", "/var/lib/postgresql/data") } :
+            foreach (var (role, destination) in service == "db" ? new[] { ("db-data", "/var/lib/postgresql") } :
                 new[] { ("app-data", "/var/lib/wayfarer"), ("app-cache", "/var/cache/wayfarer") })
                 if (!value.GetProperty("Mounts").EnumerateArray().Any(mount => mount.GetProperty("Type").GetString() == "volume" &&
                     mount.GetProperty("Name").GetString() == ActiveStorage.Volume(target, role) && mount.GetProperty("Destination").GetString() == destination))

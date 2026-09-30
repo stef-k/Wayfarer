@@ -60,7 +60,9 @@ public static class BackupCompose
                 ["entrypoint"] = new[] { "/worker/wayfarer-recovery" }, ["command"] = new[] { operation },
                 ["restart"] = scheduler ? "unless-stopped" : "no", ["stop_grace_period"] = "30s",
                 ["cpus"] = 1, ["mem_limit"] = "512m", ["pids_limit"] = 64,
-                ["tmpfs"] = new[] { "/tmp:uid=1654,gid=1654,mode=0700,size=2147483648" }, ["volumes"] = mounts
+                // Shadow the official image's PG18 parent VOLUME; tools have no database storage authority.
+                ["tmpfs"] = new[] { "/tmp:uid=1654,gid=1654,mode=0700,size=2147483648",
+                    "/var/lib/postgresql:ro,mode=000,size=65536" }, ["volumes"] = mounts
             };
             if (capture)
             {

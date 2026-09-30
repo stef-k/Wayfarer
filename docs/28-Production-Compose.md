@@ -25,7 +25,7 @@ and use it for every command. Generated container names are not interfaces.
 | `app-data` | `wayfarer` | Durable uploads/imports and complete Data Protection ring |
 | `app-cache` | `wayfarer` | Rebuildable tile/image/thumbnail state |
 | `app-logs` | `wayfarer` | Operational logs with application retention |
-| `db-data` | `db` | Authoritative PG17 cluster at `/var/lib/postgresql/data` |
+| `db-data` | `db` | Authoritative PG18 cluster under `/var/lib/postgresql/18/docker`, mounted at `/var/lib/postgresql` |
 | `caddy-data`, `caddy-config` | `caddy` | Persistent certificates/account and proxy state |
 
 Wayfarer retains UID1654, read-only root, immutable application/browser payload,
@@ -62,12 +62,12 @@ Trip responses through both managed Caddy and its existing external-proxy fixtur
 
 ## Exact third-party image decision
 
-Live manifest/config, executable and signed-package checks on 2026-09-25 established:
+Historical manifest/config, executable and signed-package checks on 2026-09-25 established the original PG17 recipe, superseded before public Compose release by #718:
 
 | Candidate | Actual payload / provenance | Decision |
 | --- | --- | --- |
 | PostGIS project `17-3.5` Debian | PG17.5 (`17.5-1.pgdg110+1`), PostGIS3.5.2, Debian11 | Rejected; current manifest remains stale |
-| Official `postgres:17.11-bookworm` + PGDG PostGIS | PG17.11 (`17.11-1.pgdg12+2`), PostGIS3.6.4 (`3.6.4+dfsg-2.pgdg12+1`), Debian12/glibc2.36 | Selected Wayfarer packaging route |
+| Official `postgres:17.11-bookworm` + PGDG PostGIS | PG17.11 (`17.11-1.pgdg12+2`), PostGIS3.6.4 (`3.6.4+dfsg-2.pgdg12+1`), Debian12/glibc2.36 | Historical packaging route; superseded by PG18 below |
 | PostGIS project `17-3.5-alpine` | PG17.11, PostGIS3.5.7, Alpine3.24.1/musl | Qualified alternative, superseded by practical glibc route |
 | PostGIS project `17-3.6-alpine` | PG17.11, PostGIS3.6.4, Alpine3.24.1/musl | Available; does not resolve the libc concern |
 
@@ -78,22 +78,27 @@ The rejected Alpine selection was
 `sha256:894f570c0cf0664ed5576a8fd5d5bfb8fb1b19d592885b686c3a88c8bd90c41f`;
 the investigated 3.6 Alpine digest was
 `sha256:a8ffa9afeea4ad6eada171fa2afdb57cd3eb90f92ce20156aa2cb8411d70e0cd`.
-No third-party convenience image or PostgreSQL major change is introduced.
+The pre-release baseline correction keeps the same official Debian/PGDG packaging route.
 
-`db/Dockerfile` pins the official PostgreSQL17.11 Bookworm **multi-platform index**
-`sha256:639ab7ceb90e13123085b741fb31ef493fba25463002f6da665352e7b534b652`.
-Its AMD64 manifest remains `sha256:91eb910c44c7ed13f7f1a4ccadaa9ca72ef14cddc04cacb6e070e48eb44731a3`;
-ARM64 uses `sha256:75731e2765e7d0c8bb7dea960ef3bdcde68d16314991ab2057a2a74ea0fff257`.
-It installs exact matching `postgresql-17-postgis-3` and `-scripts` versions from
+`db/Dockerfile` pins the official PostgreSQL18.6 Bookworm **multi-platform index**
+`sha256:3725f4e2499eef5134592b3b4ab79a543ed7f8e533b05b5b637af926630f6650`.
+Its AMD64 manifest is `sha256:9e73daeb439141c2b11eea2463f5f1a3b269fd90d897b41cddb7cb440f21aa5d`;
+ARM64 uses `sha256:4c6516b5d6dfd96a6888541396f76545a63290be0aec2542547d7bcdd7515e28`.
+It installs exact matching `postgresql-18-postgis-3` and `-scripts` versions from
 PGDG using the base's repository/signing key, and rejects a changed server package.
 There is no source compilation, replacement entrypoint, runtime package installation
 or baked-in cluster/secret. Existing Compose initialization creates only required
-`postgis` and `citext` extensions in the application DB. PostgreSQL supplies citext1.6.
-The base retains UID/GID999 and `/var/lib/postgresql/data`.
+`postgis` and `citext` extensions in the application DB. PostgreSQL 18.6 supplies citext1.8 (confirmed from its installed control file and upstream `REL_18_6` source); exact release/recovery checks require that version.
+Live signed Bookworm indexes on 2026-09-30 bind `postgresql-18=18.6-1.pgdg12+2` and both PostGIS packages at `3.6.4+dfsg-2.pgdg12+1` on AMD64 and ARM64.
+The base retains UID/GID999. Compose mounts the one durable `db-data` volume at
+`/var/lib/postgresql`; the official image owns `PGDATA=/var/lib/postgresql/18/docker`.
+Stateless probes shadow the declared parent volume with read-only tmpfs. No custom
+PGDATA, host-path migration, PG17 physical reuse or major-upgrade path is introduced.
+This corrects the fresh-install baseline before the first public Compose stable.
 
-[PostgreSQL17.11 release notes](https://www.postgresql.org/docs/17/release-17-11.html)
-identify current PG17 fixes. [PostgreSQL's Debian distribution](https://www.postgresql.org/download/linux/debian/)
-supports Bookworm and provides maintained PG17 packages; [PostGIS's installation guide](https://postgis.net/documentation/getting_started/install_ubuntu/)
+[PostgreSQL18.6 release notes](https://www.postgresql.org/docs/18/release-18-6.html)
+identify current PG18 fixes. [PostgreSQL's Debian distribution](https://www.postgresql.org/download/linux/debian/)
+supports Bookworm and provides maintained PG18 packages; [PostGIS's installation guide](https://postgis.net/documentation/getting_started/install_ubuntu/)
 explicitly recommends this package route. The upstream image is maintained by the
 [Docker Official Images PostgreSQL team](https://github.com/docker-library/postgres),
 and the extension packages by the PostgreSQL/PGDG packaging ecosystem. Debian owns
@@ -122,7 +127,7 @@ of every Unicode case/collation between libc implementations.
 
 For #604, inspect source PG/PostGIS versions, extension usage, encoding, locale
 provider/version and collation-dependent uniqueness before logical dump/restore.
-Use the selected image's PG17 tools and explicitly provision compatible extensions;
+Use the selected image's PG18 tools and explicitly provision compatible extensions;
 rebuild indexes through restore and verify application identities and representative
 Greek/Latin data. The PostGIS3.5 → 3.6 boundary needs source-specific qualification;
 this fresh-stack proof does not qualify production migration, downgrade, binary
@@ -299,7 +304,7 @@ containing this workflow, recipe and qualification tools. The selected workflow 
 must resolve to exactly the supplied `source`; checkout stays at that SHA.
 
 The immutable publication tag is
-`pg17.11-postgis3.6.4-bookworm-<full-source-SHA>`. It identifies a reviewed DB assembly,
+`pg18.6-postgis3.6.4-bookworm-<full-source-SHA>`. It identifies a reviewed DB assembly,
 independently of the application release number. Later complete release bundles must
 consume its qualified **registry manifest digest** and retained evidence, never its
 mutable tag or local image ID. A refreshed recipe requires a new reviewed source and
@@ -340,7 +345,7 @@ dispatch the reviewed PR branch/ref with its exact full head (verify it has not 
 
 ```sh
 gh workflow run database-image.yml --ref REVIEWED_REF \
-  -f source=FULL_REVIEWED_SHA -f db_version=pg17.11-postgis3.6.4-bookworm
+  -f source=FULL_REVIEWED_SHA -f db_version=pg18.6-postgis3.6.4-bookworm
 gh run list --workflow database-image.yml
 gh run watch RUN_ID --exit-status
 gh run download RUN_ID -n db-publication -D /absolute/evidence/db-publication
@@ -354,7 +359,7 @@ failed), or explicitly recover without any publication job:
 
 ```sh
 gh workflow run database-image.yml --ref REVIEWED_REF \
-  -f source=FULL_REVIEWED_SHA -f db_version=pg17.11-postgis3.6.4-bookworm \
+  -f source=FULL_REVIEWED_SHA -f db_version=pg18.6-postgis3.6.4-bookworm \
   -f digest=sha256:RECORDED_DERIVED_MANIFEST
 gh run download RECOVERY_RUN_ID -n db-evidence -D /absolute/evidence/db-qualified
 ```
@@ -427,3 +432,11 @@ remain identical. A new two-platform public DB index must be published and its e
 identity pinned through review before the first genuine Compose stable can ship.
 Stable application publication rejects the historical single-platform DB pin before
 building or pushing any application manifest; both native DB selections are required.
+
+#718 candidate qualification supplies the exact locally built native PG18 DB manifest
+to the canonical bundle assembler. The existing stable DB pin remains the historical
+PG17 single-platform artifact, so the stable-publication guard remains closed. After
+this source change is reviewed and merged, the existing DB-only workflow publishes
+and qualifies both native manifests and their index; a separate reviewed pin PR must
+select that real index before any first public Compose stable. No image is published
+by the implementation PR.

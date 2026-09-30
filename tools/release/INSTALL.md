@@ -120,8 +120,8 @@ recovery, mirrors and troubleshooting. Local setup skips discovery/download, val
 its canonical metadata/platform, derives identities, verifies already-local exact
 images and uses the same import/setup owners. New canonical installs record schema-4
 retained authority; separate adoption is only needed for existing matching installations.
-The raw/candidate qualification seam can retain explicit digest injection; stable
-setup does not accept that override.
+Candidate setup derives the exact native PG18 DB manifest from canonical release
+metadata. Raw-template fresh setup is rejected; stable setup accepts no digest override.
 
 Keep the bootstrap fixed and root-owned; `wayfarerctl dispatch COMMAND` selects the
 exact retained operator after installation/update transitions. The bootstrap does
@@ -143,3 +143,10 @@ claimed shipped here. #713/#603 remain open until the next genuine stable passes
 publication, public bootstrap byte equality and fresh anonymous native setup/doctor
 on both AMD64 and ARM64. Do not publish that first Compose stable before #715
 is accepted. PR candidate migration proof does not claim stable-to-stable migration.
+
+The Compose database baseline is PostgreSQL 18.6 (`18.6-1.pgdg12+2`) plus PGDG
+PostGIS 3.6.4 (`3.6.4+dfsg-2.pgdg12+1`) on Bookworm. The durable DB volume mounts
+`/var/lib/postgresql`; the official image owns `PGDATA=/var/lib/postgresql/18/docker`.
+The first public Compose stable remains gated on genuine two-platform DB publication
+and a separately reviewed index pin. This is a fresh-install baseline correction,
+with no released PG17 Compose installation or major-upgrade path.

@@ -3,6 +3,9 @@
 Wayfarer's recommended production path is guided Docker/Compose setup through
 `wayfarerctl`: one small bootstrap archive and one setup command. The operator manages
 the bundled PostgreSQL/PostGIS database, application and managed Caddy HTTPS proxy.
+The Compose baseline is PostgreSQL 18.6 + PostGIS 3.6.4 on Debian Bookworm.
+First public Compose stable publication awaits the reviewed two-platform PG18 DB
+index pin (#718); native/manual and development database requirements are unchanged.
 
 **Availability:** this implementation awaits the first genuine Compose stable release.
 v1.9.19 and earlier contain source releases only and are not retrofitted. #713 remains

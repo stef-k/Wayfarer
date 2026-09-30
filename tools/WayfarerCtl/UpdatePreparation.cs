@@ -150,7 +150,7 @@ public sealed class UpdatePreparation(IProcessRunner runner)
         if (dockerRoot.IndexOfAny([',', ':']) >= 0) throw new IOException("Unsupported Docker storage path.");
         var name = config.Project + "-restore-update-capacity-" + Guid.NewGuid().ToString("N");
         var output = await new ReleaseImagesVerifier(runner).ProbeAsync(owner, name, ["--network=none", "--read-only", "--user=0", "--cap-drop=ALL",
-            "--cap-add=DAC_READ_SEARCH", "--security-opt=no-new-privileges:true", "--tmpfs=/var/lib/postgresql/data:ro,mode=000,size=65536",
+            "--cap-add=DAC_READ_SEARCH", "--security-opt=no-new-privileges:true", "--tmpfs=/var/lib/postgresql:ro,mode=000,size=65536",
             "--mount", "type=bind,source=" + dockerRoot + ",target=/storage,readonly",
             "--mount", "type=volume,source=" + ActiveStorage.Volume(config, "app-data") + ",target=/files,readonly",
             "--entrypoint=sh", "ghcr.io/stef-k/wayfarer-db@" + config.DbDigest, "-ec",

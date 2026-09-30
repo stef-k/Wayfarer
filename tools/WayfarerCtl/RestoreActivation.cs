@@ -125,7 +125,7 @@ public sealed class RestoreActivation(IProcessRunner runner)
             if (container.GetProperty("Config").GetProperty("Image").GetString() != expectedImage ||
                 container.GetProperty("HostConfig").GetProperty("RestartPolicy").GetProperty("Name").GetString() != "no" ||
                 container.GetProperty("State").GetProperty("Running").GetBoolean()) throw new IOException("Unexpected canonical candidate state.");
-            var targets = service == "db" ? new[] { ("db-data", "/var/lib/postgresql/data") } :
+            var targets = service == "db" ? new[] { ("db-data", "/var/lib/postgresql") } :
                 new[] { ("app-data", "/var/lib/wayfarer"), ("app-cache", "/var/cache/wayfarer") };
             foreach (var (role, target) in targets)
                 if (!container.GetProperty("Mounts").EnumerateArray().Any(mount => mount.GetProperty("Type").GetString() == "volume" &&

@@ -153,7 +153,7 @@ public sealed class RestoreFencing(IProcessRunner runner)
         {
             var target = mount.GetProperty("Destination").GetString();
             var durable = target is "/var/lib/wayfarer" or "/var/cache/wayfarer" or "/source" or "/candidate" or "/cache" ||
-                target == "/var/lib/postgresql/data" && (service == "db" || container.GetProperty("Name").GetString()!.EndsWith("-db", StringComparison.Ordinal));
+                target == "/var/lib/postgresql" && (service == "db" || container.GetProperty("Name").GetString()!.EndsWith("-db", StringComparison.Ordinal));
             if (durable && (mount.GetProperty("Type").GetString() != "volume" || !allowed.Contains(mount.GetProperty("Name").GetString()!)))
                 throw new IOException("Recorded durable mount identity changed.");
         }

@@ -464,7 +464,7 @@ Use a trusted local application bundle, immutable application and DB images alre
 loaded into Docker, trusted capture evidence and the current restore payload. Restore
 never pulls images or selects a release from manifest strings. The exact contract
 includes the selected Linux AMD64/ARM64 platform, application digest/version/revision, bundle fingerprint,
-PG17/PostGIS3.6.4/citext1.6, UTF8/C.UTF-8 libc locale, ordered EF migrations, Quartz
+PG18.6 (`18.6-1.pgdg12+2`)/PostGIS3.6.4/citext1.8, UTF8/C.UTF-8 libc locale, ordered EF migrations, Quartz
 structure and stable Data Protection identity `Wayfarer`. The historical capture
 payload fingerprint is independent of the restore payload fingerprint.
 
@@ -853,3 +853,13 @@ The first future public Compose stable may be a fresh-install/restore baseline w
 no sources. Later stable publication binds one compatible immediate prior deployable
 public bundle; incompatible or invalid prior authority blocks publication. Never
 retrofit v1.9.19/source-only history. See [publication and real acceptance](27-Application-Image-Publication.md#stable-compose-distribution).
+
+Compose fresh setup and restore use PostgreSQL 18.6 with one durable DB volume at
+`/var/lib/postgresql`; the official image owns its nested `18/docker` PGDATA.
+Fresh setup requires canonical `release.json` so its exact native DB manifest comes
+from reviewed release metadata. Raw-template fresh setup cannot fall back to the
+historical PG17 digest. Explicit raw clean-root recovery retains its existing
+trusted target-evidence and exact DB-digest requirements; it does not upgrade majors.
+The first public Compose stable still awaits DB-only native publication and a
+separate reviewed PG18 index pin (#718). Native/development PostgreSQL requirements
+are unchanged.

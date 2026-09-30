@@ -29,6 +29,13 @@ def test_stable_database_pin_requires_both_native_platforms(monkeypatch, platfor
         bundle.stable_database_digest('sha256:' + 'a' * 64)
 
 
+def test_candidate_cannot_fall_back_to_published_pg17(tmp_path):
+    """Pre-publication qualification must explicitly supply a built native PG18 DB manifest."""
+    import version
+    with pytest.raises(version.ValidationError, match='explicit native PG18'):
+        bundle.assemble(tmp_path / 'bundle', 'sha256:' + 'a' * 64)
+
+
 def test_archive_is_reproducible_and_checksum_external(tmp_path):
     """Location and mtime do not affect archive identity; inventory has no self-checksum."""
     source = tmp_path / 'source'
@@ -70,6 +77,8 @@ def test_stable_manifest_and_archive_use_exact_public_identity(tmp_path, monkeyp
     assert manifest['Tag'] == facts['tag'] and manifest['SourceRevision'] == facts['sourceRevision']
     assert manifest['Sources'] == [] and manifest['LegacyCapture'] is None
     assert manifest['Images']['ApplicationDigest'] == manifest['Images']['PlatformDigest'] == digest
+    assert manifest['Images']['PostgreSqlMajor'] == 18
+    assert manifest['Images']['Citext'] == '1.8'
     assert set(manifest) == {'Schema', 'BundleContract', 'ConfigurationSchema', 'Status', 'Version', 'Tag',
                              'Repository', 'SourceRevision', 'Platform', 'Images', 'Application', 'Operator',
                              'Sources', 'LegacyCapture', 'Files'}

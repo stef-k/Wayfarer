@@ -39,8 +39,9 @@ public sealed class RecoveryCompatibilityTests
         Assert.True(ArchiveVerifier.IsCompatible(archive, source with { QuartzSnapshotFingerprint = new string('f', 32) }));
         Assert.False(ArchiveVerifier.IsCompatible(archive, source with { QuartzCompatibilityContract = "wayfarer-quartz-postgres-v2" }));
         Assert.False(ArchiveVerifier.IsCompatible(archive, Source(2)));
-        Assert.False(ArchiveVerifier.IsCompatible(archive with { Database = archive.Database with { Major = 16 } }, source));
-        Assert.False(ArchiveVerifier.IsCompatible(archive with { Database = archive.Database with { Citext = "1.5" } }, source));
+        Assert.False(ArchiveVerifier.IsCompatible(archive with { Database = archive.Database with { Major = 17 } }, source));
+        Assert.False(ArchiveVerifier.IsCompatible(archive with { Database = archive.Database with { ServerVersion = "18.4" } }, source));
+        Assert.False(ArchiveVerifier.IsCompatible(archive with { Database = archive.Database with { Citext = "1.6" } }, source));
     }
 
     /// <summary>Both persisted generations round-trip unchanged; partial or mixed semantics fail closed.</summary>
@@ -97,9 +98,9 @@ public sealed class RecoveryCompatibilityTests
         Started = DateTimeOffset.UnixEpoch, Completed = DateTimeOffset.UnixEpoch, Mode = "quiesced",
         Database = new DatabaseIdentity
         {
-            Major = 17, ServerVersion = "17.11", Name = "wayfarer", PostgisExtension = "3.6.4", PostgisLibrary = "3.6.4",
-            Citext = "1.6", Encoding = "UTF8", Collation = "C.UTF-8", CharacterType = "C.UTF-8", LocaleProvider = "c",
-            DumpVersion = "17.11", RestoreVersion = "17.11", Migrations = source.ExpectedMigrations,
+            Major = 18, ServerVersion = "18.6 (Debian 18.6-1.pgdg12+2)", Name = "wayfarer", PostgisExtension = "3.6.4", PostgisLibrary = "3.6.4",
+            Citext = "1.8", Encoding = "UTF8", Collation = "C.UTF-8", CharacterType = "C.UTF-8", LocaleProvider = "c",
+            DumpVersion = "18.6", RestoreVersion = "18.6", Migrations = source.ExpectedMigrations,
             TerminalMigration = source.ExpectedMigrations[^1]
         },
         Components = new[] { "database", "data-protection", "uploads" }.Select((name, i) => new RecoveryComponent(

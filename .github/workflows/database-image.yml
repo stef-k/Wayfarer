@@ -11,7 +11,7 @@ on:
       db_version:
         description: Reviewed database package identity
         required: true
-        default: pg17.11-postgis3.6.4-bookworm
+        default: pg18.6-postgis3.6.4-bookworm
         type: string
       digest:
         description: Recovery only; recorded manifest digest skips publication
