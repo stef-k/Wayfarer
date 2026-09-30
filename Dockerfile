@@ -1,22 +1,27 @@
-# Linux/amd64 production payload. Update pinned bases only through a qualified source change.
-FROM node:24-bookworm-slim@sha256:5cbc7caba8c2c0f0bca675d1b61b9f2857e1cf1853c6164ee9dd409501a936e7 AS node
-FROM mcr.microsoft.com/dotnet/sdk:10.0-noble@sha256:28e7a5db4f5d40cc805acd939a065668ba2e17d697a09153054dce98db240d0e AS build
+# Native Linux AMD64/ARM64 payload; indexes retain the previously qualified AMD64 base manifests.
+FROM node:24-bookworm-slim@sha256:0e0ff40c39bc087845bfb27465a0df4ea419520094bc35842ff83dd8cbe6f9b6 AS node
+FROM mcr.microsoft.com/dotnet/sdk:10.0-noble@sha256:35d40304542c8689331f8cab17c65926cdf48fe711e289321d71924b230a7d29 AS build
+ARG TARGETARCH
 COPY --from=node /usr/local/ /usr/local/
 WORKDIR /src
 COPY Wayfarer.csproj Version.props ./
-RUN dotnet restore Wayfarer.csproj -r linux-x64
+RUN case "$TARGETARCH" in amd64) rid=linux-x64 ;; arm64) rid=linux-arm64 ;; *) exit 1 ;; esac \
+    && dotnet restore Wayfarer.csproj -r "$rid"
 COPY . .
-RUN npm ci && npm run build \
-    && dotnet build Wayfarer.csproj -c Release -r linux-x64 --no-restore \
-    && dotnet publish Wayfarer.csproj -c Release -r linux-x64 --self-contained false --no-build --no-restore -o /publish
+RUN case "$TARGETARCH" in amd64) rid=linux-x64 ;; arm64) rid=linux-arm64 ;; *) exit 1 ;; esac \
+    && npm ci && npm run build \
+    && dotnet build Wayfarer.csproj -c Release -r "$rid" --no-restore \
+    && dotnet publish Wayfarer.csproj -c Release -r "$rid" --self-contained false --no-build --no-restore -o /publish
 
-FROM mcr.microsoft.com/dotnet/aspnet:10.0-noble@sha256:ed6a2d26633ddcd3d42a1d9f9866214ecbbc11ba6ac5e0e843da02c13da24072 AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:10.0-noble@sha256:2d584d8147faddb0d678c5748d47953e5b8e18621ed4fb7049a91381d9d7746f AS runtime
+ARG TARGETARCH
 WORKDIR /app
 COPY --from=build /publish/.playwright/ ./.playwright/
 ENV PLAYWRIGHT_BROWSERS_PATH=/opt/wayfarer-browsers
 # Use the published version's bundled installer/Node driver, never a separately versioned CLI.
-RUN .playwright/node/linux-x64/node .playwright/package/cli.js install-deps chromium \
-    && .playwright/node/linux-x64/node .playwright/package/cli.js install chromium \
+RUN case "$TARGETARCH" in amd64) driver=linux-x64 ;; arm64) driver=linux-arm64 ;; *) exit 1 ;; esac \
+    && .playwright/node/$driver/node .playwright/package/cli.js install-deps chromium \
+    && .playwright/node/$driver/node .playwright/package/cli.js install chromium \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=build /publish/ ./
 # Unmounted state roots remain root-owned: omitted mounts must fail, not store durable state in a layer.

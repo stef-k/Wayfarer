@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using System.Text.Json;
+using WayfarerRecovery;
 
 namespace WayfarerCtl;
 
@@ -12,21 +13,28 @@ public sealed class Preflight(IProcessRunner runner)
     public static void Platform()
     {
         CheckPlatform(OperatingSystem.IsLinux(), RuntimeInformation.OSArchitecture);
+        _ = NativePlatform.Current;
     }
 
     /// <summary>Pure platform contract for deterministic unsupported-host tests.</summary>
     public static void CheckPlatform(bool linux, Architecture architecture)
     {
-        if (!linux || architecture != Architecture.X64)
-            throw new UsageException("Supported host: Linux AMD64 Docker Engine (local daemon).");
+        if (!linux || architecture is not (Architecture.X64 or Architecture.Arm64))
+            throw new UsageException("Supported host: native Linux AMD64 or ARM64 Docker Engine (local daemon).");
     }
 
     /// <summary>Fail closed when Docker cannot be reached or Compose lacks required override semantics.</summary>
     public async Task DockerAsync(CancellationToken token)
     {
         var engine = await runner.RunAsync(["info", "--format", "{{.OSType}}/{{.Architecture}}"], null, token);
-        if (engine.Code != 0 || engine.Output.Trim() is not ("linux/x86_64" or "linux/amd64"))
-            throw new UsageException("Local Linux AMD64 Docker Engine unavailable; check daemon/socket access.");
+        var platform = engine.Output.Trim() switch
+        {
+            "linux/x86_64" or "linux/amd64" => "linux/amd64",
+            "linux/aarch64" or "linux/arm64" => "linux/arm64",
+            _ => ""
+        };
+        if (engine.Code != 0 || platform != NativePlatform.Current)
+            throw new UsageException("Local Docker Engine must match the native Linux AMD64 or ARM64 operator.");
         var compose = await runner.RunAsync(["compose", "version", "--short"], null, token);
         var version = compose.Output.Trim().TrimStart('v').Split('+', '-')[0];
         if (compose.Code != 0 || !Version.TryParse(version, out var parsed) || parsed < new Version(2, 24, 4) || parsed.Major != 2)

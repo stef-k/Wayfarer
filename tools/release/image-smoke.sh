@@ -16,15 +16,19 @@ if command -v node || command -v npm || command -v pwsh; then
 fi
 test -s wwwroot/vite/trip-editor/manifest.json
 test -d wwwroot/dist
-.playwright/node/linux-x64/node <<'JAVASCRIPT'
+# Use the native published driver; the runtime has no host Node dependency.
+case "$(uname -m)" in x86_64) driver=linux-x64 ;; aarch64) driver=linux-arm64 ;; *) exit 1 ;; esac
+.playwright/node/$driver/node <<'JAVASCRIPT'
 const {chromium}=require("./.playwright/package");
 (async()=>{
   const browser=await chromium.launch();
   const page=await browser.newPage();
   await page.setContent("<h1>Wayfarer image qualification</h1>");
   await page.pdf({path:"/tmp/wayfarer/probe.pdf"});
+  await page.screenshot({path:"/tmp/wayfarer/probe.png"});
   await browser.close();
 })().catch(()=>process.exit(1));
 JAVASCRIPT
 test -s /tmp/wayfarer/probe.pdf
+test -s /tmp/wayfarer/probe.png
 SHELL

@@ -253,8 +253,9 @@ public sealed class WayfarerCtlTests
     public void UnsupportedHostFailsClosed()
     {
         Assert.Throws<UsageException>(() => Preflight.CheckPlatform(false, System.Runtime.InteropServices.Architecture.X64));
-        Assert.Throws<UsageException>(() => Preflight.CheckPlatform(true, System.Runtime.InteropServices.Architecture.Arm64));
+        Assert.Throws<UsageException>(() => Preflight.CheckPlatform(true, System.Runtime.InteropServices.Architecture.Arm));
         Preflight.CheckPlatform(true, System.Runtime.InteropServices.Architecture.X64);
+        Preflight.CheckPlatform(true, System.Runtime.InteropServices.Architecture.Arm64);
     }
 
     [Fact]

@@ -15,7 +15,8 @@ public static class WorkerCli
     /// <summary>Only fixed operations are accepted; failures expose categories, never captured data or child diagnostics.</summary>
     public static async Task<int> RunAsync(string[] arguments, CancellationToken token)
     {
-        if (!OperatingSystem.IsLinux() || RuntimeInformation.ProcessArchitecture != Architecture.X64) return 2;
+        try { _ = NativePlatform.Current; }
+        catch (PlatformNotSupportedException) { return 2; }
         umask(0x3f);
         try
         {

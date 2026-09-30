@@ -26,14 +26,13 @@ public sealed class RecoveryLock : IDisposable
     /// <summary>Open an already-provisioned stable inode; never create, replace or unlink the lock.</summary>
     public RecoveryLock(string path)
     {
-        if (!OperatingSystem.IsLinux() || RuntimeInformation.ProcessArchitecture != Architecture.X64)
-            throw new PlatformNotSupportedException("Recovery locking requires Linux AMD64.");
+        _ = NativePlatform.Current;
         using var directory = new SafeDirectory(Path.GetDirectoryName(path)!);
         directory.RequireLocalControl();
         var parent = directory.Identity;
         if (parent.User != 0 || parent.Group != 0 || (parent.Mode & 0x1ff) != 0x1ed)
             throw new IOException("Unsafe recovery lock parent.");
-        var descriptor = open(path, 2 | 0x20000 | 0x80000); // O_RDWR | O_NOFOLLOW | O_CLOEXEC.
+        var descriptor = open(path, 2 | NativePlatform.OpenFlags(RuntimeInformation.ProcessArchitecture).NoFollow | 0x80000); // O_RDWR | O_NOFOLLOW | O_CLOEXEC.
         if (descriptor < 0) throw new IOException("Recovery lock is unavailable.");
         handle = new SafeFileHandle((IntPtr)descriptor, ownsHandle: true);
         var facts = SafeDirectory.Inspect(handle);
