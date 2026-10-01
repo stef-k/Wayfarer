@@ -78,7 +78,17 @@ retains canonical bundles automatically. The installation layout is:
   setup-progress.json               protected original-input receipt and maintenance checkpoints
   setup-provisioning/                complete protected initial inputs, present only during publication/recovery
   setup-complete                    created only after successful setup diagnostics
+  restore-complete                  last restore finalization UUID; distinct from setup progress
+  deployment-generations/           immutable release-specific generated environment inputs
+  storage-generations/              generated mappings for paired active durable volumes
+  recovery-generations/             generated backup worker/scheduler inputs
+  recovery-control/                 protected restore/update intent, delegation and recovery exclusion
 ```
+
+The [persisted lifecycle authority contract](25-Container-Release-Contract.md#persisted-compose-lifecycle-authority)
+defines schemas, companion validation, commit points and recovery states. A single
+`installation.json` file is not a valid or resumable installation by itself. Preserve
+the complete installation folder and follow the operator's validated recovery action.
 
 The default discovery root is always `/etc/wayfarer`, independent of current directory
 or executable location. The global prefix `--deployment-root /absolute/path` selects
@@ -268,8 +278,9 @@ same plain setup command again**, including your original options:
 sudo ./wayfarerctl setup
 ```
 
-No installation configuration, credentials or service data has been created by that
-attempt. The private installation folder, `operation.lock`, verified releases and
+No canonical installation configuration, credentials or service data has been created
+by that attempt. Private staging may contain generated inputs; it is not committed
+installation state. The private installation folder, `operation.lock`, verified releases and
 non-authoritative preparation/receipted placement stages under `releases/` may remain.
 These do not prevent plain setup; an identical retained release is revalidated and
 reused. Do not delete them. `setup --resume` and `doctor` need installation state and
@@ -295,6 +306,11 @@ If publishing its installation files is interrupted, `setup --resume` finishes
 publication from those original bytes before starting the normal setup sequence.
 Existing files must match exactly; credentials are never regenerated or replaced.
 The redundant snapshot is reclaimed only after the canonical setup receipt verifies.
+Interruption during reclamation has a tracked recovery gap in
+[#734](https://github.com/stef-k/Wayfarer/issues/734): if repeated resume stops before
+setup execution despite retained original files, preserve the folder and use the
+administrator reconciliation guidance below. Another identical attempt cannot repair
+that residue until the bounded fix is available.
 
 Continuation requires the original protected installation identity, generated config,
 credential bytes and bundle files to match the protected setup receipt. It refuses
@@ -329,6 +345,12 @@ installations without a complete receipt/snapshot, changed files or uncertain ow
 Neither plain setup nor another resume attempt repairs that state. Restore the exact
 original protected inputs and their ownership from trusted retained evidence; if that
 evidence is unavailable, establish provenance before choosing further recovery.
+The administrator must identify the owning snapshot/receipt and validate its original
+inputs and resource provenance against the
+[formal state inventory](25-Container-Release-Contract.md#authority-inventory).
+Do not fabricate a receipt, edit JSON to select guessed resources, discard a partial
+snapshot or remove an exclusion marker as routine repair. The inventory records known
+recovery gaps so an unsupported retry is not mistaken for a supported repair.
 The [raw Compose maintenance sequence](28-Production-Compose.md#advanced-fresh-initialization)
 remains an advanced emergency seam, not ordinary recovery for receipt-owned setup.
 Never fabricate completion markers or infer that missing config means an empty database.
@@ -365,10 +387,13 @@ backup/restore/update acceptance or completion of #603.
 
 ## Compose recovery sets
 
-Explicit opt-in on a **completed** installation introduces installation schema 2
-and a stable installation UUID. Existing schema 1 remains readable and backup-disabled;
-status never upgrades it. Older operators reject schema 2. Interrupted setup must
-be completed using its original configuration and setup receipt first.
+Explicit opt-in on a **completed** installation assigns an absent installation UUID
+and selects at least schema 2; current retained-release installations stay schema 4.
+Existing schema 1 remains readable and backup-disabled; status never upgrades it.
+Older operators reject unsupported schemas. Interrupted setup must be completed using
+its original configuration and setup receipt first. The
+[schema/companion contract](25-Container-Release-Contract.md#installation-json-schema-and-evolution)
+also covers storage generations and historical completion.
 
 The trusted additive payload contains the self-contained `wayfarer-recovery` and
 `WayfarerRecoverySource.dll` beside it. The latter executes using the selected
@@ -404,6 +429,10 @@ before use. Previous trusted installation bytes and a transition receipt support
 `backup configure --recover` after interruption. An uncertain running worker blocks
 recovery rather than being declared cancelled. Inspect the named owned container and
 Docker daemon first; never delete `recovery.lock` to clear a busy operation.
+Recovery retains whichever exact old/next installation pointer was committed; it
+does not automatically switch policy or roll back. Prepared worker files have no
+independent authority. See the
+[backup transition diagram](25-Container-Release-Contract.md#backup-configuration-commit-and-recovery).
 
 For an administrator-mounted filesystem, use `--kind mounted` and a dedicated
 root-owned 0755 propagating parent with exactly one child named `slot`, for example
@@ -468,6 +497,10 @@ manifest and elapsed time, never executes SQL, and distinguishes integrity from
 source/schema compatibility. Unknown compatibility is not restore readiness.
 
 ### Versioned Quartz recovery identity
+
+The schema 2/3 numbers in this section refer to recovery
+`SourceIdentity.ConfigurationSchema`, independently of the local installation
+schema described in the [installation contract](25-Container-Release-Contract.md#installation-json-schema-and-evolution).
 
 New explicit `backup configure` inspections produce `Source.ConfigurationSchema=3`.
 `QuartzSchemaInstaller` owns `wayfarer-quartz-postgres-v1`, the release compatibility
@@ -628,15 +661,25 @@ NAS credentials, proxy configuration, caches and logs are not restored.
 ### Activation, recovery and retained evidence
 
 Schema 3 stores one generated active storage identity for DB, app-data and fresh
-rebuildable cache. Schemas 1/2 remain readable and resolve canonical names. Immutable
+rebuildable cache; retained-release installations preserve schema 4 with that identity.
+Schemas 1/2 remain readable and resolve canonical names. Immutable
 storage overlays preserve the original bundle and route lifecycle, diagnostics,
 source inspection and backup to the same generation. Old operators reject schema 3.
 One atomic installation pointer commits all three roles. Local hostname/project,
 proxy choices, secrets, backup destination/policy and scheduler receipts are retained.
 
-The protected receipt progresses through authorized, fenced, emergency verified or
-waived, staging, candidate validated, activation intent, activated stopped, writes
-possible and accepted. Intent is flushed before irreversible boundaries. External
+The protected `recovery-control/restore.json` receipt progresses through:
+
+```text
+Authorized -> Fenced -> EmergencyVerifiedOrWaived -> Staging
+-> CandidateValidated -> ActivationIntent -> ActivatedStopped
+-> WritesPossible -> Accepted
+
+Before WritesPossible: --abort -> Aborted (services remain stopped)
+Update-owned restore: no abort back into migrated old storage
+```
+
+Intent is flushed before irreversible boundaries. External
 loopback exposure stays removed until private readiness succeeds; managed Caddy starts
 after application postflight. Scheduler restart follows successful postflight. The receipt
 stays at writes possible throughout restart-policy restoration and durable `restore-complete`
@@ -661,6 +704,10 @@ state; exit 2 indicates usage/configuration/authorization mismatch, and exit 0 r
 accepted restore. Old DB/app-data/cache, failed candidate residue, frozen bytes and
 held emergency archives are not automatically deleted. Later cleanup and recovery
 that discards candidate writes require a separate explicit administrative decision.
+If an accepted/aborted receipt remains alongside worker exclusion that never clears,
+preserve both and obtain administrator reconciliation. The terminal-marker recovery
+gap is tracked in [#736](https://github.com/stef-k/Wayfarer/issues/736); ordinary resume
+of a resolved operation does not clear that residue.
 
 ## Disposable restore evidence
 
@@ -801,6 +848,12 @@ fenced. Offline and private postflight precede ingress, endpoint checks, schedul
 resumption, restart-policy restoration and durable acceptance. `status` and `doctor`
 report unresolved update intent even during an installation-pointer transition.
 Ordinary mutating commands refuse unresolved intent.
+An interrupted delegated capture can currently fail resume/abort because its genuine
+worker-readable reservation is rejected by update recovery; tracked in
+[#735](https://github.com/stef-k/Wayfarer/issues/735). Preserve the reservation and
+held evidence for administrator reconciliation; do not change its permissions or
+remove it to force continuation. Terminal exclusion residue is separately tracked in
+[#736](https://github.com/stef-k/Wayfarer/issues/736).
 
 Abort is permitted only before migration may have started and after old authority
 and delegated recovery are reconciled. It retains held evidence and leaves services

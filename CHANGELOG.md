@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Specify persisted Compose lifecycle authority, installation schema evolution and companion validation, setup retry/resume/completion boundaries, backup pointer commits and restore/update generation ownership. Reconcile install/operator documentation and track bounded recovery defects separately (#733–#737).
+
 ### Fixed
 
 - Make public `wayfarerctl setup` show plain-language stages and safe failure guidance. Retry only temporary release discovery/download and exact container pulls within a bounded budget; distinguish plain setup recovery before installation from protected `setup --resume` afterward. Public acceptance retains sanitized operator errors and both architecture outcomes (#730).

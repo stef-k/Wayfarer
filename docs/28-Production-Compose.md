@@ -181,6 +181,12 @@ an explicit tested extension step. Do not rebuild an existing stable release.
 
 ## Configuration and protected files
 
+For guided installations, the
+[persisted lifecycle authority contract](25-Container-Release-Contract.md#persisted-compose-lifecycle-authority)
+owns `installation.json`, its generated companions, receipts and generation pointers.
+The following manual substrate instructions do not create operator-owned setup or
+completion authority. File/container/volume existence cannot establish that authority.
+
 Copy `config/deployment.env.example` to an absolute administrator-owned location,
 for example `/etc/wayfarer/deployment.env`. It contains literal `KEY=value` entries,
 no shell expansion, quoted values or passwords. Set the public DNS hostname,
