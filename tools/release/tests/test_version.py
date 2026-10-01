@@ -88,6 +88,86 @@ def test_prepare_success_updates_version_and_inserts_skeleton(
     )
 
 
+@pytest.mark.parametrize("notes", ["", "### Changed\n- Pending note.\n\n### Fixed\n- Pending fix.\n\n"])
+def test_prepare_preserves_leading_unreleased_and_history(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, notes: str
+) -> None:
+    """prepare inserts below intact Unreleased notes and above intact history."""
+
+    write_repo(tmp_path)
+    use_repo(monkeypatch, tmp_path)
+    path = tmp_path / "CHANGELOG.md"
+    history = path.read_text(encoding="utf-8").split("# CHANGELOG\n\n", 1)[1]
+    prefix = "# CHANGELOG\n\n## [Unreleased]\n\n" + notes
+    path.write_text(prefix + history, encoding="utf-8")
+
+    version.prepare("1.4.1")
+
+    skeleton = (
+        f"\n## [1.4.1] - {version.date.today().isoformat()}\n\n"
+        "### Changed\n- TODO: Add release notes before publishing.\n\n"
+    )
+    assert path.read_text(encoding="utf-8") == prefix + skeleton + history
+    assert "<WayfarerVersion>1.4.1</WayfarerVersion>" in (
+        tmp_path / "Version.props"
+    ).read_text(encoding="utf-8")
+    version.check(require_tag=False, require_github_release=False)
+
+
+@pytest.mark.parametrize("heading", [
+    "## [Unreleased]\n\n## [Unreleased]",
+    "## [Unreleased] - 2026-05-20",
+    "## [Unreleased]\n\n## Unknown",
+    "## Unknown\n\n## [Unreleased]",
+])
+def test_invalid_leading_unreleased_rejected_without_mutation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, heading: str
+) -> None:
+    """check and prepare reject malformed leading structure before writing."""
+
+    write_repo(tmp_path)
+    use_repo(monkeypatch, tmp_path)
+    path = tmp_path / "CHANGELOG.md"
+    original = path.read_text(encoding="utf-8").replace(
+        "# CHANGELOG\n", "# CHANGELOG\n\n" + heading + "\n", 1
+    )
+    path.write_text(original, encoding="utf-8")
+    props = (tmp_path / "Version.props").read_bytes()
+
+    with pytest.raises(version.ValidationError):
+        version.check(require_tag=False, require_github_release=False)
+    with pytest.raises(version.ValidationError):
+        version.prepare("1.4.1")
+    assert path.read_text(encoding="utf-8") == original
+    assert (tmp_path / "Version.props").read_bytes() == props
+
+
+@pytest.mark.parametrize("leading_unreleased", [False, True])
+def test_later_unreleased_rejected_without_mutation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, leading_unreleased: bool
+) -> None:
+    """check and prepare reject misplaced or duplicate Unreleased after a release."""
+
+    write_repo(tmp_path)
+    use_repo(monkeypatch, tmp_path)
+    path = tmp_path / "CHANGELOG.md"
+    original = path.read_text(encoding="utf-8")
+    if leading_unreleased:
+        original = original.replace(
+            "# CHANGELOG\n", "# CHANGELOG\n\n## [Unreleased]\n", 1
+        )
+    original += "\n## [Unreleased]\n\n### Changed\n- Misplaced note.\n"
+    path.write_text(original, encoding="utf-8")
+    props = (tmp_path / "Version.props").read_bytes()
+
+    with pytest.raises(version.ValidationError):
+        version.check(require_tag=False, require_github_release=False)
+    with pytest.raises(version.ValidationError):
+        version.prepare("1.4.1")
+    assert path.read_text(encoding="utf-8") == original
+    assert (tmp_path / "Version.props").read_bytes() == props
+
+
 @pytest.mark.parametrize(
     "invalid_version",
     ["v1.4.1", "1.4", "1.4.1-beta.1", "1.4.1+build.1", "-1.4.1", "1.x.1"],
@@ -303,13 +383,20 @@ def test_mocked_github_release_failure(
         version.check(require_tag=False, require_github_release=True)
 
 
+@pytest.mark.parametrize("leading_unreleased", [False, True])
 def test_default_check_does_not_call_gh_or_git(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, leading_unreleased: bool
 ) -> None:
     """default check validates only offline files and never calls subprocess."""
 
     write_repo(tmp_path)
     use_repo(monkeypatch, tmp_path)
+
+    if leading_unreleased:
+        path = tmp_path / "CHANGELOG.md"
+        path.write_text(path.read_text(encoding="utf-8").replace(
+            "# CHANGELOG\n", "# CHANGELOG\n\n## [Unreleased]\n", 1
+        ), encoding="utf-8")
 
     def fail_run(command, **kwargs):
         raise AssertionError(f"default check called subprocess: {command}")

@@ -168,7 +168,7 @@ def read_changelog_state() -> ChangelogState:
     if not text_file.text.startswith("# CHANGELOG"):
         raise ValidationError("CHANGELOG.md must start with # CHANGELOG")
 
-    top_heading = find_top_changelog_heading(text_file.text)
+    top_heading = text_file.text.splitlines()[find_top_changelog_heading_index(text_file.text)]
     if not CHANGELOG_HEADING_PATTERN.match(top_heading):
         raise ValidationError(
             "top changelog release heading must match ## [X.Y.Z] - YYYY-MM-DD"
@@ -222,13 +222,25 @@ def replace_wayfarer_version(text: str, target_version: str) -> str:
     return updated
 
 
-def find_top_changelog_heading(text: str) -> str:
-    """Return the first release heading after the changelog title."""
+def find_top_changelog_heading_index(text: str) -> int:
+    """Locate the first release, rejecting duplicate or misplaced exact Unreleased."""
 
-    for line in text.splitlines():
-        if line.startswith("## "):
-            return line
-    raise ValidationError("CHANGELOG.md is missing a release heading")
+    leading_unreleased = False
+    release_index = None
+    for index, line in enumerate(text.splitlines()):
+        if not line.startswith("## "):
+            continue
+        if line == "## [Unreleased]":
+            if leading_unreleased or release_index is not None:
+                raise ValidationError(
+                    "CHANGELOG.md allows only one leading ## [Unreleased] heading"
+                )
+            leading_unreleased = True
+        elif release_index is None:
+            release_index = index
+    if release_index is None:
+        raise ValidationError("CHANGELOG.md is missing a release heading")
+    return release_index
 
 
 def parse_top_changelog_version(heading: str) -> str:
@@ -256,7 +268,7 @@ def ensure_changelog_section_missing(text: str, target_version: str) -> None:
 def insert_changelog_skeleton(
     text: str, newline: str, target_version: str, release_date: str
 ) -> str:
-    """Insert the required release skeleton immediately after the changelog title."""
+    """Insert above released history, preserving an optional leading Unreleased."""
 
     lines = text.splitlines(keepends=True)
     if not lines or lines[0].rstrip("\r\n") != "# CHANGELOG":
@@ -267,7 +279,14 @@ def insert_changelog_skeleton(
         f"{newline}### Changed{newline}"
         f"- TODO: Add release notes before publishing.{newline}"
     )
-    return "".join([lines[0], skeleton, *lines[1:]])
+    release_index = find_top_changelog_heading_index(text)
+    has_unreleased = any(
+        line.rstrip("\r\n") == "## [Unreleased]" for line in lines[:release_index]
+    )
+    insertion_index = release_index if has_unreleased else 1
+    if has_unreleased:
+        skeleton += newline
+    return "".join([*lines[:insertion_index], skeleton, *lines[insertion_index:]])
 
 
 def validate_local_tag(expected_tag: str) -> None:
