@@ -112,7 +112,11 @@ python3 tools/release/version.py check --require-github-release
 ```
 
 `prepare` updates only `WayfarerVersion` and adds the target changelog skeleton.
-Complete its notes from Unreleased while preserving prior released notes. Default
+One exact leading `## [Unreleased]` is supported: `check` validates the first dated
+release against `Version.props`, and `prepare` inserts the new release below the
+complete Unreleased section and above released history. Without leading Unreleased,
+it inserts after the title as before. Unreleased notes and prior releases remain
+intact; consolidating the notes into the new release is a maintainer step. Default
 `check` is offline; tag/GitHub checks run only with their explicit flags. The helper
 never creates, edits, publishes or deletes tags or GitHub Releases.
 
