@@ -82,7 +82,7 @@ retains canonical bundles automatically. The installation layout is:
   deployment-generations/           immutable release-specific generated environment inputs
   storage-generations/              generated mappings for paired active durable volumes
   recovery-generations/             generated backup worker/scheduler inputs
-  recovery-control/                protected restore/update intent, delegation and recovery exclusion
+  recovery-control/                 protected restore/update intent, delegation and recovery exclusion
 ```
 
 The [persisted lifecycle authority contract](25-Container-Release-Contract.md#persisted-compose-lifecycle-authority)
@@ -497,6 +497,10 @@ manifest and elapsed time, never executes SQL, and distinguishes integrity from
 source/schema compatibility. Unknown compatibility is not restore readiness.
 
 ### Versioned Quartz recovery identity
+
+The schema 2/3 numbers in this section refer to recovery
+`SourceIdentity.ConfigurationSchema`, independently of the local installation
+schema described in the [installation contract](25-Container-Release-Contract.md#installation-json-schema-and-evolution).
 
 New explicit `backup configure` inspections produce `Source.ConfigurationSchema=3`.
 `QuartzSchemaInstaller` owns `wayfarer-quartz-postgres-v1`, the release compatibility
