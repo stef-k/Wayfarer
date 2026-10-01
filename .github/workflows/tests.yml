@@ -15,9 +15,17 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
 
-      - name: Test application-image scope classifier
+      - name: Test CI evidence scope classifier
         run: python3 -m unittest discover -s tools/ci/tests -v
+
+      - name: Classify CI evidence scope
+        id: scope
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: python3 tools/ci/application_image_scope.py --base "$BASE_SHA" --head "$HEAD_SHA"
 
       - name: Setup Python for Code Guard
         uses: actions/setup-python@v5
@@ -40,27 +48,9 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: code-guard . --base-ref "$BASE_SHA" --ci
 
-      - name: Detect documentation-only changes
-        id: scope
-        shell: bash
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: |
-          changed_files="$(git diff --name-only "$BASE_SHA" "$HEAD_SHA")"
-          if [ -n "$changed_files" ] && grep -Eqv '^(docs/.*|.*\.md)$' <<< "$changed_files"; then
-            echo "run_full=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "run_full=false" >> "$GITHUB_OUTPUT"
-            echo "Documentation-only change detected; expensive validation steps are skipped."
-          fi
-
-          # Baseline changes must exercise the frontend toolchain too.
-          if grep -Eq '^(\.nvmrc$|\.github/workflows/tests\.yml$|package(-lock)?\.json|ClientApps/|wwwroot/(css|js)/|tests/client/|vite\.config\.[^/]+$|tsconfig[^/]*\.json$|tools/[^/]+\.(mjs|ps1)$)' <<< "$changed_files"; then
-            echo "run_frontend=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "run_frontend=false" >> "$GITHUB_OUTPUT"
-          fi
+      - name: No product test qualification required
+        if: steps.scope.outputs.run_dotnet != 'true' && steps.scope.outputs.run_playwright != 'true' && steps.scope.outputs.run_frontend != 'true'
+        run: echo "PASS test scope; classifier and Code Guard passed, no .NET/browser/frontend owner."
 
       - name: Setup Node
         if: steps.scope.outputs.run_frontend == 'true'
@@ -91,17 +81,17 @@ jobs:
         run: npm run build
 
       - name: Setup .NET
-        if: steps.scope.outputs.run_full == 'true'
+        if: steps.scope.outputs.run_dotnet == 'true'
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
 
       - name: Restore dependencies
-        if: steps.scope.outputs.run_full == 'true'
+        if: steps.scope.outputs.run_dotnet == 'true'
         run: dotnet restore
 
       - name: Restore tools
-        if: steps.scope.outputs.run_full == 'true'
+        if: steps.scope.outputs.run_dotnet == 'true'
         run: dotnet tool restore
 
       - name: Validate built Trip Editor assets
@@ -109,15 +99,15 @@ jobs:
         run: npm run smoke:trip-editor:assets:built
 
       - name: Build tests
-        if: steps.scope.outputs.run_full == 'true'
+        if: steps.scope.outputs.run_dotnet == 'true'
         run: dotnet build tests/Wayfarer.Tests/Wayfarer.Tests.csproj --configuration Release --no-restore
 
       - name: Run ordinary tests
-        if: steps.scope.outputs.run_full == 'true'
+        if: steps.scope.outputs.run_dotnet == 'true'
         run: dotnet test tests/Wayfarer.Tests/Wayfarer.Tests.csproj --configuration Release --no-build --verbosity normal --filter "Category!=RequiresSpatialite&Category!=RequiresPlaywright"
 
       - name: Resolve .NET Playwright Chromium revision
-        if: steps.scope.outputs.run_full == 'true'
+        if: steps.scope.outputs.run_playwright == 'true'
         id: playwright-metadata
         shell: pwsh
         run: |
@@ -146,7 +136,7 @@ jobs:
           "chromium_revision=$revision" >> $env:GITHUB_OUTPUT
 
       - name: Restore .NET Playwright Chromium
-        if: steps.scope.outputs.run_full == 'true'
+        if: steps.scope.outputs.run_playwright == 'true'
         id: playwright-cache
         uses: actions/cache@v4
         with:
@@ -154,21 +144,21 @@ jobs:
           key: playwright-${{ runner.os }}-dotnet-chromium-${{ steps.playwright-metadata.outputs.chromium_revision }}
 
       - name: Install .NET Playwright Chromium
-        if: steps.scope.outputs.run_full == 'true' && steps.playwright-cache.outputs.cache-hit != 'true'
+        if: steps.scope.outputs.run_playwright == 'true' && steps.playwright-cache.outputs.cache-hit != 'true'
         timeout-minutes: 5
         run: pwsh tests/Wayfarer.Tests/bin/Release/net10.0/playwright.ps1 install chromium
         env:
           PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/wayfarer-dotnet-playwright
 
       - name: Run .NET Playwright rendering tests
-        if: steps.scope.outputs.run_full == 'true'
+        if: steps.scope.outputs.run_playwright == 'true'
         run: dotnet test tests/Wayfarer.Tests/Wayfarer.Tests.csproj --configuration Release --no-build --verbosity normal --filter "Category=RequiresPlaywright"
         env:
           PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/wayfarer-dotnet-playwright
           WAYFARER_TEST_ARTIFACT_DIRECTORY: ${{ runner.temp }}/wayfarer-test-artifacts
 
       - name: Verify .NET Playwright rendering artifacts
-        if: steps.scope.outputs.run_full == 'true'
+        if: steps.scope.outputs.run_playwright == 'true'
         run: |
           test -s "$WAYFARER_TEST_ARTIFACT_DIRECTORY/phase2b-map-attribution.pdf"
           test -s "$WAYFARER_TEST_ARTIFACT_DIRECTORY/phase2b-map-attribution-print.png"
@@ -183,12 +173,29 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Classify CI evidence scope
+        id: scope
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: python tools/ci/application_image_scope.py --base "$BASE_SHA" --head "$HEAD_SHA"
+      - name: No cleanup-safety qualification required
+        if: steps.scope.outputs.run_cleanup_safety != 'true'
+        shell: bash
+        run: echo "PASS cleanup-safety scope; no filesystem-safety owner."
       - uses: actions/setup-node@v4
+        if: steps.scope.outputs.run_cleanup_safety == 'true'
         with:
           node-version-file: .nvmrc
       - name: Test cleanup ownership and smoke lifecycle
+        if: steps.scope.outputs.run_cleanup_safety == 'true'
         run: npm run test:cleanup:safety
       - name: Test coverage and shared-layout cleanup guards
+        if: steps.scope.outputs.run_cleanup_safety == 'true'
         shell: pwsh
         run: |
           pwsh -NoProfile -File ./tools/coverage-report.safety.tests.ps1
@@ -206,40 +213,43 @@ jobs:
         with:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-      - name: Classify application-image scope
-        id: image-scope
+      - name: Classify CI evidence scope
+        id: scope
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: python3 tools/ci/application_image_scope.py --base "$BASE_SHA" --head "$HEAD_SHA"
+      - name: No image or lifecycle qualification required
+        if: steps.scope.outputs.run_app_image != 'true'
+        run: echo "PASS application-image scope; no image/lifecycle owner, release tests remain independently scoped."
       # A local immutable image-store digest is integration evidence, not GHCR publication evidence.
       - name: Use a disposable Docker daemon with the containerd image store
-        if: steps.image-scope.outputs.run_application_image == 'true'
+        if: steps.scope.outputs.run_app_image == 'true'
         uses: docker/setup-docker-action@e43656e248c0bd0647d3f5c195d116aacf6fcaf4 # v4
         with:
           version: v29.1.3
           daemon-config: '{"features":{"containerd-snapshotter":true}}'
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
-        if: steps.image-scope.outputs.run_application_image == 'true'
+        if: steps.scope.outputs.run_operator == 'true'
         with:
           dotnet-version: '10.0.x'
       - name: Release tooling tests
-        if: steps.image-scope.outputs.run_application_image == 'true'
+        if: steps.scope.outputs.run_release_tooling == 'true'
         run: |
           python3 -m venv "$RUNNER_TEMP/release-tests"
           "$RUNNER_TEMP/release-tests/bin/pip" install pytest==8.3.5
           "$RUNNER_TEMP/release-tests/bin/python" -m pytest tools/release/tests
       - name: Build and qualify production image without publishing
-        if: steps.image-scope.outputs.run_application_image == 'true'
+        if: steps.scope.outputs.run_app_image == 'true'
         run: python3 tools/release/image.py dry-run --output "$RUNNER_TEMP/image-evidence.json"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: steps.image-scope.outputs.run_application_image == 'true'
+        if: steps.scope.outputs.run_app_image == 'true'
         with:
           name: image-dry-run
           path: ${{ runner.temp }}/image-evidence.json
           if-no-files-found: error
       - name: Qualify production Compose substrate on disposable state
-        if: steps.image-scope.outputs.run_application_image == 'true'
+        if: steps.scope.outputs.run_db_compose == 'true'
         run: |
           image_id="$(docker image inspect "$(python3 -c 'import json,os; e=json.load(open(os.environ["RUNNER_TEMP"]+"/image-evidence.json")); print(e["image"]+":"+e["tag"])')" --format '{{.Id}}')"
           # Same DB build/metadata/full qualification path as publication, with no login/push.
@@ -247,16 +257,16 @@ jobs:
             --db-version pg18.6-postgis3.6.4-bookworm --app-image "$image_id" \
             --output "$RUNNER_TEMP/db-dry-run.json"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: steps.image-scope.outputs.run_application_image == 'true'
+        if: steps.scope.outputs.run_db_compose == 'true'
         with:
           name: db-dry-run
           path: ${{ runner.temp }}/db-dry-run.json
           if-no-files-found: error
       - name: Publish self-contained Linux AMD64 operator executable
-        if: steps.image-scope.outputs.run_application_image == 'true'
+        if: steps.scope.outputs.run_operator == 'true'
         run: dotnet publish tools/WayfarerCtl/WayfarerCtl.csproj -c Release -r linux-x64 --self-contained true -o "$RUNNER_TEMP/wayfarerctl"
       - name: Publish recovery payload and qualification probes
-        if: steps.image-scope.outputs.run_application_image == 'true'
+        if: steps.scope.outputs.run_recovery == 'true'
         run: |
           dotnet publish tools/WayfarerRecovery -c Release -r linux-x64 --self-contained true -o "$RUNNER_TEMP/recovery"
           dotnet build tools/WayfarerRecoverySource -c Release
@@ -264,7 +274,7 @@ jobs:
           dotnet publish tools/compose/lock-probe -c Release -r linux-x64 --self-contained true -o "$RUNNER_TEMP/lock-probe"
           cp "$RUNNER_TEMP/lock-probe/LockProbe" "$RUNNER_TEMP/recovery/lock-probe"
       - name: Assemble offline candidate release authority
-        if: steps.image-scope.outputs.run_application_image == 'true'
+        if: steps.scope.outputs.run_operator == 'true'
         run: |
           image_ref="$(python3 -c 'import json,os; e=json.load(open(os.environ["RUNNER_TEMP"]+"/image-evidence.json")); print(e["image"]+":"+e["tag"])')"
           image_digest="$(docker image inspect "$image_ref" --format '{{index .RepoDigests 0}}')"
@@ -272,7 +282,7 @@ jobs:
           db_digest="$(docker image inspect "$db_ref" --format '{{index .RepoDigests 0}}')"
           python3 tools/release/bundle.py --app-digest "${image_digest#*@}" --db-digest "${db_digest#*@}" --output "$RUNNER_TEMP/release"
       - name: Qualify operator setup, diagnostics, restart and account recovery
-        if: steps.image-scope.outputs.run_application_image == 'true'
+        if: steps.scope.outputs.run_operator == 'true'
         run: |
           image_ref="$(python3 -c 'import json,os; e=json.load(open(os.environ["RUNNER_TEMP"]+"/image-evidence.json")); print(e["image"]+":"+e["tag"])')"
           image_digest="$(docker image inspect "$image_ref" --format '{{index .RepoDigests 0}}')"
@@ -281,7 +291,7 @@ jobs:
             --app-digest "${image_digest#*@}" \
             --release-bundle "$(python3 -c 'import os,pathlib; print(next(pathlib.Path(os.environ["RUNNER_TEMP"],"release").glob("candidate-*")))')"
       - name: Qualify shipped recovery runtime and complete clean Compose reconstruction
-        if: steps.image-scope.outputs.run_application_image == 'true'
+        if: steps.scope.outputs.run_recovery == 'true'
         run: |
           bundle="$(python3 -c 'import os,pathlib; print(next(pathlib.Path(os.environ["RUNNER_TEMP"],"release").glob("candidate-*")))')"
           db_digest="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]+"/release.json"))["Images"]["DatabaseDigest"])' "$bundle")"
@@ -298,13 +308,13 @@ jobs:
             --release-bundle "$(python3 -c 'import os,pathlib; print(next(pathlib.Path(os.environ["RUNNER_TEMP"],"release").glob("candidate-*")))')"
       # Reuse the same lifecycle-sensitive lane and journey; fixture DDL never enters product migrations.
       - name: Prepare reproducible disposable update target
-        if: steps.image-scope.outputs.run_application_image == 'true'
+        if: steps.scope.outputs.run_update == 'true'
         run: |
           python3 -B tools/compose/qualify_update.py \
             --source-bundle "$(python3 -c 'import os,pathlib; print(next(pathlib.Path(os.environ["RUNNER_TEMP"],"release").glob("candidate-*")))')" \
             --output "$RUNNER_TEMP/update"
       - name: Qualify real managed update and restore ownership boundary
-        if: steps.image-scope.outputs.run_application_image == 'true'
+        if: steps.scope.outputs.run_update == 'true'
         run: |
           image_digest="$(python3 -c 'import json,os; print(json.load(open(os.environ["RUNNER_TEMP"]+"/update/source/release.json"))["Images"]["ApplicationDigest"])')"
           target_bundle="$(python3 -c 'import json,os; print(json.load(open(os.environ["RUNNER_TEMP"]+"/update/evidence.json"))["targetBundle"])')"
@@ -314,7 +324,7 @@ jobs:
             --probe tools/compose/recovery-probe/bin/Release/net10.0/RecoveryProbe.dll --app-digest "$image_digest" \
             --release-bundle "$RUNNER_TEMP/update/source" --update-bundle "$target_bundle"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: always() && steps.image-scope.outputs.run_application_image == 'true'
+        if: always() && steps.scope.outputs.run_update == 'true'
         with:
           name: update-qualification-provenance
           path: ${{ runner.temp }}/update/evidence.json
@@ -331,33 +341,36 @@ jobs:
         with:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-      - name: Classify application-image scope
-        id: image-scope
+      - name: Classify CI evidence scope
+        id: scope
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: python3 tools/ci/application_image_scope.py --base "$BASE_SHA" --head "$HEAD_SHA"
+      - name: No native ARM64 qualification required
+        if: steps.scope.outputs.run_arm64 != 'true'
+        run: echo "PASS application-image-arm64 scope; no architecture-sensitive owner."
       - name: Use a disposable native Docker daemon with the containerd image store
-        if: steps.image-scope.outputs.run_application_image == 'true'
+        if: steps.scope.outputs.run_arm64 == 'true' && steps.scope.outputs.run_app_image == 'true'
         uses: docker/setup-docker-action@e43656e248c0bd0647d3f5c195d116aacf6fcaf4 # v4
         with:
           version: v29.1.3
           daemon-config: '{"features":{"containerd-snapshotter":true}}'
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
-        if: steps.image-scope.outputs.run_application_image == 'true'
+        if: steps.scope.outputs.run_arm64 == 'true' && steps.scope.outputs.run_operator == 'true'
         with:
           dotnet-version: '10.0.x'
       - name: Build and qualify native application/browser payload
-        if: steps.image-scope.outputs.run_application_image == 'true'
+        if: steps.scope.outputs.run_arm64 == 'true' && steps.scope.outputs.run_app_image == 'true'
         run: python3 tools/release/image.py dry-run --output "$RUNNER_TEMP/image-evidence.json"
       - name: Build the exact native PostgreSQL/PostGIS recipe and prove its fresh cluster boundary
-        if: steps.image-scope.outputs.run_application_image == 'true'
+        if: steps.scope.outputs.run_arm64 == 'true' && steps.scope.outputs.run_db_compose == 'true'
         run: |
           app_ref="$(python3 -c 'import json,os; e=json.load(open(os.environ["RUNNER_TEMP"]+"/image-evidence.json")); print(e["image"]+":"+e["tag"])')"
           python3 tools/release/db_image.py dry-run --source "$(git rev-parse HEAD)" \
             --db-version pg18.6-postgis3.6.4-bookworm --app-image "$app_ref" --output "$RUNNER_TEMP/db-evidence.json"
       - name: Publish native recovery payload and existing probes
-        if: steps.image-scope.outputs.run_application_image == 'true'
+        if: steps.scope.outputs.run_arm64 == 'true' && steps.scope.outputs.run_operator == 'true'
         run: |
           dotnet publish tools/WayfarerCtl -c Release -r linux-arm64 --self-contained true -o "$RUNNER_TEMP/wayfarerctl"
           dotnet publish tools/WayfarerRecovery -c Release -r linux-arm64 --self-contained true -o "$RUNNER_TEMP/recovery"
@@ -366,7 +379,7 @@ jobs:
           dotnet publish tools/compose/lock-probe -c Release -r linux-arm64 --self-contained true -o "$RUNNER_TEMP/lock-probe"
           cp "$RUNNER_TEMP/lock-probe/LockProbe" "$RUNNER_TEMP/recovery/lock-probe"
       - name: Assemble and validate the native canonical bundle
-        if: steps.image-scope.outputs.run_application_image == 'true'
+        if: steps.scope.outputs.run_arm64 == 'true' && steps.scope.outputs.run_operator == 'true'
         run: |
           app_ref="$(python3 -c 'import json,os; e=json.load(open(os.environ["RUNNER_TEMP"]+"/image-evidence.json")); print(e["image"]+":"+e["tag"])')"
           db_ref="$(python3 -c 'import json,os; e=json.load(open(os.environ["RUNNER_TEMP"]+"/db-evidence.json")); print(e["image"]+":"+e["tag"])')"
@@ -374,7 +387,7 @@ jobs:
           db_digest="$(docker image inspect "$db_ref" --format '{{index .RepoDigests 0}}')"
           python3 tools/release/bundle.py --app-digest "${app_digest#*@}" --db-digest "${db_digest#*@}" --output "$RUNNER_TEMP/release"
       - name: Exercise native canonical setup, doctor, stop and the DB-image recovery worker
-        if: steps.image-scope.outputs.run_application_image == 'true'
+        if: steps.scope.outputs.run_arm64 == 'true' && steps.scope.outputs.run_operator == 'true'
         run: |
           bundle="$(python3 -c 'import os,pathlib; print(next(pathlib.Path(os.environ["RUNNER_TEMP"],"release").glob("candidate-*")))')"
           app_digest="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]+"/release.json"))["Images"]["PlatformDigest"])' "$bundle")"
@@ -383,7 +396,7 @@ jobs:
             --inspector tools/WayfarerRecoverySource/bin/Release/net10.0/WayfarerRecoverySource.dll \
             --probe tools/compose/recovery-probe/bin/Release/net10.0/RecoveryProbe.dll --app-digest "$app_digest"
       - name: Retain exact native image and bundle evidence
-        if: always() && steps.image-scope.outputs.run_application_image == 'true'
+        if: always() && steps.scope.outputs.run_arm64 == 'true'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: arm64-compose-qualification
