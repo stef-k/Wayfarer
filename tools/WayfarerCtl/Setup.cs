@@ -6,6 +6,10 @@ namespace WayfarerCtl;
 public sealed class Setup(IProcessRunner runner, ITerminal terminal,
     Func<string, string, CancellationToken, Task<ReleaseBundle>>? acquire = null)
 {
+    private string phase = "checking this computer";
+    private string remedy = "Check that supported Docker Engine and Docker Compose are installed and running.";
+    private bool configured;
+
     /// <summary>Parse a bounded setup surface; reject duplicate/unknown options before any host access.</summary>
     public static Dictionary<string, string> Options(string[] args)
     {
@@ -46,19 +50,34 @@ public sealed class Setup(IProcessRunner runner, ITerminal terminal,
     /// <summary>Prepare one retained release before entering the existing protected setup lifecycle.</summary>
     public async Task<int> RunAsync(string root, string[] args, CancellationToken token)
     {
+        var options = Options(args);
+        try { return await RunCoreAsync(root, options, token); }
+        catch (Exception error) { return ReportFailure(error, configured); }
+    }
+
+    /// <summary>Preparation may retain releases; protected installation writes are the resume boundary.</summary>
+    private async Task<int> RunCoreAsync(string root, Dictionary<string, string> options, CancellationToken token)
+    {
+        Stage("Checking this computer");
+        Preflight.Platform();
+        ProtectedFiles.RequireRoot();
         RestoreReceipt.RequireResolved(root);
         UpdateReceipt.RequireResolved(root);
-        var options = Options(args);
         if (options.ContainsKey("--resume")) return await ResumeAsync(root, options, token);
+        remedy = "Correct the reported installation-folder or Docker prerequisite.";
         ProtectedFiles.SafePath(root);
         if (Directory.Exists(root))
         {
             ProtectedFiles.Check(root, 0, directory: true);
+            configured = File.Exists(Path.Combine(root, "installation.json")) || Directory.Exists(Path.Combine(root, "secrets"));
             if (Directory.EnumerateFileSystemEntries(root).Any(path => Path.GetFileName(path) is not ("releases" or "operation.lock")))
                 throw new UsageException("Existing/partial installation found. Use setup --resume for verified wayfarerctl state; never overwrite it.");
         }
         var preflight = new Preflight(runner);
+        remedy = "Check that supported Docker Engine and Docker Compose are installed and running.";
         await preflight.DockerAsync(token);
+        Stage("Preparing the Wayfarer download");
+        remedy = "Check available disk space and protected installation-folder permissions.";
         ReleaseBundle? bundle;
         if (!options.ContainsKey("--bundle"))
         {
@@ -83,12 +102,13 @@ public sealed class Setup(IProcessRunner runner, ITerminal terminal,
                     throw new UsageException("Local setup requires the bundle's exact images already present and verified.");
             }
         }
+        Stage("Checking installation choices");
+        remedy = "Correct the reported setup choice or computer prerequisite.";
         var config = ReadChoices(options, bundle);
         config.CheckBundle();
         await preflight.FreshAsync(config, token);
         await preflight.BundleAsync(root, config, token);
-        terminal.Write($"Preflight passed: {root}; project {config.Project}; {config.Mode}; {config.Hostname}; edge {config.EdgePrefix}.0/24.\n" +
-            "Fresh DB and app volumes; protected admin bootstrap precedes web/ingress. Existing/native data is never adopted.");
+        terminal.Write($"Preflight passed. Ready to install Wayfarer for {config.Hostname}.");
         var password = terminal.Password(options.ContainsKey("--password-stdin"));
         token.ThrowIfCancellationRequested();
         if (!OperatingSystem.IsLinux()) throw new PlatformNotSupportedException();
@@ -96,7 +116,14 @@ public sealed class Setup(IProcessRunner runner, ITerminal terminal,
         using var operationLock = Lock(root);
         // Recheck after taking the lock: another setup may have completed during preflight/password input.
         if (File.Exists(Path.Combine(root, "installation.json")) || Directory.Exists(Path.Combine(root, "secrets")))
+        {
+            configured = true;
             throw new UsageException("Setup state appeared during preflight; refusing overwrite.");
+        }
+        Stage("Preparing installation files");
+        remedy = "Check available disk space and protected installation-folder permissions.";
+        // Once protected writes are attempted, never recommend plain setup over an uncertain partial result.
+        configured = true;
         ProtectedFiles.Create(Path.Combine(root, "installation.json"), JsonSerializer.Serialize(config));
         ProtectedFiles.CreateSecrets(root);
         ProtectedFiles.Create(Path.Combine(root, "deployment.env"), config.EnvironmentFile(root));
@@ -110,6 +137,7 @@ public sealed class Setup(IProcessRunner runner, ITerminal terminal,
     {
         ProtectedFiles.SafePath(root);
         ProtectedFiles.Check(root, 0, directory: true);
+        configured = File.Exists(Path.Combine(root, "installation.json")) || Directory.Exists(Path.Combine(root, "secrets"));
         using var operationLock = Lock(root);
         var config = Deployment.Load(root);
         if (InstallationCompletion.IsComplete(root))
@@ -127,15 +155,16 @@ public sealed class Setup(IProcessRunner runner, ITerminal terminal,
     }
 
     /// <summary>Completion requires live diagnostics; all failures retain the last durable checkpoint.</summary>
-    private async Task<int> FinishAsync(string root, Deployment config, SetupProgress progress, string password, bool retryAdmin, CancellationToken token)
+    internal async Task<int> FinishAsync(string root, Deployment config, SetupProgress progress, string password, bool retryAdmin, CancellationToken token)
     {
         try
         {
             await ExecuteAsync(root, config, password, token, progress, () => progress.Save(root), retryAdmin);
+            Stage("Checking the installation");
             var result = await new Diagnostics(runner, terminal).RunAsync(root, config, true, token, finishingSetup: true);
             if (result != 0)
             {
-                terminal.Error("Setup verification incomplete. Correct the reported cause, then run setup --resume.");
+                terminal.Error("Setup verification is incomplete. Setup has started; installation files and service data were retained. Correct the reported cause, then run 'wayfarerctl setup --resume'.");
                 return result;
             }
             ProtectedFiles.Create(Path.Combine(root, "setup-complete"), "1\n");
@@ -143,11 +172,7 @@ public sealed class Setup(IProcessRunner runner, ITerminal terminal,
                 "Setup complete: loopback readiness verified. External proxy TLS, forwarding and public reachability remain your responsibility.");
             return 0;
         }
-        catch
-        {
-            terminal.Error("Setup interrupted. Credentials/volumes retained. Correct the cause, then run setup --resume; see recovery guide.");
-            throw;
-        }
+        catch (Exception error) { return ReportFailure(error, true); }
     }
 
     /// <summary>Skip committed maintenance; retry safe convergence steps and observe uncertain admin creation.</summary>
@@ -155,23 +180,24 @@ public sealed class Setup(IProcessRunner runner, ITerminal terminal,
         SetupProgress? progress = null, Action? checkpoint = null, bool retryAdmin = false)
     {
         progress ??= new SetupProgress();
-        await Step("Compose configuration", config.Compose(root, "config", "--quiet"), null, token);
-        await Step("Database healthy", config.Compose(root, "up", "-d", "--wait", "--wait-timeout", "180", "db"), null, token);
+        await Step("Checking installation settings", config.Compose(root, "config", "--quiet"), null, token);
+        await Step("Preparing the database", config.Compose(root, "up", "-d", "--wait", "--wait-timeout", "180", "db"), null, token);
         // Fixed container volume roots only; never interpolate an administrator path into this script.
-        await Step("Writable volume preparation", config.Compose(root, "run", "--rm", "--no-deps", "-T", "--user", "0", "--entrypoint", "sh", "wayfarer", "-ec",
+        await Step("Preparing application storage", config.Compose(root, "run", "--rm", "--no-deps", "-T", "--user", "0", "--entrypoint", "sh", "wayfarer", "-ec",
             "chown 1654:1654 /var/lib/wayfarer /var/cache/wayfarer /var/log/wayfarer; chmod 700 /var/lib/wayfarer; chmod 750 /var/cache/wayfarer /var/log/wayfarer"), null, token);
         foreach (var (number, operation) in new[] { (1, "migrate"), (2, "seed") })
         {
             if (progress.Completed >= number) continue;
-            await Step("Database " + operation, config.Compose(root, "run", "--rm", "--no-deps", "-T", "wayfarer", "database", operation), null, token);
+            await Step(operation == "migrate" ? "Preparing database structure" : "Preparing initial application data",
+                config.Compose(root, "run", "--rm", "--no-deps", "-T", "wayfarer", "database", operation), null, token);
             progress.Completed = number;
             checkpoint?.Invoke();
         }
         if (progress.Completed < 3)
             await BootstrapAsync(root, config, password, progress, checkpoint, retryAdmin, token);
-        await Step("Wayfarer ready", config.Compose(root, "up", "-d", "--wait", "--wait-timeout", "180", "wayfarer"), null, token);
+        await Step("Starting Wayfarer", config.Compose(root, "up", "-d", "--wait", "--wait-timeout", "180", "wayfarer"), null, token);
         if (config.Mode == "managed")
-            await Step("Managed Caddy", config.Compose(root, "up", "-d", "--wait", "--wait-timeout", "180", "caddy"), null, token);
+            await Step("Starting HTTPS", config.Compose(root, "up", "-d", "--wait", "--wait-timeout", "180", "caddy"), null, token);
     }
 
     /// <summary>Never blindly repeat bootstrap after a lost result; application startup verifies admin security.</summary>
@@ -190,23 +216,45 @@ public sealed class Setup(IProcessRunner runner, ITerminal terminal,
         {
             progress.AdminStarted = true;
             checkpoint?.Invoke();
-            await Step("Protected admin bootstrap", config.Compose(root, "run", "--rm", "--no-deps", "-T", "wayfarer", "admin", "bootstrap", "admin", "--stdin"), password, token);
+            await Step("Creating the administrator account", config.Compose(root, "run", "--rm", "--no-deps", "-T", "wayfarer", "admin", "bootstrap", "admin", "--stdin"), password, token);
         }
         progress.Completed = 3;
         checkpoint?.Invoke();
     }
 
+    /// <summary>Mutation steps report their purpose but never retry or disclose captured child output.</summary>
     private async Task Step(string name, string[] command, string? input, CancellationToken token)
     {
-        terminal.Write(name + "...");
+        Stage(name);
+        remedy = "Check that Docker is running and enough disk space is available, and correct the reported prerequisite.";
         if ((await runner.RunAsync(command, input, token)).Code != 0) throw new IOException("Setup step failed.");
+    }
+
+    /// <summary>Track a plain-language stage for unexpected setup failures without exposing exception text.</summary>
+    private void Stage(string name)
+    {
+        phase = name.ToLowerInvariant();
+        terminal.Write(name + "...");
+    }
+
+    /// <summary>Render the shipped failure contract from safe owner messages and the protected-state boundary.</summary>
+    internal int ReportFailure(Exception error, bool protectedState)
+    {
+        var reason = error is AcquisitionException acquisition ? acquisition.Message :
+            error is OperationCanceledException ? $"Setup was cancelled while {phase}." : $"Wayfarer could not finish {phase}.";
+        if (error is UsageException usage) reason += " " + usage.Message;
+        var action = error is AcquisitionException safe ? safe.NextAction : remedy;
+        terminal.Error(reason + "\n" + (protectedState
+            ? "Setup has started. Installation files, existing credentials and service data were retained.\n" + action + " Then run 'wayfarerctl setup --resume' with the same deployment-root option."
+            : "Setup has not started. No installation configuration or application data was changed.\n" + action + " Then run the same 'wayfarerctl setup' command again."));
+        return error is UsageException ? 2 : 1;
     }
 
     /// <summary>Use the public acquisition owner or validate an explicit local bundle; neither path selects setup policy.</summary>
     internal async Task<ReleaseBundle?> PrepareBundleAsync(string root, Dictionary<string, string> options, CancellationToken token)
     {
         if (!options.TryGetValue("--bundle", out var path))
-            return await (acquire ?? new PublicReleaseAcquisition(runner).AcquireAsync)(root, options.GetValueOrDefault("--version", "latest"), token);
+            return await (acquire ?? new PublicReleaseAcquisition(runner, terminal.Write).AcquireAsync)(root, options.GetValueOrDefault("--version", "latest"), token);
         BackupPolicy.LiteralPath(path);
         if (!File.Exists(Path.Combine(path, "release.json")))
         {

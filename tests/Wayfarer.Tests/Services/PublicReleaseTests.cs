@@ -11,6 +11,17 @@ namespace Wayfarer.Tests.Services;
 [System.Runtime.Versioning.SupportedOSPlatform("linux")]
 public sealed class PublicReleaseTests
 {
+    /// <summary>Transport details must become a safe provider failure before any installation is created.</summary>
+    [Fact]
+    public async Task MetadataTransportFailureHasSafeProviderDiagnostic()
+    {
+        using var handler = new ResponseSequence(_ => throw new HttpRequestException("private-token-and-url"));
+        using var client = new HttpClient(handler);
+        var error = await Assert.ThrowsAnyAsync<IOException>(() => PublicReleaseAcquisition.ResolveAsync(client, "latest", default));
+        Assert.Contains("GitHub", error.Message);
+        Assert.DoesNotContain("private-token-and-url", error.Message);
+    }
+
     /// <summary>The common resolver selects exactly the supported native platform's asset, with no fallback.</summary>
     [Fact]
     public void PlatformSelectionNeverFallsBackToAnotherArchitecture()
@@ -139,5 +150,13 @@ public sealed class PublicReleaseTests
             Assert.StartsWith("https://github.com/stef-k/Wayfarer/releases/download/v1.9.20/", request.RequestUri!.AbsoluteUri);
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(bytes) });
         }
+    }
+
+    /// <summary>Injects responses and transport failures into the existing HttpClient boundary.</summary>
+    private sealed class ResponseSequence(Func<int, HttpResponseMessage> reply) : HttpMessageHandler
+    {
+        public int Calls { get; private set; }
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token) =>
+            Task.FromResult(reply(++Calls));
     }
 }

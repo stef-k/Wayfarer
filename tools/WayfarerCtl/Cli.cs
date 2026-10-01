@@ -10,6 +10,7 @@ public sealed class Cli(IProcessRunner runner, ITerminal terminal)
     {
         try { return await DispatchAsync(args, token); }
         catch (System.Text.Json.JsonException) { terminal.Error("Invalid installation JSON configuration; restore the trusted non-secret identity."); return 2; }
+        catch (AcquisitionException e) { terminal.Error(e.Message + "\n" + e.NextAction); return 1; }
         catch (UsageException e) { terminal.Error(e.Message); return 2; }
         catch (OperationCanceledException) { terminal.Error("Cancellation requested. State retained; use status/doctor to confirm worker and operation state before retrying."); return 1; }
         catch (Exception) { terminal.Error("Operation failed. State retained; check Docker access, protected configuration and doctor."); return 1; }
@@ -46,6 +47,8 @@ public sealed class Cli(IProcessRunner runner, ITerminal terminal)
             return 0;
         }
         ValidateCommand(args);
+        // Setup owns native/root preflight diagnostics and its retry-versus-resume boundary.
+        if (args[0] == "setup") return await new Setup(runner, terminal).RunAsync(root, args[1..], token);
         Preflight.Platform();
         if (args is ["release", "inspect" or "target" or "corroborate" or "unpack", ..])
             return await new ReleaseCommands(runner, terminal).RunAsync(root, args[1..], token);
@@ -54,7 +57,6 @@ public sealed class Cli(IProcessRunner runner, ITerminal terminal)
         if (args[0] == "release") return await new ReleaseCommands(runner, terminal).RunAsync(root, args[1..], token);
         if (args[0] == "update") return await new UpdateCommands(runner, terminal).RunAsync(root, args[1..], token);
         if (args[0] == "restore") return await new RestoreCommands(runner, terminal).RunAsync(root, args[1..], token);
-        if (args[0] == "setup") return await new Setup(runner, terminal).RunAsync(root, args[1..], token);
         if (args[0] is "status" or "doctor" && ReportIntent(root)) return 1;
         var config = Deployment.Load(root);
         if (args[0] is "status" or "doctor")
