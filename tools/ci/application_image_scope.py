@@ -1,4 +1,4 @@
-"""Conservative, offline PR scope for the required application-image check."""
+"""Deterministic offline PR evidence owners for the existing required CI checks."""
 
 import argparse
 from fnmatch import fnmatchcase
@@ -8,46 +8,165 @@ import re
 import subprocess
 
 
-# Entire delivery/qualification boundaries include their fixed fixtures and future files.
-BOUNDARIES = (
-    '.github/workflows/', '.github/actions/', 'tools/release/', 'deploy/compose/',
-    'tools/WayfarerCtl/', 'tools/WayfarerRecovery/', 'tools/WayfarerRecoverySource/',
-    'tools/compose/', 'CommandLine/', 'Migrations/',
+# The gate must prove itself, including publication/runner wiring and local actions.
+GATE_OWNERS = ('.github/workflows/*', '.github/actions/*', 'tools/ci/application_image_scope.py')
+# Dedicated safety tests are also client files, but require only the cleanup matrix.
+CLEANUP_OWNERS = (
+    'tools/test-artifact-paths.*', 'tools/test-cleanup.mjs', 'tests/client/testCleanup.test.mjs',
+    'tools/coverage-report*.ps1', 'tools/shared-layout-lifecycle.ps1',
+    'tools/shared-layout.safety.tests.ps1',
 )
-# Derived from LifecycleCli/RecoverySourceCli, readiness, and recovery-probe imports.
-OWNERS = {
-    'Program.cs', 'Util/QuartzSchemaInstaller.cs', 'Util/QuartzSnapshot.cs',
-    'Scripts/tables_postgres.sql', 'Services/ApplicationConfiguration.cs',
-    'Services/ApplicationReadiness.cs', 'Services/DatabaseSecret.cs',
-    'Services/StoragePaths.cs', 'Models/Options/StorageOptions.cs',
+# These files are imported by setup/readiness, recovery inspection and managed update.
+# Their shared responsibilities cannot safely be separated by changed paths alone.
+LIFECYCLE_SHARED = (
+    'Program.cs', 'CommandLine/LifecycleCli.cs', 'CommandLine/RecoverySourceCli.cs',
+    'CommandLine/DataProtectionCli.cs', 'Util/QuartzSchemaInstaller.cs',
+    'Util/QuartzSnapshot.cs', 'Scripts/tables_postgres.sql',
+    'Services/ApplicationConfiguration.cs', 'Services/ApplicationReadiness.cs',
+    'Services/DatabaseSecret.cs', 'Services/StoragePaths.cs', 'Models/Options/StorageOptions.cs',
     'Services/LocationProviders/DataProtectionAuthority.cs',
     'Services/LocationProviders/StableIdentityReadiness.cs',
     'Services/LocationProviders/StableIdentityPreparation.cs',
     'Services/LocationProviders/LegacyCredentialPreparationCodec.cs',
     'Services/LocationProviders/PersonalProviderCredentialService.cs',
-    'Services/AppVersionProvider.cs', 'Services/QuartzHostedService.cs',
-    'Services/BrowserRuntime.cs', 'Services/BrowserWorkflow.cs',
-    'Services/TrustedProxyConfiguration.cs', 'Models/ApplicationUser.cs',
-    'Models/ApplicationSettings.cs', 'Models/ActivityType.cs',
-    'tools/ci/application_image_scope.py',
-}
-# Build/runtime metadata may be introduced at nested MSBuild or NuGet boundaries.
-METADATA = (
-    '*.csproj', '*.props', '*.targets', '*.pubxml', '*packages.lock.json',
-    '*nuget.config', '*NuGet.Config', '*NuGet.config', '*global.json',
-    'Dockerfile*', '**/Dockerfile*', '.dockerignore', '**/.dockerignore',
-    '.config/dotnet-tools.json', 'appsettings*.json', '.nvmrc', '.npmrc',
-    'package.json', 'package-lock.json', 'frontend.config.yaml', 'vite.config.*',
-    'tsconfig*.json', 'tools/build-*.mjs',
-    'Models/ApplicationDbContext*.cs', 'Models/Configuration/*.cs',
-    'Models/LocationProviders/*.cs',
+    'Services/QuartzHostedService.cs', 'Services/TrustedProxyConfiguration.cs',
+    'Models/ApplicationDbContext*.cs', 'Models/Configuration/*', 'Models/LocationProviders/*',
+    'Models/ApplicationUser.cs', 'Models/ApplicationSettings.cs', 'Models/ActivityType.cs',
+    'appsettings*.json',
+    'tools/WayfarerCtl/Program.cs', 'tools/WayfarerCtl/Cli.cs',
+    'tools/WayfarerCtl/Deployment.cs', 'tools/WayfarerCtl/ActiveStorage.cs',
+    'tools/WayfarerCtl/ProcessRunner.cs', 'tools/WayfarerCtl/ProtectedFiles.cs',
+    'tools/WayfarerCtl/Preflight.cs', 'tools/WayfarerCtl/Release*.cs',
+    'tools/WayfarerCtl/PublicRelease.cs',
+    'tools/release/bundle.py', 'tools/release/public_bundle.py',
+    'tools/compose/qualify.py', 'tools/compose/qualify_ctl.py',
 )
+# Global/package inputs can alter native payloads and schema/browser dependencies.
+# Version.props is deliberately separate: changing only version identity is neutral.
+SHARED_BUILD = (
+    'Wayfarer.csproj', 'Directory.*.props', 'Directory.*.targets',
+    '*/Directory.*.props', '*/Directory.*.targets', '*packages.lock.json',
+    '*nuget.config', '*NuGet.Config', '*NuGet.config', '*global.json',
+)
+# Explicit ABI, platform/RID, OCI-selection and native qualification owners.
+NATIVE_OWNERS = (
+    'Dockerfile', '.dockerignore', 'Services/BrowserWorkflow.cs',
+    'tools/release/image.py', 'tools/release/image-smoke.sh',
+    'tools/release/db_image.py', 'tools/release/database-release.json',
+    'tools/release/bundle.py', 'tools/release/public_bundle.py', 'deploy/compose/db/*',
+    'tools/Wayfarer*/Wayfarer*.csproj', 'tools/WayfarerRecovery/NativePlatform.cs',
+    'tools/WayfarerRecovery/SafeDirectory.cs', 'tools/WayfarerRecovery/RecoveryLock.cs',
+    'tools/WayfarerRecovery/WorkerCli.cs', 'tools/WayfarerRecovery/WorkerConfiguration.cs',
+    'tools/WayfarerRecovery/RestoreWorker.cs',
+    'tools/WayfarerCtl/Preflight.cs', 'tools/WayfarerCtl/Deployment.cs',
+    'tools/WayfarerCtl/ProtectedFiles.cs', 'tools/WayfarerCtl/BackupConfiguration.cs',
+    'tools/WayfarerCtl/RestorePreparation.cs', 'tools/WayfarerCtl/ReleaseManifest.cs',
+    'tools/WayfarerCtl/ReleaseImages.cs', 'tools/WayfarerCtl/PublicRelease.cs',
+    'tools/compose/qualify.py', 'tools/compose/qualify_ctl.py',
+    'tools/compose/qualify_recovery.py', 'tools/compose/lock-probe/*',
+    'package.json', 'package-lock.json', '.nvmrc', '.npmrc',
+)
+# Plain path patterns map current product contracts; '*' includes nested paths.
+OWNERS = {
+    'dotnet': (
+        '*.cs', '*.cshtml', '*.razor', '*.csproj', '*.props', '*.targets', '*.pubxml',
+        '*.sln', '*.slnx', '*.resx', '*.sql', '*packages.lock.json',
+        '*nuget.config', '*NuGet.Config', '*NuGet.config', '*global.json',
+        '.config/dotnet-tools.json', 'appsettings*.json',
+    ),
+    # Derived from every RequiresPlaywright test's production calls and file imports.
+    'playwright': (
+        'Services/Browser*.cs', 'Services/TripMapThumbnailGenerator*.cs',
+        'Services/ITripMapThumbnailGenerator.cs', 'Services/TripExportService.Pdf.cs',
+        'Services/MapSnapshotService.cs', 'Util/RichNotes.cs', 'Util/HtmlHelpers.cs',
+        'Util/TileProviderAttribution.cs', 'Services/ApplicationSettingsService.cs',
+        'Views/Shared/_Layout.cshtml*', 'Views/Shared/_EmbedLayout.cshtml*',
+        'Views/_ViewImports.cshtml', 'Views/_ViewStart.cshtml',
+        'Views/Trip/Viewer.cshtml', 'Views/Trip/Print.cshtml', 'Views/Trip/Partials/*',
+        'wwwroot/js/embeddedMap.js', 'wwwroot/js/Trip/tripPopupBuilder.js',
+        'wwwroot/js/util/feature-metadata.js', 'wwwroot/js/Areas/User/Groups/Index.js',
+        'wwwroot/lib/leaflet/*',
+        'tests/Wayfarer.Tests/Services/BrowserCaptureBoundaryTests.cs',
+        'tests/Wayfarer.Tests/Services/TripMapThumbnailGeneratorTests.cs',
+        'tests/Wayfarer.Tests/Services/PublishedReadOnlyRuntimeTests.cs',
+        'tests/Wayfarer.Tests/Views/TileAttributionLayoutRenderingTests.cs',
+        'tests/Wayfarer.Tests/Util/RichNotesTests.cs',
+        'tests/Wayfarer.Tests/Infrastructure/PlaywrightEnvironmentTestCollection.cs',
+        'tests/Wayfarer.Tests/Wayfarer.Tests.csproj', 'Program.cs',
+    ) + SHARED_BUILD,
+    'frontend': (
+        '.nvmrc', '.npmrc', 'package.json', 'package-lock.json', 'frontend.config.yaml',
+        'ClientApps/*', 'wwwroot/css/*', 'wwwroot/js/*', 'tests/client/*',
+        'vite.config.*', 'tsconfig*.json', 'playwright*.config.*',
+        'tools/build-*.mjs', 'tools/trip-editor-asset-smoke.mjs',
+        'tools/start-shared-layout-e2e-host.ps1', 'tools/run-407-waypoint-browser.ps1',
+    ),
+    'cleanup_safety': CLEANUP_OWNERS + (
+        'package.json', 'package-lock.json', '.nvmrc', '.npmrc',
+        'tools/trip-editor-asset-smoke.mjs', 'tools/start-shared-layout-e2e-host.ps1',
+    ),
+    'release_tooling': (
+        'tools/release/*.py', 'tools/release/tests/*', 'tools/release/database-release.json',
+        'tools/WayfarerCtl/ReleaseManifest.cs', 'Version.props', 'CHANGELOG.md',
+    ),
+    'app_image': (
+        'Dockerfile', '.dockerignore', 'Version.props', 'Services/AppVersionProvider.cs',
+        'CommandLine/AppVersionCli.cs', 'Services/BrowserRuntime.cs', 'Services/BrowserWorkflow.cs',
+        'tools/release/image.py', 'tools/release/image-smoke.sh',
+        'package.json', 'package-lock.json', '.nvmrc', '.npmrc', 'frontend.config.yaml',
+        'vite.config.*', 'tsconfig*.json', 'tools/build-*.mjs',
+    ) + SHARED_BUILD,
+    # Native C# browser launch is exercised by qualify.py's thumbnail/PDF routes;
+    # image-smoke.sh launches JS Chromium and cannot prove BrowserWorkflow's ARM branch.
+    'db_compose': ('deploy/compose/*', 'tools/release/db_image.py',
+                   'tools/release/database-release.json', 'Services/BrowserWorkflow.cs',
+                   'tools/compose/qualify_sse.py', 'tools/compose/sse-probe/*'),
+    'operator': ('tools/WayfarerCtl/*', 'tools/release/bundle.py',
+                 'tools/release/public_bundle.py', 'tools/release/INSTALL.md'),
+    'recovery': (
+        'tools/WayfarerRecovery/*', 'tools/WayfarerRecoverySource/*',
+        'tools/WayfarerCtl/Backup*.cs', 'tools/WayfarerCtl/Restore*.cs',
+        'tools/compose/qualify_recovery.py', 'tools/compose/qualify_restore*.py',
+        'tools/compose/qualify_release.py', 'tools/compose/recovery-probe/*',
+        'tools/compose/lock-probe/*',
+    ),
+    'update': ('tools/WayfarerCtl/Update*.cs', 'tools/compose/qualify_update.py',
+               'Migrations/*') + LIFECYCLE_SHARED + SHARED_BUILD,
+    'arm64': NATIVE_OWNERS + SHARED_BUILD,
+}
+DOMAINS = tuple(OWNERS)
 
 
-def sensitive(path):
+def matches(path, patterns):
     """Match repository-relative paths without consulting their current existence."""
-    return (path in OWNERS or path.startswith(BOUNDARIES)
-            or any(fnmatchcase(path, pattern) for pattern in METADATA))
+    return any(fnmatchcase(path, pattern) for pattern in patterns)
+
+
+def classify(paths):
+    """Union exact path owners, then add only the existing execution prerequisites."""
+    reasons = {domain: set() for domain in DOMAINS}
+    for path in sorted(set(paths)):
+        if matches(path, GATE_OWNERS):
+            for domain in DOMAINS:
+                reasons[domain].add(f'gate self-test: {path!r}')
+            continue
+        # Only these Markdown files are executable release inputs/payloads.
+        if path.endswith('.md') and path not in ('CHANGELOG.md', 'tools/release/INSTALL.md'):
+            continue
+        if matches(path, CLEANUP_OWNERS):
+            reasons['cleanup_safety'].add(f'owner: {path!r}')
+            continue
+        for domain, patterns in OWNERS.items():
+            if matches(path, patterns):
+                reasons[domain].add(f'owner: {path!r}')
+    # Ordered explicitly: no generic dependency framework or reverse inference.
+    for consumer, prerequisite in (
+        ('playwright', 'dotnet'), ('update', 'recovery'), ('recovery', 'operator'),
+        ('operator', 'db_compose'), ('db_compose', 'app_image'),
+    ):
+        if reasons[consumer]:
+            reasons[prerequisite].add(f'execution prerequisite for {consumer}')
+    return {domain: sorted(evidence) for domain, evidence in reasons.items()}
 
 
 def changed_paths(base, head):
@@ -58,36 +177,37 @@ def changed_paths(base, head):
         ['git', 'diff', '--no-ext-diff', '--no-renames', '--name-only', '-z',
          f'{base}...{head}', '--'], check=True, capture_output=True,
     )
+    if result.stdout and not result.stdout.endswith(b'\0'):
+        raise ValueError('expected NUL-delimited Git paths')
     return result.stdout.decode('utf-8', errors='surrogateescape').split('\0')[:-1]
 
 
 def decision(base, head):
-    """Fail conservatively to heavy qualification when diff evidence is unavailable."""
+    """Fail broad when exact diff evidence is invalid or unavailable."""
     try:
-        paths = changed_paths(base, head)
+        return classify(changed_paths(base, head))
     except (ValueError, OSError, subprocess.CalledProcessError):
-        return True, ['diff unavailable or invalid; full qualification required']
-    matches = sorted(set(path for path in paths if sensitive(path)))
-    return bool(matches), [f'sensitive path: {path!r}' for path in matches]
+        return {domain: ['diff unavailable or invalid; broad qualification required']
+                for domain in DOMAINS}
 
 
 def main():
-    """Emit a bounded GitHub output and human-readable scope evidence."""
+    """Emit bounded Boolean workflow outputs and deterministic run/skip explanations."""
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--base', required=True)
     parser.add_argument('--head', required=True)
     args = parser.parse_args()
-    run, reasons = decision(args.base, args.head)
-    output = f'run_application_image={str(run).lower()}'
-    print(output)
+    reasons = decision(args.base, args.head)
+    outputs = [f'run_{domain}={str(bool(reasons[domain])).lower()}' for domain in DOMAINS]
     if os.environ.get('GITHUB_OUTPUT'):
         with Path(os.environ['GITHUB_OUTPUT']).open('a') as stream:
-            stream.write(output + '\n')
-    if run:
-        print('application-image scope: full qualification required.')
-        print('\n'.join(reasons))
-    else:
-        print('PASS application-image scope: no container/lifecycle-sensitive changes; heavy qualification skipped.')
+            stream.write('\n'.join(outputs) + '\n')
+    for domain, output in zip(DOMAINS, outputs):
+        print(output)
+        if reasons[domain]:
+            print(f'RUN {domain}: ' + '; '.join(reasons[domain]))
+        else:
+            print(f'PASS SKIP {domain}: no owning changed path or execution prerequisite.')
 
 
 if __name__ == '__main__':
