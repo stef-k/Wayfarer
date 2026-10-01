@@ -91,7 +91,8 @@ Setup shows understandable progress and automatically retries temporary download
 failures at most three times. If it stops with **"Setup has not started"**, correct
 the reported cause and run the same plain `sudo ./wayfarerctl setup` command again,
 including any original options. Verified downloads may be retained; no installation
-configuration or application data was changed. Do not delete files or run `doctor`
+configuration was committed or application data changed. Private preparation can
+retain generated inputs without committing an installation. Do not delete files or run `doctor`
 or `setup --resume` at this boundary.
 
 If it says **"Setup has started"**, preserve the installation files and service data,
@@ -104,6 +105,12 @@ repair changed or unreceipted files. Integrity/safety failures stop immediately:
 try again later from the official release. Missing assets never trigger a search for
 another release. See [fresh-install troubleshooting](29-Wayfarerctl.md#interrupted-setup-and-troubleshooting)
 for the same retry-versus-resume contract and prerequisites.
+Use the reported recovery action, not the existence of an individual configuration
+file, to decide whether setup can continue. Administrators investigating refused
+state should use the
+[persisted lifecycle authority contract](25-Container-Release-Contract.md#persisted-compose-lifecycle-authority).
+Known interrupted-cleanup residue requires preserving the original installation
+folder for administrator reconciliation; repeatedly running setup cannot repair it.
 
 ## Development and advanced native/manual installation
 
