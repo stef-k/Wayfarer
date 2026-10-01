@@ -142,6 +142,32 @@ def test_invalid_leading_unreleased_rejected_without_mutation(
     assert (tmp_path / "Version.props").read_bytes() == props
 
 
+@pytest.mark.parametrize("leading_unreleased", [False, True])
+def test_later_unreleased_rejected_without_mutation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, leading_unreleased: bool
+) -> None:
+    """check and prepare reject misplaced or duplicate Unreleased after a release."""
+
+    write_repo(tmp_path)
+    use_repo(monkeypatch, tmp_path)
+    path = tmp_path / "CHANGELOG.md"
+    original = path.read_text(encoding="utf-8")
+    if leading_unreleased:
+        original = original.replace(
+            "# CHANGELOG\n", "# CHANGELOG\n\n## [Unreleased]\n", 1
+        )
+    original += "\n## [Unreleased]\n\n### Changed\n- Misplaced note.\n"
+    path.write_text(original, encoding="utf-8")
+    props = (tmp_path / "Version.props").read_bytes()
+
+    with pytest.raises(version.ValidationError):
+        version.check(require_tag=False, require_github_release=False)
+    with pytest.raises(version.ValidationError):
+        version.prepare("1.4.1")
+    assert path.read_text(encoding="utf-8") == original
+    assert (tmp_path / "Version.props").read_bytes() == props
+
+
 @pytest.mark.parametrize(
     "invalid_version",
     ["v1.4.1", "1.4", "1.4.1-beta.1", "1.4.1+build.1", "-1.4.1", "1.x.1"],

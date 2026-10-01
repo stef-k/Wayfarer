@@ -223,16 +223,24 @@ def replace_wayfarer_version(text: str, target_version: str) -> str:
 
 
 def find_top_changelog_heading_index(text: str) -> int:
-    """Locate the first release heading, skipping one exact leading Unreleased."""
+    """Locate the first release, rejecting duplicate or misplaced exact Unreleased."""
 
     leading_unreleased = False
+    release_index = None
     for index, line in enumerate(text.splitlines()):
-        if line.startswith("## "):
-            if line == "## [Unreleased]" and not leading_unreleased:
-                leading_unreleased = True
-                continue
-            return index
-    raise ValidationError("CHANGELOG.md is missing a release heading")
+        if not line.startswith("## "):
+            continue
+        if line == "## [Unreleased]":
+            if leading_unreleased or release_index is not None:
+                raise ValidationError(
+                    "CHANGELOG.md allows only one leading ## [Unreleased] heading"
+                )
+            leading_unreleased = True
+        elif release_index is None:
+            release_index = index
+    if release_index is None:
+        raise ValidationError("CHANGELOG.md is missing a release heading")
+    return release_index
 
 
 def parse_top_changelog_version(heading: str) -> str:
