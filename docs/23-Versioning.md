@@ -88,7 +88,7 @@ public release. Candidate/PR qualification remains separate evidence.
 the manually edited `WayfarerVersion` and derives standard MSBuild metadata from it:
 
 ```xml
-<WayfarerVersion>1.9.19</WayfarerVersion>
+<WayfarerVersion>1.9.20</WayfarerVersion>
 <Version>$(WayfarerVersion)</Version>
 <PackageVersion>$(WayfarerVersion)</PackageVersion>
 <AssemblyInformationalVersion>$(WayfarerVersion)</AssemblyInformationalVersion>
@@ -98,7 +98,7 @@ the manually edited `WayfarerVersion` and derives standard MSBuild metadata from
 `IAppVersionProvider` reads the compiled `AssemblyInformationalVersion`. The `version`
 CLI, `GET /api/version`, `X-Wayfarer-Version` and shared layout footer use that provider.
 Validate exact CLI output with `dotnet run --no-launch-profile -- version`; for the
-version above it prints exactly `Wayfarer 1.9.19`, without SDK launch-profile messages.
+version above it prints exactly `Wayfarer 1.9.20`, without SDK launch-profile messages.
 
 ## Release helper
 
@@ -138,6 +138,42 @@ Standard release validation is described once above. Native deployment follows
 [Updating Wayfarer](20-Deployment.md#updating-wayfarer): apply pending migrations and
 preserve PostgreSQL with its matching complete Data Protection ring. Publication
 never performs that deployment. These historical records are not current Compose procedures.
+
+## 1.9.20 release source record
+
+Prepared on 2026-10-01 from synchronized main
+`062a1850d28f40ed601963327aca30c256822432` on
+`feature/724-release-1.9.20` for [#724](https://github.com/stef-k/Wayfarer/issues/724).
+This is the source candidate for the first public Compose stable. AMD64/ARM64
+support, stable bundle publication and canonical-operator bootstrap machinery are
+merged; public v1.9.20 publication and fresh installation acceptance on both
+platforms remain pending under #713. Preparation creates no tag, GitHub Release,
+GHCR image/index, deployment bundle, bootstrap archive or deployment.
+
+Accepted PostgreSQL 18.6/PostGIS 3.6.4 authority is unchanged from #720 /
+[PR #722](https://github.com/stef-k/Wayfarer/pull/722), promoted from successful
+[DB publication run 36772792692](https://github.com/stef-k/Wayfarer/actions/runs/36772792692).
+Source-only v1.9.19 and earlier are not Compose update sources; the first public
+stable is a fresh-install baseline. No PG17→PG18 Compose upgrade, native-to-Compose
+migration or stable-to-stable public update is qualified by this preparation.
+
+Since v1.9.19, native/manual upgrades require the additive
+`20260924220353_StablePersonalCredentialCompanion` migration and
+[source preparation before F2 activation](24-Personal-Location-Providers.md#f1-preparation-to-f2-activation).
+Preserve PostgreSQL with the complete resolved Data Protection ring and explicit
+native overrides. Follow [explicit Production maintenance](26-Application-Container.md#explicit-maintenance)
+and trusted-proxy configuration before restart. CHANGELOG owns the detailed
+upgrade/invalidation/rollback notes; this preparation adds no migration.
+
+Retain merged product qualification with its original heads and CI:
+[managed update PR #710](https://github.com/stef-k/Wayfarer/pull/710),
+[native ARM64 PR #717](https://github.com/stef-k/Wayfarer/pull/717) and
+[PG18 Compose PR #719](https://github.com/stef-k/Wayfarer/pull/719).
+The preparation delta changes only version metadata, release notes/provenance and
+the compiled-current-version assertion, so it does not invalidate their lifecycle,
+DB or architecture evidence. Current-head compiled-version/image identity CI and
+independent exact-head review remain separate requirements; retained evidence is
+not public v1.9.20 distribution acceptance.
 
 ## 1.9.19 release source record
 
