@@ -166,7 +166,8 @@ public sealed class Setup(IProcessRunner runner, ITerminal terminal,
         checkedRoot = true;
         ProtectedFiles.Check(root, 0, directory: true);
         using var operationLock = Lock(root);
-        if (!File.Exists(Path.Combine(root, "setup-progress.json")) && Path.Exists(Path.Combine(root, SetupProvisioning.Name)))
+        // The canonical receipt may be published before snapshot cleanup; verify either interruption boundary.
+        if (Path.Exists(Path.Combine(root, SetupProvisioning.Name)))
         {
             Stage("Finishing installation files");
             remedy = "Check available disk space and protected installation-folder permissions.";

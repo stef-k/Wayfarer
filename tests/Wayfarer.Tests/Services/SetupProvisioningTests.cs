@@ -67,7 +67,7 @@ public sealed class SetupProvisioningTests : IDisposable
         Deployment.CheckSecrets(root);
     }
 
-    /// <summary>The recommended resume command publishes original bytes and reaches the canonical execution boundary.</summary>
+    /// <summary>The recommended resume publishes original bytes, reclaims duplicate secrets and reaches canonical execution.</summary>
     [Theory]
     [InlineData("installation.json")]
     [InlineData("db-app-password")]
@@ -94,6 +94,8 @@ public sealed class SetupProvisioningTests : IDisposable
         Assert.DoesNotContain("private injected failure", terminal.Errors);
         foreach (var (name, bytes) in original) Assert.Equal(bytes, File.ReadAllBytes(Path.Combine(root, name)));
         Assert.Equal(0, SetupProgress.Load(root, Deployment.Load(root)).Completed);
+        Assert.False(Path.Exists(source));
+        Assert.Equal(3, Directory.EnumerateFiles(root, "*password*", SearchOption.AllDirectories).Count());
     }
 
     /// <summary>Receipt-owned continuation never repairs a credential changed after publication began.</summary>
