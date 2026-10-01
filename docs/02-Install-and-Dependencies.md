@@ -97,7 +97,10 @@ or `setup --resume` at this boundary.
 If it says **"Setup has started"**, preserve the installation files and service data,
 correct the cause, then run `sudo ./wayfarerctl setup --resume` with the original
 deployment-root option. Resume verifies the original protected receipt, configuration
-and secrets. Integrity/safety failures stop immediately: do not bypass the check;
+and secrets, including finishing interrupted publication of verified initial files.
+If protected state **"cannot safely resume"**, preserve it and have an administrator
+follow the protected-state reconciliation guidance below; another setup attempt cannot
+repair changed or unreceipted files. Integrity/safety failures stop immediately: do not bypass the check;
 try again later from the official release. Missing assets never trigger a search for
 another release. See [fresh-install troubleshooting](29-Wayfarerctl.md#interrupted-setup-and-troubleshooting)
 for the same retry-versus-resume contract and prerequisites.

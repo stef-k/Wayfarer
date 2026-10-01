@@ -16,6 +16,15 @@ Mixed diffs select the union. Unaffected jobs take explicit successful no-op pat
 classifier tests and Code Guard still run in `test`. Python release tests remain
 in `application-image`, independently of Docker and host .NET setup.
 
+Protected setup publication tests use `Category=RequiresRoot` because they exercise
+real Linux root ownership and the separate database/application consumer UIDs.
+Ordinary test selections exclude this category. After building the tests, CI runs
+only that selection with `sudo dotnet vstest
+tests/Wayfarer.Tests/bin/Release/net10.0/Wayfarer.Tests.dll
+--TestCaseFilter:Category=RequiresRoot`. Locally it can also run in the established
+.NET SDK container as root; each test owns one private temporary tree and never
+selects host installations or Docker resources.
+
 | Domain | Changed-path owners | Retained evidence |
 | --- | --- | --- |
 | `dotnet` | C#, Razor, .NET build/package metadata, SQL/resources, migrations and `Version.props` | Restore/build and ordinary tests |

@@ -25,7 +25,7 @@ public sealed class PublicReleaseTests
         Assert.Equal(new[] { 2, 5, 10 }, delays.Select(value => (int)value.TotalSeconds));
         Assert.Contains("Retrying (4/4)", string.Join('\n', progress));
         var terminal = new FailureTerminal();
-        Assert.Equal(1, new Setup(new FailureProcess(), terminal).ReportFailure(error, false));
+        Assert.Equal(1, new Setup(new FailureProcess(), terminal).ReportFailure(error, Setup.Recovery.Retry));
         Assert.Contains("GitHub", terminal.Errors);
         Assert.Contains("Setup has not started", terminal.Errors);
         Assert.Contains("same 'wayfarerctl setup' command", terminal.Errors);
@@ -102,7 +102,7 @@ public sealed class PublicReleaseTests
         var error = await Assert.ThrowsAsync<AcquisitionException>(() => PublicReleaseAcquisition.DownloadAsync(client,
             DownloadIdentity([1]), Path.Combine(directory.Path, "download.gz"), default, delay: NoDelay));
         var terminal = new FailureTerminal();
-        new Setup(new FailureProcess(), terminal).ReportFailure(error, false);
+        new Setup(new FailureProcess(), terminal).ReportFailure(error, Setup.Recovery.Retry);
         Assert.Equal(4, handler.Calls);
         Assert.Empty(Directory.EnumerateFileSystemEntries(directory.Path));
         Assert.Contains("download the release from GitHub", terminal.Errors);
@@ -128,7 +128,7 @@ public sealed class PublicReleaseTests
         var error = await Assert.ThrowsAsync<AcquisitionException>(() => PublicReleaseAcquisition.StageAsync(directory.Path, "latest", default,
             progress.Add, NoDelay, client));
         var terminal = new FailureTerminal();
-        new Setup(new FailureProcess(), terminal).ReportFailure(error, false);
+        new Setup(new FailureProcess(), terminal).ReportFailure(error, Setup.Recovery.Retry);
         Assert.Equal(2, handler.Calls);
         Assert.Contains("Unpacking the verified download...", progress);
         Assert.Contains("safely unpack or validate", terminal.Errors);
@@ -146,7 +146,7 @@ public sealed class PublicReleaseTests
         var error = await Assert.ThrowsAsync<AcquisitionException>(() => new PublicReleaseAcquisition(runner, delay: NoDelay)
             .PullImageAsync("/private/empty-client-config", "linux/amd64", reference, default));
         var terminal = new FailureTerminal();
-        new Setup(runner, terminal).ReportFailure(error, false);
+        new Setup(runner, terminal).ReportFailure(error, Setup.Recovery.Retry);
         Assert.Equal(4, runner.Calls.Count);
         Assert.All(runner.Calls, call => Assert.Equal(new[] { "--config", "/private/empty-client-config", "pull", "--platform", "linux/amd64", reference }, call));
         Assert.Contains("verified release is safely retained", terminal.Errors);
@@ -190,8 +190,8 @@ public sealed class PublicReleaseTests
         File.WriteAllText(Path.Combine(directory.Path, "installation.json"), "protected state must not be replaced");
         Assert.True(Setup.HasProtectedState(directory.Path));
         var terminal = new FailureTerminal();
-        new Setup(new FailureProcess(), terminal).ReportFailure(new IOException("private lock failure"), Setup.HasProtectedState(directory.Path));
-        Assert.Contains("'wayfarerctl setup --resume'", terminal.Errors);
+        new Setup(new FailureProcess(), terminal).ReportFailure(new IOException("private lock failure"), Setup.RecoveryForRoot(directory.Path));
+        Assert.Contains("cannot safely resume", terminal.Errors);
         var error = Assert.Throws<UsageException>(() => Setup.RequireFreshState(directory.Path));
         Assert.Contains("never overwrite", error.Message);
         Assert.Equal("protected state must not be replaced", File.ReadAllText(Path.Combine(directory.Path, "installation.json")));

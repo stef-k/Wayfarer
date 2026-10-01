@@ -123,8 +123,12 @@ official release.
 
 When it says **"Setup has started"**, retain installation files, credentials and
 service data, correct the cause and run `setup --resume` with the same deployment-root
-option. Continuation verifies the original protected configuration, secrets and
-receipt and refuses unsafe or incomplete state. It does not overwrite or adopt it.
+option. Continuation finishes interrupted publication of verified initial files and
+checks the original protected configuration, secrets and receipt. Existing bytes
+must match; credentials are never regenerated or replaced. If protected state
+**"cannot safely resume"**, preserve it and have an administrator follow protected-state
+reconciliation in `docs/29-Wayfarerctl.md` (`Interrupted setup and troubleshooting`).
+Another setup attempt cannot repair changed or unreceipted files.
 
 ```sh
 sudo ./wayfarerctl setup --version X.Y.Z  # same resolver, one exact public stable

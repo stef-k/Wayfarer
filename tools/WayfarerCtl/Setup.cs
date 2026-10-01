@@ -1,5 +1,3 @@
-using System.Text.Json;
-
 namespace WayfarerCtl;
 
 /// <summary>Fresh-install coordinator with explicit continuation of verified, owned partial state.</summary>
@@ -9,6 +7,12 @@ public sealed class Setup(IProcessRunner runner, ITerminal terminal,
     private string phase = "checking this computer";
     private string remedy = "Check that supported Docker Engine and Docker Compose are installed and running.";
     private bool checkedRoot;
+
+    /// <summary>Observe protected-file boundaries for focused interruption tests without substituting ownership checks.</summary>
+    internal Action<string>? ProvisioningCheckpoint { get; init; }
+
+    /// <summary>Recommend continuation only when a complete protected receipt can actually authorize it.</summary>
+    internal enum Recovery { Retry, Resume, Reconcile }
 
     /// <summary>Parse a bounded setup surface; reject duplicate/unknown options before any host access.</summary>
     public static Dictionary<string, string> Options(string[] args)
@@ -55,10 +59,10 @@ public sealed class Setup(IProcessRunner runner, ITerminal terminal,
         UpdateReceipt.RequireResolved(root);
         checkedRoot = false;
         try { return await RunCoreAsync(root, options, token); }
-        catch (Exception error) { return ReportFailure(error, checkedRoot && HasProtectedState(root)); }
+        catch (Exception error) { return ReportFailure(error, checkedRoot ? RecoveryForRoot(root) : Recovery.Retry); }
     }
 
-    /// <summary>Preparation may retain releases; protected installation writes are the resume boundary.</summary>
+    /// <summary>Preparation may retain releases; a complete initial input snapshot makes installation writes resumable.</summary>
     private async Task<int> RunCoreAsync(string root, Dictionary<string, string> options, CancellationToken token)
     {
         Stage("Checking this computer");
@@ -123,18 +127,10 @@ public sealed class Setup(IProcessRunner runner, ITerminal terminal,
         Directory.CreateDirectory(root, ProtectedFiles.PrivateDirectory);
         using var operationLock = Lock(root);
         // Recheck after taking the lock: another setup may have completed during preflight/password input.
-        if (File.Exists(Path.Combine(root, "installation.json")) || Directory.Exists(Path.Combine(root, "secrets")))
-        {
-            throw new UsageException("Setup state appeared during preflight; refusing overwrite.");
-        }
+        RequireFreshState(root);
         Stage("Preparing installation files");
         remedy = "Check available disk space and protected installation-folder permissions.";
-        // Failure reporting rechecks protected state, including an uncertain create or another invocation's writes.
-        ProtectedFiles.Create(Path.Combine(root, "installation.json"), JsonSerializer.Serialize(config));
-        ProtectedFiles.CreateSecrets(root);
-        ProtectedFiles.Create(Path.Combine(root, "deployment.env"), config.EnvironmentFile(root));
-        Deployment.CheckSecrets(root);
-        var progress = SetupProgress.Create(root, config);
+        var progress = SetupProvisioning.Create(root, config, ProvisioningCheckpoint);
         return await FinishAsync(root, config, progress, password, false, token);
     }
 
@@ -145,9 +141,23 @@ public sealed class Setup(IProcessRunner runner, ITerminal terminal,
             throw new UsageException("Existing installation files prevent fresh setup; never overwrite them.");
     }
 
-    /// <summary>Observe the retry/resume boundary at failure time; presence never bypasses resume validation.</summary>
-    internal static bool HasProtectedState(string root) => File.Exists(Path.Combine(root, "installation.json")) ||
-        Directory.Exists(Path.Combine(root, "secrets")) || File.Exists(Path.Combine(root, "setup-progress.json"));
+    /// <summary>Presence prevents fresh setup, including incomplete files and a committed provisioning snapshot.</summary>
+    internal static bool HasProtectedState(string root) =>
+        new[] { "installation.json", "deployment.env", "secrets", "setup-progress.json", SetupProvisioning.Name }
+            .Any(name => Path.Exists(Path.Combine(root, name)) || new FileInfo(Path.Combine(root, name)).LinkTarget is not null);
+
+    /// <summary>Read current authority after failure; uncertain or unreceipted protected state never grants continuation.</summary>
+    internal static Recovery RecoveryForRoot(string root)
+    {
+        try
+        {
+            if (!HasProtectedState(root)) return Recovery.Retry;
+            try { SetupProgress.Load(root, Deployment.Load(root)); }
+            catch { SetupProvisioning.Load(root); }
+            return Recovery.Resume;
+        }
+        catch { return Recovery.Reconcile; }
+    }
 
     /// <summary>Continue only the protected original identity, under the same installation lock.</summary>
     private async Task<int> ResumeAsync(string root, Dictionary<string, string> options, CancellationToken token)
@@ -156,6 +166,12 @@ public sealed class Setup(IProcessRunner runner, ITerminal terminal,
         checkedRoot = true;
         ProtectedFiles.Check(root, 0, directory: true);
         using var operationLock = Lock(root);
+        if (!File.Exists(Path.Combine(root, "setup-progress.json")) && Path.Exists(Path.Combine(root, SetupProvisioning.Name)))
+        {
+            Stage("Finishing installation files");
+            remedy = "Check available disk space and protected installation-folder permissions.";
+            SetupProvisioning.Resume(root, ProvisioningCheckpoint);
+        }
         var config = Deployment.Load(root);
         if (InstallationCompletion.IsComplete(root))
         {
@@ -192,7 +208,7 @@ public sealed class Setup(IProcessRunner runner, ITerminal terminal,
                 "Setup complete: loopback readiness verified. External proxy TLS, forwarding and public reachability remain your responsibility.");
             return 0;
         }
-        catch (Exception error) { return ReportFailure(error, true); }
+        catch (Exception error) { return ReportFailure(error, Recovery.Resume); }
     }
 
     /// <summary>Skip committed maintenance; retry safe convergence steps and observe uncertain admin creation.</summary>
@@ -257,16 +273,19 @@ public sealed class Setup(IProcessRunner runner, ITerminal terminal,
         terminal.Write(name + "...");
     }
 
-    /// <summary>Render the shipped failure contract from safe owner messages and the protected-state boundary.</summary>
-    internal int ReportFailure(Exception error, bool protectedState)
+    /// <summary>Render safe owner messages with validated retry, continuation or explicit protected-state reconciliation.</summary>
+    internal int ReportFailure(Exception error, Recovery recovery)
     {
         var reason = error is AcquisitionException acquisition ? acquisition.Message :
             error is OperationCanceledException ? $"Setup was cancelled while {phase}." : $"Wayfarer could not finish {phase}.";
         if (error is UsageException usage) reason += " " + usage.Message;
         var action = error is AcquisitionException safe ? safe.NextAction : remedy;
-        terminal.Error(reason + "\n" + (protectedState
-            ? "Setup has started. Installation files, existing credentials and service data were retained.\n" + action + " Then run 'wayfarerctl setup --resume' with the same deployment-root option."
-            : "Setup has not started. No installation configuration or application data was changed.\n" + action + " Then run the same 'wayfarerctl setup' command again."));
+        terminal.Error(reason + "\n" + (recovery switch
+        {
+            Recovery.Resume => "Setup has started. Installation files, existing credentials and service data were retained.\n" + action + " Then run 'wayfarerctl setup --resume' with the same deployment-root option.",
+            Recovery.Retry => "Setup has not started. No installation configuration or application data was changed.\n" + action + " Then run the same 'wayfarerctl setup' command again.",
+            _ => "Wayfarer cannot safely resume this protected installation state. Files, credentials and service data were retained.\nPreserve this folder and have an administrator follow the protected-state reconciliation guidance in 'wayfarerctl help setup' and the installation troubleshooting guide."
+        }));
         return error is UsageException ? 2 : 1;
     }
 

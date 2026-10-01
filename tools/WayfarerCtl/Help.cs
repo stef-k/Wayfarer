@@ -19,7 +19,8 @@ public static class Help
             "  Default: acquire latest public stable. --version selects one exact stable; --bundle uses a canonical local release.\n" +
             "  Setup shows progress and retries temporary download failures at most three times. Integrity/safety failures stop immediately.\n" +
             "  If setup says it has not started, correct the reported cause and run the same setup command again.\n" +
-            "  After installation files exist, use setup --resume; credentials and service data are retained. Do not delete files or volumes.\n" +
+            "  If setup says it has started, use setup --resume; verified initial files, credentials and service data are retained.\n" +
+            "  If protected state cannot safely resume, preserve it and ask an administrator to follow docs/29-Wayfarerctl.md#interrupted-setup-and-troubleshooting. Do not delete files or volumes.\n" +
             "  Image identities come from validated release.json. Interactive prompts ask for hostname/proxy/admin choices. Fresh installation only.\n" +
             "  Local raw/candidate qualification only: --bundle PATH --app-digest sha256:HEX (never a stable override).\n" +
             "  Continue owned partial setup: setup --resume [--password-stdin] [--retry-admin]\n" +

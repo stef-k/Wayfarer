@@ -76,6 +76,7 @@ retains canonical bundles automatically. The installation layout is:
   secrets/                          generated, root:root 0700
   operation.lock                    per-installation serialization, 0600
   setup-progress.json               protected original-input receipt and maintenance checkpoints
+  setup-provisioning/                complete protected initial inputs, present only during publication/recovery
   setup-complete                    created only after successful setup diagnostics
 ```
 
@@ -287,6 +288,14 @@ sudo wayfarerctl --deployment-root /etc/wayfarer setup --resume
 # input or append --password-stdin with a protected redirected input file.
 ```
 
+Initial configuration, credentials and the setup receipt are prepared together in
+private staging under `releases/`. A failure there leaves the plain setup command
+usable. Only a complete verified snapshot becomes protected provisioning authority.
+If publishing its installation files is interrupted, `setup --resume` finishes
+publication from those original bytes before starting the normal setup sequence.
+Existing files must match exactly; credentials are never regenerated or replaced.
+The redundant snapshot is reclaimed only after the canonical setup receipt verifies.
+
 Continuation requires the original protected installation identity, generated config,
 credential bytes and bundle files to match the protected setup receipt. It refuses
 foreign resources, changed inputs, missing migrated DB volumes, unsafe permissions,
@@ -314,10 +323,14 @@ still must pass application startup/admin-security readiness before setup can co
 Passwords are not requested for an already-recorded bootstrap. Preserve the installation
 lock; do not delete it to bypass another operation.
 
-Failures during initial protected-file creation (before a complete setup receipt exists),
-or mismatched/uncertain ownership remain fail-closed. Preserve the files and have an
-administrator reconcile their provenance. The [raw Compose maintenance sequence](28-Production-Compose.md#advanced-fresh-initialization)
-is an advanced emergency seam for such cases, not normal recovery for receipt-owned setup.
+**If the error says "cannot safely resume", preserve the installation folder and
+have an administrator reconcile its protected state.** This applies to older partial
+installations without a complete receipt/snapshot, changed files or uncertain ownership.
+Neither plain setup nor another resume attempt repairs that state. Restore the exact
+original protected inputs and their ownership from trusted retained evidence; if that
+evidence is unavailable, establish provenance before choosing further recovery.
+The [raw Compose maintenance sequence](28-Production-Compose.md#advanced-fresh-initialization)
+remains an advanced emergency seam, not ordinary recovery for receipt-owned setup.
 Never fabricate completion markers or infer that missing config means an empty database.
 
 | Symptom | Action |

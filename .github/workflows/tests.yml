@@ -104,7 +104,12 @@ jobs:
 
       - name: Run ordinary tests
         if: steps.scope.outputs.run_dotnet == 'true'
-        run: dotnet test tests/Wayfarer.Tests/Wayfarer.Tests.csproj --configuration Release --no-build --verbosity normal --filter "Category!=RequiresSpatialite&Category!=RequiresPlaywright"
+        run: dotnet test tests/Wayfarer.Tests/Wayfarer.Tests.csproj --configuration Release --no-build --verbosity normal --filter "Category!=RequiresSpatialite&Category!=RequiresPlaywright&Category!=RequiresRoot"
+
+      # File publication regressions exercise the actual root/consumer ownership contract in private temporary trees.
+      - name: Run protected setup provisioning tests
+        if: steps.scope.outputs.run_dotnet == 'true'
+        run: sudo "$(command -v dotnet)" vstest tests/Wayfarer.Tests/bin/Release/net10.0/Wayfarer.Tests.dll --TestCaseFilter:Category=RequiresRoot
 
       - name: Resolve .NET Playwright Chromium revision
         if: steps.scope.outputs.run_playwright == 'true'
