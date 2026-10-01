@@ -72,7 +72,15 @@ class ApplicationImageScopeTests(unittest.TestCase):
     def test_browser_workflow(self):
         """Explicit ARM64 launch behavior owns both browser and native image proof."""
         self.assert_domains(['Services/BrowserWorkflow.cs'],
-                            {'dotnet', 'playwright', 'app_image', 'arm64'})
+                            SUBSTRATE | {'dotnet', 'playwright', 'arm64'})
+
+    def test_shared_frontend_and_cleanup_wiring(self):
+        """Shared smoke/host wiring retains both frontend and filesystem-safety evidence."""
+        for path in ['tools/trip-editor-asset-smoke.mjs', 'tools/start-shared-layout-e2e-host.ps1']:
+            with self.subTest(path=path):
+                self.assert_domains([path], {'frontend', 'cleanup_safety'})
+        self.assert_domains(['package.json'], {'frontend', 'cleanup_safety', 'app_image', 'arm64'})
+        self.assert_domains(['vite.config.ts'], {'frontend', 'app_image'})
 
     def test_playwright_owners(self):
         """Real rendering fixtures and their imported production owners select Chromium."""
@@ -173,6 +181,9 @@ class ApplicationImageScopeTests(unittest.TestCase):
                     self.assertTrue(all(scope.decision('', '').values()))
         self.assertTrue(all(scope.decision('invalid', 'invalid').values()))
         self.assertTrue(all(scope.decision('0' * 40, '0' * 40).values()))
+        with patch.object(scope.subprocess, 'run', return_value=subprocess.CompletedProcess(
+                'git', 0, stdout=b'Dockerfile')):
+            self.assertTrue(all(scope.decision('a' * 40, 'b' * 40).values()))
 
     def test_cli_boolean_outputs_and_skip_reasons(self):
         """Workflow outputs are bounded booleans; logs explain every run and skip."""

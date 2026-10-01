@@ -1,35 +1,79 @@
 # Testing
 
-## Application-image PR scope
+## PR qualification scope
 
-The `application-image` check is created on every PR. After checkout,
-`tools/ci/application_image_scope.py` compares the PR base's merge base with its
-head using local Git objects. NUL-delimited paths and disabled rename detection
-cover deleted paths and both sides of renames, including unusual filenames.
-Invalid SHAs or unavailable diff evidence select full qualification.
+The existing `test`, `cleanup-safety` (Linux and Windows), `application-image` and
+`application-image-arm64` checks are created on every PR. Each job invokes the
+same offline `tools/ci/application_image_scope.py` owner against the event's exact
+base/head SHAs. Git's merge-base comparison excludes independent base advancement;
+NUL-delimited paths and disabled rename detection include deletions and both sides
+of renames, including unusual filenames. Invalid SHAs or unavailable diff evidence
+select every domain. No workflow-level path filter or GitHub API lookup is used.
 
-The classifier owns the sensitive path list. Delivery/qualification directories,
-workflows, Docker and build/runtime metadata, migrations and Quartz resources
-select the existing full image/DB/Compose/operator/recovery commands. Explicit
-application owners come from `LifecycleCli`, `RecoverySourceCli`, startup/readiness
-and the recovery probe: EF context/configuration/seeding, Identity/reference state,
-Data Protection/credential readiness, storage, secrets, version and browser runtime.
-When moving these responsibilities, update the classifier in the same PR.
-The classifier itself always selects heavy qualification.
+The classifier prints a Boolean and human-readable run/skip reasons for every
+domain, distinguishing changed-path ownership from execution prerequisites.
+Mixed diffs select the union. Unaffected jobs take explicit successful no-op paths;
+classifier tests and Code Guard still run in `test`. Python release tests remain
+in `application-image`, independently of Docker and host .NET setup.
 
-Unrelated MVC, services, views, UI, ordinary tests, documentation and maintenance
-scripts can finish without Docker or .NET setup in this job. Classifier tests run
-in the ordinary `test` job using standard-library Python, so tests/docs alone can
-exercise the cheap branch without changing classifier implementation.
+| Domain | Changed-path owners | Retained evidence |
+| --- | --- | --- |
+| `dotnet` | C#, Razor, .NET build/package metadata, SQL/resources, migrations and `Version.props` | Restore/build and ordinary tests |
+| `playwright` | Browser runtime/capture policy, thumbnail/PDF owners; rich-notes helpers and imported JS; attribution/layout/view owners; RequiresPlaywright tests/fixture and package metadata | Existing .NET Chromium rendering/security tests and artifact assertions |
+| `frontend` | Node/npm/Vite/TypeScript config, `ClientApps`, CSS/JS, ordinary client tests and frontend smoke/build tooling | Audit, typecheck, client tests, build and built-asset smoke |
+| `cleanup_safety` | Artifact-path/cleanup, coverage/shared-layout safety tools/tests, smoke/host lifecycle and package wiring | Existing Node and PowerShell safety tests on both OSes |
+| `release_tooling` | Release Python source/tests, accepted DB metadata, release manifest, `Version.props` and changelog | Complete cheap release-tooling Python suite |
+| `app_image` | Root Dockerfile/ignore, image builder/smoke, compiled version/runtime identity and image build/dependency inputs | AMD64 image build, immutable/compiled-version checks and browser payload smoke |
+| `db_compose` | DB recipe/init/metadata/tooling, Compose/Caddy/templates and substrate/SSE qualifiers | Exact DB image and existing full Compose substrate qualifier |
+| `operator` | Ctl setup/preflight/deployment/diagnostics/acquisition, bundle/public-bundle and installed payloads | Native operator publish, candidate bundle and setup/doctor/restart/account recovery |
+| `recovery` | Recovery worker/source, backup/restore Ctl files and recovery qualifiers/probes | Worker/probe builds and complete backup/restore reconstruction |
+| `update` | Update Ctl/qualifier, migrations/Quartz and shared lifecycle/manifest/storage/readiness authorities | Disposable forward target and real managed update/restore journey |
+| `arm64` | Explicit native ABI/platform/RID/OCI owners, DB recipe, ARM browser launch, native payload projects, native qualifiers and dependency inputs | Selected native app, DB and operator/recovery blocks on ARM64 |
 
-A successful no-op check is valid exact-head evidence only for the diff classified
-as non-sensitive; it is not fresh image/lifecycle qualification. Independent review
-must inspect the logged decision and matched paths/reasons. The ordinary `test`
-and cleanup-safety checks retain their existing responsibilities.
+The exact path lists are maintained in the classifier. When moving an owner,
+update those lists in the same PR. Workflow/local-action or production classifier
+changes select all domains so a gate change proves itself. Classifier-test-only
+changes remain cheap.
 
-Run focused tests with `python3 -m unittest discover -s tools/ci/tests -v`.
-To inspect a real diff, run `python3 tools/ci/application_image_scope.py --base
-<full-base-sha> --head <full-head-sha>` (on one line). No API lookup is used.
+Execution prerequisites flow only toward artifact setup:
+`update -> recovery -> operator -> db_compose -> app_image`, and
+`playwright -> dotnet`. App-image ownership does not imply DB, recovery or update.
+ARM64 is orthogonal: its existing app, DB and native operator/recovery blocks each
+require both `arm64` and their corresponding selected domain. Thus a Dockerfile
+change proves both native app images without running either lifecycle stack.
+
+Representative decisions (plus always-present classifier/Code Guard plumbing):
+
+- `version.py` + `test_version.py` + versioning docs: release tooling only.
+- Ordinary C#/Razor/resource: .NET only; ordinary Vue/JS/CSS/client test: frontend only.
+- Dedicated cleanup tool/test: cleanup safety only; ordinary docs: no product lane.
+- `BrowserWorkflow.cs`: .NET, Playwright, app image, DB/Compose and ARM64.
+  The existing native C# thumbnail/PDF proof requires DB/Compose; the image-only
+  JavaScript Chromium smoke does not exercise its C# ARM launch arguments.
+- DB Dockerfile/init/`db_image.py`: DB/Compose, app-image prerequisite and ARM64;
+  `db_image.py` also runs its cheap release tests.
+- `RecoveryEngine.cs`: .NET and recovery/operator/DB/app prerequisites; no ARM64.
+- `UpdateRuntime.cs` or migrations: .NET and update/recovery/prerequisites; no ARM64.
+- A version-only preparation (`Version.props`, changelog/docs, version assertions):
+  release tooling, .NET and app-image identity; no DB/lifecycle/cleanup/ARM64.
+
+Conservative shared files retain broader ownership: global build/application
+package metadata can alter browser, schema and native dependencies; startup,
+readiness, storage, release manifests and bundle/source-boundary production are
+consumed across setup/recovery/update. `bundle.py` and `public_bundle.py` also
+contain native platform selection. Native filesystem ABI files such as
+`SafeDirectory.cs` and `RecoveryLock.cs` select ARM64. A shared native qualifier
+file selects ARM64 even when an edit might affect only its AMD64 branch. No source
+semantics or function-level diffs are inspected to narrow those decisions.
+
+A successful no-op check is valid exact-head evidence only for its classified
+diff; it is not fresh product qualification. Independent review must inspect the
+logged domain reasons. Selected domains keep their existing commands, fixtures and
+artifact checks; this scope redesign does not change release/publication behavior.
+
+Run focused tests with `python3 -B -m unittest discover -s tools/ci/tests -v`.
+Inspect a real diff with `python3 -B tools/ci/application_image_scope.py --base
+<full-base-sha> --head <full-head-sha>` (on one line).
 
 ## Code Guard
 
@@ -153,7 +197,7 @@ Pull Request Merge Gate
 - Merge and issue closure require successful exact-head CI, independent review with no blocking findings, and maintainer acceptance.
 - Pending, missing, cancelled, neutral, or failed executions are not a passing gate.
 - If a run clearly stalls in runner/package setup before reaching repository code, cancel it and rerun the unchanged workflow once. If that rerun also fails or stalls, report CI infrastructure failure instead of modifying product code or repeatedly rebuilding the environment.
-- Documentation-only changes under `docs/` or in Markdown files take the workflow's fast path: the `test` job succeeds without running restore, build, ordinary tests, or Playwright. The independent-review gate still applies. Workflow, configuration, source, test, migration, and dependency changes always run the complete job.
+- Ordinary documentation takes explicit successful no-op paths for product qualification. Source, tests, configuration and dependencies select only their documented owners and execution prerequisites above. Classifier tests, Code Guard, required-check visibility and independent exact-head review still apply.
 
 .NET Playwright Rendering Test
 - The .NET rendering test owns a browser cache separate from JavaScript Playwright.

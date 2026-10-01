@@ -101,7 +101,10 @@ OWNERS = {
         'tools/build-*.mjs', 'tools/trip-editor-asset-smoke.mjs',
         'tools/start-shared-layout-e2e-host.ps1', 'tools/run-407-waypoint-browser.ps1',
     ),
-    'cleanup_safety': CLEANUP_OWNERS + ('package.json', 'package-lock.json', '.nvmrc', '.npmrc'),
+    'cleanup_safety': CLEANUP_OWNERS + (
+        'package.json', 'package-lock.json', '.nvmrc', '.npmrc',
+        'tools/trip-editor-asset-smoke.mjs', 'tools/start-shared-layout-e2e-host.ps1',
+    ),
     'release_tooling': (
         'tools/release/*.py', 'tools/release/tests/*', 'tools/release/database-release.json',
         'tools/WayfarerCtl/ReleaseManifest.cs', 'Version.props', 'CHANGELOG.md',
@@ -113,9 +116,11 @@ OWNERS = {
         'package.json', 'package-lock.json', '.nvmrc', '.npmrc', 'frontend.config.yaml',
         'vite.config.*', 'tsconfig*.json', 'tools/build-*.mjs',
     ) + SHARED_BUILD,
+    # Native C# browser launch is exercised by qualify.py's thumbnail/PDF routes;
+    # image-smoke.sh launches JS Chromium and cannot prove BrowserWorkflow's ARM branch.
     'db_compose': ('deploy/compose/*', 'tools/release/db_image.py',
-                   'tools/release/database-release.json', 'tools/compose/qualify_sse.py',
-                   'tools/compose/sse-probe/*'),
+                   'tools/release/database-release.json', 'Services/BrowserWorkflow.cs',
+                   'tools/compose/qualify_sse.py', 'tools/compose/sse-probe/*'),
     'operator': ('tools/WayfarerCtl/*', 'tools/release/bundle.py',
                  'tools/release/public_bundle.py', 'tools/release/INSTALL.md'),
     'recovery': (
