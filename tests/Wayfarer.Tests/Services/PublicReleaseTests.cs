@@ -186,7 +186,12 @@ public sealed class PublicReleaseTests
         File.WriteAllText(Path.Combine(releases, ".stage-test.json"), "retained placement receipt");
         File.WriteAllText(Path.Combine(directory.Path, "operation.lock"), "");
         Setup.RequireFreshState(directory.Path);
+        Assert.False(Setup.HasProtectedState(directory.Path));
         File.WriteAllText(Path.Combine(directory.Path, "installation.json"), "protected state must not be replaced");
+        Assert.True(Setup.HasProtectedState(directory.Path));
+        var terminal = new FailureTerminal();
+        new Setup(new FailureProcess(), terminal).ReportFailure(new IOException("private lock failure"), Setup.HasProtectedState(directory.Path));
+        Assert.Contains("'wayfarerctl setup --resume'", terminal.Errors);
         var error = Assert.Throws<UsageException>(() => Setup.RequireFreshState(directory.Path));
         Assert.Contains("never overwrite", error.Message);
         Assert.Equal("protected state must not be replaced", File.ReadAllText(Path.Combine(directory.Path, "installation.json")));

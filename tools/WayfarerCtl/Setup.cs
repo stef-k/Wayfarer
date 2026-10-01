@@ -8,8 +8,7 @@ public sealed class Setup(IProcessRunner runner, ITerminal terminal,
 {
     private string phase = "checking this computer";
     private string remedy = "Check that supported Docker Engine and Docker Compose are installed and running.";
-    private bool configured;
-    private bool provisioning;
+    private bool checkedRoot;
 
     /// <summary>Parse a bounded setup surface; reject duplicate/unknown options before any host access.</summary>
     public static Dictionary<string, string> Options(string[] args)
@@ -54,10 +53,9 @@ public sealed class Setup(IProcessRunner runner, ITerminal terminal,
         var options = Options(args);
         RestoreReceipt.RequireResolved(root);
         UpdateReceipt.RequireResolved(root);
-        configured = false;
-        provisioning = false;
+        checkedRoot = false;
         try { return await RunCoreAsync(root, options, token); }
-        catch (Exception error) { return ReportFailure(error, configured || provisioning && File.Exists(Path.Combine(root, "installation.json"))); }
+        catch (Exception error) { return ReportFailure(error, checkedRoot && HasProtectedState(root)); }
     }
 
     /// <summary>Preparation may retain releases; protected installation writes are the resume boundary.</summary>
@@ -70,12 +68,12 @@ public sealed class Setup(IProcessRunner runner, ITerminal terminal,
         if (options.ContainsKey("--resume")) return await ResumeAsync(root, options, token);
         remedy = "Correct the reported installation-folder or Docker prerequisite.";
         ProtectedFiles.SafePath(root);
+        checkedRoot = true;
         if (Directory.Exists(root))
         {
-            configured = File.Exists(Path.Combine(root, "installation.json")) || Directory.Exists(Path.Combine(root, "secrets")) || File.Exists(Path.Combine(root, "setup-progress.json"));
             ProtectedFiles.Check(root, 0, directory: true);
             try { RequireFreshState(root); }
-            catch (UsageException) when (!configured)
+            catch (UsageException) when (!HasProtectedState(root))
             {
                 terminal.Error("Wayfarer found unrecognized installation files. Nothing was overwritten. Preserve this folder and read 'wayfarerctl help setup' and the installation troubleshooting guide before continuing.");
                 return 2;
@@ -127,15 +125,12 @@ public sealed class Setup(IProcessRunner runner, ITerminal terminal,
         // Recheck after taking the lock: another setup may have completed during preflight/password input.
         if (File.Exists(Path.Combine(root, "installation.json")) || Directory.Exists(Path.Combine(root, "secrets")))
         {
-            configured = true;
             throw new UsageException("Setup state appeared during preflight; refusing overwrite.");
         }
         Stage("Preparing installation files");
         remedy = "Check available disk space and protected installation-folder permissions.";
-        // A failed create may leave a protected partial file; inspect that boundary before recommending a command.
-        provisioning = true;
+        // Failure reporting rechecks protected state, including an uncertain create or another invocation's writes.
         ProtectedFiles.Create(Path.Combine(root, "installation.json"), JsonSerializer.Serialize(config));
-        configured = true;
         ProtectedFiles.CreateSecrets(root);
         ProtectedFiles.Create(Path.Combine(root, "deployment.env"), config.EnvironmentFile(root));
         Deployment.CheckSecrets(root);
@@ -150,11 +145,15 @@ public sealed class Setup(IProcessRunner runner, ITerminal terminal,
             throw new UsageException("Existing installation files prevent fresh setup; never overwrite them.");
     }
 
+    /// <summary>Observe the retry/resume boundary at failure time; presence never bypasses resume validation.</summary>
+    internal static bool HasProtectedState(string root) => File.Exists(Path.Combine(root, "installation.json")) ||
+        Directory.Exists(Path.Combine(root, "secrets")) || File.Exists(Path.Combine(root, "setup-progress.json"));
+
     /// <summary>Continue only the protected original identity, under the same installation lock.</summary>
     private async Task<int> ResumeAsync(string root, Dictionary<string, string> options, CancellationToken token)
     {
         ProtectedFiles.SafePath(root);
-        configured = File.Exists(Path.Combine(root, "installation.json")) || Directory.Exists(Path.Combine(root, "secrets")) || File.Exists(Path.Combine(root, "setup-progress.json"));
+        checkedRoot = true;
         ProtectedFiles.Check(root, 0, directory: true);
         using var operationLock = Lock(root);
         var config = Deployment.Load(root);
