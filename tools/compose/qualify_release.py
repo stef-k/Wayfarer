@@ -58,8 +58,9 @@ def qualify_placement(journey, source, adopted):
     next_source = journey.directory / 'next-release'
     journey.host('cp', '-a', str(source), str(next_source))
     manifest = json.loads(journey.host('cat', str(next_source / 'release.json')).stdout)
+    # A distinct synthetic candidate source avoids colliding with the input's immutable name at any app version.
+    manifest['SourceRevision'] = 'f' * 40 if manifest['SourceRevision'] != 'f' * 40 else 'e' * 40
     # Deliberately unavailable next-image identity; it can be retained but cannot be declared execution-ready.
-    manifest['Version'] = manifest['Application']['CompiledVersion'] = manifest['Images']['OciVersion'] = '1.9.20'
     manifest['Images']['ApplicationDigest'] = manifest['Images']['PlatformDigest'] = 'sha256:' + 'f' * 64
     write_json(journey, next_source / 'release.json', manifest)
     next_info = json.loads(journey.ctl('release', 'inspect', str(next_source)).stdout)

@@ -11,6 +11,193 @@ namespace Wayfarer.Tests.Services;
 [System.Runtime.Versioning.SupportedOSPlatform("linux")]
 public sealed class PublicReleaseTests
 {
+    /// <summary>Transport details must become a safe provider failure before any installation is created.</summary>
+    [Fact]
+    public async Task MetadataTransportFailureHasSafeProviderDiagnostic()
+    {
+        using var handler = new ResponseSequence(_ => throw new HttpRequestException("private-token-and-url"));
+        using var client = new HttpClient(handler);
+        var delays = new List<TimeSpan>();
+        var progress = new List<string>();
+        var error = await Assert.ThrowsAsync<AcquisitionException>(() => PublicReleaseAcquisition.ResolveAsync(client, "latest", default,
+            progress.Add, (duration, _) => { delays.Add(duration); return Task.CompletedTask; }));
+        Assert.Equal(4, handler.Calls);
+        Assert.Equal(new[] { 2, 5, 10 }, delays.Select(value => (int)value.TotalSeconds));
+        Assert.Contains("Retrying (4/4)", string.Join('\n', progress));
+        var terminal = new FailureTerminal();
+        Assert.Equal(1, new Setup(new FailureProcess(), terminal).ReportFailure(error, Setup.Recovery.Retry));
+        Assert.Contains("GitHub", terminal.Errors);
+        Assert.Contains("Setup has not started", terminal.Errors);
+        Assert.Contains("same 'wayfarerctl setup' command", terminal.Errors);
+        Assert.DoesNotContain("--resume", terminal.Errors);
+        Assert.DoesNotContain("doctor", terminal.Errors);
+        Assert.DoesNotContain("private-token-and-url", terminal.Errors);
+    }
+
+    /// <summary>A temporary server failure converges through the same resolver, with a capped Retry-After.</summary>
+    [Fact]
+    public async Task MetadataRetryHonorsOnlyBoundedServerDelay()
+    {
+        using var handler = new ResponseSequence(attempt =>
+        {
+            if (attempt > 1) return new(HttpStatusCode.OK) { Content = new ByteArrayContent(JsonSerializer.SerializeToUtf8Bytes(Metadata())) };
+            var response = new HttpResponseMessage(HttpStatusCode.ServiceUnavailable);
+            response.Headers.RetryAfter = new(TimeSpan.FromMinutes(5));
+            return response;
+        });
+        using var client = new HttpClient(handler);
+        var delays = new List<TimeSpan>();
+        var release = await PublicReleaseAcquisition.ResolveAsync(client, "1.9.20", default,
+            delay: (duration, _) => { delays.Add(duration); return Task.CompletedTask; });
+        Assert.Equal("v1.9.20", release.Tag);
+        Assert.Equal(2, handler.Calls);
+        Assert.Equal(TimeSpan.FromSeconds(30), Assert.Single(delays));
+        Assert.All(handler.Requests, uri => Assert.EndsWith("/releases/tags/v1.9.20", uri.AbsoluteUri));
+    }
+
+    /// <summary>Unadvertised releases and explicit user cancellation never become retry or fallback authority.</summary>
+    [Fact]
+    public async Task Metadata404AndCancellationDoNotRetry()
+    {
+        using var missing = new ResponseSequence(_ => new(HttpStatusCode.NotFound));
+        using var client = new HttpClient(missing);
+        await Assert.ThrowsAsync<AcquisitionException>(() => PublicReleaseAcquisition.ResolveAsync(client, "latest", default, delay: NoDelay));
+        Assert.Equal(1, missing.Calls);
+        using var cancellation = new CancellationTokenSource();
+        using var failed = new ResponseSequence(_ => { cancellation.Cancel(); throw new OperationCanceledException("private-token", cancellation.Token); });
+        using var cancelledClient = new HttpClient(failed);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => PublicReleaseAcquisition.ResolveAsync(cancelledClient, "latest", cancellation.Token, delay: NoDelay));
+        Assert.Equal(1, failed.Calls);
+    }
+
+    /// <summary>Authenticated asset propagation and interrupted reads restart private bytes, then verify the complete download.</summary>
+    [Fact]
+    public async Task AssetRetryDiscardsPartialBytesAndConverges()
+    {
+        var bytes = Encoding.UTF8.GetBytes("complete verified archive bytes");
+        var release = DownloadIdentity(bytes);
+        using var directory = new DownloadDirectory();
+        using var handler = new ResponseSequence(attempt => attempt switch
+        {
+            1 => new(HttpStatusCode.NotFound),
+            2 => new(HttpStatusCode.OK) { Content = new StreamContent(new ResetStream(bytes)) },
+            _ => new(HttpStatusCode.OK) { Content = new ByteArrayContent(bytes) }
+        });
+        using var client = new HttpClient(handler);
+        var path = Path.Combine(directory.Path, "download.gz");
+        await PublicReleaseAcquisition.DownloadAsync(client, release, path, default, delay: NoDelay);
+        Assert.Equal(bytes, File.ReadAllBytes(path));
+        Assert.Equal(ProtectedFiles.PrivateFile, File.GetUnixFileMode(path));
+        Assert.Equal(3, handler.Calls);
+        Assert.All(handler.Requests, uri => Assert.Equal(PublicRelease.Repository + "/releases/download/" + release.Tag + "/" + release.Asset, uri.AbsoluteUri));
+    }
+
+    /// <summary>Download exhaustion describes the provider and plain setup recovery, without creating authoritative state.</summary>
+    [Fact]
+    public async Task DownloadFailureReportsPlainSetupRecovery()
+    {
+        using var directory = new DownloadDirectory();
+        using var handler = new ResponseSequence(_ => new(HttpStatusCode.BadGateway));
+        using var client = new HttpClient(handler);
+        var error = await Assert.ThrowsAsync<AcquisitionException>(() => PublicReleaseAcquisition.DownloadAsync(client,
+            DownloadIdentity([1]), Path.Combine(directory.Path, "download.gz"), default, delay: NoDelay));
+        var terminal = new FailureTerminal();
+        new Setup(new FailureProcess(), terminal).ReportFailure(error, Setup.Recovery.Retry);
+        Assert.Equal(4, handler.Calls);
+        Assert.Empty(Directory.EnumerateFileSystemEntries(directory.Path));
+        Assert.Contains("download the release from GitHub", terminal.Errors);
+        Assert.Contains("Setup has not started", terminal.Errors);
+        Assert.Contains("same 'wayfarerctl setup' command", terminal.Errors);
+        Assert.DoesNotContain("doctor", terminal.Errors);
+        Assert.DoesNotContain("--resume", terminal.Errors);
+    }
+
+    /// <summary>Verified transport bytes still fail closed when the archive is unsafe; archive parsing is never retried.</summary>
+    [Fact]
+    public async Task ArchiveFailureIsSafeAndNeverRetried()
+    {
+        var bytes = Encoding.UTF8.GetBytes("private-token malformed gzip bytes");
+        var release = DownloadIdentity(bytes);
+        var metadata = Metadata();
+        metadata["assets"] = new[] { new { name = release.Asset, state = "uploaded", size = release.Size, digest = release.Digest } };
+        using var directory = new DownloadDirectory();
+        using var handler = new ResponseSequence(attempt => new(HttpStatusCode.OK)
+        { Content = new ByteArrayContent(attempt == 1 ? JsonSerializer.SerializeToUtf8Bytes(metadata) : bytes) });
+        using var client = new HttpClient(handler);
+        var progress = new List<string>();
+        var error = await Assert.ThrowsAsync<AcquisitionException>(() => PublicReleaseAcquisition.StageAsync(directory.Path, "latest", default,
+            progress.Add, NoDelay, client));
+        var terminal = new FailureTerminal();
+        new Setup(new FailureProcess(), terminal).ReportFailure(error, Setup.Recovery.Retry);
+        Assert.Equal(2, handler.Calls);
+        Assert.Contains("Unpacking the verified download...", progress);
+        Assert.Contains("safely unpack or validate", terminal.Errors);
+        Assert.Contains("Do not bypass", terminal.Errors);
+        Assert.DoesNotContain("Retrying", string.Join('\n', progress));
+        Assert.DoesNotContain("private-token", terminal.Errors);
+    }
+
+    /// <summary>Failed exact pulls retain release authority and never forward private child output.</summary>
+    [Fact]
+    public async Task ExactImagePullExhaustionRetainsReleaseAndPlainSetupGuidance()
+    {
+        var runner = new FailureProcess();
+        var reference = "ghcr.io/stef-k/wayfarer@sha256:" + new string('a', 64);
+        var error = await Assert.ThrowsAsync<AcquisitionException>(() => new PublicReleaseAcquisition(runner, delay: NoDelay)
+            .PullImageAsync("/private/empty-client-config", "linux/amd64", reference, default));
+        var terminal = new FailureTerminal();
+        new Setup(runner, terminal).ReportFailure(error, Setup.Recovery.Retry);
+        Assert.Equal(4, runner.Calls.Count);
+        Assert.All(runner.Calls, call => Assert.Equal(new[] { "--config", "/private/empty-client-config", "pull", "--platform", "linux/amd64", reference }, call));
+        Assert.Contains("verified release is safely retained", terminal.Errors);
+        Assert.Contains("ghcr.io", terminal.Errors);
+        Assert.Contains("Setup has not started", terminal.Errors);
+        Assert.DoesNotContain("--resume", terminal.Errors);
+        Assert.DoesNotContain("private-child-secret", terminal.Errors + terminal.Output);
+    }
+
+    /// <summary>Protected setup execution does not retry a mutation or fall through to the generic CLI catch.</summary>
+    [Fact]
+    public async Task ConfiguredFailureReportsResumeWithoutRetryOrSecretDisclosure()
+    {
+        var runner = new FailureProcess { Error = new IOException("private-child-secret private-admin-secret") };
+        var terminal = new FailureTerminal();
+        var config = new Deployment { Bundle = "/retained/bundle", Hostname = "wayfarer.example.org", AppDigest = "sha256:" + new string('a', 64) };
+        Assert.Equal(1, await new Setup(runner, terminal).FinishAsync("/installation", config, new(), "private-admin-secret", false, default));
+        Assert.Single(runner.Calls);
+        Assert.Contains("checking installation settings", terminal.Errors);
+        Assert.Contains("Setup has started", terminal.Errors);
+        Assert.Contains("'wayfarerctl setup --resume'", terminal.Errors);
+        Assert.DoesNotContain("same 'wayfarerctl setup' command", terminal.Errors);
+        Assert.DoesNotContain("private-admin-secret", terminal.Errors + terminal.Output);
+        Assert.DoesNotContain("private-child-secret", terminal.Errors + terminal.Output);
+        Assert.DoesNotContain("Operation failed.", terminal.Errors);
+    }
+
+    /// <summary>The plain-setup entry guard permits preparation residue but refuses protected installation state.</summary>
+    [Fact]
+    public void PlainSetupAllowsPreparationResidueButNeverInstallationOverwrite()
+    {
+        using var directory = new DownloadDirectory();
+        var releases = Path.Combine(directory.Path, "releases");
+        Directory.CreateDirectory(releases);
+        foreach (var stage in new[] { ".acquire-test", ".pull-test", ".stage-test", "v1.9.20" })
+            Directory.CreateDirectory(Path.Combine(releases, stage));
+        File.WriteAllText(Path.Combine(releases, ".stage-test.json"), "retained placement receipt");
+        File.WriteAllText(Path.Combine(directory.Path, "operation.lock"), "");
+        Setup.RequireFreshState(directory.Path);
+        Assert.False(Setup.HasProtectedState(directory.Path));
+        File.WriteAllText(Path.Combine(directory.Path, "installation.json"), "protected state must not be replaced");
+        Assert.True(Setup.HasProtectedState(directory.Path));
+        var terminal = new FailureTerminal();
+        new Setup(new FailureProcess(), terminal).ReportFailure(new IOException("private lock failure"), Setup.RecoveryForRoot(directory.Path));
+        Assert.Contains("cannot safely resume", terminal.Errors);
+        var error = Assert.Throws<UsageException>(() => Setup.RequireFreshState(directory.Path));
+        Assert.Contains("never overwrite", error.Message);
+        Assert.Equal("protected state must not be replaced", File.ReadAllText(Path.Combine(directory.Path, "installation.json")));
+        Assert.True(Directory.Exists(Path.Combine(releases, ".stage-test")));
+    }
+
     /// <summary>The common resolver selects exactly the supported native platform's asset, with no fallback.</summary>
     [Fact]
     public void PlatformSelectionNeverFallsBackToAnotherArchitecture()
@@ -72,11 +259,14 @@ public sealed class PublicReleaseTests
             var archive = Path.Combine(directory, "valid");
             await PublicReleaseAcquisition.DownloadAsync(client, release, archive, default);
             Assert.Equal(bytes, File.ReadAllBytes(archive));
-            await Assert.ThrowsAsync<IOException>(() => PublicReleaseAcquisition.DownloadAsync(client,
-                release with { Digest = "sha256:" + new string('0', 64) }, Path.Combine(directory, "bad-hash"), default));
+            var error = await Assert.ThrowsAsync<AcquisitionException>(() => PublicReleaseAcquisition.DownloadAsync(client,
+                release with { Digest = "sha256:" + new string('0', 64) }, Path.Combine(directory, "bad-hash"), default, delay: NoDelay));
+            Assert.Equal(2, handler.Calls); // One valid download and one terminal integrity failure.
+            Assert.Contains("published integrity", error.Message);
+            Assert.Contains("Do not bypass", error.NextAction);
             using var input = new MemoryStream(bytes);
             using var output = new MemoryStream();
-            await Assert.ThrowsAsync<IOException>(() => PublicReleaseAcquisition.CopyAsync(input, output, bytes.Length - 1, default));
+            await Assert.ThrowsAsync<InvalidDataException>(() => PublicReleaseAcquisition.CopyAsync(input, output, bytes.Length - 1, default));
             Assert.Equal(0, output.Length);
         }
         finally { Directory.Delete(directory, true); }
@@ -134,10 +324,71 @@ public sealed class PublicReleaseTests
     /// <summary>A single controlled body exercises the product streaming seam without adding a server framework.</summary>
     private sealed class AssetResponse(byte[] bytes) : HttpMessageHandler
     {
+        public int Calls { get; private set; }
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token)
         {
+            Calls++;
             Assert.StartsWith("https://github.com/stef-k/Wayfarer/releases/download/v1.9.20/", request.RequestUri!.AbsoluteUri);
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(bytes) });
         }
+    }
+
+    /// <summary>Injects responses and transport failures into the existing HttpClient boundary.</summary>
+    private sealed class ResponseSequence(Func<int, HttpResponseMessage> reply) : HttpMessageHandler
+    {
+        public int Calls { get; private set; }
+        public List<Uri> Requests { get; } = [];
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token)
+        {
+            Requests.Add(request.RequestUri!);
+            return Task.FromResult(reply(++Calls));
+        }
+    }
+
+    /// <summary>Published facts for a controlled exact response body.</summary>
+    private static PublicRelease DownloadIdentity(byte[] bytes) => new("1.9.20", "v1.9.20", "wayfarer-v1.9.20-linux-amd64.tar.gz", bytes.Length,
+        "sha256:" + Convert.ToHexStringLower(SHA256.HashData(bytes)));
+
+    /// <summary>Replace waiting only, keeping the production retry classifier and attempt budget.</summary>
+    private static Task NoDelay(TimeSpan duration, CancellationToken token) { token.ThrowIfCancellationRequested(); return Task.CompletedTask; }
+
+    /// <summary>Own only the private ephemeral tree created for this test.</summary>
+    private sealed class DownloadDirectory : IDisposable
+    {
+        public string Path { get; } = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "wayfarer-download-" + Guid.NewGuid().ToString("N"));
+        public DownloadDirectory() => Directory.CreateDirectory(Path, ProtectedFiles.PrivateDirectory);
+        public void Dispose() => Directory.Delete(Path, true);
+    }
+
+    /// <summary>Return some bytes, then a connection reset; a second HTTP attempt must start from zero.</summary>
+    private sealed class ResetStream(byte[] bytes) : MemoryStream(bytes)
+    {
+        public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken token = default) => Position == 0
+            ? base.ReadAsync(buffer[..5], token) : throw new IOException("private-token connection reset");
+    }
+
+    /// <summary>Private captured output must never become an operator-facing explanation.</summary>
+    private sealed class FailureProcess : IProcessRunner
+    {
+        public List<string[]> Calls { get; } = [];
+        public Exception? Error { get; init; }
+        public Task<ProcessResult> RunAsync(string[] args, string? input, CancellationToken cancellation, Action<string>? lineOutput = null)
+        {
+            Calls.Add(args);
+            if (Error is not null) throw Error;
+            return Task.FromResult(new ProcessResult(1, "private-child-secret"));
+        }
+    }
+
+    /// <summary>Capture exactly the sanitized operator streams; no password or interactive input is needed.</summary>
+    private sealed class FailureTerminal : ITerminal
+    {
+        public bool Interactive => false;
+        public string Errors { get; private set; } = "";
+        public string Output { get; private set; } = "";
+        public void Error(string message) => Errors += message + "\n";
+        public void Write(string message) => Output += message + "\n";
+        public string? Read(string prompt) => throw new InvalidOperationException();
+        public string Password(bool fromStdin) => throw new InvalidOperationException();
     }
 }

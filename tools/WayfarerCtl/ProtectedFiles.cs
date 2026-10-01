@@ -71,8 +71,8 @@ public static class ProtectedFiles
         if (readerGroup is not null) File.SetUnixFileMode(path, PrivateFile | UnixFileMode.GroupRead);
     }
 
-    /// <summary>Separate consumer files carry the same role password; bootstrap uses independent entropy.</summary>
-    public static void CreateSecrets(string root)
+    /// <summary>Separate consumer files carry the same role password; an optional observer exercises interrupted provisioning.</summary>
+    public static void CreateSecrets(string root, Action<string>? created = null)
     {
         if (!OperatingSystem.IsLinux()) throw new PlatformNotSupportedException();
         var directory = Path.Combine(root, "secrets");
@@ -80,8 +80,11 @@ public static class ProtectedFiles
         Directory.CreateDirectory(directory, PrivateDirectory);
         var app = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
         Create(Path.Combine(directory, "db-password"), Convert.ToHexString(RandomNumberGenerator.GetBytes(32)));
+        created?.Invoke(Path.Combine(directory, "db-password"));
         Create(Path.Combine(directory, "db-app-password"), app, 999);
+        created?.Invoke(Path.Combine(directory, "db-app-password"));
         Create(Path.Combine(directory, "app-password"), app, 1654);
+        created?.Invoke(Path.Combine(directory, "app-password"));
     }
 
     /// <summary>Fingerprint distinct local credential files without placing secret bytes in restore plans or receipts.</summary>

@@ -76,11 +76,16 @@ public sealed record Deployment
     }
 
     /// <summary>Read the one explicit installation identity and verify its generated Compose input.</summary>
-    public static Deployment Load(string root)
+    public static Deployment Load(string root) => Load(root, root);
+
+    /// <summary>Validate initial staged inputs against their final installation paths and retained release authority.</summary>
+    internal static Deployment Load(string root, string inputs)
     {
         ProtectedFiles.SafePath(root);
         ProtectedFiles.Check(root, 0, directory: true);
-        var path = Path.Combine(root, "installation.json");
+        ProtectedFiles.SafePath(inputs);
+        ProtectedFiles.Check(inputs, 0, directory: true);
+        var path = Path.Combine(inputs, "installation.json");
         ProtectedFiles.Check(path, 0);
         if (new FileInfo(path).Length > 262144) throw new UsageException("Installation configuration exceeds its bound.");
         var config = JsonSerializer.Deserialize<Deployment>(File.ReadAllText(path), new JsonSerializerOptions
@@ -91,8 +96,9 @@ public sealed record Deployment
         if (config.Release is not null) ReleaseStore.Select(root, config.Release);
         if (config.Backup is not null && !InstallationCompletion.HasCompletionEvidence(root))
             throw new UsageException("Incomplete setup cannot use backup schema/policy.");
-        ProtectedFiles.Check(config.EnvironmentPath(root), 0);
-        if (File.ReadAllText(config.EnvironmentPath(root)) != config.EnvironmentFile(root))
+        var environment = inputs == root ? config.EnvironmentPath(root) : Path.Combine(inputs, "deployment.env");
+        ProtectedFiles.Check(environment, 0);
+        if (File.ReadAllText(environment) != config.EnvironmentFile(root))
             throw new UsageException("Configuration differs from installation identity; reconcile it explicitly before operation.");
         ActiveStorage.Check(root, config);
         return config;
