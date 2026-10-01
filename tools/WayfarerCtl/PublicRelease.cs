@@ -67,6 +67,7 @@ public sealed record PublicRelease(string Version, string Tag, string Asset, lon
 /// <summary>Safe acquisition explanation and remedy; neither field comes from transport or child output.</summary>
 public sealed class AcquisitionException(string message, string nextAction) : IOException(message)
 {
+    /// <summary>One fixed remedy selected by the acquisition owner, never a provider-supplied URL or error.</summary>
     public string NextAction { get; } = nextAction;
 }
 

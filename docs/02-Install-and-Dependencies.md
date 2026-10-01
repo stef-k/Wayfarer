@@ -8,11 +8,11 @@ Native/manual and development database requirements are unchanged.
 
 ## Availability
 
-As of 2026-10-01, the latest published release is v1.9.19, with source archives only;
-public Compose bootstrap/bundle assets have not shipped. The installation flow below
-applies to a stable Release carrying those assets. AMD64/ARM64 support and the accepted
-PG18 DB publication authority are implemented; this is separate from real public
-installation acceptance. Maintainers start at
+v1.9.20 is the first published stable release with AMD64/ARM64 Compose bootstrap and
+deployment assets. Its immutable installer predates the automatic retry and stage
+diagnostics described below; those improvements require a later stable patch release.
+Public acceptance of the corrected installer remains pending on both architectures.
+Source-only v1.9.19 and earlier are not Compose installation sources. Maintainers start at
 [Versioning and Release Operations](23-Versioning.md#public-acceptance-and-availability).
 
 ## Guided production installation
@@ -87,10 +87,20 @@ already available and verified locally, and enters the same setup engine. It ski
 network release discovery/download. The full deployment archive and its checksum
 remain a secondary distribution path; see the [shipped instructions](../tools/release/INSTALL.md).
 
-Network failure leaves retained releases intact. If the selected release is source-only
-or lacks the matching deployment asset, setup stops clearly; it does not search for
-another release. Interrupted lifecycle work uses `setup --resume` with the original
-protected receipt, configuration and secrets.
+Setup shows understandable progress and automatically retries temporary download
+failures at most three times. If it stops with **"Setup has not started"**, correct
+the reported cause and run the same plain `sudo ./wayfarerctl setup` command again,
+including any original options. Verified downloads may be retained; no installation
+configuration or application data was changed. Do not delete files or run `doctor`
+or `setup --resume` at this boundary.
+
+If it says **"Setup has started"**, preserve the installation files and service data,
+correct the cause, then run `sudo ./wayfarerctl setup --resume` with the original
+deployment-root option. Resume verifies the original protected receipt, configuration
+and secrets. Integrity/safety failures stop immediately: do not bypass the check;
+try again later from the official release. Missing assets never trigger a search for
+another release. See [fresh-install troubleshooting](29-Wayfarerctl.md#interrupted-setup-and-troubleshooting)
+for the same retry-versus-resume contract and prerequisites.
 
 ## Development and advanced native/manual installation
 

@@ -9,6 +9,7 @@ public sealed class Setup(IProcessRunner runner, ITerminal terminal,
     private string phase = "checking this computer";
     private string remedy = "Check that supported Docker Engine and Docker Compose are installed and running.";
     private bool configured;
+    private bool provisioning;
 
     /// <summary>Parse a bounded setup surface; reject duplicate/unknown options before any host access.</summary>
     public static Dictionary<string, string> Options(string[] args)
@@ -51,27 +52,34 @@ public sealed class Setup(IProcessRunner runner, ITerminal terminal,
     public async Task<int> RunAsync(string root, string[] args, CancellationToken token)
     {
         var options = Options(args);
+        RestoreReceipt.RequireResolved(root);
+        UpdateReceipt.RequireResolved(root);
+        configured = false;
+        provisioning = false;
         try { return await RunCoreAsync(root, options, token); }
-        catch (Exception error) { return ReportFailure(error, configured); }
+        catch (Exception error) { return ReportFailure(error, configured || provisioning && File.Exists(Path.Combine(root, "installation.json"))); }
     }
 
     /// <summary>Preparation may retain releases; protected installation writes are the resume boundary.</summary>
     private async Task<int> RunCoreAsync(string root, Dictionary<string, string> options, CancellationToken token)
     {
         Stage("Checking this computer");
+        remedy = "Check that this is a supported Linux computer with root access, Docker Engine and Docker Compose installed and running.";
         Preflight.Platform();
         ProtectedFiles.RequireRoot();
-        RestoreReceipt.RequireResolved(root);
-        UpdateReceipt.RequireResolved(root);
         if (options.ContainsKey("--resume")) return await ResumeAsync(root, options, token);
         remedy = "Correct the reported installation-folder or Docker prerequisite.";
         ProtectedFiles.SafePath(root);
         if (Directory.Exists(root))
         {
+            configured = File.Exists(Path.Combine(root, "installation.json")) || Directory.Exists(Path.Combine(root, "secrets")) || File.Exists(Path.Combine(root, "setup-progress.json"));
             ProtectedFiles.Check(root, 0, directory: true);
-            configured = File.Exists(Path.Combine(root, "installation.json")) || Directory.Exists(Path.Combine(root, "secrets"));
-            if (Directory.EnumerateFileSystemEntries(root).Any(path => Path.GetFileName(path) is not ("releases" or "operation.lock")))
-                throw new UsageException("Existing/partial installation found. Use setup --resume for verified wayfarerctl state; never overwrite it.");
+            try { RequireFreshState(root); }
+            catch (UsageException) when (!configured)
+            {
+                terminal.Error("Wayfarer found unrecognized installation files. Nothing was overwritten. Preserve this folder and read 'wayfarerctl help setup' and the installation troubleshooting guide before continuing.");
+                return 2;
+            }
         }
         var preflight = new Preflight(runner);
         remedy = "Check that supported Docker Engine and Docker Compose are installed and running.";
@@ -98,6 +106,8 @@ public sealed class Setup(IProcessRunner runner, ITerminal terminal,
                 var retained = ReleaseStore.Import(root, bundle.Directory);
                 if (retained.Fingerprint != bundle.Fingerprint) throw new IOException("Local bundle changed during setup preparation.");
                 bundle = retained;
+                Stage("Verifying required containers");
+                remedy = "Make the trusted local release's required containers available and correct the reported verification cause.";
                 if (!await new ReleaseImagesVerifier(runner).VerifyAsync(bundle, token))
                     throw new UsageException("Local setup requires the bundle's exact images already present and verified.");
             }
@@ -122,9 +132,10 @@ public sealed class Setup(IProcessRunner runner, ITerminal terminal,
         }
         Stage("Preparing installation files");
         remedy = "Check available disk space and protected installation-folder permissions.";
-        // Once protected writes are attempted, never recommend plain setup over an uncertain partial result.
-        configured = true;
+        // A failed create may leave a protected partial file; inspect that boundary before recommending a command.
+        provisioning = true;
         ProtectedFiles.Create(Path.Combine(root, "installation.json"), JsonSerializer.Serialize(config));
+        configured = true;
         ProtectedFiles.CreateSecrets(root);
         ProtectedFiles.Create(Path.Combine(root, "deployment.env"), config.EnvironmentFile(root));
         Deployment.CheckSecrets(root);
@@ -132,16 +143,26 @@ public sealed class Setup(IProcessRunner runner, ITerminal terminal,
         return await FinishAsync(root, config, progress, password, false, token);
     }
 
+    /// <summary>Only release preparation and the non-authoritative lock may precede another plain setup invocation.</summary>
+    internal static void RequireFreshState(string root)
+    {
+        if (Directory.EnumerateFileSystemEntries(root).Any(path => Path.GetFileName(path) is not ("releases" or "operation.lock")))
+            throw new UsageException("Existing installation files prevent fresh setup; never overwrite them.");
+    }
+
     /// <summary>Continue only the protected original identity, under the same installation lock.</summary>
     private async Task<int> ResumeAsync(string root, Dictionary<string, string> options, CancellationToken token)
     {
         ProtectedFiles.SafePath(root);
+        configured = File.Exists(Path.Combine(root, "installation.json")) || Directory.Exists(Path.Combine(root, "secrets")) || File.Exists(Path.Combine(root, "setup-progress.json"));
         ProtectedFiles.Check(root, 0, directory: true);
-        configured = File.Exists(Path.Combine(root, "installation.json")) || Directory.Exists(Path.Combine(root, "secrets"));
         using var operationLock = Lock(root);
         var config = Deployment.Load(root);
         if (InstallationCompletion.IsComplete(root))
-            throw new UsageException("Setup is already complete; use status/doctor or lifecycle commands.");
+        {
+            terminal.Error("Setup is already complete. Installation state was retained. Run 'wayfarerctl doctor' to check this installation.");
+            return 2;
+        }
         var progress = SetupProgress.Load(root, config);
         var preflight = new Preflight(runner);
         await preflight.DockerAsync(token);

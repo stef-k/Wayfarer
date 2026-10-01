@@ -145,7 +145,7 @@ The existing disposable candidate/raw-template qualification seam retains explic
 `--bundle PATH --app-digest sha256:HEX`; stable bundles reject that override.
 
 Preflight checks the host, daemon/Compose, bundle/config, paths, existing project state,
-network overlap and listeners, then prints a non-secret plan. The administrator
+network overlap and listeners, then reports that the checks passed. The administrator
 password is entered **hidden and confirmed**. The application owns password policy;
 choose a strong unique password. Setup creates the protected account named `admin`.
 There is no accepted default password and no stored administrator password file.
@@ -190,8 +190,9 @@ Stop is not uninstall. No ordinary command deletes volumes or runs `down -v`.
 Bare `wayfarerctl` on an interactive terminal offers Setup, Status, Doctor, Start,
 Stop, Restart, Logs, User recovery, Help and Exit. These invoke the same handlers as
 direct commands. Input/output redirection prints concise help instead of waiting.
-EOF exits the menu; Ctrl-C cancels work, retains state and returns failure. Check
-status/doctor before retrying an interrupted operation.
+EOF exits the menu; Ctrl-C cancels work, retains state and returns failure. During
+setup, follow the reported plain-setup or resume instruction below. For an existing
+installation's other operations, check status/doctor before retrying.
 
 | Command | Options and result |
 | --- | --- |
@@ -244,8 +245,41 @@ data. Do not deliberately log secrets in custom integrations.
 
 ## Interrupted setup and troubleshooting
 
-A failed setup retains files and volumes. Inspect `status`, `doctor` and bounded logs,
-correct the reported cause, then continue through the supported operator command:
+Setup reports what it is doing: checking this computer, finding and downloading
+Wayfarer, verifying the download and required containers, preparing the installation,
+creating the administrator, starting Wayfarer and checking readiness. The primary
+failure explains the failed stage, retained state and the recommended next command.
+Raw exception text, child stderr, passwords and protected configuration are withheld.
+
+Temporary network failures are retried automatically: one attempt plus at most
+three retries, normally after 2, 5 and 10 seconds. A valid server `Retry-After` is
+capped at 30 seconds. Retries apply only to release discovery, the exact advertised
+download and exact container pulls. An interrupted download restarts in private
+staging; partial bytes never gain authority. A briefly unavailable advertised asset
+may retry, but a missing release never triggers fallback search. Integrity, identity,
+archive, platform, ownership and retained-release contradictions stop immediately.
+Setup mutations never receive automatic retries.
+
+**If the error says "Setup has not started", correct its reported cause and run the
+same plain setup command again**, including your original options:
+
+```sh
+sudo ./wayfarerctl setup
+```
+
+No installation configuration, credentials or service data has been created by that
+attempt. The private installation folder, `operation.lock`, verified releases and
+non-authoritative preparation/receipted placement stages under `releases/` may remain.
+These do not prevent plain setup; an identical retained release is revalidated and
+reused. Do not delete them. `setup --resume` and `doctor` need installation state and
+are not the recovery commands for this preparation boundary. For GitHub download
+errors, check internet access to github.com; for container downloads, check ghcr.io
+and the Caddy registry (docker.io). For an integrity/safety error, do not bypass the
+check; try again later using the official release.
+
+**If the error says "Setup has started", retain all installation files, credentials
+and service data, correct the reported cause, and run `setup --resume`.** Preserve
+the original `--deployment-root` option when one was used:
 
 ```sh
 sudo wayfarerctl --deployment-root /etc/wayfarer setup --resume
@@ -258,6 +292,8 @@ credential bytes and bundle files to match the protected setup receipt. It refus
 foreign resources, changed inputs, missing migrated DB volumes, unsafe permissions,
 unreceipted/legacy partial state and already-completed installations. It cannot adopt
 native data. Do not change setup choices on resume or replace DB credentials.
+If continuation refuses incomplete or unsafe protected state, preserve it and follow
+the reported validation cause; plain setup cannot overwrite or repair it.
 Completed migration, seed and bootstrap steps are skipped. DB health, volume ownership,
 web/proxy convergence and live diagnostics are checked again; only successful diagnostics
 create the completion marker. No volumes are deleted and no rollback is attempted.

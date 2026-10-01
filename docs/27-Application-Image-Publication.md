@@ -183,7 +183,11 @@ that anonymous latest-stable path acquires the canonical bundle and exact images
 then exercises representative external Compose setup and retained-dispatch doctor/stop.
 The extracted bootstrap executable must match the acquired bundle's operator bytes.
 Publication evidence records tag/source/platform/operator hash/bundle fingerprint/all
-asset digests/image digest; the public job retains setup/acquisition evidence. PR CI covers deterministic
+asset digests/image digest; the public job retains setup/acquisition evidence,
+including sanitized operator stdout and stderr in `setup.log`. Child stderr and
+protected password input remain suppressed. The acceptance matrix disables fail-fast
+so a failure on one architecture does not cancel the other installation's evidence.
+PR CI covers deterministic
 logic and the existing candidate recovery/update journey. It creates no stable release.
 Acceptance requires all native publication/anonymous-pull, index, deployment-bundle
 and `public-compose-acceptance` jobs to succeed on both supported platforms. Preserve
@@ -192,3 +196,10 @@ and `public-compose-acceptance-{amd64,arm64}` alongside image evidence beyond Ac
 retention. A baseline claims no stable-to-stable migration; candidate real-migration
 evidence remains separate until a second compatible genuine public release supplies
 that proof.
+
+Installer retry/diagnostic changes require public acceptance from a later genuine
+stable patch release containing those changes. Already-published v1.9.20 artifacts
+remain immutable. Its original early ARM64 preparation failure cannot be diagnosed
+retrospectively from the retained generic error; public API/CDN propagation remains
+an unproven hypothesis. Controlled candidate failure injection proves the diagnostic
+contract, not genuine public installation acceptance.

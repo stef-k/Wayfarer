@@ -214,6 +214,8 @@ jobs:
   public-compose-acceptance:
     needs: deployment-bundle
     strategy:
+      # Each native installation retains its own outcome and diagnostics even if the other fails.
+      fail-fast: false
       matrix:
         include:
           - arch: amd64
@@ -249,7 +251,8 @@ jobs:
           # A disposable root-only stdin file follows the shipped protected-password convention.
           sudo sh -c 'umask 077; printf "Acceptance-Aa1!%s\n" "$(openssl rand -hex 16)" > /tmp/wayfarer-public-acceptance/password'
           # No --bundle, --version or digest injection: this is the ordinary latest-stable setup route.
-          sudo sh -c 'exec "$1" --deployment-root /tmp/wayfarer-public-acceptance/install setup --hostname wayfarer.example.org --project wayfarer-public-acceptance --edge-prefix 172.30.69 --mode external --loopback-port 18080 --password-stdin < /tmp/wayfarer-public-acceptance/password' sh "$bootstrap" | tee "$RUNNER_TEMP/setup.log"
+          # Both operator streams are sanitized; captured child stderr and protected stdin remain suppressed.
+          sudo sh -c 'exec "$1" --deployment-root /tmp/wayfarer-public-acceptance/install setup --hostname wayfarer.example.org --project wayfarer-public-acceptance --edge-prefix 172.30.69 --mode external --loopback-port 18080 --password-stdin < /tmp/wayfarer-public-acceptance/password' sh "$bootstrap" 2>&1 | tee "$RUNNER_TEMP/setup.log"
           bundle="/tmp/wayfarer-public-acceptance/install/releases/$RELEASE_TAG"
           sudo cmp "$bootstrap" "$bundle/wayfarerctl"
           sudo "$bootstrap" --deployment-root /tmp/wayfarer-public-acceptance/install dispatch release inspect "$bundle" | tee "$RUNNER_TEMP/acquisition.json"

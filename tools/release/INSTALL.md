@@ -107,6 +107,25 @@ engine. Application/DB/Caddy identity comes from validated `release.json`, never
 administrator-copied digests. Guided choices cover hostname/proxy/admin password.
 No curl-pipe-shell or separate installer is used.
 
+Setup shows each stage and retries temporary network/download failures at most three
+times (normally after 2, 5 and 10 seconds; server-requested delays are capped at 30
+seconds). Only discovery, the exact advertised download and exact container pulls
+retry. Integrity, archive, identity and local safety failures stop immediately;
+protected setup mutations never retry automatically.
+
+When the error says **"Setup has not started"**, correct the cause and run the same
+plain setup command again with your original options. Validated releases may remain,
+but no installation configuration or application data was changed. Do not delete
+files or use `doctor` or `setup --resume` at this boundary. GitHub failures require
+internet access to github.com; container downloads require ghcr.io and the Caddy
+registry (docker.io). Never bypass an integrity check; try again later from the
+official release.
+
+When it says **"Setup has started"**, retain installation files, credentials and
+service data, correct the cause and run `setup --resume` with the same deployment-root
+option. Continuation verifies the original protected configuration, secrets and
+receipt and refuses unsafe or incomplete state. It does not overwrite or adopt it.
+
 ```sh
 sudo ./wayfarerctl setup --version X.Y.Z  # same resolver, one exact public stable
 sudo ./wayfarerctl setup --bundle /absolute/trusted/bundle  # secondary local/offline seam
