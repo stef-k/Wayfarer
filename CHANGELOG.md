@@ -1,6 +1,6 @@
 # CHANGELOG
 
-## [Unreleased]
+## [1.9.21] - 2026-10-02
 
 ### Changed
 
@@ -13,6 +13,11 @@
 - Atomically hand verified setup publication to private reclamation so interrupted duplicate cleanup resumes original canonical inputs. Flush setup checkpoint and completion directory entries before dependent mutation or success, preserving failures and uncertain state (#734, #737).
 - Make public `wayfarerctl setup` show plain-language stages and safe failure guidance. Retry only temporary release discovery/download and exact container pulls within a bounded budget; distinguish plain setup recovery before installation from protected `setup --resume` afterward. Public acceptance retains sanitized operator errors and both architecture outcomes (#730).
 - Prepare complete protected setup inputs before publishing installation files, so interrupted publication resumes with the original credentials and receipt. Unreceipted or changed protected state receives explicit reconciliation guidance instead of a failing resume loop (#730).
+
+### Upgrade notes
+
+- This is release-source preparation for #730 Phase II. Publication and corrected public bootstrap/setup acceptance on AMD64 and ARM64 remain pending; #730, #713, #715 and #718 remain open until that genuine stable evidence passes.
+- No database migration, dependency or accepted PostgreSQL 18.6/PostGIS 3.6.4 authority change is introduced since v1.9.20. Source preparation does not qualify a stable-to-stable public update or deploy an existing installation.
 
 ## [1.9.20] - 2026-10-01
 
