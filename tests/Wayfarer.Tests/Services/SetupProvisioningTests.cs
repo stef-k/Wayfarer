@@ -119,12 +119,95 @@ public sealed class SetupProvisioningTests : IDisposable
         Assert.False(File.Exists(Path.Combine(root, "deployment.env")));
     }
 
+    /// <summary>Death after the atomic reclamation handoff may leave a partial duplicate, never partial publication authority.</summary>
+    [Fact]
+    public async Task ReclamationInterruptionResumesCanonicalInputs()
+    {
+        var reclaim = Path.Combine(root, "setup-provisioning-reclaim");
+        Assert.Throws<IOException>(() => SetupProvisioning.Create(root, config, path =>
+        {
+            if (path != reclaim) return;
+            Assert.False(Path.Exists(Path.Combine(root, SetupProvisioning.Name)));
+            File.Delete(Path.Combine(reclaim, "deployment.env")); // Reconstruct interruption during member cleanup.
+            throw new IOException("private cleanup failure");
+        }));
+        var original = Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories)
+            .Where(path => !path.StartsWith(reclaim + "/", StringComparison.Ordinal))
+            .ToDictionary(path => path, File.ReadAllBytes);
+        Assert.Equal(0, SetupProgress.Load(root, Deployment.Load(root)).Completed);
+        Assert.Equal(Setup.Recovery.Resume, Setup.RecoveryForRoot(root));
+        var process = new SetupProcess(config);
+        var terminal = new CapturedTerminal();
+        Assert.Equal(1, await new Setup(process, terminal).RunAsync(root, ["--resume"], default));
+        Assert.True(process.ReachedExecution);
+        Assert.Contains("checking installation settings", terminal.Errors);
+        Assert.Contains("Then run 'wayfarerctl setup --resume'", terminal.Errors);
+        Assert.DoesNotContain("private cleanup failure", terminal.Errors);
+        foreach (var (path, bytes) in original) Assert.Equal(bytes, File.ReadAllBytes(path));
+        Assert.False(Path.Exists(reclaim));
+        Assert.False(Path.Exists(Path.Combine(root, SetupProvisioning.Name)));
+        Assert.Equal(3, Directory.EnumerateFiles(root, "*password*", SearchOption.AllDirectories).Count());
+    }
+
+    /// <summary>Canonical receipt presence cannot bypass incomplete/changed authority, ambiguous coexistence or unsafe reclamation.</summary>
+    [Theory]
+    [InlineData("partial-authority")]
+    [InlineData("changed-authority")]
+    [InlineData("coexistence")]
+    [InlineData("changed-canonical")]
+    [InlineData("changed-reclamation")]
+    [InlineData("unsafe-reclamation")]
+    [InlineData("foreign-reclamation-member")]
+    public async Task UncertainSnapshotRequiresReconciliationWithoutMutation(string state)
+    {
+        Assert.Throws<IOException>(() => SetupProvisioning.Create(root, config, path =>
+        {
+            if (path == Path.Combine(root, "setup-progress.json")) throw new IOException();
+        }));
+        var authority = Path.Combine(root, SetupProvisioning.Name);
+        var reclaim = Path.Combine(root, "setup-provisioning-reclaim");
+        if (state.EndsWith("authority", StringComparison.Ordinal))
+        {
+            var environment = Path.Combine(authority, "deployment.env");
+            if (state == "partial-authority") File.Delete(environment);
+            else
+            {
+                // Keep both receipts independently valid while the complete authoritative snapshot differs byte-for-byte.
+                File.AppendAllText(Path.Combine(authority, "installation.json"), "\n");
+                File.Delete(Path.Combine(authority, "setup-progress.json"));
+                SetupProgress.Create(authority, config);
+                SetupProgress.Load(root, Deployment.Load(root));
+            }
+        }
+        else if (state == "coexistence") Directory.CreateDirectory(reclaim, ProtectedFiles.PrivateDirectory);
+        else
+        {
+            Directory.Move(authority, reclaim);
+            if (state == "changed-canonical") File.WriteAllText(Path.Combine(root, "secrets/db-app-password"), new string('B', 64));
+            else if (state == "changed-reclamation") File.AppendAllText(Path.Combine(reclaim, "installation.json"), "\n");
+            else if (state == "unsafe-reclamation") File.SetUnixFileMode(reclaim, ProtectedFiles.PrivateDirectory | UnixFileMode.GroupRead);
+            else ProtectedFiles.Create(Path.Combine(reclaim, "foreign"), "preserve");
+        }
+        var original = Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories).ToDictionary(path => path, File.ReadAllBytes);
+        Assert.Equal(Setup.Recovery.Reconcile, Setup.RecoveryForRoot(root));
+        var process = new SetupProcess(config);
+        var terminal = new CapturedTerminal();
+        Assert.NotEqual(0, await new Setup(process, terminal).RunAsync(root, ["--resume"], default));
+        Assert.Equal(0, process.Calls);
+        Assert.Contains("cannot safely resume", terminal.Errors);
+        Assert.DoesNotContain("Then run 'wayfarerctl setup --resume'", terminal.Errors);
+        foreach (var (path, bytes) in original) Assert.Equal(bytes, File.ReadAllBytes(path));
+    }
+
     /// <summary>Supply only read-only prerequisites; stop at the first canonical mutation to expose repaired setup inputs.</summary>
     private sealed class SetupProcess(Deployment config) : IProcessRunner
     {
         public bool ReachedExecution { get; private set; }
+        /// <summary>Rejected authority must stop before even a read-only Docker prerequisite runs.</summary>
+        public int Calls { get; private set; }
         public Task<ProcessResult> RunAsync(string[] args, string? input, CancellationToken token, Action<string>? lineOutput = null)
         {
+            Calls++;
             if (args.Contains("--quiet")) ReachedExecution = true;
             var output = args[0] == "info" ? config.RuntimePlatform == "linux/amd64" ? "linux/x86_64" : "linux/aarch64" :
                 args.Contains("version") ? "2.24.4" : args.Contains("json") ? JsonSerializer.Serialize(new { services = new
