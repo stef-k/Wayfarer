@@ -88,7 +88,7 @@ public release. Candidate/PR qualification remains separate evidence.
 the manually edited `WayfarerVersion` and derives standard MSBuild metadata from it:
 
 ```xml
-<WayfarerVersion>1.9.20</WayfarerVersion>
+<WayfarerVersion>1.9.21</WayfarerVersion>
 <Version>$(WayfarerVersion)</Version>
 <PackageVersion>$(WayfarerVersion)</PackageVersion>
 <AssemblyInformationalVersion>$(WayfarerVersion)</AssemblyInformationalVersion>
@@ -98,7 +98,7 @@ the manually edited `WayfarerVersion` and derives standard MSBuild metadata from
 `IAppVersionProvider` reads the compiled `AssemblyInformationalVersion`. The `version`
 CLI, `GET /api/version`, `X-Wayfarer-Version` and shared layout footer use that provider.
 Validate exact CLI output with `dotnet run --no-launch-profile -- version`; for the
-version above it prints exactly `Wayfarer 1.9.20`, without SDK launch-profile messages.
+version above it prints exactly `Wayfarer 1.9.21`, without SDK launch-profile messages.
 
 ## Release helper
 
@@ -130,7 +130,8 @@ when the image/release boundary changes.
 
 ## Historical source-release provenance
 
-The records below describe source releases prepared before public Compose distribution.
+The records below retain release-source preparation history, including older
+source-only releases prepared before public Compose distribution.
 [CHANGELOG](../CHANGELOG.md) owns feature and upgrade notes; linked product PRs/CI
 own detailed change and review evidence. Records retain preparation source, exceptional
 migration/deployment requirements, independent review and meaningful qualification limits.
@@ -138,6 +139,40 @@ Standard release validation is described once above. Native deployment follows
 [Updating Wayfarer](20-Deployment.md#updating-wayfarer): apply pending migrations and
 preserve PostgreSQL with its matching complete Data Protection ring. Publication
 never performs that deployment. These historical records are not current Compose procedures.
+
+## 1.9.21 release source record
+
+Prepared on 2026-10-02 from synchronized main
+`6629963803dcb59ce963412a7bc9e82a8f8853cf` on
+`feature/730-release-1.9.21` for [#730 Phase II](https://github.com/stef-k/Wayfarer/issues/730).
+Current/latest published stable is immutable v1.9.20; this candidate prepares the
+next patch source using `tools/release/version.py prepare 1.9.21` and consolidates
+the complete Unreleased notes into the dated CHANGELOG section.
+
+The product delta since v1.9.20 is retained in
+[setup diagnostics/retry PR #731](https://github.com/stef-k/Wayfarer/pull/731),
+[lifecycle authority PR #738](https://github.com/stef-k/Wayfarer/pull/738),
+[setup persistence PR #739](https://github.com/stef-k/Wayfarer/pull/739) and
+[recovery coordination PR #740](https://github.com/stef-k/Wayfarer/pull/740).
+CHANGELOG owns the detailed behavior and upgrade notes. Product qualification
+remains attributed to those original heads and CI; the preparation delta changes
+only version metadata, notes/provenance and the compiled-current-version assertion.
+Current-head release/version checks, Code Guard, CI and independent exact-head
+review remain separate requirements.
+
+Accepted PostgreSQL 18.6/PostGIS 3.6.4 authority in
+[`database-release.json`](../tools/release/database-release.json) is unchanged from
+#720 / [PR #722](https://github.com/stef-k/Wayfarer/pull/722). No database migration
+or dependency change is introduced since v1.9.20. This preparation does not qualify
+a stable-to-stable public update or deploy an existing installation.
+
+This PR prepares release source only. Tag/GitHub Release creation, image/index,
+deployment bundle and bootstrap publication, and public acceptance remain pending
+separate authorization after independent review and merge. The later publication
+must use the exact accepted source commit/tag through the normal application-release
+workflow. Corrected genuine AMD64 and ARM64 public bootstrap/setup acceptance is
+required before closing #730, #713, #715 or #718; #603 retains its final whole-system
+audits. Published v1.9.20 identities and artifacts remain immutable.
 
 ## 1.9.20 release source record
 
