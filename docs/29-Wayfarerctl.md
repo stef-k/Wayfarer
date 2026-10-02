@@ -852,12 +852,13 @@ fenced. Offline and private postflight precede ingress, endpoint checks, schedul
 resumption, restart-policy restoration and durable acceptance. `status` and `doctor`
 report unresolved update intent even during an installation-pointer transition.
 Ordinary mutating commands refuse unresolved intent.
-An interrupted delegated capture can currently fail resume/abort because its genuine
-worker-readable reservation is rejected by update recovery; tracked in
-[#735](https://github.com/stef-k/Wayfarer/issues/735). Preserve the reservation and
-held evidence for administrator reconciliation; do not change its permissions or
-remove it to force continuation. Terminal exclusion residue is separately tracked in
-[#736](https://github.com/stef-k/Wayfarer/issues/736).
+For an interrupted delegated capture, use the owning update's resume or pre-migration
+abort. Recovery accepts only the generated root:1654 mode-0640 reservation with exact
+capture/hold facts and reconciles the named helper's Compose/image/token ownership
+before clearing the reservation under recovery exclusion. Unknown Docker state or
+unsafe/foreign authority remains blocking; retain the reservation and held evidence
+until it can be reconciled. Do not change permissions or remove it to force continuation.
+Terminal exclusion residue is separately tracked in [#736](https://github.com/stef-k/Wayfarer/issues/736).
 
 Abort is permitted only before migration may have started and after old authority
 and delegated recovery are reconciled. It retains held evidence and leaves services

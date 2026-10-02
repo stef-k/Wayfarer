@@ -185,21 +185,35 @@ public sealed class UpdateCommands(IProcessRunner runner, ITerminal terminal)
     private async Task ReconcileCaptureAsync(string root, UpdateReceipt receipt, CancellationToken token)
     {
         var path = Path.Combine(root, "recovery-control/host-operation.json");
+        var present = Path.Exists(path) || new FileInfo(path).LinkTarget is not null;
         if (receipt.MigrationPossible)
         {
-            if (File.Exists(path)) throw new IOException("Unexpected capture reservation after migration cutoff.");
+            if (present) throw new IOException("Unexpected capture reservation after migration cutoff.");
             return;
         }
         var container = receipt.CaptureContainer;
-        if (File.Exists(path))
+        HostRecoveryOperation? reservation = null;
+        string? content = null;
+        if (present)
         {
-            ProtectedFiles.Check(path, 0);
+            ProtectedFiles.CheckRecoveryReservation(path);
             if (new FileInfo(path).Length > 2048) throw new IOException("Invalid capture reservation.");
-            var reservation = JsonSerializer.Deserialize<HostRecoveryOperation>(File.ReadAllText(path), ArchiveContract.Json)!;
-            if (!reservation.UpdateHold || !reservation.Quiesced || reservation.Container != container)
+            content = File.ReadAllText(path);
+            using var document = JsonDocument.Parse(content, new JsonDocumentOptions { MaxDepth = 16 });
+            var properties = new HashSet<string>(StringComparer.Ordinal);
+            if (document.RootElement.EnumerateObject().Any(property => !properties.Add(property.Name)))
+                throw new IOException("Duplicate capture reservation property.");
+            reservation = document.RootElement.Deserialize<HostRecoveryOperation>(ArchiveContract.Json)!;
+            if (receipt.Phase is not (UpdatePhase.Fenced or UpdatePhase.RecoveryVerified) || reservation.Schema != 1 ||
+                !Guid.TryParseExact(reservation.Token, "N", out var delegated) || delegated == Guid.Empty ||
+                reservation.Token != delegated.ToString("N") || !reservation.UpdateHold || reservation.RestoreHold ||
+                !reservation.Quiesced || reservation.Container != container)
                 throw new IOException("Capture reservation does not belong to this update.");
         }
         if (container is null) return;
+        if (!System.Text.RegularExpressions.Regex.IsMatch(container, "\\A" +
+            System.Text.RegularExpressions.Regex.Escape(receipt.Plan.Current.Project) + "-backup-[a-f0-9]{32}\\z"))
+            throw new IOException("Invalid update capture identity.");
         var owner = new RestoreContainers(runner);
         var names = (await owner.Required(["ps", "-a", "--format", "{{.Names}}"], token)).Split('\n');
         if (names.Contains(container))
@@ -208,6 +222,11 @@ public sealed class UpdateCommands(IProcessRunner runner, ITerminal terminal)
             Preflight.VerifyRetainedResource(receipt.Plan.Current, "container", document.RootElement[0], root);
             if (document.RootElement[0].GetProperty("Config").GetProperty("Image").GetString() !=
                 "ghcr.io/stef-k/wayfarer-db@" + receipt.Plan.Current.DbDigest) throw new IOException("Capture helper image changed.");
+            var configuration = document.RootElement[0].GetProperty("Config");
+            if (configuration.GetProperty("Labels").GetProperty("com.docker.compose.service").GetString() != "backup-worker" ||
+                reservation is not null && !configuration.GetProperty("Cmd").Deserialize<string[]>()!
+                    .SequenceEqual(new[] { "backup", "--host-operation", reservation.Token }))
+                throw new IOException("Capture helper delegation changed.");
             if (document.RootElement[0].GetProperty("State").GetProperty("Status").GetString() != "created")
             {
                 await owner.Required(["stop", "--time", "30", container], token);
@@ -216,7 +235,13 @@ public sealed class UpdateCommands(IProcessRunner runner, ITerminal terminal)
             await owner.Required(["rm", container], token);
         }
         using var recovery = new RecoveryLock(Path.Combine(root, "recovery-control/recovery.lock"));
-        if (File.Exists(path)) File.Delete(path);
+        if (Path.Exists(path) || new FileInfo(path).LinkTarget is not null)
+        {
+            ProtectedFiles.CheckRecoveryReservation(path);
+            if (content is null || new FileInfo(path).Length > 2048 || File.ReadAllText(path) != content)
+                throw new IOException("Capture reservation changed during reconciliation.");
+            File.Delete(path);
+        }
         using var control = new SafeDirectory(Path.GetDirectoryName(path)!);
         control.Flush();
     }
