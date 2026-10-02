@@ -55,7 +55,9 @@ public sealed class BackupConfiguration(IProcessRunner runner)
                 if (running.Code != 0 || running.Output.Trim().Length != 0) throw new IOException("Recovery worker running or state unknown.");
                 File.Delete(reservationPath);
             }
-            return Deployment.Load(root);
+            var selected = Deployment.Load(root);
+            ReconcileTerminalMarkers(root, selected);
+            return selected;
         }
         if (File.Exists(Path.Combine(root, "recovery-control/host-operation.json"))) throw new IOException("Unresolved recovery operation; use configure --recover.");
         var identityPath = Path.Combine(root, "backup-identity");
@@ -108,6 +110,84 @@ public sealed class BackupConfiguration(IProcessRunner runner)
         BackupGeneration.Commit(root, next);
         BackupGeneration.Recover(root);
         return next;
+    }
+
+    /// <summary>Under host then recovery exclusion, validate both derived markers before removing any exact terminal residue.</summary>
+    private static void ReconcileTerminalMarkers(string root, Deployment config)
+    {
+        var directory = Path.Combine(root, "recovery-control");
+        var markers = new[] { "restore-in-progress", "update-in-progress" }.Where(name =>
+            Path.Exists(Path.Combine(directory, name)) || new FileInfo(Path.Combine(directory, name)).LinkTarget is not null).ToArray();
+        foreach (var marker in markers)
+        {
+            var path = Path.Combine(directory, marker);
+            if (marker == "restore-in-progress")
+            {
+                var restore = RestoreReceipt.Load(root) ?? throw new IOException("Restore marker has no protected receipt.");
+                RequireDerivedEvidence(path, restore.Plan.Operation.ToString("D"));
+                if (restore.Plan.Target.Installation != config.Installation || restore.Phase is not (RestorePhase.Accepted or RestorePhase.Aborted))
+                    throw new IOException("Restore marker is foreign or unresolved.");
+                if (restore.Phase == RestorePhase.Accepted) RequireAcceptedRestore(root, restore);
+                else
+                {
+                    if (restore.Plan.NewInstall || !InstallationCompletion.HasCompletionEvidence(root))
+                        throw new IOException("Aborted restore lacks previous installation completion.");
+                    var completion = Path.Combine(root, "restore-complete");
+                    if (Path.Exists(completion) || new FileInfo(completion).LinkTarget is not null)
+                    {
+                        ProtectedFiles.SafePath(completion);
+                        ProtectedFiles.Check(completion, 0);
+                        if (new FileInfo(completion).Length != 36 || !Guid.TryParseExact(File.ReadAllText(completion), "D", out var operation) ||
+                            operation == Guid.Empty || operation == restore.Plan.Operation)
+                            throw new IOException("Aborted restore contradicts completion evidence.");
+                    }
+                }
+            }
+            else
+            {
+                var update = UpdateReceipt.Load(root) ?? throw new IOException("Update marker has no protected receipt.");
+                RequireDerivedEvidence(path, update.Plan.Operation.ToString("D"));
+                if (update.Plan.Current.Installation != config.Installation || !update.Resolved)
+                    throw new IOException("Update marker is foreign or unresolved.");
+                var completion = Path.Combine(UpdatePreparation.DirectoryFor(root, update.Plan.Operation), "completed");
+                if (update.RestoreAccepted)
+                {
+                    var restore = RestoreReceipt.Load(root) ?? throw new IOException("Resolved update lacks accepted restore authority.");
+                    if (update.Phase is UpdatePhase.Accepted or UpdatePhase.Aborted || restore.Plan.FromUpdate != update.Plan.Operation ||
+                        restore.Plan.Operation != update.RestoreOperation)
+                        throw new IOException("Resolved update/restore ownership differs.");
+                    RequireAcceptedRestore(root, restore);
+                }
+                else if (update.Phase == UpdatePhase.Accepted) RequireDerivedEvidence(completion, update.PlanHash);
+                else if (update.MigrationContainer is not null || update.RestoreOperation is not null ||
+                    !InstallationCompletion.HasCompletionEvidence(root) || Path.Exists(completion) || new FileInfo(completion).LinkTarget is not null)
+                    throw new IOException("Aborted update contradicts completion or mutation evidence.");
+            }
+        }
+        using var control = new SafeDirectory(directory);
+        foreach (var marker in markers) control.Delete(marker); // Each exact derived entry removal fsyncs recovery-control.
+    }
+
+    /// <summary>Acceptance requires its exact completion UUID and, when delegated, the already-resolved two-receipt join.</summary>
+    private static void RequireAcceptedRestore(string root, RestoreReceipt restore)
+    {
+        if (restore.Phase != RestorePhase.Accepted) throw new IOException("Restore completion is not accepted.");
+        RequireDerivedEvidence(Path.Combine(root, "restore-complete"), restore.Plan.Operation.ToString("D"));
+        if (restore.Plan.FromUpdate is { } operation)
+        {
+            UpdateRestoreHandoff.Require(root, restore.Plan);
+            if (UpdateReceipt.Find(root, operation) is not { RestoreAccepted: true })
+                throw new IOException("Restore has not resolved its update ownership.");
+        }
+    }
+
+    /// <summary>Root-owned single-link derived evidence must contain exactly the protected owner's bounded bytes.</summary>
+    private static void RequireDerivedEvidence(string path, string expected)
+    {
+        ProtectedFiles.SafePath(path);
+        ProtectedFiles.Check(path, 0);
+        if (new FileInfo(path).Length != expected.Length || File.ReadAllText(path) != expected)
+            throw new IOException("Derived lifecycle evidence differs from protected operation authority.");
     }
 
     /// <summary>Read the immutable image's real owners through the additive inspection assembly.</summary>

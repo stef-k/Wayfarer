@@ -28,6 +28,12 @@ public sealed class RecoveryCoordinationTests : IDisposable
         File.SetUnixFileMode(Root, ProtectedFiles.PrivateDirectory);
         config = new Deployment { Schema = 2, Installation = Guid.NewGuid(), Bundle = Path.Combine(Root, "bundle"),
             Hostname = "wayfarer.example.org", Mode = "external", AppDigest = "sha256:" + new string('a', 64) };
+        foreach (var name in new[] { "compose.yaml", "external.yaml", "caddy/Caddyfile", "db/20-wayfarer.sh", "config/deployment.env.example" })
+        {
+            var path = Path.Combine(config.Bundle, name);
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            File.WriteAllText(path, name);
+        }
         ProtectedFiles.Create(Path.Combine(Root, "installation.json"), JsonSerializer.Serialize(config));
         ProtectedFiles.Create(Path.Combine(Root, "deployment.env"), config.EnvironmentFile(Root));
         ProtectedFiles.CreateSecrets(Root);
@@ -125,6 +131,128 @@ public sealed class RecoveryCoordinationTests : IDisposable
         await Assert.ThrowsAnyAsync<Exception>(() => ReconcileCapture(receipt, runner));
         Assert.DoesNotContain("rm", runner.Calls);
         Assert.Equal(original, File.ReadAllBytes(Reservation));
+    }
+
+    /// <summary>Reconstructed terminal-publication residue converges through backup recovery without rewriting lifecycle history.</summary>
+    [Theory]
+    [InlineData("restore", true)]
+    [InlineData("restore", false)]
+    [InlineData("update", true)]
+    [InlineData("update", false)]
+    [InlineData("handoff", true)]
+    public async Task ExactTerminalMarkersConvergeThroughBackupRecovery(string kind, bool accepted)
+    {
+        if (kind == "restore") TerminalRestore(accepted);
+        else TerminalUpdate(accepted, kind == "handoff");
+        var original = Directory.EnumerateFiles(Root, "*.json", SearchOption.AllDirectories).ToDictionary(path => path, File.ReadAllBytes);
+        using var operation = Setup.Lock(Root);
+        var recovery = new BackupConfiguration(new NoProcessRunner());
+        Assert.Equal(config, await recovery.ConfigureAsync(Root, config, ["--recover"], default));
+        Assert.False(File.Exists(Path.Combine(Root, "recovery-control/restore-in-progress")));
+        Assert.False(File.Exists(Path.Combine(Root, "recovery-control/update-in-progress")));
+        foreach (var (path, bytes) in original) Assert.Equal(bytes, File.ReadAllBytes(path));
+        Assert.Equal(config, await recovery.ConfigureAsync(Root, config, ["--recover"], default));
+    }
+
+    /// <summary>Missing/foreign authority, unresolved intent and contradictory completion cannot release worker exclusion.</summary>
+    [Theory]
+    [InlineData("restore", "unresolved")]
+    [InlineData("update", "unresolved")]
+    [InlineData("restore", "missing")]
+    [InlineData("update", "missing")]
+    [InlineData("restore", "foreign")]
+    [InlineData("update", "foreign")]
+    [InlineData("restore", "completion")]
+    [InlineData("update", "completion")]
+    [InlineData("restore", "contradictory")]
+    [InlineData("update", "handoff")]
+    [InlineData("restore", "malformed")]
+    [InlineData("update", "unsafe")]
+    [InlineData("update", "paired")]
+    public async Task UncertainTerminalMarkersRemainUntouched(string kind, string state)
+    {
+        var marker = Path.Combine(Root, "recovery-control", kind + "-in-progress");
+        if (kind == "restore") TerminalRestore(state != "contradictory");
+        else TerminalUpdate(true, state == "handoff");
+        var receiptPath = kind == "restore" ? RestoreReceipt.PathFor(Root) : UpdateReceipt.PathFor(Root);
+        if (state == "unresolved")
+        {
+            if (kind == "restore") (RestoreReceipt.Load(Root)! with { Phase = RestorePhase.WritesPossible }).Save(Root);
+            else (UpdateReceipt.Load(Root)! with { Phase = UpdatePhase.PostflightConfirmed }).Save(Root);
+        }
+        else if (state == "missing") File.Delete(receiptPath);
+        else if (state is "foreign" or "paired") File.WriteAllText(marker, Guid.NewGuid().ToString("D"));
+        else if (state == "completion")
+        {
+            var completion = kind == "restore" ? Path.Combine(Root, "restore-complete") :
+                Path.Combine(UpdatePreparation.DirectoryFor(Root, UpdateReceipt.Load(Root)!.Plan.Operation), "completed");
+            File.WriteAllText(completion, new string('f', kind == "restore" ? 36 : 64));
+        }
+        else if (state == "contradictory") ProtectedFiles.Create(Path.Combine(Root, "restore-complete"), RestoreReceipt.Load(Root)!.Plan.Operation.ToString("D"));
+        else if (state == "handoff") File.Delete(RestoreReceipt.PathFor(Root));
+        else if (state == "malformed") File.WriteAllText(marker, "not-an-operation");
+        else File.SetUnixFileMode(marker, ProtectedFiles.PrivateFile | UnixFileMode.GroupRead);
+        if (state == "paired") TerminalRestore(true);
+        var original = Directory.EnumerateFiles(Path.Combine(Root, "recovery-control"), "*", SearchOption.AllDirectories)
+            .ToDictionary(path => path, File.ReadAllBytes);
+        using var operation = Setup.Lock(Root);
+        await Assert.ThrowsAnyAsync<Exception>(() => new BackupConfiguration(new NoProcessRunner())
+            .ConfigureAsync(Root, config, ["--recover"], default));
+        foreach (var (path, bytes) in original) Assert.Equal(bytes, File.ReadAllBytes(path));
+    }
+
+    /// <summary>Publish completion before Accepted through production owners, then reconstruct only the surviving derived marker.</summary>
+    private RestoreReceipt TerminalRestore(bool accepted, UpdateReceipt? update = null)
+    {
+        var target = update?.Plan.Current ?? config;
+        var plan = new RestorePlan(Guid.NewGuid(), Root, target, target.Installation, update?.RecoveryArchive ?? Guid.NewGuid(),
+            update?.RecoverySha256 ?? new string('a', 64), DateTimeOffset.UnixEpoch, "quiesced", "bundle", "capture", "restore",
+            null, Guid.NewGuid().ToString("N"), false, true, false)
+            { OperatorOwner = target.Release, FromUpdate = update?.Plan.Operation };
+        var receipt = new RestoreReceipt { Plan = plan, PlanHash = plan.Hash(), Phase = RestorePhase.WritesPossible };
+        receipt.Save(Root);
+        if (accepted) InstallationCompletion.RecordRestore(Root, receipt);
+        receipt = (receipt with { Phase = accepted ? RestorePhase.WritesPossible : RestorePhase.Authorized })
+            .Advance(accepted ? RestorePhase.Accepted : RestorePhase.Aborted);
+        receipt.Save(Root);
+        ProtectedFiles.Create(Path.Combine(Root, "recovery-control/restore-in-progress"), plan.Operation.ToString("D"));
+        return receipt;
+    }
+
+    /// <summary>Keep forward acceptance, pre-migration abort and exact accepted-restore ownership distinct.</summary>
+    private UpdateReceipt TerminalUpdate(bool accepted, bool handoff = false)
+    {
+        var receipt = Update();
+        if (accepted)
+        {
+            receipt = receipt with { RecoveryArchive = Guid.NewGuid(), RecoveryName = "held.tar", RecoverySha256 = new string('a', 64),
+                MigrationContainer = config.Project + "-update-migrate-" + receipt.Plan.Operation.ToString("N"),
+                Phase = handoff ? UpdatePhase.MigrationStarted : UpdatePhase.Accepted };
+            if (handoff)
+            {
+                var restore = TerminalRestore(true, receipt);
+                receipt = receipt with { RestoreOperation = restore.Plan.Operation, RestoreAccepted = true };
+            }
+            else
+            {
+                receipt = receipt with { NewConfiguration = JsonSerializer.Serialize(receipt.Plan.Target with
+                    { Backup = receipt.Plan.Target.Backup! with { Generation = receipt.PlanHash } }) };
+                var directory = UpdatePreparation.DirectoryFor(Root, receipt.Plan.Operation);
+                Directory.CreateDirectory(directory, ProtectedFiles.PrivateDirectory);
+                ProtectedFiles.Create(Path.Combine(directory, "completed"), receipt.PlanHash);
+            }
+        }
+        else receipt = receipt.Advance(UpdatePhase.Aborted);
+        receipt.Save(Root);
+        ProtectedFiles.Create(Path.Combine(Root, "recovery-control/update-in-progress"), receipt.Plan.Operation.ToString("D"));
+        return receipt;
+    }
+
+    /// <summary>Backup recovery with no configured scheduler must not invoke any Docker mutation.</summary>
+    private sealed class NoProcessRunner : IProcessRunner
+    {
+        public Task<ProcessResult> RunAsync(string[] args, string? input, CancellationToken cancellation, Action<string>? lineOutput = null) =>
+            throw new InvalidOperationException("Unexpected Docker operation: " + string.Join(' ', args));
     }
 
     /// <summary>Use the unchanged private coordinator seam so tests never launch the wider update lifecycle.</summary>

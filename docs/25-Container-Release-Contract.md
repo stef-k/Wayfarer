@@ -374,7 +374,7 @@ foreign or contradictory state requires administrator reconciliation, not deleti
 | `operation.lock` | `Setup.Lock`; host lifecycle owners | Live kernel serialization | Open stable protected file; lock byte 0 | Inode remains after process exit/death | Concurrent host mutation while lock held | Retry after actual owner exits; preserve inode | File existence means operation still runs |
 | `recovery-control/recovery.lock` | `RecoveryLock`; host/worker | Live kernel exclusion | Once-provisioned root:1654 0660 inode, 0755 root parent | Stable inode survives owner death | Concurrent capture/recovery mutation while held | Retry after owner exits; never replace/unlink inode | A stale pathname is a held lock |
 | `recovery-control/host-operation.json` | `BackupCommands`; owning recovery continuation | Delegation/reservation intent | root:1654 0640, exact token/container and capture/hold facts before worker launch | Worker stopped/running/unknown after client loss | Independent workers and ordinary mutation | Standalone: `backup configure --recover` after confirming worker stopped; restore: owning resume; update: owning resume/pre-migration abort validates exact delegation and reconciles its helper before clearing under recovery exclusion | Lost client proves worker stopped; existence grants a skip-lock flag |
-| `restore-in-progress`; `update-in-progress` under `recovery-control/` | Receipt save owners; worker validator | Derived persistent exclusion | Alongside unresolved receipt; removal after resolution | Terminal receipt with stale marker is [#736](https://github.com/stef-k/Wayfarer/issues/736) | Workers defer while marker exists without matching delegation | Owning unresolved operation; stale terminal marker currently needs administrator reconciliation | Marker is independent receipt authority or safely removable by hand |
+| `restore-in-progress`; `update-in-progress` under `recovery-control/` | Receipt save owners; worker validator; `backup configure --recover` | Derived persistent exclusion | Alongside unresolved receipt; removal after resolution | Terminal protected receipt with its exact stale UUID marker | Workers defer while marker exists without matching delegation | Owning unresolved operation; exact terminal residue uses `backup configure --recover` under host then recovery exclusion with completion/ownership checks | Marker is independent receipt authority or safely removable by hand |
 | `backup-identity`; destination `.wayfarer-recovery` | `BackupConfiguration` | Prepared UUID; destination binding | First opt-in before installation pointer commit | UUID/control/destination preparation may precede policy commit | Foreign destination identity blocks configuration | Retry original configuration with trusted matching destination | Prepared UUID alone upgrades installation schema |
 | `recovery-generations/<Backup.Generation>/` | `BackupGeneration`; `BackupCompose` | Derived worker/scheduler input | Immutable compose/worker files staged and checked before pointer commit | Old/unselected generations retained | Changed selected bytes/payload/source block worker use | Backup transition recovery or owning restore/update | Worker JSON is a second policy authority |
 | `backup-transition.json`; `installation.backup-next` | `BackupGeneration` | Exact old/next configuration intent; staged pointer | Receipt flushed before staged pointer; installation rename is commit | Current bytes exactly Previous or Next; matching pending next | Ordinary mutation until recovery | `backup configure --recover`; retain current valid side | Recovery always rolls forward/back or adopts mixed bytes |
@@ -451,7 +451,17 @@ installation bytes, retains previous evidence, validates/removes matching pendin
 next bytes, then removes the transition and flushes the directory. It keeps whichever side was
 actually selected; it does not invent rollback or complete an uncommitted switch.
 It also clears a standalone host reservation only after confirming its named worker
-is not running. Unknown worker state remains blocking. The outer backup command
+is not running. Unknown worker state remains blocking. Under the existing host then
+recovery exclusion, it validates both stale terminal markers before removing either.
+Each root-owned single-link marker must equal its protected receipt's exact operation
+UUID. Accepted restore requires matching `restore-complete`; accepted update requires
+its operation's `completed` plan hash. Aborted operations require previous installation
+completion without contradictory acceptance/mutation evidence. A `RestoreAccepted`
+update requires its exact accepted restore and existing two-receipt ownership join;
+it never becomes forward-update Accepted. Missing, unresolved, malformed, unsafe,
+foreign or contradictory evidence stays blocking and untouched. Cleanup removes only
+the exact derived entries and fsyncs `recovery-control/`, preserving receipts/history
+and completion-before-Accepted ordering. The outer backup command
 starts the selected enabled scheduler; a successful pointer commit alone does not
 mean the scheduler is healthy.
 
@@ -503,7 +513,7 @@ reboot, public release or production-host qualification.
 | --- | --- |
 | Canonical setup receipt valid, but snapshot deletion interrupted after one member is removed | [#734](https://github.com/stef-k/Wayfarer/issues/734) adds atomic authoritative-snapshot → private-reclamation handoff and focused interrupted-cleanup recovery. Partial authoritative snapshots from the old deletion order still require reconciliation; they are never reclassified as private residue |
 | Genuine delegated root:1654 0640 capture reservation rejected by update's root:root 0600 validator before any process call | [#735](https://github.com/stef-k/Wayfarer/issues/735) adds exact generated-reservation admission and helper reconciliation for update resume/pre-migration abort; unsafe/foreign authority and unknown Docker state remain blocking |
-| Terminal receipt published before its derived exclusion marker is removed; host completion succeeds while worker validation refuses capture | Behavior child [#736](https://github.com/stef-k/Wayfarer/issues/736); exact terminal-marker reconciliation is still required. Restore reproduced; matching update write order inspected |
+| Terminal receipt published before its derived exclusion marker is removed; host completion succeeds while worker validation refuses capture | [#736](https://github.com/stef-k/Wayfarer/issues/736) adds exact terminal-marker reconciliation through `backup configure --recover`, retaining unresolved/foreign refusal and restore/update completion joins. Focused real-root tests reconstruct restore/update and accepted-restore handoff residue; this is not process-death/power-loss qualification |
 | Setup progress replacement and completion creation omitted parent-directory flush before dependent mutation/success | [#737](https://github.com/stef-k/Wayfarer/issues/737) adds both parent flushes and preserves failed-operation guidance. Source/normal-process evidence, without actual hardware power-loss reproduction |
 
 #733 remains open for child disposition and independent exact-head review. #603
