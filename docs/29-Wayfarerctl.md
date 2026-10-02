@@ -77,6 +77,7 @@ retains canonical bundles automatically. The installation layout is:
   operation.lock                    per-installation serialization, 0600
   setup-progress.json               protected original-input receipt and maintenance checkpoints
   setup-provisioning/                complete protected initial inputs, present only during publication/recovery
+  setup-provisioning-reclaim/        private duplicate cleanup after canonical input verification
   setup-complete                    created only after successful setup diagnostics
   restore-complete                  last restore finalization UUID; distinct from setup progress
   deployment-generations/           immutable release-specific generated environment inputs
@@ -305,12 +306,12 @@ usable. Only a complete verified snapshot becomes protected provisioning authori
 If publishing its installation files is interrupted, `setup --resume` finishes
 publication from those original bytes before starting the normal setup sequence.
 Existing files must match exactly; credentials are never regenerated or replaced.
-The redundant snapshot is reclaimed only after the canonical setup receipt verifies.
-Interruption during reclamation has a tracked recovery gap in
-[#734](https://github.com/stef-k/Wayfarer/issues/734): if repeated resume stops before
-setup execution despite retained original files, preserve the folder and use the
-administrator reconciliation guidance below. Another identical attempt cannot repair
-that residue until the bounded fix is available.
+After the canonical inputs and setup receipt verify, an atomic rename and installation
+directory flush transfer the redundant snapshot to private reclamation. If cleanup is
+interrupted, `setup --resume` validates the canonical identity, credentials and receipt
+independently, then reclaims the remaining verified duplicates before setup execution.
+Coexisting snapshot phases, foreign or unsafe cleanup files, changed inputs and an
+incomplete authoritative snapshot require administrator reconciliation; preserve them.
 
 Continuation requires the original protected installation identity, generated config,
 credential bytes and bundle files to match the protected setup receipt. It refuses
@@ -321,7 +322,10 @@ If continuation refuses incomplete or unsafe protected state, preserve it and fo
 the reported validation cause; plain setup cannot overwrite or repair it.
 Completed migration, seed and bootstrap steps are skipped. DB health, volume ownership,
 web/proxy convergence and live diagnostics are checked again; only successful diagnostics
-create the completion marker. No volumes are deleted and no rollback is attempted.
+create the completion marker. Checkpoints and completion flush their installation
+directory before the next dependent mutation or successful completion. A durability
+failure stops setup; an uncertain completion marker that cannot be removed requires
+reconciliation instead of another resume. No volumes are deleted and no rollback is attempted.
 A migration or seed whose success was not recorded may repeat through the application's
 existing idempotent maintenance authority.
 

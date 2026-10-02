@@ -8,7 +8,7 @@ public sealed class Setup(IProcessRunner runner, ITerminal terminal,
     private string remedy = "Check that supported Docker Engine and Docker Compose are installed and running.";
     private bool checkedRoot;
 
-    /// <summary>Observe protected-file boundaries for focused interruption tests without substituting ownership checks.</summary>
+    /// <summary>Observe protected-file publication and reclamation boundaries without substituting ownership checks.</summary>
     internal Action<string>? ProvisioningCheckpoint { get; init; }
 
     /// <summary>Recommend continuation only when a complete protected receipt can actually authorize it.</summary>
@@ -141,9 +141,9 @@ public sealed class Setup(IProcessRunner runner, ITerminal terminal,
             throw new UsageException("Existing installation files prevent fresh setup; never overwrite them.");
     }
 
-    /// <summary>Presence prevents fresh setup, including incomplete files and a committed provisioning snapshot.</summary>
+    /// <summary>Presence prevents fresh setup, including incomplete files and either provisioning snapshot phase.</summary>
     internal static bool HasProtectedState(string root) =>
-        new[] { "installation.json", "deployment.env", "secrets", "setup-progress.json", SetupProvisioning.Name }
+        SetupProvisioning.IsPending(root) || new[] { "installation.json", "deployment.env", "secrets", "setup-progress.json" }
             .Any(name => Path.Exists(Path.Combine(root, name)) || new FileInfo(Path.Combine(root, name)).LinkTarget is not null);
 
     /// <summary>Read current authority after failure; uncertain or unreceipted protected state never grants continuation.</summary>
@@ -152,8 +152,8 @@ public sealed class Setup(IProcessRunner runner, ITerminal terminal,
         try
         {
             if (!HasProtectedState(root)) return Recovery.Retry;
-            try { SetupProgress.Load(root, Deployment.Load(root)); }
-            catch { SetupProvisioning.Load(root); }
+            if (SetupProvisioning.IsPending(root)) SetupProvisioning.Load(root);
+            else SetupProgress.Load(root, Deployment.Load(root));
             return Recovery.Resume;
         }
         catch { return Recovery.Reconcile; }
@@ -166,8 +166,8 @@ public sealed class Setup(IProcessRunner runner, ITerminal terminal,
         checkedRoot = true;
         ProtectedFiles.Check(root, 0, directory: true);
         using var operationLock = Lock(root);
-        // The canonical receipt may be published before snapshot cleanup; verify either interruption boundary.
-        if (Path.Exists(Path.Combine(root, SetupProvisioning.Name)))
+        // Publication authority and private reclamation have distinct validators, even with a canonical receipt.
+        if (SetupProvisioning.IsPending(root))
         {
             Stage("Finishing installation files");
             remedy = "Check available disk space and protected installation-folder permissions.";
@@ -191,7 +191,7 @@ public sealed class Setup(IProcessRunner runner, ITerminal terminal,
         return await FinishAsync(root, config, progress, password, options.ContainsKey("--retry-admin"), token);
     }
 
-    /// <summary>Completion requires live diagnostics; all failures retain the last durable checkpoint.</summary>
+    /// <summary>Completion requires live diagnostics and a parent flush; failed durability attempts to remove only this invocation's marker.</summary>
     internal async Task<int> FinishAsync(string root, Deployment config, SetupProgress progress, string password, bool retryAdmin, CancellationToken token)
     {
         try
@@ -204,12 +204,26 @@ public sealed class Setup(IProcessRunner runner, ITerminal terminal,
                 terminal.Error("Setup verification is incomplete. Setup has started; installation files and service data were retained. Correct the reported cause, then run 'wayfarerctl setup --resume'.");
                 return result;
             }
+            remedy = "Check available disk space and protected installation-folder permissions.";
+            using var directory = new WayfarerRecovery.SafeDirectory(root);
             ProtectedFiles.Create(Path.Combine(root, "setup-complete"), "1\n");
+            try { directory.Flush(); }
+            catch
+            {
+                // Best-effort rollback must not replace the primary durability failure or announce success.
+                try { directory.Delete("setup-complete"); }
+                catch { }
+                throw;
+            }
             terminal.Write(config.Mode == "managed" ? "Setup complete: protected administrator and public HTTPS readiness verified." :
                 "Setup complete: loopback readiness verified. External proxy TLS, forwarding and public reachability remain your responsibility.");
             return 0;
         }
-        catch (Exception error) { return ReportFailure(error, Recovery.Resume); }
+        catch (Exception error)
+        {
+            // If removal also failed, do not prescribe a resume that the visible completion marker would refuse.
+            return ReportFailure(error, Path.Exists(Path.Combine(root, "setup-complete")) ? Recovery.Reconcile : Recovery.Resume);
+        }
     }
 
     /// <summary>Skip committed maintenance; retry safe convergence steps and observe uncertain admin creation.</summary>

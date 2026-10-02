@@ -155,6 +155,7 @@ public sealed class SetupProvisioningTests : IDisposable
     [InlineData("changed-authority")]
     [InlineData("coexistence")]
     [InlineData("changed-canonical")]
+    [InlineData("changed-reclamation")]
     [InlineData("unsafe-reclamation")]
     [InlineData("foreign-reclamation-member")]
     public async Task UncertainSnapshotRequiresReconciliationWithoutMutation(string state)
@@ -169,13 +170,21 @@ public sealed class SetupProvisioningTests : IDisposable
         {
             var environment = Path.Combine(authority, "deployment.env");
             if (state == "partial-authority") File.Delete(environment);
-            else File.AppendAllText(environment, "changed");
+            else
+            {
+                // Keep both receipts independently valid while the complete authoritative snapshot differs byte-for-byte.
+                File.AppendAllText(Path.Combine(authority, "installation.json"), "\n");
+                File.Delete(Path.Combine(authority, "setup-progress.json"));
+                SetupProgress.Create(authority, config);
+                SetupProgress.Load(root, Deployment.Load(root));
+            }
         }
         else if (state == "coexistence") Directory.CreateDirectory(reclaim, ProtectedFiles.PrivateDirectory);
         else
         {
             Directory.Move(authority, reclaim);
             if (state == "changed-canonical") File.WriteAllText(Path.Combine(root, "secrets/db-app-password"), new string('B', 64));
+            else if (state == "changed-reclamation") File.AppendAllText(Path.Combine(reclaim, "installation.json"), "\n");
             else if (state == "unsafe-reclamation") File.SetUnixFileMode(reclaim, ProtectedFiles.PrivateDirectory | UnixFileMode.GroupRead);
             else ProtectedFiles.Create(Path.Combine(reclaim, "foreign"), "preserve");
         }
@@ -194,6 +203,7 @@ public sealed class SetupProvisioningTests : IDisposable
     private sealed class SetupProcess(Deployment config) : IProcessRunner
     {
         public bool ReachedExecution { get; private set; }
+        /// <summary>Rejected authority must stop before even a read-only Docker prerequisite runs.</summary>
         public int Calls { get; private set; }
         public Task<ProcessResult> RunAsync(string[] args, string? input, CancellationToken token, Action<string>? lineOutput = null)
         {

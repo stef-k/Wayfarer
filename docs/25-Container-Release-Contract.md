@@ -367,9 +367,10 @@ foreign or contradictory state requires administrator reconciliation, not deleti
 | `releases/<Name>/` | `ReleaseStore`; `ReleaseBundle` | Immutable retained release | Create-only rename after full validation | Identical retained bytes may precede setup | Occupied different/corrupt identity blocks import/use | Same acquisition/import revalidates; contradiction requires reconciliation | Directory presence is installation or image readiness |
 | `releases/.acquire-*`, `.pull-*`, `.setup-*` | Acquisition/setup preparation | Preparation | Private download/client/initial-input staging | Interrupted stages may remain under `releases/` | Do not block plain setup solely by existing there | Repeat original plain setup; preserve residue | Staged secrets/downloads are canonical installation state |
 | `releases/.stage-*` and sibling `.json` | `ReleaseStore.Import/Reconcile` | Placement intent; payload preparatory | Owner receipt before copy; create-only final publication | Incomplete copy, complete unpublished stage, or final plus leftover receipt | Invalid bytes cannot be adopted; another plain setup may import privately | Plain setup/import; `release reconcile .stage-ID` only for verified complete placement | Receipt proves staged bytes are complete; collision permits overwrite |
-| `setup-provisioning/` | `SetupProvisioning` | Complete original-input recovery snapshot | Atomic directory rename and parent flush before canonical publication | Matching canonical subset or full canonical receipt before cleanup | Plain setup; mismatched published inputs block resume | `setup --resume`; interrupted cleanup has [#734](https://github.com/stef-k/Wayfarer/issues/734) limitation | Any surviving directory is still a complete snapshot |
-| `setup-progress.json` | `SetupProgress`; setup executor | Setup intent/checkpoints | Initial receipt before Docker resources; replacement after successful steps | Last committed checkpoint; lost result remains uncertain | Changed inputs or invalid progress block setup resume | Original setup resume; uncertain admin uses explicit `--retry-admin` after lookup | Progress 3 means diagnostics/completion passed |
-| `setup-complete`; `restore-complete` | Setup diagnostics; `InstallationCompletion.RecordRestore` | Historical completion | Setup after diagnostics; restore after postflight/restart restoration, before Accepted | Restore marker can coexist with unresolved WritesPossible | Absence blocks ordinary lifecycle/backup policy loading | Owning unfinished operation; completed installation uses doctor | Marker is current health or operation authorization |
+| `setup-provisioning/` | `SetupProvisioning` | Complete original-input recovery snapshot | Atomic directory rename and parent flush before canonical publication | Matching canonical subset or full canonical receipt before reclamation handoff | Plain setup; incomplete snapshot or mismatched published inputs block resume | `setup --resume` validates the complete snapshot before publication/handoff | Canonical progress alone permits ignoring a surviving snapshot |
+| `setup-provisioning-reclaim/` | `SetupProvisioning` | Private duplicate reclamation, never publication authority | Create-only atomic rename from the complete snapshot after canonical byte/receipt validation, then root flush before deletion | Any subset of original duplicate files, including an empty directory | Plain setup; coexistence with authoritative snapshot, foreign/unsafe or changed residue blocks resume | `setup --resume` independently validates canonical deployment, secrets and initial receipt, then verifies/reclaims remaining duplicates | This directory can recreate missing canonical inputs |
+| `setup-progress.json` | `SetupProgress`; setup executor | Setup intent/checkpoints | Initial receipt before Docker resources; file flush, atomic replacement and root flush before dependent mutation | Last committed checkpoint; lost result remains uncertain | Changed inputs or invalid progress block setup resume | Original setup resume; uncertain admin uses explicit `--retry-admin` after lookup | Progress 3 means diagnostics/completion passed |
+| `setup-complete`; `restore-complete` | Setup diagnostics; `InstallationCompletion.RecordRestore` | Historical completion | Setup file and root flush after diagnostics before success; restore after postflight/restart restoration, before Accepted | Restore marker can coexist with unresolved WritesPossible; failed setup flush attempts to remove its marker | Absence blocks ordinary lifecycle/backup policy loading | Owning unfinished operation; failed setup flush with surviving marker requires reconciliation; completed installation uses doctor | Marker is current health or operation authorization |
 | `operation.lock` | `Setup.Lock`; host lifecycle owners | Live kernel serialization | Open stable protected file; lock byte 0 | Inode remains after process exit/death | Concurrent host mutation while lock held | Retry after actual owner exits; preserve inode | File existence means operation still runs |
 | `recovery-control/recovery.lock` | `RecoveryLock`; host/worker | Live kernel exclusion | Once-provisioned root:1654 0660 inode, 0755 root parent | Stable inode survives owner death | Concurrent capture/recovery mutation while held | Retry after owner exits; never replace/unlink inode | A stale pathname is a held lock |
 | `recovery-control/host-operation.json` | `BackupCommands`; owning recovery continuation | Delegation/reservation intent | root:1654 0640, exact token/container and capture/hold facts before worker launch | Worker stopped/running/unknown after client loss | Independent workers and ordinary mutation | Standalone: `backup configure --recover` after confirming worker stopped; restore/update: owning resume; see [#735](https://github.com/stef-k/Wayfarer/issues/735) | Lost client proves worker stopped; existence grants a skip-lock flag |
@@ -392,18 +393,23 @@ foreign or contradictory state requires administrator reconciliation, not deleti
 stateDiagram-v2
     [*] --> Preparation
     Preparation --> Provisioning: publish verified setup-provisioning snapshot
-    Provisioning --> Resumable: publish and verify all canonical inputs and receipt
+    Provisioning --> Reclamation: verify canonical bytes/receipt, atomically rename snapshot and flush root
+    Reclamation --> Resumable: verify and reclaim private duplicates, flush root
     Resumable --> Completed: maintenance, convergence, diagnostics and setup-complete
 ```
 
 This is a logical publication model, not a test that one pathname exists. The full
-canonical receipt can coexist with its redundant snapshot before cleanup. No Docker
-mutation occurs until canonical validation and snapshot reclamation finish.
+canonical receipt can coexist with its authoritative snapshot before the atomic
+reclamation handoff. The private reclamation name permits incomplete duplicate residue
+only after canonical deployment, secrets and initial receipt independently validate.
+Both snapshot names together are ambiguous and require reconciliation. No Docker
+mutation occurs until canonical validation and private snapshot reclamation finish.
 
 | State | Permitted persistent state | Plain setup | Setup resume | Supported action |
 | --- | --- | --- | --- | --- |
 | Preparation only | Root absent, empty, or top-level `releases/` and `operation.lock` only; private staging may contain generated inputs | Yes, after safety/preflight checks | No valid installation receipt yet | Retry the same setup/options after correcting the cause |
 | Protected provisioning | Complete verified root snapshot; zero or more byte-identical canonical files, including partial `secrets/` | Refused | Publishes original bytes without replacement, then validates canonical receipt | `setup --resume` with original root |
+| Private reclamation | Canonical original deployment, complete secrets and matching initial receipt; only safely owned, byte-identical duplicate members remain under the reclamation name | Refused | Validates canonical authority independently, flushes the observed handoff, then finishes duplicate cleanup | `setup --resume` with original root |
 | Incomplete/unreceipted identity | Canonical identity/credentials without a valid snapshot or exact receipt, changed/unsafe files, unknown top-level residue | Refused | Refused | Preserve state; administrator reconciles original provenance/ownership |
 | Committed resumable identity | Loadable original deployment, complete secrets, matching progress; no completion or unresolved restore/update | Refused | Valid after retained-resource preflight; committed mutations skipped | `setup --resume`; explicit admin retry only when lookup cannot confirm |
 | Completed installation | Historical completion plus valid current deployment/credentials and resolved lifecycle intent | Refused | Refused as already complete | `doctor`, then supported ordinary lifecycle commands |
@@ -415,11 +421,15 @@ bootstrap; uncertain success requires application-owned lookup before explicit r
 Present service health is checked again during continuation and by doctor.
 
 Initial snapshot publication and canonical files use file flushes, directory flushes
-and create-only rename. Setup progress replacement flushes a temporary file and
-renames it atomically; setup completion uses exclusive flushed file creation.
-Neither latter path explicitly flushes the installation directory. The missing
-durability step is tracked in [#737](https://github.com/stef-k/Wayfarer/issues/737);
-normal-process tests do not establish reboot/power-loss durability.
+and create-only rename. Before destructive cleanup, the complete snapshot moves
+atomically to the private reclamation name and the installation directory is flushed.
+Resume also flushes an observed reclamation handoff before deleting any member.
+Setup progress replacement flushes a protected temporary file, renames it atomically
+and flushes the installation directory before the next dependent mutation. Completion
+uses exclusive flushed file creation followed by the same parent flush before success.
+A flush failure stops the operation and preserves its primary error; completion tries
+to remove only its newly created marker, requiring reconciliation if that removal
+also fails. Source and normal-process checks do not establish hardware power-loss qualification.
 
 ### Backup configuration commit and recovery
 
@@ -485,16 +495,16 @@ plans, releases, images and held recovery evidence remain retained.
 The audit used all persisted-state writers/readers listed above, existing tests and
 three isolated Linux-root residue probes against unchanged production assemblies.
 156 focused operator/acquisition/release/restore/update/worker tests and all 11
-root-owned provisioning tests passed. Controlled residue reconstruction demonstrates
-the following reachable gaps; it is not actual process-kill, reboot, public release
-or production-host qualification.
+root-owned provisioning tests passed. The table records those original findings and
+their current disposition. Controlled residue reconstruction is not actual process-kill,
+reboot, public release or production-host qualification.
 
 | Finding | Disposition and current recovery limit |
 | --- | --- |
-| Canonical setup receipt valid, but snapshot deletion interrupted after one member is removed; resume rejects the partial snapshot and recommends itself again | Behavior child [#734](https://github.com/stef-k/Wayfarer/issues/734); preserve original canonical state for administrator reconciliation until fixed |
+| Canonical setup receipt valid, but snapshot deletion interrupted after one member is removed | [#734](https://github.com/stef-k/Wayfarer/issues/734) adds atomic authoritative-snapshot → private-reclamation handoff and focused interrupted-cleanup recovery. Partial authoritative snapshots from the old deletion order still require reconciliation; they are never reclassified as private residue |
 | Genuine delegated root:1654 0640 capture reservation rejected by update's root:root 0600 validator before any process call | Behavior child [#735](https://github.com/stef-k/Wayfarer/issues/735); update resume/abort cannot reconcile that residue yet |
 | Terminal receipt published before its derived exclusion marker is removed; host completion succeeds while worker validation refuses capture | Behavior child [#736](https://github.com/stef-k/Wayfarer/issues/736); exact terminal-marker reconciliation is still required. Restore reproduced; matching update write order inspected |
-| Setup progress replacement and completion creation omit parent-directory flush before dependent mutation/success | Behavior child [#737](https://github.com/stef-k/Wayfarer/issues/737); source-proven missing durability step, without actual power-loss reproduction |
+| Setup progress replacement and completion creation omitted parent-directory flush before dependent mutation/success | [#737](https://github.com/stef-k/Wayfarer/issues/737) adds both parent flushes and preserves failed-operation guidance. Source/normal-process evidence, without actual hardware power-loss reproduction |
 
 #733 remains open for child disposition and independent exact-head review. #603
 closure must use this authority inventory with the linked operator procedures and

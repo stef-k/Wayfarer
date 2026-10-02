@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text.Json;
+using WayfarerRecovery;
 
 namespace WayfarerCtl;
 
@@ -33,7 +34,7 @@ public sealed class SetupProgress
         return progress;
     }
 
-    /// <summary>Flush a new protected receipt before atomic replacement; never truncate the previous checkpoint.</summary>
+    /// <summary>Flush the protected replacement and its parent before dependent mutation; never truncate the previous checkpoint.</summary>
     public void Save(string root)
     {
         var path = Path.Combine(root, "setup-progress.json");
@@ -43,10 +44,15 @@ public sealed class SetupProgress
         {
             ProtectedFiles.Create(temporary, JsonSerializer.Serialize(this));
             File.Move(temporary, path, overwrite: true);
+            using var directory = new SafeDirectory(root);
+            directory.Flush();
         }
-        finally
+        catch
         {
-            if (File.Exists(temporary)) File.Delete(temporary);
+            // Cleanup owns only this temporary name and must preserve the primary checkpoint failure.
+            try { if (File.Exists(temporary)) File.Delete(temporary); }
+            catch { }
+            throw;
         }
     }
 

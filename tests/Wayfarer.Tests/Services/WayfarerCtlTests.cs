@@ -317,6 +317,20 @@ public sealed class WayfarerCtlTests
         Assert.Equal(3, restored.Completed);
     }
 
+    /// <summary>A failed checkpoint, including parent durability failure, must stop before dependent administrator mutation.</summary>
+    [Fact]
+    public async Task CheckpointFailurePreventsAdminBootstrap()
+    {
+        var progress = new SetupProgress { Completed = 2 };
+        var process = new FakeProcess();
+        var failure = new IOException("Directory durability failed.");
+        Assert.Same(failure, await Assert.ThrowsAsync<IOException>(() => new Setup(process, new FakeTerminal())
+            .ExecuteAsync("/etc/wayfarer", Config(), "protected", default, progress, () => throw failure)));
+        Assert.True(progress.AdminStarted);
+        Assert.DoesNotContain(process.Calls, call => Join(call).Contains("admin bootstrap") ||
+            Join(call).Contains("up -d --wait --wait-timeout 180 wayfarer"));
+    }
+
     /// <summary>Lost/failed admin results cannot implicitly reset or retry credentials.</summary>
     [Fact]
     public async Task UncertainAdminRequiresExplicitRetryWhenLookupCannotConfirm()

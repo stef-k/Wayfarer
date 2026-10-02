@@ -8,6 +8,7 @@
 
 ### Fixed
 
+- Atomically hand verified setup publication to private reclamation so interrupted duplicate cleanup resumes original canonical inputs. Flush setup checkpoint and completion directory entries before dependent mutation or success, preserving failures and uncertain state (#734, #737).
 - Make public `wayfarerctl setup` show plain-language stages and safe failure guidance. Retry only temporary release discovery/download and exact container pulls within a bounded budget; distinguish plain setup recovery before installation from protected `setup --resume` afterward. Public acceptance retains sanitized operator errors and both architecture outcomes (#730).
 - Prepare complete protected setup inputs before publishing installation files, so interrupted publication resumes with the original credentials and receipt. Unreceipted or changed protected state receives explicit reconciliation guidance instead of a failing resume loop (#730).
 
