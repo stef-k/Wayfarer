@@ -55,6 +55,17 @@ public static class ProtectedFiles
             throw new UsageException("Protected file ownership, type or mode is unsafe.");
     }
 
+    /// <summary>Only the generated root:1654/0640 delegation in a root:root/0755 control parent is worker-readable authority.</summary>
+    public static void CheckRecoveryReservation(string path)
+    {
+        SafePath(path);
+        var parent = Inspect(Path.GetDirectoryName(path)!);
+        var file = Inspect(path);
+        if (parent.Mode != (0x4000 | 0x1ED) || parent.User != 0 || parent.Group != 0 ||
+            file.Mode != (0x8000 | 0x1A0) || file.User != 0 || file.Group != 1654 || file.Links != 1)
+            throw new UsageException("Recovery reservation ownership, type or mode is unsafe.");
+    }
+
     /// <summary>Create without replacement; start private, optionally granting a separate read-only consumer group.</summary>
     public static void Create(string path, string content, uint owner = 0, uint? readerGroup = null)
     {

@@ -435,7 +435,12 @@ recovery rather than being declared cancelled. Inspect the named owned container
 Docker daemon first; never delete `recovery.lock` to clear a busy operation.
 Recovery retains whichever exact old/next installation pointer was committed; it
 does not automatically switch policy or roll back. Prepared worker files have no
-independent authority. See the
+independent authority. After a completed restore or resolved update, the same
+`wayfarerctl backup configure --recover` command also clears exact stale worker
+exclusion markers when protected receipts and completion evidence agree. Missing,
+unresolved, foreign or contradictory evidence remains blocking; preserve it for
+administrator reconciliation. Recovery retains accepted/aborted history and does
+not repeat the restore/update to clear a marker. See the
 [backup transition diagram](25-Container-Release-Contract.md#backup-configuration-commit-and-recovery).
 
 For an administrator-mounted filesystem, use `--kind mounted` and a dedicated
@@ -708,10 +713,13 @@ state; exit 2 indicates usage/configuration/authorization mismatch, and exit 0 r
 accepted restore. Old DB/app-data/cache, failed candidate residue, frozen bytes and
 held emergency archives are not automatically deleted. Later cleanup and recovery
 that discards candidate writes require a separate explicit administrative decision.
-If an accepted/aborted receipt remains alongside worker exclusion that never clears,
-preserve both and obtain administrator reconciliation. The terminal-marker recovery
-gap is tracked in [#736](https://github.com/stef-k/Wayfarer/issues/736); ordinary resume
-of a resolved operation does not clear that residue.
+If an accepted/aborted receipt remains alongside stale worker exclusion, run
+`wayfarerctl backup configure --recover`. It requires the exact operation marker
+and the completion relationship appropriate to that terminal receipt before
+removal. Accepted restore still requires its own completion UUID; abort cannot
+claim that acceptance. Missing, foreign or contradictory evidence remains blocking
+and untouched. Preserve such evidence for administrator reconciliation; never
+manually delete markers. Ordinary resume keeps its resolved-operation semantics.
 
 ## Disposable restore evidence
 
@@ -852,12 +860,16 @@ fenced. Offline and private postflight precede ingress, endpoint checks, schedul
 resumption, restart-policy restoration and durable acceptance. `status` and `doctor`
 report unresolved update intent even during an installation-pointer transition.
 Ordinary mutating commands refuse unresolved intent.
-An interrupted delegated capture can currently fail resume/abort because its genuine
-worker-readable reservation is rejected by update recovery; tracked in
-[#735](https://github.com/stef-k/Wayfarer/issues/735). Preserve the reservation and
-held evidence for administrator reconciliation; do not change its permissions or
-remove it to force continuation. Terminal exclusion residue is separately tracked in
-[#736](https://github.com/stef-k/Wayfarer/issues/736).
+For an interrupted delegated capture, use the owning update's resume or pre-migration
+abort. Recovery accepts only the generated root:1654 mode-0640 reservation with exact
+capture/hold facts and reconciles the named helper's Compose/image/token ownership
+before clearing the reservation under recovery exclusion. Unknown Docker state or
+unsafe/foreign authority remains blocking; retain the reservation and held evidence
+until it can be reconciled. Do not change permissions or remove it to force continuation.
+After resolution, use `wayfarerctl backup configure --recover` for an exact stale
+worker exclusion marker. Forward acceptance requires the operation's completed
+plan hash; resolution by restore requires the exact accepted restore ownership
+join and completion UUID. Recovery preserves `RestoreAccepted` and retained history.
 
 Abort is permitted only before migration may have started and after old authority
 and delegated recovery are reconciled. It retains held evidence and leaves services
