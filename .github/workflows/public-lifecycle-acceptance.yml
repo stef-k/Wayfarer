@@ -18,7 +18,6 @@ jobs:
     timeout-minutes: 45
     env:
       MvcFrontendKitEnabled: 'false'
-      DOCKER_CONFIG: ${{ runner.temp }}/public-lifecycle-docker
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -33,6 +32,7 @@ jobs:
       - name: Qualify one continuous actual public stable lineage
         env:
           TARGET_TAG: ${{ inputs.target }}
+          DOCKER_CONFIG: ${{ runner.temp }}/public-lifecycle-docker
         run: |
           install -d -m 700 "$DOCKER_CONFIG"
           python3 -B tools/compose/qualify_public_lifecycle.py --target "$TARGET_TAG" \
