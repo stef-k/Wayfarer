@@ -423,6 +423,25 @@ they cannot establish final #748 acceptance before a later stable is published. 
 #748 open after the implementation PR until the real run and independent evidence
 review succeed. Candidate recovery/update matrices remain separate and unchanged.
 
+### Managed ingress evidence
+
+The [full AMD64 Compose qualifier](28-Production-Compose.md#managed-acme-and-timeline-ingress-749)
+adds #749's separate C04/C09 observations on one disposable installation: automatic
+ACME acquisition with validated HTTPS, account/certificate/named-volume persistence
+across Caddy-only replacement, and bounded automatic renewal on the same account.
+One synthetic User's two bearer check-ins persist through managed HTTPS and drive
+the mounted public Timeline embed's real SSE/data refreshes, with automatic EventSource
+reconnect between them and a Wayfarer tile-route observation. The managed site block
+and application/protocol behavior are unchanged; only fixture authority, timing and
+network plumbing are overridden. The qualifier uses bundled Node/Chromium and adds
+no production host dependency.
+
+This local-test-CA **COMPOSE** proof passed on 2026-10-03. It is separate from the
+already-passing genuine v1.9.21 AMD64/ARM64 **PUBLIC** bootstrap setup acceptance,
+public DNS/CA reachability and #748's pending supported later-stable lifecycle run.
+The operator still requires normal certificate validation for each managed public
+setup; fixture success does not waive installation DNS, firewall or HTTPS checks.
+
 ## Compose recovery sets
 
 Explicit opt-in on a **completed** installation assigns an absent installation UUID

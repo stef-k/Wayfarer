@@ -277,9 +277,11 @@ in ordinary lifecycle commands. Managed restore stages fresh generations; automa
 
 CI reuses the application-image dry-run and runs `tools/compose/qualify.py --image
 <local-app-image-ID> --db-image <local-db-image-ID>`. Its test-only override selects that exact local build, an isolated
-project, high loopback TLS port and Caddy internal CA. Test configurations disable
-CA trust-store installation; curl trusts only the explicitly supplied temporary CA file. Production pins and automatic
-public HTTPS remain unchanged. It validates both config modes, malformed inputs,
+project and high loopback TLS port. Full AMD64 qualification uses a fixture ACME
+authority; native-only/ARM64 and the external-proxy fixture retain their internal CA.
+Test configurations disable CA trust-store installation; curl trusts only the
+explicitly supplied temporary root. Production pins and the managed site block
+remain unchanged. It validates both config modes, malformed inputs,
 fresh non-superuser migration/seed/bootstrap, health, real page/static/KML/SSE/PDF/
 thumbnail paths, network/mount boundaries, DB/key/upload/TLS state after recreation,
 logical dump/restore, authenticated-cookie survival, public client-IP spoof resistance
@@ -289,7 +291,8 @@ CI builds the DB from its pinned upstream base/packages and checks actual DB ver
 Caddy is pulled by its production digest. Registry acceptance of the derived DB remains separate.
 Existing image/browser/release and ordinary application CI remain separate gates.
 This is disposable integration evidence, not public-CA issuance, production host,
-M6 cutover, arbitrary external-proxy, mobile/embed or full #603 acceptance.
+M6 cutover, arbitrary external-proxy, physical mobile devices or full #603 acceptance.
+The bounded AMD64 API/embed/live joins are described below.
 
 Local qualification on 2026-09-25 used Docker29.1.3/Compose2.40.3 on Linux/WSL.
 The maintained Debian/PGDG DB passed explicit non-superuser EF/Quartz migration, repeated
@@ -307,6 +310,43 @@ The existing five container configuration tests and 43 release tooling tests pas
 in the original qualification; the DB correction reran the complete Compose gate
 and focused config rejection checks. Exact-head CI repeats the image build and
 Compose integration; see the PR checks for the final source revision's result.
+
+### Managed ACME and Timeline ingress (#749)
+
+Local full AMD64 qualification passed on 2026-10-03 against application source
+`89b86ed568756214a2d41628210112710d5be856`, which includes the independently merged
+#755 Timeline statistics fix. The qualifier/probe head was
+`c0b72b7e01d7f4c82d67786c1e3b75daa042e57f`, using local application image
+`sha256:872704c8b00e62c45d7ccbd177ea08bf824d9f8a725d9fbdd6375bf76f3e2949`.
+The shipped Caddy 2.11.4 image obtained `wayfarer.example.org` through its automatic
+ACME client using the same pinned image's local fixture ACME server. Only the test
+ACME authority/root, renewal timing and network/port plumbing differ from production.
+The client uses neither `tls internal` nor a manually loaded leaf. Curl/Python validate
+HTTPS live/ready and the SAN against only that fixture root.
+
+| Observation | Retained result |
+| --- | --- |
+| Initial issued leaf | Serial `169721145E9A0628526A9CF8ACDC4074`; expires `2026-10-03 18:28:13 UTC` |
+| Caddy-only replacement | Same account/certificate file hashes, served leaf and `caddy-data`/`caddy-config` identities; app/DB containers unchanged |
+| Automatic renewal within 360 seconds | Serial `CE8E32C186C5F54B404FD7E3D542BCB5`; expires `2026-10-03 18:32:45 UTC`; new persisted/served leaf with unchanged account and volumes |
+| Bearer check-ins through managed TLS | HTTP 200; distinct Location IDs 1 and 2 persisted for the same synthetic token owner |
+| Mounted Timeline embed | Actual cross-origin `/Public/Users/Timeline/compose-admin/embed`, visible Leaflet and canonical full-view link |
+| Product tile route | `/Public/tiles/3/4/4.png` observed through ingress, HTTP 200; upstream availability/retry matrices remain lower-seam tests |
+| Production EventSource | Two connections on the same mounted iframe; both real check-in messages joined to subsequent Timeline refreshes, the second after replacement/reconnect |
+
+The same full run also passed existing rendering, upload, forwarding/exposure,
+DB/key/upload/cookie/TLS persistence, logical restore and external host-native proxy
+checks. Output records bounded hashes, serials, fingerprints, volume identities,
+statuses and joins without token/password/cookie/private-key bytes. The random
+labelled installation and secrets were removed after qualification.
+
+This is **COMPOSE** evidence for Caddy's actual ACME automation against a local test
+CA. Genuine v1.9.21 AMD64/ARM64 public setup acceptance already passed separately;
+see [public distribution acceptance](27-Application-Image-Publication.md#stable-compose-distribution).
+Public DNS/CA reachability and production-host acceptance are not inferred. The
+full browser/ACME journey is AMD64-only; final supported continuous lifecycle closure
+still requires [#748](https://github.com/stef-k/Wayfarer/issues/748)'s future later-stable
+run. Historical qualification and release-source records retain their original context.
 
 ## Derived DB publication and recovery
 

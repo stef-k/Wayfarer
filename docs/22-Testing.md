@@ -505,3 +505,37 @@ root Dockerfile locally under a test-only tag before this disposable qualificati
 No stable image publication, public-host acceptance or mobile/device qualification
 is implied. Native ARM64 sandbox prerequisites are tracked separately in
 [#681](https://github.com/stef-k/Wayfarer/issues/681).
+
+### Managed ACME and Timeline ingress
+
+The full AMD64 `tools/compose/qualify.py` journey also covers
+[#749](https://github.com/stef-k/Wayfarer/issues/749). The production-pinned Caddy
+image supplies a fixture ACME server; the managed client retains the shipped site
+and reverse-proxy block. Only its ACME directory/trusted root, maintenance timing
+and fixture networking change. The client uses automatic ACME issuance, with a
+ten-minute fixture leaf lifetime, two-second maintenance interval and 0.5 renewal
+window ratio. Certificate-validated live/ready and hostname SAN checks accompany
+storage hashes and served-leaf serial/fingerprint observations. Caddy-only replacement
+must preserve account, certificate and named volumes; subsequent automatic renewal
+must change the leaf and expiry on the same account within 360 seconds.
+
+One synthetic active public-Timeline User owns a random hashed API token. Two real
+bearer `POST /api/location/check-in` requests traverse managed HTTPS and persist for
+that owner. The application's bundled Node/Chromium mounts the real Timeline embed
+in a script-free cross-origin parent, verifies visible Leaflet and its canonical
+full-view link, and observes the product tile route. The same iframe receives the
+first SSE-triggered Timeline data refresh, automatically reconnects after the same
+Caddy replacement, and receives the second update. The probe grants the established
+fixture-only local-network permission and checks attachment of Leaflet's zero-size
+tile pane. It observes EventSource requests before check-in because this public stream
+flushes response headers with its first message; each update still requires the
+successful SSE response, actual message and subsequent data refresh.
+
+Focused fail-closed orchestration/projection tests run with
+`python3 -B -m unittest discover -s tools/compose/tests -v`. Evidence contains only
+bounded identities, hashes, statuses and joins, with no bearer, password, cookie or
+private-key bytes. This is **COMPOSE** evidence against a local ACME CA, separate from
+v1.9.21's successful **PUBLIC** AMD64/ARM64 setup acceptance and
+[#748](https://github.com/stef-k/Wayfarer/issues/748)'s pending later-stable lifecycle
+witness. It proves no public DNS/CA reachability, physical device or full ARM64 ingress
+journey. See the [retained local observations](28-Production-Compose.md#managed-acme-and-timeline-ingress-749).
