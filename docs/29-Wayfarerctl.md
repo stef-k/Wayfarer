@@ -395,6 +395,34 @@ It removes only its random labelled resources. Test-only TLS never changes produ
 Caddy automatic HTTPS. This is not public-CA issuance, production/native qualification,
 backup/restore/update acceptance or completion of #603.
 
+### Continuous public stable evidence
+
+[`qualify_public_lifecycle.py`](../tools/compose/qualify_public_lifecycle.py) reuses the
+existing root-host, fixture-TLS, routed Identity and synthetic provider/token seams
+for one AMD64 lineage. Its
+[read-only post-publication workflow](27-Application-Image-Publication.md#post-publication-continuous-lifecycle)
+starts from the actual public v1.9.21 lean bootstrap and explicit
+`setup --version 1.9.21`. That fixed bootstrap plans/accepts the later public stable
+through `dispatch update`, then proves `dispatch version` selects the active target's
+retained operator. Public release/bundle/source compatibility remains product-owned.
+
+Selection uses the UUID returned by the explicit quiesced capture, never newest-file
+ordering. Retention preserves that archive across the separate update-owned held
+capture. The selected pair must remain byte-identical before a new clean project
+restores it with retained v1.9.21 authority. The released restore's explicit-choice
+seam is followed by `release adopt` to attach that same exact release; it does not
+change versions or reconstruct setup receipts. The clean target itself verifies
+DB, Uploads, the complete ring, protected credential, pre-capture Identity token and
+original HTTPS login, then performs `user find`, protected-stdin reset and new login.
+
+The sanitized ledger records non-secret identities/hashes and required observations;
+bounded command logs retain command names and exit codes without raw output or secret
+input. This is public stable lifecycle evidence with fixture-controlled HTTPS, not
+managed ACME/ingress qualification. Offline orchestration/evidence tests run in PR CI;
+they cannot establish final #748 acceptance before a later stable is published. Keep
+#748 open after the implementation PR until the real run and independent evidence
+review succeed. Candidate recovery/update matrices remain separate and unchanged.
+
 ## Compose recovery sets
 
 Explicit opt-in on a **completed** installation assigns an absent installation UUID

@@ -209,3 +209,51 @@ remain immutable. Its original early ARM64 preparation failure cannot be diagnos
 retrospectively from the retained generic error; public API/CDN propagation remains
 an unproven hypothesis. Controlled candidate failure injection proves the diagnostic
 contract, not genuine public installation acceptance.
+
+## Post-publication continuous lifecycle
+
+[`public-lifecycle-acceptance.yml`](../.github/workflows/public-lifecycle-acceptance.yml)
+owns [#748](https://github.com/stef-k/Wayfarer/issues/748)'s single continuous
+Linux AMD64 witness after a later supported stable exists. It is a separate
+`workflow_dispatch` job with `contents: read`, no registry/release write permissions,
+and one maintainer input: the already published target stable tag. For example:
+
+```sh
+gh workflow run public-lifecycle-acceptance.yml --ref main -f target=vX.Y.Z
+```
+
+The runner hard-binds source to public v1.9.21. Both releases must be non-draft,
+non-prerelease stables with complete AMD64 assets/digests. Bootstrap bytes are
+downloaded anonymously with `gh` and verified before execution. Exact source setup
+and target update acquire public bundles through the product's anonymous transport;
+Docker pulls use an empty client configuration. Target planning must authorize the
+installed v1.9.21 fingerprint through the real public manifest's exact `Sources` entry.
+No candidate bundle, local operator, fixture migration or publication retry enters
+this witness. A zero EF delta is recorded explicitly; the separate candidate update
+qualifier retains nonzero-migration/failure coverage.
+
+The same source installation carries representative DB/Uploads/ring/provider/token
+and routed Identity state into one explicitly selected, verified quiesced archive,
+then a real public forward update. That archive and sidecar must remain byte-identical.
+Its exact bytes then reconstruct a distinct clean project using the retained public
+v1.9.21 bundle/operator and independently generated `release target` evidence. The
+released clean-restore seam uses explicit trusted choices followed by supported
+metadata-only `release adopt`; no setup receipt is fabricated. The destination verifies
+the original facts and authentication before headless lookup, protected-stdin password
+reset and HTTPS login with the new password.
+
+The `public-lifecycle-amd64-RUN-ATTEMPT` artifact contains only `lifecycle.json` and
+bounded `commands.jsonl` command/result records. The ledger joins release IDs/tags/asset
+digests, installed authorities, the selected archive, update/restore plans and Accepted
+receipts, storage generations and required functional observations. Whole-ring hashes
+are retained without keys; raw product JSON, stdout/stderr, passwords, cookies, token
+bytes and provider plaintext are excluded. Failed/missing observations emit no PASS
+ledger. Preserve the successful artifact beyond Actions retention and independently
+review its exact source/target/lineage before closing #748.
+
+HTTPS here is the existing fixture-controlled external TLS/public-origin route.
+Managed Caddy ACME and Mobile/embed/SSE ingress remain #749's evidence scope. Existing
+ARM64 public/setup/bounded recovery proof is the companion platform evidence; this
+complete journey is not duplicated on ARM64. Normal PR CI proves the harness only.
+At implementation time v1.9.21 is the latest published stable, so the final public
+lifecycle run remains pending. This workflow never prepares or publishes its target.
