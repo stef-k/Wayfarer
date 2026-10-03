@@ -108,8 +108,9 @@ class PublicJourney(Journey):
 
     def ring_hashes(self, ring):
         """Hash every complete ring file without reading key material into evidence."""
+        ring_path = '/var/lib/wayfarer/' + evidence.checked(ring, r'[A-Za-z0-9_-]+(/[A-Za-z0-9_-]+)*')
         lines = self.compose('exec', '-T', 'wayfarer', 'sh', '-ec',
-                             r'find "$1" -type f -exec sha256sum {} \; | sort', 'ring', ring).splitlines()
+                             r'find "$1" -type f -exec sha256sum {} +', 'ring', ring_path).splitlines()
         hashes = {}
         for line in lines:
             sha, path = line.split(maxsplit=1)
@@ -117,7 +118,7 @@ class PublicJourney(Journey):
             evidence.require(name not in hashes)
             hashes[name] = evidence.checked(sha, evidence.HASH)
         evidence.require(bool(hashes))
-        return hashes
+        return dict(sorted(hashes.items()))
 
     def observe(self, ring, expected_ring):
         """Run the representative functional and HTTPS observations on the currently selected destination."""
@@ -211,6 +212,7 @@ class PublicJourney(Journey):
         evidence.require(self.host('test', '-e', str(self.install), check=False).returncode == 1)
         evidence.require(not self.host('docker', 'volume', 'ls', '-q', '--filter',
                                        'label=com.docker.compose.project=' + self.project).stdout.strip())
+        self.host('mkdir', '-m', '700', str(self.install))
         # v1.9.21 clean restore consumes explicit trusted choices; adoption is its existing metadata-only bridge.
         imported = json.loads(self.ctl('release', 'import', str(source_bundle)).stdout)
         evidence.require(imported['Fingerprint'] == source['release']['fingerprint'])

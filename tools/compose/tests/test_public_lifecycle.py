@@ -8,9 +8,11 @@ import json
 from pathlib import Path
 import sys
 import unittest
+from unittest.mock import Mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import public_lifecycle_evidence as evidence
+from qualify_public_lifecycle import PublicJourney
 
 INSTALLATION = '11111111-1111-4111-8111-111111111111'
 ARCHIVE = '22222222-2222-4222-8222-222222222222'
@@ -64,6 +66,17 @@ def capture():
 
 class PublicLifecycleTests(unittest.TestCase):
     """Only public-authority and continuity boundaries need deterministic negative cases here."""
+    def test_complete_ring_uses_product_relative_path(self):
+        """Recovery inspection returns data-root-relative paths; whole-ring proof resolves that authority."""
+        journey = PublicJourney.__new__(PublicJourney)
+        filename = f'key-{INSTALLATION}.xml'
+        journey.compose = Mock(return_value='a' * 64 + '  /var/lib/wayfarer/data-protection/' + filename)
+        self.assertEqual(journey.ring_hashes('data-protection'), {filename: 'a' * 64})
+        self.assertEqual(journey.compose.call_args.args[-1], '/var/lib/wayfarer/data-protection')
+        journey.compose.return_value = ''
+        with self.assertRaises(ValueError):
+            journey.ring_hashes('data-protection')
+
     def test_target_must_be_later_exact_stable(self):
         """The expected patch is accepted without hard-coding it as the only future target."""
         self.assertEqual(evidence.target_version('v1.9.22'), '1.9.22')
