@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 
 let phase = 'startup'; // Retain only the bounded phase name on failure, never raw browser diagnostics.
 let statisticsError = false; // A production page exception is a counterexample, not acceptable qualification debt.
+let transport; // Bounded counters diagnose missing qualification joins without retaining payloads.
 
 /** Project only non-secret joins and reject partial, unrelated or pre-replacement observations. */
 export const validateObservation = (facts, origin, username) => {
@@ -57,13 +58,20 @@ const probe = async () => {
         const connections = [];
         const refreshes = [];
         let tile;
+        transport = () => ({ connections: connections.length, validated: connections.filter(value => value.validated).length,
+            refreshes: refreshes.length, tile: !!tile });
+        page.on('request', request => {
+            if (request.url() === streamUrl && request.resourceType() === 'eventsource') {
+                connections.push({ request, validated: false, id: null, events: new Set() });
+            }
+        });
         page.on('response', async response => {
             const url = new URL(response.url());
             if (url.origin !== origin) return;
             if (response.url() === streamUrl && response.status() === 200) {
                 assert.equal(response.request().resourceType(), 'eventsource');
                 assert.match(response.headers()['content-type'], /^text\/event-stream/);
-                connections.push({ id: null, events: new Set() });
+                connections.find(value => value.request === response.request()).validated = true;
             }
             if (/^\/Public\/tiles\/\d+\/\d+\/\d+\.png$/.test(url.pathname)) {
                 tile ??= { path: url.pathname, status: response.status() };
@@ -109,12 +117,13 @@ const probe = async () => {
                 await new Promise(resolve => setTimeout(resolve, 50));
             }
         };
-        await waitFor(() => connections.length === 1 && refreshes.length && tile, 'Initial SSE/map transport missing');
+        // This public stream flushes headers with its first message; awaiting its response before check-in deadlocks.
+        await waitFor(() => connections.length === 1 && refreshes.length && tile, 'Initial SSE request/map transport missing');
         const observe = async (action, connection) => {
             phase = action;
             const start = refreshes.length;
             const { locationId } = await exchange(action);
-            await waitFor(() => connections[connection - 1].events.has(locationId) &&
+            await waitFor(() => connections[connection - 1].validated && connections[connection - 1].events.has(locationId) &&
                 refreshes.slice(start).some(value => value.connection === connection && value.ids.includes(locationId)),
                 'Bearer SSE message and resulting Timeline refresh missing');
             return { connection, locationId, sse: true, refresh: true };
@@ -138,7 +147,7 @@ if (resolve(process.argv[1] ?? '') === fileURLToPath(import.meta.url)) {
     // A hung fixture must fail closed without raw browser logs, cookies or network payloads.
     const deadline = setTimeout(() => process.exit(1), 120000);
     probe().catch(error => {
-        process.stdout.write(JSON.stringify({ action: 'failed', phase, statisticsError,
+        process.stdout.write(JSON.stringify({ action: 'failed', phase, statisticsError, transport: transport?.(),
             reason: error.message.split('\n')[0].slice(0, 180) }) + '\n');
         process.exitCode = 1;
     }).finally(() => clearTimeout(deadline));
