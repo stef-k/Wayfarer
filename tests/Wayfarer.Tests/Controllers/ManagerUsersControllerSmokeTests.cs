@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Wayfarer.Areas.Manager.Controllers;
 using Wayfarer.Models;
+using Wayfarer.Models.ViewModels;
 using Wayfarer.Tests.Infrastructure;
 using Wayfarer.Util;
 using Xunit;
@@ -15,6 +16,34 @@ namespace Wayfarer.Tests.Controllers;
 /// </summary>
 public class ManagerUsersControllerSmokeTests : TestBase
 {
+    /// <summary>An Identity policy rejection must not remove the existing password or change its security stamp.</summary>
+    [Fact]
+    public async Task ChangePassword_IdentityRejectionDoesNotRemoveCredential()
+    {
+        var user = TestDataFixtures.CreateUser(id: "target", username: "alice");
+        var manager = MockUserManager(user);
+        var rejected = IdentityResult.Failed(new IdentityErrorDescriber().PasswordTooShort(15));
+        manager.Setup(m => m.IsInRoleAsync(user, "User")).ReturnsAsync(true);
+        manager.Setup(m => m.RemovePasswordAsync(user)).ReturnsAsync(IdentityResult.Success);
+        manager.Setup(m => m.AddPasswordAsync(user, "Admin2!")).ReturnsAsync(rejected);
+        manager.Setup(m => m.GeneratePasswordResetTokenAsync(user)).ReturnsAsync("fixture-reset-token");
+        manager.Setup(m => m.ResetPasswordAsync(user, "fixture-reset-token", "Admin2!")).ReturnsAsync(rejected);
+        var controller = BuildController(CreateDbContext(), manager.Object);
+        var model = new ChangePasswordViewModel
+        {
+            UserId = user.Id, NewPassword = "Admin2!", ConfirmPassword = "Admin2!"
+        };
+
+        var view = Assert.IsType<ViewResult>(await controller.ChangePassword(model));
+
+        Assert.Same(model, view.Model);
+        Assert.False(controller.ModelState.IsValid);
+        manager.Verify(m => m.RemovePasswordAsync(It.IsAny<ApplicationUser>()), Times.Never);
+        manager.Verify(m => m.AddPasswordAsync(It.IsAny<ApplicationUser>(), It.IsAny<string>()), Times.Never);
+        manager.Verify(m => m.ResetPasswordAsync(user, "fixture-reset-token", "Admin2!"), Times.Once);
+        manager.Verify(m => m.UpdateSecurityStampAsync(It.IsAny<ApplicationUser>()), Times.Never);
+    }
+
     [Fact]
     public async Task Index_ReturnsView()
     {
@@ -26,12 +55,13 @@ public class ManagerUsersControllerSmokeTests : TestBase
         Assert.IsType<ViewResult>(result);
     }
 
-    private UsersController BuildController(ApplicationDbContext db)
+    /// <summary>Builds the production controller with a supplied Identity boundary or the default smoke fixture.</summary>
+    private UsersController BuildController(ApplicationDbContext db, UserManager<ApplicationUser>? suppliedManager = null)
     {
-        var userManager = MockUserManager(TestDataFixtures.CreateUser(id: "mgr", username: "mgr"));
-        var apiTokenService = new ApiTokenService(db, userManager.Object);
+        var userManager = suppliedManager ?? MockUserManager(TestDataFixtures.CreateUser(id: "mgr", username: "mgr")).Object;
+        var apiTokenService = new ApiTokenService(db, userManager);
         var controller = new UsersController(
-            userManager.Object,
+            userManager,
             MockRoleManager().Object,
             NullLogger<UsersController>.Instance,
             db,

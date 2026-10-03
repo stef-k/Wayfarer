@@ -169,6 +169,7 @@ public class ManagerUsersControllerTests : TestBase
         Assert.IsType<ForbidResult>(result);
     }
 
+    /// <summary>Authorized changes use Identity's validated reset operation for a User-role account.</summary>
     [Fact]
     public async Task ChangePassword_ForUserRole_UpdatesPassword()
     {
@@ -180,17 +181,16 @@ public class ManagerUsersControllerTests : TestBase
         var userManager = MockUserManager(user);
         userManager.Setup(m => m.FindByIdAsync(user.Id)).ReturnsAsync(user);
         userManager.Setup(m => m.IsInRoleAsync(user, "User")).ReturnsAsync(true);
-        userManager.Setup(m => m.RemovePasswordAsync(user)).ReturnsAsync(IdentityResult.Success);
-        userManager.Setup(m => m.AddPasswordAsync(user, It.IsAny<string>())).ReturnsAsync(IdentityResult.Success);
-        userManager.Setup(m => m.UpdateSecurityStampAsync(user)).ReturnsAsync(IdentityResult.Success);
+        userManager.Setup(m => m.GeneratePasswordResetTokenAsync(user)).ReturnsAsync("fixture-reset-token");
+        userManager.Setup(m => m.ResetPasswordAsync(user, "fixture-reset-token", It.IsAny<string>())).ReturnsAsync(IdentityResult.Success);
         var controller = BuildController(db, userManager.Object);
 
         var result = await controller.ChangePassword(new ChangePasswordViewModel
         {
             UserId = user.Id,
             UserName = user.UserName,
-            NewPassword = "New1!",
-            ConfirmPassword = "New1!"
+            NewPassword = "Strong-NewPassword7!",
+            ConfirmPassword = "Strong-NewPassword7!"
         });
 
         var redirect = Assert.IsType<RedirectToActionResult>(result);
@@ -467,7 +467,7 @@ public class ManagerUsersControllerTests : TestBase
         });
 
         Assert.IsType<ForbidResult>(result);
-        userManager.Verify(m => m.RemovePasswordAsync(It.IsAny<ApplicationUser>()), Times.Never);
+        userManager.Verify(m => m.ResetPasswordAsync(It.IsAny<ApplicationUser>(), It.IsAny<string>(), It.IsAny<string>()), Times.Never);
     }
 
     [Fact]
