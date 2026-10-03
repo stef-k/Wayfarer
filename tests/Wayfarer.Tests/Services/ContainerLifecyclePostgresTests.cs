@@ -39,17 +39,54 @@ public sealed class ContainerLifecyclePostgresTests : IClassFixture<PostgresMigr
             Assert.NotEqual(0, (await RunAsync(root, null)).Code);
             Assert.False(await db.Users.AnyAsync());
             Assert.False(await ReadyAsync());
+            foreach (var weak in new[] { "Admin2!", "Admin1!" })
+            {
+                var rejected = await RunAsync(root, weak, "admin", "bootstrap", "operator", "--stdin");
+                Assert.Equal(1, rejected.Code);
+                Assert.DoesNotContain(weak, rejected.Output);
+                Assert.False(await db.Users.AnyAsync());
+                Assert.False(await db.UserRoles.AnyAsync());
+            }
             var password = "Protected-" + Guid.NewGuid().ToString("N") + "!7";
             var bootstrap = await RunAsync(root, password, "admin", "bootstrap", "operator", "--stdin");
             Assert.Equal(0, bootstrap.Code);
             Assert.DoesNotContain(password, bootstrap.Output);
             Assert.True(await ReadyAsync());
+            var original = await db.Users.AsNoTracking().SingleAsync();
+            var hasher = new PasswordHasher<ApplicationUser>();
+            foreach (var weak in new[] { "Admin2!", "Admin1!" })
+            {
+                var rejected = await RunAsync(root, weak, "admin", "reset", "operator", "--stdin");
+                Assert.Equal(1, rejected.Code);
+                Assert.DoesNotContain(weak, rejected.Output);
+                var unchanged = await db.Users.AsNoTracking().SingleAsync();
+                Assert.Equal(original.PasswordHash, unchanged.PasswordHash);
+                Assert.Equal(original.SecurityStamp, unchanged.SecurityStamp);
+                Assert.Equal(original.ConcurrencyStamp, unchanged.ConcurrencyStamp);
+                Assert.NotEqual(PasswordVerificationResult.Failed,
+                    hasher.VerifyHashedPassword(unchanged, unchanged.PasswordHash!, password));
+            }
+            // The deprecated argv command retains its transport but cannot bypass the policy.
+            var deprecated = await RunAsync(root, null, "reset-password", "operator", "Admin2!");
+            Assert.Contains("Failed to reset password", deprecated.Output);
+            Assert.DoesNotContain("Admin2!", deprecated.Output);
+            var afterDeprecated = await db.Users.AsNoTracking().SingleAsync();
+            Assert.Equal(original.PasswordHash, afterDeprecated.PasswordHash);
+            Assert.Equal(original.SecurityStamp, afterDeprecated.SecurityStamp);
+            Assert.Equal(original.ConcurrencyStamp, afterDeprecated.ConcurrencyStamp);
             var legacyAdmin = await db.Users.SingleAsync();
-            legacyAdmin.PasswordHash = new PasswordHasher<ApplicationUser>().HashPassword(legacyAdmin, "Admin1!");
+            legacyAdmin.PasswordHash = hasher.HashPassword(legacyAdmin, "Admin1!");
             await db.SaveChangesAsync();
             Assert.False(await ReadyAsync());
             Assert.Equal(1, (await RunAsync(root, "Admin1!", "admin", "reset", "operator", "--stdin")).Code);
-            Assert.Equal(0, (await RunAsync(root, password + "new", "admin", "reset", "operator", "--stdin")).Code);
+            var reset = await RunAsync(root, password + "new", "admin", "reset", "operator", "--stdin");
+            Assert.Equal(0, reset.Code);
+            Assert.DoesNotContain(password, reset.Output);
+            var updated = await db.Users.AsNoTracking().SingleAsync();
+            Assert.NotEqual(PasswordVerificationResult.Failed,
+                hasher.VerifyHashedPassword(updated, updated.PasswordHash!, password + "new"));
+            Assert.NotEqual(original.SecurityStamp, updated.SecurityStamp);
+            Assert.True(await ReadyAsync());
             var lookup = await RunAsync(root, null, "user", "find", "operator");
             Assert.Equal(0, lookup.Code);
             Assert.Contains("operator", lookup.Output);
@@ -86,6 +123,8 @@ public sealed class ContainerLifecyclePostgresTests : IClassFixture<PostgresMigr
         };
         start.ArgumentList.Add(assembly);
         foreach (var arg in args) start.ArgumentList.Add(arg);
+        if (password is not null)
+            Assert.All(start.ArgumentList, arg => Assert.DoesNotContain(password, arg));
         start.Environment["ConnectionStrings__DefaultConnection"] = fixture.ConnectionString;
         start.Environment["DataProtection__KeyRingPath"] = Path.Combine(root, "keys");
         start.Environment["DOTNET_ENVIRONMENT"] = "Production";

@@ -1,5 +1,7 @@
 using System.Net;
+using System.Reflection;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.RazorPages.Infrastructure;
@@ -19,6 +21,24 @@ namespace Wayfarer.Tests.Controllers;
 /// <summary>Real compiled page ownership and HTTP admission, antiforgery and flow contracts.</summary>
 public sealed class IdentityAttemptRouteTests : TestBase
 {
+    /// <summary>Production mutations require the shared policy; Development retains its legacy seed policy.</summary>
+    [Theory]
+    [InlineData("Production", 15)]
+    [InlineData("Development", 6)]
+    public void WebIdentity_ConfiguresPasswordPolicyForEnvironment(string environment, int minimumLength)
+    {
+        var builder = WebApplication.CreateBuilder(new WebApplicationOptions { EnvironmentName = environment });
+        typeof(ApplicationUser).Assembly.GetType("Program")!.GetMethods(BindingFlags.NonPublic | BindingFlags.Static)
+            .Single(method => method.Name.Contains("g__ConfigureIdentity|")).Invoke(null, [builder]);
+        using var services = builder.Services.BuildServiceProvider();
+        var password = services.GetRequiredService<IOptions<IdentityOptions>>().Value.Password;
+        Assert.Equal(minimumLength, password.RequiredLength);
+        Assert.True(password.RequireUppercase);
+        Assert.True(password.RequireLowercase);
+        Assert.True(password.RequireDigit);
+        Assert.True(password.RequireNonAlphanumeric);
+    }
+
     [Fact]
     public async Task CompiledPages_PreserveOwnershipAuthorizationAndLockout()
     {
