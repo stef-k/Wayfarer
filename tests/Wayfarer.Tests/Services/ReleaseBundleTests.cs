@@ -385,7 +385,7 @@ public sealed class ReleaseBundleTests : IDisposable
         Save(manifest with { Version = version, Platform = NativePlatform.Current,
             Images = manifest.Images with { OciVersion = version },
             Application = manifest.Application with { CompiledVersion = version },
-            Operator = manifest.Operator with { Version = version, MinimumVersion = version } });
+            Operator = manifest.Operator with { Version = version, MinimumVersion = version, UpdateReceiptSchemas = [1] } });
         return ReleaseStore.Import(root, directory);
     }
 
