@@ -36,7 +36,10 @@ class Journey:
         self.bundle = self.directory / 'bundle'
         self.install = self.directory / 'installation'
         self.project = 'wayfarer-648-' + uuid.uuid4().hex[:10]
-        self.executable = Path(executable).resolve()
+        # Own the operator copy so prepare() establishes native executable authority without changing build outputs.
+        self.executable = self.directory / 'wayfarerctl'
+        shutil.copy2(Path(executable).resolve(), self.executable)
+        self.executable.chmod(0o555)
         self.digest = digest
         self.password = secrets.token_hex(32) + '!aA9'
         self.proxy = self.project + '-proxy'
