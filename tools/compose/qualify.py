@@ -308,6 +308,7 @@ class Stack:
                 reply = {}
                 if action in ('first', 'second'):
                     reply = self.check_in(token, 1 if action == 'first' else 2)
+                    result[action] = reply
                 elif action == 'replace':
                     client, peers = self.container('caddy'), [self.container(service) for service in ('db', 'wayfarer')]
                     self.compose('up', '-d', '--no-deps', '--force-recreate', '--wait', '--wait-timeout', '60', '--timeout', '5', 'caddy')

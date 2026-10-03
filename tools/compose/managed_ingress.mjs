@@ -46,7 +46,7 @@ const probe = async () => {
     // Match the established cross-origin embed Chromium convention for the mounted observation.
     const browser = await chromium.launch();
     try {
-        const page = await browser.newPage({ ignoreHTTPSErrors: true });
+        const page = await browser.newPage({ ignoreHTTPSErrors: true, permissions: ['local-network-access'] });
         page.on('pageerror', error => {
             if (error.message === 'Username is required') statisticsError = true;
         });
@@ -80,7 +80,9 @@ const probe = async () => {
         await page.goto('https://embed-host.example.test/');
         phase = 'mounted-map';
         const frame = page.frameLocator('iframe');
-        await frame.locator('#mapContainer.leaflet-container .leaflet-tile-pane').waitFor();
+        // Leaflet's tile pane is an attached, zero-size positioning owner; the map itself must be visible.
+        await frame.locator('#mapContainer.leaflet-container').waitFor();
+        await frame.locator('#mapContainer .leaflet-tile-pane').waitFor({ state: 'attached' });
         const escape = frame.getByRole('link', { name: 'Open full view', exact: true });
         await escape.waitFor();
         assert.equal(await escape.getAttribute('href'), canonical);
