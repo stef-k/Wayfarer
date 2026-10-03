@@ -398,6 +398,7 @@ foreign or contradictory state requires administrator reconciliation, not deleti
 | Destination archive, `.sha256`, `.restore-hold` and private partials | `RecoveryEngine` | Complete-pair evidence; durable retention hold; preparation | Archive then sidecar last; hold before publication for delegated recovery | Owned partial/orphan members and pending holds | Holds exclude committed pair from retention; invalid pair not selectable | Engine reconciles owned residue under recovery lock; preserve held sets | Hold/sidecar alone authenticates custody or full pair |
 | `restore-plans/<operation>/`; `update-plans/<operation>/` | Preparation owners | Frozen plan/evidence | Plan hash and verified local facts before acceptance | Unaccepted plans/extraction/inspection residue | Stale or changed evidence prevents execution | Accept exact plan or prepare another; preserve unresolved operation inputs | Planning authorizes destructive execution |
 | `recovery-control/restore.json`, `restore-history/` | `RestoreReceipt`; restore executor | Protected restore intent/history | Authorization and contiguous phase commits; resolved history before next restore | Frozen input, candidate attempts, old/new pointer transaction | Unresolved receipt blocks ordinary mutation | `restore --resume UUID`; pre-writer abort where allowed | Candidate files/containers prove activation or acceptance |
+| `installation.json.abort` | `RestoreActivation`; matching pre-writer restore receipt | Non-authoritative staged canonical old pointer | Protected old bytes before atomic replacement and root flush | Exact staged bytes may survive interruption before rename | Foreign/changed/unsafe or unowned residue blocks abort | Retry `restore --abort` with the same UUID; admit only exact root:root 0600 single-link regular bytes within the installation bound | Filename alone authorizes rollback or manual deletion |
 | `recovery-control/update.json`, `update-history/` | `UpdateReceipt`; update executor | Protected forward intent/history | Exact accepted plan; migration cutoff before helper launch | Held archive, helper uncertainty, old/target pointer, joined restore | Unresolved receipt blocks ordinary mutation | Update resume/pre-migration abort; explicit `update --restore UUID` | Old image is rollback; joined restore is forward Accepted |
 | `storage-generations/<generation>/compose.json`; logical volumes | `ActiveStorage`; restore activation | Derived mapping; selected durable data | Overlay prepared before installation pointer selects three roles | Unselected old/failed candidate generations retained | Selected overlay/mount contradiction blocks operation | Exact restore receipt continuation; retain old evidence | Largest/newest volume or directory is active |
 | `update-plans/<operation>/completed` | `UpdateActivation` | Historical postflight evidence | After exposure/scheduler/restart restoration, before Accepted receipt | Marker may precede final acceptance | Does not resolve receipt independently | Resume exact update finalization | Marker alone authorizes ordinary mutation |
@@ -494,6 +495,17 @@ saved before the canonical candidate application can start; failed acknowledgeme
 cannot authorize old-data rollback. Postflight, exposure, scheduler and restart-policy
 restoration precede completion-marker publication and final Accepted. Update-owned
 restore cannot abort into the migrated old generation.
+
+At `ActivationIntent` or `ActivatedStopped`, a matching unresolved, non-update-owned
+pre-writer abort republishes old authority only when the live pointer equals the
+receipt's exact old or new bytes. Canonical old storage may consume an interrupted
+`installation.json.abort` only when it contains the exact receipted old bytes and
+meets the installation pointer's protection and 262144-byte bound. Earlier phases
+and generated old storage reject this fixed residue; generated storage retains its
+existing immutable-overlay commit. Retry also admits an already-published old
+pointer after interruption before the Aborted receipt save. Old service recreation
+must succeed before Aborted is saved; services remain stopped. Preserve foreign,
+changed, linked or otherwise unsafe residue for explicit reconciliation.
 
 The [forward update phase diagram](29-Wayfarerctl.md#trusted-local-managed-forward-update)
 is canonical. `MigrationStarted` precedes maintenance helper launch and is an earlier

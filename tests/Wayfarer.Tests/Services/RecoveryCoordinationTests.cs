@@ -41,6 +41,166 @@ public sealed class RecoveryCoordinationTests : IDisposable
         BackupConfiguration.ProvisionControl(Root, bootstrap: true);
     }
 
+    /// <summary>Actual staged-pointer interruption and later recreation failure both replay under the same unresolved receipt.</summary>
+    [Fact]
+    public async Task CanonicalRestoreAbortReplaysInterruptedPublication()
+    {
+        Assert.Equal(config, Deployment.Load(Root));
+        Assert.True(InstallationCompletion.IsComplete(Root));
+        var receipt = PendingPointerRestore();
+        var pointer = Path.Combine(Root, "installation.json");
+        var staged = pointer + ".abort";
+        var originalReceipt = File.ReadAllBytes(RestoreReceipt.PathFor(Root));
+        var args = new[] { "--abort", receipt.Plan.Operation.ToString("D") };
+        var runner = new AbortRunner();
+        var interrupted = new RestoreCommands(runner, new RecordingTerminal())
+        {
+            AbortPointerStaged = () => throw new IOException("Interrupted before pointer rename.")
+        };
+        Assert.Equal(1, await interrupted.RunAsync(Root, args, default));
+        ProtectedFiles.Check(staged, 0);
+        Assert.Equal(System.Text.Encoding.UTF8.GetBytes(receipt.OldConfiguration!), File.ReadAllBytes(staged));
+        Assert.Equal(receipt.NewConfiguration, File.ReadAllText(pointer));
+        Assert.Equal(originalReceipt, File.ReadAllBytes(RestoreReceipt.PathFor(Root)));
+        Assert.False(RestoreReceipt.Load(Root)!.WritesPossible);
+
+        runner.FailRecreation = true;
+        var retry = new RestoreCommands(runner, new RecordingTerminal());
+        Assert.Equal(1, await retry.RunAsync(Root, args, default));
+        Assert.Equal(receipt.OldConfiguration, File.ReadAllText(pointer));
+        Assert.False(File.Exists(staged));
+        Assert.Equal(originalReceipt, File.ReadAllBytes(RestoreReceipt.PathFor(Root)));
+        runner.FailRecreation = false;
+        Assert.Equal(0, await retry.RunAsync(Root, args, default));
+        Assert.Equal(System.Text.Encoding.UTF8.GetBytes(receipt.OldConfiguration!), File.ReadAllBytes(pointer));
+        Assert.False(File.Exists(staged));
+        var resolved = RestoreReceipt.Load(Root)!;
+        Assert.Equal(RestorePhase.Aborted, resolved.Phase);
+        Assert.False(resolved.WritesPossible);
+        Assert.Equal(receipt.PlanHash, resolved.PlanHash);
+        Assert.All(runner.Calls.Where(call => call.Contains("create")), call =>
+            Assert.Equal(config.Compose(Root, "create", "--force-recreate", "--pull", "never", "db", "wayfarer"), call));
+        Assert.DoesNotContain(runner.Calls, call => call.Contains("up") || call.Contains("start"));
+    }
+
+    /// <summary>Semantically similar JSON still cannot replace exact writer-produced abort bytes.</summary>
+    [Fact]
+    public async Task ChangedRestoreAbortResidueIsRetained()
+    {
+        var receipt = PendingPointerRestore(RestorePhase.ActivatedStopped);
+        var staged = Path.Combine(Root, "installation.json.abort");
+        var foreign = receipt.OldConfiguration + "\n";
+        ProtectedFiles.Create(staged, foreign);
+        Assert.Equal(1, await new RestoreCommands(new AbortRunner(), new RecordingTerminal())
+            .RunAsync(Root, ["--abort", receipt.Plan.Operation.ToString("D")], default));
+        Assert.Equal(foreign, File.ReadAllText(staged));
+        Assert.Equal(receipt.NewConfiguration, File.ReadAllText(Path.Combine(Root, "installation.json")));
+        Assert.Equal(JsonSerializer.Serialize(receipt), File.ReadAllText(RestoreReceipt.PathFor(Root)));
+    }
+
+    /// <summary>A symbolic link cannot grant residue authority even when its target contains the exact old bytes.</summary>
+    [Fact]
+    public async Task LinkedRestoreAbortResidueIsRetained()
+    {
+        var receipt = PendingPointerRestore();
+        var staged = Path.Combine(Root, "installation.json.abort");
+        var evidence = staged + ".evidence";
+        ProtectedFiles.Create(evidence, receipt.OldConfiguration!);
+        File.CreateSymbolicLink(staged, evidence);
+        try
+        {
+            await Assert.ThrowsAsync<UsageException>(() => new RestoreCommands(new AbortRunner(), new RecordingTerminal())
+                .RunAsync(Root, ["--abort", receipt.Plan.Operation.ToString("D")], default));
+            Assert.Equal(evidence, new FileInfo(staged).LinkTarget);
+            Assert.Equal(receipt.OldConfiguration, File.ReadAllText(evidence));
+            Assert.Equal(receipt.NewConfiguration, File.ReadAllText(Path.Combine(Root, "installation.json")));
+            Assert.Equal(JsonSerializer.Serialize(receipt), File.ReadAllText(RestoreReceipt.PathFor(Root)));
+        }
+        finally { File.Delete(staged); }
+    }
+
+    /// <summary>Exact staged bytes cannot authorize overwriting a live installation outside the receipt's old/new transaction.</summary>
+    [Fact]
+    public async Task RestoreAbortRefusesForeignInstallationPointer()
+    {
+        var receipt = PendingPointerRestore();
+        var pointer = Path.Combine(Root, "installation.json");
+        var foreign = JsonSerializer.Serialize(config with { LoopbackPort = 18081 });
+        File.WriteAllText(pointer, foreign);
+        ProtectedFiles.Create(pointer + ".abort", receipt.OldConfiguration!);
+        Assert.Equal(1, await new RestoreCommands(new AbortRunner(), new RecordingTerminal())
+            .RunAsync(Root, ["--abort", receipt.Plan.Operation.ToString("D")], default));
+        Assert.Equal(foreign, File.ReadAllText(pointer));
+        Assert.Equal(receipt.OldConfiguration, File.ReadAllText(pointer + ".abort"));
+        Assert.Equal(JsonSerializer.Serialize(receipt), File.ReadAllText(RestoreReceipt.PathFor(Root)));
+    }
+
+    /// <summary>The fixed pathname is never authority for an earlier phase or a generated old-storage commit.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task UnexpectedRestoreAbortResidueIsRetained(bool generated)
+    {
+        var old = generated ? config with { Schema = 3, StorageGeneration = Guid.NewGuid().ToString("N") } : config;
+        var receipt = PendingPointerRestore(generated ? RestorePhase.ActivationIntent : RestorePhase.CandidateValidated, old);
+        var staged = Path.Combine(Root, "installation.json.abort");
+        ProtectedFiles.Create(staged, receipt.OldConfiguration!);
+        Assert.Equal(1, await new RestoreCommands(new AbortRunner(), new RecordingTerminal())
+            .RunAsync(Root, ["--abort", receipt.Plan.Operation.ToString("D")], default));
+        Assert.Equal(receipt.OldConfiguration, File.ReadAllText(staged));
+        Assert.Equal(receipt.NewConfiguration, File.ReadAllText(Path.Combine(Root, "installation.json")));
+        Assert.Equal(JsonSerializer.Serialize(receipt), File.ReadAllText(RestoreReceipt.PathFor(Root)));
+    }
+
+    /// <summary>Generated old storage retains its immutable-overlay commit owner on either exact transaction side.</summary>
+    [Theory]
+    [InlineData(RestorePhase.ActivationIntent, false)]
+    [InlineData(RestorePhase.ActivatedStopped, true)]
+    public async Task GeneratedRestoreAbortUsesExistingCommit(RestorePhase phase, bool oldSelected)
+    {
+        var old = config with { Schema = 3, StorageGeneration = Guid.NewGuid().ToString("N") };
+        RestoreActivation.Commit(Root, old);
+        var receipt = PendingPointerRestore(phase, old);
+        if (oldSelected) RestoreActivation.Commit(Root, old);
+        var runner = new AbortRunner();
+        var command = new RestoreCommands(runner, new RecordingTerminal())
+            { AbortPointerStaged = () => throw new InvalidOperationException("Canonical abort staging must not run.") };
+        Assert.Equal(0, await command.RunAsync(Root, ["--abort", receipt.Plan.Operation.ToString("D")], default));
+        Assert.Equal(old, Deployment.Load(Root));
+        Assert.Equal(ActiveStorage.Render(old), File.ReadAllText(ActiveStorage.OverlayPath(Root, old)));
+        Assert.Equal(RestorePhase.Aborted, RestoreReceipt.Load(Root)!.Phase);
+        Assert.Single(runner.Calls, call => call.SequenceEqual(old.Compose(Root, "create", "--force-recreate", "--pull", "never", "db", "wayfarer")));
+        Assert.Single(Directory.EnumerateFiles(Root, "installation.json*"));
+    }
+
+    /// <summary>Select a validated candidate while retaining exact old/new pointer bytes in protected pre-writer intent.</summary>
+    private RestoreReceipt PendingPointerRestore(RestorePhase phase = RestorePhase.ActivationIntent, Deployment? previous = null)
+    {
+        var old = previous ?? config;
+        var plan = new RestorePlan(Guid.NewGuid(), Root, old, old.Installation, Guid.NewGuid(),
+            new string('a', 64), DateTimeOffset.UnixEpoch, "quiesced", "bundle", "capture", "restore",
+            old.StorageGeneration, Guid.NewGuid().ToString("N"), false, true, false);
+        var candidate = RestoreCandidate.Configuration(plan);
+        RestoreActivation.Commit(Root, candidate);
+        var receipt = new RestoreReceipt { Plan = plan, PlanHash = plan.Hash(), Phase = phase,
+            OldConfiguration = JsonSerializer.Serialize(old), NewConfiguration = JsonSerializer.Serialize(candidate) };
+        receipt.Save(Root);
+        return receipt;
+    }
+
+    /// <summary>Only Docker preflight and stopped canonical service recreation belong to the focused abort path.</summary>
+    private sealed class AbortRunner : IProcessRunner
+    {
+        public List<string[]> Calls { get; } = [];
+        public bool FailRecreation { get; set; }
+        public Task<ProcessResult> RunAsync(string[] args, string? input, CancellationToken cancellation, Action<string>? lineOutput = null)
+        {
+            Calls.Add(args);
+            var output = args[0] == "info" ? NativePlatform.Current : args is ["compose", "version", "--short"] ? "2.24.4" : "";
+            return Task.FromResult(new ProcessResult(FailRecreation && args.Contains("create") ? 1 : 0, output));
+        }
+    }
+
     /// <summary>A restore committed during Docker preflight must remain selected when backup policy is subsequently disabled.</summary>
     [Fact]
     public async Task OrdinaryBackupConfigurationUsesStorageSelectedAfterPreflight()

@@ -6,6 +6,9 @@ namespace WayfarerCtl;
 /// <summary>Administrator-facing restore coordination; archive integrity never implies authorization.</summary>
 public sealed class RestoreCommands(IProcessRunner runner, ITerminal terminal)
 {
+    /// <summary>Observe the staged old pointer before rename to exercise an interrupted pre-writer abort.</summary>
+    internal Action? AbortPointerStaged { get; init; }
+
     /// <summary>Plan before mutation, acquire locks in host/recovery order, and retain truthful durable failure phase.</summary>
     public async Task<int> RunAsync(string root, string[] args, CancellationToken token)
     {
@@ -323,22 +326,9 @@ public sealed class RestoreCommands(IProcessRunner runner, ITerminal terminal)
         {
             if (receipt.Plan.FromUpdate is not null) throw new UsageException("Update-owned restore cannot abort into mutated old storage; resume restore.");
             if (receipt.WritesPossible) throw new UsageException("Writes may have occurred; explicit recovery is required.");
-            if (receipt.Phase >= RestorePhase.ActivationIntent)
-            {
-                if (receipt.OldConfiguration is null) throw new IOException("Previous authority unavailable.");
-                var old = JsonSerializer.Deserialize<Deployment>(receipt.OldConfiguration)!;
-                if (old.StorageGeneration is null)
-                {
-                    var path = Path.Combine(root, "installation.json.abort");
-                    ProtectedFiles.Create(path, receipt.OldConfiguration);
-                    File.Move(path, Path.Combine(root, "installation.json"), true);
-                    using var directory = new SafeDirectory(root);
-                    directory.Flush();
-                }
-                else RestoreActivation.Commit(root, old);
-                if (!receipt.Plan.NewInstall)
-                    await new RestoreContainers(runner).Required(old.Compose(root, "create", "--force-recreate", "--pull", "never", "db", "wayfarer"), token);
-            }
+            var old = RestoreActivation.Abort(root, receipt, AbortPointerStaged);
+            if (old is not null && !receipt.Plan.NewInstall)
+                await new RestoreContainers(runner).Required(old.Compose(root, "create", "--force-recreate", "--pull", "never", "db", "wayfarer"), token);
             receipt.Advance(RestorePhase.Aborted).Save(root);
             terminal.Write("Restore aborted before writer cutoff. Prior authority retained; services remain stopped.");
             return 0;
