@@ -196,7 +196,7 @@ public sealed class PublicReleaseTests
         using var directory = new DownloadDirectory();
         var releases = Path.Combine(directory.Path, "releases");
         Directory.CreateDirectory(releases);
-        foreach (var stage in new[] { ".acquire-test", ".pull-test", ".stage-test", "v1.9.21" })
+        foreach (var stage in new[] { ".acquire-test", ".pull-test", ".stage-test", "v1.9.20" })
             Directory.CreateDirectory(Path.Combine(releases, stage));
         File.WriteAllText(Path.Combine(releases, ".stage-test.json"), "retained placement receipt");
         File.WriteAllText(Path.Combine(directory.Path, "operation.lock"), "");

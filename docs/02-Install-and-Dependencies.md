@@ -8,11 +8,12 @@ Native/manual and development database requirements are unchanged.
 
 ## Availability
 
-v1.9.20 is the first published stable release with AMD64/ARM64 Compose bootstrap and
-deployment assets. Its immutable installer predates the automatic retry and stage
-diagnostics described below; those improvements require a later stable patch release.
-Public acceptance of the corrected installer remains pending on both architectures.
-Source-only v1.9.19 and earlier are not Compose installation sources. Maintainers start at
+**v1.9.21 is the first supported Compose lifecycle/update baseline** for the
+AMD64/ARM64 bootstrap and deployment assets. v1.9.20 remains an immutable transitional
+publication, not a supported installation/update source. Source-only/native v1.9.19
+and earlier are separate; maintainer native/systemd v1.9.19 migrates directly to the
+supported Compose baseline through [#604](https://github.com/stef-k/Wayfarer/issues/604),
+not `wayfarerctl update`. Maintainers start at
 [Versioning and Release Operations](23-Versioning.md#public-acceptance-and-availability).
 
 ## Guided production installation
@@ -68,11 +69,15 @@ updates. See [operations and recovery](29-Wayfarerctl.md) and the
 
 ## Exact versions and explicit local bundles
 
-To install one exact public stable release through the same acquisition path:
+To install one exact public stable release >=1.9.21 through the same acquisition path:
 
 ```sh
 sudo ./wayfarerctl setup --version X.Y.Z
 ```
+
+Future operator builds refuse lower exact public selectors. The immutable v1.9.21
+operator may still technically accept 1.9.20; select only supported releases. Its
+historical metadata is retained as described in the [support decision](23-Versioning.md#public-acceptance-and-availability).
 
 For controlled staging, offline installation, recovery or troubleshooting, use a
 trusted, complete canonical local bundle instead:
@@ -141,7 +146,7 @@ and consumer-specific secret files; changing them is not database password rotat
 Use the [operator guide](29-Wayfarerctl.md) for status/doctor, lifecycle, protected user
 recovery, opt-in recovery sets and managed restore/update. `update --plan` can acquire
 the latest stable target, but execution still requires the explicit plan hash. The
-first Compose stable is a fresh-install baseline, not an upgrade from source-only
+first supported Compose stable is v1.9.21, not an upgrade from source-only
 history. Retain DB data and the complete application volume, including uploads and
 Data Protection keys, together; caches are rebuildable and not recovery substitutes.
 

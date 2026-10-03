@@ -20,6 +20,12 @@ Swarm, Kubernetes, HA and shared/network database volumes are outside initial su
 No host .NET, Node, Python, PostgreSQL, Nginx or Certbot is required by the bundle.
 Native/manual deployment remains available through [Deployment](20-Deployment.md).
 
+The first supported Compose lifecycle/update baseline is v1.9.21. v1.9.20 remains
+an immutable transitional publication. This application support floor is independent
+of operator protocol and historical recovery compatibility; see the
+[support decision and historical metadata boundary](23-Versioning.md#public-acceptance-and-availability).
+Native/systemd v1.9.19 follows #604's explicit migration rather than Compose update.
+
 Raspberry Pi 5 with 64-bit Ubuntu Server is an example generic ARM64 host.
 The operator, host, local daemon and bundle must agree on platform; cross-architecture
 setup/update/restore fail closed. Native/systemd ARM browser qualification stays in #681.

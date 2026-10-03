@@ -167,14 +167,20 @@ a publisher. Automatic acquisition requires GitHub REST's exact lowercase
 The project/tag/name/status are fixed. The download URL is constructed from validated
 identity; only GitHub's fixed HTTPS release-asset CDN may receive its redirect.
 
-A release with no earlier deployable public bundle is a baseline with `Sources=[]`. Source-only
-v1.9.19 and earlier releases remain untouched. Later publication locates the highest
-earlier stable that advertises the deployment asset, validates its public digest,
+Corrected tooling treats v1.9.21 as the supported baseline with no required predecessor.
+Later publication requires the highest earlier stable >=v1.9.21 that advertises the
+platform deployment asset. If no eligible source exists, publication fails closed;
+it never falls back to v1.9.20 or authors a new `Sources=[]` baseline.
+It validates the source's public digest,
 extracts with the current shipped operator and validates its stable manifest. It binds
 one exact version/fingerprint/terminal migration only after DB/Caddy and topology
 compatibility plus an exact ordered migration prefix and no reference seeding.
 An advertised prior bundle that is invalid or incompatible fails publication; no silent
 source omission or search for a different update target occurs.
+
+Published v1.9.20/v1.9.21 bytes and tags remain immutable, including v1.9.21's historical
+`Sources=[v1.9.20]`. See the [current support floor](23-Versioning.md#public-acceptance-and-availability);
+that historical boundary does not qualify the supported lifecycle required by #748.
 
 The real `public-compose-acceptance` job downloads the public bootstrap tarball on a
 fresh native runner and checks it against the retained publication evidence's verified

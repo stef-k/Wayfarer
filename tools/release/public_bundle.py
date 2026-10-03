@@ -12,6 +12,8 @@ import version
 REPOSITORY = 'stef-k/Wayfarer'
 LIMIT = 512 * 1024 * 1024
 METADATA_LIMIT = 1024 * 1024
+# Application support floor, independent of operator protocols and historical recovery schemas.
+MINIMUM_COMPOSE_VERSION = (1, 9, 21)
 
 
 def asset_name(tag: str) -> str:
@@ -58,8 +60,10 @@ def asset(release: dict, tag: str, name: str | None = None) -> dict:
 
 
 def previous(tag: str) -> str | None:
-    """Locate the highest earlier deployable stable release; invalid advertised assets fail closed."""
+    """Require the highest supported predecessor after the Compose baseline; validation still fails closed."""
     target = version.parse_semver(tag[1:])
+    if target <= MINIMUM_COMPOSE_VERSION:
+        return None
     found = []
     # Bound discovery to 1000 releases. Exhaustion is uncertainty, never evidence of a baseline.
     for page in range(1, 11):
@@ -71,12 +75,15 @@ def previous(tag: str) -> str | None:
             candidate = release.get('tag_name', '')
             if not re.fullmatch(r'v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)', candidate):
                 continue
-            if release.get('draft') or release.get('prerelease') or version.parse_semver(candidate[1:]) >= target:
+            if (release.get('draft') or release.get('prerelease') or
+                    not MINIMUM_COMPOSE_VERSION <= version.parse_semver(candidate[1:]) < target):
                 continue
             if any(item.get('name') == asset_name(candidate) for item in release['assets']):
                 found.append(candidate)
         if len(releases) < 100:
-            return max(found, key=lambda value: version.parse_semver(value[1:])) if found else None
+            if not found:
+                raise version.ValidationError('no supported Compose predecessor at or above v1.9.21')
+            return max(found, key=lambda value: version.parse_semver(value[1:]))
     raise version.ValidationError('release discovery bound exhausted')
 
 

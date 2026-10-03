@@ -5,6 +5,14 @@ records stable status. Checksums prove integrity, not publisher authenticity. Ob
 these bytes from a trusted administrator/maintainer or the exact public stable Release.
 The target host needs native Linux AMD64 or ARM64, Docker/Compose and root, not an SDK.
 
+The first supported Compose lifecycle/update baseline is v1.9.21. v1.9.20 is an
+immutable transitional publication, not a supported installation/update source.
+Future operators refuse exact public acquisition below v1.9.21; `latest` is unchanged.
+Already-published v1.9.21 operator bytes may still accept 1.9.20, and its manifest
+historically names v1.9.20 in `Sources`; neither is rewritten. Operator/recovery
+protocol floors are independent. Native/systemd v1.9.19 uses #604's explicit migration
+directly to the supported Compose baseline, not `wayfarerctl update`.
+
 When consulting repository documentation on GitHub, select the exact `SourceRevision`
 recorded in this bundle's `release.json`, or its matching stable `Tag`. Repository
 file references below refer to that source revision, keeping the guidance aligned

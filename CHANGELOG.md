@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## [Unreleased]
+
+### Fixed
+
+- Establish v1.9.21 as the first supported Compose lifecycle/update baseline. Future stable publication requires a deployable compatible predecessor >=v1.9.21 for later targets and fails closed when none exists; future operators refuse exact public acquisition below that floor while preserving `latest`. Keep immutable v1.9.20/v1.9.21 artifacts, operator/recovery protocols and #604's explicit native v1.9.19 migration unchanged. Final #748 qualification must exercise v1.9.21 → a later supported stable with actual released operators and bundles (#744).
+
 ## [1.9.21] - 2026-10-02
 
 ### Changed

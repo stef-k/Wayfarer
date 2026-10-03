@@ -938,7 +938,15 @@ wayfarerctl update --accept-plan <printed-sha256>
 ```
 
 `release acquire` downloads one exact public stable Wayfarer deployment asset. Discovery
-is only GitHub's project release-by-tag/latest endpoint. Strict metadata requires exact
+is only GitHub's project release-by-tag/latest endpoint. The first supported Compose
+lifecycle/update baseline is v1.9.21. Future operators reject exact public selectors
+below it through the shared acquisition owner, including `setup --version`,
+`release acquire` and public update planning; `latest` still resolves normally.
+The immutable published v1.9.21 operator may still accept an explicit 1.9.20 request,
+and its historical source metadata is retained. Use only supported releases; see the
+[support and native migration boundaries](23-Versioning.md#public-acceptance-and-availability).
+Operator protocol/historical recovery floors are separate authorities.
+Strict metadata requires exact
 tag/name/project, non-draft/non-prerelease status, one uploaded versioned asset,
 bounded nonzero size and GitHub REST's SHA-256 asset digest. No token, cookies,
 installation metadata or arbitrary URL/repository/channel is accepted. The checksum
