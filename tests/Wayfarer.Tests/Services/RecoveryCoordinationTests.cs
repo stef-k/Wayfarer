@@ -41,6 +41,76 @@ public sealed class RecoveryCoordinationTests : IDisposable
         BackupConfiguration.ProvisionControl(Root, bootstrap: true);
     }
 
+    /// <summary>Actual staged-pointer interruption and later recreation failure both replay under the same unresolved receipt.</summary>
+    [Fact]
+    public async Task CanonicalRestoreAbortReplaysInterruptedPublication()
+    {
+        Assert.Equal(config, Deployment.Load(Root));
+        Assert.True(InstallationCompletion.IsComplete(Root));
+        var receipt = PendingPointerRestore();
+        var pointer = Path.Combine(Root, "installation.json");
+        var staged = pointer + ".abort";
+        var originalReceipt = File.ReadAllBytes(RestoreReceipt.PathFor(Root));
+        var args = new[] { "--abort", receipt.Plan.Operation.ToString("D") };
+        var runner = new AbortRunner();
+        var interrupted = new RestoreCommands(runner, new RecordingTerminal())
+        {
+            AbortPointerStaged = () => throw new IOException("Interrupted before pointer rename.")
+        };
+        Assert.Equal(1, await interrupted.RunAsync(Root, args, default));
+        ProtectedFiles.Check(staged, 0);
+        Assert.Equal(System.Text.Encoding.UTF8.GetBytes(receipt.OldConfiguration!), File.ReadAllBytes(staged));
+        Assert.Equal(receipt.NewConfiguration, File.ReadAllText(pointer));
+        Assert.Equal(originalReceipt, File.ReadAllBytes(RestoreReceipt.PathFor(Root)));
+        Assert.False(RestoreReceipt.Load(Root)!.WritesPossible);
+
+        runner.FailRecreation = true;
+        var retry = new RestoreCommands(runner, new RecordingTerminal());
+        Assert.Equal(1, await retry.RunAsync(Root, args, default));
+        Assert.Equal(receipt.OldConfiguration, File.ReadAllText(pointer));
+        Assert.False(File.Exists(staged));
+        Assert.Equal(originalReceipt, File.ReadAllBytes(RestoreReceipt.PathFor(Root)));
+        runner.FailRecreation = false;
+        Assert.Equal(0, await retry.RunAsync(Root, args, default));
+        Assert.Equal(System.Text.Encoding.UTF8.GetBytes(receipt.OldConfiguration!), File.ReadAllBytes(pointer));
+        Assert.False(File.Exists(staged));
+        var resolved = RestoreReceipt.Load(Root)!;
+        Assert.Equal(RestorePhase.Aborted, resolved.Phase);
+        Assert.False(resolved.WritesPossible);
+        Assert.Equal(receipt.PlanHash, resolved.PlanHash);
+        Assert.All(runner.Calls.Where(call => call.Contains("create")), call =>
+            Assert.Equal(config.Compose(Root, "create", "--force-recreate", "--pull", "never", "db", "wayfarer"), call));
+        Assert.DoesNotContain(runner.Calls, call => call.Contains("up") || call.Contains("start"));
+    }
+
+    /// <summary>Select a validated candidate while retaining exact old/new pointer bytes in protected pre-writer intent.</summary>
+    private RestoreReceipt PendingPointerRestore(RestorePhase phase = RestorePhase.ActivationIntent, Deployment? previous = null)
+    {
+        var old = previous ?? config;
+        var plan = new RestorePlan(Guid.NewGuid(), Root, old, old.Installation, Guid.NewGuid(),
+            new string('a', 64), DateTimeOffset.UnixEpoch, "quiesced", "bundle", "capture", "restore",
+            old.StorageGeneration, Guid.NewGuid().ToString("N"), false, true, false);
+        var candidate = RestoreCandidate.Configuration(plan);
+        RestoreActivation.Commit(Root, candidate);
+        var receipt = new RestoreReceipt { Plan = plan, PlanHash = plan.Hash(), Phase = phase,
+            OldConfiguration = JsonSerializer.Serialize(old), NewConfiguration = JsonSerializer.Serialize(candidate) };
+        receipt.Save(Root);
+        return receipt;
+    }
+
+    /// <summary>Only Docker preflight and stopped canonical service recreation belong to the focused abort path.</summary>
+    private sealed class AbortRunner : IProcessRunner
+    {
+        public List<string[]> Calls { get; } = [];
+        public bool FailRecreation { get; set; }
+        public Task<ProcessResult> RunAsync(string[] args, string? input, CancellationToken cancellation, Action<string>? lineOutput = null)
+        {
+            Calls.Add(args);
+            var output = args[0] == "info" ? NativePlatform.Current : args is ["compose", "version", "--short"] ? "2.24.4" : "";
+            return Task.FromResult(new ProcessResult(FailRecreation && args.Contains("create") ? 1 : 0, output));
+        }
+    }
+
     /// <summary>A restore committed during Docker preflight must remain selected when backup policy is subsequently disabled.</summary>
     [Fact]
     public async Task OrdinaryBackupConfigurationUsesStorageSelectedAfterPreflight()

@@ -6,6 +6,9 @@ namespace WayfarerCtl;
 /// <summary>Administrator-facing restore coordination; archive integrity never implies authorization.</summary>
 public sealed class RestoreCommands(IProcessRunner runner, ITerminal terminal)
 {
+    /// <summary>Observe the staged old pointer before rename to exercise an interrupted pre-writer abort.</summary>
+    internal Action? AbortPointerStaged { get; init; }
+
     /// <summary>Plan before mutation, acquire locks in host/recovery order, and retain truthful durable failure phase.</summary>
     public async Task<int> RunAsync(string root, string[] args, CancellationToken token)
     {
@@ -331,6 +334,7 @@ public sealed class RestoreCommands(IProcessRunner runner, ITerminal terminal)
                 {
                     var path = Path.Combine(root, "installation.json.abort");
                     ProtectedFiles.Create(path, receipt.OldConfiguration);
+                    AbortPointerStaged?.Invoke();
                     File.Move(path, Path.Combine(root, "installation.json"), true);
                     using var directory = new SafeDirectory(root);
                     directory.Flush();
