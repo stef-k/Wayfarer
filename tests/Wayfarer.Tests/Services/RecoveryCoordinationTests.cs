@@ -79,7 +79,7 @@ public sealed class RecoveryCoordinationTests : IDisposable
         Assert.Equal(current.Release, selected.Release);
         Assert.False(selected.Backup!.Enabled);
         Assert.Equal(current.Backup.Retention, selected.Backup.Retention);
-        Assert.Equal(current, JsonSerializer.Deserialize<Deployment>(File.ReadAllText(Path.Combine(Root, "backup-previous.json"))));
+        Assert.Equal(JsonSerializer.Serialize(current), File.ReadAllText(Path.Combine(Root, "backup-previous.json")));
         BackupCompose.Check(Root, selected);
         Assert.All(runner.Calls.Where(args => args.Contains("--project-name")), args =>
             Assert.Contains(ActiveStorage.OverlayPath(Root, current), args));
@@ -116,7 +116,7 @@ public sealed class RecoveryCoordinationTests : IDisposable
         Assert.Equal(target.Fingerprint, ReleaseDispatch.Select(Root, resume: false).Fingerprint);
         // Recovery still selects and verifies the original owner after active release selection changes.
         var restore = TerminalRestore(accepted: false);
-        var plan = restore.Plan with { OperatorOwner = previous.Release };
+        var plan = restore.Plan with { Target = previous, OperatorOwner = previous.Release };
         (restore with { Plan = plan, PlanHash = plan.Hash() }).Save(Root);
         Assert.Equal(source.Fingerprint, ReleaseDispatch.Select(Root, resume: true).Fingerprint);
         ReleaseDispatch.RequireOwner(Root, plan);
