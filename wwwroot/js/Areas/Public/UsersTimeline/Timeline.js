@@ -94,7 +94,7 @@ document.addEventListener('DOMContentLoaded', () => {
 const handleStream = (event) => {
     if (timelineLive) {
         getUserLocations();
-        getUserStats();
+        getUserStats(username);
     }
 };
 
