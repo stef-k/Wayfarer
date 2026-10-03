@@ -713,6 +713,16 @@ state; exit 2 indicates usage/configuration/authorization mismatch, and exit 0 r
 accepted restore. Old DB/app-data/cache, failed candidate residue, frozen bytes and
 held emergency archives are not automatically deleted. Later cleanup and recovery
 that discards candidate writes require a separate explicit administrative decision.
+
+Retry an interrupted pre-writer `restore --abort` with the same operation UUID.
+At `ActivationIntent` or `ActivatedStopped`, the live installation pointer must
+match the receipt's exact old or new configuration. For canonical old storage,
+the retry reconciles exact protected writer-produced `installation.json.abort`
+residue, including interruption before rename; an already-published old pointer
+can also finish the same abort. Foreign, changed, linked or unsafe residue remains
+blocking evidence: do not manually remove it to force continuation. Generated old
+storage uses its existing commit path and refuses this fixed canonical residue.
+
 If an accepted/aborted receipt remains alongside stale worker exclusion, run
 `wayfarerctl backup configure --recover`. It requires the exact operation marker
 and the completion relationship appropriate to that terminal receipt before

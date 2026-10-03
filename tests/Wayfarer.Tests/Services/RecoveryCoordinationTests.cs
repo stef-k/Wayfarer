@@ -83,6 +83,96 @@ public sealed class RecoveryCoordinationTests : IDisposable
         Assert.DoesNotContain(runner.Calls, call => call.Contains("up") || call.Contains("start"));
     }
 
+    /// <summary>Semantically similar JSON still cannot replace exact writer-produced abort bytes.</summary>
+    [Fact]
+    public async Task ChangedRestoreAbortResidueIsRetained()
+    {
+        var receipt = PendingPointerRestore(RestorePhase.ActivatedStopped);
+        var staged = Path.Combine(Root, "installation.json.abort");
+        var foreign = receipt.OldConfiguration + "\n";
+        ProtectedFiles.Create(staged, foreign);
+        Assert.Equal(1, await new RestoreCommands(new AbortRunner(), new RecordingTerminal())
+            .RunAsync(Root, ["--abort", receipt.Plan.Operation.ToString("D")], default));
+        Assert.Equal(foreign, File.ReadAllText(staged));
+        Assert.Equal(receipt.NewConfiguration, File.ReadAllText(Path.Combine(Root, "installation.json")));
+        Assert.Equal(JsonSerializer.Serialize(receipt), File.ReadAllText(RestoreReceipt.PathFor(Root)));
+    }
+
+    /// <summary>A symbolic link cannot grant residue authority even when its target contains the exact old bytes.</summary>
+    [Fact]
+    public async Task LinkedRestoreAbortResidueIsRetained()
+    {
+        var receipt = PendingPointerRestore();
+        var staged = Path.Combine(Root, "installation.json.abort");
+        var evidence = staged + ".evidence";
+        ProtectedFiles.Create(evidence, receipt.OldConfiguration!);
+        File.CreateSymbolicLink(staged, evidence);
+        try
+        {
+            await Assert.ThrowsAsync<UsageException>(() => new RestoreCommands(new AbortRunner(), new RecordingTerminal())
+                .RunAsync(Root, ["--abort", receipt.Plan.Operation.ToString("D")], default));
+            Assert.Equal(evidence, new FileInfo(staged).LinkTarget);
+            Assert.Equal(receipt.OldConfiguration, File.ReadAllText(evidence));
+            Assert.Equal(receipt.NewConfiguration, File.ReadAllText(Path.Combine(Root, "installation.json")));
+            Assert.Equal(JsonSerializer.Serialize(receipt), File.ReadAllText(RestoreReceipt.PathFor(Root)));
+        }
+        finally { File.Delete(staged); }
+    }
+
+    /// <summary>Exact staged bytes cannot authorize overwriting a live installation outside the receipt's old/new transaction.</summary>
+    [Fact]
+    public async Task RestoreAbortRefusesForeignInstallationPointer()
+    {
+        var receipt = PendingPointerRestore();
+        var pointer = Path.Combine(Root, "installation.json");
+        var foreign = JsonSerializer.Serialize(config with { LoopbackPort = 18081 });
+        File.WriteAllText(pointer, foreign);
+        ProtectedFiles.Create(pointer + ".abort", receipt.OldConfiguration!);
+        Assert.Equal(1, await new RestoreCommands(new AbortRunner(), new RecordingTerminal())
+            .RunAsync(Root, ["--abort", receipt.Plan.Operation.ToString("D")], default));
+        Assert.Equal(foreign, File.ReadAllText(pointer));
+        Assert.Equal(receipt.OldConfiguration, File.ReadAllText(pointer + ".abort"));
+        Assert.Equal(JsonSerializer.Serialize(receipt), File.ReadAllText(RestoreReceipt.PathFor(Root)));
+    }
+
+    /// <summary>The fixed pathname is never authority for an earlier phase or a generated old-storage commit.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task UnexpectedRestoreAbortResidueIsRetained(bool generated)
+    {
+        var old = generated ? config with { Schema = 3, StorageGeneration = Guid.NewGuid().ToString("N") } : config;
+        var receipt = PendingPointerRestore(generated ? RestorePhase.ActivationIntent : RestorePhase.CandidateValidated, old);
+        var staged = Path.Combine(Root, "installation.json.abort");
+        ProtectedFiles.Create(staged, receipt.OldConfiguration!);
+        Assert.Equal(1, await new RestoreCommands(new AbortRunner(), new RecordingTerminal())
+            .RunAsync(Root, ["--abort", receipt.Plan.Operation.ToString("D")], default));
+        Assert.Equal(receipt.OldConfiguration, File.ReadAllText(staged));
+        Assert.Equal(receipt.NewConfiguration, File.ReadAllText(Path.Combine(Root, "installation.json")));
+        Assert.Equal(JsonSerializer.Serialize(receipt), File.ReadAllText(RestoreReceipt.PathFor(Root)));
+    }
+
+    /// <summary>Generated old storage retains its immutable-overlay commit owner on either exact transaction side.</summary>
+    [Theory]
+    [InlineData(RestorePhase.ActivationIntent, false)]
+    [InlineData(RestorePhase.ActivatedStopped, true)]
+    public async Task GeneratedRestoreAbortUsesExistingCommit(RestorePhase phase, bool oldSelected)
+    {
+        var old = config with { Schema = 3, StorageGeneration = Guid.NewGuid().ToString("N") };
+        RestoreActivation.Commit(Root, old);
+        var receipt = PendingPointerRestore(phase, old);
+        if (oldSelected) RestoreActivation.Commit(Root, old);
+        var runner = new AbortRunner();
+        var command = new RestoreCommands(runner, new RecordingTerminal())
+            { AbortPointerStaged = () => throw new InvalidOperationException("Canonical abort staging must not run.") };
+        Assert.Equal(0, await command.RunAsync(Root, ["--abort", receipt.Plan.Operation.ToString("D")], default));
+        Assert.Equal(old, Deployment.Load(Root));
+        Assert.Equal(ActiveStorage.Render(old), File.ReadAllText(ActiveStorage.OverlayPath(Root, old)));
+        Assert.Equal(RestorePhase.Aborted, RestoreReceipt.Load(Root)!.Phase);
+        Assert.Single(runner.Calls, call => call.SequenceEqual(old.Compose(Root, "create", "--force-recreate", "--pull", "never", "db", "wayfarer")));
+        Assert.Single(Directory.EnumerateFiles(Root, "installation.json*"));
+    }
+
     /// <summary>Select a validated candidate while retaining exact old/new pointer bytes in protected pre-writer intent.</summary>
     private RestoreReceipt PendingPointerRestore(RestorePhase phase = RestorePhase.ActivationIntent, Deployment? previous = null)
     {

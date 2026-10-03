@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using WayfarerRecovery;
 
@@ -24,6 +25,56 @@ public sealed class RestoreActivation(IProcessRunner runner)
         File.Move(temporary, Path.Combine(root, "installation.json"), overwrite: true);
         using var parent = new SafeDirectory(root);
         parent.Flush();
+    }
+
+    /// <summary>Republish only receipted pre-writer authority, admitting exact protected canonical abort residue on retry.</summary>
+    internal static Deployment? Abort(string root, RestoreReceipt receipt, Action? staged = null)
+    {
+        var temporary = Path.Combine(root, "installation.json.abort");
+        var present = Path.Exists(temporary) || new FileInfo(temporary).LinkTarget is not null;
+        if (receipt.Phase is not (RestorePhase.ActivationIntent or RestorePhase.ActivatedStopped))
+        {
+            if (present) throw new IOException("Unexpected abort pointer residue outside pre-writer activation.");
+            return null;
+        }
+        if (receipt.OldConfiguration is null) throw new IOException("Previous authority unavailable.");
+        var old = JsonSerializer.Deserialize<Deployment>(receipt.OldConfiguration)
+            ?? throw new IOException("Previous authority unavailable.");
+        old.Validate();
+        var oldBytes = Encoding.UTF8.GetBytes(receipt.OldConfiguration);
+        var pointer = Path.Combine(root, "installation.json");
+        var current = ReadAbortConfiguration(pointer);
+        if (!current.SequenceEqual(oldBytes) && (receipt.NewConfiguration is null ||
+            !current.SequenceEqual(Encoding.UTF8.GetBytes(receipt.NewConfiguration))))
+            throw new IOException("Installation pointer is outside the receipted transaction.");
+        if (old.StorageGeneration is not null)
+        {
+            if (present) throw new IOException("Unexpected canonical abort pointer residue for generated storage.");
+            Commit(root, old);
+        }
+        else
+        {
+            if (present)
+            {
+                if (!ReadAbortConfiguration(temporary).SequenceEqual(oldBytes))
+                    throw new IOException("Abort pointer residue differs from receipted old authority.");
+            }
+            else ProtectedFiles.Create(temporary, receipt.OldConfiguration);
+            staged?.Invoke();
+            File.Move(temporary, pointer, overwrite: true);
+            using var parent = new SafeDirectory(root);
+            parent.Flush();
+        }
+        return old;
+    }
+
+    /// <summary>Apply the installation pointer's root:root/0600, single-link regular-file and byte-bound contract.</summary>
+    private static byte[] ReadAbortConfiguration(string path)
+    {
+        ProtectedFiles.SafePath(path);
+        ProtectedFiles.Check(path, 0);
+        if (new FileInfo(path).Length > 262144) throw new IOException("Installation configuration exceeds its bound.");
+        return File.ReadAllBytes(path);
     }
 
     /// <summary>Recreate canonical services with restart disabled and no public exposure before the writer cutoff.</summary>
