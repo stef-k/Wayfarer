@@ -69,6 +69,7 @@ class ManagedIngressTests(unittest.TestCase):
         secret = 'synthetic-bearer-MUST-NOT-APPEAR'
         stack = Stack('/tmp/unused', 'app', 'db')
         stack.sql = Mock(side_effect=['0', '42', '1'])
+        stack.container = Mock(return_value='fixture-container')
         response = Mock(returncode=0, stdout=json.dumps({'location': {'id': 42}, 'token': secret}))
         stack.curl = Mock(return_value=response)
         with patch('qualify.run', return_value=Mock(stdout='', stderr='')):
