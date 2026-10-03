@@ -12,11 +12,16 @@ public sealed record PublicRelease(string Version, string Tag, string Asset, lon
     public const int MetadataLimit = 1024 * 1024;
     public const string Repository = "https://github.com/stef-k/Wayfarer";
 
-    /// <summary>Only latest or exact stable core versions can select network input.</summary>
+    /// <summary>First supported Compose application release; independent of operator and recovery protocols.</summary>
+    public const string MinimumComposeVersion = "1.9.21";
+
+    /// <summary>Only latest or supported exact stable core versions can select network input.</summary>
     public static void Selector(string value)
     {
         if (value != "latest" && !ReleaseContract.VersionSyntax(value))
             throw new UsageException("Public acquisition requires X.Y.Z or latest.");
+        if (value != "latest" && System.Version.Parse(value) < System.Version.Parse(MinimumComposeVersion))
+            throw new UsageException("Unsupported Compose lifecycle release. The first supported baseline is v" + MinimumComposeVersion + ".");
     }
 
     /// <summary>Require exact project/release/upload identity and the REST asset digest, never metadata URLs.</summary>

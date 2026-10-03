@@ -75,12 +75,36 @@ sequence does not authorize either operation.
 ## Public acceptance and availability
 
 [Install & Self-Hosting](02-Install-and-Dependencies.md#availability) owns current
-user-facing asset availability. Source-only v1.9.19 and earlier are historical releases,
-not Compose update sources. For the first public Compose stable, require successful
-[public distribution acceptance](27-Application-Image-Publication.md#stable-compose-distribution)
-on AMD64 and ARM64 before claiming installation support. A baseline with no update
-sources cannot prove stable-to-stable migration; that requires a subsequent compatible
-public release. Candidate/PR qualification remains separate evidence.
+user-facing asset availability. **v1.9.21 is the first supported Compose/`wayfarerctl`
+lifecycle and update baseline.** v1.9.20 remains an immutable historical/transitional
+public Compose artifact set, not a supported installation or update source.
+
+Corrected release tooling gives v1.9.21 no required supported predecessor. For later
+stable targets it selects the highest earlier deployable stable release >=v1.9.21,
+then applies the existing exact-byte/manifest and compatibility checks. If no eligible
+supported predecessor exists, or its bytes are invalid or authority incompatible,
+publication fails closed. Neither v1.9.20 fallback nor a new empty `Sources` baseline
+is permitted.
+
+Future operator builds refuse exact public acquisition below v1.9.21; `latest` and
+supported exact selectors keep their existing identity/digest/bundle validation.
+Already-published v1.9.21 operator bytes may still accept an explicit v1.9.20 request,
+and its manifest historically records `Sources=[v1.9.20]`. Those immutable bytes,
+metadata and tags are not rewritten by this support decision. The historical release
+source records below retain their original preparation context.
+
+Source-only/native v1.9.19 and earlier are not Compose update sources. Maintainer
+native/systemd v1.9.19 uses [#604's explicit native-to-Compose migration](https://github.com/stef-k/Wayfarer/issues/604)
+directly to the supported baseline, without a transitional v1.9.20 step. Operator
+protocol minimums and historical recovery schema/version floors remain separate
+compatibility authorities; the Compose support floor does not raise them.
+
+Require [public distribution acceptance](27-Application-Image-Publication.md#stable-compose-distribution)
+on AMD64 and ARM64 before claiming installation qualification. Final continuous
+lifecycle qualification [#748](https://github.com/stef-k/Wayfarer/issues/748) must use
+**v1.9.21 → a later supported stable** with the actual released operators and bundles.
+The historical v1.9.20 → v1.9.21 boundary and candidate/PR qualification do not supply
+that supported lifecycle witness.
 
 ## Application version source
 
