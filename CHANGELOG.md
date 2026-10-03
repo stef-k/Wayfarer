@@ -4,6 +4,12 @@
 
 ### Added
 
+- Extend full AMD64 Compose qualification with real automatic ACME issuance against
+  a local test authority, retained Caddy account/certificate/volume state after
+  replacement, bounded renewal, and two managed bearer check-ins joined to a mounted
+  public Timeline embed, Wayfarer tiles and live SSE delivery/reconnect. Document this
+  evidence separately from successful v1.9.21 public setup and #748's pending
+  later-stable continuous lifecycle acceptance (#749).
 - Add a read-only AMD64 post-publication lifecycle qualifier and sanitized evidence
   ledger for public v1.9.21 setup, a later stable update, the same pre-update archive's
   clean restore, and headless account recovery. Final public acceptance remains pending

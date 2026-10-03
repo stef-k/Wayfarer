@@ -203,9 +203,16 @@ retention. A baseline claims no stable-to-stable migration; candidate real-migra
 evidence remains separate until a second compatible genuine public release supplies
 that proof.
 
-Installer retry/diagnostic changes require public acceptance from a later genuine
-stable patch release containing those changes. Already-published v1.9.20 artifacts
-remain immutable. Its original early ARM64 preparation failure cannot be diagnosed
+Corrected installer retry/diagnostic changes passed genuine v1.9.21 public bootstrap
+`setup → doctor → stop` acceptance on AMD64 and ARM64 in
+[run 37010835544](https://github.com/stef-k/Wayfarer/actions/runs/37010835544), source
+`709a39ca7876fb4a08ce3090d79c4410efce09d8`. That released fresh-setup observation used
+external mode. Current-source [full AMD64 managed ingress qualification](28-Production-Compose.md#managed-acme-and-timeline-ingress-749)
+adds local-test-CA ACME issuance, persisted replacement state, bounded renewal and a
+joined bearer/Timeline embed/tile/SSE reconnect journey. These are separate evidence
+boundaries; neither proves third-party public CA/DNS reachability or #748's later-stable
+lifecycle. Already-published v1.9.20 artifacts remain immutable.
+Its original early ARM64 preparation failure cannot be diagnosed
 retrospectively from the retained generic error; public API/CDN propagation remains
 an unproven hypothesis. Controlled candidate failure injection proves the diagnostic
 contract, not genuine public installation acceptance.
@@ -252,7 +259,9 @@ ledger. Preserve the successful artifact beyond Actions retention and independen
 review its exact source/target/lineage before closing #748.
 
 HTTPS here is the existing fixture-controlled external TLS/public-origin route.
-Managed Caddy ACME and Mobile/embed/SSE ingress remain #749's evidence scope. Existing
+Managed Caddy ACME and representative bearer/embed/SSE ingress have separate
+[#749 COMPOSE evidence](28-Production-Compose.md#managed-acme-and-timeline-ingress-749)
+against a local test CA. Existing
 ARM64 public/setup/bounded recovery proof is the companion platform evidence; this
 complete journey is not duplicated on ARM64. Normal PR CI proves the harness only.
 At implementation time v1.9.21 is the latest published stable, so the final public

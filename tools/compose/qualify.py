@@ -1,11 +1,13 @@
 """Disposable integration of the real Compose substrate; requires Docker, Python3 and curl."""
 import argparse
+import hashlib
 import json
 import platform
 from pathlib import Path
 import re
 import secrets
 import socket
+import ssl
 import subprocess
 import tempfile
 import time
@@ -21,13 +23,35 @@ def run(*args, data=None, check=True):
     """Capture diagnostics without echoing protected stdin or secret contents."""
     result = subprocess.run(args, input=data, capture_output=True, text=True)
     if check and result.returncode:
-        raise RuntimeError(f'{args[0]} failed ({result.returncode}): {result.stderr[-3000:]}')
+        detail = '' if data is not None else result.stderr[-3000:]
+        raise RuntimeError(f'{args[0]} failed ({result.returncode}): {detail}')
     return result
+
+
+def managed_config(site):
+    """Override only the ACME authority and maintenance timing, preserving the shipped site verbatim."""
+    return ('{\n skip_install_trust\n acme_ca https://acme.example.org/acme/local/directory\n'
+            ' acme_ca_root /etc/caddy/fixture-root.crt\n renew_interval 2s\n'
+            ' renewal_window_ratio 0.5\n}\n' + site)
+
+
+def assert_tls_transition(before, after, renewal=False):
+    """Fail closed on lost owners/storage or conflated issuance, replacement and renewal."""
+    for key in ('account', 'volumes'):
+        assert before[key] and before[key] == after[key], f'ACME {key} changed'
+    if renewal:
+        assert before['certificate'] != after['certificate'], 'Persisted leaf did not renew'
+        for key in ('fingerprint', 'serial'):
+            assert before['leaf'][key] != after['leaf'][key], f'Served leaf {key} did not renew'
+        assert ssl.cert_time_to_seconds(after['leaf']['notAfter']) > ssl.cert_time_to_seconds(before['leaf']['notAfter'])
+    else:
+        assert before['certificate'] == after['certificate'], 'Issued certificate changed on replacement'
+        assert before['leaf'] == after['leaf'], 'Served leaf changed on replacement'
 
 
 class Stack:
     """Own exactly one random Compose project and its temporary qualification files."""
-    def __init__(self, directory, image, db_image):
+    def __init__(self, directory, image, db_image, acme=False):
         self.directory = Path(directory)
         self.project = 'wayfarer-644-' + uuid.uuid4().hex[:10]
         self.image = image
@@ -37,6 +61,7 @@ class Stack:
         self.password = secrets.token_hex(24) + '!aA9'
         self.mode = 'managed'
         self.port = None
+        self.acme = acme
 
     def compose(self, *args, data=None, check=True):
         """Use production preflight; only tests override image identity and public TLS/ports."""
@@ -65,15 +90,34 @@ class Stack:
         with socket.socket() as listener:
             listener.bind(('127.0.0.1', 0))
             self.port = listener.getsockname()[1]
-        caddy.write_text('{\n skip_install_trust\n https_port ' + str(self.port) + '\n}\n' + (BUNDLE / 'caddy/Caddyfile').read_text().replace(
-            '{$PUBLIC_HOST} {', '{$PUBLIC_HOST} {\n\ttls internal'))
+        site = (BUNDLE / 'caddy/Caddyfile').read_text()
+        caddy.write_text(managed_config(site) if self.acme else
+            '{\n skip_install_trust\n https_port ' + str(self.port) + '\n}\n' +
+            site.replace('{$PUBLIC_HOST} {', '{$PUBLIC_HOST} {\n\ttls internal'))
         # !override replaces production listeners rather than appending public test ports.
         self.override.write_text('services:\n  wayfarer:\n    image: ' + self.image +
             '\n    pull_policy: never\n  db:\n    image: ' + self.db_image +
             '\n    pull_policy: never\n  caddy:\n    ports: !override\n'
-            f'      - "127.0.0.1:{self.port}:{self.port}"\n'
+            f'      - "127.0.0.1:{self.port}:{443 if self.acme else self.port}"\n'
             '    networks:\n      edge:\n        aliases: [wayfarer.example.org]\n'
             f'    volumes:\n      - {caddy}:/etc/caddy/Caddyfile:ro\n')
+        if self.acme:
+            self.prepare_acme()
+
+    def prepare_acme(self):
+        """Use the pinned image as a local ACME CA; internal PKI belongs only to this fixture server."""
+        image = re.search(r'image: (caddy@sha256:[a-f0-9]+)', (BUNDLE / 'compose.yaml').read_text()).group(1)
+        authority = self.directory / 'acme.Caddyfile'
+        authority.write_text('{\n skip_install_trust\n}\nacme.example.org {\n tls internal\n'
+            ' acme_server {\n  lifetime 10m\n  challenges tls-alpn-01\n }\n}\n')
+        (self.directory / 'ca.crt').touch()
+        with self.override.open('a') as stream:
+            stream.write(f'      - {self.directory}/ca.crt:/etc/caddy/fixture-root.crt:ro\n'
+                f'  acme:\n    image: {image}\n    networks:\n      edge:\n'
+                '        ipv4_address: 172.30.65.4\n        aliases: [acme.example.org]\n'
+                f'    volumes:\n      - {authority}:/etc/caddy/Caddyfile:ro\n'
+                '      - acme-data:/data\n      - acme-config:/config\n'
+                'volumes:\n  acme-data:\n  acme-config:\n')
 
     def write_env(self):
         """Keep secrets outside interpolation and select a bounded host loopback endpoint."""
@@ -114,6 +158,9 @@ class Stack:
 
     def initialize(self):
         """Explicitly prepare writable volumes, then migrate, seed and protected bootstrap."""
+        if self.acme:
+            self.compose('up', '-d', 'acme')
+            self.connect('acme')
         self.compose('up', '-d', '--wait', '--wait-timeout', '120', 'db')
         self.compose('run', '--rm', '--no-deps', '--user', '0', '--entrypoint', 'sh', 'wayfarer', '-ec',
             'chown 1654:1654 /var/lib/wayfarer /var/cache/wayfarer /var/log/wayfarer; '
@@ -158,25 +205,140 @@ class Stack:
         """Resolve by Compose service identity; never depend on generated names."""
         return self.compose('ps', '-q', service).stdout.strip()
 
-    def connect(self):
-        """Trust only this disposable Caddy's generated local CA for HTTPS probes."""
-        container = self.container('caddy')
+    def connect(self, authority=None):
+        """Trust only the fixture root: the ACME server on AMD64, existing internal issuer otherwise."""
+        container = self.container(authority or ('acme' if self.acme else 'caddy'))
         inspected = json.loads(run('docker', 'inspect', container).stdout)[0]
-        self.port = next(binding[0]['HostPort'] for binding in inspected['NetworkSettings']['Ports'].values() if binding)
+        if authority is None:
+            client = json.loads(run('docker', 'inspect', self.container('caddy')).stdout)[0]
+            self.port = next(binding[0]['HostPort'] for binding in client['NetworkSettings']['Ports'].values() if binding)
         for _ in range(30):
             copied = run('docker', 'cp', f'{container}:/data/caddy/pki/authorities/local/root.crt',
                          str(self.directory / 'ca.crt'), check=False)
             if copied.returncode == 0:
-                return
+                if authority is not None or not self.acme:
+                    return
+                ready = self.curl('/health/ready', timeout=5, check=False)
+                if ready.returncode == 0 and ready.stdout == 'ready':
+                    return
             time.sleep(1)
-        raise RuntimeError('Caddy local CA did not become available')
+        raise RuntimeError('Caddy fixture root or validated HTTPS readiness did not become available')
 
-    def curl(self, path, *args, timeout=120, check=True):
+    def curl(self, path, *args, timeout=120, check=True, data=None):
         """Exercise the real TLS endpoint with CA validation and explicit disposable DNS."""
         return run('curl', '--silent', '--show-error', '--fail', '--noproxy', '*',
                    '--cacert', str(self.directory / 'ca.crt'), '--resolve',
                    f'wayfarer.example.org:{self.port}:127.0.0.1', '--max-time', str(timeout),
-                   *args, f'https://wayfarer.example.org:{self.port}{path}', check=check)
+                   *args, f'https://wayfarer.example.org:{self.port}{path}', check=check, data=data)
+
+    def tls_facts(self):
+        """Read only validated leaf facts, selected file hashes and named-volume identities, never keys."""
+        client = self.container('caddy')
+        hashes = run('docker', 'exec', client, 'sh', '-ec',
+            r'find /data/caddy/acme /data/caddy/certificates -type f -exec sha256sum {} \; | sort').stdout
+        files = {path: digest for digest, path in (line.split(maxsplit=1) for line in hashes.splitlines())}
+        account = {path: digest for path, digest in files.items() if '/users/' in path}
+        certificate = {path: digest for path, digest in files.items() if '/certificates/' in path and
+                       Path(path).name in {'wayfarer.example.org.crt', 'wayfarer.example.org.json', 'wayfarer.example.org.key'}}
+        assert {Path(path).suffix for path in account} == {'.json', '.key'}, 'ACME account missing'
+        assert {Path(path).suffix for path in certificate} == {'.json', '.crt', '.key'}, 'ACME certificate missing'
+        inspected = json.loads(run('docker', 'inspect', client).stdout)[0]
+        volumes = {mount['Destination']: mount['Name'] for mount in inspected['Mounts']
+                   if mount['Destination'] in {'/data', '/config'} and mount['Type'] == 'volume'}
+        assert set(volumes) == {'/data', '/config'}
+        identities = json.loads(run('docker', 'volume', 'inspect', *volumes.values()).stdout)
+        volumes = {target: {'name': name, 'createdAt': next(item['CreatedAt'] for item in identities if item['Name'] == name)}
+                   for target, name in volumes.items()}
+        context = ssl.create_default_context(cafile=str(self.directory / 'ca.crt'))
+        with socket.create_connection(('127.0.0.1', int(self.port)), timeout=10) as connection:
+            with context.wrap_socket(connection, server_hostname='wayfarer.example.org') as secure:
+                certificate_info = secure.getpeercert()
+                assert ('DNS', 'wayfarer.example.org') in certificate_info['subjectAltName']
+                leaf = {'fingerprint': hashlib.sha256(secure.getpeercert(binary_form=True)).hexdigest(),
+                        'serial': certificate_info['serialNumber'], 'san': certificate_info['subjectAltName'],
+                        'subject': certificate_info['subject'], 'notBefore': certificate_info['notBefore'],
+                        'notAfter': certificate_info['notAfter']}
+        for path, expected in [('/health/live', 'live'), ('/health/ready', 'ready')]:
+            assert self.curl(path).stdout == expected
+        return {'account': account, 'certificate': certificate, 'volumes': volumes, 'leaf': leaf}
+
+    def check_in(self, token, step):
+        """Send a representative bearer check-in via protected stdin and verify its persisted owner."""
+        count = '''SELECT count(*) FROM "Locations" l JOIN "AspNetUsers" u ON l."UserId"=u."Id" WHERE u."UserName"='compose-admin';'''
+        before = int(self.sql(count))
+        body = json.dumps({'latitude': 37.9 + step / 100, 'longitude': 23.7 + step / 100,
+                           'timestamp': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()), 'accuracy': 10})
+        response = self.curl('/api/location/check-in', '-H', '@-', '-H', 'Content-Type: application/json',
+                             '--data-binary', body, data=f'Authorization: Bearer {token}\n')
+        location_id = int(json.loads(response.stdout)['location']['id'])
+        assert self.sql(f'''SELECT l."Id" FROM "Locations" l JOIN "AspNetUsers" u ON l."UserId"=u."Id"
+            WHERE l."Id"={location_id} AND u."UserName"='compose-admin';''') == str(location_id)
+        assert int(self.sql(count)) == before + 1
+        for service in ('caddy', 'wayfarer'):
+            logs = run('docker', 'logs', self.container(service))
+            assert token not in logs.stdout + logs.stderr, 'Bearer leaked into routine container logs'
+        logs = run('docker', 'exec', self.container('wayfarer'), 'sh', '-ec',
+                   'find /var/log/wayfarer -type f -exec cat {} +').stdout
+        assert token not in logs, 'Bearer leaked into application log files'
+        return {'locationId': location_id, 'status': 200}
+
+    def ingress(self):
+        """Join mounted embed, two bearer updates and ACME persistence across one Caddy-only replacement."""
+        token = secrets.token_urlsafe(32)
+        self.sql(f'''UPDATE "AspNetUsers" SET "IsActive"=true,"IsTimelinePublic"=true,"PublicTimelineTimeThreshold"='now'
+            WHERE "UserName"='compose-admin';
+            INSERT INTO "ApiTokens" ("Name","TokenHash","CreatedAt","UserId")
+            SELECT 'Wayfarer','{hashlib.sha256(token.encode()).hexdigest()}',now(),"Id"
+            FROM "AspNetUsers" WHERE "UserName"='compose-admin';''')
+        # Reuse the production image's version-coupled Node/Chromium payload, without host build tools.
+        script = ROOT / 'tools/compose/managed_ingress.mjs'
+        self.compose('exec', '-T', 'wayfarer', 'sh', '-c', 'cat > /tmp/wayfarer/managed_ingress.mjs', data=script.read_text())
+        command = ['docker', 'exec', '-i', self.container('wayfarer'), '/app/.playwright/node/linux-x64/node',
+                   '/tmp/wayfarer/managed_ingress.mjs']
+        issued = self.tls_facts()
+        print('Managed ACME issuance and validated hostname/live/ready passed; mounting Timeline embed', flush=True)
+        process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        result = {'issued': issued}
+        try:
+            process.stdin.write(json.dumps({'origin': 'https://wayfarer.example.org', 'username': 'compose-admin'}) + '\n')
+            process.stdin.flush()
+            for action in ('first', 'replace', 'second', 'result'):
+                message = json.loads(process.stdout.readline())
+                assert message['action'] == action, f'Browser probe failed while awaiting {action}: {json.dumps(message)}'
+                reply = {}
+                if action in ('first', 'second'):
+                    reply = self.check_in(token, 1 if action == 'first' else 2)
+                    result[action] = reply
+                elif action == 'replace':
+                    client, peers = self.container('caddy'), [self.container(service) for service in ('db', 'wayfarer')]
+                    self.compose('up', '-d', '--no-deps', '--force-recreate', '--wait', '--wait-timeout', '60', '--timeout', '5', 'caddy')
+                    assert self.container('caddy') != client
+                    assert [self.container(service) for service in ('db', 'wayfarer')] == peers
+                    result['replaced'] = self.tls_facts()
+                    assert_tls_transition(issued, result['replaced'])
+                else:
+                    result['browser'] = message['observation']
+                process.stdin.write(json.dumps(reply) + '\n')
+                process.stdin.flush()
+            assert process.wait(timeout=15) == 0, 'Mounted browser qualification failed'
+            assert token not in json.dumps(result), 'Bearer retained in qualification evidence'
+        finally:
+            if process.poll() is None:
+                process.kill()
+            process.communicate(timeout=15)
+        return result
+
+    def renewal(self, before):
+        """Wait within a strict deadline for Caddy's own automatic maintenance to advance the served leaf."""
+        print('Waiting for bounded automatic ACME renewal on the retained account', flush=True)
+        until = time.monotonic() + 360
+        while time.monotonic() < until:
+            after = self.tls_facts()
+            if after['leaf']['fingerprint'] != before['leaf']['fingerprint']:
+                assert_tls_transition(before, after, renewal=True)
+                return after
+            time.sleep(2)
+        raise TimeoutError('Automatic ACME renewal did not advance the served leaf within 360 seconds')
 
     def browser_headers(self):
         """Prove exact application-owned framing headers survive this proxy without duplicates."""
@@ -409,7 +571,8 @@ def main():
     parser.add_argument('--db-image', required=True, help='locally built DB image ID from deploy/compose/db')
     args = parser.parse_args()
     with tempfile.TemporaryDirectory(prefix='wayfarer-compose-') as directory:
-        stack = Stack(directory, args.image, args.db_image)
+        stack = Stack(directory, args.image, args.db_image,
+                      acme=not args.native_only and platform.machine() == 'x86_64')
         try:
             stack.prepare()
             stack.config_checks()
@@ -417,8 +580,12 @@ def main():
             if args.native_only:
                 stack.rendering()
                 return
+            ingress = stack.ingress() if stack.acme else None
             stack.functional()
             stack.exposure()
+            if ingress:
+                ingress['renewed'] = stack.renewal(ingress['replaced'])
+                print(json.dumps({'managedAcmeIngress': ingress}), flush=True)
             stack.persistence()
             stack.external()
         except Exception:

@@ -16,6 +16,14 @@ supported Compose baseline through [#604](https://github.com/stef-k/Wayfarer/iss
 not `wayfarerctl update`. Maintainers start at
 [Versioning and Release Operations](23-Versioning.md#public-acceptance-and-availability).
 
+Genuine v1.9.21 public bootstrap `setup → doctor → stop` acceptance passed on AMD64
+and ARM64 in [run 37010835544](https://github.com/stef-k/Wayfarer/actions/runs/37010835544).
+The [managed ingress qualification](28-Production-Compose.md#managed-acme-and-timeline-ingress-749)
+adds AMD64 ACME and representative API/embed/live-update evidence against a local test
+authority. Public DNS/CA reachability remains installation-specific. Final continuous
+stable lifecycle acceptance still awaits a later supported stable under
+[#748](https://github.com/stef-k/Wayfarer/issues/748).
+
 ## Guided production installation
 
 Prepare:
