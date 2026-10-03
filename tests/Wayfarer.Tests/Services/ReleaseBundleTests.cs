@@ -374,6 +374,21 @@ public sealed class ReleaseBundleTests : IDisposable
         ReleaseContract.Payloads.Select(path => new ReleaseFile(path,
             Convert.ToHexStringLower(SHA256.HashData(File.ReadAllBytes(Path.Combine(directory, path)))), "file", ReleaseContract.Mode(path))).ToArray(), null);
 
+    /// <summary>Reuse the validated inventory fixture to bind either the actual running executable or different retained operator bytes.</summary>
+    internal ReleaseBundle RetainOperator(string root, string version, bool runningOperator)
+    {
+        var executable = Path.Combine(directory, "wayfarerctl");
+        if (runningOperator) File.Copy(Environment.ProcessPath!, executable, overwrite: true);
+        else File.WriteAllText(executable, "other operator: " + version);
+        File.SetUnixFileMode(executable, (UnixFileMode)ReleaseContract.Mode("wayfarerctl"));
+        var manifest = Manifest();
+        Save(manifest with { Version = version, Platform = NativePlatform.Current,
+            Images = manifest.Images with { OciVersion = version },
+            Application = manifest.Application with { CompiledVersion = version },
+            Operator = manifest.Operator with { Version = version, MinimumVersion = version } });
+        return ReleaseStore.Import(root, directory);
+    }
+
     private void Save(ReleaseManifest manifest)
     {
         var path = Path.Combine(directory, "release.json");
