@@ -146,12 +146,7 @@ exec /usr/bin/docker "$@"
 """)
         wrapper.chmod(0o755)
         shutil.copytree(ROOT / 'deploy/compose', self.bundle)
-        run('openssl', 'req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '1',
-            '-subj', '/CN=wayfarer.example.org', '-addext', 'subjectAltName=DNS:wayfarer.example.org',
-            '-keyout', str(self.bundle / 'caddy/tls.key'), '-out', str(self.bundle / 'caddy/tls.crt'))
-        proxy = self.bundle / 'caddy/ExternalTest'
-        proxy.write_text('{\n auto_https disable_redirects\n}\nhttps://wayfarer.example.org:' + str(self.port) +
-                         ' {\n bind 127.0.0.1\n tls /etc/caddy/tls.crt /etc/caddy/tls.key\n reverse_proxy 127.0.0.1:' + str(self.loopback) + '\n}\n')
+        self.prepare_tls()
         caddy = self.bundle / 'caddy/Caddyfile'
         caddy.write_text(caddy.read_text().replace('{$PUBLIC_HOST} {', '{$PUBLIC_HOST} {\n tls /etc/caddy/tls.crt /etc/caddy/tls.key'))
         compose = self.bundle / 'compose.yaml'
@@ -161,6 +156,30 @@ exec /usr/bin/docker "$@"
         absent = self.host('sh', '-ec', 'test ! -d /usr/share/dotnet; ! command -v dotnet; ! command -v python3; ! command -v node')
         assert absent.returncode == 0
         assert 'wayfarerctl' in self.ctl('version').stdout
+
+    def prepare_tls(self):
+        """Fixture-only external TLS; public release templates and executable bytes remain untouched."""
+        (self.bundle / 'caddy').mkdir(parents=True, exist_ok=True)
+        run('openssl', 'req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '1',
+            '-subj', '/CN=wayfarer.example.org', '-addext', 'subjectAltName=DNS:wayfarer.example.org',
+            '-keyout', str(self.bundle / 'caddy/tls.key'), '-out', str(self.bundle / 'caddy/tls.crt'))
+    def start_proxy(self, digest='sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b'):
+        """Route real Identity/health traffic through the existing fixture-controlled HTTPS origin."""
+        proxy = self.bundle / 'caddy' / ('ExternalTest-' + self.project)
+        self.host('tee', str(proxy), data='{\n auto_https disable_redirects\n}\nhttps://wayfarer.example.org:' + str(self.port) +
+                  ' {\n bind 127.0.0.1\n tls /etc/caddy/tls.crt /etc/caddy/tls.key\n reverse_proxy 127.0.0.1:' + str(self.loopback) + '\n}\n')
+        run('docker', 'run', '-d', '--name', self.proxy, '--network', 'host',
+            '--label', f'com.docker.compose.project={self.project}',
+            '-v', f'{self.bundle}/caddy:/etc/caddy:ro', 'caddy@' + digest,
+            'caddy', 'run', '--config', '/etc/caddy/' + proxy.name, '--adapter', 'caddyfile')
+
+    def probe_command(self, operation):
+        """Run the existing synthetic credential/token probe against the active application image."""
+        return self.compose('run', '--rm', '--no-deps', '-T', '--volume',
+                            str(self.directory / 'RecoveryProbe.dll') + ':/probe-bin/RecoveryProbe.dll:ro', '--volume',
+                            str(self.directory / 'probe') + ':/probe', '--entrypoint', 'dotnet', 'wayfarer', 'exec',
+                            '--runtimeconfig', '/app/Wayfarer.runtimeconfig.json', '--depsfile', '/app/Wayfarer.deps.json',
+                            '/probe-bin/RecoveryProbe.dll', operation)
 
     def curl(self, path, *args):
         """Use validated test-only TLS, public Host and explicit fixture DNS."""
@@ -225,11 +244,7 @@ exec /usr/bin/docker "$@"
                                 'cat /var/lib/wayfarer/uploads/imports/qualification-upload').strip() == 'durable'
         print(result.stdout, flush=True)
         assert 'Setup complete' in result.stdout
-        run('docker', 'run', '-d', '--name', self.proxy, '--network', 'host',
-            '--label', f'com.docker.compose.project={self.project}',
-            '-v', f'{self.bundle}/caddy:/etc/caddy:ro',
-            'caddy@sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b',
-            'caddy', 'run', '--config', '/etc/caddy/ExternalTest', '--adapter', 'caddyfile')
+        self.start_proxy()
         assert self.ctl('setup', '--bundle', str(self.bundle), '--hostname', 'wayfarer.example.org',
                         '--app-digest', self.digest, '--project', self.project, '--password-stdin',
                         data=self.password + '\n', check=False).returncode == 2
@@ -267,13 +282,19 @@ exec /usr/bin/docker "$@"
 
     def cleanup(self):
         """Delete only this unpredictable project's labelled disposable resources and owned temp directory."""
+        self.cleanup_project(self.project)
+        self.host('sh', '-ec', f'chown -R {os.getuid()}:{os.getgid()} {self.directory}; chmod 700 {self.directory}')
+
+    def cleanup_project(self, project):
+        """Reap the selected fixture's labelled helpers before releasing its disposable volumes."""
         for kind, listing, removal in [('container', ['ps', '-aq'], ['rm', '-f']),
                                        ('network', ['network', 'ls', '-q'], ['network', 'rm']),
                                        ('volume', ['volume', 'ls', '-q'], ['volume', 'rm'])]:
-            ids = run('docker', *listing, '--filter', f'label=com.docker.compose.project={self.project}').stdout.split()
+            ids = set()
+            for label in ['com.docker.compose.project=', 'wayfarer.restore-helper=', 'wayfarer.update-project=']:
+                ids.update(run('docker', *listing, '--filter', 'label=' + label + project).stdout.split())
             if ids:
-                run('docker', *removal, *ids)
-        self.host('sh', '-ec', f'chown -R {os.getuid()}:{os.getgid()} {self.directory}; chmod 700 {self.directory}')
+                run('docker', *removal, *sorted(ids))
 
 
 def main():

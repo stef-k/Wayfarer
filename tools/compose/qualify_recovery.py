@@ -384,13 +384,6 @@ class RecoveryJourney(Journey):
                 run('docker', 'run', '--rm', '--privileged', '--pid=host', '--network', 'none', HOST,
                     'nsenter', '-t', '1', '-m', '--', 'umount', str(path), check=False)
 
-    def probe_command(self, operation):
-        return self.compose('run', '--rm', '--no-deps', '-T', '--volume',
-                            str(self.directory / 'RecoveryProbe.dll') + ':/probe-bin/RecoveryProbe.dll:ro', '--volume',
-                            str(self.directory / 'probe') + ':/probe', '--entrypoint', 'dotnet', 'wayfarer', 'exec',
-                            '--runtimeconfig', '/app/Wayfarer.runtimeconfig.json', '--depsfile', '/app/Wayfarer.deps.json',
-                            '/probe-bin/RecoveryProbe.dll', operation)
-
     def snapshot(self):
         files = self.compose('run', '--rm', '--no-deps', '-T', '--volume', self.project + '_app-data:/var/lib/wayfarer:ro',
                              '--entrypoint', 'sh', 'wayfarer', '-ec',
@@ -544,23 +537,6 @@ class RecoveryJourney(Journey):
             print('PASS product clean-root restore, new UUID, no setup stages, backup unconfigured', flush=True)
         finally:
             self.cleanup_project(project)
-
-    def cleanup_project(self, project):
-        """Reap only this fixture's labelled restore helpers before releasing their retained volumes."""
-        for kind, listing, removal in [('container', ['ps', '-aq'], ['rm', '-f']),
-            ('network', ['network', 'ls', '-q'], ['network', 'rm']),
-            ('volume', ['volume', 'ls', '-q'], ['volume', 'rm'])]:
-            ids = set()
-            for label in ['com.docker.compose.project=', 'wayfarer.restore-helper=', 'wayfarer.update-project=']:
-                ids.update(run('docker', *listing, '--filter', 'label=' + label + project).stdout.split())
-            if ids:
-                run('docker', *removal, *sorted(ids))
-
-    def cleanup(self):
-        self.cleanup_project(self.project)
-        super().cleanup()
-
-
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
