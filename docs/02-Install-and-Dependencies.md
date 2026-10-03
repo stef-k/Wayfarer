@@ -56,10 +56,14 @@ The production host needs no repository clone, .NET SDK/runtime, Node/npm, Pytho
 host packages or configure the Docker daemon. Docker Desktop, remote contexts and
 rootless Docker are outside the accepted production topology.
 
-Setup creates the protected `admin` account with your chosen password. Ordinary web
-startup does not migrate, seed or create an administrator; no `admin/Admin1!` default
-is accepted. After setup, sign in, review **Admin > Settings**, keep registration
-closed unless deliberately enabled, and enable account two-factor authentication.
+Setup creates the protected `admin` account with your chosen password: at least
+15 characters, including uppercase, lowercase, a digit and a non-alphanumeric
+character. Protected maintenance input is limited to 1024 characters. Bootstrap,
+password reset and Production web Identity use one application-owned Identity policy;
+`wayfarerctl` only collects and transports protected input. Ordinary web startup does
+not migrate, seed or create an administrator; no `admin/Admin1!` default is accepted.
+After setup, sign in, review **Admin > Settings**, keep registration closed unless
+deliberately enabled, and enable account two-factor authentication.
 
 Installation state defaults to `/etc/wayfarer`. Preserve its secrets, retained release
 bytes and durable volumes. Keep the bootstrap at a fixed root-owned path; after setup,

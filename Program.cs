@@ -174,7 +174,7 @@ app.Run();
 
 #region Methods
 
-// Method to handle the password reset command
+/// <summary>Resets through Identity with the shared policy while retaining deprecated command transport.</summary>
 static async Task HandlePasswordResetCommand(string[] args)
 {
     Console.Error.WriteLine("Deprecated: use admin reset <username> --stdin for protected password input.");
@@ -192,7 +192,7 @@ static async Task HandlePasswordResetCommand(string[] args)
     builder.Services.AddDbContext<ApplicationDbContext>(options =>
         options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"),
             x => x.UseNetTopologySuite()));
-    builder.Services.AddDefaultIdentity<ApplicationUser>()
+    builder.Services.AddDefaultIdentity<ApplicationUser>(IdentityPasswordPolicy.Configure)
         .AddRoles<IdentityRole>()
         .AddEntityFrameworkStores<ApplicationDbContext>()
         .AddDefaultTokenProviders();
@@ -250,7 +250,7 @@ static void ConfigureDatabase(WebApplicationBuilder builder)
     builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 }
 
-// Method to configure identity, authentication, and user roles
+/// <summary>Configures web Identity and shares Production password requirements with maintenance hosts.</summary>
 static void ConfigureIdentity(WebApplicationBuilder builder)
 {
     // Share one bounded client budget across the selected Identity page handlers.
@@ -261,6 +261,8 @@ static void ConfigureIdentity(WebApplicationBuilder builder)
     // Add default identity services for user authentication
     builder.Services.AddDefaultIdentity<ApplicationUser>(options =>
         {
+            // Preserve the legacy Development seed; Production mutations use maintenance requirements.
+            if (builder.Environment.IsProduction()) IdentityPasswordPolicy.Configure(options);
             options.SignIn.RequireConfirmedAccount = false; // Disables confirmed email requirement
             options.User.RequireUniqueEmail = false; // Allows non-unique email addresses
 
