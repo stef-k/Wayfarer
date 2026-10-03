@@ -5,6 +5,9 @@ namespace WayfarerCtl;
 /// <summary>Dispatches validated commands; menus re-enter this same handler path.</summary>
 public sealed class Cli(IProcessRunner runner, ITerminal terminal)
 {
+    /// <summary>Hosted tests bind protected fixture bytes; native invocation uses the actual process executable.</summary>
+    internal string? ExecutablePath { get; init; }
+
     /// <summary>Translate failures without printing potentially secret-bearing exception/child text.</summary>
     public async Task<int> RunAsync(string[] args, CancellationToken token = default)
     {
@@ -80,7 +83,7 @@ public sealed class Cli(IProcessRunner runner, ITerminal terminal)
             throw new UsageException("Setup incomplete; follow interrupted-setup recovery before lifecycle/user operations.");
         var config = Deployment.Load(root);
         // A retained child dispatched before an update must not mutate the newly selected release.
-        try { _ = ReleaseDispatch.CurrentOwner(root, config); }
+        try { _ = ReleaseDispatch.CurrentOwner(root, config, ExecutablePath); }
         catch (IOException) { throw new UsageException("Active release operator could not be verified; retry this command through stable dispatch."); }
         Deployment.CheckSecrets(root);
         if (args[0] is "backup" or "backups" or "verify-backup")

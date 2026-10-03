@@ -96,12 +96,13 @@ public sealed class RecoveryCoordinationTests : IDisposable
             StorageGeneration = Guid.NewGuid().ToString("N") };
         File.WriteAllText(Path.Combine(Root, "deployment.env"), previous.EnvironmentFile(Root));
         RestoreActivation.Commit(Root, previous);
-        Assert.Equal(previous.Release, ReleaseDispatch.CurrentOwner(Root, Deployment.Load(Root)));
+        var executable = Path.Combine(source.Directory, "wayfarerctl");
+        Assert.Equal(previous.Release, ReleaseDispatch.CurrentOwner(Root, Deployment.Load(Root), executable));
         var target = releases.RetainOperator(Root, "1.9.22", runningOperator: false);
         var current = previous with { Release = ReleaseAuthority.From(target), Bundle = target.Directory };
         var runner = new PausedPreflightRunner();
         var terminal = new RecordingTerminal();
-        var command = new Cli(runner, terminal).RunAsync(["--deployment-root", Root, "stop"]);
+        var command = new Cli(runner, terminal) { ExecutablePath = executable }.RunAsync(["--deployment-root", Root, "stop"]);
         try
         {
             await runner.Paused.WaitAsync(TimeSpan.FromSeconds(10));
@@ -119,8 +120,7 @@ public sealed class RecoveryCoordinationTests : IDisposable
         var plan = restore.Plan with { Target = previous, OperatorOwner = previous.Release };
         (restore with { Plan = plan, PlanHash = plan.Hash() }).Save(Root);
         Assert.Equal(source.Fingerprint, ReleaseDispatch.Select(Root, resume: true).Fingerprint);
-        ReleaseDispatch.RequireOwner(Root, plan);
-        UpdateCommands.RequireOwner(Root, Update().Plan with { OperatorOwner = previous.Release! });
+        ReleaseDispatch.RequireExecutable(ReleaseDispatch.Select(Root, resume: true), executable);
     }
 
     /// <summary>The actual reservation writer's root:1654/0640 output reaches exact stop/wait/removal and durable cleanup.</summary>

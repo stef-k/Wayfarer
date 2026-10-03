@@ -42,18 +42,24 @@ public static class ReleaseDispatch
     }
 
     /// <summary>Pin the running executable to the selected release before ordinary mutation or new restore authorization.</summary>
-    public static ReleaseAuthority? CurrentOwner(string root, Deployment config)
+    public static ReleaseAuthority? CurrentOwner(string root, Deployment config) => CurrentOwner(root, config, null);
+
+    /// <summary>Use the same retained authority for hosted tests with a protected executable fixture.</summary>
+    internal static ReleaseAuthority? CurrentOwner(string root, Deployment config, string? executable)
     {
         if (config.Release is null) return null;
         var bundle = ReleaseStore.Select(root, config.Release);
-        RequireExecutable(bundle);
+        RequireExecutable(bundle, executable);
         return ReleaseAuthority.From(bundle);
     }
 
     /// <summary>Bind direct execution as well as dispatch to the retained executable's actual bytes.</summary>
-    public static void RequireExecutable(ReleaseBundle bundle)
+    public static void RequireExecutable(ReleaseBundle bundle) => RequireExecutable(bundle, null);
+
+    /// <summary>Validate the same protected path and SHA-256 contract for native execution and hosted executable fixtures.</summary>
+    internal static void RequireExecutable(ReleaseBundle bundle, string? executable)
     {
-        var executable = Environment.ProcessPath ?? throw new IOException("Current operator path unavailable.");
+        executable ??= Environment.ProcessPath ?? throw new IOException("Current operator path unavailable.");
         ProtectedFiles.SafePath(executable);
         using var file = File.OpenRead(executable);
         if (Convert.ToHexStringLower(SHA256.HashData(file)) != ReleaseAuthority.From(bundle).OperatorSha256)
