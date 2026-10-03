@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Added
+
+- Add a read-only AMD64 post-publication lifecycle qualifier and sanitized evidence
+  ledger for public v1.9.21 setup, a later stable update, the same pre-update archive's
+  clean restore, and headless account recovery. Final public acceptance remains pending
+  the first genuinely published later supported stable (#748).
+
 ### Fixed
 
 - Enforce one application-owned Identity password policy for Production web mutations, protected administrator bootstrap/reset and the deprecated reset command: at least 15 characters with uppercase, lowercase, a digit and a non-alphanumeric character. Rejected bootstrap creates no user or Admin membership; rejected reset preserves the existing credential, including Admin/Manager password changes. Keep `wayfarerctl` as secret-safe transport, the 1024-character maintenance ceiling, Development seeding and historical `Admin1!` refusal (#747).

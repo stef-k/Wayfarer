@@ -1,0 +1,49 @@
+# Post-publication #748 evidence only: this workflow cannot create or alter a release.
+name: Public stable lifecycle acceptance
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Already published later supported stable tag (source is fixed to v1.9.21)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  public-lifecycle-amd64:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      MvcFrontendKitEnabled: 'false'
+      DOCKER_CONFIG: ${{ runner.temp }}/public-lifecycle-docker
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          dotnet-version: '10.0.x'
+      # This existing test probe loads services from each actual public application image.
+      # No locally built operator, recovery payload or application image enters the witness.
+      - name: Build existing synthetic credential and Identity probe
+        run: dotnet build tools/compose/recovery-probe -c Release
+      - name: Qualify one continuous actual public stable lineage
+        env:
+          TARGET_TAG: ${{ inputs.target }}
+        run: |
+          install -d -m 700 "$DOCKER_CONFIG"
+          python3 -B tools/compose/qualify_public_lifecycle.py --target "$TARGET_TAG" \
+            --probe tools/compose/recovery-probe/bin/Release/net10.0/RecoveryProbe.dll \
+            --output "$RUNNER_TEMP/public-lifecycle-evidence"
+      # Exact paths are intentional: secrets, cookies, probes and private product state are excluded.
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: public-lifecycle-amd64-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/public-lifecycle-evidence/lifecycle.json
+            ${{ runner.temp }}/public-lifecycle-evidence/commands.jsonl
+          if-no-files-found: warn

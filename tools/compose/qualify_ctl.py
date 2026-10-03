@@ -34,6 +34,8 @@ class Journey:
     def __init__(self, directory, executable, digest):
         self.directory = Path(directory)
         self.bundle = self.directory / 'bundle'
+        # Public acquisition fixtures may supply runner CA roots alongside the local TLS certificate.
+        self.trusted_ca = self.bundle / 'caddy/tls.crt'
         self.install = self.directory / 'installation'
         self.project = 'wayfarer-648-' + uuid.uuid4().hex[:10]
         # Own the operator copy so prepare() establishes native executable authority without changing build outputs.
@@ -62,7 +64,7 @@ class Journey:
         """Host-network fixture checks actual Docker listeners; socket access is test-runner-only."""
         return run('docker', 'run', '--rm', '-i', '--network', 'host',
                    '--add-host', 'wayfarer.example.org:127.0.0.1',
-                   '-e', f'SSL_CERT_FILE={self.bundle}/caddy/tls.crt',
+                   '-e', f'SSL_CERT_FILE={self.trusted_ca}',
                    '-v', f'{self.directory}:{self.directory}',
                    '-v', f'{self.executable}:/ctl/wayfarerctl:ro',
                    '-v', '/usr/bin/docker:/usr/bin/docker:ro',

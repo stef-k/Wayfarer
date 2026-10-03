@@ -106,6 +106,12 @@ lifecycle qualification [#748](https://github.com/stef-k/Wayfarer/issues/748) mu
 The historical v1.9.20 → v1.9.21 boundary and candidate/PR qualification do not supply
 that supported lifecycle witness.
 
+The read-only, AMD64-only
+[post-publication lifecycle workflow](27-Application-Image-Publication.md#post-publication-continuous-lifecycle)
+owns that witness separately from create-only publication. Its implementation PR and
+normal PR CI do not complete #748; final acceptance waits for a genuinely published
+later supported stable and independent review of its retained run/ledger.
+
 ## Application version source
 
 `Version.props` is the runtime and release version source. The root file contains
