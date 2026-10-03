@@ -41,6 +41,88 @@ public sealed class RecoveryCoordinationTests : IDisposable
         BackupConfiguration.ProvisionControl(Root, bootstrap: true);
     }
 
+    /// <summary>A restore committed during Docker preflight must remain selected when backup policy is subsequently disabled.</summary>
+    [Fact]
+    public async Task OrdinaryBackupConfigurationUsesStorageSelectedAfterPreflight()
+    {
+        var payload = Path.Combine(config.Bundle, "wayfarer-recovery");
+        File.WriteAllText(payload, "worker");
+        File.SetUnixFileMode(payload, (UnixFileMode)ReleaseContract.Mode("wayfarer-recovery"));
+        var inspector = Path.Combine(config.Bundle, "WayfarerRecoverySource.dll");
+        File.WriteAllText(inspector, "inspection");
+        File.SetUnixFileMode(inspector, (UnixFileMode)ReleaseContract.Mode("WayfarerRecoverySource.dll"));
+        var fingerprint = BackupPolicy.Fingerprint(payload);
+        var policy = Update().Plan.Current.Backup! with { PayloadSha256 = fingerprint, Source =
+            RecoveryCompatibilityTests.Source(3) with { Project = config.Project, Platform = NativePlatform.Current,
+                ApplicationImage = "ghcr.io/stef-k/wayfarer@" + config.AppDigest,
+                DatabaseImage = "ghcr.io/stef-k/wayfarer-db@" + config.DbDigest,
+                BundleFingerprint = BackupConfiguration.BundleFingerprint(config), PayloadFingerprint = fingerprint } };
+        var previous = config with { Schema = 3, Backup = policy, StorageGeneration = Guid.NewGuid().ToString("N") };
+        RestoreActivation.Commit(Root, previous);
+        BackupGeneration.Stage(Root, previous);
+        var runner = new PausedPreflightRunner();
+        var terminal = new RecordingTerminal();
+        var command = new Cli(runner, terminal).RunAsync(["--deployment-root", Root, "backup", "configure", "--disable"]);
+        var current = previous with { StorageGeneration = Guid.NewGuid().ToString("N"),
+            Backup = policy with { Generation = new string('c', 64), Retention = 11 } };
+        try
+        {
+            await runner.Paused.WaitAsync(TimeSpan.FromSeconds(10));
+            using var operation = Setup.Lock(Root);
+            RestoreActivation.Commit(Root, current);
+            BackupGeneration.Stage(Root, current);
+        }
+        finally { runner.Continue.TrySetResult(); await command.WaitAsync(TimeSpan.FromSeconds(10)); }
+        Assert.Equal(0, await command.WaitAsync(TimeSpan.FromSeconds(10)));
+        var selected = Deployment.Load(Root);
+        Assert.Equal(current.StorageGeneration, selected.StorageGeneration);
+        Assert.Equal(current.Release, selected.Release);
+        Assert.False(selected.Backup!.Enabled);
+        Assert.Equal(current.Backup.Retention, selected.Backup.Retention);
+        Assert.Equal(JsonSerializer.Serialize(current), File.ReadAllText(Path.Combine(Root, "backup-previous.json")));
+        BackupCompose.Check(Root, selected);
+        Assert.All(runner.Calls.Where(args => args.Contains("--project-name")), args =>
+            Assert.Contains(ActiveStorage.OverlayPath(Root, current), args));
+    }
+
+    /// <summary>An already-running ordinary operator cannot use a release selected by another host owner during preflight.</summary>
+    [Fact]
+    public async Task OrdinaryOperatorRefusesReleaseSelectedAfterPreflight()
+    {
+        using var releases = new ReleaseBundleTests();
+        var source = releases.RetainOperator(Root, "1.9.21", runningOperator: true);
+        var previous = config with { Schema = 4, Release = ReleaseAuthority.From(source), Bundle = source.Directory,
+            AppDigest = source.Manifest.Images.PlatformDigest, DbDigest = source.Manifest.Images.DatabaseDigest,
+            StorageGeneration = Guid.NewGuid().ToString("N") };
+        File.WriteAllText(Path.Combine(Root, "deployment.env"), previous.EnvironmentFile(Root));
+        RestoreActivation.Commit(Root, previous);
+        var executable = Path.Combine(source.Directory, "wayfarerctl");
+        Assert.Equal(previous.Release, ReleaseDispatch.CurrentOwner(Root, Deployment.Load(Root), executable));
+        var target = releases.RetainOperator(Root, "1.9.22", runningOperator: false);
+        var current = previous with { Release = ReleaseAuthority.From(target), Bundle = target.Directory };
+        var runner = new PausedPreflightRunner();
+        var terminal = new RecordingTerminal();
+        var command = new Cli(runner, terminal) { ExecutablePath = executable }.RunAsync(["--deployment-root", Root, "stop"]);
+        try
+        {
+            await runner.Paused.WaitAsync(TimeSpan.FromSeconds(10));
+            using var operation = Setup.Lock(Root);
+            RestoreActivation.Commit(Root, current);
+        }
+        finally { runner.Continue.TrySetResult(); await command.WaitAsync(TimeSpan.FromSeconds(10)); }
+        Assert.Equal(2, await command.WaitAsync(TimeSpan.FromSeconds(10)));
+        Assert.Contains("dispatch", terminal.Errors);
+        Assert.Equal(2, runner.Calls.Count); // Only deployment-independent Docker info/version checks may run.
+        Assert.Equal(current, Deployment.Load(Root));
+        Assert.Equal(target.Fingerprint, ReleaseDispatch.Select(Root, resume: false).Fingerprint);
+        // Recovery still selects and verifies the original owner after active release selection changes.
+        var restore = TerminalRestore(accepted: false);
+        var plan = restore.Plan with { Target = previous, OperatorOwner = previous.Release };
+        (restore with { Plan = plan, PlanHash = plan.Hash() }).Save(Root);
+        Assert.Equal(source.Fingerprint, ReleaseDispatch.Select(Root, resume: true).Fingerprint);
+        ReleaseDispatch.RequireExecutable(ReleaseDispatch.Select(Root, resume: true), executable);
+    }
+
     /// <summary>The actual reservation writer's root:1654/0640 output reaches exact stop/wait/removal and durable cleanup.</summary>
     [Fact]
     public async Task GeneratedDelegatedCaptureCanBeReconciled()
@@ -253,6 +335,37 @@ public sealed class RecoveryCoordinationTests : IDisposable
     {
         public Task<ProcessResult> RunAsync(string[] args, string? input, CancellationToken cancellation, Action<string>? lineOutput = null) =>
             throw new InvalidOperationException("Unexpected Docker operation: " + string.Join(' ', args));
+    }
+
+    /// <summary>Pause only the read-only Docker preflight so another real host-lock owner can publish current authority.</summary>
+    private sealed class PausedPreflightRunner : IProcessRunner
+    {
+        private readonly TaskCompletionSource paused = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public Task Paused => paused.Task;
+        public TaskCompletionSource Continue { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public List<string[]> Calls { get; } = [];
+        public async Task<ProcessResult> RunAsync(string[] args, string? input, CancellationToken cancellation, Action<string>? lineOutput = null)
+        {
+            Calls.Add(args);
+            if (args[0] == "info")
+            {
+                paused.TrySetResult();
+                await Continue.Task.WaitAsync(cancellation);
+                return new ProcessResult(0, NativePlatform.Current);
+            }
+            return new ProcessResult(0, args is ["compose", "version", "--short"] ? "2.24.4" : "");
+        }
+    }
+
+    /// <summary>Capture safe CLI refusal guidance without terminal input or child processes.</summary>
+    private sealed class RecordingTerminal : ITerminal
+    {
+        public bool Interactive => false;
+        public string Errors { get; private set; } = "";
+        public void Write(string message) { }
+        public void Error(string message) => Errors += message + "\n";
+        public string? Read(string prompt) => throw new InvalidOperationException("Unexpected prompt.");
+        public string Password(bool fromStdin) => throw new InvalidOperationException("Unexpected password input.");
     }
 
     /// <summary>Use the unchanged private coordinator seam so tests never launch the wider update lifecycle.</summary>
