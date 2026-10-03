@@ -434,7 +434,7 @@ namespace Wayfarer.Areas.Manager.Controllers
         }
 
         /// <summary>
-        /// Change user password
+        /// Validate and reset a user password through Identity before replacing the existing credential.
         /// </summary>
         /// <param name="model">ChangePasswordViewModel</param>
         /// <returns></returns>
@@ -463,23 +463,11 @@ namespace Wayfarer.Areas.Manager.Controllers
                     return View(model);
                 }
 
-                // Remove the current password
-                IdentityResult removePasswordResult = await _userManager.RemovePasswordAsync(user);
-                if (!removePasswordResult.Succeeded)
+                // Identity validates before mutation and updates the security stamp only on success.
+                string resetToken = await _userManager.GeneratePasswordResetTokenAsync(user);
+                IdentityResult resetPasswordResult = await _userManager.ResetPasswordAsync(user, resetToken, model.NewPassword);
+                if (resetPasswordResult.Succeeded)
                 {
-                    ModelState.AddModelError(string.Empty, "Error removing old password.");
-                    LogAudit("Password Change Failed", "Error removing old password", "Failed to remove old password.");
-                    LogAction("Password Change Failed", "Error removing old password");
-                    return View(model);
-                }
-
-                // Add the new password
-                IdentityResult addPasswordResult = await _userManager.AddPasswordAsync(user, model.NewPassword);
-                if (addPasswordResult.Succeeded)
-                {
-                    // Update security stamp to invalidate sessions
-                    await _userManager.UpdateSecurityStampAsync(user);
-
                     LogAudit("Password Changed", "Password changed successfully", $"Password changed for user {user.UserName}");
                     LogAction("Password Changed", $"Password changed for user {user.UserName}");
 
@@ -487,7 +475,7 @@ namespace Wayfarer.Areas.Manager.Controllers
                 }
                 else
                 {
-                    foreach (IdentityError error in addPasswordResult.Errors)
+                    foreach (IdentityError error in resetPasswordResult.Errors)
                     {
                         ModelState.AddModelError(string.Empty, error.Description);
                     }

@@ -22,6 +22,7 @@ public sealed class Terminal : ITerminal
     /// <summary>Automation deliberately redirects one password line; menus hide and confirm it.</summary>
     public string Password(bool fromStdin)
     {
+        Write(Help.PasswordGuidance);
         if (fromStdin)
         {
             if (!Console.IsInputRedirected) throw new UsageException("--password-stdin requires redirected input.");

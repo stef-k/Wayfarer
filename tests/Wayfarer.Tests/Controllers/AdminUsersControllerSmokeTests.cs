@@ -18,6 +18,33 @@ namespace Wayfarer.Tests.Controllers;
 /// </summary>
 public class AdminUsersControllerSmokeTests : TestBase
 {
+    /// <summary>An Identity policy rejection must not remove the existing password or change its security stamp.</summary>
+    [Fact]
+    public async Task ChangePassword_IdentityRejectionDoesNotRemoveCredential()
+    {
+        var user = TestDataFixtures.CreateUser(id: "target", username: "alice");
+        var manager = MockUserManager(user);
+        var rejected = IdentityResult.Failed(new IdentityErrorDescriber().PasswordTooShort(15));
+        manager.Setup(m => m.RemovePasswordAsync(user)).ReturnsAsync(IdentityResult.Success);
+        manager.Setup(m => m.AddPasswordAsync(user, "Admin2!")).ReturnsAsync(rejected);
+        manager.Setup(m => m.GeneratePasswordResetTokenAsync(user)).ReturnsAsync("fixture-reset-token");
+        manager.Setup(m => m.ResetPasswordAsync(user, "fixture-reset-token", "Admin2!")).ReturnsAsync(rejected);
+        var controller = BuildController(CreateDbContext(), manager.Object);
+        var model = new ChangePasswordViewModel
+        {
+            UserId = user.Id, NewPassword = "Admin2!", ConfirmPassword = "Admin2!"
+        };
+
+        var view = Assert.IsType<ViewResult>(await controller.ChangePassword(model));
+
+        Assert.Same(model, view.Model);
+        Assert.False(controller.ModelState.IsValid);
+        manager.Verify(m => m.RemovePasswordAsync(It.IsAny<ApplicationUser>()), Times.Never);
+        manager.Verify(m => m.AddPasswordAsync(It.IsAny<ApplicationUser>(), It.IsAny<string>()), Times.Never);
+        manager.Verify(m => m.ResetPasswordAsync(user, "fixture-reset-token", "Admin2!"), Times.Once);
+        manager.Verify(m => m.UpdateSecurityStampAsync(It.IsAny<ApplicationUser>()), Times.Never);
+    }
+
     [Fact]
     public async Task ChangePassword_ReturnsNotFound_WhenMissing()
     {

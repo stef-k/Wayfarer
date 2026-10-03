@@ -33,7 +33,7 @@ internal static class LifecycleCli
                 options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"), x => x.UseNetTopologySuite());
                 options.ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
             });
-            builder.Services.AddIdentityCore<ApplicationUser>().AddRoles<IdentityRole>()
+            builder.Services.AddIdentityCore<ApplicationUser>(IdentityPasswordPolicy.Configure).AddRoles<IdentityRole>()
                 .AddEntityFrameworkStores<ApplicationDbContext>().AddDefaultTokenProviders();
             builder.AddWayfarerDataProtection();
             await using var app = builder.Build();

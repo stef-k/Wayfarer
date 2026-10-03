@@ -158,8 +158,12 @@ The existing disposable candidate/raw-template qualification seam retains explic
 
 Preflight checks the host, daemon/Compose, bundle/config, paths, existing project state,
 network overlap and listeners, then reports that the checks passed. The administrator
-password is entered **hidden and confirmed**. The application owns password policy;
-choose a strong unique password. Setup creates the protected account named `admin`.
+password is entered **hidden and confirmed**. Choose a unique password of at least
+15 characters, including uppercase, lowercase, a digit and a non-alphanumeric
+character; protected maintenance input is limited to 1024 characters. Bootstrap,
+reset and Production web Identity share one application-owned Identity policy.
+`wayfarerctl` collects and transports protected input; application Identity decides
+acceptance. Setup creates the protected account named `admin`.
 There is no accepted default password and no stored administrator password file.
 
 Execution is DB healthy → fixed volume-root ownership → application `database migrate`
@@ -249,8 +253,9 @@ wayfarerctl user reset-password admin
 
 Lookup uses the application's exact normalized username semantics, not fuzzy matching,
 email guessing or direct EF queries. Not-found/failed maintenance returns1. Reset uses
-the same application's protected Identity command, including its policy and failure
-semantics; it never prints password/hash/security stamp. This bridge is not an Admin UI.
+the same application's protected Identity command and password requirements as
+bootstrap and Production web Identity; rejection leaves the existing credential
+unchanged. It never prints password/hash/security stamp. This bridge is not an Admin UI.
 Logs use stable service names. Known DB credentials and lines marked as credential/key
 material are withheld; treat application log messages as administrator-only operational
 data. Do not deliberately log secrets in custom integrations.
@@ -368,6 +373,7 @@ Never fabricate completion markers or infer that missing config means an empty d
 | Port conflict | Free managed80/443 deliberately or use external mode with a free loopback port |
 | DB unhealthy | Inspect `logs db`; preserve cluster/secrets; do not delete volumes or change PG major |
 | Migrate/seed/bootstrap failed | Inspect logs, correct the cause and use `setup --resume`; uncertain bootstrap requires explicit `--retry-admin` |
+| Bootstrap password rejected | Supply a password meeting the policy above through protected input and use `setup --resume --retry-admin`; rejected bootstrap creates no user or Admin membership |
 | Caddy/DNS/certificate failure | Check hostname/DNS, firewall80/443, `logs caddy`; retain Caddy TLS volumes |
 | App readiness failure | Inspect app logs, database credentials/schema/admin bootstrap and durable/key mounts |
 | External loopback works, public URL fails | Correct the external proxy's TLS, Host/forwarding and actual trusted hop |

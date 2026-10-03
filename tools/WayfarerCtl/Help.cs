@@ -3,6 +3,9 @@ namespace WayfarerCtl;
 /// <summary>Shared contextual command catalogue used by both menu and direct invocation.</summary>
 public static class Help
 {
+    /// <summary>Safe operator guidance only; application Identity owns password validation.</summary>
+    public const string PasswordGuidance = "Wayfarer requires at least 15 characters with uppercase, lowercase, a digit and a non-alphanumeric character. Protected input is limited to 1024 characters.";
+
     public static readonly IReadOnlyDictionary<string, string> Commands = new Dictionary<string, string>
     {
         ["help"] = "help [command [subcommand]] — contextual help; aliases --help and -h",
@@ -25,7 +28,7 @@ public static class Help
             "  Local raw/candidate qualification only: --bundle PATH --app-digest sha256:HEX (never a stable override).\n" +
             "  Continue owned partial setup: setup --resume [--password-stdin] [--retry-admin]\n" +
             "  Resume verifies original config/bundle/secrets; --retry-admin explicitly retries an uncertain bootstrap.\n" +
-            "  Secures the protected admin account; application password policy applies.\n" +
+            "  Secures the protected admin account; application password policy applies.\n  " + PasswordGuidance + "\n" +
             "  Example: sudo ./wayfarerctl setup",
         ["backup"] = "backup [--quiesced] — capture DB, complete active key ring and durable Uploads. Quiesced leaves the app stopped.",
         ["backup configure"] = "backup configure --destination PATH --payload /immutable/path/wayfarer-recovery [--kind local|mounted] [--retention 1..100] [--time HH:mm]\n  Explicit completed-installation opt-in; backup configure --disable or --recover.",
@@ -44,7 +47,7 @@ public static class Help
         ["logs"] = "logs [wayfarer|db|caddy] [--follow] [--tail N]\n  Default wayfarer, tail 100; N must be 1..10000. Caddy requires managed mode.",
         ["user"] = "user find <identity> | user reset-password <identity> [--password-stdin]\n  Exact username semantics belong to Wayfarer; no email/ID guessing or partial matches.",
         ["user find"] = "user find <identity> — delegate exact username lookup to Wayfarer; not-found returns 1",
-        ["user reset-password"] = "user reset-password <identity> [--password-stdin]\n  Hidden confirmed terminal password, or a single protected redirected stdin line.\n  Example: wayfarerctl user reset-password admin --password-stdin < /root/recovery-password"
+        ["user reset-password"] = "user reset-password <identity> [--password-stdin]\n  Hidden confirmed terminal password, or a single protected redirected stdin line.\n  " + PasswordGuidance + "\n  Example: wayfarerctl user reset-password admin --password-stdin < /root/recovery-password"
     };
 
     /// <summary>One global discovery/security/exit contract accompanies every command-specific page.</summary>

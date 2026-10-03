@@ -51,6 +51,7 @@ public class AdminUsersControllerTests : TestBase
         Assert.Contains(controller.ModelState, kvp => kvp.Value!.Errors.Any());
     }
 
+    /// <summary>Authorized changes use Identity's validated reset operation for another user.</summary>
     [Fact]
     public async Task ChangePassword_Post_AllowsChangingOtherUser()
     {
@@ -64,17 +65,16 @@ public class AdminUsersControllerTests : TestBase
         var userManager = MockUserManager(admin);
         userManager.Setup(m => m.GetUserAsync(It.IsAny<ClaimsPrincipal>())).ReturnsAsync(admin);
         userManager.Setup(m => m.FindByIdAsync(target.Id)).ReturnsAsync(target);
-        userManager.Setup(m => m.RemovePasswordAsync(target)).ReturnsAsync(IdentityResult.Success);
-        userManager.Setup(m => m.AddPasswordAsync(target, It.IsAny<string>())).ReturnsAsync(IdentityResult.Success);
-        userManager.Setup(m => m.UpdateSecurityStampAsync(target)).ReturnsAsync(IdentityResult.Success);
+        userManager.Setup(m => m.GeneratePasswordResetTokenAsync(target)).ReturnsAsync("fixture-reset-token");
+        userManager.Setup(m => m.ResetPasswordAsync(target, "fixture-reset-token", It.IsAny<string>())).ReturnsAsync(IdentityResult.Success);
 
         var controller = BuildController(db, userManager.Object);
         var model = new ChangePasswordViewModel
         {
             UserId = target.Id,
             UserName = target.UserName,
-            NewPassword = "P@ssw0rd!",
-            ConfirmPassword = "P@ssw0rd!"
+            NewPassword = "Strong-NewPassword7!",
+            ConfirmPassword = "Strong-NewPassword7!"
         };
 
         // Act
