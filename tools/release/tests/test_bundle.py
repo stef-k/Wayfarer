@@ -254,15 +254,15 @@ def test_stable_source_boundary_is_exact_and_incompatibility_blocks():
     import pytest
     import public_bundle
     import version
-    source = dict(Version='1.9.20', BundleContract=1, ConfigurationSchema=1, Platform='linux/amd64', Sources=[],
+    source = dict(Version='1.9.21', BundleContract=1, ConfigurationSchema=1, Platform='linux/amd64', Sources=[],
                   Images=dict(DatabaseDigest='sha256:' + 'b' * 64, CaddyDigest=bundle.CADDY),
                   Application=dict(Migrations=['20260101000000_Initial'], TerminalMigration='20260101000000_Initial'),
                   Files=[dict(Path=name, Sha256='d' * 64) for name in bundle.PAYLOADS])
     target = copy.deepcopy(source)
-    target['Version'] = '1.9.21'
+    target['Version'] = '1.9.22'
     target['Application']['Migrations'].append('20260102000000_Forward')
     result = public_bundle.boundary(source, 'e' * 64, target)
-    assert result['Version'] == '1.9.20' and result['Fingerprint'] == 'e' * 64
+    assert result['Version'] == '1.9.21' and result['Fingerprint'] == 'e' * 64
     assert result['TerminalMigration'] == source['Application']['TerminalMigration']
     assert result['ExactOrderedPrefix'] and not result['ReferenceSeeding']
     for kind in ('db', 'topology', 'prefix', 'seeding'):
@@ -279,16 +279,30 @@ def test_stable_source_boundary_is_exact_and_incompatibility_blocks():
             public_bundle.boundary(bad, 'e' * 64, target)
 
 
-def test_prior_discovery_preserves_baseline_and_chooses_deployable_source(monkeypatch):
-    """Source-only historical versions never become an invented Compose source."""
+def test_prior_discovery_preserves_supported_baseline_and_chooses_highest_source(monkeypatch):
+    """The supported baseline needs no predecessor; later targets bind the highest supported asset."""
     import public_bundle
-    releases = [dict(tag_name='v1.9.19', draft=False, prerelease=False, assets=[])]
+    releases = [dict(tag_name='v1.9.20', draft=False, prerelease=False,
+                     assets=[dict(name='wayfarer-v1.9.20-linux-amd64.tar.gz')]),
+                dict(tag_name='v1.9.21', draft=False, prerelease=False,
+                     assets=[dict(name='wayfarer-v1.9.21-linux-amd64.tar.gz')])]
     monkeypatch.setattr(bundle.image, 'run', lambda *args: json.dumps(releases))
-    assert public_bundle.previous('v1.9.20') is None
-    releases.extend([dict(tag_name='v1.9.20', draft=False, prerelease=False,
-                          assets=[dict(name='wayfarer-v1.9.20-linux-amd64.tar.gz')]),
-                     dict(tag_name='v1.9.21', draft=False, prerelease=False, assets=[])])
-    assert public_bundle.previous('v1.9.22') == 'v1.9.20'
+    assert public_bundle.previous('v1.9.21') is None
+    assert public_bundle.previous('v1.9.22') == 'v1.9.21'
+    releases.append(dict(tag_name='v1.9.22', draft=False, prerelease=False,
+                         assets=[dict(name='wayfarer-v1.9.22-linux-amd64.tar.gz')]))
+    assert public_bundle.previous('v1.9.23') == 'v1.9.22'
+
+
+def test_prior_discovery_refuses_transitional_fallback_or_new_baseline(monkeypatch):
+    """Missing supported assets cannot authorize a v1.9.20 source or an empty post-baseline source set."""
+    import public_bundle
+    releases = [dict(tag_name='v1.9.20', draft=False, prerelease=False,
+                     assets=[dict(name='wayfarer-v1.9.20-linux-amd64.tar.gz')]),
+                dict(tag_name='v1.9.21', draft=False, prerelease=False, assets=[])]
+    monkeypatch.setattr(bundle.image, 'run', lambda *args: json.dumps(releases))
+    with pytest.raises(version.ValidationError, match='supported.*v1.9.21'):
+        public_bundle.previous('v1.9.22')
 
 
 def test_publication_does_not_clobber_or_rebuild_occupied_identity(monkeypatch, tmp_path):

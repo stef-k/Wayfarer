@@ -34,9 +34,11 @@ public sealed class PublicReleaseTests
         Assert.DoesNotContain("private-token-and-url", terminal.Errors);
     }
 
-    /// <summary>A temporary server failure converges through the same resolver, with a capped Retry-After.</summary>
-    [Fact]
-    public async Task MetadataRetryHonorsOnlyBoundedServerDelay()
+    /// <summary>Supported exact and latest acquisition retain their fixed endpoints and capped Retry-After.</summary>
+    [Theory]
+    [InlineData("1.9.21", "tags/v1.9.21")]
+    [InlineData("latest", "latest")]
+    public async Task MetadataRetryHonorsOnlyBoundedServerDelay(string selector, string endpoint)
     {
         using var handler = new ResponseSequence(attempt =>
         {
@@ -47,12 +49,25 @@ public sealed class PublicReleaseTests
         });
         using var client = new HttpClient(handler);
         var delays = new List<TimeSpan>();
-        var release = await PublicReleaseAcquisition.ResolveAsync(client, "1.9.20", default,
+        var release = await PublicReleaseAcquisition.ResolveAsync(client, selector, default,
             delay: (duration, _) => { delays.Add(duration); return Task.CompletedTask; });
-        Assert.Equal("v1.9.20", release.Tag);
+        Assert.Equal("v1.9.21", release.Tag);
         Assert.Equal(2, handler.Calls);
         Assert.Equal(TimeSpan.FromSeconds(30), Assert.Single(delays));
-        Assert.All(handler.Requests, uri => Assert.EndsWith("/releases/tags/v1.9.20", uri.AbsoluteUri));
+        Assert.All(handler.Requests, uri => Assert.EndsWith("/releases/" + endpoint, uri.AbsoluteUri));
+    }
+
+    /// <summary>Common acquisition refuses transitional Compose versions before making a network request.</summary>
+    [Fact]
+    public async Task ExplicitAcquisitionRequiresSupportedComposeBaseline()
+    {
+        using var handler = new ResponseSequence(_ => throw new InvalidOperationException("Unsupported versions must not reach GitHub."));
+        using var client = new HttpClient(handler);
+        var error = await Assert.ThrowsAsync<UsageException>(() => PublicReleaseAcquisition.ResolveAsync(client, "1.9.20", default));
+        Assert.Contains("Compose", error.Message);
+        Assert.Contains("v1.9.21", error.Message);
+        Assert.Equal(0, handler.Calls);
+        Assert.Equal(error.Message, Assert.Throws<UsageException>(() => ReleaseCommands.Validate(["acquire", "1.9.20"])).Message);
     }
 
     /// <summary>Unadvertised releases and explicit user cancellation never become retry or fallback authority.</summary>
@@ -181,7 +196,7 @@ public sealed class PublicReleaseTests
         using var directory = new DownloadDirectory();
         var releases = Path.Combine(directory.Path, "releases");
         Directory.CreateDirectory(releases);
-        foreach (var stage in new[] { ".acquire-test", ".pull-test", ".stage-test", "v1.9.20" })
+        foreach (var stage in new[] { ".acquire-test", ".pull-test", ".stage-test", "v1.9.21" })
             Directory.CreateDirectory(Path.Combine(releases, stage));
         File.WriteAllText(Path.Combine(releases, ".stage-test.json"), "retained placement receipt");
         File.WriteAllText(Path.Combine(directory.Path, "operation.lock"), "");
@@ -204,7 +219,7 @@ public sealed class PublicReleaseTests
     {
         var metadata = Metadata();
         var arm = Asset();
-        arm["name"] = "wayfarer-v1.9.20-linux-arm64.tar.gz";
+        arm["name"] = "wayfarer-v1.9.21-linux-arm64.tar.gz";
         metadata["assets"] = new[] { Asset(), arm };
         var bytes = JsonSerializer.SerializeToUtf8Bytes(metadata);
         Assert.Equal(arm["name"], PublicRelease.Parse(bytes, "latest", "linux/arm64").Asset);
@@ -219,13 +234,13 @@ public sealed class PublicReleaseTests
     public void MetadataRequiresExactStableIdentityAndRestDigest()
     {
         var valid = Metadata();
-        var parsed = PublicRelease.Parse(JsonSerializer.SerializeToUtf8Bytes(valid), "1.9.20");
-        Assert.Equal("v1.9.20", parsed.Tag);
+        var parsed = PublicRelease.Parse(JsonSerializer.SerializeToUtf8Bytes(valid), "1.9.21");
+        Assert.Equal("v1.9.21", parsed.Tag);
         Assert.Equal(parsed, PublicRelease.Parse(JsonSerializer.SerializeToUtf8Bytes(valid), "latest"));
         foreach (var changed in new[] { "name", "tag_name", "html_url", "url" })
         {
             var invalid = Metadata();
-            invalid[changed] = "https://evil.example/v1.9.20";
+            invalid[changed] = "https://evil.example/v1.9.21";
             Assert.ThrowsAny<Exception>(() => PublicRelease.Parse(JsonSerializer.SerializeToUtf8Bytes(invalid), "latest"));
         }
         valid["prerelease"] = true;
@@ -248,7 +263,7 @@ public sealed class PublicReleaseTests
     public async Task DownloadRequiresExactDigestAndBoundedBody()
     {
         var bytes = Encoding.UTF8.GetBytes("bounded public archive bytes");
-        var release = new PublicRelease("1.9.20", "v1.9.20", "wayfarer-v1.9.20-linux-amd64.tar.gz", bytes.Length,
+        var release = new PublicRelease("1.9.21", "v1.9.21", "wayfarer-v1.9.21-linux-amd64.tar.gz", bytes.Length,
             "sha256:" + Convert.ToHexStringLower(SHA256.HashData(bytes)));
         using var handler = new AssetResponse(bytes);
         using var client = new HttpClient(handler);
@@ -285,10 +300,10 @@ public sealed class PublicReleaseTests
     public void PublicCommandsOnlyPrepareExistingUpdatePlans()
     {
         Assert.Equal("latest", UpdateOptions.Parse(["--plan"]).PublicVersion);
-        Assert.Equal("1.9.20", UpdateOptions.Parse(["1.9.20", "--plan"]).PublicVersion);
+        Assert.Equal("1.9.21", UpdateOptions.Parse(["1.9.21", "--plan"]).PublicVersion);
         ReleaseCommands.Validate(["acquire", "latest"]);
         Assert.Throws<UsageException>(() => UpdateOptions.Parse(["latest", "--plan"]));
-        Assert.Throws<UsageException>(() => UpdateOptions.Parse(["1.9.20"]));
+        Assert.Throws<UsageException>(() => UpdateOptions.Parse(["1.9.21"]));
         Assert.Throws<UsageException>(() => ReleaseCommands.Validate(["acquire", "https://evil.example"]));
     }
 
@@ -297,27 +312,27 @@ public sealed class PublicReleaseTests
     public void PublicSetupGrammarKeepsOneReleaseSelector()
     {
         Cli.ValidateCommand(["setup"]);
-        Cli.ValidateCommand(["setup", "--version", "1.9.20"]);
+        Cli.ValidateCommand(["setup", "--version", "1.9.21"]);
         Cli.ValidateCommand(["setup", "--bundle", "/trusted/bundle"]);
         foreach (var options in new[]
         {
-            "--version latest", "--version v1.9.20", "--version https://evil.example",
-            "--version 1.9.20 --bundle /trusted/bundle", "--app-digest sha256:" + new string('a', 64),
-            "--resume --version 1.9.20"
+            "--version latest", "--version v1.9.21", "--version https://evil.example",
+            "--version 1.9.21 --bundle /trusted/bundle", "--app-digest sha256:" + new string('a', 64),
+            "--resume --version 1.9.21"
         })
             Assert.Throws<UsageException>(() => Setup.Options(options.Split(' ')));
     }
 
     private static Dictionary<string, object> Metadata() => new()
     {
-        ["tag_name"] = "v1.9.20", ["name"] = "v1.9.20", ["draft"] = false, ["prerelease"] = false,
-        ["html_url"] = "https://github.com/stef-k/Wayfarer/releases/tag/v1.9.20",
+        ["tag_name"] = "v1.9.21", ["name"] = "v1.9.21", ["draft"] = false, ["prerelease"] = false,
+        ["html_url"] = "https://github.com/stef-k/Wayfarer/releases/tag/v1.9.21",
         ["url"] = "https://api.github.com/repos/stef-k/Wayfarer/releases/123", ["assets"] = new[] { Asset() }
     };
 
     private static Dictionary<string, object> Asset() => new()
     {
-        ["name"] = "wayfarer-v1.9.20-linux-amd64.tar.gz", ["state"] = "uploaded", ["size"] = 100,
+        ["name"] = "wayfarer-v1.9.21-linux-amd64.tar.gz", ["state"] = "uploaded", ["size"] = 100,
         ["digest"] = "sha256:" + new string('a', 64), ["browser_download_url"] = "https://evil.example/ignored"
     };
 
@@ -328,7 +343,7 @@ public sealed class PublicReleaseTests
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token)
         {
             Calls++;
-            Assert.StartsWith("https://github.com/stef-k/Wayfarer/releases/download/v1.9.20/", request.RequestUri!.AbsoluteUri);
+            Assert.StartsWith("https://github.com/stef-k/Wayfarer/releases/download/v1.9.21/", request.RequestUri!.AbsoluteUri);
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(bytes) });
         }
     }
@@ -346,7 +361,7 @@ public sealed class PublicReleaseTests
     }
 
     /// <summary>Published facts for a controlled exact response body.</summary>
-    private static PublicRelease DownloadIdentity(byte[] bytes) => new("1.9.20", "v1.9.20", "wayfarer-v1.9.20-linux-amd64.tar.gz", bytes.Length,
+    private static PublicRelease DownloadIdentity(byte[] bytes) => new("1.9.21", "v1.9.21", "wayfarer-v1.9.21-linux-amd64.tar.gz", bytes.Length,
         "sha256:" + Convert.ToHexStringLower(SHA256.HashData(bytes)));
 
     /// <summary>Replace waiting only, keeping the production retry classifier and attempt budget.</summary>
