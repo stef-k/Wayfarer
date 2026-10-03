@@ -114,6 +114,13 @@ public sealed class RecoveryCoordinationTests : IDisposable
         Assert.Equal(2, runner.Calls.Count); // Only deployment-independent Docker info/version checks may run.
         Assert.Equal(current, Deployment.Load(Root));
         Assert.Equal(target.Fingerprint, ReleaseDispatch.Select(Root, resume: false).Fingerprint);
+        // Recovery still selects and verifies the original owner after active release selection changes.
+        var restore = TerminalRestore(accepted: false);
+        var plan = restore.Plan with { OperatorOwner = previous.Release };
+        (restore with { Plan = plan, PlanHash = plan.Hash() }).Save(Root);
+        Assert.Equal(source.Fingerprint, ReleaseDispatch.Select(Root, resume: true).Fingerprint);
+        ReleaseDispatch.RequireOwner(Root, plan);
+        UpdateCommands.RequireOwner(Root, Update().Plan with { OperatorOwner = previous.Release! });
     }
 
     /// <summary>The actual reservation writer's root:1654/0640 output reaches exact stop/wait/removal and durable cleanup.</summary>

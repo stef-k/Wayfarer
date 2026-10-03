@@ -776,9 +776,14 @@ Keep a stable bootstrap executable at a fixed root-owned path. Invoke
 `/usr/local/lib/wayfarer-bootstrap/wayfarerctl --deployment-root /etc/wayfarer dispatch COMMAND`.
 A local wrapper may supply that fixed prefix with literal arguments; no cwd/PATH or
 manifest-provided path selects the child. The bootstrap is never replaced by lifecycle
-commands. Ordinary dispatch selects validated installation authority. Restore resume
-and abort select the receipt's original retained owner and verify its exact executable
-hash; direct invocation also enforces that owner. Existing receipts without owners
+commands. Ordinary dispatch selects validated installation authority. The child reselects
+current deployment and verifies its running executable under `operation.lock` before
+ordinary lifecycle, backup or account-recovery work. If an update completes between
+dispatch and this check, the old child refuses the command; retry it through the stable
+bootstrap dispatch above to select the newly active operator. Restore resume/abort
+and update resume/abort/managed recovery select the receipt's original retained owner
+and verify its exact executable hash; direct invocation also enforces that owner.
+Existing receipts without owners
 retain their explicit original-operator recovery path. Operator inspect/use/resume
 support is separate from application version ordering; unknown protocols fail closed.
 

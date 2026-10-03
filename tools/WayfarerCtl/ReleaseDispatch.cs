@@ -41,7 +41,7 @@ public static class ReleaseDispatch
         return process.ExitCode;
     }
 
-    /// <summary>Before authorizing a restore, pin the executable actually running, not just its advertised version.</summary>
+    /// <summary>Pin the running executable to the selected release before ordinary mutation or new restore authorization.</summary>
     public static ReleaseAuthority? CurrentOwner(string root, Deployment config)
     {
         if (config.Release is null) return null;

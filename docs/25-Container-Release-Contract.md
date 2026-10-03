@@ -270,6 +270,15 @@ bundle, corroborates retained release authority, compares generated environment
 bytes and checks the selected storage overlay. It does **not** alone establish
 complete secrets, a setup receipt, lifecycle completion or Docker resource ownership.
 
+Ordinary serialized commands (`backup configure`, `backup`, `backups`,
+`verify-backup`, `user find/reset-password`, `start`, `stop`, `restart`) acquire
+`operation.lock`, recheck unresolved restore/update intent, then load the current
+deployment. For release-managed installations they also verify the running executable
+against that selected retained release before command-specific mutation or recovery
+reservation. Host exclusion precedes recovery exclusion. `status`, `doctor` and `logs`
+may use a point-in-time snapshot without acquiring this host mutation lock.
+Receipt-owned restore/update continuation retains its original operator owner.
+
 The serialized property names are case-sensitive PascalCase. Omitted properties
 use declared defaults before validation; this is a versioned reader contract, not a
 requirement to hand-author JSON. Status/doctor never upgrade schemas.
