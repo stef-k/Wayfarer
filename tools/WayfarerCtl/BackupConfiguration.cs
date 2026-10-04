@@ -99,6 +99,17 @@ public sealed class BackupConfiguration(IProcessRunner runner)
                     Project = config.Project, BundleFingerprint = BundleFingerprint(config),
                     PayloadFingerprint = policy.PayloadSha256, WorkerVersion = typeof(WorkerConfiguration).Assembly.GetName().Version!.ToString()
                 } };
+            if (config.Release is { } release)
+            {
+                // Observed application facts corroborate independently retained capture authority, never choose its status/version.
+                var bundle = ReleaseStore.Select(root, release);
+                var target = bundle.Target(config.Project, policy.PayloadSha256 == bundle.Target(config.Project, true).PayloadFingerprint);
+                policy = policy with { Source = policy.Source with { ReleaseStatus = target.ReleaseStatus,
+                    WorkerVersion = target.WorkerVersion, SupportedLegacySourceSchemas = target.SupportedLegacySourceSchemas } };
+                bundle.Corroborate(policy.Source);
+                if (policy.Uploads != bundle.Manifest.Application.Uploads || policy.Ring != bundle.Manifest.Application.Ring)
+                    throw new IOException("Recovery layout contradicts retained release.");
+            }
         }
         policy = policy with { Generation = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(32)) };
         var next = config with { Schema = Math.Max(2, config.Schema), Installation = installation, Backup = policy };
