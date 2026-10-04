@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [1.9.22] - 2026-10-04
+
 ### Added
 
 - Extend full AMD64 Compose qualification with real automatic ACME issuance against
