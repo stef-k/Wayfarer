@@ -4,11 +4,15 @@ These tests validate the implementation; they cannot qualify an unpublished targ
 """
 import copy
 import hashlib
+import io
 import json
 from pathlib import Path
+import subprocess
 import sys
+import tarfile
+import tempfile
 import unittest
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import public_lifecycle_evidence as evidence
@@ -55,13 +59,29 @@ def capture():
                 'Source': {'ApplicationVersion': '1.9.21', 'SourceRevision': 'b' * 40,
                            'ApplicationImage': 'ghcr.io/stef-k/wayfarer@' + source['appDigest'],
                            'DatabaseImage': 'ghcr.io/stef-k/wayfarer-db@' + source['dbDigest'],
-                           'Project': PROJECT, 'Platform': 'linux/amd64', 'ReleaseStatus': 'candidate',
+                           'Project': PROJECT, 'Platform': 'linux/amd64', 'ReleaseStatus': 'released',
+                           'ConfigurationSchema': 3,
                            'WorkerVersion': '1.9.21.0', 'QuartzCompatibilityContract': 'wayfarer-quartz-v1',
                            'QuartzSnapshotFingerprint': 'a' * 32,
                            'BundleFingerprint': 'b' * 64, 'PayloadFingerprint': 'c' * 64, 'Token': SECRET},
                 'Database': {'Major': 18, 'Password': SECRET}}
     sidecar = 'd' * 64 + '  ' + NAME + '\n'
     return source, captured, sidecar
+
+
+def repair_state():
+    """The public source's known defect changes only capture status and backup generation."""
+    before, _ = deployment()
+    before['Bundle'] = '/owned/releases/v1.9.21'
+    before['Backup'] = {'Source': capture()[1]['Source'], 'Generation': 'a' * 64,
+                        'Retention': 7, 'Ring': 'data-protection', 'Destination': '/owned/' + SECRET}
+    before['Backup']['Source']['ReleaseStatus'] = 'candidate'
+    after = copy.deepcopy(before)
+    after['Backup']['Source']['ReleaseStatus'] = 'released'
+    after['Backup']['Generation'] = 'b' * 64
+    public_target = evidence.publication(release('v1.9.22'), 'v1.9.22')
+    public_target['executedBootstrapSha256'] = 'e' * 64
+    return before, after, public_target
 
 
 class PublicLifecycleTests(unittest.TestCase):
@@ -138,6 +158,115 @@ class PublicLifecycleTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 evidence.archive_facts(NAME, ARCHIVE, 'd' * 64, sidecar, changed, source)
         self.assertNotIn(SECRET, json.dumps({'source': source, 'archive': selected}))
+
+    def test_selected_archive_requires_released_schema_three_source(self):
+        """Candidate diagnostic captures and the invalid stable token cannot enter the PASS witness."""
+        source, manifest, sidecar = capture()
+        self.assertEqual(evidence.archive_facts(NAME, ARCHIVE, 'd' * 64, sidecar, manifest, source)
+                         ['sourceIdentity']['releaseStatus'], 'released')
+        for status in ('candidate', 'stable'):
+            changed = copy.deepcopy(manifest)
+            changed['Source']['ReleaseStatus'] = status
+            with self.subTest(status=status), self.assertRaises(ValueError):
+                evidence.archive_facts(NAME, ARCHIVE, 'd' * 64, sidecar, changed, source)
+        manifest['Source']['ConfigurationSchema'] = 2
+        with self.assertRaises(ValueError):
+            evidence.archive_facts(NAME, ARCHIVE, 'd' * 64, sidecar, manifest, source)
+
+    def test_repair_projection_retains_only_public_join_and_observed_success(self):
+        """Protected configuration, private policy paths and unexpected metadata never leave memory."""
+        before, after, public_target = repair_state()
+        public_target['Secret'] = SECRET
+        observed = evidence.repair_facts(before, after, public_target, 'e' * 64)
+        self.assertEqual(observed, {'publicTargetTag': 'v1.9.22', 'bootstrapSha256': 'e' * 64,
+                                    'beforeStatus': 'candidate', 'afterStatus': 'released',
+                                    'generationChanged': True, 'sourceIdentityPreserved': True,
+                                    'backupPolicyPreserved': True, 'result': 'success'})
+        self.assertNotIn(SECRET, json.dumps(observed))
+
+    def test_repair_requires_known_before_and_corrected_after_status(self):
+        """A no-op or wrong status cannot stand in for observing the pristine public defect."""
+        for state, status in (('before', 'released'), ('before', 'stable'),
+                              ('after', 'candidate'), ('after', 'stable')):
+            before, after, public_target = repair_state()
+            (before if state == 'before' else after)['Backup']['Source']['ReleaseStatus'] = status
+            with self.subTest(state=state, status=status), self.assertRaises(ValueError):
+                evidence.repair_facts(before, after, public_target, 'e' * 64)
+
+    def test_repair_requires_changed_generation(self):
+        """Corrected labels alone do not prove that the supported generation transaction ran."""
+        before, after, public_target = repair_state()
+        after['Backup']['Generation'] = before['Backup']['Generation']
+        with self.assertRaises(ValueError):
+            evidence.repair_facts(before, after, public_target, 'e' * 64)
+
+    def test_repair_requires_preserved_source_identity_and_policy(self):
+        """Only status and backup generation may differ across the protected readbacks."""
+        for section, field, value in ((None, 'Installation', CLEAN), (None, 'Project', PROJECT + '-clean'),
+                                      (None, 'StorageGeneration', 'e' * 32), ('Release', 'Fingerprint', 'e' * 64),
+                                      ('Backup', 'Retention', 8)):
+            before, after, public_target = repair_state()
+            (after if section is None else after[section])[field] = value
+            with self.subTest(field=field), self.assertRaises(ValueError):
+                evidence.repair_facts(before, after, public_target, 'e' * 64)
+
+    def test_repair_operator_requires_verified_public_target_identity(self):
+        """A local executable hash, unverified bootstrap or candidate tag is not public repair evidence."""
+        _, _, public_target = repair_state()
+        variants = [(public_target, 'f' * 64), (dict(public_target, tag='candidate-v1.9.22'), 'e' * 64),
+                    (dict(public_target, tag=evidence.SOURCE), 'e' * 64)]
+        unverified = dict(public_target)
+        unverified.pop('executedBootstrapSha256')
+        variants.append((unverified, 'e' * 64))
+        for facts, digest in variants:
+            with self.subTest(tag=facts['tag']), self.assertRaises(ValueError):
+                evidence.repair_operator(facts, digest)
+
+    def test_verified_bootstrap_records_the_extracted_operator_hash(self):
+        """Repair provenance binds executable bytes extracted only after public asset and sidecar checks."""
+        payload = b'public target operator'
+        compressed = io.BytesIO()
+        with tarfile.open(fileobj=compressed, mode='w:gz') as archive:
+            member = tarfile.TarInfo('wayfarerctl')
+            member.size, member.mode = len(payload), 0o555
+            archive.addfile(member, io.BytesIO(payload))
+        name = 'wayfarerctl-linux-amd64.tar.gz'
+        digest = hashlib.sha256(compressed.getvalue()).hexdigest()
+        downloads = {name: compressed.getvalue(), name + '.sha256': (digest + '  ' + name + '\n').encode()}
+        facts = evidence.publication(release('v1.9.22'), 'v1.9.22')
+        for asset, value in downloads.items():
+            facts['assets'][asset] = {'size': len(value), 'sha256': 'sha256:' + hashlib.sha256(value).hexdigest()}
+        with tempfile.TemporaryDirectory() as directory, patch.object(evidence, 'gh_read') as download:
+            download.side_effect = lambda url, output: output.write(downloads[url.rsplit('/', 1)[1]])
+            executable = evidence.bootstrap(facts, Path(directory) / 'bootstrap')
+            actual = hashlib.sha256(executable.read_bytes()).hexdigest()
+            self.assertEqual(facts['executedBootstrapSha256'], actual)
+            self.assertEqual(evidence.repair_operator(facts, actual)['bootstrapSha256'], actual)
+
+    def test_repair_invokes_public_target_directly_and_keeps_ordinary_operator(self):
+        """Direct target execution is logged without protected state, argv values or command output."""
+        before, after, public_target = repair_state()
+        journey = PublicJourney.__new__(PublicJourney)
+        journey.install = Path('/owned/installation')
+        journey.executable = Path('/owned/source-wayfarerctl')
+        journey.passwords, journey.command_count = [SECRET], 0
+        journey.config = Mock(side_effect=[before, after])
+        journey.file_hash = Mock(return_value='e' * 64)
+        journey.host = Mock(return_value=subprocess.CompletedProcess([], 0, 'repair succeeded', ''))
+        operator = Path('/owned/target-bootstrap/wayfarerctl')
+        with tempfile.TemporaryDirectory() as directory:
+            journey.log = Path(directory) / 'commands.jsonl'
+            observed = journey.repair_source(public_target, operator)
+            journey.host.assert_called_once_with(str(operator), '--deployment-root', str(journey.install),
+                                                 'release', 'repair-backup-source-v1.9.21', data=None, check=False)
+            self.assertEqual(journey.executable, Path('/owned/source-wayfarerctl'))
+            self.assertEqual(observed['result'], 'success')
+            self.assertEqual(json.loads(journey.log.read_text())['command'], 'release repair-backup-source-v1.9.21')
+            self.assertNotIn(SECRET, journey.log.read_text())
+            journey.config.side_effect = [before, after]
+            journey.host.return_value = subprocess.CompletedProcess([], 1, '', '')
+            with self.assertRaises(ValueError):
+                journey.repair_source(public_target, operator)
 
     def test_update_ledger_joins_authority_and_drops_raw_plan_secrets(self):
         """Only exact-source Accepted same-generation update facts are emitted."""
