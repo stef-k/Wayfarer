@@ -1,4 +1,4 @@
-- **User Guide**
+- **Users & Self-hosters**
   - [User Guide](00-User-Guide.md)
   - [Getting Started](01-Getting-Started.md)
   - [Install & Self-Hosting](02-Install-and-Dependencies.md)
@@ -13,7 +13,7 @@
   - [FAQ](10-FAQ.md)
   - [About](11-About.md)
 
-- **Developer Guide**
+- **Developers & Contributors**
   - [Developer Guide](13-Developer-Guide.md)
   - [Setup](14-Setup.md)
   - [Architecture](15-Architecture.md)
@@ -21,13 +21,14 @@
   - [Services](17-Services.md)
   - [API](18-API.md)
   - [Database](19-Database.md)
-  - [Deployment](20-Deployment.md)
+  - [Security](21-Security.md)
+  - [Personal Location Providers](24-Personal-Location-Providers.md)
+  - [Testing](22-Testing.md)
+
+- **Project Maintainers**
+  - [Advanced Native / Manual Deployment](20-Deployment.md#advanced-nativemanual-deployment)
   - [Versioning & Release Operations](23-Versioning.md)
   - [Container & Release Contract](25-Container-Release-Contract.md)
   - [Application Container](26-Application-Container.md)
   - [Application Image Publication](27-Application-Image-Publication.md)
-  - [Compose Deployment](28-Production-Compose.md)
-  - [wayfarerctl Operator Guide](29-Wayfarerctl.md)
-  - [Security](21-Security.md)
-  - [Personal Location Providers](24-Personal-Location-Providers.md)
-  - [Testing](22-Testing.md)
+  - [Production Compose](28-Production-Compose.md)

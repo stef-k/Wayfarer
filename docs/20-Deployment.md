@@ -35,7 +35,7 @@ The [container/release contract](25-Container-Release-Contract.md) and
 ## Advanced native/manual deployment
 
 The remaining systemd/Nginx/source-build instructions are an advanced manual path.
-Native-to-Compose migration remains separate work under #603.
+Ordinary `wayfarerctl` does not implement native-to-Compose migration; the maintainer's deferred real production migration/cutover is tracked by open [#604](https://github.com/stef-k/Wayfarer/issues/604).
 
 Production startup no longer migrates, seeds or creates an administrator. Existing native install/deploy helpers do not replace the explicit maintenance sequence below; run it with the service identity and its protected configuration before starting/restarting. Configure `TrustedProxy__Addresses__0=127.0.0.1` (and `::1` as a second entry if used) for native loopback nginx.
 

@@ -16,9 +16,10 @@ Role Overview
 - **Manager** — Views location data for users who have explicitly trusted them (e.g., organisations or family coordinators).
 - **User** — Personal account for timeline/trip features and for reporting locations from the mobile app.
 
-Password Policy
-- Minimum eight characters.
-- Requires at least one uppercase letter, one lowercase letter, one number, and one special character.
+Production Password Policy
+- Minimum **15 characters**.
+- Requires at least one uppercase letter, one lowercase letter, one digit, and one non-alphanumeric character.
+- Development uses a separate local password/seed policy; it is not the Production policy.
 - Because recovery is manual, rotate credentials regularly and enable 2FA where possible.
 
 App Layout
@@ -36,7 +37,7 @@ First Steps
 2) Explore Timeline or Trips from the menu.
 3) If you have historical data, see Importing Data to upload GPX/KML/CSV/Wayfarer GeoJSON/Google exports.
 4) Optional: Install and connect the companion mobile app for live location updates.
-5) If you'll self‑host, see "Install & Self‑Hosting" next.
+5) If you'll self-host, follow [Install & Self-Hosting](02-Install-and-Dependencies.md), then use the [wayfarerctl operator guide](29-Wayfarerctl.md) for normal operation.
 
 ![Account Management](images/account-management.JPG)
 
