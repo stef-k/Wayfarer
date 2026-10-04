@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Give the shared external HTTPS qualification proxy its own project-scoped fixture label and cleanup selector, keeping it outside product Compose update ownership while preserving existing product/helper cleanup and HTTPS behavior (#748).
+
 ## [1.9.22] - 2026-10-04
 
 ### Added

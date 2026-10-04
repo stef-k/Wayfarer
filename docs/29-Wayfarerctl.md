@@ -395,6 +395,12 @@ It removes only its random labelled resources. Test-only TLS never changes produ
 Caddy automatic HTTPS. This is not public-CA issuance, production/native qualification,
 backup/restore/update acceptance or completion of #603.
 
+The shared external HTTPS proxy uses
+`wayfarer.qualification-https-proxy=<disposable project>` for fixture ownership.
+It carries no `com.docker.compose.project` label, so product update enumeration
+cannot select it as retained Wayfarer state. Fixture cleanup selects this label
+alongside the existing Compose, restore-helper and update-project labels.
+
 ### Continuous public stable evidence
 
 [`qualify_public_lifecycle.py`](../tools/compose/qualify_public_lifecycle.py) reuses the

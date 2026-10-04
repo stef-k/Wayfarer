@@ -16,6 +16,7 @@ from unittest.mock import Mock, call, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import public_lifecycle_evidence as evidence
+from qualify_ctl import Journey
 from qualify_public_lifecycle import PublicJourney
 
 INSTALLATION = '11111111-1111-4111-8111-111111111111'
@@ -85,7 +86,54 @@ def repair_state():
 
 
 class PublicLifecycleTests(unittest.TestCase):
-    """Only public-authority and continuity boundaries need deterministic negative cases here."""
+    """Prove fixture ownership, public authority and continuity at their offline boundaries."""
+    def test_external_proxy_is_qualification_owned_and_excluded_from_product_update(self):
+        """Shared and public proxies retain HTTPS routing without joining product project queries."""
+        for journey_type, digest in ((Journey, 'sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b'),
+                                     (PublicJourney, 'sha256:' + 'e' * 64)):
+            with self.subTest(journey=journey_type.__name__), patch('qualify_ctl.run') as docker:
+                journey = journey_type.__new__(journey_type)
+                journey.bundle = Path('/owned/bundle')
+                journey.project, journey.proxy = PROJECT, PROJECT + '-proxy'
+                journey.port, journey.loopback = 8443, 8080
+                journey.host, journey.curl = Mock(), Mock(return_value='ready')
+                if journey_type is Journey:
+                    journey.start_proxy()
+                else:
+                    journey.start_proxy(digest)
+                    journey.curl.assert_called_once_with('/health/ready', '--retry', '5', '--retry-connrefused',
+                                                         '--retry-max-time', '30')
+                docker.assert_called_once_with('docker', 'run', '-d', '--name', journey.proxy, '--network', 'host',
+                    '--label', f'wayfarer.qualification-https-proxy={PROJECT}',
+                    '-v', '/owned/bundle/caddy:/etc/caddy:ro', 'caddy@' + digest,
+                    'caddy', 'run', '--config', '/etc/caddy/ExternalTest-' + PROJECT, '--adapter', 'caddyfile')
+                creation = docker.call_args.args
+                labels = dict(value.split('=', 1) for flag, value in zip(creation, creation[1:]) if flag == '--label')
+                self.assertEqual(labels, {'wayfarer.qualification-https-proxy': PROJECT})
+                self.assertNotIn('com.docker.compose.project', labels)
+                product_query = f'label=com.docker.compose.project={PROJECT}'
+                key, value = product_query.removeprefix('label=').split('=', 1)
+                self.assertNotEqual(labels.get(key), value)
+                journey.host.assert_called_once_with('tee', '/owned/bundle/caddy/ExternalTest-' + PROJECT,
+                    data='{\n auto_https disable_redirects\n}\nhttps://wayfarer.example.org:8443'
+                         ' {\n bind 127.0.0.1\n tls /etc/caddy/tls.crt /etc/caddy/tls.key\n'
+                         ' reverse_proxy 127.0.0.1:8080\n}\n')
+
+    def test_cleanup_removes_qualification_proxy_and_product_helpers(self):
+        """Each project-scoped owner still selects resources for removal without real Docker access."""
+        journey = Journey.__new__(Journey)
+        for label in ('wayfarer.qualification-https-proxy', 'com.docker.compose.project',
+                      'wayfarer.restore-helper', 'wayfarer.update-project'):
+            with self.subTest(label=label), patch('qualify_ctl.run') as docker:
+                selector = f'label={label}={PROJECT}'
+                docker.side_effect = lambda *args: Mock(stdout='owned-resource' if args[-1] == selector else '')
+                journey.cleanup_project(PROJECT)
+                for listing in (('ps', '-aq'), ('network', 'ls', '-q'), ('volume', 'ls', '-q')):
+                    self.assertIn(call('docker', *listing, '--filter', selector), docker.call_args_list)
+                docker.assert_has_calls([call('docker', 'rm', '-f', 'owned-resource'),
+                                         call('docker', 'network', 'rm', 'owned-resource'),
+                                         call('docker', 'volume', 'rm', 'owned-resource')], any_order=True)
+
     def test_complete_ring_uses_product_relative_path(self):
         """Recovery inspection returns data-root-relative paths; whole-ring proof resolves that authority."""
         journey = PublicJourney.__new__(PublicJourney)

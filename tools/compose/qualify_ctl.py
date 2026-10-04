@@ -19,6 +19,8 @@ from urllib.parse import urlencode
 ROOT = Path(__file__).resolve().parents[2]
 # No .NET, Python or Node in this execution host; CLI must supply its own runtime.
 HOST = 'ubuntu@sha256:008173c23f95b170204355c12626cb5a965d779a7e1283b09e9cffbb1bf33ca3'
+# External HTTPS fixtures belong to qualification, outside product lifecycle ownership.
+QUALIFICATION_PROXY_LABEL = 'wayfarer.qualification-https-proxy'
 
 
 def run(*args, data=None, check=True):
@@ -171,7 +173,7 @@ exec /usr/bin/docker "$@"
         self.host('tee', str(proxy), data='{\n auto_https disable_redirects\n}\nhttps://wayfarer.example.org:' + str(self.port) +
                   ' {\n bind 127.0.0.1\n tls /etc/caddy/tls.crt /etc/caddy/tls.key\n reverse_proxy 127.0.0.1:' + str(self.loopback) + '\n}\n')
         run('docker', 'run', '-d', '--name', self.proxy, '--network', 'host',
-            '--label', f'com.docker.compose.project={self.project}',
+            '--label', f'{QUALIFICATION_PROXY_LABEL}={self.project}',
             '-v', f'{self.bundle}/caddy:/etc/caddy:ro', 'caddy@' + digest,
             'caddy', 'run', '--config', '/etc/caddy/' + proxy.name, '--adapter', 'caddyfile')
 
@@ -293,7 +295,8 @@ exec /usr/bin/docker "$@"
                                        ('network', ['network', 'ls', '-q'], ['network', 'rm']),
                                        ('volume', ['volume', 'ls', '-q'], ['volume', 'rm'])]:
             ids = set()
-            for label in ['com.docker.compose.project=', 'wayfarer.restore-helper=', 'wayfarer.update-project=']:
+            for label in ['com.docker.compose.project=', 'wayfarer.restore-helper=', 'wayfarer.update-project=',
+                          QUALIFICATION_PROXY_LABEL + '=']:
                 ids.update(run('docker', *listing, '--filter', 'label=' + label + project).stdout.split())
             if ids:
                 run('docker', *removal, *sorted(ids))
