@@ -4,9 +4,7 @@ using FluentAssertions;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.TestHost;
-using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
 using Wayfarer.Areas.Api.Controllers;
 using Wayfarer.Middleware;
@@ -15,10 +13,8 @@ using Xunit;
 
 namespace Wayfarer.Tests.Versioning;
 
-public class VersionHttpTests : IDisposable
+public class VersionHttpTests
 {
-    private readonly string _tempDirectory = Path.Combine(Path.GetTempPath(), $"wayfarer-version-tests-{Guid.NewGuid():N}");
-
     [Fact]
     public async Task GetVersion_ReturnsExpectedJsonAndContentType()
     {
@@ -47,29 +43,6 @@ public class VersionHttpTests : IDisposable
         response.Headers.GetValues(AppVersionHeaderMiddleware.HeaderName).Should().ContainSingle("1.4.1");
     }
 
-    [Fact]
-    public async Task VersionHeader_AppearsOnDocsStaticResponse()
-    {
-        Directory.CreateDirectory(_tempDirectory);
-        await File.WriteAllTextAsync(Path.Combine(_tempDirectory, "version-test.txt"), "docs");
-
-        using var host = await CreateDocsStaticHostAsync(_tempDirectory);
-        using var client = host.GetTestClient();
-
-        using var response = await client.GetAsync("/docs/version-test.txt");
-
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
-        response.Headers.GetValues(AppVersionHeaderMiddleware.HeaderName).Should().ContainSingle("1.4.1");
-    }
-
-    public void Dispose()
-    {
-        if (Directory.Exists(_tempDirectory))
-        {
-            Directory.Delete(_tempDirectory, recursive: true);
-        }
-    }
-
     private static async Task<IHost> CreateApiHostAsync()
     {
         var host = new HostBuilder()
@@ -86,31 +59,6 @@ public class VersionHttpTests : IDisposable
                 app.UseMiddleware<AppVersionHeaderMiddleware>();
                 app.UseRouting();
                 app.UseEndpoints(endpoints => endpoints.MapControllers());
-            }))
-            .Build();
-
-        await host.StartAsync();
-        return host;
-    }
-
-    private static async Task<IHost> CreateDocsStaticHostAsync(string docsPath)
-    {
-        var host = new HostBuilder()
-            .ConfigureWebHost(webHost => webHost
-                .UseTestServer()
-            .ConfigureServices(services =>
-            {
-                services.AddSingleton<IAppVersionProvider>(new StubAppVersionProvider("1.4.1"));
-            })
-            .Configure(app =>
-            {
-                app.UseMiddleware<AppVersionHeaderMiddleware>();
-                app.UseStaticFiles(new StaticFileOptions
-                {
-                    FileProvider = new PhysicalFileProvider(docsPath),
-                    RequestPath = "/docs",
-                    ContentTypeProvider = new FileExtensionContentTypeProvider()
-                });
             }))
             .Build();
 

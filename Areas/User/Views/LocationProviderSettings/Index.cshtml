@@ -1,7 +1,8 @@
 @model Wayfarer.Areas.User.LocationProviderModels.LocationProviderSettingsViewModel
 
 <h1>Personal location providers</h1>
-<p>Credentials are protected and never displayed again or sent to WayfarerMobile. <a href="/docs/#/24-Personal-Location-Providers">Read the credential and usage guide</a>.</p>
+@* Use the numbered Pages destination until the user-guide provider page is migrated. *@
+<p>Credentials are protected and never displayed again or sent to WayfarerMobile. <a href="https://stef-k.github.io/Wayfarer/24-Personal-Location-Providers.html">Read the credential and usage guide</a>.</p>
 @* Migration recovery status does not override capability eligibility or saved selection. *@
 @if (Model.LegacyMigrationState == Wayfarer.Models.LocationProviders.LegacyMapboxMigrationState.Conflict)
 { <div class="alert alert-danger">Legacy Mapbox migration needs recovery. Conflicting stored values were retained.</div> }

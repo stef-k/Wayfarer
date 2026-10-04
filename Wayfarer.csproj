@@ -78,11 +78,6 @@
         <Folder Include="wwwroot\lib\sortablejs\" />
     </ItemGroup>
 
-    <!-- Include docs folder for local serving at /docs/ -->
-    <ItemGroup>
-        <Content Include="docs\**\*.*" CopyToPublishDirectory="PreserveNewest" />
-    </ItemGroup>
-
     <!-- Include frontend config so it's available in production (MvcFrontendKit reads it at runtime) -->
     <ItemGroup>
         <Content Include="frontend.config.yaml" CopyToPublishDirectory="PreserveNewest" />

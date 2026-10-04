@@ -18,6 +18,13 @@ namespace Wayfarer.Controllers
             return View();
         }
 
+        /// <summary>Redirects legacy documentation bookmarks to the canonical GitHub Pages homepage.</summary>
+        [AcceptVerbs("GET", "HEAD", Route = "/docs")]
+        public IActionResult Documentation()
+        {
+            return RedirectPermanent("https://stef-k.github.io/Wayfarer/");
+        }
+
         public IActionResult Privacy()
         {
             SetPageTitle("Privacy Policy");
