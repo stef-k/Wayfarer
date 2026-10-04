@@ -53,9 +53,10 @@ quoted notes and address text; do not split fields on commas by hand.
 ## Follow progress and control an import
 
 The imports list shows status, processed records, the last processed record and
-errors. Duplicate detection skips records with matching times and coordinates
-within a small tolerance. An import can finish with fewer new records than its
-source contains because of duplicates or invalid rows.
+errors. Records carrying portable identifiers are recognized by those identifiers;
+other records are checked for matching times and coordinates within a small
+tolerance. An import can finish with fewer new records than its source contains
+because of duplicates or invalid rows.
 
 - **Stop** pauses processing. Already imported locations remain in your history.
   Wait for **Stopping** to become **Stopped** before restarting it.
@@ -99,7 +100,7 @@ the tool you will use:
 Keep an untouched export when using another tool to transform the data. These
 files can include precise positions, times, notes and device metadata. Store and
 share them as private history unless you intend otherwise. A data export is a
-portable copy of selected product data, not a complete server backup.
+portable copy of your location or Trip data, not a complete server backup.
 
 ## Move Trip plans
 
@@ -165,8 +166,8 @@ records to fix synchronization.
 
 ### Deliver queued records through a server import
 
-1. On the original phone, open **Settings > Offline Queue** and choose the recovery
-   preparation action. Wait until delivery is suspended and active work has finished.
+1. On the original phone, open **Settings > Offline Queue** and choose **Prepare
+   recovery**. Wait until delivery is suspended and active work has finished.
 2. Export a recovery **CSV** or **GeoJSON**. Keep the original file intact. Export
    also establishes the suspended-delivery boundary and leaves the queue in place.
 3. In Wayfarer's web **Location imports**, import CSV with **CSV**, or the recovery

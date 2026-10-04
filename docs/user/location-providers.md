@@ -24,7 +24,7 @@ settings or the API token used to connect Mobile.
 ## Privacy and credentials
 
 Provider requests leave Wayfarer. Address lookup sends coordinates; Trip search
-sends your search and relevant map context; directions sends the route's positions
+sends your search query; directions sends the route's positions
 and chosen mode. The provider and its service infrastructure receive the
 information needed for that request. Hidden Areas affect public Timeline display,
 not whether a location is sent for an enabled address lookup.
@@ -131,7 +131,7 @@ eligible credit card or enterprise contract for this storage mode; see its
 [storage requirements](https://docs.mapbox.com/api/search/geocoding/#storing-geocoding-results).
 
 Permanent Geocoding is separately billed. Do not assume Temporary Geocoding's
-free allowance covers it. Review [Mapbox pricing](https://www.mapbox.com/pricing/#search)
+free allowance covers it. Review [Mapbox pricing](https://www.mapbox.com/pricing/)
 and your account terms before verification or bulk enrichment.
 
 1. Save the Mapbox credential.

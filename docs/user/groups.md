@@ -42,10 +42,10 @@ management successor.
 
 ## Choose your sharing visibility
 
-**Family** members can see each other's locations. **Friends** Groups provide a
-personal **Hide my location from peers** control on the Group map. Enable it to
-hide your locations from other Friends members, or disable it to share again.
-You can still see your own records.
+**Family** members can see each other's locations. **Friends** Groups provide an
+**Allow peers to see my location in this Friends group** switch on the Group map.
+Turn it off to hide your locations from other Friends members, or on to share
+again. You can still see your own records.
 
 Family and Organization maps currently allow active members to see one another.
 The personal peer-hiding control applies to Friends; do not rely on it or an

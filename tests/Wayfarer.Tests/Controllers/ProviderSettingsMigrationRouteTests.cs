@@ -104,11 +104,11 @@ public sealed class ProviderSettingsMigrationRouteTests : TestBase
         using var page = await client.GetAsync(Root);
         Assert.Equal(HttpStatusCode.OK, page.StatusCode);
         var html = await new HtmlParser().ParseDocumentAsync(await page.Content.ReadAsStringAsync());
-        // Pages owns shared Docs navigation and the temporary numbered provider help page.
+        // Pages owns shared Docs navigation and the canonical personal-provider user guide.
         foreach (var selector in new[] { "#mainNavbar a", ".site-footer a" })
             Assert.Equal("https://stef-k.github.io/Wayfarer/", Assert.Single(html.QuerySelectorAll(selector),
                 link => link.TextContent.Trim() == "Docs").GetAttribute("href"));
-        Assert.Equal("https://stef-k.github.io/Wayfarer/24-Personal-Location-Providers.html",
+        Assert.Equal("https://stef-k.github.io/Wayfarer/user/location-providers.html",
             Assert.Single(html.QuerySelectorAll("main a"),
                 link => link.TextContent == "Read the credential and usage guide").GetAttribute("href"));
         var form = html.QuerySelector("form[action*='MigrateLegacyMapbox']")!;
