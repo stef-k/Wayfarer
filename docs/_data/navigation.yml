@@ -1,0 +1,70 @@
+# Wayfarer owns these audience links; the shared theme renders the sidebar.
+# URLs are relative to the documentation root, without the /Wayfarer base path.
+sections:
+  # The task guides are the canonical destinations for ordinary users.
+  - title: Users
+    items:
+      - title: Start here
+        url: /user/
+      - title: Timeline and locations
+        url: /user/timeline.html
+      - title: Trips
+        url: /user/trips.html
+      - title: Groups
+        url: /user/groups.html
+      - title: Import and export
+        url: /user/import-export.html
+      - title: WayfarerMobile
+        url: /user/mobile.html
+      - title: Personal location providers
+        url: /user/location-providers.html
+
+  # Retain existing operator destinations until their audience guide replaces them.
+  - title: Self-hosters
+    items:
+      - title: Install & Self-Hosting
+        url: /02-Install-and-Dependencies.html
+      - title: Operate with wayfarerctl
+        url: /29-Wayfarerctl.html
+      - title: Troubleshooting
+        url: /09-Troubleshooting.html
+      - title: Security
+        url: /21-Security.html
+      - title: Advanced native/manual deployment
+        url: /20-Deployment.html#advanced-nativemanual-deployment
+      - title: Protected credential recovery
+        url: /24-Personal-Location-Providers.html#key-ring-durability-and-selection
+
+  # Existing development references remain reachable during the documentation migration.
+  - title: Developers & Contributors
+    items:
+      - title: Developer Guide
+        url: /13-Developer-Guide.html
+      - title: Local setup
+        url: /14-Setup.html
+      - title: Architecture
+        url: /15-Architecture.html
+      - title: Configuration
+        url: /16-Configuration.html
+      - title: Services and jobs
+        url: /17-Services.html
+      - title: API reference
+        url: /18-API.html
+      - title: Database
+        url: /19-Database.html
+      - title: Testing
+        url: /22-Testing.html
+
+  # Publication and qualification references remain owned by project maintainers.
+  - title: Project Maintainers
+    items:
+      - title: Versioning & Release Operations
+        url: /23-Versioning.html
+      - title: Container & Release Contract
+        url: /25-Container-Release-Contract.html
+      - title: Application Container
+        url: /26-Application-Container.html
+      - title: Application Image Publication
+        url: /27-Application-Image-Publication.html
+      - title: Production Compose
+        url: /28-Production-Compose.html

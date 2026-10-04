@@ -15,7 +15,7 @@ stays on your own server, with control over who can see it and what you publish.
 - **Live sharing:** follow trusted group members and optionally publish or embed timelines and trips.
 - **Privacy controls:** keep timelines and trips private by default, hide sensitive areas, delay public location visibility, and enable 2FA.
 
-See the [Features guide](docs/03-Features.md) for details and workflows.
+See the [User Guide](docs/user/index.md) for details and workflows.
 
 ## Guided self-hosting
 
@@ -63,7 +63,8 @@ See [Security](docs/21-Security.md).
 
 Browse the [documentation site](https://stef-k.github.io/Wayfarer/) or follow your path:
 
-- **Users & Self-hosters:** [User Guide](https://stef-k.github.io/Wayfarer/00-User-Guide.html) for using, installing and operating Wayfarer.
+- **Users:** [User Guide](https://stef-k.github.io/Wayfarer/user/) for accounts, Timeline, Trips, Groups, Mobile and personal providers.
+- **Self-hosters:** [Install & Self-Hosting](https://stef-k.github.io/Wayfarer/02-Install-and-Dependencies.html) and the [operator guide](https://stef-k.github.io/Wayfarer/29-Wayfarerctl.html) for installing and operating an instance.
 - **Developers & Contributors:** [Developer Guide](https://stef-k.github.io/Wayfarer/13-Developer-Guide.html) for local development, architecture, APIs, database and testing.
 - **Project Maintainers:** [maintainer documentation](docs/README.md#project-maintainers) for release/version/publication ownership, lifecycle qualification, container/Compose internals and exceptional recovery authority.
 
@@ -71,7 +72,7 @@ Browse the [documentation site](https://stef-k.github.io/Wayfarer/) or follow yo
 
 [WayfarerMobile](https://github.com/stef-k/WayfarerMobile) connects to your server for
 GPS tracking, manual check-ins and live group updates, with QR-code pairing.
-See the [Mobile App guide](docs/08-Mobile.md) for setup and usage.
+See the [Mobile App guide](docs/user/mobile.md) for setup and usage.
 
 ## Development and contribution
 
