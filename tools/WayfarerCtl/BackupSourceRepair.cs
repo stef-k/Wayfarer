@@ -6,6 +6,9 @@ namespace WayfarerCtl;
 /// <summary>Explicit metadata migration for immutable public v1.9.21; grants no ordinary foreign-operator authority.</summary>
 public sealed class BackupSourceRepair(IProcessRunner runner)
 {
+    /// <summary>Hosted tests use a protected executable copy; native execution always checks its actual process path.</summary>
+    internal string? ExecutablePath { get; init; }
+
     /// <summary>Public release fingerprints include the exact manifest, inventory and retained operator bytes.</summary>
     internal static string PublicFingerprint(string platform) => platform switch
     {
@@ -18,7 +21,7 @@ public sealed class BackupSourceRepair(IProcessRunner runner)
     public async Task<bool> RunAsync(string root, CancellationToken token)
     {
         ProtectedFiles.RequireRoot();
-        ProtectedFiles.SafePath(Environment.ProcessPath ?? throw new IOException("Repair operator path unavailable."));
+        ProtectedFiles.SafePath(ExecutablePath ?? Environment.ProcessPath ?? throw new IOException("Repair operator path unavailable."));
         ProtectedFiles.SafePath(root);
         ProtectedFiles.Check(root, 0, directory: true);
         using var operation = Setup.Lock(root);

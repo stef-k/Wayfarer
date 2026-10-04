@@ -193,16 +193,19 @@ public sealed class BackupSourceAuthorityTests : IDisposable
     [Fact]
     public async Task CommandRefusesForeignStableBundleBeforeDocker()
     {
-        var bundle = releases.RetainOperator(Root, "1.9.21", runningOperator: false, stable: true);
-        var config = Install(bundle);
+        var (config, bundle) = await KnownState(modelPublicIdentity: false);
+        var executable = Path.Combine(Root, "repair-operator");
+        File.Copy(Environment.ProcessPath!, executable);
+        File.SetUnixFileMode(executable, (UnixFileMode)ReleaseContract.Mode("wayfarerctl"));
         var runner = new BackupRunner(config, bundle);
-        await Assert.ThrowsAsync<IOException>(() => new BackupSourceRepair(runner).RunAsync(Root, default));
+        var error = await Assert.ThrowsAsync<IOException>(() => new BackupSourceRepair(runner) { ExecutablePath = executable }.RunAsync(Root, default));
+        Assert.Equal("Repair accepts only the immutable public v1.9.21 release.", error.Message);
         Assert.Empty(runner.Calls);
         Assert.Throws<UsageException>(() => ReleaseCommands.Validate(["repair-backup-source-v1.9.21", "--skip-owner"]));
     }
 
     /// <summary>Model already validated public identity at the narrow generation seam; RunAsync separately revalidates actual retained bytes.</summary>
-    private async Task<(Deployment Config, ReleaseBundle Bundle)> KnownState(bool enabled = true)
+    private async Task<(Deployment Config, ReleaseBundle Bundle)> KnownState(bool enabled = true, bool modelPublicIdentity = true)
     {
         var original = releases.RetainOperator(Root, "1.9.21", runningOperator: false, stable: true);
         var manifest = original.Manifest with { SourceRevision = "709a39ca7876fb4a08ce3090d79c4410efce09d8" };
@@ -212,7 +215,7 @@ public sealed class BackupSourceAuthorityTests : IDisposable
         using var operation = Setup.Lock(Root);
         var configured = await new BackupConfiguration(new BackupRunner(config, bundle)).ConfigureAsync(Root, config,
             ["--destination", destination.Path, "--payload", Path.Combine(bundle.Directory, "wayfarer-recovery")], default);
-        bundle = bundle with { Fingerprint = BackupSourceRepair.PublicFingerprint(NativePlatform.Current) };
+        if (modelPublicIdentity) bundle = bundle with { Fingerprint = BackupSourceRepair.PublicFingerprint(NativePlatform.Current) };
         var stale = configured with { Release = ReleaseAuthority.From(bundle), Backup = configured.Backup! with
         {
             Enabled = enabled, Generation = new string('e', 64), Source = configured.Backup.Source with { ReleaseStatus = "candidate" }
