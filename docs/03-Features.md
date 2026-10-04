@@ -6,22 +6,6 @@ Wayfarer is a comprehensive self-hosted travel companion with location tracking,
 
 ---
 
-## Maps and Tiles
-
-- **Interactive maps** with configurable tile providers.
-- **Tile provider settings** (Admin > Settings):
-  - Built-in presets: OpenStreetMap Standard and OpenTopoMap. Removed Thunderforest/CARTO configurations are preserved for recovery but blocked before contact.
-  - Custom tile URL templates with API key placeholders.
-  - Optional bounded custom-provider rate, burst, concurrency, and retry limits.
-  - Dynamic map attribution from active provider.
-- **Local tile caching** reduces bandwidth and respects fair-use policies:
-  - Base map tiles cached permanently for fast loading.
-  - Detailed zoom levels cached with automatic cleanup when storage limits are reached.
-- **Rate limiting** protects tile servers from excessive requests.
-- Admin controls for cache statistics, cleanup, provider changes, and size limits.
-
----
-
 ## Location Timeline
 
 - **Record locations** via mobile app GPS, manual check-ins, or API.
@@ -30,9 +14,8 @@ Wayfarer is a comprehensive self-hosted travel companion with location tracking,
 - **Metadata preservation** — accuracy, speed, altitude, heading, and source tracked per location.
 - **Export locations** to GeoJSON, KML, CSV, or GPX formats with full metadata.
 - **Retain optional detected-place context** returned by the admitted reverse-geocoding result, separately from formatted addresses and user-authored Trip labels.
-- **Personal location providers** retain protected profiles with explicit Mapbox Permanent consent/verification, independent selection, nullable provenance, and provider-native guards; capture remains available without enrichment. See [Personal Location Providers](24-Personal-Location-Providers.md).
-- **Personal-provider routing** uses the user's verified provider authority and an explicit provider-native mode. Accepted routes retain offline-capable provenance, while Transport Profiles remain independent manual-planning provenance and never select or map a provider mode.
-- **Resumable enrichment** runs independently after explicit opt-in, processes at most 10 candidates per committed progress checkpoint, and offers Start, Pause, Resume, Cancel, and explicit Retry deferred controls without changing imported or manual data.
+- **Personal location providers** can fill missing addresses after you configure, verify, and select a profile. Mapbox requires separate Permanent storage consent; usage guards limit admitted provider requests. Capture remains available without enrichment. See [Personal Location Providers](24-Personal-Location-Providers.md).
+- **Resumable enrichment** runs separately after explicit opt-in, with Start, Pause, Resume, Cancel, and Retry deferred controls. It preserves imported and manual address data; see [optional address enrichment](07-Importing-Exporting.md#resumable-reverse-geocoding-optional).
 - **Wikipedia integration** — click the Wiki button on any location to see nearby Wikipedia articles; uses dual geo + text search for reliable discovery.
 - **Activity types** categorize entries (walking, driving, eating, etc.).
 - **Inline activity editing** — edit activity type directly from location modals and tables.
@@ -41,60 +24,13 @@ Wayfarer is a comprehensive self-hosted travel companion with location tracking,
 - **Location statistics** show visit counts by country, region, and city.
 - **GPS accuracy filtering** — configurable threshold (default 50m) filters noisy readings.
 
+Use [Timeline](06-Timeline.md) for browsing and editing, or [Importing & Exporting](07-Importing-Exporting.md) to move your history.
+
 ![All Locations View](images/all-locations.JPG)
 
 ![Location Search and Filters](images/all-locations-search.JPG)
 
 ![Split View with Statistics](images/locations-split-view.JPG)
-
----
-
-## Privacy Controls
-
-- **Hidden Areas** — draw polygon exclusion zones; locations inside never appear publicly.
-- **Public timeline threshold** — control how recent data appears (e.g., hide last 2 hours).
-- **Public/private toggle** — timeline is private by default; opt-in to share.
-- **Embeddable timeline** — iframe your public timeline into other websites.
-
-![Hidden Areas Management](images/hidden-areas.JPG)
-
-![Adding a Hidden Area](images/add-hidden-area.JPG)
-
----
-
-## Public Discovery
-
-Visitors can browse public content without authentication:
-
-**Trip Discovery:**
-- **Search** trips by name and description.
-- **Tag filtering** with "All" (must match all tags) or "Any" (match at least one) modes.
-- **Popular tags** display with usage counts.
-- **Sort options**: by update date or name (A-Z, Z-A).
-- **View modes**: Grid layout (cards) or List layout (table).
-- **Trip cards** show cover image, owner, description excerpt, tags, and stats.
-- **Picture-in-Picture** map preview on hover.
-- **Recent update badge** for trips updated within 7 days.
-- **Quick preview** modal with full trip details.
-- **Clone trips** (authenticated users can copy public trips to their account).
-- **Share button** copies public trip URL to clipboard.
-
-**Public Timeline:**
-- View any user's public timeline by username.
-- Interactive map with location markers.
-- Location details: coordinates, address, activity, timestamp, altitude, speed.
-- **Timeline statistics**: distance traveled, time spent, visit counts.
-- **Embeddable** for external websites via iframe.
-
-![Public Trips Discovery](images/public-trips.JPG)
-
-![Trip Preview with Picture-in-Picture](images/public-trip-preview.jpg)
-
-![Public Trip Details](images/public-trip-details.JPG)
-
-![Public Trip Place Details](images/public-trip-place-details.JPG)
-
-![Public Timeline](images/public-timeline.JPG)
 
 ---
 
@@ -109,6 +45,9 @@ Visitors can browse public content without authentication:
 - **Export trips** to PDF (printable guide with maps and links) or KML.
 - **Public trip sharing** with optional visit progress display.
 - **Trip thumbnails** auto-generated for preview cards.
+- **Personal-provider routing** — preview a route using a verified provider and an explicit provider mode, then save it if suitable. Saved routes retain their geometry and provenance for later use. Transport Profiles supply independent planning estimates and never select a provider mode.
+
+Follow [Trips](04-Trips.md) for the editor, routes, visit progress, and public sharing, and [Personal Location Providers](24-Personal-Location-Providers.md#geoapify-persistent-geocoding-and-routing) for optional routed previews.
 
 ![User Trips List](images/user-trips.JPG)
 
@@ -133,9 +72,11 @@ Visitors can browse public content without authentication:
   - Select/deselect functionality with manual visit deletion.
   - Clear All Visits option in trip menu.
 - **Visit-to-location navigation** — view underlying location records from any visit.
-- **Notification cooldown** — configurable delay to reduce SSE spam for repeated visits.
+- **Notification cooldown** — configurable delay to reduce repeated visit notifications.
 - Works with all location sources: mobile tracking, manual check-ins, API entries.
 - Configurable detection radius, accuracy thresholds, suggestion multiplier, and confirmation requirements.
+
+See [Automatic Visit Detection](04-Trips.md#automatic-visit-detection) for confirmation, backfill, and visit management.
 
 ![Visit History](images/trip-visits-index.JPG)
 
@@ -158,11 +99,66 @@ Visitors can browse public content without authentication:
 - **Organization peer visibility** settings for larger groups.
 - **SSE notifications** for instant updates on locations, membership changes, and visits.
 
+See [Groups](05-Groups.md) to create a group, invite members, and choose visibility settings.
+
 ![Groups List](images/groups-index.JPG)
 
 ![Group Members](images/group-members.JPG)
 
 ![Group Invitations](images/group-invitations.JPG)
+
+---
+
+## Privacy Controls
+
+- **Hidden Areas** — draw polygon exclusion zones; locations inside never appear publicly.
+- **Public timeline threshold** — control how recent data appears (e.g., hide last 2 hours).
+- **Public/private toggle** — timeline is private by default; opt-in to share.
+- **Embeddable timeline** — iframe your public timeline into other websites.
+
+Configure these controls in [Timeline Settings and Hidden Areas](06-Timeline.md#private-vs-public).
+
+![Hidden Areas Management](images/hidden-areas.JPG)
+
+![Adding a Hidden Area](images/add-hidden-area.JPG)
+
+---
+
+## Public Discovery
+
+Visitors can browse public content without authentication:
+
+### Trip Discovery
+
+- **Search** trips by name and description.
+- **Tag filtering** with "All" (must match all tags) or "Any" (match at least one) modes.
+- **Popular tags** display with usage counts.
+- **Sort options**: by update date or name (A-Z, Z-A).
+- **View modes**: Grid layout (cards) or List layout (table).
+- **Trip cards** show cover image, owner, description excerpt, tags, and stats.
+- **Picture-in-Picture** map preview on hover.
+- **Recent update badge** for trips updated within 7 days.
+- **Quick preview** modal with full trip details.
+- **Clone trips** (authenticated users can copy public trips to their account).
+- **Share button** copies public trip URL to clipboard.
+
+### Public Timeline
+
+- View any user's public timeline by username.
+- Interactive map with location markers.
+- Location details: coordinates, address, activity, timestamp, altitude, speed.
+- **Timeline statistics**: distance traveled, time spent, visit counts.
+- **Embeddable** for external websites via iframe.
+
+![Public Trips Discovery](images/public-trips.JPG)
+
+![Trip Preview with Picture-in-Picture](images/public-trip-preview.jpg)
+
+![Public Trip Details](images/public-trip-details.JPG)
+
+![Public Trip Place Details](images/public-trip-place-details.JPG)
+
+![Public Timeline](images/public-timeline.JPG)
 
 ---
 
@@ -174,6 +170,24 @@ Visitors can browse public content without authentication:
 - **Offline map tiles** cached for use without connectivity.
 - **SSE subscriptions** for real-time group updates.
 - **QR code pairing** for easy server connection.
+
+See [Mobile App](08-Mobile.md) for connection, downloaded Trip content, cached tiles, and synchronization limits.
+
+---
+
+## Maps and Tiles
+
+- **Interactive maps** with configurable tile providers.
+- **Tile provider settings** (Admin > Settings):
+  - Built-in presets: OpenStreetMap Standard and OpenTopoMap. Older Thunderforest/CARTO configurations remain recoverable, but Wayfarer does not contact those blocked presets.
+  - Custom tile URL templates with API key placeholders.
+  - Optional bounded custom-provider rate, burst, concurrency, and retry limits.
+  - Dynamic map attribution from active provider.
+- **Local tile caching** reduces bandwidth and respects fair-use policies:
+  - Base map tiles cached permanently for fast loading.
+  - Detailed zoom levels cached with automatic cleanup when storage limits are reached.
+- **Rate limiting** protects tile servers from excessive requests.
+- Admin controls for cache statistics, cleanup, provider changes, and size limits.
 
 ---
 
@@ -190,14 +204,16 @@ Visitors can browse public content without authentication:
 
 ## Admin & Manager Features
 
-**Manager capabilities** (also available to Admins):
-- **User management** — create, edit, lock/unlock, assign roles (Admin, Manager, User).
-- **Password management** — reset any user's password.
-- **API token management** — view, create, regenerate, or revoke tokens for any user.
+### Account and Group Management
+
+- **User management** — Managers manage User-role accounts; Admins can also assign Admin and Manager roles.
+- **Password management** — reset passwords for accounts allowed by your role.
+- **API token management** — view, create, regenerate, or revoke tokens for accounts allowed by your role.
 - **Group management** — create and manage groups, invite members, view group maps.
 
-**Admin-only capabilities:**
-- **Protected users** — first admin account is protected and cannot be deleted.
+### Admin-only Capabilities
+
+- **Protected accounts** — guided setup creates a protected administrator; review account protection in Admin > Users.
 - **Application settings** — location thresholds, visit detection, upload limits, cache sizes.
 - **Tile provider settings** — presets, custom templates, API keys, validation, cache purge on change.
 - **GPS accuracy threshold** — filter low-quality location readings (default 50m).

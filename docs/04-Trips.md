@@ -76,6 +76,12 @@ Route editing keeps From, every Via waypoint, and To as fixed semantic anchors. 
 
 ![Segment Route Details](images/segment-edit-2.JPG)
 
+### Segment distance and duration
+
+Segment distance is read-only and always calculated from the effective saved route: custom geometry when present, otherwise the ordered all-anchor fallback. Duration has explicit **Use automatic estimate** and **Manual** states. Automatic duration uses the selected administrator-managed transport profile's planning speed and is unavailable when the route is incomplete or that speed is cleared. Manual duration, including zero, remains authoritative across route, endpoint, waypoint, mode, and profile-speed changes until Automatic is explicitly selected.
+
+The measurement-provenance migration records whether each duration is Automatic or Manual. Downgrading past `20260802163750_AddSegmentMeasurementProvenance` removes that ownership information, including provenance written after upgrade.
+
 ---
 
 ## Trip Tags
@@ -97,7 +103,7 @@ Route editing keeps From, every Via waypoint, and To as fixed semantic anchors. 
 
 ## Importing Trips
 
-Import trips from external sources:
+Import trips from external sources; see [Importing & Exporting](07-Importing-Exporting.md) for format compatibility:
 
 - **Google MyMaps KML** — import your Google MyMaps designs directly.
 - **Wayfarer KML** — reimport trips exported from Wayfarer.
@@ -228,7 +234,7 @@ Adjust in **Admin > Settings**:
 - Make trips public to share via URL.
 - In the Trip list's public sharing menu, **Copy embed URL** copies `/Public/Trips/{id}?embed=true` at your public HTTPS origin. **Copy embed HTML** copies an accessible iframe with that exact URL; it does not include your current viewport or owner-only state.
 - Embeds let ordinary wheel and single-finger input scroll the containing page. Use Ctrl + wheel (Cmd on macOS), mouse drag, two-finger touch gestures, or explicit zoom controls for map interaction. **Open full view** opens the normal public Trip outside the iframe with one click/tap or keyboard activation, independently of the legend.
-- See [the iframe example](06-Timeline.md) for the shared markup convention and adjustable default height. Print and map-snapshot rendering omit the full-view escape.
+- See [the iframe example](06-Timeline.md#embed-your-public-timeline) for the shared markup convention and adjustable default height. Print and map-snapshot rendering omit the full-view escape.
 - Toggle **Share Visit Progress** to display your journey on public trips.
 - Viewers see your progress in real-time via SSE updates.
 
@@ -257,9 +263,3 @@ When editing a trip, the progress header shows:
 - Use **Areas** for boundaries and **Segments** for movement between Places.
 - Add cover images for visual organization.
 - Use tags to group related trips.
-
-# Segment distance and duration
-
-Segment distance is read-only and always calculated from the effective saved route: custom geometry when present, otherwise the ordered all-anchor fallback. Duration has explicit **Use automatic estimate** and **Manual** states. Automatic duration uses the selected administrator-managed transport profile's planning speed and is unavailable when the route is incomplete or that speed is cleared. Manual duration, including zero, remains authoritative across route, endpoint, waypoint, mode, and profile-speed changes until Automatic is explicitly selected.
-
-The measurement-provenance migration records whether each duration is Automatic or Manual. Downgrading past `20260802163750_AddSegmentMeasurementProvenance` removes that ownership information, including provenance written after upgrade.

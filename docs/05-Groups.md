@@ -44,7 +44,7 @@ Choose **Organization** for teams or formal groups that need oversight. Choose *
 
 1. Open **Groups** and click **Create**.
 2. Name the group and add an optional description.
-3. Select the **Group Type** (Family or Friends).
+3. Select the **Group Type** (Family or Friends in the User area; Managers can also create Organization groups).
 4. Click **Create** to save.
 5. Invite members using the Members page.
 
@@ -99,12 +99,14 @@ reloading the authenticated invitation, activity, and joined-group endpoints.
 
 The group map provides rich location visualization:
 
-**Chronological Navigation:**
+### Chronological Navigation
+
 - Day/Month/Year view modes with navigation buttons.
 - Jump to Today or pick a specific date.
 - Historical locations toggle to view past data.
 
-**Member Controls:**
+### Member Controls
+
 - Search members by username or display name.
 - Select All / Deselect All for quick filtering.
 - Show All / Hide All location markers.
@@ -112,7 +114,8 @@ The group map provides rich location visualization:
 - "Only" button to isolate one member's locations.
 - Visual indicator for disabled peer visibility.
 
-**Location Display:**
+### Location Display
+
 - Color-coded markers per member.
 - Click locations for detailed information modal.
 - Live/latest location indicators.
@@ -147,3 +150,4 @@ The WayfarerMobile app supports groups:
 - Send location updates to group members.
 - Accept/decline invitations from the app.
 
+See [Mobile App](08-Mobile.md#groups) for setup and [mobile synchronization troubleshooting](09-Troubleshooting.md#mobile-is-not-synchronizing) if updates stop.
