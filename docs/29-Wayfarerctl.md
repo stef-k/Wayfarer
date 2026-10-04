@@ -1,8 +1,8 @@
 # Operate Wayfarer with wayfarerctl
 
-`wayfarerctl` is the Linux AMD64/ARM64, self-contained C# operator executable introduced
-by #648. It orchestrates the [accepted Compose substrate](28-Production-Compose.md)
-and existing application maintenance commands. This foundation includes fresh setup,
+`wayfarerctl` is the Linux AMD64/ARM64, self-contained C# operator executable.
+It orchestrates the [Compose substrate](28-Production-Compose.md)
+and existing application maintenance commands. It supports fresh setup,
 lifecycle, diagnosis, logs, user recovery, opt-in Compose recovery sets and managed
 restore to an independently trusted exact local target, and managed forward update.
 Public stable acquisition and guided setup share the retained `release.json` authority.
@@ -358,8 +358,8 @@ The administrator must identify the owning snapshot/receipt and validate its ori
 inputs and resource provenance against the
 [formal state inventory](25-Container-Release-Contract.md#authority-inventory).
 Do not fabricate a receipt, edit JSON to select guessed resources, discard a partial
-snapshot or remove an exclusion marker as routine repair. The inventory records known
-recovery gaps so an unsupported retry is not mistaken for a supported repair.
+snapshot or remove an exclusion marker as routine repair. The inventory records
+recovery limits so an unsupported retry is not mistaken for a supported repair.
 The [raw Compose maintenance sequence](28-Production-Compose.md#advanced-fresh-initialization)
 remains an advanced emergency seam, not ordinary recovery for receipt-owned setup.
 Never fabricate completion markers or infer that missing config means an empty database.
@@ -393,7 +393,7 @@ distribution requires the separate
 [release acceptance gate](27-Application-Image-Publication.md#stable-compose-distribution).
 It removes only its random labelled resources. Test-only TLS never changes production
 Caddy automatic HTTPS. This is not public-CA issuance, production/native qualification,
-backup/restore/update acceptance or completion of #603.
+backup/restore/update acceptance or a complete production lifecycle.
 
 The shared external HTTPS proxy uses
 `wayfarer.qualification-https-proxy=<disposable project>` for fixture ownership.
@@ -403,113 +403,79 @@ alongside the existing Compose, restore-helper and update-project labels.
 
 ### Continuous public stable evidence
 
-[`qualify_public_lifecycle.py`](../tools/compose/qualify_public_lifecycle.py) reuses the
-existing root-host, fixture-TLS, routed Identity and synthetic provider/token seams
-for one AMD64 lineage. Its
+The genuine **v1.9.21 → v1.9.22 continuous Linux AMD64 lifecycle has passed** with
+independent review of its ledger joining source installation, public update, selected
+archive, clean restore and headless account recovery. The stable update has zero EF
+migration delta; candidate qualification retains real-migration/failure coverage.
+
+[`qualify_public_lifecycle.py`](../tools/compose/qualify_public_lifecycle.py) and its
 [read-only post-publication workflow](27-Application-Image-Publication.md#post-publication-continuous-lifecycle)
-starts from the actual public v1.9.21 lean bootstrap and explicit
-`setup --version 1.9.21`. That fixed bootstrap plans/accepts the later public stable
-through `dispatch update`, then proves `dispatch version` selects the active target's
-retained operator. Public release/bundle/source compatibility remains product-owned.
+use the actual public v1.9.21 bootstrap and `setup --version 1.9.21`. Public
+`dispatch update` must accept the later target's exact source fingerprint, and
+`dispatch version` must select its active retained operator. No candidate bundle,
+local operator or fixture migration enters the witness.
 
-After normal v1.9.21 backup configuration, the witness requires its known `candidate`
-source status. It invokes the already downloaded, digest-verified public target
-bootstrap directly with `release repair-backup-source-v1.9.21`, then requires
-`candidate -> released` and a changed backup generation. Protected configuration
-readbacks must match except for those two repair-owned fields, preserving ordinary
-installation/release/project/storage identity and backup policy. Retained release
-inspection runs again before the fixed v1.9.21 bootstrap creates the selected archive.
-The selected schema-3 source must be exactly `released`; `stable` is not a recovery
-status and candidate captures cannot become the selected public witness.
+The digest-verified public target bootstrap applies the bounded
+[v1.9.21 backup source repair](#exact-public-v1921-backup-source-repair) before capture.
+Only `candidate -> released` and the derived backup generation may change; installation,
+release, project, storage and policy remain continuous. The selected schema-3 capture
+must be `released`; `stable` is not a recovery status. Select the explicit quiesced
+capture's returned UUID, preserve its archive/sidecar bytes across update and its
+separate held capture, then restore that exact pair into a clean project using retained
+v1.9.21 authority and independently generated `release target` evidence. Supported
+metadata-only `release adopt` attaches the same release without fabricated setup receipts.
 
-Selection uses the UUID returned by the explicit quiesced capture, never newest-file
-ordering. Retention preserves that archive across the separate update-owned held
-capture. The selected pair must remain byte-identical before a new clean project
-restores it with retained v1.9.21 authority. The released restore's explicit-choice
-seam is followed by `release adopt` to attach that same exact release; it does not
-change versions or reconstruct setup receipts. The clean target itself verifies
-DB, Uploads, the complete ring, protected credential, pre-capture Identity token and
-original HTTPS login, then performs `user find`, protected-stdin reset and new login.
+The clean target verifies DB, Uploads, the whole ring, protected provider credential,
+pre-capture Identity token and original HTTPS login, then performs `user find`,
+protected-stdin password reset and new login. The sanitized ledger retains the repair's
+verified executable hash, status/generation changes and preservation booleans alongside
+required lifecycle observations; bounded command records contain no raw output or secrets.
 
-The sanitized ledger records non-secret identities/hashes and required observations,
-including `backupSourceRepair`: public target tag, verified bootstrap executable
-SHA-256, before/after statuses, changed-generation and preserved-identity/policy
-booleans, and repair success. Raw installation configuration and private policy paths
-remain in memory only. Bounded command logs retain command names and exit codes
-without raw output or secret input. This is public stable lifecycle evidence with
-fixture-controlled HTTPS, not managed ACME/ingress qualification.
-Offline orchestration/evidence tests run in PR CI;
-they validate the harness separately from the real public run and its independent
-evidence review. Candidate recovery/update matrices remain separate and unchanged.
-
-On 2026-10-04, [#748](https://github.com/stef-k/Wayfarer/issues/748)'s real public
-**v1.9.21 → v1.9.22 continuous Linux AMD64 lifecycle witness passed** in
-[run `37206329693`, attempt 1](https://github.com/stef-k/Wayfarer/actions/runs/37206329693/attempts/1)
-from reviewed workflow head `c951398a339f008ec10f6b8862bd668f150686d1`.
-The target [public stable v1.9.22](https://github.com/stef-k/Wayfarer/releases/tag/v1.9.22)
-was published from release source `82990a3a0e7bdc0bc8b92c574b0623c1f004489e`
-by [publication workflow `37197160151`](https://github.com/stef-k/Wayfarer/actions/runs/37197160151).
-Retained artifact `public-lifecycle-amd64-37206329693-1`,
-[id `11305430502`](https://github.com/stef-k/Wayfarer/actions/runs/37206329693/artifacts/11305430502),
-has SHA-256 `7976efcd58f14a3c15e6f9c98918ab204e29efae7b40ba1e3921add05f3515ee`
-and contains `lifecycle.json` and `commands.jsonl`.
-Independent Phase-4 review accepted its PASS ledger linking the continuous source
-installation, public update, selected archive and clean restore, including final
-headless account recovery.
-The actual stable update has zero EF migration delta; clean restore uses exact
-v1.9.21 authority. HTTPS uses the fixture-controlled external route described above.
-This successful boundary is separate from Phase-5 cleanup and final independent
-acceptance; #748 remains open until those gates pass.
+Fixture-controlled external HTTPS does not qualify managed public ACME, installation
+DNS/CA reachability or a production host. Public AMD64/ARM64 setup and bounded native
+ARM64 recovery are separate evidence; this complete lifecycle is not duplicated on
+ARM64. PR CI validates the harness, while public runtime acceptance and independent
+artifact review establish the published-byte witness.
 
 ### Public stable operator evidence
 
-[`qualify_public_operator.py`](../tools/compose/qualify_public_operator.py) adds
-[#764](https://github.com/stef-k/Wayfarer/issues/764)'s bounded AMD64 command witness
-on one disposable public v1.9.22 external-mode installation. It reuses verified public
-bootstrap/download helpers, the plain host without .NET/Python/Node, fixture TLS,
-Identity login, Compose observations and exact project-labelled cleanup. The accepted
-[#748 lifecycle](#continuous-public-stable-evidence) remains a separate evidence owner.
+The **v1.9.22 public operator witness has passed** with independent artifact review.
+[`qualify_public_operator.py`](../tools/compose/qualify_public_operator.py) uses one
+public external-mode AMD64 installation, verified bootstrap/download helpers, the
+plain host without .NET/Python/Node, fixture TLS and exact labelled cleanup. The
+[continuous lifecycle](#continuous-public-stable-evidence) is a separate qualification.
 
-The runner first invokes standalone `release acquire 1.9.22` and `release acquire latest`
-in a fresh owned root. Both must return the same public execution-ready retained path
-and fingerprint; only retained releases and the lock may exist, with no installation
-pointer, setup state or task services/networks/volumes. Public latest must still resolve
-to v1.9.22 with the same published asset identities. A moved latest stops qualification
-for maintainer baseline review.
+- Standalone `release acquire 1.9.22` and `release acquire latest` must retain the same
+  execution-ready path/fingerprint without an installation pointer, setup state or
+  task services/networks/volumes. Public latest must equal the selected baseline and
+  asset identities; a moved latest stops for maintainer baseline review.
+- One child-process fault after real web startup leaves all three application mutations
+  checkpointed. `setup --resume` preserves original inputs, checkpoints, release,
+  volumes and a durable file, skips completed mutations and finishes doctor/HTTPS login.
+  Public operator, bundle and image bytes remain untouched.
+- `dispatch status → restart → doctor` and bounded Wayfarer/DB log routing must succeed
+  with unchanged release authority, secret hashes, volumes, durable file and original
+  HTTPS cookie across restart.
+- Backup discovery/policy toggle uses the public payload, one owned local destination
+  and retention 7. After the scheduled receipt commits, an explicitly selected quiesced
+  capture must appear in `backups` and exact/default `verify-backup`. Disable stops the
+  scheduler and refuses capture with exit 2 while preserving archive/sidecar bytes and
+  discovery/verification. Reconfiguration re-enables the owned scheduler under a coherent
+  new generation and completes a `released` capture with installation, protected inputs,
+  durable state and authentication continuous. Start the application after each capture.
 
-One existing child-process fault returns failure after real web startup, with all three
-application mutations checkpointed. `setup --resume` must preserve original protected
-inputs, checkpoint, release, volumes and a durable file, skip the completed mutations,
-and finish doctor/HTTPS login. Public operator, bundle and image bytes stay untouched.
-On that same installation, `dispatch status → restart → doctor` and
-`dispatch logs wayfarer --tail 10` / `dispatch logs db --tail 10` must succeed while
-release authority, secret hashes, volume identities, the durable file and the existing
-HTTPS cookie survive restart.
-
-Normal backup configuration uses the retained public recovery payload and a local
-owned destination with retention 7. After the initial scheduled receipt commits, an
-explicit quiesced capture selects its returned UUID. `backups` must list it and exact
-and default `verify-backup` must identify that same complete compatible archive.
-Disable must stop the owned scheduler, refuse capture with exit 2, and preserve the
-selected archive/sidecar bytes and listing/verification. Supported reconfiguration of
-the same destination must publish another coherent generation, run its owned scheduler
-and complete another capture with exact public `released` source authority. Installation,
-release, protected inputs, durable volumes/file and the existing cookie remain continuous.
-The application is started again after each deliberate quiesced capture.
-
-The [manual public operator workflow](27-Application-Image-Publication.md#post-merge-public-operator-acceptance)
-uploads only `operator.json` and bounded command/expected-exit/actual-exit records.
-Required observations and cleanup must all succeed before PASS is written. Raw service
-logs, configuration, receipts, private paths, credentials, cookies and payloads stay
-outside artifacts. There is no new release, candidate substitution, restore/update
-failure matrix, managed-Caddy-only installation or ARM64 duplication. Focused offline
-tests and PR CI qualify the harness; runtime public acceptance and independent evidence
-review remain a separate post-merge run.
+The [manual public operator workflow](27-Application-Image-Publication.md#post-publication-public-operator-acceptance)
+retains only `operator.json` and bounded command/expected-exit/actual-exit records.
+Every required observation and exact resource/private-state cleanup must pass before
+PASS is written. Raw logs, product JSON, private paths, credentials and cookies are
+excluded. Offline tests and PR CI qualify the harness separately. This witness excludes
+restore/update failure matrices, managed-Caddy-only operations and ARM64 duplication;
+fixture TLS does not establish public CA/DNS or production-host acceptance.
 
 ### Managed ingress evidence
 
-The [full AMD64 Compose qualifier](28-Production-Compose.md#managed-acme-and-timeline-ingress-749)
-adds #749's separate C04/C09 observations on one disposable installation: automatic
+The [full AMD64 Compose qualifier](28-Production-Compose.md#managed-acme-and-timeline-ingress)
+covers one disposable installation: automatic
 ACME acquisition with validated HTTPS, account/certificate/named-volume persistence
 across Caddy-only replacement, and bounded automatic renewal on the same account.
 One synthetic User's two bearer check-ins persist through managed HTTPS and drive
@@ -519,9 +485,9 @@ and application/protocol behavior are unchanged; only fixture authority, timing 
 network plumbing are overridden. The qualifier uses bundled Node/Chromium and adds
 no production host dependency.
 
-This local-test-CA **COMPOSE** proof passed on 2026-10-03. It is separate from the
-already-passing genuine v1.9.21 AMD64/ARM64 **PUBLIC** bootstrap setup acceptance,
-public DNS/CA reachability and #748's public stable lifecycle witness above.
+This local-test-CA Compose qualification has passed. It is separate from public
+AMD64/ARM64 bootstrap setup acceptance and the continuous public stable lifecycle
+witness above; none establishes installation-specific public DNS/CA reachability.
 The operator still requires normal certificate validation for each managed public
 setup; fixture success does not waive installation DNS, firewall or HTTPS checks.
 
@@ -682,8 +648,9 @@ compatibility, not permission to import arbitrary old releases. Archive integrit
 explicit trusted provenance, isolated SQL staging and offline product validation
 remain mandatory; production Quartz validation is the final restored-schema owner.
 
-The outer archive remains version 1. No EF migration or Quartz table reordering is
-introduced. Retained release bundles now reconstruct this target contract; managed update uses the independently retained source and target authorities below.
+The outer archive remains version 1. Versioned Quartz recovery identity does not
+migrate EF or reorder Quartz tables. Retained release bundles reconstruct this target
+contract; managed update uses the independently retained source and target authorities below.
 
 ## Managed restore
 
@@ -755,7 +722,7 @@ make space.
 ### Emergency recovery set and fencing
 
 An existing installation gets a fresh verified quiesced emergency set after app,
-Quartz, scheduler and proxy fencing. The existing #533 engine owns capture,
+Quartz, scheduler and proxy fencing. The recovery engine owns capture,
 verification, publication and retention. The current capture payload must understand
 restore holds. Its archive is permanently held outside ordinary retention and has no
 scheduled slot. The hold is durably published before the archive/sidecar pair. Failed or
@@ -883,16 +850,17 @@ The maintained lifecycle extension also covers restart-restoration process death
 write failure, bounded repeated verification, a real small-filesystem capacity refusal and
 emergency-worker deaths before and after publication. Both full and restore-only selections
 include these lifecycle regressions.
-The normal selection additionally exercises #533 capture/retention/locking and cancellation.
+The normal selection additionally exercises capture/retention/locking and cancellation.
 
 `python3 tools/compose/qualify_restore_daemon.py` independently proves the restart-policy
 fence across a real restart of a disposable nested Docker daemon, with a positive restart
 control. It requires privileged fixture containers and local Docker binaries; it has no
 host Docker socket or network, and does not restart the host daemon.
 
-No fixture evidence qualifies a real NAS, production host, M6 cutover, public stable
-distribution or whole-system #603 closure.
-Historical release acquisition, native migration, ARM and #604 remain separate.
+This fixture evidence does not qualify a real NAS, production host, native cutover or
+public stable distribution. Public lifecycle and native ARM64 setup/bounded recovery
+have separate qualification boundaries; native migration follows the
+[#604 plan](https://github.com/stef-k/Wayfarer/issues/604).
 
 ## Immutable local release bundles
 
@@ -900,7 +868,8 @@ Historical release acquisition, native migration, ARM and #604 remain separate.
 modes and link-free files without Docker/DB access. `release target /absolute/bundle project`
 exports schema-3 trusted target facts. The required snapshot field is zero (no capture
 observation); restore ignores it. Legacy schema-2 archives pass only the exact-release
-bridge accepted in #701. Never configure capture from this target-only evidence.
+bridge described in [versioned Quartz recovery identity](#versioned-quartz-recovery-identity).
+Never configure capture from this target-only evidence.
 
 Root-only commands are `release verify-images`, `release import` and `release adopt`,
 each with one absolute trusted directory. Executable image probes require root-owned,
@@ -983,11 +952,12 @@ release bytes, including its operator, against the exact public v1.9.21 fingerpr
 | linux/amd64 | `670dae009435370e2c02f1aaa74f6c93eb77c30290350ba92df4c5c3af1f623c` |
 | linux/arm64 | `88d5b35c359cec3f257026fed52cc705d0642dc116e5d712824b1aae89a3276e` |
 
-These pins were derived from [v1.9.21's published deployment assets](https://github.com/stef-k/Wayfarer/releases/tag/v1.9.21)
-after verifying their SHA-256 digests: AMD64
-`eab34931058ad71f98edbfcfd4902139999f3dabe70437f4f77c8ab5749fc910`, ARM64
-`a4ded2e5b133954a05a12cdddb957b1d66841b16b8513f7c5c602ec6b7db981e`.
-Both retain source `709a39ca7876fb4a08ce3090d79c4410efce09d8` and no legacy capture pair.
+These are active repair authority pins for
+[v1.9.21's published deployment assets](https://github.com/stef-k/Wayfarer/releases/tag/v1.9.21),
+enforced by [the repair owner](../tools/WayfarerCtl/BackupSourceRepair.cs).
+It also requires the exact source revision `709a39ca7876fb4a08ce3090d79c4410efce09d8`
+and no legacy capture pair. These identifiers bound the supported repair; they are
+not general selectors for another release or a reason to rebuild immutable bytes.
 
 Under host then recovery exclusion, every schema-3 source fact must already corroborate
 the current capture pair after changing only `ReleaseStatus` to `released`. Payload,
@@ -1009,11 +979,10 @@ operator's `backup configure --recover`, then rerun this repair. A committed poi
 with a failed scheduler restart remains corrected; use retained `start` or backup
 recovery to restart the selected scheduler. After repair, verify `doctor` and explicit
 source corroboration before planning the forward update. Existing candidate-labelled
-archives stay valid diagnostic/recovery evidence; #748 selects a new explicit quiesced
-archive after the reviewed repair while preserving its earlier archive. Do not apply
-this procedure to #748's retained installation before independent review, merge and
-maintainer acceptance of that execution step.
-Legacy images without the #701 property require the pinned accepted Quartz SQL resource;
+archives stay valid diagnostic/recovery evidence. Select a new explicit quiesced
+archive with `released` source authority for public lifecycle qualification; preserve
+earlier archives. Legacy images without release-contract inspection require the
+pinned accepted Quartz SQL resource;
 unknown legacy resource contracts are rejected. Full application/source/image/migration
 identity and post-restore product validation remain mandatory.
 
@@ -1094,7 +1063,7 @@ wayfarerctl update --restore <operation-uuid>
 wayfarerctl dispatch restore --resume <restore-operation-uuid>
 ```
 
-This decision durably joins the update and #695 restore receipts to the held archive
+This decision durably joins the update and restore receipts to the held archive
 and retained old ReleaseAuthority. It restores into a fresh paired generation while
 lifecycle mutation stays fenced. After archive preparation and immediately before
 receipt transfer, the existing update exclusivity check rejects newly attached
@@ -1104,8 +1073,10 @@ receipted operator, even after the active release changes; executables are never
 replaced in place. Keep old bundles, operator/recovery payloads, image digests,
 configuration evidence, receipts and held archives. Cleanup is out of scope.
 
-Stable public release-to-release acceptance remains deferred. Disposable candidate
-qualification uses an explicitly compiled `UPDATE_QUALIFICATION` operator restricted
+The supported public v1.9.21 → v1.9.22 update has passed with zero EF migration delta;
+see [continuous public stable evidence](#continuous-public-stable-evidence).
+Disposable candidate qualification exercises real migration and failure boundaries
+using an explicitly compiled `UPDATE_QUALIFICATION` operator restricted
 to the existing random temporary recovery fixture; ordinary published operators
 reject candidate update execution. The controlled test migration is not a product
 migration or an official stable release.
@@ -1151,7 +1122,7 @@ wayfarerctl update --accept-plan <printed-sha256>
 
 `release acquire` downloads one exact public stable Wayfarer deployment asset. Discovery
 is only GitHub's project release-by-tag/latest endpoint. The first supported Compose
-lifecycle/update baseline is v1.9.21. Future operators reject exact public selectors
+lifecycle/update baseline is v1.9.21. Current operators reject exact public selectors
 below it through the shared acquisition owner, including `setup --version`,
 `release acquire` and public update planning; `latest` still resolves normally.
 The immutable published v1.9.21 operator may still accept an explicit 1.9.20 request,
@@ -1184,7 +1155,7 @@ as not execution-ready. Success reports path, fingerprint and version. No setup,
 migration, activation, pointer switch or bootstrap replacement is performed.
 
 `update --plan` acquires latest; `update X.Y.Z --plan` acquires that exact version.
-Both feed the existing #704 local planner and receipts. Latest being current/older,
+Both feed the same local planner and receipts. Latest being current/older,
 source-only, or lacking the exact current fingerprint fails without fallback target
 search. Destructive execution still requires the printed plan hash. Offline import/
 planning remain available when public acquisition is unavailable.

@@ -8,21 +8,23 @@ Native/manual and development database requirements are unchanged.
 
 ## Availability
 
-**v1.9.21 is the first supported Compose lifecycle/update baseline** for the
-AMD64/ARM64 bootstrap and deployment assets. v1.9.20 remains an immutable transitional
+**The current stable release is [v1.9.22](https://github.com/stef-k/Wayfarer/releases/tag/v1.9.22),
+with public Compose setup supported on Linux AMD64 and ARM64.** v1.9.21 is the first
+supported Compose lifecycle/update baseline. v1.9.20 remains an immutable transitional
 publication, not a supported installation/update source. Source-only/native v1.9.19
 and earlier are separate; maintainer native/systemd v1.9.19 migrates directly to the
 supported Compose baseline through [#604](https://github.com/stef-k/Wayfarer/issues/604),
 not `wayfarerctl update`. Maintainers start at
 [Versioning and Release Operations](23-Versioning.md#public-acceptance-and-availability).
 
-Genuine v1.9.21 public bootstrap `setup → doctor → stop` acceptance passed on AMD64
-and ARM64 in [run 37010835544](https://github.com/stef-k/Wayfarer/actions/runs/37010835544).
-The [managed ingress qualification](28-Production-Compose.md#managed-acme-and-timeline-ingress-749)
+Public bootstrap `setup → doctor → stop` acceptance has passed on AMD64 and ARM64.
+A genuine **v1.9.21 → v1.9.22 continuous public lifecycle** has also passed on AMD64,
+covering update, a selected recovery archive, clean restore and account recovery.
+See the [public qualification boundary](29-Wayfarerctl.md#continuous-public-stable-evidence).
+The [managed ingress qualification](28-Production-Compose.md#managed-acme-and-timeline-ingress)
 adds AMD64 ACME and representative API/embed/live-update evidence against a local test
-authority. Public DNS/CA reachability remains installation-specific. Final continuous
-stable lifecycle acceptance still awaits a later supported stable under
-[#748](https://github.com/stef-k/Wayfarer/issues/748).
+authority. Public DNS/CA reachability remains installation-specific; these disposable
+checks do not qualify a production host or native-to-Compose migration.
 
 ## Guided production installation
 
@@ -87,7 +89,7 @@ To install one exact public stable release >=1.9.21 through the same acquisition
 sudo ./wayfarerctl setup --version X.Y.Z
 ```
 
-Future operator builds refuse lower exact public selectors. The immutable v1.9.21
+Current operator builds refuse lower exact public selectors. The immutable v1.9.21
 operator may still technically accept 1.9.20; select only supported releases. Its
 historical metadata is retained as described in the [support decision](23-Versioning.md#public-acceptance-and-availability).
 

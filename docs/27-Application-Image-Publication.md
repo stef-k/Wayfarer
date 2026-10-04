@@ -83,8 +83,9 @@ client configuration and pulls `ghcr.io/stef-k/wayfarer@sha256:...` using exactl
 publication job's digest. It checks platform, labels and compiled version, then runs
 the same non-root, read-only payload, absent-build-tools, static-assets and real
 Chromium PDF checks used before push. Smoke containers have no network or database;
-Chromium must already be installed. Full prepared-database qualification remains
-with #640 and the later Compose child.
+Chromium must already be installed. Prepared-database and integration qualification
+remain with the [application container](26-Application-Container.md#disposable-qualification)
+and [Compose qualifier](28-Production-Compose.md#recreation-and-qualification).
 
 [GHCR initially creates packages as private](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry).
 Publishing with this repository's token and OCI source label links the package to
@@ -128,7 +129,7 @@ Current user-facing availability belongs to
 
 ## Local candidate bundle consumer
 
-The local bundle assembler now consumes the same version and OCI identity owners,
+The local bundle assembler consumes the same version and OCI identity owners,
 requiring an actual locally available immutable application digest and exact source.
 Candidate archive names contain `candidate`, version and full source SHA. Stable
 archives use `wayfarer-vX.Y.Z-linux-amd64.tar.gz` or the ARM64 equivalent, with a versioned `.tar.gz.sha256` sidecar.
@@ -167,7 +168,7 @@ a publisher. Automatic acquisition requires GitHub REST's exact lowercase
 The project/tag/name/status are fixed. The download URL is constructed from validated
 identity; only GitHub's fixed HTTPS release-asset CDN may receive its redirect.
 
-Corrected tooling treats v1.9.21 as the supported baseline with no required predecessor.
+Release tooling treats v1.9.21 as the supported baseline with no required predecessor.
 Later publication requires the highest earlier stable >=v1.9.21 that advertises the
 platform deployment asset. If no eligible source exists, publication fails closed;
 it never falls back to v1.9.20 or authors a new `Sources=[]` baseline.
@@ -180,7 +181,7 @@ source omission or search for a different update target occurs.
 
 Published v1.9.20/v1.9.21 bytes and tags remain immutable, including v1.9.21's historical
 `Sources=[v1.9.20]`. See the [current support floor](23-Versioning.md#public-acceptance-and-availability);
-that historical boundary does not qualify the supported lifecycle required by #748.
+that unsupported boundary does not qualify a supported public lifecycle.
 
 The real `public-compose-acceptance` job downloads the public bootstrap tarball on a
 fresh native runner and checks it against the retained publication evidence's verified
@@ -199,29 +200,24 @@ Acceptance requires all native publication/anonymous-pull, index, deployment-bun
 and `public-compose-acceptance` jobs to succeed on both supported platforms. Preserve
 `deployment-publication-{amd64,arm64}`, `deployment-publication-evidence-{amd64,arm64}`
 and `public-compose-acceptance-{amd64,arm64}` alongside image evidence beyond Actions
-retention. A baseline claims no stable-to-stable migration; candidate real-migration
-evidence remains separate until a second compatible genuine public release supplies
-that proof.
+retention. Fresh setup alone claims no stable-to-stable migration; public lifecycle
+and candidate real-migration evidence remain separate qualification boundaries.
 
-Corrected installer retry/diagnostic changes passed genuine v1.9.21 public bootstrap
-`setup → doctor → stop` acceptance on AMD64 and ARM64 in
-[run 37010835544](https://github.com/stef-k/Wayfarer/actions/runs/37010835544), source
-`709a39ca7876fb4a08ce3090d79c4410efce09d8`. That released fresh-setup observation used
-external mode. Current-source [full AMD64 managed ingress qualification](28-Production-Compose.md#managed-acme-and-timeline-ingress-749)
+Public bootstrap `setup → doctor → stop` acceptance has passed on AMD64 and ARM64
+for the supported baseline and current [stable v1.9.22](https://github.com/stef-k/Wayfarer/releases/tag/v1.9.22).
+These fresh-setup observations use external mode. The
+[full AMD64 managed ingress qualification](28-Production-Compose.md#managed-acme-and-timeline-ingress)
 adds local-test-CA ACME issuance, persisted replacement state, bounded renewal and a
 joined bearer/Timeline embed/tile/SSE reconnect journey. These are separate evidence
-boundaries; neither proves third-party public CA/DNS reachability or #748's later-stable
-lifecycle. Already-published v1.9.20 artifacts remain immutable.
-Its original early ARM64 preparation failure cannot be diagnosed
-retrospectively from the retained generic error; public API/CDN propagation remains
-an unproven hypothesis. Controlled candidate failure injection proves the diagnostic
-contract, not genuine public installation acceptance.
+boundaries; neither proves third-party public CA/DNS reachability. Continuous public
+lifecycle evidence is described below; candidate failure injection proves diagnostic
+and failure contracts separately from genuine public installation acceptance.
 
 ## Post-publication continuous lifecycle
 
 [`public-lifecycle-acceptance.yml`](../.github/workflows/public-lifecycle-acceptance.yml)
-owns [#748](https://github.com/stef-k/Wayfarer/issues/748)'s single continuous
-Linux AMD64 witness after a later supported stable exists. It is a separate
+qualifies one continuous Linux AMD64 lifecycle from public v1.9.21 to an already
+published later supported stable. It is a separate
 `workflow_dispatch` job with `contents: read`, no registry/release write permissions,
 and one maintainer input: the already published target stable tag. For example:
 
@@ -256,23 +252,25 @@ receipts, storage generations and required functional observations. Whole-ring h
 are retained without keys; raw product JSON, stdout/stderr, passwords, cookies, token
 bytes and provider plaintext are excluded. Failed/missing observations emit no PASS
 ledger. Preserve the successful artifact beyond Actions retention and independently
-review its exact source/target/lineage before closing #748.
+review its exact source/target/lineage before accepting the lifecycle qualification.
 
 HTTPS here is the existing fixture-controlled external TLS/public-origin route.
 Managed Caddy ACME and representative bearer/embed/SSE ingress have separate
-[#749 COMPOSE evidence](28-Production-Compose.md#managed-acme-and-timeline-ingress-749)
+[Compose evidence](28-Production-Compose.md#managed-acme-and-timeline-ingress)
 against a local test CA. Existing
 ARM64 public/setup/bounded recovery proof is the companion platform evidence; this
-complete journey is not duplicated on ARM64. Normal PR CI proves the harness only.
-At implementation time v1.9.21 is the latest published stable, so the final public
-lifecycle run remains pending. This workflow never prepares or publishes its target.
+complete journey is not duplicated on ARM64. The genuine public **v1.9.21 → v1.9.22**
+witness has passed, including update, selected-archive clean restore and account
+recovery. Its zero EF migration delta does not replace candidate real-migration/failure
+qualification. Normal PR CI proves the harness only. This workflow never prepares
+or publishes its target, and its HTTPS fixture does not qualify public DNS/CA reachability
+or a production host.
 
-## Post-merge public operator acceptance
+## Post-publication public operator acceptance
 
 [`public-operator-acceptance.yml`](../.github/workflows/public-operator-acceptance.yml)
-owns [#764](https://github.com/stef-k/Wayfarer/issues/764)'s additional public command
-evidence separately from publication and the accepted #748 lifecycle. After the
-implementation PR merges and the maintainer authorizes runtime acceptance, run:
+qualifies additional public commands separately from publication and the continuous
+lifecycle. Maintainers invoke it against its accepted public baseline:
 
 ```sh
 gh workflow run public-operator-acceptance.yml --ref main -f tag=v1.9.22
@@ -296,7 +294,8 @@ Failure emits bounded stage/result evidence without a PASS record. The temporary
 configuration is removed on step exit, and the ephemeral runner owns no retained installation.
 
 PR focused tests, syntax/workflow checks, Code Guard and exact-head CI prove the harness
-only. Public runtime acceptance remains pending this separate post-merge run and
-independent review of its sanitized artifact. Preserve successful evidence beyond Actions
-retention. Before closing #764, also follow its cleanup inventory for any merged clean
-local worktree/branch and task-owned scratch state; this PR does not close the issue.
+only. The v1.9.22 public runtime witness has passed with independent review of its
+sanitized artifact: standalone acquisition, setup interruption/resume, routine
+operations with continuity and backup discovery/policy toggle. Preserve successful
+evidence beyond Actions retention. Its fixture-controlled external TLS and AMD64-only
+command scope do not qualify managed public ACME, production hosts or another ARM64 lifecycle.

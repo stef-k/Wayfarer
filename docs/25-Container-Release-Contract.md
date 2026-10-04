@@ -1,9 +1,6 @@
 # Container and release contract
 
-Normative design for [#638](https://github.com/stef-k/Wayfarer/issues/638), under
-[#603](https://github.com/stef-k/Wayfarer/issues/603). Investigated 2026-09-25 against
-main `d49deb52aa0ff29121ffaca807fc522ba8877d4c`; subsequent accepted changes are
-incorporated below. This page owns identity, trust and compatibility semantics.
+This page defines the supported container identity, trust and compatibility contract.
 Maintainer sequencing belongs to [Versioning and Release Operations](23-Versioning.md);
 publication procedures and evidence belong to
 [application publication](27-Application-Image-Publication.md) and
@@ -11,12 +8,12 @@ publication procedures and evidence belong to
 
 ## Support boundary
 
-The first bundle targets Linux Docker Engine with Compose v2, `linux/amd64` or `linux/arm64`, one
+The supported bundle targets Linux Docker Engine with Compose v2, `linux/amd64` or `linux/arm64`, one
 host, one Wayfarer instance and one bundled database. Use a supported Docker host
 with local filesystems supporting Unix ownership, atomic rename and durable writes.
 The host need not be Ubuntu; Ubuntu 24.04 is the application image OS. WSL is a
 development environment, not separate production qualification. 32-bit ARM, Docker Desktop,
-Swarm, Kubernetes, HA and shared/network database volumes are outside initial support.
+Swarm, Kubernetes, HA and shared/network database volumes are outside support.
 No host .NET, Node, Python, PostgreSQL, Nginx or Certbot is required by the bundle.
 Native/manual deployment remains available through [Deployment](20-Deployment.md).
 
@@ -24,11 +21,13 @@ The first supported Compose lifecycle/update baseline is v1.9.21. v1.9.20 remain
 an immutable transitional publication. This application support floor is independent
 of operator protocol and historical recovery compatibility; see the
 [support decision and historical metadata boundary](23-Versioning.md#public-acceptance-and-availability).
-Native/systemd v1.9.19 follows #604's explicit migration rather than Compose update.
+Native/systemd v1.9.19 follows the
+[#604 migration plan](https://github.com/stef-k/Wayfarer/issues/604) rather than Compose update.
 
 Raspberry Pi 5 with 64-bit Ubuntu Server is an example generic ARM64 host.
 The operator, host, local daemon and bundle must agree on platform; cross-architecture
-setup/update/restore fail closed. Native/systemd ARM browser qualification stays in #681.
+setup/update/restore fail closed. Native/systemd ARM browser sandbox prerequisites
+still require [separate qualification](https://github.com/stef-k/Wayfarer/issues/681).
 Native ARM64 qualification uses `ubuntu-24.04-arm` CI, with one canonical external-mode setup/doctor/stop
 and recovery-helper journey; QEMU-only evidence cannot qualify this contract.
 
@@ -40,7 +39,7 @@ resolve supported patched versions and pin base digests; floating tags below ide
 families, not reproducible deployment inputs. Refresh patches through a tested new
 release, never by rebuilding an already published release identity. Reassess the
 family before upstream .NET/OS support ends. Do not use Alpine, chiseled/distroless,
-or the Playwright test image as the initial final application base.
+or the Playwright test image as the final application base.
 
 Publish framework-dependent Release `linux-x64` for AMD64 or `linux-arm64` for ARM64, without trimming, AOT or single-file
 packing. Build Node 24/npm and MvcFrontendKit assets before publish; retain generated
@@ -85,7 +84,7 @@ Playwright-owned profiles. Existing derived paths remain `uploads/imports`,
 `data-protection`, `tiles`, `images`, `thumbnails/trips`. Complete Data Protection
 ring + matching DB + durable uploads form the recovery boundary; `app-cache` being
 persistent does not make it authoritative. Cache reuse must preserve the existing
-filesystem/DB metadata reconciliation contract; #533 owns archive implementation.
+filesystem/DB metadata reconciliation contract; the recovery engine owns archive operations.
 
 The application name remains exactly `Wayfarer`; fresh bundles explicitly select
 `DataProtection__KeyRingPath=/var/lib/wayfarer/data-protection`. Never copy one key
@@ -93,7 +92,8 @@ and call that the ring. Preserve F1 preparation/F2 stable ciphertext requirement
 [provider migration guidance](24-Personal-Location-Providers.md#f1-preparation-to-f2-activation).
 Old native `Uploads`, `TileCache`, `ImageCache` are bounded **writable** migration
 inputs, not default container `/app` volumes. Neither startup nor image replacement
-converts their absolute DB references or deletes them; #604 owns real cutover.
+converts their absolute DB references or deletes them; native migration requires
+the separate migration plan linked above.
 
 Setup prepares named volumes with bounded one-shot ownership initialization before
 running app as non-root. Never recursively chown arbitrary administrator paths.
@@ -101,7 +101,7 @@ Data/key directories must exclude other users (0700; key files 0600); logs/cache
 may use 0750. Mount overrides require explicit absolute paths, ownership preflight
 and preservation semantics; default durable/cache/log state uses named volumes.
 Only config, secrets and an explicitly chosen backup destination use bounded bind
-mounts. Backups live outside the live data volumes; mount them only into the later
+mounts. Backups live outside the live data volumes; mount them only into the
 backup operation, not the ordinary web service. No NAS mounting/credentials framework.
 
 ## Database contract
@@ -109,10 +109,11 @@ backup operation, not the ordinary web service. No NAS mounting/credentials fram
 Select a narrowly scoped Wayfarer-owned DB image assembled from the official
 `postgres:18.6-bookworm` multi-platform index with exact AMD64/ARM64 manifests and signed PGDG PostGIS **3.6.4**
 packages. PostgreSQL **18.6 only** (`18.6-1.pgdg12+2`), PostGIS **3.6.4**
-(`3.6.4+dfsg-2.pgdg12+1`) and Debian/glibc are fixed by #718. Compose mounts
+(`3.6.4+dfsg-2.pgdg12+1`) and Debian/glibc define the Compose baseline. Compose mounts
 `/var/lib/postgresql`; upstream owns `PGDATA=/var/lib/postgresql/18/docker`.
-There is no released PG17 Compose baseline or PG17→PG18 migration path. #644's [image investigation and qualification](28-Production-Compose.md#exact-third-party-image-decision)
-rejects the stale project Debian image and supersedes the proposed Alpine exception.
+There is no supported PG17 Compose baseline or PG17→PG18 migration path. The
+[DB recipe and qualification](28-Production-Compose.md#exact-third-party-image-decision)
+own the exact base/package pins and glibc compatibility checks.
 The recipe uses the PostgreSQL project's signed package distribution; Wayfarer owns image assembly, qualification and publication,
 not a fork of PostgreSQL/PostGIS. Prefer a maintained official-project artifact
 when it can satisfy this contract again.
@@ -122,7 +123,7 @@ digest, never its base digest or a mutable build tag. The source bundle requires
 `DB_DIGEST`; it cannot launch until publication supplies that value. Fresh clusters
 use UTF8/C.UTF-8 with glibc case folding and byte ordering. Matching libc alone does
 not make native data directories, locale/index versions or extensions portable;
-logical migration remains separately owned by #604. Backup tools run in the
+logical native migration requires the separate migration plan. Backup tools run in the
 selected version-matched DB image. Recheck live patch/support status and qualify
 before every new bundle release. Wayfarer maintainers must rebuild and publish a
 new immutable image for upstream security updates; containers never self-update.
@@ -149,7 +150,7 @@ Registry authority is `ghcr.io/stef-k/wayfarer`. Stable tags are `vX.Y.Z`, match
 the Git tag/GitHub Release and compiled `Version.props` version `X.Y.Z`. Record the
 full source SHA independently: informational version deliberately omits it. Never
 retarget a stable tag or overwrite its bundle; patched dependencies require a new
-release. No `latest` alias is required initially. If aliases are added, they are
+release. No `latest` alias is published. If aliases are added, they are
 convenience pointers only and never update/restore authority. Prerelease SemVer tags
 and `dev-<full-sha>` images are opt-in, unsupported for ordinary stable lifecycle;
 neither can replace a stable version identity.
@@ -233,7 +234,8 @@ include Production environment, internal HTTP binding, explicit Storage/browser
 paths, AllowedHosts and narrowly scoped trusted proxy configuration. Managed mode
 only publishes Caddy 80/443. External mode omits Caddy and must use an explicitly
 bounded loopback/private application binding and trusted proxy authority; detailed
-forwarded-header/security implementation belongs to the readiness/proxy children.
+forwarded-header/security behavior is defined by
+[application configuration](26-Application-Container.md#configuration-and-health).
 
 Secrets are protected generated files, directory 0700 and files 0600, mounted
 read-only only into consumers under `/run/secrets`. DB uses `POSTGRES_PASSWORD_FILE`;
@@ -250,11 +252,10 @@ generation or authorized lifecycle operation.
 
 ## Persisted Compose lifecycle authority
 
-This is the canonical cross-lifecycle state contract, audited against `main`
-`808d800d6676c16ba25b057e0a9af953ac81776a` for #733. Detailed release, restore and
-update procedures remain in their linked sections below. The audit changes no
-runtime behavior. [Audit findings](#audit-findings-and-evidence) identify concrete
-recovery gaps; their intended contracts are not claims that those gaps are fixed.
+This is the canonical cross-lifecycle state contract. Detailed release, restore and
+update procedures remain in their linked sections below.
+[Lifecycle recovery limits](#lifecycle-recovery-limits) describe supported residue
+reconciliation and cases requiring administrator intervention.
 
 Authority classes distinguish **selected identity/policy**, **operation intent**,
 **derived input/exclusion**, **preparation** and **historical completion/evidence**.
@@ -527,26 +528,18 @@ inert; their existence or timestamps do not activate them. Restore/update pointe
 replacements and receipt writes flush their parent directories. Old/failed generations,
 plans, releases, images and held recovery evidence remain retained.
 
-### Audit findings and evidence
+### Lifecycle recovery limits
 
-The audit used all persisted-state writers/readers listed above, existing tests and
-three isolated Linux-root residue probes against unchanged production assemblies.
-156 focused operator/acquisition/release/restore/update/worker tests and all 11
-root-owned provisioning tests passed. The table records those original findings and
-their current disposition. Controlled residue reconstruction is not actual process-kill,
-reboot, public release or production-host qualification.
+Persisted-state tests and controlled residue probes cover the recovery boundaries
+below. Reconstructed residue and normal-process checks do not establish hardware
+power-loss, reboot or production-host qualification.
 
-| Finding | Disposition and current recovery limit |
+| Boundary | Supported recovery and limit |
 | --- | --- |
-| Canonical setup receipt valid, but snapshot deletion interrupted after one member is removed | [#734](https://github.com/stef-k/Wayfarer/issues/734) adds atomic authoritative-snapshot → private-reclamation handoff and focused interrupted-cleanup recovery. Partial authoritative snapshots from the old deletion order still require reconciliation; they are never reclassified as private residue |
-| Genuine delegated root:1654 0640 capture reservation rejected by update's root:root 0600 validator before any process call | [#735](https://github.com/stef-k/Wayfarer/issues/735) adds exact generated-reservation admission and helper reconciliation for update resume/pre-migration abort; unsafe/foreign authority and unknown Docker state remain blocking |
-| Terminal receipt published before its derived exclusion marker is removed; host completion succeeds while worker validation refuses capture | [#736](https://github.com/stef-k/Wayfarer/issues/736) adds exact terminal-marker reconciliation through `backup configure --recover`, retaining unresolved/foreign refusal and restore/update completion joins. Focused real-root tests reconstruct restore/update and accepted-restore handoff residue; this is not process-death/power-loss qualification |
-| Setup progress replacement and completion creation omitted parent-directory flush before dependent mutation/success | [#737](https://github.com/stef-k/Wayfarer/issues/737) adds both parent flushes and preserves failed-operation guidance. Source/normal-process evidence, without actual hardware power-loss reproduction |
-
-#733 remains open for child disposition and independent exact-head review. #603
-closure must use this authority inventory with the linked operator procedures and
-resolve the tracked lifecycle gaps. #730 remains separate and open for later genuine
-public patch-release acceptance; this audit prepares no release.
+| Setup snapshot reclamation interrupted | An atomic authoritative-snapshot → private-reclamation handoff permits verified duplicate cleanup on resume. Partial authoritative snapshots from older deletion behavior still require reconciliation; they are never reclassified as private residue |
+| Delegated capture interrupted during update | Update resume/pre-migration abort admits only the exact generated root:1654 0640 reservation and reconciles its helper. Unsafe/foreign authority and unknown Docker state remain blocking |
+| Terminal receipt survives alongside a derived exclusion marker | `backup configure --recover` reconciles exact terminal markers only when protected receipts, completion evidence and any restore/update ownership join agree. Unresolved/foreign or contradictory state remains blocking |
+| Setup progress or completion durability fails | Both writes flush the parent directory before dependent mutation/success. Failed completion preserves the primary error and requires reconciliation if its newly created marker cannot be removed |
 
 ## Lifecycle ownership
 
@@ -578,90 +571,37 @@ app stopped/not ready. No automatic downgrade after a partially applied migratio
 A restart cannot masquerade as an authorized update or restore.
 
 Use exec-form process launch so SIGTERM reaches ASP.NET; drain requests and await
-Quartz job shutdown within an explicit stop grace period (initial target 60 seconds,
-subject to job qualification). Forced termination/timeouts must be reported truthfully.
+Quartz job shutdown within the 60-second application stop grace period. Compose allows
+70 seconds for container stop. Forced termination/timeouts must be reported truthfully.
 Non-root app, no privileged mode and no Docker socket are baseline requirements.
-Read-only root, capability dropping, seccomp/user-namespace sandbox, init/reaping and
-private shared-memory sizing require final browser-image qualification. Do not copy
-Playwright testing recommendations such as host IPC or SYS_ADMIN into production
-without evidence. Preserve the existing browser behavior in this contract slice.
+The supported application container uses a read-only root and bounded temporary
+storage; see [image build and runtime](26-Application-Container.md#image-build-and-runtime).
+An enabled Chromium renderer sandbox, alternate capability/seccomp/user-namespace
+policies, init/reaping or shared-memory changes require their own browser-image
+qualification. Host IPC and SYS_ADMIN are outside the supported runtime boundary.
 
-## Historical architecture evidence and implementation gaps
+## Upstream contracts
 
-The observations in this section describe the original 2026-09-25 investigation,
-before the application image and operator children. They are provenance, not current
-startup/publication instructions; use the specialized owners linked above.
-
-Original #638 inspection (2026-09-25): `Wayfarer.csproj` targets net10.0 with Playwright 1.62.0;
-`Version.props` and latest GitHub Release were 1.9.19/v1.9.19. Publishing was
-framework-dependent by default; frontend builds were explicit in `deployment/deploy.sh`.
-`Program.cs` validated DP, installed Quartz tables, seeded DB and started hosted jobs;
-`ApplicationDbContextSeed` called `MigrateAsync` and created the default admin.
-There was no dedicated health endpoint/healthcheck command. `/api/version`, version
-CLI and response header exposed compiled version, not readiness or image identity.
-Password reset accepted argv. Those gaps required the later readiness child before
-container startup could be qualified.
-
-`StoragePaths` uses platform user/XDG defaults outside Production; Production supplies
-the four roots above. F2 globally selects `Wayfarer` and stable ciphertext; explicit
-native ring overrides and bounded previous-default handling remain authoritative.
-At that inspection, the only Actions workflow was PR `tests.yml`, with a documentation-only
-fast path; there was no release/image publishing pipeline. `tools/release/version.py`
-checked metadata/tags/releases without publishing them.
-
-Reuse [#631 / PR #632 evidence](https://github.com/stef-k/Wayfarer/pull/632): published
-read-only application startup/static serving and real thumbnail production succeeded
-with revision 1234 and external logs/key ring, unchanged publish-tree hashes, after
-supplying missing Noble `libasound2t64`. Its 14 focused and 3,285 PG-attached tests
-are retained evidence, not rerun here. No duplicate app-image spike is needed to
-choose the same glibc/Noble/browser dependency family. That native/disposable proof
-is **not** final container, sandbox, resource-limit or full-root-read-only qualification.
-The image child must build the actual pinned image and repeat representative launch,
-non-root/write-boundary, health and browser evidence before release support is claimed.
-
-### Upstream evidence checked 2026-09-25
-
-- [.NET 10 Ubuntu default](https://learn.microsoft.com/en-us/dotnet/core/compatibility/containers/10.0/default-images-use-ubuntu)
-  and [image variants](https://learn.microsoft.com/en-us/dotnet/core/docker/container-images):
-  full Noble family avoids adding glibc/ICU/browser compatibility work to Alpine/chiseled.
-- [.NET source snapshot](https://github.com/dotnet/dotnet-docker/tree/29ebb4c118c30760b93f28fbfbf3dd300a6b65ee/src/aspnet/10.0/noble/amd64):
-  current Dockerfile references 10.0.12. Live manifest inspection resolved Noble AMD64
-  digest `sha256:ed6a2d26633ddcd3d42a1d9f9866214ecbbc11ba6ac5e0e843da02c13da24072`.
-  This is investigation evidence, not a permanently mandated release digest.
+- [.NET image variants](https://learn.microsoft.com/en-us/dotnet/core/docker/container-images)
+  define the runtime families; the full Noble/glibc base supports the required browser libraries.
 - [Playwright Docker guidance](https://playwright.dev/dotnet/docs/docker) and
-  [version-coupled browser installation](https://playwright.dev/dotnet/docs/browsers):
-  Noble supported; package/browser matching required. The SDK-oriented test image is
-  not the selected minimal ASP.NET runtime. Local NuGet `browsers.json` confirms 1234.
-- [PostGIS source snapshot](https://github.com/postgis/docker-postgis/tree/2bcd236e3af9ec6e668db51eb37162a79f0eaeaa):
-  README lists AMD64 and 17-3.5; Dockerfile uses postgres:17-bullseye with PostGIS
-  3.5.2. [PostgreSQL image contract](https://hub.docker.com/_/postgres) documents
-  file-secret support and empty-volume-only initialization;
-  [citext](https://www.postgresql.org/docs/17/citext.html) is a supplied extension.
-- Disposable database proof: pulled `postgis/postgis:17-3.5` at digest
-  `sha256:01a6a70e41e6c4467c8f55f6063555ed72db2d6662cd0d571040d42eadaeb6f6`,
-  ran with network disabled, no published ports and tmpfs PGDATA. SQL reported
-  PostgreSQL 17.5, PostGIS 3.5.2 and successfully created citext 1.6. Container was
-  stopped/removed. This proves extension availability, not current security fitness:
-  the observed PG17 patch is older than current upstream 17.x metadata. The image
-  child must obtain a maintained/patched artifact in this family or explicitly
-  revise the selection before publication; this digest is not approved for release.
-- Names/topology were parsed with Docker Compose 2.40.3 `config --quiet` using a
-  disposable syntax-only model; no application Compose stack was started or shipped.
-- [GHCR](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry):
-  public anonymous pulls, digest references and scoped Actions publishing supported.
+  [version-coupled browser installation](https://playwright.dev/dotnet/docs/browsers)
+  define package/browser matching and image prerequisites. Container isolation and
+  Wayfarer's browser controls do not establish an enabled Chromium renderer sandbox;
+  see the [browser isolation boundary](26-Application-Container.md#browser-isolation-boundary).
+- [The PostgreSQL image](https://hub.docker.com/_/postgres) defines file-secret delivery,
+  version-specific PGDATA and empty-cluster initialization;
+  [citext](https://www.postgresql.org/docs/18/citext.html) is a supplied extension.
+- [GHCR](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry)
+  supports anonymous public pulls, digest references and scoped Actions publication.
 - [Compose project identity](https://docs.docker.com/compose/how-tos/project-name/)
   defines explicit project selection;
-  [Compose secrets](https://docs.docker.com/compose/how-tos/use-secrets/) describes
-  per-service read-only file delivery. These capabilities do not implement the bundle.
-
-At the original investigation, #533 redesign, production Docker/Compose/CLI,
-image publication, external proxy qualification, backup/restore/update and #604 M6
-migration were assigned to later children. The investigation itself changed no
-runtime/configuration/database behavior.
+  [Compose secrets](https://docs.docker.com/compose/how-tos/use-secrets/)
+  define per-service read-only file delivery.
 
 ## Local release authority v1
 
-`release.json` schema 1 / bundle contract 1 / configuration schema 1 now owns
+`release.json` schema 1 / bundle contract 1 / configuration schema 1 owns
 local release identity. `tools/release/bundle.py --app-digest sha256:... --db-digest sha256:... --output /absolute/new-output`
 assembles a clean committed source into an explicit candidate directory and deterministic
 candidate tarball with external `SHA256SUMS`. It reuses Version.props and the image
@@ -727,14 +667,14 @@ source corroboration retain their exact contracts. See the
 
 ## Trusted-local forward update
 
-The #704 operator consumes two independently retained local release authorities.
+The operator consumes two independently retained local release authorities.
 Only explicit source fingerprints with an exact ordered migration prefix permit
 forward migration; SemVer ordering alone is insufficient. DB/Caddy identities and
 physical storage remain unchanged. Migration starts only behind durable intent,
 writer/ingress fencing and a fresh held verified quiesced recovery set. Target
 private validation precedes exposure and scheduler reconciliation. Old release,
 operator, image and recovery evidence remain retained. Failed-update recovery uses
-a durable ownership join to #695 restore, never old-image rollback or receipt deletion.
+a durable ownership join to managed restore, never old-image rollback or receipt deletion.
 See [update phases and commands](29-Wayfarerctl.md#trusted-local-managed-forward-update).
 Public acquisition prepares retained validated bytes and exact images before this same
 local lifecycle. It grants no migration or activation authorization. See

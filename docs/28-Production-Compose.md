@@ -1,7 +1,6 @@
 # Production Compose substrate
 
-Implements [#644](https://github.com/stef-k/Wayfarer/issues/644) against
-`ae2ece49896049ce65193acc3188a8b887c5f7bf`, preserving the
+The production Compose substrate follows the
 [container contract](25-Container-Release-Contract.md),
 [application image](26-Application-Container.md) and
 [publication identity](27-Application-Image-Publication.md).
@@ -63,23 +62,10 @@ Trip responses through both managed Caddy and its existing external-proxy fixtur
 
 ## Exact third-party image decision
 
-Historical manifest/config, executable and signed-package checks on 2026-09-25 established the original PG17 recipe, superseded before public Compose release by #718:
-
-| Candidate | Actual payload / provenance | Decision |
-| --- | --- | --- |
-| PostGIS project `17-3.5` Debian | PG17.5 (`17.5-1.pgdg110+1`), PostGIS3.5.2, Debian11 | Rejected; current manifest remains stale |
-| Official `postgres:17.11-bookworm` + PGDG PostGIS | PG17.11 (`17.11-1.pgdg12+2`), PostGIS3.6.4 (`3.6.4+dfsg-2.pgdg12+1`), Debian12/glibc2.36 | Historical packaging route; superseded by PG18 below |
-| PostGIS project `17-3.5-alpine` | PG17.11, PostGIS3.5.7, Alpine3.24.1/musl | Qualified alternative, superseded by practical glibc route |
-| PostGIS project `17-3.6-alpine` | PG17.11, PostGIS3.6.4, Alpine3.24.1/musl | Available; does not resolve the libc concern |
-
-At that investigation, the project Debian `17-3.6` tag did not resolve; its source
-Dockerfile was a placeholder. The observed `17-3.5` index was
-`sha256:01a6a70e41e6c4467c8f55f6063555ed72db2d6662cd0d571040d42eadaeb6f6`.
-The rejected Alpine selection was
-`sha256:894f570c0cf0664ed5576a8fd5d5bfb8fb1b19d592885b686c3a88c8bd90c41f`;
-the investigated 3.6 Alpine digest was
-`sha256:a8ffa9afeea4ad6eada171fa2afdb57cd3eb90f92ce20156aa2cb8411d70e0cd`.
-The pre-release baseline correction keeps the same official Debian/PGDG packaging route.
+The supported database recipe uses the official PostgreSQL Bookworm image and
+signed PGDG PostGIS packages. Exact source pins belong to
+[`db/Dockerfile`](../deploy/compose/db/Dockerfile); accepted published DB identities
+belong to [`database-release.json`](../tools/release/database-release.json).
 
 `db/Dockerfile` pins the official PostgreSQL18.6 Bookworm **multi-platform index**
 `sha256:3725f4e2499eef5134592b3b4ab79a543ed7f8e533b05b5b637af926630f6650`.
@@ -90,12 +76,12 @@ PGDG using the base's repository/signing key, and rejects a changed server packa
 There is no source compilation, replacement entrypoint, runtime package installation
 or baked-in cluster/secret. Existing Compose initialization creates only required
 `postgis` and `citext` extensions in the application DB. PostgreSQL 18.6 supplies citext1.8 (confirmed from its installed control file and upstream `REL_18_6` source); exact release/recovery checks require that version.
-Live signed Bookworm indexes on 2026-09-30 bind `postgresql-18=18.6-1.pgdg12+2` and both PostGIS packages at `3.6.4+dfsg-2.pgdg12+1` on AMD64 and ARM64.
+The recipe requires `postgresql-18=18.6-1.pgdg12+2` and both PostGIS packages at
+`3.6.4+dfsg-2.pgdg12+1` on AMD64 and ARM64.
 The base retains UID/GID999. Compose mounts the one durable `db-data` volume at
 `/var/lib/postgresql`; the official image owns `PGDATA=/var/lib/postgresql/18/docker`.
 Stateless probes shadow the declared parent volume with read-only tmpfs. No custom
 PGDATA, host-path migration, PG17 physical reuse or major-upgrade path is introduced.
-This corrects the fresh-install baseline before the first public Compose stable.
 
 [PostgreSQL18.6 release notes](https://www.postgresql.org/docs/18/release-18-6.html)
 identify current PG18 fixes. [PostgreSQL's Debian distribution](https://www.postgresql.org/download/linux/debian/)
@@ -110,13 +96,9 @@ PGDG dependencies are resolved at build time: exact top-level pins do not promis
 bit-for-bit rebuilds; the published **derived manifest digest** is runtime authority.
 If a pinned package is withdrawn, the build fails rather than silently changing it.
 
-This is lower maintenance than compiling PostGIS or adopting another vendor's
-entrypoint/update contract. Canonical/Ubuntu was not needed after the official
-PostgreSQL + PGDG route passed assembly; no claim is made that an Ubuntu vendor
-image supplies this exact combination. The Alpine alternative delegates assembly
-to PostGIS but introduces musl locale/library compatibility work. Both require
-Wayfarer to track upstream fixes and requalify each accepted image refresh; the
-selected route additionally requires Wayfarer to build and publish that image.
+The selected Debian/glibc route avoids changing the native libc family to Alpine/musl.
+It still requires Wayfarer to monitor upstream fixes and requalify each image refresh;
+shared libc alone does not establish data-directory, locale or extension portability.
 
 Fresh clusters retain explicit UTF8/C.UTF-8. `citext` folds Greek and accented Latin
 case, preserves accent distinctions, and ordinary text ordering is byte ordering,
@@ -126,7 +108,7 @@ then checks them again after custom-format restore with a spatial/citext row and
 the real application schema. This is a bounded behavioral sample, not equivalence
 of every Unicode case/collation between libc implementations.
 
-For #604, inspect source PG/PostGIS versions, extension usage, encoding, locale
+For [native migration](https://github.com/stef-k/Wayfarer/issues/604), inspect source PG/PostGIS versions, extension usage, encoding, locale
 provider/version and collation-dependent uniqueness before logical dump/restore.
 Use the selected image's PG18 tools and explicitly provision compatible extensions;
 rebuild indexes through restore and verify application identities and representative
@@ -145,9 +127,8 @@ qualification alone is not proof of anonymous
 registry availability. Stable assembly reads the reviewed publication evidence in
 `tools/release/database-release.json`, verifies its immutable index and both native
 manifest/config pairs from GHCR, and records only the selected native DB digest in
-`release.json`. The initial authority is the unchanged `db-index.json` from successful
-[run 36772792692](https://github.com/stef-k/Wayfarer/actions/runs/36772792692), covering
-PostgreSQL 18.6 + PostGIS 3.6.4 on AMD64/ARM64. This is retained DB publication evidence;
+`release.json`. The accepted authority covers PostgreSQL 18.6 + PostGIS 3.6.4 on
+AMD64/ARM64. Its machine-readable provenance remains in `database-release.json`;
 application/bundle publication and public installation acceptance belong to
 [application publication](27-Application-Image-Publication.md).
 
@@ -228,7 +209,8 @@ Changing mounted files is not password rotation for an existing database.
 Run only on a **new, disposable or explicitly authorized fresh installation**.
 Assume `bundle` names the absolute extracted Compose directory, `env` the absolute
 non-secret configuration, and `admin_input` a separately protected password file.
-These are internal maintenance seams for the later CLI, not guided setup commands.
+These are internal maintenance seams used by the operator; ordinary installation
+uses [guided setup](29-Wayfarerctl.md#fresh-guided-setup).
 
 ```bash
 "$bundle/compose.sh" "$env" config --quiet
@@ -256,7 +238,7 @@ spoofing; Wayfarer trusts just `.3`, not all edge peers.
 
 External mode uses `PROXY_MODE=external`, `EXTERNAL_PROXY_ADDRESS=<edge-prefix>.1`
 and optional `LOOPBACK_PORT` (default8080). Binding is restricted to 127.0.0.1.
-This slice qualifies a Linux host-native proxy reaching that loopback port; other
+The external-mode qualification covers a Linux host-native proxy reaching that loopback port; other
 container/private-network proxy topologies are not claimed. The proxy must preserve
 the public Host and send authoritative `X-Forwarded-Proto`, `X-Forwarded-Host` and
 one client `X-Forwarded-For`, replacing client-supplied forwarding headers. Qualify
@@ -273,7 +255,8 @@ Use the same project, configuration and named volumes with `up -d --force-recrea
 state is not in container layers. Stop writers before DB replacement. Keep DB,
 complete key ring and uploads together for recovery; caches/logs are not replacements
 for authoritative data. **Volume deletion destroys state.** Do not use volume removal
-in ordinary lifecycle commands. Managed restore stages fresh generations; automatic updates and general rollback remain unavailable.
+in ordinary lifecycle commands. Managed restore stages fresh generations; managed
+updates require explicit plan authorization and general rollback remains unavailable.
 
 CI reuses the application-image dry-run and runs `tools/compose/qualify.py --image
 <local-app-image-ID> --db-image <local-db-image-ID>`. Its test-only override selects that exact local build, an isolated
@@ -291,62 +274,43 @@ CI builds the DB from its pinned upstream base/packages and checks actual DB ver
 Caddy is pulled by its production digest. Registry acceptance of the derived DB remains separate.
 Existing image/browser/release and ordinary application CI remain separate gates.
 This is disposable integration evidence, not public-CA issuance, production host,
-M6 cutover, arbitrary external-proxy, physical mobile devices or full #603 acceptance.
+native migration, arbitrary external-proxy topologies or physical mobile devices.
 The bounded AMD64 API/embed/live joins are described below.
 
-Local qualification on 2026-09-25 used Docker29.1.3/Compose2.40.3 on Linux/WSL.
-The maintained Debian/PGDG DB passed explicit non-superuser EF/Quartz migration, repeated
-seed and protected admin bootstrap. Browser-generated JPEG/PDF, SSE heartbeat and
-KML download passed through trusted local TLS. Container replacement preserved DB,
-complete keys, a representative durable upload and TLS identities; an authenticated
-cookie remained valid. Local derived DB image ID was
-`sha256:f072a71e7835871f06219ade7c44fbcb05c90343139effb9d881c384206b6700`;
-this is local content evidence, **not a published registry manifest digest**.
-The Greek/Latin sample also passed against the former Alpine image; Debian exposes
-`C.utf8`, `en_US.utf8` and ICU Greek collations, while the Alpine probe exposed ICU
-Greek but neither tested glibc locale name. Production uses the explicit database
-locale rather than assuming those named collations exist on every base.
-The existing five container configuration tests and 43 release tooling tests passed
-in the original qualification; the DB correction reran the complete Compose gate
-and focused config rejection checks. Exact-head CI repeats the image build and
-Compose integration; see the PR checks for the final source revision's result.
+<!-- Preserve the existing inbound anchor used by other documentation. -->
+<a id="managed-acme-and-timeline-ingress-749"></a>
 
-### Managed ACME and Timeline ingress (#749)
+### Managed ACME and Timeline ingress
 
-Local full AMD64 qualification passed on 2026-10-03 against application source
-`89b86ed568756214a2d41628210112710d5be856`, which includes the independently merged
-#755 Timeline statistics fix. The qualifier/probe head was
-`c0b72b7e01d7f4c82d67786c1e3b75daa042e57f`, using local application image
-`sha256:872704c8b00e62c45d7ccbd177ea08bf824d9f8a725d9fbdd6375bf76f3e2949`.
-The shipped Caddy 2.11.4 image obtained `wayfarer.example.org` through its automatic
-ACME client using the same pinned image's local fixture ACME server. Only the test
-ACME authority/root, renewal timing and network/port plumbing differ from production.
-The client uses neither `tls internal` nor a manually loaded leaf. Curl/Python validate
-HTTPS live/ready and the SAN against only that fixture root.
+Full AMD64 qualification has passed for the shipped Caddy 2.11.4 automatic ACME
+client against a local fixture ACME authority. Only the test authority/root, renewal
+timing and network/port plumbing differ from production. The client uses neither
+`tls internal` nor a manually loaded leaf. Curl/Python validate HTTPS live/ready and
+the hostname SAN against only that fixture root.
 
-| Observation | Retained result |
+| Observation | Qualified behavior |
 | --- | --- |
-| Initial issued leaf | Serial `169721145E9A0628526A9CF8ACDC4074`; expires `2026-10-03 18:28:13 UTC` |
-| Caddy-only replacement | Same account/certificate file hashes, served leaf and `caddy-data`/`caddy-config` identities; app/DB containers unchanged |
-| Automatic renewal within 360 seconds | Serial `CE8E32C186C5F54B404FD7E3D542BCB5`; expires `2026-10-03 18:32:45 UTC`; new persisted/served leaf with unchanged account and volumes |
-| Bearer check-ins through managed TLS | HTTP 200; distinct Location IDs 1 and 2 persisted for the same synthetic token owner |
-| Mounted Timeline embed | Actual cross-origin `/Public/Users/Timeline/compose-admin/embed`, visible Leaflet and canonical full-view link |
-| Product tile route | `/Public/tiles/3/4/4.png` observed through ingress, HTTP 200; upstream availability/retry matrices remain lower-seam tests |
-| Production EventSource | Two connections on the same mounted iframe; both real check-in messages joined to subsequent Timeline refreshes, the second after replacement/reconnect |
+| Initial automatic issuance | A valid hostname certificate is persisted and served through managed HTTPS |
+| Caddy-only replacement | Account/certificate hashes, served leaf and `caddy-data`/`caddy-config` identities survive; app/DB containers remain unchanged |
+| Automatic renewal within 360 seconds | A new persisted/served leaf uses the same account and volumes |
+| Bearer check-ins through managed TLS | Two distinct Locations persist for the same synthetic token owner |
+| Mounted Timeline embed | The cross-origin public Timeline iframe displays Leaflet and the canonical full-view link |
+| Product tile route | A Wayfarer tile request succeeds through ingress; upstream availability/retry matrices remain lower-seam tests |
+| Production EventSource | Two connections on the same mounted iframe join real check-in messages to Timeline refreshes, including after replacement/reconnect |
 
-The same full run also passed existing rendering, upload, forwarding/exposure,
-DB/key/upload/cookie/TLS persistence, logical restore and external host-native proxy
-checks. Output records bounded hashes, serials, fingerprints, volume identities,
-statuses and joins without token/password/cookie/private-key bytes. The random
-labelled installation and secrets were removed after qualification.
+The full run also covers rendering, upload, forwarding/exposure,
+DB/key/upload/cookie/TLS persistence, logical restore and the external host-native
+proxy. Evidence records bounded hashes, certificate facts, fingerprints, volume
+identities, statuses and event/refresh joins without token/password/cookie/private-key
+bytes. Cleanup removes only the labelled installation and its secrets.
 
-This is **COMPOSE** evidence for Caddy's actual ACME automation against a local test
-CA. Genuine v1.9.21 AMD64/ARM64 public setup acceptance already passed separately;
-see [public distribution acceptance](27-Application-Image-Publication.md#stable-compose-distribution).
-Public DNS/CA reachability and production-host acceptance are not inferred. The
-full browser/ACME journey is AMD64-only; final supported continuous lifecycle closure
-still requires [#748](https://github.com/stef-k/Wayfarer/issues/748)'s future later-stable
-run. Historical qualification and release-source records retain their original context.
+This is Compose evidence for actual ACME automation against a **local test CA**.
+Public AMD64/ARM64 setup acceptance and the genuine **v1.9.21 → v1.9.22** continuous
+AMD64 lifecycle have passed separately; see
+[public distribution acceptance](27-Application-Image-Publication.md#stable-compose-distribution)
+and the [continuous lifecycle boundary](27-Application-Image-Publication.md#post-publication-continuous-lifecycle).
+Public DNS/CA reachability and production-host acceptance remain installation-specific.
+The full browser/ACME journey is AMD64-only and does not establish physical-device support.
 
 ## Derived DB publication and recovery
 
@@ -458,24 +422,22 @@ cp /absolute/new-evidence-directory/db-index.json tools/release/database-release
 
 Copy the actual artifact unchanged; do not reconstruct a subset or select by a mutable
 tag. Validate and independently review the promotion PR under repository rules before
-merge. The initial accepted artifact came from
-[run 36772792692](https://github.com/stef-k/Wayfarer/actions/runs/36772792692), promoted
-by [PR #722](https://github.com/stef-k/Wayfarer/pull/722).
+merge.
 Ordinary application releases require no DB metadata/source change while this accepted
 baseline is unchanged. Application publication verifies it before pushing; canonical
 bundles retain their own exact native DB identity. Promotion does not update installations
 or authorize a DB-major/extension upgrade. Continue through
 [release orchestration](23-Versioning.md#choose-the-release-path).
 
-## SSE proxy qualification (#657 / #690)
+## SSE proxy qualification
 
 The managed Caddyfile and external proxy fixture omit `flush_interval -1`.
 [Caddy's streaming documentation](https://caddyserver.com/docs/caddyfile/directives/reverse_proxy#streaming)
 describes automatic immediate flushing for `text/event-stream`; it also describes negative
-flush intervals as preventing upstream cancellation on early downstream disconnect. #673's
-pinned 2.11.4 A/B probes observed prompt cancellation in **both** configurations. Removing
-the redundant override aligns with the documented contract; it is not a demonstrated repair
-of a 2.11.4 cancellation defect. The image digest and production topology are unchanged.
+flush intervals as preventing upstream cancellation on early downstream disconnect.
+The default streaming behavior therefore supplies the required flush contract without
+that override. Local probes of pinned Caddy 2.11.4 observed prompt cancellation both
+with and without the override; they do not establish a cancellation defect in that version.
 
 Run `python3 tools/compose/qualify_sse.py` on Linux with Docker and .NET 10. The disposable
 MVC host compiles the actual transport source. The probe reads the production Caddyfile
@@ -488,16 +450,13 @@ The second subscription does not repeat the heartbeat wait. Output records subsc
 identities, event/heartbeat/cleanup timings, cancellation state and unchanged process/container
 identity. It removes its own container/temp files.
 
-Local final-config evidence on 2026-09-26: first event 35.8 ms, heartbeat 20.04 s,
-disconnect observed with zero clients/channels in 23.0 ms, finite JSON passed. These are
-loopback HTTP/1.1 observations, not performance percentiles or deployed HTTPS/HTTP2/device
-qualification. This historical observation predates #690's reconnect extension; record
-the final probe output with the exact candidate SHA in the qualification PR.
+The transport probe covers loopback HTTP/1.1, not performance percentiles or deployed
+HTTPS/HTTP2/device qualification. Managed HTTPS and mounted browser reconnect are
+covered by the [managed ingress qualifier](#managed-acme-and-timeline-ingress).
 
-Mobile #674 is resolved by merged [WayfarerMobile PR 284](https://github.com/stef-k/WayfarerMobile/pull/284).
-Accepted source/test compatibility evidence covers remote EOF and non-cancelled I/O
+Mobile source/test compatibility evidence covers remote EOF and non-cancelled I/O
 reconnect while local Stop remains terminal. HTTP 401/403/404 remain terminal and
-existing 429/503 backoff remains. This is not physical-device qualification. The #690
+existing 429/503 backoff remains. This is not physical-device qualification. The
 same-proxy reconnect probe supplies server/proxy transport evidence and does not replace
 those mobile tests.
 
