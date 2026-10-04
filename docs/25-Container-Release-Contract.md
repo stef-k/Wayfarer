@@ -711,6 +711,19 @@ UUID, PostgreSQL physical ordinal or capture snapshot belongs in it. Forward sou
 boundaries require explicit source version/fingerprint and exact migration prefix;
 current candidates declare no supported update sources. See [operator commands](29-Wayfarerctl.md#immutable-local-release-bundles).
 
+The explicit `release repair-backup-source-v1.9.21` migration is the sole bounded
+exception to ordinary retained-executable selection for the known public v1.9.21
+backup metadata defect. Its owner pins the full native public release fingerprint,
+including exact operator bytes, then requires all current-capture source facts to
+corroborate after only `candidate` becomes `released`. Completed schema-4 authority,
+idle host/recovery state, exact derived inputs and existing destination identity remain
+mandatory. It commits status and a fresh complete derived backup generation through
+the existing protected `BackupGeneration` transaction; no immutable release, archive,
+secret, durable data, destination or scheduling-policy mutation is authorized.
+Already-correct state is a no-op. All other states refuse; ordinary dispatch and
+source corroboration retain their exact contracts. See the
+[repair procedure and public pins](29-Wayfarerctl.md#exact-public-v1921-backup-source-repair).
+
 
 ## Trusted-local forward update
 

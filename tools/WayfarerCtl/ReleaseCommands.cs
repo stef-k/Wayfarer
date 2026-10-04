@@ -13,6 +13,7 @@ public sealed class ReleaseCommands(IProcessRunner runner, ITerminal terminal)
     /// <summary>All local-artifact grammar is checked before filesystem or Docker work.</summary>
     public static void Validate(string[] args)
     {
+        if (args is ["repair-backup-source-v1.9.21"]) return;
         if (args is ["unpack", var archive, var stagePath])
         {
             if (Path.IsPathFullyQualified(archive)) BackupPolicy.LiteralPath(archive);
@@ -34,6 +35,13 @@ public sealed class ReleaseCommands(IProcessRunner runner, ITerminal terminal)
     public async Task<int> RunAsync(string root, string[] args, CancellationToken token)
     {
         Validate(args);
+        if (args is ["repair-backup-source-v1.9.21"])
+        {
+            var repaired = await new BackupSourceRepair(runner).RunAsync(root, token);
+            terminal.Write(repaired ? "v1.9.21 backup source repaired; retained release and existing archives preserved." :
+                "v1.9.21 backup source already corroborates released capture authority.");
+            return 0;
+        }
         if (args[0] == "unpack")
         {
             // Offline authoring/bootstrap helper: the caller owns private empty staging, never installed placement.

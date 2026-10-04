@@ -375,14 +375,14 @@ public sealed class ReleaseBundleTests : IDisposable
             Convert.ToHexStringLower(SHA256.HashData(File.ReadAllBytes(Path.Combine(directory, path)))), "file", ReleaseContract.Mode(path))).ToArray(), null);
 
     /// <summary>Reuse the validated inventory fixture to bind either the actual running executable or different retained operator bytes.</summary>
-    internal ReleaseBundle RetainOperator(string root, string version, bool runningOperator)
+    internal ReleaseBundle RetainOperator(string root, string version, bool runningOperator, bool stable = false)
     {
         var executable = Path.Combine(directory, "wayfarerctl");
         if (runningOperator) File.Copy(Environment.ProcessPath!, executable, overwrite: true);
         else File.WriteAllText(executable, "other operator: " + version);
         File.SetUnixFileMode(executable, (UnixFileMode)ReleaseContract.Mode("wayfarerctl"));
         var manifest = Manifest();
-        Save(manifest with { Version = version, Platform = NativePlatform.Current,
+        Save(manifest with { Version = version, Platform = NativePlatform.Current, Status = stable ? "stable" : "candidate", Tag = stable ? "v" + version : null,
             Images = manifest.Images with { OciVersion = version },
             Application = manifest.Application with { CompiledVersion = version },
             Operator = manifest.Operator with { Version = version, MinimumVersion = version, UpdateReceiptSchemas = [1] } });

@@ -12,7 +12,10 @@ public static class Help
         ["version"] = "version — CLI version (deployed Wayfarer identity is reported by status)",
         ["release"] = "release inspect|verify-images|import|adopt /absolute/bundle\n" +
             "  target /absolute/bundle project [current|legacy]; corroborate /absolute/bundle /absolute/source.json; reconcile .stage-ID; unpack ARCHIVE|X.Y.Z /absolute/empty-private-stage.\n" +
-            "  acquire X.Y.Z|latest — anonymous stable download/import and exact image pulls; no activation.",
+            "  acquire X.Y.Z|latest — anonymous stable download/import and exact image pulls; no activation.\n" +
+            "  repair-backup-source-v1.9.21 — explicit bounded repair; see command-specific help.",
+        ["release repair-backup-source-v1.9.21"] = "release repair-backup-source-v1.9.21 — reconcile only the exact public v1.9.21 candidate backup-source defect.\n" +
+            "  Invoke this repair-capable operator directly as root; immutable v1.9.21 dispatch cannot select it. No release, payload or policy override.",
         ["dispatch"] = "dispatch COMMAND — invoke the retained operator; restore --resume/--abort uses its receipt owner.",
         ["update"] = "update [X.Y.Z] --plan | --bundle /trusted/local/bundle --plan | --accept-plan SHA256\n" +
             "  Recovery: --resume UUID | --abort UUID (before migration only) | --restore UUID.\n" +
