@@ -1,3 +1,8 @@
+---
+title: Wayfarer documentation
+permalink: /
+---
+
 # Wayfarer Documentation
 
 Wayfarer is a self-hosted travel companion for private location history, trip planning

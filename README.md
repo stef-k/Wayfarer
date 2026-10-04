@@ -63,8 +63,8 @@ See [Security](docs/21-Security.md).
 
 Browse the [documentation site](https://stef-k.github.io/Wayfarer/) or follow your path:
 
-- **Users & Self-hosters:** [User Guide](https://stef-k.github.io/Wayfarer/#/00-User-Guide) for using, installing and operating Wayfarer.
-- **Developers & Contributors:** [Developer Guide](https://stef-k.github.io/Wayfarer/#/13-Developer-Guide) for local development, architecture, APIs, database and testing.
+- **Users & Self-hosters:** [User Guide](https://stef-k.github.io/Wayfarer/00-User-Guide.html) for using, installing and operating Wayfarer.
+- **Developers & Contributors:** [Developer Guide](https://stef-k.github.io/Wayfarer/13-Developer-Guide.html) for local development, architecture, APIs, database and testing.
 - **Project Maintainers:** [maintainer documentation](docs/README.md#project-maintainers) for release/version/publication ownership, lifecycle qualification, container/Compose internals and exceptional recovery authority.
 
 ## Mobile companion

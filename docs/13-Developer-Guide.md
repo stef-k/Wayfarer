@@ -45,4 +45,4 @@ changes and migration notes when database changes require them.
 
 Release/version/publication ownership, lifecycle qualification, container/Compose
 internals, exceptional recovery authority and platform qualification belong in the
-[Project Maintainers documentation](README.md#project-maintainers).
+[Project Maintainers documentation](./#project-maintainers).

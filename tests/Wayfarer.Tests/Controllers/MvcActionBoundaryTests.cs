@@ -43,7 +43,7 @@ public sealed class MvcActionBoundaryTests(ITestOutputHelper output) : TestBase
         Assert.DoesNotContain(actions, a => a.ControllerTypeInfo.AsType() == typeof(BaseController));
         Assert.DoesNotContain(derived, a => HelperNames.Contains(a.MethodInfo.Name));
         Assert.DoesNotContain(derived, a => ContainsUserEntity(a.MethodInfo.ReturnType));
-        Assert.Equal(new[] { "Error", "Index", "Privacy", "RegistrationClosed" },
+        Assert.Equal(new[] { "Documentation", "Error", "Index", "Privacy", "RegistrationClosed" },
             actions.Where(a => a.ControllerTypeInfo.AsType() == typeof(HomeController))
                 .Select(a => a.ActionName).Order().ToArray());
 
