@@ -1,24 +1,6 @@
 # Importing & Exporting Data
 
-## Offline queue recovery
-
-Queue means pending mobile delivery, Timeline means phone-local history, and Wayfarer means confirmed server history. A recovery export never clears the queue.
-
-Full recovery needs two manual imports: prepare recovery on the original phone (suspend delivery and wait for active work), export eligible rows, import the file into the replacement phone's Timeline, import the same file into Wayfarer, verify both independently, then **Resume and reconcile** if the original queue remains. Timeline import does not update Wayfarer or recreate queue state; Wayfarer import does not populate the phone Timeline.
-
-For expedited synchronization use **Prepare/suspend → Export → Import into Wayfarer → Resume and reconcile**. Let import reach a terminal result first. Authenticated per-user GUID identity reuses already imported rows; missing rows upload normally. Partial/failed import must be inspected or retried, never followed by queue clearing. Confirmed queue rows become synced and follow ordinary retention.
-
-CSV uses the CSV importer and suits spreadsheets/Python. Wayfarer GeoJSON uses the Wayfarer GeoJSON importer and suits GIS tools. Both carry the portable GUID; editing/removing it can prevent exact reconciliation. Files can contain precise positions/times, Notes, activity/check-in data, device/app/OS/provider/battery metadata, queue diagnostics, and identifiers. Store and transfer them securely, retain them until both histories are verified, then delete unnecessary copies.
-
----
-
-## Retained Location address data
-
-Backend GeoJSON, CSV, GPX and KML history exports/imports preserve optional `ProviderAddressLine1` (GPX `providerAddressLine1`) alongside existing address strings. Older files remain accepted. The line is independently supplied provider display text, not a synthesized street address. Imports retain supplied values without silently correcting history; valid imported Geoapify enrichment tuples receive the same Location presentation as other valid retained tuples. A tuple is not verified capture origin.
-
-Retained provider lines are trimmed at the edges; missing, blank, or values longer than 500 characters after trimming are absent. Internal whitespace, including newlines and tabs, survives. GeoJSON and quoted CSV preserve line endings; GPX/KML XML round trips normalize them to LF, so they do not promise byte-identical text. Feature-name validation remains separate and rejects internal control characters.
-
-Released Mobile continues using `FullAddress`. Its existing fields remain compatible, but old Mobile offline export/import cannot promise to retain the unknown additive field. Trip Place remains `FullAddress`-preferred and has no new provider-line field.
+Bring existing location history into Wayfarer, export a copy, or exchange planned Trips. Address enrichment is optional and has its own progress; mobile queue recovery is a separate workflow.
 
 ## Importing Data
 
@@ -45,50 +27,16 @@ Released Mobile continues using `FullAddress`. Its existing fields remain compat
 - **Stop** — pause an in-progress import (can resume later).
 - **Delete** — remove the import and associated uploaded file. Unsafe/unresolvable legacy file references retain durable deletion intent for explicit repair; they are not treated as absent files.
 
-New uploads are staged in durable external `Storage:DataRoot/uploads/imports`. The database stores portable `imports/<guidN><extension>` references, and history shows only basenames. Existing same-host absolute paths under known old `Uploads/Temp` roots remain compatibility-only and are not silently rewritten or moved. Foreign/cross-host paths need explicit migration. Routine backup classification belongs to #533; the real M6 migration remains #604 and is not performed by this change.
 - Status indicators: InProgress, Completed, Stopped, Failed, Stopping.
 - Large files are processed asynchronously with SSE progress updates.
+
+New uploads are staged in durable server storage at `Storage:DataRoot/uploads/imports`. Import history shows only filenames; the database stores portable `imports/<guidN><extension>` references. Existing same-host absolute paths under known old `Uploads/Temp` roots remain compatibility-only and are not silently rewritten or moved. Foreign/cross-host paths need explicit migration. Preserve staged uploads with the application data in your [recovery set](29-Wayfarerctl.md#compose-recovery-sets).
 
 ![Upload Import Dialog](images/upload-location-import-dialog.JPG)
 
 ![Import History](images/location-imports.JPG)
 
-### Resumable Reverse Geocoding (Optional)
-
-- Configure an authorized and verified personal provider profile before scheduled address enrichment. The
-  separate enrichment workflow shares its remaining guard allowance and preserves retryable candidates on
-  exhaustion; see [Personal Location Providers](24-Personal-Location-Providers.md).
-- Without usable current provider authority, imports still work; address fields stay blank.
-- Opt in during upload or use **Start** later. Import completion covers parsing, duplicate filtering, and insertion; enrichment can continue independently for days.
-- State- and authority-specific controls are **Start**, **Pause**, **Resume**, **Cancel**, **Retry deferred**, and **Repair incomplete addresses**; only meaningful actions are shown and the server revalidates every command. Retry deferred explicitly resets eligible current-authority no-result or attempt-limit rows without resetting usage or successes. The page reports those rows separately from invalid-coordinate rows, which cannot be retried.
-- Each Quartz execution processes at most 10 eligible owned candidates in timestamp/ID order, including wholly empty locations and explicitly prepared Geoapify repairs matching the current provider authority. After its workflow state commits, the existing authenticated SSE channel prompts the page to reload those durable counters. Permanent and not-yet-due attempts are skipped so poison rows cannot starve later Locations.
-- Geoapify geocoding and routing share a rolling pool and wake after the oldest counted admission expires plus five seconds. Mapbox Permanent Geocoding uses the next Wayfarer UTC month boundary plus five seconds.
-- Wayfarer cannot see usage made directly in the external provider account. The displayed usage contains only committed Wayfarer admissions.
-- At the default 2,500-credit guard, 100,000 contacts need 1,000 executions and at least 40 windows—about 39 elapsed days before competition, retries, downtime, and latency.
-- Deleting import history removes only its metadata/file. Locations, enrichment, workflow state, attempts, credentials, and usage remain. Trip imports stay separate and are not rerouted.
-- Cancelling enrichment does not cancel or delete imports, and deleting import history does not delete Locations or enrichment.
-
-Location import performs no provider credential resolution, provider admission, reverse-geocoding HTTP, inline enrichment, or per-record enrichment delay. It parses incrementally, deduplicates, commits each Location batch and progress, then reconciles the optional workflow. Committed blank rows feed that separate opted-in Quartz workflow; imported/manual address fields and provenance are preserved.
-
-### Metadata Fields
-
-All parsers support optional metadata fields when present in the source data:
-
-- **Accuracy** — GPS accuracy in meters
-- **Speed** — movement speed at time of recording
-- **Altitude** — elevation above sea level
-- **Heading** — compass bearing (0-360 degrees)
-- **Source** — origin identifier for roundtrip compatibility
-
-Format-specific field mappings:
-
-| Format | Mappings |
-|--------|----------|
-| GPX | `<hdop>` → accuracy, `<speed>`, `<ele>` → altitude, `<course>` → heading |
-| GeoJSON | `accuracy`, `speed`, `altitude`, `heading`, `source` properties |
-| CSV | columns named `accuracy`, `speed`, `altitude`, `heading`, `source` |
-| KML | Extended data elements with matching names |
-| Google Timeline | `accuracy`, `velocity` → speed, `altitude`, `heading` |
+For planned Trips, import Google MyMaps or Wayfarer KML from the [Trips interface](04-Trips.md#importing-trips); this is separate from importing location history.
 
 ### Tips for Clean Imports
 
@@ -99,11 +47,26 @@ Format-specific field mappings:
 
 ### Troubleshooting Imports
 
-- Stuck import: refresh the page; if it persists, contact your admin to check logs.
+- Stuck import: refresh the page; if it persists, follow [import troubleshooting](09-Troubleshooting.md#an-import-fails-or-appears-stuck).
 - Invalid file: confirm format and required columns/fields.
 - Large files: your admin can adjust upload size limits in Admin Settings.
 
----
+## Resumable Reverse Geocoding (Optional)
+
+- Configure an authorized and verified personal provider profile before scheduled address enrichment. The
+  separate enrichment workflow shares its remaining guard allowance and preserves retryable candidates on
+  exhaustion; see [Personal Location Providers](24-Personal-Location-Providers.md).
+- Without usable current provider authority, imports still work; address fields stay blank.
+- Opt in during upload or use **Start** later. Import completion covers parsing, duplicate filtering, and insertion; enrichment can continue independently for days.
+- State- and authority-specific controls are **Start**, **Pause**, **Resume**, **Cancel**, **Retry deferred**, and **Repair incomplete addresses**; only meaningful actions are shown and the server revalidates every command. Retry deferred explicitly resets eligible current-authority no-result or attempt-limit rows without resetting usage or successes. The page reports those rows separately from invalid-coordinate rows, which cannot be retried.
+- Each Quartz execution processes at most 10 eligible owned candidates in timestamp/ID order, including wholly empty locations and explicitly prepared Geoapify repairs matching the current provider authority. After its workflow state commits, the existing authenticated SSE channel prompts the page to reload those durable counters. Permanent and not-yet-due attempts are skipped so poison rows cannot starve later Locations.
+- Geoapify geocoding and routing share a rolling pool and wake after the oldest counted admission expires plus five seconds. Mapbox Permanent Geocoding uses the next Wayfarer UTC month boundary plus five seconds.
+- Wayfarer cannot see usage made directly in the external provider account. The displayed usage contains only committed Wayfarer admissions.
+- At the default 2,500-credit guard, 100,000 contacts need 10,000 executions and at least 40 windows—about 39 elapsed days before competition, retries, downtime, and latency.
+- Deleting import history removes only its metadata/file. Locations, enrichment, workflow state, attempts, credentials, and usage remain. Trip imports stay separate and are not rerouted.
+- Cancelling enrichment does not cancel or delete imports, and deleting import history does not delete Locations or enrichment.
+
+Import parsing, deduplication, insertion, and progress are committed independently of provider requests. Committed blank rows feed the separate opted-in enrichment workflow; imported/manual address fields and provenance are preserved.
 
 ## Exporting Data
 
@@ -126,7 +89,7 @@ All export formats include location capture metadata when available:
 - **Heading** — compass bearing
 - **Source** — origin identifier (e.g., "mobile", "import", "api")
 
-This enables full roundtrip: export from Wayfarer, then reimport without losing data.
+Supported capture metadata survives Wayfarer export/reimport. Third-party tools and older mobile clients may retain fewer fields; check the compatibility details below.
 
 ### Trip Exports
 
@@ -143,7 +106,38 @@ This enables full roundtrip: export from Wayfarer, then reimport without losing 
 
 - Export filenames include the current date/time for convenience.
 - Exports contain only your own data and respect your trip privacy settings.
-# Native and generic trip compatibility
+
+## Format and metadata compatibility
+
+### Metadata Fields
+
+All parsers support optional metadata fields when present in the source data:
+
+- **Accuracy** — GPS accuracy in meters
+- **Speed** — movement speed at time of recording
+- **Altitude** — elevation above sea level
+- **Heading** — compass bearing (0-360 degrees)
+- **Source** — origin identifier for roundtrip compatibility
+
+Format-specific field mappings:
+
+| Format | Mappings |
+|--------|----------|
+| GPX | `<hdop>` → accuracy, `<speed>`, `<ele>` → altitude, `<course>` → heading |
+| GeoJSON | `accuracy`, `speed`, `altitude`, `heading`, `source` properties |
+| CSV | columns named `accuracy`, `speed`, `altitude`, `heading`, `source` |
+| KML | Extended data elements with matching names |
+| Google Timeline | `accuracy`, `velocity` → speed, `altitude`, `heading` |
+
+### Retained Location address data
+
+Backend GeoJSON, CSV, GPX and KML history exports/imports preserve optional `ProviderAddressLine1` (GPX `providerAddressLine1`) alongside existing address strings. Older files remain accepted. The line is independently supplied provider display text, not a synthesized street address. Imports retain supplied values without silently correcting history; valid imported Geoapify enrichment tuples receive the same Location presentation as other valid retained tuples. A tuple is not verified capture origin.
+
+Retained provider lines are trimmed at the edges; missing, blank, or values longer than 500 characters after trimming are absent. Internal whitespace, including newlines and tabs, survives. GeoJSON and quoted CSV preserve line endings; GPX/KML XML round trips normalize them to LF, so they do not promise byte-identical text. Feature-name validation remains separate and rejects internal control characters.
+
+Released Mobile continues using `FullAddress`. Its existing fields remain compatible, but old Mobile offline export/import cannot promise to retain the unknown additive field. Trip Place remains `FullAddress`-preferred and has no new provider-line field.
+
+### Native and generic trip compatibility
 
 Wayfarer-native KML schema v2 preserves ordered From/Via/To Place identity, waypoint route indices, custom-versus-fallback route state, transport profile, effective measurement, and explicit Automatic/Manual duration provenance. Native imports validate the complete aggregate before applying it, and creating a new trip remaps every Place identity consistently, including one shared identity for both endpoints of a closed loop. The same complete remapping is used by both trip-clone entry points.
 
@@ -154,7 +148,17 @@ Legacy Wayfarer KML v1 remains supported. Its `DurationMin` value is treated as 
 Generic KML and GeoJSON remain geometry-only interchange formats. They do not infer semantic saved-Place waypoints, and generic route coordinates are imported exactly. Dense generic-route simplification is not currently performed, and external route generation is outside import behavior.
 Imports with supplied addresses retain those values with unknown provenance. Missing-address enrichment is optional and uses the shared admitted persistent-provider boundary; unavailable providers do not stop accepted imports. Explicit upload opt-in creates durable relational intent projected to Quartz one-shot continuations. Each execution processes at most 10 eligible owned Locations chronologically (wholly unenriched work or explicitly prepared current-authority repairs), emits a content-free refresh hint after committed progress, and resumes from remaining domain state; import completion remains independent. Geoapify-enriched rows that still lack a city/place are reported separately and require the explicit **Repair incomplete addresses** action. Repair consumes admitted provider usage, fills only blank address fields, and never treats manual or provenance-less addresses as provider repair candidates.
 
-### Restarting enrichment and repairing incomplete addresses
+## Offline queue recovery
+
+Queue means pending mobile delivery, Timeline means phone-local history, and Wayfarer means confirmed server history. A recovery export never clears the queue.
+
+Full recovery needs two manual imports: prepare recovery on the original phone (suspend delivery and wait for active work), export eligible rows, import the file into the replacement phone's Timeline, import the same file into Wayfarer, verify both independently, then **Resume and reconcile** if the original queue remains. Timeline import does not update Wayfarer or recreate queue state; Wayfarer import does not populate the phone Timeline.
+
+For expedited synchronization use **Prepare/suspend → Export → Import into Wayfarer → Resume and reconcile**. Let import reach a terminal result first. Authenticated per-user GUID identity reuses already imported rows; missing rows upload normally. Partial/failed import must be inspected or retried, never followed by queue clearing. Confirmed queue rows become synced and follow ordinary retention.
+
+CSV uses the CSV importer and suits spreadsheets/Python. Wayfarer GeoJSON uses the Wayfarer GeoJSON importer and suits GIS tools. Both carry the portable GUID; editing/removing it can prevent exact reconciliation. Files can contain precise positions/times, Notes, activity/check-in data, device/app/OS/provider/battery metadata, queue diagnostics, and identifiers. Store and transfer them securely, retain them until both histories are verified, then delete unnecessary copies.
+
+## Restarting enrichment and repairing incomplete addresses
 
 After **Cancel**, execution stays disabled until an explicit user action. With current Geoapify authority,
 **Retry deferred** resets only eligible wholly unenriched no-result/attempt-limit rows; **Repair incomplete

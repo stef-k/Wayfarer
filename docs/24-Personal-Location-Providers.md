@@ -2,7 +2,87 @@
 
 Wayfarer stores one personal credential per user and provider (`Geoapify` or `Mapbox`). Credentials are protected with ASP.NET Core Data Protection and cryptographically bound to credential type, provider, and user. Browser and mobile responses show only a fixed mask; WayfarerMobile never receives provider credentials.
 
-## Key-ring durability and selection
+Personal providers are optional services for filling missing location addresses and generating routes. Open **User > Settings > Location Providers** to configure them. Wayfarer keeps your authoritative history on your server; geocoding and routing send the necessary coordinates, search terms, or route inputs to the selected external service. Credentials stay server-side. Choosing **No provider** leaves capture, imports, and manual planning available.
+
+Start with profile setup below. Existing installations with unreadable credentials should use [advanced recovery](#existing-installations-and-advanced-recovery).
+
+## Profiles, authorization, and switching
+
+Geocoding and routing authorization, verification, and active selection are independent. “No provider” is supported. A replacement advances the credential generation and invalidates both verifications without changing authorization or usage. Revocation removes ciphertext, disables both capabilities, and preserves usage and all Locations, Timeline records, Places, Trips, Segments, addresses, enrichment, geometry, and accepted routes. Switching changes selection only: inactive profiles, credentials, verification history, guards, and usage remain retained.
+
+Provider contact requires the active selection, an authorized and currently verified capability, readable current-generation credential, and usage admission. Replacement, revocation, disabling, or relevant switching invalidates stale in-flight authority before contact or persistence. Provider adapters own HTTP, cost calculation, payload parsing, normalization, retries, and domain persistence.
+
+## Mapbox Permanent Geocoding
+
+Mapbox Geocoding v6 defaults to Temporary mode. Temporary results may not be cached; retained Wayfarer enrichment therefore uses only explicitly consented Mapbox Permanent Geocoding with `permanent=true`, or makes no Mapbox contact. Permanent results may be stored indefinitely, are separately billed with no advertised free tier, and require an eligible credit card or active enterprise contract.
+
+The settings workflow is deliberately ordered: configure a masked credential, acknowledge storage and possible billing, authorize geocoding, run one explicit potentially billable verification at fixed non-personal coordinates, explicitly select Mapbox, and configure the separate Permanent contact meter. Verification does not activate Mapbox. Credential replacement, revocation, or disabling geocoding clears consent and verification; provider switching and meter changes preserve consent.
+
+Wayfarer's meter counts only Wayfarer contacts. Other applications or tokens can consume the Mapbox account allowance. A disabled guard can incur charges. With no eligible provider, consent, verification, selection, or remaining budget, capture, imports, Trips, Places, Timeline, exports, and synchronization continue without new enrichment. Provider failures preserve submitted/manual and prior enrichment.
+
+Historical rows have unknown nullable provenance because they may contain Temporary Mapbox output, imports, or manual edits; deployment does not delete or reclassify them. New successful Mapbox enrichment records `mapbox`, `permanent`, and its UTC persistence time. Address enrichment uses an explicitly opted-in relational workflow over bounded provider admission; provider changes never grant consent or silently start work.
+
+Official policy sources retrieved 2026-08-23: [Geocoding v6 API and storage](https://docs.mapbox.com/api/search/geocoding/), [Temporary versus Permanent](https://docs.mapbox.com/help/dive-deeper/understand-temporary-vs-permanent-geocoding/), [pricing](https://www.mapbox.com/pricing/), and [attribution guidance](https://docs.mapbox.com/help/dive-deeper/attribution/).
+
+## Geoapify persistent geocoding and routing
+
+Create a Geoapify account and a dedicated Wayfarer API key, then configure geocoding and directions as separate capability workflows. Each shows credential status, an explicit Verify action, one provider choice, and its ready or blocked state. Verify is the setup consent: it authorizes only that capability, consumes exactly one admitted fixed non-personal contact, records success for the resulting current generation, and never selects a provider. Choosing `No provider` revokes only that capability and makes its verification stale without deleting the credential. Replacing a credential disables both capabilities until each is explicitly verified and selected again. One protected key can serve both capabilities; it is never sent to the browser or WayfarerMobile.
+
+Geoapify's Free plan was documented as 3,000 credits per 24 hours when retrieved on 2026-08-23. Wayfarer's enabled default is a conservative 2,500-credit rolling 24-hour safety window shared by geocoding and routing. Wayfarer cannot observe other account/key use or a provider reset timezone. Walk/bicycle routing admits one credit per consecutive waypoint pair; motorcycle/drive/bus conservatively admit 21 per pair. Every retry is admitted separately and admitted failures count. A disabled guard still records use and can risk paid usage or suspension.
+
+Successful reverse geocoding stores normalized fields with `geoapify`, `persistent`, and UTC provenance. The explicit user action schedules a durable Quartz workflow that scans at most 10 owned wholly unenriched Locations chronologically per committed progress checkpoint; it never overwrites any manual/imported/existing field, stops on exhaustion, and resumes from still-unenriched domain state. The workflow stores bounded attempt authority rather than provider payloads or Location content in a queue.
+
+When Geoapify's selected reverse-geocoding result includes a documented `name` and `result_type`, Wayfarer also retains that optional named-place context. It is displayed separately from the formatted address and user-authored Trip Place name. This does not perform nearby-place discovery or make an additional provider request; malformed optional values are ignored without rejecting a valid address.
+
+### Trip Editor place search
+
+An explicit Trip Editor search uses the authenticated user's current active Geoapify geocoding authority. Each admitted provider contact consumes one credit from the existing shared Geoapify rolling allowance; a current 60-second authority-bound memory-cache hit consumes no credit. Wayfarer uses attributed public Nominatim only when no personal geocoding provider is selected, Mapbox is selected, or Geoapify is known or authoritatively found to be exhausted. A broken, revoked, unreadable, unauthorized, unverified, stale, or drifting active Geoapify authority fails closed, and a contacted Geoapify failure never falls back, so one submitted query reaches at most one provider.
+
+The browser sends searches to Wayfarer as antiforgery-protected JSON POST requests, and provider HTTP clients suppress ordinary URI logging because upstream query strings contain the search and, for Geoapify, the key. Results retain linked attribution for the provider that actually supplied them and OpenStreetMap. Public Nominatim is best-effort, has no SLA, and its process-local one-request-per-second pacing is supported only for the documented single-host, single-process deployment; multiple active instances require an externally coordinated aggregate limiter or a different provider. Do not submit confidential or personal information to public Nominatim. Search remains submit-only with no typeahead, retry, or prefetch, and manual Place entry remains available.
+
+### Route previews and saved routes
+
+Geoapify owns the closed directions catalog exposed by Wayfarer: Walk, Bicycle, Motorcycle, Drive, and Bus. Mapbox exposes no directions modes. Normal web requests require one explicit mode for every proposal and never infer it from a Segment Transport Profile. The Segment choice, including an inactive compatibility profile, a custom choice or a retained legacy label with no planning identity, remains unchanged. Generation and proposal Save do not require an active planning profile. One click on **Generate routed path** requests a preview after explicit mode selection; no replacement confirmation is needed because only Save commits the route. Explicitly changing the Segment choice still follows ordinary catalog validation.
+
+Missing, unsupported, or stale modes fail before provider contact. Segments remain valid and saveable, manual or prior accepted geometry is preserved, and no alternate provider is contacted.
+
+A pending proposal appears as an opaque magenta dashed line with white casing above ordinary route strokes and below Places and route badges. Only the current Segment line is temporarily dimmed to 80% opacity along its entire length; other Segments stay unchanged. Cleanup or preview suppression restores normal styling. **Focus Active Entity** shows its extent; **Fit All** also includes it. **Proposed distance** (kilometres) and **Estimated travel time** (minutes) are labelled, bold estimates in External routed path. Estimates display at most two decimal places without trailing zeros; stored values retain full precision. Flat preview dash ends keep gaps clear over the current route. Missing estimates show **Unavailable**, while zero is valid. They do not update the ordinary fields before Save. An explicit Manual-duration override is disclosed and retained by Save. Discard removes the temporary line and estimates while preserving the previous route and other edits. Successful Save replaces the preview with the canonical route; a failed Save retains the proposal and error for explicit retry, discard or regeneration.
+
+Generate and preview leave ordinary draft fields and stored data unchanged. Save Segment is the explicit acceptance and sole durable write of a pending Geoapify proposal together with other Segment edits; there is no separate Accept action. Discard proposal drops only that proposal. Save rechecks its original ten-minute protected context and current authority without provider contact. Stored geometry, distance, duration, normalized instructions, provider/native-mode and planning-profile provenance, generation time, attribution, and `persistent` authority remain usable after switching, key replacement, outage, or account closure under the terms retrieved 2026-08-23. Ad-hoc Mobile routes are returned but not stored by Wayfarer. Mobile may retain authorized, validated persistent routes locally for bounded matching and offline reuse. Display linked [Powered by Geoapify](https://www.geoapify.com/) and [© OpenStreetMap contributors](https://www.openstreetmap.org/copyright) with online and offline routed geometry.
+
+Geoapify states that request data, headers, IP, and timestamps are used for access, usage, and statistics, and that successful-request data is generally retained no longer than 24 hours. Coordinates, routes, and addresses travel server-to-provider/CDNs. Wayfarer does not log credentials, authenticated URLs, coordinates, returned addresses, geometry, instructions, or raw payloads.
+
+For a coordinated backend and Mobile rollout, back up PostgreSQL and the Data Protection key ring together and deploy the compatible backend before publishing the Mobile client. Restore both authorities together before starting the application, and configure family accounts explicitly only after deployment. No provider is selected automatically.
+
+## Provider-native usage guards
+
+Geoapify uses one shared user/profile pool for geocoding and routing. The default guard is enabled at 2,500 credits in a true rolling 24-hour Wayfarer safety window. PostgreSQL time and a locked pool row make multi-credit admission atomic across restarts and application instances; admitted failures count. Expired rows are removed under the same lock. Disabled guards still retain and clean the current rolling window so re-enabling does not reset it.
+
+Mapbox Permanent Geocoding and Directions have separate counters, limits, exhaustion, and Wayfarer UTC calendar-month safety cycles. This is a configured Wayfarer boundary, not a claim about an unpublished provider reset timezone. Rotation and switching do not reset either product. One product’s exhaustion does not pause the other.
+
+Wayfarer counts only contacts it admits. Cached/stored reuse and pre-HTTP rejection cost zero; admitted failures, timeouts, and admitted retries remain counted. Other applications or credentials may consume the provider account allowance. A dedicated Wayfarer key is recommended, but multiple keys do not necessarily create separate free allowances. Disabling a guard permits contacts beyond the configured safety limit and may incur paid usage.
+
+## Exhaustion, imports, privacy, and recovery
+
+Exhaustion stops new provider contact and recovers automatically as rolling credits expire, a product cycle advances, or a guard is raised/disabled. Source records remain retryable and historical data remains available. Imports and backfills use the same remaining pool and receive no catch-up burst.
+
+## Resumable workflow authority
+
+For user controls and repair decisions, see [optional enrichment](07-Importing-Exporting.md#resumable-reverse-geocoding-optional) and [restarting enrichment](07-Importing-Exporting.md#restarting-enrichment-and-repairing-incomplete-addresses).
+
+One retained workflow per user owns intent, epoch, state, progress, due time, an expiring execution lease with a monotonically advancing fence, and compact generation-bound attempts. Quartz owns one stable durable job and one current one-shot trigger; stale epochs no-op and startup reconciliation repairs scheduling metadata. The supported deployment runs one active scheduler because clustering is not configured. Wayfarer's relational lease/fence is product execution authority and short provider-ledger transactions remain admission authority; neither a database resource nor scheduler lock spans provider HTTP.
+
+Processed, enriched, skipped, and failed-batch values are cumulative committed outcomes. Runnable, retryable-later, manual-retry, and invalid-coordinate counts are recomputed from current wholly-unenriched Locations; next attempt is the earliest future retry. Displayed provider credits come from the provider admission ledger, not an invented workflow counter.
+
+Transient 429, timeout, network, and 503 outcomes use deterministic backoff and no more than three admitted attempts per provider generation. No-result and attempt-limit outcomes require an explicit **Retry deferred** action; invalid coordinates remain non-retryable. Attempts contain bounded identities, generations, outcomes, counts, and times only—never coordinates, addresses, credentials, URLs, payloads, or exception text.
+
+Provider contact discloses coordinates and may disclose route inputs to the selected provider. Query-string authentication may be provider-required, but complete URIs, credentials, coordinates, returned addresses, request/response payloads, and imported content are excluded from Wayfarer logs and diagnostics. Revoke a provider key at both Wayfarer and the provider account when compromise is suspected; revocation does not delete historical data.
+
+## Existing installations and advanced recovery
+
+The following sections cover durable keys, credential compatibility, and recovery for existing installations. Preserve the database and complete active key ring together; use the [operator guide](29-Wayfarerctl.md#managed-restore) for Compose restore.
+
+### Key-ring durability and selection
 
 F2 (#629) sets the global ASP.NET Core Data Protection application name to the
 unversioned `Wayfarer`. A complete ring plus that name makes stable payloads
@@ -36,7 +116,7 @@ directory permissions before startup. Losing keys makes durable credentials
 unreadable even when the database survives. Normal runtime may generate/rotate
 keys in the selected ring; offline commands cannot generate/rotate keys.
 
-## F1 preparation to F2 activation
+### F1 preparation to F2 activation
 
 F1 (#627) added nullable `StableProtectedCredential` through migration
 `20260924220353_StablePersonalCredentialCompanion`, while keeping legacy
@@ -58,7 +138,7 @@ legacy. Startup validates the directory, stable round-trip, exact global name
 | Legacy only | Blocked; stop and run source preparation |
 | Unreadable stable | Blocked |
 
-### Existing source already prepared by F1
+#### Existing source already prepared by F1
 
 1. Keep service stopped/quiesced and verify paired PostgreSQL + complete-ring backup.
 2. Run the F2 binary's `dotnet Wayfarer.dll data-protection status`; require exit 0
@@ -68,7 +148,7 @@ legacy. Startup validates the directory, stable round-trip, exact global name
    provider readability through settings/status without unnecessary provider HTTP.
 5. Create a fresh stable-identity recovery set before later host/container migration.
 
-### Existing source not yet prepared
+#### Existing source not yet prepared
 
 The final F2 binary can prepare without deploying an intermediate F1 binary:
 
@@ -87,7 +167,7 @@ uses the F2 web registration. After moving away from the source root, preparatio
 fails legacy decryption rather than guessing the old discriminator. Restore the
 readable source identity or explicitly re-enter credentials if it is already lost.
 
-### Offline command and transaction contract
+#### Offline command and transaction contract
 
 Status is read-only stable activation inventory and works at another content root
 with the complete copied ring and prepared database. Both commands disable automatic
@@ -106,7 +186,7 @@ write. Only companions and xmin change; an idempotent rerun writes nothing.
 Status after preparation uses the stable provider. Preparation never runs at web
 startup, deploy, schema migration or runtime Mapbox conversion.
 
-### Credential rollback cutoff
+#### Credential rollback cutoff
 
 Untouched F1-prepared profiles retain original legacy ciphertext for rollback to
 the original legacy source identity. F2 replacement protects the new stable value
@@ -125,7 +205,7 @@ and require target stable status before public ingress. Target needs no old path
 or discriminator override. After production writes or credential mutation, follow
 recovery-set rollback rules instead of starting stale source state.
 
-### Framework and transient invalidation
+#### Framework and transient invalidation
 
 Changing application identity deliberately invalidates legacy authentication cookies,
 antiforgery payloads, Identity password-reset/email-confirmation links and these
@@ -144,13 +224,7 @@ remain valid; F2 never rotates or deletes them. Historical routing ciphertext is
 retired schema, not a new migration target. Multi-active-instance key-management,
 Docker/Compose, production cutover and key-vault encryption remain out of scope.
 
-## Profiles, authorization, and switching
-
-Geocoding and routing authorization, verification, and active selection are independent. “No provider” is supported. A replacement advances the credential generation and invalidates both verifications without changing authorization or usage. Revocation removes ciphertext, disables both capabilities, and preserves usage and all Locations, Timeline records, Places, Trips, Segments, addresses, enrichment, geometry, and accepted routes. Switching changes selection only: inactive profiles, credentials, verification history, guards, and usage remain retained.
-
-Provider contact requires the active selection, an authorized and currently verified capability, readable current-generation credential, and usage admission. Replacement, revocation, disabling, or relevant switching invalidates stale in-flight authority before contact or persistence. Provider adapters own HTTP, cost calculation, payload parsing, normalization, retries, and domain persistence.
-
-## Legacy Mapbox migration
+### Legacy Mapbox migration
 
 ![Read-only provider settings showing pending legacy migration and its explicit action](images/provider-settings-migration.png)
 
@@ -171,66 +245,4 @@ The migration owner recognizes only trimmed, case-insensitive exact `Mapbox` nam
 
 Successful new protection disables routing authority. A matching existing readable protected credential preserves existing routing semantics. Both successful branches establish the existing geocoding compatibility authorization, clear Permanent consent/geocoding verification and Mapbox geocoding selection, and never grant consent or select Mapbox. GET shows actual current eligibility/selection even when an older migrated profile still needs the service's selection cleanup; only a later protected/internal migration invocation performs that cleanup. Maintainer-managed family accounts must be migrated explicitly after the compatible backend is deployed.
 
-## Mapbox Permanent Geocoding
-
-Mapbox Geocoding v6 defaults to Temporary mode. Temporary results may not be cached; retained Wayfarer enrichment therefore uses only explicitly consented Mapbox Permanent Geocoding with `permanent=true`, or makes no Mapbox contact. Permanent results may be stored indefinitely, are separately billed with no advertised free tier, and require an eligible credit card or active enterprise contract.
-
-The settings workflow is deliberately ordered: configure a masked credential, acknowledge storage and possible billing, authorize geocoding, run one explicit potentially billable verification at fixed non-personal coordinates, explicitly select Mapbox, and configure the separate Permanent contact meter. Verification does not activate Mapbox. Credential replacement, revocation, or disabling geocoding clears consent and verification; provider switching and meter changes preserve consent.
-
-Wayfarer's meter counts only Wayfarer contacts. Other applications or tokens can consume the Mapbox account allowance. A disabled guard can incur charges. With no eligible provider, consent, verification, selection, or remaining budget, capture, imports, Trips, Places, Timeline, exports, and synchronization continue without new enrichment. Provider failures preserve submitted/manual and prior enrichment.
-
-Historical rows have unknown nullable provenance because they may contain Temporary Mapbox output, imports, or manual edits; deployment does not delete or reclassify them. New successful Mapbox enrichment records `mapbox`, `permanent`, and its UTC persistence time. Address enrichment uses an explicitly opted-in relational workflow over bounded provider admission; provider changes never grant consent or silently start work.
-
-## Geoapify persistent geocoding and routing
-
-### Trip Editor place search
-
-An explicit Trip Editor search uses the authenticated user's current active Geoapify geocoding authority. Each admitted provider contact consumes one credit from the existing shared Geoapify rolling allowance; a current 60-second authority-bound memory-cache hit consumes no credit. Wayfarer uses attributed public Nominatim only when no personal geocoding provider is selected, Mapbox is selected, or Geoapify is known or authoritatively found to be exhausted. A broken, revoked, unreadable, unauthorized, unverified, stale, or drifting active Geoapify authority fails closed, and a contacted Geoapify failure never falls back, so one submitted query reaches at most one provider.
-
-The browser sends searches to Wayfarer as antiforgery-protected JSON POST requests, and provider HTTP clients suppress ordinary URI logging because upstream query strings contain the search and, for Geoapify, the key. Results retain linked attribution for the provider that actually supplied them and OpenStreetMap. Public Nominatim is best-effort, has no SLA, and its process-local one-request-per-second pacing is supported only for the documented single-host, single-process deployment; multiple active instances require an externally coordinated aggregate limiter or a different provider. Do not submit confidential or personal information to public Nominatim. Search remains submit-only with no typeahead, retry, or prefetch, and manual Place entry remains available.
-
-Create a Geoapify account and a dedicated Wayfarer API key, then configure geocoding and directions as separate capability workflows. Each shows credential status, an explicit Verify action, one provider choice, and its ready or blocked state. Verify is the setup consent: it authorizes only that capability, consumes exactly one admitted fixed non-personal contact, records success for the resulting current generation, and never selects a provider. Choosing `No provider` revokes only that capability and makes its verification stale without deleting the credential. Replacing a credential disables both capabilities until each is explicitly verified and selected again. One protected key can serve both capabilities; it is never sent to the browser or WayfarerMobile.
-
-Geoapify's Free plan was documented as 3,000 credits per 24 hours when retrieved on 2026-08-23. Wayfarer's enabled default is a conservative 2,500-credit rolling 24-hour safety window shared by geocoding and routing. Wayfarer cannot observe other account/key use or a provider reset timezone. Walk/bicycle routing admits one credit per consecutive waypoint pair; motorcycle/drive/bus conservatively admit 21 per pair. Every retry is admitted separately and admitted failures count. A disabled guard still records use and can risk paid usage or suspension.
-
-Successful reverse geocoding stores normalized fields with `geoapify`, `persistent`, and UTC provenance. The explicit user action schedules a durable Quartz workflow that scans at most 10 owned wholly unenriched Locations chronologically per committed progress checkpoint; it never overwrites any manual/imported/existing field, stops on exhaustion, and resumes from still-unenriched domain state. The workflow stores bounded attempt authority rather than provider payloads or Location content in a queue.
-
-When Geoapify's selected reverse-geocoding result includes a documented `name` and `result_type`, Wayfarer also retains that optional named-place context. It is displayed separately from the formatted address and user-authored Trip Place name. This does not perform nearby-place discovery or make an additional provider request; malformed optional values are ignored without rejecting a valid address.
-
-Geoapify owns the closed directions catalog exposed by Wayfarer: Walk, Bicycle, Motorcycle, Drive, and Bus. Mapbox exposes no directions modes. Normal web requests require one explicit mode for every proposal and never infer it from a Segment Transport Profile. The Segment choice, including an inactive compatibility profile, a custom choice or a retained legacy label with no planning identity, remains unchanged. Generation and proposal Save do not require an active planning profile. One click on **Generate routed path** requests a preview after explicit mode selection; no replacement confirmation is needed because only Save commits the route. Explicitly changing the Segment choice still follows ordinary catalog validation.
-
-Missing, unsupported, or stale modes fail before provider contact. Segments remain valid and saveable, manual or prior accepted geometry is preserved, and no alternate provider is contacted.
-
-A pending proposal appears as an opaque magenta dashed line with white casing above ordinary route strokes and below Places and route badges. Only the current Segment line is temporarily dimmed to 80% opacity along its entire length; other Segments stay unchanged. Cleanup or preview suppression restores normal styling. **Focus Active Entity** shows its extent; **Fit All** also includes it. **Proposed distance** (kilometres) and **Estimated travel time** (minutes) are labelled, bold estimates in External routed path. Estimates display at most two decimal places without trailing zeros; stored values retain full precision. Flat preview dash ends keep gaps clear over the current route. Missing estimates show **Unavailable**, while zero is valid. They do not update the ordinary fields before Save. An explicit Manual-duration override is disclosed and retained by Save. Discard removes the temporary line and estimates while preserving the previous route and other edits. Successful Save replaces the preview with the canonical route; a failed Save retains the proposal and error for explicit retry, discard or regeneration.
-
-Generate and preview leave ordinary draft fields and stored data unchanged. Save Segment is the explicit acceptance and sole durable write of a pending Geoapify proposal together with other Segment edits; there is no separate Accept action. Discard proposal drops only that proposal. Save rechecks its original ten-minute protected context and current authority without provider contact. Stored geometry, distance, duration, normalized instructions, provider/native-mode and planning-profile provenance, generation time, attribution, and `persistent` authority remain usable after switching, key replacement, outage, or account closure under the terms retrieved 2026-08-23. Ad-hoc Mobile routes are returned but not stored by Wayfarer. Mobile may retain authorized, validated persistent routes locally for bounded matching and offline reuse. Display linked [Powered by Geoapify](https://www.geoapify.com/) and [© OpenStreetMap contributors](https://www.openstreetmap.org/copyright) with online and offline routed geometry.
-
-Geoapify states that request data, headers, IP, and timestamps are used for access, usage, and statistics, and that successful-request data is generally retained no longer than 24 hours. Coordinates, routes, and addresses travel server-to-provider/CDNs. Wayfarer does not log credentials, authenticated URLs, coordinates, returned addresses, geometry, instructions, or raw payloads.
-
-For a coordinated backend and Mobile rollout, back up PostgreSQL and the Data Protection key ring together and deploy the compatible backend before publishing the Mobile client. Restore both authorities together before starting the application, and configure family accounts explicitly only after deployment. No provider is selected automatically.
-
-Official policy sources retrieved 2026-08-23: [Geocoding v6 API and storage](https://docs.mapbox.com/api/search/geocoding/), [Temporary versus Permanent](https://docs.mapbox.com/help/dive-deeper/understand-temporary-vs-permanent-geocoding/), [pricing](https://www.mapbox.com/pricing/), and [attribution guidance](https://docs.mapbox.com/help/dive-deeper/attribution/).
-
 Valid protected data always wins and is never overwritten. Matching duplicate casing rows converge; distinct values, invalid ciphertext, and revoked profiles preserve every recovery copy and fail closed without provider contact. Reruns are idempotent. Unrelated inbound Wayfarer API tokens and all domain data are untouched.
-
-## Provider-native usage guards
-
-Geoapify uses one shared user/profile pool for geocoding and routing. The default guard is enabled at 2,500 credits in a true rolling 24-hour Wayfarer safety window. PostgreSQL time and a locked pool row make multi-credit admission atomic across restarts and application instances; admitted failures count. Expired rows are removed under the same lock. Disabled guards still retain and clean the current rolling window so re-enabling does not reset it.
-
-Mapbox Permanent Geocoding and Directions have separate counters, limits, exhaustion, and Wayfarer UTC calendar-month safety cycles. This is a configured Wayfarer boundary, not a claim about an unpublished provider reset timezone. Rotation and switching do not reset either product. One product’s exhaustion does not pause the other.
-
-Wayfarer counts only contacts it admits. Cached/stored reuse and pre-HTTP rejection cost zero; admitted failures, timeouts, and admitted retries remain counted. Other applications or credentials may consume the provider account allowance. A dedicated Wayfarer key is recommended, but multiple keys do not necessarily create separate free allowances. Disabling a guard permits contacts beyond the configured safety limit and may incur paid usage.
-
-## Exhaustion, imports, privacy, and recovery
-
-Exhaustion stops new provider contact and recovers automatically as rolling credits expire, a product cycle advances, or a guard is raised/disabled. Source records remain retryable and historical data remains available. Imports and backfills use the same remaining pool and receive no catch-up burst.
-
-## Resumable workflow authority
-
-One retained workflow per user owns intent, epoch, state, progress, due time, an expiring execution lease with a monotonically advancing fence, and compact generation-bound attempts. Quartz owns one stable durable job and one current one-shot trigger; stale epochs no-op and startup reconciliation repairs scheduling metadata. The supported deployment runs one active scheduler because clustering is not configured. Wayfarer's relational lease/fence is product execution authority and short provider-ledger transactions remain admission authority; neither a database resource nor scheduler lock spans provider HTTP.
-
-Processed, enriched, skipped, and failed-batch values are cumulative committed outcomes. Runnable, retryable-later, manual-retry, and invalid-coordinate counts are recomputed from current wholly-unenriched Locations; next attempt is the earliest future retry. Displayed provider credits come from the provider admission ledger, not an invented workflow counter.
-
-Transient 429, timeout, network, and 503 outcomes use deterministic backoff and no more than three admitted attempts per provider generation. No-result and attempt-limit outcomes require an explicit **Retry deferred** action; invalid coordinates remain non-retryable. Attempts contain bounded identities, generations, outcomes, counts, and times only—never coordinates, addresses, credentials, URLs, payloads, or exception text.
-
-Provider contact discloses coordinates and may disclose route inputs to the selected provider. Query-string authentication may be provider-required, but complete URIs, credentials, coordinates, returned addresses, request/response payloads, and imported content are excluded from Wayfarer logs and diagnostics. Revoke a provider key at both Wayfarer and the provider account when compromise is suspected; revocation does not delete historical data.
