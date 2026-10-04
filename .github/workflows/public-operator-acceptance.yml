@@ -1,0 +1,42 @@
+# Post-merge #764 public evidence only; no candidate builds or release writes.
+name: Public stable operator acceptance
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Accepted public stable baseline (v1.9.22; latest must still match)
+        required: true
+        default: v1.9.22
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  public-operator-amd64:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      # The runner reuses published bootstrap bytes and plain-host/TLS/login helpers.
+      # It needs no local .NET, Node, browser, probe, operator or image build.
+      - name: Qualify public acquisition, operations and backup policy
+        env:
+          PUBLIC_TAG: ${{ inputs.tag }}
+        run: |
+          export DOCKER_CONFIG="$(mktemp -d "$RUNNER_TEMP/wayfarer-764-docker.XXXXXX")"
+          trap 'rm -rf -- "$DOCKER_CONFIG"' EXIT
+          python3 -B tools/compose/qualify_public_operator.py --tag "$PUBLIC_TAG" \
+            --output "$RUNNER_TEMP/public-operator-evidence"
+      # Only these sanitized records survive; raw logs, private product state and inputs are excluded.
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: public-operator-amd64-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/public-operator-evidence/operator.json
+            ${{ runner.temp }}/public-operator-evidence/commands.jsonl
+          if-no-files-found: warn
