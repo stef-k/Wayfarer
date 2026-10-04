@@ -94,8 +94,8 @@ class Journey:
                          str(environment), '-f', str(bundle / 'compose.yaml'),
                          '-f', str(bundle / 'external.yaml'), *overlay, *args).stdout
 
-    def prepare(self):
-        """Copy production substrate; replace only TLS provisioning for a safe local certificate."""
+    def prepare_docker_adapter(self):
+        """Reuse child-process fault boundaries without changing operator or bundle bytes."""
         # Inject faults only at the child-process seam; the published CLI is unmodified.
         wrapper = self.directory / 'docker-test'
         wrapper.write_text("""#!/bin/sh
@@ -149,6 +149,10 @@ esac
 exec /usr/bin/docker "$@"
 """)
         wrapper.chmod(0o755)
+
+    def prepare(self):
+        """Copy production substrate; replace only TLS provisioning for a safe local certificate."""
+        self.prepare_docker_adapter()
         shutil.copytree(ROOT / 'deploy/compose', self.bundle)
         self.prepare_tls()
         caddy = self.bundle / 'caddy/Caddyfile'
@@ -160,6 +164,22 @@ exec /usr/bin/docker "$@"
         absent = self.host('sh', '-ec', 'test ! -d /usr/share/dotnet; ! command -v dotnet; ! command -v python3; ! command -v node')
         assert absent.returncode == 0
         assert 'wayfarerctl' in self.ctl('version').stdout
+
+    def prepare_public(self, faults=False):
+        """Prepare plain-host trust and external TLS while preserving all published payloads."""
+        if faults:
+            self.prepare_docker_adapter()
+        else:
+            wrapper = self.directory / 'docker-test'
+            wrapper.write_text('#!/bin/sh\nexec /usr/bin/docker "$@"\n')
+            wrapper.chmod(0o555)
+        self.prepare_tls()
+        # Actual public acquisition needs runner CA roots as well as fixture TLS trust.
+        self.trusted_ca = self.directory / 'public-and-fixture-ca.pem'
+        self.trusted_ca.write_text(Path('/etc/ssl/certs/ca-certificates.crt').read_text() +
+                                   (self.bundle / 'caddy/tls.crt').read_text())
+        self.host('sh', '-ec', f'chown -R 0:0 {self.directory}; chmod 700 {self.directory}')
+        self.host('sh', '-ec', 'test ! -d /usr/share/dotnet; ! command -v dotnet; ! command -v python3; ! command -v node')
 
     def prepare_tls(self):
         """Fixture-only external TLS; public release templates and executable bytes remain untouched."""

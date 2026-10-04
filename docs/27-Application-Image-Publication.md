@@ -266,3 +266,37 @@ ARM64 public/setup/bounded recovery proof is the companion platform evidence; th
 complete journey is not duplicated on ARM64. Normal PR CI proves the harness only.
 At implementation time v1.9.21 is the latest published stable, so the final public
 lifecycle run remains pending. This workflow never prepares or publishes its target.
+
+## Post-merge public operator acceptance
+
+[`public-operator-acceptance.yml`](../.github/workflows/public-operator-acceptance.yml)
+owns [#764](https://github.com/stef-k/Wayfarer/issues/764)'s additional public command
+evidence separately from publication and the accepted #748 lifecycle. After the
+implementation PR merges and the maintainer authorizes runtime acceptance, run:
+
+```sh
+gh workflow run public-operator-acceptance.yml --ref main -f tag=v1.9.22
+```
+
+This single Linux AMD64 job has `contents: read`, an empty temporary Docker client
+configuration and a 25-minute bound. It verifies already-published v1.9.22 release,
+bootstrap and sidecar identities anonymously, requires public latest to match that
+baseline, then runs the [bounded operator scenarios](29-Wayfarerctl.md#public-stable-operator-evidence).
+It builds no operator, recovery payload, image, .NET probe or browser fixture and
+performs no publication or release mutation. Its single public setup-resume fault
+reuses the existing Docker child-process adapter without editing stable bytes.
+
+The `public-operator-amd64-RUN-ATTEMPT` artifact contains only `operator.json` and
+bounded `commands.jsonl`: public provenance/digests, retained authority, selected
+released capture identities/hashes, required scenario observations, expected/actual
+exit codes and cleanup outcome. It excludes raw logs/product JSON, private paths,
+secret values and authentication inputs. PASS requires every observation and verified
+removal of the exact task-labelled Docker resources and private fixture directory.
+Failure emits bounded stage/result evidence without a PASS record. The temporary Docker
+configuration is removed on step exit, and the ephemeral runner owns no retained installation.
+
+PR focused tests, syntax/workflow checks, Code Guard and exact-head CI prove the harness
+only. Public runtime acceptance remains pending this separate post-merge run and
+independent review of its sanitized artifact. Preserve successful evidence beyond Actions
+retention. Before closing #764, also follow its cleanup inventory for any merged clean
+local worktree/branch and task-owned scratch state; this PR does not close the issue.

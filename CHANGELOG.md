@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Add a separate read-only AMD64 public v1.9.22 operator qualification workflow for standalone exact/latest acquisition without activation, one existing setup-resume fault, dispatched status/restart/doctor and bounded Wayfarer/DB logs with continuity, and backup discovery/disable/refusal/reconfiguration with released captures. Runtime public acceptance remains a separate post-merge run (#764).
+
 ### Fixed
 
 - Give the shared external HTTPS qualification proxy its own project-scoped fixture label and cleanup selector, keeping it outside product Compose update ownership while preserving existing product/helper cleanup and HTTPS behavior (#748).

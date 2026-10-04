@@ -461,6 +461,51 @@ v1.9.21 authority. HTTPS uses the fixture-controlled external route described ab
 This successful boundary is separate from Phase-5 cleanup and final independent
 acceptance; #748 remains open until those gates pass.
 
+### Public stable operator evidence
+
+[`qualify_public_operator.py`](../tools/compose/qualify_public_operator.py) adds
+[#764](https://github.com/stef-k/Wayfarer/issues/764)'s bounded AMD64 command witness
+on one disposable public v1.9.22 external-mode installation. It reuses verified public
+bootstrap/download helpers, the plain host without .NET/Python/Node, fixture TLS,
+Identity login, Compose observations and exact project-labelled cleanup. The accepted
+[#748 lifecycle](#continuous-public-stable-evidence) remains a separate evidence owner.
+
+The runner first invokes standalone `release acquire 1.9.22` and `release acquire latest`
+in a fresh owned root. Both must return the same public execution-ready retained path
+and fingerprint; only retained releases and the lock may exist, with no installation
+pointer, setup state or task services/networks/volumes. Public latest must still resolve
+to v1.9.22 with the same published asset identities. A moved latest stops qualification
+for maintainer baseline review.
+
+One existing child-process fault returns failure after real web startup, with all three
+application mutations checkpointed. `setup --resume` must preserve original protected
+inputs, checkpoint, release, volumes and a durable file, skip the completed mutations,
+and finish doctor/HTTPS login. Public operator, bundle and image bytes stay untouched.
+On that same installation, `dispatch status → restart → doctor` and
+`dispatch logs wayfarer --tail 10` / `dispatch logs db --tail 10` must succeed while
+release authority, secret hashes, volume identities, the durable file and the existing
+HTTPS cookie survive restart.
+
+Normal backup configuration uses the retained public recovery payload and a local
+owned destination with retention 7. After the initial scheduled receipt commits, an
+explicit quiesced capture selects its returned UUID. `backups` must list it and exact
+and default `verify-backup` must identify that same complete compatible archive.
+Disable must stop the owned scheduler, refuse capture with exit 2, and preserve the
+selected archive/sidecar bytes and listing/verification. Supported reconfiguration of
+the same destination must publish another coherent generation, run its owned scheduler
+and complete another capture with exact public `released` source authority. Installation,
+release, protected inputs, durable volumes/file and the existing cookie remain continuous.
+The application is started again after each deliberate quiesced capture.
+
+The [manual public operator workflow](27-Application-Image-Publication.md#post-merge-public-operator-acceptance)
+uploads only `operator.json` and bounded command/expected-exit/actual-exit records.
+Required observations and cleanup must all succeed before PASS is written. Raw service
+logs, configuration, receipts, private paths, credentials, cookies and payloads stay
+outside artifacts. There is no new release, candidate substitution, restore/update
+failure matrix, managed-Caddy-only installation or ARM64 duplication. Focused offline
+tests and PR CI qualify the harness; runtime public acceptance and independent evidence
+review remain a separate post-merge run.
+
 ### Managed ingress evidence
 
 The [full AMD64 Compose qualifier](28-Production-Compose.md#managed-acme-and-timeline-ingress-749)
