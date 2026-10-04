@@ -83,18 +83,9 @@ class PublicJourney(Journey):
         return evidence.installation(config, manifest, tag)
 
     def prepare_public(self):
-        """A pass-through Docker adapter and external TLS fixture never alter stable payloads."""
-        wrapper = self.directory / 'docker-test'
-        wrapper.write_text('#!/bin/sh\nexec /usr/bin/docker "$@"\n')
-        wrapper.chmod(0o555)
-        self.prepare_tls()
-        # The plain host image needs public CA trust for actual GitHub acquisition as well as fixture TLS.
-        self.trusted_ca = self.directory / 'public-and-fixture-ca.pem'
-        self.trusted_ca.write_text(Path('/etc/ssl/certs/ca-certificates.crt').read_text() +
-                                   (self.bundle / 'caddy/tls.crt').read_text())
-        self.host('sh', '-ec', f'chown -R 0:0 {self.directory}; chmod 700 {self.directory}')
+        """Reuse unchanged public preparation, then give the existing probe its private output."""
+        super().prepare_public()
         self.host('chown', '1654:1654', str(self.directory / 'probe'))
-        self.host('sh', '-ec', 'test ! -d /usr/share/dotnet; ! command -v dotnet; ! command -v python3; ! command -v node')
 
     def start_proxy(self, digest):
         """Wait on real HTTPS readiness before the first routed authentication attempt."""
