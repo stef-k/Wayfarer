@@ -406,6 +406,16 @@ starts from the actual public v1.9.21 lean bootstrap and explicit
 through `dispatch update`, then proves `dispatch version` selects the active target's
 retained operator. Public release/bundle/source compatibility remains product-owned.
 
+After normal v1.9.21 backup configuration, the witness requires its known `candidate`
+source status. It invokes the already downloaded, digest-verified public target
+bootstrap directly with `release repair-backup-source-v1.9.21`, then requires
+`candidate -> released` and a changed backup generation. Protected configuration
+readbacks must match except for those two repair-owned fields, preserving ordinary
+installation/release/project/storage identity and backup policy. Retained release
+inspection runs again before the fixed v1.9.21 bootstrap creates the selected archive.
+The selected schema-3 source must be exactly `released`; `stable` is not a recovery
+status and candidate captures cannot become the selected public witness.
+
 Selection uses the UUID returned by the explicit quiesced capture, never newest-file
 ordering. Retention preserves that archive across the separate update-owned held
 capture. The selected pair must remain byte-identical before a new clean project
@@ -415,10 +425,14 @@ change versions or reconstruct setup receipts. The clean target itself verifies
 DB, Uploads, the complete ring, protected credential, pre-capture Identity token and
 original HTTPS login, then performs `user find`, protected-stdin reset and new login.
 
-The sanitized ledger records non-secret identities/hashes and required observations;
-bounded command logs retain command names and exit codes without raw output or secret
-input. This is public stable lifecycle evidence with fixture-controlled HTTPS, not
-managed ACME/ingress qualification. Offline orchestration/evidence tests run in PR CI;
+The sanitized ledger records non-secret identities/hashes and required observations,
+including `backupSourceRepair`: public target tag, verified bootstrap executable
+SHA-256, before/after statuses, changed-generation and preserved-identity/policy
+booleans, and repair success. Raw installation configuration and private policy paths
+remain in memory only. Bounded command logs retain command names and exit codes
+without raw output or secret input. This is public stable lifecycle evidence with
+fixture-controlled HTTPS, not managed ACME/ingress qualification.
+Offline orchestration/evidence tests run in PR CI;
 they cannot establish final #748 acceptance before a later stable is published. Keep
 #748 open after the implementation PR until the real run and independent evidence
 review succeed. Candidate recovery/update matrices remain separate and unchanged.

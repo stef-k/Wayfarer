@@ -36,14 +36,19 @@ class PublicJourney(Journey):
         (self.directory / 'probe').mkdir()
         (self.directory / 'destination').mkdir()
 
-    def ctl(self, *args, data=None, check=True):
-        """Bounded command/result logs contain no stdout, stderr, argv values or protected stdin."""
+    def ctl(self, *args, data=None, check=True, executable=None):
+        """Ordinary commands use the fixed source bootstrap; direct repair shares sanitized result logging."""
         command = args[0]
         public_words = {'dispatch', 'release', 'user', 'backup', 'configure', 'inspect', 'target',
-                        'import', 'adopt', 'find', 'reset-password', 'doctor', 'start', 'version', 'update', 'verify-backup'}
+                        'import', 'adopt', 'find', 'reset-password', 'doctor', 'start', 'version', 'update', 'verify-backup',
+                        'repair-backup-source-v1.9.21'}
         if command in public_words:
             command = ' '.join(arg for arg in args[:3] if arg in public_words)
-        result = super().ctl(*args, data=data, check=False)
+        if executable is None:
+            result = super().ctl(*args, data=data, check=False)
+        else:
+            evidence.require(args == ('release', 'repair-backup-source-v1.9.21'))
+            result = self.host(str(executable), '--deployment-root', str(self.install), *args, data=data, check=False)
         evidence.require(all(password not in result.stdout + result.stderr for password in self.passwords))
         self.command_count += 1
         evidence.require(self.command_count <= 128)
@@ -134,8 +139,18 @@ class PublicJourney(Journey):
             self.authenticate(cookie.name)
         return {name: True for name in evidence.CHECKS}
 
-    def capture_source(self, cookie, public_source):
-        """Exact online source setup, routed login, representative state and explicit quiesced capture."""
+    def repair_source(self, public_target, target_bootstrap):
+        """Direct public-target repair alone crosses operator versions before selecting the witness archive."""
+        self.stage = 'backup-source-repair'
+        before = self.config()
+        evidence.require(before['Backup']['Source']['ReleaseStatus'] == 'candidate')
+        operator_sha = self.file_hash(target_bootstrap)
+        evidence.repair_operator(public_target, operator_sha)
+        self.ctl('release', 'repair-backup-source-v1.9.21', executable=target_bootstrap)
+        return evidence.repair_facts(before, self.config(), public_target, operator_sha)
+
+    def capture_source(self, cookie, public_source, public_target, target_bootstrap):
+        """Exact public source setup, normal backup configuration, supported repair and released capture."""
         self.prepare_public()
         self.ctl('setup', '--version', evidence.SOURCE[1:], '--hostname', 'wayfarer.example.org',
                  '--project', self.project, '--edge-prefix', '172.30.69', '--mode', 'external',
@@ -149,8 +164,10 @@ class PublicJourney(Journey):
         self.ctl('backup', 'configure', '--destination', str(self.directory / 'destination'),
                  '--payload', str(source_bundle / 'wayfarer-recovery'), '--retention', '7')
         source = self.installed_facts(evidence.SOURCE)
-        evidence.require(self.file_hash(self.executable) == source['release']['operatorSha256'])
-        public_source['executedBootstrapSha256'] = source['release']['operatorSha256']
+        evidence.require(self.file_hash(self.executable) == source['release']['operatorSha256'] ==
+                         public_source['executedBootstrapSha256'])
+        repair = self.repair_source(public_target, target_bootstrap)
+        evidence.require(self.installed_facts(evidence.SOURCE) == source)
         ring = self.config()['Backup']['Ring']
         ring_hashes = self.ring_hashes(ring)
         self.stage = 'selected-capture'
@@ -167,7 +184,7 @@ class PublicJourney(Journey):
         source['checks'] = self.observe(ring, ring_hashes)
         source['ringHashes'] = ring_hashes
         source['uploadSha256'] = hashlib.sha256(VALUE.encode()).hexdigest()
-        return source, selected, source_bundle, ring
+        return source, selected, source_bundle, ring, repair
 
     def forward_update(self, tag, source, selected, ring, cookie, target_bootstrap):
         """The fixed v1.9.21 bootstrap plans/accepts a real public update and then dispatches target bytes."""
@@ -178,7 +195,7 @@ class PublicJourney(Journey):
         boundaries = [item for item in target_manifest['Sources'] if item['Version'] == evidence.SOURCE[1:]
                       and item['Fingerprint'] == source['release']['fingerprint']]
         evidence.require(len(boundaries) == 1 and boundaries[0] == plan['Boundary'])
-        target_sha = hashlib.sha256(target_bootstrap.read_bytes()).hexdigest()
+        target_sha = self.file_hash(target_bootstrap)
         evidence.require(target_sha == plan['Target']['Release']['OperatorSha256'])
         self.ctl('dispatch', 'update', '--accept-plan', digest)
         receipt = self.read_json(self.install / 'recovery-control/update.json')
@@ -280,18 +297,21 @@ def main():
         with tempfile.TemporaryDirectory(prefix='wayfarer-748-') as directory:
             root = Path(directory)
             source_bootstrap = evidence.bootstrap(source_public, root / 'source-bootstrap')
-            target_bootstrap = evidence.bootstrap(target_public, root / 'target-bootstrap')
             (root / 'journey').mkdir(mode=0o700)
+            # The root host adapter mounts only this owned directory; prepare_public protects both public operators.
+            target_bootstrap = evidence.bootstrap(target_public, root / 'journey' / 'target-bootstrap')
             journey = PublicJourney(root / 'journey', source_bootstrap, args.probe, log)
             primary_failure = False
             try:
                 with tempfile.NamedTemporaryFile() as cookie:
-                    source, selected, bundle, ring = journey.capture_source(cookie.name, source_public)
+                    source, selected, bundle, ring, repair = journey.capture_source(
+                        cookie.name, source_public, target_public, target_bootstrap)
                     update = journey.forward_update(args.target, source, selected, ring, cookie.name, target_bootstrap)
                     restored = journey.clean_restore(source, selected, bundle, ring)
                 ledger = {'schema': 1, 'result': 'PASS', 'platform': 'linux/amd64',
                           'httpsScope': 'fixture-controlled-external-TLS', 'sourcePublic': source_public,
-                          'targetPublic': target_public, 'source': source, 'selectedArchive': selected,
+                          'targetPublic': target_public, 'source': source, 'backupSourceRepair': repair,
+                          'selectedArchive': selected,
                           'update': update, 'cleanRestore': restored}
                 for variable, field in (('GITHUB_RUN_ID', 'workflowRun'), ('GITHUB_RUN_ATTEMPT', 'workflowAttempt')):
                     if variable in os.environ:
