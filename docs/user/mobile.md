@@ -53,8 +53,9 @@ but does not delete local or server history or withdraw previously shared record
 ### Manual check-ins
 
 Use the check-in action to record a point intentionally. Choose an activity or
-notes when useful. Server cooldown and accuracy rules can still reject a check-in;
-repeated tapping does not guarantee additional records.
+notes when useful. Manual check-ins bypass the automatic time and distance filters.
+They can still fail if your API token is invalid, the server is temporarily busy or
+the submitted location is invalid.
 
 Inspect the phone's recording/delivery status, then check the web Timeline when
 you need confirmation that a record reached Wayfarer. An offline record and a
