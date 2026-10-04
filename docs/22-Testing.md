@@ -83,8 +83,8 @@ logged domain reasons. Selected domains keep their existing commands, fixtures a
 artifact checks; this scope redesign does not change release/publication behavior.
 
 Run focused tests with `python3 -B -m unittest discover -s tools/ci/tests -v`.
-Inspect a real diff with `python3 -B tools/ci/application_image_scope.py --base
-<full-base-sha> --head <full-head-sha>` (on one line).
+Inspect a real diff with
+`python3 -B tools/ci/application_image_scope.py --base <full-base-sha> --head <full-head-sha>` (on one line).
 
 ## Code Guard
 

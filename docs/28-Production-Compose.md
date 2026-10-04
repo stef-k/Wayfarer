@@ -135,6 +135,7 @@ application/bundle publication and public installation acceptance belong to
 Maintainer/CI assembly and disposable qualification use:
 
 <!-- {% raw %} Preserve Docker's Go template through Jekyll Liquid processing. -->
+
 ```bash
 docker buildx build --platform linux/amd64 --load --provenance=false --sbom=false \
   --tag wayfarer-db:qualification deploy/compose/db
@@ -142,6 +143,7 @@ docker buildx build --platform linux/amd64 --load --provenance=false --sbom=fals
 python3 tools/compose/qualify.py --image "$application_image_id" \
   --db-image "$(docker image inspect wayfarer-db:qualification --format '{{.Id}}')"
 ```
+
 <!-- {% endraw %} -->
 
 Publication must preserve the qualified artifact, record source revision/package
@@ -260,8 +262,8 @@ for authoritative data. **Volume deletion destroys state.** Do not use volume re
 in ordinary lifecycle commands. Managed restore stages fresh generations; managed
 updates require explicit plan authorization and general rollback remains unavailable.
 
-CI reuses the application-image dry-run and runs `tools/compose/qualify.py --image
-<local-app-image-ID> --db-image <local-db-image-ID>`. Its test-only override selects that exact local build, an isolated
+CI reuses the application-image dry-run and runs
+`tools/compose/qualify.py --image <local-app-image-ID> --db-image <local-db-image-ID>`. Its test-only override selects that exact local build, an isolated
 project and high loopback TLS port. Full AMD64 qualification uses a fixture ACME
 authority; native-only/ARM64 and the external-proxy fixture retain their internal CA.
 Test configurations disable CA trust-store installation; curl trusts only the
