@@ -439,9 +439,27 @@ remain in memory only. Bounded command logs retain command names and exit codes
 without raw output or secret input. This is public stable lifecycle evidence with
 fixture-controlled HTTPS, not managed ACME/ingress qualification.
 Offline orchestration/evidence tests run in PR CI;
-they cannot establish final #748 acceptance before a later stable is published. Keep
-#748 open after the implementation PR until the real run and independent evidence
-review succeed. Candidate recovery/update matrices remain separate and unchanged.
+they validate the harness separately from the real public run and its independent
+evidence review. Candidate recovery/update matrices remain separate and unchanged.
+
+On 2026-10-04, [#748](https://github.com/stef-k/Wayfarer/issues/748)'s real public
+**v1.9.21 → v1.9.22 continuous Linux AMD64 lifecycle witness passed** in
+[run `37206329693`, attempt 1](https://github.com/stef-k/Wayfarer/actions/runs/37206329693/attempts/1)
+from reviewed workflow head `c951398a339f008ec10f6b8862bd668f150686d1`.
+The target [public stable v1.9.22](https://github.com/stef-k/Wayfarer/releases/tag/v1.9.22)
+was published from release source `82990a3a0e7bdc0bc8b92c574b0623c1f004489e`
+by [publication workflow `37197160151`](https://github.com/stef-k/Wayfarer/actions/runs/37197160151).
+Retained artifact `public-lifecycle-amd64-37206329693-1`,
+[id `11305430502`](https://github.com/stef-k/Wayfarer/actions/runs/37206329693/artifacts/11305430502),
+has SHA-256 `7976efcd58f14a3c15e6f9c98918ab204e29efae7b40ba1e3921add05f3515ee`
+and contains `lifecycle.json` and `commands.jsonl`.
+Independent Phase-4 review accepted its PASS ledger linking the continuous source
+installation, public update, selected archive and clean restore, including final
+headless account recovery.
+The actual stable update has zero EF migration delta; clean restore uses exact
+v1.9.21 authority. HTTPS uses the fixture-controlled external route described above.
+This successful boundary is separate from Phase-5 cleanup and final independent
+acceptance; #748 remains open until those gates pass.
 
 ### Managed ingress evidence
 
@@ -458,7 +476,7 @@ no production host dependency.
 
 This local-test-CA **COMPOSE** proof passed on 2026-10-03. It is separate from the
 already-passing genuine v1.9.21 AMD64/ARM64 **PUBLIC** bootstrap setup acceptance,
-public DNS/CA reachability and #748's pending supported later-stable lifecycle run.
+public DNS/CA reachability and #748's public stable lifecycle witness above.
 The operator still requires normal certificate validation for each managed public
 setup; fixture success does not waive installation DNS, firewall or HTTPS checks.
 
