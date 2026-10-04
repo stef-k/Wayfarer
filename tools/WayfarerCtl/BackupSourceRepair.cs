@@ -116,6 +116,7 @@ public sealed class BackupSourceRepair(IProcessRunner runner)
     /// <summary>Read only the existing destination inode and installation marker; never prepare, probe or modify archive storage.</summary>
     private static void RequireDestination(BackupPolicy policy, Guid installation)
     {
+        ProtectedFiles.SafePath(Path.GetDirectoryName(policy.Destination)!);
         using var destination = new SafeDirectory(policy.Destination);
         var facts = destination.Identity;
         if (facts.DeviceMajor != policy.DeviceMajor || facts.DeviceMinor != policy.DeviceMinor || facts.Inode != policy.Inode)

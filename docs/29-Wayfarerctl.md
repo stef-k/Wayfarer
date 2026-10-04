@@ -459,6 +459,10 @@ that image or change the original bundle. Publish the worker for Linux x64 and b
 `tools/WayfarerRecoverySource`; copy only the inspector DLL into the payload. Keep
 both root-owned, without writable shared ancestors, and make the worker executable
 but not writable (0555; inspector 0444). The operator records their combined checksum.
+On retained-release installations, new configuration corroborates inspected source
+facts against that release's matching capture pair and derives release status, worker
+version and supported legacy schemas from it. Stable current capture persists
+`released`; candidate/raw qualification retains candidate authority.
 
 ```sh
 wayfarerctl backup configure --destination /srv/wayfarer-backups \
@@ -869,6 +873,63 @@ It stores neither UUID/project nor old Quartz identity. `release corroborate BUN
 checks that independent source evidence against either retained capture profile.
 `release target BUNDLE PROJECT current` explicitly selects the new pair; the default
 selects the historical pair when present. Existing backup policies remain unchanged.
+
+### Exact public v1.9.21 backup source repair
+
+Immutable public v1.9.21's normal backup configuration persisted schema-3 current
+capture status as `candidate`, contradicting its stable release target's `released`.
+Archive restore verification remains valid, but exact source update corroboration
+refuses that configuration. Later repair-capable operators expose only:
+
+```sh
+sudo /absolute/root-owned/repair-capable/wayfarerctl \
+  --deployment-root /etc/wayfarer release repair-backup-source-v1.9.21
+```
+
+Invoke the accepted repair-capable executable directly; v1.9.21's immutable bootstrap
+`dispatch` selects its original retained operator, which lacks this command. This is
+a dedicated release-metadata migration owner. It accepts no bundle, payload, policy
+override or owner waiver. Ordinary backup, lifecycle and update commands still require
+the current retained operator; use the original bootstrap's `dispatch` for those.
+
+The repair requires completed schema-4 installation authority and validates all retained
+release bytes, including its operator, against the exact public v1.9.21 fingerprints:
+
+| Platform | Release fingerprint |
+| --- | --- |
+| linux/amd64 | `670dae009435370e2c02f1aaa74f6c93eb77c30290350ba92df4c5c3af1f623c` |
+| linux/arm64 | `88d5b35c359cec3f257026fed52cc705d0642dc116e5d712824b1aae89a3276e` |
+
+These pins were derived from [v1.9.21's published deployment assets](https://github.com/stef-k/Wayfarer/releases/tag/v1.9.21)
+after verifying their SHA-256 digests: AMD64
+`eab34931058ad71f98edbfcfd4902139999f3dabe70437f4f77c8ab5749fc910`, ARM64
+`a4ded2e5b133954a05a12cdddb957b1d66841b16b8513f7c5c602ec6b7db981e`.
+Both retain source `709a39ca7876fb4a08ce3090d79c4410efce09d8` and no legacy capture pair.
+
+Under host then recovery exclusion, every schema-3 source fact must already corroborate
+the current capture pair after changing only `ReleaseStatus` to `released`. Payload,
+project, images, bundle, migrations, Quartz contract, worker and legacy support must
+agree. Existing generated inputs, destination inode/marker and scheduler ownership
+must also validate. Unresolved restore/update receipts, backup transitions, pending
+installation publication, delegated workers and lifecycle exclusion markers refuse repair.
+Recover those through their existing retained owner before retrying.
+
+The command preserves the policy, scheduling receipts, UUID, destination, secrets and
+durable generation. It stages a fresh complete backup generation, atomically selects
+the corrected installation through `BackupGeneration`, and restarts only a scheduler
+that was already running. Existing archives/sidecars, old generated inputs and immutable
+release bytes remain unchanged. Already-correct corroborated state succeeds without
+Docker work or metadata writes; every other release or contradiction refuses.
+
+If interrupted publication leaves `backup-transition.json`, use the original retained
+operator's `backup configure --recover`, then rerun this repair. A committed pointer
+with a failed scheduler restart remains corrected; use retained `start` or backup
+recovery to restart the selected scheduler. After repair, verify `doctor` and explicit
+source corroboration before planning the forward update. Existing candidate-labelled
+archives stay valid diagnostic/recovery evidence; #748 selects a new explicit quiesced
+archive after the reviewed repair while preserving its earlier archive. Do not apply
+this procedure to #748's retained installation before independent review, merge and
+maintainer acceptance of that execution step.
 Legacy images without the #701 property require the pinned accepted Quartz SQL resource;
 unknown legacy resource contracts are rejected. Full application/source/image/migration
 identity and post-restore product validation remain mandatory.

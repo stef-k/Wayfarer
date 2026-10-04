@@ -27,19 +27,26 @@ public sealed class BackupSourceAuthorityTests : IDisposable
     [Theory]
     [InlineData(true, "released")]
     [InlineData(false, "candidate")]
-    public async Task ConfigurationPersistsRetainedCaptureAuthority(bool stable, string status)
+    [InlineData(null, "candidate")]
+    public async Task ConfigurationPersistsRetainedCaptureAuthority(bool? stable, string status)
     {
-        var bundle = releases.RetainOperator(Root, "1.9.21", runningOperator: false, stable);
+        var bundle = releases.RetainOperator(Root, "1.9.21", runningOperator: false, stable.GetValueOrDefault());
         var config = Install(bundle);
+        if (stable is null)
+        {
+            config = config with { Schema = 2, Release = null };
+            File.WriteAllText(Path.Combine(Root, "installation.json"), JsonSerializer.Serialize(config));
+        }
         var runner = new BackupRunner(config, bundle);
         using var operation = Setup.Lock(Root);
         var next = await new BackupConfiguration(runner).ConfigureAsync(Root, config,
             ["--destination", destination.Path, "--payload", Path.Combine(bundle.Directory, "wayfarer-recovery")], default);
         var selected = Deployment.Load(Root);
         Assert.Equal(status, selected.Backup!.Source.ReleaseStatus);
-        Assert.Equal(bundle.Manifest.Application.WorkerVersion, selected.Backup.Source.WorkerVersion);
+        Assert.Equal(stable is null ? typeof(WorkerConfiguration).Assembly.GetName().Version!.ToString() :
+            bundle.Manifest.Application.WorkerVersion, selected.Backup.Source.WorkerVersion);
         Assert.Equal(next.Backup!.Generation, selected.Backup.Generation);
-        bundle.Corroborate(selected.Backup.Source);
+        if (stable is not null) bundle.Corroborate(selected.Backup.Source);
         BackupCompose.Check(Root, selected);
     }
 
@@ -87,6 +94,8 @@ public sealed class BackupSourceAuthorityTests : IDisposable
     /// <summary>Contradictory source/runtime facts never gain migration authority or change the installation pointer.</summary>
     [Theory]
     [InlineData("release")]
+    [InlineData("candidate-release")]
+    [InlineData("later-release")]
     [InlineData("owner")]
     [InlineData("version")]
     [InlineData("revision")]
@@ -98,11 +107,13 @@ public sealed class BackupSourceAuthorityTests : IDisposable
     [InlineData("worker")]
     [InlineData("migrations")]
     [InlineData("quartz")]
+    [InlineData("schema")]
     [InlineData("legacy-support")]
     [InlineData("layout")]
     [InlineData("destination")]
     [InlineData("generated-worker")]
     [InlineData("payload-bytes")]
+    [InlineData("unconfigured")]
     public async Task RepairRefusesEveryOtherContradiction(string fact)
     {
         var (config, bundle) = await KnownState();
@@ -119,16 +130,21 @@ public sealed class BackupSourceAuthorityTests : IDisposable
             "worker" => source with { WorkerVersion = "1.9.22.0" },
             "migrations" => source with { ExpectedMigrations = ["20260101000000_Foreign"] },
             "quartz" => source with { QuartzCompatibilityContract = "foreign-contract" },
+            "schema" => source with { ConfigurationSchema = 2, QuartzIdentity = "legacy", QuartzCompatibilityContract = null,
+                QuartzSnapshotFingerprint = null, SupportedLegacySourceSchemas = null },
             "legacy-support" => source with { SupportedLegacySourceSchemas = [] },
             _ => source
         };
         config = config with { Backup = config.Backup with { Source = source } };
         if (fact == "release") bundle = bundle with { Fingerprint = new string('f', 64) };
+        if (fact == "candidate-release") bundle = bundle with { Manifest = bundle.Manifest with { Status = "candidate", Tag = null } };
+        if (fact == "later-release") bundle = bundle with { Manifest = bundle.Manifest with { Version = "1.9.22", Tag = "v1.9.22" } };
         if (fact == "owner") config = config with { Release = config.Release! with { OperatorSha256 = new string('f', 64) } };
         if (fact == "layout") config = config with { Backup = config.Backup with { Ring = "foreign-ring" } };
         if (fact == "destination") config = config with { Backup = config.Backup with { Inode = 1 } };
         if (fact == "generated-worker") File.AppendAllText(Path.Combine(BackupCompose.DirectoryPath(Root, config.Backup), "worker.json"), " ");
         if (fact == "payload-bytes") File.AppendAllText(config.Backup.Payload, "foreign bytes");
+        if (fact == "unconfigured") config = config with { Backup = null };
         var pointer = File.ReadAllBytes(Path.Combine(Root, "installation.json"));
         var runner = new BackupRunner(config, bundle);
         using var operation = Setup.Lock(Root);
