@@ -7,8 +7,9 @@ Identity & Roles
 
 Passwords
 - Never commit or document real passwords. For local dev, use throwaway credentials and rotate.
-- Admin seeding creates a protected admin account; change credentials immediately after first run.
-- Policy: minimum eight characters with at least one upper-case letter, one lower-case letter, one digit, and one special character.
+- Production policy: minimum **15 characters**, including at least one uppercase letter, one lowercase letter, one digit, and one non-alphanumeric character.
+- Production startup does not create or reset the administrator. Explicit bootstrap establishes the protected administrator; [guided Compose setup](02-Install-and-Dependencies.md#guided-production-installation) supplies the administrator password before installation is considered ready.
+- Development uses a separate local password/seed policy with throwaway credentials.
 
 Account Lockout
 - Accounts are locked after 5 failed login attempts to protect against brute-force attacks.
@@ -64,6 +65,7 @@ CSRF Protection
 - The unintended unconstrained Trip clone alias was removed; the bearer-only `POST /api/trips/{id}/clone` contract is unchanged.
 
 Rate Limiting
+- Baseline Identity/API/location-ingestion admission and rate protections are application-owned. Optional host or proxy rate limiting is defense in depth.
 - **Tile requests** — Anonymous users limited to 500 requests/minute per IP (configurable).
 - **Incoming API token lookups** — Immediate, nonqueued active-work admission: 32 globally / 16 per effective client.
 - **Location ingestion** — Immediate, nonqueued active-work admission: 64 globally / 8 per authenticated user, shared by LogLocation and CheckIn. Persisted idempotent replay resolves before new ingestion admission.
