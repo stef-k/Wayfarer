@@ -80,7 +80,7 @@ Waypoint authoring remains web-first. For guidance to a Place or a dropped pin, 
 
 - Trip downloads store geographic content, not a raster basemap package.
 - The interactive map caches OpenStreetMap tiles as you pan and zoom. Previously viewed tiles can be used while they remain in the bounded cache.
-- Inspect or clear the live tile cache under **Settings > Map Cache**. Clearing it does not remove downloaded Trips.
+- Set the live cache size limit, inspect usage, or clear cached tiles under **Settings > Map Cache**. Clearing it does not remove downloaded Trips.
 - Cached tiles do not guarantee complete offline coverage. A blank offline basemap can coexist with usable downloaded Places and routes.
 
 ### Tile Server Configuration
@@ -112,14 +112,14 @@ The published [Android 1.3.0 build](https://github.com/stef-k/WayfarerMobile/rel
 
 ---
 
-## Privacy & Security
+## Privacy and Security
 
 - **You control your history** — Wayfarer's authoritative data and history are stored on your server; the app also keeps local downloaded content, history, and pending work.
 - **External services** — optional geocoding and routing providers receive the request information needed for configured features. Map tile services receive tile requests, and opening an external navigation app passes the selected destination to that app.
 - **Provider credentials** remain server-side and are never sent to WayfarerMobile. Hosted routing goes through Wayfarer; see [provider privacy boundaries](24-Personal-Location-Providers.md#resumable-workflow-authority).
 - **API tokens** provide secure authentication.
 - Rotate tokens if exposed or compromised.
-- Server URL stored securely on device.
+- Review the configured server URL before entering a token.
 
 ---
 
@@ -130,7 +130,7 @@ The published [Android 1.3.0 build](https://github.com/stef-k/WayfarerMobile/rel
 | Server URL | Your Wayfarer instance address |
 | API Token | Authentication token from web app |
 | Tracking Enabled | Toggle background location logging |
-| Map Cache | Inspect or clear previously viewed map tiles |
+| Map Cache | Set the size limit, inspect usage, or clear previously viewed tiles |
 
 ---
 

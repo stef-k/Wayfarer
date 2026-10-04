@@ -26,7 +26,6 @@ Bring existing location history into Wayfarer, export a copy, or exchange planne
 - **Start** — begin or resume processing a stopped/failed import.
 - **Stop** — pause an in-progress import (can resume later).
 - **Delete** — remove the import and associated uploaded file. Unsafe/unresolvable legacy file references retain durable deletion intent for explicit repair; they are not treated as absent files.
-
 - Status indicators: InProgress, Completed, Stopped, Failed, Stopping.
 - Large files are processed asynchronously with SSE progress updates.
 
@@ -62,7 +61,7 @@ For planned Trips, import Google MyMaps or Wayfarer KML from the [Trips interfac
 - Each Quartz execution processes at most 10 eligible owned candidates in timestamp/ID order, including wholly empty locations and explicitly prepared Geoapify repairs matching the current provider authority. After its workflow state commits, the existing authenticated SSE channel prompts the page to reload those durable counters. Permanent and not-yet-due attempts are skipped so poison rows cannot starve later Locations.
 - Geoapify geocoding and routing share a rolling pool and wake after the oldest counted admission expires plus five seconds. Mapbox Permanent Geocoding uses the next Wayfarer UTC month boundary plus five seconds.
 - Wayfarer cannot see usage made directly in the external provider account. The displayed usage contains only committed Wayfarer admissions.
-- At the default 2,500-credit guard, 100,000 contacts need 10,000 executions and at least 40 windows—about 39 elapsed days before competition, retries, downtime, and latency.
+- At the default 2,500-credit guard, 100,000 contacts need at least 10,000 executions and 40 windows—about 39 elapsed days before competition, retries, downtime, and latency.
 - Deleting import history removes only its metadata/file. Locations, enrichment, workflow state, attempts, credentials, and usage remain. Trip imports stay separate and are not rerouted.
 - Cancelling enrichment does not cancel or delete imports, and deleting import history does not delete Locations or enrichment.
 

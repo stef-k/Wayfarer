@@ -2,7 +2,7 @@
 
 Wayfarer stores one personal credential per user and provider (`Geoapify` or `Mapbox`). Credentials are protected with ASP.NET Core Data Protection and cryptographically bound to credential type, provider, and user. Browser and mobile responses show only a fixed mask; WayfarerMobile never receives provider credentials.
 
-Personal providers are optional services for filling missing location addresses and generating routes. Open **User > Settings > Location Providers** to configure them. Wayfarer keeps your authoritative history on your server; geocoding and routing send the necessary coordinates, search terms, or route inputs to the selected external service. Credentials stay server-side. Choosing **No provider** leaves capture, imports, and manual planning available.
+Personal providers are optional services for filling missing location addresses and generating routes. Open **User > Settings > Personal Location Providers** to configure them. Wayfarer keeps your authoritative history on your server; geocoding and routing send the necessary coordinates, search terms, or route inputs to the selected external service. Credentials stay server-side. Choosing **No provider** leaves capture, imports, and manual planning available.
 
 Start with profile setup below. Existing installations with unreadable credentials should use [advanced recovery](#existing-installations-and-advanced-recovery).
 

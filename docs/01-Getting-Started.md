@@ -9,7 +9,7 @@ This page helps you sign in, learn the layout, and understand the core concepts.
 - Sign In: Use the server URL provided for your installation.
 - Accounts: Your admin manages registration settings. If registration is closed, ask them to create an account.
 - Account basics: Usernames are the unique identifier for every account. Email addresses are not collected and there is no automated verification flow, so keep track of your credentials.
-- Passwords: Your admin sets initial credentials. Change them after first login under your account settings. Two-factor authentication (2FA) is supported via the account management pages.
+- Passwords: If your admin supplies initial credentials, change them after first login under your account settings. Two-factor authentication (2FA) is supported via the account management pages.
 - Lost passwords: Ask an administrator to reset your password. Server administrators have access to password reset tools.
 
 ## Role Overview

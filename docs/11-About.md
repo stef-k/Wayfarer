@@ -8,7 +8,7 @@
 
 ## License
 
-- See the repository [LICENSE.txt](../LICENSE.txt) for licensing terms.
+- See the repository [LICENSE.txt](https://github.com/stef-k/Wayfarer/blob/main/LICENSE.txt) for licensing terms.
 
 ## Author
 

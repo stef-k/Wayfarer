@@ -50,7 +50,7 @@ Yes. Timeline Settings and the public Trip sharing menu offer **Copy embed URL**
 
 ## Does Wayfarer Send Anything to External Providers?
 
-Your authoritative history stays on your server, but configured features can make external requests. Geocoding/routing providers receive necessary coordinates, searches, or route inputs; tile services receive tile requests. Personal provider credentials remain server-side and are never sent to WayfarerMobile. The mobile basemap also contacts OpenStreetMap directly. See [Personal Location Providers](24-Personal-Location-Providers.md) and [mobile privacy](08-Mobile.md#privacy-security).
+Your authoritative history stays on your server, but configured features can make external requests. Geocoding/routing providers receive necessary coordinates, searches, or route inputs; tile services receive tile requests. Personal provider credentials remain server-side and are never sent to WayfarerMobile. The mobile basemap also contacts OpenStreetMap directly. See [Personal Location Providers](24-Personal-Location-Providers.md) and [mobile privacy](08-Mobile.md#privacy-and-security).
 
 ## Can wayfarerctl Migrate an Old Native/systemd Installation?
 
