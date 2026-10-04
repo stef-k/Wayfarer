@@ -1,7 +1,7 @@
 # Application container and maintenance
 
-Implements the application side of [the accepted contract](25-Container-Release-Contract.md)
-for #640. [Stable application-image publication](27-Application-Image-Publication.md)
+The application container follows [the container contract](25-Container-Release-Contract.md).
+[Stable application-image publication](27-Application-Image-Publication.md)
 owns image distribution separately. The shared Compose lifecycle supports Linux
 AMD64 and ARM64. Maintainer sequencing starts at
 [Versioning and Release Operations](23-Versioning.md).
@@ -39,8 +39,8 @@ references and a secured protected administrator before activation. It validates
 existing Storage and Data Protection authority and starts jobs only after preparation.
 It does not migrate, seed or create/reset an administrator. Development retains its
 convenience migrations and default administrator; do not use Development in production.
-Native operators must now explicitly migrate, seed and secure bootstrap before restart.
-No new EF migration or automatic native-state conversion is introduced.
+Native operators must explicitly migrate, seed and secure bootstrap before restart.
+Container startup does not convert native state automatically.
 
 ## Configuration and health
 
@@ -95,12 +95,12 @@ With Playwright 1.63.0 launch behavior, Wayfarer does not set
 `ChromiumSandbox = true`, so the effective Chromium launch includes `--no-sandbox`
 even when Wayfarer supplies no such argument itself.
 
-The verified #651 baseline is application-owned browser egress/content/admission
-controls plus container isolation, not an enabled Chromium renderer sandbox.
-This does not reopen #660's egress/admission/cancellation fixes or authorize privileged,
-SYS_ADMIN, host-IPC or other runtime changes. [#681](https://github.com/stef-k/Wayfarer/issues/681)
-remains open for native Linux ARM64 qualification; AMD64/source evidence cannot close
-it or remove the native compatibility branch. Compose uses separate native ARM64 CI
+Browser isolation relies on application-owned egress/content/admission/cancellation
+controls and container isolation; the Chromium renderer sandbox is not enabled.
+Privileged mode, SYS_ADMIN and host IPC are outside the supported runtime boundary.
+[Native Linux ARM64 sandbox prerequisites](https://github.com/stef-k/Wayfarer/issues/681)
+still require qualification; AMD64/source evidence does not establish them or remove
+the native compatibility branch. Compose uses separate native ARM64 CI
 and [public distribution qualification](27-Application-Image-Publication.md#stable-compose-distribution).
 
 ## Disposable qualification
@@ -115,9 +115,8 @@ of build tools and write denial on app/browser payloads. Stop with SIGTERM and i
 exit status and Quartz completion. Remove only the owned containers/database/state.
 
 Use [Compose's DB recipe and qualification owner](28-Production-Compose.md#exact-third-party-image-decision)
-for current container DB selection. The 2026-09-25 observation below used an isolated
-host PG17.11/PostGIS 3.6.4 fallback after rejecting the stale `postgis/postgis:17-3.5`
-artifact; it does not qualify that rejected image family or the later PG18 baseline.
+for current container DB selection. Application-only checks using an isolated host
+PG17/PostGIS database do not qualify the Compose PG18 baseline or a DB image family.
 
 A one-shot command uses the same mount set as the web process. For example, after
 preparing the task-owned directories, the non-secret connection settings file and
@@ -140,27 +139,21 @@ for bootstrap. Omit the command for web startup. The environment file contains a
 password-free connection string, `Database__PasswordFile=/run/secrets/database-password`
 and a specific `AllowedHosts`. Healthcheck sends that allowed Host over loopback.
 
-### Recorded local qualification
+### Application image evidence
 
-On 2026-09-25, Linux/WSL Docker Engine 29.1.3 built the real AMD64 image with .NET 10
-Noble and release-matched Chromium 151.0.7922.34/revision 1234. The isolated PG17.11 /
-PostGIS 3.6.4 fallback used a non-superuser application owner. Explicit migration,
-idempotent seed and protected bootstrap succeeded. Production rejection of unprepared
-state and nonmutating incompatible-schema checks passed at the executable/relational seam.
+Disposable AMD64 application-image qualification covers explicit migration, idempotent
+seed and protected bootstrap with a non-superuser application owner. Production
+rejection of unprepared state and nonmutating incompatible-schema checks are covered
+at the executable/relational seam.
 
-Read-only-root image qualification passed: UID 1654, immutable app/browser payload,
+Read-only-root checks cover UID 1654, immutable app/browser payload,
 no SDK/general Node/npm/PowerShell, generated static assets, external key ring/cache,
 ordinary/static HTTP, real application MapSnapshot JPEG and browser PDF/PNG, readiness
-and Docker healthy. DB login failure returned sanitized 503 while live remained 200;
-healthcheck returned 1 and recovered to 0. The layer diff contained only Docker-created secret mountpoints (no application writes), and the DB
-secret was absent from image history/config and application logs. SIGTERM completed
-with exit 0 and Quartz's shutdown-complete message within the 60-second grace.
-
-Regression evidence: 3,293 ordinary PostgreSQL-attached tests, two existing browser
-rendering tests, one published read-only runtime test, Release image build/publish and
-frontend built-asset smoke passed. Browser host qualification required the Noble ALSA
-library and explicit browser-cache path; the image installs its own dependencies.
-This is disposable development evidence, not production-host or Compose qualification.
+and Docker health. DB login failure yields sanitized 503 while live remains 200;
+healthcheck fails and recovers with DB access. Image-layer and log checks cover secret
+absence and the writable-state boundary. SIGTERM/Quartz shutdown must complete within
+the 60-second grace. This is disposable application evidence; current platform-specific
+publication and Compose qualification remain separate, as does production-host acceptance.
 
 The production Compose substrate is described in [Compose deployment](28-Production-Compose.md);
 guided operation belongs to [wayfarerctl](29-Wayfarerctl.md).

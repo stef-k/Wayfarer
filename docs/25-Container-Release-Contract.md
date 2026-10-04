@@ -101,7 +101,7 @@ Data/key directories must exclude other users (0700; key files 0600); logs/cache
 may use 0750. Mount overrides require explicit absolute paths, ownership preflight
 and preservation semantics; default durable/cache/log state uses named volumes.
 Only config, secrets and an explicitly chosen backup destination use bounded bind
-mounts. Backups live outside the live data volumes; mount them only into the later
+mounts. Backups live outside the live data volumes; mount them only into the
 backup operation, not the ordinary web service. No NAS mounting/credentials framework.
 
 ## Database contract
@@ -571,13 +571,14 @@ app stopped/not ready. No automatic downgrade after a partially applied migratio
 A restart cannot masquerade as an authorized update or restore.
 
 Use exec-form process launch so SIGTERM reaches ASP.NET; drain requests and await
-Quartz job shutdown within an explicit stop grace period (initial target 60 seconds,
-subject to job qualification). Forced termination/timeouts must be reported truthfully.
+Quartz job shutdown within the 60-second application stop grace period. Compose allows
+70 seconds for container stop. Forced termination/timeouts must be reported truthfully.
 Non-root app, no privileged mode and no Docker socket are baseline requirements.
-Read-only root, capability dropping, seccomp/user-namespace sandbox, init/reaping and
-private shared-memory sizing require final browser-image qualification. Do not copy
-Playwright testing recommendations such as host IPC or SYS_ADMIN into production
-without evidence. Preserve the existing browser behavior in this contract slice.
+The supported application container uses a read-only root and bounded temporary
+storage; see [image build and runtime](26-Application-Container.md#image-build-and-runtime).
+An enabled Chromium renderer sandbox, alternate capability/seccomp/user-namespace
+policies, init/reaping or shared-memory changes require their own browser-image
+qualification. Host IPC and SYS_ADMIN are outside the supported runtime boundary.
 
 ## Upstream contracts
 
@@ -600,7 +601,7 @@ without evidence. Preserve the existing browser behavior in this contract slice.
 
 ## Local release authority v1
 
-`release.json` schema 1 / bundle contract 1 / configuration schema 1 now owns
+`release.json` schema 1 / bundle contract 1 / configuration schema 1 owns
 local release identity. `tools/release/bundle.py --app-digest sha256:... --db-digest sha256:... --output /absolute/new-output`
 assembles a clean committed source into an explicit candidate directory and deterministic
 candidate tarball with external `SHA256SUMS`. It reuses Version.props and the image

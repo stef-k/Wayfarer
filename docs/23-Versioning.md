@@ -76,8 +76,9 @@ sequence does not authorize either operation.
 
 [Install & Self-Hosting](02-Install-and-Dependencies.md#availability) owns current
 user-facing asset availability. **v1.9.21 is the first supported Compose/`wayfarerctl`
-lifecycle and update baseline; v1.9.22 is the current stable release.** v1.9.20 remains an immutable transitional
-public Compose artifact set, not a supported installation or update source.
+lifecycle and update baseline; v1.9.22 is the current stable release.** v1.9.20 remains
+an immutable transitional public Compose artifact set, not a supported installation
+or update source.
 
 Release tooling gives v1.9.21 no required supported predecessor. For later
 stable targets it selects the highest earlier deployable stable release >=v1.9.21,

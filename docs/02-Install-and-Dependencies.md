@@ -21,7 +21,7 @@ Public bootstrap `setup → doctor → stop` acceptance has passed on AMD64 and 
 A genuine **v1.9.21 → v1.9.22 continuous public lifecycle** has also passed on AMD64,
 covering update, a selected recovery archive, clean restore and account recovery.
 See the [public qualification boundary](29-Wayfarerctl.md#continuous-public-stable-evidence).
-The [managed ingress qualification](28-Production-Compose.md#managed-acme-and-timeline-ingress-749)
+The [managed ingress qualification](28-Production-Compose.md#managed-acme-and-timeline-ingress)
 adds AMD64 ACME and representative API/embed/live-update evidence against a local test
 authority. Public DNS/CA reachability remains installation-specific; these disposable
 checks do not qualify a production host or native-to-Compose migration.
