@@ -134,6 +134,7 @@ application/bundle publication and public installation acceptance belong to
 
 Maintainer/CI assembly and disposable qualification use:
 
+<!-- {% raw %} Preserve Docker's Go template through Jekyll Liquid processing. -->
 ```bash
 docker buildx build --platform linux/amd64 --load --provenance=false --sbom=false \
   --tag wayfarer-db:qualification deploy/compose/db
@@ -141,6 +142,7 @@ docker buildx build --platform linux/amd64 --load --provenance=false --sbom=fals
 python3 tools/compose/qualify.py --image "$application_image_id" \
   --db-image "$(docker image inspect wayfarer-db:qualification --format '{{.Id}}')"
 ```
+<!-- {% endraw %} -->
 
 Publication must preserve the qualified artifact, record source revision/package
 versions and registry manifest digest, then prove an anonymous pull and rerun the
