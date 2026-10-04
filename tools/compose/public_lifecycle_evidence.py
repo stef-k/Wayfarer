@@ -3,6 +3,7 @@
 This ledger is evidence, never release, update or restore authorization. Product
 operators validate bundles and own all lifecycle plans and receipts.
 """
+import copy
 import hashlib
 import json
 import os
@@ -102,7 +103,34 @@ def bootstrap(facts, directory):
         with archive.extractfile(members[0]) as input_file, executable.open('xb') as output:
             shutil.copyfileobj(input_file, output)
     executable.chmod(0o555)
+    with executable.open('rb') as verified:
+        facts['executedBootstrapSha256'] = hashlib.file_digest(verified, 'sha256').hexdigest()
     return executable
+
+
+def repair_operator(public_target, sha):
+    """Bind direct repair execution to bytes extracted from the digest-verified public target bootstrap."""
+    target_version(public_target['tag'])
+    checked(sha, HASH)
+    require(sha == checked(public_target.get('executedBootstrapSha256'), HASH))
+    return {'publicTargetTag': public_target['tag'], 'bootstrapSha256': sha}
+
+
+def repair_facts(before, after, public_target, operator_sha):
+    """Observe the public repair join; protected policy and configuration remain in memory only."""
+    operator = repair_operator(public_target, operator_sha)
+    require(before['Backup']['Source']['ReleaseStatus'] == 'candidate')
+    require(after['Backup']['Source']['ReleaseStatus'] == 'released')
+    previous = checked(before['Backup']['Generation'], HASH)
+    current = checked(after['Backup']['Generation'], HASH)
+    require(previous != current)
+    expected = copy.deepcopy(before)
+    expected['Backup']['Source']['ReleaseStatus'] = 'released'
+    expected['Backup']['Generation'] = current
+    require(after == expected)
+    return {**operator, 'beforeStatus': 'candidate', 'afterStatus': 'released',
+            'generationChanged': True, 'sourceIdentityPreserved': True,
+            'backupPolicyPreserved': True, 'result': 'success'}
 
 
 def parse_plan(output):
@@ -155,13 +183,15 @@ def installation(config, manifest, tag):
 
 
 def archive_facts(name, archive, sha, sidecar, manifest, source):
-    """Retain capture identity and sidecar bytes/hash, excluding all user and secret payloads."""
+    """Select only a post-repair released schema-3 capture, excluding all user and secret payloads."""
     checked(sha, HASH)
     checked(name, r'wayfarer-recovery-v1_[a-f0-9-]{36}_[0-9]{8}T[0-9]{13}Z_[a-f0-9-]{36}\.tar')
     require(sidecar == sha + '  ' + name + '\n')
     require(manifest['Archive'] == archive and manifest['Installation'] == source['installation'])
     require(manifest['Mode'] == 'quiesced')
     captured = manifest['Source']
+    status = checked(captured['ReleaseStatus'], r'candidate|released')
+    require(status == 'released' and captured['ConfigurationSchema'] == 3)
     require(captured['ApplicationVersion'] == source['manifestVersion'] and captured['SourceRevision'] == source['sourceRevision'])
     require(captured['ApplicationImage'] == 'ghcr.io/stef-k/wayfarer@' + source['appDigest'])
     require(captured['DatabaseImage'] == 'ghcr.io/stef-k/wayfarer-db@' + source['dbDigest'])
@@ -169,7 +199,7 @@ def archive_facts(name, archive, sha, sidecar, manifest, source):
     summary = {'applicationVersion': captured['ApplicationVersion'], 'sourceRevision': captured['SourceRevision'],
                'applicationImage': captured['ApplicationImage'], 'databaseImage': captured['DatabaseImage'],
                'project': captured['Project'], 'platform': 'linux/amd64',
-               'releaseStatus': checked(captured['ReleaseStatus'], r'stable|candidate'),
+               'releaseStatus': status,
                'workerVersion': checked(captured['WorkerVersion'], r'[0-9]{1,5}(\.[0-9]{1,5}){2,3}'),
                'quartzCompatibilityContract': checked(captured['QuartzCompatibilityContract'], r'[A-Za-z0-9.-]{1,128}'),
                'quartzSnapshotFingerprint': checked(captured['QuartzSnapshotFingerprint'], r'[a-f0-9]{32}'),

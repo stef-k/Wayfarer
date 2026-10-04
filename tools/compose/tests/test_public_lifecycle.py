@@ -12,7 +12,7 @@ import sys
 import tarfile
 import tempfile
 import unittest
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, call, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import public_lifecycle_evidence as evidence
@@ -267,6 +267,55 @@ class PublicLifecycleTests(unittest.TestCase):
             journey.host.return_value = subprocess.CompletedProcess([], 1, '', '')
             with self.assertRaises(ValueError):
                 journey.repair_source(public_target, operator)
+            journey.host.reset_mock()
+            journey.config.side_effect = [before, after]
+            journey.file_hash.return_value = 'f' * 64
+            with self.assertRaises(ValueError):
+                journey.repair_source(public_target, operator)
+            journey.host.assert_not_called()
+            before['Backup']['Source']['ReleaseStatus'] = 'released'
+            journey.config.side_effect = [before]
+            with self.assertRaises(ValueError):
+                journey.repair_source(public_target, operator)
+            journey.host.assert_not_called()
+
+    def test_capture_waits_for_successful_repair_observation(self):
+        """The real capture sequence aborts before backup when the direct repair fails its join."""
+        before, after, public_target = repair_state()
+        source, manifest, sidecar = capture()
+        public_source = {'executedBootstrapSha256': 'f' * 64}
+        journey = PublicJourney.__new__(PublicJourney)
+        journey.directory, journey.install = Path('/owned/journey'), Path('/owned/journey/installation')
+        journey.project, journey.loopback, journey.password = PROJECT, 8080, SECRET
+        journey.executable = journey.directory / 'wayfarerctl'
+        operator = journey.directory / 'target-bootstrap/wayfarerctl'
+        journey.config = Mock(side_effect=[before, before, after, after])
+        journey.prepare_public, journey.authenticate, journey.seed = Mock(), Mock(), Mock()
+        journey.start_proxy = Mock()
+        journey.read_json = Mock(return_value={'Images': {'CaddyDigest': source['caddyDigest']}})
+        journey.installed_facts = Mock(return_value=source)
+        hashes = {journey.executable: 'f' * 64, operator: 'e' * 64,
+                  journey.directory / 'destination' / NAME: 'd' * 64}
+        journey.file_hash = Mock(side_effect=hashes.__getitem__)
+        journey.ring_hashes = Mock(return_value={'key.xml': 'a' * 64})
+        journey.observe = Mock(return_value={key: True for key in evidence.CHECKS})
+        journey.ctl = Mock(return_value=subprocess.CompletedProcess([], 0,
+            'Archive ' + ARCHIVE + '\nIntegrity: True; compatible: True\n', ''))
+        journey.host = Mock(side_effect=[subprocess.CompletedProcess([], 0, NAME, ''),
+                                        subprocess.CompletedProcess([], 0, sidecar, ''),
+                                        subprocess.CompletedProcess([], 0, json.dumps(manifest), '')])
+        repair_call = call('release', 'repair-backup-source-v1.9.21', executable=operator)
+        capture_call = call('dispatch', 'backup', '--quiesced')
+        observed = journey.capture_source('/owned/cookie', public_source, public_target, operator)
+        self.assertEqual(observed[4]['afterStatus'], 'released')
+        self.assertLess(journey.ctl.call_args_list.index(repair_call), journey.ctl.call_args_list.index(capture_call))
+        after['Backup']['Generation'] = before['Backup']['Generation']
+        journey.config.side_effect = [before, before, after]
+        journey.ctl.reset_mock()
+        with self.assertRaises(ValueError):
+            journey.capture_source('/owned/cookie', public_source, public_target, operator)
+        self.assertIn(repair_call, journey.ctl.call_args_list)
+        self.assertNotIn(capture_call, journey.ctl.call_args_list)
 
     def test_update_ledger_joins_authority_and_drops_raw_plan_secrets(self):
         """Only exact-source Accepted same-generation update facts are emitted."""
