@@ -151,11 +151,9 @@ The published [Android 1.3.0 build](https://github.com/stef-k/WayfarerMobile/rel
 
 ### Tiles Not Loading
 
-- Verify server is accessible.
-- Check tile cache isn't full.
-- Clear cache and re-download if corrupted.
-
-Reconnect and view the affected area to refill its live tile cache. Trip downloads alone do not download basemap tiles.
+- Check internet access to OpenStreetMap, or whether the needed tiles were previously viewed and remain cached.
+- If the cache is corrupted, clear it in Map Cache settings, then reconnect and view the affected area to refill it.
+- Trip downloads alone do not download basemap tiles; downloaded Trip content remains separate from the live cache.
 
 ### Offline Queue or Missing History
 
