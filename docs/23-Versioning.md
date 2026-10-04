@@ -118,7 +118,7 @@ later supported stable and independent review of its retained run/ledger.
 the manually edited `WayfarerVersion` and derives standard MSBuild metadata from it:
 
 ```xml
-<WayfarerVersion>1.9.21</WayfarerVersion>
+<WayfarerVersion>1.9.22</WayfarerVersion>
 <Version>$(WayfarerVersion)</Version>
 <PackageVersion>$(WayfarerVersion)</PackageVersion>
 <AssemblyInformationalVersion>$(WayfarerVersion)</AssemblyInformationalVersion>
@@ -128,7 +128,7 @@ the manually edited `WayfarerVersion` and derives standard MSBuild metadata from
 `IAppVersionProvider` reads the compiled `AssemblyInformationalVersion`. The `version`
 CLI, `GET /api/version`, `X-Wayfarer-Version` and shared layout footer use that provider.
 Validate exact CLI output with `dotnet run --no-launch-profile -- version`; for the
-version above it prints exactly `Wayfarer 1.9.21`, without SDK launch-profile messages.
+version above it prints exactly `Wayfarer 1.9.22`, without SDK launch-profile messages.
 
 ## Release helper
 
@@ -169,6 +169,34 @@ Standard release validation is described once above. Native deployment follows
 [Updating Wayfarer](20-Deployment.md#updating-wayfarer): apply pending migrations and
 preserve PostgreSQL with its matching complete Data Protection ring. Publication
 never performs that deployment. These historical records are not current Compose procedures.
+
+## 1.9.22 release source record
+
+Prepared on 2026-10-04 from current main
+`9a83202a44c3df0bf43868e7dbf1e5faa7490b07` on
+`feature/748-release-1.9.22` for [#748 Phase 2](https://github.com/stef-k/Wayfarer/issues/748).
+The latest published stable at preparation is immutable v1.9.21. This candidate
+prepares the next normal patch source using `tools/release/version.py prepare 1.9.22`
+and moves all seven current Unreleased entries verbatim into the dated CHANGELOG
+section. Prior changelog entries and release source records remain unchanged.
+
+The preparation delta changes only version metadata, notes/provenance and the
+compiled-current-version assertion. Retain product qualification at its original
+reviewed heads and CI; current-head release/version checks, Code Guard, CI and
+independent exact-head review remain separate requirements.
+
+Accepted PostgreSQL 18.6/PostGIS 3.6.4 authority in
+[`database-release.json`](../tools/release/database-release.json) remains unchanged
+from #720 / [PR #722](https://github.com/stef-k/Wayfarer/pull/722). No database
+migration or dependency change is introduced since v1.9.21.
+
+This PR prepares release source only. Publication and normal AMD64/ARM64 public
+installation acceptance require separate authorization after independent review
+and merge through the existing application-release workflow. The supported public
+v1.9.21 update-source boundary is established only by that later publication.
+The retained #748 Phase-1 installation remains intact; Phase 3 and the independent
+post-publication lifecycle witness remain pending. This preparation supplies no
+public update or restore acceptance evidence.
 
 ## 1.9.21 release source record
 
