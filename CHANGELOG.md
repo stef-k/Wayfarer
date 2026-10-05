@@ -91,9 +91,9 @@
 ### Upgrade notes
 
 - This is source preparation for the first public Compose stable; publication and fresh public installation acceptance on both platforms remain pending. v1.9.19 and earlier provide source archives only and are not Compose update sources. The first stable is a fresh-install baseline, not stable-to-stable upgrade evidence. No public PG17 Compose baseline or PG17→PG18 upgrade path exists; native-to-Compose migration remains separate work under #604.
-- Native/manual upgrades from v1.9.19 must apply the additive `20260924220353_StablePersonalCredentialCompanion` migration and prepare credentials before F2 startup. Stop/quiesce at the original readable content root/identity, preserve a paired PostgreSQL/complete-ring backup, run `data-protection prepare-stable-identity` if needed, and require activation-ready `data-protection status`. Follow [F1-to-F2 activation](docs/24-Personal-Location-Providers.md#f1-preparation-to-f2-activation); preserve explicit ring overrides and ownership/permissions.
+- Native/manual upgrades from v1.9.19 must apply the additive `20260924220353_StablePersonalCredentialCompanion` migration and prepare credentials before F2 startup. Stop/quiesce at the original readable content root/identity, preserve a paired PostgreSQL/complete-ring backup, run `data-protection prepare-stable-identity` if needed, and require activation-ready `data-protection status`. Follow [F1-to-F2 activation](docs/self-hosting/native-manual.md#prepare-legacy-protected-credentials-before-stable-identity-activation); preserve explicit ring overrides and ownership/permissions.
 - The identity transition invalidates legacy sessions, antiforgery forms, Identity links and short-lived operation tokens; sign in again, reload forms and reissue links/tokens. Hashed Mobile/API bearer tokens remain valid. Credential mutation or verified legacy Mapbox retirement cuts off credential downgrade: recover with the paired pre-F2 set or re-enter credentials rather than deploying an old binary.
-- Before native Production restart, explicitly migrate, seed and secure administrator credentials, configure the trusted loopback proxy peer, and provision external storage plus release-matched Chromium/libraries. Existing native helpers do not replace this [maintenance sequence](docs/26-Application-Container.md#explicit-maintenance). No automatic native-file conversion, PostgreSQL major upgrade, cross-architecture migration or bootstrap self-update is introduced.
+- Before native Production restart, explicitly migrate, seed and secure administrator credentials, configure the trusted loopback proxy peer, and provision external storage plus release-matched Chromium/libraries. Existing native helpers do not replace this [maintenance sequence](docs/maintainer/application-container.md#explicit-maintenance). No automatic native-file conversion, PostgreSQL major upgrade, cross-architecture migration or bootstrap self-update is introduced.
 
 ## [1.9.19] - 2026-09-22
 
@@ -101,7 +101,7 @@
 - Hidden Area Create and Edit save longitude/latitude drawings with SRID 4326 and reject explicitly conflicting coordinate systems. A data migration repairs legacy SRID-0 polygons, correcting public Timeline points and statistics failures exposed by v1.9.18 (#601, PR #602).
 
 ### Upgrade notes
-- Deploy the corrected application together with migration `20260922182107_RepairHiddenAreaSrid`; stop the old application, apply pending migrations, then start the corrected application. Application-only deployment leaves legacy queries broken; migration-only deployment allows old writers to recreate the defect. See [Updating Wayfarer](docs/20-Deployment.md#updating-wayfarer).
+- Deploy the corrected application together with migration `20260922182107_RepairHiddenAreaSrid`; stop the old application, apply pending migrations, then start the corrected application. Application-only deployment leaves legacy queries broken; migration-only deployment allows old writers to recreate the defect. See [Updating Wayfarer](docs/self-hosting/native-manual.md#updating-a-native-installation).
 - The repair uses `ST_SetSRID` only for SRID-0 Hidden Areas: coordinates are not transformed and existing SRID-4326 polygons remain unchanged. Unexpected nonzero SRIDs abort the migration before any repair, with an inspection hint; verify their source coordinate system and correct them before retrying. Empty tables require no repair.
 - Downgrading the migration retains corrected metadata because repaired, originally correct, and subsequently created polygons cannot be distinguished safely. Do not reset all polygons to SRID 0, delete Hidden Areas, or disable privacy as an upgrade workaround.
 
@@ -112,7 +112,7 @@
 
 ### Upgrade notes
 - No database migration, API shape, dependency, or Mobile changes since v1.9.17. Private owner statistics remain unchanged.
-- Follow the existing [server-build deployment workflow](docs/20-Deployment.md#updating-wayfarer), then reload open pages. Older upgrades must still apply pending migrations; preserve PostgreSQL and its matching Data Protection key ring.
+- Follow the existing [server-build deployment workflow](docs/self-hosting/native-manual.md#updating-a-native-installation), then reload open pages. Older upgrades must still apply pending migrations; preserve PostgreSQL and its matching Data Protection key ring.
 
 ## [1.9.17] - 2026-09-17
 
@@ -121,7 +121,7 @@
 
 ### Upgrade notes
 - No database migration, API, dependency, or Mobile changes since v1.9.16.
-- Follow the existing [server-build deployment workflow](docs/20-Deployment.md#updating-wayfarer), then reload open pages. Older upgrades must still apply pending migrations; preserve PostgreSQL and its matching Data Protection key ring.
+- Follow the existing [server-build deployment workflow](docs/self-hosting/native-manual.md#updating-a-native-installation), then reload open pages. Older upgrades must still apply pending migrations; preserve PostgreSQL and its matching Data Protection key ring.
 
 ## [1.9.16] - 2026-09-15
 
@@ -134,7 +134,7 @@
 
 ### Upgrade notes
 - No database migration, API, dependency, or Mobile changes since v1.9.15. Older upgrades must still apply pending migrations; preserve PostgreSQL and its matching Data Protection key ring.
-- Follow the existing [server-build deployment workflow](docs/20-Deployment.md#updating-wayfarer), then reload open Wayfarer pages. Existing embed URLs remain valid; URL and HTML copying requires the public HTTPS address.
+- Follow the existing [server-build deployment workflow](docs/self-hosting/native-manual.md#updating-a-native-installation), then reload open Wayfarer pages. Existing embed URLs remain valid; URL and HTML copying requires the public HTTPS address.
 
 ## [1.9.15] - 2026-09-14
 
@@ -145,7 +145,7 @@
 
 ### Upgrade notes
 - No database migration, backend API, dependency, or Mobile changes since v1.9.14. Older upgrades must still apply pending migrations; preserve PostgreSQL and its matching Data Protection key ring.
-- Reload open Trip Editor pages after deployment. Follow the existing [server-build deployment workflow](docs/20-Deployment.md#updating-wayfarer) using this tagged source.
+- Reload open Trip Editor pages after deployment. Follow the existing [server-build deployment workflow](docs/self-hosting/native-manual.md#updating-a-native-installation) using this tagged source.
 
 ## [1.9.14] - 2026-09-07
 
@@ -155,7 +155,7 @@
 
 ### Upgrade notes
 - No database migration, API, or Mobile changes since v1.9.13. Older upgrades must still apply pending migrations; preserve PostgreSQL and its matching Data Protection key ring.
-- Reload open Trip Editor pages after deployment. Follow the [server-build deployment workflow](docs/20-Deployment.md#updating-wayfarer) using this tagged source.
+- Reload open Trip Editor pages after deployment. Follow the [server-build deployment workflow](docs/self-hosting/native-manual.md#updating-a-native-installation) using this tagged source.
 
 ## [1.9.13] - 2026-09-06
 
@@ -167,7 +167,7 @@
 ### Upgrade notes
 - No database migration was added since v1.9.12. Upgrades from older versions must still apply their pending migrations. Preserve PostgreSQL and its matching Data Protection key ring.
 - Route proposals now persist only through Save Segment; the separate acceptance endpoint is removed. Reload an already-open Trip Editor after upgrading. Segment planning labels remain independent of the explicitly selected provider directions mode.
-- Follow the [server-build deployment workflow](docs/20-Deployment.md#updating-wayfarer) using this tagged source.
+- Follow the [server-build deployment workflow](docs/self-hosting/native-manual.md#updating-a-native-installation) using this tagged source.
 
 ## [1.9.12] - 2026-09-06
 
@@ -177,7 +177,7 @@
 
 ### Upgrade notes
 - No database migration was added since v1.9.11; migration files and the model snapshot are unchanged. The latest migration remains `20260905095140_AddLocationProviderAddressLine1`. Upgrades from older versions must still apply their pending migrations. Preserve PostgreSQL and the matching Data Protection key ring.
-- Follow the [server-build deployment workflow](docs/20-Deployment.md#updating-wayfarer) using this release source.
+- Follow the [server-build deployment workflow](docs/self-hosting/native-manual.md#updating-a-native-installation) using this release source.
 
 ## [1.9.11] - 2026-09-06
 
@@ -190,7 +190,7 @@
 ## [1.9.10] - 2026-09-05
 
 ### Fixed
-- Location statistics now share exact ASCII-trimmed, parent-scoped grouping and combine “East Macedonia and Thrace” with “Eastern Macedonia and Thrace” only under “Greece”. Parent scoping can increase counts; the region correction can decrease them. Both Timeline views show missing-parent sections and safely encode labels; tied visits select one deterministic settlement coordinate (#573). See [Timeline statistics](docs/06-Timeline.md#statistics-grouping) for sources and the remaining string-only ambiguity: identical names within identical parents cannot be distinguished, while other alternate labels may still split one entity. Stored values and released-Mobile API shapes remain unchanged; no migration or provider calls are added.
+- Location statistics now share exact ASCII-trimmed, parent-scoped grouping and combine “East Macedonia and Thrace” with “Eastern Macedonia and Thrace” only under “Greece”. Parent scoping can increase counts; the region correction can decrease them. Both Timeline views show missing-parent sections and safely encode labels; tied visits select one deterministic settlement coordinate (#573). See [Timeline statistics](docs/user/timeline.md#understand-your-statistics) for sources and the remaining string-only ambiguity: identical names within identical parents cannot be distinguished, while other alternate labels may still split one entity. Stored values and released-Mobile API shapes remain unchanged; no migration or provider calls are added.
 - Geoapify Location enrichment now stores street then house number, keeps settlement and state at their documented levels, and retains the independent provider line. Location maps, tables, timelines, groups and edit summaries prioritize structured addresses and show nearby feature metadata beneath them (#572).
 - CSV history exports use an explicit-offset enrichment timestamp so valid retained provenance survives backend round trips (#572).
 - Backend history imports preserve internal newlines and tabs in retained provider address lines; GPX/KML round trips normalize line endings to LF (#572).

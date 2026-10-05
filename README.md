@@ -44,7 +44,7 @@ routine lifecycle, backup, update and restore.
 
 [![Public timeline](docs/images/public-timeline.JPG)](docs/images/public-timeline.JPG)
 
-[![Segment editing](docs/images/segment-edit-2.JPG)](docs/images/segment-edit-2.JPG)
+[![Trip planning](docs/images/user-trips.JPG)](docs/images/user-trips.JPG)
 
 ## Ongoing operation
 
