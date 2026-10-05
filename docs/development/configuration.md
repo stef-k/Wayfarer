@@ -30,7 +30,7 @@ See [Database](database.md) before changing migrations or persistence behavior.
 
 The `Storage` section binds to `StorageOptions` and is resolved once into `StoragePaths`:
 
-- `Storage:DataRoot` is durable state outside PostgreSQL, including uploads and the default Data Protection directory.
+- `Storage:DataRoot` is durable state outside PostgreSQL, including uploads and the default Data Protection directory. Location-import staging lives under `Storage:DataRoot/uploads/imports`; new database rows retain portable `imports/<guidN><extension>` references rather than host-specific staging paths. Existing same-host `Uploads/Temp` references are bounded legacy compatibility only.
 - `Storage:CacheRoot` is rebuildable cache state such as tiles, images and thumbnails.
 - `Storage:LogRoot` is the operational file-log directory.
 - `Storage:TempRoot` is ephemeral work.
