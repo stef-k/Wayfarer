@@ -88,7 +88,7 @@ Inspect a real diff with
 
 ## Code Guard
 
-Install the published distribution with `pipx install agent-code-guard==0.3.1` (or an isolated Python virtual environment), then run `code-guard --version` and `code-guard doctor --json`. Doctor must report healthy installation, configuration, Git, skill, and parser providers.
+Install the published distribution with `pipx install agent-code-guard==0.5.0` (or an isolated Python virtual environment), then run `code-guard --version` and `code-guard doctor --json`. Doctor must report healthy installation, configuration, Git, skill, and parser providers.
 
 Normal agent work uses `code-guard . --changed-only --json --json-mode compact`. Before completion, inspect the complete branch with `code-guard . --base-ref main --ci`. Outside Git, pass exact edited paths. `code-guard . --ci` is a deliberate full audit. Code Guard complements compilers, tests, linters, security checks, and design review.
 
@@ -100,9 +100,9 @@ Normal analysis never changes the ratchet. `code-guard . --create-loc-baseline` 
 
 `.agent-tools/code-guard.config.json` excludes generated migrations, `*.Designer.cs`, `*.g.cs`, `*.generated.cs`, minified JS/CSS, vendored `wwwroot/lib`, generated `wwwroot/dist` and `wwwroot/vite`, and the retained legacy Image/Tile caches and Uploads. These are all-guard boundaries; project-owned source/tests receive every supported guard. Built-in exclusions also omit build outputs, dependency directories, and local scratch artifacts.
 
-CI installs exactly 0.3.1 in an isolated Python 3.12 environment, verifies the version and doctor, and checks the event's exact PR base SHA with `--base-ref "$BASE_SHA" --ci`. Checkout retains full history. This gate runs even for documentation-only PRs; REVIEW remains visible, while FAIL/INCOMPLETE/tool errors fail the required `test` job.
+CI installs exactly 0.5.0 in an isolated Python 3.12 environment, verifies the version and doctor, and checks the event's exact PR base SHA with `--base-ref "$BASE_SHA" --ci`. Checkout retains full history. This gate runs even for documentation-only PRs; REVIEW remains visible, while FAIL/INCOMPLETE/tool errors fail the required `test` job.
 
-Find the version-matched agent skill with `code-guard --skill-path`. Activate that path where supported, or use `code-guard --export-skill <empty-target>` for the platform's global skill directory. Never overwrite a non-empty export; verify its `.agent-code-guard-version` marker matches 0.3.1. Global skill files are separate from repository commits. No hooks or compatibility runners are required.
+Find the version-matched agent skill with `code-guard --skill-path`. Activate that path where supported, or use `code-guard --export-skill <empty-target>` for the platform's global skill directory. Never overwrite a non-empty export; verify its `.agent-code-guard-version` marker matches 0.5.0. Global skill files are separate from repository commits. No hooks or compatibility runners are required.
 
 ## Testing approach
 
