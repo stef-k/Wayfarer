@@ -43,8 +43,12 @@ lifecycle qualification, container/Compose internals, exceptional recovery autho
 and platform qualification. Ordinary self-hosting and operation follow the
 Self-hosters path above.
 
-- [Versioning & Release Operations](23-Versioning.md) and [Application Image Publication](27-Application-Image-Publication.md).
-- [Container & Release Contract](25-Container-Release-Contract.md), [Application Container](26-Application-Container.md) and [Production Compose](28-Production-Compose.md).
+Start with the [Project Maintainer guide](maintainer/index.md), then use the specialist
+references for [Versioning](maintainer/versioning.md),
+[Release contract](maintainer/release-contract.md),
+[Application container](maintainer/application-container.md),
+[Publication](maintainer/publication.md) and
+[Production Compose](maintainer/production-compose.md).
 
 ---
 
