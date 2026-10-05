@@ -89,7 +89,7 @@ Manual check-in intentionally bypasses the automatic time/distance filtering use
 Current web streams include:
 
 - `GET /api/sse/stream/location-update/{username}`: anonymous only when that user's Timeline is effectively public and live. Eligibility is checked before subscription and again during protected delivery.
-- `GET /api/sse/import`: cookie-authenticated caller's import/enrichment reload-hint channel.
+- `GET /api/sse/import`: cookie-authenticated caller's import/enrichment reload-hint channel. It derives the protected channel only from the authenticated `NameIdentifier`; callers cannot select another user, import or workflow channel. This content-free SSE emits only `import-state` and `enrichment-state` hints, and clients reload authoritative relational state rather than treating the event as display data.
 - `GET /api/sse/group-notifications`: cookie-authenticated caller's invitation/membership reload-hint channel.
 - `GET /api/sse/group/{groupId}`: cookie-authenticated group-member event stream with heartbeat and delivery-time membership checks.
 

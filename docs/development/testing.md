@@ -24,7 +24,7 @@ Mocked/InMemory/controller tests prove their own seam. They do not automatically
 
 ## PostgreSQL and PostGIS tests
 
-Maintainer/guarded relational evidence uses PostgreSQL 17 with PostGIS and the dedicated persistent database named exactly `wayfarer_import_tests`. Attach it with `WAYFARER_TEST_POSTGRES_CONNECTION`.
+Maintainer/guarded relational evidence uses PostgreSQL 18 with PostGIS and the dedicated persistent database named exactly `wayfarer_import_tests`. Attach it with `WAYFARER_TEST_POSTGRES_CONNECTION`.
 
 Never point guarded fixtures at the normal `wayfarer` development database or at production. The fixtures validate the database name and use separate disposable schemas/databases where a test requires destructive migration ownership.
 

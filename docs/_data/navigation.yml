@@ -49,17 +49,17 @@ sections:
         url: /development/extending.html
       - title: Testing
         url: /development/testing.html
-  # Publication and qualification references remain owned by project maintainers
-  # until #775 migrates them.
   - title: Project Maintainers
     items:
-      - title: Versioning & Release Operations
-        url: /23-Versioning.html
-      - title: Container & Release Contract
-        url: /25-Container-Release-Contract.html
-      - title: Application Container
-        url: /26-Application-Container.html
-      - title: Application Image Publication
-        url: /27-Application-Image-Publication.html
+      - title: Start here
+        url: /maintainer/
+      - title: Versioning
+        url: /maintainer/versioning.html
+      - title: Release contract
+        url: /maintainer/release-contract.html
+      - title: Application container
+        url: /maintainer/application-container.html
+      - title: Publication
+        url: /maintainer/publication.html
       - title: Production Compose
-        url: /28-Production-Compose.html
+        url: /maintainer/production-compose.html

@@ -36,8 +36,8 @@ administrator.
 
 ## Platform and dependencies
 
-The current project baseline is .NET 10 and Node 24. The general native PostgreSQL
-runtime floor remains PostgreSQL 13+ with PostGIS.
+The current project baseline is .NET 10 and Node 24. Native/manual deployment uses
+PostgreSQL 18 with PostGIS.
 
 Ubuntu 24.04 is the primary maintained Linux baseline, but a native operator must
 verify package names and runtime dependencies for the chosen distribution.

@@ -33,13 +33,13 @@ class ApplicationImageScopeTests(unittest.TestCase):
         """The #725 parser correction has no image, runtime or native ownership."""
         self.assert_domains([
             'tools/release/version.py', 'tools/release/tests/test_version.py',
-            'docs/23-Versioning.md',
+            'docs/maintainer/versioning.md',
         ], {'release_tooling'})
 
     def test_docs_and_classifier_tests_only(self):
         """Ordinary documentation and classifier tests retain required cheap checks."""
         self.assert_domains([
-            'README.md', 'docs/22-Testing.md',
+            'README.md', 'docs/development/testing.md',
             'tools/ci/tests/test_application_image_scope.py',
         ], set())
         self.assert_domains([], set())
@@ -154,7 +154,7 @@ class ApplicationImageScopeTests(unittest.TestCase):
 
     def test_release_version_identity(self):
         """A future release bump proves only its tooling, compiled version and image identity."""
-        self.assert_domains(['Version.props', 'CHANGELOG.md', 'docs/23-Versioning.md',
+        self.assert_domains(['Version.props', 'CHANGELOG.md', 'docs/maintainer/versioning.md',
                              'tests/Wayfarer.Tests/Services/AppVersionProviderTests.cs'],
                             {'release_tooling', 'dotnet', 'app_image'})
 

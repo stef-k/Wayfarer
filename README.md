@@ -67,7 +67,7 @@ Browse the [documentation site](https://stef-k.github.io/Wayfarer/) or follow yo
 - **Users:** [User Guide](https://stef-k.github.io/Wayfarer/user/) for accounts, Timeline, Trips, Groups, Mobile and personal providers.
 - **Self-hosters:** [Self-hosting guide](https://stef-k.github.io/Wayfarer/self-hosting/) for installation, routine operation, backup, update, restore and troubleshooting.
 - **Developers & Contributors:** [Developer Guide](https://stef-k.github.io/Wayfarer/development/) for local development, architecture, APIs, database and testing.
-- **Project Maintainers:** [maintainer documentation](docs/README.md#project-maintainers) for release/version/publication ownership, lifecycle qualification, container/Compose internals and exceptional recovery authority.
+- **Project Maintainers:** [Maintainer guide](docs/maintainer/index.md) for release/version/publication ownership, lifecycle qualification and container/Compose authority.
 
 ## Mobile companion
 

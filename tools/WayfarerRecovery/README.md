@@ -1,7 +1,7 @@
 # Compose recovery engine
 
 `wayfarer-recovery` is a bundle-owned self-contained Linux AMD64 executable.
-The administrator-facing owner is [wayfarerctl](../../docs/29-Wayfarerctl.md#compose-recovery-sets).
+The administrator-facing owner is [wayfarerctl](../../docs/self-hosting/wayfarerctl.md).
 Do not invoke the private worker protocol as an alternative configuration authority.
 
 Manual, scheduled and host-reserved quiesced captures share `RecoveryEngine`.

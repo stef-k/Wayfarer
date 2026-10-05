@@ -23,13 +23,10 @@ public sealed class DeploymentScriptTests
         var project = System.Xml.Linq.XDocument.Load(RepositoryFile("Wayfarer.csproj"));
         Assert.DoesNotContain(project.Descendants("Folder"), folder =>
             ((string?)folder.Attribute("Include"))?.Replace('\\', '/').StartsWith("Uploads/") == true);
-        foreach (var name in new[] { "16-Configuration.md", "17-Services.md" })
-        {
-            var document = File.ReadAllText(RepositoryFile("docs", name));
-            Assert.Contains("Storage:DataRoot/uploads/imports", document);
-            Assert.DoesNotContain("Upload staging directory defaults under `Uploads/Temp/`", document);
-            Assert.DoesNotContain("Files uploaded to `Uploads/Temp/`", document);
-        }
+        var document = File.ReadAllText(RepositoryFile("docs", "development", "configuration.md"));
+        Assert.Contains("Storage:DataRoot/uploads/imports", document);
+        Assert.DoesNotContain("Upload staging directory defaults under `Uploads/Temp/`", document);
+        Assert.DoesNotContain("Files uploaded to `Uploads/Temp/`", document);
     }
 
     /// <summary>All current browser consumers delegate launch without an installer or discovery mutation.</summary>
@@ -135,6 +132,16 @@ public sealed class DeploymentScriptTests
         }
         foreach (var name in new[] { "appsettings.json", "appsettings.Development.json", "appsettings.Production.json" })
             Assert.DoesNotContain("LogFilePath", File.ReadAllText(RepositoryFile(name)));
+    }
+
+    /// <summary>The Windows browser fixture uses the maintained PostgreSQL 18 toolchain.</summary>
+    [Fact]
+    public void WaypointBrowserFixtureUsesPostgreSql18Tools()
+    {
+        var script = File.ReadAllText(RepositoryFile("tools", "run-407-waypoint-browser.ps1"));
+
+        Assert.Contains(@"C:\Program Files\PostgreSQL\18\bin", script);
+        Assert.DoesNotContain(@"C:\Program Files\PostgreSQL\17\bin", script);
     }
 
     /// <summary>Actual template refresh retains quoted compatibility paths and gives new installs no old override.</summary>

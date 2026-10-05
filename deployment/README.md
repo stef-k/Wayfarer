@@ -1,355 +1,188 @@
-# Wayfarer Deployment Files
+# Native deployment helpers
 
-This directory contains ready-to-use configuration files and scripts for deploying Wayfarer in production.
+This directory contains the scripts and templates for Wayfarer's advanced native
+systemd/Nginx deployment path. The supported default production path is Docker
+Compose with `wayfarerctl`; start with the
+[Self-hosting guide](../docs/self-hosting/index.md).
 
-## Files Overview
+For native installation, upgrade, storage, Data Protection, browser and recovery
+requirements, use the
+[Native/manual deployment guide](../docs/self-hosting/native-manual.md). This file
+only documents behavior unique to the scripts in this directory.
 
-### Deployment Automation
+## Maintained native prerequisites
 
-**`install.sh`** – Interactive installer
+The maintained native baseline is:
 
-- Installs system packages (PostgreSQL + PostGIS, Nginx, runtime libs)
-- Installs or verifies Node.js/npm build tooling for server-build deployments
-- Creates DB + user and enables PostGIS/citext
-- Creates deployment directory and app user
-- Prepares durable `/var/lib/wayfarer/uploads/imports` with application-user ownership
-- Installs systemd service, Nginx vhost, Fail2ban jails
-- Optionally configures HTTPS via Certbot
-- Can run `deploy.sh` for the first deployment
+- .NET 10;
+- Node.js 24/npm on the build host;
+- PostgreSQL 18 with PostGIS and `citext`;
+- a Linux systemd host and reverse proxy;
+- the Playwright Chromium revision matched to the deployed Wayfarer release.
 
-**`deploy.sh`** – Automated deployment script
+`install.sh` installs PostgreSQL/PostGIS through the host's configured apt sources.
+Before using it, ensure those sources resolve the PostgreSQL packages to the maintained
+major 18. The script is not a PostgreSQL-major migration tool and must not be used to
+replace or reuse an incompatible physical cluster.
 
-- Pulls code from Git
-- Runs `npm ci` and `npm run build` for Trip Editor Vite assets before `dotnet publish`
-- Builds the application
-- Applies database migrations
-- Deploys to the production directory
-- Handles permissions automatically
-- Preserves user data directories, including the legacy application-root `Uploads` tree
-- Prepares durable import staging before service startup; never moves legacy files or rewrites DB rows
+## Scripts
 
-**`uninstall.sh`** – Clean removal script
+### `install.sh`
 
-- Stops and disables the systemd service
-- Removes systemd unit, Nginx vhost, Fail2ban jails
-- Optionally drops the Wayfarer DB and user (`--purge-db`)
-- Optionally deletes the Certbot certificate
-- Leaves system packages in place, including Node.js/npm build tooling
+The interactive installer prepares a native host. It:
 
-**Usage:**
+- installs/verifies PostgreSQL/PostGIS, Nginx, .NET and Node/npm build prerequisites;
+- creates the configured PostgreSQL database/user and enables PostGIS/`citext`;
+- creates the application service identity and deployment directory;
+- prepares the durable application/cache/log paths used by the native Production
+  profile;
+- installs or refreshes systemd, Nginx and optional Fail2ban configuration;
+- can request HTTPS through Certbot;
+- can run `deploy.sh` for the initial application deployment.
 
-### First-time install (fresh server)
+The installer supports the existing environment-variable/non-interactive options in
+the script. Review the script and templates before running them on a host.
 
-```bash
-# 1. Clone the repo
-git clone https://github.com/yourusername/Wayfarer.git
-cd Wayfarer/deployment
+### `deploy.sh`
 
-# 2. Make scripts executable
-chmod +x install.sh deploy.sh uninstall.sh
+The deployment script works from a source checkout. It:
 
-# 3. Run interactive installer (recommended)
-./install.sh
+- fetches the requested branch/tag;
+- restores .NET dependencies and repository tools;
+- builds the Trip Editor with `npm ci` / `npm run build`;
+- publishes the ASP.NET application;
+- applies EF migrations using
+  `Wayfarer.Models.ApplicationDbContext`;
+- stops the service, synchronizes the published tree, preserves the bounded legacy
+  `Uploads`, `TileCache` and `ImageCache` trees, prepares current external
+  storage roots and restarts the service.
 
+The main overrides are:
 
-# Deploy from main
-./deployment/deploy.sh
+~~~sh
+APP_DIR=/absolute/source DEPLOY_DIR=/var/www/wayfarer APP_USER=wayfarer SERVICE_NAME=wayfarer REF=vX.Y.Z ./deployment/deploy.sh
+~~~
 
-# Deploy specific branch/tag
-REF=v1.2.0 ./deployment/deploy.sh
-```
+Run it as the account that owns the source checkout and has the required bounded
+`sudo` privileges. Do not run it as a substitute for the Compose lifecycle.
 
----
+### `uninstall.sh`
 
-### Systemd Service
+The removal helper stops/disables the native service and removes the native templates
+it owns. Database and certificate deletion remain explicit opt-in actions. Review its
+options before use; uninstalling application files is not a backup or recovery path.
 
-**`wayfarer.service`** - Systemd service configuration
+## Templates
 
-- Runs Wayfarer as a system service
-- Auto-restart on failure
-- Starts on system boot
-- Fully documented with customization points
+- `wayfarer.service` provides the systemd unit shape.
+- `nginx-ratelimit.conf` and `wayfarer-nginx-vhost.conf` provide the native
+  Nginx rate-limit/proxy shape.
+- `wayfarer-nginx.conf` and the matching filter files provide optional Fail2ban
+  policy.
+- `refresh-service.py` refreshes the service template while preserving an existing
+  explicit Data Protection key-ring assignment.
 
-**New installation:** Existing services must retain their explicit key-ring override; use `install.sh` for a compatibility-preserving template refresh.
+Customize paths, service user, public host, proxy/TLS settings and protected database
+configuration for the target host.
 
-```bash
-sudo cp deployment/wayfarer.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable wayfarer
-sudo systemctl start wayfarer
-```
+## Frontend build contract
 
----
+The Trip Editor is built into `wwwroot/vite/trip-editor`; Production does not run a
+Node service.
 
-### Nginx Configuration
+For production-like source acceptance, restore the repository tool and build both
+frontend pipelines before publish:
 
-**`nginx-ratelimit.conf`** – Global rate-limit configuration
-
-- Defines `limit_req_zone` and `limit_conn_zone` contexts
-- Zones used by the Wayfarer vhost (wayfarer_general, wayfarer_login, wayfarer_api, wayfarer_404, wayfarer_conn)
-- Installed to `/etc/nginx/conf.d/nginx-ratelimit.conf` by `install.sh`
-
-**`wayfarer-nginx-vhost.conf`** – Wayfarer reverse proxy
-
-- HTTP → HTTPS redirect
-- SSL/TLS configuration (Let’s Encrypt compatible)
-- Security headers
-- Static file serving from `/var/www/wayfarer/wwwroot`
-- Proxies to Kestrel on `http://localhost:5000`
-- Uses the rate-limit zones defined in `nginx-ratelimit.conf`
-
-
-**Installation:** See file header for detailed instructions
-
----
-
-### Fail2ban Protection
-
-**`wayfarer-nginx.conf`** – Fail2ban jail configuration
-
-- Scanner bot protection
-- Brute-force login protection
-- 404 flood protection
-- Uses `/var/log/nginx/wayfarer-access.log` as log source (customize if needed)
-
-**`wayfarer-nginx-404.conf`**, **`wayfarer-nginx-login.conf`**, **`wayfarer-nginx-scanner.conf`** – Filter definitions
-
-- Regex patterns for 404 floods, login failures, and generic scanner activity
-- Scanner bot protection
-- Brute force login protection
-- Configurable thresholds
-
-**Installation (manual):**
-
-```bash
-sudo cp deployment/wayfarer-nginx.conf /etc/fail2ban/jail.d/wayfarer-nginx.conf
-sudo cp deployment/wayfarer-nginx-404.conf /etc/fail2ban/filter.d/wayfarer-nginx-404.conf
-sudo cp deployment/wayfarer-nginx-login.conf /etc/fail2ban/filter.d/wayfarer-nginx-login.conf
-sudo cp deployment/wayfarer-nginx-scanner.conf /etc/fail2ban/filter.d/wayfarer-nginx-scanner.conf
-sudo systemctl restart fail2ban
-
----
-
-## Complete Deployment Workflow
-
-### First-Time Setup
-
-1. **Clone repository:**
-
-   ```bash
-   cd /home/youruser
-   git clone https://github.com/yourusername/wayfarer.git Wayfarer
-   ```
-
-2. **Setup systemd service:**
-
-   ```bash
-   sudo cp Wayfarer/deployment/wayfarer.service /etc/systemd/system/
-   sudo nano /etc/systemd/system/wayfarer.service  # Customize if needed
-   sudo systemctl daemon-reload
-   sudo systemctl enable wayfarer
-   ```
-
-3. **Configure deployment script:**
-
-   ```bash
-   cd Wayfarer
-   chmod +x deployment/deploy.sh
-   nano deployment/deploy.sh  # Set APP_DIR, DEPLOY_DIR, etc.
-   ```
-
-4. **Run first deployment:**
-
-   ```bash
-   ./deployment/deploy.sh
-   ```
-
-5. **Setup nginx (optional but recommended):**
-
-   ```bash
-   # Edit and customize first
-   nano deployment/nginx-ratelimit.conf
-   sudo cp deployment/nginx-ratelimit.conf /etc/nginx/sites-available/wayfarer
-   sudo ln -s /etc/nginx/sites-available/wayfarer /etc/nginx/sites-enabled/
-   sudo nginx -t
-   sudo systemctl reload nginx
-   ```
-
-6. **Setup fail2ban (optional but recommended):**
-
-   ```bash
-   sudo cp deployment/fail2ban-wayfarer-filter.conf /etc/fail2ban/filter.d/wayfarer.conf
-   # Edit jail config to set correct log path
-   nano deployment/fail2ban-wayfarer-jail.conf
-   # Add to /etc/fail2ban/jail.local
-   sudo systemctl restart fail2ban
-   ```
-
-   ### HTTPS / Certbot
-
-- `install.sh` can optionally install `certbot` + `python3-certbot-nginx` and request a Let’s Encrypt certificate for your domain.
-- `uninstall.sh` can optionally delete the Certbot certificate (interactive or via `CERTBOT_DOMAIN` + `PURGE_CERT=1`).
-
-### Updating Wayfarer
-
-Simply run the deployment script:
-
-```bash
-cd /home/youruser/Wayfarer
-./deployment/deploy.sh
-```
-
-Or deploy a specific version:
-
-```bash
-REF=v1.3.0 ./deployment/deploy.sh
-```
-
-### Frontend Build Requirement
-
-The Vue/Vite Trip Editor workspace is built into local static assets under
-`wwwroot/vite/trip-editor`. The production shell reads
-`wwwroot/vite/trip-editor/manifest.json` and then loads the CSS/JS assets listed
-by that manifest from the same folder. These generated files are build output
-and are not committed. Production remains a single ASP.NET Core app; it does not
-run a Node service or SSR process.
-
-For the current server-build deployment model, `install.sh` installs or verifies
-Node.js/npm on the build host. Node/npm are build-host tooling only; no Node
-runtime service is installed or configured.
-
-During deployment, `deploy.sh` runs the Trip Editor frontend build before
-`dotnet publish`:
-
-```bash
-npm ci
-npm run build
-dotnet publish
-```
-
-For production-like local acceptance, restore the repository-local tool and
-generate MvcFrontendKit bundles before the remaining frontend build and publish:
-
-```bash
+~~~sh
 dotnet tool restore
 dotnet frontend build
 npm ci
 npm run build
-dotnet publish
-```
+dotnet publish Wayfarer.csproj -c Release -o /absolute/publish
+~~~
 
-Then run the published output. Source-tree
-`ASPNETCORE_ENVIRONMENT=Production dotnet run` is not the supported bundle
-acceptance path because local scoped CSS static web assets are generated outside
-`wwwroot`.
-The published output must include
-`wwwroot/vite/trip-editor/manifest.json` plus the CSS/JS files referenced by
-that manifest.
+The published output must contain the Trip Editor manifest and referenced assets.
+A source-tree Production run is not equivalent to validating the published output.
 
-If builds later move to CI or another artifact builder, Node/npm are required on
-that build host only. The production runtime remains the ASP.NET Core app serving
-local static Vite assets, with no SSR process.
+## Database and application configuration
 
----
+Database credentials are supplied through protected host configuration, normally the
+systemd environment, rather than committed `appsettings*.json`.
 
-## Secrets Management
+ASP.NET Core nested environment keys use double underscores, for example:
 
-**Database credentials are configured via systemd environment variables**, not in appsettings.json files.
-
-The `appsettings.json` files contain **placeholder passwords** (`CHANGE_ME_BEFORE_DEPLOY`). These are overridden at runtime by the systemd service configuration.
-
-### How It Works
-
-1. **appsettings.json** (committed to repo) contains placeholder:
-   ```json
-   "DefaultConnection": "Host=localhost;...;Password=CHANGE_ME_BEFORE_DEPLOY"
-   ```
-
-2. **wayfarer.service** (on production server) contains real credentials:
-   ```ini
-   Environment="ConnectionStrings__DefaultConnection=Host=localhost;Database=wayfarer;Username=wayfarer_user;Password=REAL_SECRET"
-   ```
-
-3. ASP.NET Core automatically uses the environment variable, ignoring the JSON placeholder.
-
-### Automatic Configuration
-
-The `install.sh` script automatically:
-- Prompts for database password during installation
-- Writes the connection string to the systemd service file
-- Reloads systemd to apply changes
-
-The `deploy.sh` script automatically:
-- Reads the connection string from the systemd service file before running migrations
-- Applies production migrations with the explicit `Wayfarer.Models.ApplicationDbContext` owner
-- No need to manually export environment variables
-
-### Manual Configuration
-
-If configuring manually, add these lines to `/etc/systemd/system/wayfarer.service` under `[Service]`:
-
-```ini
-Environment="ConnectionStrings__DefaultConnection=Host=localhost;Database=wayfarer;Username=wayfarer_user;Password=YOUR_SECURE_PASSWORD"
-Environment=Application__ContactEmail=admin@your-domain.example
-# One exact public hostname
+~~~ini
+Environment="ConnectionStrings__DefaultConnection=Host=localhost;Database=wayfarer;Username=wayfarer_user;Password=..."
 Environment="AllowedHosts=wayfarer.example.com"
-# Multiple exact public hostnames
-Environment="AllowedHosts=wayfarer.example.com;www.wayfarer.example.com"
-```
+Environment="TrustedProxy__Addresses__0=127.0.0.1"
+~~~
 
-The `Application__ContactEmail` is included in the User-Agent header sent to tile providers (e.g. OpenStreetMap) for policy compliance.
-`AllowedHosts` authorizes the public Wayfarer hostnames used for the origin-only provider Referer. Enter semicolon-separated exact public DNS hostnames. Do not include wildcards, IP literals, localhost/private names, ports, or URL schemes. The installer preserves a valid existing hostname list before considering `CERTBOT_DOMAIN`; otherwise it prompts or warns without guessing.
+Keep real credentials out of the repository and shell output. The
+[Native/manual guide](../docs/self-hosting/native-manual.md) owns the current
+maintenance/bootstrap sequence and reverse-proxy contract.
 
-Then reload: `sudo systemctl daemon-reload && sudo systemctl restart wayfarer`
+## Storage and compatibility paths
 
----
+Current native Production storage uses the configured `Storage` roots, with the
+standard Linux locations under:
 
-## Customization Required
+~~~text
+/var/lib/wayfarer
+/var/cache/wayfarer
+/var/log/wayfarer
+/tmp/wayfarer
+~~~
 
-All files use **placeholders** that must be customized for your deployment:
+The scripts prepare current import, tile, image, thumbnail and log locations while
+retaining the bounded legacy `Uploads`, `TileCache` and `ImageCache` trees used by
+older same-host references. They do not bulk-rewrite database paths or treat a cache
+directory as durable backup data.
 
-| File | What to Customize |
-|------|-------------------|
-| `deploy.sh` | `APP_DIR`, `DEPLOY_DIR`, `APP_USER`, `SERVICE_NAME` |
-| `wayfarer.service` | `User`, `WorkingDirectory`, port in `--urls`, **connection string**, `Application__ContactEmail`, `AllowedHosts` |
-| `nginx-ratelimit.conf` | Domain name, SSL paths, Kestrel port, log paths |
-| `fail2ban-wayfarer-jail.conf` | `logpath` (must match your actual log location) |
+The canonical source-development storage/configuration contract is in
+[Development configuration](../docs/development/configuration.md).
 
----
+## Data Protection and recovery
 
-## Documentation
+The complete active Data Protection key ring is durable authority and must be backed
+up together with PostgreSQL and durable uploads/imports. The service-template refresh
+preserves an existing explicit `DataProtection__KeyRingPath` assignment rather than
+silently relocating it.
 
-For complete installation and deployment guide, see:
+Do not delete or merge key rings as a troubleshooting step. Follow the
+[Native/manual deployment guide](../docs/self-hosting/native-manual.md#data-protection-key-ring)
+for preparation, backup and restore requirements.
 
-- **[Deployment Guide](../docs/20-Deployment.md)** - Full deployment guide
-- **[Quick Start](02-Install-and-Dependencies.md)** - Quick start guide
+## Chromium provisioning
 
----
+Browser/PDF features require the Playwright Chromium bundle matched to the deployed
+Wayfarer release. Wayfarer does not install browsers during application startup.
 
-## Support
+Follow
+[Provision Playwright Chromium](../docs/self-hosting/native-manual.md#provision-playwright-chromium)
+before relying on browser-backed features.
 
-- **Documentation:** See `docs/` directory
-- **Issues:** Open an issue on GitHub
-- **Security:** See deployment guide for hardening checklist
+## Usage examples
 
----
+First-time native setup:
 
-**Note:** All configuration files are templates designed for open-source deployment. Always review and customize for your specific environment before using in production.
+~~~sh
+git clone https://github.com/stef-k/Wayfarer.git
+cd Wayfarer
+chmod +x deployment/install.sh deployment/deploy.sh deployment/uninstall.sh
+./deployment/install.sh
+~~~
 
-## Import staging transition
+Deploy the configured `main` branch:
 
-The existing Linux-oriented Production profile supplies all four `Storage` roots: DataRoot `/var/lib/wayfarer`, CacheRoot `/var/cache/wayfarer`, LogRoot `/var/log/wayfarer`, and TempRoot `/tmp/wayfarer`. Normal environment overrides such as `Storage__DataRoot` retain precedence. Operators overriding DataRoot must prepare its `uploads/imports` directory with service-user ownership. Location-import staging (#615) and new TileCache writes (#617) adopt the new authority. Scripts prepare `/var/cache/wayfarer/tiles` with application-user ownership while retaining the deployed `TileCache` tree/exclusion. If overriding `Storage__CacheRoot`, prepare its `tiles` subdirectory before startup. `CacheSettings:TileCacheDirectory` locates legacy tiles only; ordinary operations never migrate files or rewrite old DB paths.
+~~~sh
+./deployment/deploy.sh
+~~~
 
-New rows persist `imports/<guidN><extension>` and remain portable across hosts. Known same-host legacy `Uploads/Temp` paths remain readable/deletable without silent rewriting; foreign paths need explicit migration. Keep the old Uploads exclusion/tree. Backup classification remains #533; actual M6 migration remains #604.
+Deploy a specific tag:
 
-Native ImageCache transition (#623): new writes use `StoragePaths.Images`, and install/deploy prepares `/var/cache/wayfarer/images` with application-user ownership. Retain `$DEPLOY_DIR/ImageCache`, its rsync exclusion and existing permissions for bounded legacy reads. Keep customized `CacheSettings:ImageCacheDirectory` as the deprecated legacy-root input. Operators overriding `Storage__CacheRoot` must prepare its `images` subdirectory before startup. New metadata uses logical `.dat` filenames; legacy reads remain in place, while successful refresh promotes to a current-root generation only after metadata commit. No bulk migration or EF schema migration is introduced; routine ImageCache backups remain excluded/rebuildable. See [configuration](../docs/16-Configuration.md) for explicit compatible-cache migration guidance.
+~~~sh
+REF=vX.Y.Z ./deployment/deploy.sh
+~~~
 
-## Stable Data Protection activation
-
-Before starting an F2 upgrade, follow [source preparation and activation](../docs/24-Personal-Location-Providers.md#f1-preparation-to-f2-activation).
-The installer refreshes service templates through `refresh-service.py`, retaining
-installed `DataProtection__KeyRingPath` assignments verbatim. Keep this helper beside
-`install.sh`. New installs use `/var/lib/wayfarer/data-protection` with mode `0700`;
-existing native overrides stay active. Install/deploy never relocate the ring.
-Use offline status to identify the resolved active path for paired DB/ring backups.
-Sessions and protected forms/links require reissue; API hashes remain valid.
+For routine supported Compose operation, use
+[Operations](../docs/self-hosting/operations.md) instead of these native scripts.
