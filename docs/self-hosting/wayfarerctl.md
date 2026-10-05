@@ -279,6 +279,12 @@ wayfarerctl restore \
 There is no generic `--yes`. The accepted hash binds the exact planned archive
 and target state.
 
+By default, restore on an existing installation requires a fresh verified quiesced
+emergency recovery set before activation. If the source is genuinely broken or the
+recovery destination/capacity is unavailable, `--without-emergency-backup` may be
+included **when planning**. This is a destructive waiver bound into that plan hash;
+it cannot be added during execution of a different plan.
+
 Restore stages database, key ring and Uploads into fresh candidate storage, validates
 them offline, then activates the candidate. It never merges key rings, silently
 runs an arbitrary archive migration, or trusts archive metadata as target authority.
