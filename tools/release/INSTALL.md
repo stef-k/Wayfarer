@@ -63,14 +63,14 @@ recovery set. Migration is forward-only in the current generation. After migrati
 may have started, `update --restore UUID` transfers ownership to managed restore of
 the held old-release archive into a fresh generation; an old image is not rollback.
 Retain current/previous bundles, operators, images, receipts and recovery holds.
-Public acquisition can prepare these same inputs. See `docs/29-Wayfarerctl.md`
+Public acquisition can prepare these same inputs. See `docs/self-hosting/wayfarerctl.md`
 for phase and recovery details.
 
 Some bundles retain an independently trusted historical recovery capture pair under
 `capture/`, described by `LegacyCapture` in `release.json`. Its exact files are part
 of the immutable hashed inventory; do not select capture authority from an archive
 manifest. Maintainer assembly requirements belong to the
-local release contract in `docs/25-Container-Release-Contract.md`
+local release contract in `docs/maintainer/release-contract.md`
 (`Local release authority v1`).
 
 Target export selects the historical pair when present; append `current` to select
@@ -135,7 +135,7 @@ option. Continuation finishes interrupted publication of verified initial files 
 checks the original protected configuration, secrets and receipt. Existing bytes
 must match; credentials are never regenerated or replaced. If protected state
 **"cannot safely resume"**, preserve it and have an administrator follow protected-state
-reconciliation in `docs/29-Wayfarerctl.md` (`Interrupted setup and troubleshooting`).
+reconciliation in `docs/self-hosting/wayfarerctl.md#setup-interruption`.
 Another setup attempt cannot repair changed or unreceipted files.
 
 ```sh
@@ -177,5 +177,5 @@ PostGIS 3.6.4 (`3.6.4+dfsg-2.pgdg12+1`) on Bookworm. The durable DB volume mount
 Use the bundle's exact native DB manifest; do not substitute an index, mutable tag,
 different major or an existing PG17 physical cluster. DB-major migration is outside
 ordinary setup/update. See the
-operator guide in `docs/29-Wayfarerctl.md`
+operator guide in `docs/self-hosting/wayfarerctl.md`
 for ongoing operation and recovery.
