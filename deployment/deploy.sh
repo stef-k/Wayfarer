@@ -197,7 +197,7 @@ DOTNET_ENVIRONMENT=$DOTNET_ENVIRONMENT dotnet ef database update \
   --context Wayfarer.Models.ApplicationDbContext
 
 # Browser features require a preinstalled runtime before service use.
-# Provision the release-matched browser and OS libraries explicitly; see docs/20-Deployment.md.
+# Provision the release-matched browser and OS libraries explicitly; see docs/self-hosting/native-manual.md#provision-playwright-chromium.
 
 # Step 6: Stop service
 echo "[7/8] Stopping $SERVICE_NAME service..."
