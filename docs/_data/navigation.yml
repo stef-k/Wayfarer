@@ -31,26 +31,24 @@ sections:
       - title: Native/manual deployment
         url: /self-hosting/native-manual.html
 
-  # Existing development references remain reachable until #774 migrates them.
   - title: Developers & Contributors
     items:
-      - title: Developer Guide
-        url: /13-Developer-Guide.html
-      - title: Local setup
-        url: /14-Setup.html
+      - title: Start here
+        url: /development/
       - title: Architecture
-        url: /15-Architecture.html
+        url: /development/architecture.html
       - title: Configuration
-        url: /16-Configuration.html
-      - title: Services and jobs
-        url: /17-Services.html
-      - title: API reference
-        url: /18-API.html
+        url: /development/configuration.html
       - title: Database
-        url: /19-Database.html
+        url: /development/database.html
+      - title: API
+        url: /development/api.html
+      - title: Security
+        url: /development/security.html
+      - title: Extending Wayfarer
+        url: /development/extending.html
       - title: Testing
-        url: /22-Testing.html
-
+        url: /development/testing.html
   # Publication and qualification references remain owned by project maintainers
   # until #775 migrates them.
   - title: Project Maintainers
