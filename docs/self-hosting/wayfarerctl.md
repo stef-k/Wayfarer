@@ -200,8 +200,17 @@ The destination must already exist and be dedicated to Wayfarer. First
 configuration refuses a non-empty or unsafe destination.
 
 For `--kind mounted`, the administrator owns the mount. Wayfarer does not mount
-NAS storage or manage NAS credentials. Use a dedicated propagating parent with one
-child named `slot` as described by the operator's validation.
+NAS storage or manage NAS credentials. Use a dedicated root-owned mode-0755 parent
+with shared mount propagation and exactly one child named `slot`, for example:
+
+```text
+/srv/wayfarer-remote/
+  slot/
+```
+
+Wayfarer binds only that `slot` through the validated one-way propagation boundary.
+If the mount disappears or is substituted, capture fails instead of writing into the
+local underlay.
 
 Default policy is daily at 03:00 UTC, stable 0–15 minute installation jitter and
 seven retained complete sets.
