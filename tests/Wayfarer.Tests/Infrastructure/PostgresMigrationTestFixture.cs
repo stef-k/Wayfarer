@@ -232,7 +232,7 @@ internal sealed class NpgsqlMigrationDatabaseOperations : IPostgresMigrationData
         command.CommandText = "SELECT current_database(), current_setting('server_version_num')::integer";
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         await reader.ReadAsync(cancellationToken);
-        if (!string.Equals(reader.GetString(0), "wayfarer_import_tests", StringComparison.Ordinal) || reader.GetInt32(1) / 10000 != 17)
+        if (!string.Equals(reader.GetString(0), "wayfarer_import_tests", StringComparison.Ordinal) || reader.GetInt32(1) / 10000 != 18)
             throw new InvalidOperationException("Unexpected PostgreSQL test server.");
     }
 
