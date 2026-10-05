@@ -26,7 +26,7 @@ public static class Help
             "  Setup shows progress and retries temporary download failures at most three times. Integrity/safety failures stop immediately.\n" +
             "  If setup says it has not started, correct the reported cause and run the same setup command again.\n" +
             "  If setup says it has started, use setup --resume; verified initial files, credentials and service data are retained.\n" +
-            "  If protected state cannot safely resume, preserve it and ask an administrator to follow docs/29-Wayfarerctl.md#interrupted-setup-and-troubleshooting. Do not delete files or volumes.\n" +
+            "  If protected state cannot safely resume, preserve it and ask an administrator to follow docs/self-hosting/wayfarerctl.md#setup-interruption. Do not delete files or volumes.\n" +
             "  Image identities come from validated release.json. Interactive prompts ask for hostname/proxy/admin choices. Fresh installation only.\n" +
             "  Local raw/candidate qualification only: --bundle PATH --app-digest sha256:HEX (never a stable override).\n" +
             "  Continue owned partial setup: setup --resume [--password-stdin] [--retry-admin]\n" +
