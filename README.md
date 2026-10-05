@@ -66,7 +66,7 @@ Browse the [documentation site](https://stef-k.github.io/Wayfarer/) or follow yo
 
 - **Users:** [User Guide](https://stef-k.github.io/Wayfarer/user/) for accounts, Timeline, Trips, Groups, Mobile and personal providers.
 - **Self-hosters:** [Self-hosting guide](https://stef-k.github.io/Wayfarer/self-hosting/) for installation, routine operation, backup, update, restore and troubleshooting.
-- **Developers & Contributors:** [Developer Guide](https://stef-k.github.io/Wayfarer/13-Developer-Guide.html) for local development, architecture, APIs, database and testing.
+- **Developers & Contributors:** [Developer Guide](https://stef-k.github.io/Wayfarer/development/) for local development, architecture, APIs, database and testing.
 - **Project Maintainers:** [maintainer documentation](docs/README.md#project-maintainers) for release/version/publication ownership, lifecycle qualification, container/Compose internals and exceptional recovery authority.
 
 ## Mobile companion
@@ -78,9 +78,9 @@ See the [Mobile App guide](docs/user/mobile.md) for setup and usage.
 ## Development and contribution
 
 The web app uses ASP.NET Core with PostgreSQL/PostGIS, Razor and JavaScript, plus a
-Vue/Vite Trip Editor. Start with the [Developer Guide](docs/13-Developer-Guide.md)
-for local setup, project structure, [services and jobs](docs/17-Services.md),
-[API documentation](docs/18-API.md), testing and contribution expectations.
+Vue/Vite Trip Editor. Start with the [Developer Guide](docs/development/index.md)
+for local setup, project structure, [services and jobs](docs/development/architecture.md),
+[API documentation](docs/development/api.md), testing and contribution expectations.
 
 ## Project and support
 

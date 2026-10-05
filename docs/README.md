@@ -33,7 +33,7 @@ For installing and operating your own instance, start with the
 ## Developers & Contributors
 
 For local development, architecture, configuration, services, APIs, database work,
-testing and contributing. The [Developer Guide](13-Developer-Guide.md) explains where
+testing and contributing. The [Developer Guide](development/index.md) explains where
 to start and how the frontend and backend fit together.
 
 ## Project Maintainers

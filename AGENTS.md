@@ -61,7 +61,7 @@
 - Load only the bundled policy guidance named in `requiredPolicies`. Report accepted reviews and the final result.
 - All six guards retain shipped thresholds. LOC above 400 triggers review; above 600 fails unless covered by the committed non-increasing allowance. Exactly 400 passes and exactly 600 reviews.
 - `.agent-tools/code-guard.loc-baseline.json` records existing files above 400 LOC at adoption. Normal analysis never updates it; explicit updates may only lower/prune allowances. Growth beyond a recorded allowance fails.
-- Never game metrics with mechanical splitting, meaningless helpers, compressed formatting, added exclusions, changed thresholds, disabled guards, or baseline changes. See [Testing](docs/22-Testing.md#code-guard) for installation, exclusions, and CI behavior.
+- Never game metrics with mechanical splitting, meaningless helpers, compressed formatting, added exclusions, changed thresholds, disabled guards, or baseline changes. See [Testing](docs/development/testing.md#code-guard) for installation, exclusions, and CI behavior.
 - When validation fails, classify each failure as either a current-branch regression or an out-of-scope pre-existing/cross-slice failure.
 - Also classify fixture/environment failures separately; never convert them into product blockers without a production counterexample.
 - Fix current-branch regressions before declaring a branch PR-ready.

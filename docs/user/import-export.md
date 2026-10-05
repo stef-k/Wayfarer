@@ -144,7 +144,7 @@ Generic interchange formats cannot promise Wayfarer's full planning semantics.
 Route coordinates alone do not establish which saved Places are Via stops.
 Supported note formatting is retained, but arbitrary imported HTML layouts and
 styles do not have exact visual fidelity. For custom integrations and exact fields,
-use the [API reference](../18-API.md).
+use the [API reference](../development/api.md).
 
 ## Recover Mobile queue and local history safely
 
