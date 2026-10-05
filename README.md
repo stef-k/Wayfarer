@@ -58,7 +58,7 @@ HTTPS and trusted proxies correctly, maintain backups and practice recovery, and
 choose public exposure deliberately. Keep registration closed unless you intend to
 open it. Wayfarer owns its baseline application-level Identity, API and location-ingestion
 admission/rate protections; optional host or proxy hardening adds defense in depth.
-See [Security](docs/21-Security.md).
+See [Operations](docs/self-hosting/operations.md#routine-security-checks).
 
 ## Documentation
 
