@@ -18,7 +18,7 @@
 
 - Primary development baseline: Ubuntu 24.04 on Linux/WSL2 with .NET 10 SDK. Keep WSL checkouts on the Linux filesystem, not `/mnt/c`.
 - Frontend build baseline: Node 24 LTS/npm; `.nvmrc` supports `nvm install` and `nvm use`.
-- Database: PostgreSQL with PostGIS. The general self-hosting/runtime minimum is PostgreSQL 13+; the maintainer development and guarded relational-test baseline is PostgreSQL 17. Configure via `ConnectionStrings:DefaultConnection`.
+- Database: PostgreSQL 18 with PostGIS is the maintained development, native/manual deployment, and guarded relational-test baseline. Production Compose separately pins PostgreSQL 18.6 + PostGIS 3.6.4. Configure via `ConnectionStrings:DefaultConnection`.
 - Front end: plain modern JavaScript (prefer arrow functions).
 - Maps: Leaflet with OpenStreetMap tiles and local cache. Configure cache directories under `CacheSettings:*` in `appsettings*.json`.
 
@@ -73,7 +73,7 @@
 
 - Before changing application versions, release metadata, container/image publication,
   database release authority, bundles, bootstrap/release assets or release workflows,
-  read [Versioning and Release Operations](docs/23-Versioning.md) and follow its authority links.
+  read [Versioning](docs/maintainer/versioning.md) and follow its authority links.
 - Clear, imperative commits. Conventional Commits welcome (e.g., `feat(trips): ...`, `chore: ...`).
 - PRs must include: description, linked issues, screenshots for UI changes, test plan/steps, and DB migration notes when relevant.
 - The GitHub Actions `test` check on the current PR head is necessary merge evidence, but green CI is not sufficient authorization to merge. Poll the actual check until it reports success; do not rely on `gh pr checks --required` or `gh pr merge --auto` unless branch protection and auto-merge enforcement have first been verified.
