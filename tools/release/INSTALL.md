@@ -70,8 +70,7 @@ Some bundles retain an independently trusted historical recovery capture pair un
 `capture/`, described by `LegacyCapture` in `release.json`. Its exact files are part
 of the immutable hashed inventory; do not select capture authority from an archive
 manifest. Maintainer assembly requirements belong to the
-local release contract in `docs/maintainer/release-contract.md`
-(`Local release authority v1`).
+local release contract in `docs/maintainer/release-contract.md`.
 
 Target export selects the historical pair when present; append `current` to select
 the newly bundled pair explicitly. An adopted installation selects the profile that
