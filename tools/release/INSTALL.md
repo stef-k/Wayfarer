@@ -10,8 +10,9 @@ immutable transitional publication, not a supported installation/update source.
 Future operators refuse exact public acquisition below v1.9.21; `latest` is unchanged.
 Already-published v1.9.21 operator bytes may still accept 1.9.20, and its manifest
 historically names v1.9.20 in `Sources`; neither is rewritten. Operator/recovery
-protocol floors are independent. Native/systemd v1.9.19 uses #604's explicit migration
-directly to the supported Compose baseline, not `wayfarerctl update`.
+protocol floors are independent. Native/systemd v1.9.19 is outside the Compose update
+chain and requires a deliberate migration to a supported Compose baseline;
+`wayfarerctl update` does not convert native state.
 
 When consulting repository documentation on GitHub, select the exact `SourceRevision`
 recorded in this bundle's `release.json`, or its matching stable `Tag`. Repository
