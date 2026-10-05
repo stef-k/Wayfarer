@@ -22,11 +22,13 @@ with the [User Guide](user/index.md) for accounts, privacy and your first action
 
 ## Self-hosters
 
-For installing and operating your own instance:
+For installing and operating your own instance, start with the
+[Self-hosting guide](self-hosting/index.md).
 
-- [Install & Self-Hosting](02-Install-and-Dependencies.md): supported platforms, prerequisites and guided Compose setup.
-- [Operate Wayfarer with wayfarerctl](29-Wayfarerctl.md): status, diagnosis, backup, update and restore.
-- [Security](21-Security.md): account protections, HTTPS/proxy trust and privacy expectations.
+- [Operations](self-hosting/operations.md): status, lifecycle, logs, account recovery, backup, update and restore.
+- [Troubleshooting](self-hosting/troubleshooting.md): symptom-first safe checks and recovery paths.
+- [wayfarerctl reference](self-hosting/wayfarerctl.md): exact commands and refusal/recovery semantics.
+- [Native/manual deployment](self-hosting/native-manual.md): advanced systemd/Nginx/source deployments.
 
 ## Developers & Contributors
 
@@ -43,7 +45,6 @@ Self-hosters path above.
 
 - [Versioning & Release Operations](23-Versioning.md) and [Application Image Publication](27-Application-Image-Publication.md).
 - [Container & Release Contract](25-Container-Release-Contract.md), [Application Container](26-Application-Container.md) and [Production Compose](28-Production-Compose.md).
-- [Advanced Native / Manual Deployment](20-Deployment.md#advanced-nativemanual-deployment).
 
 ---
 
