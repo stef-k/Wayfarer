@@ -10,7 +10,7 @@ This is the starting point for working on the Wayfarer web application. It cover
 
 - .NET 10 SDK.
 - Node.js 24 and npm. `.nvmrc` selects Node 24.
-- PostgreSQL 17 with PostGIS for local development and guarded relational tests. `citext` is also used by the EF model.
+- PostgreSQL 18 with PostGIS for local development and guarded relational tests. `citext` is also used by the EF model.
 - Ubuntu 24.04 on Linux or WSL2 is the primary development baseline. Windows is supported as an alternative development environment.
 
 WayfarerMobile is a separate repository. Changes to the server do not implicitly change the mobile application.
