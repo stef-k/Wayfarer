@@ -169,6 +169,51 @@ the ring with the service user's expected ownership and restrictive permissions
 before starting the application. Database-only recovery can leave stored provider
 credentials permanently unreadable.
 
+
+### Prepare legacy protected credentials before stable-identity activation
+
+Older native installations can contain provider credentials protected under the
+previous content-root-derived application identity. The current stable runtime
+reads only the stable companion identity.
+
+Before activating a release that expects the stable identity:
+
+1. stop/quiesce the old service while it is still running from its original
+   readable content root and key-ring configuration;
+2. back up PostgreSQL and the complete resolved active key ring together;
+3. apply the additive credential-companion schema migration if it is still absent;
+4. from that same service account, working/content root and ring configuration, run:
+
+```sh
+dotnet Wayfarer.dll data-protection prepare-stable-identity
+dotnet Wayfarer.dll data-protection status
+```
+
+Require exit 0 from `status` and **Activation-ready: True** before starting the
+stable-identity web runtime. Then take another paired database + complete-ring
+recovery set.
+
+If the database was already prepared, do **not** rerun preparation blindly. With the
+service stopped, run only:
+
+```sh
+dotnet Wayfarer.dll data-protection status
+```
+
+and require the intended ring plus activation-ready state.
+
+These offline commands disable automatic key generation and do not contact
+providers. Preparation is transactional and fills only missing stable companions;
+it fails closed on unreadable, mismatched or inconsistent credential state.
+
+If the old content-root identity is already lost, moving the key files to a new
+root does not recreate it. Restore the readable source identity or re-enter the
+affected credentials deliberately.
+
+After stable-identity credential replacement or revocation, rollback to an older
+legacy reader may no longer be able to read those credentials. Recovery then needs
+the matching pre-change database + complete-ring set or credential re-entry.
+
 ## Run maintenance before Production startup
 
 From the published directory, under the same service identity/configuration used
