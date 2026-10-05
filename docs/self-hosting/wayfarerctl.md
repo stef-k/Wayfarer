@@ -39,6 +39,15 @@ wayfarerctl setup --help
 Bare interactive invocation opens the operator menu. Redirected invocation prints
 help instead of waiting for menu input.
 
+## version
+
+```sh
+wayfarerctl version
+```
+
+Reports the compiled CLI version. The deployed Wayfarer release identity is reported
+separately by `status`.
+
 ## Dispatch and retained operators
 
 Keep a stable verified bootstrap at a fixed root-owned path. After setup and
