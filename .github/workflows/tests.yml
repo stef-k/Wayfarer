@@ -38,7 +38,7 @@ jobs:
       - name: Install Code Guard
         run: |
           python -m venv "${{ runner.temp }}/code-guard"
-          "${{ runner.temp }}/code-guard/bin/python" -m pip install agent-code-guard==0.3.1
+          "${{ runner.temp }}/code-guard/bin/python" -m pip install agent-code-guard==0.5.0
           echo "${{ runner.temp }}/code-guard/bin" >> "$GITHUB_PATH"
 
       - name: Verify Code Guard installation
