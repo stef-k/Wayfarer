@@ -4,11 +4,14 @@ using WayfarerRecovery;
 
 namespace WayfarerCtl;
 
-/// <summary>One concrete command owner resolves planning choice, authorizes normal removal and deliberately reactivates preserved runtime.</summary>
+/// <summary>One command owner authorizes both removal modes and deliberately reactivates preserved runtime.</summary>
 public sealed class UninstallCommands(IProcessRunner runner, ITerminal terminal)
 {
     /// <summary>Hosted tests use protected retained executable bytes; native execution still validates its actual process image.</summary>
     internal string? ExecutablePath { get; init; }
+
+    /// <summary>Observe protected transfer/root cleanup boundaries in focused interruption tests without replacing product ownership checks.</summary>
+    internal Action<string>? PurgeCheckpoint { get; init; }
 
     /// <summary>Plan remains non-destructive; acceptance and replay share one exact hash under the established host lock.</summary>
     public async Task<int> RunAsync(string root, string[] args, CancellationToken token)
@@ -66,11 +69,37 @@ public sealed class UninstallCommands(IProcessRunner runner, ITerminal terminal)
         try
         {
             receipt = UninstallReceipt.Load(root);
+            if (UninstallPurgeTombstone.Load(root) is { } tombstone)
+            {
+                tombstone.RequireMatch(root, receipt);
+                ReleaseDispatch.RequireExecutable(tombstone.Validate(root), ExecutablePath);
+                if (tombstone.PlanHash != hash) throw new UsageException("Only the terminal purge's exact accepted hash may be replayed.");
+                if (receipt is not null) UninstallPurge.Complete(root, receipt, PurgeCheckpoint);
+                terminal.Write("Already intentionally purged; exact accepted hash replay completed. Use fresh wayfarerctl setup.");
+                return 0;
+            }
             if (receipt is not null)
             {
-                if (receipt.PlanHash != hash) throw new UsageException("Only the current uninstall receipt's exact accepted hash may be replayed.");
+                if (receipt.PlanHash != hash)
+                {
+                    if (receipt is not { Phase: UninstallPhase.Preserved, Plan.Mode: UninstallMode.Normal })
+                        throw new UsageException("Only the current uninstall receipt's exact accepted hash may be replayed.");
+                    _ = preparation.CheckReceiptAuthority(root, receipt);
+                    var plan = preparation.Load(root, hash);
+                    UninstallReceipt.RequireNewPlan(root, plan);
+                    if (plan is not { Mode: UninstallMode.Purge, StartingState: UninstallStartingState.Preserved, Backup: UninstallBackup.Waived })
+                        throw new UsageException("Preserved ownership transfer requires an accepted purge waiver.");
+                    await new Preflight(runner).DockerAsync(token);
+                    using var recovery = RecoveryExclusion(root, plan.Current);
+                    await preparation.RevalidateAsync(root, plan, token);
+                    var authorized = new UninstallReceipt { Plan = plan, PlanHash = hash };
+                    authorized.TransferFromPreserved(root, receipt, PurgeCheckpoint);
+                    receipt = authorized;
+                    return await RemoveAsync(root, receipt, preparation, token);
+                }
+                if (receipt.Phase == UninstallPhase.VolumesRemoved)
+                    return await RemoveAsync(root, receipt, preparation, token);
                 _ = preparation.CheckReceiptAuthority(root, receipt);
-                if (receipt.Plan.Mode != UninstallMode.Normal) throw new UsageException("Purge execution is not enabled in this handoff.");
                 if (receipt.Phase == UninstallPhase.Preserved)
                 {
                     terminal.Write("Already intentionally uninstalled; runtime removed and every volume retained. Use wayfarerctl start to reactivate.");
@@ -81,8 +110,6 @@ public sealed class UninstallCommands(IProcessRunner runner, ITerminal terminal)
             {
                 var plan = preparation.Load(root, hash);
                 UninstallReceipt.RequireNewPlan(root, plan);
-                if (plan.Mode == UninstallMode.Purge)
-                    throw new UsageException("Purge execution is not enabled in Handoff 2; no backup, destructive receipt or Docker mutation was started.");
                 await new Preflight(runner).DockerAsync(token);
                 using (var recovery = RecoveryExclusion(root, plan.Current))
                     await preparation.RevalidateAsync(root, plan, token);
@@ -109,11 +136,38 @@ public sealed class UninstallCommands(IProcessRunner runner, ITerminal terminal)
     /// <summary>Protected authority and exact Docker inventory are revalidated from the embedded plan after authorization.</summary>
     private async Task<int> RemoveAsync(string root, UninstallReceipt receipt, UninstallPreparation preparation, CancellationToken token)
     {
-        var history = preparation.CheckReceiptAuthority(root, receipt);
-        await new Preflight(runner).DockerAsync(token);
-        receipt = await new UninstallRuntime(runner).RemoveAsync(root, receipt, history, token);
+        if (receipt.Phase != UninstallPhase.VolumesRemoved)
+        {
+            var history = preparation.CheckReceiptAuthority(root, receipt);
+            await new Preflight(runner).DockerAsync(token);
+            receipt = await new UninstallRuntime(runner).RemoveAsync(root, receipt, history, token);
+        }
+        if (receipt.Plan.Mode == UninstallMode.Purge)
+        {
+            ReleaseDispatch.RequireExecutable(ReleaseStore.Select(root, receipt.Plan.OperatorOwner), ExecutablePath);
+            UninstallPurge.Complete(root, receipt, PurgeCheckpoint);
+            terminal.Write("Wayfarer was intentionally purged. Local runtime/data/configuration authority removed; backup storage was not deleted. " +
+                "Release cache and Docker images retained. Use fresh wayfarerctl setup.");
+            return 0;
+        }
         terminal.Write($"Uninstall {receipt.Plan.Operation:D}; phase={receipt.Phase}; plan={receipt.PlanHash}. " +
             "Runtime containers/networks removed. Protected installation authority and every Docker volume retained. Use wayfarerctl start to reactivate.");
+        return 0;
+    }
+
+    /// <summary>Terminal diagnosis validates only minimal evidence, retained immutable bytes and exact root shape; never invoke Docker.</summary>
+    internal int Purged(string root, string command)
+    {
+        if (command is not ("status" or "doctor"))
+            throw new UsageException("Wayfarer was intentionally purged; this command is unavailable. Use fresh wayfarerctl setup.");
+        ProtectedFiles.RequireRoot();
+        var tombstone = UninstallPurgeTombstone.Load(root) ?? throw new UsageException("Missing purge tombstone.");
+        if (UninstallReceipt.Load(root) is not null) throw new UsageException("Unresolved purge; replay the accepted uninstall hash.");
+        tombstone.RequireMatch(root, null);
+        ReleaseDispatch.RequireExecutable(tombstone.Validate(root), ExecutablePath);
+        terminal.Write("Wayfarer was intentionally purged (Purged). Local runtime/data/configuration authority is removed. " +
+            "Backup storage was not deleted and remains associated with the old installation. Retained release cache remains. Use fresh wayfarerctl setup.");
+        if (command == "doctor") terminal.Write("PASS Purged tombstone, exact retained release/operator bytes and allowed terminal root shape.");
         return 0;
     }
 

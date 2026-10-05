@@ -8,6 +8,9 @@ public sealed class Cli(IProcessRunner runner, ITerminal terminal)
     /// <summary>Hosted tests bind protected fixture bytes; native invocation uses the actual process executable.</summary>
     internal string? ExecutablePath { get; init; }
 
+    /// <summary>Observe durable purge publication and cleanup for hosted fault injection without changing product decisions.</summary>
+    internal Action<string>? PurgeCheckpoint { get; init; }
+
     /// <summary>Translate failures without printing potentially secret-bearing exception/child text.</summary>
     public async Task<int> RunAsync(string[] args, CancellationToken token = default)
     {
@@ -47,11 +50,20 @@ public sealed class Cli(IProcessRunner runner, ITerminal terminal)
         }
         if (args is ["release", "protocol"])
         {
+            if (UninstallReceipt.State(root) == UninstallState.Purged)
+                throw new UsageException("Wayfarer was intentionally purged; use fresh wayfarerctl setup.");
             terminal.Write(System.Text.Json.JsonSerializer.Serialize(ReleaseContract.CurrentOperator));
             return 0;
         }
         ValidateCommand(args);
         if (args[0] == "uninstall") UninstallOptions.Parse(args[1..]).CheckInteraction(terminal.Interactive);
+        if (args[0] != "dispatch" && UninstallReceipt.State(root) == UninstallState.Purged)
+        {
+            if (args[0] == "setup" && !args.Contains("--resume"))
+                return await new Setup(runner, terminal).RunAsync(root, args[1..], token);
+            if (args is not ["uninstall", "--accept-plan", _])
+                return new UninstallCommands(runner, terminal) { ExecutablePath = ExecutablePath }.Purged(root, args[0]);
+        }
         if (args[0] is not ("dispatch" or "uninstall") && UninstallReceipt.Load(root) is { } uninstall)
         {
             ProtectedFiles.RequireRoot();
@@ -73,7 +85,7 @@ public sealed class Cli(IProcessRunner runner, ITerminal terminal)
         ProtectedFiles.RequireRoot();
         if (args[0] == "dispatch") return await ReleaseDispatch.RunAsync(root, args[1..], token);
         if (args[0] == "uninstall")
-            return await new UninstallCommands(runner, terminal) { ExecutablePath = ExecutablePath }.RunAsync(root, args[1..], token);
+            return await new UninstallCommands(runner, terminal) { ExecutablePath = ExecutablePath, PurgeCheckpoint = PurgeCheckpoint }.RunAsync(root, args[1..], token);
         if (args[0] == "release") return await new ReleaseCommands(runner, terminal).RunAsync(root, args[1..], token);
         if (args[0] == "update") return await new UpdateCommands(runner, terminal).RunAsync(root, args[1..], token);
         if (args[0] == "restore") return await new RestoreCommands(runner, terminal).RunAsync(root, args[1..], token);

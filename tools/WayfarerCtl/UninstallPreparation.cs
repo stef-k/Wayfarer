@@ -137,6 +137,7 @@ public sealed class UninstallPreparation(IProcessRunner runner)
     private UninstallHistory CheckProtectedAuthority(string root, UninstallPlan plan, UninstallStartingState? acceptedState = null)
     {
         var state = acceptedState ?? RequireLifecycle(root);
+        if (plan.Mode == UninstallMode.Purge) UninstallPurge.RequireCleanable(root, plan);
         var config = Deployment.Load(root);
         _ = ReleaseDispatch.CurrentOwner(root, config, ExecutablePath);
         CheckBackup(root, config, plan.Backup);

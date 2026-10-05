@@ -55,7 +55,11 @@ public sealed class Setup(IProcessRunner runner, ITerminal terminal,
     public async Task<int> RunAsync(string root, string[] args, CancellationToken token)
     {
         var options = Options(args);
-        UninstallReceipt.RequireActive(root);
+        if (UninstallReceipt.State(root) == UninstallState.Purged)
+        {
+            if (options.ContainsKey("--resume")) throw new UsageException("Purged state requires fresh setup; setup --resume cannot recover purge.");
+        }
+        else UninstallReceipt.RequireActive(root);
         RestoreReceipt.RequireResolved(root);
         UpdateReceipt.RequireResolved(root);
         checkedRoot = false;
@@ -74,10 +78,11 @@ public sealed class Setup(IProcessRunner runner, ITerminal terminal,
         remedy = "Correct the reported installation-folder or Docker prerequisite.";
         ProtectedFiles.SafePath(root);
         checkedRoot = true;
+        var purged = UninstallPurgeTombstone.Load(root);
         if (Directory.Exists(root))
         {
             ProtectedFiles.Check(root, 0, directory: true);
-            try { RequireFreshState(root); }
+            try { RequireFreshState(root, allowPurged: true); }
             catch (UsageException) when (!HasProtectedState(root))
             {
                 terminal.Error("Wayfarer found unrecognized installation files. Nothing was overwritten. Preserve this folder and read 'wayfarerctl help setup' and the installation troubleshooting guide before continuing.");
@@ -128,6 +133,7 @@ public sealed class Setup(IProcessRunner runner, ITerminal terminal,
         Directory.CreateDirectory(root, ProtectedFiles.PrivateDirectory);
         using var operationLock = Lock(root);
         // Recheck after taking the lock: another setup may have completed during preflight/password input.
+        if (purged is not null) UninstallPurgeTombstone.Consume(root, purged);
         RequireFreshState(root);
         Stage("Preparing installation files");
         remedy = "Check available disk space and protected installation-folder permissions.";
@@ -135,9 +141,15 @@ public sealed class Setup(IProcessRunner runner, ITerminal terminal,
         return await FinishAsync(root, config, progress, password, false, token);
     }
 
-    /// <summary>Only release preparation and the non-authoritative lock may precede another plain setup invocation.</summary>
-    internal static void RequireFreshState(string root)
+    /// <summary>Early preparation may retain valid terminal purge evidence; ordinary publication requires its locked consumption first.</summary>
+    internal static void RequireFreshState(string root, bool allowPurged = false)
     {
+        if (allowPurged && UninstallPurgeTombstone.Load(root) is { } tombstone)
+        {
+            if (UninstallReceipt.Load(root) is not null) throw new UsageException("Unresolved purge prevents fresh setup; replay its accepted uninstall hash.");
+            tombstone.RequireMatch(root, null);
+            return;
+        }
         UninstallReceipt.RequireActive(root);
         if (Directory.EnumerateFileSystemEntries(root).Any(path => Path.GetFileName(path) is not ("releases" or "operation.lock")))
             throw new UsageException("Existing installation files prevent fresh setup; never overwrite them.");

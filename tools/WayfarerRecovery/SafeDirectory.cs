@@ -153,6 +153,17 @@ public sealed class SafeDirectory : IDisposable
         if (unlinkat(handle, name, 0) != 0 || fsync(handle) != 0) throw new IOException("Owned file cleanup failed.");
     }
 
+    /// <summary>Remove an empty verified direct child on this mount, rechecking its open identity before unlink and parent flush.</summary>
+    public void RemoveChild(string name, SafeDirectory child)
+    {
+        ValidateName(name);
+        if (name.Contains('/')) throw new IOException("Direct child name required.");
+        using var current = Child(name);
+        if (!current.Identity.Equals(child.Identity) || current.Identity.Mount != child.Identity.Mount || child.Names().Length != 0)
+            throw new IOException("Owned child changed or is not empty.");
+        if (unlinkat(handle, name, 0x200) != 0 || fsync(handle) != 0) throw new IOException("Owned directory cleanup failed.");
+    }
+
     /// <summary>Durably commit directory entry changes such as operational receipt/configuration renames.</summary>
     public void Flush()
     {

@@ -32,7 +32,7 @@ public sealed record UninstallReceipt
     public string[] RemovedNetworks { get; init; } = [];
     /// <summary>Purge-only observed absence of exact planned volume names.</summary>
     public string[] RemovedVolumes { get; init; } = [];
-    /// <summary>Normal terminal authority remains complete; purge terminal replacement belongs to Handoff 3.</summary>
+    /// <summary>Normal terminal authority remains complete; purge uses this semantic transition only to derive its minimal tombstone.</summary>
     [System.Text.Json.Serialization.JsonIgnore]
     public bool Terminal => Phase is UninstallPhase.Preserved or UninstallPhase.Purged;
 
@@ -97,21 +97,32 @@ public sealed record UninstallReceipt
         var receipt = JsonSerializer.Deserialize<UninstallReceipt>(UninstallPreparation.Read(root, path, 2097152), ArchiveContract.Json)
             ?? throw new UsageException("Missing uninstall receipt.");
         receipt.Validate(root);
+        if (receipt.Phase == UninstallPhase.Purged) throw new UsageException("Terminal purge must use its minimal tombstone.");
         return receipt;
     }
 
     /// <summary>Distinguish intentional preservation from unresolved removal before ordinary lifecycle dispatch.</summary>
-    public static UninstallState State(string root) => Load(root) switch
+    public static UninstallState State(string root)
     {
-        null => UninstallState.None,
-        { Phase: UninstallPhase.Preserved } => UninstallState.Preserved,
-        { Phase: UninstallPhase.Purged } => UninstallState.Purged,
-        _ => UninstallState.Unresolved
-    };
+        var receipt = Load(root);
+        if (UninstallPurgeTombstone.Load(root) is { } tombstone)
+        {
+            tombstone.RequireMatch(root, receipt);
+            return receipt is null ? UninstallState.Purged : UninstallState.Unresolved;
+        }
+        return receipt switch
+        {
+            null => UninstallState.None,
+            { Phase: UninstallPhase.Preserved } => UninstallState.Preserved,
+            _ => UninstallState.Unresolved
+        };
+    }
 
     /// <summary>Ordinary mutation cannot bypass a current uninstall owner, including after waiting for the host lock.</summary>
     internal static void RequireActive(string root)
     {
+        if (State(root) == UninstallState.Purged)
+            throw new UsageException("Wayfarer was intentionally purged; use fresh wayfarerctl setup.");
         if (Load(root) is not { } receipt) return;
         throw new UsageException(receipt.Phase == UninstallPhase.Preserved
             ? "Wayfarer is intentionally uninstalled; use wayfarerctl start to reactivate, or explicitly plan purge."
@@ -135,6 +146,58 @@ public sealed record UninstallReceipt
         if (Phase != UninstallPhase.Preserved || JsonSerializer.Serialize(Load(root)) != JsonSerializer.Serialize(this))
             throw new UsageException("Only the matching preserved receipt can be retired after healthy reactivation.");
         var bytes = UninstallPreparation.Read(root, PathFor(root), 2097152);
+        Archive(root, bytes);
+        using var installation = new SafeDirectory(root);
+        installation.Flush();
+        try { installation.Delete("uninstall.json"); }
+        catch
+        {
+            // Keep start retry available if unlink succeeded but its durability acknowledgement was lost.
+            if (!UninstallHistory.Exists(PathFor(root)))
+            {
+                try { ProtectedFiles.Create(PathFor(root), System.Text.Encoding.UTF8.GetString(bytes)); installation.Flush(); }
+                catch { /* The flushed exact history still preserves the primary failure's evidence. */ }
+            }
+            throw;
+        }
+    }
+
+    /// <summary>Transfer staging has one exact plan-derived root name; conflicting bytes cannot be silently overwritten.</summary>
+    internal static string TransferName(UninstallPlan plan) => ".uninstall-transfer-" + plan.Hash() + ".json";
+
+    /// <summary>Caller revalidates protected/Docker authority under the host lock; archive then atomically replace without an ownership gap.</summary>
+    internal void TransferFromPreserved(string root, UninstallReceipt previous, Action<string>? checkpoint = null)
+    {
+        Validate(root);
+        previous.Validate(root);
+        if (Phase != UninstallPhase.Authorized || Plan.Mode != UninstallMode.Purge ||
+            Plan.StartingState != UninstallStartingState.Preserved || Plan.Backup != UninstallBackup.Waived ||
+            previous.Phase != UninstallPhase.Preserved || previous.Plan.Mode != UninstallMode.Normal ||
+            JsonSerializer.Serialize(Load(root)) != JsonSerializer.Serialize(previous))
+            throw new UsageException("Only a terminal normal receipt may transfer to an accepted Preserved-start purge.");
+        var oldBytes = UninstallPreparation.Read(root, PathFor(root), 2097152);
+        previous.Archive(root, oldBytes);
+        checkpoint?.Invoke("archived");
+        var temporary = Path.Combine(root, TransferName(Plan));
+        var bytes = JsonSerializer.Serialize(this);
+        if (System.Text.Encoding.UTF8.GetByteCount(bytes) > 2097152) throw new UsageException("Uninstall receipt exceeds bound.");
+        if (UninstallHistory.Exists(temporary))
+        {
+            if (!UninstallPreparation.Read(root, temporary, 2097152).SequenceEqual(System.Text.Encoding.UTF8.GetBytes(bytes)))
+                throw new UsageException("Conflicting purge transfer bytes; current lifecycle owner retained.");
+        }
+        else ProtectedFiles.Create(temporary, bytes);
+        using var parent = new SafeDirectory(root);
+        parent.RequireLocalControl();
+        parent.Flush();
+        checkpoint?.Invoke("prepared");
+        File.Move(temporary, PathFor(root), true);
+        parent.Flush();
+    }
+
+    /// <summary>Archive the exact current bytes; matching interrupted history is idempotent, conflicting history fails closed.</summary>
+    private void Archive(string root, byte[] bytes)
+    {
         var path = HistoryPath(root, Plan.Operation);
         var directory = Path.GetDirectoryName(path)!;
         ProtectedFiles.SafePath(directory);
@@ -151,23 +214,13 @@ public sealed record UninstallReceipt
         history.Flush();
         using var installation = new SafeDirectory(root);
         installation.Flush();
-        try { installation.Delete("uninstall.json"); }
-        catch
-        {
-            // Keep start retry available if unlink succeeded but its durability acknowledgement was lost.
-            if (!UninstallHistory.Exists(PathFor(root)))
-            {
-                try { ProtectedFiles.Create(PathFor(root), System.Text.Encoding.UTF8.GetString(bytes)); installation.Flush(); }
-                catch { /* The flushed exact history still preserves the primary failure's evidence. */ }
-            }
-            throw;
-        }
     }
 
-    /// <summary>Caller holds the host lock; flush replacement before a later destructive cutoff, never superseding another plan.</summary>
+    /// <summary>Caller holds the host lock; non-authoritative staging stays in the private same-mount plan area before atomic receipt replacement.</summary>
     public void Save(string root)
     {
         Validate(root);
+        if (Phase == UninstallPhase.Purged) throw new UsageException("Terminal purge retains only its minimal tombstone.");
         var previous = Load(root);
         if (previous is not null)
         {
@@ -185,9 +238,15 @@ public sealed record UninstallReceipt
         using var parent = new SafeDirectory(root);
         parent.RequireLocalControl();
         var path = PathFor(root);
-        var temporary = path + "." + Guid.NewGuid().ToString("N");
+        var directory = Path.Combine(root, "uninstall-plans");
+        ProtectedFiles.SafePath(directory);
+        Directory.CreateDirectory(directory, ProtectedFiles.PrivateDirectory);
+        ProtectedFiles.Check(directory, 0, directory: true);
+        using var staging = parent.Child("uninstall-plans");
+        var temporary = Path.Combine(directory, ".receipt-" + Guid.NewGuid().ToString("N") + ".json");
         ProtectedFiles.Create(temporary, bytes);
         File.Move(temporary, path, true);
         parent.Flush();
+        staging.Flush();
     }
 }

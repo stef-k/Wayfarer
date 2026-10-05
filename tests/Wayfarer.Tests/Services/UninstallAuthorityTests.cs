@@ -29,7 +29,7 @@ public sealed class UninstallAuthorityTests : IDisposable
         ProtectedFiles.Create(Path.Combine(root, "setup-complete"), "1\n");
         ProtectedFiles.CreateSecrets(root);
         Directory.CreateDirectory(Path.Combine(root, "recovery-control"), ProtectedFiles.PrivateDirectory);
-        runner = new ReadOnlyRunner(config, Path.Combine(root, "docker"));
+        runner = new ReadOnlyRunner(config, root + "-docker");
         foreach (var role in UninstallInventory.Roles(config))
             Directory.CreateDirectory(Path.Combine(runner.DockerRoot, "volumes", ActiveStorage.Volume(config, role), "_data"));
         preparation = new UninstallPreparation(runner);
@@ -273,6 +273,7 @@ public sealed class UninstallAuthorityTests : IDisposable
     public void Dispose()
     {
         Directory.Delete(root, true);
+        Directory.Delete(runner.DockerRoot, true);
         releases.Dispose();
     }
 }

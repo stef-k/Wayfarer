@@ -17,11 +17,14 @@ internal sealed class UninstallCommandFixture : IDisposable
     private readonly ReleaseBundleTests releases = new();
     private HttpListener? endpoint;
     private readonly string? executable;
+    /// <summary>Docker/backup fixture storage lives outside the installation cleanup authority, as on a supported host.</summary>
+    private readonly string external = Path.Combine(Path.GetTempPath(), "wayfarer-uninstall-storage-" + Guid.NewGuid().ToString("N"));
 
     /// <summary>One owned temporary installation has canonical runtime and all active volumes; no Docker daemon is called.</summary>
     internal UninstallCommandFixture(bool? backupEnabled = null, bool managed = false, bool hostedOperator = false)
     {
         ProtectedFiles.RequireRoot();
+        Directory.CreateDirectory(external, ProtectedFiles.PrivateDirectory);
         Root = Path.Combine(Path.GetTempPath(), "wayfarer-uninstall-command-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(Root, ProtectedFiles.PrivateDirectory);
         var bundle = releases.RetainOperator(Root, "1.9.22", !hostedOperator, true);
@@ -35,7 +38,7 @@ internal sealed class UninstallCommandFixture : IDisposable
         ProtectedFiles.CreateSecrets(Root);
         if (backupEnabled is { } enabled)
         {
-            var destination = Path.Combine(Root, "destination");
+            var destination = Path.Combine(external, "destination");
             Directory.CreateDirectory(destination, ProtectedFiles.PrivateDirectory);
             if (chown(destination, 1654, 1654) != 0) throw new IOException("Fixture destination ownership failed.");
             using var directory = new SafeDirectory(destination);
@@ -51,11 +54,11 @@ internal sealed class UninstallCommandFixture : IDisposable
             var generation = BackupCompose.DirectoryPath(Root, Config.Backup);
             Directory.CreateDirectory(generation, ProtectedFiles.PrivateDirectory);
             ProtectedFiles.Create(Path.Combine(generation, "compose.json"), BackupCompose.Render(Root, Config));
-            ProtectedFiles.Create(Path.Combine(generation, "worker.json"), JsonSerializer.Serialize(Config.Backup.Worker(installation), ArchiveContract.Json));
+            ProtectedFiles.Create(Path.Combine(generation, "worker.json"), JsonSerializer.Serialize(Config.Backup.Worker(installation), ArchiveContract.Json), 1654);
         }
         ProtectedFiles.Create(Path.Combine(Root, "installation.json"), JsonSerializer.Serialize(Config));
         ProtectedFiles.Create(Path.Combine(Root, "deployment.env"), Config.EnvironmentFile(Root));
-        Runner = new DockerRunner(Root, Config);
+        Runner = new DockerRunner(Root, Config, Path.Combine(external, "docker"));
         foreach (var role in UninstallInventory.Roles(Config))
             Directory.CreateDirectory(Path.Combine(Runner.DockerRoot, "volumes", ActiveStorage.Volume(Config, role), "_data"));
     }
@@ -67,9 +70,11 @@ internal sealed class UninstallCommandFixture : IDisposable
     internal Deployment Config { get; }
     internal DockerRunner Runner { get; }
     internal RecordingTerminal Terminal { get; } = new();
+    /// <summary>Propagate the existing protected-publication observation seam for command-level purge interruption evidence.</summary>
+    internal Action<string>? PurgeCheckpoint { get; set; }
 
     /// <summary>Exercise the public CLI with its actual retained native/hosted executable authority.</summary>
-    internal Task<int> Command(params string[] args) => new Cli(Runner, Terminal) { ExecutablePath = executable }
+    internal Task<int> Command(params string[] args) => new Cli(Runner, Terminal) { ExecutablePath = executable, PurgeCheckpoint = PurgeCheckpoint }
         .RunAsync(["--deployment-root", Root, .. args]);
 
     /// <summary>The planning command publishes one protected plan; tests consume its file rather than inventing authorization.</summary>
@@ -129,11 +134,11 @@ internal sealed class UninstallCommandFixture : IDisposable
         private readonly Dictionary<string, string> workers = [];
         private int incarnation;
 
-        internal DockerRunner(string root, Deployment config)
+        internal DockerRunner(string root, Deployment config, string dockerRoot)
         {
             this.root = root;
             this.config = config;
-            DockerRoot = Path.Combine(root, "docker");
+            DockerRoot = dockerRoot;
             Recreate();
         }
 
@@ -156,7 +161,7 @@ internal sealed class UninstallCommandFixture : IDisposable
         internal bool RetentionSucceeded { get; set; } = true;
         internal BackupResult? Captured { get; private set; }
 
-        /// <summary>Refuse every unmodeled command, including volume/image deletion; failure injection occurs at real process boundaries.</summary>
+        /// <summary>Refuse every unmodeled command, including image deletion; volume removals use only exact accepted names.</summary>
         public Task<ProcessResult> RunAsync(string[] args, string? input, CancellationToken cancellation, Action<string>? lineOutput = null)
         {
             Calls.Add(args);
@@ -177,7 +182,9 @@ internal sealed class UninstallCommandFixture : IDisposable
                 else output = JsonSerializer.Serialize(new[] { match });
             }
             else if (args is ["volume", "ls", ..]) output = string.Join('\n', UninstallInventory.Roles(config)
-                .Select(role => ActiveStorage.Volume(config, role)).Concat(AdditionalVolumes.Keys).Where(name => !MissingVolumes.Contains(name)));
+                .Select(role => UninstallPlanningTests.Volume(config, role)).Concat(AdditionalVolumes.Values)
+                .Where(volume => MatchesLabel(args, volume)).Select(volume => volume.GetProperty("Name").GetString()!)
+                .Where(name => !MissingVolumes.Contains(name)));
             else if (args is ["volume", "inspect", var volumeName])
             {
                 var volume = AdditionalVolumes.TryGetValue(volumeName, out var additional) ? additional :
@@ -186,8 +193,15 @@ internal sealed class UninstallCommandFixture : IDisposable
                 facts["Mountpoint"] = JsonSerializer.SerializeToElement(Path.Combine(DockerRoot, "volumes", volumeName, "_data"));
                 output = JsonSerializer.Serialize(new[] { facts });
             }
+            else if (args is ["volume", "rm", var removedVolume])
+            {
+                MissingVolumes.Add(removedVolume);
+                Directory.Delete(Path.Combine(DockerRoot, "volumes", removedVolume, "_data"));
+                code = LostRemoval == "volume" ? 1 : 0;
+            }
             else if (args is ["network", "ls", ..]) output = string.Join('\n', args.Contains("-q")
-                ? Networks.Values.Select(n => n.GetProperty("Id").GetString()) : Networks.Keys);
+                ? Networks.Values.Where(n => MatchesLabel(args, n)).Select(n => n.GetProperty("Id").GetString())
+                : Networks.Values.Where(n => MatchesLabel(args, n)).Select(n => n.GetProperty("Name").GetString()));
             else if (args is ["network", "inspect", var networkName]) output = JsonSerializer.Serialize(new[]
                 { Networks.Values.Single(n => n.GetProperty("Name").GetString() == networkName || n.GetProperty("Id").GetString() == networkName) });
             else if (args is ["update", "--restart=no", var updateId]) Change(updateId, false);
@@ -208,6 +222,14 @@ internal sealed class UninstallCommandFixture : IDisposable
             else if (args is ["image", "inspect", ..]) output = "[{\"Config\":{\"Labels\":{\"org.opencontainers.image.version\":\"1.9.22\"}}}]";
             else throw new InvalidOperationException("Unexpected Docker call: " + string.Join(' ', args));
             return Task.FromResult(new ProcessResult(code, output));
+        }
+
+        /// <summary>Daemon label queries do not return unrelated sentinels merely because the fake stores them in the same dictionary.</summary>
+        private static bool MatchesLabel(string[] args, JsonElement resource)
+        {
+            if (!args.Contains("--filter")) return true;
+            var parts = args[Array.IndexOf(args, "--filter") + 1][6..].Split('=', 2);
+            return resource.GetProperty("Labels").TryGetProperty(parts[0], out var value) && value.GetString() == parts[1];
         }
 
         /// <summary>Consumer filters return exact mounted/networked IDs, including a newly introduced foreign consumer.</summary>
@@ -331,6 +353,7 @@ internal sealed class UninstallCommandFixture : IDisposable
     {
         endpoint?.Close();
         Directory.Delete(Root, true);
+        Directory.Delete(external, true);
         releases.Dispose();
     }
 }

@@ -115,21 +115,6 @@ public sealed class UninstallCommandsTests
         Assert.False(File.Exists(UninstallReceipt.PathFor(fixture.Root)));
     }
 
-    /// <summary>Even a backup-selected purge plan refuses before capture, receipt creation, fencing or Docker mutation.</summary>
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task PurgeAcceptanceIsNotEnabled(bool backup)
-    {
-        using var fixture = new UninstallCommandFixture(backup ? true : null);
-        var plan = await fixture.Plan(backup, true);
-        fixture.Runner.Calls.Clear();
-        Assert.Equal(2, await fixture.Command("uninstall", "--accept-plan", plan.Hash()));
-        Assert.Empty(fixture.Runner.Calls);
-        Assert.False(File.Exists(UninstallReceipt.PathFor(fixture.Root)));
-        Assert.Contains(fixture.Terminal.Errors, line => line.Contains("not enabled in Handoff 2"));
-    }
-
     /// <summary>Final capture is quiesced and exactly verified; older-set retention does not change authorization of those committed bytes.</summary>
     [Theory]
     [InlineData(true)]

@@ -2,7 +2,7 @@ using System.Text.Json;
 
 namespace WayfarerCtl;
 
-/// <summary>Receipt-owned normal removal reconciles the accepted inventory, fences consumers and never deletes a volume.</summary>
+/// <summary>Both modes share exact runtime removal; only purge continues to receipt-owned volume deletion.</summary>
 internal sealed class UninstallRuntime(IProcessRunner runner)
 {
     /// <summary>Preserved retries allow independently owned canonical runtime, while retained storage still binds its original identity.</summary>
@@ -21,7 +21,10 @@ internal sealed class UninstallRuntime(IProcessRunner runner)
             {
                 // Absent historical generations must stay absent. Newly created canonical cache/proxy storage has ordinary ownership.
                 if (!(reactivating && planned.DockerId is null && planned.LifecycleOperation is null))
-                    UninstallInventory.Reconcile(planned, current, planned.DockerId is null);
+                    UninstallInventory.Reconcile(planned, current, planned.DockerId is null ||
+                        plan.Mode == UninstallMode.Purge && receipt.Phase >= UninstallPhase.RuntimeRemoved);
+                if (current.DockerId is not null && receipt.RemovedVolumes.Contains(planned.DockerId!))
+                    throw new UsageException("Previously removed volume reappeared.");
             }
             else if (reactivating)
             {
@@ -42,7 +45,6 @@ internal sealed class UninstallRuntime(IProcessRunner runner)
     /// <summary>Advance only proven semantic cutoffs; per-resource absence is durable before the next deletion.</summary>
     internal async Task<UninstallReceipt> RemoveAsync(string root, UninstallReceipt receipt, UninstallHistory history, CancellationToken token)
     {
-        if (receipt.Plan.Mode != UninstallMode.Normal) throw new UsageException("Purge execution is not enabled in this handoff.");
         if (receipt.Phase is UninstallPhase.Authorized or UninstallPhase.Fenced)
         {
             await FenceAsync(root, receipt, history, token);
@@ -59,8 +61,10 @@ internal sealed class UninstallRuntime(IProcessRunner runner)
         }
         if (receipt.Phase == UninstallPhase.RuntimeRemoved)
         {
+            if (receipt.Plan.Mode == UninstallMode.Purge)
+                receipt = await RemoveKindAsync(root, receipt, history, UninstallResourceKind.Volume, token);
             await ValidateAsync(root, receipt, history, false, token);
-            receipt = receipt.Advance(UninstallPhase.Preserved);
+            receipt = receipt.Advance(receipt.Plan.Mode == UninstallMode.Normal ? UninstallPhase.Preserved : UninstallPhase.VolumesRemoved);
             receipt.Save(root);
         }
         return receipt;
@@ -106,7 +110,7 @@ internal sealed class UninstallRuntime(IProcessRunner runner)
         }
     }
 
-    /// <summary>Only accepted present container/network IDs can be removed; a failed client still requires independently proven absence.</summary>
+    /// <summary>Only accepted present IDs/names can be removed; all volume consumers must be absent and lost acknowledgements are inspected.</summary>
     private async Task<UninstallReceipt> RemoveKindAsync(string root, UninstallReceipt receipt, UninstallHistory history,
         UninstallResourceKind kind, CancellationToken token)
     {
@@ -121,15 +125,29 @@ internal sealed class UninstallRuntime(IProcessRunner runner)
                     RequireStoppedPolicy(await InspectContainerAsync(planned, token), true);
                     await AttemptAsync(["rm", planned.DockerId!], token);
                 }
+                else if (kind == UninstallResourceKind.Volume)
+                {
+                    var consumers = await RequiredAsync(["ps", "-aq", "--no-trunc", "--filter", "volume=" + planned.Name], token);
+                    if (!string.IsNullOrWhiteSpace(consumers)) throw new UsageException("Unexpected volume consumer prevents purge; nothing was forced.");
+                    await AttemptAsync(["volume", "rm", planned.DockerId!], token);
+                }
                 else await AttemptAsync(["network", "rm", planned.DockerId!], token);
                 actual = await ValidateAsync(root, receipt, history, false, token);
                 if (Find(actual, planned).DockerId is not null) throw new IOException("Exact uninstall resource removal remains unresolved.");
             }
-            var removed = kind == UninstallResourceKind.Container ? receipt.RemovedContainers : receipt.RemovedNetworks;
+            var removed = kind switch
+            {
+                UninstallResourceKind.Container => receipt.RemovedContainers,
+                UninstallResourceKind.Network => receipt.RemovedNetworks,
+                _ => receipt.RemovedVolumes
+            };
             if (removed.Contains(planned.DockerId!)) continue;
-            receipt = kind == UninstallResourceKind.Container
-                ? receipt with { RemovedContainers = [.. removed, planned.DockerId!] }
-                : receipt with { RemovedNetworks = [.. removed, planned.DockerId!] };
+            receipt = kind switch
+            {
+                UninstallResourceKind.Container => receipt with { RemovedContainers = [.. removed, planned.DockerId!] },
+                UninstallResourceKind.Network => receipt with { RemovedNetworks = [.. removed, planned.DockerId!] },
+                _ => receipt with { RemovedVolumes = [.. removed, planned.DockerId!] }
+            };
             receipt.Save(root);
         }
         return receipt;
