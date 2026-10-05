@@ -219,6 +219,6 @@ another routing provider.
   then configure a replacement if needed. Revocation preserves saved data.
 
 Server backups and protected-credential recovery belong to the
-[operator guide](../29-Wayfarerctl.md), not personal provider setup.
+[wayfarerctl reference](../self-hosting/wayfarerctl.md), not personal provider setup.
 
 [User guide](index.md) · [Documentation home](../README.md)
