@@ -29,7 +29,7 @@
 - `dotnet run` – run locally (loads `appsettings.Development.json` if present).
 - `dotnet watch run` – hot‑reload during development.
 - Admin CLI: `dotnet run -- reset-password <username> <new-password>`.
-- Maintainability check: `code-guard . --changed-only --json --json-mode compact` (Agent Code Guard 0.3.1).
+- Maintainability check: `code-guard . --changed-only --json --json-mode compact` (Agent Code Guard 0.5.0).
 
 ## Coding Style & Naming Conventions
 
