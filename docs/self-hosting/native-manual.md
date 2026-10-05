@@ -336,9 +336,15 @@ sudo systemctl stop wayfarer
 # Run the target's maintenance command with Production configuration.
 sudo -u wayfarer dotnet /absolute/staged/Wayfarer.dll database migrate
 
-# Deploy the already-built output while preserving external durable storage.
-sudo rsync -a --delete /absolute/staged/ /var/www/wayfarer/
-sudo chown -R root:root /var/www/wayfarer
+# Deploy the already-built output while preserving external durable storage and
+# any retained legacy compatibility directories still referenced by this install.
+sudo rsync -a --delete \
+  --exclude 'Uploads' --exclude 'TileCache' --exclude 'ImageCache' \
+  /absolute/staged/ /var/www/wayfarer/
+
+# Apply the ownership/read permissions required by your native service layout.
+# Keep any retained legacy Uploads/TileCache/ImageCache trees writable by the
+# service account while they remain referenced.
 
 sudo systemctl start wayfarer
 sudo systemctl status wayfarer
