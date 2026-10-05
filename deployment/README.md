@@ -36,7 +36,7 @@ The interactive installer prepares a native host. It:
 - creates the application service identity and deployment directory;
 - prepares the durable application/cache/log paths used by the native Production
   profile;
-- installs/refreshed systemd, Nginx and optional Fail2ban configuration;
+- installs or refreshes systemd, Nginx and optional Fail2ban configuration;
 - can request HTTPS through Certbot;
 - can run `deploy.sh` for the initial application deployment.
 
