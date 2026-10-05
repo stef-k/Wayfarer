@@ -9,7 +9,9 @@ qualification, stable bundle/bootstrap publication, public installation acceptan
 and the post-publication lifecycle witness for Linux AMD64 and ARM64.
 
 Start with [Versioning](versioning.md). Database image publication and promotion are
-owned by [Production Compose](production-compose.md).
+owned by [Production Compose](production-compose.md). Stable bundle publication consumes
+that accepted PostgreSQL 18.6 + PostGIS 3.6.4 authority rather than a generic database
+tag or development-server identity.
 
 ## Authorization and release identity
 
