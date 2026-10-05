@@ -17,7 +17,7 @@ Operator commands and recovery procedures belong to the
 
 The supported Compose distribution targets:
 
-- Linux Docker Engine with Compose v2;
+- Linux Docker Engine with Compose v2 2.24.4+;
 - native `linux/amd64` or `linux/arm64`;
 - one host, one Wayfarer installation and one bundled database;
 - local filesystems that provide normal Unix ownership, atomic rename and durable
@@ -94,7 +94,8 @@ destinations are separate from live application volumes.
 ## `release.json` authority
 
 Canonical local bundles use `release.json` as their machine-readable release
-authority. Its current contract binds:
+authority. The current manifest schema, bundle contract and configuration schema are
+all version 1. Its contract binds:
 
 - release/application identity and immutable image selections;
 - native platform;
