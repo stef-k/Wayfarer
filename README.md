@@ -36,9 +36,9 @@ bundle and immutable container images, then guides you through hostname, proxy a
 administrator-password choices. You do not need to clone source or install host
 .NET, Node, PostgreSQL, Nginx or Certbot for this supported Compose path.
 
-Start with [Install & Self-Hosting](docs/02-Install-and-Dependencies.md) for supported
-prerequisites and verification, and the [operator guide](docs/29-Wayfarerctl.md) for
-setup and ingress choices.
+Start with the [Self-hosting guide](docs/self-hosting/index.md) for prerequisites,
+verification and guided setup. Use [Operations](docs/self-hosting/operations.md) for
+routine lifecycle, backup, update and restore.
 
 ## Screenshots
 
@@ -50,7 +50,8 @@ setup and ingress choices.
 
 The same `wayfarerctl` entry point covers status, diagnosis, logs, backup, update and
 restore. After setup, use its retained-release dispatch as described in
-[Operate Wayfarer with wayfarerctl](docs/29-Wayfarerctl.md).
+[Operations](docs/self-hosting/operations.md) and the
+[wayfarerctl reference](docs/self-hosting/wayfarerctl.md).
 
 Keep the deployment updated, use strong administrator credentials and 2FA, configure
 HTTPS and trusted proxies correctly, maintain backups and practice recovery, and
@@ -64,7 +65,7 @@ See [Security](docs/21-Security.md).
 Browse the [documentation site](https://stef-k.github.io/Wayfarer/) or follow your path:
 
 - **Users:** [User Guide](https://stef-k.github.io/Wayfarer/user/) for accounts, Timeline, Trips, Groups, Mobile and personal providers.
-- **Self-hosters:** [Install & Self-Hosting](https://stef-k.github.io/Wayfarer/02-Install-and-Dependencies.html) and the [operator guide](https://stef-k.github.io/Wayfarer/29-Wayfarerctl.html) for installing and operating an instance.
+- **Self-hosters:** [Self-hosting guide](https://stef-k.github.io/Wayfarer/self-hosting/) for installation, routine operation, backup, update, restore and troubleshooting.
 - **Developers & Contributors:** [Developer Guide](https://stef-k.github.io/Wayfarer/13-Developer-Guide.html) for local development, architecture, APIs, database and testing.
 - **Project Maintainers:** [maintainer documentation](docs/README.md#project-maintainers) for release/version/publication ownership, lifecycle qualification, container/Compose internals and exceptional recovery authority.
 
