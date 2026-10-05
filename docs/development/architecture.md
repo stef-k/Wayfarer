@@ -59,6 +59,10 @@ Location import is a longer workflow:
 
 `upload -> LocationImport + staged file -> Quartz projection/job -> LocationImportService -> streaming parser -> relational batches/progress -> optional enrichment handoff -> SSE reload hint`
 
+Location import performs no provider credential resolution, provider admission,
+reverse-geocoding HTTP, inline enrichment, or per-record enrichment delay. Address
+enrichment is a separate opted-in workflow after committed import state.
+
 `Parsers/ILocationDataParser` streams `Location` records; `LocationDataParserFactory` selects the current Google Timeline, Wayfarer GeoJSON, GPX, KML or CSV parser. `Services/LocationImports/` owns lifecycle/projection concerns around the job rather than format parsing itself.
 
 Trip PDF and map capture cross a browser boundary. `TripExportService`/PDF helpers render the application view, while `BrowserWorkflow`, `MapSnapshotService` and thumbnail capture use Playwright/Chromium as bounded infrastructure. Treat browser launch/capture as an external runtime dependency, not as a reason to move trip domain behavior into browser code.
