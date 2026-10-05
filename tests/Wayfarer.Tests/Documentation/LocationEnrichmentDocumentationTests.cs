@@ -103,7 +103,7 @@ public sealed class LocationEnrichmentDocumentationTests
     /// <summary>Reads the requested canonical documentation files from the repository root.</summary>
     private static string[] CanonicalDocs(params string[] relativePaths)
         => relativePaths.Select(path => File.ReadAllText(
-            RepositoryFile("docs", .. path.Split('/')))).ToArray();
+            RepositoryFile(["docs", .. path.Split('/')]))).ToArray();
 
     /// <summary>Resolves a repository file from the test output directory.</summary>
     private static string RepositoryFile(params string[] parts) => Path.GetFullPath(
