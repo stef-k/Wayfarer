@@ -212,6 +212,32 @@ Rebuildable application caches may be cleared through supported application/admi
 controls when appropriate; durable database, Uploads, key-ring and recovery data
 must not be treated as cache.
 
+## Maps or tiles fail to load
+
+Check general connectivity and the active tile provider first. If upstream tile
+requests return **403 “Referrer is required”**, verify the public host identity
+used by Wayfarer.
+
+`AllowedHosts` must contain semicolon-separated **exact public DNS hostnames**, for
+example:
+
+```text
+AllowedHosts=wayfarer.example.com
+AllowedHosts=wayfarer.example.com;www.wayfarer.example.com
+```
+
+Do not use wildcards, URL schemes, ports, IP literals, localhost or private-only
+names for this public origin identity. Wayfarer derives the origin-only provider
+Referer only after the effective public hostname is authorized by `AllowedHosts`.
+
+Also configure `Application:ContactEmail` (environment form
+`Application__ContactEmail`) to a monitored address for the tile-provider
+User-Agent contact identity. That setting does **not** configure the Referer.
+
+For an external reverse proxy, correct Host/forwarded-header handling as well; a
+valid `AllowedHosts` entry cannot repair a proxy that supplies the wrong effective
+public host.
+
 ## Mobile does not synchronize
 
 For a single user:
