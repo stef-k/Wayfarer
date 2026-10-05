@@ -93,17 +93,25 @@ public sealed class UninstallPreparation(IProcessRunner runner)
         };
     }
 
-    /// <summary>Receipt-owned replay checks other lifecycle owners without asking planning to authorize another uninstall.</summary>
+    /// <summary>Receipt-owned replay rejects unresolved lifecycle owners; retained backup identity must match committed installation authority.</summary>
     private static void RequireOtherLifecycle(string root)
     {
         UpdateReceipt.RequireResolved(root);
         RestoreReceipt.RequireResolved(root);
         if (SetupProvisioning.IsPending(root) || !InstallationCompletion.IsComplete(root))
             throw new UsageException("Incomplete/interrupted setup prevents uninstall planning.");
-        foreach (var name in new[] { "backup-transition.json", "backup-identity", "recovery-control/host-operation.json",
+        foreach (var name in new[] { "backup-transition.json", "recovery-control/host-operation.json",
             "recovery-control/update-in-progress", "recovery-control/restore-in-progress" })
             if (UninstallHistory.Exists(Path.Combine(root, name)))
                 throw new UsageException("Unreconciled lifecycle/backup authority prevents uninstall planning.");
+        var identityPath = Path.Combine(root, "backup-identity");
+        if (UninstallHistory.Exists(identityPath))
+        {
+            var identity = System.Text.Encoding.UTF8.GetString(Read(root, identityPath, 128));
+            if (!Guid.TryParse(identity, out var installation) || installation == Guid.Empty ||
+                installation != Deployment.Load(root).Installation)
+                throw new UsageException("Incomplete or contradictory backup identity prevents uninstall planning.");
+        }
         var completion = Path.Combine(root, "setup-complete");
         if (UninstallHistory.Exists(completion))
         {

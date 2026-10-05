@@ -117,12 +117,12 @@ public sealed class UninstallCommands(IProcessRunner runner, ITerminal terminal)
         return 0;
     }
 
-    /// <summary>Capture through the existing quiesced worker, explicitly verify the exact committed basename and bind those same bytes.</summary>
+    /// <summary>Authorize exact quiesced publication and verification independently of older-set retention; bind the same committed bytes.</summary>
     private async Task<UninstallBackupEvidence> FinalBackupAsync(string root, Deployment config, CancellationToken token)
     {
         var backup = new BackupCommands(runner, terminal);
-        if (await backup.RunAsync(root, config, ["backup", "--quiesced"], token) != 0 ||
-            backup.CaptureResult is not { Schema: 1, RetentionSucceeded: true } capture || capture.Archive == Guid.Empty ||
+        await backup.RunAsync(root, config, ["backup", "--quiesced"], token);
+        if (backup.CaptureResult is not { Schema: 1 } capture || capture.Archive == Guid.Empty ||
             capture.Completed.Offset != TimeSpan.Zero || capture.Name != ArchiveContract.Name(config.Installation, capture.Completed, capture.Archive))
             throw new IOException("Final quiesced capture did not succeed.");
         var committedHash = await CommittedHashAsync(config, capture, token);

@@ -25,6 +25,57 @@ public sealed class UninstallCommandsTests
         Cli.ValidateCommand(["dispatch", "uninstall", "--accept-plan", plan.Hash()]);
     }
 
+    /// <summary>Successful first backup configuration retains the exact committed installation UUID as protected identity residue.</summary>
+    [Fact]
+    public async Task PlanningAcceptsCommittedBackupIdentity()
+    {
+        using var fixture = new UninstallCommandFixture(true);
+        var path = Path.Combine(fixture.Root, "backup-identity");
+        var identity = fixture.Config.Installation.ToString("D");
+        ProtectedFiles.Create(path, identity);
+        var plan = await fixture.Plan(true);
+        Assert.NotEqual(Guid.Empty, plan.Current.Installation);
+        Assert.Equal(fixture.Config.Installation, plan.Current.Installation);
+        Assert.True(plan.Current.Backup!.Enabled);
+        ProtectedFiles.Check(path, 0);
+        Assert.Equal(identity, File.ReadAllText(path));
+        Assert.False(File.Exists(UninstallReceipt.PathFor(fixture.Root)));
+    }
+
+    /// <summary>Uncommitted, contradictory, malformed and unsafe retained identity files fail before any plan or receipt is published.</summary>
+    [Theory]
+    [InlineData("uncommitted")]
+    [InlineData("mismatch")]
+    [InlineData("empty")]
+    [InlineData("malformed")]
+    [InlineData("multiple")]
+    [InlineData("oversized")]
+    [InlineData("mode")]
+    [InlineData("owner")]
+    [InlineData("link")]
+    public async Task PlanningRefusesInvalidBackupIdentity(string state)
+    {
+        using var fixture = new UninstallCommandFixture(state == "uncommitted" ? null : true);
+        var path = Path.Combine(fixture.Root, "backup-identity");
+        var identity = fixture.Config.Installation.ToString("D");
+        var content = state switch
+        {
+            "uncommitted" or "mismatch" => Guid.NewGuid().ToString("D"),
+            "empty" => Guid.Empty.ToString("D"),
+            "malformed" => "invalid-uuid",
+            "multiple" => identity + "\n" + identity,
+            "oversized" => identity + new string(' ', 129),
+            _ => identity
+        };
+        if (state == "link") File.CreateSymbolicLink(path, Path.Combine(fixture.Root, "installation.json"));
+        else ProtectedFiles.Create(path, content, state == "owner" ? 1654u : 0u);
+        if (state == "mode") File.SetUnixFileMode(path, ProtectedFiles.PrivateFile | UnixFileMode.GroupRead);
+        Assert.Equal(2, await fixture.Command("uninstall", "--plan", "--without-backup"));
+        Assert.Empty(fixture.Runner.Calls);
+        Assert.False(Directory.Exists(Path.Combine(fixture.Root, "uninstall-plans")));
+        Assert.False(File.Exists(UninstallReceipt.PathFor(fixture.Root)));
+    }
+
     /// <summary>Enabled policy recommends backup, accepts an explicit no and cancels rather than guessing at EOF or invalid text.</summary>
     [Theory]
     [InlineData("", UninstallBackup.VerifiedQuiesced)]
@@ -79,11 +130,14 @@ public sealed class UninstallCommandsTests
         Assert.Contains(fixture.Terminal.Errors, line => line.Contains("not enabled in Handoff 2"));
     }
 
-    /// <summary>Final capture is quiesced, its exact committed name is verified, and the same bytes are durably hashed before removal.</summary>
-    [Fact]
-    public async Task FinalBackupBindsCaptureVerificationAndCommittedBytes()
+    /// <summary>Final capture is quiesced and exactly verified; older-set retention does not change authorization of those committed bytes.</summary>
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task FinalBackupBindsCaptureVerificationAndCommittedBytes(bool retentionSucceeded)
     {
         using var fixture = new UninstallCommandFixture(true);
+        fixture.Runner.RetentionSucceeded = retentionSucceeded;
         var plan = await fixture.Plan(true);
         var receiptExistedAtWorker = false;
         fixture.Runner.Before = args =>
@@ -93,6 +147,8 @@ public sealed class UninstallCommandsTests
         Assert.Equal(0, await fixture.Command("uninstall", "--accept-plan", plan.Hash()));
         var receipt = UninstallReceipt.Load(fixture.Root)!;
         var capture = fixture.Runner.Captured!;
+        Assert.Equal(retentionSucceeded, capture.RetentionSucceeded);
+        Assert.Contains("Retention succeeded: " + retentionSucceeded, fixture.Terminal.Output);
         Assert.False(receiptExistedAtWorker);
         Assert.Equal(UninstallPhase.Preserved, receipt.Phase);
         Assert.Equal(capture.Archive, receipt.FinalBackup!.Archive);
@@ -108,6 +164,19 @@ public sealed class UninstallCommandsTests
         Assert.Equal(0, await fixture.Command("uninstall", "--accept-plan", plan.Hash()));
         Assert.Empty(fixture.Runner.Calls);
         Assert.Equal(1, captureCount);
+    }
+
+    /// <summary>Ordinary backup retains its nonzero retention status and visible result even though its new archive was published.</summary>
+    [Fact]
+    public async Task PublishedBackupWithFailedRetentionKeepsOrdinaryFailureStatus()
+    {
+        using var fixture = new UninstallCommandFixture(true);
+        fixture.Runner.RetentionSucceeded = false;
+        Assert.Equal(1, await fixture.Command("backup", "--quiesced"));
+        Assert.False(fixture.Runner.Captured!.RetentionSucceeded);
+        Assert.Contains("Retention succeeded: False", fixture.Terminal.Output);
+        Assert.False(File.Exists(UninstallReceipt.PathFor(fixture.Root)));
+        Assert.DoesNotContain(fixture.Runner.Calls, call => call.Contains("backup-reader"));
     }
 
     /// <summary>Capture failure, verifier mismatch, invalid integrity/compatibility and ambiguous publication never authorize removal.</summary>

@@ -152,6 +152,8 @@ internal sealed class UninstallCommandFixture : IDisposable
         internal bool WrongName { get; set; }
         internal bool ExtraArchive { get; set; }
         internal bool TruncatedInventory { get; set; }
+        /// <summary>The real worker reports a committed capture but exits nonzero when older-set retention fails.</summary>
+        internal bool RetentionSucceeded { get; set; } = true;
         internal BackupResult? Captured { get; private set; }
 
         /// <summary>Refuse every unmodeled command, including volume/image deletion; failure injection occurs at real process boundaries.</summary>
@@ -190,7 +192,8 @@ internal sealed class UninstallCommandFixture : IDisposable
                 { Networks.Values.Single(n => n.GetProperty("Name").GetString() == networkName || n.GetProperty("Id").GetString() == networkName) });
             else if (args is ["update", "--restart=no", var updateId]) Change(updateId, false);
             else if (args is ["stop", "--time", _, var stopId]) Change(stopId, true);
-            else if (args[0] == "wait") output = workers.TryGetValue(args[^1], out var operation) && Failure == operation ? "1" : "0";
+            else if (args[0] == "wait") output = workers.TryGetValue(args[^1], out var operation) &&
+                (Failure == operation || operation == "backup" && !RetentionSucceeded) ? "1" : "0";
             else if (args is ["rm", var containerId])
             {
                 if (!workers.Remove(containerId)) Containers.Remove(Containers.Single(pair => pair.Value.GetProperty("Id").GetString() == containerId).Key);
@@ -248,7 +251,7 @@ internal sealed class UninstallCommandFixture : IDisposable
                 var completed = DateTimeOffset.UtcNow;
                 var archive = Guid.NewGuid();
                 var basename = ArchiveContract.Name(config.Installation, completed, archive);
-                Captured = new(1, archive, basename, completed, true);
+                Captured = new(1, archive, basename, completed, RetentionSucceeded);
                 var bytes = Encoding.UTF8.GetBytes("exact newly captured archive bytes");
                 File.WriteAllBytes(Path.Combine(config.Backup!.Destination, basename), bytes);
                 File.WriteAllText(Path.Combine(config.Backup.Destination, basename + ".sha256"), $"{Convert.ToHexStringLower(SHA256.HashData(bytes))}  {basename}\n");

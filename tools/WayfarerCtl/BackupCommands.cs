@@ -9,7 +9,7 @@ public sealed class BackupCommands(IProcessRunner runner, ITerminal terminal)
     /// <summary>Existing update/restore callers bind the successful worker archive UUID.</summary>
     public Guid? CompletedArchive { get; private set; }
 
-    /// <summary>Successful structured capture evidence lets uninstall select exact committed bytes without parsing terminal output.</summary>
+    /// <summary>Committed publication evidence lets uninstall verify exact bytes even when older-set retention reports failure.</summary>
     internal BackupResult? CaptureResult { get; private set; }
 
     /// <summary>Explicit verifier evidence retains integrity and compatibility as separate required observations.</summary>
@@ -76,10 +76,15 @@ public sealed class BackupCommands(IProcessRunner runner, ITerminal terminal)
             using var result = JsonDocument.Parse(logs.Output);
             Present(result.RootElement);
             if (code == 0 && result.RootElement.TryGetProperty("Archive", out var archive)) CompletedArchive = archive.GetGuid();
-            if (code == 0 && !result.RootElement.TryGetProperty("Failure", out _) && result.RootElement.TryGetProperty("Name", out _))
+            if (!result.RootElement.TryGetProperty("Failure", out _) && result.RootElement.TryGetProperty("Name", out _))
             {
-                if (operation == "backup") CaptureResult = result.RootElement.Deserialize<BackupResult>(ArchiveContract.Json);
-                if (operation == "verify") VerificationResult = result.RootElement.Deserialize<VerifyResult>(ArchiveContract.Json);
+                if (operation == "backup")
+                {
+                    var capture = result.RootElement.Deserialize<BackupResult>(ArchiveContract.Json);
+                    // The worker exits 1 after committed publication when retention fails; preserve the ordinary exit status below.
+                    if (code == 0 || code == 1 && capture is { RetentionSucceeded: false }) CaptureResult = capture;
+                }
+                if (operation == "verify" && code == 0) VerificationResult = result.RootElement.Deserialize<VerifyResult>(ArchiveContract.Json);
             }
             return code == 0 ? 0 : 1;
         }
