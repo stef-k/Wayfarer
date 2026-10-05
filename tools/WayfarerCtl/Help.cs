@@ -20,6 +20,9 @@ public static class Help
         ["update"] = "update [X.Y.Z] --plan | --bundle /trusted/local/bundle --plan | --accept-plan SHA256\n" +
             "  Recovery: --resume UUID | --abort UUID (before migration only) | --restore UUID.\n" +
             "  Requires fresh held quiesced recovery. Forward-only; retained old images are not rollback. Public acquisition only prepares the existing plan.",
+        ["uninstall"] = "uninstall [--purge] --plan [--backup | --without-backup] | --accept-plan SHA256\n" +
+            "  Redirected planning requires an explicit backup choice. Normal uninstall retains every volume; start reactivates it.\n" +
+            "  Replay the same accepted hash after interruption. Purge plans are supported; purge execution is not yet enabled.",
         ["setup"] = "setup [--version X.Y.Z | --bundle PATH] [--hostname DNS] [--mode managed|external]\n" +
             "  [--project NAME] [--edge-prefix 172.30.64] [--loopback-port 8080] [--password-stdin]\n" +
             "  Default: acquire latest public stable. --version selects one exact stable; --bundle uses a canonical local release.\n" +
@@ -65,6 +68,6 @@ public static class Help
             "Exit: 0 success, 1 operation failure/cancelled/unhealthy, 2 invalid usage/config.\n" +
             "Use root and a trusted bundle. Passwords are never command arguments; protect stdin files.\n" +
             "Do not paste passwords, tokens or connection strings into options.\n" +
-            "Managed restore requires an exact trusted local target. Update requires an explicit accepted plan. Native migration and uninstall are not implemented.";
+            "Managed restore requires an exact trusted local target. Update requires an explicit accepted plan. Native migration is not implemented. Purge execution is not yet enabled.";
     }
 }

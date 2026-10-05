@@ -249,11 +249,11 @@ internal sealed class UninstallInventory(IProcessRunner runner)
             throw new UsageException("Planned Docker resource is missing, replaced or changed.");
     }
 
-    /// <summary>Bound inspection output and preserve uncertainty on every client failure.</summary>
+    /// <summary>A response reaching the process runner's retention cap may be truncated and cannot prove complete inventory or absence.</summary>
     private async Task<string> Required(string[] arguments, CancellationToken token)
     {
         var result = await runner.RunAsync(arguments, null, token);
-        if (result.Code != 0 || result.Output.Length > 4194304) throw new UsageException("Cannot prove Docker uninstall ownership.");
+        if (result.Code != 0 || result.Output.Length >= 262144) throw new UsageException("Cannot prove Docker uninstall ownership.");
         return result.Output;
     }
 

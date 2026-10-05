@@ -38,6 +38,7 @@ public sealed class RestoreCommands(IProcessRunner runner, ITerminal terminal)
         if (!Directory.Exists(root)) Directory.CreateDirectory(root, ProtectedFiles.PrivateDirectory);
         ProtectedFiles.Check(root, 0, directory: true);
         using var operation = Setup.Lock(root);
+        UninstallReceipt.RequireActive(root);
         await new Preflight(runner).DockerAsync(token);
         if (options.Has("--resume") || options.Has("--abort")) return await RecoverAsync(root, options, token);
         RestoreReceipt.RequireResolved(root);

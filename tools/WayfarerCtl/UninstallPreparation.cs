@@ -84,6 +84,18 @@ public sealed class UninstallPreparation(IProcessRunner runner)
     /// <summary>Existing completion and receipt seams own refusal; derived unresolved markers cannot be bypassed.</summary>
     internal static UninstallStartingState RequireLifecycle(string root)
     {
+        RequireOtherLifecycle(root);
+        return UninstallReceipt.State(root) switch
+        {
+            UninstallState.None => UninstallStartingState.Active,
+            UninstallState.Preserved => UninstallStartingState.Preserved,
+            _ => throw new UsageException("Unresolved or purged uninstall authority prevents a new plan; replay its exact accepted hash.")
+        };
+    }
+
+    /// <summary>Receipt-owned replay checks other lifecycle owners without asking planning to authorize another uninstall.</summary>
+    private static void RequireOtherLifecycle(string root)
+    {
         UpdateReceipt.RequireResolved(root);
         RestoreReceipt.RequireResolved(root);
         if (SetupProvisioning.IsPending(root) || !InstallationCompletion.IsComplete(root))
@@ -99,18 +111,24 @@ public sealed class UninstallPreparation(IProcessRunner runner)
             ProtectedFiles.Check(completion, 0);
             if (!Read(root, completion, 2).SequenceEqual("1\n"u8.ToArray())) throw new UsageException("Unsafe setup completion evidence.");
         }
-        return UninstallReceipt.State(root) switch
-        {
-            UninstallState.None => UninstallStartingState.Active,
-            UninstallState.Preserved => UninstallStartingState.Preserved,
-            _ => throw new UsageException("Unresolved or purged uninstall authority prevents a new plan; replay its exact accepted hash.")
-        };
+    }
+
+    /// <summary>The embedded accepted plan remains protected authority during forward removal and preserved reactivation.</summary>
+    internal UninstallHistory CheckReceiptAuthority(string root, UninstallReceipt receipt)
+    {
+        RequireRoot(root);
+        receipt.Validate(root);
+        var current = UninstallReceipt.Load(root) ?? throw new UsageException("Missing accepted uninstall receipt.");
+        if (JsonSerializer.Serialize(current) != JsonSerializer.Serialize(receipt))
+            throw new UsageException("Accepted uninstall receipt changed.");
+        RequireOtherLifecycle(root);
+        return CheckProtectedAuthority(root, receipt.Plan, receipt.Plan.StartingState);
     }
 
     /// <summary>Configuration loading already validates environment/storage/release; exact bytes additionally detect harmless-looking edits.</summary>
-    private UninstallHistory CheckProtectedAuthority(string root, UninstallPlan plan)
+    private UninstallHistory CheckProtectedAuthority(string root, UninstallPlan plan, UninstallStartingState? acceptedState = null)
     {
-        var state = RequireLifecycle(root);
+        var state = acceptedState ?? RequireLifecycle(root);
         var config = Deployment.Load(root);
         _ = ReleaseDispatch.CurrentOwner(root, config, ExecutablePath);
         CheckBackup(root, config, plan.Backup);

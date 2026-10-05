@@ -55,6 +55,7 @@ public sealed class Setup(IProcessRunner runner, ITerminal terminal,
     public async Task<int> RunAsync(string root, string[] args, CancellationToken token)
     {
         var options = Options(args);
+        UninstallReceipt.RequireActive(root);
         RestoreReceipt.RequireResolved(root);
         UpdateReceipt.RequireResolved(root);
         checkedRoot = false;
@@ -137,6 +138,7 @@ public sealed class Setup(IProcessRunner runner, ITerminal terminal,
     /// <summary>Only release preparation and the non-authoritative lock may precede another plain setup invocation.</summary>
     internal static void RequireFreshState(string root)
     {
+        UninstallReceipt.RequireActive(root);
         if (Directory.EnumerateFileSystemEntries(root).Any(path => Path.GetFileName(path) is not ("releases" or "operation.lock")))
             throw new UsageException("Existing installation files prevent fresh setup; never overwrite them.");
     }
@@ -166,6 +168,7 @@ public sealed class Setup(IProcessRunner runner, ITerminal terminal,
         checkedRoot = true;
         ProtectedFiles.Check(root, 0, directory: true);
         using var operationLock = Lock(root);
+        UninstallReceipt.RequireActive(root);
         // Publication authority and private reclamation have distinct validators, even with a canonical receipt.
         if (SetupProvisioning.IsPending(root))
         {

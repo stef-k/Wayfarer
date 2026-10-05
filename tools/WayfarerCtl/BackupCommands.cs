@@ -6,11 +6,21 @@ namespace WayfarerCtl;
 /// <summary>Owns actual maintenance containers through completion/cancellation, not merely Docker client processes.</summary>
 public sealed class BackupCommands(IProcessRunner runner, ITerminal terminal)
 {
+    /// <summary>Existing update/restore callers bind the successful worker archive UUID.</summary>
     public Guid? CompletedArchive { get; private set; }
+
+    /// <summary>Successful structured capture evidence lets uninstall select exact committed bytes without parsing terminal output.</summary>
+    internal BackupResult? CaptureResult { get; private set; }
+
+    /// <summary>Explicit verifier evidence retains integrity and compatibility as separate required observations.</summary>
+    internal VerifyResult? VerificationResult { get; private set; }
 
     /// <summary>Validate capability, reserve lifecycle intent under the shared lock and invoke the same worker.</summary>
     public async Task<int> RunAsync(string root, Deployment config, string[] args, CancellationToken token, bool restoreEmergency = false, bool updateRecovery = false)
     {
+        CompletedArchive = null;
+        CaptureResult = null;
+        VerificationResult = null;
         if (!updateRecovery && !restoreEmergency) UpdateReceipt.RequireResolved(root);
         if (args is ["backup", "configure", ..])
         {
@@ -66,6 +76,11 @@ public sealed class BackupCommands(IProcessRunner runner, ITerminal terminal)
             using var result = JsonDocument.Parse(logs.Output);
             Present(result.RootElement);
             if (code == 0 && result.RootElement.TryGetProperty("Archive", out var archive)) CompletedArchive = archive.GetGuid();
+            if (code == 0 && !result.RootElement.TryGetProperty("Failure", out _) && result.RootElement.TryGetProperty("Name", out _))
+            {
+                if (operation == "backup") CaptureResult = result.RootElement.Deserialize<BackupResult>(ArchiveContract.Json);
+                if (operation == "verify") VerificationResult = result.RootElement.Deserialize<VerifyResult>(ArchiveContract.Json);
+            }
             return code == 0 ? 0 : 1;
         }
         finally

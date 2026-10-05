@@ -100,7 +100,7 @@ public sealed record UninstallReceipt
         return receipt;
     }
 
-    /// <summary>Explicit query leaves status/start/setup behavior unchanged until their execution handoffs.</summary>
+    /// <summary>Distinguish intentional preservation from unresolved removal before ordinary lifecycle dispatch.</summary>
     public static UninstallState State(string root) => Load(root) switch
     {
         null => UninstallState.None,
@@ -108,6 +108,61 @@ public sealed record UninstallReceipt
         { Phase: UninstallPhase.Purged } => UninstallState.Purged,
         _ => UninstallState.Unresolved
     };
+
+    /// <summary>Ordinary mutation cannot bypass a current uninstall owner, including after waiting for the host lock.</summary>
+    internal static void RequireActive(string root)
+    {
+        if (Load(root) is not { } receipt) return;
+        throw new UsageException(receipt.Phase == UninstallPhase.Preserved
+            ? "Wayfarer is intentionally uninstalled; use wayfarerctl start to reactivate, or explicitly plan purge."
+            : $"Uninstall {receipt.Plan.Operation:D}; phase={receipt.Phase}; plan={receipt.PlanHash}. Replay wayfarerctl uninstall --accept-plan {receipt.PlanHash}.");
+    }
+
+    /// <summary>Resolved history is evidence, never permission to reuse an old plan against the reactivated installation.</summary>
+    internal static void RequireNewPlan(string root, UninstallPlan plan)
+    {
+        if (UninstallHistory.Exists(HistoryPath(root, plan.Operation)))
+            throw new UsageException("This uninstall plan was retired by start; create a fresh uninstall plan.");
+    }
+
+    /// <summary>A small protected local history survives reactivation without becoming another lifecycle state model.</summary>
+    internal static string HistoryPath(string root, Guid operation) => Path.Combine(root, "uninstall-history", operation.ToString("N") + ".json");
+
+    /// <summary>Archive exact terminal bytes before retiring current authority; interrupted metadata commits converge on start retry.</summary>
+    internal void Retire(string root)
+    {
+        Validate(root);
+        if (Phase != UninstallPhase.Preserved || JsonSerializer.Serialize(Load(root)) != JsonSerializer.Serialize(this))
+            throw new UsageException("Only the matching preserved receipt can be retired after healthy reactivation.");
+        var bytes = UninstallPreparation.Read(root, PathFor(root), 2097152);
+        var path = HistoryPath(root, Plan.Operation);
+        var directory = Path.GetDirectoryName(path)!;
+        ProtectedFiles.SafePath(directory);
+        Directory.CreateDirectory(directory, ProtectedFiles.PrivateDirectory);
+        ProtectedFiles.Check(directory, 0, directory: true);
+        if (UninstallHistory.Exists(path))
+        {
+            if (!UninstallPreparation.Read(root, path, 2097152).SequenceEqual(bytes))
+                throw new UsageException("Retained uninstall history differs; current authority was not retired.");
+        }
+        else ProtectedFiles.Create(path, System.Text.Encoding.UTF8.GetString(bytes));
+        using var history = new SafeDirectory(directory);
+        history.RequireLocalControl();
+        history.Flush();
+        using var installation = new SafeDirectory(root);
+        installation.Flush();
+        try { installation.Delete("uninstall.json"); }
+        catch
+        {
+            // Keep start retry available if unlink succeeded but its durability acknowledgement was lost.
+            if (!UninstallHistory.Exists(PathFor(root)))
+            {
+                try { ProtectedFiles.Create(PathFor(root), System.Text.Encoding.UTF8.GetString(bytes)); installation.Flush(); }
+                catch { /* The flushed exact history still preserves the primary failure's evidence. */ }
+            }
+            throw;
+        }
+    }
 
     /// <summary>Caller holds the host lock; flush replacement before a later destructive cutoff, never superseding another plan.</summary>
     public void Save(string root)

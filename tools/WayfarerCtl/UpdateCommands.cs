@@ -12,6 +12,7 @@ public sealed class UpdateCommands(IProcessRunner runner, ITerminal terminal)
     {
         var options = UpdateOptions.Parse(args);
         using var operation = Setup.Lock(root);
+        UninstallReceipt.RequireActive(root);
         await new Preflight(runner).DockerAsync(token);
         if (options.Plan)
         {

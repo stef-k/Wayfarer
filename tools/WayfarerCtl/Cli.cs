@@ -19,7 +19,7 @@ public sealed class Cli(IProcessRunner runner, ITerminal terminal)
         catch (Exception) { terminal.Error("Operation failed. State retained; check Docker access, protected configuration and doctor."); return 1; }
     }
 
-    /// <summary>Select ordinary deployment and executable authority only after host exclusion; reports use snapshots.</summary>
+    /// <summary>Gate intentional uninstall before ordinary dispatch; mutations select deployment/executable authority under host exclusion.</summary>
     private async Task<int> DispatchAsync(string[] args, CancellationToken token)
     {
         var root = "/etc/wayfarer";
@@ -51,6 +51,20 @@ public sealed class Cli(IProcessRunner runner, ITerminal terminal)
             return 0;
         }
         ValidateCommand(args);
+        if (args[0] == "uninstall") UninstallOptions.Parse(args[1..]).CheckInteraction(terminal.Interactive);
+        if (args[0] is not ("dispatch" or "uninstall") && UninstallReceipt.Load(root) is { } uninstall)
+        {
+            ProtectedFiles.RequireRoot();
+            if (uninstall.Phase == UninstallPhase.Preserved)
+                return await new UninstallCommands(runner, terminal) { ExecutablePath = ExecutablePath }.PreservedAsync(root, args[0], token);
+            if (args[0] is "status" or "doctor")
+            {
+                terminal.Write($"Uninstall {uninstall.Plan.Operation:D}; phase={uninstall.Phase}; accepted plan={uninstall.PlanHash}. " +
+                    $"Replay wayfarerctl uninstall --accept-plan {uninstall.PlanHash}.");
+                return 1;
+            }
+            UninstallReceipt.RequireActive(root);
+        }
         // Setup owns native/root preflight diagnostics and its retry-versus-resume boundary.
         if (args[0] == "setup") return await new Setup(runner, terminal).RunAsync(root, args[1..], token);
         Preflight.Platform();
@@ -58,6 +72,8 @@ public sealed class Cli(IProcessRunner runner, ITerminal terminal)
             return await new ReleaseCommands(runner, terminal).RunAsync(root, args[1..], token);
         ProtectedFiles.RequireRoot();
         if (args[0] == "dispatch") return await ReleaseDispatch.RunAsync(root, args[1..], token);
+        if (args[0] == "uninstall")
+            return await new UninstallCommands(runner, terminal) { ExecutablePath = ExecutablePath }.RunAsync(root, args[1..], token);
         if (args[0] == "release") return await new ReleaseCommands(runner, terminal).RunAsync(root, args[1..], token);
         if (args[0] == "update") return await new UpdateCommands(runner, terminal).RunAsync(root, args[1..], token);
         if (args[0] == "restore") return await new RestoreCommands(runner, terminal).RunAsync(root, args[1..], token);
@@ -73,8 +89,10 @@ public sealed class Cli(IProcessRunner runner, ITerminal terminal)
         ProtectedFiles.Check(root, 0, directory: true);
         Deployment.CheckSecrets(root);
         await new Preflight(runner).DockerAsync(token);
+        UninstallReceipt.RequireActive(root);
         if (args[0] == "logs") return await LogsAsync(root, Deployment.Load(root), args[1..], token);
         using var operationLock = Setup.Lock(root);
+        UninstallReceipt.RequireActive(root);
         RestoreReceipt.RequireResolved(root);
         UpdateReceipt.RequireResolved(root);
         if (File.Exists(Path.Combine(root, "backup-transition.json")) && args is not ["backup", "configure", "--recover"])
@@ -91,7 +109,7 @@ public sealed class Cli(IProcessRunner runner, ITerminal terminal)
         using var recovery = config.Backup is not null ? new WayfarerRecovery.RecoveryLock(Path.Combine(root, "recovery-control/recovery.lock")) : null;
         if (File.Exists(Path.Combine(root, "recovery-control/host-operation.json"))) throw new IOException("Unresolved recovery operation.");
         if (args[0] == "user") return await UserAsync(root, config, args, token);
-        return await LifecycleAsync(root, config, args[0], token);
+        return await new DeploymentLifecycle(runner, terminal).RunAsync(root, config, args[0], token);
     }
 
     /// <summary>Report both sides of an unresolved ownership handoff before ordinary deployment loading can reject transition state.</summary>
@@ -120,6 +138,7 @@ public sealed class Cli(IProcessRunner runner, ITerminal terminal)
         if (args is ["release", ..]) { ReleaseCommands.Validate(args[1..]); return; }
         if (args is ["update", ..]) { UpdateOptions.Parse(args[1..]); return; }
         if (args is ["restore", ..]) { RestoreOptions.Parse(args[1..]); return; }
+        if (args is ["uninstall", ..]) { UninstallOptions.Parse(args[1..]); return; }
         if (args is ["backup", "configure", ..]) { BackupConfiguration.Options(args[2..]); return; }
         if (args is ["backup"] or ["backup", "--quiesced"] or ["backups"] or ["verify-backup"]) return;
         if (args is ["verify-backup", var archive] && archive.Length < 256 && archive.StartsWith("wayfarer-recovery-v1_") &&
@@ -158,23 +177,6 @@ public sealed class Cli(IProcessRunner runner, ITerminal terminal)
             await RunAsync(["--deployment-root", root, .. command], token);
         }
         return 1;
-    }
-
-    /// <summary>No pull, recreate, migration or volume deletion is hidden inside ordinary lifecycle.</summary>
-    private async Task<int> LifecycleAsync(string root, Deployment config, string operation, CancellationToken token)
-    {
-        if (operation is "stop" or "restart" && config.Backup is not null)
-            await RequiredAsync(BackupCompose.Command(root, config, "stop", "--timeout", "30", "backup-scheduler"), null, token);
-        if (operation is "stop" or "restart")
-            await RequiredAsync(config.Compose(root, "stop", "--timeout", "70"), null, token);
-        if (operation != "stop")
-        {
-            await RequiredAsync(config.Compose(root, "up", "-d", "--no-recreate", "--pull", "never", "--wait", "--wait-timeout", "180"), null, token);
-            if (config.Backup is { Enabled: true })
-                await RequiredAsync(BackupCompose.Command(root, config, "up", "-d", "--no-deps", "--pull", "never", "backup-scheduler"), null, token);
-            return await new Diagnostics(runner, terminal).RunAsync(root, config, true, token);
-        }
-        terminal.Write("Stopped. All durable volumes retained."); return 0;
     }
 
     internal async Task<int> UserAsync(string root, Deployment config, string[] args, CancellationToken token)
@@ -221,8 +223,4 @@ public sealed class Cli(IProcessRunner runner, ITerminal terminal)
         return result.Code == 0 ? 0 : 1;
     }
 
-    private async Task RequiredAsync(string[] args, string? input, CancellationToken token)
-    {
-        if ((await runner.RunAsync(args, input, token)).Code != 0) throw new IOException("Docker operation failed.");
-    }
 }
