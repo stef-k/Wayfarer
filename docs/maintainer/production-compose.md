@@ -8,7 +8,7 @@ This page owns Wayfarer's production Compose topology, substrate boundaries, exa
 database image contract, protected configuration, disposable qualification, database
 publication/promotion and native platform selection.
 
-Ordinary setup, update, backup and restore belong to
+Ordinary setup, update, backup, restore and removal belong to
 [Self-hosting](../self-hosting/index.md) and
 [wayfarerctl](../self-hosting/wayfarerctl.md).
 
@@ -37,6 +37,23 @@ never published to the host.
 The Compose project name is part of installation identity. Persist a non-default
 project choice and use it consistently; generated container names are not an
 interface.
+
+### Lifecycle ownership
+
+| Resource category | Removal boundary |
+| --- | --- |
+| Installation-owned containers/networks | Exact canonical runtime and receipted terminal helpers may be removed by normal uninstall or purge |
+| Retained/purge-owned volumes | Normal uninstall retains every volume; purge deletes only exact current and valid historical local storage proven by protected configuration/receipts |
+| Administrator-owned backup storage | Destination inode/mount, marker and archives remain outside uninstall/purge deletion authority |
+| Shared Docker image cache | Images/layers are never uninstall/purge ownership; no image removal or global prune |
+| Immutable release cache | Validated `releases/` remains after purge for terminal replay and ordinary fresh setup |
+
+Rebuildable cache/log/proxy volumes are retained during normal uninstall so `start`
+can reuse the complete storage authority without a second initialization path.
+Project labels and name prefixes alone never authorize deletion. Retained old
+restore generations require valid same-installation lifecycle history. Purge root
+cleanup leaves only releases, the host operation lock and a minimal non-secret
+terminal tombstone; administrator backups keep their original custody identity.
 
 ## Request and response-header boundaries
 

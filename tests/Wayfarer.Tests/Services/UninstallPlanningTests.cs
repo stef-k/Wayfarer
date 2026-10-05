@@ -230,6 +230,26 @@ public sealed class UninstallPlanningTests
             new UninstallHistory([], []), [container, container], [], volumes));
     }
 
+    /// <summary>Docker mount enumeration order is not identity; changing any mount fact still invalidates acceptance.</summary>
+    [Fact]
+    public void MountEnumerationOrderPreservesEvidenceButReplacementRefuses()
+    {
+        var container = Container(Config(), "/etc/wayfarer");
+        var facts = container.Deserialize<Dictionary<string, JsonElement>>()!;
+        var mounts = facts["Mounts"].EnumerateArray().Reverse().ToArray();
+        facts["Mounts"] = JsonSerializer.SerializeToElement(mounts);
+        var evidence = UninstallInventory.Evidence(UninstallResourceKind.Container, container);
+        Assert.Equal(evidence, UninstallInventory.Evidence(UninstallResourceKind.Container, JsonSerializer.SerializeToElement(facts)));
+        var changed = mounts[0].Deserialize<Dictionary<string, JsonElement>>()!;
+        changed["RW"] = JsonSerializer.SerializeToElement(true);
+        mounts[0] = JsonSerializer.SerializeToElement(changed);
+        facts["Mounts"] = JsonSerializer.SerializeToElement(mounts);
+        var planned = new UninstallResource(UninstallResourceKind.Container, "wayfarer-wayfarer-1", new string('f', 64),
+            "wayfarer", null, UninstallAction.Remove, evidence);
+        var actual = planned with { Evidence = UninstallInventory.Evidence(UninstallResourceKind.Container, JsonSerializer.SerializeToElement(facts)) };
+        Assert.Throws<UsageException>(() => UninstallInventory.Reconcile(planned, actual, false));
+    }
+
     /// <summary>Unreceipted helpers and plausible same-project networks cannot become removal authority.</summary>
     [Fact]
     public void UnreceiptedHelpersAndNetworksBlockInventory()

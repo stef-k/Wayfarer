@@ -53,7 +53,8 @@ class RecoveryJourney(Journey):
         self.host('mkdir', '-m', '700', str(self.install / 'recovery-control'))
         print('PASS completed source application setup', flush=True)
         result = self.ctl('backup', 'configure', '--destination', str(self.directory / 'destination'),
-                         '--payload', str(self.payload / 'wayfarer-recovery'), '--retention', '1')
+                         '--payload', str(self.payload / 'wayfarer-recovery'),
+                         '--retention', '10' if getattr(self, 'update_bundle', None) else '1')
         print(result.stdout, flush=True)
         # Wait on the committed scheduler receipt, not an assumed capture duration.
         deadline = time.monotonic() + 90
@@ -72,8 +73,9 @@ class RecoveryJourney(Journey):
             print('PASS native canonical setup/doctor/stop and DB-image recovery payload boundary', flush=True)
             return
         if getattr(self, "update_bundle", None):
-            from qualify_update import qualify_update
+            from qualify_update import qualify_update, qualify_removal
             qualify_update(self)
+            qualify_removal(self)
             return
         if getattr(self, "release_bundle", None):
             from qualify_release import qualify_release
@@ -548,6 +550,7 @@ def main():
     parser.add_argument('--native-only', action='store_true', help='One native canonical setup/doctor/stop and recovery-helper journey.')
     parser.add_argument('--restore-only', action='store_true', help='Run the managed restore journey without repeating backup regression matrices.')
     parser.add_argument('--update-bundle', help='Target candidate for the bounded managed update journey.')
+    parser.add_argument('--lifecycle-evidence', type=Path, help='Retain non-secret joined lifecycle observations outside the disposable installation.')
     parser.add_argument('--release-bundle', required=True, help='Canonical candidate with the locally built native DB manifest.')
     args = parser.parse_args()
     with tempfile.TemporaryDirectory(prefix='wayfarer-533-') as directory:
@@ -560,6 +563,7 @@ def main():
             if args.update_bundle:
                 journey.update_bundle = Path(directory) / 'update-input'
                 shutil.copytree(args.update_bundle, journey.update_bundle)
+            journey.lifecycle_evidence = args.lifecycle_evidence
             journey.prepare()
             if args.release_bundle:
                 for name in ('compose.yaml', 'caddy/Caddyfile'):
@@ -567,9 +571,13 @@ def main():
             journey.recovery(args.restore_only, args.native_only)
         except Exception:
             # Bounded non-secret ownership evidence before fixture cleanup, never raw container environment.
-            ids = run('docker', 'ps', '-aq', '--filter', 'label=com.docker.compose.project=' + journey.project).stdout.split()
-            for identifier in ids:
-                print(run('docker', 'inspect', '--format', '{{.Name}} {{json .Config.Labels}} {{json .Mounts}}', identifier).stdout, flush=True)
+            ids = set()
+            for label in ['com.docker.compose.project', 'wayfarer.restore-helper', 'wayfarer.update-project']:
+                ids.update(run('docker', 'ps', '-aq', '--filter', 'label=' + label + '=' + journey.project).stdout.split())
+            ids.update(name for name in run('docker', 'ps', '-a', '--format', '{{.Names}}').stdout.split()
+                       if name.startswith((journey.project + '-', journey.project + '_')))
+            for identifier in sorted(ids):
+                print(run('docker', 'inspect', '--format', '{{.Id}} {{.Name}} {{json .State}} {{json .HostConfig.RestartPolicy}} {{json .Config.Labels}} {{json .Mounts}}', identifier).stdout, flush=True)
             raise
         finally:
             journey.cleanup()

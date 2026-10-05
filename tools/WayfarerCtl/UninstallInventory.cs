@@ -149,6 +149,9 @@ internal sealed class UninstallInventory(IProcessRunner runner)
                 .ToDictionary(p => p.Name, p => p.Value, StringComparer.Ordinal) : new Dictionary<string, JsonElement>()));
         if (kind == UninstallResourceKind.Container)
         {
+            // Docker enumerates mounts from an unordered map; retain all facts while making their order immaterial.
+            facts["Mounts"] = JsonSerializer.SerializeToElement(resource.GetProperty("Mounts").EnumerateArray()
+                .OrderBy(Canonical, StringComparer.Ordinal));
             var config = resource.GetProperty("Config");
             facts.Add("ConfiguredImage", config.GetProperty("Image"));
             facts.Add("Networks", JsonSerializer.SerializeToElement(resource.GetProperty("NetworkSettings").GetProperty("Networks")
@@ -176,7 +179,7 @@ internal sealed class UninstallInventory(IProcessRunner runner)
         return JsonSerializer.SerializeToElement(values);
     }
 
-    /// <summary>Sort inspect object fields recursively; mount order is stable Docker identity, never ambient dictionary order.</summary>
+    /// <summary>Sort inspect object fields recursively; callers normalize unordered collections without discarding identity facts.</summary>
     private static string Canonical(JsonElement value)
     {
         using var stream = new MemoryStream();

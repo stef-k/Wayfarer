@@ -151,12 +151,12 @@ internal sealed record UninstallHistory(UpdateReceipt[] Updates, RestoreReceipt[
             UninstallInventory.VerifyRecoveryService(root, capture.Plan.Current, container, false);
             return capture.Plan.Operation;
         }
-        if (!RestoreFencing.IsRetainedHelper(root, config, container)) throw new UsageException("Foreign or unreceipted lifecycle helper.");
+        if (!RestoreFencing.IsRetainedHelper(root, config, container)) throw new UsageException("Foreign or unreceipted lifecycle helper: " + name + ".");
         var id = container.GetProperty("Id").GetString()!;
         var restore = Restores.FirstOrDefault(r => r.Containers.Contains(name) || r.Containers.Contains(id));
         if (restore is not null) return restore.Plan.Operation;
         var update = Updates.FirstOrDefault(r => r.MigrationContainerId == id && r.MigrationContainer == name);
-        return update?.Plan.Operation ?? throw new UsageException("Helper has no terminal installation-owned receipt.");
+        return update?.Plan.Operation ?? throw new UsageException("Helper has no terminal installation-owned receipt: " + name + ".");
     }
 
     /// <summary>Parse only protected non-secret configuration snapshots using the existing schema validator.</summary>

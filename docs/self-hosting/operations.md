@@ -43,8 +43,72 @@ wayfarerctl restart
 - `stop` performs a graceful stop and preserves every volume.
 - `restart` stops, starts and verifies the existing configuration.
 
-Stopping Wayfarer is **not** uninstalling it. Do not use `docker compose down -v`
-as an operator shortcut; deleting volumes destroys durable state.
+Stopping keeps the runtime available for a later start. To remove runtime machinery
+or erase installation data, use the planned removal workflow below.
+
+## Uninstall, reactivate or purge
+
+Choose the boundary deliberately:
+
+| Action | Runtime | Volumes and protected installation state |
+| --- | --- | --- |
+| `stop` | Containers remain, gracefully stopped | Everything retained |
+| Normal `uninstall` | Exact owned containers and networks removed | Every volume, secrets, backup policy and lifecycle authority retained |
+| `uninstall --purge` | Exact owned runtime removed | Provably owned local volumes and installation configuration erased |
+
+For normal uninstall, plan with a final backup whenever a usable enabled backup
+policy exists:
+
+```sh
+wayfarerctl uninstall --plan --backup
+wayfarerctl uninstall --accept-plan <printed-sha256>
+```
+
+Review the structured plan, exact resource inventory and printed SHA-256 before
+acceptance. The operator creates a fresh quiesced recovery set and explicitly
+verifies that exact committed archive before authorizing removal. Planning does
+not configure backups. To deliberately waive a new recovery set, use
+`uninstall --plan --without-backup` and accept its newly printed hash.
+
+Normal uninstall reaches **Preserved**. `status` and `doctor` recognize intentional
+runtime removal; all volumes, installation authority, retained releases, backup
+configuration and recoverable user data remain. Reactivate with:
+
+```sh
+wayfarerctl start
+```
+
+`start` proves the retained volumes before recreating services, reuses the retained
+release without pulling or migrating, and restores an enabled backup scheduler.
+Missing or replaced retained storage causes refusal. `restart` does not reactivate
+a Preserved installation, and `setup` refuses to overwrite it.
+
+To erase a Preserved installation without starting it again:
+
+```sh
+wayfarerctl uninstall --purge --plan --without-backup
+wayfarerctl uninstall --accept-plan <new-printed-sha256>
+```
+
+Purge destroys the database, Uploads, Data Protection keys, cache/log/proxy volumes
+and valid retained storage generations, plus secrets and installation/lifecycle
+configuration. An active installation may instead select a final backup with
+`uninstall --purge --plan --backup`. A Preserved installation must first `start`
+if a final backup is wanted.
+
+Administrator-owned backup storage, its marker and committed archives survive
+purge. Shared Docker images and the immutable `releases/` cache also remain. Purge
+does not delete Docker Engine or an administrator's external proxy.
+
+After purge, `status` and `doctor` recognize **Purged**. The deployment root retains
+only `releases/`, `operation.lock` and a minimal `uninstall-purged.json` tombstone.
+Run ordinary fresh `setup` on the same root; the product consumes that tombstone.
+Setup generates fresh secrets and does not inherit the old backup policy or adopt
+or relabel the old destination. Configure new backups separately when wanted.
+
+Use the same accepted hash to reconcile interrupted removal or replay a terminal
+result. Preserve receipts and retained state; see
+[removal troubleshooting](troubleshooting.md#uninstall-or-purge-was-interrupted).
 
 ## Read logs
 

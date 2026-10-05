@@ -215,7 +215,8 @@ contradictory state.
 
 Important limits:
 
-- uninstall is not implemented;
+- uninstall and explicit purge require exact accepted plans; normal uninstall
+  preserves every volume for `start`, while purge erases owned local data/configuration;
 - automated native/systemd-to-Compose migration is not implemented;
 - `start` and `restart` never pull images or run migrations;
 - update and restore require explicit plans/authorization;
@@ -231,7 +232,7 @@ files merely to get past a refusal.
 ## Next steps
 
 - [Operations](operations.md) — routine status, logs, lifecycle, account recovery,
-  backup, update and restore.
+  backup, update, restore and [uninstall/reactivation/purge](operations.md#uninstall-reactivate-or-purge).
 - [Troubleshooting](troubleshooting.md) — start from a symptom and the safest first
   check.
 - [wayfarerctl reference](wayfarerctl.md) — complete command surface and exact

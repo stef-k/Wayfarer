@@ -6,6 +6,7 @@ public static class Help
     /// <summary>Safe operator guidance only; application Identity owns password validation.</summary>
     public const string PasswordGuidance = "Wayfarer requires at least 15 characters with uppercase, lowercase, a digit and a non-alphanumeric character. Protected input is limited to 1024 characters.";
 
+    /// <summary>Exact public grammar and lifecycle boundaries shared by direct help and interactive discovery.</summary>
     public static readonly IReadOnlyDictionary<string, string> Commands = new Dictionary<string, string>
     {
         ["help"] = "help [command [subcommand]] — contextual help; aliases --help and -h",
@@ -21,8 +22,11 @@ public static class Help
             "  Recovery: --resume UUID | --abort UUID (before migration only) | --restore UUID.\n" +
             "  Requires fresh held quiesced recovery. Forward-only; retained old images are not rollback. Public acquisition only prepares the existing plan.",
         ["uninstall"] = "uninstall [--purge] --plan [--backup | --without-backup] | --accept-plan SHA256\n" +
-            "  Redirected planning requires an explicit backup choice. Normal uninstall retains every volume; start reactivates it.\n" +
-            "  Replay the same accepted hash after interruption. Purge erases owned local data/configuration; backups, releases and Docker images remain.",
+            "  Interactive planning recommends an enabled backup, or requires an explicit waiver. Redirected planning requires --backup or --without-backup.\n" +
+            "  Acceptance takes only the hash: mode/backup choices belong to the protected plan. Selected fresh quiesced backup is explicitly verified before removal.\n" +
+            "  Normal uninstall retains every volume and protected authority (Preserved); start proves retained storage and reactivates it.\n" +
+            "  Purge from Preserved requires --without-backup, or start first for backup. Purge erases owned local data/configuration; backups, releases and Docker images remain.\n" +
+            "  Replay the same hash after interruption or terminal success. Purged status/doctor validate the tombstone; fresh setup consumes it without inheriting backup policy.",
         ["setup"] = "setup [--version X.Y.Z | --bundle PATH] [--hostname DNS] [--mode managed|external]\n" +
             "  [--project NAME] [--edge-prefix 172.30.64] [--loopback-port 8080] [--password-stdin]\n" +
             "  Default: acquire latest public stable. --version selects one exact stable; --bundle uses a canonical local release.\n" +
@@ -45,9 +49,9 @@ public static class Help
             "  New host: --new-install plus trusted setup choices, --db-digest, --capture-payload and --target-evidence.\n" +
             "  Default emergency capture; --without-emergency-backup is a plan-bound destructive waiver.\n" +
             "  Recovery: restore --resume UUID | restore --abort UUID. Abort is forbidden after possible writer launch.",
-        ["status"] = "status — read-only service, health, image/version, DB and setup assessment",
-        ["doctor"] = "doctor — bounded PASS/WARN/FAIL diagnosis; unhealthy checks return 1",
-        ["start"] = "start — start configured services and wait for health; never update or migrate",
+        ["status"] = "status — read-only service/health/setup assessment; recognizes intentional Preserved/Purged state",
+        ["doctor"] = "doctor — bounded PASS/WARN/FAIL diagnosis; validates Preserved storage or Purged tombstone; unhealthy checks return 1",
+        ["start"] = "start — start configured services or deliberately reactivate Preserved storage; wait for health; never pull, update or migrate",
         ["stop"] = "stop — graceful stop (70 seconds); preserve every volume; never uninstall",
         ["restart"] = "restart — graceful stop then start and verify health; preserve state",
         ["logs"] = "logs [wayfarer|db|caddy] [--follow] [--tail N]\n  Default wayfarer, tail 100; N must be 1..10000. Caddy requires managed mode.",

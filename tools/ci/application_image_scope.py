@@ -126,11 +126,14 @@ OWNERS = {
     'recovery': (
         'tools/WayfarerRecovery/*', 'tools/WayfarerRecoverySource/*',
         'tools/WayfarerCtl/Backup*.cs', 'tools/WayfarerCtl/Restore*.cs',
+        'tools/WayfarerCtl/Uninstall*.cs',
         'tools/compose/qualify_recovery.py', 'tools/compose/qualify_restore*.py',
         'tools/compose/qualify_release.py', 'tools/compose/recovery-probe/*',
         'tools/compose/lock-probe/*',
     ),
-    'update': ('tools/WayfarerCtl/Update*.cs', 'tools/compose/qualify_update.py',
+    # Uninstall owns the joined setup/backup/update/restore/removal/reinstall journey.
+    'update': ('tools/WayfarerCtl/Update*.cs', 'tools/WayfarerCtl/Uninstall*.cs',
+               'tools/compose/qualify_update.py',
                'Migrations/*') + LIFECYCLE_SHARED + SHARED_BUILD,
     'arm64': NATIVE_OWNERS + SHARED_BUILD,
 }

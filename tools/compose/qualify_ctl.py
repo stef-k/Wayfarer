@@ -46,13 +46,16 @@ class Journey:
         self.executable.chmod(0o555)
         self.digest = digest
         self.password = secrets.token_hex(32) + '!aA9'
-        self.proxy = self.project + '-proxy'
+        # External ingress belongs outside both the product's labels and its near-name ownership namespace.
+        self.proxy = 'qualification-https-proxy-' + self.project
         self.port = self.free_port()
         self.loopback = self.free_port()
         endpoint = run('docker', 'context', 'inspect', '--format', '{{.Endpoints.docker.Host}}').stdout.strip()
         if not endpoint.startswith('unix://'):
             raise RuntimeError('qualification requires a local Unix-socket daemon')
         self.socket = endpoint.removeprefix('unix://')
+        # The plain-host fixture sees the same local volume inodes as a real root operator.
+        self.docker_volumes = run('docker', 'info', '--format', '{{.DockerRootDir}}').stdout.strip() + '/volumes'
         self.plugin = next(path for path in [Path('/usr/libexec/docker/cli-plugins'), Path('/usr/lib/docker/cli-plugins')]
                            if (path / 'docker-compose').exists())
 
@@ -73,7 +76,8 @@ class Journey:
                    '-v', f'{self.directory}/docker-test:/usr/local/bin/docker:ro',
                    '-e', f'WAYFARER_TEST_FAILURE={self.directory}/failure',
                    '-v', f'{self.plugin}:/usr/libexec/docker/cli-plugins:ro',
-                   '-v', f'{self.socket}:/var/run/docker.sock', HOST, *args, data=data, check=check)
+                   '-v', f'{self.socket}:/var/run/docker.sock',
+                   '-v', f'{self.docker_volumes}:{self.docker_volumes}:ro', HOST, *args, data=data, check=check)
 
     def ctl(self, *args, data=None, check=True):
         """All ordinary work goes through the actual published operator executable."""

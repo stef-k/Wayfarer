@@ -4,7 +4,8 @@ namespace WayfarerCtl;
 public sealed class RestoreContainers(IProcessRunner runner)
 {
     /// <summary>Wait for the actual container; on failure stop/wait it independently before reporting cleanup.</summary>
-    public async Task<string> RunAsync(string name, string[] create, CancellationToken token)
+    /// <param name="retainEvidence">Keep receipt-backed transaction helpers; reap successful preparation helpers after confirmed termination.</param>
+    public async Task<string> RunAsync(string name, string[] create, CancellationToken token, bool retainEvidence = true)
     {
         Exception? primary = null;
         try
@@ -21,7 +22,7 @@ public sealed class RestoreContainers(IProcessRunner runner)
         finally
         {
             using var cleanup = new CancellationTokenSource(TimeSpan.FromSeconds(45));
-            // Preserve container evidence. A failed cleanup never authorizes continuation or pointer rollback.
+            // Failed operations retain evidence; preparation must not leave successful unreceipted helpers.
             try
             {
                 var known = await Required(["ps", "-a", "--format", "{{.Names}}"], cleanup.Token);
@@ -29,6 +30,7 @@ public sealed class RestoreContainers(IProcessRunner runner)
                 {
                     await Required(["stop", "--time", "20", name], cleanup.Token);
                     await Required(["wait", name], cleanup.Token);
+                    if (!retainEvidence && primary is null) await Required(["rm", name], cleanup.Token);
                 }
             }
             catch when (primary is not null)

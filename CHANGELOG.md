@@ -4,6 +4,7 @@
 
 ### Added
 
+- Add plan-authorized Compose uninstall with an optional fresh verified final backup, retained-state diagnosis/reactivation, and explicit purge with safe owned-volume/root cleanup, terminal replay and fresh setup. Preserve external backups, shared images and retained releases; continuously qualify the joined setup/backup/update/restore/removal/reinstall lifecycle (#784).
 - Add a separate read-only AMD64 public v1.9.22 operator qualification workflow for standalone exact/latest acquisition without activation, one existing setup-resume fault, dispatched status/restart/doctor and bounded Wayfarer/DB logs with continuity, and backup discovery/disable/refusal/reconfiguration with released captures. Runtime public acceptance remains a separate post-merge run (#764).
 
 ### Fixed

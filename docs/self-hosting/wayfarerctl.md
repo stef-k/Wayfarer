@@ -60,8 +60,13 @@ wayfarerctl dispatch COMMAND
 `dispatch` selects the retained operator that owns the active installation.
 Restore/update resume and abort select the exact retained operator recorded by
 their operation receipt.
+Uninstall replay selects its receipt owner, or the retained owner in the terminal
+purge tombstone after installation configuration has been erased.
 
 The bootstrap is not replaced in place by lifecycle commands.
+An older bootstrap may reject uninstall grammar before dispatch. Use the explicit
+bootstrap replacement or retained-operator remedy in
+[the bundle instructions](../../tools/release/INSTALL.md).
 
 If an update completes between dispatch and command startup, an old child operator
 can refuse execution. Retry through the fixed bootstrap so it selects the newly
@@ -150,6 +155,117 @@ wayfarerctl restart
 
 These commands preserve volumes. They do not pull images, run migrations or
 change release authority.
+
+## uninstall
+
+Planning and acceptance are separate commands:
+
+```sh
+wayfarerctl uninstall --plan --backup
+wayfarerctl uninstall --plan --without-backup
+wayfarerctl uninstall --purge --plan --backup
+wayfarerctl uninstall --purge --plan --without-backup
+wayfarerctl uninstall --accept-plan SHA256
+```
+
+The protected plan and exact printed lowercase SHA-256 are the sole execution
+authority. Review the normal/purge mode, backup/waiver decision, installation,
+storage and retained operator identity, and every exact resource action. Images
+and any configured backup destination appear as exclusions. No password or secret
+content is printed. Changed protected authority or replaced resources invalidates
+acceptance before destructive intent.
+
+Acceptance carries only `--accept-plan SHA256`; do not repeat `--purge`, `--backup`
+or `--without-backup`. There is no `--yes`, `--force` or implicit purge.
+
+### Interactive and redirected planning
+
+On an interactive terminal, `uninstall --plan` and `uninstall --purge --plan` may
+omit the backup choice. An enabled usable policy prompts for a fresh verified
+quiesced backup, defaulting to yes; answering no selects an explicit waiver. With
+no usable enabled policy, type `WITHOUT BACKUP` to plan the waiver, or cancel.
+Planning never creates or enables backup configuration.
+
+Redirected/non-interactive planning must supply exactly one of `--backup` and
+`--without-backup`. They are mutually exclusive.
+
+### Final backup and waiver
+
+`--backup` requires the existing enabled policy. Acceptance invokes ordinary
+quiesced capture, obtains the exact new committed archive, and explicitly verifies
+its integrity and compatibility before saving destructive uninstall intent. The
+receipt binds the archive UUID, basename, SHA-256 and successful verification.
+An older-set retention failure does not invalidate a successfully published and
+verified final set; ordinary backup retains its own retention-failure exit status.
+
+Capture or verification failure starts no uninstall deletion. Quiesced capture may
+leave the application stopped; resolve ordinary backup recovery before `start`.
+After destructive intent exists, replay uses the recorded final set without
+recapturing. `--without-backup` is a hash-bound waiver of a **new** recovery set;
+it does not remove old backups.
+
+### Normal uninstall and Preserved reactivation
+
+Normal uninstall removes only exact owned runtime containers/networks and proven
+terminal helpers. It deletes **zero Docker volumes**, including cache/log/Caddy
+and retained old/candidate generations. The entire protected installation root,
+secrets, release authority, lifecycle metadata and backup policy remain.
+
+`status` reports intentional **Preserved** state. `doctor` validates protected
+authority and exact retained volumes without requiring running services.
+
+`start` is the deliberate reactivation command. It proves retained storage before
+Compose creation, uses the exact retained release with `--pull never`, restores an
+enabled backup scheduler and requires ordinary health/doctor before archiving the
+resolved receipt. It does not update or migrate. A missing or replaced volume
+refuses reactivation; partial reactivation keeps its receipt for a later `start`.
+
+While Preserved, runtime/data mutations refuse. `stop` succeeds as a no-op;
+`restart` directs you to `start`. Fresh setup refuses overwrite and directs you to
+reactivation or an explicit purge. A new normal plan requires successful
+reactivation first.
+
+### Purge and Purged diagnosis
+
+Purge may start from a completed active installation or from Preserved. Planning
+from Preserved requires `--without-backup`; `--backup` requires `start` first.
+Acceptance archives the exact terminal normal receipt before transferring current
+ownership to the accepted purge receipt.
+
+Purge deletes only provably owned local volumes: active DB/application data,
+cache/log/Caddy state, and old/candidate storage generations corroborated by valid
+protected history. It then safely erases installation configuration, secrets,
+backup policy/control, generations, plans and histories under the deployment root.
+Foreign or ambiguous resources, unsafe filesystem entries, links and mount
+crossings refuse cleanup and retain forward-recovery authority.
+
+The configured administrator-owned backup destination, marker and archives remain
+unchanged. Shared Docker images are never removed or pruned. Immutable release
+cache remains independently validated.
+
+Terminal **Purged** state retains only `releases/`, `operation.lock` and the minimal
+non-secret `uninstall-purged.json` tombstone (including any valid internal release
+staging evidence). `status` recognizes Purged; `doctor` checks the tombstone,
+retained release/operator bytes and terminal root shape without Docker access or
+service creation.
+
+### Replay and setup after purge
+
+Replay `uninstall --accept-plan SHA256` with the same accepted hash after an
+interruption. There is no rollback after destructive intent. Exact absence is
+reconciled forward; replacement or foreign ownership causes refusal. A different
+plan cannot supersede unresolved uninstall authority.
+
+Same-hash terminal replay succeeds without a new backup or Docker mutation.
+Purged replay uses only its tombstone and retained operator, without deleted
+installation/secrets/plan files. A different hash is refused.
+
+Ordinary fresh `setup` on the same root consumes a valid terminal tombstone under
+the host lock. It creates new secrets and setup authority, initially using the
+supported no-backup `Installation == Guid.Empty` identity. It inherits no backup
+policy or destination and never relabels the old installation's marker/archives.
+Unresolved purge or contradictory terminal residue prevents setup; preserve the
+evidence and reconcile the accepted uninstall first.
 
 ## logs
 
@@ -450,15 +566,14 @@ transition with the original retained operator before rerunning the repair.
 
 The following are durable operator boundaries:
 
-- uninstall is not implemented;
 - native/systemd migration is not implemented;
 - arbitrary Docker contexts/rootless Docker are unsupported;
 - `start`/`restart` never update, pull or migrate;
-- no command should require deleting volumes or lifecycle receipts to succeed;
+- do not manually delete volumes or lifecycle receipts to make a command succeed;
 - setup/update/restore fail closed on contradictory ownership/identity;
 - restore requires a controlled-custody acknowledgement and exact plan hash;
-- update requires an exact plan hash;
-- unresolved restore/update intent blocks ordinary mutations;
+- update and uninstall require an exact plan hash;
+- unresolved restore/update/uninstall intent blocks ordinary mutations;
 - restore abort stops being available once candidate writes may have occurred;
 - update abort stops being available once migration may have started;
 - old images are not database rollback after migration;
