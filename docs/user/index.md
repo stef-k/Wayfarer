@@ -112,8 +112,8 @@ and [Mobile privacy](mobile.md#privacy-and-security) for those boundaries.
 
 ## If you run the server
 
-Use [Install & Self-Hosting](../02-Install-and-Dependencies.md) and the
-[operator guide](../29-Wayfarerctl.md) for installation, server operation and
+Use the [Self-hosting guide](../self-hosting/) and
+[Operations](../self-hosting/operations.md) for installation, server operation and
 recovery. For an account, connection or instance problem you cannot resolve here,
 contact your administrator.
 

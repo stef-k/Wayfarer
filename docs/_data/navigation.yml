@@ -1,7 +1,6 @@
 # Wayfarer owns these audience links; the shared theme renders the sidebar.
 # URLs are relative to the documentation root, without the /Wayfarer base path.
 sections:
-  # The task guides are the canonical destinations for ordinary users.
   - title: Users
     items:
       - title: Start here
@@ -19,23 +18,20 @@ sections:
       - title: Personal location providers
         url: /user/location-providers.html
 
-  # Retain existing operator destinations until their audience guide replaces them.
   - title: Self-hosters
     items:
-      - title: Install & Self-Hosting
-        url: /02-Install-and-Dependencies.html
-      - title: Operate with wayfarerctl
-        url: /29-Wayfarerctl.html
+      - title: Start here
+        url: /self-hosting/
+      - title: Operations
+        url: /self-hosting/operations.html
       - title: Troubleshooting
-        url: /09-Troubleshooting.html
-      - title: Security
-        url: /21-Security.html
-      - title: Advanced native/manual deployment
-        url: /20-Deployment.html#advanced-nativemanual-deployment
-      - title: Protected credential recovery
-        url: /24-Personal-Location-Providers.html#key-ring-durability-and-selection
+        url: /self-hosting/troubleshooting.html
+      - title: wayfarerctl reference
+        url: /self-hosting/wayfarerctl.html
+      - title: Native/manual deployment
+        url: /self-hosting/native-manual.html
 
-  # Existing development references remain reachable during the documentation migration.
+  # Existing development references remain reachable until #774 migrates them.
   - title: Developers & Contributors
     items:
       - title: Developer Guide
@@ -55,7 +51,8 @@ sections:
       - title: Testing
         url: /22-Testing.html
 
-  # Publication and qualification references remain owned by project maintainers.
+  # Publication and qualification references remain owned by project maintainers
+  # until #775 migrates them.
   - title: Project Maintainers
     items:
       - title: Versioning & Release Operations
