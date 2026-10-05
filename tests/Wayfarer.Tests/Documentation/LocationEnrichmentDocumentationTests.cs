@@ -78,9 +78,9 @@ public sealed class LocationEnrichmentDocumentationTests
             StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("later inline checks", docs, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("200 ms delay", docs, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("Location import performs no provider credential resolution, provider admission," +
-            Environment.NewLine + "reverse-geocoding HTTP, inline enrichment, or per-record enrichment delay.", docs,
-            StringComparison.Ordinal);
+        Assert.Contains("Location import performs no provider credential resolution, provider admission, " +
+            "reverse-geocoding HTTP, inline enrichment, or per-record enrichment delay.",
+            docs.ReplaceLineEndings(" "), StringComparison.Ordinal);
     }
 
     /// <summary>Canonical user and architecture docs name the accepted Wayfarer history format precisely.</summary>
@@ -103,7 +103,7 @@ public sealed class LocationEnrichmentDocumentationTests
     /// <summary>Reads the requested canonical documentation files from the repository root.</summary>
     private static string[] CanonicalDocs(params string[] relativePaths)
         => relativePaths.Select(path => File.ReadAllText(
-            RepositoryFile(["docs", .. path.Split('/')]))).ToArray();
+            RepositoryFile(path.Split('/').Prepend("docs").ToArray()))).ToArray();
 
     /// <summary>Resolves a repository file from the test output directory.</summary>
     private static string RepositoryFile(params string[] parts) => Path.GetFullPath(
