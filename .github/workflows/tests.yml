@@ -427,12 +427,12 @@ jobs:
           CLASSIFY_RESULT: ${{ needs.classify.result }}
           TEST_RESULT: ${{ needs.test.result }}
           CLEANUP_SELECTED: ${{ needs.classify.outputs.run_cleanup_safety }}
-          CLEANUP_RESULT: ${{ needs.cleanup-safety.result }}
+          CLEANUP_RESULT: ${{ needs['cleanup-safety'].result }}
           IMAGE_SELECTED: ${{ needs.classify.outputs.run_app_image }}
           RELEASE_SELECTED: ${{ needs.classify.outputs.run_release_tooling }}
-          IMAGE_RESULT: ${{ needs.application-image.result }}
+          IMAGE_RESULT: ${{ needs['application-image'].result }}
           ARM_SELECTED: ${{ needs.classify.outputs.run_arm64 }}
-          ARM_RESULT: ${{ needs.application-image-arm64.result }}
+          ARM_RESULT: ${{ needs['application-image-arm64'].result }}
         run: |
           set -eu
           test "$CLASSIFY_RESULT" = success
