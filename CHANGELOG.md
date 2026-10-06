@@ -9,6 +9,9 @@
 
 ### Fixed
 
+- Refresh frontend npm dependencies to current stable releases, resolving the Vue
+  server-renderer and transitive source-map-js security advisories while retaining
+  Quill 2.0.2 (#786).
 - Give the shared external HTTPS qualification proxy its own project-scoped fixture label and cleanup selector, keeping it outside product Compose update ownership while preserving existing product/helper cleanup and HTTPS behavior (#748).
 
 ## [1.9.22] - 2026-10-04
