@@ -10,17 +10,17 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       head_sha: ${{ steps.meta.outputs.head_sha }}
-      run_dotnet: ${{ needs.classify.outputs.run_dotnet }}
-      run_playwright: ${{ needs.classify.outputs.run_playwright }}
-      run_frontend: ${{ needs.classify.outputs.run_frontend }}
-      run_cleanup_safety: ${{ needs.classify.outputs.run_cleanup_safety }}
-      run_release_tooling: ${{ needs.classify.outputs.run_release_tooling }}
-      run_app_image: ${{ needs.classify.outputs.run_app_image }}
-      run_db_compose: ${{ needs.classify.outputs.run_db_compose }}
-      run_operator: ${{ needs.classify.outputs.run_operator }}
-      run_recovery: ${{ needs.classify.outputs.run_recovery }}
-      run_update: ${{ needs.classify.outputs.run_update }}
-      run_arm64: ${{ needs.classify.outputs.run_arm64 }}
+      run_dotnet: ${{ steps.scope.outputs.run_dotnet }}
+      run_playwright: ${{ steps.scope.outputs.run_playwright }}
+      run_frontend: ${{ steps.scope.outputs.run_frontend }}
+      run_cleanup_safety: ${{ steps.scope.outputs.run_cleanup_safety }}
+      run_release_tooling: ${{ steps.scope.outputs.run_release_tooling }}
+      run_app_image: ${{ steps.scope.outputs.run_app_image }}
+      run_db_compose: ${{ steps.scope.outputs.run_db_compose }}
+      run_operator: ${{ steps.scope.outputs.run_operator }}
+      run_recovery: ${{ steps.scope.outputs.run_recovery }}
+      run_update: ${{ steps.scope.outputs.run_update }}
+      run_arm64: ${{ steps.scope.outputs.run_arm64 }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -35,6 +35,12 @@ jobs:
         run: python3 -m unittest discover -s tools/ci/tests -v
       - name: Test public lifecycle provenance and evidence boundaries
         run: python3 -B -m unittest discover -s tools/compose/tests -v
+      - name: Classify CI evidence scope
+        id: scope
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: python3 tools/ci/application_image_scope.py --base "$BASE_SHA" --head "$HEAD_SHA"
 
   test:
     needs: classify
