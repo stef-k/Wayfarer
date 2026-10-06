@@ -44,6 +44,15 @@ class ApplicationImageScopeTests(unittest.TestCase):
         ], set())
         self.assert_domains([], set())
 
+    def test_ordinary_778_style_application_change(self):
+        """Ordinary API/service/model/test work selects only .NET product evidence."""
+        self.assert_domains([
+            'Areas/Api/Controllers/TripsController.cs',
+            'Services/TripAuthorizationService.cs',
+            'Models/TripSummary.cs',
+            'tests/Wayfarer.Tests/Services/TripAuthorizationServiceTests.cs',
+        ], {'dotnet'})
+
     def test_ordinary_backend_only(self):
         """Compilation owns unrelated C#, Razor and embedded-resource changes."""
         for path in ['Controllers/HomeController.cs', 'Services/GroupService.cs',
@@ -119,7 +128,17 @@ class ApplicationImageScopeTests(unittest.TestCase):
         self.assert_domains(['deploy/compose/caddy/Caddyfile'], SUBSTRATE)
 
     def test_operator_only(self):
-        """Setup selects the operator journey without implying backup or update."""
+        """Ordinary operator work keeps exact-head substrate prerequisites, not lifecycle."""
+        path = 'tools/WayfarerCtl/Status.cs'
+        self.assert_domains([path], OPERATOR | {'dotnet'})
+        reasons = scope.classify([path])
+        self.assertIn('execution prerequisite for operator', reasons['db_compose'])
+        self.assertIn('execution prerequisite for db_compose', reasons['app_image'])
+        self.assertFalse(reasons['recovery'])
+        self.assertFalse(reasons['update'])
+
+    def test_setup_operator_owner(self):
+        """Setup remains operator-owned without accidentally selecting recovery/update."""
         self.assert_domains(['tools/WayfarerCtl/Setup.cs'], OPERATOR | {'dotnet'})
 
     def test_recovery_owner(self):

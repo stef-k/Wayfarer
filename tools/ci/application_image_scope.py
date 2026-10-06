@@ -163,6 +163,10 @@ def classify(paths):
             if matches(path, patterns):
                 reasons[domain].add(f'owner: {path!r}')
     # Ordered explicitly: no generic dependency framework or reverse inference.
+    # Operator qualification currently assembles an exact-head candidate bundle and
+    # exercises setup against freshly qualified application and database artifacts.
+    # Until CI has a separately proven immutable-substrate reuse contract, removing
+    # operator -> db_compose -> app_image would under-classify operator evidence.
     for consumer, prerequisite in (
         ('playwright', 'dotnet'), ('update', 'recovery'), ('recovery', 'operator'),
         ('operator', 'db_compose'), ('db_compose', 'app_image'),
