@@ -96,6 +96,8 @@ public sealed class UninstallPreparation(IProcessRunner runner)
     /// <summary>Receipt-owned replay rejects unresolved lifecycle owners; retained backup identity must match committed installation authority.</summary>
     private static void RequireOtherLifecycle(string root)
     {
+        RequireProtectedCurrentReceipt(UpdateReceipt.PathFor(root));
+        RequireProtectedCurrentReceipt(RestoreReceipt.PathFor(root));
         UpdateReceipt.RequireResolved(root);
         RestoreReceipt.RequireResolved(root);
         if (SetupProvisioning.IsPending(root) || !InstallationCompletion.IsComplete(root))
@@ -119,6 +121,14 @@ public sealed class UninstallPreparation(IProcessRunner runner)
             ProtectedFiles.Check(completion, 0);
             if (!Read(root, completion, 2).SequenceEqual("1\n"u8.ToArray())) throw new UsageException("Unsafe setup completion evidence.");
         }
+    }
+
+    /// <summary>Directories and dangling links are present authority; only a protected regular file may reach the receipt loader.</summary>
+    private static void RequireProtectedCurrentReceipt(string path)
+    {
+        if (!UninstallHistory.Exists(path)) return;
+        ProtectedFiles.SafePath(path);
+        ProtectedFiles.Check(path, 0);
     }
 
     /// <summary>The embedded accepted plan remains protected authority during forward removal and preserved reactivation.</summary>

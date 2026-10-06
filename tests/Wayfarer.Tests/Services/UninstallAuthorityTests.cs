@@ -130,6 +130,101 @@ public sealed class UninstallAuthorityTests : IDisposable
         await Assert.ThrowsAnyAsync<Exception>(() => Prepare());
     }
 
+    /// <summary>Directories and dangling links at either current receipt path refuse before plan publication or any Docker call.</summary>
+    [Theory]
+    [InlineData("update", false)]
+    [InlineData("update", true)]
+    [InlineData("restore", false)]
+    [InlineData("restore", true)]
+    public async Task UnsafeCurrentReceiptRefusesPlanning(string kind, bool danglingLink)
+    {
+        using var fixture = new UninstallCommandFixture();
+        CreateUnsafeCurrentReceipt(fixture.Root, kind, danglingLink);
+        Assert.Equal(2, await fixture.Command("uninstall", "--plan", "--without-backup"));
+        Assert.Empty(fixture.Runner.Calls);
+        Assert.False(Directory.Exists(Path.Combine(fixture.Root, "uninstall-plans")));
+        Assert.False(UninstallHistory.Exists(UninstallReceipt.PathFor(fixture.Root)));
+    }
+
+    /// <summary>A published plan cannot authorize removal after an absent current receipt becomes an unsafe entry.</summary>
+    [Theory]
+    [InlineData("update", false)]
+    [InlineData("update", true)]
+    [InlineData("restore", false)]
+    [InlineData("restore", true)]
+    public async Task UnsafeCurrentReceiptRefusesAcceptance(string kind, bool danglingLink)
+    {
+        using var fixture = new UninstallCommandFixture();
+        var plan = await fixture.Plan();
+        var path = UninstallPreparation.PathFor(fixture.Root, plan.Hash());
+        var bytes = File.ReadAllBytes(path);
+        fixture.Runner.Calls.Clear();
+        CreateUnsafeCurrentReceipt(fixture.Root, kind, danglingLink);
+        Assert.Equal(2, await fixture.Command("uninstall", "--accept-plan", plan.Hash()));
+        Assert.Empty(fixture.Runner.Calls);
+        Assert.False(UninstallHistory.Exists(UninstallReceipt.PathFor(fixture.Root)));
+        Assert.Equal(bytes, File.ReadAllBytes(path));
+        Assert.Single(Directory.EnumerateFiles(Path.GetDirectoryName(path)!));
+    }
+
+    /// <summary>Protected terminal current receipts remain history; valid unresolved receipts retain their existing lifecycle refusal.</summary>
+    [Theory]
+    [InlineData("update", true)]
+    [InlineData("restore", true)]
+    [InlineData("update", false)]
+    [InlineData("restore", false)]
+    public async Task CurrentReceiptLifecycleSemanticsRemainAuthoritative(string kind, bool resolved)
+    {
+        using var fixture = new UninstallCommandFixture(true);
+        WriteCurrentReceipt(fixture, kind, resolved);
+        if (!resolved)
+        {
+            Assert.Equal(2, await fixture.Command("uninstall", "--plan", "--without-backup"));
+            Assert.Contains(fixture.Terminal.Errors, error => error.Contains("is Authorized; use " + kind + " recovery"));
+            Assert.Empty(fixture.Runner.Calls);
+            Assert.False(Directory.Exists(Path.Combine(fixture.Root, "uninstall-plans")));
+            Assert.False(UninstallHistory.Exists(UninstallReceipt.PathFor(fixture.Root)));
+            return;
+        }
+        var plan = await fixture.Plan();
+        var history = UninstallHistory.Load(fixture.Root, fixture.Config);
+        Assert.Equal(1, history.Updates.Length + history.Restores.Length);
+        Assert.Equal(history.Fingerprint(), plan.HistoryFingerprint);
+        Assert.Equal(0, await fixture.Command("uninstall", "--accept-plan", plan.Hash()));
+        Assert.Equal(UninstallPhase.Preserved, UninstallReceipt.Load(fixture.Root)!.Phase);
+    }
+
+    /// <summary>Exercise actual root-owned private directories and dangling links at the production canonical receipt paths.</summary>
+    private static void CreateUnsafeCurrentReceipt(string root, string kind, bool danglingLink)
+    {
+        var path = kind == "update" ? UpdateReceipt.PathFor(root) : RestoreReceipt.PathFor(root);
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!, ProtectedFiles.PrivateDirectory);
+        if (danglingLink) File.CreateSymbolicLink(path, Path.Combine(root, "missing-receipt"));
+        else Directory.CreateDirectory(path, ProtectedFiles.PrivateDirectory);
+    }
+
+    /// <summary>Persist schema-valid same-installation authority through existing receipt writers without inventing receipt parsing.</summary>
+    private static void WriteCurrentReceipt(UninstallCommandFixture fixture, string kind, bool resolved)
+    {
+        var current = fixture.Config;
+        if (kind == "update")
+        {
+            var source = current.Backup!.Source;
+            var plan = new UpdatePlan(Guid.NewGuid(), fixture.Root, current, current, current.Release!,
+                new ReleaseSourceBoundary("1.9.22", current.Release!.Fingerprint, source.ExpectedMigrations.Last(), true, false, "none", "none"), [],
+                JsonSerializer.Serialize(current), current.EnvironmentFile(fixture.Root), ProtectedFiles.SecretsFingerprint(fixture.Root),
+                new UpdateCapacity(0, 0, 0, 0, 0, 0)) { TargetMigrations = source.ExpectedMigrations };
+            new UpdateReceipt { Plan = plan, PlanHash = plan.Hash(), Phase = resolved ? UpdatePhase.Aborted : UpdatePhase.Authorized }.Save(fixture.Root);
+        }
+        else
+        {
+            var plan = new RestorePlan(Guid.NewGuid(), fixture.Root, current, current.Installation, Guid.NewGuid(), new string('a', 64),
+                DateTimeOffset.UnixEpoch, "quiesced", "bundle", "capture", "restore", current.StorageGeneration,
+                Guid.NewGuid().ToString("N"), false, true, false) { OperatorOwner = current.Release };
+            new RestoreReceipt { Plan = plan, PlanHash = plan.Hash(), Phase = resolved ? RestorePhase.Accepted : RestorePhase.Authorized }.Save(fixture.Root);
+        }
+    }
+
     /// <summary>A failed inspection never becomes absence or permission to persist a cleanup plan.</summary>
     [Fact]
     public async Task DockerFailureDoesNotPublishPlan()
