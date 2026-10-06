@@ -12,8 +12,17 @@ public static class ReleaseDispatch
         ReleaseAuthority owner;
         if (resume)
             owner = RestoreReceipt.Load(root)?.Plan.OperatorOwner ?? throw new UsageException("Receipt has no retained operator owner; invoke its original operator explicitly.");
-        else
-            owner = Deployment.Load(root).Release ?? throw new UsageException("Installation has not adopted a local release.");
+        else if (UninstallReceipt.Load(root) is { } uninstall)
+        {
+            _ = UninstallReceipt.State(root);
+            owner = uninstall.Plan.OperatorOwner;
+        }
+        else if (UninstallPurgeTombstone.Load(root) is { } tombstone)
+        {
+            tombstone.RequireMatch(root, null);
+            owner = tombstone.OperatorOwner;
+        }
+        else owner = Deployment.Load(root).Release ?? throw new UsageException("Installation has not adopted a local release.");
         var bundle = ReleaseStore.Select(root, owner);
         ReleaseContract.RequireUse(bundle.Manifest, bundle.Manifest.Operator.Version);
         return bundle;
@@ -24,7 +33,8 @@ public static class ReleaseDispatch
     {
         if (args.Length == 0 || args[0] == "dispatch") throw new UsageException("dispatch requires one ordinary command.");
         var resume = args is ["restore", "--resume" or "--abort", ..];
-        var selected = args is ["update", "--resume" or "--abort" or "--restore", ..]
+        var selected = UninstallReceipt.State(root) != UninstallState.None ? Select(root, false) :
+            args is ["update", "--resume" or "--abort" or "--restore", ..]
             ? ReleaseStore.Select(root, (UpdateReceipt.Load(root) ?? throw new UsageException("Missing update owner.")).Plan.OperatorOwner)
             : Select(root, resume);
         var executable = Path.Combine(selected.Directory, "wayfarerctl");

@@ -180,6 +180,81 @@ operator refuses abort, preserve the state and follow forward recovery.
 For update after migration begins, use the managed restore route rather than trying
 to run the old image against the changed database.
 
+## Uninstall final backup failed or was interrupted
+
+A selected final backup must publish and explicitly verify its exact committed
+archive before uninstall destructive intent. If either fails, no uninstall
+removal starts. The ordinary quiesced-backup path may have stopped the application.
+
+Preserve the destination, host recovery reservation and worker evidence. Follow
+ordinary backup recovery or the identified `backup configure --recover` transition;
+do not delete locks or reservations. Once that owner is resolved, use `start` if
+appropriate and retry the accepted uninstall hash while its plan remains valid.
+If authority changed, plan again. A retry before destructive intent may safely
+create another fresh set; after intent, the recorded verified set is reused.
+
+## Uninstall or purge was interrupted
+
+Preserve the printed accepted hash and run:
+
+```sh
+wayfarerctl uninstall --accept-plan <same-accepted-sha256>
+```
+
+The protected receipt records the last durable phase. Replay reconciles exact
+absence and continues forward; it never rolls back deletion, repeats the final
+backup after authorization, or accepts a replacement resource. A new plan cannot
+override an unresolved uninstall.
+
+Normal uninstall's terminal **Preserved** result retains every volume and protected
+installation file. Same-hash replay is a no-op success. Use `start` deliberately
+to reactivate; use a fresh `uninstall --purge --plan --without-backup` only when
+erasure is intended.
+
+### Reactivation reports missing or replaced storage
+
+`start` proves retained volume ownership/identity before Compose can create
+services. Keep the Preserved receipt, protected root and remaining volumes. Do not
+create an empty same-name DB/application volume or edit its inventory. Investigate
+the original volume loss/replacement and recover from the matching backup through
+the supported recovery path on a suitable target.
+
+If reactivation started some services but failed health or receipt retirement,
+correct that cause and retry `start`; its original retained storage remains the
+authority. `restart` and fresh setup cannot bypass the Preserved owner.
+
+### Purge stopped during volume or root cleanup
+
+Deleted volumes cannot be rolled back. Keep the full uninstall receipt and use the
+same accepted hash. Partial root cleanup continues from durable volume-removal
+authority without requiring already-deleted configuration or secrets. Links,
+hard links, unexpected types/ownership, nested mounts and unknown root entries
+refuse cleanup; identify the concrete conflict before retrying.
+
+If a full receipt and `uninstall-purged.json` coexist, replay reconciles them only
+when their operation/hash/operator authority agrees and the allowed terminal root
+shape is proven. The tombstone is committed last; its presence alone is not
+permission to discard a conflicting receipt. Do not edit or remove either file.
+
+### Purge refuses foreign or unreceipted Docker resources
+
+A project label or familiar name is insufficient deletion authority. Preserve the
+receipt and resources, inspect exact IDs/mounts/labels against protected lifecycle
+history, and resolve the actual ownership conflict. Do not relabel resources,
+manufacture history or run broad Docker cleanup to bypass refusal.
+
+### Fresh setup refuses terminal state
+
+Successful purge leaves only `releases/`, `operation.lock` and a valid minimal
+tombstone. `status` and `doctor` recognize **Purged** and validate that retained
+authority without recreating runtime. Same-hash replay requires no Docker access.
+
+Fresh setup consumes the tombstone itself. If it refuses an unresolved receipt,
+invalid/conflicting tombstone or contradictory root/Docker residue, preserve that
+state and reconcile uninstall first. Never manually delete the tombstone to force
+setup. New setup uses fresh secrets and no inherited backup policy; the old
+destination remains associated with the old installation and must not be relabelled.
+
 ## Protected provider credentials became unreadable
 
 Personal provider credentials depend on both database records and the **complete

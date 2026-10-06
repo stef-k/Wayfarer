@@ -321,7 +321,7 @@ jobs:
           python3 -B tools/compose/qualify_update.py \
             --source-bundle "$(python3 -c 'import os,pathlib; print(next(pathlib.Path(os.environ["RUNNER_TEMP"],"release").glob("candidate-*")))')" \
             --output "$RUNNER_TEMP/update"
-      - name: Qualify real managed update and restore ownership boundary
+      - name: Qualify complete setup, backup, update, restore, uninstall and reinstall lifecycle
         if: steps.scope.outputs.run_update == 'true'
         run: |
           image_digest="$(python3 -c 'import json,os; print(json.load(open(os.environ["RUNNER_TEMP"]+"/update/source/release.json"))["Images"]["ApplicationDigest"])')"
@@ -330,12 +330,15 @@ jobs:
             --worker "$RUNNER_TEMP/recovery/wayfarer-recovery" \
             --inspector tools/WayfarerRecoverySource/bin/Release/net10.0/WayfarerRecoverySource.dll \
             --probe tools/compose/recovery-probe/bin/Release/net10.0/RecoveryProbe.dll --app-digest "$image_digest" \
-            --release-bundle "$RUNNER_TEMP/update/source" --update-bundle "$target_bundle"
+            --release-bundle "$RUNNER_TEMP/update/source" --update-bundle "$target_bundle" \
+            --lifecycle-evidence "$RUNNER_TEMP/update/lifecycle.json"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always() && steps.scope.outputs.run_update == 'true'
         with:
           name: update-qualification-provenance
-          path: ${{ runner.temp }}/update/evidence.json
+          path: |
+            ${{ runner.temp }}/update/evidence.json
+            ${{ runner.temp }}/update/lifecycle.json
           if-no-files-found: warn
 
   # Native execution owns ARM64-specific facts; architecture-neutral matrices remain in the AMD64 lane.

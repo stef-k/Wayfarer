@@ -12,6 +12,7 @@ public sealed class UpdateCommands(IProcessRunner runner, ITerminal terminal)
     {
         var options = UpdateOptions.Parse(args);
         using var operation = Setup.Lock(root);
+        UninstallReceipt.RequireActive(root);
         await new Preflight(runner).DockerAsync(token);
         if (options.Plan)
         {
@@ -219,14 +220,7 @@ public sealed class UpdateCommands(IProcessRunner runner, ITerminal terminal)
         if (names.Contains(container))
         {
             using var document = JsonDocument.Parse(await owner.Required(["inspect", container], token));
-            Preflight.VerifyRetainedResource(receipt.Plan.Current, "container", document.RootElement[0], root);
-            if (document.RootElement[0].GetProperty("Config").GetProperty("Image").GetString() !=
-                "ghcr.io/stef-k/wayfarer-db@" + receipt.Plan.Current.DbDigest) throw new IOException("Capture helper image changed.");
-            var configuration = document.RootElement[0].GetProperty("Config");
-            if (configuration.GetProperty("Labels").GetProperty("com.docker.compose.service").GetString() != "backup-worker" ||
-                reservation is not null && !configuration.GetProperty("Cmd").Deserialize<string[]>()!
-                    .SequenceEqual(new[] { "backup", "--host-operation", reservation.Token }))
-                throw new IOException("Capture helper delegation changed.");
+            VerifyCaptureContainer(root, receipt, document.RootElement[0], reservation);
             if (document.RootElement[0].GetProperty("State").GetProperty("Status").GetString() != "created")
             {
                 await owner.Required(["stop", "--time", "30", container], token);
@@ -244,6 +238,19 @@ public sealed class UpdateCommands(IProcessRunner runner, ITerminal terminal)
         }
         using var control = new SafeDirectory(Path.GetDirectoryName(path)!);
         control.Flush();
+    }
+
+    /// <summary>Shared read-only ownership checks let terminal uninstall inventory recognize exact receipted capture helpers.</summary>
+    internal static void VerifyCaptureContainer(string root, UpdateReceipt receipt, JsonElement container, HostRecoveryOperation? reservation = null)
+    {
+        Preflight.VerifyRetainedResource(receipt.Plan.Current, "container", container, root);
+        var configuration = container.GetProperty("Config");
+        if (configuration.GetProperty("Image").GetString() != "ghcr.io/stef-k/wayfarer-db@" + receipt.Plan.Current.DbDigest)
+            throw new IOException("Capture helper image changed.");
+        if (configuration.GetProperty("Labels").GetProperty("com.docker.compose.service").GetString() != "backup-worker" ||
+            reservation is not null && !configuration.GetProperty("Cmd").Deserialize<string[]>()!
+                .SequenceEqual(new[] { "backup", "--host-operation", reservation.Token }))
+            throw new IOException("Capture helper delegation changed.");
     }
 
     /// <summary>Abort can restore restart policies only while exact old authority remains before any migration launch.</summary>

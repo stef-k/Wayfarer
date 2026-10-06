@@ -135,6 +135,18 @@ class ApplicationImageScopeTests(unittest.TestCase):
                 self.assert_domains([path], UPDATE | {'dotnet'})
         self.assert_domains(['tools/compose/qualify_update.py'], UPDATE)
 
+    def test_uninstall_owns_complete_lifecycle(self):
+        """Every current or future uninstall source directly selects all three lifecycle owners."""
+        for path in ['tools/WayfarerCtl/UninstallCommands.cs', 'tools/WayfarerCtl/UninstallPlan.cs',
+                     'tools/WayfarerCtl/UninstallFuture.cs']:
+            with self.subTest(path=path):
+                self.assert_domains([path], UPDATE | {'dotnet'})
+                reasons = scope.classify([path])
+                for domain in ['operator', 'recovery', 'update']:
+                    self.assertIn(f'owner: {path!r}', reasons[domain])
+        self.assert_domains(['docs/self-hosting/operations.md',
+                             'docs/self-hosting/wayfarerctl.md'], set())
+
     def test_bundle_and_shared_release_owners(self):
         """Shared manifest and platform-qualified bundles reach their lifecycle consumers."""
         for path in ['tools/release/bundle.py', 'tools/release/public_bundle.py']:

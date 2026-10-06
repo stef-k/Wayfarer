@@ -41,7 +41,7 @@ public sealed class RestorePreparation(IProcessRunner runner)
             name = (await new RestoreContainers(runner).RunAsync(config.Project + "-restore-select-" + operation.ToString("N"),
                 [.. RestoreContainers.Unprivileged(), "--network=none", "--volume", restorePayload + ":/worker:ro",
                     "--volume", Path.Combine(BackupCompose.DirectoryPath(root, policy), "worker.json") + ":/config/worker.json:ro",
-                    .. mounts, "--entrypoint=/worker", "ghcr.io/stef-k/wayfarer-db@" + config.DbDigest, "restore-select"], token)).Trim();
+                    .. mounts, "--entrypoint=/worker", "ghcr.io/stef-k/wayfarer-db@" + config.DbDigest, "restore-select"], token, retainEvidence: false)).Trim();
         }
         RestoreOptions.ValidateBasename(name);
         using (var selected = input.Read(name))
@@ -149,7 +149,7 @@ public sealed class RestorePreparation(IProcessRunner runner)
                 throw new UsageException("Local application source revision mismatch.");
         }
         var version = await containers.RunAsync(config.Project + "-restore-version-" + Guid.NewGuid().ToString("N"),
-            [.. RestoreContainers.Unprivileged(), "--network=none", "--entrypoint=dotnet", expected.ApplicationImage, "Wayfarer.dll", "version"], token);
+            [.. RestoreContainers.Unprivileged(), "--network=none", "--entrypoint=dotnet", expected.ApplicationImage, "Wayfarer.dll", "version"], token, retainEvidence: false);
         if (version.Trim() != "Wayfarer " + expected.ApplicationVersion)
             throw new UsageException("Compiled local application version mismatch.");
     }
@@ -194,7 +194,7 @@ public sealed class RestorePreparation(IProcessRunner runner)
                 "--volume", Path.Combine(directory, "frozen") + ":/frozen:ro",
                 "--volume", Path.Combine(directory, "source.json") + ":/target/source.json:ro",
                 "--volume", staging + ":/staging:rw", "--entrypoint=/worker", "ghcr.io/stef-k/wayfarer-db@" + config.DbDigest,
-                "restore-verify", name, source.ToString("D")], token);
+                "restore-verify", name, source.ToString("D")], token, retainEvidence: false);
         if (output.Length > 1024) throw new IOException("Restore verification result exceeds bound.");
         var verified = JsonSerializer.Deserialize<VerifiedRestoreArchive>(output, ArchiveContract.Json)
             ?? throw new IOException("Missing restore verification result.");

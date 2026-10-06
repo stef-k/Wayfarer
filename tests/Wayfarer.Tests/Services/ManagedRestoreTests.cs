@@ -147,6 +147,49 @@ public sealed class ManagedRestoreTests
         File.Delete(Path.Combine(staging, "database.dump"));
     }
 
+    /// <summary>Completed archive preparation cannot leave an unreceipted helper that blocks a later uninstall.</summary>
+    [Fact]
+    [Trait("Category", "RequiresRoot")]
+    public async Task VerificationReapsItsNonTransactionHelper()
+    {
+        using var fixture = new Wayfarer.Tests.Infrastructure.TestDirectory();
+        var source = Guid.NewGuid();
+        var operation = Guid.NewGuid();
+        var verified = new WayfarerRecovery.VerifiedRestoreArchive(Guid.NewGuid(), DateTimeOffset.UnixEpoch, "quiesced");
+        var name = WayfarerRecovery.ArchiveContract.Name(source, verified.Completed, verified.Archive);
+        Directory.CreateDirectory(Path.Combine(fixture.Path, "frozen"));
+        File.WriteAllText(Path.Combine(fixture.Path, "frozen", name), "frozen archive");
+        var runner = new VerificationRunner(verified);
+
+        Assert.Equal(verified, await new RestorePreparation(runner).VerifyAsync(Config(), fixture.Path,
+            operation, "/trusted/worker", name, source, CancellationToken.None));
+
+        Assert.Contains(runner.Calls, command => command.SequenceEqual(
+            new[] { "rm", "wayfarer-restore-verify-" + operation.ToString("N") }));
+        Assert.True(File.Exists(Path.Combine(fixture.Path, "capacity.json")));
+    }
+
+    /// <summary>Return verified archive evidence while recording the preparation helper's actual lifecycle commands.</summary>
+    private sealed class VerificationRunner(WayfarerRecovery.VerifiedRestoreArchive verified) : IProcessRunner
+    {
+        public List<string[]> Calls { get; } = [];
+        private string? helper;
+
+        public Task<ProcessResult> RunAsync(string[] args, string? input, CancellationToken cancellation, Action<string>? lineOutput = null)
+        {
+            Calls.Add(args);
+            if (args[0] == "create") helper = args[Array.IndexOf(args, "--name") + 1];
+            var output = args[0] switch
+            {
+                "ps" => helper ?? "",
+                "wait" => "0",
+                "logs" => JsonSerializer.Serialize(verified),
+                _ => ""
+            };
+            return Task.FromResult(new ProcessResult(0, output));
+        }
+    }
+
     private static Deployment Config() => new()
     {
         Schema = 2, Installation = Guid.NewGuid(), Bundle = "/opt/wayfarer/bundle",

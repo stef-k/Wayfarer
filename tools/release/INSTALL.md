@@ -46,6 +46,19 @@ and invokes only its fixed `wayfarerctl` filename. `dispatch restore --resume UU
 A legacy receipt without an owner requires its original operator explicitly.
 Do not change bootstrap bytes during ordinary lifecycle operations.
 
+An older fixed bootstrap may reject the new `uninstall` grammar before dispatch,
+even when the retained operator supports it. Explicitly install/update the fixed
+bootstrap from a trusted verified release that supports uninstall, while no command
+is running, or invoke the exact matching retained uninstall-capable operator directly:
+
+```sh
+sudo /etc/wayfarer/releases/NAME/wayfarerctl \
+  --deployment-root /etc/wayfarer uninstall --plan --without-backup
+```
+
+Replace `NAME` with the actual validated retained release owner. This command-version
+remedy does not authorize automatic bootstrap replacement during update or removal.
+
 `release target /etc/wayfarer/releases/NAME project` exports independent restore target
 evidence from validated retained bytes. Quartz compatibility is release-owned;
 physical column order and capture snapshots are never release metadata. The target's
