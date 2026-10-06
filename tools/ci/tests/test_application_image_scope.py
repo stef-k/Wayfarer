@@ -3,8 +3,10 @@
 import importlib.util
 import os
 from pathlib import Path
+import re
 import subprocess
 import tempfile
+import textwrap
 import unittest
 from unittest.mock import patch
 
@@ -129,7 +131,7 @@ class ApplicationImageScopeTests(unittest.TestCase):
 
     def test_operator_only(self):
         """Ordinary operator work keeps exact-head substrate prerequisites, not lifecycle."""
-        path = 'tools/WayfarerCtl/Status.cs'
+        path = 'tools/WayfarerCtl/Diagnostics.cs'
         self.assert_domains([path], OPERATOR | {'dotnet'})
         reasons = scope.classify([path])
         self.assertIn('execution prerequisite for operator', reasons['db_compose'])
@@ -137,14 +139,36 @@ class ApplicationImageScopeTests(unittest.TestCase):
         self.assertFalse(reasons['recovery'])
         self.assertFalse(reasons['update'])
 
-    def test_setup_operator_owner(self):
-        """Setup remains operator-owned without accidentally selecting recovery/update."""
-        self.assert_domains(['tools/WayfarerCtl/Setup.cs'], OPERATOR | {'dotnet'})
+    def test_uninstall_shared_lifecycle_owners(self):
+        """Purge-tombstone consumption and Preserved reactivation own the joined journey."""
+        for path in ['tools/WayfarerCtl/Setup.cs', 'tools/WayfarerCtl/DeploymentLifecycle.cs']:
+            with self.subTest(path=path):
+                self.assert_domains([path], UPDATE | {'dotnet'})
 
     def test_recovery_owner(self):
         """An architecture-neutral recovery worker selects only its prerequisite chain."""
         self.assert_domains(['tools/WayfarerRecovery/RecoveryEngine.cs'], RECOVERY | {'dotnet'})
         self.assert_domains(['tools/WayfarerCtl/RestoreReceipt.cs'], RECOVERY | {'dotnet'})
+        for path in ['tools/WayfarerCtl/BackupCommands.cs', 'tools/WayfarerCtl/RestoreCommands.cs']:
+            with self.subTest(path=path):
+                self.assert_domains([path], RECOVERY | {'dotnet'})
+
+    def test_managed_ingress_driver(self):
+        """The mounted browser driver runs in AMD64 DB/Compose qualification, not .NET tests."""
+        self.assert_domains(['tools/compose/managed_ingress.mjs'], SUBSTRATE)
+
+    def test_browser_fixture_projects(self):
+        """Architecture-neutral seed helpers cannot start an empty native qualification job."""
+        for fixture in ['Wayfarer.LifecycleBrowserFixture', 'Wayfarer.WaypointBrowserFixture']:
+            with self.subTest(fixture=fixture):
+                self.assert_domains([f'tools/{fixture}/{fixture}.csproj'], {'dotnet'})
+
+    def test_native_projects_have_concrete_qualification(self):
+        """Shipped operator/recovery project inputs also select the native image prerequisites."""
+        for project, expected in [('WayfarerCtl', OPERATOR), ('WayfarerRecovery', RECOVERY),
+                                  ('WayfarerRecoverySource', RECOVERY)]:
+            with self.subTest(project=project):
+                self.assert_domains([f'tools/{project}/{project}.csproj'], expected | {'dotnet', 'arm64'})
 
     def test_update_and_migration_owners(self):
         """Forward migrations and update-to-restore handoff require both journeys."""
@@ -206,15 +230,41 @@ class ApplicationImageScopeTests(unittest.TestCase):
 
     def test_unavailable_or_invalid_diff(self):
         """Malformed inputs, missing Git objects and failed subprocesses fail broad."""
+        expected = {domain: ['diff unavailable or invalid; broad qualification required']
+                    for domain in scope.DOMAINS}
         for failure in [OSError(), subprocess.CalledProcessError(128, 'git'), ValueError()]:
             with self.subTest(failure=type(failure).__name__):
                 with patch.object(scope, 'changed_paths', side_effect=failure):
-                    self.assertTrue(all(scope.decision('', '').values()))
-        self.assertTrue(all(scope.decision('invalid', 'invalid').values()))
-        self.assertTrue(all(scope.decision('0' * 40, '0' * 40).values()))
+                    self.assertEqual(scope.decision('', ''), expected)
+        self.assertEqual(scope.decision('invalid', 'invalid'), expected)
+        self.assertEqual(scope.decision('0' * 40, '0' * 40), expected)
         with patch.object(scope.subprocess, 'run', return_value=subprocess.CompletedProcess(
                 'git', 0, stdout=b'Dockerfile')):
-            self.assertTrue(all(scope.decision('a' * 40, 'b' * 40).values()))
+            self.assertEqual(scope.decision('a' * 40, 'b' * 40), expected)
+
+    def test_invalid_path_streams_fail_broad(self):
+        """Reject aliases and malformed entries before ownership matching can miss a contract."""
+        for data in [b'\0', b'.\0', b'..\0', b'./Dockerfile\0', b'../Dockerfile\0',
+                     b'deploy/../Dockerfile\0', b'deploy/./compose.yml\0', b'/Dockerfile\0',
+                     b'//server/Dockerfile\0', b'deploy//compose.yml\0', b'deploy/compose/\0',
+                     b'C:/Dockerfile\0', b'C:Dockerfile\0', b'C:\\Dockerfile\0',
+                     b'deploy\\compose.yml\0', b'Dockerfile\0\0', b'README.md\0./Dockerfile\0']:
+            with self.subTest(data=data), patch.object(scope.subprocess, 'run',
+                    return_value=subprocess.CompletedProcess('git', 0, stdout=data)):
+                with self.assertRaises(ValueError):
+                    scope.changed_paths('a' * 40, 'b' * 40)
+                result = scope.decision('a' * 40, 'b' * 40)
+                self.assertEqual({domain for domain, reasons in result.items() if reasons}, set(scope.DOMAINS))
+
+    def test_canonical_path_streams(self):
+        """Empty diffs, hidden directories and literal Git filenames keep their exact identity."""
+        for paths in [[], ['Dockerfile'], ['.github/workflows/tests.yml'],
+                      ['ordinary file\nname.txt', 'docs/\u03b1.md', 'tabs\there.txt', '\udcff.cs']]:
+            data = ''.join(path + '\0' for path in paths).encode('utf-8', errors='surrogateescape')
+            with self.subTest(paths=paths), patch.object(scope.subprocess, 'run',
+                    return_value=subprocess.CompletedProcess('git', 0, stdout=data)):
+                self.assertEqual(scope.changed_paths('a' * 40, 'b' * 40), paths)
+                self.assertEqual(scope.decision('a' * 40, 'b' * 40), scope.classify(paths))
 
     def test_cli_boolean_outputs_and_skip_reasons(self):
         """Workflow outputs are bounded booleans; logs explain every run and skip."""
@@ -270,6 +320,52 @@ class ApplicationImageScopeTests(unittest.TestCase):
                 git('add', '.')
                 git('commit', '-qm', 'docs')
                 self.assertFalse(any(scope.decision(advanced, git('rev-parse', 'HEAD')).values()))
+
+
+class CiGateTests(unittest.TestCase):
+    """Execute the workflow's real Bash gate with bounded synthetic classifier outputs."""
+
+    def setUp(self):
+        """Extract the verification step and its selector bindings without a YAML dependency."""
+        workflow = (SCRIPT.parents[2] / '.github/workflows/tests.yml').read_text()
+        step = workflow.split('      - name: Verify selected exact-head evidence\n', 1)[1]
+        step = step.split('\n      - name:', 1)[0]
+        bindings = dict(re.findall(r'^          (\w+): \$\{\{ needs\.classify\.outputs\.(run_\w+) }}$', step, re.M))
+        self.assertEqual(set(bindings.values()), {f'run_{domain}' for domain in scope.DOMAINS})
+        self.selectors = tuple(bindings)
+        self.script = textwrap.dedent(step.split('        run: |\n', 1)[1])
+        self.env = dict(os.environ, EXPECTED_HEAD='a' * 40, CLASSIFIED_HEAD='a' * 40,
+                        CLASSIFY_RESULT='success', TEST_RESULT='success', CLEANUP_RESULT='skipped',
+                        IMAGE_RESULT='skipped', ARM_RESULT='skipped')
+        self.env.update({selector: 'false' for selector in self.selectors})
+
+    def test_complete_boolean_outputs(self):
+        """Both the cheap path and fully selected successful evidence must pass."""
+        for selected, result in [('false', 'skipped'), ('true', 'success')]:
+            values = {**self.env, **{selector: selected for selector in self.selectors},
+                      'CLEANUP_RESULT': result, 'IMAGE_RESULT': result, 'ARM_RESULT': result}
+            with self.subTest(selected=selected):
+                gate = subprocess.run(['bash', '-c', self.script], env=values, capture_output=True, text=True)
+                self.assertEqual(gate.returncode, 0, gate.stderr)
+
+    def test_missing_blank_or_malformed_outputs(self):
+        """Every expected selector must be present and exactly lowercase true or false."""
+        for selector in self.selectors:
+            for value in [None, '', 'TRUE', '0', 'false ', 'true\nfalse']:
+                values = dict(self.env)
+                if value is None:
+                    values.pop(selector)
+                else:
+                    values[selector] = value
+                with self.subTest(selector=selector, value=value):
+                    gate = subprocess.run(['bash', '-c', self.script], env=values, capture_output=True, text=True)
+                    self.assertNotEqual(gate.returncode, 0)
+
+    def test_hollow_arm64_selection_fails(self):
+        """An ARM job cannot certify native evidence when its qualification steps were unselected."""
+        values = {**self.env, 'ARM_SELECTED': 'true', 'ARM_RESULT': 'success'}
+        gate = subprocess.run(['bash', '-c', self.script], env=values, capture_output=True, text=True)
+        self.assertNotEqual(gate.returncode, 0)
 
 
 if __name__ == '__main__':

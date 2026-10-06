@@ -432,11 +432,18 @@ jobs:
           CLASSIFIED_HEAD: ${{ needs.classify.outputs.head_sha }}
           CLASSIFY_RESULT: ${{ needs.classify.result }}
           TEST_RESULT: ${{ needs.test.result }}
+          DOTNET_SELECTED: ${{ needs.classify.outputs.run_dotnet }}
+          PLAYWRIGHT_SELECTED: ${{ needs.classify.outputs.run_playwright }}
+          FRONTEND_SELECTED: ${{ needs.classify.outputs.run_frontend }}
           CLEANUP_SELECTED: ${{ needs.classify.outputs.run_cleanup_safety }}
           CLEANUP_RESULT: ${{ needs['cleanup-safety'].result }}
           IMAGE_SELECTED: ${{ needs.classify.outputs.run_app_image }}
           RELEASE_SELECTED: ${{ needs.classify.outputs.run_release_tooling }}
           IMAGE_RESULT: ${{ needs['application-image'].result }}
+          DB_COMPOSE_SELECTED: ${{ needs.classify.outputs.run_db_compose }}
+          OPERATOR_SELECTED: ${{ needs.classify.outputs.run_operator }}
+          RECOVERY_SELECTED: ${{ needs.classify.outputs.run_recovery }}
+          UPDATE_SELECTED: ${{ needs.classify.outputs.run_update }}
           ARM_SELECTED: ${{ needs.classify.outputs.run_arm64 }}
           ARM_RESULT: ${{ needs['application-image-arm64'].result }}
         run: |
@@ -444,6 +451,19 @@ jobs:
           test "$CLASSIFY_RESULT" = success
           test "$CLASSIFIED_HEAD" = "$EXPECTED_HEAD"
           test "$TEST_RESULT" = success
+
+          # Missing or malformed selectors must never be interpreted as unselected evidence.
+          for selector in DOTNET_SELECTED PLAYWRIGHT_SELECTED FRONTEND_SELECTED CLEANUP_SELECTED RELEASE_SELECTED IMAGE_SELECTED DB_COMPOSE_SELECTED OPERATOR_SELECTED RECOVERY_SELECTED UPDATE_SELECTED ARM_SELECTED; do
+            case "${!selector-}" in
+              true|false) ;;
+              *) echo "Invalid or missing classifier output '$selector'." >&2; exit 1 ;;
+            esac
+          done
+          # Every native selection must execute at least the application/browser payload qualification.
+          if test "$ARM_SELECTED" = true && test "$IMAGE_SELECTED" != true; then
+            echo "ARM64 selection requires native application-image qualification." >&2
+            exit 1
+          fi
 
           require_selected() {
             selected="$1"
