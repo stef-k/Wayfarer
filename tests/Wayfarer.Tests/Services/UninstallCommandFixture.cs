@@ -16,19 +16,20 @@ internal sealed class UninstallCommandFixture : IDisposable
 {
     private readonly ReleaseBundleTests releases = new();
     private HttpListener? endpoint;
-    private readonly string? executable;
+    /// <summary>Hosted commands validate the exact protected retained operator rather than the testhost process.</summary>
+    private readonly string executable;
     /// <summary>Docker/backup fixture storage lives outside the installation cleanup authority, as on a supported host.</summary>
     private readonly string external = Path.Combine(Path.GetTempPath(), "wayfarer-uninstall-storage-" + Guid.NewGuid().ToString("N"));
 
-    /// <summary>One owned temporary installation has canonical runtime and all active volumes; no Docker daemon is called.</summary>
-    internal UninstallCommandFixture(bool? backupEnabled = null, bool managed = false, bool hostedOperator = false)
+    /// <summary>One owned temporary installation has a synthetic retained operator, canonical runtime and all active volumes; no Docker daemon is called.</summary>
+    internal UninstallCommandFixture(bool? backupEnabled = null, bool managed = false)
     {
         ProtectedFiles.RequireRoot();
         Directory.CreateDirectory(external, ProtectedFiles.PrivateDirectory);
         Root = Path.Combine(Path.GetTempPath(), "wayfarer-uninstall-command-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(Root, ProtectedFiles.PrivateDirectory);
-        var bundle = releases.RetainOperator(Root, "1.9.22", !hostedOperator, true);
-        executable = hostedOperator ? Path.Combine(bundle.Directory, "wayfarerctl") : null;
+        var bundle = releases.RetainOperator(Root, "1.9.22", runningOperator: false, stable: true);
+        executable = Path.Combine(bundle.Directory, "wayfarerctl");
         using var port = new TcpListener(IPAddress.Loopback, 0);
         port.Start();
         Config = UninstallPlanningTests.Config() with { Bundle = bundle.Directory, Release = ReleaseAuthority.From(bundle),
@@ -73,7 +74,7 @@ internal sealed class UninstallCommandFixture : IDisposable
     /// <summary>Propagate the existing protected-publication observation seam for command-level purge interruption evidence.</summary>
     internal Action<string>? PurgeCheckpoint { get; set; }
 
-    /// <summary>Exercise the public CLI with its actual retained native/hosted executable authority.</summary>
+    /// <summary>Exercise the hosted public CLI with the exact protected retained executable authority.</summary>
     internal Task<int> Command(params string[] args) => new Cli(Runner, Terminal) { ExecutablePath = executable, PurgeCheckpoint = PurgeCheckpoint }
         .RunAsync(["--deployment-root", Root, .. args]);
 

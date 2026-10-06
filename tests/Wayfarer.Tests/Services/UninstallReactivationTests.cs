@@ -224,7 +224,7 @@ public sealed class UninstallReactivationTests
     [Fact]
     public async Task HostedRetainedOperatorPathRemainsRequiredAndUsable()
     {
-        using var fixture = new UninstallCommandFixture(hostedOperator: true);
+        using var fixture = new UninstallCommandFixture();
         Assert.NotEqual(0, await new Cli(fixture.Runner, fixture.Terminal)
             .RunAsync(["--deployment-root", fixture.Root, "uninstall", "--plan", "--without-backup"]));
         Assert.False(Directory.Exists(Path.Combine(fixture.Root, "uninstall-plans")));

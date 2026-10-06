@@ -16,12 +16,12 @@ public sealed class UninstallAuthorityTests : IDisposable
     private readonly ReadOnlyRunner runner;
     private readonly UninstallPreparation preparation;
 
-    /// <summary>Reuse retained release fixture bytes and the production secret provisioner; never start a Docker service.</summary>
+    /// <summary>Bind hosted planning to synthetic retained operator bytes and the production secret provisioner; never start a Docker service.</summary>
     public UninstallAuthorityTests()
     {
         ProtectedFiles.RequireRoot();
         Directory.CreateDirectory(root, ProtectedFiles.PrivateDirectory);
-        var bundle = releases.RetainOperator(root, "1.9.22", true, true);
+        var bundle = releases.RetainOperator(root, "1.9.22", runningOperator: false, stable: true);
         config = UninstallPlanningTests.Config() with { Bundle = bundle.Directory, Release = ReleaseAuthority.From(bundle),
             AppDigest = bundle.Manifest.Images.PlatformDigest, DbDigest = bundle.Manifest.Images.DatabaseDigest, Platform = NativePlatform.Current };
         ProtectedFiles.Create(Path.Combine(root, "installation.json"), JsonSerializer.Serialize(config));
@@ -32,7 +32,7 @@ public sealed class UninstallAuthorityTests : IDisposable
         runner = new ReadOnlyRunner(config, root + "-docker");
         foreach (var role in UninstallInventory.Roles(config))
             Directory.CreateDirectory(Path.Combine(runner.DockerRoot, "volumes", ActiveStorage.Volume(config, role), "_data"));
-        preparation = new UninstallPreparation(runner);
+        preparation = new UninstallPreparation(runner) { ExecutablePath = Path.Combine(bundle.Directory, "wayfarerctl") };
     }
 
     /// <summary>Plan publication/load are protected and deterministic, and command discovery performs no destructive calls.</summary>
