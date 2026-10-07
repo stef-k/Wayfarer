@@ -10,7 +10,7 @@ namespace Wayfarer.Tests.Models;
 [Collection(PostgresEnvironmentEvidenceTestCollection.Name)]
 public sealed class PostgresEnvironmentEvidenceTests(PostgresImportTestFixture fixture, ITestOutputHelper output)
 {
-    /// <summary>Reports PostgreSQL/PostGIS versions and proves no lifecycle fixture rows remain.</summary>
+    /// <summary>Proves PostgreSQL 18, reports provider versions, and verifies lifecycle fixture cleanup.</summary>
     [PostgresFact]
     public async Task IsolatedProvider_ReportsVersionsAndHasNoLifecycleFixtureResidue()
     {
@@ -27,7 +27,8 @@ public sealed class PostgresEnvironmentEvidenceTests(PostgresImportTestFixture f
               (SELECT count(*) FROM "Trips" WHERE "Name" IN (
                 'Lifecycle concurrency', 'Destructive concurrency', 'Dependency drift', 'Lock order',
                 'Recovery', 'Malformed lifecycle', 'Malformed Region lifecycle', 'Region matrix',
-                'Mixed Region matrix', 'Lifecycle transition', 'Lifecycle fixture'))
+                'Mixed Region matrix', 'Lifecycle transition', 'Lifecycle fixture')),
+              current_setting('server_version_num')::integer
             """;
         await using var reader = await command.ExecuteReaderAsync();
         Assert.True(await reader.ReadAsync());
@@ -36,11 +37,13 @@ public sealed class PostgresEnvironmentEvidenceTests(PostgresImportTestFixture f
         var migrationCount = reader.GetInt64(2);
         var fixtureUsers = reader.GetInt64(3);
         var lifecycleTrips = reader.GetInt64(4);
+        var postgresMajor = reader.GetInt32(5) / 10000;
         output.WriteLine($"PostgreSQL: {postgres}");
         output.WriteLine($"PostGIS: {postgis}");
         output.WriteLine($"Applied migrations: {migrationCount}");
         output.WriteLine($"Fixture users remaining: {fixtureUsers}");
         output.WriteLine($"Named lifecycle trips remaining: {lifecycleTrips}");
+        Assert.Equal(PostgresTestServer.RequiredMajor, postgresMajor);
         Assert.True(migrationCount > 0);
         Assert.Equal(0, fixtureUsers);
         Assert.Equal(0, lifecycleTrips);

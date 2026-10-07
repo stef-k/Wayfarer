@@ -68,6 +68,7 @@ public sealed class PostgresMigrationTestFixture : IAsyncLifetime
             _sourceConnectionString = source.ConnectionString;
         }
         catch (OperationCanceledException) { throw; }
+        catch (PostgresTestServerConfigurationException) { throw; }
         catch (Exception) { throw new InvalidOperationException(InitializationFailureMessage); }
 
         _ownedDatabase = $"{DatabasePrefix}{Guid.NewGuid():N}";
@@ -224,17 +225,9 @@ internal interface IPostgresMigrationDatabaseOperations
 /// <summary>Performs guarded PostgreSQL administrative work for the disposable fixture.</summary>
 internal sealed class NpgsqlMigrationDatabaseOperations : IPostgresMigrationDatabaseOperations
 {
-    public async Task ValidateServerAsync(string connectionString, CancellationToken cancellationToken)
-    {
-        await using var connection = new NpgsqlConnection(connectionString);
-        await connection.OpenAsync(cancellationToken);
-        await using var command = connection.CreateCommand();
-        command.CommandText = "SELECT current_database(), current_setting('server_version_num')::integer";
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-        await reader.ReadAsync(cancellationToken);
-        if (!string.Equals(reader.GetString(0), "wayfarer_import_tests", StringComparison.Ordinal) || reader.GetInt32(1) / 10000 != 18)
-            throw new InvalidOperationException("Unexpected PostgreSQL test server.");
-    }
+    /// <summary>Requires the guarded persistent source to report the maintained major before mutations.</summary>
+    public Task ValidateServerAsync(string connectionString, CancellationToken cancellationToken) =>
+        PostgresTestServer.ValidateAsync(connectionString, cancellationToken);
 
     public async Task CreateDatabaseAsync(string sourceConnectionString, string maintenanceConnectionString,
         string databaseName, CancellationToken cancellationToken)
