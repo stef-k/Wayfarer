@@ -201,6 +201,9 @@ class BrowserRun:
             self.env.update(WAYFARER_E2E_WAYPOINT_FIXTURE=str(self.manifest),
                             WAYFARER_E2E_WAYPOINT_HELPER=str(self.helper))
             self.checked('vite-build', ['node', self.source / 'node_modules/vite/bin/vite.js', 'build'])
+            # Publish consumes existing MvcFrontendKit output; helper compilation disables its build target.
+            self.checked('frontend-tools', ['dotnet', 'tool', 'restore'])
+            self.checked('frontend-build', ['dotnet', 'frontend', 'build'])
         self.checked('host-build', ['dotnet', 'build' if self.profile == 'shared-layout' else 'publish',
                                    'Wayfarer.csproj', *build, '-o', self.root.path / 'host'])
         if self.profile == 'shared-layout':
