@@ -459,6 +459,23 @@ jobs:
               *) echo "Invalid or missing classifier output '$selector'." >&2; exit 1 ;;
             esac
           done
+          # Enforce the execution prerequisites independently of classifier propagation.
+          if test "$DB_COMPOSE_SELECTED" = true && test "$IMAGE_SELECTED" != true; then
+            echo "DB Compose selection requires application-image qualification." >&2
+            exit 1
+          fi
+          if test "$OPERATOR_SELECTED" = true && test "$DB_COMPOSE_SELECTED" != true; then
+            echo "Operator selection requires DB Compose qualification." >&2
+            exit 1
+          fi
+          if test "$RECOVERY_SELECTED" = true && test "$OPERATOR_SELECTED" != true; then
+            echo "Recovery selection requires operator qualification." >&2
+            exit 1
+          fi
+          if test "$UPDATE_SELECTED" = true && test "$RECOVERY_SELECTED" != true; then
+            echo "Update selection requires recovery qualification." >&2
+            exit 1
+          fi
           # Every native selection must execute at least the application/browser payload qualification.
           if test "$ARM_SELECTED" = true && test "$IMAGE_SELECTED" != true; then
             echo "ARM64 selection requires native application-image qualification." >&2
@@ -480,7 +497,10 @@ jobs:
           }
 
           require_selected "$CLEANUP_SELECTED" "$CLEANUP_RESULT" cleanup-safety
-          if test "$IMAGE_SELECTED" = true || test "$RELEASE_SELECTED" = true; then
+          # The AMD64 job owns release tooling and every application-image/lifecycle domain.
+          if test "$RELEASE_SELECTED" = true || test "$IMAGE_SELECTED" = true ||
+             test "$DB_COMPOSE_SELECTED" = true || test "$OPERATOR_SELECTED" = true ||
+             test "$RECOVERY_SELECTED" = true || test "$UPDATE_SELECTED" = true; then
             require_selected true "$IMAGE_RESULT" application-image
           else
             require_selected false "$IMAGE_RESULT" application-image

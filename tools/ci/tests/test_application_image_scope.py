@@ -361,6 +361,54 @@ class CiGateTests(unittest.TestCase):
                     gate = subprocess.run(['bash', '-c', self.script], env=values, capture_output=True, text=True)
                     self.assertNotEqual(gate.returncode, 0)
 
+    def test_contradictory_amd64_prerequisites_fail(self):
+        """Contradictions fail before job results, even when the owning runner succeeded."""
+        cases = [
+            (('DB_COMPOSE_SELECTED',), 'DB Compose'),
+            (('OPERATOR_SELECTED',), 'Operator'),
+            (('RECOVERY_SELECTED',), 'Recovery'),
+            (('UPDATE_SELECTED',), 'Update'),
+            (('OPERATOR_SELECTED', 'IMAGE_SELECTED'), 'Operator'),
+            (('RECOVERY_SELECTED', 'DB_COMPOSE_SELECTED', 'IMAGE_SELECTED'), 'Recovery'),
+            (('UPDATE_SELECTED', 'OPERATOR_SELECTED', 'DB_COMPOSE_SELECTED', 'IMAGE_SELECTED'), 'Update'),
+        ]
+        for selected, consumer in cases:
+            for result in ['skipped', 'success']:
+                values = {**self.env, **{selector: 'true' for selector in selected}, 'IMAGE_RESULT': result}
+                with self.subTest(selected=selected, result=result):
+                    gate = subprocess.run(['bash', '-c', self.script], env=values, capture_output=True, text=True)
+                    self.assertNotEqual(gate.returncode, 0)
+                    self.assertIn(f'{consumer} selection requires', gate.stderr)
+
+    def test_valid_amd64_chains_require_successful_owning_runner(self):
+        """Every valid image/lifecycle chain passes only with successful AMD64 evidence."""
+        chain = ('IMAGE_SELECTED', 'DB_COMPOSE_SELECTED', 'OPERATOR_SELECTED', 'RECOVERY_SELECTED', 'UPDATE_SELECTED')
+        for length in range(1, len(chain) + 1):
+            selected = chain[:length]
+            for result in ['success', 'skipped', 'failure', 'cancelled']:
+                values = {**self.env, **{selector: 'true' for selector in selected}, 'IMAGE_RESULT': result}
+                with self.subTest(selected=selected, result=result):
+                    gate = subprocess.run(['bash', '-c', self.script], env=values, capture_output=True, text=True)
+                    if result == 'success':
+                        self.assertEqual(gate.returncode, 0, gate.stderr)
+                    else:
+                        self.assertNotEqual(gate.returncode, 0)
+                        self.assertIn("Selected evidence 'application-image'", gate.stderr)
+
+    def test_release_tooling_only_requires_successful_owning_runner(self):
+        """Release tooling keeps its AMD64 runner without selecting image/lifecycle prerequisites."""
+        for result in ['success', 'skipped', 'failure', 'cancelled']:
+            values = {**self.env, 'RELEASE_SELECTED': 'true', 'IMAGE_RESULT': result}
+            with self.subTest(result=result):
+                gate = subprocess.run(['bash', '-c', self.script], env=values, capture_output=True, text=True)
+                self.assertEqual(gate.returncode == 0, result == 'success', gate.stderr)
+
+    def test_ordinary_dotnet_path_skips_image_and_lifecycle(self):
+        """An ordinary product change passes with only .NET selected and the AMD64 runner skipped."""
+        values = {**self.env, 'DOTNET_SELECTED': 'true'}
+        gate = subprocess.run(['bash', '-c', self.script], env=values, capture_output=True, text=True)
+        self.assertEqual(gate.returncode, 0, gate.stderr)
+
     def test_hollow_arm64_selection_fails(self):
         """An ARM job cannot certify native evidence when its qualification steps were unselected."""
         values = {**self.env, 'ARM_SELECTED': 'true', 'ARM_RESULT': 'success'}
