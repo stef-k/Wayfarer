@@ -39,5 +39,7 @@
     <ProjectReference Include="../../tools/WayfarerRecovery/WayfarerRecovery.csproj" />
     <!-- Exercise operator commands through their narrow process/terminal seams. -->
     <ProjectReference Include="..\..\tools\WayfarerCtl\WayfarerCtl.csproj" />
+    <!-- Exercise the actual browser database/identity fixture at its narrow data seam. -->
+    <ProjectReference Include="../../tools/Wayfarer.WaypointBrowserFixture/Wayfarer.WaypointBrowserFixture.csproj" />
   </ItemGroup>
 </Project>

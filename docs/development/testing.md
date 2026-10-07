@@ -76,6 +76,49 @@ For JavaScript Playwright:
 npx playwright install chromium
 ~~~
 
+Managed browser journeys use one Python supervisor (Python 3.12+ on Linux/WSL or
+Windows), the guarded PG18 connection above, Node/npm and installed Chromium:
+
+~~~sh
+npm run test:e2e:shared-layout
+npm run test:e2e:shared-layout -- --grep 'connect apps'
+npm run test:e2e:waypoint
+python3 -B -m unittest discover -s tools/tests -v
+~~~
+
+The supervisor copies source/build output into a private UUID temporary root,
+verifies the effective application connection, prepares the maintained schema,
+and records exact fixture IDs before inserting missing Identity prerequisites.
+Existing ActivityTypes are required. It seeds a run-owned User and public sample
+Trip for shared-layout; token replacement affects that User only. Human credentials
+and `.local/manual-verification.md` are never used by the managed mutation profile.
+All four Storage roots and legacy caches are private to the run. The selected
+Data Protection ring is copied into private storage with its stable application
+identity; existing keys and protected credentials must remain readable. The
+maintainer's key ring is never written by the managed host.
+
+Shared-layout retains a Development HTTPS host on 7150 (an installed .NET
+development certificate is required) and its owned Vite server on 5173. Both ports
+must be free. Waypoint retains a published Production host and the historical
+two-spec aggregate/route-work selection with real C# provider rereads. Runs use
+one worker and zero retries. Playwright owns assertions and browser installation;
+reusable Chromium caches stay outside disposable roots.
+
+Python stops and reaps its owned host, Node/browser and helper children, verifies
+endpoint release, runs fixture cleanup and a separate verification, then deletes
+only its exact owned root. Cancellation uses the same finalizer. Primary failure
+status is preserved if cleanup also fails. Unproved ownership retains marked
+residue; no stale process/root is adopted. Private failed-run logs are retained
+under `.local/browser-e2e/<run UUID>`. Managed traces/videos and shared-layout
+automatic failure screenshots are disabled because pairing/typing can reveal
+credentials; the existing safe post-hide screenshot remains local.
+
+`npm run test:e2e:trip-editor` remains the externally attached mode. The distinct
+Lifecycle spec's real database outage requires an independently owned disposable
+server; it is outside the managed waypoint selection. Never point its stop controls
+at the maintained PG18 service. Coverage orchestration and its remaining PowerShell
+helpers remain separate from the managed browser supervisor.
+
 Keep browser proof bounded: normally one critical happy-path smoke and, only when risk warrants it, one focused negative/race observation. Do not reproduce every role, lifecycle, viewport, provider or persistence permutation in one browser workflow when lower seams already own them.
 
 A browser fixture, locator, port, cache or setup failure is infrastructure evidence, not automatically a product defect. Diagnose the prerequisite and allow at most a bounded rerun. If browser evidence remains unavailable, report that honestly rather than calling it a pass.

@@ -218,13 +218,16 @@ jobs:
       - name: Test cleanup ownership and smoke lifecycle
         if: needs.classify.outputs.run_cleanup_safety == 'true'
         run: npm run test:cleanup:safety
-      - name: Test coverage and shared-layout cleanup guards
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Test browser process and filesystem ownership
+        run: python -B -m unittest discover -s tools/tests -v
+      - name: Test coverage cleanup guards
         if: needs.classify.outputs.run_cleanup_safety == 'true'
         shell: pwsh
         run: |
           pwsh -NoProfile -File ./tools/coverage-report.safety.tests.ps1
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          pwsh -NoProfile -File ./tools/shared-layout.safety.tests.ps1
 
   # Same build/metadata/qualification seam as publication, without registry credentials or push.
   application-image:

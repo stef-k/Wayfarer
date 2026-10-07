@@ -123,7 +123,7 @@ public sealed class DeploymentScriptTests
         Assert.DoesNotContain("ChromeCache", deploy);
         foreach (var legacy in new[] { "Uploads", "TileCache", "ImageCache" })
             Assert.Contains("--exclude '" + legacy + "'", deploy);
-        foreach (var name in new[] { "trip-editor-asset-smoke.mjs", "run-407-waypoint-browser.ps1", "start-shared-layout-e2e-host.ps1" })
+        foreach (var name in new[] { "trip-editor-asset-smoke.mjs" })
         {
             var runner = File.ReadAllText(RepositoryFile("tools", name));
             Assert.Contains("Storage__LogRoot", runner);
@@ -132,16 +132,6 @@ public sealed class DeploymentScriptTests
         }
         foreach (var name in new[] { "appsettings.json", "appsettings.Development.json", "appsettings.Production.json" })
             Assert.DoesNotContain("LogFilePath", File.ReadAllText(RepositoryFile(name)));
-    }
-
-    /// <summary>The Windows browser fixture uses the maintained PostgreSQL 18 toolchain.</summary>
-    [Fact]
-    public void WaypointBrowserFixtureUsesPostgreSql18Tools()
-    {
-        var script = File.ReadAllText(RepositoryFile("tools", "run-407-waypoint-browser.ps1"));
-
-        Assert.Contains(@"C:\Program Files\PostgreSQL\18\bin", script);
-        Assert.DoesNotContain(@"C:\Program Files\PostgreSQL\17\bin", script);
     }
 
     /// <summary>Actual template refresh retains quoted compatibility paths and gives new installs no old override.</summary>

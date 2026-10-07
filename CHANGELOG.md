@@ -9,6 +9,11 @@
 
 ### Fixed
 
+- Replace repository-owned browser PowerShell orchestration with one guarded Python
+  supervisor for shared-layout and waypoint. Isolate mutation credentials/storage,
+  verify fixture cleanup, and use stable native process ownership to fix Linux
+  teardown while preserving foreign processes and linked roots (#794, #796 PR A).
+
 - Restore secure self-service User app connections and published WayfarerMobile
   pairing, with GPSLogger/custom JSON setup guidance. Connection tokens remain
   one-time and hash-only (#792).

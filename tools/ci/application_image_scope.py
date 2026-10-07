@@ -13,8 +13,9 @@ GATE_OWNERS = ('.github/workflows/*', '.github/actions/*', 'tools/ci/application
 # Dedicated safety tests are also client files, but require only the cleanup matrix.
 CLEANUP_OWNERS = (
     'tools/test-artifact-paths.*', 'tools/test-cleanup.mjs', 'tests/client/testCleanup.test.mjs',
-    'tools/coverage-report*.ps1', 'tools/shared-layout-lifecycle.ps1',
-    'tools/shared-layout.safety.tests.ps1',
+    'tools/coverage-report*.ps1', 'tools/test_artifact_paths.py', 'tools/browser_processes.py',
+    'tools/tests/test_test_artifact_paths.py', 'tools/tests/test_browser_processes.py',
+    'tools/tests/test_browser_e2e.py',
 )
 # These files are imported by setup/readiness, recovery inspection and managed update.
 # Their shared responsibilities cannot safely be separated by changed paths alone.
@@ -104,11 +105,11 @@ OWNERS = {
         'ClientApps/*', 'wwwroot/css/*', 'wwwroot/js/*', 'tests/client/*',
         'vite.config.*', 'tsconfig*.json', 'playwright*.config.*',
         'tools/build-*.mjs', 'tools/trip-editor-asset-smoke.mjs',
-        'tools/start-shared-layout-e2e-host.ps1', 'tools/run-407-waypoint-browser.ps1',
+        'tools/browser_e2e.py', 'tools/browser-e2e.mjs', 'tests/e2e/shared-layout/*',
     ),
     'cleanup_safety': CLEANUP_OWNERS + (
         'package.json', 'package-lock.json', '.nvmrc', '.npmrc',
-        'tools/trip-editor-asset-smoke.mjs', 'tools/start-shared-layout-e2e-host.ps1',
+        'tools/trip-editor-asset-smoke.mjs', 'tools/browser_e2e.py', 'tools/browser-e2e.mjs',
     ),
     'release_tooling': (
         'tools/release/*.py', 'tools/release/tests/*', 'tools/release/database-release.json',

@@ -10,9 +10,56 @@ from ctypes import wintypes
 import os
 from pathlib import Path
 import signal
+import socket
 import subprocess
 import sys
 import time
+
+
+def port_free(port):
+    """Require exclusive loopback binding instead of treating a foreign host as ready."""
+    try:
+        with socket.socket() as listener:
+            if os.name != 'nt':
+                listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            listener.bind(('127.0.0.1', port))
+        return True
+    except OSError:
+        return False
+
+
+def owns_listener(child, port):
+    """Bind HTTP readiness to the launched process, not merely an occupied endpoint."""
+    if child.process.poll() is not None:
+        return False
+    child.inspect()
+    if os.name == 'nt':
+        library = ctypes.WinDLL('iphlpapi', use_last_error=True)
+        query = library.GetExtendedTcpTable
+        query.argtypes = [ctypes.c_void_p, ctypes.POINTER(wintypes.DWORD), wintypes.BOOL,
+                          wintypes.ULONG, ctypes.c_int, wintypes.ULONG]
+        size = wintypes.DWORD(0)
+        query(None, ctypes.byref(size), False, 2, 3, 0)
+        buffer = ctypes.create_string_buffer(size.value)
+        if query(buffer, ctypes.byref(size), False, 2, 3, 0):
+            raise RuntimeError('Cannot inspect endpoint ownership')
+        rows = ctypes.cast(buffer, ctypes.POINTER(wintypes.DWORD))
+        return any(rows[1 + index * 6] == 2 and
+                   socket.ntohs(rows[3 + index * 6] & 0xffff) == port and
+                   rows[6 + index * 6] == child.process.pid for index in range(rows[0]))
+    sockets = set()
+    for entry in Path(f'/proc/{child.process.pid}/fd').iterdir():
+        try:
+            sockets.add(os.readlink(entry))
+        except FileNotFoundError:
+            continue
+    for table in ('tcp', 'tcp6'):
+        for row in Path(f'/proc/net/{table}').read_text().splitlines()[1:]:
+            fields = row.split()
+            if int(fields[1].split(':')[1], 16) == port and fields[3] == '0A':
+                if f'socket:[{fields[9]}]' in sockets:
+                    return True
+    return False
 
 
 def identity(pid, handle=None):
@@ -185,12 +232,15 @@ class Child:
             for stop_signal in (signal.SIGTERM, signal.SIGKILL):
                 self.inspect()
                 for pid, descriptor in self._live():
-                    if descriptor is not None:
-                        signal.pidfd_send_signal(descriptor, stop_signal)
-                    elif pid == self.process.pid and self.process.poll() is None:
-                        self.process.send_signal(stop_signal)
-                    else:
-                        raise RuntimeError('Cannot pin descendant signaling; preserving residue')
+                    try:
+                        if descriptor is not None:
+                            signal.pidfd_send_signal(descriptor, stop_signal)
+                        elif pid == self.process.pid and self.process.poll() is None:
+                            self.process.send_signal(stop_signal)
+                        else:
+                            raise RuntimeError('Cannot pin descendant signaling; preserving residue')
+                    except ProcessLookupError:
+                        pass  # A pinned member may exit between inspection and signaling.
                 deadline = time.monotonic() + 5
                 while self._live() and time.monotonic() < deadline:
                     self.inspect()
