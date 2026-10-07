@@ -34,7 +34,7 @@ class ProcessTests(unittest.TestCase):
         child = self.child('import time; time.sleep(60)')
         for _ in range(3):
             script = f'from browser_processes import identity; import json; print(json.dumps(identity({child.process.pid})))'
-            observed = subprocess.check_output([sys.executable, '-c', script],
+            observed = subprocess.check_output([sys.executable, '-B', '-c', script],
                                                cwd=Path(__file__).resolve().parents[1], text=True)
             self.assertEqual(child.record, json.loads(observed))
         child.stop()
@@ -69,6 +69,18 @@ class ProcessTests(unittest.TestCase):
         self.assertEqual(0, child.wait(10))
         child.stop()
         self.assertFalse(child._live() if os.name != 'nt' else not child.closed)
+
+    @unittest.skipIf(os.name == 'nt', 'Windows jobs already contain detached descendants')
+    def test_detached_browser_descendant_is_pinned_stopped_and_reaped(self):
+        """A Playwright-style detached child remains owned even after its launcher exits."""
+        script = ('import subprocess,sys,time; '
+                  'subprocess.Popen([sys.executable,"-c","import time; time.sleep(60)"],start_new_session=True); '
+                  'time.sleep(0.3)')
+        child = self.child(script)
+        self.assertEqual(0, child.wait(10))
+        self.assertGreaterEqual(len(child.members), 2)
+        child.stop()
+        self.assertFalse(child._live())
 
 
 if __name__ == '__main__':

@@ -141,15 +141,28 @@ def _resume(process):
 class Child:
     """Owns one launched process and all writers in its native session/job."""
 
+    _owners = {}
+
     def __init__(self, command, *, cwd, env, log):
         self.command = list(map(str, command))
         self.log = log.open('xb')
         self.members = {}
         self.job = None
         self.closed = False
+        if sys.platform == 'linux':
+            # Adopt orphaned descendants, including detached Chromium, rather than losing writers.
+            library = ctypes.CDLL(None, use_errno=True)
+            if library.prctl(36, 1, 0, 0, 0) != 0:  # PR_SET_CHILD_SUBREAPER
+                self.log.close()
+                raise OSError(ctypes.get_errno(), 'Cannot retain orphaned browser descendants')
         options = {'start_new_session': True} if os.name != 'nt' else {'creationflags': 4}
-        self.process = subprocess.Popen(self.command, cwd=cwd, env=env, stdin=subprocess.DEVNULL,
-                                        stdout=self.log, stderr=subprocess.STDOUT, **options)
+        try:
+            self.process = subprocess.Popen(self.command, cwd=cwd, env=env, stdin=subprocess.DEVNULL,
+                                            stdout=self.log, stderr=subprocess.STDOUT, **options)
+        except BaseException:
+            self.log.close()
+            raise
+        self._owners[self.process.pid] = self
         try:
             self.record = identity(self.process.pid, getattr(self.process, '_handle', None))
             if os.name == 'nt':
@@ -165,16 +178,22 @@ class Child:
             self.log.close()
             if self.job:
                 _win('CloseHandle', self.job)
+            self._owners.pop(self.process.pid, None)
             raise
 
-    def _retain(self, pid):
+    def _retain(self, pid, expected_start=None):
         """Pin an inspected session member before admitting it to stop authority."""
         before = identity(pid)
+        if expected_start is not None and before['start'] != expected_start:
+            raise RuntimeError('Inspected descendant PID was reused')
         descriptor = os.pidfd_open(pid) if hasattr(os, 'pidfd_open') else None
-        if before != identity(pid):
+        try:
+            if before != identity(pid):
+                raise RuntimeError('Child identity changed during inspection')
+        except BaseException:
             if descriptor is not None:
                 os.close(descriptor)
-            raise RuntimeError('Child identity changed during inspection')
+            raise
         self.members[pid] = before, descriptor
 
     def inspect(self):
@@ -183,19 +202,39 @@ class Child:
             if identity(self.process.pid, int(self.process._handle)) != self.record:
                 raise RuntimeError('Child creation identity changed')
             return
+        table = {}
         for path in Path('/proc').iterdir():
             if not path.name.isdigit():
                 continue
             try:
                 fields = (path / 'stat').read_text().rsplit(')', 1)[1].split()
-                if int(fields[3]) == self.process.pid and fields[0] != 'Z':
-                    pid = int(path.name)
-                    if pid not in self.members:
-                        self._retain(pid)
-                    elif identity(pid) != self.members[pid][0]:
-                        raise RuntimeError('Reused child PID refused')
+                table[int(path.name)] = fields
             except (FileNotFoundError, ProcessLookupError):
                 continue
+        # Parent closure also includes children that intentionally create their own session.
+        discovered = True
+        while discovered:
+            discovered = False
+            for pid, fields in table.items():
+                belongs = int(fields[3]) == self.process.pid or int(fields[1]) in self.members
+                if belongs and fields[0] != 'Z' and pid not in self.members:
+                    try:
+                        self._retain(pid, fields[19])
+                        discovered = True
+                    except (FileNotFoundError, ProcessLookupError):
+                        continue  # An inspected short-lived helper already stopped writing.
+                if pid in self.members and fields[0] != 'Z':
+                    try:
+                        if identity(pid) != self.members[pid][0]:
+                            raise RuntimeError('Reused child PID refused')
+                    except FileNotFoundError:
+                        continue
+        known = set(self._owners)
+        for owner in self._owners.values():
+            known.update(owner.members)
+        if any(int(fields[1]) == os.getpid() and pid not in known and fields[0] != 'Z'
+               for pid, fields in table.items()):
+            raise RuntimeError('Unproved adopted descendant; preserving residue')
         if self.process.poll() is None and identity(self.process.pid) != self.record:
             raise RuntimeError('Forged/reused child identity refused')
 
@@ -254,9 +293,18 @@ class Child:
         for _, descriptor in self.members.values():
             if descriptor is not None:
                 os.close(descriptor)
+        if os.name != 'nt':
+            for pid in self.members:
+                if pid == self.process.pid:
+                    continue
+                try:
+                    os.waitpid(pid, os.WNOHANG)
+                except ChildProcessError:
+                    pass  # Still parented descendants are reaped by their own retained parent.
         if self.job:
             _win('CloseHandle', self.job)
         self.closed = True
+        self._owners.pop(self.process.pid, None)
 
     def wait(self, timeout, watch=None):
         """Observe early host death while a bounded build/helper/browser command runs."""

@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import secrets
+import re
 import shutil
 import signal
 import socket
@@ -49,6 +50,8 @@ def child_environment(inherited, root, profile):
                    if os.name != 'nt' else str(Path(os.environ['LOCALAPPDATA']) / 'ms-playwright'))
     for name in ('DataRoot', 'CacheRoot', 'LogRoot', 'TempRoot'):
         env[f'Storage__{name}'] = str(root.path / name)
+    for name in ('TMPDIR', 'TMP', 'TEMP'):
+        env[name] = env['Storage__TempRoot']
     return env
 
 
@@ -112,6 +115,7 @@ class BrowserRun:
         self.children = []
         try:
             self.env = child_environment(os.environ, self.root, profile)
+            Path(self.env['Storage__TempRoot']).mkdir(mode=0o700)
         except Exception:
             self.root.remove()
             raise
@@ -124,6 +128,7 @@ class BrowserRun:
         self.started_endpoint = False
         self.cleanup_errors = []
         self.provision_attempted = False
+        self.completed = []
 
     def start(self, phase, command, cwd=None, env=None):
         """Launch one tracked native child; diagnostics never include its environment."""
@@ -131,7 +136,7 @@ class BrowserRun:
         child = Child(command, cwd=cwd or self.source, env=env or self.env,
                       log=self.root.path / f'{len(self.children):02d}-{phase}.log')
         self.children.append(child)
-        records = [{'identity': item.record, 'executable': item.command[0]} for item in self.children]
+        records = [{'identity': item.record, 'command': item.command} for item in self.children]
         (self.root.path / 'children.json').write_text(json.dumps(records), encoding='utf-8')
         return child
 
@@ -142,6 +147,11 @@ class BrowserRun:
         if status:
             raise subprocess.CalledProcessError(status, phase)
         child.stop()
+        self.completed.append(phase)
+        if phase == 'playwright':
+            summary = re.findall(r'\b\d+ (?:passed|failed|skipped)\b', Path(child.log.name).read_text())
+            print('Playwright summary: ' + ', '.join(summary), flush=True)
+        print(f'Browser {self.profile}: {phase} passed', flush=True)
 
     def fixture(self, command, manifest=None):
         """Use the existing C# data owner for seed, probes and separate cleanup checks."""
@@ -155,7 +165,8 @@ class BrowserRun:
         if self.profile == 'shared-layout' and not port_free(5173):
             raise RuntimeError('Managed Vite endpoint 5173 is already occupied')
         copy_source(self.repository, self.source)
-        self.checked('npm-ci', [*npm_command(), 'ci', '--no-audit', '--no-fund'])
+        # Ordinary-only disposable trees cannot contain npm's optional .bin symlinks.
+        self.checked('npm-ci', [*npm_command(), 'ci', '--bin-links=false', '--no-audit', '--no-fund'])
         configuration = 'Debug' if self.profile == 'shared-layout' else 'Release'
         # Avoid compiler/MSBuild daemons escaping the retained command session/job.
         build = ['-c', configuration, '--nologo', '-p:UseSharedCompilation=false', '-nodeReuse:false']
@@ -189,7 +200,7 @@ class BrowserRun:
         if self.profile == 'waypoint':
             self.env.update(WAYFARER_E2E_WAYPOINT_FIXTURE=str(self.manifest),
                             WAYFARER_E2E_WAYPOINT_HELPER=str(self.helper))
-            self.checked('vite-build', [*npm_command(), 'run', 'build'])
+            self.checked('vite-build', ['node', self.source / 'node_modules/vite/bin/vite.js', 'build'])
         self.checked('host-build', ['dotnet', 'build' if self.profile == 'shared-layout' else 'publish',
                                    'Wayfarer.csproj', *build, '-o', self.root.path / 'host'])
         if self.profile == 'shared-layout':
@@ -201,8 +212,8 @@ class BrowserRun:
         self.env.update(ASPNETCORE_URLS=url, WAYFARER_E2E_BASE_URL=url,
                         WAYFARER_E2E_OUTPUT=str(self.root.path / 'playwright'),
                         WAYFARER_E2E_REPORT=str(self.root.path / 'report'))
-        self.fixture('check', self.preparation)
         cwd = self.source if self.profile == 'shared-layout' else self.root.path / 'host'
+        self.checked('host-configuration', ['dotnet', self.helper, 'check', self.preparation], cwd=cwd)
         self.host = self.start('host', ['dotnet', self.root.path / 'host/Wayfarer.dll', '--urls', url], cwd)
         self.started_endpoint = True
         wait_ready(self.host, url + '/Home/Privacy', self.port)
@@ -262,8 +273,11 @@ class BrowserRun:
         """Verify the endpoint is released after every owned writer stops."""
         deadline = time.monotonic() + 10
         while time.monotonic() < deadline:
-            if port_free(port):
-                return
+            try:
+                with socket.create_connection(('127.0.0.1', port), timeout=0.2):
+                    pass
+            except (ConnectionRefusedError, TimeoutError):
+                return  # TIME_WAIT is not a listener or a remaining endpoint owner.
             time.sleep(0.1)
         raise RuntimeError('Browser endpoint was not released')
 
