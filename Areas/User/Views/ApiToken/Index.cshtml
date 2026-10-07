@@ -54,6 +54,7 @@
     </section>
 </div>
 @section Scripts {
-    <script src="~/lib/davidshimjs-qrcodejs/qrcode.min.js" asp-append-version="true"></script>
+    @* This bundled source supports synchronous SVG; the older minified file does not. *@
+    <script src="~/lib/davidshimjs-qrcodejs/qrcode.js" asp-append-version="true"></script>
     @Html.FrontendViewScripts()
 }

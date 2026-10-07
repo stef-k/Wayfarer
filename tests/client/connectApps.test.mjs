@@ -153,6 +153,22 @@ test('Hide while JSON parsing is pending also invalidates a late secret', async 
     assertHidden(fixture);
 });
 
+test('normal pageshow invalidates an early pending mutation and refreshes safe status before another action', async () => {
+    let finish;
+    const fixture = page((url, options) => options?.method === 'POST'
+        ? new Promise(resolve => { finish = resolve; })
+        : Promise.resolve({ ok: true, json: async () => ({ tokenId: 12, issuedAt: issued.issuedAt }) }));
+    const operation = fixture.state.issue();
+    fixture.events.pageshow({ persisted: false });
+    assert.equal(fixture.node('issue-connection').disabled, true);
+    await tick();
+    assert.equal(fixture.node('issue-connection').disabled, false);
+    assert.equal(fixture.node('issue-connection').textContent, 'Replace connection token');
+    finish({ ok: true, json: async () => ({ ...issued }) });
+    await operation;
+    assertHidden(fixture);
+});
+
 test('failed or lost mutation stays secret-free and refreshes metadata without retrying the POST', async () => {
     for (const lost of [false, true]) {
         const methods = [];

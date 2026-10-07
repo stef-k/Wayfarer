@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text.Json;
+using AngleSharp.Html.Parser;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Identity;
@@ -18,6 +19,34 @@ namespace Wayfarer.Tests.Controllers;
 /// <summary>Real MVC routing, Identity cookies, antiforgery and final browser response policy.</summary>
 public sealed class UserConnectionTokenHttpTests : TestBase
 {
+    /// <summary>Initial HTML remains secret-free and loads the bundled library that actually supports synchronous SVG.</summary>
+    [Fact]
+    public async Task GetHtml_IsSecretFreeAndLoadsSynchronousQrLibrary()
+    {
+        var db = CreateDbContext();
+        db.ApplicationSettings.Add(new ApplicationSettings()); // The shared layout reads the seeded instance settings.
+        var user = TestDataFixtures.CreateUser();
+        db.Users.Add(user);
+        var credential = new ApiToken { User = user, UserId = user.Id, Name = ApiTokenService.ConnectionTokenName,
+            TokenHash = ApiTokenService.HashToken("existing"), CreatedAt = DateTime.UtcNow };
+        db.ApiTokens.Add(credential);
+        await db.SaveChangesAsync();
+        await using var app = await IdentityRouteHost.StartAsync(db, CreateTestDirectory());
+        using var client = app.GetTestClient();
+        client.BaseAddress = new Uri("https://wayfarer.test");
+        Cookie(client, app.Services, user.Id);
+        using var response = await client.GetAsync("/User/ApiToken");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var html = await response.Content.ReadAsStringAsync();
+        var document = await new HtmlParser().ParseDocumentAsync(html);
+        Assert.Equal(string.Empty, document.QuerySelector("#connection-token")!.TextContent);
+        Assert.Empty(document.QuerySelector("#connection-qr")!.Children);
+        Assert.Contains("/lib/davidshimjs-qrcodejs/qrcode.js", html);
+        Assert.DoesNotContain("qrcode.min.js", html);
+        Assert.DoesNotContain(credential.TokenHash!, html);
+        Assert.True(response.Headers.CacheControl?.NoStore);
+    }
+
     /// <summary>Only a current active User cookie with genuine antiforgery can issue a credential.</summary>
     [Theory]
     [InlineData(null, true, true, 302)]

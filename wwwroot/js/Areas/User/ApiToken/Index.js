@@ -152,8 +152,10 @@ export const createConnectionPage = ({ root, browser = window, request = fetch, 
     browser.addEventListener('pagehide', () => { clear(); phase = 'away'; renderStatus(); });
     browser.addEventListener('pageshow', event => {
         const restored = event.persisted || phase === 'away';
+        const uncertain = phase !== 'ready';
         clear();
         if (restored) { phase = 'refreshing'; renderStatus(); browser.location.reload(); }
+        else if (uncertain) void refreshStatus();
         else renderStatus();
     });
     clear();
