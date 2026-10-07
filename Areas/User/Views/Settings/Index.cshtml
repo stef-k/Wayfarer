@@ -132,6 +132,11 @@
                         </small>
                     </div>
 
+                    @* Inbound app credentials and outbound provider keys have separate ownership. *@
+                    <div class="card-header text-bg-primary my-4"><h2>Connect apps</h2></div>
+                    <p>Pair WayfarerMobile or connect GPS loggers and other apps to your account.</p>
+                    <div class="d-grid gap-2 mt-3"><a class="btn btn-primary" asp-area="User" asp-controller="ApiToken" asp-action="Index">Connect apps</a></div>
+
                     <div class="card-header text-bg-primary my-4"><h2>Personal Location Providers</h2></div>
                     <div class="d-grid gap-2 mt-3"><a class="btn btn-outline-primary" asp-area="User" asp-controller="LocationProviderSettings" asp-action="Index">Personal Location Providers</a></div>
                     

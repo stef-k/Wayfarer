@@ -4,6 +4,8 @@ using Wayfarer.Models.LocationProviders;
 using Wayfarer.Services.LocationProviders;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
@@ -16,12 +18,50 @@ using Wayfarer.Parsers;
 using Wayfarer.Services;
 using Wayfarer.Tests.Infrastructure;
 using Xunit;
+using Wayfarer.Util;
+using System.Text;
+using System.Text.Json;
 
 namespace Wayfarer.Tests.Controllers;
 
 /// <summary>Exercises admission at real ingestion actions, including post-write failure and replay ordering.</summary>
 public class ApiLocationAdmissionTests : TestBase
 {
+    /// <summary>The documented GPSLogger substitutions bind as real JSON and save a point through production MVC.</summary>
+    [Fact]
+    public async Task GpsLoggerDocumentedBody_SavesThroughHttp()
+    {
+        var db = CreateDbContext();
+        var user = Seed(db);
+        var token = new ApiTokenService(db, null!).GenerateToken();
+        var row = db.ApiTokens.First(item => item.UserId == user.Id);
+        row.Token = null;
+        row.TokenHash = ApiTokenService.HashToken(token);
+        await db.SaveChangesAsync();
+        var controller = Controller(db, new ApiWorkAdmission(64, 8));
+        await using var app = await IdentityRouteHost.StartAsync(db, CreateTestDirectory(), services =>
+        {
+            services.AddSingleton(controller);
+            services.AddControllers().AddControllersAsServices();
+        });
+        using var client = app.GetTestClient();
+        client.BaseAddress = new Uri("https://wayfarer.test");
+        client.DefaultRequestHeaders.Authorization = new("Bearer", token);
+        var body = """
+            { "latitude": %LAT, "longitude": %LON, "timestamp": "%TIME" }
+            """.Replace("%LAT", "37.98").Replace("%LON", "23.73").Replace("%TIME", "2026-10-07T12:00:00.123Z");
+        using var response = await client.PostAsync("/api/location/log-location", new StringContent(body, Encoding.UTF8, "application/json"));
+        response.EnsureSuccessStatusCode();
+        using var result = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.False(result.RootElement.GetProperty("skipped").GetBoolean());
+        var saved = Assert.Single(db.Locations);
+        Assert.Equal(user.Id, saved.UserId);
+        Assert.Equal(37.98, saved.Coordinates.Y);
+        Assert.Equal(23.73, saved.Coordinates.X);
+        Assert.Equal(new DateTime(2026, 10, 7, 12, 0, 0, 123, DateTimeKind.Utc), saved.LocalTimestamp);
+        Assert.Equal(saved.Id, result.RootElement.GetProperty("locationId").GetInt32());
+    }
+
     /// <summary>Both actions reject new work but replay stored keys before a full user gate.</summary>
     [Theory]
     [InlineData(false, false)]

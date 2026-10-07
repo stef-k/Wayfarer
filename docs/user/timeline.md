@@ -6,8 +6,9 @@ title: Timeline and locations
 
 Use your Timeline to explore where you have been, correct individual records and
 choose what to share publicly. Each **Location** is one recorded position at a
-particular time. Locations can come from Mobile tracking, manual check-ins, files
-or entries you add in the web app.
+particular time. Locations can come from WayfarerMobile tracking, GPSLogger,
+compatible apps, manual check-ins, files or entries you add in the web app.
+See [Connect apps](connect-apps.md) to set up live capture from an app.
 
 Trips are plans rather than history. To plan destinations and record visits to
 them, use the [Trips guide](trips.md).

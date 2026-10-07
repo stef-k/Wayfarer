@@ -22,6 +22,21 @@ API-token lookup capacity is bounded globally/per effective client. Mobile endpo
 
 Inactive accounts do not authenticate through the bearer path.
 
+The personal **Settings → Connect apps** surface manages only the canonical incoming
+credential with User-role cookie Identity, an existing active owner and antiforgery.
+GET exposes safe metadata. Explicit HTTPS Create/Replace returns plaintext directly
+as JSON only after commit; replacement atomically matches the observed row ID and
+issuance timestamp. New/replaced tokens persist only SHA-256 in `TokenHash`, with
+`Token = null`. No Data Protection ciphertext, TempData, session, cookie or cache
+retains bearer plaintext for recovery. Legacy extra administrative rows are not migrated.
+
+Browser Done/navigation clears the active reveal and local QR, including BFCache
+and late responses, without revocation. Another reveal needs explicit replacement;
+an uncertain POST is never retried automatically. QR pairing uses the actual HTTPS
+browser origin. Keep bearer authority separate from protected outbound provider
+credentials and the existing key ring. [User setup](../user/connect-apps.md) owns
+the shared connection instructions.
+
 ## Authorization and ownership
 
 Apply authorization at the boundary that has enough context to decide it. `[Authorize]`/roles are appropriate for coarse HTTP admission; trip ownership, group membership, target-user rules and provider ownership usually require service/database state as well.

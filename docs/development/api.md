@@ -18,6 +18,23 @@ Wayfarer has three API access patterns:
 
 `api/mobile/*` controllers use the mobile token accessor and are bearer/API-token paths. They do not create an ASP.NET authentication principal merely from the token.
 
+### Acquire and replace a connection token
+
+Users obtain the canonical incoming credential through
+[Settings → Connect apps](../user/connect-apps.md#get-a-connection-token). This is
+a User-role **cookie Identity** surface, with an active database owner, HTTPS and
+MVC antiforgery; a bearer header cannot authorize credential issuance. GET shows
+only safe metadata. Create returns 201, Replace returns 200, and a stale/competing
+state returns 409 without a secret. Replacement checks the observed row ID and
+issuance timestamp atomically and invalidates the previous canonical verifier.
+
+The successful JSON contains only `token`, `tokenId` and `issuedAt`. Plaintext is
+revealed once after commit, never recovered from storage. Page/response outcomes
+are no-store; Done/navigation clears browser token and QR state without revocation.
+If the response is lost, refresh safe status and require another explicit replacement;
+do not automatically retry credential POSTs. Existing extra administrative tokens
+remain separate from this single-credential User workflow.
+
 ## Antiforgery boundary
 
 Browser mutations that rely on cookie Identity use MVC antiforgery, normally through `[ValidateAntiForgeryToken]`. This includes the Trip Editor mutation family and many group/invitation/backfill/browser mutations.
@@ -76,11 +93,113 @@ API-token lookup admission can return an overload response with `Retry-After: 5`
 
 ## Location ingestion and idempotency
 
+Send `Content-Type: application/json` and `Authorization: Bearer <connection-token>`
+to `POST /api/location/log-location` for automatic capture or
+`POST /api/location/check-in` for an intentional check-in. The
+[ordinary connection guide](../user/connect-apps.md#use-gpslogger) owns the GPSLogger
+configuration; these endpoints accept JSON POST, not GET/query-token logging.
+
+`GpsLoggerLocationDto` accepts:
+
+| Fields | Meaning |
+| --- | --- |
+| `latitude`, `longitude` | Decimal degrees, ±90/±180; `(0,0)` is rejected. |
+| `timestamp` | Capture DateTime; supply ISO UTC with `Z`. No-offset local time is converted using coordinates. Non-nullable DTO defaults are not required-field validation. |
+| `accuracy`, `altitude`, `speed` | Optional metres, metres, metres/second respectively. |
+| `locationType`, `notes`, `activityTypeId` | Optional capture description, notes and existing activity ID. |
+| `source`, `isUserInvoked`, `provider`, `bearing` | Optional origin, invocation flag, sensor/provider and bearing in degrees. |
+| `appVersion`, `appBuild`, `deviceModel`, `osVersion`, `batteryLevel`, `isCharging` | Optional capture metadata; battery percentage is 0–100. |
+
+Omit unavailable measurements. Metadata does not change endpoint filtering:
+`isUserInvoked` on log-location is not a check-in bypass. Automatic capture applies
+accuracy, time and distance thresholds and duplicate-timestamp rules. A 200 can
+be `{ "success": true, "skipped": true, "locationId": null }`, with no new row.
+A saved automatic point returns `skipped: false` and its integer `locationId`.
+Check-in success returns `message` and the publication-safe `location` object.
+Check actual saved history rather than equating HTTP success with persistence.
+
 `POST /api/location/check-in` and `POST /api/location/log-location` accept an optional `Idempotency-Key` header containing a GUID. The key is unique per user. A persisted replay returns the prior success before new-work admission; concurrent duplicate persistence is reconciled against the same database invariant.
 
 Use a new key for a new logical location write and retain the same key when retrying that write. An invalid GUID is a 400.
 
-Manual check-in intentionally bypasses the automatic time/distance filtering used by normal location logging; both paths retain validation, bounded admission, persistence and immediate post-write work.
+Manual check-in intentionally bypasses automatic accuracy/time/distance filtering;
+both paths retain authentication, coordinate validation, bounded admission,
+persistence and immediate post-write work. Admission can return 429/503: honor
+the actual `Retry-After` header. Invalid credentials need correction, and malformed
+JSON/coordinates need a corrected request. Basic GPSLogger setup does not require
+an idempotency key or claim its queue implements Wayfarer's retry strategy.
+
+## Owned location history and corrections
+
+Bearer history helpers include `GET /api/location/chronological` and
+`chronological-stats` with `dateType` (`day`, `month`, `year`), `year`, and the
+corresponding `month`/`day`; `has-data-for-date` and `check-navigation-availability`
+provide date/navigation information. Ownership derives from the resolved account.
+Cookie-only search, bulk-delete and Web location-management endpoints are separate.
+
+`PUT /api/location/{id}` accepts a partial `LocationUpdateRequestDto`: paired
+`latitude`/`longitude`, `notes`, `localTimestamp`, `activityTypeId` or `activityName`,
+and explicit `clearNotes`/`clearActivity` flags. An absent field is unchanged;
+clear flags take precedence. Coordinates are bounded decimal degrees and
+timestamps follow the current UTC/coordinate-zone conversion. The ID is the
+server's integer location ID, matched within the selected owner's rows. If a
+cookie selected the account, antiforgery is required even with a bearer header.
+
+`DELETE /api/location/{id}` uses bearer ownership and returns an ordinary success
+object with `id`; a missing/non-owned row is 404. For example, a bearer-only
+correction can send `PUT /api/location/123` with `{ "notes": "Corrected note" }`.
+It does not grant access to another account's history or imply a bulk-delete API.
+
+## Owned Trip Region and Place integrations
+
+The general Trip API supports selected **bearer-owned** plan operations used by
+Mobile and custom integrations. `GET /api/trips` lists the caller's Trips;
+`GET /api/trips/{id}` permits private owners and explicitly public Trip reads.
+Holding a token does not supply User cookie authority for the Vue editor.
+
+| Operation | Route | JSON input |
+| --- | --- | --- |
+| Create Region | `POST /api/trips/{tripId}/regions` | Required `name`; optional `notes`, `coverImageUrl`, paired `centerLatitude`/`centerLongitude`, `displayOrder`. |
+| Update Region | `PUT /api/trips/regions/{regionId}` | Optional fields above; Trip association cannot change. |
+| Delete Region | `DELETE /api/trips/regions/{regionId}` | No body; dependency confirmation may be required. |
+| Create Place | `POST /api/trips/{tripId}/places` | Required `name`; optional `regionId`, paired `latitude`/`longitude`, `notes`, `displayOrder`, `iconName`, `markerColor`. |
+| Update Place | `PUT /api/trips/places/{placeId}` | Optional fields above; `clearIcon`/`clearMarkerColor` reset defaults. |
+| Delete Place | `DELETE /api/trips/places/{placeId}` | No body; dependency confirmation may be required. |
+
+Trip/Region/Place IDs are GUIDs. The authenticated account must own the Trip and
+related Region. A Place can move only to an owned Region in the **same Trip**.
+Without `regionId`, creation uses the Trip's special **Unassigned Places** Region.
+That Region name is reserved and the special Region cannot be deleted. Supplied
+coordinates must be paired and within range; input uses decimal degrees, while
+returned Place `location`/Region `center` arrays use `[longitude, latitude]`.
+
+These PUT DTOs use null/omitted values as unchanged rather than generic patch
+clear operations. Use a non-null empty notes string to clear notes; Place icon
+and marker-color clear flags restore `marker` and `bg-blue`. Successful mutations
+return 200 with `success` and the corresponding `place`/`region` DTO, or a bounded
+delete success object. Invalid input/destination/reserved names return 400;
+missing resources return 404; missing bearer authority and some non-owner checks
+return 401. Do not assume one universal error envelope.
+
+Destructive Place/Region operations can return **409** with affected dependencies,
+an opaque `confirmationToken` and expiry. Review the warning, then explicitly
+retry the same delete with `X-Wayfarer-Dependency-Confirmation: <confirmationToken>`
+if that destruction is intended. The token is bound to owner, operation, target,
+Trip and exact dependency state; changed/expired state requires a fresh warning.
+Place update can also return a lifecycle concurrency 409. Never treat a 409 as
+an unconditional no-body delete success.
+
+For example, create a Region with `{ "name": "Athens" }`, then create a Place
+under that owned Trip with `{ "name": "Museum", "regionId": "<returned-guid>",
+"latitude": 37.98, "longitude": 23.73 }`. Partial notes updates use
+`{ "notes": "Visit in the morning" }` at the corresponding PUT route.
+
+Other existing bearer capabilities include limited Trip metadata, Segment notes
+and Area metadata edits, public discovery and public-Trip cloning. Mobile Group,
+recent-visit, hosted-routing and SSE families retain membership, ownership,
+visibility and provider gates. These are limited API contracts, not unrestricted
+account access or full Web editor parity; Web invitations, provider backfill,
+account/admin tools and editor mutations keep their cookie/role/antiforgery rules.
 
 ## SSE families
 

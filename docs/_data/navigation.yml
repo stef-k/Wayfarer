@@ -15,6 +15,8 @@ sections:
         url: /user/import-export.html
       - title: WayfarerMobile
         url: /user/mobile.html
+      - title: Connect apps
+        url: /user/connect-apps.html
       - title: Personal location providers
         url: /user/location-providers.html
 

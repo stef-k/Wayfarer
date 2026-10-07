@@ -38,6 +38,33 @@ public class AdminApiTokenControllerTests : TestBase
         var token = Assert.Single(db.ApiTokens);
         Assert.Equal("api-test", token.Name);
         Assert.Equal(user.Id, token.UserId);
+        Assert.False(controller.TempData.ContainsKey("NewToken"));
+        Assert.False(controller.TempData.ContainsKey("NewTokenName"));
+        Assert.DoesNotContain("Copy it now", controller.TempData["AlertMessage"]?.ToString() ?? string.Empty);
+        var priorHash = token.TokenHash;
+        Assert.IsType<RedirectToActionResult>(await controller.Regenerate(user.Id, "api-test"));
+        Assert.NotEqual(priorHash, token.TokenHash);
+        Assert.False(controller.TempData.ContainsKey("NewToken"));
+        Assert.False(controller.TempData.ContainsKey("NewTokenName"));
+        Assert.DoesNotContain("Copy it now", controller.TempData["AlertMessage"]?.ToString() ?? string.Empty);
+    }
+
+    /// <summary>Index discards unread legacy plaintext while keeping ordinary alerts.</summary>
+    [Fact]
+    public async Task Index_DiscardsLegacyRevealAndKeepsAlerts()
+    {
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser();
+        db.Users.Add(user);
+        await db.SaveChangesAsync();
+        var controller = BuildController(db, MockUserManager(user).Object);
+        controller.TempData["NewToken"] = "legacy-secret";
+        controller.TempData["NewTokenName"] = "legacy-name";
+        controller.TempData["AlertMessage"] = "Ordinary alert";
+        Assert.IsType<ViewResult>(await controller.Index(user.Id));
+        Assert.False(controller.TempData.ContainsKey("NewToken"));
+        Assert.False(controller.TempData.ContainsKey("NewTokenName"));
+        Assert.Equal("Ordinary alert", controller.TempData["AlertMessage"]);
     }
 
     [Fact]

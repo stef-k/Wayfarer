@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Wayfarer.Models;
@@ -25,6 +25,9 @@ namespace Wayfarer.Areas.Admin.Controllers
         /// <param name="id">The ID of the user for whom the tokens will be displayed.</param>
         public async Task<IActionResult> Index(string id)
         {
+            // Drop legacy unused reveals while preserving normal alerts.
+            TempData.Remove("NewToken");
+            TempData.Remove("NewTokenName");
             ApplicationUser? user = await _dbContext.Users.FindAsync(id);
             if (user == null)
             {
@@ -70,11 +73,8 @@ namespace Wayfarer.Areas.Admin.Controllers
                     return RedirectToAction("Index", new { id });
                 }
 
-                (ApiToken apiToken, string plainToken) = await _apiTokenService.CreateApiTokenAsync(id, name);
-                // Store plain token in TempData for one-time display
-                TempData["NewToken"] = plainToken;
-                TempData["NewTokenName"] = name;
-                SetAlert($"New token '{name}' created for {apiToken.User.UserName}. Copy it now - it won't be shown again.", "success");
+                (ApiToken apiToken, _) = await _apiTokenService.CreateApiTokenAsync(id, name);
+                SetAlert($"New token '{name}' created for {apiToken.User.UserName}. No plaintext is retained or displayed here.", "success");
             }
             catch (ArgumentException ex)
             {
@@ -101,12 +101,9 @@ namespace Wayfarer.Areas.Admin.Controllers
 
             try
             {
-                (ApiToken apiToken, string plainToken) = await _apiTokenService.RegenerateTokenAsync(id, name);
+                (ApiToken apiToken, _) = await _apiTokenService.RegenerateTokenAsync(id, name);
                 ApplicationUser? user = await _dbContext.ApplicationUsers.FindAsync(id);
-                // Store plain token in TempData for one-time display
-                TempData["NewToken"] = plainToken;
-                TempData["NewTokenName"] = name;
-                SetAlert($"Token '{name}' has been regenerated for {user?.UserName ?? id}. Copy it now - it won't be shown again.", "success");
+                SetAlert($"Token '{name}' has been regenerated for {user?.UserName ?? id}. No plaintext is retained or displayed here.", "success");
             }
             catch (ArgumentException ex)
             {

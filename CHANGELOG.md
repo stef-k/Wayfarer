@@ -9,6 +9,10 @@
 
 ### Fixed
 
+- Restore secure self-service User app connections and published WayfarerMobile
+  pairing, with GPSLogger/custom JSON setup guidance. Connection tokens remain
+  one-time and hash-only (#792).
+
 - Refresh frontend npm dependencies to current stable releases, resolving the Vue
   server-renderer and transitive source-map-js security advisories while retaining
   Quill 2.0.2 (#786).

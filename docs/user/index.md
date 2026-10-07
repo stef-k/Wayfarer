@@ -37,7 +37,7 @@ recovery codes somewhere secure outside the phone holding your authenticator.
 You will need an authenticator code when signing in, or a recovery code if you
 lose access to the authenticator.
 
-An [API token for Mobile](mobile.md#connect-to-your-instance) is a separate secret.
+A [connection token for apps](connect-apps.md) is a separate secret.
 Treat it like a password even when your web sign-in uses two-factor authentication.
 
 ## Understand your role
@@ -64,8 +64,8 @@ Open your name menu to reach your personal tools:
 - **Trips** holds plans made from Regions, Places, Areas and connecting Segments.
 - **My Groups** and **Invitations** manage trusted location sharing.
 - **Location imports** brings in history from files.
-- **Settings** controls Timeline sharing and provides API token and personal
-  provider settings. **My Account** handles your profile, password and 2FA.
+- **Settings** controls Timeline sharing and capture thresholds, and includes
+  **Connect apps** and personal provider settings. **My Account** handles your profile, password and 2FA.
 
 The top-level **Trips** link browses public Trips. Use **Trips** in your name menu
 for your own plans. The theme switch changes the app's light or dark appearance.
@@ -75,7 +75,7 @@ for your own plans. The theme switch changes the app's light or dark appearance.
 1. Review **My Account**, change your initial password and set up 2FA.
 2. Keep your Timeline private while you get familiar with it. Add a location from
    **All Locations**, [import existing history](import-export.md#import-location-history),
-   or [connect Mobile](mobile.md) and make a check-in.
+   or [connect Mobile, GPSLogger or another app](connect-apps.md) and record a point.
 3. Open [Timeline](timeline.md) to find that location, inspect its details and add
    a note or activity.
 4. Create a [Trip](trips.md), add a Region and a few Places, then connect them with
@@ -91,6 +91,7 @@ for your own plans. The theme switch changes the app's light or dark appearance.
 | Plan a journey, follow routes and record visits | [Trips](trips.md) |
 | Share locations with trusted people | [Groups](groups.md) |
 | Move history or Trip plans between files and apps | [Import and export](import-export.md) |
+| Connect Mobile, a GPS logger or another app | [Connect apps to Wayfarer](connect-apps.md) |
 | Record locations and use Trips on my phone | [WayfarerMobile](mobile.md) |
 | Add optional address lookup, place search or generated routes | [Personal location providers](location-providers.md) |
 
