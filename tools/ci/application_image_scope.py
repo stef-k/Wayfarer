@@ -35,6 +35,8 @@ LIFECYCLE_SHARED = (
     'appsettings*.json',
     'tools/WayfarerCtl/Program.cs', 'tools/WayfarerCtl/Cli.cs',
     'tools/WayfarerCtl/Deployment.cs', 'tools/WayfarerCtl/ActiveStorage.cs',
+    # Fresh setup consumes purge tombstones; retained start reactivates Preserved state.
+    'tools/WayfarerCtl/Setup.cs', 'tools/WayfarerCtl/DeploymentLifecycle.cs',
     'tools/WayfarerCtl/ProcessRunner.cs', 'tools/WayfarerCtl/ProtectedFiles.cs',
     'tools/WayfarerCtl/Preflight.cs', 'tools/WayfarerCtl/Release*.cs',
     'tools/WayfarerCtl/PublicRelease.cs',
@@ -54,7 +56,10 @@ NATIVE_OWNERS = (
     'tools/release/image.py', 'tools/release/image-smoke.sh',
     'tools/release/db_image.py', 'tools/release/database-release.json',
     'tools/release/bundle.py', 'tools/release/public_bundle.py', 'deploy/compose/db/*',
-    'tools/Wayfarer*/Wayfarer*.csproj', 'tools/WayfarerRecovery/NativePlatform.cs',
+    # Shipped native payload projects; local browser seed fixtures have no native contract.
+    'tools/WayfarerCtl/WayfarerCtl.csproj', 'tools/WayfarerRecovery/WayfarerRecovery.csproj',
+    'tools/WayfarerRecoverySource/WayfarerRecoverySource.csproj',
+    'tools/WayfarerRecovery/NativePlatform.cs',
     'tools/WayfarerRecovery/SafeDirectory.cs', 'tools/WayfarerRecovery/RecoveryLock.cs',
     'tools/WayfarerRecovery/WorkerCli.cs', 'tools/WayfarerRecovery/WorkerConfiguration.cs',
     'tools/WayfarerRecovery/RestoreWorker.cs',
@@ -118,8 +123,10 @@ OWNERS = {
     ) + SHARED_BUILD,
     # Native C# browser launch is exercised by qualify.py's thumbnail/PDF routes;
     # image-smoke.sh launches JS Chromium and cannot prove BrowserWorkflow's ARM branch.
+    # The ingress driver uses the production image's browser in AMD64 Compose qualification.
     'db_compose': ('deploy/compose/*', 'tools/release/db_image.py',
                    'tools/release/database-release.json', 'Services/BrowserWorkflow.cs',
+                   'tools/compose/managed_ingress.mjs',
                    'tools/compose/qualify_sse.py', 'tools/compose/sse-probe/*'),
     'operator': ('tools/WayfarerCtl/*', 'tools/release/bundle.py',
                  'tools/release/public_bundle.py', 'tools/release/INSTALL.md'),
@@ -163,6 +170,10 @@ def classify(paths):
             if matches(path, patterns):
                 reasons[domain].add(f'owner: {path!r}')
     # Ordered explicitly: no generic dependency framework or reverse inference.
+    # Operator qualification currently assembles an exact-head candidate bundle and
+    # exercises setup against freshly qualified application and database artifacts.
+    # Until CI has a separately proven immutable-substrate reuse contract, removing
+    # operator -> db_compose -> app_image would under-classify operator evidence.
     for consumer, prerequisite in (
         ('playwright', 'dotnet'), ('update', 'recovery'), ('recovery', 'operator'),
         ('operator', 'db_compose'), ('db_compose', 'app_image'),
@@ -182,7 +193,13 @@ def changed_paths(base, head):
     )
     if result.stdout and not result.stdout.endswith(b'\0'):
         raise ValueError('expected NUL-delimited Git paths')
-    return result.stdout.decode('utf-8', errors='surrogateescape').split('\0')[:-1]
+    paths = result.stdout.decode('utf-8', errors='surrogateescape').split('\0')[:-1]
+    # Match canonical portable Git paths, without normalizing aliases or consulting existence.
+    for path in paths:
+        if '\\' in path or re.match(r'^[A-Za-z]:', path) or any(
+                part in ('', '.', '..') for part in path.split('/')):
+            raise ValueError('expected canonical repository-relative Git paths')
+    return paths
 
 
 def decision(base, head):

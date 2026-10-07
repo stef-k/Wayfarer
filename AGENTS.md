@@ -76,14 +76,15 @@
   read [Versioning](docs/maintainer/versioning.md) and follow its authority links.
 - Clear, imperative commits. Conventional Commits welcome (e.g., `feat(trips): ...`, `chore: ...`).
 - PRs must include: description, linked issues, screenshots for UI changes, test plan/steps, and DB migration notes when relevant.
-- The GitHub Actions `test` check on the current PR head is necessary merge evidence, but green CI is not sufficient authorization to merge. Poll the actual check until it reports success; do not rely on `gh pr checks --required` or `gh pr merge --auto` unless branch protection and auto-merge enforcement have first been verified.
+- Configure protected integration branches with `ci-gate` as the required status check, replacing the legacy `test` requirement.
+- The GitHub Actions `ci-gate` check on the current PR head is necessary merge evidence; it verifies the one exact-diff classification and every selected evidence job. Green CI is not sufficient authorization to merge. Poll the actual check until it reports success; do not rely on `gh pr checks --required` or `gh pr merge --auto` unless branch protection and auto-merge enforcement have first been verified.
 - The implementation agent must stop with the PR unmerged and the implementation issue open after reporting the exact PR head SHA, validation evidence, Code Guard result, and known debt. It must not merge its own PR or close its issue as completed.
 - The exact PR head must receive an independent review separate from the implementation pass before merge. For the maintainer workflow, Codex implements and ChatGPT reviews the live GitHub exact head; implementation-time self-review, subagent review, or an unrecorded internal review is not a substitute for this gate.
 - Any commit after independent review invalidates that review. Re-run proportionate validation/CI and independently review the new exact head before merge.
 - Expensive qualification from a previously successful head may be reused when the exact delta since that head is proven outside that qualification's scope; the current head still requires applicable cheap checks and independent review.
 - Merge and issue closure require all three: successful exact-head CI, independent review with no blocking findings, and maintainer acceptance.
 - Pending, failed, cancelled, or missing checks are not successful merge evidence. For a clear infrastructure stall, cancel and rerun the unchanged workflow at most once before reporting the infrastructure failure.
-- Documentation-only PRs may skip the expensive test steps, but the required `test` job must still complete successfully through its documented fast path and the independent-review gate still applies.
+- Documentation-only PRs skip unowned expensive evidence jobs; `classify`, the cheap `test`/Code Guard path and required `ci-gate` must still complete successfully, and the independent-review gate still applies.
 
 ## Security & Configuration Tips
 
