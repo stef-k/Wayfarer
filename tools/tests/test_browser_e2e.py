@@ -3,6 +3,7 @@
 import os
 from pathlib import Path
 import socket
+import signal
 import subprocess
 import sys
 import tempfile
@@ -11,6 +12,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from browser_e2e import BrowserRun, child_environment, run_owned, wait_ready, WAYPOINT_SPECS
+from browser_processes import Child
 
 
 class SupervisorTests(unittest.TestCase):
@@ -82,6 +84,20 @@ class SupervisorTests(unittest.TestCase):
         self.run.execute = execute
         self.assertEqual(130, run_owned(self.run, []))
         self.assertTrue(all(child.closed for child in self.run.children))
+        self.assertFalse(self.run.root.path.exists())
+
+    def test_cancellation_between_launch_and_registration_still_reaps_writer(self):
+        """A real signal at the launch boundary cannot bypass ownership registration/finalization."""
+        def launch(*args, **kwargs):
+            child = Child(*args, **kwargs)
+            signal.raise_signal(signal.SIGINT)
+            return child
+        self.run.execute = lambda _: self.run.start(
+            'playwright', [sys.executable, '-c', 'import time; time.sleep(60)'])
+        with patch('browser_e2e.Child', side_effect=launch):
+            self.assertEqual(130, run_owned(self.run, []))
+        self.assertEqual(1, len(self.run.children))
+        self.assertTrue(self.run.children[0].closed)
         self.assertFalse(self.run.root.path.exists())
 
     def test_primary_failure_cleanup_failure_and_independent_verify(self):

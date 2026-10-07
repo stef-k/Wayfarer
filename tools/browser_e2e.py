@@ -133,12 +133,25 @@ class BrowserRun:
     def start(self, phase, command, cwd=None, env=None):
         """Launch one tracked native child; diagnostics never include its environment."""
         print(f'Browser {self.profile}: {phase}', flush=True)
-        child = Child(command, cwd=cwd or self.source, env=env or self.env,
-                      log=self.root.path / f'{len(self.children):02d}-{phase}.log')
-        self.children.append(child)
-        records = [{'identity': item.record, 'command': item.command} for item in self.children]
-        (self.root.path / 'children.json').write_text(json.dumps(records), encoding='utf-8')
-        return child
+        # Defer cancellation through creation/registration so no launched writer can miss finally.
+        # Finalization's ignored signals stay ignored rather than reactivating interruption.
+        pending = []
+        handlers = {value: signal.getsignal(value) for value in (signal.SIGINT, signal.SIGTERM)}
+        for value, handler in handlers.items():
+            if handler != signal.SIG_IGN:
+                signal.signal(value, lambda number, _: pending.append(number))
+        try:
+            child = Child(command, cwd=cwd or self.source, env=env or self.env,
+                          log=self.root.path / f'{len(self.children):02d}-{phase}.log')
+            self.children.append(child)
+            records = [{'identity': item.record, 'command': item.command} for item in self.children]
+            (self.root.path / 'children.json').write_text(json.dumps(records), encoding='utf-8')
+            return child
+        finally:
+            for value, handler in handlers.items():
+                signal.signal(value, handler)
+            if pending and sys.exc_info()[0] is None:
+                raise KeyboardInterrupt
 
     def checked(self, phase, command, *, cwd=None, env=None, timeout=180, watch=None):
         """Keep command status primary and close all owned descendants after completion."""
