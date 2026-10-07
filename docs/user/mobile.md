@@ -21,17 +21,22 @@ available. Avoid uninstalling or clearing data as a troubleshooting step.
 
 ## Connect to your instance
 
-1. Sign in to the web app and open **Settings > Manage API Tokens**.
-2. Create a token for the phone. Keep it private; anyone holding it can act as your
-   account through the supported API.
-3. Open Mobile **Settings**. Scan the token's pairing QR code to fill the server
-   address and token, or enter them manually.
-4. Check that the address is your intended instance's public HTTPS address, then
-   save and test the connection. Mobile loads server settings and activity types.
+1. Open the web app's **Settings → Connect apps** and follow
+   [Get a connection token](connect-apps.md#get-a-connection-token). Keep the one-time
+   reveal open while setting up the phone.
+2. In Mobile's setup wizard, choose **Scan QR Code** and scan the Web QR.
+   Alternatively, enter the server address and connection token in the wizard,
+   then choose **Save Configuration**.
+3. Check that the address is your intended instance's HTTPS address. To reconnect,
+   open **Settings → Permissions & Setup → Rerun Setup Wizard**. When not connected,
+   **Settings → Account** also offers **Scan QR Code to Connect**.
+4. Confirm access with an authenticated action, such as loading your own Trips or
+   making a deliberate check-in and finding it in the Web Timeline. The setup
+   probe loads public server settings; it does not prove the bearer token is valid.
 5. Grant the location permissions Android requests when you enable recording.
    Background tracking needs the applicable background permission too.
 
-A Wayfarer API token is not a Geoapify or Mapbox key. Personal provider credentials
+A Wayfarer connection token is not a Geoapify or Mapbox key. Personal provider credentials
 are configured in the web app and stay on the server. If your token is revoked or
 your account is disabled, correct that connection before expecting delivery to
 resume. Replacing a token does not confirm delivery of pending data.
@@ -171,8 +176,8 @@ navigation shares the selected destination with that app, and external links may
 contact their own services. Personal provider credentials remain protected on the
 server and are never sent to WayfarerMobile.
 
-Use your intended HTTPS instance, keep the API token and pairing QR private, and
-revoke an exposed token in the web app. If connection testing fails, check the
+Use your intended HTTPS instance, keep the connection token and pairing QR private,
+and [replace an exposed token](connect-apps.md#get-a-connection-token). If connection testing fails, check the
 address in a browser, connectivity, token and account status. For server-side
 problems, contact your instance administrator.
 

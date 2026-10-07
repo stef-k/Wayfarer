@@ -2,6 +2,7 @@
 using Microsoft.EntityFrameworkCore;
 using System.Security.Cryptography;
 using System.Text;
+using Npgsql;
 using Wayfarer.Models;
 
 namespace Wayfarer.Util
@@ -11,10 +12,14 @@ namespace Wayfarer.Util
     /// </summary>
     public class ApiTokenService
     {
+        /// <summary>The fixed incoming credential owned by the personal Connect apps workflow.</summary>
+        public const string ConnectionTokenName = "Wayfarer Incoming Location Data API Token";
+
         private readonly ApplicationDbContext _dbContext;
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly IHttpContextAccessor? _httpContextAccessor;
 
+        /// <summary>Shares generation, persistence and incoming request authority with existing token management.</summary>
         public ApiTokenService(ApplicationDbContext dbContext, UserManager<ApplicationUser> userManager,
             IHttpContextAccessor? httpContextAccessor = null)
         {
@@ -45,6 +50,79 @@ namespace Wayfarer.Util
             RandomNumberGenerator.Fill(tokenData); // Fills the array with cryptographically strong random bytes
             return ToCustomUrlSafeBase64(tokenData); // Encode as a Base64 string
         }
+
+        /// <summary>Projects only the authenticated owner's canonical row identity and issuance state.</summary>
+        public Task<ConnectionTokenStatus?> GetConnectionTokenStatusAsync(string userId,
+            CancellationToken cancellationToken = default) => _dbContext.ApiTokens.AsNoTracking()
+            .Where(token => token.UserId == userId && token.Name == ConnectionTokenName)
+            .Select(token => new ConnectionTokenStatus(token.Id, token.CreatedAt))
+            .SingleOrDefaultAsync(cancellationToken);
+
+        /// <summary>Creates an absent canonical verifier; competing inserts are decided by the existing unique index.</summary>
+        public async Task<ConnectionTokenIssue?> CreateConnectionTokenAsync(string userId,
+            CancellationToken cancellationToken = default)
+        {
+            RequireImmediateCommit();
+            await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
+            if (await GetConnectionTokenStatusAsync(userId, cancellationToken) != null) return null;
+            var owner = await _dbContext.Users.SingleAsync(user => user.Id == userId && user.IsActive, cancellationToken);
+            var plaintext = GenerateToken();
+            var credential = new ApiToken
+            {
+                UserId = owner.Id,
+                User = owner,
+                Name = ConnectionTokenName,
+                Token = null,
+                TokenHash = HashToken(plaintext),
+                CreatedAt = AtPostgresPrecision(DateTime.UtcNow)
+            };
+            _dbContext.ApiTokens.Add(credential);
+            try
+            {
+                await _dbContext.SaveChangesAsync(cancellationToken);
+                await transaction.CommitAsync(cancellationToken);
+            }
+            catch (DbUpdateException exception) when (exception.InnerException is PostgresException
+                { SqlState: PostgresErrorCodes.UniqueViolation, ConstraintName: "IX_ApiToken_Name_UserId" })
+            {
+                _dbContext.Entry(credential).State = EntityState.Detached;
+                return null;
+            }
+            return new ConnectionTokenIssue(plaintext, credential.Id, credential.CreatedAt);
+        }
+
+        /// <summary>Replaces only the observed canonical row/version, using one conditional database update.</summary>
+        public async Task<ConnectionTokenIssue?> ReplaceConnectionTokenAsync(string userId,
+            int tokenId, DateTime issuedAt, CancellationToken cancellationToken = default)
+        {
+            RequireImmediateCommit();
+            if (issuedAt.Kind != DateTimeKind.Utc || issuedAt.Ticks > DateTime.MaxValue.Ticks - 10) return null;
+            await using var transaction = await _dbContext.Database.BeginTransactionAsync(cancellationToken);
+            var nextIssuedAt = AtPostgresPrecision(DateTime.UtcNow);
+            if (nextIssuedAt <= issuedAt) nextIssuedAt = AtPostgresPrecision(issuedAt).AddTicks(10);
+            var plaintext = GenerateToken();
+            var hash = HashToken(plaintext);
+            // PostgreSQL rechecks the full predicate after a competing writer commits.
+            var changed = await _dbContext.ApiTokens.Where(token => token.Id == tokenId
+                    && token.UserId == userId && token.Name == ConnectionTokenName && token.CreatedAt == issuedAt
+                    && token.User.IsActive)
+                .ExecuteUpdateAsync(setters => setters.SetProperty(token => token.Token, (string?)null)
+                    .SetProperty(token => token.TokenHash, hash).SetProperty(token => token.CreatedAt, nextIssuedAt),
+                    cancellationToken);
+            if (changed != 1) return null;
+            await transaction.CommitAsync(cancellationToken);
+            return new ConnectionTokenIssue(plaintext, tokenId, nextIssuedAt);
+        }
+
+        /// <summary>Refuses caller-owned transactions so the one-time result cannot precede its actual commit.</summary>
+        private void RequireImmediateCommit()
+        {
+            if (_dbContext.Database.CurrentTransaction != null || System.Transactions.Transaction.Current != null)
+                throw new InvalidOperationException("Connection token issuance requires an immediate database commit.");
+        }
+
+        /// <summary>Matches PostgreSQL microseconds exactly in both persisted and returned timestamps.</summary>
+        private static DateTime AtPostgresPrecision(DateTime value) => new(value.Ticks - value.Ticks % 10, DateTimeKind.Utc);
 
         /// <summary>
         /// Creates a new API Token for the specified user.
@@ -189,4 +267,10 @@ namespace Wayfarer.Util
             return $"wf_{base64}";
         }
     }
+
+    /// <summary>Secret-free row identity and issuance precondition for a connection token.</summary>
+    public sealed record ConnectionTokenStatus(int TokenId, DateTime IssuedAt);
+
+    /// <summary>Minimal one-time result produced only after an immediately committed credential mutation.</summary>
+    public sealed record ConnectionTokenIssue(string Token, int TokenId, DateTime IssuedAt);
 }

@@ -37,6 +37,27 @@ public class ManagerApiTokenControllerTests : TestBase
         var token = Assert.Single(db.ApiTokens);
         Assert.Equal(user.Id, token.UserId);
         Assert.Equal("manager-api", token.Name);
+        Assert.False(controller.TempData.ContainsKey("NewToken"));
+        Assert.False(controller.TempData.ContainsKey("NewTokenName"));
+        Assert.DoesNotContain("Copy it now", controller.TempData["AlertMessage"]?.ToString() ?? string.Empty);
+    }
+
+    /// <summary>Index removes legacy unused secrets without consuming ordinary alert state.</summary>
+    [Fact]
+    public async Task Index_DiscardsLegacyRevealAndKeepsAlerts()
+    {
+        var db = CreateDbContext();
+        var user = TestDataFixtures.CreateUser();
+        db.Users.Add(user);
+        await db.SaveChangesAsync();
+        var controller = BuildController(db, MockUserManager(user).Object);
+        controller.TempData["NewToken"] = "legacy-secret";
+        controller.TempData["NewTokenName"] = "legacy-name";
+        controller.TempData["AlertMessage"] = "Ordinary alert";
+        Assert.IsType<ViewResult>(await controller.Index(user.Id));
+        Assert.False(controller.TempData.ContainsKey("NewToken"));
+        Assert.False(controller.TempData.ContainsKey("NewTokenName"));
+        Assert.Equal("Ordinary alert", controller.TempData["AlertMessage"]);
     }
 
     [Fact]
@@ -100,6 +121,9 @@ public class ManagerApiTokenControllerTests : TestBase
         var controller = BuildController(db, MockUserManager(user).Object);
 
         var result = await controller.Regenerate(user.Id, "reporting");
+        Assert.False(controller.TempData.ContainsKey("NewToken"));
+        Assert.False(controller.TempData.ContainsKey("NewTokenName"));
+        Assert.DoesNotContain("Copy it now", controller.TempData["AlertMessage"]?.ToString() ?? string.Empty);
 
         var redirect = Assert.IsType<RedirectToActionResult>(result);
         Assert.Equal("Index", redirect.ActionName);

@@ -13,9 +13,16 @@ public sealed class BrowserResponsePolicyMiddleware(RequestDelegate next)
     /// <summary>Applies one final policy even when downstream error handling clears or re-executes a response.</summary>
     public async Task InvokeAsync(HttpContext context)
     {
+        // Preserve the original connection-page policy through downstream short circuits and error re-execution.
+        var connectionPage = context.Request.Path.StartsWithSegments("/User/ApiToken", StringComparison.OrdinalIgnoreCase);
         context.Response.OnStarting(() =>
         {
             var response = context.Response;
+            if (connectionPage)
+            {
+                response.Headers.CacheControl = "no-store";
+                response.Headers.Pragma = "no-cache";
+            }
             var embed = context.Items.ContainsKey(EmbedKey)
                 && response.StatusCode is >= 200 and < 300
                 && response.ContentType?.StartsWith("text/html", StringComparison.OrdinalIgnoreCase) == true

@@ -14,7 +14,7 @@ import history and plan manually with **No provider** selected.
 **Geocoding** turns coordinates into address information. **Directions** generates
 routes between positions. They are independent choices: you can enable one,
 both or neither. Your provider settings are personal, not the instance's map-tile
-settings or the API token used to connect Mobile.
+settings or the [connection token used to connect apps](connect-apps.md).
 
 | Provider | Current Wayfarer features |
 | --- | --- |

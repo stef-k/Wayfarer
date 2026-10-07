@@ -31,6 +31,7 @@ public sealed class AntiforgeryDescriptorTests : TestBase
         Manager.Groups.InviteAjax Manager.Groups.RemoveMemberAjax Manager.Groups.RevokeInviteAjax
         Manager.Groups.Create Manager.Groups.Edit Manager.Users.Create Manager.Users.DeleteConfirmed
         Manager.Users.Edit Manager.Users.ChangePassword
+        User.ApiToken.Create User.ApiToken.Replace
         User.Timeline.UpdateSettings User.Groups.Create User.Groups.InviteAjax User.Groups.RemoveMemberAjax
         User.Groups.RevokeInviteAjax User.HiddenAreas.Create User.HiddenAreas.Edit User.HiddenAreas.DeleteConfirmed
         User.Location.Create User.Location.Edit User.Location.BulkEditNotes
@@ -109,7 +110,7 @@ public sealed class AntiforgeryDescriptorTests : TestBase
         Assert.DoesNotContain(mixed.FilterDescriptors, filter => filter.Filter is IgnoreAntiforgeryTokenAttribute
             or ValidateAntiForgeryTokenAttribute or AutoValidateAntiforgeryTokenAttribute);
         // Deliberate read-only queries, including provider settings navigation.
-        foreach (var key in (QueryActions + " User.LocationProviderSettings.Index")
+        foreach (var key in (QueryActions + " User.LocationProviderSettings.Index User.ApiToken.Index")
                      .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries))
         {
             var matches = all.Where(action => Key(action) == key).ToArray();

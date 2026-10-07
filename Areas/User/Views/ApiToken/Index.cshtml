@@ -1,0 +1,59 @@
+@model Wayfarer.Areas.User.ConnectionModels.ConnectionTokenViewModel
+@* Razor emits only safe status and antiforgery. A successful POST owns the one-time token and local QR. *@
+<div class="container py-3" id="connect-apps" data-token-id="@Model.Status?.TokenId"
+     data-issued-at="@Model.Status?.IssuedAt.ToString("O")" data-effective-https="@Model.IsHttps.ToString().ToLowerInvariant()">
+    <h1>Connect apps to Wayfarer</h1>
+    <p>Pair WayfarerMobile or connect GPS loggers and other apps to your Wayfarer account.</p>
+    <p class="text-muted">Account: <strong>@Model.UserName</strong> · Server address: <span id="connection-origin"></span>
+        <button type="button" class="btn btn-sm btn-outline-secondary" id="copy-server" disabled>Copy server address</button></p>
+    <div class="alert alert-info" id="connection-message" role="status" hidden></div>
+    <section class="card mb-3" aria-labelledby="connection-heading">
+        <div class="card-body">
+            <h2 class="h4" id="connection-heading">Connection token</h2>
+            <p>A connection token (API token) lets a trusted app read and change your data through Wayfarer's supported APIs.
+                Keep it private. It is separate from your password, two-factor authentication and personal provider keys.</p>
+            <p id="connection-status">@(Model.Status == null ? "No connection token" : "Connection token exists")</p>
+            <p class="small text-muted" id="connection-issued">@if (Model.Status != null) { <text>Last issued: @Model.Status.IssuedAt.ToString("u")</text> }</p>
+            @Html.AntiForgeryToken()
+            <button type="button" class="btn btn-primary" id="issue-connection" disabled>
+                @(Model.Status == null ? "Create connection token" : "Replace connection token")
+            </button>
+            <div class="mt-3" id="replace-confirmation" hidden>
+                <p>Replacing this token stops phones and other apps using it. Connect each one again with the new token.</p>
+                <button type="button" class="btn btn-danger" id="confirm-replacement">Replace token and reconnect apps</button>
+                <button type="button" class="btn btn-outline-secondary" id="cancel-replacement">Cancel</button>
+            </div>
+            <div class="mt-3" id="connection-reveal" hidden>
+                <p>Copy or scan now; this token cannot be shown again.</p>
+                <pre class="border rounded p-2 text-break text-wrap" id="connection-token"></pre>
+                <button type="button" class="btn btn-outline-primary" id="copy-token">Copy token</button>
+            </div>
+            <button type="button" class="btn btn-outline-secondary mt-3" id="hide-connection" hidden>Done — hide token</button>
+            <p class="small text-muted mt-3 mb-0">Copy or scan before Done or leaving this page. Hiding the token leaves apps connected.
+                If you lose it or expose it, replace it and reconnect your apps.</p>
+        </div>
+    </section>
+    <section class="card mb-3" aria-labelledby="mobile-heading">
+        <div class="card-body">
+            <h2 class="h4" id="mobile-heading">WayfarerMobile</h2>
+            <p>Use <strong>Scan QR Code</strong> in the app's setup wizard, or enter the server address and token manually.</p>
+            <div class="mb-3" id="connection-qr" style="max-width:220px" aria-label="WayfarerMobile pairing QR"></div>
+            <a href="https://stef-k.github.io/Wayfarer/user/mobile.html#connect-to-your-instance">Set up WayfarerMobile</a>
+        </div>
+    </section>
+    <section class="card" aria-labelledby="logger-heading">
+        <div class="card-body">
+            <h2 class="h4" id="logger-heading">GPS loggers and other apps</h2>
+            <p>GPSLogger for Android by mendhak can send locations using this token.
+                Apps that can send a custom HTTPS JSON request with an Authorization header may also be able to send locations.</p>
+            <p><a href="https://stef-k.github.io/Wayfarer/user/connect-apps.html#use-gpslogger">Use GPS loggers and other apps</a></p>
+            <a class="small text-muted" href="https://stef-k.github.io/Wayfarer/development/api.html">Build a custom integration</a>
+            <span class="small text-muted"> · </span>
+            <a class="small text-muted" asp-area="User" asp-controller="LocationProviderSettings" asp-action="Index">Personal location providers</a>
+        </div>
+    </section>
+</div>
+@section Scripts {
+    <script src="~/lib/davidshimjs-qrcodejs/qrcode.min.js" asp-append-version="true"></script>
+    @Html.FrontendViewScripts()
+}

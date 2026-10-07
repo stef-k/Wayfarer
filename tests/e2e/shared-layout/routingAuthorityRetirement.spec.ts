@@ -12,7 +12,8 @@ test('keeps personal provider setup while retired routing surfaces remain absent
   await expect(page.locator('a[href*="RoutingSettings"], a[href*="RoutingProvider"]')).toHaveCount(0);
 
   await expectNotFound(page, '/User/RoutingSettings');
-  await expectNotFound(page, '/User/ApiToken');
+  await page.goto('/User/ApiToken');
+  await expect(page.getByRole('heading', { name: 'Connect apps to Wayfarer' })).toBeVisible();
 });
 
 // Signs in through the established local authenticated-browser fixture.

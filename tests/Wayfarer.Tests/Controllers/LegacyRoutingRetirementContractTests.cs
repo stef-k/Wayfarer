@@ -17,8 +17,6 @@ public sealed class LegacyRoutingRetirementContractTests : TestBase
     [InlineData("POST", "/User/RoutingSettings/Save")]
     [InlineData("GET", "/Admin/RoutingProvider")]
     [InlineData("POST", "/Admin/RoutingProvider/Activate")]
-    [InlineData("GET", "/User/ApiToken")]
-    [InlineData("POST", "/User/ApiToken/Create")]
     [InlineData("POST", "/User/ApiToken/Regenerate")]
     [InlineData("GET", "/User/ApiToken/Delete/1")]
     [InlineData("POST", "/User/ApiToken/Delete")]
@@ -51,9 +49,9 @@ public sealed class LegacyRoutingRetirementContractTests : TestBase
 
         Assert.DoesNotContain("RoutingProvider", adminNavigation, StringComparison.Ordinal);
         Assert.DoesNotContain("RoutingSettings", userSettings, StringComparison.Ordinal);
-        Assert.DoesNotContain("ApiToken", userSettings, StringComparison.Ordinal);
+        Assert.Contains("ApiToken", userSettings, StringComparison.Ordinal);
         Assert.Contains("LocationProviderSettings", userSettings, StringComparison.Ordinal);
-        Assert.False(File.Exists(Path.Combine(root, "Areas", "User", "Views", "ApiToken", "Index.cshtml")));
+        Assert.True(File.Exists(Path.Combine(root, "Areas", "User", "Views", "ApiToken", "Index.cshtml")));
         Assert.False(File.Exists(Path.Combine(root, "Areas", "User", "Views", "ApiToken", "Delete.cshtml")));
         using var db = CreateDbContext();
         Assert.Null(db.Model.FindEntityType("Wayfarer.Models.RoutingProviderConfiguration"));
