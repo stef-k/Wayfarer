@@ -65,6 +65,24 @@ public sealed class PostgresMigrationFixtureOwnershipTests
         Assert.Equal([operations.CreatedDatabase], operations.CleanupTargets);
     }
 
+    /// <summary>Rejects an unsupported source before deriving or creating any maintenance database.</summary>
+    [Theory]
+    [InlineData(170011)]
+    [InlineData(190000)]
+    public async Task UnsupportedServer_FailsBeforeDisposableDatabaseOwnership(int versionNumber)
+    {
+        var operations = new RecordingMigrationDatabaseOperations { ServerVersionNumber = versionNumber };
+        await using var fixture = new PostgresMigrationTestFixture(operations);
+
+        var failure = await Assert.ThrowsAsync<PostgresTestServerConfigurationException>(
+            () => fixture.InitializeAsync(CancellationToken.None));
+
+        Assert.Contains("PostgreSQL major 18", failure.Message, StringComparison.Ordinal);
+        Assert.False(fixture.IsAvailable);
+        Assert.Equal(0, operations.CreateCount);
+        Assert.Empty(operations.CleanupTargets);
+    }
+
     /// <summary>Proves an explicit clean second lifetime is the only normal second construction.</summary>
     [Fact]
     public async Task SecondLifetime_CreatesOnlyAfterFirstWasDisposed()
@@ -224,8 +242,14 @@ public sealed class PostgresMigrationFixtureOwnershipTests
         public List<CancellationToken> CleanupTokens { get; } = [];
         public Exception? MigrationFailure { get; init; }
         public Exception? CleanupFailure { get; init; }
+        public int ServerVersionNumber { get; init; } = 180000;
 
-        public Task ValidateServerAsync(string connectionString, CancellationToken cancellationToken) => Task.CompletedTask;
+        /// <summary>Exercises the shared version authority without a network-dependent fake server.</summary>
+        public Task ValidateServerAsync(string connectionString, CancellationToken cancellationToken)
+        {
+            PostgresTestServer.ValidateVersion(ServerVersionNumber);
+            return Task.CompletedTask;
+        }
 
         public Task CreateDatabaseAsync(string sourceConnectionString, string maintenanceConnectionString,
             string databaseName, CancellationToken cancellationToken)

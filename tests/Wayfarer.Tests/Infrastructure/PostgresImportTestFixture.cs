@@ -25,7 +25,7 @@ public sealed class PostgresImportTestFixture : IAsyncLifetime
     /// <summary>Gets whether relational tests have an explicitly configured isolated database.</summary>
     public bool IsAvailable => _connectionString is not null;
 
-    /// <summary>Initializes migrations only after proving the connection names the dedicated test database.</summary>
+    /// <summary>Initializes migrations only after proving the dedicated database runs on PostgreSQL 18.</summary>
     public async Task InitializeAsync()
     {
         var value = Environment.GetEnvironmentVariable(ConnectionVariable);
@@ -35,6 +35,7 @@ public sealed class PostgresImportTestFixture : IAsyncLifetime
         if (!string.Equals(builder.Database, RequiredDatabase, StringComparison.Ordinal))
             throw new InvalidOperationException($"{ConnectionVariable} must name exactly {RequiredDatabase}.");
 
+        await PostgresTestServer.ValidateAsync(builder.ConnectionString);
         _connectionString = builder.ConnectionString;
         await using var context = CreateContext();
         await context.Database.MigrateAsync();
