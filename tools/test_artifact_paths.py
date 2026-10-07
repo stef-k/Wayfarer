@@ -15,6 +15,8 @@ import uuid
 
 def ordinary(path: Path, *, tree=False):
     """Inspect lexical ancestors and optionally descendants without resolving links."""
+    if '..' in Path(path).parts:
+        raise ValueError('Parent traversal in an artifact path is refused')
     path = Path(os.path.abspath(path))
     for item in (*reversed(path.parents), path):
         if not os.path.lexists(item):

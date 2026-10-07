@@ -61,6 +61,8 @@ class ArtifactTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     ordinary(link / 'keep')
                 with self.assertRaises(ValueError):
+                    ordinary(link / '..' / 'owner.json')
+                with self.assertRaises(ValueError):
                     self.root.remove()
                 self.assertTrue(sentinel.exists())
                 self.assertTrue(self.root.path.exists())
