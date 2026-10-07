@@ -76,7 +76,9 @@ class ApplicationImageScopeTests(unittest.TestCase):
                      'tools/test-artifact-paths.ps1', 'tests/client/testCleanup.test.mjs',
                      'tools/coverage-report-paths.ps1', 'tools/coverage-report.ps1',
                      'tools/coverage-report.safety.tests.ps1',
-                     'tools/shared-layout-lifecycle.ps1', 'tools/shared-layout.safety.tests.ps1']:
+                     'tools/test_artifact_paths.py', 'tools/browser_processes.py',
+                     'tools/tests/test_test_artifact_paths.py', 'tools/tests/test_browser_processes.py',
+                     'tools/tests/test_browser_e2e.py']:
             with self.subTest(path=path):
                 self.assert_domains([path], {'cleanup_safety'})
 
@@ -87,11 +89,21 @@ class ApplicationImageScopeTests(unittest.TestCase):
 
     def test_shared_frontend_and_cleanup_wiring(self):
         """Shared smoke/host wiring retains both frontend and filesystem-safety evidence."""
-        for path in ['tools/trip-editor-asset-smoke.mjs', 'tools/start-shared-layout-e2e-host.ps1']:
+        for path in ['tools/trip-editor-asset-smoke.mjs', 'tools/browser_e2e.py', 'tools/browser-e2e.mjs']:
             with self.subTest(path=path):
                 self.assert_domains([path], {'frontend', 'cleanup_safety'})
         self.assert_domains(['package.json'], {'frontend', 'cleanup_safety', 'app_image', 'arm64'})
         self.assert_domains(['vite.config.ts'], {'frontend', 'app_image'})
+
+    def test_browser_migration_and_deleted_replacement_owners(self):
+        """Migration unions remain sufficient; canonical ownership never depends on file existence."""
+        self.assert_domains(['tools/start-shared-layout-e2e-host.ps1', 'tools/shared-layout-lifecycle.ps1',
+                             'tools/shared-layout.safety.tests.ps1', 'tools/run-407-waypoint-browser.ps1',
+                             'tools/browser_e2e.py', 'tools/tests/test_browser_e2e.py'],
+                            {'frontend', 'cleanup_safety'})
+        self.assert_domains(['tools/browser_e2e.py'], {'frontend', 'cleanup_safety'})
+        self.assert_domains(['tools/test_artifact_paths.py'], {'cleanup_safety'})
+        self.assert_domains(['tests/e2e/shared-layout/sharedLayoutConfig.ts'], {'frontend'})
 
     def test_playwright_owners(self):
         """Real rendering fixtures and their imported production owners select Chromium."""

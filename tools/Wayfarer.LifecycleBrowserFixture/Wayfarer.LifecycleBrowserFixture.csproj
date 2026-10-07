@@ -6,6 +6,11 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
   <ItemGroup>
+    <Using Include="Microsoft.Extensions.Configuration" />
     <ProjectReference Include="..\..\Wayfarer.csproj" />
+    <!-- This externally attached outage fixture shares the PG18 prerequisite, never server stop authority. -->
+    <Compile Include="..\..\tests\Wayfarer.Tests\Infrastructure\PostgresTestServer.cs" Link="PostgresTestServer.cs" />
+    <Compile Include="..\..\Services\DatabaseSecret.cs" Link="DatabaseSecret.cs" />
+    <Compile Include="..\Wayfarer.WaypointBrowserFixture\BrowserFixtureGuard.cs" Link="BrowserFixtureGuard.cs" />
   </ItemGroup>
 </Project>

@@ -6,6 +6,10 @@
     <ImplicitUsings>enable</ImplicitUsings>
   </PropertyGroup>
   <ItemGroup>
+    <Using Include="Microsoft.Extensions.Configuration" />
     <ProjectReference Include="..\..\Wayfarer.csproj" />
+    <!-- Reuse the maintained guarded database policy and actual password-file configuration. -->
+    <Compile Include="..\..\tests\Wayfarer.Tests\Infrastructure\PostgresTestServer.cs" Link="PostgresTestServer.cs" />
+    <Compile Include="..\..\Services\DatabaseSecret.cs" Link="DatabaseSecret.cs" />
   </ItemGroup>
 </Project>

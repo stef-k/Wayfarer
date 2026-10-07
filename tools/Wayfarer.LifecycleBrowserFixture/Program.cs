@@ -14,6 +14,8 @@ var command = args[0];
 var manifestPath = Path.GetFullPath(args[1]);
 var connectionString = Environment.GetEnvironmentVariable(connectionVariable)
     ?? throw new InvalidOperationException($"{connectionVariable} is required.");
+// Guard the externally provisioned fixture; it does not grant control of the shared PG18 service.
+await BrowserFixtureGuard.ValidateAsync(connectionString);
 var services = new ServiceCollection().AddEntityFrameworkNpgsql().BuildServiceProvider();
 var options = new DbContextOptionsBuilder<ApplicationDbContext>()
     .UseNpgsql(connectionString, provider => provider.UseNetTopologySuite())

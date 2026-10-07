@@ -45,22 +45,6 @@ public sealed class TripEditorStrictReviewSourceContractTests
         Assert.Contains("provider-reread", fixture, StringComparison.Ordinal);
     }
 
-    /// <summary>The definitive #407 browser entrypoint must own setup and unconditional verified cleanup.</summary>
-    [Fact]
-    public void WaypointBrowserRunner_IsFinallyProtectedAndRunOwned()
-    {
-        var runner = Read("tools", "run-407-waypoint-browser.ps1");
-
-        Assert.Contains("finally", runner, StringComparison.Ordinal);
-        Assert.Contains("verify-cleanup", runner, StringComparison.Ordinal);
-        Assert.Contains("--workers=1", runner, StringComparison.Ordinal);
-        Assert.Contains("--retries=0", runner, StringComparison.Ordinal);
-        Assert.Contains("Wait-Port $databasePort $false", runner, StringComparison.Ordinal);
-        Assert.Contains("Wait-Port $hostPort $false", runner, StringComparison.Ordinal);
-        Assert.Contains("Remove-Item -LiteralPath $resolvedRunRoot", runner, StringComparison.Ordinal);
-        Assert.Contains("Browser execution and cleanup both failed", runner, StringComparison.Ordinal);
-    }
-
     /// <summary>The canonical browser distance must be derived independently from literal fixture geometry.</summary>
     [Fact]
     public void WaypointBrowserFixture_UsesIndependentLiteralDistanceEvidence()
@@ -96,16 +80,7 @@ public sealed class TripEditorStrictReviewSourceContractTests
         Assert.Equal(2, Count(tests, "original => Assert.Same(operation.Failure, original)"));
     }
 
-    /// <summary>Cleanup verification must be independent and failed-run evidence must never be deleted.</summary>
-    [Fact]
-    public void WaypointBrowserRunner_VerifiesCleanupSeparatelyAndRetainsFailureEvidence()
-    {
-        var runner = Read("tools", "run-407-waypoint-browser.ps1");
-
-        Assert.Contains("cleanupVerificationAttempted", runner, StringComparison.Ordinal);
-        Assert.Contains("Retained evidence directory:", runner, StringComparison.Ordinal);
-        Assert.Contains("if (!$originalFailure -and $cleanupFailures.Count -eq 0)", runner, StringComparison.Ordinal);
-    }
+    // Runner finalization is exercised by tools/tests/test_browser_e2e.py at actual child/cleanup seams.
 
     private static string Read(params string[] path) => File.ReadAllText(
         Path.Combine(FindRepositoryRoot(), Path.Combine(path)));

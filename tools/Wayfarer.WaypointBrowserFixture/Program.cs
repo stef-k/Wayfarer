@@ -14,16 +14,21 @@ var command = args[0];
 var manifestPath = Path.GetFullPath(args[1]);
 var connection = Environment.GetEnvironmentVariable(connectionVariable)
     ?? throw new InvalidOperationException($"{connectionVariable} is required.");
+// Every command, including probes and cleanup, verifies the connected guarded PG18 authority.
+await BrowserFixtureGuard.ValidateAsync(connection);
 var services = new ServiceCollection().AddEntityFrameworkNpgsql().BuildServiceProvider();
 var options = new DbContextOptionsBuilder<ApplicationDbContext>()
     .UseNpgsql(connection, provider => provider.UseNetTopologySuite()).Options;
 await using var context = new ApplicationDbContext(options, services);
+if (await BrowserFixtureEnvironment.TryRunAsync(command, manifestPath, context)
+    || await SharedLayoutFixture.TryRunAsync(command, manifestPath, context)) return;
 
 switch (command)
 {
     case "provision":
         await context.Database.MigrateAsync();
-        var password = args.Length == 3 ? args[2] : throw new InvalidOperationException("Provision requires a run-owned password.");
+        var password = Environment.GetEnvironmentVariable("WAYFARER_E2E_PASSWORD")
+            ?? (args.Length == 3 ? args[2] : throw new InvalidOperationException("Provision requires a run-owned password."));
         var provisioned = await ProvisionAsync(context, password, manifestPath);
         await File.WriteAllTextAsync(manifestPath, JsonSerializer.Serialize(provisioned, FixtureJson.Options));
         Console.WriteLine(manifestPath);
