@@ -9,10 +9,10 @@ using Wayfarer.Services.LocationProviders;
 using Wayfarer.Util;
 
 /// <summary>Owns the minimal missing Identity/settings prerequisites without changing existing accounts.</summary>
-internal static class BrowserFixtureEnvironment
+public static class BrowserFixtureEnvironment
 {
     /// <summary>Handles only managed preparation, private key selection and exact prerequisite cleanup.</summary>
-    internal static async Task<bool> TryRunAsync(string command, string path, ApplicationDbContext db)
+    public static async Task<bool> TryRunAsync(string command, string path, ApplicationDbContext db)
     {
         if (command == "key-ring")
         {
@@ -108,10 +108,21 @@ internal static class BrowserFixtureEnvironment
         if (existing.Any(user => user.PasswordHash == null || new PasswordHasher<ApplicationUser>()
                 .VerifyHashedPassword(user, user.PasswordHash, "Admin1!") != PasswordVerificationResult.Failed))
             throw new InvalidOperationException("Existing guarded administrator has an unsafe bootstrap password.");
-        var manifest = new Preparation(run, admin?.Id, roles.Select(role => role.Id).ToArray(), settings?.Id);
+        var manifest = new Preparation(run, admin?.Id, roles.Select(role => role.Id).ToArray(), settings?.Id, false);
         await File.WriteAllTextAsync(path, JsonSerializer.Serialize(manifest));
         await db.SaveChangesAsync();
+        if (settings != null)
+        {
+            // Capture the creation tuple while our transaction still owns its insert lock.
+            var version = await db.Database.SqlQueryRaw<long>(
+                "SELECT xmin::text::bigint AS \"Value\" FROM \"ApplicationSettings\" WHERE \"Id\" = 1").SingleAsync();
+            manifest = manifest with { SettingsVersion = version };
+            await File.WriteAllTextAsync(path, JsonSerializer.Serialize(manifest));
+        }
         await transaction.CommitAsync();
+        // Unlike GUID identities, settings ID 1 could belong to a competing transaction after rollback.
+        // A crash before this acknowledgement preserves that ambiguous row rather than adopting it.
+        await File.WriteAllTextAsync(path, JsonSerializer.Serialize(manifest with { Committed = true }));
     }
 
     /// <summary>Deletes captured missing prerequisites only after all browser writers have stopped.</summary>
@@ -125,7 +136,14 @@ internal static class BrowserFixtureEnvironment
             await db.Roles.Where(role => role.Id == id).ExecuteDeleteAsync();
         }
         if (manifest.SettingsId != null)
-            await db.ApplicationSettings.Where(settings => settings.Id == manifest.SettingsId).ExecuteDeleteAsync();
+        {
+            if ((!manifest.Committed || manifest.SettingsVersion == null)
+                && await db.ApplicationSettings.AnyAsync(settings => settings.Id == manifest.SettingsId))
+                throw new InvalidOperationException("Settings commit ownership is unproved; preserving the row.");
+            if (manifest.Committed && manifest.SettingsVersion != null)
+                await db.Database.ExecuteSqlInterpolatedAsync(
+                    $"DELETE FROM \"ApplicationSettings\" WHERE \"Id\" = {manifest.SettingsId.Value} AND xmin::text::bigint = {manifest.SettingsVersion.Value}");
+        }
     }
 
     /// <summary>Independently proves each captured prerequisite identity was removed.</summary>
@@ -139,5 +157,6 @@ internal static class BrowserFixtureEnvironment
     }
 
     /// <summary>Exact identifiers are persisted before mutation, never inferred from a prefix.</summary>
-    private sealed record Preparation(string Run, string? AdminId, string[] RoleIds, int? SettingsId);
+    private sealed record Preparation(string Run, string? AdminId, string[] RoleIds, int? SettingsId, bool Committed,
+        long? SettingsVersion = null);
 }

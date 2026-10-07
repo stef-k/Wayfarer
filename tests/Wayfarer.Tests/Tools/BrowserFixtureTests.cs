@@ -36,6 +36,70 @@ public sealed class BrowserFixtureTests : TestBase
         BrowserFixtureGuard.ValidateConfiguration("Host=guarded;Database=wayfarer_import_tests;Username=test",
             "Username=test;Database=wayfarer_import_tests;Host=guarded");
 
+    /// <summary>A rolled-back preparation record cannot delete a fixed-ID settings row created by another run.</summary>
+    [PostgresTheory]
+    [InlineData(false, null)]
+    [InlineData(true, -1L)]
+    public async Task PreparationCleanup_PreservesSettingsWithoutCommittedOwnership(bool committed, long? version)
+    {
+        await using var fixture = new PostgresImportTestFixture();
+        await fixture.InitializeAsync();
+        await using var db = fixture.CreateContext();
+        var settings = await db.ApplicationSettings.SingleOrDefaultAsync(row => row.Id == 1);
+        var ownsSettings = settings == null;
+        settings ??= new ApplicationSettings { Id = 1, LocationTimeThresholdMinutes = 90 };
+        if (ownsSettings) { db.ApplicationSettings.Add(settings); await db.SaveChangesAsync(); }
+        var originalThreshold = settings.LocationTimeThresholdMinutes;
+        var path = Path.Combine(CreateTestDirectory(), "partial-preparation.json");
+        await File.WriteAllTextAsync(path, JsonSerializer.Serialize(new
+        {
+            Run = Guid.NewGuid().ToString(), AdminId = (string?)null, RoleIds = Array.Empty<string>(),
+            SettingsId = 1, Committed = committed, SettingsVersion = version
+        }));
+        try
+        {
+            var failure = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+                BrowserFixtureEnvironment.TryRunAsync("cleanup-environment", path, db));
+            Assert.Contains(committed ? "left captured identities" : "commit ownership is unproved", failure.Message);
+            await using var fresh = fixture.CreateContext();
+            Assert.Equal(originalThreshold, (await fresh.ApplicationSettings.SingleAsync(row => row.Id == 1)).LocationTimeThresholdMinutes);
+        }
+        finally
+        {
+            if (ownsSettings) await db.ApplicationSettings.Where(row => row.Id == 1).ExecuteDeleteAsync();
+        }
+    }
+
+    /// <summary>Ordinary preparation records its committed tuple identity and cleans only its created prerequisites.</summary>
+    [PostgresFact]
+    public async Task PreparationCleanup_RemovesCommittedRunOwnedPrerequisites()
+    {
+        await using var fixture = new PostgresImportTestFixture();
+        await fixture.InitializeAsync();
+        await using var db = fixture.CreateContext();
+        var originalRun = Environment.GetEnvironmentVariable("WAYFARER_E2E_RUN_ID");
+        var originalPassword = Environment.GetEnvironmentVariable("WAYFARER_E2E_PASSWORD");
+        var path = Path.Combine(CreateTestDirectory(), "preparation.json");
+        try
+        {
+            Environment.SetEnvironmentVariable("WAYFARER_E2E_RUN_ID", Guid.NewGuid().ToString());
+            Environment.SetEnvironmentVariable("WAYFARER_E2E_PASSWORD", "Browser1!Run-owned-prerequisite");
+            Assert.True(await BrowserFixtureEnvironment.TryRunAsync("prepare", path, db));
+            using var manifest = JsonDocument.Parse(await File.ReadAllTextAsync(path));
+            Assert.True(manifest.RootElement.GetProperty("Committed").GetBoolean());
+            if (manifest.RootElement.GetProperty("SettingsId").ValueKind != JsonValueKind.Null)
+                Assert.True(manifest.RootElement.GetProperty("SettingsVersion").GetInt64() > 0);
+            Assert.True(await BrowserFixtureEnvironment.TryRunAsync("cleanup-environment", path, db));
+            Assert.True(await BrowserFixtureEnvironment.TryRunAsync("verify-environment", path, db));
+        }
+        finally
+        {
+            if (File.Exists(path)) await BrowserFixtureEnvironment.TryRunAsync("cleanup-environment", path, db);
+            Environment.SetEnvironmentVariable("WAYFARER_E2E_RUN_ID", originalRun);
+            Environment.SetEnvironmentVariable("WAYFARER_E2E_PASSWORD", originalPassword);
+        }
+    }
+
     /// <summary>Replacing the seeded run token and cleaning fixtures leaves another user's token/password intact.</summary>
     [PostgresFact]
     public async Task SharedLayout_ReplacementAndCleanupPreserveUnrelatedIdentity()
