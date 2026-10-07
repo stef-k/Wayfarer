@@ -70,6 +70,30 @@ class ArtifactTests(unittest.TestCase):
                 else:
                     link.unlink()
 
+    def test_linked_root_is_preserved(self):
+        """Replacing the exact lexical root with a real link/junction cannot authorize traversal."""
+        path = self.root.path
+        saved = path.with_name(path.name + '-test-saved')
+        path.rename(saved)
+        with tempfile.TemporaryDirectory() as foreign:
+            sentinel = Path(foreign) / 'keep'
+            sentinel.write_text('foreign')
+            if os.name == 'nt':
+                subprocess.run(['cmd', '/c', 'mklink', '/J', str(path), foreign], check=True,
+                               capture_output=True)
+            else:
+                path.symlink_to(foreign, target_is_directory=True)
+            try:
+                with self.assertRaises(ValueError):
+                    self.root.remove()
+                self.assertTrue(sentinel.exists())
+            finally:
+                if os.name == 'nt':
+                    path.rmdir()
+                else:
+                    path.unlink()
+                saved.rename(path)
+
     @unittest.skipIf(os.name == 'nt', 'FIFO is a Linux filesystem boundary')
     def test_dangling_link_and_special_entry_are_preserved(self):
         """Dangling links and FIFOs must survive rejected recursive deletion."""

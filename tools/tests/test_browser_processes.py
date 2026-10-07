@@ -54,6 +54,23 @@ class ProcessTests(unittest.TestCase):
             self.assertIsNone(child.process.poll())
             self.assertIsNone(foreign.process.poll())
         child.record = original
+        with self.assertRaisesRegex(RuntimeError, 'PID was reused'):
+            child._retain(foreign.process.pid, 'forged-birth-token')
+        self.assertNotIn(foreign.process.pid, child.members)
+
+    @unittest.skipIf(os.name == 'nt', 'Windows job handles supply complete descendant authority')
+    def test_unproved_writer_refuses_stop_without_signaling_foreign_child(self):
+        """Missing ancestry proof cannot turn an adopted/direct foreign child into kill authority."""
+        child = self.child('import time; time.sleep(60)')
+        foreign = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'])
+        try:
+            with self.assertRaisesRegex(RuntimeError, 'Unproved adopted'):
+                child.stop()
+            self.assertIsNone(foreign.poll())
+            self.assertIsNone(child.process.poll())
+        finally:
+            foreign.terminate()
+            foreign.wait(timeout=10)
 
     def test_early_exit_is_reaped_and_log_closed(self):
         """An already exited child is not reopened or signaled."""
