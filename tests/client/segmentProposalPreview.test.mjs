@@ -21,6 +21,8 @@ const map = { setView() { return this; }, on(event, callback) { movements[event]
   attributionControl: { setPrefix() {}, getContainer() { return null; } } };
 globalThis.window = Object.assign(new EventTarget(), { requestAnimationFrame: () => 0, cancelAnimationFrame() {} });
 globalThis.document = new EventTarget();
+// The viewport tests own resize notifications; this fixture exercises proposal rendering only.
+globalThis.ResizeObserver = class { observe() {} disconnect() {} };
 globalThis.previewLeaflet = { map: () => map, layerGroup: group, latLng: (lat, lng) => [lat, lng],
   latLngBounds: () => ({ points: [], extend(point) { this.points.push(point); return this; }, isValid() { return this.points.length > 0; } }),
   polyline: (coordinates, style) => ({ coordinates, style, options: style, attributes: {},

@@ -178,6 +178,10 @@ export const createMapViewport = (map: LeafletMap, options: {
   map.on('zoomend', finishZoom);
   map.on('moveend', finishMovement);
 
+  // Toolbar/drawer layout changes resize the container without firing a window resize.
+  const resizeObserver = new ResizeObserver(() => navigate(() => map.invalidateSize({ animate: false })));
+  resizeObserver.observe(element);
+
   return {
     getView,
     navigate,
@@ -188,6 +192,7 @@ export const createMapViewport = (map: LeafletMap, options: {
       ready = true;
     },
     dispose: (): void => {
+      resizeObserver.disconnect();
       clearGesture();
       if (commandFrame !== undefined) window.cancelAnimationFrame(commandFrame);
       zoomButtons.forEach(button => button.removeEventListener('click', armGesture, true));

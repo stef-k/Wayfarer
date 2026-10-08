@@ -62,6 +62,8 @@ test.describe('#409 final route-work product workflows', () => {
 
   test('active W remains contained and operable at every required layout', async ({ page }) => {
     test.setTimeout(120_000);
+    // Bound each action so a layout failure retains the first stalled operation.
+    page.setDefaultTimeout(10_000);
     const layouts = [
       { name: 'desktop', width: 1280, height: 900, scale: 1 },
       { name: 'intermediate', width: 760, height: 900, scale: 1 },
@@ -106,8 +108,10 @@ test.describe('#409 final route-work product workflows', () => {
         if (layout !== layouts.at(-1)) await page.goto('about:blank');
       }
     } finally {
-      await cdp.send('Emulation.setPageScaleFactor', { pageScaleFactor: 1 });
-      await cdp.detach();
+      if (!page.isClosed()) {
+        await cdp.send('Emulation.setPageScaleFactor', { pageScaleFactor: 1 });
+        await cdp.detach();
+      }
     }
   });
 
@@ -176,6 +180,10 @@ async function openWorkspace(page: Page): Promise<void> {
 
 /** Opens one exact Segment through its visible list control. */
 async function openSegment(page: Page, id: string): Promise<void> {
+  // Phone lists belong to the selected drawer tab, unlike the desktop sidebar.
+  if (await page.evaluate(() => window.matchMedia('(max-width: 640px)').matches)) {
+    await page.getByRole('navigation', { name: 'Trip editor sections' }).getByRole('button', { name: 'Segments' }).click();
+  }
   await page.locator(`[data-segment-id="${id}"] .trip-editor-list-button`).click();
   await expect(page.locator('#trip-editor-segment-form')).toBeVisible();
 }
