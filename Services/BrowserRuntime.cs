@@ -19,7 +19,8 @@ internal static class BrowserRuntime
         {
             throw new InvalidOperationException(
                 "The preinstalled Wayfarer Chromium runtime could not launch. Provision Chromium with this " +
-                "release's playwright.ps1 and its required OS libraries (including libasound.so.2 on Linux); " +
+                "release's 'dotnet Wayfarer.dll playwright install chromium' command and its required OS libraries " +
+                "('playwright install-deps chromium', including libasound.so.2 on Linux); " +
                 "set PLAYWRIGHT_BROWSERS_PATH to that bundle before starting Wayfarer. " +
                 "Wayfarer does not install browsers at runtime. See docs/self-hosting/native-manual.md#provision-playwright-chromium.", exception);
         }

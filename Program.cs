@@ -23,6 +23,13 @@ using Wayfarer.Services.LocationEnrichment;
 using Wayfarer.Swagger;
 using Wayfarer.Util;
 
+// Explicit browser provisioning uses this build's Playwright API before any host/DB/storage setup.
+if (PlaywrightCli.TryHandle(args, out var playwrightExitCode))
+{
+    Environment.ExitCode = playwrightExitCode;
+    return;
+}
+
 if (AppVersionCli.TryHandle(args, new AppVersionProvider(), Console.Out, Console.Error, out var versionExitCode))
 {
     Environment.ExitCode = versionExitCode;
@@ -744,4 +751,3 @@ static async Task SeedDatabase(WebApplication app)
 }
 
 #endregion Methods
-

@@ -11,9 +11,11 @@ import subprocess
 # The gate must prove itself, including publication/runner wiring and local actions.
 GATE_OWNERS = ('.github/workflows/*', '.github/actions/*', 'tools/ci/application_image_scope.py')
 # Dedicated safety tests are also client files, but require only the cleanup matrix.
+# Legacy PowerShell patterns retain deletion ownership in migration diffs; no scripts are invoked.
 CLEANUP_OWNERS = (
     'tools/test-artifact-paths.*', 'tools/test-cleanup.mjs', 'tests/client/testCleanup.test.mjs',
-    'tools/coverage-report*.ps1', 'tools/test_artifact_paths.py', 'tools/browser_processes.py',
+    'tools/coverage-report*.ps1', 'tools/coverage_report.py', 'tools/tests/test_coverage_report.py',
+    'tools/test_artifact_paths.py', 'tools/browser_processes.py',
     'tools/tests/test_test_artifact_paths.py', 'tools/tests/test_browser_processes.py',
     'tools/tests/test_browser_e2e.py',
 )
@@ -98,6 +100,8 @@ OWNERS = {
         'tests/Wayfarer.Tests/Views/TileAttributionLayoutRenderingTests.cs',
         'tests/Wayfarer.Tests/Util/RichNotesTests.cs',
         'tests/Wayfarer.Tests/Infrastructure/PlaywrightEnvironmentTestCollection.cs',
+        'CommandLine/PlaywrightCli.cs', 'tests/Wayfarer.Tests/Tools/PlaywrightCliTests.cs',
+        'tools/playwright_metadata.py', 'tools/tests/test_playwright_metadata.py',
         'tests/Wayfarer.Tests/Wayfarer.Tests.csproj', 'Program.cs',
     ) + SHARED_BUILD,
     'frontend': (
@@ -110,6 +114,7 @@ OWNERS = {
     'cleanup_safety': CLEANUP_OWNERS + (
         'package.json', 'package-lock.json', '.nvmrc', '.npmrc',
         'tools/trip-editor-asset-smoke.mjs', 'tools/browser_e2e.py', 'tools/browser-e2e.mjs',
+        'tools/playwright_metadata.py', 'tools/tests/test_playwright_metadata.py',
     ),
     'release_tooling': (
         'tools/release/*.py', 'tools/release/tests/*', 'tools/release/database-release.json',
