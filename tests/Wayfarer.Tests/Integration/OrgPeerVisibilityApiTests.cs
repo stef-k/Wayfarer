@@ -88,8 +88,9 @@ public class OrgPeerVisibilityApiTests
         }
     }
 
+    /// <summary>A member controls their own sharing only while Organization peer sharing is enabled.</summary>
     [Fact]
-    public async Task Self_Can_Set_Access_Disabled()
+    public async Task Self_Can_Set_Access_Disabled_When_Organization_Sharing_Is_Enabled()
     {
         using var db = MakeDb();
         var owner = new ApplicationUser { Id = "o", UserName = "o", DisplayName = "o" };
@@ -100,6 +101,7 @@ public class OrgPeerVisibilityApiTests
         var gs = new GroupService(db);
         var g = await gs.CreateGroupAsync(owner.Id, "Org Group", null);
         g.GroupType = "Organization";
+        g.OrgPeerVisibilityEnabled = true;
         await db.SaveChangesAsync();
         await gs.AddMemberAsync(g.Id, owner.Id, m1.Id, GroupMember.Roles.Member);
 
