@@ -51,7 +51,8 @@ public class GroupMember
     public DateTime? LeftAt { get; set; }
 
     /// <summary>
-    /// For Organization groups, a member can opt out of peer visibility.
+    /// Hides this member's own locations from peers in Friends and enabled Organization groups.
+    /// Does not restrict viewing other willing members; ignored by Family and retained while Organization is OFF.
     /// </summary>
     public bool OrgPeerVisibilityAccessDisabled { get; set; } = false;
 

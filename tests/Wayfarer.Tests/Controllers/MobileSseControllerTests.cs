@@ -151,16 +151,16 @@ public class MobileSseControllerTests : TestBase
         db.ApiTokens.Add(token);
         await db.SaveChangesAsync();
 
-        // In-memory queries complete before subscription yields; broadcast only synthetic content.
+        // In-memory queries complete before subscription yields; send a real group payload.
         using var cts = new CancellationTokenSource();
         var task = controller.SubscribeToGroupAsync(group.Id, cts.Token);
         try
         {
             Assert.Equal("text/event-stream", controller.Response.ContentType);
             await sse.BroadcastAsync($"group-{Guid.NewGuid()}", "foreign-group");
-            await sse.BroadcastAsync($"group-{group.Id}", "owned-group");
+            await sse.BroadcastAsync($"group-{group.Id}", "{\"type\":\"member-joined\",\"userId\":\"user\"}");
             var payload = System.Text.Encoding.UTF8.GetString(((MemoryStream)controller.Response.Body).ToArray());
-            Assert.Contains("data: owned-group", payload);
+            Assert.Contains("member-joined", payload);
             Assert.DoesNotContain("foreign-group", payload);
         }
         finally

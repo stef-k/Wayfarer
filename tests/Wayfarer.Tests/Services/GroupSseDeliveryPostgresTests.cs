@@ -34,6 +34,11 @@ public sealed class GroupSseDeliveryPostgresTests(PostgresImportTestFixture fixt
         using var services = Services();
         var lease = new GroupSseDeliveryLease(services.GetRequiredService<IServiceScopeFactory>());
         await using var db = fixture.CreateContext();
+        var persistedGroup = (await db.Groups.FindAsync(group.Id))!;
+        persistedGroup.GroupType = "Organization";
+        persistedGroup.OrgPeerVisibilityEnabled = true;
+        var recipient = await db.GroupMembers.SingleAsync(m => m.GroupId == group.Id && m.UserId == member.Id);
+        recipient.OrgPeerVisibilityAccessDisabled = true;
         var token = Guid.NewGuid().ToString();
         db.ApiTokens.Add(new ApiToken { Name = "sse-test", TokenHash = ApiTokenService.HashToken(token),
             UserId = member.Id, User = await db.Users.FindAsync(member.Id) ?? throw new InvalidOperationException(), CreatedAt = DateTime.UtcNow });
@@ -77,6 +82,13 @@ public sealed class GroupSseDeliveryPostgresTests(PostgresImportTestFixture fixt
             var channel = $"group-{group.Id}";
             await service.BroadcastAsync(channel, JsonSerializer.Serialize(GroupSseEventDto.Location(123, DateTime.UtcNow, owner.Id, "Owner", true)));
             Assert.Contains("locationId", Encoding.UTF8.GetString(body.ToArray()));
+            await using (var policy = fixture.CreateContext())
+                await policy.GroupMembers.Where(m => m.GroupId == group.Id && m.UserId == owner.Id)
+                    .ExecuteUpdateAsync(s => s.SetProperty(m => m.OrgPeerVisibilityAccessDisabled, true));
+            await service.BroadcastAsync(channel, JsonSerializer.Serialize(GroupSseEventDto.Location(778099, DateTime.UtcNow, owner.Id, "hidden-source", true)));
+            await service.BroadcastAsync(channel, JsonSerializer.Serialize(GroupSseEventDto.LocationDeleted(778099, owner.Id)));
+            Assert.DoesNotContain("778099", Encoding.UTF8.GetString(body.ToArray()));
+            Assert.DoesNotContain("hidden-source", Encoding.UTF8.GetString(body.ToArray()));
             await using (var mutation = fixture.CreateContext())
                 await new GroupService(mutation).RemoveMemberAsync(group.Id, owner.Id, member.Id);
             await service.BroadcastAsync(channel, JsonSerializer.Serialize(GroupSseEventDto.MemberRemoved(member.Id)));
@@ -200,6 +212,90 @@ public sealed class GroupSseDeliveryPostgresTests(PostgresImportTestFixture fixt
 
     private ServiceProvider Services() => new ServiceCollection()
         .AddScoped(_ => fixture.CreateContext()).BuildServiceProvider();
+
+    /// <summary>A queued frame behind a heartbeat must reread committed policy and hide all source metadata.</summary>
+    [PostgresTheory]
+    [InlineData("opt-out")]
+    [InlineData("switch-off")]
+    [InlineData("source-removed")]
+    public async Task QueuedLocationMetadataRespectsCommittedPolicy(string change)
+    {
+        var (group, owner, member) = await SeedAsync();
+        await using (var db = fixture.CreateContext())
+            await db.Groups.Where(g => g.Id == group.Id).ExecuteUpdateAsync(s => s.SetProperty(g => g.GroupType, "Organization")
+                .SetProperty(g => g.OrgPeerVisibilityEnabled, true));
+        using var services = Services();
+        var authority = new GroupSseDeliveryLease(services.GetRequiredService<IServiceScopeFactory>());
+        var service = new SseService();
+        using var body = new SseGateStream(flush: true);
+        using var request = new CancellationTokenSource();
+        var subscription = service.SubscribeAsync("privacy", body.Response(), request.Token,
+            enableHeartbeat: true, heartbeatInterval: TimeSpan.FromMilliseconds(20), resolvedUserId: member.Id,
+            eventDeliveryLease: (data, ct) => authority.AcquireEventAsync(group.Id, member.Id, data, ct));
+        try
+        {
+            await body.Entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            var data = JsonSerializer.Serialize(GroupSseEventDto.Location(778001, DateTime.UtcNow, owner.Id, "hidden-source", true));
+            var queued = service.BroadcastAsync("privacy", data);
+            Assert.False(queued.IsCompleted);
+            await using (var db = fixture.CreateContext())
+            {
+                if (change == "switch-off")
+                    await db.Groups.Where(g => g.Id == group.Id).ExecuteUpdateAsync(s => s.SetProperty(g => g.OrgPeerVisibilityEnabled, false));
+                else if (change == "opt-out")
+                    await db.GroupMembers.Where(m => m.GroupId == group.Id && m.UserId == owner.Id)
+                        .ExecuteUpdateAsync(s => s.SetProperty(m => m.OrgPeerVisibilityAccessDisabled, true));
+                else
+                    await db.GroupMembers.Where(m => m.GroupId == group.Id && m.UserId == owner.Id)
+                        .ExecuteUpdateAsync(s => s.SetProperty(m => m.Status, GroupMember.MembershipStatuses.Removed));
+            }
+            body.Release.SetResult();
+            await queued.WaitAsync(TimeSpan.FromSeconds(5));
+            await service.BroadcastAsync("privacy", JsonSerializer.Serialize(GroupSseEventDto.LocationDeleted(778001, owner.Id)));
+            var bytes = Encoding.UTF8.GetString(body.ToArray());
+            Assert.DoesNotContain(owner.Id, bytes);
+            Assert.DoesNotContain("locationId", bytes);
+            Assert.DoesNotContain("timestampUtc", bytes);
+            await service.BroadcastAsync("privacy", JsonSerializer.Serialize(GroupSseEventDto.MemberJoined(member.Id)));
+            await service.BroadcastAsync("privacy", JsonSerializer.Serialize(GroupSseEventDto.Location(778002, DateTime.UtcNow, member.Id, "self", true)));
+            Assert.Contains("member-joined", Encoding.UTF8.GetString(body.ToArray()));
+            Assert.Contains("778002", Encoding.UTF8.GetString(body.ToArray()));
+            Assert.Equal(1, service.ActiveConnectionCount);
+        }
+        finally
+        {
+            request.Cancel();
+            body.Release.TrySetResult();
+            await subscription;
+            await DeleteGroupAsync(group.Id);
+        }
+    }
+
+    /// <summary>Location frames hold both the source membership and group policy stable through flush.</summary>
+    [PostgresFact]
+    public async Task SourceAndPolicyWritesConflictWithProtectedFrame()
+    {
+        var (group, owner, member) = await SeedAsync();
+        using var services = Services();
+        var authority = new GroupSseDeliveryLease(services.GetRequiredService<IServiceScopeFactory>());
+        try
+        {
+            var frame = JsonSerializer.Serialize(GroupSseEventDto.Location(778003, DateTime.UtcNow, owner.Id, "owner", true));
+            await using var eligible = (await authority.AcquireEventAsync(group.Id, member.Id, frame, default)).Lease;
+            Assert.NotNull(eligible);
+            await using var writer = fixture.CreateContext();
+            foreach (var sourceLock in new[] { true, false })
+            {
+                await using var tx = await writer.Database.BeginTransactionAsync();
+                var conflict = await Assert.ThrowsAsync<PostgresException>(() => sourceLock
+                    ? writer.Database.ExecuteSqlInterpolatedAsync($"""SELECT 1 FROM "GroupMembers" WHERE "GroupId" = {group.Id} AND "UserId" = {owner.Id} FOR UPDATE NOWAIT""")
+                    : writer.Database.ExecuteSqlInterpolatedAsync($"""SELECT 1 FROM "Groups" WHERE "Id" = {group.Id} FOR UPDATE NOWAIT"""));
+                Assert.Equal(PostgresErrorCodes.LockNotAvailable, conflict.SqlState);
+                await tx.RollbackAsync();
+            }
+        }
+        finally { await DeleteGroupAsync(group.Id); }
+    }
 
     private async Task<(Group Group, ApplicationUser Owner, ApplicationUser Member)> SeedAsync()
     {

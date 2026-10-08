@@ -4,7 +4,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 namespace Wayfarer.Models;
 
 /// <summary>
-/// Represents an invitation for a user (or email) to join a group.
+/// Represents an invitation for a registered user to join a group.
 /// </summary>
 public class GroupInvitation
 {
@@ -27,15 +27,9 @@ public class GroupInvitation
     public required string InviterUserId { get; set; }
 
     /// <summary>
-    /// Invitee user id if known at invite time.
+    /// Required recipient account ID for new invitations; null is retained only for unusable legacy history.
     /// </summary>
     public string? InviteeUserId { get; set; }
-
-    /// <summary>
-    /// Optional email of invitee when user account is not yet known.
-    /// </summary>
-    [MaxLength(256)]
-    public string? InviteeEmail { get; set; }
 
     /// <summary>
     /// Unique token for accepting the invitation.
@@ -62,7 +56,7 @@ public class GroupInvitation
     public DateTime CreatedAt { get; set; }
 
     /// <summary>
-    /// Response timestamp (UTC) when invite was accepted/declined.
+    /// Response timestamp (UTC) when the invitation was accepted, declined or revoked.
     /// </summary>
     public DateTime? RespondedAt { get; set; }
 

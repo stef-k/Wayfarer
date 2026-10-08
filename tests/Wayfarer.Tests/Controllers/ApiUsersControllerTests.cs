@@ -201,7 +201,13 @@ public class ApiUsersControllerTests : TestBase
 
         db.Users.Add(user);
         db.Groups.Add(group);
-        db.GroupInvitations.Add(invite);
+        db.GroupInvitations.AddRange(invite,
+            TestDataFixtures.CreateGroupInvitation(group, user),
+            new GroupInvitation
+            {
+                Id = Guid.NewGuid(), GroupId = group.Id, InviterUserId = user.Id,
+                InviteeUserId = "other-user", Token = Guid.NewGuid().ToString(), CreatedAt = DateTime.UtcNow
+            });
         db.GroupMembers.AddRange(joined, left, removed);
         await db.SaveChangesAsync();
 

@@ -1,3 +1,4 @@
+import { bindGroupSharingControls, refreshGroupState } from '../../../groupSharingControls.js';
 import { addZoomLevelControl } from '../../../map-utils.js';
 import { createTileLayer } from '../../../retryTileLayer.js';
 import { renderLocationAddress, locationAddressText } from '../../../util/location-address.js';
@@ -33,6 +34,7 @@ import {
   const mapEl = document.getElementById('groupMap');
   const groupId = document.getElementById('groupId')?.value;
   if (!mapEl || !groupId) return;
+  bindGroupSharingControls(groupId);
 
   const map = L.map('groupMap').setView([0, 0], 2);
   createTileLayer().addTo(map);
@@ -290,6 +292,7 @@ import {
         try {
           const payload = JSON.parse(ev.data);
           if (!payload || !payload.type) return;
+          if (refreshGroupState(payload)) return;
 
           // Handle location update events
           if (payload.type === 'location') {
@@ -305,11 +308,6 @@ import {
           else if (payload.type === 'location-deleted') {
             handleLocationDeleted(payload.locationId, payload.userId);
           }
-          // Handle visibility change events
-          else if (payload.type === 'visibility-changed') {
-            updateMemberVisibility(payload.userId, payload.disabled);
-          }
-          // Membership events (member-joined, member-left, etc.) could trigger UI updates
         } catch(e) {
           console.error('Error processing group SSE event:', e);
         }
@@ -322,68 +320,6 @@ import {
       groupSseSubscription = es;
     } catch(e) {
       console.error('Error subscribing to group updates:', e);
-    }
-  }
-
-  /**
-   * Updates the UI to show/dim a member based on their peer visibility setting and removes/reloads markers
-   * @param {string} userId - The user ID whose visibility changed
-   * @param {boolean} disabled - Whether the user's peer visibility is disabled
-   */
-  function updateMemberVisibility(userId, disabled) {
-    const currentUserId = document.getElementById('currentUserId')?.value;
-
-    // If this is the current user, update their peer visibility toggle
-    if (userId === currentUserId) {
-      const toggle = document.getElementById('peerVisibilityToggle');
-      const panel = document.getElementById('peerVisibilityPanel');
-
-      if (toggle) {
-        // Update toggle state
-        const newChecked = !disabled;
-        if (toggle.checked !== newChecked) {
-          // Set a flag to prevent the change handler from making an API call
-          toggle.dataset.skipApiCall = 'true';
-          toggle.checked = newChecked;
-
-          // Update panel visual state
-          if (panel) {
-            if (newChecked) {
-              panel.classList.remove('visibility-disabled');
-            } else {
-              panel.classList.add('visibility-disabled');
-            }
-          }
-
-          console.log(`Updated peer visibility toggle for self (${userId}): disabled=${disabled}`);
-        }
-      }
-      // Don't affect current user's own marker - they always see themselves
-      return;
-    }
-
-    const memberItem = document.querySelector(`#userSidebar .user-item [data-user-id="${userId}"]`)?.closest('.user-item');
-    if (memberItem) {
-      if (disabled) {
-        memberItem.classList.add('peer-visibility-disabled');
-        // Remove marker from map when visibility is disabled
-        if (latestMarkers.has(userId)) {
-          map.removeLayer(latestMarkers.get(userId));
-          latestMarkers.delete(userId);
-          console.log(`Removed marker for user ${userId} (visibility disabled)`);
-        }
-      } else {
-        memberItem.classList.remove('peer-visibility-disabled');
-        // Reload all selected users' locations to include this newly visible user
-        const checkbox = memberItem.querySelector('input.user-select');
-        if (checkbox && checkbox.checked) {
-          loadLatest().then(() => {
-            console.log(`Reloaded locations including user ${userId} (visibility enabled)`);
-          }).catch(err => {
-            console.error(`Failed to reload locations:`, err);
-          });
-        }
-      }
     }
   }
 
@@ -688,58 +624,4 @@ import {
     const el = document.getElementById('modalContent'); if (el) el.innerHTML = html; new bootstrap.Modal(document.getElementById('locationModal')).show();
   }
 
-  // Organization peer visibility toggle (per-user)
-  const groupType = (document.getElementById('groupType')?.value || '').toLowerCase();
-  if (groupType === 'friends'){
-    const toggle = document.getElementById('peerVisibilityToggle');
-    const panel = document.getElementById('peerVisibilityPanel');
-
-    // Function to update panel visual state
-    function updatePanelState(isChecked) {
-      if (panel) {
-        if (isChecked) {
-          panel.classList.remove('visibility-disabled');
-        } else {
-          panel.classList.add('visibility-disabled');
-        }
-      }
-    }
-
-    // initialize from hidden field (disabled=false => checked)
-    if (toggle){
-      const disabledStr = document.getElementById('peerVisibilityDisabled')?.value || 'false';
-      const isDisabled = disabledStr === 'true';
-      toggle.checked = !isDisabled;
-
-      // Set initial panel state
-      updatePanelState(toggle.checked);
-
-      toggle.addEventListener('change', async ()=>{
-        // Check if this change was triggered by SSE update
-        if (toggle.dataset.skipApiCall === 'true') {
-          delete toggle.dataset.skipApiCall;
-          return; // Don't make API call, just update UI
-        }
-
-        // Update panel visual state immediately
-        updatePanelState(toggle.checked);
-
-        try{
-          const myId = document.getElementById('currentUserId')?.value;
-          if (!myId) return;
-          const url = `/api/groups/${groupId}/members/${encodeURIComponent(myId)}/org-peer-visibility-access`;
-          const body = { disabled: !toggle.checked };
-          const resp = await fetch(url, { method:'POST', headers:{ 'RequestVerificationToken': document.querySelector('input[name="__RequestVerificationToken"]')?.value || '', 'Content-Type':'application/json' }, body: JSON.stringify(body) });
-          if (!resp.ok) {
-            toggle.checked = !toggle.checked; // revert
-            updatePanelState(toggle.checked); // revert visual state
-          }
-        } catch {
-          toggle.checked = !toggle.checked;
-          updatePanelState(toggle.checked); // revert visual state
-        }
-      });
-    }
-  }
 })();
-

@@ -83,7 +83,7 @@ public class MobileSseController : MobileApiController
             cancellationToken,
             enableHeartbeat: true,
             heartbeatInterval: _options.HeartbeatInterval,
-            deliveryLease: token => _groupDelivery.AcquireAsync(groupId, caller.Id, token),
+            eventDeliveryLease: (data, token) => _groupDelivery.AcquireEventAsync(groupId, caller.Id, data, token),
             resolvedUserId: caller.Id);
         return new EmptyResult();
     }

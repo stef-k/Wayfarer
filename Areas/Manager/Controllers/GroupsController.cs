@@ -42,31 +42,25 @@ namespace Wayfarer.Areas.Manager.Controllers;
     }
 
     /// <summary>
-    /// Shows managed groups for the current manager (owner/manager roles or owned).
+    /// Shows unarchived groups managed through active Owner/Manager membership.
     /// </summary>
     public async Task<IActionResult> Index()
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (userId == null) return Unauthorized();
 
-        var managed = await (from m in _dbContext.GroupMembers
+        var model = await (from m in _dbContext.GroupMembers
                              where m.UserId == userId && m.Status == GroupMember.MembershipStatuses.Active &&
                                    (m.Role == GroupMember.Roles.Owner || m.Role == GroupMember.Roles.Manager)
                              join g in _dbContext.Groups on m.GroupId equals g.Id
+                             where !g.IsArchived
+                             orderby g.Name
                              select g).AsNoTracking().ToListAsync();
 
-        var owned = await _dbContext.Groups.Where(g => g.OwnerUserId == userId).AsNoTracking().ToListAsync();
-        // Distinct by Id to avoid duplicates when the owner is also listed as manager/owner membership
-        var model = managed
-            .Concat(owned)
-            .GroupBy(g => g.Id)
-            .Select(g => g.OrderBy(x => x.CreatedAt).First())
-            .OrderBy(g => g.Name)
-            .ToList();
-
-        // Member counts (Active only)
+        // Limit counts to the same authorized groups as the listing.
+        var groupIds = model.Select(g => g.Id).ToList();
         var counts = await _dbContext.GroupMembers
-            .Where(m => m.Status == GroupMember.MembershipStatuses.Active)
+            .Where(m => groupIds.Contains(m.GroupId) && m.Status == GroupMember.MembershipStatuses.Active)
             .GroupBy(m => m.GroupId)
             .Select(g => new { GroupId = g.Key, Count = g.Count() })
             .ToListAsync();
@@ -77,7 +71,7 @@ namespace Wayfarer.Areas.Manager.Controllers;
     }
 
     /// <summary>
-    /// Roster and invitations management for a group (owner/manager only).
+    /// Roster and invitations management requires active Owner/Manager membership in an unarchived group.
     /// </summary>
     [HttpGet]
     public async Task<IActionResult> Members(Guid groupId)
@@ -85,12 +79,11 @@ namespace Wayfarer.Areas.Manager.Controllers;
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (userId == null) return Unauthorized();
 
-        var group = await _dbContext.Groups.FirstOrDefaultAsync(g => g.Id == groupId);
+        var group = await _dbContext.Groups.FirstOrDefaultAsync(g => g.Id == groupId && !g.IsArchived);
         if (group == null) return NotFound();
 
         var membership = await _dbContext.GroupMembers.AsNoTracking().FirstOrDefaultAsync(m => m.GroupId == groupId && m.UserId == userId && m.Status == GroupMember.MembershipStatuses.Active);
-        var isOwnerOrManager = membership != null && (membership.Role == GroupMember.Roles.Owner || membership.Role == GroupMember.Roles.Manager);
-        if (!isOwnerOrManager && group.OwnerUserId != userId) return Forbid();
+        if (!GroupLocationVisibility.CanManage(membership)) return Forbid();
 
         var members = await (from m in _dbContext.GroupMembers
                              where m.GroupId == groupId && m.Status == GroupMember.MembershipStatuses.Active
@@ -105,7 +98,6 @@ namespace Wayfarer.Areas.Manager.Controllers;
                              {
                                  i.Id,
                                  i.InviteeUserId,
-                                 i.InviteeEmail,
                                  i.CreatedAt,
                                  UserName = u != null ? u.UserName : null,
                                  DisplayName = u != null ? u.DisplayName : null
@@ -135,7 +127,7 @@ namespace Wayfarer.Areas.Manager.Controllers;
                 SetAlert("Please select a user to invite.", "danger");
                 return RedirectToAction(nameof(Members), new { groupId });
             }
-            var invitation = await _invitationService.InviteUserAsync(groupId, userId, inviteeUserId, null, null);
+            var invitation = await _invitationService.InviteUserAsync(groupId, userId, inviteeUserId, null);
             if (!string.IsNullOrEmpty(invitation.InviteeUserId))
                 await _sse.BroadcastGroupNotificationAsync(invitation.InviteeUserId, SseService.InvitationStateHint);
             SetAlert("Invitation sent.");
@@ -151,6 +143,7 @@ namespace Wayfarer.Areas.Manager.Controllers;
         return RedirectToAction(nameof(Members), new { groupId });
     }
 
+    /// <summary>Remove a member and publish one Group invalidation plus a private hint after service commit.</summary>
     [HttpPost]
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> RemoveMember(Guid groupId, string userId)
@@ -160,6 +153,7 @@ namespace Wayfarer.Areas.Manager.Controllers;
         try
         {
             await _groupService.RemoveMemberAsync(groupId, actorId, userId);
+            await _sse.BroadcastAsync($"group-{groupId}", JsonSerializer.Serialize(GroupSseEventDto.MemberRemoved(userId)));
             await _sse.BroadcastGroupNotificationAsync(userId, SseService.MembershipStateHint);
             SetAlert("Member removed.");
         }
@@ -244,7 +238,7 @@ namespace Wayfarer.Areas.Manager.Controllers;
         if (actorId == null) return Unauthorized();
         try
         {
-            var inv = await _invitationService.InviteUserAsync(groupId, actorId, inviteeUserId, null, null);
+            var inv = await _invitationService.InviteUserAsync(groupId, actorId, inviteeUserId, null);
             if (!string.IsNullOrEmpty(inv.InviteeUserId))
             {
                 await _sse.BroadcastGroupNotificationAsync(inv.InviteeUserId, SseService.InvitationStateHint);
@@ -358,7 +352,7 @@ namespace Wayfarer.Areas.Manager.Controllers;
     }
 
     /// <summary>
-    /// Edit group name/description (owner-only).
+    /// Edit group details for an active Owner of an unarchived group.
     /// </summary>
     [HttpGet]
     public async Task<IActionResult> Edit(Guid id)
@@ -366,18 +360,18 @@ namespace Wayfarer.Areas.Manager.Controllers;
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (userId == null) return Unauthorized();
 
-        var group = await _dbContext.Groups.FirstOrDefaultAsync(g => g.Id == id);
+        var group = await _dbContext.Groups.FirstOrDefaultAsync(g => g.Id == id && !g.IsArchived);
         if (group == null) return NotFound();
 
         var isOwner = await _dbContext.GroupMembers.AnyAsync(m => m.GroupId == id && m.UserId == userId && m.Role == GroupMember.Roles.Owner && m.Status == GroupMember.MembershipStatuses.Active);
-        if (!isOwner && group.OwnerUserId != userId) return Forbid();
+        if (!isOwner) return Forbid();
 
         SetPageTitle($"Edit {group.Name}");
         return View(group);
     }
 
     /// <summary>
-    /// Persist edits to a group (owner-only).
+    /// Persist edits for an active Owner, invalidating peer policy after a committed type change.
     /// </summary>
     [HttpPost]
     [ValidateAntiForgeryToken]
@@ -385,37 +379,41 @@ namespace Wayfarer.Areas.Manager.Controllers;
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (userId == null) return Unauthorized();
+        var group = await _dbContext.Groups.FirstOrDefaultAsync(g => g.Id == id && !g.IsArchived);
+        if (group == null) return NotFound();
+        var isOwner = await _dbContext.GroupMembers.AnyAsync(m => m.GroupId == id && m.UserId == userId
+            && m.Role == GroupMember.Roles.Owner && m.Status == GroupMember.MembershipStatuses.Active);
+        if (!isOwner) return Forbid();
+
         if (string.IsNullOrWhiteSpace(name))
         {
             ModelState.AddModelError("name", "Name is required.");
-            var fallback = await _dbContext.Groups.FirstOrDefaultAsync(g => g.Id == id);
-            return View(fallback);
+            return View(group);
         }
         if (string.IsNullOrWhiteSpace(groupType))
         {
             ModelState.AddModelError("groupType", "Group type is required.");
-            var fallback = await _dbContext.Groups.FirstOrDefaultAsync(g => g.Id == id);
-            return View(fallback);
+            return View(group);
         }
         if (!AllowedGroupTypes.Contains(groupType))
         {
             ModelState.AddModelError("groupType", "Invalid group type.");
-            var fallback = await _dbContext.Groups.FirstOrDefaultAsync(g => g.Id == id);
-            return View(fallback);
+            return View(group);
         }
 
-        var group = await _groupService.UpdateGroupAsync(id, userId, name.Trim(), description ?? string.Empty);
-        if (group != null)
-        {
-            // canonicalize value
-            group.GroupType = groupType.Equals("organization", StringComparison.OrdinalIgnoreCase)
-                ? "Organization"
-                : groupType.Equals("family", StringComparison.OrdinalIgnoreCase)
-                    ? "Family"
-                    : "Friends";
-            await _dbContext.SaveChangesAsync();
-            LogAudit("GroupUpdate", $"Updated group {group.Name}", "Manager UI");
-        }
+        var previousType = group.GroupType;
+        group = await _groupService.UpdateGroupAsync(id, userId, name.Trim(), description ?? string.Empty);
+        // Canonicalize the type on the authorized Group returned by the service.
+        group.GroupType = groupType.Equals("organization", StringComparison.OrdinalIgnoreCase)
+            ? "Organization"
+            : groupType.Equals("family", StringComparison.OrdinalIgnoreCase)
+                ? "Family"
+                : "Friends";
+        await _dbContext.SaveChangesAsync();
+        // The durable policy transition finishes before notifying existing map subscribers.
+        if (!string.Equals(previousType, group.GroupType, StringComparison.OrdinalIgnoreCase))
+            await _sse.BroadcastAsync($"group-{id}", JsonSerializer.Serialize(GroupSseEventDto.PeerPolicyChanged()));
+        LogAudit("GroupUpdate", $"Updated group {group.Name}", "Manager UI");
 
         return RedirectWithAlert("Index", "Groups", "Group updated", "success", area: "Manager");
     }
@@ -426,13 +424,13 @@ namespace Wayfarer.Areas.Manager.Controllers;
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (userId == null) return Unauthorized();
 
-        var group = await _dbContext.Groups.FirstOrDefaultAsync(g => g.Id == groupId);
+        var group = await _dbContext.Groups.FirstOrDefaultAsync(g => g.Id == groupId && !g.IsArchived);
         if (group == null) return NotFound();
 
         var membership = await _dbContext.GroupMembers.AsNoTracking()
             .FirstOrDefaultAsync(m => m.GroupId == groupId && m.UserId == userId && m.Status == GroupMember.MembershipStatuses.Active);
-        var isOwnerOrManager = membership != null && (membership.Role == GroupMember.Roles.Owner || membership.Role == GroupMember.Roles.Manager);
-        if (!isOwnerOrManager && group.OwnerUserId != userId) return Forbid();
+        if (!GroupLocationVisibility.CanManage(membership)) return Forbid();
+        ViewBag.MyMembership = membership;
 
         ViewBag.Group = group;
         ViewBag.GroupId = groupId;

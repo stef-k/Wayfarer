@@ -48,8 +48,14 @@ public class MobileGroupsControllerTests
         return controller;
     }
 
-    [Fact]
-    public async Task Get_ReturnsJoinedGroups()
+    /// <summary>Published Mobile never shows an Organization control for Family/Friends after a type change.</summary>
+    [Theory]
+    [InlineData("Friends", false)]
+    [InlineData("Friends", true)]
+    [InlineData("Family", true)]
+    [InlineData("Organization", false)]
+    [InlineData("Organization", true)]
+    public async Task Get_ReturnsJoinedGroups(string groupType, bool enabled)
     {
         using var db = MakeDb();
         var user = new ApplicationUser { Id = "caller", UserName = "caller", DisplayName = "Caller", IsActive = true };
@@ -57,7 +63,8 @@ public class MobileGroupsControllerTests
         {
             Id = Guid.NewGuid(),
             Name = "Friends",
-            GroupType = "Friends",
+            GroupType = groupType,
+            OrgPeerVisibilityEnabled = enabled,
             OwnerUserId = "owner",
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
@@ -81,7 +88,9 @@ public class MobileGroupsControllerTests
         var result = await controller.Get("joined", CancellationToken.None);
         var ok = Assert.IsType<OkObjectResult>(result);
         var payload = Assert.IsAssignableFrom<IEnumerable<MobileGroupSummaryDto>>(ok.Value);
-        Assert.Single(payload);
+        var summary = Assert.Single(payload);
+        Assert.Equal(groupType == "Organization" && enabled, summary.OrgPeerVisibilityEnabled);
+        Assert.Equal(groupType != "Organization" || enabled, summary.HasOrgPeerVisibilityAccess);
     }
 
     [Fact]

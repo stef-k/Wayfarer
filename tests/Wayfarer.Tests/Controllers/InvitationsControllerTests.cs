@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Moq;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -41,7 +42,7 @@ public class InvitationsControllerTests : TestBase
     {
         using var db = CreateDbContext();
         var service = new Mock<IInvitationService>();
-        service.Setup(s => s.InviteUserAsync(It.IsAny<Guid>(), "u1", "u2", null, null, It.IsAny<CancellationToken>()))
+        service.Setup(s => s.InviteUserAsync(It.IsAny<Guid>(), "u1", "u2", null, It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException(failure));
         var controller = new InvitationsController(db, service.Object, NullLogger<InvitationsController>.Instance, new SseService());
         ConfigureControllerWithUser(controller, "u1");
@@ -64,7 +65,7 @@ public class InvitationsControllerTests : TestBase
         var gs = new GroupService(db);
         var isvc = new InvitationService(db);
         var g = await gs.CreateGroupAsync(owner.Id, "G", null);
-        await isvc.InviteUserAsync(g.Id, owner.Id, user.Id, null, null);
+        await isvc.InviteUserAsync(g.Id, owner.Id, user.Id, null);
 
         var ctrl = CreateController(db, user.Id);
 
@@ -89,7 +90,7 @@ public class InvitationsControllerTests : TestBase
         var gs = new GroupService(db);
         var isvc = new InvitationService(db);
         var g = await gs.CreateGroupAsync(owner.Id, "G2", null);
-        var inv = await isvc.InviteUserAsync(g.Id, owner.Id, user.Id, null, null);
+        var inv = await isvc.InviteUserAsync(g.Id, owner.Id, user.Id, null);
 
         var sse = new RecordingSseService();
         var ctrl = CreateController(db, user.Id, sse);
@@ -123,7 +124,7 @@ public class InvitationsControllerTests : TestBase
     }
 
     [Fact]
-    public async Task Create_ReturnsBadRequest_WhenBothInviteeFieldsEmpty()
+    public async Task Create_ReturnsBadRequest_WhenRecipientMissing()
     {
         var db = CreateDbContext();
         var user = TestDataFixtures.CreateUser(id: "u1");
@@ -134,8 +135,7 @@ public class InvitationsControllerTests : TestBase
         var resp = await ctrl.Create(new InvitationCreateRequest
         {
             GroupId = Guid.NewGuid(),
-            InviteeUserId = null,
-            InviteeEmail = null
+            InviteeUserId = null
         }, CancellationToken.None);
 
         Assert.IsType<BadRequestObjectResult>(resp);
@@ -167,7 +167,7 @@ public class InvitationsControllerTests : TestBase
     }
 
     [Fact]
-    public async Task Create_CreatesInvitation_WhenValidEmail()
+    public async Task Create_RejectsFormerEmailOnlyPayload()
     {
         var db = CreateDbContext();
         var owner = TestDataFixtures.CreateUser(id: "owner");
@@ -178,14 +178,15 @@ public class InvitationsControllerTests : TestBase
         var group = await gs.CreateGroupAsync(owner.Id, "TestGroup", null);
         var ctrl = CreateController(db, owner.Id);
 
-        var resp = await ctrl.Create(new InvitationCreateRequest
-        {
-            GroupId = group.Id,
-            InviteeEmail = "test@example.com"
-        }, CancellationToken.None);
+        // Deserialize the old wire shape through the current request contract.
+        var request = JsonSerializer.Deserialize<InvitationCreateRequest>(
+            JsonSerializer.Serialize(new { GroupId = group.Id, InviteeEmail = "test@example.com" }))!;
+        var sse = new RecordingSseService();
+        var resp = await CreateController(db, owner.Id, sse).Create(request, CancellationToken.None);
 
-        var ok = Assert.IsType<OkObjectResult>(resp);
-        Assert.True(await db.GroupInvitations.AnyAsync(i => i.GroupId == group.Id && i.InviteeEmail == "test@example.com"));
+        Assert.IsType<BadRequestObjectResult>(resp);
+        Assert.Empty(await db.GroupInvitations.ToListAsync());
+        Assert.Empty(sse.Messages);
     }
 
     [Fact]
@@ -238,7 +239,7 @@ public class InvitationsControllerTests : TestBase
         var gs = new GroupService(db);
         var isvc = new InvitationService(db);
         var group = await gs.CreateGroupAsync(owner.Id, "TestGroup", null);
-        var inv = await isvc.InviteUserAsync(group.Id, owner.Id, user.Id, null, null);
+        var inv = await isvc.InviteUserAsync(group.Id, owner.Id, user.Id, null);
 
         var sse = new RecordingSseService();
         var ctrl = CreateController(db, user.Id, sse);
@@ -263,6 +264,59 @@ public class InvitationsControllerTests : TestBase
         var resp = await ctrl.Decline(Guid.NewGuid(), CancellationToken.None);
 
         Assert.IsType<NotFoundResult>(resp);
+    }
+
+    /// <summary>Lists only the caller's explicit invitations, excluding unresolved legacy history.</summary>
+    [Fact]
+    public async Task List_RestrictsRecipientsAndOmitsObsoleteEmailProjection()
+    {
+        var db = CreateDbContext();
+        var owner = TestDataFixtures.CreateUser(id: "owner");
+        var recipient = TestDataFixtures.CreateUser(id: "recipient");
+        var other = TestDataFixtures.CreateUser(id: "other");
+        db.Users.AddRange(owner, recipient, other);
+        var group = await new GroupService(db).CreateGroupAsync(owner.Id, "Recipients", null);
+        var addressed = TestDataFixtures.CreateGroupInvitation(group, owner, recipient);
+        db.GroupInvitations.AddRange(addressed,
+            TestDataFixtures.CreateGroupInvitation(group, owner),
+            TestDataFixtures.CreateGroupInvitation(group, owner, other));
+        await db.SaveChangesAsync();
+
+        var response = Assert.IsType<OkObjectResult>(await CreateController(db, recipient.Id)
+            .ListForCurrentUser(CancellationToken.None));
+
+        var item = Assert.Single(JsonSerializer.SerializeToElement(response.Value).EnumerateArray());
+        Assert.Equal(addressed.Id, item.GetProperty("Id").GetGuid());
+        Assert.False(item.TryGetProperty("InviteeEmail", out _));
+    }
+
+    /// <summary>ID endpoints fail closed for unresolved or wrong recipients and publish nothing.</summary>
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public async Task WrongRecipientCannotRespondThroughIdEndpoint(bool identified, bool decline)
+    {
+        var db = CreateDbContext();
+        var owner = TestDataFixtures.CreateUser(id: "owner");
+        var caller = TestDataFixtures.CreateUser(id: "caller");
+        db.Users.AddRange(owner, caller);
+        var group = await new GroupService(db).CreateGroupAsync(owner.Id, "Recipients", null);
+        var invitation = TestDataFixtures.CreateGroupInvitation(group, owner, identified ? owner : null);
+        db.GroupInvitations.Add(invitation);
+        await db.SaveChangesAsync();
+        var sse = new RecordingSseService();
+        var controller = CreateController(db, caller.Id, sse);
+
+        var result = decline ? await controller.Decline(invitation.Id, default)
+            : await controller.Accept(invitation.Id, default);
+
+        Assert.Equal(403, Assert.IsType<ObjectResult>(result).StatusCode);
+        Assert.Empty(sse.Messages);
+        db.ChangeTracker.Clear();
+        Assert.Equal(GroupInvitation.InvitationStatuses.Pending, (await db.GroupInvitations.SingleAsync()).Status);
+        Assert.False(await db.GroupMembers.AnyAsync(m => m.UserId == caller.Id));
     }
 
     private sealed class RecordingSseService : SseService

@@ -7,9 +7,13 @@ namespace Wayfarer.Services;
 /// </summary>
 public interface IInvitationService
 {
-    Task<GroupInvitation> InviteUserAsync(Guid groupId, string inviterUserId, string? inviteeUserId, string? inviteeEmail, DateTime? expiresAt, CancellationToken ct = default);
+    /// <summary>Invites one existing registered account; active members cannot be invited again.</summary>
+    Task<GroupInvitation> InviteUserAsync(Guid groupId, string inviterUserId, string inviteeUserId, DateTime? expiresAt, CancellationToken ct = default);
+    /// <summary>Accepts only for the addressed recipient and only after their latest departure.</summary>
     Task<GroupMember> AcceptAsync(string token, string acceptorUserId, CancellationToken ct = default);
+    /// <summary>Declines only for the explicitly addressed recipient.</summary>
     Task DeclineAsync(string token, string userId, CancellationToken ct = default);
+    /// <summary>Revokes a pending invitation under active Owner/Manager authority.</summary>
     Task<InvitationRevocation> RevokeAsync(Guid invitationId, string actorUserId, CancellationToken ct = default);
 }
 

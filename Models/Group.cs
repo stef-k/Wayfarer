@@ -46,7 +46,7 @@ public class Group
 
     /// <summary>
     /// When true, members of an Organization can see each other's locations per policy.
-    /// Admin-only toggle. Defaults to false.
+    /// Set by active Group Owners/Managers. OFF means self only; defaults to false.
     /// </summary>
     public bool OrgPeerVisibilityEnabled { get; set; } = false;
 

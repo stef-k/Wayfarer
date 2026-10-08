@@ -227,15 +227,14 @@ public class ManagerGroupsControllerTests : TestBase
         Assert.IsType<ForbidResult>(result);
     }
 
+    /// <summary>An active Owner receives the editable model when the name is invalid.</summary>
     [Fact]
     public async Task Edit_Post_ReturnsView_WhenNameMissing()
     {
         var db = CreateDbContext();
         var user = TestDataFixtures.CreateUser(id: "owner");
-        var group = new Group { Id = Guid.NewGuid(), OwnerUserId = user.Id, Name = "Team" };
         db.Users.Add(user);
-        db.Groups.Add(group);
-        await db.SaveChangesAsync();
+        var group = await new GroupService(db).CreateGroupAsync(user.Id, "Team", null);
         var controller = new GroupsController(NullLogger<BaseController>.Instance, db, new GroupService(db), new InvitationService(db));
         controller.ControllerContext = new ControllerContext { HttpContext = BuildHttpContextWithUser(user.Id) };
 
@@ -333,15 +332,14 @@ public class ManagerGroupsControllerTests : TestBase
         Assert.Equal("A great team", group.Description);
     }
 
+    /// <summary>An active Owner can open the Group Edit view.</summary>
     [Fact]
     public async Task Edit_Get_ReturnsView_WhenOwner()
     {
         var db = CreateDbContext();
         var user = TestDataFixtures.CreateUser(id: "owner");
-        var group = new Group { Id = Guid.NewGuid(), OwnerUserId = user.Id, Name = "Team" };
         db.Users.Add(user);
-        db.Groups.Add(group);
-        await db.SaveChangesAsync();
+        var group = await new GroupService(db).CreateGroupAsync(user.Id, "Team", null);
         var controller = new GroupsController(NullLogger<BaseController>.Instance, db, new GroupService(db), new InvitationService(db));
         controller.ControllerContext = new ControllerContext { HttpContext = BuildHttpContextWithUser(user.Id) };
 
@@ -378,15 +376,14 @@ public class ManagerGroupsControllerTests : TestBase
         Assert.Equal("Friends", updated.GroupType);
     }
 
+    /// <summary>An active Owner receives validation feedback for a missing Group type.</summary>
     [Fact]
     public async Task Edit_Post_ReturnsView_WhenGroupTypeMissing()
     {
         var db = CreateDbContext();
         var user = TestDataFixtures.CreateUser(id: "owner");
-        var group = new Group { Id = Guid.NewGuid(), OwnerUserId = user.Id, Name = "Team" };
         db.Users.Add(user);
-        db.Groups.Add(group);
-        await db.SaveChangesAsync();
+        var group = await new GroupService(db).CreateGroupAsync(user.Id, "Team", null);
         var controller = new GroupsController(NullLogger<BaseController>.Instance, db, new GroupService(db), new InvitationService(db));
         controller.ControllerContext = new ControllerContext { HttpContext = BuildHttpContextWithUser(user.Id) };
 
@@ -396,15 +393,14 @@ public class ManagerGroupsControllerTests : TestBase
         Assert.False(controller.ModelState.IsValid);
     }
 
+    /// <summary>An active Owner receives validation feedback for an unsupported Group type.</summary>
     [Fact]
     public async Task Edit_Post_ReturnsView_WhenGroupTypeInvalid()
     {
         var db = CreateDbContext();
         var user = TestDataFixtures.CreateUser(id: "owner");
-        var group = new Group { Id = Guid.NewGuid(), OwnerUserId = user.Id, Name = "Team" };
         db.Users.Add(user);
-        db.Groups.Add(group);
-        await db.SaveChangesAsync();
+        var group = await new GroupService(db).CreateGroupAsync(user.Id, "Team", null);
         var controller = new GroupsController(NullLogger<BaseController>.Instance, db, new GroupService(db), new InvitationService(db));
         controller.ControllerContext = new ControllerContext { HttpContext = BuildHttpContextWithUser(user.Id) };
 

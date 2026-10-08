@@ -1,3 +1,4 @@
+import { bindGroupSharingControls, refreshGroupState } from '../../../groupSharingControls.js';
 import { addZoomLevelControl } from '../../../map-utils.js';
 import { createTileLayer } from '../../../retryTileLayer.js';
 import { renderLocationAddress, locationAddressText } from '../../../util/location-address.js';
@@ -33,6 +34,7 @@ import {
   const mapEl = document.getElementById('groupMap');
   const groupId = document.getElementById('groupId')?.value;
   if (!mapEl || !groupId) return;
+  bindGroupSharingControls(groupId);
 
   const map = L.map('groupMap').setView([0, 0], 2);
   createTileLayer().addTo(map);
@@ -288,6 +290,7 @@ import {
         try {
           const payload = JSON.parse(ev.data);
           if (!payload || !payload.type) return;
+          if (refreshGroupState(payload)) return;
 
           // Handle location update events
           if (payload.type === 'location') {
@@ -303,11 +306,6 @@ import {
           else if (payload.type === 'location-deleted') {
             handleLocationDeleted(payload.locationId, payload.userId);
           }
-          // Handle visibility change events
-          else if (payload.type === 'visibility-changed') {
-            updateMemberVisibility(payload.userId, payload.disabled);
-          }
-          // Membership events (member-joined, member-left, etc.) could trigger UI updates
         } catch(e) {
           console.error('Error processing group SSE event:', e);
         }
@@ -320,54 +318,6 @@ import {
       groupSseSubscription = es;
     } catch(e) {
       console.error('Error subscribing to group updates:', e);
-    }
-  }
-
-  /**
-   * Updates the UI to show/dim a member based on their peer visibility setting and removes/reloads markers
-   * @param {string} userId - The user ID whose visibility changed
-   * @param {boolean} disabled - Whether the user's peer visibility is disabled
-   */
-  function updateMemberVisibility(userId, disabled) {
-    const currentUserId = document.getElementById('currentUserId')?.value;
-
-    // Find the member item in the UI
-    const memberItem = document.querySelector(`#userSidebar .user-item [data-user-id="${userId}"]`)?.closest('.user-item');
-    if (memberItem) {
-      // Update visual dimming for all members (including self for consistency)
-      if (disabled) {
-        memberItem.classList.add('peer-visibility-disabled');
-      } else {
-        memberItem.classList.remove('peer-visibility-disabled');
-      }
-    }
-
-    // Current user always sees their own marker (managers see all)
-    if (userId === currentUserId) {
-      console.log(`Updated visibility state for self (${userId}): disabled=${disabled}`);
-      return;
-    }
-
-    // For other members, handle marker visibility
-    if (memberItem) {
-      if (disabled) {
-        // Remove marker from map when visibility is disabled
-        if (latestMarkers.has(userId)) {
-          map.removeLayer(latestMarkers.get(userId));
-          latestMarkers.delete(userId);
-          console.log(`Removed marker for user ${userId} (visibility disabled)`);
-        }
-      } else {
-        // Reload all selected users' locations to include this newly visible user
-        const checkbox = memberItem.querySelector('input.user-select');
-        if (checkbox && checkbox.checked) {
-          loadLatest().then(() => {
-            console.log(`Reloaded locations including user ${userId} (visibility enabled)`);
-          }).catch(err => {
-            console.error(`Failed to reload locations:`, err);
-          });
-        }
-      }
     }
   }
 

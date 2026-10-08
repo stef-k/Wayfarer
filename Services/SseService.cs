@@ -33,15 +33,20 @@ public class SseService
     /// <summary>Uses an isolated admission owner for standalone configurations.</summary>
     public SseService(SseOptions options) : this(options, new SseAdmission(options)) { }
 
-    /// <summary>Admits after controller authorization, then joins all owned work before releasing admission.</summary>
+    /// <summary>
+    /// Admits after controller authorization, then joins all owned work before releasing admission.
+    /// An event lease is checked after the send lock; an ineligible frame is skipped without
+    /// closing an otherwise authorized stream, while a missing lease revokes the connection.
+    /// </summary>
     public async Task SubscribeAsync(string channel, HttpResponse response, CancellationToken token,
         bool enableHeartbeat = false, TimeSpan? heartbeatInterval = null,
         Func<CancellationToken, Task<IAsyncDisposable?>>? deliveryLease = null,
-        Func<string, bool>? deliveryFilter = null, string? resolvedUserId = null)
+        Func<string, bool>? deliveryFilter = null, string? resolvedUserId = null,
+        Func<string, CancellationToken, Task<(IAsyncDisposable? Lease, bool Allowed)>>? eventDeliveryLease = null)
     {
         using var permit = _admission.TryAcquire(response.HttpContext, resolvedUserId);
         if (permit is null) return;
-        using var client = new ClientConnection(response, token, _options.SendTimeout, deliveryLease, deliveryFilter);
+        using var client = new ClientConnection(response, token, _options.SendTimeout, deliveryLease, deliveryFilter, eventDeliveryLease);
         ChannelState? state = null;
         Task heartbeat = Task.CompletedTask;
         try
@@ -105,7 +110,7 @@ public class SseService
                 var client = snapshot[index];
                 try
                 {
-                    if (client.Accepts(data)) await client.SendAsync(bytes, true, horizon.Token);
+                    if (client.Accepts(data)) await client.SendAsync(bytes, true, horizon.Token, data);
                 }
                 catch
                 {
@@ -158,6 +163,7 @@ public class SseService
         private readonly TimeSpan _timeout;
         private readonly Func<CancellationToken, Task<IAsyncDisposable?>>? _lease;
         private readonly Func<string, bool>? _filter;
+        private readonly Func<string, CancellationToken, Task<(IAsyncDisposable? Lease, bool Allowed)>>? _eventLease;
         private readonly CancellationTokenSource _lifetime = new();
         private readonly CancellationTokenRegistration _requestRegistration;
         private readonly SemaphoreSlim _sendLock = new(1, 1);
@@ -168,12 +174,14 @@ public class SseService
         private int _pending;
 
         public ClientConnection(HttpResponse response, CancellationToken request, TimeSpan timeout,
-            Func<CancellationToken, Task<IAsyncDisposable?>>? lease, Func<string, bool>? filter)
+            Func<CancellationToken, Task<IAsyncDisposable?>>? lease, Func<string, bool>? filter,
+            Func<string, CancellationToken, Task<(IAsyncDisposable? Lease, bool Allowed)>>? eventLease)
         {
             _response = response;
             _timeout = timeout;
             _lease = lease;
             _filter = filter;
+            _eventLease = eventLease;
             _requestRegistration = request.Register(Terminate);
         }
 
@@ -193,7 +201,8 @@ public class SseService
             }
         }
 
-        public async Task SendAsync(byte[] payload, bool protectedEvent, CancellationToken broadcast = default)
+        /// <summary>Revalidates queued events under the write lock and holds eligibility through flush.</summary>
+        public async Task SendAsync(byte[] payload, bool protectedEvent, CancellationToken broadcast = default, string? data = null)
         {
             lock (_gate)
             {
@@ -212,12 +221,16 @@ public class SseService
                 deadline.CancelAfter(_timeout);
                 await _sendLock.WaitAsync(deadline.Token);
                 acquired = true;
-                await using var lease = protectedEvent && _lease is not null ? await _lease(deadline.Token) : null;
-                if (protectedEvent && _lease is not null && lease is null)
+                (IAsyncDisposable? Lease, bool Allowed) decision = protectedEvent && _eventLease is not null
+                    ? await _eventLease(data!, deadline.Token)
+                    : (protectedEvent && _lease is not null ? await _lease(deadline.Token) : null, true);
+                await using var lease = decision.Lease;
+                if (protectedEvent && (_lease is not null || _eventLease is not null) && lease is null)
                 {
                     Terminate();
                     return;
                 }
+                if (!decision.Allowed) return;
                 deadline.Token.ThrowIfCancellationRequested();
                 await _response.Body.WriteAsync(payload, 0, payload.Length, deadline.Token);
                 await _response.Body.FlushAsync(deadline.Token);

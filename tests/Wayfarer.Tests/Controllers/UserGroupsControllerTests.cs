@@ -91,7 +91,7 @@ public class UserGroupsControllerTests : TestBase
         var group = await SeedGroupWithOwnerAsync(db, owner);
         var callerGroup = await SeedGroupWithOwnerAsync(db, owner);
         var invService = new InvitationService(db);
-        var invite = await invService.InviteUserAsync(group.Id, owner.Id, invitee.Id, null, null);
+        var invite = await invService.InviteUserAsync(group.Id, owner.Id, invitee.Id, null);
         var sse = new FakeSseService();
         var controller = BuildController(db, owner, sse);
 
@@ -116,7 +116,7 @@ public class UserGroupsControllerTests : TestBase
         db.Users.AddRange(ownerA, ownerB, invitee);
         var suppliedGroup = await SeedGroupWithOwnerAsync(db, ownerA);
         var authoritativeGroup = await SeedGroupWithOwnerAsync(db, ownerB);
-        var invite = await new InvitationService(db).InviteUserAsync(authoritativeGroup.Id, ownerB.Id, invitee.Id, null, null);
+        var invite = await new InvitationService(db).InviteUserAsync(authoritativeGroup.Id, ownerB.Id, invitee.Id, null);
         var sse = new FakeSseService();
         var controller = BuildController(db, ownerB, sse);
 
@@ -138,7 +138,7 @@ public class UserGroupsControllerTests : TestBase
         db.Users.AddRange(caller, owner, invitee);
         var callerGroup = await SeedGroupWithOwnerAsync(db, caller);
         var authoritativeGroup = await SeedGroupWithOwnerAsync(db, owner);
-        var invite = await new InvitationService(db).InviteUserAsync(authoritativeGroup.Id, owner.Id, invitee.Id, null, null);
+        var invite = await new InvitationService(db).InviteUserAsync(authoritativeGroup.Id, owner.Id, invitee.Id, null);
         var sse = new FakeSseService();
         var controller = BuildController(db, caller, sse);
 
@@ -157,7 +157,7 @@ public class UserGroupsControllerTests : TestBase
         var invitee = TestDataFixtures.CreateUser(id: "invitee");
         db.Users.AddRange(owner, invitee);
         var group = await SeedGroupWithOwnerAsync(db, owner);
-        var invite = await new InvitationService(db).InviteUserAsync(group.Id, owner.Id, invitee.Id, null, null);
+        var invite = await new InvitationService(db).InviteUserAsync(group.Id, owner.Id, invitee.Id, null);
         await new InvitationService(db).RevokeAsync(invite.Id, owner.Id);
 
         var result = Assert.IsType<BadRequestObjectResult>(
@@ -180,6 +180,51 @@ public class UserGroupsControllerTests : TestBase
         var result = await controller.Members(group.Id);
 
         Assert.IsType<ForbidResult>(result);
+    }
+
+    /// <summary>The User roster stays Owner-only and ownership metadata cannot bypass membership or archiving.</summary>
+    [Theory]
+    [InlineData(GroupMember.MembershipStatuses.Active, GroupMember.Roles.Owner, false)]
+    [InlineData(GroupMember.MembershipStatuses.Active, GroupMember.Roles.Manager, false)]
+    [InlineData(GroupMember.MembershipStatuses.Active, GroupMember.Roles.Member, false)]
+    [InlineData(GroupMember.MembershipStatuses.Removed, GroupMember.Roles.Owner, false)]
+    [InlineData(GroupMember.MembershipStatuses.Left, GroupMember.Roles.Owner, false)]
+    [InlineData(null, GroupMember.Roles.Owner, false)]
+    [InlineData(GroupMember.MembershipStatuses.Active, GroupMember.Roles.Owner, true)]
+    public async Task Members_RequiresActiveOwnerOfUnarchivedGroup(string? status, string role, bool archived)
+    {
+        var db = CreateDbContext();
+        var owner = TestDataFixtures.CreateUser(id: "owner");
+        db.Users.Add(owner);
+        var group = await SeedGroupWithOwnerAsync(db, owner);
+        var membership = await db.GroupMembers.SingleAsync();
+        if (status == null) db.GroupMembers.Remove(membership);
+        else
+        {
+            membership.Status = status;
+            membership.Role = role;
+        }
+        group.IsArchived = archived;
+        await db.SaveChangesAsync();
+        var controller = BuildController(db, owner, new FakeSseService());
+
+        var result = await controller.Members(group.Id);
+
+        if (archived) Assert.IsType<NotFoundResult>(result);
+        else if (status == GroupMember.MembershipStatuses.Active && role == GroupMember.Roles.Owner)
+            Assert.IsType<ViewResult>(result);
+        else Assert.IsType<ForbidResult>(result);
+        if (result is not ViewResult)
+        {
+            Assert.Null(controller.ViewData["Group"]);
+            Assert.Null(controller.ViewData["Members"]);
+            Assert.Null(controller.ViewData["Invites"]);
+        }
+        if (archived)
+        {
+            var listing = Assert.IsType<ViewResult>(await controller.Index());
+            Assert.Empty(Assert.IsAssignableFrom<IEnumerable<object>>(listing.ViewData["Joined"]));
+        }
     }
 
     private static async Task<Group> SeedGroupWithOwnerAsync(ApplicationDbContext db, ApplicationUser owner)

@@ -163,7 +163,7 @@ public class GroupTimelineServiceTests : TestBase
     }
 
     [Fact]
-    public async Task BuildAccessContext_OrganizationIncludesAllMembers()
+    public async Task BuildAccessContext_OrganizationDefaultsToSelfOnly()
     {
         // Arrange
         static void Seed(ApplicationDbContext db)
@@ -199,7 +199,6 @@ public class GroupTimelineServiceTests : TestBase
 
         // Assert
         Assert.NotNull(context);
-        Assert.Contains("friend-allowed", context!.AllowedUserIds);
-        Assert.Contains("friend-optout", context.AllowedUserIds);
+        Assert.Equal(new[] { "caller" }, context!.AllowedUserIds);
     }
 }

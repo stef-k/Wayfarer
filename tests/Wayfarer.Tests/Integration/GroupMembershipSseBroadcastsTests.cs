@@ -53,6 +53,46 @@ public class GroupMembershipSseBroadcastsTests
         return new ClaimsPrincipal(identity);
     }
 
+    /// <summary>Group roles authorize the existing switch, preserve opt-outs across OFF/ON, and notify current viewers.</summary>
+    [Theory]
+    [InlineData("Owner", "Active", true)]
+    [InlineData("Manager", "Active", true)]
+    [InlineData("Member", "Active", false)]
+    [InlineData("Owner", "Left", false)]
+    public async Task OrganizationSwitchUsesActiveGroupManagement(string role, string status, bool permitted)
+    {
+        using var db = CreateDb();
+        var sse = new TestSseService();
+        // Account-wide Manager role and ownership metadata do not grant Group management.
+        var caller = new ApplicationUser { Id = "caller", UserName = "caller", DisplayName = "Caller" };
+        db.Users.Add(caller);
+        var group = new Group { Id = Guid.NewGuid(), Name = "Organization", OwnerUserId = caller.Id, GroupType = "Organization", OrgPeerVisibilityEnabled = true };
+        var member = new GroupMember { GroupId = group.Id, UserId = caller.Id, Role = role, Status = status, OrgPeerVisibilityAccessDisabled = true };
+        db.Groups.Add(group);
+        db.GroupMembers.Add(member);
+        await db.SaveChangesAsync();
+        var http = new DefaultHttpContext { User = CreateUser(caller.Id) };
+        ((ClaimsIdentity)http.User.Identity!).AddClaim(new Claim(ClaimTypes.Role, "Manager"));
+        var controller = new GroupsController(db, new GroupService(db), NullLogger<GroupsController>.Instance, new LocationService(db), sse)
+            { ControllerContext = new ControllerContext { HttpContext = http } };
+        var result = await controller.ToggleOrgPeerVisibility(group.Id, new OrgPeerVisibilityToggleRequest { Enabled = false }, default);
+        if (!permitted)
+        {
+            Assert.Equal(403, Assert.IsType<StatusCodeResult>(result).StatusCode);
+            Assert.True(group.OrgPeerVisibilityEnabled);
+            Assert.Empty(sse.Messages);
+            return;
+        }
+        Assert.IsType<OkObjectResult>(result);
+        Assert.False(group.OrgPeerVisibilityEnabled);
+        var hint = Assert.Single(sse.Messages);
+        Assert.Equal($"group-{group.Id}", hint.Channel);
+        Assert.Equal("{\"type\":\"visibility-changed\"}", hint.Data);
+        Assert.IsType<OkObjectResult>(await controller.ToggleOrgPeerVisibility(group.Id, new OrgPeerVisibilityToggleRequest { Enabled = true }, default));
+        Assert.True(group.OrgPeerVisibilityEnabled);
+        Assert.True(member.OrgPeerVisibilityAccessDisabled);
+    }
+
     [Fact]
     [Trait("Category", "GroupMembershipSseBroadcasts")]
     public async Task SetPeerVisibility_BroadcastsVisibilityChangedEvent()

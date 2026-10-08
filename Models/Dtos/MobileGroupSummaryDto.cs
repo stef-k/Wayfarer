@@ -51,7 +51,8 @@ public class MobileGroupSummaryDto
     public bool IsMember { get; set; }
 
     /// <summary>
-    /// For organisation groups, indicates whether the user can view peers.
+    /// For Organization groups, indicates whether group policy permits viewing willing peers.
+    /// Own sharing preference is separate and remains in GroupMemberDto.OrgPeerVisibilityAccessDisabled.
     /// </summary>
     public bool HasOrgPeerVisibilityAccess { get; set; }
 }

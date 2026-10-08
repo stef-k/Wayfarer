@@ -312,17 +312,13 @@ public static class TestDataFixtures
     /// </summary>
     /// <param name="group">The group for the invitation.</param>
     /// <param name="inviter">The user who created the invitation.</param>
-    /// <param name="invitee">The user being invited. If null, creates an email-only invitation.</param>
-    /// <param name="email">The invited email. If null, uses the invitee's email.</param>
+    /// <param name="invitee">Recipient account; null seeds unresolved legacy history for security tests.</param>
     /// <returns>A new GroupInvitation instance.</returns>
     public static GroupInvitation CreateGroupInvitation(
         Group group,
         ApplicationUser inviter,
-        ApplicationUser? invitee = null,
-        string? email = null)
+        ApplicationUser? invitee = null)
     {
-        email ??= invitee?.Email ?? $"invited-{Guid.NewGuid():N}@test.com";
-
         return new GroupInvitation
         {
             Id = Guid.NewGuid(),
@@ -332,7 +328,6 @@ public static class TestDataFixtures
             Inviter = inviter,
             InviteeUserId = invitee?.Id,
             Invitee = invitee,
-            InviteeEmail = email,
             Token = Guid.NewGuid().ToString("N"),
             CreatedAt = DateTime.UtcNow,
             Status = GroupInvitation.InvitationStatuses.Pending

@@ -9,6 +9,19 @@
 
 ### Fixed
 
+- Enforce Family/Friends/Organization location audiences and Organization sharing
+  controls across Web, Mobile and SSE. Require active Group membership for
+  management, reject archived Groups, and rejoin former Owners/Managers as Members
+  on ordinary invitations. Refresh Web maps after Group-type changes and removals
+  through the Manager form (#778).
+- Restrict Group invitations to registered recipient User IDs, reject active-member
+  invitations, and atomically revoke pending invitations when a member leaves or is
+  removed. Reject stale invitations independently of cleanup and retain ordinary
+  Member roles on fresh rejoining. Retire legacy email invitations and drop their
+  obsolete database column; unresolved pending history is revoked. Historical
+  invitation email values are intentionally discarded and cannot be recovered by
+  rolling back the schema (#778).
+
 - Keep Trip Editor route handles reachable when map-work controls resize the map,
   and keep phone route controls in one scrollable column above the peek drawer.
   Refresh Leaflet's container size without capturing a trip-view edit, and wrap

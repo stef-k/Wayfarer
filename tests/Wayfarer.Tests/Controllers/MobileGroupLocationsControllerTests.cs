@@ -66,6 +66,7 @@ public class MobileGroupLocationsControllerTests
             Id = Guid.NewGuid(),
             Name = "Org",
             GroupType = "Organization",
+            OrgPeerVisibilityEnabled = true,
             OwnerUserId = caller.Id,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
