@@ -62,6 +62,8 @@ test.describe('#409 final route-work product workflows', () => {
 
   test('active W remains contained and operable at every required layout', async ({ page }) => {
     test.setTimeout(120_000);
+    // Bound each action so a layout failure retains the first stalled operation.
+    page.setDefaultTimeout(10_000);
     const layouts = [
       { name: 'desktop', width: 1280, height: 900, scale: 1 },
       { name: 'intermediate', width: 760, height: 900, scale: 1 },
@@ -106,8 +108,10 @@ test.describe('#409 final route-work product workflows', () => {
         if (layout !== layouts.at(-1)) await page.goto('about:blank');
       }
     } finally {
-      await cdp.send('Emulation.setPageScaleFactor', { pageScaleFactor: 1 });
-      await cdp.detach();
+      if (!page.isClosed()) {
+        await cdp.send('Emulation.setPageScaleFactor', { pageScaleFactor: 1 });
+        await cdp.detach();
+      }
     }
   });
 
@@ -139,7 +143,9 @@ test.describe('#409 final route-work product workflows', () => {
     }
     await expect(page.getByText('Unsaved route · 5 custom route points')).toBeVisible();
     await expect(routeWork(page)).toHaveCount(0);
-    await expect(page.locator(`[data-segment-id="${fixture.failedSaveSegmentId}"][data-route-owner="saved"]`)).toHaveCount(1);
+    // The retained accepted draft owns the sole route while saved authority remains unchanged.
+    await expect(page.locator(`[data-segment-id="${fixture.failedSaveSegmentId}"][data-route-owner="draft"]`)).toHaveCount(1);
+    await expect(page.locator(`[data-segment-id="${fixture.failedSaveSegmentId}"][data-route-owner="saved"]`)).toHaveCount(0);
     const afterFailure = (await editorState(page)).segmentsById[fixture.failedSaveSegmentId];
     expect(afterFailure.route.coordinates).toEqual(initial.route.coordinates);
     expect(afterFailure.waypointRouteVertexIndices).toEqual([2]);
@@ -174,6 +180,11 @@ async function openWorkspace(page: Page): Promise<void> {
 
 /** Opens one exact Segment through its visible list control. */
 async function openSegment(page: Page, id: string): Promise<void> {
+  // Phone lists belong to the selected drawer tab, unlike the desktop sidebar.
+  if (await page.evaluate(() => window.matchMedia('(max-width: 640px)').matches)) {
+    await page.getByRole('navigation', { name: 'Trip editor sections' }).getByRole('button', { name: 'Segments' }).click();
+    await page.getByRole('button', { name: 'Expand', exact: true }).click();
+  }
   await page.locator(`[data-segment-id="${id}"] .trip-editor-list-button`).click();
   await expect(page.locator('#trip-editor-segment-form')).toBeVisible();
 }

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { build } from 'esbuild';
 import {
   clearAnonymousNodes,
   cloneSegmentRouteWorkState,
@@ -53,6 +54,34 @@ test('constructs fallback work and unchanged Done preserves null custom state', 
     unchangedFallback: true,
     changedCustom: false
   });
+});
+
+/** Proves W acceptance selects D without replacing the saved route before a successful Save. */
+test('accepted route work presents the draft while saved geometry remains authoritative', async () => {
+  const bundled = await build({ bundle: true, format: 'esm', platform: 'node', write: false,
+    entryPoints: ['ClientApps/trip-editor/src/segments/editorSegmentPresentation.ts'] });
+  const { resolveDraftSegmentPresentation, resolvePersistedSegmentPresentation } = await import(
+    `data:text/javascript;base64,${Buffer.from(bundled.outputFiles[0].text).toString('base64')}`);
+  const saved = { id: 'segment', ...draft({
+    route: { type: 'LineString', coordinates: [[10, 20], [10.5, 20.5], [11, 21], [12, 22]] },
+    waypoints: [['via-b', 'b', 2]]
+  }) };
+  const before = structuredClone(saved);
+  const work = construct(saved);
+  const inserted = insertAnonymousNode(work, 'from');
+  moveAnonymousNode(work, inserted.key, [10.25, 20.25]);
+  const snapshot = { key: { kind: 'persisted', id: saved.id }, draft: structuredClone(saved), work };
+  const working = resolveDraftSegmentPresentation(snapshot, editorState);
+  assert.equal(working.source, 'W');
+  Object.assign(snapshot.draft, projectSegmentRouteWork(work));
+  const accepted = resolveDraftSegmentPresentation({ ...snapshot, work: null }, editorState);
+  assert.equal(accepted.source, 'D');
+  assert.deepEqual(accepted.coordinates, working.coordinates);
+  assert.deepEqual(snapshot.draft.waypointRouteVertexIndices, [3]);
+  const persisted = resolvePersistedSegmentPresentation(saved, editorState);
+  assert.equal(persisted.source, 'S');
+  assert.deepEqual(persisted.coordinates, before.route.coordinates);
+  assert.deepEqual(saved, before);
 });
 
 test('rejects malformed mappings instead of guessing', () => {

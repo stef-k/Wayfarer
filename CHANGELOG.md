@@ -9,6 +9,11 @@
 
 ### Fixed
 
+- Keep Trip Editor route handles reachable when map-work controls resize the map,
+  and keep phone route controls in one scrollable column above the peek drawer.
+  Refresh Leaflet's container size without capturing a trip-view edit, and wrap
+  long waypoint Place names within the aggregate editor (#799).
+
 - Complete PowerShell-free development, coverage, CI and native Chromium
   provisioning. Use guarded Python coverage/metadata tooling and the release's
   Playwright .NET installation API, preserving GUID cleanup, previous-report

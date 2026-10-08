@@ -206,6 +206,8 @@ const journeyOrder = computed(() => [props.draft.fromPlaceId ? placeName(props.d
 /* Keeps the cohesive waypoint workflow contained at desktop, zoom, and phone widths. */
 .segment-waypoints {
   min-width: 0;
+  /* Keep long saved-Place names inside labels and the journey summary. */
+  overflow-wrap: anywhere;
   border: 1px solid var(--bs-border-color);
   border-radius: .375rem;
   padding: .75rem;

@@ -34,6 +34,7 @@ test('canonical URLs retain history state, unrelated query keys and hash and rep
 
 test('only gestures capture: asynchronous commands, paired terminal events, auto-pan, resize and map-work remain transient', () => {
   const previousWindow = globalThis.window;
+  const previousResizeObserver = globalThis.ResizeObserver;
   const frames = new Map();
   let frameId = 0;
   const browser = Object.assign(new EventTarget(), { location: { href: 'https://example.test/editor' },
@@ -50,11 +51,21 @@ test('only gestures capture: asynchronous commands, paired terminal events, auto
   let current = structuredClone(base);
   let work = false;
   const captures = [];
+  let resized;
+  let disconnected = false;
+  let invalidations = 0;
+  globalThis.ResizeObserver = class {
+    constructor(callback) { resized = callback; }
+    observe(target) { assert.equal(target, element); }
+    disconnect() { disconnected = true; }
+  };
   // Minimal Leaflet boundary; assertions exercise the shipped event owner, not harness internals.
   const map = { getContainer: () => element, getCenter: () => ({ lat: current.center.latitude, lng: current.center.longitude }),
     getZoom: () => current.zoom, options: { wheelDebounceTime: 40 },
     scrollWheelZoom: { enabled: () => true }, keyboard: { enabled: () => true }, touchZoom: { enabled: () => true },
     doubleClickZoom: { enabled: () => true },
+    // Leaflet emits movement during invalidation; a layout resize must not gain capture authority.
+    invalidateSize: () => { invalidations += 1; fire('movestart'); events.emit('moveend'); },
     on: (names, fn) => names.split(' ').forEach(name => events.on(name, fn)),
     off: (names, fn) => names.split(' ').forEach(name => events.off(name, fn)) };
   const owner = createMapViewport(map, { canCapture: () => !work, onCaptured: view => captures.push(view) });
@@ -108,9 +119,20 @@ test('only gestures capture: asynchronous commands, paired terminal events, auto
     fire('zoomstart');
     finish(48, 13);
     assert.equal(captures.length, 6, 'keyboard, native/pointer pinch, and double-click are recognized gestures');
+    element.dispatchEvent(new Event('wheel'));
+    resized();
+    assert.equal(invalidations, 1, 'container changes refresh Leaflet geometry without a window resize');
+    assert.equal(captures.length, 6, 'resize revokes a pending gesture and does not capture a metadata edit');
+    frame();
     owner.dispose();
+    assert.equal(disconnected, true, 'workspace disposal releases container observation');
     events.emit('dragstart');
     finish(49);
     assert.equal(captures.length, 6, 'disposed listeners no longer publish');
-  } finally { owner.dispose(); globalThis.window = previousWindow; globalThis.document = previousDocument; }
+  } finally {
+    owner.dispose();
+    globalThis.window = previousWindow;
+    globalThis.document = previousDocument;
+    globalThis.ResizeObserver = previousResizeObserver;
+  }
 });
