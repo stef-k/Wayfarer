@@ -183,6 +183,7 @@ async function openSegment(page: Page, id: string): Promise<void> {
   // Phone lists belong to the selected drawer tab, unlike the desktop sidebar.
   if (await page.evaluate(() => window.matchMedia('(max-width: 640px)').matches)) {
     await page.getByRole('navigation', { name: 'Trip editor sections' }).getByRole('button', { name: 'Segments' }).click();
+    await page.getByRole('button', { name: 'Expand', exact: true }).click();
   }
   await page.locator(`[data-segment-id="${id}"] .trip-editor-list-button`).click();
   await expect(page.locator('#trip-editor-segment-form')).toBeVisible();

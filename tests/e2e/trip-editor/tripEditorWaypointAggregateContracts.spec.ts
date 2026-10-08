@@ -191,8 +191,8 @@ test.describe.serial('#407/#408 persisted waypoint aggregate and accessible edit
 
     await openSegment(page, fixture.waypointSegmentId);
     const form = page.locator('#trip-editor-segment-form');
-    await expect(page.locator(`[data-segment-id="${fixture.waypointSegmentId}"][data-route-owner="draft"]`)).toHaveCount(0);
-    await expect(page.locator(`[data-segment-id="${fixture.waypointSegmentId}"][data-route-owner="saved"]`)).toHaveCount(1);
+    await expect(page.locator(`[data-segment-id="${fixture.waypointSegmentId}"][data-route-owner="draft"]`)).toHaveCount(1);
+    await expect(page.locator(`[data-segment-id="${fixture.waypointSegmentId}"][data-route-owner="saved"]`)).toHaveCount(0);
     const drawRoute = page.getByRole('button', { name: 'Draw/Edit Route' });
     const clearRoute = page.getByRole('button', { name: 'Clear Route' });
     await expect(drawRoute).toBeEnabled();
@@ -331,8 +331,8 @@ test.describe.serial('#407/#408 persisted waypoint aggregate and accessible edit
     expect(cleared.fromPlaceId).toBe(fixture.alternateId);
     expect(cleared.route).toBeNull();
     expect(cleared.waypointRouteVertexIndices).toEqual([null]);
-    await expect(page.locator(`[data-segment-id="${fixture.waypointSegmentId}"][data-route-owner="draft"]`)).toHaveCount(0);
-    await expect(page.locator(`[data-segment-id="${fixture.waypointSegmentId}"][data-route-owner="saved"][data-route-kind="fallback"]`)).toHaveCount(1);
+    await expect(page.locator(`[data-segment-id="${fixture.waypointSegmentId}"][data-route-owner="saved"]`)).toHaveCount(0);
+    await expect(page.locator(`[data-segment-id="${fixture.waypointSegmentId}"][data-route-owner="draft"][data-route-kind="fallback"]`)).toHaveCount(1);
 
     await openSegment(page, fixture.staleSegmentId);
     const staleSelector = form.getByLabel(/Intermediate place 1:/);
@@ -342,7 +342,7 @@ test.describe.serial('#407/#408 persisted waypoint aggregate and accessible edit
     const staleState = (await editorState(page)).segmentsById[fixture.staleSegmentId];
     expect(staleState.effectiveRoute.coordinates).toHaveLength(3);
     expect(staleState.effectiveRoute.coordinates[1]).toEqual([23.73, 38.05]);
-    const fallbackPath = page.locator(`[data-segment-id="${fixture.staleSegmentId}"][data-route-owner="saved"][data-route-kind="fallback"]`);
+    const fallbackPath = page.locator(`[data-segment-id="${fixture.staleSegmentId}"][data-route-owner="draft"][data-route-kind="fallback"]`);
     await expect(fallbackPath).toHaveCount(1);
     expect((await fallbackPath.getAttribute('d'))?.match(/[ML]/g)?.length).toBeGreaterThanOrEqual(3);
 
