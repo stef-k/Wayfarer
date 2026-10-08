@@ -182,6 +182,46 @@ public class UserGroupsControllerTests : TestBase
         Assert.IsType<ForbidResult>(result);
     }
 
+    /// <summary>The User roster stays Owner-only and ownership metadata cannot bypass membership or archiving.</summary>
+    [Theory]
+    [InlineData(GroupMember.MembershipStatuses.Active, GroupMember.Roles.Owner, false)]
+    [InlineData(GroupMember.MembershipStatuses.Active, GroupMember.Roles.Manager, false)]
+    [InlineData(GroupMember.MembershipStatuses.Active, GroupMember.Roles.Member, false)]
+    [InlineData(GroupMember.MembershipStatuses.Removed, GroupMember.Roles.Owner, false)]
+    [InlineData(GroupMember.MembershipStatuses.Left, GroupMember.Roles.Owner, false)]
+    [InlineData(null, GroupMember.Roles.Owner, false)]
+    [InlineData(GroupMember.MembershipStatuses.Active, GroupMember.Roles.Owner, true)]
+    public async Task Members_RequiresActiveOwnerOfUnarchivedGroup(string? status, string role, bool archived)
+    {
+        var db = CreateDbContext();
+        var owner = TestDataFixtures.CreateUser(id: "owner");
+        db.Users.Add(owner);
+        var group = await SeedGroupWithOwnerAsync(db, owner);
+        var membership = await db.GroupMembers.SingleAsync();
+        if (status == null) db.GroupMembers.Remove(membership);
+        else
+        {
+            membership.Status = status;
+            membership.Role = role;
+        }
+        group.IsArchived = archived;
+        await db.SaveChangesAsync();
+        var controller = BuildController(db, owner, new FakeSseService());
+
+        var result = await controller.Members(group.Id);
+
+        if (archived) Assert.IsType<NotFoundResult>(result);
+        else if (status == GroupMember.MembershipStatuses.Active && role == GroupMember.Roles.Owner)
+            Assert.IsType<ViewResult>(result);
+        else Assert.IsType<ForbidResult>(result);
+        if (result is not ViewResult)
+        {
+            Assert.Null(controller.ViewData["Group"]);
+            Assert.Null(controller.ViewData["Members"]);
+            Assert.Null(controller.ViewData["Invites"]);
+        }
+    }
+
     private static async Task<Group> SeedGroupWithOwnerAsync(ApplicationDbContext db, ApplicationUser owner)
     {
         var group = new Group { Id = Guid.NewGuid(), Name = "Test", OwnerUserId = owner.Id };

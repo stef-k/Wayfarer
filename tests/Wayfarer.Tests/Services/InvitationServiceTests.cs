@@ -240,8 +240,14 @@ public class InvitationServiceTests : TestBase
             invites.AcceptAsync(inv.Token, user.Id));
     }
 
-    [Fact]
-    public async Task AcceptAsync_RevivesLeftMembership()
+    /// <summary>Ordinary re-invitations revive membership without restoring historical management authority.</summary>
+    [Theory]
+    [InlineData(GroupMember.MembershipStatuses.Left, GroupMember.Roles.Member)]
+    [InlineData(GroupMember.MembershipStatuses.Left, GroupMember.Roles.Manager)]
+    [InlineData(GroupMember.MembershipStatuses.Removed, GroupMember.Roles.Manager)]
+    [InlineData(GroupMember.MembershipStatuses.Left, GroupMember.Roles.Owner)]
+    [InlineData(GroupMember.MembershipStatuses.Removed, GroupMember.Roles.Owner)]
+    public async Task AcceptAsync_RevivesMembershipAsOrdinaryMember(string status, string role)
     {
         // Arrange
         var db = CreateDbContext();
@@ -254,9 +260,11 @@ public class InvitationServiceTests : TestBase
         var invites = new InvitationService(db);
         var g = await groups.CreateGroupAsync(owner.Id, "Test Group", null);
 
-        // Add and then leave
-        await groups.AddMemberAsync(g.Id, owner.Id, user.Id, GroupMember.Roles.Member);
-        await groups.LeaveGroupAsync(g.Id, user.Id);
+        var historical = await groups.AddMemberAsync(g.Id, owner.Id, user.Id, role);
+        historical.Status = status;
+        historical.LeftAt = DateTime.UtcNow;
+        historical.OrgPeerVisibilityAccessDisabled = true;
+        await db.SaveChangesAsync();
 
         // Create new invitation
         var inv = await invites.InviteUserAsync(g.Id, owner.Id, user.Id, null, null);
@@ -266,6 +274,56 @@ public class InvitationServiceTests : TestBase
 
         // Assert
         Assert.Equal(GroupMember.MembershipStatuses.Active, member.Status);
+        Assert.Equal(GroupMember.Roles.Member, member.Role);
+        Assert.Null(member.LeftAt);
+        Assert.True(member.OrgPeerVisibilityAccessDisabled);
+        db.ChangeTracker.Clear();
+        Assert.Equal(GroupMember.Roles.Member, (await db.GroupMembers.SingleAsync(m => m.Id == member.Id)).Role);
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+            invites.InviteUserAsync(g.Id, user.Id, "another-user", null, null));
+    }
+
+    /// <summary>Accepting an outstanding invitation does not demote a still-active elevated membership.</summary>
+    [Theory]
+    [InlineData(GroupMember.Roles.Owner)]
+    [InlineData(GroupMember.Roles.Manager)]
+    public async Task AcceptAsync_PreservesActiveRole(string role)
+    {
+        var db = CreateDbContext();
+        var owner = TestDataFixtures.CreateUser();
+        var user = TestDataFixtures.CreateUser();
+        db.Users.AddRange(owner, user);
+        var groups = new GroupService(db);
+        var invites = new InvitationService(db);
+        var group = await groups.CreateGroupAsync(owner.Id, "Group", null);
+        var membership = await groups.AddMemberAsync(group.Id, owner.Id, user.Id, role);
+        var invitation = await invites.InviteUserAsync(group.Id, owner.Id, user.Id, null, null);
+
+        var accepted = await invites.AcceptAsync(invitation.Token, user.Id);
+
+        Assert.Equal(membership.Id, accepted.Id);
+        Assert.Equal(role, accepted.Role);
+    }
+
+    /// <summary>A pending invitation cannot revive access after its Group is archived.</summary>
+    [Fact]
+    public async Task AcceptAsync_RejectsArchivedGroupWithoutMutation()
+    {
+        var db = CreateDbContext();
+        var owner = TestDataFixtures.CreateUser();
+        var user = TestDataFixtures.CreateUser();
+        db.Users.AddRange(owner, user);
+        var groups = new GroupService(db);
+        var invites = new InvitationService(db);
+        var group = await groups.CreateGroupAsync(owner.Id, "Group", null);
+        var invitation = await invites.InviteUserAsync(group.Id, owner.Id, user.Id, null, null);
+        group.IsArchived = true;
+        await db.SaveChangesAsync();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => invites.AcceptAsync(invitation.Token, user.Id));
+
+        Assert.Equal(GroupInvitation.InvitationStatuses.Pending, invitation.Status);
+        Assert.False(await db.GroupMembers.AnyAsync(m => m.UserId == user.Id));
     }
 
     #endregion

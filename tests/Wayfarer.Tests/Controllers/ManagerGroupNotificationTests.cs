@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.EntityFrameworkCore;
@@ -5,6 +6,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Wayfarer.Areas.Manager.Controllers;
 using Wayfarer.Models;
+using Wayfarer.Models.Dtos;
 using Wayfarer.Parsers;
 using Wayfarer.Services;
 using Wayfarer.Tests.Infrastructure;
@@ -32,7 +34,7 @@ public sealed class ManagerGroupNotificationTests : TestBase
         Assert.Contains(($"group-notifications-{invitee.Id}", SseService.InvitationStateHint), sse.Messages);
     }
 
-    /// <summary>Non-AJAX removal emits no hint until its durable mutation succeeds.</summary>
+    /// <summary>Non-AJAX removal emits one Group invalidation and private hint after success, none on failure.</summary>
     [Fact]
     public async Task RemoveMemberPublishesOnlyAfterSuccessfulMutation()
     {
@@ -52,13 +54,73 @@ public sealed class ManagerGroupNotificationTests : TestBase
 
         await BuildController(db, owner.Id, groupService, sse).RemoveMember(group.Id, member.Id);
 
-        Assert.Contains(($"group-notifications-{member.Id}", SseService.MembershipStateHint), sse.Messages);
+        Assert.Equal(2, sse.Messages.Count);
+        var invalidation = Assert.Single(sse.Messages, message => message.Channel == $"group-{group.Id}");
+        Assert.Equal(JsonSerializer.Serialize(GroupSseEventDto.MemberRemoved(member.Id)), invalidation.Data);
+        Assert.Equal(($"group-notifications-{member.Id}", SseService.MembershipStateHint),
+            Assert.Single(sse.Messages, message => message.Channel.StartsWith("group-notifications-")));
+        Assert.Equal(GroupMember.MembershipStatuses.Removed,
+            (await db.GroupMembers.SingleAsync(m => m.UserId == member.Id)).Status);
         sse.Messages.Clear();
         var failingService = new Mock<IGroupService>();
         failingService.Setup(service => service.RemoveMemberAsync(group.Id, owner.Id, member.Id, CancellationToken.None))
             .ThrowsAsync(new InvalidOperationException("failed"));
         await BuildController(db, owner.Id, failingService.Object, sse).RemoveMember(group.Id, member.Id);
         Assert.Empty(sse.Messages);
+    }
+
+    /// <summary>Only a successfully persisted type transition invalidates the Group's effective peer policy.</summary>
+    [Theory]
+    [InlineData("Organization", true)]
+    [InlineData("Friends", true)]
+    [InlineData("family", false)]
+    public async Task EditPublishesPolicyChangeOnlyForCommittedTypeChange(string groupType, bool expectEvent)
+    {
+        var db = CreateDbContext();
+        var owner = TestDataFixtures.CreateUser(id: "owner");
+        db.Users.Add(owner);
+        var groups = new GroupService(db);
+        var group = await groups.CreateGroupAsync(owner.Id, "Group", null);
+        group.GroupType = "Family";
+        await db.SaveChangesAsync();
+        var sse = new RecordingSseService();
+
+        var result = await BuildController(db, owner.Id, groups, sse).Edit(group.Id, "Updated", null, groupType);
+
+        Assert.IsType<RedirectToActionResult>(result);
+        db.ChangeTracker.Clear();
+        Assert.Equal(groupType, (await db.Groups.SingleAsync()).GroupType, ignoreCase: true);
+        if (expectEvent)
+            Assert.Equal(($"group-{group.Id}", JsonSerializer.Serialize(GroupSseEventDto.PeerPolicyChanged())),
+                Assert.Single(sse.Messages));
+        else Assert.Empty(sse.Messages);
+    }
+
+    /// <summary>Validation, authorization and persistence failures publish no policy-change event.</summary>
+    [Fact]
+    public async Task EditDoesNotPublishForRejectedOrFailedMutation()
+    {
+        var db = CreateDbContext();
+        var owner = TestDataFixtures.CreateUser(id: "owner");
+        db.Users.Add(owner);
+        var groups = new GroupService(db);
+        var group = await groups.CreateGroupAsync(owner.Id, "Group", null);
+        group.GroupType = "Family";
+        await db.SaveChangesAsync();
+        var sse = new RecordingSseService();
+
+        Assert.IsType<ViewResult>(await BuildController(db, owner.Id, groups, sse)
+            .Edit(group.Id, "", null, "Organization"));
+        Assert.IsType<ForbidResult>(await BuildController(db, "outsider", groups, sse)
+            .Edit(group.Id, "Updated", null, "Organization"));
+        var failingService = new Mock<IGroupService>();
+        failingService.Setup(service => service.UpdateGroupAsync(group.Id, owner.Id, "Updated", "", CancellationToken.None))
+            .ThrowsAsync(new InvalidOperationException("persistence failure"));
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            BuildController(db, owner.Id, failingService.Object, sse).Edit(group.Id, "Updated", null, "Organization"));
+
+        Assert.Empty(sse.Messages);
+        Assert.Equal("Family", group.GroupType);
     }
 
     /// <summary>Each Manager revoke owner emits one private hint after durable revocation.</summary>
