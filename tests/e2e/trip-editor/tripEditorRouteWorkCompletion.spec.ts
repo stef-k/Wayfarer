@@ -139,7 +139,9 @@ test.describe('#409 final route-work product workflows', () => {
     }
     await expect(page.getByText('Unsaved route · 5 custom route points')).toBeVisible();
     await expect(routeWork(page)).toHaveCount(0);
-    await expect(page.locator(`[data-segment-id="${fixture.failedSaveSegmentId}"][data-route-owner="saved"]`)).toHaveCount(1);
+    // The retained accepted draft owns the sole route while saved authority remains unchanged.
+    await expect(page.locator(`[data-segment-id="${fixture.failedSaveSegmentId}"][data-route-owner="draft"]`)).toHaveCount(1);
+    await expect(page.locator(`[data-segment-id="${fixture.failedSaveSegmentId}"][data-route-owner="saved"]`)).toHaveCount(0);
     const afterFailure = (await editorState(page)).segmentsById[fixture.failedSaveSegmentId];
     expect(afterFailure.route.coordinates).toEqual(initial.route.coordinates);
     expect(afterFailure.waypointRouteVertexIndices).toEqual([2]);
