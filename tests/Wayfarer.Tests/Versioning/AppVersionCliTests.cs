@@ -24,6 +24,7 @@ public class AppVersionCliTests
         "  recovery-source                 Read-only Compose recovery source inspection.",
         "  reset-password <user> <pass>    Deprecated native compatibility.",
         "  data-protection <command>       Inspect or prepare stable credential companions.",
+        "  playwright <arguments>          Run the bundled browser installation CLI.",
         "  help                            Show this help text.",
         "");
 

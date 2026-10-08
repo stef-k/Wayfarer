@@ -39,6 +39,8 @@ public sealed class BrowserRuntimeTests
             BrowserRuntime.LaunchAsync(playwright.Object, new BrowserTypeLaunchOptions()));
 
         Assert.Same(original, exception.InnerException);
+        Assert.Contains("dotnet Wayfarer.dll playwright install chromium", exception.Message);
+        Assert.Contains("playwright install-deps chromium", exception.Message);
         Assert.Contains("does not install browsers at runtime", exception.Message);
         chromium.Verify(value => value.LaunchAsync(It.IsAny<BrowserTypeLaunchOptions>()), Times.Once);
         chromium.VerifyNoOtherCalls();

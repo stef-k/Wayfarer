@@ -76,11 +76,21 @@ class ApplicationImageScopeTests(unittest.TestCase):
                      'tools/test-artifact-paths.ps1', 'tests/client/testCleanup.test.mjs',
                      'tools/coverage-report-paths.ps1', 'tools/coverage-report.ps1',
                      'tools/coverage-report.safety.tests.ps1',
+                     'tools/coverage_report.py', 'tools/tests/test_coverage_report.py',
                      'tools/test_artifact_paths.py', 'tools/browser_processes.py',
                      'tools/tests/test_test_artifact_paths.py', 'tools/tests/test_browser_processes.py',
                      'tools/tests/test_browser_e2e.py']:
             with self.subTest(path=path):
                 self.assert_domains([path], {'cleanup_safety'})
+
+    def test_playwright_installer_owners(self):
+        """Version-coupled provisioning/cache changes require cheap browser evidence, not lifecycle."""
+        for path in ['CommandLine/PlaywrightCli.cs', 'tests/Wayfarer.Tests/Tools/PlaywrightCliTests.cs']:
+            with self.subTest(path=path):
+                self.assert_domains([path], {'dotnet', 'playwright'})
+        for path in ['tools/playwright_metadata.py', 'tools/tests/test_playwright_metadata.py']:
+            with self.subTest(path=path):
+                self.assert_domains([path], {'dotnet', 'playwright', 'cleanup_safety'})
 
     def test_browser_workflow(self):
         """Explicit ARM64 launch behavior owns both browser and native image proof."""

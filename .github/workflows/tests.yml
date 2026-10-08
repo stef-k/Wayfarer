@@ -142,31 +142,7 @@ jobs:
       - name: Resolve .NET Playwright Chromium revision
         if: needs.classify.outputs.run_playwright == 'true'
         id: playwright-metadata
-        shell: pwsh
-        run: |
-          $metadataRoot = 'tests/Wayfarer.Tests/bin/Release/net10.0/.playwright/package'
-          $metadataFiles = @(Get-ChildItem -LiteralPath $metadataRoot -Filter browsers.json -File -Recurse -ErrorAction SilentlyContinue)
-          if ($metadataFiles.Count -ne 1) {
-            throw "Expected exactly one generated .NET Playwright browsers.json under '$metadataRoot'; found $($metadataFiles.Count)."
-          }
-
-          try {
-            $metadata = Get-Content -LiteralPath $metadataFiles[0].FullName -Raw | ConvertFrom-Json
-          } catch {
-            throw "Generated .NET Playwright browser metadata is not valid JSON: $($_.Exception.Message)"
-          }
-
-          $chromiumEntries = @($metadata.browsers | Where-Object { $_.name -eq 'chromium' })
-          if ($chromiumEntries.Count -ne 1) {
-            throw "Expected exactly one Chromium entry in generated .NET Playwright metadata; found $($chromiumEntries.Count)."
-          }
-
-          $revision = [string]$chromiumEntries[0].revision
-          if ([string]::IsNullOrWhiteSpace($revision) -or $revision -notmatch '^\d+$') {
-            throw "Generated .NET Playwright Chromium revision is empty or malformed: '$revision'."
-          }
-
-          "chromium_revision=$revision" >> $env:GITHUB_OUTPUT
+        run: python tools/playwright_metadata.py tests/Wayfarer.Tests/bin/Release/net10.0/.playwright/package
 
       - name: Restore .NET Playwright Chromium
         if: needs.classify.outputs.run_playwright == 'true'
@@ -179,7 +155,7 @@ jobs:
       - name: Install .NET Playwright Chromium
         if: needs.classify.outputs.run_playwright == 'true' && steps.playwright-cache.outputs.cache-hit != 'true'
         timeout-minutes: 5
-        run: pwsh tests/Wayfarer.Tests/bin/Release/net10.0/playwright.ps1 install chromium
+        run: dotnet tests/Wayfarer.Tests/bin/Release/net10.0/Wayfarer.dll playwright install chromium
         env:
           PLAYWRIGHT_BROWSERS_PATH: ${{ runner.temp }}/wayfarer-dotnet-playwright
 
@@ -206,6 +182,10 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
+    # Windows defaults to PowerShell; use the available native command shell instead.
+    defaults:
+      run:
+        shell: ${{ matrix.os == 'windows-latest' && 'cmd' || 'bash' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -221,13 +201,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Test browser process and filesystem ownership
+      - name: Test browser, coverage and filesystem ownership
         run: python -B -m unittest discover -s tools/tests -v
-      - name: Test coverage cleanup guards
-        if: needs.classify.outputs.run_cleanup_safety == 'true'
-        shell: pwsh
-        run: |
-          pwsh -NoProfile -File ./tools/coverage-report.safety.tests.ps1
 
   # Same build/metadata/qualification seam as publication, without registry credentials or push.
   application-image:

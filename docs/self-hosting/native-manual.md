@@ -246,13 +246,28 @@ Microsoft.Playwright package.
 The application does **not** download or install Chromium during startup or a PDF
 request.
 
-After publishing, use that release's generated Playwright installer. Example:
+After publishing the current source, use the explicit maintenance command in that
+published application. It calls the
+[supported Playwright .NET installation API](https://playwright.dev/dotnet/docs/browsers#install-browsers-via-api)
+from the release's own package and returns the tool's exit status before any web,
+database or logging startup. No SDK or PowerShell is needed on the runtime host.
+Older published applications without this command must be updated to a release
+that includes it before using these instructions.
+
+Install Linux OS libraries with root privileges, then download the matched bundle:
 
 ```sh
-sudo pwsh /var/www/wayfarer/playwright.ps1 install-deps chromium
+sudo dotnet /var/www/wayfarer/Wayfarer.dll playwright install-deps chromium
 sudo env PLAYWRIGHT_BROWSERS_PATH=/opt/wayfarer-browsers \
-  pwsh /var/www/wayfarer/playwright.ps1 install chromium
+  dotnet /var/www/wayfarer/Wayfarer.dll playwright install chromium
 ```
+
+Append `--dry-run` to the install command to preview downloads. Use
+`playwright install --with-deps chromium` to combine dependency and browser
+installation with the required privileges. `install-deps chromium` uses the
+distribution package manager on supported Linux hosts, including the ALSA library
+that supplies `libasound.so.2`. Generated vendor installer scripts may be present
+in the publish tree; Wayfarer's provisioning workflow does not execute them.
 
 Give the service read/execute access to the browser bundle and configure:
 
@@ -446,7 +461,7 @@ Browser/PDF:
 - verify the release-matched Chromium exists;
 - run `ldd` on the executable Playwright reports when diagnosing missing shared
   libraries;
-- use the release's generated `playwright.ps1 install-deps chromium` to correct
+- use `sudo dotnet /var/www/wayfarer/Wayfarer.dll playwright install-deps chromium` to correct
   OS dependencies.
 
 Do not delete a shared browser bundle or Data Protection ring as a generic

@@ -9,6 +9,11 @@
 
 ### Fixed
 
+- Complete PowerShell-free development, coverage, CI and native Chromium
+  provisioning. Use guarded Python coverage/metadata tooling and the release's
+  Playwright .NET installation API, preserving GUID cleanup, previous-report
+  retention and Linux/Windows filesystem safety (#796 PR B).
+
 - Replace repository-owned browser PowerShell orchestration with one guarded Python
   supervisor for shared-layout and waypoint. Isolate mutation credentials/storage,
   verify fixture cleanup, and use stable native process ownership to fix Linux
