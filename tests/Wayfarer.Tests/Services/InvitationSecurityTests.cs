@@ -21,7 +21,7 @@ public sealed class InvitationSecurityTests : TestBase
         await new GroupService(db).AddMemberAsync(group.Id, owner.Id, target.Id, role);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            new InvitationService(db).InviteUserAsync(group.Id, actor.Id, actor.Id, null, null));
+            new InvitationService(db).InviteUserAsync(group.Id, actor.Id, actor.Id, null));
 
         Assert.Empty(await db.GroupInvitations.ToListAsync());
         Assert.False(await db.AuditLogs.AnyAsync(a => a.Action == "InviteCreate"));
@@ -39,7 +39,7 @@ public sealed class InvitationSecurityTests : TestBase
         await new GroupService(db).AddMemberAsync(group.Id, owner.Id, target.Id, role);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            new InvitationService(db).InviteUserAsync(group.Id, owner.Id, target.Id, null, null));
+            new InvitationService(db).InviteUserAsync(group.Id, owner.Id, target.Id, null));
 
         Assert.Empty(await db.GroupInvitations.ToListAsync());
     }
@@ -145,14 +145,36 @@ public sealed class InvitationSecurityTests : TestBase
         await Assert.ThrowsAsync<InvalidOperationException>(() => invitations.AcceptAsync(stale.Token, target.Id));
         stale.Status = GroupInvitation.InvitationStatuses.Revoked;
         await db.SaveChangesAsync();
-        var fresh = await invitations.InviteUserAsync(group.Id, owner.Id, target.Id, null, null);
+        var fresh = await invitations.InviteUserAsync(group.Id, owner.Id, target.Id, null);
         var rejoined = await invitations.AcceptAsync(fresh.Token, target.Id);
         Assert.Equal(GroupMember.Roles.Member, rejoined.Role);
         Assert.Equal(GroupMember.MembershipStatuses.Active, rejoined.Status);
         Assert.Null(rejoined.LeftAt);
         Assert.True(rejoined.OrgPeerVisibilityAccessDisabled);
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
-            invitations.InviteUserAsync(group.Id, target.Id, owner.Id, null, null));
+            invitations.InviteUserAsync(group.Id, target.Id, owner.Id, null));
+    }
+
+    /// <summary>A departing actual Owner transfers ownership and can rejoin only under the successor's invitation.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task FormerOwnerRejoinsWithoutOwnershipAuthority(bool leave)
+    {
+        var db = CreateDbContext();
+        var (group, owner, successor) = await SeedAsync(db);
+        var groups = new GroupService(db);
+        await groups.AddMemberAsync(group.Id, owner.Id, successor.Id, GroupMember.Roles.Manager);
+        if (leave) await groups.LeaveGroupAsync(group.Id, owner.Id);
+        else await groups.RemoveMemberAsync(group.Id, successor.Id, owner.Id);
+        Assert.Equal(successor.Id, group.OwnerUserId);
+
+        var invitations = new InvitationService(db);
+        var fresh = await invitations.InviteUserAsync(group.Id, successor.Id, owner.Id, null);
+        Assert.Equal(GroupMember.Roles.Member, (await invitations.AcceptAsync(fresh.Token, owner.Id)).Role);
+        Assert.Equal(successor.Id, group.OwnerUserId);
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+            groups.UpdateGroupAsync(group.Id, owner.Id, "Unauthorized", null));
     }
 
     /// <summary>Seeds registered accounts with only the owner actively joined.</summary>

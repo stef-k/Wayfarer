@@ -19,19 +19,19 @@ public sealed class GroupAuthorizationTests : TestBase
         var db = CreateDbContext();
         var owner = TestDataFixtures.CreateUser(id: "owner");
         var peer = TestDataFixtures.CreateUser(id: "peer");
-        db.Users.AddRange(owner, peer);
+        db.Users.AddRange(owner, peer, TestDataFixtures.CreateUser(id: "invitee"));
         var groups = new GroupService(db);
         var invitations = new InvitationService(db);
         var group = await groups.CreateGroupAsync(owner.Id, "Group", null);
         await groups.AddMemberAsync(group.Id, owner.Id, peer.Id, GroupMember.Roles.Member);
-        var pending = await invitations.InviteUserAsync(group.Id, owner.Id, "invitee", null, null);
+        var pending = await invitations.InviteUserAsync(group.Id, owner.Id, "invitee", null);
         var membership = await db.GroupMembers.SingleAsync(m => m.GroupId == group.Id && m.UserId == owner.Id);
         if (status == null) db.GroupMembers.Remove(membership);
         else membership.Status = status;
         await db.SaveChangesAsync();
 
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
-            invitations.InviteUserAsync(group.Id, owner.Id, owner.Id, null, null));
+            invitations.InviteUserAsync(group.Id, owner.Id, owner.Id, null));
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => invitations.RevokeAsync(pending.Id, owner.Id));
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
             groups.AddMemberAsync(group.Id, owner.Id, "new-manager", GroupMember.Roles.Manager));
@@ -81,17 +81,17 @@ public sealed class GroupAuthorizationTests : TestBase
     {
         var db = CreateDbContext();
         var owner = TestDataFixtures.CreateUser(id: "owner");
-        db.Users.Add(owner);
+        db.Users.AddRange(owner, TestDataFixtures.CreateUser(id: "invitee"));
         var groups = new GroupService(db);
         var invitations = new InvitationService(db);
         var group = await groups.CreateGroupAsync(owner.Id, "Group", null);
-        var pending = await invitations.InviteUserAsync(group.Id, owner.Id, "invitee", null, null);
+        var pending = await invitations.InviteUserAsync(group.Id, owner.Id, "invitee", null);
         (await db.GroupMembers.SingleAsync()).Role = role;
         group.IsArchived = true;
         await db.SaveChangesAsync();
 
         await Assert.ThrowsAsync<KeyNotFoundException>(() =>
-            invitations.InviteUserAsync(group.Id, owner.Id, owner.Id, null, null));
+            invitations.InviteUserAsync(group.Id, owner.Id, owner.Id, null));
         await Assert.ThrowsAsync<KeyNotFoundException>(() => invitations.RevokeAsync(pending.Id, owner.Id));
         await Assert.ThrowsAsync<KeyNotFoundException>(() =>
             groups.AddMemberAsync(group.Id, owner.Id, "target", GroupMember.Roles.Member));

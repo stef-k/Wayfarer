@@ -5,339 +5,201 @@ using Wayfarer.Models;
 
 namespace Wayfarer.Services;
 
-/// <summary>
-/// EF-backed invitation workflows.
-/// </summary>
+/// <summary>EF-backed invitations to registered users, serialized with membership departures.</summary>
 public class InvitationService : IInvitationService
 {
     private readonly ApplicationDbContext _db;
 
-    public InvitationService(ApplicationDbContext db)
-    {
-        _db = db;
-    }
+    /// <summary>Uses the request's database context for each atomic invitation workflow.</summary>
+    public InvitationService(ApplicationDbContext db) => _db = db;
 
     /// <summary>
-    /// Creates a new invitation for a user to join a group.
-    /// Uses a database transaction with RepeatableRead isolation to prevent race conditions
-    /// where duplicate invitations could be created between the check and insert.
+    /// Invites one registered user who is not an active member. Group-first locking orders
+    /// creation with removal/leave; the pending-recipient unique index remains a final guard.
     /// </summary>
-    /// <param name="groupId">The group to invite the user to.</param>
-    /// <param name="inviterUserId">The user creating the invitation (must be Owner or Manager).</param>
-    /// <param name="inviteeUserId">The user ID being invited (optional if email provided).</param>
-    /// <param name="inviteeEmail">The email of the user being invited (optional if userId provided).</param>
-    /// <param name="expiresAt">Optional expiration date for the invitation.</param>
+    /// <param name="groupId">Destination group.</param>
+    /// <param name="inviterUserId">Active Group Owner or Manager issuing the invitation.</param>
+    /// <param name="inviteeUserId">Required existing account ID selected by username/display-name search.</param>
+    /// <param name="expiresAt">Optional expiration timestamp.</param>
     /// <param name="ct">Cancellation token.</param>
-    /// <returns>The created GroupInvitation entity.</returns>
-    /// <exception cref="ArgumentException">Thrown when neither inviteeUserId nor inviteeEmail is provided.</exception>
-    /// <exception cref="InvalidOperationException">Thrown when a pending invitation already exists for this user.</exception>
-    /// <exception cref="UnauthorizedAccessException">Thrown when the inviter lacks required permissions.</exception>
-    public async Task<GroupInvitation> InviteUserAsync(Guid groupId, string inviterUserId, string? inviteeUserId, string? inviteeEmail, DateTime? expiresAt, CancellationToken ct = default)
+    public async Task<GroupInvitation> InviteUserAsync(Guid groupId, string inviterUserId, string inviteeUserId,
+        DateTime? expiresAt, CancellationToken ct = default)
     {
-        if (string.IsNullOrWhiteSpace(inviteeUserId) && string.IsNullOrWhiteSpace(inviteeEmail))
-            throw new ArgumentException("Either inviteeUserId or inviteeEmail must be provided");
+        if (string.IsNullOrWhiteSpace(inviteeUserId))
+            throw new ArgumentException("InviteeUserId required");
 
-        // Use RepeatableRead isolation to prevent race conditions:
-        // - Ensures the duplicate check and insert are atomic
-        // - Prevents another thread from creating a duplicate invitation mid-operation
-        await using var transaction = await _db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, ct);
+        await using var transaction = await _db.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, ct);
+        await GroupService.LockMembershipAsync(_db, groupId, ct);
+        await EnsureOwnerOrManagerAsync(groupId, inviterUserId, ct);
+        if (!await _db.Users.AnyAsync(u => u.Id == inviteeUserId, ct))
+            throw new ArgumentException("InviteeUserId must identify an existing user");
+        if (await _db.GroupMembers.AnyAsync(m => m.GroupId == groupId && m.UserId == inviteeUserId
+            && m.Status == GroupMember.MembershipStatuses.Active, ct))
+            throw new InvalidOperationException("User already an active member");
+        if (await _db.GroupInvitations.AnyAsync(i => i.GroupId == groupId && i.InviteeUserId == inviteeUserId
+            && i.Status == GroupInvitation.InvitationStatuses.Pending, ct))
+            throw new InvalidOperationException("A pending invitation already exists for this user in the specified group");
 
+        var token = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32))
+            .Replace("/", "_").Replace("+", "-").TrimEnd('=');
+        var invitation = new GroupInvitation
+        {
+            Id = Guid.NewGuid(), GroupId = groupId, InviterUserId = inviterUserId,
+            InviteeUserId = inviteeUserId, Token = token, ExpiresAt = expiresAt,
+            Status = GroupInvitation.InvitationStatuses.Pending, CreatedAt = DateTime.UtcNow
+        };
+        await _db.GroupInvitations.AddAsync(invitation, ct);
+        await AddAuditAsync(inviterUserId, "InviteCreate", $"Invited {inviteeUserId} to group {groupId}", ct);
         try
         {
-            // Step 1: Verify permissions within transaction
-            await EnsureOwnerOrManagerAsync(groupId, inviterUserId, ct);
-
-            // Step 2: Check for existing pending invitation for the same group and user
-            if (!string.IsNullOrWhiteSpace(inviteeUserId))
-            {
-                var existingPendingInvitation = await _db.GroupInvitations
-                    .AnyAsync(i => i.GroupId == groupId
-                        && i.InviteeUserId == inviteeUserId
-                        && i.Status == GroupInvitation.InvitationStatuses.Pending, ct);
-
-                if (existingPendingInvitation)
-                    throw new InvalidOperationException("A pending invitation already exists for this user in the specified group");
-            }
-
-            // Step 3: Create the invitation with cryptographically secure token
-            var tokenBytes = new byte[32];
-            using (var rng = RandomNumberGenerator.Create())
-            {
-                rng.GetBytes(tokenBytes);
-            }
-            var token = Convert.ToBase64String(tokenBytes)
-                .Replace("/", "_")
-                .Replace("+", "-")
-                .TrimEnd('=');
-
-            var inv = new GroupInvitation
-            {
-                Id = Guid.NewGuid(),
-                GroupId = groupId,
-                InviterUserId = inviterUserId,
-                InviteeUserId = inviteeUserId,
-                InviteeEmail = inviteeEmail,
-                Token = token,
-                Status = GroupInvitation.InvitationStatuses.Pending,
-                ExpiresAt = expiresAt,
-                CreatedAt = DateTime.UtcNow
-            };
-
-            await _db.GroupInvitations.AddAsync(inv, ct);
-
-            // Step 4: Add audit log entry
-            await AddAuditAsync(inviterUserId, "InviteCreate", $"Invited {inviteeUserId ?? inviteeEmail} to group {groupId}", ct);
-
-            // Step 5: Save changes and commit transaction
-            // Wrap in try-catch to handle unique constraint violation from concurrent requests
-            try
-            {
-                await _db.SaveChangesAsync(ct);
-                await transaction.CommitAsync(ct);
-            }
-            catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex))
-            {
-                throw new InvalidOperationException("A pending invitation already exists for this user in the specified group");
-            }
-
-            return inv;
+            await _db.SaveChangesAsync(ct);
+            await transaction.CommitAsync(ct);
         }
-        catch (Exception)
+        catch (DbUpdateException ex) when (IsUniqueConstraintViolation(ex))
         {
-            // Transaction will be automatically rolled back when disposed if not committed
-            // Re-throw to preserve the original exception for proper error handling upstream
-            throw;
+            throw new InvalidOperationException("A pending invitation already exists for this user in the specified group", ex);
         }
+        return invitation;
     }
 
     /// <summary>
-    /// Accepts a pending invitation and creates or revives ordinary membership in an unarchived group.
-    /// Reactivation never restores historical Owner/Manager authority; still-active roles are retained.
-    /// Uses a database transaction with RepeatableRead isolation to prevent race conditions
-    /// where the invitation could be revoked or the group deleted between validation and commit.
-    /// Only the designated invitee can accept the invitation.
+    /// Only the exact designated recipient may accept. A departure invalidates all older
+    /// invitations independently of their status. Reactivation grants only Member authority
+    /// and retains personal sharing preferences. The Group lock is held through commit.
     /// </summary>
-    /// <param name="token">The unique invitation token.</param>
-    /// <param name="acceptorUserId">The user accepting the invitation (must match InviteeUserId if set).</param>
+    /// <param name="token">Invitation token.</param>
+    /// <param name="acceptorUserId">Authenticated recipient ID.</param>
     /// <param name="ct">Cancellation token.</param>
-    /// <returns>The created or updated GroupMember entity.</returns>
-    /// <exception cref="KeyNotFoundException">Thrown when invitation is not found.</exception>
-    /// <exception cref="InvalidOperationException">Thrown when invitation is not pending, expired, or group is unavailable.</exception>
-    /// <exception cref="UnauthorizedAccessException">Thrown when the user is not the designated invitee.</exception>
     public async Task<GroupMember> AcceptAsync(string token, string acceptorUserId, CancellationToken ct = default)
     {
-        // Use RepeatableRead isolation to prevent race conditions:
-        // - Ensures the invitation status check and update are atomic
-        // - Prevents another thread from revoking the invitation mid-operation
-        // - Ensures group existence check remains valid through the transaction
-        await using var transaction = await _db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, ct);
+        // Resolve immutable routing data before starting the locking transaction; never trust its state.
+        var routing = await _db.GroupInvitations.AsNoTracking().FirstOrDefaultAsync(i => i.Token == token, ct)
+            ?? throw new KeyNotFoundException("Invitation not found");
+        await using var transaction = await _db.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, ct);
+        var invitation = await LockInvitationAsync(routing, ct);
+        EnsureRecipient(invitation, acceptorUserId);
+        EnsurePending(invitation);
+        var now = DateTime.UtcNow;
+        if (invitation.ExpiresAt.HasValue && invitation.ExpiresAt.Value < now)
+            throw new InvalidOperationException("Invitation expired");
+        if (!await _db.Groups.AnyAsync(g => g.Id == invitation.GroupId && !g.IsArchived, ct))
+            throw new InvalidOperationException("The group associated with this invitation is no longer available");
 
-        try
+        var member = await _db.GroupMembers.FirstOrDefaultAsync(
+            m => m.GroupId == invitation.GroupId && m.UserId == acceptorUserId, ct);
+        if (member is not null)
         {
-            // Step 1: Fetch and validate invitation within transaction (row-level lock acquired)
-            var inv = await _db.GroupInvitations.FirstOrDefaultAsync(i => i.Token == token, ct)
-                ?? throw new KeyNotFoundException("Invitation not found");
-
-            // Validate that the user is the designated invitee (must check before setting InviteeUserId)
-            if (!string.IsNullOrWhiteSpace(inv.InviteeUserId) && inv.InviteeUserId != acceptorUserId)
-                throw new UnauthorizedAccessException("Only the designated invitee can accept this invitation");
-
-            if (inv.Status != GroupInvitation.InvitationStatuses.Pending)
-            {
-                throw new InvalidOperationException("Invitation is not pending");
-            }
-
-            if (inv.ExpiresAt.HasValue && inv.ExpiresAt.Value < DateTime.UtcNow)
-            {
-                throw new InvalidOperationException("Invitation expired");
-            }
-
-            // Step 2: Archived groups cannot grant or revive membership.
-            var groupAvailable = await _db.Groups.AnyAsync(g => g.Id == inv.GroupId && !g.IsArchived, ct);
-            if (!groupAvailable)
-            {
-                throw new InvalidOperationException("The group associated with this invitation is no longer available");
-            }
-
-            // Step 3: Update invitation status
-            inv.Status = GroupInvitation.InvitationStatuses.Accepted;
-            inv.RespondedAt = DateTime.UtcNow;
-            inv.InviteeUserId ??= acceptorUserId;
-
-            // Step 4: Ensure membership exists and is Active (revive if previously Left/Removed)
-            var existing = await _db.GroupMembers.FirstOrDefaultAsync(
-                m => m.GroupId == inv.GroupId && m.UserId == acceptorUserId, ct);
-
-            GroupMember member;
-            if (existing == null)
-            {
-                member = new GroupMember
-                {
-                    Id = Guid.NewGuid(),
-                    GroupId = inv.GroupId,
-                    UserId = acceptorUserId,
-                    Role = GroupMember.Roles.Member,
-                    Status = GroupMember.MembershipStatuses.Active,
-                    JoinedAt = DateTime.UtcNow
-                };
-                await _db.GroupMembers.AddAsync(member, ct);
-            }
-            else
-            {
-                member = existing;
-                if (!string.Equals(existing.Status, GroupMember.MembershipStatuses.Active, StringComparison.Ordinal))
-                {
-                    existing.Status = GroupMember.MembershipStatuses.Active;
-                    existing.JoinedAt = existing.JoinedAt == default ? DateTime.UtcNow : existing.JoinedAt;
-                    existing.LeftAt = null;
-                    // An ordinary invitation does not delegate a former elevated role.
-                    existing.Role = GroupMember.Roles.Member;
-                }
-            }
-
-            // Step 5: Add audit log entry
-            await AddAuditAsync(acceptorUserId, "InviteAccept", $"Accepted invite for group {inv.GroupId}", ct);
-
-            // Step 6: Save changes and commit transaction
-            await _db.SaveChangesAsync(ct);
-            await transaction.CommitAsync(ct);
-
-            return member;
+            // Controllers or earlier operations may already track this row. Reload after acquiring the lock.
+            await _db.Entry(member).ReloadAsync(ct);
+            if (member.Status == GroupMember.MembershipStatuses.Active)
+                throw new InvalidOperationException("User already an active member");
+            if (member.Status is not (GroupMember.MembershipStatuses.Left or GroupMember.MembershipStatuses.Removed)
+                || member.JoinedAt == default || member.LeftAt is null || member.LeftAt < member.JoinedAt
+                || member.LeftAt > now || invitation.CreatedAt <= member.LeftAt)
+                throw new InvalidOperationException("Invitation predates departure or membership history is unavailable");
         }
-        catch (Exception)
+        else
         {
-            // Transaction will be automatically rolled back when disposed if not committed
-            // Re-throw to preserve the original exception for proper error handling upstream
-            throw;
+            member = new GroupMember
+            {
+                Id = Guid.NewGuid(), GroupId = invitation.GroupId, UserId = acceptorUserId
+            };
+            await _db.GroupMembers.AddAsync(member, ct);
         }
+
+        member.Status = GroupMember.MembershipStatuses.Active;
+        member.Role = GroupMember.Roles.Member;
+        member.JoinedAt = now;
+        member.LeftAt = null;
+        invitation.Status = GroupInvitation.InvitationStatuses.Accepted;
+        invitation.RespondedAt = now;
+        await AddAuditAsync(acceptorUserId, "InviteAccept", $"Accepted invite for group {invitation.GroupId}", ct);
+        await _db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
+        return member;
     }
 
-    /// <summary>
-    /// Declines a pending invitation. Uses a transaction to prevent race conditions
-    /// where the invitation could be accepted or revoked by another operation.
-    /// Only the designated invitee can decline the invitation.
-    /// </summary>
-    /// <param name="token">The unique invitation token.</param>
-    /// <param name="userId">The user declining the invitation (must match InviteeUserId if set).</param>
-    /// <param name="ct">Cancellation token.</param>
-    /// <exception cref="KeyNotFoundException">Thrown when invitation is not found.</exception>
-    /// <exception cref="InvalidOperationException">Thrown when invitation is not pending.</exception>
-    /// <exception cref="UnauthorizedAccessException">Thrown when the user is not the designated invitee.</exception>
+    /// <summary>Only an explicitly addressed recipient can decline; unresolved legacy rows fail closed.</summary>
     public async Task DeclineAsync(string token, string userId, CancellationToken ct = default)
     {
-        await using var transaction = await _db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, ct);
-
-        try
-        {
-            var inv = await _db.GroupInvitations.FirstOrDefaultAsync(i => i.Token == token, ct)
-                ?? throw new KeyNotFoundException("Invitation not found");
-
-            // Validate that the user is the designated invitee
-            if (!string.IsNullOrWhiteSpace(inv.InviteeUserId) && inv.InviteeUserId != userId)
-                throw new UnauthorizedAccessException("Only the designated invitee can decline this invitation");
-
-            if (inv.Status != GroupInvitation.InvitationStatuses.Pending)
-                throw new InvalidOperationException("Invitation is not pending");
-
-            inv.Status = GroupInvitation.InvitationStatuses.Declined;
-            inv.RespondedAt = DateTime.UtcNow;
-            await AddAuditAsync(userId, "InviteDecline", $"Declined invite for group {inv.GroupId}", ct);
-            await _db.SaveChangesAsync(ct);
-            await transaction.CommitAsync(ct);
-        }
-        catch (Exception)
-        {
-            // Transaction will be automatically rolled back when disposed if not committed
-            throw;
-        }
+        var routing = await _db.GroupInvitations.AsNoTracking().FirstOrDefaultAsync(i => i.Token == token, ct)
+            ?? throw new KeyNotFoundException("Invitation not found");
+        await using var transaction = await _db.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, ct);
+        var invitation = await LockInvitationAsync(routing, ct);
+        EnsureRecipient(invitation, userId);
+        EnsurePending(invitation);
+        invitation.Status = GroupInvitation.InvitationStatuses.Declined;
+        invitation.RespondedAt = DateTime.UtcNow;
+        await AddAuditAsync(userId, "InviteDecline", $"Declined invite for group {invitation.GroupId}", ct);
+        await _db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
     }
 
-    /// <summary>
-    /// Revokes a pending invitation. Requires Owner or Manager permissions.
-    /// Uses a transaction to prevent race conditions where the invitation
-    /// could be accepted or declined by another operation.
-    /// </summary>
-    /// <param name="invitationId">The invitation ID to revoke.</param>
-    /// <param name="actorUserId">The user revoking the invitation (must be Owner or Manager).</param>
-    /// <param name="ct">Cancellation token.</param>
-    /// <returns>The authoritative group and optional invitee identities after the revocation commits.</returns>
-    /// <exception cref="KeyNotFoundException">Thrown when invitation is not found.</exception>
-    /// <exception cref="InvalidOperationException">Thrown when invitation is not pending.</exception>
-    /// <exception cref="UnauthorizedAccessException">Thrown when the actor lacks required permissions.</exception>
+    /// <summary>Active Owners/Managers can revoke a pending invitation, including unresolved historical rows.</summary>
     public async Task<InvitationRevocation> RevokeAsync(Guid invitationId, string actorUserId, CancellationToken ct = default)
     {
-        await using var transaction = await _db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, ct);
-
-        try
-        {
-            var inv = await _db.GroupInvitations.FirstOrDefaultAsync(i => i.Id == invitationId, ct)
-                ?? throw new KeyNotFoundException("Invitation not found");
-
-            await EnsureOwnerOrManagerAsync(inv.GroupId, actorUserId, ct);
-
-            if (inv.Status != GroupInvitation.InvitationStatuses.Pending)
-                throw new InvalidOperationException("Invitation is not pending");
-
-            inv.Status = GroupInvitation.InvitationStatuses.Revoked;
-            inv.RespondedAt = DateTime.UtcNow;
-            await AddAuditAsync(actorUserId, "InviteRevoke", $"Revoked invite {inv.Id}", ct);
-            await _db.SaveChangesAsync(ct);
-            await transaction.CommitAsync(ct);
-            return new InvitationRevocation(inv.GroupId, inv.InviteeUserId);
-        }
-        catch (Exception)
-        {
-            // Transaction will be automatically rolled back when disposed if not committed
-            throw;
-        }
+        var routing = await _db.GroupInvitations.AsNoTracking().FirstOrDefaultAsync(i => i.Id == invitationId, ct)
+            ?? throw new KeyNotFoundException("Invitation not found");
+        await using var transaction = await _db.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, ct);
+        var invitation = await LockInvitationAsync(routing, ct);
+        await EnsureOwnerOrManagerAsync(invitation.GroupId, actorUserId, ct);
+        EnsurePending(invitation);
+        invitation.Status = GroupInvitation.InvitationStatuses.Revoked;
+        invitation.RespondedAt = DateTime.UtcNow;
+        await AddAuditAsync(actorUserId, "InviteRevoke", $"Revoked invite {invitation.Id}", ct);
+        await _db.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
+        return new InvitationRevocation(invitation.GroupId, invitation.InviteeUserId);
     }
 
     /// <summary>
-    /// Requires active Owner/Manager membership in an unarchived group.
-    /// Ownership metadata is retained for transfers and never grants residual permissions.
+    /// Locks Group before invitation, matching membership mutation and SSE ordering.
+    /// ReadCommitted reads after the lock see a departure that committed while this request waited.
+    /// Reload avoids accepting cached state from a controller's earlier lookup.
     /// </summary>
-    /// <param name="groupId">The group to check permissions for.</param>
-    /// <param name="actorUserId">The user attempting the action.</param>
-    /// <param name="ct">Cancellation token.</param>
-    /// <exception cref="KeyNotFoundException">Thrown when the group does not exist or is archived.</exception>
-    /// <exception cref="UnauthorizedAccessException">Thrown when the user lacks required permissions.</exception>
+    private async Task<GroupInvitation> LockInvitationAsync(GroupInvitation routing, CancellationToken ct)
+    {
+        await GroupService.LockMembershipAsync(_db, routing.GroupId, ct);
+        var invitation = await _db.GroupInvitations.FirstOrDefaultAsync(i => i.Id == routing.Id, ct)
+            ?? throw new KeyNotFoundException("Invitation not found");
+        await _db.Entry(invitation).ReloadAsync(ct);
+        return invitation;
+    }
+
+    /// <summary>Neither a token nor a null/blank legacy recipient establishes account authority.</summary>
+    private static void EnsureRecipient(GroupInvitation invitation, string userId)
+    {
+        if (string.IsNullOrWhiteSpace(invitation.InviteeUserId) || string.IsNullOrWhiteSpace(userId)
+            || !string.Equals(invitation.InviteeUserId, userId, StringComparison.Ordinal))
+            throw new UnauthorizedAccessException("Only the designated invitee can respond to this invitation");
+    }
+
+    /// <summary>Only pending invitations can transition.</summary>
+    private static void EnsurePending(GroupInvitation invitation)
+    {
+        if (invitation.Status != GroupInvitation.InvitationStatuses.Pending)
+            throw new InvalidOperationException("Invitation is not pending");
+    }
+
+    /// <summary>Ownership metadata does not grant residual permission after departure or archiving.</summary>
     private async Task EnsureOwnerOrManagerAsync(Guid groupId, string actorUserId, CancellationToken ct)
     {
         if (!await _db.Groups.AnyAsync(g => g.Id == groupId && !g.IsArchived, ct))
             throw new KeyNotFoundException("Group not found");
-
-        var membership = await _db.GroupMembers.AsNoTracking()
-            .FirstOrDefaultAsync(m => m.GroupId == groupId && m.UserId == actorUserId && m.Status == GroupMember.MembershipStatuses.Active, ct);
+        var membership = await _db.GroupMembers.AsNoTracking().FirstOrDefaultAsync(m => m.GroupId == groupId
+            && m.UserId == actorUserId && m.Status == GroupMember.MembershipStatuses.Active, ct);
         if (!GroupLocationVisibility.CanManage(membership))
             throw new UnauthorizedAccessException("Manager or Owner permissions required");
     }
 
-    private async Task AddAuditAsync(string userId, string action, string details, CancellationToken ct)
-    {
-        var audit = new AuditLog
+    /// <summary>Adds the audit entry to the caller's atomic save.</summary>
+    private async Task AddAuditAsync(string userId, string action, string details, CancellationToken ct) =>
+        await _db.AuditLogs.AddAsync(new AuditLog
         {
-            UserId = userId,
-            Action = action,
-            Details = details,
-            Timestamp = DateTime.UtcNow
-        };
-        await _db.AuditLogs.AddAsync(audit, ct);
-    }
+            UserId = userId, Action = action, Details = details, Timestamp = DateTime.UtcNow
+        }, ct);
 
-    /// <summary>
-    /// Determines if a DbUpdateException was caused by a unique constraint violation in PostgreSQL.
-    /// </summary>
-    /// <param name="ex">The DbUpdateException to check.</param>
-    /// <returns>True if the exception represents a unique constraint violation (PostgreSQL error code 23505).</returns>
-    private static bool IsUniqueConstraintViolation(DbUpdateException ex)
-    {
-        var innerException = ex.InnerException;
-        while (innerException != null)
-        {
-            if (innerException is Npgsql.PostgresException pgEx && pgEx.SqlState == "23505")
-                return true;
-            innerException = innerException.InnerException;
-        }
-        return false;
-    }
+    /// <summary>Recognizes PostgreSQL's final duplicate-recipient constraint guard.</summary>
+    private static bool IsUniqueConstraintViolation(DbUpdateException ex) =>
+        ex.InnerException is Npgsql.PostgresException { SqlState: "23505" };
 }

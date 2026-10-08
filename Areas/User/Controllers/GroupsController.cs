@@ -149,7 +149,6 @@ public class GroupsController : BaseController
                              {
                                  i.Id,
                                  i.InviteeUserId,
-                                 i.InviteeEmail,
                                  i.CreatedAt,
                                  UserName = u != null ? u.UserName : null,
                                  DisplayName = u != null ? u.DisplayName : null
@@ -182,7 +181,7 @@ public class GroupsController : BaseController
 
         try
         {
-            var inv = await _invitationService.InviteUserAsync(groupId, actorId, inviteeUserId, null, null);
+            var inv = await _invitationService.InviteUserAsync(groupId, actorId, inviteeUserId, null);
             if (!string.IsNullOrEmpty(inv.InviteeUserId))
             {
                 await _sse.BroadcastGroupNotificationAsync(inv.InviteeUserId, SseService.InvitationStateHint);

@@ -28,7 +28,7 @@ public class ManagerGroupsAjaxControllerTests : TestBase
         var db = CreateDbContext();
         var groupService = new Mock<IGroupService>();
         var inviteService = new Mock<IInvitationService>();
-        inviteService.Setup(s => s.InviteUserAsync(groupId, "manager-ajax", "user-1", null, null, It.IsAny<CancellationToken>()))
+        inviteService.Setup(s => s.InviteUserAsync(groupId, "manager-ajax", "user-1", null, It.IsAny<CancellationToken>()))
             .ReturnsAsync(new GroupInvitation
             {
                 Id = Guid.NewGuid(),
@@ -54,7 +54,7 @@ public class ManagerGroupsAjaxControllerTests : TestBase
         var db = CreateDbContext();
         var groupService = new Mock<IGroupService>();
         var inviteService = new Mock<IInvitationService>();
-        inviteService.Setup(s => s.InviteUserAsync(groupId, "manager-ajax", "user-2", null, null, It.IsAny<CancellationToken>()))
+        inviteService.Setup(s => s.InviteUserAsync(groupId, "manager-ajax", "user-2", null, It.IsAny<CancellationToken>()))
             .ThrowsAsync(new UnauthorizedAccessException());
         var sse = new RecordingSseService();
         var controller = BuildController(db, groupService, inviteService, sse);

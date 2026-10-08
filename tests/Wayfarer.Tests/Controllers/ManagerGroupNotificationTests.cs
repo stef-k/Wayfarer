@@ -163,7 +163,7 @@ public sealed class ManagerGroupNotificationTests : TestBase
         var groupService = new GroupService(db);
         var group = await groupService.CreateGroupAsync(owner.Id, "Group", null);
         var invitationService = new InvitationService(db);
-        var invitation = await invitationService.InviteUserAsync(group.Id, owner.Id, invitee.Id, null, null);
+        var invitation = await invitationService.InviteUserAsync(group.Id, owner.Id, invitee.Id, null);
         var sse = new RecordingSseService();
         var controller = BuildController(db, owner.Id, groupService, invitationService, sse);
 
@@ -175,7 +175,7 @@ public sealed class ManagerGroupNotificationTests : TestBase
         Assert.Contains(sse.Messages, message => message.Channel == $"group-{group.Id}");
     }
 
-    /// <summary>Revoke routes only from durable invitation authority and skips email-only private hints.</summary>
+    /// <summary>Revoke routes from durable invitation authority, including unresolved legacy history.</summary>
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -189,9 +189,9 @@ public sealed class ManagerGroupNotificationTests : TestBase
         var authoritativeGroup = await groupService.CreateGroupAsync(owner.Id, "Authoritative", null);
         var callerGroup = await groupService.CreateGroupAsync(owner.Id, "Caller", null);
         var invitationService = new InvitationService(db);
-        var invitation = await invitationService.InviteUserAsync(
-            authoritativeGroup.Id, owner.Id, hasInvitee ? invitee.Id : null,
-            hasInvitee ? null : "email-only@example.test", null);
+        var invitation = TestDataFixtures.CreateGroupInvitation(authoritativeGroup, owner, hasInvitee ? invitee : null);
+        db.GroupInvitations.Add(invitation);
+        await db.SaveChangesAsync();
         var sse = new RecordingSseService();
 
         var result = await BuildController(db, owner.Id, groupService, invitationService, sse)
@@ -220,7 +220,7 @@ public sealed class ManagerGroupNotificationTests : TestBase
         var suppliedGroup = await groupService.CreateGroupAsync(otherOwner.Id, "Supplied", null);
         var invitationService = new InvitationService(db);
         var invitation = await invitationService.InviteUserAsync(
-            authoritativeGroup.Id, owner.Id, invitee.Id, null, null);
+            authoritativeGroup.Id, owner.Id, invitee.Id, null);
         var sse = new RecordingSseService();
 
         var result = await BuildController(db, owner.Id, groupService, invitationService, sse)
@@ -244,7 +244,7 @@ public sealed class ManagerGroupNotificationTests : TestBase
         var groupService = new GroupService(db);
         var group = await groupService.CreateGroupAsync(owner.Id, "Group", null);
         var invitationService = new InvitationService(db);
-        var invitation = await invitationService.InviteUserAsync(group.Id, owner.Id, invitee.Id, null, null);
+        var invitation = await invitationService.InviteUserAsync(group.Id, owner.Id, invitee.Id, null);
         await invitationService.RevokeAsync(invitation.Id, owner.Id);
         var failedSse = new RecordingSseService();
 
@@ -254,7 +254,7 @@ public sealed class ManagerGroupNotificationTests : TestBase
         Assert.IsType<BadRequestObjectResult>(failed);
         Assert.Empty(failedSse.Messages);
 
-        var committed = await invitationService.InviteUserAsync(group.Id, owner.Id, invitee.Id, null, null);
+        var committed = await invitationService.InviteUserAsync(group.Id, owner.Id, invitee.Id, null);
         var throwingSse = new RecordingSseService(throwOnEveryBroadcast: true);
         var successful = await BuildController(db, owner.Id, groupService, invitationService, throwingSse)
             .RevokeInviteAjax(group.Id, committed.Id);

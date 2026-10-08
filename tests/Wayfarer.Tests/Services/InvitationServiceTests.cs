@@ -26,7 +26,7 @@ public class InvitationServiceTests : TestBase
         var g = await groups.CreateGroupAsync(owner.Id, "G1", null);
 
         // Act - owner invites user
-        var inv = await invites.InviteUserAsync(g.Id, owner.Id, user.Id, null, null);
+        var inv = await invites.InviteUserAsync(g.Id, owner.Id, user.Id, null);
 
         // Assert
         Assert.Equal(GroupInvitation.InvitationStatuses.Pending, inv.Status);
@@ -53,7 +53,7 @@ public class InvitationServiceTests : TestBase
         var invites = new InvitationService(db);
         var g = await groups.CreateGroupAsync(owner.Id, "G2", null);
 
-        var inv = await invites.InviteUserAsync(g.Id, owner.Id, user.Id, null, null);
+        var inv = await invites.InviteUserAsync(g.Id, owner.Id, user.Id, null);
 
         // Act
         await invites.DeclineAsync(inv.Token, user.Id);
@@ -81,7 +81,7 @@ public class InvitationServiceTests : TestBase
 
         // Act & Assert
         await Assert.ThrowsAsync<ArgumentException>(() =>
-            invites.InviteUserAsync(g.Id, owner.Id, null!, null!, null!));
+            invites.InviteUserAsync(g.Id, owner.Id, null!, null!));
     }
 
     [Fact]
@@ -104,7 +104,7 @@ public class InvitationServiceTests : TestBase
 
         // Act & Assert - regular member cannot invite
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
-            invites.InviteUserAsync(g.Id, member.Id, invitee.Id, null, null));
+            invites.InviteUserAsync(g.Id, member.Id, invitee.Id, null));
     }
 
     [Fact]
@@ -126,7 +126,7 @@ public class InvitationServiceTests : TestBase
         await groups.AddMemberAsync(g.Id, owner.Id, manager.Id, GroupMember.Roles.Manager);
 
         // Act
-        var inv = await invites.InviteUserAsync(g.Id, manager.Id, invitee.Id, null, null);
+        var inv = await invites.InviteUserAsync(g.Id, manager.Id, invitee.Id, null);
 
         // Assert
         Assert.NotNull(inv);
@@ -134,7 +134,7 @@ public class InvitationServiceTests : TestBase
     }
 
     [Fact]
-    public async Task InviteUserAsync_CreatesInvitationWithEmail()
+    public async Task InviteUserAsync_RejectsUnknownRecipient()
     {
         // Arrange
         var db = CreateDbContext();
@@ -147,12 +147,10 @@ public class InvitationServiceTests : TestBase
         var g = await groups.CreateGroupAsync(owner.Id, "Test Group", null);
 
         // Act
-        var inv = await invites.InviteUserAsync(g.Id, owner.Id, null, "test@example.com", null);
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            invites.InviteUserAsync(g.Id, owner.Id, "unknown-user", null));
 
-        // Assert
-        Assert.NotNull(inv);
-        Assert.Equal("test@example.com", inv.InviteeEmail);
-        Assert.Null(inv.InviteeUserId);
+        Assert.Empty(await db.GroupInvitations.ToListAsync());
     }
 
     [Fact]
@@ -172,7 +170,7 @@ public class InvitationServiceTests : TestBase
         var expiresAt = DateTime.UtcNow.AddDays(7);
 
         // Act
-        var inv = await invites.InviteUserAsync(g.Id, owner.Id, invitee.Id, null, expiresAt);
+        var inv = await invites.InviteUserAsync(g.Id, owner.Id, invitee.Id, expiresAt);
 
         // Assert
         Assert.NotNull(inv.ExpiresAt);
@@ -209,7 +207,7 @@ public class InvitationServiceTests : TestBase
         var invites = new InvitationService(db);
         var g = await groups.CreateGroupAsync(owner.Id, "Test Group", null);
 
-        var inv = await invites.InviteUserAsync(g.Id, owner.Id, user.Id, null, null);
+        var inv = await invites.InviteUserAsync(g.Id, owner.Id, user.Id, null);
         await invites.AcceptAsync(inv.Token, user.Id);
 
         // Act & Assert
@@ -233,7 +231,7 @@ public class InvitationServiceTests : TestBase
 
         // Create expired invitation
         var expiredDate = DateTime.UtcNow.AddDays(-1);
-        var inv = await invites.InviteUserAsync(g.Id, owner.Id, user.Id, null, expiredDate);
+        var inv = await invites.InviteUserAsync(g.Id, owner.Id, user.Id, expiredDate);
 
         // Act & Assert
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
@@ -267,7 +265,7 @@ public class InvitationServiceTests : TestBase
         await db.SaveChangesAsync();
 
         // Create new invitation
-        var inv = await invites.InviteUserAsync(g.Id, owner.Id, user.Id, null, null);
+        var inv = await invites.InviteUserAsync(g.Id, owner.Id, user.Id, null);
 
         // Act
         var member = await invites.AcceptAsync(inv.Token, user.Id);
@@ -280,14 +278,14 @@ public class InvitationServiceTests : TestBase
         db.ChangeTracker.Clear();
         Assert.Equal(GroupMember.Roles.Member, (await db.GroupMembers.SingleAsync(m => m.Id == member.Id)).Role);
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
-            invites.InviteUserAsync(g.Id, user.Id, "another-user", null, null));
+            invites.InviteUserAsync(g.Id, user.Id, "another-user", null));
     }
 
-    /// <summary>Accepting an outstanding invitation does not demote a still-active elevated membership.</summary>
+    /// <summary>An obsolete active-member invitation cannot grant membership or publish acceptance.</summary>
     [Theory]
     [InlineData(GroupMember.Roles.Owner)]
     [InlineData(GroupMember.Roles.Manager)]
-    public async Task AcceptAsync_PreservesActiveRole(string role)
+    public async Task AcceptAsync_RejectsObsoleteActiveMemberInvitation(string role)
     {
         var db = CreateDbContext();
         var owner = TestDataFixtures.CreateUser();
@@ -297,12 +295,15 @@ public class InvitationServiceTests : TestBase
         var invites = new InvitationService(db);
         var group = await groups.CreateGroupAsync(owner.Id, "Group", null);
         var membership = await groups.AddMemberAsync(group.Id, owner.Id, user.Id, role);
-        var invitation = await invites.InviteUserAsync(group.Id, owner.Id, user.Id, null, null);
+        var invitation = TestDataFixtures.CreateGroupInvitation(group, owner, user);
+        db.GroupInvitations.Add(invitation);
+        await db.SaveChangesAsync();
 
-        var accepted = await invites.AcceptAsync(invitation.Token, user.Id);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => invites.AcceptAsync(invitation.Token, user.Id));
 
-        Assert.Equal(membership.Id, accepted.Id);
-        Assert.Equal(role, accepted.Role);
+        Assert.Equal(role, membership.Role);
+        Assert.Equal(GroupInvitation.InvitationStatuses.Pending, invitation.Status);
+        Assert.False(await db.AuditLogs.AnyAsync(a => a.Action == "InviteAccept"));
     }
 
     /// <summary>A pending invitation cannot revive access after its Group is archived.</summary>
@@ -316,7 +317,7 @@ public class InvitationServiceTests : TestBase
         var groups = new GroupService(db);
         var invites = new InvitationService(db);
         var group = await groups.CreateGroupAsync(owner.Id, "Group", null);
-        var invitation = await invites.InviteUserAsync(group.Id, owner.Id, user.Id, null, null);
+        var invitation = await invites.InviteUserAsync(group.Id, owner.Id, user.Id, null);
         group.IsArchived = true;
         await db.SaveChangesAsync();
 
@@ -356,7 +357,7 @@ public class InvitationServiceTests : TestBase
         var invites = new InvitationService(db);
         var g = await groups.CreateGroupAsync(owner.Id, "Test Group", null);
 
-        var inv = await invites.InviteUserAsync(g.Id, owner.Id, user.Id, null, null);
+        var inv = await invites.InviteUserAsync(g.Id, owner.Id, user.Id, null);
         await invites.AcceptAsync(inv.Token, user.Id);
 
         // Act & Assert
@@ -378,7 +379,7 @@ public class InvitationServiceTests : TestBase
         var invites = new InvitationService(db);
         var g = await groups.CreateGroupAsync(owner.Id, "Test Group", null);
 
-        var inv = await invites.InviteUserAsync(g.Id, owner.Id, user.Id, null, null);
+        var inv = await invites.InviteUserAsync(g.Id, owner.Id, user.Id, null);
 
         // Act
         await invites.DeclineAsync(inv.Token, user.Id);
@@ -406,7 +407,7 @@ public class InvitationServiceTests : TestBase
         var invites = new InvitationService(db);
         var g = await groups.CreateGroupAsync(owner.Id, "Test Group", null);
 
-        var inv = await invites.InviteUserAsync(g.Id, owner.Id, user.Id, null, null);
+        var inv = await invites.InviteUserAsync(g.Id, owner.Id, user.Id, null);
 
         // Act
         var result = await invites.RevokeAsync(inv.Id, owner.Id);
@@ -434,7 +435,7 @@ public class InvitationServiceTests : TestBase
         var g = await groups.CreateGroupAsync(owner.Id, "Test Group", null);
 
         await groups.AddMemberAsync(g.Id, owner.Id, member.Id, GroupMember.Roles.Member);
-        var inv = await invites.InviteUserAsync(g.Id, owner.Id, invitee.Id, null, null);
+        var inv = await invites.InviteUserAsync(g.Id, owner.Id, invitee.Id, null);
 
         // Act & Assert
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
@@ -467,7 +468,7 @@ public class InvitationServiceTests : TestBase
         var invites = new InvitationService(db);
         var g = await groups.CreateGroupAsync(owner.Id, "Test Group", null);
 
-        var inv = await invites.InviteUserAsync(g.Id, owner.Id, user.Id, null, null);
+        var inv = await invites.InviteUserAsync(g.Id, owner.Id, user.Id, null);
 
         // Act
         await invites.RevokeAsync(inv.Id, owner.Id);

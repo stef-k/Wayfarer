@@ -18,8 +18,9 @@ can join one by invitation.
 ![My Groups list with map, membership and leave actions](../images/groups-index.JPG)
 
 From the Group's **Members** page, an owner can search for an existing user by
-username or display name and send an invitation. Invitations are handled inside
-Wayfarer. The invited user opens **Invitations** and chooses **Accept** or
+username or display name and send an invitation. Only registered accounts on
+your instance can be invited; email invitations are not supported. Invitations
+are handled inside Wayfarer. The invited user opens **Invitations** and chooses **Accept** or
 **Decline**. An accepted invitation adds that user to the Group; a pending,
 expired or cancelled invitation does not grant membership.
 

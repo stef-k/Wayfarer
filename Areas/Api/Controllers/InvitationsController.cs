@@ -47,7 +47,7 @@ public class InvitationsController : ControllerBase
         try
         {
             var invites = await _db.GroupInvitations
-                .Where(i => i.Status == GroupInvitation.InvitationStatuses.Pending && (i.InviteeUserId == CurrentUserId || i.InviteeUserId == null))
+                .Where(i => i.Status == GroupInvitation.InvitationStatuses.Pending && i.InviteeUserId == CurrentUserId)
                 .AsNoTracking()
                 .ToListAsync(ct);
 
@@ -73,7 +73,6 @@ public class InvitationsController : ControllerBase
                 InviterUserName = inviterMap.TryGetValue(i.InviterUserId, out var inv) ? inv.UserName : null,
                 InviterDisplayName = inviterMap.TryGetValue(i.InviterUserId, out var inv2) ? inv2.DisplayName : null,
                 i.InviteeUserId,
-                i.InviteeEmail,
                 i.ExpiresAt,
                 i.CreatedAt,
                 i.Status
@@ -95,12 +94,12 @@ public class InvitationsController : ControllerBase
     {
         if (CurrentUserId is null) return Unauthorized();
         if (req.GroupId == Guid.Empty) return BadRequest(new { message = "GroupId required" });
-        if (string.IsNullOrWhiteSpace(req.InviteeUserId) && string.IsNullOrWhiteSpace(req.InviteeEmail))
-            return BadRequest(new { message = "InviteeUserId or InviteeEmail required" });
+        if (string.IsNullOrWhiteSpace(req.InviteeUserId))
+            return BadRequest(new { message = "InviteeUserId required" });
 
         try
         {
-            var inv = await _invites.InviteUserAsync(req.GroupId, CurrentUserId, req.InviteeUserId, req.InviteeEmail, req.ExpiresAt, ct);
+            var inv = await _invites.InviteUserAsync(req.GroupId, CurrentUserId, req.InviteeUserId, req.ExpiresAt, ct);
             // Notify a known invitee to reload authenticated durable state.
             if (!string.IsNullOrEmpty(inv.InviteeUserId))
             {
@@ -108,7 +107,7 @@ public class InvitationsController : ControllerBase
             }
             // Inform managers of new pending invite (consolidated group channel)
             await _sse.BroadcastAsync($"group-{inv.GroupId}", JsonSerializer.Serialize(GroupSseEventDto.InviteCreated(inv.Id)));
-            return Ok(new { inv.Id, inv.GroupId, inv.Status, inv.InviteeUserId, inv.InviteeEmail });
+            return Ok(new { inv.Id, inv.GroupId, inv.Status, inv.InviteeUserId });
         }
         catch (UnauthorizedAccessException)
         {
@@ -156,7 +155,7 @@ public class InvitationsController : ControllerBase
         {
             return StatusCode(403, new { message = "You are not authorized to accept this invitation" });
         }
-        catch (InvalidOperationException ex) when (ex.Message is "Invitation expired" or "Invitation is not pending")
+        catch (InvalidOperationException ex)
         {
             return Conflict(new { message = GroupOperationErrors.Message(ex, "accept") });
         }

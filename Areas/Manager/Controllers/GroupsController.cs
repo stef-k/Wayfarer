@@ -98,7 +98,6 @@ namespace Wayfarer.Areas.Manager.Controllers;
                              {
                                  i.Id,
                                  i.InviteeUserId,
-                                 i.InviteeEmail,
                                  i.CreatedAt,
                                  UserName = u != null ? u.UserName : null,
                                  DisplayName = u != null ? u.DisplayName : null
@@ -128,7 +127,7 @@ namespace Wayfarer.Areas.Manager.Controllers;
                 SetAlert("Please select a user to invite.", "danger");
                 return RedirectToAction(nameof(Members), new { groupId });
             }
-            var invitation = await _invitationService.InviteUserAsync(groupId, userId, inviteeUserId, null, null);
+            var invitation = await _invitationService.InviteUserAsync(groupId, userId, inviteeUserId, null);
             if (!string.IsNullOrEmpty(invitation.InviteeUserId))
                 await _sse.BroadcastGroupNotificationAsync(invitation.InviteeUserId, SseService.InvitationStateHint);
             SetAlert("Invitation sent.");
@@ -239,7 +238,7 @@ namespace Wayfarer.Areas.Manager.Controllers;
         if (actorId == null) return Unauthorized();
         try
         {
-            var inv = await _invitationService.InviteUserAsync(groupId, actorId, inviteeUserId, null, null);
+            var inv = await _invitationService.InviteUserAsync(groupId, actorId, inviteeUserId, null);
             if (!string.IsNullOrEmpty(inv.InviteeUserId))
             {
                 await _sse.BroadcastGroupNotificationAsync(inv.InviteeUserId, SseService.InvitationStateHint);

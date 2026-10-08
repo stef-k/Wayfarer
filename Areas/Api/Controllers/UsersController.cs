@@ -129,7 +129,7 @@ public class UsersController : ControllerBase
 
         // Pending invites for this user (recent first)
         var pendingInvites = await _dbContext.GroupInvitations
-            .Where(i => i.Status == GroupInvitation.InvitationStatuses.Pending && (i.InviteeUserId == userId || i.InviteeUserId == null))
+            .Where(i => i.Status == GroupInvitation.InvitationStatuses.Pending && i.InviteeUserId == userId)
             .OrderByDescending(i => i.CreatedAt)
             .Take(50)
             .Join(_dbContext.Groups, i => i.GroupId, g => g.Id, (i, g) => new { i.Id, i.GroupId, GroupName = g.Name, i.CreatedAt })

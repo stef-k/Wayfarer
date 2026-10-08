@@ -91,7 +91,7 @@ public class UserGroupsControllerTests : TestBase
         var group = await SeedGroupWithOwnerAsync(db, owner);
         var callerGroup = await SeedGroupWithOwnerAsync(db, owner);
         var invService = new InvitationService(db);
-        var invite = await invService.InviteUserAsync(group.Id, owner.Id, invitee.Id, null, null);
+        var invite = await invService.InviteUserAsync(group.Id, owner.Id, invitee.Id, null);
         var sse = new FakeSseService();
         var controller = BuildController(db, owner, sse);
 
@@ -116,7 +116,7 @@ public class UserGroupsControllerTests : TestBase
         db.Users.AddRange(ownerA, ownerB, invitee);
         var suppliedGroup = await SeedGroupWithOwnerAsync(db, ownerA);
         var authoritativeGroup = await SeedGroupWithOwnerAsync(db, ownerB);
-        var invite = await new InvitationService(db).InviteUserAsync(authoritativeGroup.Id, ownerB.Id, invitee.Id, null, null);
+        var invite = await new InvitationService(db).InviteUserAsync(authoritativeGroup.Id, ownerB.Id, invitee.Id, null);
         var sse = new FakeSseService();
         var controller = BuildController(db, ownerB, sse);
 
@@ -138,7 +138,7 @@ public class UserGroupsControllerTests : TestBase
         db.Users.AddRange(caller, owner, invitee);
         var callerGroup = await SeedGroupWithOwnerAsync(db, caller);
         var authoritativeGroup = await SeedGroupWithOwnerAsync(db, owner);
-        var invite = await new InvitationService(db).InviteUserAsync(authoritativeGroup.Id, owner.Id, invitee.Id, null, null);
+        var invite = await new InvitationService(db).InviteUserAsync(authoritativeGroup.Id, owner.Id, invitee.Id, null);
         var sse = new FakeSseService();
         var controller = BuildController(db, caller, sse);
 
@@ -157,7 +157,7 @@ public class UserGroupsControllerTests : TestBase
         var invitee = TestDataFixtures.CreateUser(id: "invitee");
         db.Users.AddRange(owner, invitee);
         var group = await SeedGroupWithOwnerAsync(db, owner);
-        var invite = await new InvitationService(db).InviteUserAsync(group.Id, owner.Id, invitee.Id, null, null);
+        var invite = await new InvitationService(db).InviteUserAsync(group.Id, owner.Id, invitee.Id, null);
         await new InvitationService(db).RevokeAsync(invite.Id, owner.Id);
 
         var result = Assert.IsType<BadRequestObjectResult>(
