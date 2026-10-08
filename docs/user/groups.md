@@ -25,7 +25,8 @@ are handled inside Wayfarer. The invited user opens **Invitations** and chooses 
 expired or cancelled invitation does not grant membership.
 
 Owners and permitted managers can review pending invitations and cancel those
-that are no longer wanted. Mobile also lets you review and respond to invitations.
+that are no longer wanted. Accept or decline invitations in the Web **Invitations**
+page, then reload your Groups in Mobile to view the resulting membership.
 
 ## Understand Group roles
 
@@ -95,6 +96,9 @@ Switch day, month or year, choose a date and enable historical locations to revi
 past records. Larger date ranges may sample the display. Select a location to
 inspect its time and details. [WayfarerMobile](mobile.md#follow-groups-and-live-updates)
 provides a Group map on your phone too.
+
+On your phone, you can [navigate toward a selected member's latest shared position](mobile.md#navigate-toward-a-group-member).
+Check its timestamp before setting off: that position may already be stale.
 
 ## Leave or remove membership
 

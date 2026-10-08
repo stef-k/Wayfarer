@@ -102,6 +102,20 @@ files can include precise positions, times, notes and device metadata. Store and
 share them as private history unless you intend otherwise. A data export is a
 portable copy of your location or Trip data, not a complete server backup.
 
+## Move your phone Timeline
+
+For everyday phone-history portability, open Mobile's **Settings > Timeline Data**.
+Choose **Export CSV** for spreadsheets or **Export GeoJSON** for map/GIS tools and
+another phone. These exports contain the history retained locally. Use **Import
+Timeline** to read a CSV or Wayfarer GeoJSON file, then open the phone Timeline and
+check a few dates and location details.
+
+A phone import changes local history only. It does not upload those records,
+recreate a pending delivery queue or establish server linkage from the file's
+numeric IDs. To add history to Wayfarer too, use the Web location importer and
+verify server history separately. For undelivered recordings, follow
+[queue recovery](#recover-mobile-queue-and-local-history-safely).
+
 ## Move Trip plans
 
 From your personal **Trips** list:
@@ -133,6 +147,11 @@ retained rather than silently rewritten by import.
 The published Mobile app uses its existing full-address fields. Its local import
 and export do not promise to retain newer server-only address fields such as
 `ProviderAddressLine1`. Keep the original server export if you need that detail.
+
+Current Web CSV/GeoJSON history exports and Android 1.3.0 Timeline exports omit
+the portable record UUID (`IdempotencyKey`), so they do not provide an exact
+UUID-preserving history round-trip. Queue-recovery files do carry that identifier
+for [delivery reconciliation](#deliver-queued-records-through-a-server-import).
 
 Native Trip KML preserves Regions, Places, Areas, ordered From/Via/To connections,
 route geometry and automatic/manual duration choices. Older Wayfarer KML remains

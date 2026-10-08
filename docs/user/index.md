@@ -14,6 +14,18 @@ server to follow it.
 
 ![A Wayfarer Timeline showing recorded locations on a map](../images/public-timeline.JPG)
 
+## Choose your next task
+
+| I want to… | Guide |
+| --- | --- |
+| Explore location history by date and geography, or correct and share records | [Timeline and locations](timeline.md) |
+| Plan destinations and review actual visits and Trip progress | [Trips](trips.md) |
+| Share locations with trusted people and navigate toward a Group member | [Groups](groups.md) |
+| Move phone or server history and Trip plans between files and apps | [Import and export](import-export.md) |
+| Connect Mobile, a GPS logger or another app to record locations | [Connect apps to Wayfarer](connect-apps.md) |
+| Record locations, navigate and use downloaded Trips offline on my phone | [WayfarerMobile](mobile.md) |
+| Add optional address lookup, place search or generated routes | [Personal location providers](location-providers.md) |
+
 ## Get an account and sign in
 
 Ask the person running your instance for its web address. Wayfarer has no single
@@ -82,18 +94,6 @@ for your own plans. The theme switch changes the app's light or dark appearance.
    a Segment. You can plan manually without a personal provider.
 5. If you want to share, choose the audience deliberately: a trusted
    [Group](groups.md), a public Timeline or a public Trip.
-
-## Choose your next task
-
-| I want to… | Guide |
-| --- | --- |
-| Browse, correct or share where I have been | [Timeline and locations](timeline.md) |
-| Plan a journey, follow routes and record visits | [Trips](trips.md) |
-| Share locations with trusted people | [Groups](groups.md) |
-| Move history or Trip plans between files and apps | [Import and export](import-export.md) |
-| Connect Mobile, a GPS logger or another app | [Connect apps to Wayfarer](connect-apps.md) |
-| Record locations and use Trips on my phone | [WayfarerMobile](mobile.md) |
-| Add optional address lookup, place search or generated routes | [Personal location providers](location-providers.md) |
 
 ## Choose what you share
 
