@@ -115,7 +115,8 @@ public class MobileGroupsController : MobileApiController
                     Name = g.Name,
                     Description = g.Description,
                     GroupType = g.GroupType,
-                    OrgPeerVisibilityEnabled = g.OrgPeerVisibilityEnabled,
+                    // Published Mobile uses this bit to show its Organization-only sharing control.
+                    OrgPeerVisibilityEnabled = isOrg && g.OrgPeerVisibilityEnabled,
                     MemberCount = memberCountLookup.TryGetValue(g.Id, out var count) ? count : 0,
                     IsOwner = isOwner,
                     IsManager = isOwner || isManager,
