@@ -426,13 +426,13 @@ namespace Wayfarer.Areas.Manager.Controllers;
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (userId == null) return Unauthorized();
 
-        var group = await _dbContext.Groups.FirstOrDefaultAsync(g => g.Id == groupId);
+        var group = await _dbContext.Groups.FirstOrDefaultAsync(g => g.Id == groupId && !g.IsArchived);
         if (group == null) return NotFound();
 
         var membership = await _dbContext.GroupMembers.AsNoTracking()
             .FirstOrDefaultAsync(m => m.GroupId == groupId && m.UserId == userId && m.Status == GroupMember.MembershipStatuses.Active);
-        var isOwnerOrManager = membership != null && (membership.Role == GroupMember.Roles.Owner || membership.Role == GroupMember.Roles.Manager);
-        if (!isOwnerOrManager && group.OwnerUserId != userId) return Forbid();
+        if (!GroupLocationVisibility.CanManage(membership)) return Forbid();
+        ViewBag.MyMembership = membership;
 
         ViewBag.Group = group;
         ViewBag.GroupId = groupId;

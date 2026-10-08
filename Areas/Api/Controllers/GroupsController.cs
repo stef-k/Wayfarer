@@ -73,16 +73,15 @@ public class GroupsController : ControllerBase
     {
         if (CurrentUserId is null) return Unauthorized();
 
-        // must be a member or group owner to view list
+        // Group ownership metadata never substitutes for active membership.
         var isMember = await _db.GroupMembers
             .AnyAsync(
                 m => m.GroupId == groupId && m.UserId == CurrentUserId &&
                      m.Status == GroupMember.MembershipStatuses.Active, ct);
-        var isGroupOwner = await _db.Groups.AnyAsync(g => g.Id == groupId && g.OwnerUserId == CurrentUserId, ct);
-        if (!isMember && !isGroupOwner) return StatusCode(403);
+        if (!isMember || !await _db.Groups.AnyAsync(g => g.Id == groupId && !g.IsArchived, ct)) return StatusCode(403);
 
         var roster = await (from m in _db.GroupMembers
-                where m.GroupId == groupId
+                where m.GroupId == groupId && m.Status == GroupMember.MembershipStatuses.Active
                 join u in _db.Users on m.UserId equals u.Id
                 select new { m, u })
             .AsNoTracking()
@@ -294,12 +293,9 @@ public class GroupsController : ControllerBase
                 where m.UserId == CurrentUserId && m.Status == GroupMember.MembershipStatuses.Active &&
                       (m.Role == GroupMember.Roles.Owner || m.Role == GroupMember.Roles.Manager)
                 join g in _db.Groups on m.GroupId equals g.Id
+                where !g.IsArchived
                 select new { g.Id, g.Name, g.Description }).AsNoTracking().ToListAsync(ct);
-            // also include groups the user owns explicitly
-            var owned = await _db.Groups.Where(g => g.OwnerUserId == CurrentUserId)
-                .Select(g => new { g.Id, g.Name, g.Description }).AsNoTracking().ToListAsync(ct);
-            var combined = managed.Union(owned).Distinct().ToList();
-            return Ok(combined);
+            return Ok(managed);
         }
 
         if (scope == "joined")
@@ -308,13 +304,17 @@ public class GroupsController : ControllerBase
                 where m.UserId == CurrentUserId && m.Status == GroupMember.MembershipStatuses.Active &&
                       m.Role == GroupMember.Roles.Member
                 join g in _db.Groups on m.GroupId equals g.Id
+                where !g.IsArchived
                 select new { g.Id, g.Name, g.Description }).AsNoTracking().ToListAsync(ct);
             return Ok(joined);
         }
 
         // default: all user-related groups
-        var list = await _groups.ListGroupsForUserAsync(CurrentUserId, ct);
-        var payload = list.Select(g => new { g.Id, g.Name, g.Description }).ToList();
+        var payload = await (from m in _db.GroupMembers
+            where m.UserId == CurrentUserId && m.Status == GroupMember.MembershipStatuses.Active
+            join g in _db.Groups on m.GroupId equals g.Id
+            where !g.IsArchived
+            select new { g.Id, g.Name, g.Description }).AsNoTracking().ToListAsync(ct);
         return Ok(payload);
     }
 

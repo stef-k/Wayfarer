@@ -1,0 +1,27 @@
+@using Wayfarer.Services
+@model (Wayfarer.Models.Group Group, Wayfarer.Models.GroupMember Membership)
+@* Both maps expose persisted sharing policy according to active Group roles. *@
+@if (string.Equals(Model.Group.GroupType, "Organization", StringComparison.OrdinalIgnoreCase))
+{
+    <div class="alert alert-info py-2 mb-2">
+        @if (GroupLocationVisibility.CanManage(Model.Membership))
+        {
+            <div class="form-check form-switch">
+                <input class="form-check-input" type="checkbox" id="orgPeerVisibilityToggle" checked="@Model.Group.OrgPeerVisibilityEnabled" />
+                <label class="form-check-label" for="orgPeerVisibilityToggle">Enable peer location sharing in this Organization Group</label>
+            </div>
+        }
+        <small>@(Model.Group.OrgPeerVisibilityEnabled ? "Sharing is on; each member can hide their own locations." : "Sharing is off; each member can see only their own locations.")</small>
+    </div>
+}
+@if (GroupLocationVisibility.CanSetPersonalSharing(Model.Group))
+{
+    <div id="peerVisibilityPanel" class="alert alert-info py-2 mb-2">
+        <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" id="peerVisibilityToggle" checked="@(!Model.Membership.OrgPeerVisibilityAccessDisabled)" />
+            <label class="form-check-label" for="peerVisibilityToggle">Allow peers to see my locations in this @Model.Group.GroupType Group</label>
+        </div>
+        <small>This controls your own sharing. You can still view other members who share.</small>
+    </div>
+}
+<div id="groupSharingError" class="alert alert-danger py-2 mb-2" role="alert" hidden>Sharing could not be saved. Please try again.</div>

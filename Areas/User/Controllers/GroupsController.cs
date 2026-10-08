@@ -255,7 +255,7 @@ public class GroupsController : BaseController
     }
 
     /// <summary>
-    /// Group map for a group the user is a member of. Mirrors manager map behavior but without admin actions.
+    /// Group map for an active member, including Organization settings for active Group Owners/Managers.
     /// GET /User/Groups/Map?groupId={id}
     /// </summary>
     [HttpGet]
@@ -264,12 +264,13 @@ public class GroupsController : BaseController
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (userId == null) return Unauthorized();
 
-        var group = await _dbContext.Groups.FirstOrDefaultAsync(g => g.Id == groupId);
+        var group = await _dbContext.Groups.FirstOrDefaultAsync(g => g.Id == groupId && !g.IsArchived);
         if (group == null) return NotFound();
 
-        var isMember = await _dbContext.GroupMembers.AsNoTracking()
-            .AnyAsync(m => m.GroupId == groupId && m.UserId == userId! && m.Status == GroupMember.MembershipStatuses.Active);
-        if (!isMember) return Forbid();
+        var myMembership = await _dbContext.GroupMembers.AsNoTracking()
+            .FirstOrDefaultAsync(m => m.GroupId == groupId && m.UserId == userId && m.Status == GroupMember.MembershipStatuses.Active);
+        if (myMembership == null) return Forbid();
+        ViewBag.MyMembership = myMembership;
 
         ViewBag.Group = group;
         ViewBag.GroupId = groupId;
@@ -281,10 +282,6 @@ public class GroupsController : BaseController
         ViewBag.CurrentUserId = userId;
         var me = await _dbContext.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == userId);
         ViewBag.CurrentUserName = me?.UserName;
-        // current user's peer-visibility flag (reuse existing field)
-        var myMembership = await _dbContext.GroupMembers.AsNoTracking()
-            .FirstOrDefaultAsync(m => m.GroupId == groupId && m.UserId == userId && m.Status == GroupMember.MembershipStatuses.Active);
-        ViewBag.MyPeerVisibilityDisabled = myMembership?.OrgPeerVisibilityAccessDisabled ?? false;
         SetPageTitle($"Map - {group.Name}");
         return View();
     }
