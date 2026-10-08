@@ -488,7 +488,7 @@ test.describe.serial('#407/#408 persisted waypoint aggregate and accessible edit
     await page.getByRole('button', { name: 'Add Segment' }).click();
     await form.getByLabel('From place').selectOption(fixture.fromId);
     await form.getByLabel('To place').selectOption(fixture.toId);
-    await form.getByLabel('Transport mode').selectOption({ index: 1 });
+    await form.getByLabel('Transport mode').selectOption(fixture.mode);
     const createResponse = page.waitForResponse(candidate =>
       candidate.request().method() === 'POST' && candidate.url().endsWith('/segments'));
     await page.getByRole('button', { name: 'Save Segment' }).click();
