@@ -11,6 +11,7 @@ import subprocess
 # The gate must prove itself, including publication/runner wiring and local actions.
 GATE_OWNERS = ('.github/workflows/*', '.github/actions/*', 'tools/ci/application_image_scope.py')
 # Dedicated safety tests are also client files, but require only the cleanup matrix.
+# Legacy PowerShell patterns retain deletion ownership in migration diffs; no scripts are invoked.
 CLEANUP_OWNERS = (
     'tools/test-artifact-paths.*', 'tools/test-cleanup.mjs', 'tests/client/testCleanup.test.mjs',
     'tools/coverage-report*.ps1', 'tools/coverage_report.py', 'tools/tests/test_coverage_report.py',

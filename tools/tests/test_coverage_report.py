@@ -12,6 +12,9 @@ import uuid
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from coverage_report import CoverageRun, generate_report
 
+# Junction fixtures must use the real OS command while coverage subprocesses are mocked.
+NATIVE_RUN = subprocess.run
+
 
 class CoverageTests(unittest.TestCase):
     """Exercise the real report owner in a disposable repository, without running .NET."""
@@ -30,8 +33,8 @@ class CoverageTests(unittest.TestCase):
     def link(self, path, target):
         """Use a real Windows junction without requiring symlink privileges."""
         if os.name == 'nt':
-            subprocess.run(['cmd', '/c', 'mklink', '/J', str(path), str(target)],
-                           check=True, capture_output=True)
+            NATIVE_RUN(['cmd', '/c', 'mklink', '/J', str(path), str(target)],
+                       check=True, capture_output=True)
             self.addCleanup(path.rmdir)
         else:
             path.symlink_to(target, target_is_directory=True)
@@ -177,11 +180,31 @@ class CoverageTests(unittest.TestCase):
                 self.assertFalse(run.results.exists())
                 self.assertEqual(run.report.exists(), failure is None)
                 self.previous.mkdir(exist_ok=True)
-        for primary in (None, subprocess.CalledProcessError(7, ['dotnet'])):
-            with self.subTest(primary=primary), patch('coverage_report.CoverageRun') as owner, \
-                    patch('coverage_report.subprocess.run', side_effect=primary):
-                owner.return_value.finish.return_value = ['synthetic cleanup refusal']
-                self.assertEqual(generate_report(self.repository), 1 if primary is None else 7)
+
+    def test_real_cleanup_refusal_preserves_primary_tool_status(self):
+        """An actual linked results tree reports cleanup debt without hiding a test failure."""
+        foreign = self.repository / 'foreign'
+        foreign.mkdir()
+        (foreign / 'keep').write_text('foreign')
+        for primary in (False, True):
+            run = CoverageRun(self.repository)
+
+            def tool(arguments, **options):
+                """Simulate a tool leaving an unsafe output, using the actual filesystem finalizer."""
+                if arguments[1] == 'test':
+                    (run.results / 'coverage.cobertura.xml').write_text('<coverage/>')
+                    if primary:
+                        self.link(run.results / 'linked', foreign)
+                        raise subprocess.CalledProcessError(7, arguments)
+                if arguments[1] == 'reportgenerator':
+                    (run.report / 'index.html').write_text('current')
+                    self.link(run.results / 'linked', foreign)
+
+            with self.subTest(primary=primary), patch('coverage_report.CoverageRun', return_value=run), \
+                    patch('coverage_report.subprocess.run', side_effect=tool):
+                self.assertEqual(generate_report(self.repository), 7 if primary else 1)
+                self.assertTrue(run.results.exists())
+                self.assertEqual((foreign / 'keep').read_text(), 'foreign')
 
 
 if __name__ == '__main__':
