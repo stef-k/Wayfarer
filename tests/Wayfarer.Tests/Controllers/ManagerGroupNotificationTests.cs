@@ -2,6 +2,8 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Wayfarer.Areas.Manager.Controllers;
@@ -121,6 +123,31 @@ public sealed class ManagerGroupNotificationTests : TestBase
 
         Assert.Empty(sse.Messages);
         Assert.Equal("Family", group.GroupType);
+    }
+
+    /// <summary>A failing type save leaves the persisted policy unchanged and emits no invalidation.</summary>
+    [Fact]
+    public async Task EditDoesNotPublishWhenTypeCommitFails()
+    {
+        var interceptor = new RejectGroupTypeSave();
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString()).AddInterceptors(interceptor).Options;
+        await using var db = new ApplicationDbContext(options, new ServiceCollection().BuildServiceProvider());
+        var owner = TestDataFixtures.CreateUser(id: "owner");
+        db.Users.Add(owner);
+        var groups = new GroupService(db);
+        var group = await groups.CreateGroupAsync(owner.Id, "Group", null);
+        group.GroupType = "Family";
+        await db.SaveChangesAsync();
+        interceptor.Reject = true;
+        var sse = new RecordingSseService();
+
+        await Assert.ThrowsAsync<DbUpdateException>(() =>
+            BuildController(db, owner.Id, groups, sse).Edit(group.Id, "Updated", null, "Organization"));
+
+        Assert.Empty(sse.Messages);
+        db.ChangeTracker.Clear();
+        Assert.Equal("Family", (await db.Groups.SingleAsync()).GroupType);
     }
 
     /// <summary>Each Manager revoke owner emits one private hint after durable revocation.</summary>
@@ -270,6 +297,19 @@ public sealed class ManagerGroupNotificationTests : TestBase
         controller.ControllerContext = new ControllerContext { HttpContext = http };
         controller.TempData = new TempDataDictionary(http, Mock.Of<ITempDataProvider>());
         return controller;
+    }
+
+    /// <summary>Fail only the policy write, after the existing name/description update has succeeded.</summary>
+    private sealed class RejectGroupTypeSave : SaveChangesInterceptor
+    {
+        public bool Reject { get; set; }
+        public override ValueTask<InterceptionResult<int>> SavingChangesAsync(DbContextEventData eventData,
+            InterceptionResult<int> result, CancellationToken cancellationToken = default)
+        {
+            if (Reject && eventData.Context!.ChangeTracker.Entries<Group>().Any(e => e.Property(g => g.GroupType).IsModified))
+                throw new DbUpdateException("type persistence failure");
+            return ValueTask.FromResult(result);
+        }
     }
 
     private sealed class RecordingSseService : SseService

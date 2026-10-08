@@ -220,6 +220,11 @@ public class UserGroupsControllerTests : TestBase
             Assert.Null(controller.ViewData["Members"]);
             Assert.Null(controller.ViewData["Invites"]);
         }
+        if (archived)
+        {
+            var listing = Assert.IsType<ViewResult>(await controller.Index());
+            Assert.Empty(Assert.IsAssignableFrom<IEnumerable<object>>(listing.ViewData["Joined"]));
+        }
     }
 
     private static async Task<Group> SeedGroupWithOwnerAsync(ApplicationDbContext db, ApplicationUser owner)

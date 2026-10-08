@@ -9,6 +9,12 @@
 
 ### Fixed
 
+- Enforce Family/Friends/Organization location audiences and Organization sharing
+  controls across Web, Mobile and SSE. Require active Group membership for
+  management, reject archived Groups, and rejoin former Owners/Managers as Members
+  on ordinary invitations. Refresh Web maps after Group-type changes and removals
+  through the Manager form (#778).
+
 - Keep Trip Editor route handles reachable when map-work controls resize the map,
   and keep phone route controls in one scrollable column above the peek drawer.
   Refresh Leaflet's container size without capturing a trip-view edit, and wrap

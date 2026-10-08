@@ -78,22 +78,22 @@ public class GroupService : IGroupService
         await _db.SaveChangesAsync(ct);
     }
 
+    /// <summary>Lists unarchived groups with active membership; ownership metadata grants no access.</summary>
     public async Task<IReadOnlyList<Group>> ListGroupsForUserAsync(string userId, CancellationToken ct = default)
     {
-        var owned = _db.Groups.Where(g => g.OwnerUserId == userId);
         var memberOf = from m in _db.GroupMembers
                        where m.UserId == userId && m.Status == GroupMember.MembershipStatuses.Active
                        join g in _db.Groups on m.GroupId equals g.Id
+                       where !g.IsArchived
                        select g;
-        var res = await owned.Union(memberOf).Distinct().AsNoTracking().ToListAsync(ct);
-        return res;
+        return await memberOf.AsNoTracking().ToListAsync(ct);
     }
 
     /// <summary>
     /// Adds a new member to a group with the specified role.
-    /// Requires Owner or Manager permissions for the actor.
+    /// Requires active Owner or Manager membership in an unarchived group.
     /// Role assignment restrictions:
-    /// - Only the actual Owner (Group.OwnerUserId) or someone with Owner role in GroupMembers can assign "Manager" or "Owner" roles.
+    /// - Only an active Owner membership can assign "Manager" or "Owner" roles.
     /// - Managers can only assign the "Member" role.
     /// Uses database-level unique constraint on (GroupId, UserId) to prevent race conditions
     /// where concurrent requests might pass the application-level check.
@@ -106,6 +106,7 @@ public class GroupService : IGroupService
     /// <returns>The created GroupMember entity.</returns>
     /// <exception cref="ArgumentException">Thrown when an invalid role is specified or when a Manager tries to assign Owner/Manager role.</exception>
     /// <exception cref="InvalidOperationException">Thrown when user is already a member (detected at application or database level).</exception>
+    /// <exception cref="KeyNotFoundException">Thrown when the group does not exist or is archived.</exception>
     /// <exception cref="UnauthorizedAccessException">Thrown when the actor lacks required permissions.</exception>
     public async Task<GroupMember> AddMemberAsync(Guid groupId, string actorUserId, string targetUserId, string role, CancellationToken ct = default)
     {
@@ -119,14 +120,11 @@ public class GroupService : IGroupService
             throw new ArgumentException($"Invalid role '{role}'. Valid roles are: {string.Join(", ", validRoles)}", nameof(role));
         }
 
-        // Check if actor is an Owner (either actual owner via Group.OwnerUserId or has Owner role in GroupMembers)
-        var isActualOwner = await _db.Groups.AsNoTracking()
-            .AnyAsync(g => g.Id == groupId && g.OwnerUserId == actorUserId, ct);
-        var hasOwnerRole = await _db.GroupMembers.AsNoTracking()
+        // Elevated role assignment requires active Owner membership, independently of metadata.
+        var actorIsOwner = await _db.GroupMembers.AsNoTracking()
             .AnyAsync(m => m.GroupId == groupId && m.UserId == actorUserId
                         && m.Status == GroupMember.MembershipStatuses.Active
                         && m.Role == GroupMember.Roles.Owner, ct);
-        var actorIsOwner = isActualOwner || hasOwnerRole;
 
         // If actor is not an Owner, they can only assign "Member" role (prevents privilege escalation)
         if (!actorIsOwner && (assignedRole == GroupMember.Roles.Owner || assignedRole == GroupMember.Roles.Manager))
@@ -284,7 +282,7 @@ public class GroupService : IGroupService
     }
 
     /// <summary>
-    /// Allows a user to leave the specified group by setting their membership status to Left.
+    /// Allows an active member to leave an unarchived group by setting their membership status to Left.
     /// If the leaving member is the group owner, ownership is transferred to an eligible successor.
     /// If this was the last active member, the group will be automatically deleted in the same transaction.
     /// </summary>
@@ -301,7 +299,7 @@ public class GroupService : IGroupService
     /// <param name="groupId">The group to leave.</param>
     /// <param name="userId">The user leaving the group.</param>
     /// <param name="ct">Cancellation token.</param>
-    /// <exception cref="KeyNotFoundException">Thrown when the membership or group is not found.</exception>
+    /// <exception cref="KeyNotFoundException">Thrown when membership is inactive/missing or the group is archived/missing.</exception>
     /// <exception cref="InvalidOperationException">Thrown when leaving would leave Organization group without a manager.</exception>
     public async Task LeaveGroupAsync(Guid groupId, string userId, CancellationToken ct = default)
     {
@@ -313,10 +311,11 @@ public class GroupService : IGroupService
 
         try
         {
-            var member = await _db.GroupMembers.FirstOrDefaultAsync(m => m.GroupId == groupId && m.UserId == userId, ct)
+            var member = await _db.GroupMembers.FirstOrDefaultAsync(m => m.GroupId == groupId && m.UserId == userId
+                         && m.Status == GroupMember.MembershipStatuses.Active, ct)
                          ?? throw new KeyNotFoundException("Membership not found");
 
-            var group = await _db.Groups.FirstOrDefaultAsync(g => g.Id == groupId, ct)
+            var group = await _db.Groups.FirstOrDefaultAsync(g => g.Id == groupId && !g.IsArchived, ct)
                         ?? throw new KeyNotFoundException("Group not found");
 
             // Check if the leaving user is the actual group owner (using Group.OwnerUserId)
@@ -446,45 +445,33 @@ public class GroupService : IGroupService
     }
 
     /// <summary>
-    /// Validates that the actor has Owner or Manager permissions for the specified group.
-    /// Checks both the GroupMembers table (for delegated roles) and Group.OwnerUserId (for actual ownership).
-    /// First verifies that the group exists before checking permissions.
+    /// Requires active membership with the requested Owner/Manager role in an unarchived group.
+    /// Ownership metadata is retained for transfers and never grants residual permissions.
     /// </summary>
     /// <param name="groupId">The group to check permissions for.</param>
     /// <param name="actorUserId">The user attempting the action.</param>
     /// <param name="requireOwner">If true, only Owner role is accepted; if false, Manager role also allowed.</param>
     /// <param name="ct">Cancellation token.</param>
     /// <exception cref="ArgumentException">Thrown when actorUserId is null or empty.</exception>
-    /// <exception cref="KeyNotFoundException">Thrown when the group does not exist.</exception>
+    /// <exception cref="KeyNotFoundException">Thrown when the group does not exist or is archived.</exception>
     /// <exception cref="UnauthorizedAccessException">Thrown when the user lacks required permissions.</exception>
     private async Task EnsureOwnerOrManagerAsync(Guid groupId, string actorUserId, bool requireOwner, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(actorUserId)) throw new ArgumentException("actorUserId required");
 
-        // First check if the group exists
-        var group = await _db.Groups.AsNoTracking()
-            .FirstOrDefaultAsync(g => g.Id == groupId, ct);
-        if (group == null) throw new KeyNotFoundException("Group not found");
+        if (!await _db.Groups.AnyAsync(g => g.Id == groupId && !g.IsArchived, ct))
+            throw new KeyNotFoundException("Group not found");
 
-        // Check if user is the actual group owner via Group.OwnerUserId
-        var isActualOwner = group.OwnerUserId == actorUserId;
-
-        // Check membership table for delegated Owner/Manager roles
         var membership = await _db.GroupMembers.AsNoTracking()
             .FirstOrDefaultAsync(m => m.GroupId == groupId && m.UserId == actorUserId && m.Status == GroupMember.MembershipStatuses.Active, ct);
-
-        var hasOwnerRole = membership?.Role == GroupMember.Roles.Owner;
-        var hasManagerRole = membership?.Role == GroupMember.Roles.Manager;
-
         if (requireOwner)
         {
-            // Allow if user is actual owner OR has Owner role in membership
-            if (!(isActualOwner || hasOwnerRole)) throw new UnauthorizedAccessException("Owner permissions required");
+            if (membership?.Role != GroupMember.Roles.Owner)
+                throw new UnauthorizedAccessException("Owner permissions required");
         }
-        else
+        else if (!GroupLocationVisibility.CanManage(membership))
         {
-            // Allow if user is actual owner OR has Owner/Manager role in membership
-            if (!(isActualOwner || hasOwnerRole || hasManagerRole)) throw new UnauthorizedAccessException("Manager or Owner permissions required");
+            throw new UnauthorizedAccessException("Manager or Owner permissions required");
         }
     }
 

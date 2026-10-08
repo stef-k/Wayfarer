@@ -38,6 +38,7 @@ public sealed class GroupAuthorizationTests : TestBase
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => groups.UpdateGroupAsync(group.Id, owner.Id, "Changed", null));
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => groups.RemoveMemberAsync(group.Id, owner.Id, peer.Id));
         await Assert.ThrowsAsync<UnauthorizedAccessException>(() => groups.DeleteGroupAsync(group.Id, owner.Id));
+        await Assert.ThrowsAsync<KeyNotFoundException>(() => groups.LeaveGroupAsync(group.Id, owner.Id));
         Assert.Empty(await groups.ListGroupsForUserAsync(owner.Id));
         Assert.Equal(owner.Id, group.OwnerUserId);
         Assert.Equal("Group", group.Name);
@@ -97,6 +98,7 @@ public sealed class GroupAuthorizationTests : TestBase
         await Assert.ThrowsAsync<KeyNotFoundException>(() => groups.UpdateGroupAsync(group.Id, owner.Id, "Changed", null));
         await Assert.ThrowsAsync<KeyNotFoundException>(() => groups.RemoveMemberAsync(group.Id, owner.Id, owner.Id));
         await Assert.ThrowsAsync<KeyNotFoundException>(() => groups.DeleteGroupAsync(group.Id, owner.Id));
+        await Assert.ThrowsAsync<KeyNotFoundException>(() => groups.LeaveGroupAsync(group.Id, owner.Id));
         Assert.Empty(await groups.ListGroupsForUserAsync(owner.Id));
         Assert.Equal(GroupInvitation.InvitationStatuses.Pending, pending.Status);
     }

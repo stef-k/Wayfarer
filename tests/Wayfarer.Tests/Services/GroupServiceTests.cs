@@ -456,25 +456,17 @@ public class GroupServiceTests : TestBase
 
     #region ListGroupsForUserAsync Tests
 
+    /// <summary>Creation supplies the active Owner membership needed to discover an owned Group.</summary>
     [Fact]
-    public async Task ListGroupsForUserAsync_ReturnsOwnedGroups()
+    public async Task ListGroupsForUserAsync_ReturnsActiveOwnedGroups()
     {
         // Arrange
         var db = CreateDbContext();
         var user = TestDataFixtures.CreateUser();
         db.Users.Add(user);
 
-        var group = new Group
-        {
-            Id = Guid.NewGuid(),
-            Name = "Owned Group",
-            OwnerUserId = user.Id,
-            CreatedAt = DateTime.UtcNow
-        };
-        db.Groups.Add(group);
-        await db.SaveChangesAsync();
-
         var service = new GroupService(db);
+        await service.CreateGroupAsync(user.Id, "Owned Group", null);
 
         // Act
         var groups = await service.ListGroupsForUserAsync(user.Id);

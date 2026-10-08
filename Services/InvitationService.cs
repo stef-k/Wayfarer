@@ -111,7 +111,8 @@ public class InvitationService : IInvitationService
     }
 
     /// <summary>
-    /// Accepts a pending invitation and creates or revives group membership.
+    /// Accepts a pending invitation and creates or revives ordinary membership in an unarchived group.
+    /// Reactivation never restores historical Owner/Manager authority; still-active roles are retained.
     /// Uses a database transaction with RepeatableRead isolation to prevent race conditions
     /// where the invitation could be revoked or the group deleted between validation and commit.
     /// Only the designated invitee can accept the invitation.
@@ -121,7 +122,7 @@ public class InvitationService : IInvitationService
     /// <param name="ct">Cancellation token.</param>
     /// <returns>The created or updated GroupMember entity.</returns>
     /// <exception cref="KeyNotFoundException">Thrown when invitation is not found.</exception>
-    /// <exception cref="InvalidOperationException">Thrown when invitation is not pending, expired, or group no longer exists.</exception>
+    /// <exception cref="InvalidOperationException">Thrown when invitation is not pending, expired, or group is unavailable.</exception>
     /// <exception cref="UnauthorizedAccessException">Thrown when the user is not the designated invitee.</exception>
     public async Task<GroupMember> AcceptAsync(string token, string acceptorUserId, CancellationToken ct = default)
     {
@@ -151,11 +152,11 @@ public class InvitationService : IInvitationService
                 throw new InvalidOperationException("Invitation expired");
             }
 
-            // Step 2: Verify the group still exists before creating membership
-            var groupExists = await _db.Groups.AnyAsync(g => g.Id == inv.GroupId, ct);
-            if (!groupExists)
+            // Step 2: Archived groups cannot grant or revive membership.
+            var groupAvailable = await _db.Groups.AnyAsync(g => g.Id == inv.GroupId && !g.IsArchived, ct);
+            if (!groupAvailable)
             {
-                throw new InvalidOperationException("The group associated with this invitation no longer exists");
+                throw new InvalidOperationException("The group associated with this invitation is no longer available");
             }
 
             // Step 3: Update invitation status
@@ -189,10 +190,8 @@ public class InvitationService : IInvitationService
                     existing.Status = GroupMember.MembershipStatuses.Active;
                     existing.JoinedAt = existing.JoinedAt == default ? DateTime.UtcNow : existing.JoinedAt;
                     existing.LeftAt = null;
-                    if (string.IsNullOrWhiteSpace(existing.Role))
-                    {
-                        existing.Role = GroupMember.Roles.Member;
-                    }
+                    // An ordinary invitation does not delegate a former elevated role.
+                    existing.Role = GroupMember.Roles.Member;
                 }
             }
 
@@ -294,33 +293,23 @@ public class InvitationService : IInvitationService
     }
 
     /// <summary>
-    /// Validates that the actor has Owner or Manager permissions for the specified group.
-    /// Checks both the GroupMembers table (for delegated roles) and Group.OwnerUserId (for actual ownership).
-    /// First verifies that the group exists before checking permissions.
+    /// Requires active Owner/Manager membership in an unarchived group.
+    /// Ownership metadata is retained for transfers and never grants residual permissions.
     /// </summary>
     /// <param name="groupId">The group to check permissions for.</param>
     /// <param name="actorUserId">The user attempting the action.</param>
     /// <param name="ct">Cancellation token.</param>
-    /// <exception cref="KeyNotFoundException">Thrown when the group does not exist.</exception>
+    /// <exception cref="KeyNotFoundException">Thrown when the group does not exist or is archived.</exception>
     /// <exception cref="UnauthorizedAccessException">Thrown when the user lacks required permissions.</exception>
     private async Task EnsureOwnerOrManagerAsync(Guid groupId, string actorUserId, CancellationToken ct)
     {
-        // First check if the group exists
-        var group = await _db.Groups.AsNoTracking()
-            .FirstOrDefaultAsync(g => g.Id == groupId, ct);
-        if (group == null) throw new KeyNotFoundException("Group not found");
+        if (!await _db.Groups.AnyAsync(g => g.Id == groupId && !g.IsArchived, ct))
+            throw new KeyNotFoundException("Group not found");
 
-        // Check if user is the actual group owner via Group.OwnerUserId
-        var isActualOwner = group.OwnerUserId == actorUserId;
-
-        // Check membership table for delegated Owner/Manager roles
         var membership = await _db.GroupMembers.AsNoTracking()
             .FirstOrDefaultAsync(m => m.GroupId == groupId && m.UserId == actorUserId && m.Status == GroupMember.MembershipStatuses.Active, ct);
-        var hasOwnerRole = membership?.Role == GroupMember.Roles.Owner;
-        var hasManagerRole = membership?.Role == GroupMember.Roles.Manager;
-
-        // Allow if user is actual owner OR has Owner/Manager role in membership
-        if (!(isActualOwner || hasOwnerRole || hasManagerRole)) throw new UnauthorizedAccessException("Manager or Owner permissions required");
+        if (!GroupLocationVisibility.CanManage(membership))
+            throw new UnauthorizedAccessException("Manager or Owner permissions required");
     }
 
     private async Task AddAuditAsync(string userId, string action, string details, CancellationToken ct)

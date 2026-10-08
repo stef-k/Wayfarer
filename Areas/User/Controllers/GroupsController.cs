@@ -49,6 +49,7 @@ public class GroupsController : BaseController
         var joined = await (from m in _dbContext.GroupMembers
                             where m.UserId == userId && m.Status == GroupMember.MembershipStatuses.Active
                             join g in _dbContext.Groups on m.GroupId equals g.Id
+                            where !g.IsArchived
                             select new { g.Id, g.Name, g.Description, g.GroupType }).AsNoTracking().ToListAsync();
 
         // Active member counts per group (same approach as Manager UI)
@@ -119,7 +120,7 @@ public class GroupsController : BaseController
     }
 
     /// <summary>
-    /// Members/invites management for a user-owned group.
+    /// Members/invites management requires active Owner membership in an unarchived group.
     /// </summary>
     [HttpGet]
     public async Task<IActionResult> Members(Guid groupId)
@@ -127,13 +128,13 @@ public class GroupsController : BaseController
         var userId = User.FindFirstValue(System.Security.Claims.ClaimTypes.NameIdentifier);
         if (userId == null) return Unauthorized();
 
-        var group = await _dbContext.Groups.FirstOrDefaultAsync(g => g.Id == groupId);
+        var group = await _dbContext.Groups.FirstOrDefaultAsync(g => g.Id == groupId && !g.IsArchived);
         if (group == null) return NotFound();
 
         // Only the owner can manage in User area
         var isOwner = await _dbContext.GroupMembers.AsNoTracking()
             .AnyAsync(m => m.GroupId == groupId && m.UserId == userId && m.Role == GroupMember.Roles.Owner && m.Status == GroupMember.MembershipStatuses.Active);
-        if (!isOwner && group.OwnerUserId != userId) return Forbid();
+        if (!isOwner) return Forbid();
 
         var members = await (from m in _dbContext.GroupMembers
                              where m.GroupId == groupId && m.Status == GroupMember.MembershipStatuses.Active

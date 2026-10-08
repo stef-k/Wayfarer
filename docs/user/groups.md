@@ -40,6 +40,10 @@ Organization Groups retain an Owner or Manager to manage them. Wayfarer refuses 
 membership change that would leave an occupied Organization without the required
 management successor.
 
+Management requires an active Group role. Leaving or removal ends that authority,
+and an ordinary re-invitation rejoins you as a Member; an old Owner or Manager role
+is not restored. Archived Groups are unavailable to members and managers.
+
 ## Choose your sharing visibility
 
 Every Group requires active membership to view or share locations:
