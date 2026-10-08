@@ -131,6 +131,12 @@ public sealed class GroupSseEventDto
     };
 
     /// <summary>
+    /// Content-free policy invalidation. Web rereads persisted state; published Mobile 1.3.0
+    /// safely ignores the absent user ID and still receives only authorized future locations.
+    /// </summary>
+    public static GroupSseEventDto PeerPolicyChanged() => new() { Type = "visibility-changed" };
+
+    /// <summary>
     /// Creates a member-joined event payload.
     /// </summary>
     public static GroupSseEventDto MemberJoined(string userId, Guid? invitationId = null) => new()

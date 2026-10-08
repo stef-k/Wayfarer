@@ -153,7 +153,7 @@ public class SseController : Controller
             ct,
             enableHeartbeat: true,
             heartbeatInterval: _options.HeartbeatInterval,
-            deliveryLease: token => _groupDelivery.AcquireAsync(groupId, userId, token));
+            eventDeliveryLease: (data, token) => _groupDelivery.AcquireEventAsync(groupId, userId, data, token));
         return new EmptyResult();
     }
 }

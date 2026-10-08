@@ -43,6 +43,7 @@ public class GroupTimelineService : IGroupTimelineService
         _maxPageSize = Math.Max(_defaultPageSize, Math.Max(1, configuredMax));
     }
 
+    /// <inheritdoc />
     public async Task<GroupTimelineAccessContext?> BuildAccessContextAsync(Guid groupId, string callerUserId, CancellationToken cancellationToken = default)
     {
         var group = await _dbContext.Groups
@@ -58,29 +59,10 @@ public class GroupTimelineService : IGroupTimelineService
         var callerMembership = activeMembers.FirstOrDefault(m => string.Equals(m.UserId, callerUserId, StringComparison.Ordinal));
         var isFriends = string.Equals(group.GroupType, "Friends", StringComparison.OrdinalIgnoreCase);
 
-        var allowed = new HashSet<string>(StringComparer.Ordinal);
-        if (callerMembership != null)
-        {
-            foreach (var member in activeMembers)
-            {
-                if (string.Equals(member.UserId, callerMembership.UserId, StringComparison.Ordinal))
-                {
-                    allowed.Add(member.UserId);
-                    continue;
-                }
-
-                if (!isFriends)
-                {
-                    allowed.Add(member.UserId);
-                    continue;
-                }
-
-                if (!member.OrgPeerVisibilityAccessDisabled)
-                {
-                    allowed.Add(member.UserId);
-                }
-            }
-        }
+        var allowed = activeMembers
+            .Where(member => GroupLocationVisibility.CanSee(group, callerMembership, member))
+            .Select(member => member.UserId)
+            .ToHashSet(StringComparer.Ordinal);
 
         var settings = await _dbContext.ApplicationSettings
             .AsNoTracking()

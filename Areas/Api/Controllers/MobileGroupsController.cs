@@ -51,15 +51,6 @@ public class MobileGroupsController : MobileApiController
 
         var candidateGroupIds = new HashSet<Guid>();
 
-        async Task IncludeOwnedAsync()
-        {
-            var owned = await DbContext.Groups
-                .Where(g => g.OwnerUserId == userId && !g.IsArchived)
-                .Select(g => g.Id)
-                .ToListAsync(cancellationToken);
-            foreach (var id in owned) candidateGroupIds.Add(id);
-        }
-
         switch (normalizedScope)
         {
             case "managed":
@@ -67,7 +58,6 @@ public class MobileGroupsController : MobileApiController
                     if (membership.Role == GroupMember.Roles.Owner || membership.Role == GroupMember.Roles.Manager)
                         candidateGroupIds.Add(membership.GroupId);
 
-                await IncludeOwnedAsync();
                 break;
             case "joined":
                 foreach (var membership in userMemberships.Where(m => m.Role == GroupMember.Roles.Member))
@@ -76,7 +66,6 @@ public class MobileGroupsController : MobileApiController
             case "all":
             case "":
                 foreach (var membership in userMemberships) candidateGroupIds.Add(membership.GroupId);
-                await IncludeOwnedAsync();
                 break;
             default:
                 return BadRequest(new { message = "Unsupported scope value." });
@@ -113,13 +102,12 @@ public class MobileGroupsController : MobileApiController
             .Select(g =>
             {
                 membershipLookup.TryGetValue(g.Id, out var membership);
-                var isOwner = string.Equals(g.OwnerUserId, userId, StringComparison.Ordinal);
+                var isOwner = membership?.Role == GroupMember.Roles.Owner;
                 var isManager = membership?.Role == GroupMember.Roles.Manager;
                 var isMember = membership?.Role == GroupMember.Roles.Member;
                 var isOrg = string.Equals(g.GroupType, "Organization", StringComparison.OrdinalIgnoreCase);
-                var hasOrgPeerVisibilityAccess = !isOrg ||
-                                                 (g.OrgPeerVisibilityEnabled && (membership == null ||
-                                                     !membership.OrgPeerVisibilityAccessDisabled));
+                // Own opt-out is reported by the member DTO, not as loss of access to willing peers.
+                var hasOrgPeerVisibilityAccess = !isOrg || g.OrgPeerVisibilityEnabled;
 
                 return new MobileGroupSummaryDto
                 {
@@ -237,7 +225,7 @@ public class MobileGroupsController : MobileApiController
     }
 
     /// <summary>
-    ///     Set peer visibility access for the current user in a Friends group
+    ///     Set the current member's own sharing preference for Friends or an enabled Organization
     ///     POST /api/mobile/groups/{groupId}/peer-visibility
     /// </summary>
     [HttpPost("{groupId:guid}/peer-visibility")]
@@ -249,6 +237,8 @@ public class MobileGroupsController : MobileApiController
 
         var group = await DbContext.Groups.FirstOrDefaultAsync(g => g.Id == groupId, cancellationToken);
         if (group == null) return NotFound();
+        if (!GroupLocationVisibility.CanSetPersonalSharing(group))
+            return BadRequest(new { message = "Personal sharing is unavailable for this group policy" });
 
         var member = await DbContext.GroupMembers.FirstOrDefaultAsync(
             m => m.GroupId == groupId && m.UserId == user!.Id && m.Status == GroupMember.MembershipStatuses.Active,
