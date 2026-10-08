@@ -63,6 +63,8 @@ it off hides all peer locations; turning it back on preserves each member's
 personal opt-out. Organization Groups whose existing switch is off now enforce
 self-only access; ask your Group's Owner or Manager about enabling sharing.
 
+![Organization Group switch and personal sharing control on the map](../images/groups-peer-sharing.png)
+
 WayfarerMobile 1.3.0 offers the personal Organization sharing toggle when Group
 sharing is on. Reload the Group after its policy changes to refresh that control.
 Already viewed or downloaded locations may remain on an older or disconnected
