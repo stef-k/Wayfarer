@@ -361,7 +361,9 @@
     border-radius: 8px;
     box-shadow: 0 0.35rem 1rem rgba(15, 23, 42, 0.2);
     flex-direction: column;
+    flex-wrap: nowrap;
     gap: 0.55rem;
+    justify-content: flex-start;
     left: 0.75rem;
     max-width: calc(100% - 1.5rem);
     padding: 0.55rem;
@@ -370,7 +372,8 @@
     /* Match the normal mobile toolbar clearance below Leaflet utilities. */
     top: 4.5rem;
     z-index: 14;
-    max-height: calc(100% - 5.25rem);
+    /* Keep scrollable route controls above the drawer's map-work peek state. */
+    max-height: calc(100% - 5.25rem - var(--trip-editor-mobile-drawer-peek-height));
     overflow: auto;
   }
 

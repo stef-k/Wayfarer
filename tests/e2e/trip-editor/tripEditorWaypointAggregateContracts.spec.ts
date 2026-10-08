@@ -208,7 +208,7 @@ test.describe.serial('#407/#408 persisted waypoint aggregate and accessible edit
     await page.keyboard.press('Enter');
     const routeWork = page.getByRole('region', { name: 'Map work' });
     await expect(routeWork).toBeVisible();
-    await expect(page.locator('.trip-editor-map')).toHaveAttribute('aria-label', /editing segment route/i);
+    await expect(page.locator('.trip-editor-map')).toHaveAccessibleDescription('Edit the Segment route. Saved Place anchors are fixed; add, move, or remove other route points; Done updates the draft.');
     const start = routeWork.getByRole('listitem').filter({ hasText: /^Start —/ });
     const via = routeWork.getByRole('listitem').filter({ hasText: /^Via 1 —/ });
     const end = routeWork.getByRole('listitem').filter({ hasText: /^End —/ });
