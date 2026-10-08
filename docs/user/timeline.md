@@ -17,11 +17,16 @@ them, use the [Trips guide](trips.md).
 
 Open your name menu and choose the view that fits your task:
 
-- **Timeline**: move between day, month and year views, pick a date or return to
-  today.
+- **Timeline**: explore a day, month or year of recorded history.
 - **My Private Timeline**: explore your own history on the map.
 - **Locations**: work with a map and table together.
 - **All Locations**: search the table, edit records and export history.
+
+In **Timeline**, choose day, month or year to change the scale. Use the previous
+and next controls to move through days, months and years, or select a date, month
+or year directly to revisit a journey. Choose **Today** to return to the current
+date. These are calendar-period views; use Locations search below for an arbitrary
+start and end date.
 
 Pan and zoom to explore, then select a marker or table row for its details. Large
 map views can show a sample of locations to remain readable; use the table and
@@ -78,21 +83,30 @@ contacts Wikipedia. Optional address lookup and repair are explained in
 ## Understand your statistics
 
 Timeline summaries show the number of locations, the first and last dates and
-recorded countries, regions and settlements. Detailed statistics help you explore
-those groups and navigate back to their locations.
+recorded countries, regions and settlements. Select **Countries**, **Regions** or
+**Cities** in the summary to open geographic details. Expand **Country → Region
+→ city/settlement** to see record counts and first/last recorded dates. A **Map**
+action returns you to that geography on the map. Counts measure recorded positions,
+not confirmed visits to venues; use [Trip visits](trips.md#record-and-review-visits)
+for the separate planned-Place workflow.
 
 Geographic counts depend on the address labels saved with each location. Different
 spellings can split the same place, and missing labels are not invented. **Country
 not recorded** and **Region not recorded** group records with missing parent
 labels; they do not count as additional countries or regions.
 
-Your private views summarize their own history or selected date period. Public
+Your private views summarize their own history or the complete selected date
+period, even when a large month/year map shows only sampled points. Public
 Timeline summaries cover all history eligible for public viewing, including the
 delay and Hidden Areas rules. Moving or zooming the public map does not change
 that full-history summary. A public Timeline with no eligible locations has zero
 counts and no first or last date.
 
 ## Make your Timeline public deliberately
+
+Choose **Private** for no public Timeline, public **Now** to share without a delay,
+or a delayed public Timeline to share only older locations. [Hidden Areas](#protect-sensitive-places-with-hidden-areas)
+exclude sensitive positions independently of that delay.
 
 Your Timeline starts private. To publish it:
 

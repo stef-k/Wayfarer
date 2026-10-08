@@ -4,9 +4,10 @@ title: WayfarerMobile
 
 # WayfarerMobile
 
-Use WayfarerMobile to record locations, make check-ins, follow Groups and use Trips
-on your phone. You need a reachable Wayfarer instance and an account with the
-**User** role. For browser account setup, start with the [user guide](index.md).
+Use WayfarerMobile to record and browse location history, follow Groups, adjust
+your own Trips and navigate on your phone. You need a reachable Wayfarer instance
+and an account with the **User** role. For browser account setup, start with the
+[user guide](index.md).
 
 ## Get the published app
 
@@ -66,17 +67,42 @@ Inspect the phone's recording/delivery status, then check the web Timeline when
 you need confirmation that a record reached Wayfarer. An offline record and a
 confirmed server record are different states.
 
+## Browse your phone Timeline
+
+Open **Timeline** to browse retained history by day. Move between days, pick a
+date or return to **Today**, then select a location to inspect its time, position,
+activity and notes. Local history appears first, with a server refresh when online.
+Offline browsing covers only records retained on the phone; it is not a complete
+download of your server history or proof that a recording was delivered.
+
+Do not edit or delete imported or unconfirmed phone records in Android 1.3.0:
+an action can affect a different server record. Make corrections in
+[web Locations](timeline.md#add-or-correct-a-location) once the record is present
+in your server history.
+
+For a spreadsheet, GIS tool or another phone, use the ordinary
+[Timeline CSV/GeoJSON import and export](import-export.md#move-your-phone-timeline).
+
 ## Follow Groups and live updates
 
-Open Groups to view memberships, respond to invitations and inspect permitted
-members' positions. Group and visit updates arrive while connected. Timestamps
-matter: a member's last recorded location may be old.
+Open **Groups** to view memberships and inspect permitted members' positions.
+Accept or decline invitations in the [Web Invitations workflow](groups.md#create-or-join-a-group),
+then reload Groups on the phone. Group and visit updates arrive while connected.
+Timestamps matter: a member's last recorded location may be old.
 
 The published app retries transient connection failures, but a live connection
 that closes can leave updates stopped. Reopen the affected view or restart the app
 if updates stop despite a working connection. Correct token/access problems when
 reported rather than treating old positions as live. See [Group sharing](groups.md)
 for visibility rules; public Timeline privacy does not govern Group access.
+
+### Navigate toward a Group member
+
+Select a member's latest shared position on the Group map and use the navigation
+action in their details. Choose [Wayfarer hosted routing or Direct guidance](#hosted-routing-and-direct-guidance),
+or open external maps. Check the position's timestamp before setting off:
+navigation targets that selected position, not a continuously followed person.
+Selecting a historical marker instead targets that older position.
 
 ## View Trips and navigate
 
@@ -123,11 +149,38 @@ position and destination are available. It is not road routing. Provider
 unavailability affects this routing choice; it does not disable authentication,
 location delivery, saved Segment geometry or Direct guidance.
 
+### Edit your own Trip
+
+In a loaded Trip's overview, use **+ Add** to add a Region or Place. A Place's
+edit action lets you change its name, position, notes, marker styling or Region.
+Other available edit actions update Trip/Region names and travel notes.
+
+Supported changes can wait as pending work while offline. Check the synchronization
+status in **My Trips** after reconnecting; a local change is not yet a confirmed
+server change, and failed changes need review. Use the [web editor](trips.md) to
+create Trips and draw Areas or Segment routes.
+
+### Visit alerts and spoken cues
+
+In **Settings > Visit Notifications**, enable alerts for server-detected visits
+to planned Places. Choose **Banner**, **Voice** or **Both**; enable **Voice
+Announcement** to hear the Place name. Alerts can arrive after synchronization
+and depend on connectivity and Android permissions. Review the evidence in
+[Trip visit history](trips.md#record-and-review-visits).
+
+Under **Settings > Navigation**, enable **Audio Announcements** for spoken cues
+such as approaching a waypoint, going off route and arrival. The guidance follows
+the selected route; manually drawn geometry does not guarantee road instructions.
+
 ## Download Trip content
 
 Before traveling, use **Download** on a Trip to save its metadata, Places, notes,
 Areas, Segments, intermediate Places and route geometry locally. Confirm the
 download has completed and open it before depending on it away from the network.
+
+Away from the network, follow available saved Segment geometry or matching retained
+guidance, or use Direct with a known position and destination. Notes remain readable,
+but remote images and external links can still need a connection.
 
 Downloaded content remains useful offline. A Trip download does **not** download
 a complete raster basemap, and locally retained route guidance is separate from
@@ -169,6 +222,9 @@ Verify both local and server history before removing any recovery copies.
 Wayfarer's authoritative history is stored on your instance's server. Mobile also
 stores local history, pending work, downloaded Trips, cached map tiles and retained
 guidance needed for its operation. Protect the phone and any exported files.
+
+For an optional access prompt, set up **Settings > Security > PIN Lock**. This
+does not encrypt exported files or replace Android's device protection.
 
 Optional external providers receive the coordinates, searches or route inputs
 needed for enabled features. Tile services receive tile requests. Opening external

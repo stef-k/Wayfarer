@@ -6,7 +6,9 @@ title: Plan and use Trips
 
 Use a Trip to organize destinations, draw routes, carry travel notes and review
 which planned Places you visited. Create and edit the plan in the web app, then
-view it there or take it with you in [WayfarerMobile](mobile.md).
+view it there or take it with you in [WayfarerMobile](mobile.md). You can also
+[make limited changes to your own Trip on the phone](mobile.md#edit-your-own-trip)
+while traveling.
 
 ## Build a simple Trip
 
@@ -119,16 +121,27 @@ estimates are guidance rather than a promised arrival time.
 
 ## Record and review visits
 
-As locations arrive, Wayfarer checks whether they are near your planned Places.
-With default settings, two nearby recordings confirm a visit to reduce false
-positives. Your administrator controls detection settings, and sparse or inaccurate
-recordings can miss a visit.
+Plan Places, record locations with a [connected app](connect-apps.md) or a manual
+entry, then review detected visits to compare the plan with your journey. Trip
+progress shows visited and unvisited Places; visit history lets you inspect and
+correct the evidence. For journeys already in your Timeline, use backfill below.
+
+As location observations arrive, Wayfarer checks whether they are near your
+planned Places. With default settings, two nearby observations within the detection
+rules confirm a visit; they need not become two saved Timeline rows. Your
+administrator controls detection settings. Sparse or inaccurate observations and
+closely spaced Places can miss or misidentify a visit. Arrival, departure and
+dwell time are inferred, and proximity does not prove that you entered a venue.
 
 Open **Trip Visit History** from your name menu to search by Trip, Place, Region,
 date or open/closed status. Review arrival, departure, dwell time and contributing
 locations. You can edit or delete visits and follow their location records to
 check the evidence. Visit records keep a snapshot of the Place even if the plan
 changes later.
+
+[Mobile visit alerts and spoken cues](mobile.md#visit-alerts-and-spoken-cues) can
+help you notice detected arrivals while traveling. Review visits here when you
+need to check the evidence or correct progress.
 
 ### Find visits in older history
 
