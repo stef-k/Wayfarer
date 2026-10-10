@@ -96,8 +96,9 @@ Switch day, month or year, choose a date and enable historical locations to revi
 past records. Dense month/year views can show sampled markers. Reaching the end
 of the Group's displayed results, including the last page on your phone, does not
 mean every stored location was returned. Use your own
-[Timeline table and export tools](timeline.md#search-and-filter-locations) when
-you need to find or export your stored history. Select a location to inspect its
+[Timeline table](timeline.md#search-and-filter-locations) and
+[export tools](import-export.md#export-location-history) when you need to find or
+export your stored history. Select a location to inspect its
 time and details. [WayfarerMobile](mobile.md#follow-groups-and-live-updates)
 provides a Group map on your phone too.
 

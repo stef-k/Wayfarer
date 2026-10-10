@@ -168,8 +168,9 @@ Cookie-only search, bulk-delete and Web location-management endpoints are separa
 Owner chronology returns all period rows for a day. Dense month/year queries may
 sample map markers, while owner `totalItems` still counts the full period. This is
 a map selection, with no complete-history cursor or snapshot guarantee. Use the
-[owner table/export guidance](../user/timeline.md#search-and-filter-locations)
-for finding and exporting stored history.
+[owner table](../user/timeline.md#search-and-filter-locations) and
+[export tools](../user/import-export.md#export-location-history) for finding and
+exporting stored history.
 
 Group history has a different selection/count contract. Cookie Web
 `POST /api/groups/{groupId}/locations/query` returns its unpaged selection as
