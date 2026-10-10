@@ -128,7 +128,8 @@ public class SseController : Controller
 
     /// <summary>
     /// Consolidated SSE endpoint for all group events (locations + membership changes).
-    /// Requires authentication via cookie (webapp) or Bearer token (mobile).
+    /// Requires cookie Identity and its NameIdentifier claim, plus active membership in an unarchived Group.
+    /// Protected delivery rechecks recipient membership and location/deletion source visibility.
     /// </summary>
     /// <param name="groupId">The group to subscribe to.</param>
     /// <param name="ct">Cancellation token.</param>

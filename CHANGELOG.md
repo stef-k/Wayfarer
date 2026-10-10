@@ -9,6 +9,11 @@
 
 ### Fixed
 
+- Clarify existing API contracts for sampled Group history and bearer continuation,
+  Trip freshness/public reads, cookie versus bearer SSE and caller statistics.
+  Correct effective settings and routed Region validation test evidence without
+  changing API behavior or JSON shapes (#829).
+
 - Save legacy bearer Place creation, any needed Unassigned Places Region and the
   Trip timestamp atomically. Propagate request cancellation and preserve sequential
   fallback reuse, ordering and responses; concurrent fallback uniqueness remains

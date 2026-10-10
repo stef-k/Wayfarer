@@ -60,59 +60,67 @@ public class GroupLocationsQueryRequest
     public int? Day { get; set; }
 
     /// <summary>
-    /// Optional page size requested by the caller. Defaults to configuration when not provided.
+    /// Optional bearer adapter page size, defaulted from configuration and capped by its maximum.
+    /// The Web adapter ignores this input and returns its unpaged selection without pagination flags.
     /// </summary>
     public int? PageSize { get; set; }
 
     /// <summary>
-    /// Continuation token supplied by the caller to advance pagination.
+    /// Bearer adapter anchor in a freshly recomputed selected-marker set; the Web adapter ignores it.
+    /// Malformed tokens or anchors absent from the new selection restart from the beginning.
+    /// Keep the query scope consistent and defensively deduplicate as selections change.
+    /// This is not a stable snapshot, exactly-once iteration or complete stored-history cursor.
     /// </summary>
     public string? ContinuationToken { get; set; }
 }
 
 /// <summary>
-/// Response payload for group location queries including pagination metadata.
+/// Bearer adapter response for selected Group marker pages, including pagination metadata.
+/// The Web adapter returns only totalItems/results for its unpaged selection.
 /// </summary>
 public class GroupLocationsQueryResponse
 {
     /// <summary>
-    /// Total number of items matching the query across all pages.
+    /// Bearer date-query count of bbox-filtered selected markers before paging.
+    /// The viewport fallback retains its underlying bbox count. This does not guarantee full stored-history completeness.
     /// </summary>
     [JsonPropertyName("totalItems")]
     public int TotalItems { get; init; }
 
     /// <summary>
-    /// Number of locations included in the current page.
+    /// Number of selected markers included in the current bearer page.
     /// </summary>
     [JsonPropertyName("returnedItems")]
     public int ReturnedItems { get; init; }
 
     /// <summary>
-    /// Effective page size used when shaping the response.
+    /// Effective bearer page size after applying the configured default and maximum.
     /// </summary>
     [JsonPropertyName("pageSize")]
     public int PageSize { get; init; }
 
     /// <summary>
-    /// Indicates whether additional pages are available.
+    /// Bearer flag indicating remaining markers in the current selection, not remaining stored history.
     /// </summary>
     [JsonPropertyName("hasMore")]
     public bool HasMore { get; init; }
 
     /// <summary>
-    /// Continuation token to request the next page; null when no further data exists.
+    /// Bearer anchor for the next request's recomputed selection; null when this selection is exhausted.
+    /// Malformed or vanished anchors restart from the beginning; snapshot stability is not promised.
     /// </summary>
     [JsonPropertyName("nextPageToken")]
     public string? NextPageToken { get; init; }
 
     /// <summary>
-    /// True when the server truncated results (either within the page or because more pages remain).
+    /// Bearer flag: true when more selected markers remain or the whole selection exceeds this page.
+    /// Can remain true on the final page; false does not establish full stored-history completeness.
     /// </summary>
     [JsonPropertyName("isTruncated")]
     public bool IsTruncated { get; init; }
 
     /// <summary>
-    /// Collection of location DTOs for the current page.
+    /// Collection of selected location DTOs for the current bearer page.
     /// </summary>
     [JsonPropertyName("results")]
     public required IReadOnlyList<PublicLocationDto> Results { get; init; }
