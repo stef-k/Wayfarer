@@ -79,11 +79,11 @@ public interface IVisitBackfillService
     /// <param name="firstSeenUtc">Start of the time window.</param>
     /// <param name="lastSeenUtc">End of the time window.</param>
     /// <param name="searchRadiusMeters">Search radius in meters.</param>
-    /// <param name="page">Page number (1-based).</param>
-    /// <param name="pageSize">Number of locations per page.</param>
+    /// <param name="page">Requested page number, clamped to at least 1.</param>
+    /// <param name="pageSize">Requested number of locations per page, clamped to 1–200.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    /// <returns>Paginated list of candidate locations with total count.</returns>
-    Task<(List<CandidateLocationDto> Locations, int TotalCount)> GetCandidateLocationsAsync(
+    /// <returns>Candidate locations, total matching count and the effective page/size used by the query.</returns>
+    Task<(List<CandidateLocationDto> Locations, int TotalCount, int Page, int PageSize)> GetCandidateLocationsAsync(
         string userId,
         Guid placeId,
         double lat,
