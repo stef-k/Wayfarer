@@ -631,14 +631,24 @@ public partial class ApiLocationControllerTests : TestBase
         }
     }
 
+    /// <summary>Returns controlled statistics and records the authenticated owner's requested UTC window.</summary>
     private sealed class StubStatsService : ILocationStatsService
     {
         private readonly UserLocationStatsDto _stats;
         public StubStatsService(UserLocationStatsDto stats) => _stats = stats;
+        /// <summary>The last date-range request, or null when validation prevented service invocation.</summary>
+        public (string UserId, DateTime StartDate, DateTime EndDate)? DateRange { get; private set; }
+        /// <summary>An unexpected downstream failure injected after accepting a valid range.</summary>
+        public Exception? DateRangeFailure { get; init; }
         /// <summary>Public summaries are not exercised by this private-controller stub.</summary>
         public Task<UserLocationStatsDto> GetPublicStatsAsync(Wayfarer.Services.PublicTimelineLocationProjection projection) => Task.FromResult(_stats);
         public Task<UserLocationStatsDto> GetStatsForUserAsync(string userId) => Task.FromResult(_stats);
-        public Task<UserLocationStatsDto> GetStatsForDateRangeAsync(string userId, DateTime startDate, DateTime endDate) => Task.FromResult(_stats);
+        /// <summary>Captures the production request before returning the controlled result or service failure.</summary>
+        public Task<UserLocationStatsDto> GetStatsForDateRangeAsync(string userId, DateTime startDate, DateTime endDate)
+        {
+            DateRange = (userId, startDate, endDate);
+            return DateRangeFailure == null ? Task.FromResult(_stats) : Task.FromException<UserLocationStatsDto>(DateRangeFailure);
+        }
         public Task<UserLocationStatsDetailedDto> GetDetailedStatsForUserAsync(string userId) => Task.FromResult(new UserLocationStatsDetailedDto());
         public Task<UserLocationStatsDetailedDto> GetDetailedStatsForDateRangeAsync(string userId, DateTime startDate, DateTime endDate) => Task.FromResult(new UserLocationStatsDetailedDto());
     }

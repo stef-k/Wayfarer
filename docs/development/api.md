@@ -159,6 +159,27 @@ corresponding `month`/`day`; `has-data-for-date` and `check-navigation-availabil
 provide date/navigation information. Ownership derives from the resolved account.
 Cookie-only search, bulk-delete and Web location-management endpoints are separate.
 
+`chronological-stats` and `check-navigation-availability` accept case-insensitive
+date types without trimming, years 1–9999, applicable months 1–12, and valid
+calendar days (including leap days). Invalid supplied components return 400 after
+bearer resolution; missing/inactive bearer authority remains 401. MVC binding
+errors return the framework's 400 response before action-level authentication.
+Statistics errors use `{ "success": false, "message": "..." }`; navigation errors
+use `{ "success": false }`. Unexpected statistics failures remain 500.
+
+Statistics requires month/day for day mode and month for month mode. Navigation
+retains optional month/day inputs and its existing fallback flags; a supplied day
+without a month must be 1–31. Both actions ignore numeric components irrelevant to
+the selected mode. Statistics filters capture/event `LocalTimestamp` over an
+inclusive UTC period, including the final day/month of year 9999. Navigation uses
+the server-local current date, retains all previous-navigation flags, and disables
+future or unrepresentable next periods.
+
+Maximum-date support here is limited to bearer statistics/navigation. Chronology's
+shared date service still returns 400 for December 9999 and 9999-12-31 because its
+successor calculation overflows. Cookie Web Timeline calendar validation and
+boundary arithmetic remain separate, unchanged limitations.
+
 `PUT /api/location/{id}` accepts a partial `LocationUpdateRequestDto`: paired
 `latitude`/`longitude`, `notes`, `localTimestamp`, `activityTypeId` or `activityName`,
 and explicit `clearNotes`/`clearActivity` flags. An absent field is unchanged;
