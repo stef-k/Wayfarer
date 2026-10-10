@@ -1,9 +1,16 @@
 using System.Net;
 using System.Text.Json;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
+using Moq;
 using Wayfarer.Models;
 using Wayfarer.Areas.Api.Controllers;
 using Wayfarer.Models.Dtos.Editor;
@@ -11,6 +18,7 @@ using Wayfarer.Models.LocationProviders;
 using Wayfarer.Parsers;
 using Wayfarer.Services;
 using Wayfarer.Services.LocationProviders;
+using Wayfarer.Tests.Infrastructure;
 using Xunit;
 
 namespace Wayfarer.Tests.Controllers;
@@ -19,6 +27,50 @@ namespace Wayfarer.Tests.Controllers;
 public sealed class TripPlaceAddressCompatibilityTests : TripEditorPlaceControllerTestBase
 {
     private static readonly DateTimeOffset OriginalEnrichedAt = new(2026, 8, 28, 12, 0, 0, TimeSpan.Zero);
+
+    /// <summary>The real authenticated, antiforgery-protected PUT retains its response shape and returns stored metadata.</summary>
+    [Fact]
+    public async Task RoutedEditorPutReturnsCommittedMetadataInExistingEnvelope()
+    {
+        using var db = CreateDbContext();
+        var trip = SeedTripGraph(db, "owner-user");
+        var place = SeedMetadata(trip, "Old address");
+        db.Users.Add(new ApplicationUser { Id = "owner-user", UserName = "Owner", DisplayName = "Owner", IsActive = true });
+        await db.SaveChangesAsync();
+        await using var app = await IdentityRouteHost.StartAsync(db, CreateTestDirectory(), services =>
+        {
+            // This existing host omits startup-only thumbnail storage and job scheduling.
+            services.AddSingleton(Mock.Of<ITripMapThumbnailGenerator>());
+            services.AddSingleton(Mock.Of<ICacheWarmupScheduler>());
+        });
+        using var client = app.GetTestClient();
+        var scheme = IdentityConstants.ApplicationScheme;
+        var options = app.Services.GetRequiredService<IOptionsMonitor<CookieAuthenticationOptions>>().Get(scheme);
+        var ticket = new AuthenticationTicket(BuildHttpContextWithUser("owner-user", "User").User,
+            new AuthenticationProperties { IssuedUtc = DateTimeOffset.UtcNow, ExpiresUtc = DateTimeOffset.UtcNow.AddMinutes(10) }, scheme);
+        var authCookie = options.Cookie.Name + "=" + options.TicketDataFormat.Protect(ticket);
+        client.DefaultRequestHeaders.Add("Cookie", authCookie);
+        var token = await IdentityRouteHost.AntiforgeryAsync(client);
+        var antiforgeryCookie = client.DefaultRequestHeaders.GetValues("Cookie").Single();
+        client.DefaultRequestHeaders.Remove("Cookie");
+        client.DefaultRequestHeaders.Add("Cookie", authCookie + "; " + antiforgeryCookie);
+        client.DefaultRequestHeaders.Add("RequestVerificationToken", token);
+
+        using var response = await client.PutAsync($"/api/trips/{trip.Id}/editor/places/{place.Id}",
+            new StringContent(UpdateBody(place.RegionId, "Changed", 37, 23, false), System.Text.Encoding.UTF8, "application/json"));
+
+        var responseBody = await response.Content.ReadAsStringAsync();
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var document = JsonDocument.Parse(responseBody);
+        var root = document.RootElement;
+        Assert.Equal(new[] { "affected", "data", "deletedIds", "success", "warnings" }, root.EnumerateObject().Select(property => property.Name).Order().ToArray());
+        Assert.True(root.GetProperty("success").GetBoolean());
+        Assert.Equal("Changed", root.GetProperty("data").GetProperty("address").GetString());
+        Assert.Equal(JsonValueKind.Null, root.GetProperty("data").GetProperty("resolvedFeatureName").ValueKind);
+        Assert.Equal(JsonValueKind.Null, root.GetProperty("data").GetProperty("resolvedFeatureType").ValueKind);
+        Assert.Equal(0, root.GetProperty("warnings").GetArrayLength());
+        Assert.Equal("Changed", (await db.Places.AsNoTracking().SingleAsync(item => item.Id == place.Id)).Address);
+    }
 
     /// <summary>Preserves compatible manual/fallback values and clears all provenance when either value changes.</summary>
     [Theory]

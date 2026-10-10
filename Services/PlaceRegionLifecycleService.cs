@@ -70,7 +70,7 @@ public sealed partial class PlaceRegionLifecycleService
 
                 place.Name = update.Name;
                 place.Notes = update.Notes;
-                place.Address = update.Address;
+                ApplyAddressUpdate(place, update);
                 place.IconName = update.IconName;
                 place.MarkerColor = update.MarkerColor;
                 place.Location = CopyPoint(update.Location);
@@ -514,9 +514,6 @@ public sealed partial class PlaceRegionLifecycleService
         return false;
     }
 }
-
-/// <summary>Allowlisted scalar state for one existing Place update.</summary>
-public sealed record PlaceLifecycleUpdate(Guid RegionId, string Name, string Notes, string Address, string IconName, string MarkerColor, Point? Location, int? DisplayOrder = null);
 
 /// <summary>Result of an atomic Place update.</summary>
 public sealed record PlaceLifecycleUpdateResult(bool Succeeded, Dictionary<string, string[]>? Errors, string? ErrorCode, Place? Place, IReadOnlyList<Segment> Segments, IReadOnlyList<Guid> OrderRegionIds, bool LocationChanged)

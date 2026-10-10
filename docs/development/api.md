@@ -63,6 +63,28 @@ Bearer-only mobile/integration mutations do not require MVC antiforgery. Do not 
 
 The Trip Editor controller is intentionally split across `TripEditorController.cs` and partial files for areas, places, segments and tag/share-progress behavior. Add an editor endpoint to that cohesive family rather than creating an unrelated controller.
 
+## Trip Editor Place address metadata
+
+`PUT /api/trips/{tripId}/editor/places/{placeId}` accepts a complete editor draft
+under the existing User cookie, ownership and antiforgery rules. Without successful
+requested reverse geocoding, the submitted manual address and coordinates are
+compared with the freshly loaded Place inside the lifecycle transaction. Addresses
+are trimmed with null treated as empty; nullable coordinates use exact equality.
+Unchanged values preserve feature name/type, provider, storage mode and the original
+enrichment timestamp, including Region-only edits. Changing or clearing either
+value clears all five metadata fields.
+
+Successful authorized enrichment replaces the address and complete metadata tuple,
+including null feature fields, Geoapify `persistent` or Mapbox `permanent` storage
+mode and one UTC timestamp reused across internal transaction retries. Unavailable
+enrichment saves the manual fallback with the existing `reverse-geocode-unavailable`
+warning and applies the same compatibility rule without a fresh timestamp.
+Place, metadata, dependent routes, measurements and orders share the lifecycle
+commit; a failed save rolls them back. Provider admission remains consumed if
+persistence fails. Complete drafts retain last-writer behavior; a lost commit
+acknowledgement or response can leave an unknown outcome, so refetch authoritative
+state. An HTTP replay may contact the provider again.
+
 ## Ownership and role checks
 
 Authentication establishes a caller, not resource access. Controllers/services also enforce trip ownership, group membership/management, target-user constraints and role requirements such as `Admin`, `Manager` or `User`.
