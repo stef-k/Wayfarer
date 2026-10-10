@@ -98,6 +98,7 @@ public class BackfillControllerTests : TestBase
         Assert.Contains("firstSeenUtc", badRequest.Value?.ToString());
     }
 
+    /// <summary>Default requests retain the response envelope, locations, count and 1/50 pagination.</summary>
     [Fact]
     public async Task GetCandidateLocations_ReturnsOk_WithValidParameters()
     {
@@ -153,10 +154,15 @@ public class BackfillControllerTests : TestBase
         var success = okResult.Value.GetType().GetProperty("success")?.GetValue(okResult.Value);
         Assert.Equal(true, success);
 
-        var data = okResult.Value.GetType().GetProperty("data")?.GetValue(okResult.Value);
-        Assert.NotNull(data);
+        var data = Assert.IsType<CandidateLocationsResponseDto>(
+            okResult.Value.GetType().GetProperty("data")?.GetValue(okResult.Value));
+        Assert.Same(expectedLocations, data.Locations);
+        Assert.Equal(2, data.TotalCount);
+        Assert.Equal(1, data.Page);
+        Assert.Equal(50, data.PageSize);
     }
 
+    /// <summary>Empty results still report the effective query limit rather than the returned row count.</summary>
     [Fact]
     public async Task GetCandidateLocations_ReturnsOk_WithEmptyLocations()
     {
@@ -186,6 +192,44 @@ public class BackfillControllerTests : TestBase
 
         var okResult = Assert.IsType<OkObjectResult>(result);
         Assert.NotNull(okResult.Value);
+        var data = Assert.IsType<CandidateLocationsResponseDto>(
+            okResult.Value.GetType().GetProperty("data")?.GetValue(okResult.Value));
+        Assert.Empty(data.Locations);
+        Assert.Equal(0, data.TotalCount);
+        Assert.Equal(1, data.Page);
+        Assert.Equal(50, data.PageSize);
+    }
+
+    /// <summary>Service metadata owns response pagination; raw inputs and cancellation reach it unchanged.</summary>
+    [Fact]
+    public async Task GetCandidateLocations_ReportsEffectivePagination_AndForwardsCancellation()
+    {
+        var service = new Mock<IVisitBackfillService>(MockBehavior.Strict);
+        var placeId = Guid.NewGuid();
+        var firstSeenUtc = new DateTime(2026, 10, 1, 12, 0, 0, DateTimeKind.Utc);
+        var lastSeenUtc = firstSeenUtc.AddMinutes(30);
+        using var cancellation = new CancellationTokenSource();
+        var locations = new List<CandidateLocationDto> { new() { Id = 17 } };
+        service.Setup(s => s.GetCandidateLocationsAsync("u1", placeId, 37, 23,
+                firstSeenUtc, lastSeenUtc, 500, 0, 1000, cancellation.Token))
+            .ReturnsAsync((locations, 3001));
+        var (controller, _, _) = BuildController("u1", service.Object);
+
+        var result = await controller.GetCandidateLocations(placeId, 37, 23,
+            firstSeenUtc, lastSeenUtc, radius: 500, page: 0, pageSize: 1000,
+            cancellationToken: cancellation.Token);
+
+        service.Verify(s => s.GetCandidateLocationsAsync("u1", placeId, 37, 23,
+            firstSeenUtc, lastSeenUtc, 500, 0, 1000, cancellation.Token), Times.Once);
+        service.VerifyNoOtherCalls();
+        var ok = Assert.IsType<OkObjectResult>(result);
+        Assert.Equal(true, ok.Value!.GetType().GetProperty("success")?.GetValue(ok.Value));
+        var data = Assert.IsType<CandidateLocationsResponseDto>(
+            ok.Value.GetType().GetProperty("data")?.GetValue(ok.Value));
+        Assert.Same(locations, data.Locations);
+        Assert.Equal(3001, data.TotalCount);
+        Assert.Equal(1, data.Page);
+        Assert.Equal(200, data.PageSize);
     }
 
     [Fact]
@@ -223,6 +267,7 @@ public class BackfillControllerTests : TestBase
         Assert.Equal(500, capturedRadius);
     }
 
+    /// <summary>Explicit pagination is forwarded and remains present even when that page is empty.</summary>
     [Fact]
     public async Task GetCandidateLocations_UsesPagination_WhenProvided()
     {
@@ -252,7 +297,7 @@ public class BackfillControllerTests : TestBase
 
         var (controller, _, _) = BuildController("u1", mockService.Object);
 
-        await controller.GetCandidateLocations(
+        var result = await controller.GetCandidateLocations(
             placeId: Guid.NewGuid(),
             lat: 40.7128,
             lon: -74.0060,
@@ -263,6 +308,13 @@ public class BackfillControllerTests : TestBase
 
         Assert.Equal(3, capturedPage);
         Assert.Equal(25, capturedPageSize);
+        var ok = Assert.IsType<OkObjectResult>(result);
+        var data = Assert.IsType<CandidateLocationsResponseDto>(
+            ok.Value!.GetType().GetProperty("data")?.GetValue(ok.Value));
+        Assert.Empty(data.Locations);
+        Assert.Equal(0, data.TotalCount);
+        Assert.Equal(3, data.Page);
+        Assert.Equal(25, data.PageSize);
     }
 
     [Fact]
