@@ -195,6 +195,24 @@ That Region name is reserved and the special Region cannot be deleted. Supplied
 coordinates must be paired and within range; input uses decimal degrees, while
 returned Place `location`/Region `center` arrays use `[longitude, latitude]`.
 
+Legacy Region PUT recognizes an existing **Unassigned Places** Region by its
+stored name, case-insensitively, regardless of display order. Its stored name and
+order are protected: a supplied name must exactly match the stored spelling after
+trimming, and a supplied `displayOrder` must equal the stored value. Identical
+protected values are no-ops. Any actual name/order change rejects the whole
+request with 400: `Cannot change the Unassigned Places region name or display order.`
+This includes case-only/blank names and mixed metadata payloads. Ordinary Regions
+still cannot adopt the reserved name (`Region name is reserved.`).
+
+The reserved Region permits normalized `notes`, `coverImageUrl` (including an
+empty string), and paired valid center coordinates, including zeroes. Invalid
+center input applies no fields. Empty/null-only payloads and identical protected
+fields alone return 200 with `success`, `message: "No changes applied."` and the
+Region DTO, without saving or scheduling cache warm-up. Reserved deletion always
+returns 400 (`Cannot delete the Unassigned Places region.`), even with a dependency
+confirmation header. The cookie Trip Editor retains its separate restriction on
+all reserved Region edits.
+
 These PUT DTOs use null/omitted values as unchanged rather than generic patch
 clear operations. Use a non-null empty notes string to clear notes; Place icon
 and marker-color clear flags restore `marker` and `bg-blue`. Successful mutations
