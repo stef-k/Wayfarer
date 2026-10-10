@@ -5,6 +5,7 @@ namespace Wayfarer.Models.Dtos
 {
     /// <summary>
     /// Request body to create a new Region inside a trip.
+    /// A null or omitted coordinate pair creates a Region without a center.
     /// </summary>
     public class RegionCreateRequestDto
     {
@@ -26,12 +27,14 @@ namespace Wayfarer.Models.Dtos
         public string? CoverImageUrl { get; set; }
 
         /// <summary>
-        /// Optional center latitude for auto-zoom. Must be provided together with <see cref="CenterLongitude"/> if present.
+        /// Optional finite WGS84 center latitude in the inclusive range [-90, 90] for auto-zoom.
+        /// Must be provided together with <see cref="CenterLongitude"/> when non-null.
         /// </summary>
         public double? CenterLatitude { get; set; }
 
         /// <summary>
-        /// Optional center longitude for auto-zoom. Must be provided together with <see cref="CenterLatitude"/> if present.
+        /// Optional finite WGS84 center longitude in the inclusive range [-180, 180] for auto-zoom.
+        /// Must be provided together with <see cref="CenterLatitude"/> when non-null.
         /// </summary>
         public double? CenterLongitude { get; set; }
 

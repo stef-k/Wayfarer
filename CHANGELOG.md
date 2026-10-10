@@ -9,6 +9,11 @@
 
 ### Fixed
 
+- Reject non-finite coordinates in legacy bearer Place and Region create/update
+  actions before geometry or mutations. Validate fallback Place coordinates before
+  creating Unassigned Places, while preserving paired/optional coordinates,
+  inclusive WGS84 bounds and existing error/success responses (#833).
+
 - Protect the reserved Unassigned Places Region's stored name and display order in
   the legacy bearer API. Reject mixed prohibited updates before tracked mutations,
   validate center input before applying fields, and preserve metadata partial

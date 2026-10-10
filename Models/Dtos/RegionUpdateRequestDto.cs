@@ -5,6 +5,7 @@ namespace Wayfarer.Models.Dtos
     /// <summary>
     /// Request body to update an existing Region. Trip association is immutable.
     /// Null or omitted fields preserve stored values. Reserved name/order values can only be resubmitted unchanged.
+    /// A null or omitted coordinate pair preserves the stored center.
     /// </summary>
     public class RegionUpdateRequestDto
     {
@@ -25,12 +26,14 @@ namespace Wayfarer.Models.Dtos
         public string? CoverImageUrl { get; set; }
 
         /// <summary>
-        /// Optional center latitude (-90 to 90), including for reserved Regions. Requires <see cref="CenterLongitude"/>.
+        /// Optional finite WGS84 center latitude in the inclusive range [-90, 90], including for reserved Regions.
+        /// Must be provided together with <see cref="CenterLongitude"/> when non-null.
         /// </summary>
         public double? CenterLatitude { get; set; }
 
         /// <summary>
-        /// Optional center longitude (-180 to 180), including for reserved Regions. Requires <see cref="CenterLatitude"/>.
+        /// Optional finite WGS84 center longitude in the inclusive range [-180, 180], including for reserved Regions.
+        /// Must be provided together with <see cref="CenterLatitude"/> when non-null.
         /// </summary>
         public double? CenterLongitude { get; set; }
 

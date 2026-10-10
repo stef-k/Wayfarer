@@ -192,8 +192,27 @@ Trip/Region/Place IDs are GUIDs. The authenticated account must own the Trip and
 related Region. A Place can move only to an owned Region in the **same Trip**.
 Without `regionId`, creation uses the Trip's special **Unassigned Places** Region.
 That Region name is reserved and the special Region cannot be deleted. Supplied
-coordinates must be paired and within range; input uses decimal degrees, while
-returned Place `location`/Region `center` arrays use `[longitude, latitude]`.
+coordinates must be paired and finite, with inclusive WGS84 bounds of **[-90, 90]**
+for latitude and **[-180, 180]** for longitude; extrema and paired zeroes are valid.
+Input uses decimal degrees, while returned Place `location`/Region `center` arrays
+use `[longitude, latitude]`. A null or omitted pair creates no point on POST and
+preserves the stored point on PUT; exactly one non-null component returns 400.
+
+All four mutations reject NaN, positive/negative infinity and finite out-of-range
+pairs with the existing 400 string: `Latitude or Longitude is out of range.` for
+Places, or `Center latitude or longitude is out of range.` for Regions. Incomplete
+pairs retain `Both latitude and longitude must be provided together.` or
+`Both centerLatitude and centerLongitude must be provided together.` Pair errors
+take precedence over numeric errors. JSON binding still permits quoted named
+floating-point literals such as `"NaN"`, which these actions reject; bare NaN is
+invalid JSON and receives the existing automatic MVC validation response.
+
+Coordinate rejection applies no other supplied fields, saves no changes and
+schedules no cache warm-up. Invalid fallback Place creation does not create an
+Unassigned Places Region. Explicit destination/ownership checks and reserved
+Region identity errors retain precedence over coordinates. Fallback Region and
+Place creation still use separate saves; this validation rule does not promise
+rollback if a later valid Place save fails.
 
 Legacy Region PUT recognizes an existing **Unassigned Places** Region by its
 stored name, case-insensitively, regardless of display order. Its stored name and
