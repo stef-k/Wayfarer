@@ -10,7 +10,6 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-using Moq;
 using Wayfarer.Models;
 using Wayfarer.Areas.Api.Controllers;
 using Wayfarer.Models.Dtos.Editor;
@@ -39,9 +38,9 @@ public sealed class TripPlaceAddressCompatibilityTests : TripEditorPlaceControll
         await db.SaveChangesAsync();
         await using var app = await IdentityRouteHost.StartAsync(db, CreateTestDirectory(), services =>
         {
-            // This existing host omits startup-only thumbnail storage and job scheduling.
-            services.AddSingleton(Mock.Of<ITripMapThumbnailGenerator>());
-            services.AddSingleton(Mock.Of<ICacheWarmupScheduler>());
+            // Reuse the existing controller fixture because this host omits startup-only services.
+            services.AddControllers().AddControllersAsServices();
+            services.AddSingleton(BuildController(db));
         });
         using var client = app.GetTestClient();
         var scheme = IdentityConstants.ApplicationScheme;
@@ -76,6 +75,7 @@ public sealed class TripPlaceAddressCompatibilityTests : TripEditorPlaceControll
     [Theory]
     [InlineData("Old address", "Changed", 37d, 23d, false, false)]
     [InlineData("Old address", "Old address", 11d, 22d, false, false)]
+    [InlineData("Old address", "Old address", 37d, 23.0000001d, false, false)]
     [InlineData("Old address", "", 37d, 23d, false, false)]
     [InlineData("Old address", "Old address", null, null, false, false)]
     [InlineData(" Old address ", "Old address", 37d, 23d, false, true)]
@@ -133,6 +133,26 @@ public sealed class TripPlaceAddressCompatibilityTests : TripEditorPlaceControll
         var stored = await db.Places.AsNoTracking().SingleAsync(item => item.Id == place.Id);
         Assert.Equal("Old feature", stored.ResolvedFeatureName);
         Assert.Equal(OriginalEnrichedAt, stored.AddressEnrichedAt);
+    }
+
+    /// <summary>Exact nullable coordinate compatibility also preserves metadata when both locations are absent.</summary>
+    [Fact]
+    public async Task UnchangedNullLocationPreservesMetadata()
+    {
+        using var db = CreateDbContext();
+        var trip = SeedTripGraph(db, "owner-user");
+        var place = SeedMetadata(trip, "Old address");
+        place.Location = null;
+        await db.SaveChangesAsync();
+        var controller = BuildController(db);
+        ConfigureControllerWithUserRole(controller, "owner-user");
+
+        var envelope = AssertMutation<EditorPlaceDto>(await SendJson(controller,
+            c => c.UpdatePlace(trip.Id, place.Id, CancellationToken.None), UpdateBody(place.RegionId, "Old address", null, null, false)));
+
+        Assert.Null(envelope.Data.Location);
+        Assert.Equal("Old feature", envelope.Data.ResolvedFeatureName);
+        Assert.Equal(OriginalEnrichedAt, (await db.Places.AsNoTracking().SingleAsync(item => item.Id == place.Id)).AddressEnrichedAt);
     }
 
     /// <summary>Successful enrichment replaces optional nulls and full provenance even with unchanged address text.</summary>
