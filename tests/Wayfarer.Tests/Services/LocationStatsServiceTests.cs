@@ -310,20 +310,27 @@ public class LocationStatsServiceTests(PostgresImportTestFixture fixture)
         Assert.Null(result.ToDate);
     }
 
-    [PostgresFact]
-    public async Task GetStatsForDateRangeAsync_IncludesEdgeDates()
+    /// <summary>Inclusive UTC parameters include edge rows through the final calendar day/month of year 9999.</summary>
+    [PostgresTheory]
+    [InlineData(2024, 1, 1)]
+    [InlineData(9999, 12, 1)]
+    [InlineData(9999, 12, 31)]
+    public async Task GetStatsForDateRangeAsync_IncludesEdgeDates(int year, int month, int day)
     {
         // Arrange
         await using var db = fixture.CreateContext();
         var user = await fixture.CreateUserAsync();
 
-        var startDate = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc);
-        var endDate = new DateTime(2024, 1, 31, 23, 59, 59, DateTimeKind.Utc);
+        var startDate = new DateTime(year, month, day, 0, 0, 0, DateTimeKind.Utc);
+        var endDate = new DateTime(year, month, DateTime.DaysInMonth(year, month), 23, 59, 59, DateTimeKind.Utc)
+            .AddTicks(TimeSpan.TicksPerSecond - 1);
+        // Store the final finite microsecond; Npgsql's existing MaxValue/infinity conversion governs the cutoff.
+        var lastStoredDate = endDate.AddTicks(-9);
 
         var locations = new[]
         {
             CreateLocation(user.Id, "USA", "New York", "NY", startDate), // exactly at start
-            CreateLocation(user.Id, "France", "Paris", "Île-de-France", endDate) // exactly at end
+            CreateLocation(user.Id, "France", "Paris", "Île-de-France", lastStoredDate)
         };
         db.Locations.AddRange(locations);
         await db.SaveChangesAsync();
@@ -335,6 +342,8 @@ public class LocationStatsServiceTests(PostgresImportTestFixture fixture)
 
         // Assert
         Assert.Equal(2, result.TotalLocations);
+        Assert.Equal(startDate, result.FromDate);
+        Assert.Equal(lastStoredDate, result.ToDate);
     }
 
     [PostgresFact]
