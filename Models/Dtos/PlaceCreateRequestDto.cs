@@ -7,6 +7,7 @@ namespace Wayfarer.Models.Dtos
     /// Request body to create a new Place under a trip's region.
     /// If <see cref="RegionId"/> is not provided, the place will be created under the trip's
     /// special "Unassigned Places" region (auto-created if missing).
+    /// A null or omitted coordinate pair creates a Place without a location.
     /// </summary>
     public class PlaceCreateRequestDto
     {
@@ -23,12 +24,14 @@ namespace Wayfarer.Models.Dtos
         public string Name { get; set; } = default!;
 
         /// <summary>
-        /// Optional latitude in degrees (WGS84). Must be provided together with <see cref="Longitude"/> if present.
+        /// Optional finite WGS84 latitude in the inclusive range [-90, 90].
+        /// Must be provided together with <see cref="Longitude"/> when non-null.
         /// </summary>
         public double? Latitude { get; set; }
 
         /// <summary>
-        /// Optional longitude in degrees (WGS84). Must be provided together with <see cref="Latitude"/> if present.
+        /// Optional finite WGS84 longitude in the inclusive range [-180, 180].
+        /// Must be provided together with <see cref="Latitude"/> when non-null.
         /// </summary>
         public double? Longitude { get; set; }
 

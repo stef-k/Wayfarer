@@ -178,7 +178,7 @@ public sealed class ApiTripCoordinatesPostgresTests(PostgresImportTestFixture fi
         Assert.False(await db.Regions.AnyAsync(item => item.TripId == region.TripId && item.Name == "Unassigned Places"));
         var places = await db.Places.Where(item => item.Region.TripId == region.TripId).OrderBy(item => item.DisplayOrder).ToArrayAsync();
         Assert.Equal(new[] { expected.Place.Id, expected.Sibling.Id }, places.Select(item => item.Id));
-        Assert.Equal(new[] { 1, 2 }, places.Select(item => item.DisplayOrder));
+        Assert.Equal(new int?[] { 1, 2 }, places.Select(item => item.DisplayOrder));
         Assert.All(places, item => Assert.Equal(region.Id, item.RegionId));
         var place = places[0];
         Assert.Equal((expected.Place.Name, expected.Place.Notes, expected.Place.IconName, expected.Place.MarkerColor),

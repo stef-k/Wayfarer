@@ -4,6 +4,7 @@ namespace Wayfarer.Models.Dtos
 {
     /// <summary>
     /// Request body to update an existing Place. All fields are optional; only provided values are applied.
+    /// A null or omitted coordinate pair preserves the stored location.
     /// </summary>
     public class PlaceUpdateRequestDto
     {
@@ -18,12 +19,14 @@ namespace Wayfarer.Models.Dtos
         public string? Name { get; set; }
 
         /// <summary>
-        /// Optional latitude in degrees (WGS84). Must be provided together with <see cref="Longitude"/> if present.
+        /// Optional finite WGS84 latitude in the inclusive range [-90, 90].
+        /// Must be provided together with <see cref="Longitude"/> when non-null.
         /// </summary>
         public double? Latitude { get; set; }
 
         /// <summary>
-        /// Optional longitude in degrees (WGS84). Must be provided together with <see cref="Latitude"/> if present.
+        /// Optional finite WGS84 longitude in the inclusive range [-180, 180].
+        /// Must be provided together with <see cref="Latitude"/> when non-null.
         /// </summary>
         public double? Longitude { get; set; }
 

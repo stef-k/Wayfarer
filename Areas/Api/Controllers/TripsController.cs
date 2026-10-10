@@ -596,7 +596,7 @@ return Ok(dto);
     }
 
     /// <summary>
-    /// Validates that latitude and longitude coordinates are within valid ranges
+    /// Validates finite latitude/longitude within the inclusive WGS84 bounds.
     /// </summary>
     private static bool IsValidCoordinate(double latitude, double longitude)
     {
@@ -607,8 +607,8 @@ return Ok(dto);
     }
 
     /// <summary>
-    /// Creates a new Place within the given trip. If regionId is omitted, the place is created under
-    /// the trip's "Unassigned Places" region.
+    /// Creates a Place with optional finite WGS84 coordinates within the given trip.
+    /// If regionId is omitted, valid input uses the trip's "Unassigned Places" region.
     /// </summary>
     /// <param name="tripId">Trip ID (must belong to the token user)</param>
     /// <param name="request">Place creation payload</param>
@@ -626,30 +626,28 @@ return Ok(dto);
         if (request == null) return BadRequest("Invalid request.");
         if (string.IsNullOrWhiteSpace(request.Name)) return BadRequest("Name is required.");
 
-        // Resolve destination region
-        Region? destRegion;
+        // Preserve explicit destination lookup/ownership precedence before coordinate validation.
+        Region? destRegion = null;
         if (request.RegionId.HasValue)
         {
             destRegion = await _dbContext.Regions.FirstOrDefaultAsync(r => r.Id == request.RegionId.Value);
             if (destRegion == null || destRegion.TripId != tripId || destRegion.UserId != user.Id)
                 return BadRequest("Invalid regionId.");
         }
-        else
-        {
-            destRegion = await GetOrCreateUnassignedRegion(trip, user.Id);
-        }
 
-        // Coordinates validation
+        // Validate finite pairs before constructing geometry or creating a fallback Region.
         NetTopologySuite.Geometries.Point? location = null;
         if (request.Latitude.HasValue || request.Longitude.HasValue)
         {
             if (!(request.Latitude.HasValue && request.Longitude.HasValue))
                 return BadRequest("Both latitude and longitude must be provided together.");
             double lat = request.Latitude.Value; double lon = request.Longitude.Value;
-            if (lat < -90 || lat > 90 || lon < -180 || lon > 180)
+            if (!IsValidCoordinate(lat, lon))
                 return BadRequest("Latitude or Longitude is out of range.");
             location = new NetTopologySuite.Geometries.Point(lon, lat) { SRID = 4326 };
         }
+
+        destRegion ??= await GetOrCreateUnassignedRegion(trip, user.Id);
 
         // Defaults for icon and color
         string iconName = string.IsNullOrWhiteSpace(request.IconName) ? "marker" : request.IconName!;
@@ -695,8 +693,8 @@ return Ok(dto);
     }
 
     /// <summary>
-    /// Partially updates an existing Place by ID. Allows moving across regions that belong to trips
-    /// owned by the same user.
+    /// Partially updates a Place with optional finite WGS84 coordinates.
+    /// Region moves remain within the same owned trip.
     /// </summary>
     /// <param name="placeId">Place ID</param>
     /// <param name="request">Partial update payload</param>
@@ -718,17 +716,18 @@ return Ok(dto);
         var targetRegionOwned = await _dbContext.Regions.AsNoTracking()
             .AnyAsync(region => region.Id == targetRegionId && region.TripId == place.Region.TripId && region.UserId == user.Id);
         if (!targetRegionOwned) return BadRequest("Invalid regionId.");
-        var location = place.Location == null ? null : (NetTopologySuite.Geometries.Point)place.Location.Copy();
+        NetTopologySuite.Geometries.Point? location = null;
         if (request.Latitude.HasValue || request.Longitude.HasValue)
         {
             if (!(request.Latitude.HasValue && request.Longitude.HasValue))
                 return BadRequest("Both latitude and longitude must be provided together.");
             var lat = request.Latitude.Value;
             var lon = request.Longitude.Value;
-            if (lat < -90 || lat > 90 || lon < -180 || lon > 180)
+            if (!IsValidCoordinate(lat, lon))
                 return BadRequest("Latitude or Longitude is out of range.");
             location = new NetTopologySuite.Geometries.Point(lon, lat) { SRID = 4326 };
         }
+        location ??= place.Location == null ? null : (NetTopologySuite.Geometries.Point)place.Location.Copy();
         var iconName = request.ClearIcon == true || request.IconName != null && string.IsNullOrWhiteSpace(request.IconName)
             ? "marker" : request.IconName ?? place.IconName;
         var markerColor = request.ClearMarkerColor == true || request.MarkerColor != null && string.IsNullOrWhiteSpace(request.MarkerColor)
@@ -805,7 +804,7 @@ return Ok(dto);
     }
 
     /// <summary>
-    /// Creates a new region inside the trip.
+    /// Creates a Region inside the trip with optional finite WGS84 center coordinates.
     /// </summary>
     [HttpPost("{tripId}/regions")]
     public async Task<IActionResult> CreateRegion(Guid tripId, [FromBody] RegionCreateRequestDto request)
@@ -826,7 +825,7 @@ return Ok(dto);
             if (!(request.CenterLatitude.HasValue && request.CenterLongitude.HasValue))
                 return BadRequest("Both centerLatitude and centerLongitude must be provided together.");
             double lat = request.CenterLatitude.Value; double lon = request.CenterLongitude.Value;
-            if (lat < -90 || lat > 90 || lon < -180 || lon > 180)
+            if (!IsValidCoordinate(lat, lon))
                 return BadRequest("Center latitude or longitude is out of range.");
             center = new NetTopologySuite.Geometries.Point(lon, lat) { SRID = 4326 };
         }
@@ -989,7 +988,7 @@ return Ok(dto);
     }
 
     /// <summary>
-    /// Updates an existing region by ID. Trip association cannot change.
+    /// Updates a Region with optional finite WGS84 center coordinates. Trip association cannot change.
     /// Reserved name/order submissions must match stored values; metadata remains editable.
     /// </summary>
     [HttpPut("regions/{regionId}")]
@@ -1020,7 +1019,7 @@ return Ok(dto);
                 return BadRequest("Both centerLatitude and centerLongitude must be provided together.");
             double lat = request.CenterLatitude.Value;
             double lon = request.CenterLongitude.Value;
-            if (lat < -90 || lat > 90 || lon < -180 || lon > 180)
+            if (!IsValidCoordinate(lat, lon))
                 return BadRequest("Center latitude or longitude is out of range.");
             center = new NetTopologySuite.Geometries.Point(lon, lat) { SRID = 4326 };
         }
