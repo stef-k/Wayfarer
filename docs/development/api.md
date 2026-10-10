@@ -210,9 +210,24 @@ invalid JSON and receives the existing automatic MVC validation response.
 Coordinate rejection applies no other supplied fields, saves no changes and
 schedules no cache warm-up. Invalid fallback Place creation does not create an
 Unassigned Places Region. Explicit destination/ownership checks and reserved
-Region identity errors retain precedence over coordinates. Fallback Region and
-Place creation still use separate saves; this validation rule does not promise
-rollback if a later valid Place save fails.
+Region identity errors retain precedence over coordinates.
+
+A valid Place POST commits the Place, any newly needed fallback Region and the
+Trip's `updatedAt` timestamp together through one relational save. A failed Place
+insert rolls back those changes; existing Regions and Places remain intact.
+Sequential requests reuse the existing fallback's ID, name and stored display
+order. A new fallback has a generated GUID, the token owner's identity and
+display order **0**. A supplied Place `displayOrder` wins; otherwise creation
+appends at `(MAX(DisplayOrder) ?? 0) + 1`, starting at **1** in an empty Region.
+
+Request cancellation is passed through creation reads and the final save.
+Cancellation before commit leaves no partial Region/Place pair; cancellation
+after commit cannot undo it. Losing the connection or response at commit can
+leave the outcome unknown, so an error does not guarantee that nothing committed
+and this endpoint supplies no automatic replay or idempotency guarantee.
+Atomicity is per request: simultaneous fallback lookup/creation can still produce
+duplicate Unassigned Places Regions or Place display orders. Concurrent
+uniqueness and historical duplicate repair remain outside this contract.
 
 Legacy Region PUT recognizes an existing **Unassigned Places** Region by its
 stored name, case-insensitively, regardless of display order. Its stored name and

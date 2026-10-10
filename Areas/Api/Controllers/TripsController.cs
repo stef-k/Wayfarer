@@ -608,7 +608,7 @@ return Ok(dto);
 
     /// <summary>
     /// Creates a Place with optional finite WGS84 coordinates within the given trip.
-    /// If regionId is omitted, valid input uses the trip's "Unassigned Places" region.
+    /// If regionId is omitted, any needed "Unassigned Places" region is saved atomically with the Place.
     /// </summary>
     /// <param name="tripId">Trip ID (must belong to the token user)</param>
     /// <param name="request">Place creation payload</param>
@@ -617,10 +617,11 @@ return Ok(dto);
     {
         var user = GetUserFromToken();
         if (user == null) return Unauthorized("Missing or invalid API token.");
+        var cancellationToken = HttpContext.RequestAborted;
 
         var trip = await _dbContext.Trips
             .Include(t => t.Regions)
-            .FirstOrDefaultAsync(t => t.Id == tripId && t.UserId == user.Id);
+            .FirstOrDefaultAsync(t => t.Id == tripId && t.UserId == user.Id, cancellationToken);
         if (trip == null) return NotFound("Trip not found.");
 
         if (request == null) return BadRequest("Invalid request.");
@@ -630,7 +631,8 @@ return Ok(dto);
         Region? destRegion = null;
         if (request.RegionId.HasValue)
         {
-            destRegion = await _dbContext.Regions.FirstOrDefaultAsync(r => r.Id == request.RegionId.Value);
+            destRegion = await _dbContext.Regions
+                .FirstOrDefaultAsync(r => r.Id == request.RegionId.Value, cancellationToken);
             if (destRegion == null || destRegion.TripId != tripId || destRegion.UserId != user.Id)
                 return BadRequest("Invalid regionId.");
         }
@@ -647,20 +649,21 @@ return Ok(dto);
             location = new NetTopologySuite.Geometries.Point(lon, lat) { SRID = 4326 };
         }
 
-        destRegion ??= await GetOrCreateUnassignedRegion(trip, user.Id);
+        destRegion ??= await GetOrCreateUnassignedRegion(trip, user.Id, cancellationToken);
 
         // Defaults for icon and color
         string iconName = string.IsNullOrWhiteSpace(request.IconName) ? "marker" : request.IconName!;
         string markerColor = string.IsNullOrWhiteSpace(request.MarkerColor) ? "bg-blue" : request.MarkerColor!;
 
         // Display order
-        int displayOrder = request.DisplayOrder ?? await GetNextPlaceOrder(destRegion.Id);
+        int displayOrder = request.DisplayOrder ?? await GetNextPlaceOrder(destRegion.Id, cancellationToken);
 
         var place = new Place
         {
             Id = Guid.NewGuid(),
             UserId = user.Id,
             RegionId = destRegion.Id,
+            Region = destRegion,
             Name = request.Name!,
             Notes = RichNotes.Normalize(request.Notes),
             Location = location,
@@ -670,7 +673,8 @@ return Ok(dto);
         };
 
         _dbContext.Places.Add(place);
-        await _dbContext.SaveChangesAsync();
+        // EF's relational transaction includes the staged fallback, Place and automatic Trip timestamp.
+        await _dbContext.SaveChangesAsync(cancellationToken);
 
         // Return DTO to ensure consistent serialization (location as double[] not GeoJSON)
         var placeDto = new ApiTripPlaceDto
@@ -1155,9 +1159,11 @@ return Ok(dto);
         return Ok(new { success = true, message = "Region deleted.", regionId });
     }
 
-    private async Task<Region> GetOrCreateUnassignedRegion(Trip trip, string userId)
+    /// <summary>Reuses the existing fallback or stages it for the caller's atomic Place save.</summary>
+    private async Task<Region> GetOrCreateUnassignedRegion(Trip trip, string userId, CancellationToken cancellationToken)
     {
-        var region = await _dbContext.Regions.FirstOrDefaultAsync(r => r.TripId == trip.Id && r.Name == ShadowRegionName);
+        var region = await _dbContext.Regions
+            .FirstOrDefaultAsync(r => r.TripId == trip.Id && r.Name == ShadowRegionName, cancellationToken);
         if (region != null) return region;
         region = new Region
         {
@@ -1168,7 +1174,6 @@ return Ok(dto);
             DisplayOrder = 0
         };
         _dbContext.Regions.Add(region);
-        await _dbContext.SaveChangesAsync();
         return region;
     }
 
@@ -1446,9 +1451,11 @@ return Ok(dto);
         }
     }
 
-    private async Task<int> GetNextPlaceOrder(Guid regionId)
+    /// <summary>Appends after the maximum stored Place order, starting at one without flushing a staged Region.</summary>
+    private async Task<int> GetNextPlaceOrder(Guid regionId, CancellationToken cancellationToken)
     {
-        var max = await _dbContext.Places.Where(p => p.RegionId == regionId).MaxAsync(p => (int?)p.DisplayOrder) ?? 0;
+        var max = await _dbContext.Places.Where(p => p.RegionId == regionId)
+            .MaxAsync(p => (int?)p.DisplayOrder, cancellationToken) ?? 0;
         return max + 1;
     }
 
