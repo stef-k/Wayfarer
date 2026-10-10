@@ -216,6 +216,7 @@ public class BackfillController : BaseApiController
     /// <param name="page">Page number (1-based).</param>
     /// <param name="pageSize">Number of locations per page.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Success envelope with the effective query pagination returned by the service.</returns>
     [HttpGet("candidate-locations")]
     public async Task<IActionResult> GetCandidateLocations(
         [FromQuery] Guid placeId,
@@ -251,7 +252,7 @@ public class BackfillController : BaseApiController
             var settings = _dbContext.ApplicationSettings.OrderBy(s => s.Id).FirstOrDefault();
             var searchRadius = radius ?? settings?.SuggestionMaxRadius ?? 7500;
 
-            var (locations, totalCount) = await _backfillService.GetCandidateLocationsAsync(
+            var (locations, totalCount, effectivePage, effectivePageSize) = await _backfillService.GetCandidateLocationsAsync(
                 userId, placeId, lat, lon, firstSeenUtc, lastSeenUtc, searchRadius, page, pageSize, cancellationToken);
 
             return Ok(new
@@ -261,8 +262,8 @@ public class BackfillController : BaseApiController
                 {
                     Locations = locations,
                     TotalCount = totalCount,
-                    Page = page,
-                    PageSize = pageSize
+                    Page = effectivePage,
+                    PageSize = effectivePageSize
                 }
             });
         }

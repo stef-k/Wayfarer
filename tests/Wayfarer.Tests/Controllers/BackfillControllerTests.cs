@@ -137,7 +137,7 @@ public class BackfillControllerTests : TestBase
                 It.IsAny<int>(),
                 It.IsAny<int>(),
                 It.IsAny<CancellationToken>()))
-            .ReturnsAsync((expectedLocations, 2));
+            .ReturnsAsync((expectedLocations, 2, 1, 50));
 
         var (controller, _, _) = BuildController("u1", mockService.Object);
 
@@ -179,7 +179,7 @@ public class BackfillControllerTests : TestBase
                 It.IsAny<int>(),
                 It.IsAny<int>(),
                 It.IsAny<CancellationToken>()))
-            .ReturnsAsync((new List<CandidateLocationDto>(), 0));
+            .ReturnsAsync((new List<CandidateLocationDto>(), 0, 1, 50));
 
         var (controller, _, _) = BuildController("u1", mockService.Object);
 
@@ -212,7 +212,7 @@ public class BackfillControllerTests : TestBase
         var locations = new List<CandidateLocationDto> { new() { Id = 17 } };
         service.Setup(s => s.GetCandidateLocationsAsync("u1", placeId, 37, 23,
                 firstSeenUtc, lastSeenUtc, 500, 0, 1000, cancellation.Token))
-            .ReturnsAsync((locations, 3001));
+            .ReturnsAsync((locations, 3001, 1, 200));
         var (controller, _, _) = BuildController("u1", service.Object);
 
         var result = await controller.GetCandidateLocations(placeId, 37, 23,
@@ -232,6 +232,7 @@ public class BackfillControllerTests : TestBase
         Assert.Equal(200, data.PageSize);
     }
 
+    /// <summary>A custom search radius reaches the service without changing the default pagination.</summary>
     [Fact]
     public async Task GetCandidateLocations_UsesCustomRadius_WhenProvided()
     {
@@ -252,7 +253,7 @@ public class BackfillControllerTests : TestBase
                 It.IsAny<CancellationToken>()))
             .Callback<string, Guid, double, double, DateTime, DateTime, int, int, int, CancellationToken>(
                 (_, _, _, _, _, _, radius, _, _, _) => capturedRadius = radius)
-            .ReturnsAsync((new List<CandidateLocationDto>(), 0));
+            .ReturnsAsync((new List<CandidateLocationDto>(), 0, 1, 50));
 
         var (controller, _, _) = BuildController("u1", mockService.Object);
 
@@ -293,7 +294,7 @@ public class BackfillControllerTests : TestBase
                     capturedPage = page;
                     capturedPageSize = pageSize;
                 })
-            .ReturnsAsync((new List<CandidateLocationDto>(), 0));
+            .ReturnsAsync((new List<CandidateLocationDto>(), 0, 3, 25));
 
         var (controller, _, _) = BuildController("u1", mockService.Object);
 

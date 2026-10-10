@@ -1356,7 +1356,7 @@ public class VisitBackfillService : IVisitBackfillService
     }
 
     /// <inheritdoc />
-    public async Task<(List<CandidateLocationDto> Locations, int TotalCount)> GetCandidateLocationsAsync(
+    public async Task<(List<CandidateLocationDto> Locations, int TotalCount, int Page, int PageSize)> GetCandidateLocationsAsync(
         string userId,
         Guid placeId,
         double lat,
@@ -1496,6 +1496,6 @@ public class VisitBackfillService : IVisitBackfillService
             "Retrieved {Count}/{Total} candidate locations for place {PlaceId} (page {Page})",
             locations.Count, totalCount, placeId, page);
 
-        return (locations, totalCount);
+        return (locations, totalCount, page, pageSize);
     }
 }
