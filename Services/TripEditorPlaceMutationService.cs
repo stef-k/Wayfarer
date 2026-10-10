@@ -6,6 +6,7 @@ using NetTopologySuite.Geometries;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos.Editor;
 using Wayfarer.Parsers;
+using Wayfarer.Services.LocationProviders;
 
 namespace Wayfarer.Services;
 
@@ -134,11 +135,10 @@ public sealed class TripEditorPlaceMutationService
             return EditorRegionMutationOutcome<EditorMutationResult<EditorPlaceDto>>.NotFound();
         }
 
-        var manualAddressReplaced = !string.Equals(place.Address, update.Address?.Trim() ?? string.Empty, StringComparison.Ordinal);
-        var coordinatesReplaced = !CoordinatesEqual(
-            place.Location == null ? null : new EditorCoordinateDto(place.Location.Y, place.Location.X), update.Location);
         var address = await ResolveAddressAsync(userId, place.Id, update.Address, update.Location, update.ReverseGeocode, cancellationToken);
-        if (address.ProviderKey != null || manualAddressReplaced || coordinatesReplaced) ApplyAddressEnrichment(place, address);
+        var metadata = address.Metadata.HasValue
+            ? new EditorPlaceMetadataDirective(EditorPlaceMetadataPolicy.Replace, address.Metadata.Value)
+            : new EditorPlaceMetadataDirective(EditorPlaceMetadataPolicy.RetainCompatible);
         var lifecycle = await _lifecycle.UpdatePlaceAsync(
             tripId,
             placeId,
@@ -150,7 +150,8 @@ public sealed class TripEditorPlaceMutationService
                 address.Value,
                 update.IconName,
                 update.MarkerColor,
-                ToPoint(update.Location)),
+                ToPoint(update.Location),
+                EditorMetadata: metadata),
             cancellationToken);
         if (!lifecycle.Succeeded)
         {
@@ -313,8 +314,8 @@ public sealed class TripEditorPlaceMutationService
             : (null, errors);
     }
 
-    private async Task<(string Value, IReadOnlyList<EditorWarningDto> Warnings, string? ProviderKey,
-        string? FeatureName, string? FeatureType)> ResolveAddressAsync(
+    /// <summary>Resolves the address once and freezes successful provenance before lifecycle retries.</summary>
+    private async Task<(string Value, IReadOnlyList<EditorWarningDto> Warnings, ResolvedFeatureTuple? Metadata)> ResolveAddressAsync(
         string userId,
         Guid placeId,
         string? manualAddress,
@@ -325,28 +326,29 @@ public sealed class TripEditorPlaceMutationService
         var fallback = manualAddress?.Trim() ?? string.Empty;
         if (!reverseGeocode || location == null)
         {
-            return (fallback, Array.Empty<EditorWarningDto>(), null, null, null);
+            return (fallback, Array.Empty<EditorWarningDto>(), null);
         }
         var result = await _reverseGeocodingService.EnrichAsync(userId, location.Latitude, location.Longitude,
             ReverseGeocodingIntent.PlaceAddress, cancellationToken);
         var address = result.Value == null ? null
             : string.IsNullOrWhiteSpace(result.Value.FullAddress) ? result.Value.Address : result.Value.FullAddress;
-        return string.IsNullOrWhiteSpace(address)
-            ? (fallback, ReverseGeocodeWarning(placeId), null, null, null)
-            : (address.Trim(), Array.Empty<EditorWarningDto>(), result.Authority?.ProviderKey ?? "mapbox",
-                result.Value!.ResolvedFeatureName, result.Value.ResolvedFeatureType);
+        if (string.IsNullOrWhiteSpace(address)) return (fallback, ReverseGeocodeWarning(placeId), null);
+        var providerKey = result.Authority?.ProviderKey ?? "mapbox";
+        var metadata = new ResolvedFeatureTuple(result.Value!.ResolvedFeatureName, result.Value.ResolvedFeatureType,
+            providerKey, providerKey == "geoapify" ? "persistent" : "permanent", DateTimeOffset.UtcNow);
+        return (address.Trim(), Array.Empty<EditorWarningDto>(), metadata);
     }
 
+    /// <summary>Initializes metadata only for a new Place; existing rows are owned by lifecycle.</summary>
     private static void ApplyAddressEnrichment(Place place,
-        (string Value, IReadOnlyList<EditorWarningDto> Warnings, string? ProviderKey, string? FeatureName, string? FeatureType) result)
+        (string Value, IReadOnlyList<EditorWarningDto> Warnings, ResolvedFeatureTuple? Metadata) result)
     {
-        var providerKey = result.ProviderKey;
-        place.AddressEnrichmentProvider = providerKey;
-        place.AddressEnrichmentStorageMode = providerKey == "geoapify" ? "persistent"
-            : providerKey == "mapbox" ? "permanent" : null;
-        place.AddressEnrichedAt = providerKey != null ? DateTimeOffset.UtcNow : null;
-        place.ResolvedFeatureName = providerKey != null ? result.FeatureName : null;
-        place.ResolvedFeatureType = providerKey != null ? result.FeatureType : null;
+        var metadata = result.Metadata.GetValueOrDefault();
+        place.AddressEnrichmentProvider = metadata.Provider;
+        place.AddressEnrichmentStorageMode = metadata.StorageMode;
+        place.AddressEnrichedAt = metadata.EnrichedAt;
+        place.ResolvedFeatureName = metadata.Name;
+        place.ResolvedFeatureType = metadata.Type;
     }
 
     private static IReadOnlyList<EditorWarningDto> ReverseGeocodeWarning(Guid placeId) =>
@@ -399,10 +401,6 @@ public sealed class TripEditorPlaceMutationService
 
     private static Point? ToPoint(EditorCoordinateDto? coordinate) =>
         coordinate == null ? null : new Point(coordinate.Longitude, coordinate.Latitude) { SRID = 4326 };
-
-    private static bool CoordinatesEqual(EditorCoordinateDto? left, EditorCoordinateDto? right) =>
-        left == null && right == null
-        || left != null && right != null && left.Latitude.Equals(right.Latitude) && left.Longitude.Equals(right.Longitude);
 
     private static bool IsShadowRegion(Region region) =>
         region.DisplayOrder == 0
