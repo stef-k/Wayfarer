@@ -9,6 +9,11 @@
 
 ### Fixed
 
+- Protect the reserved Unassigned Places Region's stored name and display order in
+  the legacy bearer API. Reject mixed prohibited updates before tracked mutations,
+  validate center input before applying fields, and preserve metadata partial
+  updates, identical-field no-ops and deletion protection (#830).
+
 - Enforce Family/Friends/Organization location audiences and Organization sharing
   controls across Web, Mobile and SSE. Require active Group membership for
   management, reject archived Groups, and rejoin former Owners/Managers as Members

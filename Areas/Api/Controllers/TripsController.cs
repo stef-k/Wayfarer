@@ -990,6 +990,7 @@ return Ok(dto);
 
     /// <summary>
     /// Updates an existing region by ID. Trip association cannot change.
+    /// Reserved name/order submissions must match stored values; metadata remains editable.
     /// </summary>
     [HttpPut("regions/{regionId}")]
     public async Task<IActionResult> UpdateRegion(Guid regionId, [FromBody] RegionUpdateRequestDto request)
@@ -1002,31 +1003,44 @@ return Ok(dto);
         if (region == null) return NotFound("Region not found.");
         if (region.Trip.UserId != user.Id) return Unauthorized("Not your region.");
 
-        bool anyChange = false;
+        // Match DELETE's stored-name predicate before any tracked field can change.
+        bool isReserved = string.Equals(region.Name, ShadowRegionName, StringComparison.OrdinalIgnoreCase);
+        var name = request.Name?.Trim();
+        if (isReserved && ((name != null && !string.Equals(name, region.Name, StringComparison.Ordinal))
+            || (request.DisplayOrder.HasValue && request.DisplayOrder.Value != region.DisplayOrder)))
+            return BadRequest("Cannot change the Unassigned Places region name or display order.");
+        if (!isReserved && string.Equals(name, ShadowRegionName, StringComparison.OrdinalIgnoreCase))
+            return BadRequest("Region name is reserved.");
 
-        if (request.Name != null)
+        // Validate and construct the center before applying any partial fields.
+        NetTopologySuite.Geometries.Point? center = null;
+        if (request.CenterLatitude.HasValue || request.CenterLongitude.HasValue)
         {
-            if (string.Equals(request.Name.Trim(), ShadowRegionName, StringComparison.OrdinalIgnoreCase))
-                return BadRequest("Region name is reserved.");
-            region.Name = request.Name.Trim();
+            if (!(request.CenterLatitude.HasValue && request.CenterLongitude.HasValue))
+                return BadRequest("Both centerLatitude and centerLongitude must be provided together.");
+            double lat = request.CenterLatitude.Value;
+            double lon = request.CenterLongitude.Value;
+            if (lat < -90 || lat > 90 || lon < -180 || lon > 180)
+                return BadRequest("Center latitude or longitude is out of range.");
+            center = new NetTopologySuite.Geometries.Point(lon, lat) { SRID = 4326 };
+        }
+
+        bool anyChange = false;
+        if (!isReserved && name != null)
+        {
+            region.Name = name;
             anyChange = true;
         }
 
         if (request.Notes != null) { region.Notes = RichNotes.Normalize(request.Notes); anyChange = true; }
         if (request.CoverImageUrl != null) { region.CoverImageUrl = request.CoverImageUrl; anyChange = true; }
-
-        if (request.CenterLatitude.HasValue || request.CenterLongitude.HasValue)
+        if (center != null)
         {
-            if (!(request.CenterLatitude.HasValue && request.CenterLongitude.HasValue))
-                return BadRequest("Both centerLatitude and centerLongitude must be provided together.");
-            double lat = request.CenterLatitude.Value; double lon = request.CenterLongitude.Value;
-            if (lat < -90 || lat > 90 || lon < -180 || lon > 180)
-                return BadRequest("Center latitude or longitude is out of range.");
-            region.Center = new NetTopologySuite.Geometries.Point(lon, lat) { SRID = 4326 };
+            region.Center = center;
             anyChange = true;
         }
 
-        if (request.DisplayOrder.HasValue)
+        if (!isReserved && request.DisplayOrder.HasValue)
         {
             region.DisplayOrder = request.DisplayOrder.Value;
             anyChange = true;
