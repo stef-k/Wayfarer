@@ -9,29 +9,33 @@ namespace Wayfarer.Tests.Controllers;
 /// <summary>Calendar validation and statistics bounds at the existing API controller seam.</summary>
 public partial class ApiLocationControllerTests
 {
-    /// <summary>Both actions reject invalid applicable components before invoking statistics.</summary>
+    /// <summary>Both actions reject invalid components; statistics preserves exact error precedence without service calls.</summary>
     [Theory]
-    [InlineData("month", 2024, 13, null)]
-    [InlineData("month", 2024, 0, null)]
-    [InlineData("day", 2024, -1, 1)]
-    [InlineData("day", 2024, 13, null)]
-    [InlineData("day", 2026, 2, 30)]
-    [InlineData("day", 2025, 2, 29)]
-    [InlineData("day", 1900, 2, 29)]
-    [InlineData("day", 2024, 1, 0)]
-    [InlineData("day", 2024, 1, -1)]
-    [InlineData("day", 2024, 1, 32)]
-    [InlineData("day", 2024, null, 32)]
-    [InlineData("day", 2024, null, 0)]
-    [InlineData("year", 0, null, null)]
-    [InlineData("year", -1, null, null)]
-    [InlineData("year", 10000, null, null)]
-    [InlineData("year", int.MaxValue, null, null)]
-    [InlineData("unknown", 2024, null, null)]
-    [InlineData(" day ", 2024, 2, 29)]
-    [InlineData("", 2024, null, null)]
-    [InlineData(null, 2024, null, null)]
-    public async Task CalendarActions_RejectInvalidComponents(string? dateType, int year, int? month, int? day)
+    [InlineData("month", 2024, 13, null, "Month must be between 1 and 12")]
+    [InlineData("month", 2024, 0, null, "Month must be between 1 and 12")]
+    [InlineData("day", 2024, -1, 1, "Month must be between 1 and 12")]
+    [InlineData("day", 2024, 13, null, "Month and day are required for day filter")]
+    [InlineData("day", 2026, 2, 30, "Day is invalid for the selected year and month")]
+    [InlineData("day", 2025, 2, 29, "Day is invalid for the selected year and month")]
+    [InlineData("day", 1900, 2, 29, "Day is invalid for the selected year and month")]
+    [InlineData("day", 2024, 1, 0, "Day is invalid for the selected year and month")]
+    [InlineData("day", 2024, 1, -1, "Day is invalid for the selected year and month")]
+    [InlineData("day", 2024, 1, 32, "Day is invalid for the selected year and month")]
+    [InlineData("day", 2024, null, 32, "Month and day are required for day filter")]
+    [InlineData("day", 2024, null, 0, "Month and day are required for day filter")]
+    [InlineData("day", 0, 13, 32, "Year must be between 1 and 9999")]
+    [InlineData("day", 2024, 13, 32, "Month must be between 1 and 12")]
+    [InlineData("month", 0, 13, 32, "Year must be between 1 and 9999")]
+    [InlineData("year", 0, null, null, "Year must be between 1 and 9999")]
+    [InlineData("year", -1, null, null, "Year must be between 1 and 9999")]
+    [InlineData("year", 10000, null, null, "Year must be between 1 and 9999")]
+    [InlineData("year", int.MaxValue, null, null, "Year must be between 1 and 9999")]
+    [InlineData("unknown", 0, null, null, "Invalid dateType: unknown")]
+    [InlineData(" day ", 2024, 2, 29, "Invalid dateType:  day ")]
+    [InlineData(" day ", 0, null, null, "Invalid dateType:  day ")]
+    [InlineData("", 2024, null, null, "Invalid dateType: ")]
+    [InlineData(null, 2024, null, null, "Invalid dateType: ")]
+    public async Task CalendarActions_RejectInvalidComponents(string? dateType, int year, int? month, int? day, string message)
     {
         var db = CreateDbContext();
         var user = SeedUserWithToken(db, "tok");
@@ -42,27 +46,34 @@ public partial class ApiLocationControllerTests
             await controller.GetChronologicalStats(dateType!, year, month, day));
         var statsBody = JsonSerializer.SerializeToElement(statsResult.Value);
         Assert.False(statsBody.GetProperty("success").GetBoolean());
-        Assert.False(string.IsNullOrEmpty(statsBody.GetProperty("message").GetString()));
+        Assert.Equal(message, statsBody.GetProperty("message").GetString());
         var navigationResult = Assert.IsType<BadRequestObjectResult>(
             controller.CheckNavigationAvailability(dateType!, year, month, day));
         Assert.Equal("{\"success\":false}", JsonSerializer.Serialize(navigationResult.Value));
         Assert.Null(stats.DateRange);
     }
 
-    /// <summary>Statistics keeps its required-component errors even though navigation allows partials.</summary>
+    /// <summary>Missing components precede invalid numbers, including the zero year bound by MVC when omitted.</summary>
     [Theory]
-    [InlineData("day", null, null, "Month and day are required for day filter")]
-    [InlineData("day", 2, null, "Month and day are required for day filter")]
-    [InlineData("day", null, 29, "Month and day are required for day filter")]
-    [InlineData("month", null, null, "Month is required for month filter")]
-    public async Task GetChronologicalStats_RequiresSelectedComponents(string dateType, int? month, int? day, string message)
+    [InlineData("day", 2024, null, null, "Month and day are required for day filter")]
+    [InlineData("day", 2024, 2, null, "Month and day are required for day filter")]
+    [InlineData("day", 2024, null, 29, "Month and day are required for day filter")]
+    [InlineData("DaY", 2024, 13, null, "Month and day are required for day filter")]
+    [InlineData("day", 0, 13, null, "Month and day are required for day filter")]
+    [InlineData("day", 0, null, 29, "Month and day are required for day filter")]
+    [InlineData("day", 10000, null, 32, "Month and day are required for day filter")]
+    [InlineData("month", 2024, null, null, "Month is required for month filter")]
+    [InlineData("MoNtH", 0, null, null, "Month is required for month filter")]
+    [InlineData("month", 10000, null, 32, "Month is required for month filter")]
+    public async Task GetChronologicalStats_RequiresSelectedComponents(string dateType, int year, int? month, int? day,
+        string message)
     {
         var db = CreateDbContext();
         var user = SeedUserWithToken(db, "tok");
         var stats = new StubStatsService(new UserLocationStatsDto());
         var controller = BuildApiController(db, user, statsService: stats);
 
-        var result = Assert.IsType<BadRequestObjectResult>(await controller.GetChronologicalStats(dateType, 2024, month, day));
+        var result = Assert.IsType<BadRequestObjectResult>(await controller.GetChronologicalStats(dateType, year, month, day));
 
         Assert.Equal(JsonSerializer.Serialize(new { success = false, message }), JsonSerializer.Serialize(result.Value));
         Assert.Null(stats.DateRange);
@@ -119,7 +130,7 @@ public partial class ApiLocationControllerTests
         Assert.NotNull(stats.DateRange);
     }
 
-    /// <summary>Successfully bound invalid dates do not override missing, wrong or inactive bearer authority.</summary>
+    /// <summary>Incomplete and invalid dates do not override missing, wrong or inactive bearer authority.</summary>
     [Theory]
     [InlineData(null, true)]
     [InlineData("wrong", true)]
@@ -135,7 +146,7 @@ public partial class ApiLocationControllerTests
         if (token != null) controller.Request.Headers.Authorization = $"Bearer {token}";
 
         var chronology = Assert.IsType<UnauthorizedObjectResult>(await controller.GetChronological("month", 2026, 13));
-        var summary = Assert.IsType<UnauthorizedObjectResult>(await controller.GetChronologicalStats("month", 2026, 13));
+        var summary = Assert.IsType<UnauthorizedObjectResult>(await controller.GetChronologicalStats("day", 0, 13));
         var navigation = Assert.IsType<UnauthorizedObjectResult>(controller.CheckNavigationAvailability("month", 2026, 13));
 
         Assert.Equal(JsonSerializer.Serialize(chronology.Value), JsonSerializer.Serialize(summary.Value));

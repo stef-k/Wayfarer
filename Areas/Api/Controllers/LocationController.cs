@@ -1184,6 +1184,7 @@ public class LocationController : BaseApiController
     ///     Get chronological statistics for a specific period.
     ///     Returns location counts and unique countries/regions/cities visited over an inclusive UTC period.
     ///     Invalid calendar components return 400; calendar-valid maximum dates are supported.
+    ///     Required-component errors precede numeric calendar validation after bearer resolution.
     /// </summary>
     /// <param name="dateType">Type of period: "day", "month", or "year"</param>
     /// <param name="year">Year to filter (1-9999)</param>
@@ -1198,25 +1199,27 @@ public class LocationController : BaseApiController
             var user = GetUserFromToken();
             if (user == null) return Unauthorized(new { success = false, message = "Invalid or missing API token." });
 
+            // Preserve required-component messages for recognized modes before checking numeric components.
+            var dateMode = dateType?.ToLowerInvariant();
+            if (dateMode == "day" && (!month.HasValue || !day.HasValue))
+                return BadRequest(new { success = false, message = "Month and day are required for day filter" });
+            if (dateMode == "month" && !month.HasValue)
+                return BadRequest(new { success = false, message = "Month is required for month filter" });
+
             var validationError = ValidateCalendarComponents(dateType, year, month, day);
             if (validationError != null) return BadRequest(new { success = false, message = validationError });
 
-            // Build date range based on dateType
+            // Build the date range after required components and numeric bounds have been validated.
             DateTime startDate, endDate;
-            switch (dateType.ToLowerInvariant())
+            switch (dateMode)
             {
                 case "day":
-                    if (!month.HasValue || !day.HasValue)
-                        return BadRequest(
-                            new { success = false, message = "Month and day are required for day filter" });
-                    startDate = new DateTime(year, month.Value, day.Value, 0, 0, 0, DateTimeKind.Utc);
+                    startDate = new DateTime(year, month!.Value, day!.Value, 0, 0, 0, DateTimeKind.Utc);
                     endDate = startDate.AddTicks(TimeSpan.TicksPerDay - 1);
                     break;
 
                 case "month":
-                    if (!month.HasValue)
-                        return BadRequest(new { success = false, message = "Month is required for month filter" });
-                    startDate = new DateTime(year, month.Value, 1, 0, 0, 0, DateTimeKind.Utc);
+                    startDate = new DateTime(year, month!.Value, 1, 0, 0, 0, DateTimeKind.Utc);
                     endDate = new DateTime(year, month.Value, DateTime.DaysInMonth(year, month.Value),
                         23, 59, 59, DateTimeKind.Utc).AddTicks(TimeSpan.TicksPerSecond - 1);
                     break;
