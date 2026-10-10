@@ -229,8 +229,9 @@ public class TripsController : BaseApiController
     /// </summary>
     /// <param name="id">The unique identifier of the trip.</param>
     /// <remarks>
-    /// - If the trip is public, no authentication is needed.  
-    /// - If the trip is private, a valid API token must be included in the Authorization header.  
+    /// - Public Trips permit anonymous reads.
+    /// - Private Trips require a valid API token belonging to the Trip owner in the Authorization header.
+    /// Cookie ownership alone is insufficient for this action.
     /// Example: <c>Authorization: Bearer {your_token}</c>  
     ///
     /// The response includes trip metadata, regions, places, areas, and segments, with all related notes and geometries.
@@ -239,7 +240,7 @@ public class TripsController : BaseApiController
     /// A JSON object representing the complete trip structure.
     /// </returns>
     /// <response code="200">Returns the full trip data</response>
-    /// <response code="401">If the trip is private and the token is missing or invalid</response>
+    /// <response code="401">If the Trip is private and a valid owner API token is missing</response>
     /// <response code="404">If the trip does not exist</response>
     [HttpGet("{id}")]
     public IActionResult GetTrip(Guid id)
@@ -323,8 +324,9 @@ return Ok(dto);
     /// and adaptive downloading based on user behavior and available storage.
     /// 
     /// Authorization rules:
-    /// - Public trips: No authentication required
-    /// - Private trips: Must be trip owner OR have valid API token for trip owner
+    /// - Public Trips permit anonymous reads.
+    /// - Private Trips require a valid API token belonging to the Trip owner.
+    /// Cookie ownership alone is insufficient for this action.
     /// 
     /// Example response:
     /// <code>
@@ -342,7 +344,7 @@ return Ok(dto);
     /// </code>
     /// </remarks>
     /// <response code="200">Returns trip boundary information</response>
-    /// <response code="401">If trip is private and user is not the owner</response>
+    /// <response code="401">If the Trip is private and a valid owner API token is missing</response>
     /// <response code="404">If trip not found</response>
     [HttpGet("{id}/boundary")]
     public async Task<IActionResult> GetTripBoundary(Guid id)

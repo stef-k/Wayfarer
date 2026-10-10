@@ -49,7 +49,7 @@ Bearer-only mobile/integration mutations do not require MVC antiforgery. Do not 
 | --- | --- | --- |
 | `/api/version` | Application version | anonymous |
 | `/api/icons`, `/api/tags`, `/api/activity`, `/api/settings` | UI/reference data | endpoint/controller rules |
-| `/api/users` | user lookup, public stats, authenticated activity/management actions | mixed public, cookie roles and ownership |
+| `/api/users` | user lookup, caller/self statistics from cookie Identity claims, authenticated activity/management actions | endpoint rules; statistics use the caller's `NameIdentifier`; cookie roles and ownership for management |
 | `/api/trips` | trip reads/search, public trip discovery/images and legacy trip mutations/clone | public where explicitly exposed; otherwise token/cookie ownership |
 | `/api/trips/{tripId}/editor` | Vue Trip Editor state, metadata, regions, areas, places, segments, tags, share progress and geocode search | User cookie + ownership; mutations antiforgery |
 | `/api/trip-editor/{tripId}/segments/{segmentId}/route-proposals` | external route proposal generation | User cookie + ownership + antiforgery |
@@ -140,6 +140,12 @@ A saved automatic point returns `skipped: false` and its integer `locationId`.
 Check-in success returns `message` and the publication-safe `location` object.
 Check actual saved history rather than equating HTTP success with persistence.
 
+Anonymous `GET /api/settings` exposes the effective configured time, distance and
+accuracy thresholds. Defaults are **5 minutes, 15 m and 50 m** respectively;
+configured values take precedence. The real settings service loads persisted row
+ID 1 or throws if it is missing; the controller's defensive null-result fallback
+is not the shipped accuracy default.
+
 `POST /api/location/check-in` and `POST /api/location/log-location` accept an optional `Idempotency-Key` header containing a GUID. The key is unique per user. A persisted replay returns the prior success before new-work admission; concurrent duplicate persistence is reconciled against the same database invariant.
 
 Use a new key for a new logical location write and retain the same key when retrying that write. An invalid GUID is a 400.
@@ -158,6 +164,34 @@ Bearer history helpers include `GET /api/location/chronological` and
 corresponding `month`/`day`; `has-data-for-date` and `check-navigation-availability`
 provide date/navigation information. Ownership derives from the resolved account.
 Cookie-only search, bulk-delete and Web location-management endpoints are separate.
+
+Owner chronology returns all period rows for a day. Dense month/year queries may
+sample map markers, while owner `totalItems` still counts the full period. This is
+a map selection, with no complete-history cursor or snapshot guarantee. Use the
+[owner table/export guidance](../user/timeline.md#search-and-filter-locations)
+for finding and exporting stored history.
+
+Group history has a different selection/count contract. Cookie Web
+`POST /api/groups/{groupId}/locations/query` returns its unpaged selection as
+`totalItems/results`; it ignores `pageSize`/`continuationToken` and returns no
+pagination flags. Bearer `POST /api/mobile/groups/{groupId}/locations/query` pages
+the selected markers. Date-query `totalItems` counts bbox-filtered selected
+markers before paging; the viewport fallback retains its underlying bbox count.
+
+For example, the [Phase C PostgreSQL same-cell month witness](https://github.com/stef-k/Wayfarer/issues/825#issuecomment-6089538971)
+stored **3,001 rows**: owner chronology returned **five markers** with owner total
+**3,001**; Group history returned **five markers**, `totalItems=5`, `hasMore=false`
+and `isTruncated=false`. Those flags exhaust the selected markers, not stored
+history. Bearer `hasMore` describes remaining selected markers, and
+`nextPageToken` is null on the final page. `isTruncated` is true when `hasMore` is
+true or the whole selection exceeds the current page; it can remain true on the
+final page, as in a six-marker selection returned across two three-marker pages.
+
+Bearer continuation searches a freshly recomputed selected-marker set on every
+request. Malformed tokens or vanished anchors restart from the beginning. Keep
+the same Group, users, date, viewport and zoom scope, and defensively deduplicate
+across changing selections: this provides neither snapshot stability,
+exactly-once iteration nor complete stored-history pagination.
 
 `chronological-stats` and `check-navigation-availability` accept case-insensitive
 date types without trimming, years 1–9999, applicable months 1–12, and valid
@@ -197,17 +231,34 @@ It does not grant access to another account's history or imply a bulk-delete API
 
 The general Trip API supports selected **bearer-owned** plan operations used by
 Mobile and custom integrations. `GET /api/trips` lists the caller's Trips;
-`GET /api/trips/{id}` permits private owners and explicitly public Trip reads.
+canonical public GET routes are discovery `/api/trips/public`, images
+`/api/trips/public/{id}/images`, detail `/api/trips/{id}` and boundary
+`/api/trips/{id}/boundary`. Public Trips permit anonymous reads. Discovery and
+images expose only public Trips, even to an owner; private images return 404.
+Private detail/boundary reads require a valid API token belonging to the Trip
+owner; cookie ownership alone is insufficient for those actions.
 Holding a token does not supply User cookie authority for the Vue editor.
+
+Trip detail exposes the stored `updatedAt` as a **best-effort freshness hint**:
+a changed value can justify refetching, but equality does not prove every nested
+field is unchanged. Wall-clock stamping is not a universal, guaranteed monotonic
+aggregate revision. No `version`, ETag, optimistic concurrency condition or
+synchronization cursor is promised.
 
 | Operation | Route | JSON input |
 | --- | --- | --- |
-| Create Region | `POST /api/trips/{tripId}/regions` | Required `name`; optional `notes`, `coverImageUrl`, paired `centerLatitude`/`centerLongitude`, `displayOrder`. |
+| Create Region | `POST /api/trips/{tripId}/regions` | Required non-empty `name` (MVC validation); optional `notes`, `coverImageUrl`, paired `centerLatitude`/`centerLongitude`, `displayOrder`. |
 | Update Region | `PUT /api/trips/regions/{regionId}` | Optional fields above; Trip association cannot change. |
 | Delete Region | `DELETE /api/trips/regions/{regionId}` | No body; dependency confirmation may be required. |
 | Create Place | `POST /api/trips/{tripId}/places` | Required `name`; optional `regionId`, paired `latitude`/`longitude`, `notes`, `displayOrder`, `iconName`, `markerColor`. |
 | Update Place | `PUT /api/trips/places/{placeId}` | Optional fields above; `clearIcon`/`clearMarkerColor` reset defaults. |
 | Delete Place | `DELETE /api/trips/places/{placeId}` | No body; dependency confirmation may be required. |
+
+Region POST's automatic MVC model validation rejects an empty `name` with HTTP
+400 and a `Name` validation error **before action-level token/ownership checks**.
+With valid action inputs, missing/invalid bearer authority remains 401 and a
+missing/non-owned Trip remains 404. Optional Region PUT names have their separate
+partial-update contract.
 
 Trip/Region/Place IDs are GUIDs. The authenticated account must own the Trip and
 related Region. A Place can move only to an owned Region in the **same Trip**.
@@ -305,9 +356,14 @@ Current web streams include:
 - `GET /api/sse/stream/location-update/{username}`: anonymous only when that user's Timeline is effectively public and live. Eligibility is checked before subscription and again during protected delivery.
 - `GET /api/sse/import`: cookie-authenticated caller's import/enrichment reload-hint channel. It derives the protected channel only from the authenticated `NameIdentifier`; callers cannot select another user, import or workflow channel. This content-free SSE emits only `import-state` and `enrichment-state` hints, and clients reload authoritative relational state rather than treating the event as display data.
 - `GET /api/sse/group-notifications`: cookie-authenticated caller's invitation/membership reload-hint channel.
-- `GET /api/sse/group/{groupId}`: cookie-authenticated group-member event stream with heartbeat and delivery-time membership checks.
+- `GET /api/sse/group/{groupId}`: cookie Identity/`NameIdentifier` event stream for active members of an unarchived Group, with heartbeat and protected delivery-time recipient membership and location/deletion source-audience checks. Group roles do not bypass location privacy.
 
-Mobile equivalents use bearer authority, notably `GET /api/mobile/sse/visits` and `GET /api/mobile/sse/group/{groupId}`.
+Mobile equivalents require request-owned bearer authority for an active token
+owner; cookies alone do not authorize them. `GET /api/mobile/sse/visits` subscribes
+only to that owner's channel. `GET /api/mobile/sse/group/{groupId}` retains the
+same active membership and protected delivery-time recipient/source privacy
+checks as the Web Group stream. Heartbeats bypass protected-frame leases;
+immediate credential revocation of an already-open stream is not promised.
 
 Content-free reload hints are deliberately small. The exact current hint types are `import-state`, `enrichment-state`, `invitation-state` and `membership-state`. On a hint, fetch current authenticated state; do not infer durable details from the hint itself.
 

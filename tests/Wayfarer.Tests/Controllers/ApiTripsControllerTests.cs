@@ -472,21 +472,6 @@ public partial class ApiTripsControllerTests : TestBase
     }
 
     [Fact]
-    public async Task CreateRegion_Succeeds_WhenNameEmpty()
-    {
-        var db = CreateDbContext();
-        var user = SeedUserWithToken(db, "tok");
-        var trip = new Trip { Id = Guid.NewGuid(), UserId = user.Id, Name = "Trip" };
-        db.Trips.Add(trip);
-        db.SaveChanges();
-        var controller = BuildController(db, token: "tok");
-
-        var result = await controller.CreateRegion(trip.Id, new RegionCreateRequestDto { Name = "" });
-
-        Assert.IsType<OkObjectResult>(result);
-    }
-
-    [Fact]
     public async Task CreateRegion_ReturnsNotFound_WhenTripMissing()
     {
         var db = CreateDbContext();

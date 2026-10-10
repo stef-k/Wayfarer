@@ -93,8 +93,12 @@ show/hide marker controls adjust your own display; they do not change who can se
 your position. Use your Group's personal sharing control for that decision.
 
 Switch day, month or year, choose a date and enable historical locations to review
-past records. Larger date ranges may sample the display. Select a location to
-inspect its time and details. [WayfarerMobile](mobile.md#follow-groups-and-live-updates)
+past records. Dense month/year views can show sampled markers. Reaching the end
+of the Group's displayed results, including the last page on your phone, does not
+mean every stored location was returned. Use your own
+[Timeline table and export tools](timeline.md#search-and-filter-locations) when
+you need to find or export your stored history. Select a location to inspect its
+time and details. [WayfarerMobile](mobile.md#follow-groups-and-live-updates)
 provides a Group map on your phone too.
 
 On your phone, you can [navigate toward a selected member's latest shared position](mobile.md#navigate-toward-a-group-member).

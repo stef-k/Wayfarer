@@ -23,6 +23,11 @@ public class SettingsController : BaseApiController
     /// <summary>
     /// Returns location-related app settings (no auth required).
     /// </summary>
+    /// <remarks>
+    /// The registered settings service returns persisted row ID 1 or throws if it is missing.
+    /// Effective accuracy defaults to 50 m; configured thresholds take precedence.
+    /// The defensive fallbacks apply only to a null settings result, which the registered service does not return.
+    /// </remarks>
     [HttpGet]
     public IActionResult GetSettings()
     {

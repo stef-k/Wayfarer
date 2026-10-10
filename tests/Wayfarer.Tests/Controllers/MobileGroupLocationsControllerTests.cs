@@ -227,7 +227,7 @@ public class MobileGroupLocationsControllerTests
         Assert.Equal(4, secondPayload.PageSize);
         Assert.Equal(3, secondPayload.Results.Count);
         Assert.False(secondPayload.HasMore);
-        Assert.True(secondPayload.IsTruncated); // Total > returned page size
+        Assert.True(secondPayload.IsTruncated); // Whole selection exceeds this page even after selected-marker exhaustion.
         Assert.Null(secondPayload.NextPageToken);
     }
 }

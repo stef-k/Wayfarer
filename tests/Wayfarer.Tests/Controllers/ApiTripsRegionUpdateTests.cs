@@ -1,15 +1,50 @@
+using System.Net;
+using System.Net.Http.Headers;
+using System.Net.Http.Json;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Moq;
 using NetTopologySuite.Geometries;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos;
+using Wayfarer.Services;
+using Wayfarer.Tests.Infrastructure;
 using Xunit;
 
 namespace Wayfarer.Tests.Controllers;
 
-/// <summary>Proves legacy Region validation leaves tracked state intact and preserves partial updates.</summary>
+/// <summary>Proves routed Region name validation and action-level partial update behavior.</summary>
 public partial class ApiTripsControllerTests
 {
+    /// <summary>Automatic MVC validation rejects an empty name before action-level token/ownership checks.</summary>
+    [Fact]
+    public async Task CreateRegion_EmptyName_ReturnsMvcValidationError_WithoutCreatingRegion()
+    {
+        using var db = CreateDbContext();
+        var owner = SeedUserWithToken(db, "tok");
+        var trip = new Trip { Id = Guid.NewGuid(), UserId = owner.Id, Name = "Private", IsPublic = false };
+        db.Trips.Add(trip);
+        await db.SaveChangesAsync();
+        var regionCount = await db.Regions.CountAsync();
+        await using var app = await IdentityRouteHost.StartAsync(db, CreateTestDirectory(), services =>
+            services.AddSingleton(Mock.Of<ICacheWarmupScheduler>()));
+        using var client = app.GetTestClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", "tok");
+
+        using var response = await client.PostAsJsonAsync($"/api/trips/{trip.Id}/regions",
+            new RegionCreateRequestDto { Name = "" });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var problem = await response.Content.ReadFromJsonAsync<ValidationProblemDetails>();
+        Assert.NotNull(problem);
+        Assert.True(problem.Errors.TryGetValue(nameof(RegionCreateRequestDto.Name), out var errors));
+        Assert.NotEmpty(errors!);
+        db.ChangeTracker.Clear();
+        Assert.Equal(regionCount, await db.Regions.CountAsync());
+    }
+
     /// <summary>Rejects mixed metadata/identity changes, including case-only names and historically reordered rows.</summary>
     [Theory]
     [InlineData("Unassigned Places", 0, "Renamed", null)]

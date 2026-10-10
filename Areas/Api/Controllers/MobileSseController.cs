@@ -39,7 +39,8 @@ public class MobileSseController : MobileApiController
     /// <summary>
     /// SSE endpoint for visit notifications.
     /// Broadcasts when the authenticated user's visit to a planned place is confirmed.
-    /// Requires authentication via Bearer token (mobile) or cookie (webapp).
+    /// Requires a request-owned API token for an active account; cookies alone do not authorize this action.
+    /// Subscribes only to the token owner's Visits channel.
     /// </summary>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>SSE stream with visit_started events.</returns>
@@ -62,7 +63,9 @@ public class MobileSseController : MobileApiController
     /// <summary>
     /// Consolidated SSE endpoint for all group events (locations + membership changes).
     /// Replaces the separate group-location-update and group-membership-update streams.
-    /// Requires authentication via Bearer token (mobile) or cookie (webapp).
+    /// Requires a request-owned API token for an active account; cookies alone do not authorize this action.
+    /// Requires active membership in an unarchived Group. Protected delivery rechecks recipient
+    /// membership and location/deletion source visibility; Group roles do not bypass location privacy.
     /// </summary>
     /// <param name="groupId">The group to subscribe to.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
