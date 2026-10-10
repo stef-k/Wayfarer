@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Http;
 using System.Net;
+using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging.Abstractions;
 using Wayfarer.Areas.Api.Controllers;
@@ -19,6 +21,28 @@ namespace Wayfarer.Tests.Controllers;
 /// </summary>
 public class ApiLocationControllerNavigationTests : TestBase
 {
+    /// <summary>Routes the three confirmed calendar witnesses through production MVC and bearer resolution.</summary>
+    [Theory]
+    [InlineData("chronological", "dateType=month&year=2026&month=13")]
+    [InlineData("chronological-stats", "dateType=month&year=2026&month=13")]
+    [InlineData("check-navigation-availability", "dateType=day&year=2026&month=2&day=30")]
+    public async Task CalendarValidation_ReturnsBadRequest_ThroughHttp(string route, string query)
+    {
+        var db = CreateDbContext();
+        SeedUserWithToken(db, "tok");
+        await using var app = await IdentityRouteHost.StartAsync(db, CreateTestDirectory());
+        using var client = app.GetTestClient();
+        client.DefaultRequestHeaders.Authorization = new("Bearer", "tok");
+
+        using var response = await client.GetAsync($"/api/location/{route}?{query}");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.False(document.RootElement.GetProperty("success").GetBoolean());
+        Assert.Equal(route == "check-navigation-availability" ? new[] { "success" } : new[] { "message", "success" },
+            document.RootElement.EnumerateObject().Select(property => property.Name).Order(StringComparer.Ordinal));
+    }
+
     [Fact]
     public void CheckNavigationAvailability_ReturnsUnauthorized_WhenInactive()
     {
