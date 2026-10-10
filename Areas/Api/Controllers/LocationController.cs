@@ -1182,12 +1182,13 @@ public class LocationController : BaseApiController
 
     /// <summary>
     ///     Get chronological statistics for a specific period.
-    ///     Returns location counts and unique countries/regions/cities visited.
+    ///     Returns location counts and unique countries/regions/cities visited over an inclusive UTC period.
+    ///     Invalid calendar components return 400; calendar-valid maximum dates are supported.
     /// </summary>
     /// <param name="dateType">Type of period: "day", "month", or "year"</param>
-    /// <param name="year">Year to filter</param>
-    /// <param name="month">Month to filter (1-12)</param>
-    /// <param name="day">Day to filter (1-31)</param>
+    /// <param name="year">Year to filter (1-9999)</param>
+    /// <param name="month">Month to filter (1-12), required for day/month modes; ignored for year mode</param>
+    /// <param name="day">Calendar-valid day, required for day mode; ignored for month/year modes</param>
     [HttpGet("chronological-stats")]
     public async Task<IActionResult> GetChronologicalStats(string dateType, int year, int? month = null,
         int? day = null)
@@ -1197,23 +1198,27 @@ public class LocationController : BaseApiController
             var user = GetUserFromToken();
             if (user == null) return Unauthorized(new { success = false, message = "Invalid or missing API token." });
 
+            var validationError = ValidateCalendarComponents(dateType, year, month, day);
+            if (validationError != null) return BadRequest(new { success = false, message = validationError });
+
             // Build date range based on dateType
             DateTime startDate, endDate;
-            switch (dateType.ToLower())
+            switch (dateType.ToLowerInvariant())
             {
                 case "day":
                     if (!month.HasValue || !day.HasValue)
                         return BadRequest(
                             new { success = false, message = "Month and day are required for day filter" });
                     startDate = new DateTime(year, month.Value, day.Value, 0, 0, 0, DateTimeKind.Utc);
-                    endDate = DateTime.SpecifyKind(startDate.AddDays(1).AddTicks(-1), DateTimeKind.Utc);
+                    endDate = startDate.AddTicks(TimeSpan.TicksPerDay - 1);
                     break;
 
                 case "month":
                     if (!month.HasValue)
                         return BadRequest(new { success = false, message = "Month is required for month filter" });
                     startDate = new DateTime(year, month.Value, 1, 0, 0, 0, DateTimeKind.Utc);
-                    endDate = DateTime.SpecifyKind(startDate.AddMonths(1).AddTicks(-1), DateTimeKind.Utc);
+                    endDate = new DateTime(year, month.Value, DateTime.DaysInMonth(year, month.Value),
+                        23, 59, 59, DateTimeKind.Utc).AddTicks(TimeSpan.TicksPerSecond - 1);
                     break;
 
                 case "year":
@@ -1244,11 +1249,13 @@ public class LocationController : BaseApiController
     ///     Check navigation availability for chronological timeline.
     ///     Returns whether prev/next navigation is available based ONLY on future date restrictions.
     ///     Always allows navigation to past dates to prevent users from getting trapped in dates with no data.
+    ///     Validates supplied applicable components while retaining optional month/day navigation inputs.
+    ///     Uses the server-local clock and disables forward periods beyond the supported calendar.
     /// </summary>
     /// <param name="dateType">Type of period: "day", "month", or "year"</param>
-    /// <param name="year">Current year</param>
-    /// <param name="month">Current month (1-12)</param>
-    /// <param name="day">Current day (1-31)</param>
+    /// <param name="year">Current year (1-9999)</param>
+    /// <param name="month">Optional current month (1-12) for day/month modes; ignored for year mode</param>
+    /// <param name="day">Optional calendar-valid day, or 1-31 without a month; ignored outside day mode</param>
     [HttpGet("check-navigation-availability")]
     public IActionResult CheckNavigationAvailability(string dateType, int year, int? month = null,
         int? day = null)
@@ -1258,6 +1265,10 @@ public class LocationController : BaseApiController
             var user = GetUserFromToken();
             if (user == null) return Unauthorized(new { success = false });
 
+            if (ValidateCalendarComponents(dateType, year, month, day) != null)
+                return BadRequest(new { success = false });
+
+            var dateMode = dateType.ToLowerInvariant();
             var now = DateTime.Now;
 
             // Initialize all navigation flags - default to true (allow navigation)
@@ -1266,22 +1277,21 @@ public class LocationController : BaseApiController
             bool canNavigatePrevYear = true, canNavigateNextYear = false;
 
             // Check day navigation (only relevant in day view)
-            if (dateType.ToLower() == "day" && month.HasValue && day.HasValue)
+            if (dateMode == "day" && month.HasValue && day.HasValue)
             {
                 var currentDate = new DateTime(year, month.Value, day.Value);
-                var nextDate = currentDate.AddDays(1);
 
-                // Can't navigate to future dates
-                canNavigateNextDay = nextDate.Date <= now.Date;
+                // A next day is representable and not future only when the selected day precedes today.
+                canNavigateNextDay = currentDate.Date < now.Date;
             }
 
             // Check month navigation (relevant in day and month views)
-            if ((dateType.ToLower() == "day" || dateType.ToLower() == "month") && month.HasValue)
+            if ((dateMode == "day" || dateMode == "month") && month.HasValue && (year < 9999 || month.Value < 12))
             {
                 var nextMonth = month.Value == 12 ? 1 : month.Value + 1;
                 var nextMonthYear = month.Value == 12 ? year + 1 : year;
 
-                if (dateType.ToLower() == "day" && day.HasValue)
+                if (dateMode == "day" && day.HasValue)
                 {
                     // Check if next month would be in the future
                     var currentDay = day.Value;
@@ -1298,10 +1308,11 @@ public class LocationController : BaseApiController
             }
 
             // Check year navigation (always relevant, maintains month/day context)
+            if (year < 9999)
             {
                 var nextYearVal = year + 1;
 
-                if (dateType.ToLower() == "day" && month.HasValue && day.HasValue)
+                if (dateMode == "day" && month.HasValue && day.HasValue)
                 {
                     // Check if next year would be in the future
                     var currentDay = day.Value;
@@ -1309,7 +1320,7 @@ public class LocationController : BaseApiController
                         Math.Min(currentDay, DateTime.DaysInMonth(nextYearVal, month.Value)));
                     canNavigateNextYear = nextYearDate.Date <= now.Date;
                 }
-                else if (dateType.ToLower() == "month" && month.HasValue)
+                else if (dateMode == "month" && month.HasValue)
                 {
                     // Can't navigate to future years
                     canNavigateNextYear =
@@ -1340,6 +1351,26 @@ public class LocationController : BaseApiController
         }
     }
 
+    /// <summary>
+    ///     Validates only supplied components relevant to day/month/year mode, without requiring optional inputs.
+    ///     Returns a safe client error or null; complete day selections use the selected year's month length.
+    /// </summary>
+    private static string? ValidateCalendarComponents(string? dateType, int year, int? month, int? day)
+    {
+        var dateMode = dateType?.ToLowerInvariant();
+        if (dateMode is not ("day" or "month" or "year")) return $"Invalid dateType: {dateType}";
+        if (year is < 1 or > 9999) return "Year must be between 1 and 9999";
+        if (dateMode == "year") return null;
+        if (month is < 1 or > 12) return "Month must be between 1 and 12";
+
+        if (dateMode == "day" && day.HasValue)
+        {
+            var lastDay = month.HasValue ? DateTime.DaysInMonth(year, month.Value) : 31;
+            if (day.Value < 1 || day.Value > lastDay) return "Day is invalid for the selected year and month";
+        }
+
+        return null;
+    }
 
     /// <summary>
     ///     Delete locations
