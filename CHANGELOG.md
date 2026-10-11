@@ -9,6 +9,11 @@
 
 ### Fixed
 
+- Reuse the canonical Place projection in legacy bearer create/update responses.
+  Successful metadata-only updates of historically stored non-finite Points now
+  return `location: null` (no usable response position); persisted geometry is
+  retained, not deleted or corrected. Finite and absent positions remain compatible (#828).
+
 - Clarify existing API contracts for sampled Group history and bearer continuation,
   Trip freshness/public reads, cookie versus bearer SSE and caller statistics.
   Correct effective settings and routed Region validation test evidence without

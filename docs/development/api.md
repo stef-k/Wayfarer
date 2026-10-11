@@ -271,6 +271,13 @@ Input uses decimal degrees, while returned Place `location`/Region `center` arra
 use `[longitude, latitude]`. A null or omitted pair creates no point on POST and
 preserves the stored point on PUT; exactly one non-null component returns 400.
 
+Successful Place POST/PUT responses use the canonical Place projection: finite
+Points return numeric `[longitude, latitude]`, and absent Points return explicit
+`location: null`. A successful metadata-only PUT of a historically stored
+non-finite Point also returns `location: null`, meaning no usable position is
+returned in that response. The stored geometry remains unchanged; this API
+projection change does not delete, correct or repair persisted data.
+
 All four mutations reject NaN, positive/negative infinity and finite out-of-range
 pairs with the existing 400 string: `Latitude or Longitude is out of range.` for
 Places, or `Center latitude or longitude is out of range.` for Regions. Incomplete

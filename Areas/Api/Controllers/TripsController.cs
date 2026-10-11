@@ -678,22 +678,8 @@ return Ok(dto);
         // EF's relational transaction includes the staged fallback, Place and automatic Trip timestamp.
         await _dbContext.SaveChangesAsync(cancellationToken);
 
-        // Return DTO to ensure consistent serialization (location as double[] not GeoJSON)
-        var placeDto = new ApiTripPlaceDto
-        {
-            Id = place.Id,
-            Name = place.Name,
-            Notes = RichNotes.Normalize(place.Notes),
-            DisplayOrder = place.DisplayOrder,
-            IconName = place.IconName,
-            ResolvedFeatureName = place.ResolvedFeatureName,
-            ResolvedFeatureType = place.ResolvedFeatureType,
-            MarkerColor = place.MarkerColor,
-            Address = place.Address,
-            Location = place.Location != null
-                ? new[] { place.Location.X, place.Location.Y }
-                : null
-        };
+        // Use the canonical Place projection, including its finite-coordinate response guard.
+        var placeDto = place.ToApiDto();
 
         return Ok(new { success = true, place = placeDto });
     }
@@ -760,22 +746,8 @@ return Ok(dto);
                 : NotFound("Place not found.");
         place = lifecycle.Place!;
 
-        // Return DTO to ensure consistent serialization (location as double[] not GeoJSON)
-        var placeDto = new ApiTripPlaceDto
-        {
-            Id = place.Id,
-            Name = place.Name,
-            Notes = RichNotes.Normalize(place.Notes),
-            DisplayOrder = place.DisplayOrder,
-            IconName = place.IconName,
-            ResolvedFeatureName = place.ResolvedFeatureName,
-            ResolvedFeatureType = place.ResolvedFeatureType,
-            MarkerColor = place.MarkerColor,
-            Address = place.Address,
-            Location = place.Location != null
-                ? new[] { place.Location.X, place.Location.Y }
-                : null
-        };
+        // Project the final lifecycle Place; suppressing non-finite output does not repair stored geometry.
+        var placeDto = place.ToApiDto();
 
         // Schedule background cache warm-up for external images (debounced)
         await _warmupScheduler.ScheduleWarmupAsync(place.Region.TripId);
