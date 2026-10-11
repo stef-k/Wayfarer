@@ -46,6 +46,11 @@ public sealed class CookieAntiforgeryRouteTests : TestBase
         Assert.Equal(mobile ? new[] { "hasMore", "isTruncated", "nextPageToken", "pageSize", "results", "returnedItems", "totalItems" }
             : new[] { "results", "totalItems" }, payload.EnumerateObject().Select(p => p.Name).Order());
         var row = Assert.Single(payload.GetProperty("results").EnumerateArray());
+        Assert.Equal(new[] { "accuracy", "activityType", "activityTypeId", "address", "addressNumber", "altitude",
+            "clusterId", "coordinates", "country", "fullAddress", "id", "isGeoapifyAddress", "isLatestLocation",
+            "localTimestamp", "locationTimeThresholdMinutes", "locationType", "notes", "place", "postCode",
+            "providerAddressLine1", "region", "resolvedFeatureName", "resolvedFeatureType", "speed", "streetName",
+            "timestamp", "timezone", "userId" }, row.EnumerateObject().Select(p => p.Name).Order());
         Assert.Equal(userId, row.GetProperty("userId").GetString());
         Assert.Equal(new[] { "latitude", "longitude" }, row.GetProperty("coordinates").EnumerateObject().Select(p => p.Name).Order());
         Assert.Equal(System.Text.Json.JsonValueKind.Null, row.GetProperty("activityTypeId").ValueKind);

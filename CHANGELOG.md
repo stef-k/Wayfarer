@@ -9,6 +9,11 @@
 
 ### Fixed
 
+- Share unpaged Group history selection in the existing timeline service while
+  preserving Web subject ordering and envelopes, Mobile normalization and paging,
+  sampling-before-bbox counts and existing privacy. Both latest readers remain
+  unchanged (#827).
+
 - Reuse the canonical Place projection in legacy bearer create/update responses.
   Successful metadata-only updates of historically stored non-finite Points now
   return `location: null` (no usable response position); persisted geometry is
