@@ -107,6 +107,42 @@ public sealed class LocationImportLifecycleContractTests : TestBase
         await AssertReconciliationAsync(NewImport(ImportStatus.InProgress, epoch: 2), ImportStatus.InProgress);
     }
 
+    /// <summary>A failed or silently ineffective Quartz repair retains durable retry intent until verified.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task FailedOrUnverifiedTriggerRepair_RemainsPendingAndRetries(bool throws)
+    {
+        var contexts = new InMemoryFactory();
+        await using (var db = contexts.CreateDbContext())
+        {
+            db.LocationImports.Add(NewImport(ImportStatus.InProgress, epoch: 3));
+            await db.SaveChangesAsync();
+        }
+        var scheduler = Scheduler(jobExists: true, projectedEpoch: 3);
+        var trigger = LocationImportSchedulerKeys.BuildTrigger(1, 3).GetTriggerBuilder()
+            .ForJob(new JobKey("OtherJob", "Imports")).Build();
+        scheduler.Setup(item => item.GetTrigger(It.IsAny<TriggerKey>(), default)).ReturnsAsync(() => trigger);
+        var replacement = scheduler.Setup(item => item.ScheduleJob(It.IsAny<IJobDetail>(),
+            It.IsAny<IReadOnlyCollection<ITrigger>>(), true, default));
+        if (throws) replacement.ThrowsAsync(new SchedulerException("fixture replacement failure"));
+        else replacement.Returns(Task.CompletedTask);
+
+        await Reconciler(contexts, scheduler.Object).ReconcileAsync();
+        await Reconciler(contexts, scheduler.Object).ReconcileAsync();
+        await using (var pending = contexts.CreateDbContext())
+            Assert.True((await pending.LocationImports.FindAsync(1))!.ProjectionPending);
+        Assert.Equal(new JobKey("OtherJob", "Imports"), trigger.JobKey);
+        scheduler.Verify(item => item.DeleteJob(It.IsAny<JobKey>(), default), Times.Never);
+
+        replacement.Callback<IJobDetail, IReadOnlyCollection<ITrigger>, bool, CancellationToken>(
+            (_, replacements, _, _) => trigger = Assert.Single(replacements)).Returns(Task.CompletedTask);
+        await Reconciler(contexts, scheduler.Object).ReconcileAsync();
+        await using var repaired = contexts.CreateDbContext();
+        Assert.False((await repaired.LocationImports.FindAsync(1))!.ProjectionPending);
+        Assert.Equal(LocationImportSchedulerKeys.Job(1, 3), trigger.JobKey);
+    }
+
     [Fact]
     public async Task RestartFinalizesStoppingImportWithoutExecution()
     {
@@ -221,28 +257,49 @@ public sealed class LocationImportLifecycleContractTests : TestBase
         public ApplicationDbContext CreateDbContext() => new(options, services);
     }
 
+    /// <summary>Retains job payloads and trigger links so verification observes the fixture's actual projections.</summary>
     private static Mock<IScheduler> Scheduler(bool jobExists = false, int? projectedEpoch = null)
     {
         var scheduler = new Mock<IScheduler>();
-        var keys = new HashSet<JobKey>();
-        if (jobExists && projectedEpoch is not null) keys.Add(LocationImportSchedulerKeys.Job(1, projectedEpoch.Value));
+        var jobs = new Dictionary<JobKey, IJobDetail>();
+        var triggers = new Dictionary<TriggerKey, ITrigger>();
+        if (jobExists && projectedEpoch is not null)
+        {
+            var job = LocationImportSchedulerKeys.BuildJob(1, projectedEpoch.Value);
+            jobs.Add(job.Key, job);
+            var trigger = LocationImportSchedulerKeys.BuildTrigger(1, projectedEpoch.Value);
+            triggers.Add(trigger.Key, trigger);
+        }
         scheduler.Setup(item => item.CheckExists(It.IsAny<JobKey>(), default))
-            .ReturnsAsync((JobKey key, CancellationToken _) => jobExists && projectedEpoch is null || keys.Contains(key));
+            .ReturnsAsync((JobKey key, CancellationToken _) => jobExists && projectedEpoch is null || jobs.ContainsKey(key));
         scheduler.Setup(item => item.GetCurrentlyExecutingJobs(default)).ReturnsAsync([]);
         scheduler.Setup(item => item.GetJobKeys(It.IsAny<Quartz.Impl.Matchers.GroupMatcher<JobKey>>(), default))
-            .ReturnsAsync(projectedEpoch is null ? new HashSet<JobKey>() : [LocationImportSchedulerKeys.Job(1, projectedEpoch.Value)]);
+            .ReturnsAsync(() => jobs.Keys.ToHashSet());
         scheduler.Setup(item => item.GetTriggerKeys(It.IsAny<Quartz.Impl.Matchers.GroupMatcher<TriggerKey>>(), default))
-            .ReturnsAsync(projectedEpoch is null ? new HashSet<TriggerKey>() : [LocationImportSchedulerKeys.Trigger(1, projectedEpoch.Value)]);
+            .ReturnsAsync(() => triggers.Keys.ToHashSet());
         scheduler.Setup(item => item.CheckExists(It.IsAny<TriggerKey>(), default))
-            .ReturnsAsync((TriggerKey key, CancellationToken _) => keys.Any(job => job.Name.EndsWith(key.Name.Split('_')[^1], StringComparison.Ordinal)));
-        scheduler.Setup(item => item.ScheduleJob(It.IsAny<ITrigger>(), default)).ReturnsAsync(DateTimeOffset.UtcNow);
-        scheduler.Setup(item => item.GetJobDetail(It.IsAny<JobKey>(), default)).ReturnsAsync(() => projectedEpoch is null
-            ? null
-            : LocationImportSchedulerKeys.BuildJob(1, projectedEpoch.Value));
-        scheduler.Setup(item => item.ScheduleJob(It.IsAny<IJobDetail>(), It.IsAny<ITrigger>(), default))
-            .Callback<IJobDetail, ITrigger, CancellationToken>((job, _, _) => keys.Add(job.Key))
+            .ReturnsAsync((TriggerKey key, CancellationToken _) => triggers.ContainsKey(key));
+        scheduler.Setup(item => item.ScheduleJob(It.IsAny<ITrigger>(), default))
+            .Callback<ITrigger, CancellationToken>((trigger, _) => triggers[trigger.Key] = trigger)
             .ReturnsAsync(DateTimeOffset.UtcNow);
-        scheduler.Setup(item => item.DeleteJob(It.IsAny<JobKey>(), default)).ReturnsAsync(true);
+        scheduler.Setup(item => item.GetJobDetail(It.IsAny<JobKey>(), default))
+            .ReturnsAsync((JobKey key, CancellationToken _) => jobs.GetValueOrDefault(key));
+        scheduler.Setup(item => item.GetTrigger(It.IsAny<TriggerKey>(), default))
+            .ReturnsAsync((TriggerKey key, CancellationToken _) => triggers.GetValueOrDefault(key));
+        scheduler.Setup(item => item.ScheduleJob(It.IsAny<IJobDetail>(), It.IsAny<ITrigger>(), default))
+            .Callback<IJobDetail, ITrigger, CancellationToken>((job, trigger, _) =>
+            {
+                jobs[job.Key] = job;
+                triggers[trigger.Key] = trigger;
+            })
+            .ReturnsAsync(DateTimeOffset.UtcNow);
+        scheduler.Setup(item => item.DeleteJob(It.IsAny<JobKey>(), default))
+            .ReturnsAsync((JobKey key, CancellationToken _) =>
+            {
+                foreach (var trigger in triggers.Values.Where(trigger => trigger.JobKey.Equals(key)).ToList())
+                    triggers.Remove(trigger.Key);
+                return jobs.Remove(key);
+            });
         return scheduler;
     }
 

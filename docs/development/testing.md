@@ -63,6 +63,32 @@ On Windows, the same variable can be stored at user scope and copied into the cu
 
 Use relational tests when the claim depends on migrations, Npgsql/PostGIS translation, database constraints, transactions, concurrent writers or persisted workflow state.
 
+### Location-import generation and recovery evidence
+
+`LocationImportQuartzPostgresTests` exercises persisted historical job rejection,
+bounded projection repair and the real worker across scheduler reconstruction.
+`RealWorker51Rows_InterruptedAfter50_ReconstructsAndResumesWithoutStaleWrites`
+commits 50 rows and their checkpoint, interrupts Quartz through the existing batch
+observer, reconstructs the worker/scheduler graph and resumes in a new generation.
+It verifies 51 distinct committed identifiers, checkpoint 51, zero duplicate skips
+and no writes by the previous generation. This is controlled interruption evidence;
+it does not qualify a hard process kill.
+
+The compatibility `ProcessImport` contract requires an explicit epoch. Missing,
+invalid or identity-conflicting Quartz payloads cannot enter the worker or lifecycle.
+Current job keys must match both payload numbers; recognized historical one-number
+keys must match the import ID and still supply an explicit epoch. Explicit zero
+authorizes only durable zero. `LocationImportBoundedPostgresTests` covers rejection
+through both worker entry points and preservation of transactional deduplication/savepoints.
+
+`CorruptTriggerLink_ReconcilesTwiceAndRealWorkerCompletes` first asserts a persisted
+wrong link, repairs it with and without an existing current job, verifies idempotence
+and completes through the real worker. Replacement preserves even a non-durable
+unrelated job that would be deleted by removing its last trigger. Reconciliation
+verifies job identity/payload and the trigger link before clearing pending intent;
+`FailedOrUnverifiedTriggerRepair_RemainsPendingAndRetries` covers repair failure,
+ineffective replacement and successful retry at the lifecycle contract seam.
+
 ## Client and frontend checks
 
 `package.json` owns the current frontend commands:

@@ -306,13 +306,24 @@ public sealed class LocationImportLifecyclePostgresTests(PostgresImportTestFixtu
         public ApplicationDbContext CreateDbContext() => fixture.CreateContext();
     }
 
+    /// <summary>Exposes the canonical job and link represented by each recorded fixture schedule.</summary>
     private static (Mock<IScheduler> Scheduler, ConcurrentDictionary<JobKey, byte> Schedules) Scheduler()
     {
         var jobs = new ConcurrentDictionary<JobKey, byte>();
         var scheduler = new Mock<IScheduler>();
         scheduler.Setup(item => item.CheckExists(It.IsAny<JobKey>(), default))
             .ReturnsAsync((JobKey key, CancellationToken _) => jobs.ContainsKey(key));
-        scheduler.Setup(item => item.CheckExists(It.IsAny<TriggerKey>(), default)).ReturnsAsync(true);
+        scheduler.Setup(item => item.CheckExists(It.IsAny<TriggerKey>(), default))
+            .ReturnsAsync((TriggerKey key, CancellationToken _) => LocationImportReconciler.TryParseTrigger(key, out var id, out var epoch)
+                && jobs.ContainsKey(LocationImportSchedulerKeys.Job(id, epoch)));
+        scheduler.Setup(item => item.GetJobDetail(It.IsAny<JobKey>(), default))
+            .ReturnsAsync((JobKey key, CancellationToken _) => jobs.ContainsKey(key)
+                && LocationImportReconciler.TryParseJob(key, out var id, out var epoch)
+                    ? LocationImportSchedulerKeys.BuildJob(id, epoch) : null);
+        scheduler.Setup(item => item.GetTrigger(It.IsAny<TriggerKey>(), default))
+            .ReturnsAsync((TriggerKey key, CancellationToken _) => LocationImportReconciler.TryParseTrigger(key, out var id, out var epoch)
+                && jobs.ContainsKey(LocationImportSchedulerKeys.Job(id, epoch))
+                    ? LocationImportSchedulerKeys.BuildTrigger(id, epoch) : null);
         scheduler.Setup(item => item.ScheduleJob(It.IsAny<IJobDetail>(), It.IsAny<ITrigger>(), default))
             .ReturnsAsync((IJobDetail job, ITrigger _, CancellationToken _) =>
             {

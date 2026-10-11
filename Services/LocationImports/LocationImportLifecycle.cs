@@ -189,11 +189,13 @@ public sealed class LocationImportLifecycle(
             var executing = (await scheduler.GetCurrentlyExecutingJobs(cancellationToken) ?? [])
                 .Select(context => context.JobDetail.Key)
                 .Any(key => key.Group == LocationImportSchedulerKeys.Group
-                    && key.Name.StartsWith($"LocationImportJob_{importId}_", StringComparison.Ordinal));
+                    && (key.Name == $"LocationImportJob_{importId}"
+                        || key.Name.StartsWith($"LocationImportJob_{importId}_", StringComparison.Ordinal)));
             if (executing) return new(LocationImportCommandCode.ProjectionPending);
             var keys = await scheduler.GetJobKeys(Quartz.Impl.Matchers.GroupMatcher<JobKey>.GroupEquals(LocationImportSchedulerKeys.Group), cancellationToken)
                 ?? new HashSet<JobKey>();
-            foreach (var key in keys.Where(key => key.Name.StartsWith($"LocationImportJob_{importId}_", StringComparison.Ordinal)))
+            foreach (var key in keys.Where(key => key.Name == $"LocationImportJob_{importId}"
+                || key.Name.StartsWith($"LocationImportJob_{importId}_", StringComparison.Ordinal)))
             {
                 var cleanup = await DeleteProjectionAsync(key, cancellationToken);
                 if (cleanup is not QuartzCleanupResult.Removed and not QuartzCleanupResult.AlreadyAbsent)
@@ -202,8 +204,8 @@ public sealed class LocationImportLifecycle(
             var remaining = await scheduler.GetJobKeys(
                 Quartz.Impl.Matchers.GroupMatcher<JobKey>.GroupEquals(LocationImportSchedulerKeys.Group),
                 cancellationToken) ?? new HashSet<JobKey>();
-            if (remaining.Any(key => key.Name.StartsWith(
-                $"LocationImportJob_{importId}_", StringComparison.Ordinal)))
+            if (remaining.Any(key => key.Name == $"LocationImportJob_{importId}"
+                || key.Name.StartsWith($"LocationImportJob_{importId}_", StringComparison.Ordinal)))
                 return new(LocationImportCommandCode.ProjectionPending);
             var authority = await LoadOwnedAuthorityAsync(userId, importId, cancellationToken);
             if (authority is null) return new(LocationImportCommandCode.Accepted);
@@ -257,7 +259,7 @@ public sealed class LocationImportLifecycle(
         CancellationToken cancellationToken = default)
     {
         var authority = await LoadAuthorityAsync(importId, cancellationToken);
-        if (authority is null || authority.ExecutionEpoch != epoch) return LocationImportExecutionOutcome.Stale;
+        if (epoch < 0 || authority is null || authority.ExecutionEpoch != epoch) return LocationImportExecutionOutcome.Stale;
         if (authority.DeletionRequestedAtUtc.HasValue) return LocationImportExecutionOutcome.Stale;
         var effectiveOutcome = authority.Status == ImportStatus.Stopping
             ? LocationImportExecutionOutcome.Cancelled : outcome;
@@ -339,6 +341,7 @@ public sealed class LocationImportLifecycle(
         await db.SaveChangesAsync(token);
     }
 
+    /// <summary>Repairs and verifies the owned projection without changing the formerly linked unrelated job.</summary>
     internal async Task EnsureProjectionAsync(int importId, int epoch, CancellationToken token)
     {
         var jobKey = LocationImportSchedulerKeys.Job(importId, epoch);
@@ -350,10 +353,27 @@ public sealed class LocationImportLifecycle(
                 await scheduler.ScheduleJob(LocationImportSchedulerKeys.BuildJob(importId, epoch),
                     LocationImportSchedulerKeys.BuildTrigger(importId, epoch), token);
             }
-            catch (ObjectAlreadyExistsException) { }
+            catch (ObjectAlreadyExistsException)
+            {
+                // A corrupt existing trigger can coexist with a missing current job.
+                await scheduler.ScheduleJob(LocationImportSchedulerKeys.BuildJob(importId, epoch),
+                    [LocationImportSchedulerKeys.BuildTrigger(importId, epoch)], true, token);
+            }
         }
-        else if (!await scheduler.CheckExists(triggerKey, token))
-            await scheduler.ScheduleJob(LocationImportSchedulerKeys.BuildTrigger(importId, epoch), token);
+        else
+        {
+            if (!LocationImportSchedulerKeys.MatchesExecution(await scheduler.GetJobDetail(jobKey, token), importId, epoch))
+                await scheduler.AddJob(LocationImportSchedulerKeys.BuildJob(importId, epoch), true, token);
+            if (!await scheduler.CheckExists(triggerKey, token))
+                await scheduler.ScheduleJob(LocationImportSchedulerKeys.BuildTrigger(importId, epoch), token);
+            else if (!jobKey.Equals((await scheduler.GetTrigger(triggerKey, token))?.JobKey))
+                // Bulk replacement keeps the supplied link and never removes the unrelated job's last trigger.
+                await scheduler.ScheduleJob(LocationImportSchedulerKeys.BuildJob(importId, epoch),
+                    [LocationImportSchedulerKeys.BuildTrigger(importId, epoch)], true, token);
+        }
+        if (!LocationImportSchedulerKeys.MatchesExecution(await scheduler.GetJobDetail(jobKey, token), importId, epoch)
+            || !jobKey.Equals((await scheduler.GetTrigger(triggerKey, token))?.JobKey))
+            throw new SchedulerException("Location import projection could not be verified.");
     }
 
     private async Task MarkProjectedAsync(int importId, int epoch, CancellationToken token)

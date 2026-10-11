@@ -9,6 +9,13 @@
 
 ### Fixed
 
+- Fence location-import job identities, payloads, workers and compatibility
+  execution to the exact durable generation. Reject missing, invalid or conflicting
+  authority and preserve explicit epoch zero. Repair owned Quartz trigger links
+  without changing unrelated jobs, verify the persisted projection and retain
+  pending retry intent on failure. Preserve committed progress and qualify 51-row
+  recovery after controlled batch interruption (#811).
+
 - Share unpaged Group history selection in the existing timeline service while
   preserving Web subject ordering and envelopes, Mobile normalization and paging,
   sampling-before-bbox counts and existing privacy. Both latest readers remain

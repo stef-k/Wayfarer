@@ -10,9 +10,11 @@ using Wayfarer.Services.LocationProviders;
 
 namespace Wayfarer.Parsers;
 
+/// <summary>Requires callers to supply their execution generation explicitly.</summary>
 public interface ILocationImportService
 {
-    Task ProcessImport(int importId, CancellationToken cancellationToken);
+    /// <summary>Processes and converges only the supplied durable execution generation.</summary>
+    Task ProcessImport(int importId, int epoch, CancellationToken cancellationToken);
 }
 
 /// <summary>Exposes a bounded execution outcome to the Quartz job/listener seam.</summary>
@@ -76,13 +78,16 @@ public sealed class LocationImportService : ILocationImportService, ILocationImp
         _lifecycleObserver = lifecycleObserver;
     }
 
-    public async Task ProcessImport(int importId, CancellationToken cancellationToken)
+    /// <summary>Retains compatibility execution with an explicit epoch and fenced terminal persistence.</summary>
+    public async Task ProcessImport(int importId, int epoch, CancellationToken cancellationToken)
     {
-        var outcome = await ProcessImportExecution(importId, 0, cancellationToken);
+        var outcome = await ProcessImportExecution(importId, epoch, cancellationToken);
         if (outcome == LocationImportExecutionOutcome.Stale) return;
         await using var context = await _contexts.CreateDbContextAsync(CancellationToken.None);
         var import = await context.LocationImports.FindAsync([importId], CancellationToken.None);
-        if (import is null) return;
+        if (import is null || import.ExecutionEpoch != epoch || import.DeletionRequestedAtUtc.HasValue
+            || (import.Status != ImportStatus.InProgress && import.Status != ImportStatus.Stopping)) return;
+        if (import.Status == ImportStatus.Stopping) outcome = LocationImportExecutionOutcome.Cancelled;
         import.Status = outcome switch
         {
             LocationImportExecutionOutcome.Completed => ImportStatus.Completed,
@@ -93,9 +98,12 @@ public sealed class LocationImportService : ILocationImportService, ILocationImp
         if (outcome is LocationImportExecutionOutcome.Failed or LocationImportExecutionOutcome.StagedFileUnavailable)
             import.ErrorMessage = outcome == LocationImportExecutionOutcome.StagedFileUnavailable
                 ? "Import staged file unavailable." : "Import processing failed.";
-        await context.SaveChangesAsync(CancellationToken.None);
+        import.ProjectionPending = false;
+        try { await context.SaveChangesAsync(CancellationToken.None); }
+        catch (DbUpdateConcurrencyException) { } // A later lifecycle command retains authority.
     }
 
+    /// <summary>Admits and commits only an exact, nonnegative durable execution generation.</summary>
     public async Task<LocationImportExecutionOutcome> ProcessImportExecution(
         int importId, int epoch, CancellationToken cancellationToken)
     {
@@ -226,7 +234,7 @@ public sealed class LocationImportService : ILocationImportService, ILocationImp
             (!string.IsNullOrWhiteSpace(latest.FullAddress) ? $", {latest.FullAddress}" : "");
         if (!await context.LocationImports.AsNoTracking().AnyAsync(item => item.Id == snapshot.Id &&
             item.Status == ImportStatus.InProgress && item.DeletionRequestedAtUtc == null &&
-            item.StopRequestedAtUtc == null && (epoch == 0 || item.ExecutionEpoch == epoch), token))
+            item.StopRequestedAtUtc == null && item.ExecutionEpoch == epoch, token))
             return LocationImportExecutionOutcome.Stale;
         await context.SaveChangesAsync(token);
         if (transaction is not null) await transaction.CommitAsync(token);
@@ -271,7 +279,7 @@ public sealed class LocationImportService : ILocationImportService, ILocationImp
         await using var context = await _contexts.CreateDbContextAsync(token);
         return await context.LocationImports.AsNoTracking().AnyAsync(import => import.Id == importId &&
             import.Status == ImportStatus.InProgress && import.DeletionRequestedAtUtc == null &&
-            import.StopRequestedAtUtc == null && (epoch == 0 || import.ExecutionEpoch == epoch), token);
+            import.StopRequestedAtUtc == null && import.ExecutionEpoch == epoch, token);
     }
 
     private async Task ReconcileEnrichmentAsync(LocationImportSnapshot snapshot, CancellationToken token)
@@ -308,7 +316,7 @@ public sealed class LocationImportService : ILocationImportService, ILocationImp
 
     private static bool HasExecutionAuthority([NotNullWhen(true)] LocationImport? import, int epoch) =>
         import is not null && import.Status == ImportStatus.InProgress && import.DeletionRequestedAtUtc is null &&
-        import.StopRequestedAtUtc is null && (epoch == 0 || import.ExecutionEpoch == epoch);
+        import.StopRequestedAtUtc is null && epoch >= 0 && import.ExecutionEpoch == epoch;
 
     private sealed record LocationImportSnapshot(int Id, string UserId, string FilePath,
         LocationImportFileType FileType, int LastProcessedIndex, int ExecutionEpoch);

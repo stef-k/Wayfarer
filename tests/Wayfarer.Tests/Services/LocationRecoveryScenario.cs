@@ -40,7 +40,7 @@ internal sealed class LocationRecoveryScenario : IAsyncDisposable
         await File.WriteAllTextAsync(path, $"Latitude,Longitude,TimestampUtc,IdempotencyKey\r\n37.1,22.2,2026-08-22T10:00:00Z,{key:D}");
         var import = new LocationImport { UserId = userId, FileType = LocationImportFileType.Csv, FilePath = path, Status = ImportStatus.InProgress, TotalRecords = 0, LastProcessedIndex = 0 };
         db.LocationImports.Add(import); await db.SaveChangesAsync();
-        await CreateImportService().ProcessImport(import.Id, CancellationToken.None);
+        await CreateImportService().ProcessImport(import.Id, 0, CancellationToken.None);
         var row = db.Locations.Single(x => x.UserId == userId && x.IdempotencyKey == key);
         return (row.Id, db.LocationImports.Single(x => x.Id == import.Id).SkippedDuplicates);
     }
