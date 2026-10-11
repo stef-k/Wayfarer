@@ -7,6 +7,7 @@ using Quartz;
 using Quartz.Impl;
 using Quartz.Spi;
 using Wayfarer.Jobs;
+using Wayfarer.Areas.Api.Controllers;
 using Wayfarer.Models;
 using Wayfarer.Models.Enums;
 using Wayfarer.Parsers;
@@ -20,6 +21,48 @@ namespace Wayfarer.Tests.Services;
 [Collection(PostgresEnvironmentEvidenceTestCollection.Name)]
 public sealed class LocationImportQuartzPostgresTests(PostgresImportTestFixture fixture)
 {
+    /// <summary>A persisted historical job cannot acquire a newer import's authority from missing data.</summary>
+    [PostgresTheory(Timeout = 30_000)]
+    [InlineData(null)]
+    [InlineData("bad-epoch")]
+    public async Task HistoricalUnverifiableEpoch_AfterReconstruction_CommitsNothing(string? epoch)
+    {
+        await using var harness = await PersistentHarness.CreateAsync(fixture);
+        var seed = await harness.SeedAsync(ImportStatus.InProgress, epoch: 7);
+        await File.WriteAllTextAsync(seed.FilePath,
+            "Latitude,Longitude,TimestampUtc,IdempotencyKey\r\n" +
+            $"40.1,22.2,2026-08-25T00:00:00Z,{Guid.NewGuid():D}\r\n");
+        await harness.ReconstructAsync();
+        var builder = JobBuilder.Create<LocationImportJob>()
+            .WithIdentity($"LocationImportJob_{seed.ImportId}", "Imports")
+            .UsingJobData("importId", seed.ImportId.ToString()).StoreDurably();
+        if (epoch is not null) builder.UsingJobData("epoch", epoch);
+        var job = builder.Build();
+        var trigger = TriggerBuilder.Create().WithIdentity($"LocationImportTrigger_{seed.ImportId}", "Imports")
+            .ForJob(job).StartNow().Build();
+        await harness.Current.ScheduleJob(job, trigger);
+        await harness.ShutdownCurrentAsync();
+
+        await harness.ReconstructAsync();
+        await harness.StartAsync(Worker());
+        await WaitUntilAsync(async () => !await harness.Current.CheckExists(trigger.Key), TimeSpan.FromSeconds(10));
+
+        await using var verification = fixture.CreateContext();
+        Assert.Equal(0, await verification.Locations.CountAsync(item => item.UserId == seed.UserId));
+        var current = (await verification.LocationImports.FindAsync(seed.ImportId))!;
+        Assert.Equal(0, current.LastProcessedIndex);
+        Assert.Equal(0, current.TotalRecords);
+        Assert.Equal(0, current.SkippedDuplicates);
+        Assert.Equal(ImportStatus.InProgress, current.Status);
+        Assert.Equal(7, current.ExecutionEpoch);
+    }
+
+    /// <summary>Constructs the production worker over fixture-owned PostgreSQL contexts.</summary>
+    private LocationImportService Worker() => new(ImportStaging.Files, new FixtureContextFactory(fixture),
+        new ReverseGeocodingService(new HttpClient(), NullLogger<BaseApiController>.Instance),
+        NullLogger<LocationImportService>.Instance, new LocationDataParserFactory(NullLoggerFactory.Instance),
+        new SseService());
+
     [PostgresFact(Timeout = 30_000)]
     public async Task ActiveMissingProjection_ExecutesOnceAndDoesNotReplay()
     {
@@ -223,6 +266,13 @@ public sealed class LocationImportQuartzPostgresTests(PostgresImportTestFixture 
             execution.Setup(item => item.ProcessImportExecution(It.IsAny<int>(), It.IsAny<int>(), It.IsAny<CancellationToken>()))
                 .ReturnsAsync(() => { Interlocked.Increment(ref executionCount); return outcome; });
             Current.JobFactory = new ImportJobFactory(fixture, service.Object);
+            await Current.Start();
+        }
+
+        /// <summary>Runs real import persistence through the same persistent Quartz job factory.</summary>
+        internal async Task StartAsync(ILocationImportService worker)
+        {
+            Current.JobFactory = new ImportJobFactory(fixture, worker);
             await Current.Start();
         }
 
