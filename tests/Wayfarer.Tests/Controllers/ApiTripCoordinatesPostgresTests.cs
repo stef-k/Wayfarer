@@ -15,7 +15,7 @@ using Xunit;
 
 namespace Wayfarer.Tests.Controllers;
 
-/// <summary>Qualifies named-float MVC binding and rejection persistence without repeating the numeric policy matrix.</summary>
+/// <summary>Qualifies routed coordinate binding, rejection persistence and successful Place projections.</summary>
 [Collection(PostgresImportTestCollection.Name)]
 public sealed class ApiTripCoordinatesPostgresTests(PostgresImportTestFixture fixture) : TestBase
 {
@@ -91,13 +91,54 @@ public sealed class ApiTripCoordinatesPostgresTests(PostgresImportTestFixture fi
         using var placeResponse = await client.PostAsync($"/api/trips/{original.Region.TripId}/places",
             new StringContent($$"""{"name":"Optional","regionId":"{{original.Region.Id}}"}""", Encoding.UTF8, "application/json"));
         Assert.Equal(HttpStatusCode.OK, placeResponse.StatusCode);
+        Assert.Equal("application/json", placeResponse.Content.Headers.ContentType?.MediaType);
         using var placeDocument = JsonDocument.Parse(await placeResponse.Content.ReadAsStringAsync());
-        Assert.True(placeDocument.RootElement.GetProperty("success").GetBoolean());
-        Assert.Equal(JsonValueKind.Null, placeDocument.RootElement.GetProperty("place").GetProperty("location").ValueKind);
+        var createdPlace = AssertPlaceShape(placeDocument.RootElement);
+        var createdId = createdPlace.GetProperty("id").GetGuid();
+        Assert.NotEqual(Guid.Empty, createdId);
+        Assert.Equal("Optional", createdPlace.GetProperty("name").GetString());
+        Assert.Equal(3, createdPlace.GetProperty("displayOrder").GetInt32());
+        Assert.Equal("marker", createdPlace.GetProperty("iconName").GetString());
+        Assert.Equal("bg-blue", createdPlace.GetProperty("markerColor").GetString());
+        foreach (var field in new[] { "notes", "address", "resolvedFeatureName", "resolvedFeatureType", "location" })
+            Assert.Equal(JsonValueKind.Null, createdPlace.GetProperty(field).ValueKind);
 
         using var placeUpdate = await client.PutAsync($"/api/trips/places/{original.Place.Id}",
-            new StringContent("""{"name":"Partial","latitude":null}""", Encoding.UTF8, "application/json"));
+            new StringContent("""{"name":"Partial","latitude":null,"notes":"<p>Partial <strong>rich</strong></p><script>alert('x')</script>"}""",
+                Encoding.UTF8, "application/json"));
         Assert.Equal(HttpStatusCode.OK, placeUpdate.StatusCode);
+        Assert.Equal("application/json", placeUpdate.Content.Headers.ContentType?.MediaType);
+        using var updateDocument = JsonDocument.Parse(await placeUpdate.Content.ReadAsStringAsync());
+        var updatedPlace = AssertPlaceShape(updateDocument.RootElement);
+        Assert.Equal(original.Place.Id, updatedPlace.GetProperty("id").GetGuid());
+        Assert.Equal("Partial", updatedPlace.GetProperty("name").GetString());
+        Assert.Equal("<p>Partial <strong>rich</strong></p>", updatedPlace.GetProperty("notes").GetString());
+        Assert.Equal(1, updatedPlace.GetProperty("displayOrder").GetInt32());
+        Assert.Equal("original-icon", updatedPlace.GetProperty("iconName").GetString());
+        Assert.Equal("original-color", updatedPlace.GetProperty("markerColor").GetString());
+        Assert.Equal("Original address", updatedPlace.GetProperty("address").GetString());
+        Assert.Equal("Original feature", updatedPlace.GetProperty("resolvedFeatureName").GetString());
+        Assert.Equal("museum", updatedPlace.GetProperty("resolvedFeatureType").GetString());
+        var coordinates = updatedPlace.GetProperty("location");
+        Assert.Equal(JsonValueKind.Array, coordinates.ValueKind);
+        Assert.Equal(new[] { 23d, 37d }, coordinates.EnumerateArray().Select(item => item.GetDouble()));
+
+        // Metadata-only updates of absent positions retain null, with existing empty notes/address coercion.
+        using var absentUpdate = await client.PutAsync($"/api/trips/places/{createdId}",
+            new StringContent("""{"name":"Optional edited"}""", Encoding.UTF8, "application/json"));
+        Assert.Equal(HttpStatusCode.OK, absentUpdate.StatusCode);
+        Assert.Equal("application/json", absentUpdate.Content.Headers.ContentType?.MediaType);
+        using var absentDocument = JsonDocument.Parse(await absentUpdate.Content.ReadAsStringAsync());
+        var absentPlace = AssertPlaceShape(absentDocument.RootElement);
+        Assert.Equal(createdId, absentPlace.GetProperty("id").GetGuid());
+        Assert.Equal("Optional edited", absentPlace.GetProperty("name").GetString());
+        Assert.Equal(string.Empty, absentPlace.GetProperty("notes").GetString());
+        Assert.Equal(string.Empty, absentPlace.GetProperty("address").GetString());
+        Assert.Equal(3, absentPlace.GetProperty("displayOrder").GetInt32());
+        Assert.Equal("marker", absentPlace.GetProperty("iconName").GetString());
+        Assert.Equal("bg-blue", absentPlace.GetProperty("markerColor").GetString());
+        foreach (var field in new[] { "resolvedFeatureName", "resolvedFeatureType", "location" })
+            Assert.Equal(JsonValueKind.Null, absentPlace.GetProperty(field).ValueKind);
         using var regionUpdate = await client.PutAsync($"/api/trips/regions/{original.Region.Id}",
             new StringContent("""{"notes":"Partial","centerLongitude":null}""", Encoding.UTF8, "application/json"));
         Assert.Equal(HttpStatusCode.OK, regionUpdate.StatusCode);
@@ -105,6 +146,7 @@ public sealed class ApiTripCoordinatesPostgresTests(PostgresImportTestFixture fi
         var place = await verify.Places.SingleAsync(item => item.Id == original.Place.Id);
         var region = await verify.Regions.SingleAsync(item => item.Id == original.Region.Id);
         Assert.Equal("Partial", place.Name);
+        Assert.Equal("<p>Partial <strong>rich</strong></p>", place.Notes);
         Assert.Equal("Partial", region.Notes);
         Assert.Equal((23d, 37d, 4326), (place.Location!.X, place.Location.Y, place.Location.SRID));
         Assert.Equal((23d, 37d, 4326), (region.Center!.X, region.Center.Y, region.Center.SRID));
@@ -114,6 +156,96 @@ public sealed class ApiTripCoordinatesPostgresTests(PostgresImportTestFixture fi
         Assert.Equal(original.Place.AddressEnrichmentProvider, place.AddressEnrichmentProvider);
         Assert.Equal(original.Place.AddressEnrichmentStorageMode, place.AddressEnrichmentStorageMode);
         Assert.Equal(original.Place.AddressEnrichedAt, place.AddressEnrichedAt);
+    }
+
+    /// <summary>A metadata-only update suppresses a historical non-finite response position without repairing geography.</summary>
+    [PostgresFact]
+    public async Task HistoricalNonFinitePlaceUpdateReturnsNullLocationWithoutChangingStoredPoint()
+    {
+        var original = await SeedAsync();
+        await using var db = fixture.CreateContext();
+        // Seed outside current coordinate-input validation, without any dependent Segment.
+        var historical = new Place
+        {
+            Id = Guid.NewGuid(), RegionId = original.Region.Id, UserId = original.Region.UserId,
+            Name = "Historical", Notes = "<p>Historical</p>", DisplayOrder = 3,
+            Address = "Historical address", IconName = "museum", MarkerColor = "bg-red",
+            ResolvedFeatureName = "Historical museum", ResolvedFeatureType = "museum",
+            Location = new Point(23, double.NaN) { SRID = 4326 }
+        };
+        db.Places.Add(historical);
+        await db.SaveChangesAsync();
+        await using (var before = fixture.CreateContext())
+        {
+            var stored = await before.Places.SingleAsync(item => item.Id == historical.Id);
+            Assert.NotNull(stored.Location);
+            Assert.Equal(23d, stored.Location.X);
+            Assert.True(double.IsNaN(stored.Location.Y));
+            Assert.Equal(4326, stored.Location.SRID);
+        }
+
+        var saves = 0;
+        var warmup = new Mock<ICacheWarmupScheduler>();
+        await using var app = await IdentityRouteHost.StartAsync(db, CreateTestDirectory(), services =>
+        {
+            services.AddScoped(_ =>
+            {
+                var context = fixture.CreateContext();
+                context.SavingChanges += (_, _) => saves++;
+                return context;
+            });
+            services.AddSingleton(warmup.Object);
+        });
+        using var client = app.GetTestClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", original.Region.UserId);
+
+        using var response = await client.PutAsync($"/api/trips/places/{historical.Id}",
+            new StringContent("""{"name":"Historical edited","notes":"<p>Updated <strong>history</strong></p><script>alert('x')</script>"}""",
+                Encoding.UTF8, "application/json"));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("application/json", response.Content.Headers.ContentType?.MediaType);
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var place = AssertPlaceShape(document.RootElement);
+        Assert.Equal(historical.Id, place.GetProperty("id").GetGuid());
+        Assert.Equal("Historical edited", place.GetProperty("name").GetString());
+        Assert.Equal("<p>Updated <strong>history</strong></p>", place.GetProperty("notes").GetString());
+        Assert.Equal(3, place.GetProperty("displayOrder").GetInt32());
+        Assert.Equal("museum", place.GetProperty("iconName").GetString());
+        Assert.Equal("bg-red", place.GetProperty("markerColor").GetString());
+        Assert.Equal("Historical address", place.GetProperty("address").GetString());
+        Assert.Equal("Historical museum", place.GetProperty("resolvedFeatureName").GetString());
+        Assert.Equal("museum", place.GetProperty("resolvedFeatureType").GetString());
+        await using var verify = fixture.CreateContext();
+        var persisted = await verify.Places.SingleAsync(item => item.Id == historical.Id);
+        Assert.Equal("Historical edited", persisted.Name);
+        Assert.Equal("<p>Updated <strong>history</strong></p>", persisted.Notes);
+        Assert.Equal("Historical address", persisted.Address);
+        Assert.Equal("Historical museum", persisted.ResolvedFeatureName);
+        Assert.Equal("museum", persisted.ResolvedFeatureType);
+        Assert.NotNull(persisted.Location);
+        Assert.Equal(23d, persisted.Location.X);
+        Assert.True(double.IsNaN(persisted.Location.Y));
+        Assert.Equal(4326, persisted.Location.SRID);
+        Assert.Equal(1, saves);
+        warmup.Verify(item => item.ScheduleWarmupAsync(original.Region.TripId, false), Times.Once);
+        warmup.VerifyNoOtherCalls();
+        // Keep this last so the red-first run proves all existing mutation/persistence behavior first.
+        Assert.Equal(JsonValueKind.Null, place.GetProperty("location").ValueKind);
+    }
+
+    /// <summary>Freezes the successful envelope and ten Place keys without imposing JSON property order.</summary>
+    private static JsonElement AssertPlaceShape(JsonElement root)
+    {
+        Assert.Equal(new[] { "place", "success" }, root.EnumerateObject().Select(item => item.Name).Order());
+        Assert.Equal(JsonValueKind.True, root.GetProperty("success").ValueKind);
+        var place = root.GetProperty("place");
+        Assert.Equal(new[]
+        {
+            "id", "name", "notes", "displayOrder", "iconName", "markerColor", "address",
+            "resolvedFeatureName", "resolvedFeatureType", "location"
+        }.Order(), place.EnumerateObject().Select(item => item.Name).Order());
+        return place;
     }
 
     /// <summary>Seeds fixture-owned bearer authority and a waypoint route with sibling orders and retained provenance.</summary>
