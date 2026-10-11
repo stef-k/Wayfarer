@@ -21,6 +21,90 @@ namespace Wayfarer.Tests.Services;
 [Collection(PostgresEnvironmentEvidenceTestCollection.Name)]
 public sealed class LocationImportQuartzPostgresTests(PostgresImportTestFixture fixture)
 {
+    /// <summary>A contradictory persisted identity cannot borrow another import or generation's payload authority.</summary>
+    [PostgresTheory(Timeout = 30_000)]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ConflictingJobIdentity_AfterReconstruction_CommitsNothing(bool differentImport)
+    {
+        await using var harness = await PersistentHarness.CreateAsync(fixture);
+        var seed = await harness.SeedAsync(ImportStatus.InProgress, epoch: 7);
+        await File.WriteAllTextAsync(seed.FilePath,
+            "Latitude,Longitude,TimestampUtc,IdempotencyKey\r\n" +
+            $"40.1,22.2,2026-08-25T00:00:00Z,{Guid.NewGuid():D}\r\n");
+        var identityId = differentImport
+            ? (await harness.SeedAsync(ImportStatus.InProgress, epoch: 7)).ImportId : seed.ImportId;
+        var identityEpoch = differentImport ? 7 : 6;
+        await harness.ReconstructAsync();
+        var job = LocationImportSchedulerKeys.BuildJob(identityId, identityEpoch);
+        job.JobDataMap["importId"] = seed.ImportId.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        job.JobDataMap["epoch"] = "7";
+        await harness.Current.ScheduleJob(job, LocationImportSchedulerKeys.BuildTrigger(identityId, identityEpoch));
+        await harness.ShutdownCurrentAsync();
+        await harness.ReconstructAsync();
+        await harness.StartAsync(Worker());
+        await harness.WaitForTriggerFinalizationAsync(identityId, identityEpoch);
+
+        await using var verification = fixture.CreateContext();
+        Assert.Equal(0, await verification.Locations.CountAsync(item => item.UserId == seed.UserId));
+        var current = (await verification.LocationImports.FindAsync(seed.ImportId))!;
+        Assert.Equal(0, current.LastProcessedIndex);
+        Assert.Equal(0, current.TotalRecords);
+        Assert.Equal(7, current.ExecutionEpoch);
+        Assert.Equal(ImportStatus.InProgress, current.Status);
+    }
+
+    /// <summary>Replacing an owned corrupt trigger preserves its unrelated job and permits one legitimate completion.</summary>
+    [PostgresTheory(Timeout = 30_000)]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CorruptTriggerLink_ReconcilesTwiceAndRealWorkerCompletes(bool missingJob)
+    {
+        await using var harness = await PersistentHarness.CreateAsync(fixture);
+        var seed = await harness.SeedAsync(ImportStatus.InProgress, epoch: 7);
+        await File.WriteAllTextAsync(seed.FilePath,
+            "Latitude,Longitude,TimestampUtc,IdempotencyKey\r\n" +
+            $"40.1,22.2,2026-08-25T00:00:00Z,{Guid.NewGuid():D}\r\n");
+        await harness.ReconstructAsync();
+        var currentJob = LocationImportSchedulerKeys.Job(seed.ImportId, 7);
+        if (!missingJob) await harness.Current.AddJob(LocationImportSchedulerKeys.BuildJob(seed.ImportId, 7), false);
+        // A last-trigger removal would delete this non-durable unrelated job.
+        var unrelated = JobBuilder.Create<LocationImportJob>().WithIdentity("OtherJob", "Imports")
+            .UsingJobData("untouched", "fixture").Build();
+        var triggerKey = LocationImportSchedulerKeys.Trigger(seed.ImportId, 7);
+        await harness.Current.ScheduleJob(unrelated, TriggerBuilder.Create().WithIdentity(triggerKey)
+            .ForJob(unrelated).StartNow().Build());
+        await harness.ShutdownCurrentAsync();
+        await harness.ReconstructAsync();
+        Assert.Equal(unrelated.Key, (await harness.Current.GetTrigger(triggerKey))!.JobKey);
+        Assert.Equal(!missingJob, await harness.Current.CheckExists(currentJob));
+
+        await harness.ReconcileAsync();
+        var repaired = (await harness.Current.GetTrigger(triggerKey))!;
+        await harness.ReconcileAsync();
+        Assert.Equal(currentJob, repaired.JobKey);
+        Assert.Equal(repaired.StartTimeUtc, (await harness.Current.GetTrigger(triggerKey))!.StartTimeUtc);
+        Assert.Single(await harness.Current.GetTriggersOfJob(currentJob));
+        await harness.AssertBoundedPayloadAsync(seed.ImportId, 7);
+        var retained = (await harness.Current.GetJobDetail(unrelated.Key))!;
+        Assert.False(retained.Durable);
+        Assert.Equal("fixture", retained.JobDataMap.GetString("untouched"));
+        Assert.Empty(await harness.Current.GetTriggersOfJob(unrelated.Key));
+        await using (var authority = fixture.CreateContext())
+            Assert.False((await authority.LocationImports.FindAsync(seed.ImportId))!.ProjectionPending);
+
+        await harness.StartAsync(Worker());
+        await harness.WaitForTriggerFinalizationAsync(seed.ImportId, 7);
+        await using var verification = fixture.CreateContext();
+        Assert.Equal(1, await verification.Locations.CountAsync(item => item.UserId == seed.UserId));
+        var completed = (await verification.LocationImports.FindAsync(seed.ImportId))!;
+        Assert.Equal(ImportStatus.Completed, completed.Status);
+        Assert.Equal(1, completed.LastProcessedIndex);
+        Assert.Equal(1, completed.TotalRecords);
+        Assert.Equal(0, completed.SkippedDuplicates);
+        Assert.True(await harness.Current.CheckExists(unrelated.Key));
+    }
+
     /// <summary>A persisted historical job cannot acquire a newer import's authority from missing data.</summary>
     [PostgresTheory(Timeout = 30_000)]
     [InlineData(null, 7)]
@@ -63,9 +147,11 @@ public sealed class LocationImportQuartzPostgresTests(PostgresImportTestFixture 
 
     /// <summary>Explicit zero remains valid only against durable zero; current modern generations still complete.</summary>
     [PostgresTheory(Timeout = 30_000)]
-    [InlineData(0)]
-    [InlineData(7)]
-    public async Task ExplicitCurrentEpoch_RealWorkerCompletes(int epoch)
+    [InlineData(0, false)]
+    [InlineData(7, false)]
+    [InlineData(0, true)]
+    [InlineData(7, true)]
+    public async Task ExplicitCurrentEpoch_RealWorkerCompletes(int epoch, bool historical)
     {
         await using var harness = await PersistentHarness.CreateAsync(fixture);
         var seed = await harness.SeedAsync(ImportStatus.InProgress, epoch: epoch);
@@ -73,7 +159,14 @@ public sealed class LocationImportQuartzPostgresTests(PostgresImportTestFixture 
             "Latitude,Longitude,TimestampUtc,IdempotencyKey\r\n" +
             $"40.1,22.2,2026-08-25T00:00:00Z,{Guid.NewGuid():D}\r\n");
         await harness.ReconstructAsync();
-        await harness.ReconcileAsync();
+        if (historical)
+        {
+            var job = LocationImportSchedulerKeys.BuildJob(seed.ImportId, epoch).GetJobBuilder()
+                .WithIdentity($"LocationImportJob_{seed.ImportId}", "Imports").Build();
+            await harness.Current.ScheduleJob(job, LocationImportSchedulerKeys.BuildTrigger(seed.ImportId, epoch)
+                .GetTriggerBuilder().ForJob(job).Build());
+        }
+        else await harness.ReconcileAsync();
         await harness.StartAsync(Worker());
         await harness.WaitForTriggerFinalizationAsync(seed.ImportId, epoch);
         await using var verification = fixture.CreateContext();
@@ -173,13 +266,15 @@ public sealed class LocationImportQuartzPostgresTests(PostgresImportTestFixture 
         await harness.Current.ScheduleJob(malformed, LocationImportSchedulerKeys.BuildTrigger(seed.ImportId, 7));
         // Historical triggers may remain attached to an otherwise modern job identity.
         var historicalTrigger = new TriggerKey($"LocationImportTrigger_{seed.ImportId}", "Imports");
-        await harness.Current.RescheduleJob(historicalTrigger, TriggerBuilder.Create()
+        Assert.True(await harness.Current.UnscheduleJob(historicalTrigger));
+        await harness.Current.ScheduleJob(TriggerBuilder.Create()
             .WithIdentity(historicalTrigger).ForJob(malformed).StartNow().Build());
         var unrelated = JobBuilder.Create<LocationImportJob>().WithIdentity("OtherJob", "Imports").StoreDurably().Build();
         await harness.Current.AddJob(unrelated, false);
         await harness.ShutdownCurrentAsync();
 
         await harness.ReconstructAsync();
+        Assert.Equal(malformed.Key, (await harness.Current.GetTrigger(historicalTrigger))!.JobKey);
         await harness.ReconcileAsync();
         await harness.ReconcileAsync();
         Assert.False(await harness.Current.CheckExists(legacy.Key));
