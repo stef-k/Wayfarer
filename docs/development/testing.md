@@ -74,10 +74,20 @@ It verifies 51 distinct committed identifiers, checkpoint 51, zero duplicate ski
 and no writes by the previous generation. This is controlled interruption evidence;
 it does not qualify a hard process kill.
 
-The compatibility `ProcessImport` contract requires an explicit epoch. Missing or
-invalid Quartz payloads cannot enter the worker, and explicit zero authorizes only
-durable zero. `LocationImportBoundedPostgresTests` covers rejection through both
-worker entry points and preservation of transactional deduplication/savepoints.
+The compatibility `ProcessImport` contract requires an explicit epoch. Missing,
+invalid or identity-conflicting Quartz payloads cannot enter the worker or lifecycle.
+Current job keys must match both payload numbers; recognized historical one-number
+keys must match the import ID and still supply an explicit epoch. Explicit zero
+authorizes only durable zero. `LocationImportBoundedPostgresTests` covers rejection
+through both worker entry points and preservation of transactional deduplication/savepoints.
+
+`CorruptTriggerLink_ReconcilesTwiceAndRealWorkerCompletes` first asserts a persisted
+wrong link, repairs it with and without an existing current job, verifies idempotence
+and completes through the real worker. Replacement preserves even a non-durable
+unrelated job that would be deleted by removing its last trigger. Reconciliation
+verifies job identity/payload and the trigger link before clearing pending intent;
+`FailedOrUnverifiedTriggerRepair_RemainsPendingAndRetries` covers repair failure,
+ineffective replacement and successful retry at the lifecycle contract seam.
 
 ## Client and frontend checks
 

@@ -184,7 +184,13 @@ public sealed class LocationImportFinalProjectionAuthorityTests(PostgresImportTe
         }
 
         var jobs = new HashSet<JobKey>();
+        IJobDetail? projectedJob = null;
+        ITrigger? projectedTrigger = null;
         var scheduler = new Mock<IScheduler>();
+        scheduler.Setup(x => x.GetJobDetail(It.IsAny<JobKey>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() => projectedJob);
+        scheduler.Setup(x => x.GetTrigger(It.IsAny<TriggerKey>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() => projectedTrigger);
         scheduler.Setup(x => x.GetCurrentlyExecutingJobs(It.IsAny<CancellationToken>())).ReturnsAsync([]);
         scheduler.Setup(x => x.GetJobKeys(It.IsAny<Quartz.Impl.Matchers.GroupMatcher<JobKey>>(),
             It.IsAny<CancellationToken>())).ReturnsAsync(() => jobs.ToHashSet());
@@ -193,7 +199,7 @@ public sealed class LocationImportFinalProjectionAuthorityTests(PostgresImportTe
         scheduler.Setup(x => x.CheckExists(It.IsAny<JobKey>(), It.IsAny<CancellationToken>())).ReturnsAsync(false);
         scheduler.Setup(x => x.ScheduleJob(It.IsAny<IJobDetail>(), It.IsAny<ITrigger>(),
                 It.IsAny<CancellationToken>()))
-            .Returns(async (IJobDetail job, ITrigger _, CancellationToken token) =>
+            .Returns(async (IJobDetail job, ITrigger trigger, CancellationToken token) =>
             {
                 if (job.Key.Name == LocationImportSchedulerKeys.Job(importId, 6).Name
                     && job.Key.Group == LocationImportSchedulerKeys.Group)
@@ -206,6 +212,8 @@ public sealed class LocationImportFinalProjectionAuthorityTests(PostgresImportTe
                     await command.SaveChangesAsync(token);
                 }
                 jobs.Add(job.Key);
+                projectedJob = job;
+                projectedTrigger = trigger;
                 return DateTimeOffset.UtcNow;
             });
         scheduler.Setup(x => x.DeleteJob(It.IsAny<JobKey>(), It.IsAny<CancellationToken>()))
@@ -227,6 +235,7 @@ public sealed class LocationImportFinalProjectionAuthorityTests(PostgresImportTe
             Task.FromResult(CreateDbContext());
     }
 
+    /// <summary>Exposes the canonical payload and link for each projection retained by this authority-race fixture.</summary>
     private static Mock<IScheduler> StatefulScheduler(HashSet<JobKey> jobs, HashSet<TriggerKey> triggers,
         Func<IJobDetail, Task> scheduled)
     {
@@ -240,6 +249,14 @@ public sealed class LocationImportFinalProjectionAuthorityTests(PostgresImportTe
             .ReturnsAsync((JobKey key, CancellationToken _) => jobs.Contains(key));
         scheduler.Setup(x => x.CheckExists(It.IsAny<TriggerKey>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((TriggerKey key, CancellationToken _) => triggers.Contains(key));
+        scheduler.Setup(x => x.GetJobDetail(It.IsAny<JobKey>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((JobKey key, CancellationToken _) => jobs.Contains(key)
+                && LocationImportReconciler.TryParseJob(key, out var id, out var epoch)
+                    ? LocationImportSchedulerKeys.BuildJob(id, epoch) : null);
+        scheduler.Setup(x => x.GetTrigger(It.IsAny<TriggerKey>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((TriggerKey key, CancellationToken _) => triggers.Contains(key)
+                && LocationImportReconciler.TryParseTrigger(key, out var id, out var epoch)
+                    ? LocationImportSchedulerKeys.BuildTrigger(id, epoch) : null);
         scheduler.Setup(x => x.ScheduleJob(It.IsAny<IJobDetail>(), It.IsAny<ITrigger>(), It.IsAny<CancellationToken>()))
             .Returns(async (IJobDetail job, ITrigger trigger, CancellationToken _) =>
             {

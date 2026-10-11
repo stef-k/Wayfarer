@@ -146,7 +146,7 @@ public class JobTests : TestBase
         var service = new Mock<ILocationImportService>();
         var job = new LocationImportJob(service.Object, NullLogger<LocationImportJob>.Instance);
         var jobDetail = JobBuilder.Create<LocationImportJob>()
-            .WithIdentity("locImport", "tests")
+            .WithIdentity(LocationImportSchedulerKeys.Job(123, 0))
             .UsingJobData("importId", 123)
             .UsingJobData("epoch", "0")
             .Build();

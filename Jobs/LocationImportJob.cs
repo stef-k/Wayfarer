@@ -30,7 +30,7 @@ namespace Wayfarer.Jobs
             _lifecycle = lifecycle;
         }
 
-        /// <summary>Rejects unverifiable payloads before invoking any persistence or convergence.</summary>
+        /// <summary>Rejects unverifiable or conflicting job authority before invoking persistence or convergence.</summary>
         public async Task Execute(IJobExecutionContext context)
         {
             if (!LocationImportSchedulerKeys.TryReadExecution(context.JobDetail, out var importId, out var epoch))

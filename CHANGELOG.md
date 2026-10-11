@@ -9,10 +9,12 @@
 
 ### Fixed
 
-- Fence location-import jobs, workers and compatibility execution to the exact
-  durable generation. Reject missing or invalid epochs, preserve explicit epoch
-  zero, and repair historical Quartz projections without discarding committed
-  progress. Qualify 51-row recovery after controlled batch interruption (#811).
+- Fence location-import job identities, payloads, workers and compatibility
+  execution to the exact durable generation. Reject missing, invalid or conflicting
+  authority and preserve explicit epoch zero. Repair owned Quartz trigger links
+  without changing unrelated jobs, verify the persisted projection and retain
+  pending retry intent on failure. Preserve committed progress and qualify 51-row
+  recovery after controlled batch interruption (#811).
 
 - Share unpaged Group history selection in the existing timeline service while
   preserving Web subject ordering and envelopes, Mobile normalization and paging,

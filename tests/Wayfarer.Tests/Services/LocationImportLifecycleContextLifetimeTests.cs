@@ -115,16 +115,25 @@ public sealed class LocationImportLifecycleContextLifetimeTests
         Assert.True(factory.CreatedIds.Distinct().Count() >= 4);
     }
 
+    /// <summary>Stores the projected job and trigger after observing disposal of the intent context.</summary>
     private static Mock<IScheduler> Scheduler(RecordingFactory factory)
     {
         var scheduler = new Mock<IScheduler>();
+        IJobDetail? projectedJob = null;
+        ITrigger? projectedTrigger = null;
+        scheduler.Setup(x => x.GetJobDetail(It.IsAny<JobKey>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() => projectedJob);
+        scheduler.Setup(x => x.GetTrigger(It.IsAny<TriggerKey>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(() => projectedTrigger);
         scheduler.Setup(x => x.CheckExists(It.IsAny<JobKey>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(false);
         scheduler.Setup(x => x.ScheduleJob(It.IsAny<IJobDetail>(), It.IsAny<ITrigger>(),
                 It.IsAny<CancellationToken>()))
-            .Returns((IJobDetail _, ITrigger _, CancellationToken _) =>
+            .Returns((IJobDetail job, ITrigger trigger, CancellationToken _) =>
             {
                 Assert.Equal(0, factory.Alive);
+                projectedJob = job;
+                projectedTrigger = trigger;
                 return Task.FromResult(DateTimeOffset.UtcNow);
             });
         return scheduler;

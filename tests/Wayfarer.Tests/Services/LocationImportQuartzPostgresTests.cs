@@ -145,7 +145,7 @@ public sealed class LocationImportQuartzPostgresTests(PostgresImportTestFixture 
         Assert.Equal(durableEpoch, current.ExecutionEpoch);
     }
 
-    /// <summary>Explicit zero remains valid only against durable zero; current modern generations still complete.</summary>
+    /// <summary>Current and historical identities with explicit matching zero or newer generations still complete.</summary>
     [PostgresTheory(Timeout = 30_000)]
     [InlineData(0, false)]
     [InlineData(7, false)]
@@ -330,12 +330,17 @@ public sealed class LocationImportQuartzPostgresTests(PostgresImportTestFixture 
         public void Dispose() => release.TrySetResult();
     }
 
-    [PostgresFact(Timeout = 30_000)]
-    public async Task ActiveMissingProjection_ExecutesOnceAndDoesNotReplay()
+    /// <summary>Missing jobs or triggers repair once and do not replay completed work after reconstruction.</summary>
+    [PostgresTheory(Timeout = 30_000)]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ActiveMissingProjection_ExecutesOnceAndDoesNotReplay(bool existingJob)
     {
         await using var harness = await PersistentHarness.CreateAsync(fixture);
         var seed = await harness.SeedAsync(ImportStatus.InProgress, epoch: 1, projectionPending: true);
         await harness.ReconstructAsync();
+        if (existingJob) await harness.Current.AddJob(LocationImportSchedulerKeys.BuildJob(seed.ImportId, 1), false);
+        Assert.False(await harness.Current.CheckExists(LocationImportSchedulerKeys.Trigger(seed.ImportId, 1)));
         await harness.ReconcileAsync();
         await harness.AssertBoundedPayloadAsync(seed.ImportId, 1);
 

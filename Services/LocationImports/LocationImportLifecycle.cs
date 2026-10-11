@@ -341,7 +341,7 @@ public sealed class LocationImportLifecycle(
         await db.SaveChangesAsync(token);
     }
 
-    /// <summary>Repairs payloads and trigger links only for the current server-owned projection identity.</summary>
+    /// <summary>Repairs and verifies the owned projection without changing the formerly linked unrelated job.</summary>
     internal async Task EnsureProjectionAsync(int importId, int epoch, CancellationToken token)
     {
         var jobKey = LocationImportSchedulerKeys.Job(importId, epoch);
@@ -353,7 +353,12 @@ public sealed class LocationImportLifecycle(
                 await scheduler.ScheduleJob(LocationImportSchedulerKeys.BuildJob(importId, epoch),
                     LocationImportSchedulerKeys.BuildTrigger(importId, epoch), token);
             }
-            catch (ObjectAlreadyExistsException) { }
+            catch (ObjectAlreadyExistsException)
+            {
+                // A corrupt existing trigger can coexist with a missing current job.
+                await scheduler.ScheduleJob(LocationImportSchedulerKeys.BuildJob(importId, epoch),
+                    [LocationImportSchedulerKeys.BuildTrigger(importId, epoch)], true, token);
+            }
         }
         else
         {
@@ -361,9 +366,14 @@ public sealed class LocationImportLifecycle(
                 await scheduler.AddJob(LocationImportSchedulerKeys.BuildJob(importId, epoch), true, token);
             if (!await scheduler.CheckExists(triggerKey, token))
                 await scheduler.ScheduleJob(LocationImportSchedulerKeys.BuildTrigger(importId, epoch), token);
-            else if ((await scheduler.GetTrigger(triggerKey, token))?.JobKey != jobKey)
-                await scheduler.RescheduleJob(triggerKey, LocationImportSchedulerKeys.BuildTrigger(importId, epoch), token);
+            else if (!jobKey.Equals((await scheduler.GetTrigger(triggerKey, token))?.JobKey))
+                // Bulk replacement keeps the supplied link and never removes the unrelated job's last trigger.
+                await scheduler.ScheduleJob(LocationImportSchedulerKeys.BuildJob(importId, epoch),
+                    [LocationImportSchedulerKeys.BuildTrigger(importId, epoch)], true, token);
         }
+        if (!LocationImportSchedulerKeys.MatchesExecution(await scheduler.GetJobDetail(jobKey, token), importId, epoch)
+            || !jobKey.Equals((await scheduler.GetTrigger(triggerKey, token))?.JobKey))
+            throw new SchedulerException("Location import projection could not be verified.");
     }
 
     private async Task MarkProjectedAsync(int importId, int epoch, CancellationToken token)

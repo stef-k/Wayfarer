@@ -23,17 +23,18 @@ public static class LocationImportSchedulerKeys
         .StartNow()
         .Build();
 
-    /// <summary>Reads explicit integer/string authority without coercion or missing-value defaults.</summary>
+    /// <summary>Binds the owned current/historical identity to explicit payload authority without defaults.</summary>
     internal static bool TryReadExecution(IJobDetail job, out int importId, out int epoch)
     {
         var validId = TryReadNumber(job.JobDataMap, "importId", out importId) && importId > 0;
         var validEpoch = TryReadNumber(job.JobDataMap, "epoch", out epoch);
-        return validId && validEpoch;
+        return validId && validEpoch && job.Key.Group == Group
+            && (job.Key.Equals(Job(importId, epoch)) || job.Key.Name == $"LocationImportJob_{importId}");
     }
 
-    /// <summary>Checks the stored projection payload against its durable import generation.</summary>
+    /// <summary>Requires a canonical current identity and its matching explicit payload.</summary>
     internal static bool MatchesExecution(IJobDetail? job, int importId, int epoch) =>
-        job is not null && job.JobType == typeof(LocationImportJob)
+        job is not null && job.Key.Equals(Job(importId, epoch)) && job.JobType == typeof(LocationImportJob)
         && TryReadExecution(job, out var projectedId, out var projectedEpoch)
         && projectedId == importId && projectedEpoch == epoch;
 

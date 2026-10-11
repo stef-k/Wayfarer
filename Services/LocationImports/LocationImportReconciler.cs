@@ -41,7 +41,8 @@ public sealed class LocationImportReconciler(
                 if (authority.DeletionRequestedAtUtc.HasValue)
                     await FinalizeDeletionAsync(authority.Id, projected, executing, token);
                 else if (authority.Status == ImportStatus.InProgress &&
-                    (!projected.Contains(key) || !triggers.Contains(LocationImportSchedulerKeys.Trigger(item.Id, authority.Epoch))
+                    (authority.ProjectionPending || !projected.Contains(key)
+                        || !triggers.Contains(LocationImportSchedulerKeys.Trigger(item.Id, authority.Epoch))
                         || !await HasCurrentProjectionAsync(authority.Id, authority.Epoch, token)))
                     await RepairAsync(authority.Id, authority.Epoch, projected, triggers, token);
                 else if (authority.Status == ImportStatus.Stopping)
@@ -73,15 +74,15 @@ public sealed class LocationImportReconciler(
     private async Task<bool> HasCurrentProjectionAsync(int importId, int epoch, CancellationToken token) =>
         LocationImportSchedulerKeys.MatchesExecution(
             await scheduler.GetJobDetail(LocationImportSchedulerKeys.Job(importId, epoch), token), importId, epoch)
-        && (await scheduler.GetTrigger(LocationImportSchedulerKeys.Trigger(importId, epoch), token))?.JobKey
-            == LocationImportSchedulerKeys.Job(importId, epoch);
+        && LocationImportSchedulerKeys.Job(importId, epoch).Equals(
+            (await scheduler.GetTrigger(LocationImportSchedulerKeys.Trigger(importId, epoch), token))?.JobKey);
 
     private async Task<List<Authority>> LoadPageAsync(int afterId, CancellationToken token)
     {
         await using var db = await contexts.CreateDbContextAsync(token);
         return await db.LocationImports.AsNoTracking().Where(x => x.Id > afterId).OrderBy(x => x.Id).Take(PageSize)
             .Select(x => new Authority(x.Id, x.ExecutionEpoch, x.Status, x.StopRequestedAtUtc,
-                x.DeletionRequestedAtUtc)).ToListAsync(token);
+                x.DeletionRequestedAtUtc, x.ProjectionPending)).ToListAsync(token);
     }
 
     private async Task<Authority?> LoadAuthorityAsync(int importId, CancellationToken token)
@@ -89,7 +90,7 @@ public sealed class LocationImportReconciler(
         await using var db = await contexts.CreateDbContextAsync(token);
         return await db.LocationImports.AsNoTracking().Where(x => x.Id == importId)
             .Select(x => new Authority(x.Id, x.ExecutionEpoch, x.Status, x.StopRequestedAtUtc,
-                x.DeletionRequestedAtUtc)).SingleOrDefaultAsync(token);
+                x.DeletionRequestedAtUtc, x.ProjectionPending)).SingleOrDefaultAsync(token);
     }
 
     private async Task FinalizeDeletionAsync(int importId, HashSet<JobKey> projected, HashSet<JobKey> executing,
@@ -145,6 +146,8 @@ public sealed class LocationImportReconciler(
                 await ProjectAsync(importId, authority.Epoch, projected, triggers, token);
             return;
         }
+        // Persist retry intent before Quartz so even an unverified replacement remains honestly pending.
+        if (!await SetProjectionPendingAsync(importId, epoch, true, token)) return;
         try
         {
             await ProjectAsync(importId, epoch, projected, triggers, token);
@@ -165,14 +168,19 @@ public sealed class LocationImportReconciler(
                 await FinalizeDeletionAsync(importId, projected, [], token);
             return;
         }
-        await using var verification = await contexts.CreateDbContextAsync(token);
-        var current = await verification.LocationImports.SingleOrDefaultAsync(x => x.Id == importId, token);
-        if (current is not null && current.ExecutionEpoch == epoch && current.Status == ImportStatus.InProgress
-            && !current.StopRequestedAtUtc.HasValue && !current.DeletionRequestedAtUtc.HasValue)
-        {
-            current.ProjectionPending = false;
-            await verification.SaveChangesAsync(token);
-        }
+        await SetProjectionPendingAsync(importId, epoch, false, token);
+    }
+
+    /// <summary>Updates projection intent only while the tracked current generation still permits execution.</summary>
+    private async Task<bool> SetProjectionPendingAsync(int importId, int epoch, bool pending, CancellationToken token)
+    {
+        await using var db = await contexts.CreateDbContextAsync(token);
+        var current = await db.LocationImports.SingleOrDefaultAsync(x => x.Id == importId, token);
+        if (current is null || current.ExecutionEpoch != epoch || current.Status != ImportStatus.InProgress
+            || current.StopRequestedAtUtc.HasValue || current.DeletionRequestedAtUtc.HasValue) return false;
+        current.ProjectionPending = pending;
+        try { await db.SaveChangesAsync(token); return true; }
+        catch (DbUpdateConcurrencyException) { return false; }
     }
 
     private async Task ProjectAsync(int importId, int epoch, HashSet<JobKey> projected,
@@ -212,7 +220,7 @@ public sealed class LocationImportReconciler(
         if (authority is null || authority.DeletionRequestedAtUtc.HasValue || authority.Status != ImportStatus.InProgress)
         { await DeleteProjectionAsync(key, projected, token); return; }
         var currentKey = LocationImportSchedulerKeys.Job(importId, authority.Epoch);
-        if (key != currentKey) await DeleteProjectionAsync(key, projected, token);
+        if (!key.Equals(currentKey)) await DeleteProjectionAsync(key, projected, token);
         await RepairAsync(importId, authority.Epoch, projected, triggers, token);
     }
 
@@ -257,7 +265,7 @@ public sealed class LocationImportReconciler(
     }
 
     private sealed record Authority(int Id, int Epoch, ImportStatus Status, DateTime? StopRequestedAtUtc,
-        DateTime? DeletionRequestedAtUtc);
+        DateTime? DeletionRequestedAtUtc, bool ProjectionPending);
 
     private enum QuartzCleanupResult { Removed, AlreadyAbsent, SchedulerFailed, Cancelled }
 }
