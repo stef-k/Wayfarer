@@ -229,7 +229,7 @@ public sealed class LocationImportDiagnosticPrivacyTests : TestBase
         var logs = new TestLogProvider();
         var service = BuildService(db, logs, null);
 
-        await service.ProcessImport(507, CancellationToken.None);
+        await service.ProcessImport(507, 0, CancellationToken.None);
 
         var import = Assert.Single(db.LocationImports);
         Assert.Equal(ImportStatus.Failed, import.Status);
@@ -264,7 +264,7 @@ public sealed class LocationImportDiagnosticPrivacyTests : TestBase
         var logs = new TestLogProvider();
         var service = BuildService(db, logs, handoff.Object);
 
-        await service.ProcessImport(508, CancellationToken.None);
+        await service.ProcessImport(508, 0, CancellationToken.None);
 
         Assert.All(logs.Entries, entry => AssertPrivateTextAbsent(entry, root.Path));
         Assert.DoesNotContain(logs.Entries, entry => entry.Exception is not null);
@@ -292,7 +292,7 @@ public sealed class LocationImportDiagnosticPrivacyTests : TestBase
         await db.SaveChangesAsync();
         var logs = new TestLogProvider();
 
-        await BuildService(db, logs, null).ProcessImport(509, CancellationToken.None);
+        await BuildService(db, logs, null).ProcessImport(509, 0, CancellationToken.None);
 
         var import = Assert.Single(db.LocationImports);
         Assert.Equal(ImportStatus.Failed, import.Status);

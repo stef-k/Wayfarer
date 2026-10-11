@@ -63,6 +63,22 @@ On Windows, the same variable can be stored at user scope and copied into the cu
 
 Use relational tests when the claim depends on migrations, Npgsql/PostGIS translation, database constraints, transactions, concurrent writers or persisted workflow state.
 
+### Location-import generation and recovery evidence
+
+`LocationImportQuartzPostgresTests` exercises persisted historical job rejection,
+bounded projection repair and the real worker across scheduler reconstruction.
+`RealWorker51Rows_InterruptedAfter50_ReconstructsAndResumesWithoutStaleWrites`
+commits 50 rows and their checkpoint, interrupts Quartz through the existing batch
+observer, reconstructs the worker/scheduler graph and resumes in a new generation.
+It verifies 51 distinct committed identifiers, checkpoint 51, zero duplicate skips
+and no writes by the previous generation. This is controlled interruption evidence;
+it does not qualify a hard process kill.
+
+The compatibility `ProcessImport` contract requires an explicit epoch. Missing or
+invalid Quartz payloads cannot enter the worker, and explicit zero authorizes only
+durable zero. `LocationImportBoundedPostgresTests` covers rejection through both
+worker entry points and preservation of transactional deduplication/savepoints.
+
 ## Client and frontend checks
 
 `package.json` owns the current frontend commands:

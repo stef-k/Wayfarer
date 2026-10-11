@@ -15,6 +15,35 @@ namespace Wayfarer.Tests.Jobs;
 /// <summary>Proves bounded history at the production import job-to-listener seam.</summary>
 public sealed class LocationImportJobHistoryTests : TestBase
 {
+    /// <summary>Unprovable epoch values cannot enter either worker contract or terminal convergence.</summary>
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("bad-epoch")]
+    [InlineData("-1")]
+    [InlineData("2147483648")]
+    [InlineData("1.0")]
+    [InlineData(" 0 ")]
+    [InlineData("+0")]
+    [InlineData(0.0)]
+    [InlineData(false)]
+    public async Task UnverifiableEpoch_InvokesNoWorkerOrLifecycle(object? epoch)
+    {
+        var service = new Mock<ILocationImportService>();
+        service.As<ILocationImportExecutionService>();
+        var lifecycle = new Mock<ILocationImportLifecycle>();
+        var context = Context();
+        if (epoch is null) context.Object.JobDetail.JobDataMap.Remove("epoch");
+        else context.Object.JobDetail.JobDataMap["epoch"] = epoch;
+
+        await new LocationImportJob(service.Object, NullLogger<LocationImportJob>.Instance, lifecycle.Object)
+            .Execute(context.Object);
+
+        Assert.Equal(LocationImportExecutionOutcome.Stale, context.Object.Result);
+        Assert.Empty(service.Invocations);
+        Assert.Empty(lifecycle.Invocations);
+    }
+
     [Theory]
     [InlineData(LocationImportExecutionOutcome.Completed, "Completed")]
     [InlineData(LocationImportExecutionOutcome.Cancelled, "Cancelled")]

@@ -19,6 +19,37 @@ namespace Wayfarer.Tests.Services;
 [Collection(PostgresImportTestCollection.Name)]
 public sealed class LocationImportWorkerRacePostgresTests(PostgresImportTestFixture fixture)
 {
+    /// <summary>Epoch zero loses batch and compatibility terminal authority when a later generation is committed.</summary>
+    [PostgresFact]
+    public async Task EpochZeroAfterFirstBatch_CannotAdvanceNewGenerationOrCommitHandoff()
+    {
+        await using var seed = await SeedAsync(51, enrichmentRequested: true, epoch: 0);
+        var observer = new BlockingImportObserver(blockAfterCommittedBatch: true);
+        seed.ReleaseGates = observer.Release;
+        var handoff = new Mock<IImportEnrichmentHandoff>();
+        await using var workerDb = fixture.CreateContext();
+        var running = Service(workerDb, handoff.Object, observer).ProcessImport(seed.ImportId, 0, CancellationToken.None);
+        await observer.Reached.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        await using (var authority = fixture.CreateContext())
+        {
+            var import = (await authority.LocationImports.FindAsync(seed.ImportId))!;
+            Assert.Equal(50, import.LastProcessedIndex);
+            import.ExecutionEpoch = 1;
+            await authority.SaveChangesAsync();
+        }
+        observer.Release();
+        await running;
+
+        await using var verification = fixture.CreateContext();
+        var current = (await verification.LocationImports.FindAsync(seed.ImportId))!;
+        Assert.Equal(1, current.ExecutionEpoch);
+        Assert.Equal(ImportStatus.InProgress, current.Status);
+        Assert.Equal(51, current.TotalRecords);
+        Assert.Equal(50, current.LastProcessedIndex);
+        Assert.Equal(50, await verification.Locations.CountAsync(item => item.UserId == seed.UserId));
+        handoff.Verify(item => item.EnsureAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
     [PostgresTheory]
     [InlineData(FailureAuthority.Current)]
     [InlineData(FailureAuthority.Stop)]
@@ -163,7 +194,7 @@ public sealed class LocationImportWorkerRacePostgresTests(PostgresImportTestFixt
         await final.JobHistories.Where(x => x.JobName == context.Object.JobDetail.Key.Name).ExecuteDeleteAsync();
     }
 
-    private async Task<Seed> SeedAsync(int count, bool enrichmentRequested)
+    private async Task<Seed> SeedAsync(int count, bool enrichmentRequested, int epoch = 11)
     {
         var user = await fixture.CreateUserAsync();
         var root = Path.Combine(ImportStaging.LegacyDirectory, "wayfarer-511-worker-races");
@@ -179,7 +210,7 @@ public sealed class LocationImportWorkerRacePostgresTests(PostgresImportTestFixt
         var import = new LocationImport
         {
             UserId = user.Id, FilePath = path, FileType = LocationImportFileType.Csv,
-            Status = ImportStatus.InProgress, ExecutionEpoch = 11,
+            Status = ImportStatus.InProgress, ExecutionEpoch = epoch,
             TotalRecords = 0, LastProcessedIndex = 0, EnrichmentRequested = enrichmentRequested
         };
         db.LocationImports.Add(import);

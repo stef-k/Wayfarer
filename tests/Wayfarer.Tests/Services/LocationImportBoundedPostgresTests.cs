@@ -18,6 +18,49 @@ namespace Wayfarer.Tests.Services;
 [Collection(PostgresImportTestCollection.Name)]
 public sealed class LocationImportBoundedPostgresTests(PostgresImportTestFixture fixture)
 {
+    /// <summary>Direct and compatibility execution cannot borrow a newer generation's authority.</summary>
+    [PostgresTheory]
+    [InlineData(-1)]
+    [InlineData(0)]
+    [InlineData(6)]
+    public async Task NoncurrentExecution_AndCompatibilityWrapper_CommitNothing(int epoch)
+    {
+        var user = await fixture.CreateUserAsync();
+        var path = ImportStaging.TempFile();
+        try
+        {
+            await File.WriteAllTextAsync(path,
+                "Latitude,Longitude,TimestampUtc\r\n40.1,22.2,2026-08-25T00:00:00Z\r\n");
+            await using var db = fixture.CreateContext();
+            var import = new LocationImport
+            {
+                UserId = user.Id, FilePath = path, FileType = LocationImportFileType.Csv,
+                Status = ImportStatus.InProgress, ExecutionEpoch = 7,
+                TotalRecords = 0, LastProcessedIndex = 0, EnrichmentRequested = true
+            };
+            db.LocationImports.Add(import);
+            await db.SaveChangesAsync();
+            var handoff = new Moq.Mock<Wayfarer.Services.LocationEnrichment.IImportEnrichmentHandoff>();
+            var worker = new LocationImportService(ImportStaging.Files, new FixtureFactory(fixture),
+                new ReverseGeocodingService(new HttpClient(), NullLogger<BaseApiController>.Instance),
+                NullLogger<LocationImportService>.Instance,
+                new LocationDataParserFactory(NullLoggerFactory.Instance), new SseService(), handoff.Object);
+
+            Assert.Equal(LocationImportExecutionOutcome.Stale,
+                await worker.ProcessImportExecution(import.Id, epoch, CancellationToken.None));
+            await worker.ProcessImport(import.Id, epoch, CancellationToken.None);
+
+            await db.Entry(import).ReloadAsync();
+            Assert.Equal(0, await db.Locations.CountAsync(item => item.UserId == user.Id));
+            Assert.Equal(0, import.TotalRecords);
+            Assert.Equal(0, import.LastProcessedIndex);
+            Assert.Equal(0, import.RemainingEnrichmentCount);
+            Assert.Equal(ImportStatus.InProgress, import.Status);
+            Assert.Empty(handoff.Invocations);
+        }
+        finally { File.Delete(path); }
+    }
+
     [PostgresFact]
     public async Task KeyedExternalWriterAfterPrecheck_RetainsWinnerAndPersistsRestOfBatch()
     {
@@ -60,7 +103,7 @@ public sealed class LocationImportBoundedPostgresTests(PostgresImportTestFixture
                 NullLogger<LocationImportService>.Instance,
                 new LocationDataParserFactory(NullLoggerFactory.Instance), new SseService());
 
-            await service.ProcessImport(importId, CancellationToken.None);
+            await service.ProcessImport(importId, 0, CancellationToken.None);
 
             Assert.True(externalCommitted);
             await using var verification = fixture.CreateContext();

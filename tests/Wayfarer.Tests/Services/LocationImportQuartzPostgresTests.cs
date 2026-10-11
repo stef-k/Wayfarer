@@ -23,12 +23,16 @@ public sealed class LocationImportQuartzPostgresTests(PostgresImportTestFixture 
 {
     /// <summary>A persisted historical job cannot acquire a newer import's authority from missing data.</summary>
     [PostgresTheory(Timeout = 30_000)]
-    [InlineData(null)]
-    [InlineData("bad-epoch")]
-    public async Task HistoricalUnverifiableEpoch_AfterReconstruction_CommitsNothing(string? epoch)
+    [InlineData(null, 7)]
+    [InlineData("bad-epoch", 7)]
+    [InlineData("-1", 7)]
+    [InlineData("6", 7)]
+    [InlineData("0", 7)]
+    [InlineData(null, 0)]
+    public async Task HistoricalUnverifiableEpoch_AfterReconstruction_CommitsNothing(string? epoch, int durableEpoch)
     {
         await using var harness = await PersistentHarness.CreateAsync(fixture);
-        var seed = await harness.SeedAsync(ImportStatus.InProgress, epoch: 7);
+        var seed = await harness.SeedAsync(ImportStatus.InProgress, epoch: durableEpoch);
         await File.WriteAllTextAsync(seed.FilePath,
             "Latitude,Longitude,TimestampUtc,IdempotencyKey\r\n" +
             $"40.1,22.2,2026-08-25T00:00:00Z,{Guid.NewGuid():D}\r\n");
@@ -54,14 +58,182 @@ public sealed class LocationImportQuartzPostgresTests(PostgresImportTestFixture 
         Assert.Equal(0, current.TotalRecords);
         Assert.Equal(0, current.SkippedDuplicates);
         Assert.Equal(ImportStatus.InProgress, current.Status);
-        Assert.Equal(7, current.ExecutionEpoch);
+        Assert.Equal(durableEpoch, current.ExecutionEpoch);
+    }
+
+    /// <summary>Explicit zero remains valid only against durable zero; current modern generations still complete.</summary>
+    [PostgresTheory(Timeout = 30_000)]
+    [InlineData(0)]
+    [InlineData(7)]
+    public async Task ExplicitCurrentEpoch_RealWorkerCompletes(int epoch)
+    {
+        await using var harness = await PersistentHarness.CreateAsync(fixture);
+        var seed = await harness.SeedAsync(ImportStatus.InProgress, epoch: epoch);
+        await File.WriteAllTextAsync(seed.FilePath,
+            "Latitude,Longitude,TimestampUtc,IdempotencyKey\r\n" +
+            $"40.1,22.2,2026-08-25T00:00:00Z,{Guid.NewGuid():D}\r\n");
+        await harness.ReconstructAsync();
+        await harness.ReconcileAsync();
+        await harness.StartAsync(Worker());
+        await harness.WaitForTriggerFinalizationAsync(seed.ImportId, epoch);
+        await using var verification = fixture.CreateContext();
+        Assert.Equal(1, await verification.Locations.CountAsync(item => item.UserId == seed.UserId));
+        var current = (await verification.LocationImports.FindAsync(seed.ImportId))!;
+        Assert.Equal(ImportStatus.Completed, current.Status);
+        Assert.Equal(1, current.TotalRecords);
+        Assert.Equal(1, current.LastProcessedIndex);
+        Assert.Equal(0, current.SkippedDuplicates);
     }
 
     /// <summary>Constructs the production worker over fixture-owned PostgreSQL contexts.</summary>
-    private LocationImportService Worker() => new(ImportStaging.Files, new FixtureContextFactory(fixture),
+    private LocationImportService Worker(ILocationImportLifecycleObserver? observer = null) => new(ImportStaging.Files, new FixtureContextFactory(fixture),
         new ReverseGeocodingService(new HttpClient(), NullLogger<BaseApiController>.Instance),
         NullLogger<LocationImportService>.Instance, new LocationDataParserFactory(NullLoggerFactory.Instance),
-        new SseService());
+        new SseService(), null, observer ?? NullLocationImportLifecycleObserver.Instance);
+
+    /// <summary>Controlled Quartz interruption preserves the first batch and resumes once on a reconstructed graph.</summary>
+    [PostgresFact(Timeout = 30_000)]
+    public async Task RealWorker51Rows_InterruptedAfter50_ReconstructsAndResumesWithoutStaleWrites()
+    {
+        await using var harness = await PersistentHarness.CreateAsync(fixture);
+        using var interruption = new BatchInterruption();
+        var seed = await harness.SeedAsync(ImportStatus.InProgress, epoch: 7);
+        var keys = Enumerable.Range(0, 51).Select(_ => Guid.NewGuid()).ToArray();
+        await File.WriteAllLinesAsync(seed.FilePath, ["Latitude,Longitude,TimestampUtc,IdempotencyKey",
+            .. keys.Select((key, index) => $"40.1,22.2,2026-08-25T00:00:{index:00}Z,{key:D}")]);
+        await harness.ReconstructAsync();
+        await harness.ReconcileAsync();
+        await harness.StartAsync(Worker(interruption));
+        await interruption.Reached.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        await using (var prefix = fixture.CreateContext())
+        {
+            var import = (await prefix.LocationImports.FindAsync(seed.ImportId))!;
+            Assert.Equal(51, import.TotalRecords);
+            Assert.Equal(50, import.LastProcessedIndex);
+            Assert.Equal(0, import.SkippedDuplicates);
+            Assert.Equal(50, await prefix.Locations.CountAsync(item => item.UserId == seed.UserId));
+        }
+        Assert.True(await harness.Current.Interrupt(LocationImportSchedulerKeys.Job(seed.ImportId, 7)));
+        await harness.WaitForTriggerFinalizationAsync(seed.ImportId, 7);
+        await harness.ShutdownCurrentAsync();
+
+        await harness.ReconstructAsync();
+        var lifecycle = new LocationImportLifecycle(ImportStaging.Files, new FixtureContextFactory(fixture),
+            harness.Current, NullLogger<LocationImportLifecycle>.Instance);
+        Assert.True((await lifecycle.StartAsync(seed.UserId, seed.ImportId)).Succeeded);
+        var stale = new Mock<IJobExecutionContext>();
+        stale.SetupGet(item => item.JobDetail).Returns(
+            (await harness.Current.GetJobDetail(LocationImportSchedulerKeys.Job(seed.ImportId, 7)))!);
+        stale.SetupProperty(item => item.Result);
+        await new LocationImportJob(Worker(), NullLogger<LocationImportJob>.Instance, lifecycle).Execute(stale.Object);
+        Assert.Equal(LocationImportExecutionOutcome.Stale, stale.Object.Result);
+        await using (var fenced = fixture.CreateContext())
+        {
+            Assert.Equal(50, await fenced.Locations.CountAsync(item => item.UserId == seed.UserId));
+            Assert.Equal(50, (await fenced.LocationImports.FindAsync(seed.ImportId))!.LastProcessedIndex);
+        }
+
+        await harness.ReconcileAsync();
+        Assert.False(await harness.Current.CheckExists(LocationImportSchedulerKeys.Job(seed.ImportId, 7)));
+        await harness.StartAsync(Worker());
+        await harness.WaitForTriggerFinalizationAsync(seed.ImportId, 8);
+        await using var verification = fixture.CreateContext();
+        var completed = (await verification.LocationImports.FindAsync(seed.ImportId))!;
+        var committedKeys = await verification.Locations.Where(item => item.UserId == seed.UserId)
+            .Select(item => item.IdempotencyKey!.Value).ToListAsync();
+        Assert.Equal(ImportStatus.Completed, completed.Status);
+        Assert.Equal(8, completed.ExecutionEpoch);
+        Assert.Equal(51, completed.TotalRecords);
+        Assert.Equal(51, completed.LastProcessedIndex);
+        Assert.Equal(0, completed.SkippedDuplicates);
+        Assert.Equal(51, committedKeys.Count);
+        Assert.Equal(keys.OrderBy(key => key), committedKeys.Distinct().OrderBy(key => key));
+    }
+
+    /// <summary>Historical and corrupt current projections repair from durable intent without losing the prefix.</summary>
+    [PostgresFact(Timeout = 30_000)]
+    public async Task HistoricalAndCorruptCurrentProjections_ReconcileBoundedlyAndPreserveProgress()
+    {
+        await using var harness = await PersistentHarness.CreateAsync(fixture);
+        var seed = await harness.SeedAsync(ImportStatus.InProgress, epoch: 7);
+        await using (var db = fixture.CreateContext())
+        {
+            var import = (await db.LocationImports.FindAsync(seed.ImportId))!;
+            import.TotalRecords = 51;
+            import.LastProcessedIndex = 50;
+            await db.SaveChangesAsync();
+        }
+        await harness.ReconstructAsync();
+        var legacy = JobBuilder.Create<LocationImportJob>().WithIdentity($"LocationImportJob_{seed.ImportId}", "Imports")
+            .UsingJobData("importId", seed.ImportId.ToString()).StoreDurably().Build();
+        await harness.Current.ScheduleJob(legacy, TriggerBuilder.Create()
+            .WithIdentity($"LocationImportTrigger_{seed.ImportId}", "Imports").ForJob(legacy).StartNow().Build());
+        var malformed = LocationImportSchedulerKeys.BuildJob(seed.ImportId, 7);
+        malformed.JobDataMap["epoch"] = "unverifiable";
+        await harness.Current.ScheduleJob(malformed, LocationImportSchedulerKeys.BuildTrigger(seed.ImportId, 7));
+        // Historical triggers may remain attached to an otherwise modern job identity.
+        var historicalTrigger = new TriggerKey($"LocationImportTrigger_{seed.ImportId}", "Imports");
+        await harness.Current.RescheduleJob(historicalTrigger, TriggerBuilder.Create()
+            .WithIdentity(historicalTrigger).ForJob(malformed).StartNow().Build());
+        var unrelated = JobBuilder.Create<LocationImportJob>().WithIdentity("OtherJob", "Imports").StoreDurably().Build();
+        await harness.Current.AddJob(unrelated, false);
+        await harness.ShutdownCurrentAsync();
+
+        await harness.ReconstructAsync();
+        await harness.ReconcileAsync();
+        await harness.ReconcileAsync();
+        Assert.False(await harness.Current.CheckExists(legacy.Key));
+        Assert.False(await harness.Current.CheckExists(new TriggerKey($"LocationImportTrigger_{seed.ImportId}", "Imports")));
+        Assert.True(await harness.Current.CheckExists(unrelated.Key));
+        await harness.AssertBoundedPayloadAsync(seed.ImportId, 7);
+        var projections = await harness.Current.GetJobKeys(Quartz.Impl.Matchers.GroupMatcher<JobKey>.GroupEquals("Imports"));
+        Assert.Equal(2, projections.Count);
+        await using var verification = fixture.CreateContext();
+        var current = (await verification.LocationImports.FindAsync(seed.ImportId))!;
+        Assert.Equal(50, current.LastProcessedIndex);
+        Assert.Equal(51, current.TotalRecords);
+        Assert.Equal(7, current.ExecutionEpoch);
+        Assert.Equal(ImportStatus.InProgress, current.Status);
+        Assert.Equal(0, await verification.Locations.CountAsync(item => item.UserId == seed.UserId));
+    }
+
+    /// <summary>Owner deletion cleans historical projections and staged bytes without deleting stored locations.</summary>
+    [PostgresFact(Timeout = 30_000)]
+    public async Task DeleteHistoricalProjection_RemovesOnlyOwnedImportArtifacts()
+    {
+        await using var harness = await PersistentHarness.CreateAsync(fixture);
+        var seed = await harness.SeedAsync(ImportStatus.Completed, epoch: 0);
+        await harness.ReconstructAsync();
+        var legacy = JobBuilder.Create<LocationImportJob>()
+            .WithIdentity($"LocationImportJob_{seed.ImportId}", "Imports").StoreDurably().Build();
+        await harness.Current.AddJob(legacy, false);
+        var lifecycle = new LocationImportLifecycle(ImportStaging.Files, new FixtureContextFactory(fixture),
+            harness.Current, NullLogger<LocationImportLifecycle>.Instance);
+
+        Assert.True((await lifecycle.DeleteAsync(seed.UserId, seed.ImportId)).Succeeded);
+
+        Assert.False(await harness.Current.CheckExists(legacy.Key));
+        Assert.False(File.Exists(seed.FilePath));
+        await using var verification = fixture.CreateContext();
+        Assert.Null(await verification.LocationImports.FindAsync(seed.ImportId));
+        Assert.NotNull(await verification.Users.FindAsync(seed.UserId));
+    }
+
+    /// <summary>Exposes the existing committed-batch seam and unblocks cleanup if the witness fails.</summary>
+    private sealed class BatchInterruption : ILocationImportLifecycleObserver, IDisposable
+    {
+        internal TaskCompletionSource Reached { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public async Task AfterBatchCommittedAsync(int importId, int epoch, int processed, CancellationToken token)
+        {
+            if (processed != 50) return;
+            Reached.TrySetResult();
+            await release.Task.WaitAsync(token);
+        }
+        public Task BeforeTerminalPersistenceAsync(int importId, int epoch,
+            LocationImportExecutionOutcome outcome, CancellationToken token) => Task.CompletedTask;
+        public void Dispose() => release.TrySetResult();
+    }
 
     [PostgresFact(Timeout = 30_000)]
     public async Task ActiveMissingProjection_ExecutesOnceAndDoesNotReplay()

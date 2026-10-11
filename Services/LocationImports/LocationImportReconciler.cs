@@ -15,6 +15,7 @@ public sealed class LocationImportReconciler(
     private readonly LocationImportProjectionCoordinator projectionCoordinator =
         projectionCoordinator ?? LocationImportProjectionCoordinator.Shared;
 
+    /// <summary>Converges current payloads and bounded historical identities from durable import intent.</summary>
     public async Task ReconcileAsync(CancellationToken token = default)
     {
         token.ThrowIfCancellationRequested();
@@ -40,7 +41,8 @@ public sealed class LocationImportReconciler(
                 if (authority.DeletionRequestedAtUtc.HasValue)
                     await FinalizeDeletionAsync(authority.Id, projected, executing, token);
                 else if (authority.Status == ImportStatus.InProgress &&
-                    (!projected.Contains(key) || !triggers.Contains(LocationImportSchedulerKeys.Trigger(item.Id, authority.Epoch))))
+                    (!projected.Contains(key) || !triggers.Contains(LocationImportSchedulerKeys.Trigger(item.Id, authority.Epoch))
+                        || !await HasCurrentProjectionAsync(authority.Id, authority.Epoch, token)))
                     await RepairAsync(authority.Id, authority.Epoch, projected, triggers, token);
                 else if (authority.Status == ImportStatus.Stopping)
                     await ConvergeStopAsync(authority.Id, authority.Epoch, key, executing, projected, token);
@@ -55,7 +57,24 @@ public sealed class LocationImportReconciler(
             await using var projection = await projectionCoordinator.AcquireAsync(importId, token);
             await DeleteOrRepairOrphanAsync(orphan, projected, triggers, token);
         }
+        // Historical triggers attached to a repaired modern job are no longer an execution projection.
+        foreach (var key in triggers.Where(key => TryParseTrigger(key, out _, out var epoch) && epoch < 0))
+        {
+            if (!TryParseTrigger(key, out var importId, out _)) continue;
+            await using var projection = await projectionCoordinator.AcquireAsync(importId, token);
+            var trigger = await scheduler.GetTrigger(key, token);
+            if (trigger is not null && TryParseJob(trigger.JobKey, out var jobImportId, out _)
+                && jobImportId == importId && !executing.Contains(trigger.JobKey))
+                _ = await scheduler.UnscheduleJob(key, token);
+        }
     }
+
+    /// <summary>Names alone cannot prove that a stored job and trigger carry current authority.</summary>
+    private async Task<bool> HasCurrentProjectionAsync(int importId, int epoch, CancellationToken token) =>
+        LocationImportSchedulerKeys.MatchesExecution(
+            await scheduler.GetJobDetail(LocationImportSchedulerKeys.Job(importId, epoch), token), importId, epoch)
+        && (await scheduler.GetTrigger(LocationImportSchedulerKeys.Trigger(importId, epoch), token))?.JobKey
+            == LocationImportSchedulerKeys.Job(importId, epoch);
 
     private async Task<List<Authority>> LoadPageAsync(int afterId, CancellationToken token)
     {
@@ -227,9 +246,11 @@ public sealed class LocationImportReconciler(
         importId = epoch = 0;
         if (group != LocationImportSchedulerKeys.Group || !name.StartsWith(prefix, StringComparison.Ordinal)) return false;
         var values = name[prefix.Length..].Split('_');
+        if (!int.TryParse(values[0], System.Globalization.NumberStyles.None,
+                System.Globalization.CultureInfo.InvariantCulture, out importId) || importId <= 0) return false;
+        // A one-number identity identifies cleanup scope only; it never supplies epoch zero.
+        if (values.Length == 1 && name == $"{prefix}{importId}") { epoch = -1; return true; }
         return values.Length == 2
-            && int.TryParse(values[0], System.Globalization.NumberStyles.None,
-                System.Globalization.CultureInfo.InvariantCulture, out importId) && importId > 0
             && int.TryParse(values[1], System.Globalization.NumberStyles.None,
                 System.Globalization.CultureInfo.InvariantCulture, out epoch) && epoch >= 0
             && name == $"{prefix}{importId}_{epoch}";

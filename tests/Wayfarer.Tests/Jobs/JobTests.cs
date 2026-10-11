@@ -139,6 +139,7 @@ public class JobTests : TestBase
         }
     }
 
+    /// <summary>The compatibility job path must retain the explicitly supplied generation.</summary>
     [Fact]
     public async Task LocationImportJob_InvokesServiceWithImportId()
     {
@@ -147,6 +148,7 @@ public class JobTests : TestBase
         var jobDetail = JobBuilder.Create<LocationImportJob>()
             .WithIdentity("locImport", "tests")
             .UsingJobData("importId", 123)
+            .UsingJobData("epoch", "0")
             .Build();
         var tokenSource = new CancellationTokenSource();
         var context = new Mock<IJobExecutionContext>();
@@ -155,7 +157,7 @@ public class JobTests : TestBase
 
         await job.Execute(context.Object);
 
-        service.Verify(s => s.ProcessImport(123, tokenSource.Token), Times.Once);
+        service.Verify(s => s.ProcessImport(123, 0, tokenSource.Token), Times.Once);
     }
 
     [Fact]

@@ -8,6 +8,7 @@ using Wayfarer.Services.LocationImports;
 
 namespace Wayfarer.Jobs
 {
+    /// <summary>Admits only jobs carrying a verifiable explicit execution generation.</summary>
     // Prevent two concurrent executions of the same job key
     [DisallowConcurrentExecution]
     // If you ever update the JobDataMap in-flight, persist those changes
@@ -18,6 +19,7 @@ namespace Wayfarer.Jobs
         private readonly ILogger<LocationImportJob> _logger;
         private readonly ILocationImportLifecycle? _lifecycle;
 
+        /// <summary>Uses durable worker authority and optional lifecycle convergence.</summary>
         public LocationImportJob(
             ILocationImportService locationImportService,
             ILogger<LocationImportJob> logger,
@@ -28,13 +30,14 @@ namespace Wayfarer.Jobs
             _lifecycle = lifecycle;
         }
 
+        /// <summary>Rejects unverifiable payloads before invoking any persistence or convergence.</summary>
         public async Task Execute(IJobExecutionContext context)
         {
-            // Pull the importId from the JobDataMap
-            int importId = context.JobDetail.JobDataMap.GetInt("importId");
-            int epoch = context.JobDetail.JobDataMap.ContainsKey("epoch")
-                && int.TryParse(context.JobDetail.JobDataMap.GetString("epoch"), out var parsedEpoch)
-                ? parsedEpoch : 0;
+            if (!LocationImportSchedulerKeys.TryReadExecution(context.JobDetail, out var importId, out var epoch))
+            {
+                context.Result = LocationImportExecutionOutcome.Stale;
+                return;
+            }
             CancellationToken ct = context.CancellationToken;
 
             _logger.LogInformation("Starting LocationImportJob for ImportId {ImportId}", importId);
@@ -43,7 +46,7 @@ namespace Wayfarer.Jobs
             {
                 var outcome = _locationImportService is ILocationImportExecutionService execution
                     ? await execution.ProcessImportExecution(importId, epoch, ct)
-                    : await LegacyExecutionAsync(importId, ct);
+                    : await LegacyExecutionAsync(importId, epoch, ct);
                 if (_lifecycle is not null)
                     outcome = await _lifecycle.ConvergeExecutionAsync(
                         importId, epoch, outcome, CancellationToken.None);
@@ -72,9 +75,10 @@ namespace Wayfarer.Jobs
             }
         }
 
-        private async Task<LocationImportExecutionOutcome> LegacyExecutionAsync(int importId, CancellationToken token)
+        /// <summary>Passes the admitted generation through the compatibility service contract.</summary>
+        private async Task<LocationImportExecutionOutcome> LegacyExecutionAsync(int importId, int epoch, CancellationToken token)
         {
-            await _locationImportService.ProcessImport(importId, token);
+            await _locationImportService.ProcessImport(importId, epoch, token);
             return LocationImportExecutionOutcome.Completed;
         }
     }
