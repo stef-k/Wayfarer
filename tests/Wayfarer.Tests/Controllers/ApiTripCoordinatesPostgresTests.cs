@@ -15,7 +15,7 @@ using Xunit;
 
 namespace Wayfarer.Tests.Controllers;
 
-/// <summary>Qualifies named-float MVC binding and rejection persistence without repeating the numeric policy matrix.</summary>
+/// <summary>Qualifies routed coordinate binding, rejection persistence and successful Place projections.</summary>
 [Collection(PostgresImportTestCollection.Name)]
 public sealed class ApiTripCoordinatesPostgresTests(PostgresImportTestFixture fixture) : TestBase
 {
@@ -114,6 +114,96 @@ public sealed class ApiTripCoordinatesPostgresTests(PostgresImportTestFixture fi
         Assert.Equal(original.Place.AddressEnrichmentProvider, place.AddressEnrichmentProvider);
         Assert.Equal(original.Place.AddressEnrichmentStorageMode, place.AddressEnrichmentStorageMode);
         Assert.Equal(original.Place.AddressEnrichedAt, place.AddressEnrichedAt);
+    }
+
+    /// <summary>A metadata-only update suppresses a historical non-finite response position without repairing geography.</summary>
+    [PostgresFact]
+    public async Task HistoricalNonFinitePlaceUpdateReturnsNullLocationWithoutChangingStoredPoint()
+    {
+        var original = await SeedAsync();
+        await using var db = fixture.CreateContext();
+        // Seed outside current coordinate-input validation, without any dependent Segment.
+        var historical = new Place
+        {
+            Id = Guid.NewGuid(), RegionId = original.Region.Id, UserId = original.Region.UserId,
+            Name = "Historical", Notes = "<p>Historical</p>", DisplayOrder = 3,
+            Address = "Historical address", IconName = "museum", MarkerColor = "bg-red",
+            ResolvedFeatureName = "Historical museum", ResolvedFeatureType = "museum",
+            Location = new Point(23, double.NaN) { SRID = 4326 }
+        };
+        db.Places.Add(historical);
+        await db.SaveChangesAsync();
+        await using (var before = fixture.CreateContext())
+        {
+            var stored = await before.Places.SingleAsync(item => item.Id == historical.Id);
+            Assert.NotNull(stored.Location);
+            Assert.Equal(23d, stored.Location.X);
+            Assert.True(double.IsNaN(stored.Location.Y));
+            Assert.Equal(4326, stored.Location.SRID);
+        }
+
+        var saves = 0;
+        var warmup = new Mock<ICacheWarmupScheduler>();
+        await using var app = await IdentityRouteHost.StartAsync(db, CreateTestDirectory(), services =>
+        {
+            services.AddScoped(_ =>
+            {
+                var context = fixture.CreateContext();
+                context.SavingChanges += (_, _) => saves++;
+                return context;
+            });
+            services.AddSingleton(warmup.Object);
+        });
+        using var client = app.GetTestClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", original.Region.UserId);
+
+        using var response = await client.PutAsync($"/api/trips/places/{historical.Id}",
+            new StringContent("""{"name":"Historical edited","notes":"<p>Updated <strong>history</strong></p><script>alert('x')</script>"}""",
+                Encoding.UTF8, "application/json"));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("application/json", response.Content.Headers.ContentType?.MediaType);
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var place = AssertPlaceShape(document.RootElement);
+        Assert.Equal(historical.Id, place.GetProperty("id").GetGuid());
+        Assert.Equal("Historical edited", place.GetProperty("name").GetString());
+        Assert.Equal("<p>Updated <strong>history</strong></p>", place.GetProperty("notes").GetString());
+        Assert.Equal(3, place.GetProperty("displayOrder").GetInt32());
+        Assert.Equal("museum", place.GetProperty("iconName").GetString());
+        Assert.Equal("bg-red", place.GetProperty("markerColor").GetString());
+        Assert.Equal("Historical address", place.GetProperty("address").GetString());
+        Assert.Equal("Historical museum", place.GetProperty("resolvedFeatureName").GetString());
+        Assert.Equal("museum", place.GetProperty("resolvedFeatureType").GetString());
+        await using var verify = fixture.CreateContext();
+        var persisted = await verify.Places.SingleAsync(item => item.Id == historical.Id);
+        Assert.Equal("Historical edited", persisted.Name);
+        Assert.Equal("<p>Updated <strong>history</strong></p>", persisted.Notes);
+        Assert.Equal("Historical address", persisted.Address);
+        Assert.Equal("Historical museum", persisted.ResolvedFeatureName);
+        Assert.Equal("museum", persisted.ResolvedFeatureType);
+        Assert.NotNull(persisted.Location);
+        Assert.Equal(23d, persisted.Location.X);
+        Assert.True(double.IsNaN(persisted.Location.Y));
+        Assert.Equal(4326, persisted.Location.SRID);
+        Assert.Equal(1, saves);
+        warmup.Verify(item => item.ScheduleWarmupAsync(original.Region.TripId, false), Times.Once);
+        warmup.VerifyNoOtherCalls();
+        // Keep this last so the red-first run proves all existing mutation/persistence behavior first.
+        Assert.Equal(JsonValueKind.Null, place.GetProperty("location").ValueKind);
+    }
+
+    /// <summary>Freezes the successful envelope and ten Place keys without imposing JSON property order.</summary>
+    private static JsonElement AssertPlaceShape(JsonElement root)
+    {
+        Assert.Equal(new[] { "place", "success" }, root.EnumerateObject().Select(item => item.Name).Order());
+        Assert.Equal(JsonValueKind.True, root.GetProperty("success").ValueKind);
+        var place = root.GetProperty("place");
+        Assert.Equal(new[]
+        {
+            "id", "name", "notes", "displayOrder", "iconName", "markerColor", "address",
+            "resolvedFeatureName", "resolvedFeatureType", "location"
+        }.Order(), place.EnumerateObject().Select(item => item.Name).Order());
+        return place;
     }
 
     /// <summary>Seeds fixture-owned bearer authority and a waypoint route with sibling orders and retained provenance.</summary>
