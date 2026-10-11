@@ -20,7 +20,6 @@ public class GroupsController : ControllerBase
 {
     private readonly ApplicationDbContext _db;
     private readonly IGroupService _groups;
-    private readonly LocationService _locationService;
     private readonly ILogger<GroupsController> _logger;
     private readonly SseService _sse;
     private readonly IGroupTimelineService _timelineService;
@@ -32,7 +31,6 @@ public class GroupsController : ControllerBase
         _db = db;
         _groups = groups;
         _logger = logger;
-        _locationService = locationService;
         _sse = sse;
         _timelineService = timelineService ?? new GroupTimelineService(db, locationService,
             new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build());
@@ -169,54 +167,7 @@ public class GroupsController : ControllerBase
             ? req.UserIds.Distinct().Where(access.AllowedUserIds.Contains).ToList()
             : access.AllowedUserIds.ToList();
 
-        // Performance guard: if multiple users are requested, enforce day-only queries
-        // This limits the result size and keeps UI responsive even for large datasets.
-        if (userIds.Count > 1)
-        {
-            req.DateType = "day";
-            // If specific day not provided, default to today's UTC date
-            if (!req.Year.HasValue || !req.Month.HasValue || !req.Day.HasValue)
-            {
-                var today = DateTime.UtcNow;
-                req.Year ??= today.Year;
-                req.Month ??= today.Month;
-                req.Day ??= today.Day;
-            }
-        }
-
-        // Fallback: if client sent no DateType at all, default to today's day view to avoid huge history loads
-        if (string.IsNullOrWhiteSpace(req.DateType))
-        {
-            var today = DateTime.UtcNow;
-            req.DateType = "day";
-            req.Year = today.Year;
-            req.Month = today.Month;
-            req.Day = today.Day;
-        }
-
-        var combined = new List<PublicLocationDto>();
-        var total = 0;
-        foreach (var uid in userIds)
-            if (!string.IsNullOrWhiteSpace(req.DateType) && req.Year.HasValue)
-            {
-                var (locs, userTotal) = await _locationService.GetLocationsByDateAsync(
-                    uid, req.DateType!, req.Year!.Value, req.Month, req.Day, ct);
-                // filter by bbox
-                var filtered = locs.Where(l =>
-                    l.Coordinates.X >= req.MinLng && l.Coordinates.X <= req.MaxLng &&
-                    l.Coordinates.Y >= req.MinLat && l.Coordinates.Y <= req.MaxLat).ToList();
-                foreach (var d in filtered) d.UserId = uid;
-                combined.AddRange(filtered);
-                total += filtered.Count; // for date-filtered path, count filtered
-            }
-            else
-            {
-                var (locations, userTotal) = await _locationService.GetLocationsAsync(
-                    req.MinLng, req.MinLat, req.MaxLng, req.MaxLat, req.ZoomLevel, uid, ct);
-                foreach (var d in locations) d.UserId = uid;
-                combined.AddRange(locations);
-                total += userTotal;
-            }
+        var (combined, total) = await _timelineService.SelectHistoryLocationsAsync(access, userIds, req, ct);
 
         return Ok(new { totalItems = total, results = combined });
     }

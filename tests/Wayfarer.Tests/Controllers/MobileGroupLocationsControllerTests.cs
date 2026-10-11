@@ -153,6 +153,7 @@ public class MobileGroupLocationsControllerTests
         Assert.Null(payload.NextPageToken);
     }
 
+    /// <summary>Selected-set paging retains ties, size defaults, restart behavior and final-page flags.</summary>
     [Fact]
     public async Task MobileGroupLocationsPagination_ContinuationToken_Works()
     {
@@ -182,14 +183,14 @@ public class MobileGroupLocationsControllerTests
         db.GroupMembers.Add(new GroupMember { GroupId = group.Id, UserId = caller.Id, Role = GroupMember.Roles.Owner, Status = GroupMember.MembershipStatuses.Active, JoinedAt = DateTime.UtcNow });
         db.ApplicationSettings.Add(new ApplicationSettings { LocationTimeThresholdMinutes = 5 });
 
-        var baseTime = DateTime.UtcNow;
+        var baseTime = DateTime.UtcNow.Date.AddHours(12);
         for (var i = 0; i < 6; i++)
         {
             db.Locations.Add(new LocationEntity
             {
                 UserId = caller.Id,
                 Coordinates = MakePoint(10 + i * 0.01, 10 + i * 0.01),
-                Timestamp = baseTime.AddMinutes(-i),
+                Timestamp = baseTime.AddMinutes(i == 1 ? 0 : -i),
                 LocalTimestamp = baseTime.AddMinutes(-i),
                 TimeZoneId = "UTC"
             });
@@ -216,6 +217,16 @@ public class MobileGroupLocationsControllerTests
         Assert.True(firstPayload.HasMore);
         Assert.True(firstPayload.IsTruncated);
         Assert.NotNull(firstPayload.NextPageToken);
+        var expectedIds = db.Locations.OrderByDescending(l => l.Timestamp).ThenByDescending(l => l.Id).Select(l => l.Id).ToArray();
+        Assert.Equal(expectedIds.Take(3), firstPayload.Results.Select(l => l.Id));
+        foreach (var size in new[] { 0, -1 })
+        {
+            request.PageSize = size;
+            var response = await controller.Query(group.Id, request, default);
+            var payload = Assert.IsType<GroupLocationsQueryResponse>(Assert.IsType<OkObjectResult>(response).Value);
+            Assert.Equal(3, payload.PageSize);
+            Assert.Equal(expectedIds.Take(3), payload.Results.Select(l => l.Id));
+        }
 
         request.ContinuationToken = firstPayload.NextPageToken;
         request.PageSize = 10; // Should clamp to max (4)
@@ -229,6 +240,17 @@ public class MobileGroupLocationsControllerTests
         Assert.False(secondPayload.HasMore);
         Assert.True(secondPayload.IsTruncated); // Whole selection exceeds this page even after selected-marker exhaustion.
         Assert.Null(secondPayload.NextPageToken);
+        Assert.Equal(expectedIds.Skip(3), secondPayload.Results.Select(l => l.Id));
+
+        foreach (var token in new[] { "malformed", Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(
+                     $"{baseTime:O}|{int.MaxValue}")) })
+        {
+            request.ContinuationToken = token;
+            request.PageSize = 3;
+            var response = await controller.Query(group.Id, request, default);
+            var payload = Assert.IsType<GroupLocationsQueryResponse>(Assert.IsType<OkObjectResult>(response).Value);
+            Assert.Equal(expectedIds.Take(3), payload.Results.Select(l => l.Id));
+        }
     }
 }
 

@@ -179,6 +179,12 @@ pagination flags. Bearer `POST /api/mobile/groups/{groupId}/locations/query` pag
 the selected markers. Date-query `totalItems` counts bbox-filtered selected
 markers before paging; the viewport fallback retains its underlying bbox count.
 
+Both history adapters reuse the unpaged selection in `GroupTimelineService`.
+Web retains raw exact subject IDs and subject blocks in the existing reader's
+order. Mobile retains blank removal/ID trimming and global server timestamp/ID
+ordering before paging.
+For either adapter, multiple authorized subjects restrict history to a day.
+
 For example, the [Phase C PostgreSQL same-cell month witness](https://github.com/stef-k/Wayfarer/issues/825#issuecomment-6089538971)
 stored **3,001 rows**: owner chronology returned **five markers** with owner total
 **3,001**; Group history returned **five markers**, `totalItems=5`, `hasMore=false`

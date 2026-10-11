@@ -107,6 +107,7 @@ public class GroupTimelineService : IGroupTimelineService
         return results;
     }
 
+    /// <inheritdoc />
     public async Task<GroupLocationsQueryResult> QueryLocationsAsync(GroupTimelineAccessContext context, GroupLocationsQueryRequest request, CancellationToken cancellationToken = default)
     {
         if (context == null) throw new ArgumentNullException(nameof(context));
@@ -129,7 +130,36 @@ public class GroupTimelineService : IGroupTimelineService
             return new GroupLocationsQueryResult(Array.Empty<PublicLocationDto>(), 0, ResolvePageSize(request.PageSize), false, false, null);
         }
 
-        bool multipleUsers = userIds.Count > 1;
+        var (combined, totalItems) = await SelectHistoryLocationsAsync(context, userIds, request, cancellationToken);
+
+        var ordered = combined
+            .OrderByDescending(dto => dto.Timestamp)
+            .ThenByDescending(dto => dto.Id)
+            .ToList();
+
+        var pageSize = ResolvePageSize(request.PageSize);
+        var startIndex = ResolveStartIndex(ordered, request.ContinuationToken);
+        var pageResults = ordered.Skip(startIndex).Take(pageSize).ToList();
+
+        var hasMore = startIndex + pageResults.Count < ordered.Count;
+        var nextToken = hasMore ? CreateContinuationToken(pageResults[^1]) : null;
+        var isTruncated = hasMore || ordered.Count > pageResults.Count;
+
+        return new GroupLocationsQueryResult(pageResults, totalItems, pageSize, hasMore, isTruncated, nextToken);
+    }
+
+    /// <inheritdoc />
+    public async Task<(IReadOnlyList<PublicLocationDto> Results, int TotalItems)> SelectHistoryLocationsAsync(
+        GroupTimelineAccessContext context, IReadOnlyList<string> userIds, GroupLocationsQueryRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (context == null) throw new ArgumentNullException(nameof(context));
+        if (userIds == null) throw new ArgumentNullException(nameof(userIds));
+        if (request == null) throw new ArgumentNullException(nameof(request));
+        if (!context.IsMember) throw new InvalidOperationException("Caller is not an active member of the group.");
+
+        var authorizedUserIds = userIds.Where(id => context.AllowedUserIds.Contains(id)).ToList();
+        bool multipleUsers = authorizedUserIds.Count > 1;
         string dateType = request.DateType ?? string.Empty;
         int? year = request.Year;
         int? month = request.Month;
@@ -137,6 +167,7 @@ public class GroupTimelineService : IGroupTimelineService
 
         if (multipleUsers)
         {
+            // Count only authorized subjects, preserving supplied calendar components.
             dateType = "day";
             if (!year.HasValue || !month.HasValue || !day.HasValue)
             {
@@ -159,7 +190,7 @@ public class GroupTimelineService : IGroupTimelineService
         var combined = new List<PublicLocationDto>();
         int totalItems = 0;
 
-        foreach (var uid in userIds)
+        foreach (var uid in authorizedUserIds)
         {
             if (!string.IsNullOrWhiteSpace(dateType) && year.HasValue)
             {
@@ -171,6 +202,7 @@ public class GroupTimelineService : IGroupTimelineService
                     day,
                     cancellationToken);
 
+                // Sampling and latest flags belong to LocationService and precede the literal bbox.
                 var filtered = locations.Where(dto =>
                     dto.Coordinates.X >= request.MinLng && dto.Coordinates.X <= request.MaxLng &&
                     dto.Coordinates.Y >= request.MinLat && dto.Coordinates.Y <= request.MaxLat).ToList();
@@ -181,6 +213,7 @@ public class GroupTimelineService : IGroupTimelineService
             }
             else
             {
+                // Viewport selection already expands the bbox; retain its markers and underlying count.
                 var (locations, userTotal) = await _locationService.GetLocationsAsync(
                     request.MinLng,
                     request.MinLat,
@@ -196,20 +229,7 @@ public class GroupTimelineService : IGroupTimelineService
             }
         }
 
-        var ordered = combined
-            .OrderByDescending(dto => dto.Timestamp)
-            .ThenByDescending(dto => dto.Id)
-            .ToList();
-
-        var pageSize = ResolvePageSize(request.PageSize);
-        var startIndex = ResolveStartIndex(ordered, request.ContinuationToken);
-        var pageResults = ordered.Skip(startIndex).Take(pageSize).ToList();
-
-        var hasMore = startIndex + pageResults.Count < ordered.Count;
-        var nextToken = hasMore ? CreateContinuationToken(pageResults[^1]) : null;
-        var isTruncated = hasMore || ordered.Count > pageResults.Count;
-
-        return new GroupLocationsQueryResult(pageResults, totalItems, pageSize, hasMore, isTruncated, nextToken);
+        return (combined, totalItems);
     }
 
     private static PublicLocationDto MapLatest(LocationEntity location, string userId, int threshold)

@@ -23,6 +23,51 @@ namespace Wayfarer.Tests.Controllers;
 [Collection("API token singleton admission")]
 public sealed class CookieAntiforgeryRouteTests : TestBase
 {
+    /// <summary>History uses production binding/JSON and each family's own credential authority.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task GroupHistoryRetainsRoutedContract(bool mobile)
+    {
+        var db = Seed();
+        var userId = mobile ? "bearer" : "active";
+        var group = new Group { Id = Guid.NewGuid(), Name = "History", GroupType = "Family", OwnerUserId = userId };
+        db.Groups.Add(group);
+        db.GroupMembers.Add(new GroupMember { GroupId = group.Id, UserId = userId, Role = GroupMember.Roles.Owner });
+        await db.SaveChangesAsync();
+        await using var app = await IdentityRouteHost.StartAsync(db, CreateTestDirectory());
+        using var client = app.GetTestClient();
+        if (mobile) client.DefaultRequestHeaders.Authorization = new("Bearer", "phone");
+        else Cookie(client, app.Services, "active");
+        var path = $"/api/{(mobile ? "mobile/" : "")}groups/{group.Id}/locations/query";
+        using var response = await client.PostAsJsonAsync(path, new { minLng = -180, minLat = -90, maxLng = 180, maxLat = 90 });
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var payload = await response.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>();
+        Assert.Equal(mobile ? new[] { "hasMore", "isTruncated", "nextPageToken", "pageSize", "results", "returnedItems", "totalItems" }
+            : new[] { "results", "totalItems" }, payload.EnumerateObject().Select(p => p.Name).Order());
+        var row = Assert.Single(payload.GetProperty("results").EnumerateArray());
+        Assert.Equal(new[] { "accuracy", "activityType", "activityTypeId", "address", "addressNumber", "altitude",
+            "clusterId", "coordinates", "country", "fullAddress", "id", "isGeoapifyAddress", "isLatestLocation",
+            "localTimestamp", "locationTimeThresholdMinutes", "locationType", "notes", "place", "postCode",
+            "providerAddressLine1", "region", "resolvedFeatureName", "resolvedFeatureType", "speed", "streetName",
+            "timestamp", "timezone", "userId" }, row.EnumerateObject().Select(p => p.Name).Order());
+        Assert.Equal(userId, row.GetProperty("userId").GetString());
+        Assert.Equal(new[] { "latitude", "longitude" }, row.GetProperty("coordinates").EnumerateObject().Select(p => p.Name).Order());
+        Assert.Equal(System.Text.Json.JsonValueKind.Null, row.GetProperty("activityTypeId").ValueKind);
+        Assert.Equal(System.Text.Json.JsonValueKind.Null, row.GetProperty("clusterId").ValueKind);
+        Assert.Equal("Unknown", row.GetProperty("activityType").GetString());
+        Assert.DoesNotContain("idempotencyKey", row.ToString());
+        using var noBody = await client.PostAsync(path, new StringContent("null", System.Text.Encoding.UTF8, "application/json"));
+        Assert.Equal(HttpStatusCode.BadRequest, noBody.StatusCode);
+
+        // The other family's credential alone cannot authenticate this reader.
+        client.DefaultRequestHeaders.Clear();
+        if (mobile) Cookie(client, app.Services, "active");
+        else client.DefaultRequestHeaders.Authorization = new("Bearer", "phone");
+        using var wrongCredential = await client.PostAsJsonAsync(path, new { });
+        Assert.Equal(HttpStatusCode.Unauthorized, wrongCredential.StatusCode);
+    }
+
     /// <summary>Cookie authority wins every header shape; only resolved bearer authority is token-free.</summary>
     [Theory]
     [InlineData("active", null, false, 400)]
