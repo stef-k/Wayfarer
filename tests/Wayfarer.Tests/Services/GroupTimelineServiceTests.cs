@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Wayfarer.Models;
+using Wayfarer.Models.Dtos;
 using Wayfarer.Parsers;
 using Wayfarer.Services;
 using Wayfarer.Tests.Infrastructure;
@@ -101,6 +102,65 @@ public class GroupTimelineServiceTests : TestBase
         Assert.NotNull(context);
         Assert.Contains("friend-allowed", context!.AllowedUserIds);
         Assert.DoesNotContain("friend-optout", context.AllowedUserIds);
+    }
+
+    /// <summary>
+    /// Enforces the production Friends audience before subject counting, retaining the caller's full month.
+    /// </summary>
+    /// <param name="userIds">Explicit service subjects; adapters own any normalization or defaults.</param>
+    /// <param name="expectedCount">Two caller markers when selected exactly, otherwise no authorized results.</param>
+    [Theory]
+    [InlineData(new[] { "hidden", "caller", "outside" }, 2)]
+    [InlineData(new[] { "caller", "hidden" }, 2)]
+    [InlineData(new[] { "outside", "caller" }, 2)]
+    [InlineData(new[] { "outside" }, 0)]
+    [InlineData(new[] { "hidden" }, 0)]
+    [InlineData(new[] { "hidden", "outside" }, 0)]
+    [InlineData(new string[0], 0)]
+    [InlineData(new[] { "CALLER", " caller " }, 0)]
+    public async Task SelectHistoryLocationsAsync_FriendsEnforcesAuthorizedSelectionBeforeDateRestriction(
+        string[] userIds, int expectedCount)
+    {
+        var (db, service) = CreateService("Friends");
+        var group = db.Groups.Single();
+        var caller = db.Users.Single();
+        var hidden = TestDataFixtures.CreateUser(id: "hidden");
+        var outside = TestDataFixtures.CreateUser(id: "outside");
+        db.Users.AddRange(hidden, outside);
+        var hiddenMember = TestDataFixtures.CreateGroupMember(group, hidden);
+        hiddenMember.OrgPeerVisibilityAccessDisabled = true;
+        db.GroupMembers.AddRange(
+            TestDataFixtures.CreateGroupMember(group, caller, GroupMember.Roles.Owner), hiddenMember);
+
+        var captureDay = new DateTime(2026, 1, 15, 12, 0, 0, DateTimeKind.Utc);
+        var callerHistory = new[]
+        {
+            TestDataFixtures.CreateLocation(caller, latitude: 10, longitude: 10, timestamp: captureDay),
+            TestDataFixtures.CreateLocation(caller, latitude: 10, longitude: 10, timestamp: captureDay.AddDays(1))
+        };
+        db.Locations.AddRange(callerHistory);
+        db.Locations.AddRange(
+            TestDataFixtures.CreateLocation(hidden, latitude: 10, longitude: 10, timestamp: captureDay),
+            TestDataFixtures.CreateLocation(outside, latitude: 10, longitude: 10, timestamp: captureDay));
+        await db.SaveChangesAsync();
+
+        // Build actual persisted access: the opted-out peer is active, and the outside user has no membership.
+        var context = await service.BuildAccessContextAsync(group.Id, caller.Id);
+        Assert.NotNull(context);
+        Assert.True(context.IsMember);
+        Assert.Equal(new[] { caller.Id }, context.AllowedUserIds);
+        var request = new GroupLocationsQueryRequest
+        {
+            DateType = "month", Year = 2026, Month = 1, Day = 15,
+            MinLng = 9, MinLat = 9, MaxLng = 11, MaxLat = 11
+        };
+
+        var selection = await service.SelectHistoryLocationsAsync(context, userIds, request);
+
+        Assert.Equal(expectedCount, selection.TotalItems);
+        Assert.Equal(callerHistory.Take(expectedCount).Select(location => location.Id),
+            selection.Results.Select(location => location.Id));
+        Assert.All(selection.Results, location => Assert.Equal(caller.Id, location.UserId));
     }
 
     [Fact]

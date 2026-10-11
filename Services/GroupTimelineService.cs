@@ -158,7 +158,8 @@ public class GroupTimelineService : IGroupTimelineService
         if (request == null) throw new ArgumentNullException(nameof(request));
         if (!context.IsMember) throw new InvalidOperationException("Caller is not an active member of the group.");
 
-        bool multipleUsers = userIds.Count > 1;
+        var authorizedUserIds = userIds.Where(id => context.AllowedUserIds.Contains(id)).ToList();
+        bool multipleUsers = authorizedUserIds.Count > 1;
         string dateType = request.DateType ?? string.Empty;
         int? year = request.Year;
         int? month = request.Month;
@@ -166,7 +167,7 @@ public class GroupTimelineService : IGroupTimelineService
 
         if (multipleUsers)
         {
-            // Count the already-authorized distinct subjects, preserving supplied calendar components.
+            // Count only authorized subjects, preserving supplied calendar components.
             dateType = "day";
             if (!year.HasValue || !month.HasValue || !day.HasValue)
             {
@@ -189,7 +190,7 @@ public class GroupTimelineService : IGroupTimelineService
         var combined = new List<PublicLocationDto>();
         int totalItems = 0;
 
-        foreach (var uid in userIds)
+        foreach (var uid in authorizedUserIds)
         {
             if (!string.IsNullOrWhiteSpace(dateType) && year.HasValue)
             {
