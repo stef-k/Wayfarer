@@ -71,6 +71,8 @@ public sealed class PublicTimelineLocationPostgresTests(PostgresImportTestFixtur
             Row(user.Id, now.AddDays(-40), 25, "Hidden"),
             Row(user.Id, now.AddMinutes(-5), 27, "Recent")
         };
+        // Owner-export UUIDs remain private even when the same capture is publicly visible.
+        rows[0].IdempotencyKey = Guid.NewGuid();
         db.Locations.AddRange(empty ? rows.Skip(1) : rows);
         if (hidden) db.HiddenAreas.Add(Area(user.Id));
         await db.SaveChangesAsync();
@@ -94,6 +96,10 @@ public sealed class PublicTimelineLocationPostgresTests(PostgresImportTestFixtur
         {
             AssertSummary(Assert.IsType<UserLocationStatsDto>(Assert.IsType<OkObjectResult>(statsResult).Value), expected);
             var points = Points(pointResult);
+            var json = System.Text.Json.JsonSerializer.Serialize(Assert.IsType<OkObjectResult>(pointResult).Value,
+                new System.Text.Json.JsonSerializerOptions { Converters = { new PointJsonConverter() } });
+            Assert.DoesNotContain("IdempotencyKey", json, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain(rows[0].IdempotencyKey!.Value.ToString("D"), json);
             Assert.Equal(expected.Select(r => r.Id).Order(), points.Select(r => r.Id).Order());
             Assert.Equal(expected.OrderByDescending(r => r.LocalTimestamp).Select(r => r.Id).Take(1),
                 points.Where(r => r.IsLatestLocation).Select(r => r.Id));

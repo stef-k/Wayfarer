@@ -35,7 +35,7 @@ public class LocationExportController : Controller
 
     [HttpGet]
     /// <summary>
-    /// Exports the signed-in user's locations to GeoJSON, including reverse-geocoded details.
+    /// Exports the signed-in user's locations to GeoJSON, including stored UUIDs and reverse-geocoded details.
     /// </summary>
     public async Task<IActionResult> GeoJson()
     {
@@ -48,6 +48,7 @@ public class LocationExportController : Controller
             var attrs = new AttributesTable
             {
                 { "Id", loc.Id },
+                { "IdempotencyKey", loc.IdempotencyKey?.ToString("D") },
                 { "TimestampUtc", DateTime.SpecifyKind(loc.Timestamp, DateTimeKind.Utc) },
                 { "LocalTimestamp", loc.LocalTimestamp },
                 { "TimeZoneId", loc.TimeZoneId },
@@ -99,7 +100,7 @@ public class LocationExportController : Controller
 
     [HttpGet]
     /// <summary>
-    /// Exports the signed-in user's locations to CSV with rich address metadata.
+    /// Exports the signed-in user's locations to CSV with stored UUIDs and rich address metadata.
     /// </summary>
     public async Task<IActionResult> Csv()
     {
@@ -108,6 +109,7 @@ public class LocationExportController : Controller
         var flatLocs = locs.Select(l => new
         {
             l.Id,
+            IdempotencyKey = l.IdempotencyKey?.ToString("D"),
             TimestampUtc = DateTime.SpecifyKind(l.Timestamp, DateTimeKind.Utc).ToString("o"),
             LocalTimestamp = l.LocalTimestamp.ToString("o"),
             l.TimeZoneId,
