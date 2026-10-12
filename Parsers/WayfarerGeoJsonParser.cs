@@ -236,10 +236,11 @@ namespace Wayfarer.Parsers
         }
 
         /// <summary>
-        /// Returns the original local timestamp supplied by the export without altering its value.
+        /// Converts explicitly zoned timestamps to UTC while retaining legacy no-offset wall-clock components.
         /// </summary>
         /// <param name="rawTimestamp">The timestamp string taken directly from the export.</param>
-        /// <param name="fallbackUtc">Value used when no local timestamp is provided in the export.</param>
+        /// <param name="fallbackUtc">Value used when the local timestamp is missing, blank or invalid.</param>
+        /// <returns>The event time with UTC kind, or the existing receipt timestamp fallback.</returns>
         private static DateTime ParseLocalTimestamp(string? rawTimestamp, DateTime fallbackUtc)
         {
             if (string.IsNullOrWhiteSpace(rawTimestamp))
@@ -249,6 +250,11 @@ namespace Wayfarer.Parsers
 
             if (DateTimeOffset.TryParse(rawTimestamp, ParsingCulture, DateTimeStyles.RoundtripKind, out var dtoWithOffset))
             {
+                // RoundtripKind recognizes explicit Z/offset grammar; no-offset values remain Unspecified.
+                if (DateTime.TryParse(rawTimestamp, ParsingCulture, DateTimeStyles.RoundtripKind, out var designated) &&
+                    designated.Kind != DateTimeKind.Unspecified)
+                    return dtoWithOffset.UtcDateTime;
+
                 return DateTime.SpecifyKind(dtoWithOffset.DateTime, DateTimeKind.Utc);
             }
 
