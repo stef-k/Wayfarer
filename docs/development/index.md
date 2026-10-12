@@ -104,3 +104,5 @@ A practical development loop is:
 6. Update the canonical documentation when the public developer contract changes.
 
 Continue with [Architecture](architecture.md), [Configuration](configuration.md), [Database](database.md), [API](api.md), [Security](security.md), [Extending Wayfarer](extending.md) and [Testing](testing.md).
+
+Proposed contracts awaiting implementation include the [Option C Activity reconciliation design](activity-reconciliation-design.md).
