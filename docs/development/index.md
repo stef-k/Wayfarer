@@ -105,4 +105,4 @@ A practical development loop is:
 
 Continue with [Architecture](architecture.md), [Configuration](configuration.md), [Database](database.md), [API](api.md), [Security](security.md), [Extending Wayfarer](extending.md) and [Testing](testing.md).
 
-Proposed contracts awaiting implementation include the [Option C Activity reconciliation design](activity-reconciliation-design.md).
+Proposed contracts awaiting implementation include the [Option C Activity reconciliation design](activity-reconciliation-design.md), covering catalog identity, safe import retry, authenticated reads and existing-client Activity ID compatibility.
