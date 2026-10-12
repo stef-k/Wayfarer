@@ -58,6 +58,10 @@ other records are checked for matching times and coordinates within a small
 tolerance. An import can finish with fewer new records than its source contains
 because of duplicates or invalid rows.
 
+For records without a UUID, matching is approximate (within one second and ten
+metres); concurrent live uploads and imports, or capture timestamps that differ
+from server receipt timestamps, can still create duplicates.
+
 - **Stop** pauses processing. Already imported locations remain in your history.
   Wait for **Stopping** to become **Stopped** before restarting it.
 - **Start** resumes a stopped or failed import.
@@ -97,10 +101,18 @@ the tool you will use:
 | **GPX** | GPS-track tools, with Wayfarer extensions for extra details. |
 | **KML** | Map viewers such as Google Earth, with extended location details. |
 
+Owner CSV and Wayfarer GeoJSON exports preserve each record's stored UUID as
+`IdempotencyKey`. Records without a UUID remain keyless; export does not generate
+one. Reimporting a UUID already present in your account skips that record without
+overwriting edits. Different UUIDs remain distinct even at the same time and
+position. Another account can import the same UUID independently; numeric `Id`
+values belong to the destination database and are not portable identity.
+
 Keep an untouched export when using another tool to transform the data. These
 files can include precise positions, times, notes and device metadata. Store and
-share them as private history unless you intend otherwise. A data export is a
-portable copy of your location or Trip data, not a complete server backup.
+share them as private history unless you intend otherwise. History transfer is
+not a database backup or a cross-installation synchronization system: it does not
+reconcile edits or deletions between installations or recreate a pending queue.
 
 ## Move your phone Timeline
 
@@ -148,10 +160,10 @@ The published Mobile app uses its existing full-address fields. Its local import
 and export do not promise to retain newer server-only address fields such as
 `ProviderAddressLine1`. Keep the original server export if you need that detail.
 
-Current Web CSV/GeoJSON history exports and Android 1.3.0 Timeline exports omit
-the portable record UUID (`IdempotencyKey`), so they do not provide an exact
-UUID-preserving history round-trip. Queue-recovery files do carry that identifier
-for [delivery reconciliation](#deliver-queued-records-through-a-server-import).
+Web CSV and Wayfarer GeoJSON history exports preserve stored UUIDs
+(`IdempotencyKey`), while older keyless files remain accepted. Android 1.3.0
+Timeline exports still omit that identifier. Queue-recovery files carry it for
+[delivery reconciliation](#deliver-queued-records-through-a-server-import).
 
 Native Trip KML preserves Regions, Places, Areas, ordered From/Via/To connections,
 route geometry and automatic/manual duration choices. Older Wayfarer KML remains
