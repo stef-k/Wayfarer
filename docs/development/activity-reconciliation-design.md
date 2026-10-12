@@ -149,8 +149,11 @@ Add a named unique index `IX_ActivityTypes_NormalizedName` and a check requiring
 explicitly `IS TRUE`: SQL null must not let invalid names pass. The generated
 column's NOT NULL and validation also reject invalid keys. Application prechecks
 improve messages; the database arbitrates every insertion and rename.
-Configure the Activity FK explicitly as **Restrict** in EF and PostgreSQL, avoiding
-both cascade deletion and EF's optional-navigation client nulling behavior.
+Retain the database FK's **NO ACTION, NOT DEFERRABLE** protection and configure EF
+as `DeleteBehavior.ClientNoAction`. EF's `Restrict`/`NoAction` settings can still
+null tracked optional dependents; [ClientNoAction prevents that deletion fixup][ef-delete].
+Validate the existing [database constraint][pg-fk] rather than replacing it merely
+to rename its delete action. Neither layer may cascade deletion/unclassification.
 
 Add only bounded import facts, in the import slice's own prerequisite migration:
 
@@ -184,7 +187,7 @@ its creator cannot be inferred. None of these facts enters public/group DTOs.
    owners, updating only Activity FKs. Never rewrite UUIDs, LocationType, timestamps,
    notes, owner IDs, address/device data or reverse-geocoding provenance.
 4. Verify no loser references remain, then delete losers. Add the generated key,
-   canonical-name check, unique index and explicit restrictive FK. Validate them
+   canonical-name check and unique index; validate the restrictive FK. Validate all
    before committing; failed validation rolls back the complete reconciliation.
 5. Restart onto compatible code. Empty-database seeding uses v1 and uniqueness;
    it remains initial reference data. Never reseed individual deleted/renamed
@@ -263,7 +266,9 @@ owners and administrator requests. If a winner vanishes/renames between statemen
 retry resolution at most once, then treat the key as CreationFailed. Same-key
 imports converge; disjoint keys have no global mutex. FOR SHARE intentionally
 blocks even a description edit briefly, making the FK/name observation simple.
-Use fresh contexts after rollback; never retain resolved IDs across checkpoints.
+Use fresh contexts after a whole-batch rollback; reset destination IDs/FKs and
+tracking state on that batch's new Location objects before retry, preserving their
+parsed UUIDs/metadata. Never retain resolved Activity IDs across checkpoints.
 
 The shared catalog is a deliberate limited side effect of **user-authorized**
 history import. It is not administrator CRUD authority. Allow only validated name
@@ -289,7 +294,9 @@ catalog operations, with at most two resolution attempts per key. Limit a batch
 transaction to **30 seconds** and at most one whole-batch retry for deadlock or
 serialization failure; retain cancellation and exact execution checks on retry.
 Restore catalog-specific settings before unrelated work. A batch deadline rolls
-back and fails execution after its bounded retry; it does not start a hidden queue.
+back and fails execution without retry; distinguish this deadline from user
+cancellation. No timeout starts a hidden queue. A query failure outside a per-key
+savepoint is a batch failure, never evidence that all values are invalid.
 
 Only a known per-value canonical-name check failure, catalog lock timeout, or
 exhausted winner-resolution race is recoverable locally: roll back its savepoint,
@@ -418,7 +425,7 @@ future acceptance requirements, not tests claimed as executed by this design PR.
 | --- | --- |
 | Normalization | Table-driven vectors from section 2 through the real database wrapper/function; include 100/101 scalars, 1,024/1,025 raw bytes, control/empty values, Greek NFC/sigma and preserved GPS/eBike. Assert identical returned keys and database uniqueness; no separately reimplemented .NET matcher. |
 | Migration PostgreSQL | Reuse [PostgresMigrationTestFixture][migration-fixture]. Seed pre-A duplicates with case/spacing/Greek equivalents, distinct/null descriptions and cross-owner FK references. Run the actual migration; lowest ID survives, all references/metadata and distinct description bytes survive, differently named rows stay separate. Reapply is no-op; injected failure rolls back; invalid names/unknown FK preflight fails unchanged. Qualify fresh schema and document lossy Down. |
-| CRUD | Extend [AdminActivityTypeControllerTests][admin-tests] for validation/response behavior. One focused PostgreSQL case owns normalized create/rename constraints and referenced deletion, with a controlled racing reference. InMemory is not FK or uniqueness evidence. |
+| CRUD | Extend [AdminActivityTypeControllerTests][admin-tests] for validation/response behavior. Focused PostgreSQL evidence owns normalized create/rename constraints and referenced deletion with loaded dependents plus a controlled racing reference. InMemory is not FK or uniqueness evidence. |
 | Import PostgreSQL | Reuse [bounded imports][bounded-tests] and [worker races][race-tests]. Two owners concurrently create the same missing key using barriers; one Activity and correct FKs result. Same-owner near-limit imports cannot overspend. A controlled keyed race loser with a novel label creates no entry. Duplicate-only replay creates nothing and cannot replace an owner edit. |
 | Checkpoint/failure PostgreSQL | One 51-row case interrupts after the first checkpoint and resumes; creations/counters agree with committed rows. A value-specific creation failure preserves new Locations/null FK and durable warnings. Cancellation/stale epoch rolls back current batch; committed replay neither spends again nor fills prior nulls. Cover per-file/account limit boundaries without hundreds of fixtures. |
 | Native fidelity | Extend [LocationExportRoundTripPostgresTests][roundtrip-tests] and existing [CSV][csv-parser], [GeoJSON][geojson-parser], [GPX][gpx-parser], [KML][kml-parser] tests. Four format cases use disposed seed/fresh export contexts, a destination with different Activity IDs and existing/missing keys, then actual worker/re-export. Assert Activity identity/name, LocationType, metadata and owner filtering. |
@@ -457,7 +464,7 @@ claim Option C is shipped from this document's readiness label.
 [import-metadata]: https://github.com/stef-k/Wayfarer/blob/9d8ee6b4132dfef53beb167b86b282be31c88973/Models/Location.ImportMetadata.cs#L5-L14
 [worker-resolution]: https://github.com/stef-k/Wayfarer/blob/9d8ee6b4132dfef53beb167b86b282be31c88973/Services/LocationImportService.cs#L260-L275
 [worker-batch]: https://github.com/stef-k/Wayfarer/blob/9d8ee6b4132dfef53beb167b86b282be31c88973/Services/LocationImportService.cs#L202-L245
-[deduplicator]: https://github.com/stef-k/Wayfarer/blob/9d8ee6b4132dfef53beb167b86b282be31c88973/Services/LocationImportDeduplicator.cs#L9-L150
+[deduplicator]: https://github.com/stef-k/Wayfarer/blob/9d8ee6b4132dfef53beb167b86b282be31c88973/Services/LocationImportDeduplicator.cs#L9-L148
 [export-query]: https://github.com/stef-k/Wayfarer/blob/9d8ee6b4132dfef53beb167b86b282be31c88973/Areas/User/Controllers/LocationExportController.cs#L27-L151
 [export-gpx]: https://github.com/stef-k/Wayfarer/blob/9d8ee6b4132dfef53beb167b86b282be31c88973/Areas/User/Controllers/LocationExportController.cs#L167-L280
 [export-kml]: https://github.com/stef-k/Wayfarer/blob/9d8ee6b4132dfef53beb167b86b282be31c88973/Areas/User/Controllers/LocationExportController.cs#L292-L375
@@ -481,3 +488,5 @@ claim Option C is shipped from this document's readiness label.
 [pg-isolation]: https://www.postgresql.org/docs/18/transaction-iso.html
 [pg-insert]: https://www.postgresql.org/docs/18/sql-insert.html
 [dotnet-ordinal]: https://learn.microsoft.com/en-us/dotnet/api/system.stringcomparer.ordinal?view=net-10.0
+[ef-delete]: https://learn.microsoft.com/en-us/ef/core/saving/cascade-delete#optional-relationship-with-dependentschildren-loaded
+[pg-fk]: https://www.postgresql.org/docs/18/ddl-constraints.html#DDL-CONSTRAINTS-FK
