@@ -1,0 +1,20 @@
+# Isolated #858 prototype: explicit codec routes and locked, minimal image features.
+[package]
+name = "wayfarer-image"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.90"
+publish = false
+
+[dependencies]
+image = { version = "=0.25.10", default-features = false, features = ["jpeg", "png", "gif", "webp"] }
+jpeg-decoder = { version = "=0.3.2", default-features = false }
+png = "=0.18.1"
+gif = "=0.14.2"
+image-webp = "=0.2.4"
+moxcms = { version = "=0.8.0", features = ["lut"] }
+libc = "=0.2.177"
+
+[profile.release]
+# A decoder panic invalidates the child rather than unwinding through processing.
+panic = "abort"

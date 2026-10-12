@@ -1,0 +1,5 @@
+# Meets image 0.25.10's MSRV; keep prototype builds reproducible.
+[toolchain]
+channel = "1.90.0"
+profile = "minimal"
+components = ["rustfmt", "clippy"]
