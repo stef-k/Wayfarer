@@ -34,6 +34,8 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Isolated #858 process adapter; no production image-proxy integration. -->
+    <ProjectReference Include="../../tools/image-helper/supervisor/ImageHelper.Supervisor.csproj" />
     <ProjectReference Include="..\..\Wayfarer.csproj" />
     <!-- Recovery archive and Linux filesystem behavior at the worker seam. -->
     <ProjectReference Include="../../tools/WayfarerRecovery/WayfarerRecovery.csproj" />

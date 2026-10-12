@@ -1,8 +1,10 @@
 //! Isolated image policy and transform. HTTP, caches and process admission stay in C#.
 mod color;
+mod gif_input;
 mod png_input;
 mod raster;
 mod transform;
+mod webp_input;
 
 pub use transform::{OutputFormat, Recipe, transform};
 

@@ -27,6 +27,8 @@ pub(crate) fn decode(bytes: &[u8]) -> Result<Raster> {
     match image::guess_format(bytes).map_err(|_| Failure::Source)? {
         ImageFormat::Jpeg => jpeg(bytes),
         ImageFormat::Png => png(bytes),
+        ImageFormat::Gif => crate::gif_input::decode(bytes),
+        ImageFormat::WebP => crate::webp_input::decode(bytes),
         _ => Err(Failure::Source),
     }
 }
