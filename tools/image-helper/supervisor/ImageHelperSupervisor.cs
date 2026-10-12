@@ -146,13 +146,8 @@ public sealed class ImageHelperSupervisor
         var mime = CanonicalMime(bytes);
         if (mime is null)
             return (result, true);
-        // procfs-derived observations may be unavailable after exit; do not infer hard RSS bounds.
-        double? cpu = null;
-        long? rss = null;
-        try { cpu = process.TotalProcessorTime.TotalMilliseconds; rss = process.PeakWorkingSet64; }
-        catch (InvalidOperationException) { }
         return (result with { Status = ImageTransformStatus.Success, Bytes = bytes,
-            MimeType = mime, CpuMilliseconds = cpu, PeakRssBytes = rss }, true);
+            MimeType = mime }, true);
     }
 
     /// <summary>Close stdin, terminate when needed and observe all pipes under one cleanup watchdog.</summary>

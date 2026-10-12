@@ -12,12 +12,10 @@ public sealed record ImageTransform(
 /// <summary>The future HTTP owner maps TooLarge to 400, Failed to 404 and Unavailable to 503.</summary>
 public enum ImageTransformStatus { Success, TooLarge, Failed, Unavailable }
 
-/// <summary>Only success carries image bytes. Resource observations cover this child alone.</summary>
+/// <summary>Only success carries image bytes; process identity supports independent cleanup checks.</summary>
 public sealed record ImageTransformResult(
     ImageTransformStatus Status,
     byte[]? Bytes = null,
     string? MimeType = null,
     int? ExitCode = null,
-    int? ProcessId = null,
-    double? CpuMilliseconds = null,
-    long? PeakRssBytes = null);
+    int? ProcessId = null);

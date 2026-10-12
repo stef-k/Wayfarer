@@ -24,7 +24,7 @@ public sealed class ImageHelperPrototypeTests
         var result = await TransformFixture(fixture);
         Assert.Equal(ImageTransformStatus.Success, result.Status);
         using var image = Image.Load(result.Bytes!);
-        Assert.Equal((600, 270), (image.Width, image.Height));
+        Assert.Equal((600, 269), (image.Width, image.Height));
         Assert.Equal(format, image.Metadata.DecodedImageFormat!.Name);
         Assert.Single(image.Frames);
         Assert.NotNull(image.Metadata.IccProfile);
@@ -89,6 +89,79 @@ public sealed class ImageHelperPrototypeTests
         Assert.Equal(ImageTransformStatus.Unavailable, unavailable.Status);
         Assert.Null(unavailable.Bytes);
         AssertReaped(unavailable.ProcessId);
+    }
+
+    /// <summary>Genuine ICC, CMYK/YCCK and gamma sources produce measured sRGB color controls.</summary>
+    [Theory]
+    [InlineData("p3.png", 225, 103, 58)]
+    [InlineData("gray-icc.png", 129, 129, 129)]
+    [InlineData("cmyk-tagged.jpg", 201, 151, 98)]
+    [InlineData("cmyk-untagged.jpg", 199, 143, 69)]
+    [InlineData("gamma-linear.png", 137, 137, 137)]
+    [InlineData("gamma16-linear.png", 137, 137, 137)]
+    [InlineData("cicp-srgb.png", 64, 128, 192)]
+    public async Task Color_NormalizesSupportedDeclarations(string fixture, int red, int green, int blue)
+    {
+        var result = await TransformFixture(fixture);
+        Assert.Equal(ImageTransformStatus.Success, result.Status);
+        using var image = Image.Load<Rgba32>(result.Bytes!);
+        var pixel = image[0, 0];
+        Assert.InRange((int)pixel.R, red - 2, red + 2);
+        Assert.InRange((int)pixel.G, green - 2, green + 2);
+        Assert.InRange((int)pixel.B, blue - 2, blue + 2);
+    }
+
+    /// <summary>HDR declarations and full-raster GIFs without an LZW end code reject.</summary>
+    [Theory]
+    [InlineData("cicp-pq.png")]
+    [InlineData("gif-full-raster-no-end.gif")]
+    public async Task RequiredTerminationAndSdrPolicy_Rejects(string fixture)
+    {
+        var result = await TransformFixture(fixture);
+        Assert.Equal(ImageTransformStatus.Failed, result.Status);
+        Assert.Null(result.Bytes);
+    }
+
+    /// <summary>Repeated real decoding disposes child handles and permits subsequent launches.</summary>
+    [Fact]
+    public async Task RepeatedTransforms_ReapEveryChild()
+    {
+        for (var index = 0; index < 20; index++)
+        {
+            var result = await TransformFixture("static.jpg");
+            Assert.Equal(ImageTransformStatus.Success, result.Status);
+            AssertReaped(result.ProcessId);
+        }
+    }
+
+    /// <summary>A kernel address-space refusal remains unavailable rather than source size evidence.</summary>
+    [Fact]
+    public async Task AddressSpaceLimit_IsEffective()
+    {
+        using var helper = new FaultHelper("""
+            try:
+                bytearray(2 * 1024 * 1024 * 1024)
+            except MemoryError:
+                sys.exit(70)
+            sys.exit(0)
+            """);
+        var result = await helper.Supervisor.TransformAsync(ReadOnlyMemory<byte>.Empty,
+            new ImageTransform(), TimeSpan.FromSeconds(30));
+        Assert.Equal(70, result.ExitCode);
+        Assert.Equal(ImageTransformStatus.Unavailable, result.Status);
+        AssertReaped(result.ProcessId);
+    }
+
+    /// <summary>The kernel CPU limit fires before the independent 30-second wall deadline.</summary>
+    [Fact]
+    public async Task CpuLimit_IsEffective()
+    {
+        using var helper = new FaultHelper("while True: pass");
+        var result = await helper.Supervisor.TransformAsync(ReadOnlyMemory<byte>.Empty,
+            new ImageTransform(), TimeSpan.FromSeconds(30));
+        Assert.Equal(128 + 24, result.ExitCode); // Linux SIGXCPU.
+        Assert.Equal(ImageTransformStatus.Unavailable, result.Status);
+        AssertReaped(result.ProcessId);
     }
 
     /// <summary>Process failures, including a stdout prefix, invalidate captured bytes.</summary>

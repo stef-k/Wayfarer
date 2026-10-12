@@ -70,8 +70,9 @@ pub fn transform(bytes: &[u8], recipe: &Recipe) -> Result<Vec<u8>> {
     let scale = (recipe.width as f64 / linear.width() as f64)
         .min(recipe.height as f64 / linear.height() as f64)
         .min(1.0);
-    let width = ((linear.width() as f64 * scale).round() as u32).max(1);
-    let height = ((linear.height() as f64 * scale).round() as u32).max(1);
+    // Truncate fractional axes, matching the existing proxy's bounding-box geometry.
+    let width = ((linear.width() as f64 * scale) as u32).max(1);
+    let height = ((linear.height() as f64 * scale) as u32).max(1);
     if (width, height) != linear.dimensions() {
         linear = image::imageops::resize(&linear, width, height, FilterType::Lanczos3);
     }

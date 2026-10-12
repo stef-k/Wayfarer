@@ -25,6 +25,18 @@ pub(crate) fn parse_profile(bytes: &[u8]) -> Result<ColorProfile> {
 
 /// PNG precedence: supported SDR cICP, ICC, sRGB, then gAMA/cHRM, then untagged sRGB.
 pub(crate) fn png_profile(info: &png::Info<'_>, layout: Layout) -> Result<Option<ColorProfile>> {
+    // A higher-precedence color declaration does not excuse an explicitly invalid ICC profile.
+    let icc = info.icc_profile.as_deref().map(parse_profile).transpose()?;
+    if let Some(profile) = &icc {
+        let expected = if matches!(layout, Layout::Gray | Layout::GrayAlpha) {
+            DataColorSpace::Gray
+        } else {
+            DataColorSpace::Rgb
+        };
+        if profile.color_space != expected {
+            return Err(Failure::Source);
+        }
+    }
     let mut profile = ColorProfile::new_srgb();
     if let Some(cicp) = info.coding_independent_code_points {
         if cicp.matrix_coefficients != 0
@@ -45,8 +57,8 @@ pub(crate) fn png_profile(info: &png::Info<'_>, layout: Layout) -> Result<Option
             matrix_coefficients: moxcms::MatrixCoefficients::Identity,
             full_range: true,
         });
-    } else if let Some(icc) = &info.icc_profile {
-        return parse_profile(icc).map(Some);
+    } else if let Some(icc) = icc {
+        return Ok(Some(icc));
     } else if info.srgb.is_some() {
         return Ok(None);
     } else {
@@ -75,7 +87,11 @@ pub(crate) fn png_profile(info: &png::Info<'_>, layout: Layout) -> Result<Option
             if gamma <= 0.0 {
                 return Err(Failure::Source);
             }
-            profile.red_trc = Some(moxcms::curve_from_gamma(1.0 / gamma));
+            let exponent = 1.0 / gamma;
+            if !(1.0 / 256.0..=65535.0 / 256.0).contains(&exponent) {
+                return Err(Failure::Source);
+            }
+            profile.red_trc = Some(moxcms::curve_from_gamma(exponent));
             profile.green_trc = profile.red_trc.clone();
             profile.blue_trc = profile.red_trc.clone();
         }
