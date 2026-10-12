@@ -86,7 +86,7 @@ Remove the proposed raw-byte, display-scalar and key-length ceilings. A valid
 legacy name is not invalid because it exceeds 100 characters or 1,024 raw bytes.
 Keep unrestricted text columns and the [existing upload/request ceiling][upload-policy],
 bounded batches and database deadlines. Qualify the actual full-key index against
-legacy data before deployment: PostgreSQL's physical index/storage capacity can
+legacy data before deployment: PostgreSQL's [physical B-tree capacity][pg-btree] can
 still reject an unusually large key. Report that real resource failure without
 truncating, broadening identity, or committing a valid Location without its Activity.
 
@@ -612,9 +612,9 @@ Option C is shipped from this document's readiness label.
 [unicode-space]: https://www.unicode.org/Public/16.0.0/ucd/PropList.txt
 [xml-characters]: https://www.w3.org/TR/xml/#charsets
 [upload-policy]: https://github.com/stef-k/Wayfarer/blob/9d8ee6b4132dfef53beb167b86b282be31c88973/Util/UploadRequestPolicy.cs#L3-L22
-[activity-api]: https://github.com/stef-k/Wayfarer/blob/9d8ee6b4132dfef53beb167b86b282be31c88973/Areas/Api/Controllers/ActivityController.cs#L7-L37
+[activity-api]: https://github.com/stef-k/Wayfarer/blob/9d8ee6b4132dfef53beb167b86b282be31c88973/Areas/Api/Controllers/ActivityController.cs#L7-L36
 [api-auth]: https://github.com/stef-k/Wayfarer/blob/9d8ee6b4132dfef53beb167b86b282be31c88973/Areas/Api/Controllers/BaseApiController.cs#L23-L73
-[token-resolver]: https://github.com/stef-k/Wayfarer/blob/9d8ee6b4132dfef53beb167b86b282be31c88973/Services/IncomingApiTokenResolver.cs#L7-L86
+[token-resolver]: https://github.com/stef-k/Wayfarer/blob/9d8ee6b4132dfef53beb167b86b282be31c88973/Services/IncomingApiTokenResolver.cs#L7-L80
 [location-api]: https://github.com/stef-k/Wayfarer/blob/9d8ee6b4132dfef53beb167b86b282be31c88973/Areas/Api/Controllers/LocationController.cs#L56-L218
 [location-log]: https://github.com/stef-k/Wayfarer/blob/9d8ee6b4132dfef53beb167b86b282be31c88973/Areas/Api/Controllers/LocationController.cs#L384-L559
 [location-update]: https://github.com/stef-k/Wayfarer/blob/9d8ee6b4132dfef53beb167b86b282be31c88973/Areas/Api/Controllers/LocationController.cs#L795-L880
@@ -623,7 +623,7 @@ Option C is shipped from this document's readiness label.
 [auth-http-tests]: https://github.com/stef-k/Wayfarer/blob/9d8ee6b4132dfef53beb167b86b282be31c88973/tests/Wayfarer.Tests/Controllers/ApiTokenHttpBoundaryTests.cs
 [identity-host]: https://github.com/stef-k/Wayfarer/blob/9d8ee6b4132dfef53beb167b86b282be31c88973/tests/Wayfarer.Tests/Infrastructure/IdentityRouteHost.cs
 [mobile-sync]: https://github.com/stef-k/WayfarerMobile/blob/8e28664faa33eec4c2fe79e3e266240ac06e9884/src/WayfarerMobile/Services/ActivitySyncService.cs#L229-L291
-[mobile-schema]: https://github.com/stef-k/WayfarerMobile/blob/8e28664faa33eec4c2fe79e3e266240ac06e9884/src/WayfarerMobile/Services/ActivitySyncService.cs#L25-L35
+[mobile-schema]: https://github.com/stef-k/WayfarerMobile/blob/8e28664faa33eec4c2fe79e3e266240ac06e9884/src/WayfarerMobile/Services/ActivitySyncService.cs#L25-L47
 [mobile-queue]: https://github.com/stef-k/WayfarerMobile/blob/8e28664faa33eec4c2fe79e3e266240ac06e9884/src/WayfarerMobile/Services/QueueDrainService.cs#L719-L748
 [mobile-updates]: https://github.com/stef-k/WayfarerMobile/blob/8e28664faa33eec4c2fe79e3e266240ac06e9884/src/WayfarerMobile/Services/TimelineSyncService.cs#L716-L729
 [mobile-queued-model]: https://github.com/stef-k/WayfarerMobile/blob/8e28664faa33eec4c2fe79e3e266240ac06e9884/src/WayfarerMobile/Data/Entities/QueuedLocation.cs#L123-L129
@@ -631,6 +631,7 @@ Option C is shipped from this document's readiness label.
 [pg-strings]: https://www.postgresql.org/docs/18/functions-string.html
 [pg-collation]: https://www.postgresql.org/docs/18/collation.html
 [pg-generated]: https://www.postgresql.org/docs/18/ddl-generated-columns.html
+[pg-btree]: https://www.postgresql.org/docs/18/btree.html
 [pg-isolation]: https://www.postgresql.org/docs/18/transaction-iso.html
 [pg-insert]: https://www.postgresql.org/docs/18/sql-insert.html
 [dotnet-ordinal]: https://learn.microsoft.com/en-us/dotnet/api/system.stringcomparer.ordinal?view=net-10.0
