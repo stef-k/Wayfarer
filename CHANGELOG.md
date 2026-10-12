@@ -9,6 +9,10 @@
 
 ### Fixed
 
+- Preserve actual UTC event instants for explicit-offset `LocalTimestamp` values
+  in Wayfarer GeoJSON imports. Keep Z-valued inputs, legacy no-offset wall-clock
+  interpretation and missing/invalid fallback behavior compatible (#813).
+
 - Fence location-import job identities, payloads, workers and compatibility
   execution to the exact durable generation. Reject missing, invalid or conflicting
   authority and preserve explicit epoch zero. Repair owned Quartz trigger links
