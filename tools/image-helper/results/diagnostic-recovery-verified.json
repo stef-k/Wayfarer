@@ -1,0 +1,46 @@
+{
+  "base": "c998da079838894da32cb331f4f338cd9597047f",
+  "patch_sha256": "722adbf59fc0de2032ef8e25ae6abe6de317951c0f251e8237077707eb4a77b0",
+  "files": [
+    {
+      "path": "Util/ImageProxyHelper.cs",
+      "sha256": "043e6118c1acfefb73f2e93340a69cbf9588a78927f66834b644ef58219c0f98"
+    },
+    {
+      "path": "tests/Wayfarer.Tests/Util/ImageHelperPerformanceTests.cs",
+      "sha256": "c24cac0746b1e43de4920977712b1da92215c54eb52f926ba291c9c080aa4def"
+    },
+    {
+      "path": "tools/image-helper/src/color.rs",
+      "sha256": "8d4f5ad524bc0015f4e7b4d352eff60f8c1d6b5db9f2600fb2a0371c0fbe780c"
+    },
+    {
+      "path": "tools/image-helper/src/gif_input.rs",
+      "sha256": "94c25100c83e1dc1ce04e47b30a0b8695a977245ae3425b2eee1f5bae9e85850"
+    },
+    {
+      "path": "tools/image-helper/src/lib.rs",
+      "sha256": "056c128dd704dee8be156cad373ca81a01a43253e600b4b2190c8aa07b26d686"
+    },
+    {
+      "path": "tools/image-helper/src/main.rs",
+      "sha256": "e62348cd90ee8f72158fce6dd0e970c67aab0bbe0bdb6aea46b018617d62c151"
+    },
+    {
+      "path": "tools/image-helper/src/raster.rs",
+      "sha256": "60f53bbbef0166f6d75544f0c6a9cde8cc9d486c8e78a7745f5d4da2b32b5e2b"
+    },
+    {
+      "path": "tools/image-helper/src/transform.rs",
+      "sha256": "651bfabfae906988b4289594d331b3a2964accfd292e3c7b5e63c932be8cb008"
+    },
+    {
+      "path": "tools/image-helper/src/webp_input.rs",
+      "sha256": "9c4a3bb5926ab6587edbe73e76e7f87e8b5540c0467c64838478d01400fb95e9"
+    },
+    {
+      "path": "tools/image-helper/supervisor/ImageHelperSupervisor.cs",
+      "sha256": "52efec41e62cd03e7c95da8be000ad9902da521e13b0cb53a88b5209a5d122bf"
+    }
+  ]
+}

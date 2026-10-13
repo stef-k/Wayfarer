@@ -7,9 +7,11 @@ rust-version = "1.90"
 publish = false
 
 [features]
+# The research archive's selected safe pipeline preserves all integrated gains.
+default = ["jpeg-candidate-decode", "webp-candidate-decode", "native-jpeg-encode"]
 # Opt-in fixed stage labels reuse the retained diagnosis probes; normal builds emit no timings.
 diagnostic-timing = []
-# Scratch-only codec comparison; no candidate is enabled in ordinary builds.
+# Codec-only observations include rejected allocating paths; never used by the CLI.
 codec-bench = ["dep:libjpeg-turbo-rs", "dep:webp", "dep:libwebp-sys"]
 # Independent decode-only CLI candidates retain the accepted output encoders.
 jpeg-candidate-decode = ["dep:libjpeg-turbo-rs"]

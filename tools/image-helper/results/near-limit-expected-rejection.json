@@ -1,0 +1,14 @@
+{
+  "source": "/home/stef/wayfarer-research/858-rust-imaging-20261014/evidence/fixtures/near-limit.png",
+  "sha256": "95759eb72d50387f09dd26c6ae5328c6b47164a31bddfa0a8f3045e372309d47",
+  "geometry": [
+    4000,
+    3000
+  ],
+  "alpha": [
+    128,
+    128
+  ],
+  "forced_jpeg_exit": 4,
+  "witness": "preserved optimized baseline refused transparent-to-JPEG as expected; native encoder not invoked"
+}

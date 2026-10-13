@@ -1,0 +1,48 @@
+[
+  {
+    "mode": "instrumented",
+    "fixture": "near-limit.png",
+    "iteration": 0,
+    "wall_ms": 936.661594,
+    "popen_ms": 0.712175,
+    "child_cpu_ms": 931.752,
+    "sampled_child_peak_rss_kib": 336640,
+    "children_kernel_rss_highwater_kib": 336572,
+    "width_limit": 2048,
+    "height_limit": 2048,
+    "quality": 90,
+    "output_bytes": 64993,
+    "geometry": [
+      2048,
+      1536
+    ],
+    "jpeg_sampling": null,
+    "output_sha256": "21d3ad988ab824c32f7356af6246af5c8ac21105893979fcb403d7b885144351",
+    "pixels_sha256": "02f0c0da3c8de66b3191e1e7e3bcaf88f26092dbbc531a14cabbc8c3c208581c",
+    "stages": [],
+    "stderr": ""
+  },
+  {
+    "mode": "recovered",
+    "fixture": "near-limit.png",
+    "iteration": 0,
+    "wall_ms": 917.621243,
+    "popen_ms": 0.420623,
+    "child_cpu_ms": 914.0359999999998,
+    "sampled_child_peak_rss_kib": 336684,
+    "children_kernel_rss_highwater_kib": 336616,
+    "width_limit": 2048,
+    "height_limit": 2048,
+    "quality": 90,
+    "output_bytes": 64993,
+    "geometry": [
+      2048,
+      1536
+    ],
+    "jpeg_sampling": null,
+    "output_sha256": "d4cdc801589da310c4ba8141bedab66b6437dc1a1facebc2b8bbe3af13909f0c",
+    "pixels_sha256": "02f0c0da3c8de66b3191e1e7e3bcaf88f26092dbbc531a14cabbc8c3c208581c",
+    "stages": [],
+    "stderr": ""
+  }
+]

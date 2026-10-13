@@ -1,0 +1,70 @@
+{
+  "retained": "/home/stef/wayfarer-research/858-rust-imaging-20261014",
+  "remote_verification_required": true,
+  "paths": [
+    {
+      "path": "/home/stef/wayfarer-research/858-codec-comparison-20261013-zufsdz12",
+      "allocated_bytes_before": 7854387200,
+      "expected_head": "8d6e488f13d7de0b36c93ce10c2b3b5dcea9ccb4",
+      "expected_status": "",
+      "ownership": "worktree /home/stef/wayfarer-research/858-codec-comparison-20261013-zufsdz12/source\nHEAD 8d6e488f13d7de0b36c93ce10c2b3b5dcea9ccb4\nbranch refs/heads/wip/858-codec-comparison-20261013",
+      "disposition": "delete only after remote archive verification and per-file recovery check",
+      "local_vault_manifest": "858-codec-comparison-20261013-zufsdz12.manifest.json"
+    },
+    {
+      "path": "/home/stef/wayfarer-research/858-final-bottlenecks-20261013-3K3yZ023",
+      "allocated_bytes_before": 7444205568,
+      "expected_head": "8a857230c0751d87b71e227431365d0fb16a7ca4",
+      "expected_status": "",
+      "ownership": "worktree /home/stef/wayfarer-research/858-final-bottlenecks-20261013-3K3yZ023/source\nHEAD 8a857230c0751d87b71e227431365d0fb16a7ca4\nbranch refs/heads/wip/858-final-bottlenecks-20261013",
+      "disposition": "delete only after remote archive verification and per-file recovery check",
+      "local_vault_manifest": "858-final-bottlenecks-20261013-3K3yZ023.manifest.json"
+    },
+    {
+      "path": "/home/stef/wayfarer-research/858-rust-diagnosis-20261013-mx7bvah1",
+      "allocated_bytes_before": 4878761984,
+      "expected_head": "c998da079838894da32cb331f4f338cd9597047f",
+      "expected_status": "M Util/ImageProxyHelper.cs\n M tests/Wayfarer.Tests/Util/ImageHelperPerformanceTests.cs\n M tools/image-helper/src/color.rs\n M tools/image-helper/src/gif_input.rs\n M tools/image-helper/src/lib.rs\n M tools/image-helper/src/main.rs\n M tools/image-helper/src/raster.rs\n M tools/image-helper/src/transform.rs\n M tools/image-helper/src/webp_input.rs\n M tools/image-helper/supervisor/ImageHelperSupervisor.cs",
+      "ownership": "worktree /home/stef/wayfarer-research/858-rust-diagnosis-20261013-mx7bvah1/source\nHEAD c998da079838894da32cb331f4f338cd9597047f\nbranch refs/heads/wip/858-performance-diagnosis-20261013",
+      "disposition": "delete only after remote archive verification and per-file recovery check",
+      "local_vault_manifest": "858-rust-diagnosis-20261013-mx7bvah1.manifest.json"
+    },
+    {
+      "path": "/home/stef/wayfarer-research/858-rust-prototype-20261012-oopKvIMF",
+      "allocated_bytes_before": 4860604416,
+      "expected_head": "c998da079838894da32cb331f4f338cd9597047f",
+      "expected_status": "",
+      "ownership": "worktree /home/stef/wayfarer-research/858-rust-prototype-20261012-oopKvIMF/source\nHEAD c998da079838894da32cb331f4f338cd9597047f\nbranch refs/heads/wip/858-rust-imaging-prototype-20261012",
+      "disposition": "delete only after remote archive verification and per-file recovery check",
+      "local_vault_manifest": "858-rust-prototype-20261012-oopKvIMF.manifest.json"
+    },
+    {
+      "path": "/home/stef/wayfarer-research/858-simd-experiment-20261013-mfkfwgez",
+      "allocated_bytes_before": 5617831936,
+      "expected_head": "8a857230c0751d87b71e227431365d0fb16a7ca4",
+      "expected_status": "",
+      "ownership": "worktree /home/stef/wayfarer-research/858-simd-experiment-20261013-mfkfwgez/source\nHEAD 8a857230c0751d87b71e227431365d0fb16a7ca4\nbranch refs/heads/wip/858-simd-experiment-20261013\n\nworktree /home/stef/wayfarer-research/858-simd-experiment-20261013-mfkfwgez/encoder-source\nHEAD 5e515719152537d03f1b1b0c6e0fccc8f99de6a0\nbranch refs/heads/wip/858-simd-encoder-only-20261013",
+      "disposition": "delete only after remote archive verification and per-file recovery check",
+      "local_vault_manifest": "858-simd-experiment-20261013-mfkfwgez.manifest.json"
+    },
+    {
+      "path": "/home/stef/wayfarer-research/858-simd-experiment-20261013-yr9y5gpv",
+      "allocated_bytes_before": 8192,
+      "expected_head": null,
+      "expected_status": null,
+      "ownership": null,
+      "disposition": "delete only after remote archive verification and per-file recovery check",
+      "local_vault_manifest": "858-simd-experiment-20261013-yr9y5gpv.manifest.json"
+    },
+    {
+      "path": "/home/stef/wayfarer-research/858-web-recovery-20261013-93ijKYrk",
+      "allocated_bytes_before": 4450033664,
+      "expected_head": "017e7495c42336d7205b2d6263828ec96e0d980c",
+      "expected_status": "",
+      "ownership": "worktree /home/stef/wayfarer-research/858-web-recovery-20261013-93ijKYrk/source\nHEAD 017e7495c42336d7205b2d6263828ec96e0d980c\nbranch refs/heads/wip/858-web-image-recovery-20261013",
+      "disposition": "delete only after remote archive verification and per-file recovery check",
+      "local_vault_manifest": "858-web-recovery-20261013-93ijKYrk.manifest.json"
+    }
+  ],
+  "local_receipt": "/home/stef/wayfarer-research/858-rust-imaging-20261014/evidence/cleanup.json"
+}

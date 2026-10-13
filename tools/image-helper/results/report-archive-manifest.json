@@ -1,0 +1,203 @@
+[
+  {
+    "original": "/home/stef/wayfarer-research/858-codec-comparison-20261013-zufsdz12/codec_followup.py",
+    "archived": "tools/image-helper/archive/858-codec-comparison-20261013-zufsdz12/codec_followup.py",
+    "sha256": "54e073b9438df219b4b39dc22da1f0231c01f4ad259e3ff705fe2e150d3836dc"
+  },
+  {
+    "original": "/home/stef/wayfarer-research/858-codec-comparison-20261013-zufsdz12/REPORT.md",
+    "archived": "tools/image-helper/archive/858-codec-comparison-20261013-zufsdz12/REPORT.md",
+    "sha256": "fed3bc08b41896ef1cdcf188208d155cce8903f4297f4ad0f5c79ff97fe2bd8e"
+  },
+  {
+    "original": "/home/stef/wayfarer-research/858-codec-comparison-20261013-zufsdz12/diagnose.py",
+    "archived": "tools/image-helper/archive/858-codec-comparison-20261013-zufsdz12/diagnose.py",
+    "sha256": "257bf2afad4531fb4aa38a96e797db5713083bcef2732bcecf447f9546efa733"
+  },
+  {
+    "original": "/home/stef/wayfarer-research/858-codec-comparison-20261013-zufsdz12/SHA256SUMS",
+    "archived": "tools/image-helper/archive/858-codec-comparison-20261013-zufsdz12/SHA256SUMS",
+    "sha256": "02df805186b83df70fb30b307e4938b129bd419a54893101fef7c4cb94e60291"
+  },
+  {
+    "original": "/home/stef/wayfarer-research/858-codec-comparison-20261013-zufsdz12/rss_probe.py",
+    "archived": "tools/image-helper/archive/858-codec-comparison-20261013-zufsdz12/rss_probe.py",
+    "sha256": "889fb0e172353b34b408c02d8992180cae4928638c4d7be9249faa8f2b0a863c"
+  },
+  {
+    "original": "/home/stef/wayfarer-research/858-codec-comparison-20261013-zufsdz12/pipeline_measure.py",
+    "archived": "tools/image-helper/archive/858-codec-comparison-20261013-zufsdz12/pipeline_measure.py",
+    "sha256": "1beacc55b5148e2e27a49c14f8f8ba0a10fc9a2c92f5bfd1a426deb69b6bf5db"
+  },
+  {
+    "original": "/home/stef/wayfarer-research/858-codec-comparison-20261013-zufsdz12/codec_measure.py",
+    "archived": "tools/image-helper/archive/858-codec-comparison-20261013-zufsdz12/codec_measure.py",
+    "sha256": "ef867c396d35826d1c3362a3b48345f1a37597eef2d0b642ae750d22439e7fe7"
+  },
+  {
+    "original": "/home/stef/wayfarer-research/858-codec-comparison-20261013-zufsdz12/analyze.py",
+    "archived": "tools/image-helper/archive/858-codec-comparison-20261013-zufsdz12/analyze.py",
+    "sha256": "9594e57681b373f044cf1b5372272a09c69d67a65683d0bce1d89e7d1207fd3d"
+  },
+  {
+    "original": "/home/stef/wayfarer-research/858-codec-comparison-20261013-zufsdz12/quality_codec.py",
+    "archived": "tools/image-helper/archive/858-codec-comparison-20261013-zufsdz12/quality_codec.py",
+    "sha256": "d713f30094bf3710904784f32215ba2a0eda7e3b8ebad85663465aa563508f84"
+  },
+  {
+    "original": "/home/stef/wayfarer-research/858-codec-comparison-20261013-zufsdz12/local-env.sh",
+    "archived": "tools/image-helper/archive/858-codec-comparison-20261013-zufsdz12/local-env.sh",
+    "sha256": "8fda4fb8b59002fe7e2e7da9697db1218fd6af9684e030ba03e773f45d2e7587"
+  },
+  {
+    "original": "/home/stef/wayfarer-research/858-codec-comparison-20261013-zufsdz12/ARTIFACTS.json",
+    "archived": "tools/image-helper/archive/858-codec-comparison-20261013-zufsdz12/ARTIFACTS.json",
+    "sha256": "f91633dab10d775901f9f0f483980a13de766448f34557b1a6f12c644cd00390"
+  },
+  {
+    "original": "/home/stef/wayfarer-research/858-final-bottlenecks-20261013-3K3yZ023/REPORT.md",
+    "archived": "tools/image-helper/archive/858-final-bottlenecks-20261013-3K3yZ023/REPORT.md",
+    "sha256": "c49bbd7112460c9221e853151b425d765080e61803789c032c36714dcfac415c"
+  },
+  {
+    "original": "/home/stef/wayfarer-research/858-final-bottlenecks-20261013-3K3yZ023/diagnose.py",
+    "archived": "tools/image-helper/archive/858-final-bottlenecks-20261013-3K3yZ023/diagnose.py",
+    "sha256": "257bf2afad4531fb4aa38a96e797db5713083bcef2732bcecf447f9546efa733"
+  },
+  {
+    "original": "/home/stef/wayfarer-research/858-final-bottlenecks-20261013-3K3yZ023/SHA256SUMS",
+    "archived": "tools/image-helper/archive/858-final-bottlenecks-20261013-3K3yZ023/SHA256SUMS",
+    "sha256": "7ac38514471b7574230253fd7b71348efa7b3631e0e77f8a9d85e4287f358b50"
+  },
+  {
+    "original": "/home/stef/wayfarer-research/858-final-bottlenecks-20261013-3K3yZ023/analyze.py",
+    "archived": "tools/image-helper/archive/858-final-bottlenecks-20261013-3K3yZ023/analyze.py",
+    "sha256": "9594e57681b373f044cf1b5372272a09c69d67a65683d0bce1d89e7d1207fd3d"
+  },
+  {
+    "original": "/home/stef/wayfarer-research/858-final-bottlenecks-20261013-3K3yZ023/local-env.sh",
+    "archived": "tools/image-helper/archive/858-final-bottlenecks-20261013-3K3yZ023/local-env.sh",
+    "sha256": "5584887f2a9ae3987be25f2649062db42b3490563fef994b3e9755f5d70e6fa7"
+  },
+  {
+    "original": "/home/stef/wayfarer-research/858-final-bottlenecks-20261013-3K3yZ023/ARTIFACTS.json",
+    "archived": "tools/image-helper/archive/858-final-bottlenecks-20261013-3K3yZ023/ARTIFACTS.json",
+    "sha256": "2f64c945d8f4730f97af13e7a962a4da807993585c44d3b40c47de0cf8e70eb4"
+  },
+  {
+    "original": "/home/stef/wayfarer-research/858-rust-diagnosis-20261013-mx7bvah1/REPORT.md",
+    "archived": "tools/image-helper/archive/858-rust-diagnosis-20261013-mx7bvah1/REPORT.md",
+    "sha256": "c64584be8b55d5e7af78b3fe92e636f6351c5a6c29b20b2244c0b58ebf38e8f6"
+  },
+  {
+    "original": "/home/stef/wayfarer-research/858-rust-diagnosis-20261013-mx7bvah1/diagnose.py",
+    "archived": "tools/image-helper/archive/858-rust-diagnosis-20261013-mx7bvah1/diagnose.py",
+    "sha256": "9b5e5a809960fb2bad6d23314b98b17d819d552e529df43551cb0f88695bf6de"
+  },
+  {
+    "original": "/home/stef/wayfarer-research/858-rust-diagnosis-20261013-mx7bvah1/SHA256SUMS",
+    "archived": "tools/image-helper/archive/858-rust-diagnosis-20261013-mx7bvah1/SHA256SUMS",
+    "sha256": "3c75659fc354a2cfa69432d33f61baccb2afdaea0436ee3f861d84958e89b118"
+  },
+  {
+    "original": "/home/stef/wayfarer-research/858-rust-diagnosis-20261013-mx7bvah1/analyze.py",
+    "archived": "tools/image-helper/archive/858-rust-diagnosis-20261013-mx7bvah1/analyze.py",
+    "sha256": "54f15b3b44977e37c046176405165f84512361adbf24346f01e406fea3334a7d"
+  },
+  {
+    "original": "/home/stef/wayfarer-research/858-rust-diagnosis-20261013-mx7bvah1/COMMANDS.md",
+    "archived": "tools/image-helper/archive/858-rust-diagnosis-20261013-mx7bvah1/COMMANDS.md",
+    "sha256": "4a164078d7eb875f6cce685b96af333cf6cbd71cccf505e6c92f44b78e0d5ea0"
+  },
+  {
+    "original": "/home/stef/wayfarer-research/858-rust-diagnosis-20261013-mx7bvah1/OWNER.json",
+    "archived": "tools/image-helper/archive/858-rust-diagnosis-20261013-mx7bvah1/OWNER.json",
+    "sha256": "8f88a7f1f2a48477e305302671ac7af86b909d08847427edb4fd71bcdb436389"
+  },
+  {
+    "original": "/home/stef/wayfarer-research/858-rust-diagnosis-20261013-mx7bvah1/env.sh",
+    "archived": "tools/image-helper/archive/858-rust-diagnosis-20261013-mx7bvah1/env.sh",
+    "sha256": "a95d71c07e97ea2e38d32afa22e310639ed8a470f4766edcfa1ae5311433d63e"
+  },
+  {
+    "original": "/home/stef/wayfarer-research/858-rust-diagnosis-20261013-mx7bvah1/ARTIFACTS.json",
+    "archived": "tools/image-helper/archive/858-rust-diagnosis-20261013-mx7bvah1/ARTIFACTS.json",
+    "sha256": "e8c5ef97d386e77805d9086ff256d91977dc4751bdc67d4fac8f8a8a671e9c78"
+  },
+  {
+    "original": "/home/stef/wayfarer-research/858-rust-diagnosis-20261013-mx7bvah1/source (git diff HEAD)",
+    "archived": "tools/image-helper/archive/858-rust-diagnosis-20261013-mx7bvah1/uncommitted-diagnostic.patch",
+    "sha256": "722adbf59fc0de2032ef8e25ae6abe6de317951c0f251e8237077707eb4a77b0",
+    "base": "c998da079838894da32cb331f4f338cd9597047f"
+  },
+  {
+    "original": "/home/stef/wayfarer-research/858-simd-experiment-20261013-mfkfwgez/REPORT.md",
+    "archived": "tools/image-helper/archive/858-simd-experiment-20261013-mfkfwgez/REPORT.md",
+    "sha256": "79752b488a047ae7583cdf83621d539fc553049c90682b3fc7deabe470262e03"
+  },
+  {
+    "original": "/home/stef/wayfarer-research/858-simd-experiment-20261013-mfkfwgez/diagnose.py",
+    "archived": "tools/image-helper/archive/858-simd-experiment-20261013-mfkfwgez/diagnose.py",
+    "sha256": "257bf2afad4531fb4aa38a96e797db5713083bcef2732bcecf447f9546efa733"
+  },
+  {
+    "original": "/home/stef/wayfarer-research/858-simd-experiment-20261013-mfkfwgez/SHA256SUMS",
+    "archived": "tools/image-helper/archive/858-simd-experiment-20261013-mfkfwgez/SHA256SUMS",
+    "sha256": "82809cbf2b1ba3f47fde14452c720d328c7885ffa8d45172e4f1ffbf417e8aec"
+  },
+  {
+    "original": "/home/stef/wayfarer-research/858-simd-experiment-20261013-mfkfwgez/analyze.py",
+    "archived": "tools/image-helper/archive/858-simd-experiment-20261013-mfkfwgez/analyze.py",
+    "sha256": "9594e57681b373f044cf1b5372272a09c69d67a65683d0bce1d89e7d1207fd3d"
+  },
+  {
+    "original": "/home/stef/wayfarer-research/858-simd-experiment-20261013-mfkfwgez/COMMANDS.md",
+    "archived": "tools/image-helper/archive/858-simd-experiment-20261013-mfkfwgez/COMMANDS.md",
+    "sha256": "bdaeb3fe3579989fc1f6840f8128e4795f23007ce60840ed50ec34231a2e7f48"
+  },
+  {
+    "original": "/home/stef/wayfarer-research/858-simd-experiment-20261013-mfkfwgez/env.sh",
+    "archived": "tools/image-helper/archive/858-simd-experiment-20261013-mfkfwgez/env.sh",
+    "sha256": "c244560d69a67584b35dfc4017aec2a4818f63f02139b9abacc9e649b5567e48"
+  },
+  {
+    "original": "/home/stef/wayfarer-research/858-simd-experiment-20261013-mfkfwgez/ARTIFACTS.json",
+    "archived": "tools/image-helper/archive/858-simd-experiment-20261013-mfkfwgez/ARTIFACTS.json",
+    "sha256": "cdc8812636d252c26c8ffa56948d9efaf350ffb2f568eac9c50579fab0d0766e"
+  },
+  {
+    "original": "/home/stef/wayfarer-research/858-web-recovery-20261013-93ijKYrk/REPORT.md",
+    "archived": "tools/image-helper/archive/858-web-recovery-20261013-93ijKYrk/REPORT.md",
+    "sha256": "0db7532ffa237823fe8cc5ac861707dfdb441985f4a8085baa4fd7552682ad17"
+  },
+  {
+    "original": "/home/stef/wayfarer-research/858-web-recovery-20261013-93ijKYrk/diagnose.py",
+    "archived": "tools/image-helper/archive/858-web-recovery-20261013-93ijKYrk/diagnose.py",
+    "sha256": "9507506ee90789ceed75070af0a3f29591776a95ce4a3310cbb2c61a48f2d270"
+  },
+  {
+    "original": "/home/stef/wayfarer-research/858-web-recovery-20261013-93ijKYrk/SHA256SUMS",
+    "archived": "tools/image-helper/archive/858-web-recovery-20261013-93ijKYrk/SHA256SUMS",
+    "sha256": "bd8d9cbd73d2b9abde2ce82be05cd6efe1f31aa351a5dcaaeddbe23586018d5c"
+  },
+  {
+    "original": "/home/stef/wayfarer-research/858-web-recovery-20261013-93ijKYrk/analyze.py",
+    "archived": "tools/image-helper/archive/858-web-recovery-20261013-93ijKYrk/analyze.py",
+    "sha256": "fbca01cb641122744ad76af31841d265168c23dd7db3c5e82ac692bc49e1999f"
+  },
+  {
+    "original": "/home/stef/wayfarer-research/858-web-recovery-20261013-93ijKYrk/COMMANDS.md",
+    "archived": "tools/image-helper/archive/858-web-recovery-20261013-93ijKYrk/COMMANDS.md",
+    "sha256": "c8827afdbc8a8eefb96b2d05140289619c5dd7c015ae7ca565b69f94d2312579"
+  },
+  {
+    "original": "/home/stef/wayfarer-research/858-web-recovery-20261013-93ijKYrk/env.sh",
+    "archived": "tools/image-helper/archive/858-web-recovery-20261013-93ijKYrk/env.sh",
+    "sha256": "3112b0409c32e0bba935183d794a097a4658ef0543960359016d3f478749913c"
+  },
+  {
+    "original": "/home/stef/wayfarer-research/858-web-recovery-20261013-93ijKYrk/ARTIFACTS.json",
+    "archived": "tools/image-helper/archive/858-web-recovery-20261013-93ijKYrk/ARTIFACTS.json",
+    "sha256": "b1dfc472bdb159dd2bc0d86c9ee46369fd8b7f0f58bf549d55abe568e48624cb"
+  }
+]

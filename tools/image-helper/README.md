@@ -1,11 +1,20 @@
-# Isolated Rust image prototype (#858)
+# Rust imaging research archive (#858)
+
+**Production NO-GO.** This branch selects the bounded native TurboJPEG encoder,
+strict guarded pure Rust JPEG decoding, native WebP decoding, SIMD RGB resizing
+and the recovered opaque-sRGB pipeline. Both warm JPEG p50 gates still fail;
+WebP passes the observed web/PDF gates. This is a recoverable research archive,
+with no production integration or shipping approval. See [REPORT.md](REPORT.md)
+for the final single-pass assignment, measurements, caps and retained evidence.
 
 This Linux x64 prototype follows the [accepted design](https://github.com/stef-k/Wayfarer/issues/858#issuecomment-6131203483).
 It does not connect to the production image proxy, HTTP or cache.
 
-Build with Rust 1.90.0 using `cargo build --locked --release`.
-The isolated SIMD experiment pins `fast_image_resize` 6.1.0 for RGB8 Lanczos3
-and `jpeg-encoder` 0.7.1 with its `simd` feature. Runtime detection selects
+Build with Rust 1.90.0 using `cargo build --locked --release`. Native builds also
+require a C compiler, CMake and NASM on x64; use the pinned vendored sources.
+Default features enable the selected decoder/encoder routes. The archive pins
+`fast_image_resize` 6.1.0 for RGB8 Lanczos3 and `turbojpeg` 1.5.1 /
+`turbojpeg-sys` 1.2.0 (bundled libjpeg-turbo 3.1.0). Runtime detection selects
 supported CPU instructions; alpha and precision routes retain the original resize.
 JPEG qualities up to 90 use averaged photographic 4:2:0; higher-quality explicit
 recipes retain 4:4:4. Canonical ICC embedding and complete output verification remain.
@@ -49,8 +58,13 @@ reused, and opaque RGBA is compacted in its owned buffer. Tagged sources retain
 bounded relative-colorimetric CMS conversion; no profile-name shortcut is used.
 Transparent, CMYK and 16-bit inputs retain the original scene-linear
 premultiplied-alpha processing. The pinned library's resampler still uses a float
-intermediate internally. JPEG retains the encoder's fixed 4:4:4 subsampling,
-because this version exposes no supported subsampling setter.
+intermediate internally. The selected JPEG encoder writes into one fallibly
+allocated caller-owned buffer whose extent includes the canonical ICC and never
+exceeds the recipe's cap. The native borrowed-slice API sets `TJPARAM_NOREALLOC`;
+overflow fails during encoding. A completely full entropy destination can be
+conservatively refused. No partial result escapes. `--no-default-features`
+retains the earlier pure Rust SIMD encoder/decoders for reproduction; the rejected
+`libjpeg-turbo-rs compress_into()` encoder remains a benchmark-only trial.
 Fresh encoders retain only generated canonical sRGB ICC metadata.
 
 JPEG ICC assemblies that the decoder cannot assemble are treated as untagged,
