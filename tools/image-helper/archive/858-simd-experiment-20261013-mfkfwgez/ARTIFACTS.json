@@ -1,0 +1,61 @@
+{
+  "decision": "NO-GO",
+  "created_utc": "2026-10-13T18:34:43.713370+00:00",
+  "workspace": "/home/stef/wayfarer-research/858-simd-experiment-20261013-mfkfwgez",
+  "repository_workspace": "/home/stef/wayfarer-research/858-simd-experiment-20261013-mfkfwgez/source",
+  "branch": "wip/858-simd-experiment-20261013",
+  "head": "8a857230c0751d87b71e227431365d0fb16a7ca4",
+  "source_status": "",
+  "starting_commit": "017e7495c42336d7205b2d6263828ec96e0d980c",
+  "measurement_heads": {
+    "baseline": "017e7495c42336d7205b2d6263828ec96e0d980c",
+    "resize": "29bfcfe91481466d565f7de48642e9e31e8f5522",
+    "encoder": "a13c90bc12c6e28a715e5637320fd25bd88ee531",
+    "combined": "0e83d22fdacfc7b1f952c8d9f2083577b7cfb7bc"
+  },
+  "encoder_current_head": "5e515719152537d03f1b1b0c6e0fccc8f99de6a0",
+  "encoder_status": "",
+  "changed_files": [
+    "tools/image-helper/Cargo.lock",
+    "tools/image-helper/Cargo.toml",
+    "tools/image-helper/README.md",
+    "tools/image-helper/SIMD.md",
+    "tools/image-helper/notices/fast_image_resize-6.1.0.txt",
+    "tools/image-helper/notices/jpeg-encoder-0.7.1.txt",
+    "tools/image-helper/src/transform.rs",
+    "tools/image-helper/tests/jpeg_output.rs"
+  ],
+  "post_measurement_changes": [
+    "tools/image-helper/README.md",
+    "tools/image-helper/SIMD.md",
+    "tools/image-helper/notices/fast_image_resize-6.1.0.txt",
+    "tools/image-helper/tests/jpeg_output.rs"
+  ],
+  "normal_binary_matches_final_locked_build": true,
+  "versions": {
+    "fast_image_resize": "6.1.0",
+    "jpeg-encoder": "0.7.1",
+    "ImageSharp": "3.1.12",
+    "rustc": "1.90.0"
+  },
+  "focused_xunit_passed": 74,
+  "focused_rust_passed": 2,
+  "retained_large_geometry_passed": 5,
+  "code_guard": {
+    "experiment": "pass",
+    "full": "review",
+    "external": "review"
+  },
+  "protected_file_hashes_match": true,
+  "primary_head_status_match": true,
+  "shared_inventory_addition_recorded": true,
+  "report": "REPORT.md",
+  "summary": "evidence/summary.json",
+  "evidence_manifest": "SHA256SUMS",
+  "remaining_unproven": [
+    "Broader corpus and perceptual acceptance",
+    "Non-x64 runtime, packaging and process containment",
+    "Four-operation aggregate resources",
+    "PNG/GIF performance and realistic trip workloads"
+  ]
+}

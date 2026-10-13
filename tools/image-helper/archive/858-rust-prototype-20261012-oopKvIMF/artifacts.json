@@ -1,0 +1,26 @@
+{
+  "final_commit": "c998da079838894da32cb331f4f338cd9597047f",
+  "implementation_commit": "388ed351a2f441c184f80ee9dabb06f813223eb2",
+  "base_commit": "9d8ee6b4132dfef53beb167b86b282be31c88973",
+  "branch": "wip/858-rust-imaging-prototype-20261012",
+  "workspace": "/home/stef/wayfarer-research/858-rust-prototype-20261012-oopKvIMF",
+  "decision": "NO-GO",
+  "retained_original_fixture_hashes_verified": 54,
+  "artifacts": [
+    {
+      "path": "source/tools/image-helper/target/release/wayfarer-image",
+      "bytes": 2161464,
+      "sha256": "5632f2ade64d106c4bf57e5b725fe967f4b8a85022797f914bdd926825196287"
+    },
+    {
+      "path": "source/tools/image-helper/supervisor/bin/Release/net10.0/ImageHelper.Supervisor.dll",
+      "bytes": 27136,
+      "sha256": "6e753e690f308b31d12c8b0ee223c0b59717a19a356ec80c2340e70b9f586453"
+    },
+    {
+      "path": "source/tools/image-helper/Cargo.lock",
+      "bytes": 6129,
+      "sha256": "48668bfb42630ab4b963305fe96f06e700af977cd0cce3717aeb5e8f5a3f0aef"
+    }
+  ]
+}

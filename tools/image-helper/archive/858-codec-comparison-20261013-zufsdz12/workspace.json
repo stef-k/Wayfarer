@@ -1,0 +1,29 @@
+{
+  "path": "/home/stef/wayfarer-research/858-codec-comparison-20261013-zufsdz12",
+  "reports": [
+    {
+      "path": "REPORT.md",
+      "sha256": "fed3bc08b41896ef1cdcf188208d155cce8903f4297f4ad0f5c79ff97fe2bd8e",
+      "bytes": 28187
+    }
+  ],
+  "root_files": [
+    "codec_followup.py",
+    "REPORT.md",
+    "diagnose.py",
+    "SHA256SUMS",
+    "rss_probe.py",
+    "pipeline_measure.py",
+    "codec_measure.py",
+    "analyze.py",
+    "quality_codec.py",
+    "local-env.sh",
+    "ARTIFACTS.json"
+  ],
+  "source": {
+    "head": "8d6e488f13d7de0b36c93ce10c2b3b5dcea9ccb4",
+    "status": "",
+    "worktrees": "worktree /home/stef/wayfarer-research/858-codec-comparison-20261013-zufsdz12/source\nHEAD 8d6e488f13d7de0b36c93ce10c2b3b5dcea9ccb4\nbranch refs/heads/wip/858-codec-comparison-20261013",
+    "branches": "refs/heads/main e5f7298cea0450a862bcd710da1f0579cb0bcd50\nrefs/heads/wip/858-codec-comparison-20261013 8d6e488f13d7de0b36c93ce10c2b3b5dcea9ccb4\nrefs/heads/wip/858-simd-experiment-20261013 8a857230c0751d87b71e227431365d0fb16a7ca4"
+  }
+}

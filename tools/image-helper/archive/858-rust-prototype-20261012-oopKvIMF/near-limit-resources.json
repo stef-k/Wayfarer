@@ -1,0 +1,17 @@
+{
+  "helper_rss_kib": 237704,
+  "supervisor_rss_kib": 50000,
+  "aggregate_observed_rss_kib": 275184,
+  "helper_cpu_ticks": 61,
+  "result": {
+    "Status": 0,
+    "Bytes": null,
+    "MimeType": "image/png",
+    "ExitCode": 0,
+    "ProcessId": 74458,
+    "CpuMilliseconds": null,
+    "PeakRssBytes": null
+  },
+  "remaining_pids": [],
+  "helper_cpu_seconds_sampled": 0.61
+}

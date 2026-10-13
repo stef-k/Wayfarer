@@ -1,0 +1,677 @@
+{
+  "pass": true,
+  "rows": [
+    {
+      "fixture": "static.jpg",
+      "variant": "baseline",
+      "executable_sha256": "9f8814b39fbd17db1f8f1b416e7b75bd655a08d4666e6ebe60d281cfc5f2a810",
+      "exit": 0,
+      "bytes": 1514,
+      "stderr": "",
+      "format": "JPEG",
+      "geometry": [
+        64,
+        32
+      ],
+      "alpha_extrema": [
+        255,
+        255
+      ],
+      "icc_bytes": 612,
+      "exif": false,
+      "xmp": false
+    },
+    {
+      "fixture": "static.jpg",
+      "variant": "jpeg-decode",
+      "executable_sha256": "8339e549fc792105d6684028a0b217720bd8789d531d64b69496283f66e2070a",
+      "exit": 0,
+      "bytes": 1518,
+      "stderr": "",
+      "format": "JPEG",
+      "geometry": [
+        64,
+        32
+      ],
+      "alpha_extrema": [
+        255,
+        255
+      ],
+      "icc_bytes": 612,
+      "exif": false,
+      "xmp": false
+    },
+    {
+      "fixture": "static.jpg",
+      "variant": "webp-decode",
+      "executable_sha256": "bbc3476e4430f6e4dffac1114d9af9cdb4ddc501075302ba7aa690444d19e765",
+      "exit": 0,
+      "bytes": 1514,
+      "stderr": "",
+      "format": "JPEG",
+      "geometry": [
+        64,
+        32
+      ],
+      "alpha_extrema": [
+        255,
+        255
+      ],
+      "icc_bytes": 612,
+      "exif": false,
+      "xmp": false
+    },
+    {
+      "fixture": "static.jpg",
+      "variant": "combined-decode",
+      "executable_sha256": "e1d6a69f8a1739b41331c8ee59943fa67c99e531f0f469af773a0461f34c19b4",
+      "exit": 0,
+      "bytes": 1518,
+      "stderr": "",
+      "format": "JPEG",
+      "geometry": [
+        64,
+        32
+      ],
+      "alpha_extrema": [
+        255,
+        255
+      ],
+      "icc_bytes": 612,
+      "exif": false,
+      "xmp": false
+    },
+    {
+      "fixture": "jpeg-without-eoi.jpg",
+      "variant": "baseline",
+      "executable_sha256": "9f8814b39fbd17db1f8f1b416e7b75bd655a08d4666e6ebe60d281cfc5f2a810",
+      "exit": 4,
+      "bytes": 0,
+      "stderr": "unsupported or malformed source image\n"
+    },
+    {
+      "fixture": "jpeg-without-eoi.jpg",
+      "variant": "jpeg-decode",
+      "executable_sha256": "8339e549fc792105d6684028a0b217720bd8789d531d64b69496283f66e2070a",
+      "exit": 4,
+      "bytes": 0,
+      "stderr": "unsupported or malformed source image\n"
+    },
+    {
+      "fixture": "jpeg-without-eoi.jpg",
+      "variant": "webp-decode",
+      "executable_sha256": "bbc3476e4430f6e4dffac1114d9af9cdb4ddc501075302ba7aa690444d19e765",
+      "exit": 4,
+      "bytes": 0,
+      "stderr": "unsupported or malformed source image\n"
+    },
+    {
+      "fixture": "jpeg-without-eoi.jpg",
+      "variant": "combined-decode",
+      "executable_sha256": "e1d6a69f8a1739b41331c8ee59943fa67c99e531f0f469af773a0461f34c19b4",
+      "exit": 4,
+      "bytes": 0,
+      "stderr": "unsupported or malformed source image\n"
+    },
+    {
+      "fixture": "jpeg-truncated-entropy.jpg",
+      "variant": "baseline",
+      "executable_sha256": "9f8814b39fbd17db1f8f1b416e7b75bd655a08d4666e6ebe60d281cfc5f2a810",
+      "exit": 4,
+      "bytes": 0,
+      "stderr": "unsupported or malformed source image\n"
+    },
+    {
+      "fixture": "jpeg-truncated-entropy.jpg",
+      "variant": "jpeg-decode",
+      "executable_sha256": "8339e549fc792105d6684028a0b217720bd8789d531d64b69496283f66e2070a",
+      "exit": 4,
+      "bytes": 0,
+      "stderr": "unsupported or malformed source image\n"
+    },
+    {
+      "fixture": "jpeg-truncated-entropy.jpg",
+      "variant": "webp-decode",
+      "executable_sha256": "bbc3476e4430f6e4dffac1114d9af9cdb4ddc501075302ba7aa690444d19e765",
+      "exit": 4,
+      "bytes": 0,
+      "stderr": "unsupported or malformed source image\n"
+    },
+    {
+      "fixture": "jpeg-truncated-entropy.jpg",
+      "variant": "combined-decode",
+      "executable_sha256": "e1d6a69f8a1739b41331c8ee59943fa67c99e531f0f469af773a0461f34c19b4",
+      "exit": 4,
+      "bytes": 0,
+      "stderr": "unsupported or malformed source image\n"
+    },
+    {
+      "fixture": "jpeg-truncated-entropy-with-eoi.jpg",
+      "variant": "baseline",
+      "executable_sha256": "9f8814b39fbd17db1f8f1b416e7b75bd655a08d4666e6ebe60d281cfc5f2a810",
+      "exit": 0,
+      "bytes": 1606,
+      "stderr": "",
+      "format": "JPEG",
+      "geometry": [
+        64,
+        32
+      ],
+      "alpha_extrema": [
+        255,
+        255
+      ],
+      "icc_bytes": 612,
+      "exif": false,
+      "xmp": false
+    },
+    {
+      "fixture": "jpeg-truncated-entropy-with-eoi.jpg",
+      "variant": "jpeg-decode",
+      "executable_sha256": "8339e549fc792105d6684028a0b217720bd8789d531d64b69496283f66e2070a",
+      "exit": 0,
+      "bytes": 1608,
+      "stderr": "",
+      "format": "JPEG",
+      "geometry": [
+        64,
+        32
+      ],
+      "alpha_extrema": [
+        255,
+        255
+      ],
+      "icc_bytes": 612,
+      "exif": false,
+      "xmp": false
+    },
+    {
+      "fixture": "jpeg-truncated-entropy-with-eoi.jpg",
+      "variant": "webp-decode",
+      "executable_sha256": "bbc3476e4430f6e4dffac1114d9af9cdb4ddc501075302ba7aa690444d19e765",
+      "exit": 0,
+      "bytes": 1606,
+      "stderr": "",
+      "format": "JPEG",
+      "geometry": [
+        64,
+        32
+      ],
+      "alpha_extrema": [
+        255,
+        255
+      ],
+      "icc_bytes": 612,
+      "exif": false,
+      "xmp": false
+    },
+    {
+      "fixture": "jpeg-truncated-entropy-with-eoi.jpg",
+      "variant": "combined-decode",
+      "executable_sha256": "e1d6a69f8a1739b41331c8ee59943fa67c99e531f0f469af773a0461f34c19b4",
+      "exit": 0,
+      "bytes": 1608,
+      "stderr": "",
+      "format": "JPEG",
+      "geometry": [
+        64,
+        32
+      ],
+      "alpha_extrema": [
+        255,
+        255
+      ],
+      "icc_bytes": 612,
+      "exif": false,
+      "xmp": false
+    },
+    {
+      "fixture": "truncated.jpg",
+      "variant": "baseline",
+      "executable_sha256": "9f8814b39fbd17db1f8f1b416e7b75bd655a08d4666e6ebe60d281cfc5f2a810",
+      "exit": 4,
+      "bytes": 0,
+      "stderr": "unsupported or malformed source image\n"
+    },
+    {
+      "fixture": "truncated.jpg",
+      "variant": "jpeg-decode",
+      "executable_sha256": "8339e549fc792105d6684028a0b217720bd8789d531d64b69496283f66e2070a",
+      "exit": 4,
+      "bytes": 0,
+      "stderr": "unsupported or malformed source image\n"
+    },
+    {
+      "fixture": "truncated.jpg",
+      "variant": "webp-decode",
+      "executable_sha256": "bbc3476e4430f6e4dffac1114d9af9cdb4ddc501075302ba7aa690444d19e765",
+      "exit": 4,
+      "bytes": 0,
+      "stderr": "unsupported or malformed source image\n"
+    },
+    {
+      "fixture": "truncated.jpg",
+      "variant": "combined-decode",
+      "executable_sha256": "e1d6a69f8a1739b41331c8ee59943fa67c99e531f0f469af773a0461f34c19b4",
+      "exit": 4,
+      "bytes": 0,
+      "stderr": "unsupported or malformed source image\n"
+    },
+    {
+      "fixture": "rgb-icc.jpg",
+      "variant": "baseline",
+      "executable_sha256": "9f8814b39fbd17db1f8f1b416e7b75bd655a08d4666e6ebe60d281cfc5f2a810",
+      "exit": 0,
+      "bytes": 1290,
+      "stderr": "",
+      "format": "JPEG",
+      "geometry": [
+        64,
+        32
+      ],
+      "alpha_extrema": [
+        255,
+        255
+      ],
+      "icc_bytes": 612,
+      "exif": false,
+      "xmp": false
+    },
+    {
+      "fixture": "rgb-icc.jpg",
+      "variant": "jpeg-decode",
+      "executable_sha256": "8339e549fc792105d6684028a0b217720bd8789d531d64b69496283f66e2070a",
+      "exit": 0,
+      "bytes": 1290,
+      "stderr": "",
+      "format": "JPEG",
+      "geometry": [
+        64,
+        32
+      ],
+      "alpha_extrema": [
+        255,
+        255
+      ],
+      "icc_bytes": 612,
+      "exif": false,
+      "xmp": false
+    },
+    {
+      "fixture": "rgb-icc.jpg",
+      "variant": "webp-decode",
+      "executable_sha256": "bbc3476e4430f6e4dffac1114d9af9cdb4ddc501075302ba7aa690444d19e765",
+      "exit": 0,
+      "bytes": 1290,
+      "stderr": "",
+      "format": "JPEG",
+      "geometry": [
+        64,
+        32
+      ],
+      "alpha_extrema": [
+        255,
+        255
+      ],
+      "icc_bytes": 612,
+      "exif": false,
+      "xmp": false
+    },
+    {
+      "fixture": "rgb-icc.jpg",
+      "variant": "combined-decode",
+      "executable_sha256": "e1d6a69f8a1739b41331c8ee59943fa67c99e531f0f469af773a0461f34c19b4",
+      "exit": 0,
+      "bytes": 1290,
+      "stderr": "",
+      "format": "JPEG",
+      "geometry": [
+        64,
+        32
+      ],
+      "alpha_extrema": [
+        255,
+        255
+      ],
+      "icc_bytes": 612,
+      "exif": false,
+      "xmp": false
+    },
+    {
+      "fixture": "ycck.jpg",
+      "variant": "baseline",
+      "executable_sha256": "9f8814b39fbd17db1f8f1b416e7b75bd655a08d4666e6ebe60d281cfc5f2a810",
+      "exit": 0,
+      "bytes": 17791,
+      "stderr": "",
+      "format": "JPEG",
+      "geometry": [
+        600,
+        150
+      ],
+      "alpha_extrema": [
+        255,
+        255
+      ],
+      "icc_bytes": 612,
+      "exif": false,
+      "xmp": false
+    },
+    {
+      "fixture": "ycck.jpg",
+      "variant": "jpeg-decode",
+      "executable_sha256": "8339e549fc792105d6684028a0b217720bd8789d531d64b69496283f66e2070a",
+      "exit": 0,
+      "bytes": 17791,
+      "stderr": "",
+      "format": "JPEG",
+      "geometry": [
+        600,
+        150
+      ],
+      "alpha_extrema": [
+        255,
+        255
+      ],
+      "icc_bytes": 612,
+      "exif": false,
+      "xmp": false
+    },
+    {
+      "fixture": "ycck.jpg",
+      "variant": "webp-decode",
+      "executable_sha256": "bbc3476e4430f6e4dffac1114d9af9cdb4ddc501075302ba7aa690444d19e765",
+      "exit": 0,
+      "bytes": 17791,
+      "stderr": "",
+      "format": "JPEG",
+      "geometry": [
+        600,
+        150
+      ],
+      "alpha_extrema": [
+        255,
+        255
+      ],
+      "icc_bytes": 612,
+      "exif": false,
+      "xmp": false
+    },
+    {
+      "fixture": "ycck.jpg",
+      "variant": "combined-decode",
+      "executable_sha256": "e1d6a69f8a1739b41331c8ee59943fa67c99e531f0f469af773a0461f34c19b4",
+      "exit": 0,
+      "bytes": 17791,
+      "stderr": "",
+      "format": "JPEG",
+      "geometry": [
+        600,
+        150
+      ],
+      "alpha_extrema": [
+        255,
+        255
+      ],
+      "icc_bytes": 612,
+      "exif": false,
+      "xmp": false
+    },
+    {
+      "fixture": "static.webp",
+      "variant": "baseline",
+      "executable_sha256": "9f8814b39fbd17db1f8f1b416e7b75bd655a08d4666e6ebe60d281cfc5f2a810",
+      "exit": 0,
+      "bytes": 3523,
+      "stderr": "",
+      "format": "PNG",
+      "geometry": [
+        64,
+        32
+      ],
+      "alpha_extrema": [
+        0,
+        252
+      ],
+      "icc_bytes": 612,
+      "exif": false,
+      "xmp": false
+    },
+    {
+      "fixture": "static.webp",
+      "variant": "jpeg-decode",
+      "executable_sha256": "8339e549fc792105d6684028a0b217720bd8789d531d64b69496283f66e2070a",
+      "exit": 0,
+      "bytes": 3523,
+      "stderr": "",
+      "format": "PNG",
+      "geometry": [
+        64,
+        32
+      ],
+      "alpha_extrema": [
+        0,
+        252
+      ],
+      "icc_bytes": 612,
+      "exif": false,
+      "xmp": false
+    },
+    {
+      "fixture": "static.webp",
+      "variant": "webp-decode",
+      "executable_sha256": "bbc3476e4430f6e4dffac1114d9af9cdb4ddc501075302ba7aa690444d19e765",
+      "exit": 0,
+      "bytes": 3523,
+      "stderr": "",
+      "format": "PNG",
+      "geometry": [
+        64,
+        32
+      ],
+      "alpha_extrema": [
+        0,
+        252
+      ],
+      "icc_bytes": 612,
+      "exif": false,
+      "xmp": false
+    },
+    {
+      "fixture": "static.webp",
+      "variant": "combined-decode",
+      "executable_sha256": "e1d6a69f8a1739b41331c8ee59943fa67c99e531f0f469af773a0461f34c19b4",
+      "exit": 0,
+      "bytes": 3523,
+      "stderr": "",
+      "format": "PNG",
+      "geometry": [
+        64,
+        32
+      ],
+      "alpha_extrema": [
+        0,
+        252
+      ],
+      "icc_bytes": 612,
+      "exif": false,
+      "xmp": false
+    },
+    {
+      "fixture": "rgb-icc.webp",
+      "variant": "baseline",
+      "executable_sha256": "9f8814b39fbd17db1f8f1b416e7b75bd655a08d4666e6ebe60d281cfc5f2a810",
+      "exit": 0,
+      "bytes": 1290,
+      "stderr": "",
+      "format": "JPEG",
+      "geometry": [
+        64,
+        32
+      ],
+      "alpha_extrema": [
+        255,
+        255
+      ],
+      "icc_bytes": 612,
+      "exif": false,
+      "xmp": false
+    },
+    {
+      "fixture": "rgb-icc.webp",
+      "variant": "jpeg-decode",
+      "executable_sha256": "8339e549fc792105d6684028a0b217720bd8789d531d64b69496283f66e2070a",
+      "exit": 0,
+      "bytes": 1290,
+      "stderr": "",
+      "format": "JPEG",
+      "geometry": [
+        64,
+        32
+      ],
+      "alpha_extrema": [
+        255,
+        255
+      ],
+      "icc_bytes": 612,
+      "exif": false,
+      "xmp": false
+    },
+    {
+      "fixture": "rgb-icc.webp",
+      "variant": "webp-decode",
+      "executable_sha256": "bbc3476e4430f6e4dffac1114d9af9cdb4ddc501075302ba7aa690444d19e765",
+      "exit": 0,
+      "bytes": 1290,
+      "stderr": "",
+      "format": "JPEG",
+      "geometry": [
+        64,
+        32
+      ],
+      "alpha_extrema": [
+        255,
+        255
+      ],
+      "icc_bytes": 612,
+      "exif": false,
+      "xmp": false
+    },
+    {
+      "fixture": "rgb-icc.webp",
+      "variant": "combined-decode",
+      "executable_sha256": "e1d6a69f8a1739b41331c8ee59943fa67c99e531f0f469af773a0461f34c19b4",
+      "exit": 0,
+      "bytes": 1290,
+      "stderr": "",
+      "format": "JPEG",
+      "geometry": [
+        64,
+        32
+      ],
+      "alpha_extrema": [
+        255,
+        255
+      ],
+      "icc_bytes": 612,
+      "exif": false,
+      "xmp": false
+    },
+    {
+      "fixture": "metadata.webp",
+      "variant": "baseline",
+      "executable_sha256": "9f8814b39fbd17db1f8f1b416e7b75bd655a08d4666e6ebe60d281cfc5f2a810",
+      "exit": 4,
+      "bytes": 0,
+      "stderr": "unsupported or malformed source image\n"
+    },
+    {
+      "fixture": "metadata.webp",
+      "variant": "jpeg-decode",
+      "executable_sha256": "8339e549fc792105d6684028a0b217720bd8789d531d64b69496283f66e2070a",
+      "exit": 4,
+      "bytes": 0,
+      "stderr": "unsupported or malformed source image\n"
+    },
+    {
+      "fixture": "metadata.webp",
+      "variant": "webp-decode",
+      "executable_sha256": "bbc3476e4430f6e4dffac1114d9af9cdb4ddc501075302ba7aa690444d19e765",
+      "exit": 4,
+      "bytes": 0,
+      "stderr": "unsupported or malformed source image\n"
+    },
+    {
+      "fixture": "metadata.webp",
+      "variant": "combined-decode",
+      "executable_sha256": "e1d6a69f8a1739b41331c8ee59943fa67c99e531f0f469af773a0461f34c19b4",
+      "exit": 4,
+      "bytes": 0,
+      "stderr": "unsupported or malformed source image\n"
+    },
+    {
+      "fixture": "animated.webp",
+      "variant": "baseline",
+      "executable_sha256": "9f8814b39fbd17db1f8f1b416e7b75bd655a08d4666e6ebe60d281cfc5f2a810",
+      "exit": 4,
+      "bytes": 0,
+      "stderr": "unsupported or malformed source image\n"
+    },
+    {
+      "fixture": "animated.webp",
+      "variant": "jpeg-decode",
+      "executable_sha256": "8339e549fc792105d6684028a0b217720bd8789d531d64b69496283f66e2070a",
+      "exit": 4,
+      "bytes": 0,
+      "stderr": "unsupported or malformed source image\n"
+    },
+    {
+      "fixture": "animated.webp",
+      "variant": "webp-decode",
+      "executable_sha256": "bbc3476e4430f6e4dffac1114d9af9cdb4ddc501075302ba7aa690444d19e765",
+      "exit": 4,
+      "bytes": 0,
+      "stderr": "unsupported or malformed source image\n"
+    },
+    {
+      "fixture": "animated.webp",
+      "variant": "combined-decode",
+      "executable_sha256": "e1d6a69f8a1739b41331c8ee59943fa67c99e531f0f469af773a0461f34c19b4",
+      "exit": 4,
+      "bytes": 0,
+      "stderr": "unsupported or malformed source image\n"
+    },
+    {
+      "fixture": "truncated.webp",
+      "variant": "baseline",
+      "executable_sha256": "9f8814b39fbd17db1f8f1b416e7b75bd655a08d4666e6ebe60d281cfc5f2a810",
+      "exit": 4,
+      "bytes": 0,
+      "stderr": "unsupported or malformed source image\n"
+    },
+    {
+      "fixture": "truncated.webp",
+      "variant": "jpeg-decode",
+      "executable_sha256": "8339e549fc792105d6684028a0b217720bd8789d531d64b69496283f66e2070a",
+      "exit": 4,
+      "bytes": 0,
+      "stderr": "unsupported or malformed source image\n"
+    },
+    {
+      "fixture": "truncated.webp",
+      "variant": "webp-decode",
+      "executable_sha256": "bbc3476e4430f6e4dffac1114d9af9cdb4ddc501075302ba7aa690444d19e765",
+      "exit": 4,
+      "bytes": 0,
+      "stderr": "unsupported or malformed source image\n"
+    },
+    {
+      "fixture": "truncated.webp",
+      "variant": "combined-decode",
+      "executable_sha256": "e1d6a69f8a1739b41331c8ee59943fa67c99e531f0f469af773a0461f34c19b4",
+      "exit": 4,
+      "bytes": 0,
+      "stderr": "unsupported or malformed source image\n"
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "method": "/proc/self/status VmHWM, after exec; three warmups/three observations; timing fields are supplemental only",
+  "scope": "Only RSS correction; no performance-gate rerun",
+  "rss_mib": {
+    "decode-photo.jpg-jpeg-decoder": 14.55859375,
+    "decode-photo.jpg-zune-jpeg": 13.9765625,
+    "decode-photo.jpg-libjpeg-turbo-rs": 11.5546875,
+    "decode-photo.webp-image-webp": 11.9296875,
+    "decode-photo.webp-libwebp": 13.453125,
+    "encode-web-photo.jpg-jpeg-encoder-q90": 9.5859375,
+    "encode-web-photo.jpg-libjpeg-turbo-rs-q90": 10.140625,
+    "encode-web-photo.webp-jpeg-encoder-q90": 9.73828125,
+    "encode-web-photo.webp-libjpeg-turbo-rs-q90": 9.91796875,
+    "encode-web-photo.webp-libwebp-lossy-q88": 26.48828125,
+    "encode-web-photo.webp-image-webp-lossless-q90": 16.90234375,
+    "encode-web-photo.webp-libwebp-lossless-q90": 65.40625,
+    "encode-pdf-photo.jpg-jpeg-encoder-q85": 4.90625,
+    "encode-pdf-photo.jpg-libjpeg-turbo-rs-q85": 4.74609375,
+    "encode-pdf-photo.webp-jpeg-encoder-q85": 4.94140625,
+    "encode-pdf-photo.webp-libjpeg-turbo-rs-q85": 5.02734375,
+    "encode-pdf-photo.webp-libwebp-lossy-q78": 6.38671875,
+    "encode-pdf-photo.webp-image-webp-lossless-q85": 5.234375,
+    "encode-pdf-photo.webp-libwebp-lossless-q85": 31.55859375
+  }
+}

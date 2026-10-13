@@ -1,0 +1,526 @@
+diff --git a/Util/ImageProxyHelper.cs b/Util/ImageProxyHelper.cs
+index 495e59c2..4f4d2e33 100644
+--- a/Util/ImageProxyHelper.cs
++++ b/Util/ImageProxyHelper.cs
+@@ -94,7 +94,11 @@ public static class ImageProxyHelper
+     /// </summary>
+     public static byte[] OptimizeImage(byte[] imageBytes, int? maxWidth, int? maxHeight, int quality, out bool isPng)
+     {
++        // Scratch-only stopwatch probes leave the baseline processing recipe unchanged.
++        var stage = System.Diagnostics.Stopwatch.StartNew();
+         using var image = LoadSafeRaster(imageBytes);
++        Console.Error.WriteLine($"WF_BASE source_load {stage.Elapsed.TotalMilliseconds:F6}");
++        stage.Restart();
+ 
+         // Preserve the established output route: PNG/GIF to PNG, JPEG/WebP to JPEG.
+         var preservePngOutput = image.Metadata.DecodedImageFormat?.Name is "PNG" or "GIF";
+@@ -120,9 +124,22 @@ public static class ImageProxyHelper
+         // Resize if needed
+         if (targetWidth != image.Width || targetHeight != image.Height)
+         {
+-            image.Mutate(x => x.Resize(targetWidth, targetHeight, OptimizationResampler));
++            // Supplemental reference only: linear-light resize is additional baseline work.
++            if (Environment.GetEnvironmentVariable("WAYFARER_DIAGNOSTIC_COMPAND") == "1")
++                image.Mutate(x => x.Resize(new ResizeOptions
++                {
++                    Size = new Size(targetWidth, targetHeight),
++                    Mode = ResizeMode.Stretch,
++                    Sampler = OptimizationResampler,
++                    Compand = true,
++                    PremultiplyAlpha = true
++                }));
++            else
++                image.Mutate(x => x.Resize(targetWidth, targetHeight, OptimizationResampler));
+         }
+ 
++        Console.Error.WriteLine($"WF_BASE resize {stage.Elapsed.TotalMilliseconds:F6}");
++        stage.Restart();
+         // Choose format based on transparency
+         using var outputStream = new MemoryStream();
+ 
+@@ -140,12 +157,17 @@ public static class ImageProxyHelper
+             // Use JPEG for photos (better compression)
+             image.SaveAsJpeg(outputStream, new SixLabors.ImageSharp.Formats.Jpeg.JpegEncoder
+             {
+-                Quality = quality
++                Quality = quality,
++                // Supplemental chroma reference; frozen baseline keeps its default color type.
++                ColorType = Environment.GetEnvironmentVariable("WAYFARER_DIAGNOSTIC_JPEG444") == "1"
++                    ? SixLabors.ImageSharp.Formats.Jpeg.JpegEncodingColor.YCbCrRatio444 : null
+             });
+             isPng = false;
+         }
+ 
+-        return outputStream.ToArray();
++        var bytes = outputStream.ToArray();
++        Console.Error.WriteLine($"WF_BASE encode_buffer {stage.Elapsed.TotalMilliseconds:F6}");
++        return bytes;
+     }
+ 
+     /// <summary>Validates original bytes with the same bounded decoder used for optimization.</summary>
+@@ -158,8 +180,11 @@ public static class ImageProxyHelper
+     /// <summary>Rejects incidental decoders before resource preflight and full bounded decoding.</summary>
+     private static Image LoadSafeRaster(byte[] imageBytes)
+     {
++        var stage = System.Diagnostics.Stopwatch.StartNew();
+         CanonicalRasterMime(Image.DetectFormat(imageBytes).Name);
+         var preflight = PreflightDecodedResources(imageBytes);
++        Console.Error.WriteLine($"WF_BASE identify_preflight {stage.Elapsed.TotalMilliseconds:F6}");
++        stage.Restart();
+         if (preflight.Decision == DecodedImageResourceDecision.TooLarge)
+         {
+             throw new DecodedImageResourceRejectedException(preflight);
+@@ -170,7 +195,9 @@ public static class ImageProxyHelper
+             throw new InvalidImageContentException("Image metadata could not be validated.");
+         }
+ 
+-        return DecodedImageResourceLimits.Load(imageBytes.AsSpan());
++        var image = DecodedImageResourceLimits.Load(imageBytes.AsSpan());
++        Console.Error.WriteLine($"WF_BASE pixels {stage.Elapsed.TotalMilliseconds:F6}");
++        return image;
+     }
+ 
+     /// <summary>The four supported raster formats, independent of origin or stored MIME claims.</summary>
+diff --git a/tests/Wayfarer.Tests/Util/ImageHelperPerformanceTests.cs b/tests/Wayfarer.Tests/Util/ImageHelperPerformanceTests.cs
+index cfd9ab40..09ad2d78 100644
+--- a/tests/Wayfarer.Tests/Util/ImageHelperPerformanceTests.cs
++++ b/tests/Wayfarer.Tests/Util/ImageHelperPerformanceTests.cs
+@@ -31,15 +31,18 @@ public sealed class ImageHelperPerformanceTests
+             ?? throw new InvalidOperationException("Set the local performance report path.");
+         var phase = Environment.GetEnvironmentVariable("WAYFARER_IMAGE_PERF_PHASE") ?? "warm";
+         var repetitions = int.Parse(Environment.GetEnvironmentVariable("WAYFARER_IMAGE_PERF_REPETITIONS") ?? "20");
++        // Scratch control allows sufficient JIT settling while retaining all raw warmup samples.
++        var warmups = int.Parse(Environment.GetEnvironmentVariable("WAYFARER_IMAGE_PERF_WARMUPS") ?? "3");
+         var input = File.ReadAllBytes(Path.Combine(ImageHelperPrototypeTests.Fixtures, fixture));
+         var supervisor = ImageHelperPrototypeTests.Supervisor;
+         var observations = new List<object>();
+-        for (var iteration = phase == "warm" ? -3 : 0; iteration < repetitions; iteration++)
++        for (var iteration = phase == "warm" ? -warmups : 0; iteration < repetitions; iteration++)
+         {
+             var backends = iteration % 2 == 0 ? new[] { "imagesharp", "rust" } : new[] { "rust", "imagesharp" };
+             foreach (var backend in backends)
+             {
+                 byte[] output;
++                Console.Error.WriteLine($"WF_SAMPLE {backend} {fixture} {phase} {iteration}");
+                 var timer = Stopwatch.StartNew();
+                 if (backend == "imagesharp")
+                 {
+@@ -54,6 +57,7 @@ public sealed class ImageHelperPerformanceTests
+                     output = result.Bytes!;
+                 }
+                 timer.Stop();
++                Console.Error.WriteLine($"WF_SAMPLE_END {timer.Elapsed.TotalMilliseconds:F6}");
+                 // Geometry/metadata inspection and evidence file writes occur after the timed operation.
+                 using var decoded = SixLabors.ImageSharp.Image.Load(output);
+                 if ((decoded.Width, decoded.Height) != (600, 269))
+diff --git a/tools/image-helper/src/color.rs b/tools/image-helper/src/color.rs
+index 7ff190df..78c9c6c0 100644
+--- a/tools/image-helper/src/color.rs
++++ b/tools/image-helper/src/color.rs
+@@ -126,7 +126,9 @@ pub(crate) fn to_srgb(raster: &Raster) -> Result<Rgba32FImage> {
+     if source_length != pixels * channels {
+         return Err(Failure::Source);
+     }
++    let stage = std::time::Instant::now();
+     let mut rgba = zeroed(pixels * 4)?;
++    crate::diagnostic_timing("rgba32f_allocation", stage);
+     if let Some(profile) = &raster.profile {
+         let expected = if raster.cmyk {
+             DataColorSpace::Cmyk
+@@ -146,11 +148,16 @@ pub(crate) fn to_srgb(raster: &Raster) -> Result<Rgba32FImage> {
+         match &raster.samples {
+             Samples::Eight(data) => {
+                 let mut converted = zeroed(pixels * 3)?;
+-                profile
++                let stage = std::time::Instant::now();
++                let transform = profile
+                     .create_transform_8bit(raster.layout, &destination, Layout::Rgb, options)
+-                    .map_err(|_| Failure::Source)?
++                    .map_err(|_| Failure::Source)?;
++                crate::diagnostic_timing("cms_create_8bit", stage);
++                let stage = std::time::Instant::now();
++                transform
+                     .transform(data, &mut converted)
+                     .map_err(|_| Failure::Source)?;
++                crate::diagnostic_timing("cms_apply_8bit", stage);
+                 fill(
+                     &mut rgba,
+                     &converted,
+@@ -162,11 +169,16 @@ pub(crate) fn to_srgb(raster: &Raster) -> Result<Rgba32FImage> {
+             }
+             Samples::Sixteen(data) => {
+                 let mut converted = zeroed(pixels * 3)?;
+-                profile
++                let stage = std::time::Instant::now();
++                let transform = profile
+                     .create_transform_16bit(raster.layout, &destination, Layout::Rgb, options)
+-                    .map_err(|_| Failure::Source)?
++                    .map_err(|_| Failure::Source)?;
++                crate::diagnostic_timing("cms_create_16bit", stage);
++                let stage = std::time::Instant::now();
++                transform
+                     .transform(data, &mut converted)
+                     .map_err(|_| Failure::Source)?;
++                crate::diagnostic_timing("cms_apply_16bit", stage);
+                 fill(
+                     &mut rgba,
+                     &converted,
+diff --git a/tools/image-helper/src/gif_input.rs b/tools/image-helper/src/gif_input.rs
+index 010d4290..4664a7ed 100644
+--- a/tools/image-helper/src/gif_input.rs
++++ b/tools/image-helper/src/gif_input.rs
+@@ -11,10 +11,13 @@ use std::{io::Cursor, num::NonZeroU64};
+ 
+ /// Strict public frame decoding also supplies deinterlaced palette indices for rendering.
+ pub(crate) fn decode(bytes: &[u8]) -> Result<Raster> {
++    let stage = std::time::Instant::now();
+     let profile = admit(bytes)?
+         .as_deref()
+         .map(color::parse_profile)
+         .transpose()?;
++    crate::diagnostic_timing("gif_admission_profile", stage);
++    let stage = std::time::Instant::now();
+     let mut options = gif::DecodeOptions::new();
+     options.check_frame_consistency(true);
+     options.check_lzw_end_code(true);
+@@ -32,6 +35,8 @@ pub(crate) fn decode(bytes: &[u8]) -> Result<Raster> {
+         .read_next_frame()
+         .map_err(gif_error)?
+         .ok_or(Failure::Source)?;
++    crate::diagnostic_timing("gif_pixels", stage);
++    let stage = std::time::Instant::now();
+     let palette = frame
+         .palette
+         .as_deref()
+@@ -59,6 +64,7 @@ pub(crate) fn decode(bytes: &[u8]) -> Result<Raster> {
+     if reader.fill_buffer(&mut sink).map_err(gif_error)? {
+         return Err(Failure::Source);
+     }
++    crate::diagnostic_timing("gif_render_finish", stage);
+     Ok(Raster {
+         width,
+         height,
+diff --git a/tools/image-helper/src/lib.rs b/tools/image-helper/src/lib.rs
+index 8d319840..bde20417 100644
+--- a/tools/image-helper/src/lib.rs
++++ b/tools/image-helper/src/lib.rs
+@@ -66,3 +66,11 @@ pub(crate) fn zeroed<T: Default + Clone>(length: usize) -> Result<Vec<T>> {
+     buffer.resize(length, T::default());
+     Ok(buffer)
+ }
++
++/// Scratch-only wall-clock probe; timing diagnostics never enter image stdout.
++pub fn diagnostic_timing(stage: &str, start: std::time::Instant) {
++    eprintln!(
++        "WF_DIAG {stage} {:.6}",
++        start.elapsed().as_secs_f64() * 1000.0
++    );
++}
+diff --git a/tools/image-helper/src/main.rs b/tools/image-helper/src/main.rs
+index d685f191..cef137fd 100644
+--- a/tools/image-helper/src/main.rs
++++ b/tools/image-helper/src/main.rs
+@@ -12,8 +12,13 @@ fn main() {
+ 
+ /// Validate the trusted recipe and containment before accepting any image bytes.
+ fn run() -> Result<(), Failure> {
++    // Scratch probes retain every original containment and completion check.
++    let total = std::time::Instant::now();
++    let stage = std::time::Instant::now();
+     let recipe = arguments()?;
+     controls()?;
++    wayfarer_image::diagnostic_timing("arguments_controls", stage);
++    let stage = std::time::Instant::now();
+     let mut bytes = Vec::new();
+     let mut chunk = [0u8; 8192];
+     let mut input = std::io::stdin().lock();
+@@ -30,12 +35,19 @@ fn run() -> Result<(), Failure> {
+             .map_err(|_| Failure::Unavailable)?;
+         bytes.extend_from_slice(&chunk[..length]);
+     }
++    wayfarer_image::diagnostic_timing("stdin", stage);
++    let stage = std::time::Instant::now();
+     let output = wayfarer_image::transform(&bytes, &recipe)?;
++    wayfarer_image::diagnostic_timing("transform", stage);
++    let stage = std::time::Instant::now();
+     let mut stdout = std::io::stdout().lock();
+     stdout
+         .write_all(&output)
+         .map_err(|_| Failure::Unavailable)?;
+-    stdout.flush().map_err(|_| Failure::Unavailable)
++    stdout.flush().map_err(|_| Failure::Unavailable)?;
++    wayfarer_image::diagnostic_timing("stdout", stage);
++    wayfarer_image::diagnostic_timing("run", total);
++    Ok(())
+ }
+ 
+ /// Six distinct explicit options avoid defaults and ambiguous duplicate arguments.
+diff --git a/tools/image-helper/src/raster.rs b/tools/image-helper/src/raster.rs
+index adc753be..3b685a85 100644
+--- a/tools/image-helper/src/raster.rs
++++ b/tools/image-helper/src/raster.rs
+@@ -35,11 +35,16 @@ pub(crate) fn decode(bytes: &[u8]) -> Result<Raster> {
+ 
+ /// The JPEG-only recovery policy accepts a successful bounded decode, never raw bytes.
+ fn jpeg(bytes: &[u8]) -> Result<Raster> {
++    let stage = std::time::Instant::now();
+     let mut decoder = jpeg_decoder::Decoder::new(Cursor::new(bytes));
+     decoder.read_info().map_err(|_| Failure::Source)?;
+     let info = decoder.info().ok_or(Failure::Source)?;
+     dimensions(info.width.into(), info.height.into())?;
++    crate::diagnostic_timing("jpeg_header", stage);
++    let stage = std::time::Instant::now();
+     let decoded = decoder.decode().map_err(|_| Failure::Source)?;
++    crate::diagnostic_timing("jpeg_pixels", stage);
++    let stage = std::time::Instant::now();
+     let (layout, cmyk) = match info.pixel_format {
+         jpeg_decoder::PixelFormat::RGB24 => (Layout::Rgb, false),
+         jpeg_decoder::PixelFormat::L8 => (Layout::Gray, false),
+@@ -53,6 +58,7 @@ fn jpeg(bytes: &[u8]) -> Result<Raster> {
+         .as_deref()
+         .map(color::parse_profile)
+         .transpose()?;
++    crate::diagnostic_timing("jpeg_profile", stage);
+     Ok(Raster {
+         width: info.width.into(),
+         height: info.height.into(),
+@@ -67,7 +73,10 @@ fn jpeg(bytes: &[u8]) -> Result<Raster> {
+ 
+ /// Admission scratch is dropped before allocating the actual raster.
+ fn png(bytes: &[u8]) -> Result<Raster> {
++    let stage = std::time::Instant::now();
+     png_input::admit(bytes)?;
++    crate::diagnostic_timing("png_admission", stage);
++    let stage = std::time::Instant::now();
+     let mut decoder = png::Decoder::new_with_options(Cursor::new(bytes), png_input::options());
+     decoder.set_limits(png::Limits {
+         bytes: 128 * 1024 * 1024,
+@@ -75,11 +84,15 @@ fn png(bytes: &[u8]) -> Result<Raster> {
+     decoder.set_transformations(png::Transformations::EXPAND);
+     let mut reader = decoder.read_info().map_err(png_input::png_error)?;
+     let mut decoded = zeroed(reader.output_buffer_size().ok_or(Failure::Unavailable)?)?;
++    crate::diagnostic_timing("png_header_allocation", stage);
++    let stage = std::time::Instant::now();
+     let output = reader
+         .next_frame(&mut decoded)
+         .map_err(png_input::png_error)?;
+     decoded.truncate(output.buffer_size());
+     reader.finish().map_err(png_input::png_error)?;
++    crate::diagnostic_timing("png_pixels_finish", stage);
++    let stage = std::time::Instant::now();
+     let info = reader.info();
+     let layout = match output.color_type {
+         png::ColorType::Grayscale => Layout::Gray,
+@@ -97,13 +110,15 @@ fn png(bytes: &[u8]) -> Result<Raster> {
+     } else {
+         Samples::Eight(decoded)
+     };
++    let profile = color::png_profile(info, layout)?;
++    crate::diagnostic_timing("png_samples_profile", stage);
+     Ok(Raster {
+         width: output.width,
+         height: output.height,
+         samples,
+         layout,
+         cmyk: false,
+-        profile: color::png_profile(info, layout)?,
++        profile,
+         orientation: orientation(info.exif_metadata.as_deref()),
+         format: ImageFormat::Png,
+     })
+diff --git a/tools/image-helper/src/transform.rs b/tools/image-helper/src/transform.rs
+index ae2ea0ee..56b3f2b3 100644
+--- a/tools/image-helper/src/transform.rs
++++ b/tools/image-helper/src/transform.rs
+@@ -47,12 +47,21 @@ pub fn transform(bytes: &[u8], recipe: &Recipe) -> Result<Vec<u8>> {
+     if bytes.len() > recipe.max_input {
+         return Err(Failure::TooLarge);
+     }
++    // Scratch-only stage timers preserve the complete transform contract.
++    let stage = std::time::Instant::now();
+     let raster = raster::decode(bytes)?;
++    crate::diagnostic_timing("source_decode", stage);
++    eprintln!("WF_META profile {}", raster.profile.is_some());
++    let stage = std::time::Instant::now();
+     let source_format = raster.format;
+     let mut oriented = DynamicImage::ImageRgba32F(color::to_srgb(&raster)?);
++    crate::diagnostic_timing("to_srgb", stage);
++    let stage = std::time::Instant::now();
+     oriented.apply_orientation(raster.orientation);
+     drop(raster);
+     let mut linear = oriented.into_rgba32f();
++    crate::diagnostic_timing("orientation_drop", stage);
++    let stage = std::time::Instant::now();
+     let transparent = linear.pixels().any(|pixel| pixel[3] < 1.0);
+     let output_format = match recipe.output {
+         OutputFormat::Auto
+@@ -66,7 +75,11 @@ pub fn transform(bytes: &[u8], recipe: &Recipe) -> Result<Vec<u8>> {
+     if output_format == ImageFormat::Jpeg && transparent {
+         return Err(Failure::Source);
+     }
++    crate::diagnostic_timing("alpha_output_selection", stage);
++    let stage = std::time::Instant::now();
+     color::premultiply(&mut linear);
++    crate::diagnostic_timing("linear_premultiply", stage);
++    let stage = std::time::Instant::now();
+     let scale = (recipe.width as f64 / linear.width() as f64)
+         .min(recipe.height as f64 / linear.height() as f64)
+         .min(1.0);
+@@ -76,17 +89,26 @@ pub fn transform(bytes: &[u8], recipe: &Recipe) -> Result<Vec<u8>> {
+     if (width, height) != linear.dimensions() {
+         linear = image::imageops::resize(&linear, width, height, FilterType::Lanczos3);
+     }
++    crate::diagnostic_timing("resize", stage);
++    let stage = std::time::Instant::now();
+     let normalized = color::quantize(linear)?;
++    crate::diagnostic_timing("quantize", stage);
++    let stage = std::time::Instant::now();
+     let encoded = encode(normalized, output_format, recipe)?;
++    crate::diagnostic_timing("encode", stage);
++    let stage = std::time::Instant::now();
+     verify(&encoded, output_format, width, height)?;
++    crate::diagnostic_timing("output_verify", stage);
+     Ok(encoded)
+ }
+ 
+ /// Fresh encoders receive only a generated canonical sRGB profile.
+ fn encode(pixels: image::RgbaImage, format: ImageFormat, recipe: &Recipe) -> Result<Vec<u8>> {
++    let stage = std::time::Instant::now();
+     let profile = moxcms::ColorProfile::new_srgb()
+         .encode()
+         .map_err(|_| Failure::Unavailable)?;
++    crate::diagnostic_timing("canonical_icc_encode", stage);
+     let mut output = BoundedOutput {
+         bytes: Vec::new(),
+         limit: recipe.max_output,
+diff --git a/tools/image-helper/src/webp_input.rs b/tools/image-helper/src/webp_input.rs
+index 3ddb9767..d61b7390 100644
+--- a/tools/image-helper/src/webp_input.rs
++++ b/tools/image-helper/src/webp_input.rs
+@@ -10,7 +10,10 @@ use std::{io::Cursor, ops::Range};
+ 
+ /// Require one authoritative image payload, consistent metadata flags and complete decoding.
+ pub(crate) fn decode(bytes: &[u8]) -> Result<Raster> {
++    let stage = std::time::Instant::now();
+     let authority = admit(bytes)?;
++    crate::diagnostic_timing("webp_admission", stage);
++    let stage = std::time::Instant::now();
+     let mut decoder = image_webp::WebPDecoder::new(Cursor::new(bytes)).map_err(webp_error)?;
+     decoder.set_memory_limit(128 * 1024 * 1024);
+     let (width, height) = decoder.dimensions();
+@@ -21,6 +24,8 @@ pub(crate) fn decode(bytes: &[u8]) -> Result<Raster> {
+     {
+         return Err(Failure::Source);
+     }
++    crate::diagnostic_timing("webp_header", stage);
++    let stage = std::time::Instant::now();
+     let profile = decoder
+         .icc_profile()
+         .map_err(webp_error)?
+@@ -29,7 +34,10 @@ pub(crate) fn decode(bytes: &[u8]) -> Result<Raster> {
+         .transpose()?;
+     let exif = decoder.exif_metadata().map_err(webp_error)?;
+     let mut samples = zeroed(decoder.output_buffer_size().ok_or(Failure::Unavailable)?)?;
++    crate::diagnostic_timing("webp_metadata_allocation", stage);
++    let stage = std::time::Instant::now();
+     decoder.read_image(&mut samples).map_err(webp_error)?;
++    crate::diagnostic_timing("webp_pixels", stage);
+     Ok(Raster {
+         width,
+         height,
+diff --git a/tools/image-helper/supervisor/ImageHelperSupervisor.cs b/tools/image-helper/supervisor/ImageHelperSupervisor.cs
+index 9c1c389c..79120458 100644
+--- a/tools/image-helper/supervisor/ImageHelperSupervisor.cs
++++ b/tools/image-helper/supervisor/ImageHelperSupervisor.cs
+@@ -58,6 +58,8 @@ public sealed class ImageHelperSupervisor
+     private void Supervise(ReadOnlyMemory<byte> input, ImageTransform recipe, TimeSpan budget,
+         CancellationToken caller, TaskCompletionSource<ImageTransformResult> completion)
+     {
++        // Scratch-only probes measure launch and cleanup without changing their ownership.
++        var stage = Stopwatch.StartNew();
+         var process = new Process { StartInfo = StartInfo(recipe) };
+         var started = false;
+         var reaped = false;
+@@ -65,6 +67,7 @@ public sealed class ImageHelperSupervisor
+         try
+         {
+             started = process.Start();
++            TraceTiming("process_start", stage);
+             if (started)
+             {
+                 var outcome = CommunicateAsync(process, input, recipe, budget, caller)
+@@ -119,6 +122,7 @@ public sealed class ImageHelperSupervisor
+         Process process, ReadOnlyMemory<byte> input, ImageTransform recipe,
+         TimeSpan budget, CancellationToken caller)
+     {
++        var overall = Stopwatch.StartNew();
+         var fault = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+         var stdout = CaptureAsync(process.StandardOutput.BaseStream, recipe.MaximumOutputBytes, fault);
+         var stderr = CaptureAsync(process.StandardError.BaseStream, 4096, fault);
+@@ -129,7 +133,10 @@ public sealed class ImageHelperSupervisor
+         var cancelled = Task.Delay(Timeout.InfiniteTimeSpan, deadline.Token);
+         var exited = process.WaitForExitAsync();
+         var first = await Task.WhenAny(exited, fault.Task, cancelled).ConfigureAwait(false);
++        TraceTiming("communicate_until_event", overall);
++        var cleanup = Stopwatch.StartNew();
+         var reaped = await StopAndReapAsync(process, pipes).ConfigureAwait(false);
++        TraceTiming("cleanup_pipes_reap", cleanup);
+         var result = new ImageTransformResult(ImageTransformStatus.Unavailable, ProcessId: process.Id);
+         if (!reaped || first == cancelled || fault.Task.IsCompleted)
+             return (result, reaped);
+@@ -142,6 +149,8 @@ public sealed class ImageHelperSupervisor
+                 _ => ImageTransformStatus.Unavailable } }, true);
+         if (!stdin.Result)
+             return (result, true);
++        // Retain Rust timing probes in local benchmark output after bounded pipe completion.
++        Console.Error.Write(System.Text.Encoding.UTF8.GetString(stderr.Result));
+         var bytes = stdout.Result;
+         var mime = CanonicalMime(bytes);
+         if (mime is null)
+@@ -177,6 +186,7 @@ public sealed class ImageHelperSupervisor
+     /// <summary>Each pipe has a byte cap; diagnostics are retained only for draining, never forwarded.</summary>
+     private static async Task<byte[]> CaptureAsync(Stream stream, int maximum, TaskCompletionSource fault)
+     {
++        var stage = Stopwatch.StartNew();
+         try
+         {
+             using var output = new MemoryStream();
+@@ -185,7 +195,13 @@ public sealed class ImageHelperSupervisor
+             {
+                 var read = await stream.ReadAsync(buffer).ConfigureAwait(false);
+                 if (read == 0)
+-                    return output.ToArray();
++                {
++                    var copy = Stopwatch.StartNew();
++                    var bytes = output.ToArray();
++                    TraceTiming(maximum == 4096 ? "stderr_copy" : "stdout_copy", copy);
++                    TraceTiming(maximum == 4096 ? "stderr_span" : "stdout_span", stage);
++                    return bytes;
++                }
+                 if (read > maximum - output.Length)
+                     throw new IOException("Image helper pipe exceeded its cap.");
+                 output.Write(buffer, 0, read);
+@@ -202,10 +218,12 @@ public sealed class ImageHelperSupervisor
+     private static async Task<bool> WriteAsync(Stream stream, ReadOnlyMemory<byte> input,
+         TaskCompletionSource fault)
+     {
++        var stage = Stopwatch.StartNew();
+         try
+         {
+             await stream.WriteAsync(input).ConfigureAwait(false);
+             await stream.FlushAsync().ConfigureAwait(false);
++            TraceTiming("stdin_transfer", stage);
+             return true;
+         }
+         catch (IOException) { return false; }
+@@ -237,6 +255,10 @@ public sealed class ImageHelperSupervisor
+         && recipe.MaximumInputBytes is > 0 and <= MaximumBytes
+         && recipe.MaximumOutputBytes is > 0 and <= MaximumBytes;
+ 
++    /// <summary>Scratch-only elapsed wall time; pipe spans overlap processing and are not additive.</summary>
++    private static void TraceTiming(string stage, Stopwatch timer) =>
++        Console.Error.WriteLine($"WF_CS {stage} {timer.Elapsed.TotalMilliseconds:F6}");
++
+     /// <summary>Numeric arguments never depend on the supervisor's locale.</summary>
+     private static string Number(int value) => value.ToString(CultureInfo.InvariantCulture);
+ }

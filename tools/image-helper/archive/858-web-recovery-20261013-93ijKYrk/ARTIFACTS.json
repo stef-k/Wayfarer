@@ -1,0 +1,18 @@
+{
+  "decision": "NO-GO",
+  "workspace": "/home/stef/wayfarer-research/858-web-recovery-20261013-93ijKYrk",
+  "branch": "wip/858-web-image-recovery-20261013",
+  "head": "017e7495c42336d7205b2d6263828ec96e0d980c",
+  "measurement_head": "220b1be574b0cc0898f04ee4aacc846872470e71",
+  "prototype_base": "c998da079838894da32cb331f4f338cd9597047f",
+  "source_status": "",
+  "report": "REPORT.md",
+  "summary": "evidence/summary.json",
+  "focused_tests_passed": 74,
+  "large_geometry_observations_passed": 5,
+  "protected_source_report_hashes_match": true,
+  "primary_head_status_match": true,
+  "shared_inventory_match": false,
+  "code_guard_repository": "review",
+  "code_guard_external": "review"
+}

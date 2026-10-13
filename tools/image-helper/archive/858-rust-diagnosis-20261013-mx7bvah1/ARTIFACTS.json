@@ -1,0 +1,97 @@
+{
+  "workspace": "/home/stef/wayfarer-research/858-rust-diagnosis-20261013-mx7bvah1",
+  "prototype_commit": "c998da079838894da32cb331f4f338cd9597047f",
+  "recommendation": "ARCHITECTURAL LIMITATION of the current pinned composition under frozen gates",
+  "original_unchanged": true,
+  "original_entries_verified": 16364,
+  "created_utc": "2026-10-13T16:05:59.140912+00:00",
+  "manifest": "SHA256SUMS",
+  "manifest_scope": "all scratch artifact files except copied compiler/package caches, CLI home and Git internals",
+  "principal_artifacts": [
+    {
+      "path": "REPORT.md",
+      "bytes": 19661,
+      "sha256": "c64584be8b55d5e7af78b3fe92e636f6351c5a6c29b20b2244c0b58ebf38e8f6"
+    },
+    {
+      "path": "COMMANDS.md",
+      "bytes": 3521,
+      "sha256": "4a164078d7eb875f6cce685b96af333cf6cbd71cccf505e6c92f44b78e0d5ea0"
+    },
+    {
+      "path": "diagnose.py",
+      "bytes": 4263,
+      "sha256": "9b5e5a809960fb2bad6d23314b98b17d819d552e529df43551cb0f88695bf6de"
+    },
+    {
+      "path": "analyze.py",
+      "bytes": 8999,
+      "sha256": "54f15b3b44977e37c046176405165f84512361adbf24346f01e406fea3334a7d"
+    },
+    {
+      "path": "env.sh",
+      "bytes": 616,
+      "sha256": "a95d71c07e97ea2e38d32afa22e310639ed8a470f4766edcfa1ae5311433d63e"
+    },
+    {
+      "path": "evidence/summary.json",
+      "bytes": 145607,
+      "sha256": "219285c1f3d5555e69e967a4009309fc2fc5b162b2b0230822f1d70d79caa776"
+    },
+    {
+      "path": "evidence/issue-858-live.json",
+      "bytes": 72810,
+      "sha256": "7c768e1e34cd0101d66eb1b9450c545659fe602735dc19233aedef5f3c74f75e"
+    },
+    {
+      "path": "evidence/issue-821-live.json",
+      "bytes": 69671,
+      "sha256": "66efd02f85c843eab54eddd35becdb78bff2d87289c0a4e7f978c4605382318c"
+    },
+    {
+      "path": "evidence/original-content-manifest.json",
+      "bytes": 3390750,
+      "sha256": "4f388b8c24c5dc77310a72252fa0dea8e541ce3ae576f36766ea7e208bfcfa1c"
+    },
+    {
+      "path": "evidence/original-preservation-verification.json",
+      "bytes": 602,
+      "sha256": "05edf7920a68513f0f1d9102c2ce6865504af6e85d5cbe4becc2224938215086"
+    },
+    {
+      "path": "evidence/instrumentation-stages.patch",
+      "bytes": 24595,
+      "sha256": "176e0aa5e6b42d265ddd54cee3100bf1e8bd73109fcdbc6d511cf667f938e49d"
+    },
+    {
+      "path": "evidence/instrumentation-final.patch",
+      "bytes": 25911,
+      "sha256": "722adbf59fc0de2032ef8e25ae6abe6de317951c0f251e8237077707eb4a77b0"
+    },
+    {
+      "path": "bin/wayfarer-image-original",
+      "bytes": 2161464,
+      "sha256": "5632f2ade64d106c4bf57e5b725fe967f4b8a85022797f914bdd926825196287"
+    },
+    {
+      "path": "bin/wayfarer-image-instrumented",
+      "bytes": 2189520,
+      "sha256": "19308758fb174c225ac90e507f78d2d157bd1ce1b2b9d310cce77d2099096276"
+    },
+    {
+      "path": "evidence/jpeg-perf.data",
+      "bytes": 6540040,
+      "sha256": "12544c25a73e0badfdbca47ed17dcf74715c35bacfcb5142b4ef5b93accbefe1"
+    },
+    {
+      "path": "evidence/code-guard-final-source.json",
+      "bytes": 4428,
+      "sha256": "1ce48447cc4c4cb871137f2ad6c27c4f2816c2d3320827ece7cdd63df899a47d"
+    },
+    {
+      "path": "evidence/code-guard-final-artifacts.json",
+      "bytes": 1179,
+      "sha256": "260e65fd188b17572626382a29676d38f7960c05ed4c8f83897bd69f43ee4202"
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "path": "/home/stef/wayfarer-research/858-rust-prototype-20261012-oopKvIMF",
+  "reports": [],
+  "root_files": [
+    "rustup-init"
+  ],
+  "source": {
+    "head": "c998da079838894da32cb331f4f338cd9597047f",
+    "status": "",
+    "worktrees": "worktree /home/stef/wayfarer-research/858-rust-prototype-20261012-oopKvIMF/source\nHEAD c998da079838894da32cb331f4f338cd9597047f\nbranch refs/heads/wip/858-rust-imaging-prototype-20261012",
+    "branches": "refs/heads/main 9d8ee6b4132dfef53beb167b86b282be31c88973\nrefs/heads/wip/858-rust-imaging-prototype-20261012 c998da079838894da32cb331f4f338cd9597047f"
+  }
+}

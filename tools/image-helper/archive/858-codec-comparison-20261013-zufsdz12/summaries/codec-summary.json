@@ -1,0 +1,2481 @@
+{
+  "timings": {
+    "decode-alpha-image": {
+      "n": 12,
+      "p50_ms": 0.0725,
+      "p95_ms": 0.0999,
+      "mean_ms": 0.07618325000000001,
+      "min_ms": 0.06830000000000001,
+      "max_ms": 0.0999,
+      "stddev_ms": 0.009492493849209107,
+      "sequential_images_per_second": 13126.244942293744,
+      "median_cpu_ms": 0.07399999999999984,
+      "maximum_cumulative_process_peak_rss_kib": 81332,
+      "output_bytes": [
+        8192
+      ]
+    },
+    "decode-alpha": {
+      "n": 12,
+      "p50_ms": 0.03995,
+      "p95_ms": 0.0646,
+      "mean_ms": 0.04290825,
+      "min_ms": 0.034999999999999996,
+      "max_ms": 0.0646,
+      "stddev_ms": 0.008951788974328492,
+      "sequential_images_per_second": 23305.541475124246,
+      "median_cpu_ms": 0.04049999999999998,
+      "maximum_cumulative_process_peak_rss_kib": 81332,
+      "output_bytes": [
+        8192
+      ]
+    },
+    "decode-photo.jpg-jpeg-decoder": {
+      "n": 48,
+      "p50_ms": 10.913961,
+      "p95_ms": 11.77773,
+      "mean_ms": 11.075813541666667,
+      "min_ms": 10.681526999999999,
+      "max_ms": 14.107694,
+      "stddev_ms": 0.5661888589522938,
+      "sequential_images_per_second": 90.28682148160486,
+      "median_cpu_ms": 13.508000000000024,
+      "maximum_cumulative_process_peak_rss_kib": 16604,
+      "output_bytes": [
+        4970880
+      ]
+    },
+    "decode-photo.jpg-libjpeg-turbo-rs": {
+      "n": 48,
+      "p50_ms": 6.423947,
+      "p95_ms": 7.189596000000001,
+      "mean_ms": 6.5210876875,
+      "min_ms": 6.246497,
+      "max_ms": 9.190323,
+      "stddev_ms": 0.4431219910783972,
+      "sequential_images_per_second": 153.34865101060643,
+      "median_cpu_ms": 6.427,
+      "maximum_cumulative_process_peak_rss_kib": 16604,
+      "output_bytes": [
+        4970880
+      ]
+    },
+    "decode-photo.jpg-zune-jpeg": {
+      "n": 48,
+      "p50_ms": 7.883158,
+      "p95_ms": 11.155995,
+      "mean_ms": 8.294895499999999,
+      "min_ms": 7.5627189999999995,
+      "max_ms": 11.681695000000001,
+      "stddev_ms": 1.0553640576915788,
+      "sequential_images_per_second": 120.55606969370501,
+      "median_cpu_ms": 7.885999999999999,
+      "maximum_cumulative_process_peak_rss_kib": 16604,
+      "output_bytes": [
+        4970880
+      ]
+    },
+    "decode-photo.webp-image-webp": {
+      "n": 48,
+      "p50_ms": 51.414001,
+      "p95_ms": 55.574374000000006,
+      "mean_ms": 52.06718620833333,
+      "min_ms": 50.910676,
+      "max_ms": 67.620467,
+      "stddev_ms": 2.521385509485423,
+      "sequential_images_per_second": 19.205954322147534,
+      "median_cpu_ms": 51.40950000000004,
+      "maximum_cumulative_process_peak_rss_kib": 16604,
+      "output_bytes": [
+        4970880
+      ]
+    },
+    "decode-photo.webp-libwebp": {
+      "n": 48,
+      "p50_ms": 28.992523,
+      "p95_ms": 31.161178,
+      "mean_ms": 29.194104333333332,
+      "min_ms": 28.456086,
+      "max_ms": 32.966584,
+      "stddev_ms": 0.8065934346745833,
+      "sequential_images_per_second": 34.25349134133966,
+      "median_cpu_ms": 28.978000000000037,
+      "maximum_cumulative_process_peak_rss_kib": 16604,
+      "output_bytes": [
+        4970880
+      ]
+    },
+    "encode-alpha-image-webp": {
+      "n": 12,
+      "p50_ms": 0.0252,
+      "p95_ms": 0.0294,
+      "mean_ms": 0.02585825,
+      "min_ms": 0.0244,
+      "max_ms": 0.0294,
+      "stddev_ms": 0.0015629134871072733,
+      "sequential_images_per_second": 38672.37728771282,
+      "median_cpu_ms": 0.025500000000000078,
+      "maximum_cumulative_process_peak_rss_kib": 81332,
+      "output_bytes": [
+        2650
+      ]
+    },
+    "encode-alpha-libwebp": {
+      "n": 24,
+      "p50_ms": 1.518547,
+      "p95_ms": 2.931594,
+      "mean_ms": 1.5637885833333334,
+      "min_ms": 0.6252989999999999,
+      "max_ms": 3.122694,
+      "stddev_ms": 0.9251268543844661,
+      "sequential_images_per_second": 639.4726311842132,
+      "median_cpu_ms": 1.5205000000000002,
+      "maximum_cumulative_process_peak_rss_kib": 81332,
+      "output_bytes": [
+        310,
+        2046
+      ]
+    },
+    "encode-pdf-photo.jpg-jpeg-encoder-q85": {
+      "n": 24,
+      "p50_ms": 2.011852,
+      "p95_ms": 2.045302,
+      "mean_ms": 2.014581333333333,
+      "min_ms": 1.9834019999999999,
+      "max_ms": 2.058002,
+      "stddev_ms": 0.020628900530601457,
+      "sequential_images_per_second": 496.3810512159351,
+      "median_cpu_ms": 2.0140000000000002,
+      "maximum_cumulative_process_peak_rss_kib": 21468,
+      "output_bytes": [
+        43582
+      ]
+    },
+    "encode-pdf-photo.jpg-libjpeg-turbo-rs-q85": {
+      "n": 24,
+      "p50_ms": 0.5184,
+      "p95_ms": 0.554301,
+      "mean_ms": 0.5223755416666667,
+      "min_ms": 0.504801,
+      "max_ms": 0.590401,
+      "stddev_ms": 0.019535941076316714,
+      "sequential_images_per_second": 1914.3315875958651,
+      "median_cpu_ms": 0.5195000000000003,
+      "maximum_cumulative_process_peak_rss_kib": 21468,
+      "output_bytes": [
+        43383
+      ]
+    },
+    "encode-pdf-photo.webp-image-webp-lossless-q85": {
+      "n": 24,
+      "p50_ms": 1.308849,
+      "p95_ms": 1.4029019999999999,
+      "mean_ms": 1.3194715833333333,
+      "min_ms": 1.2753020000000002,
+      "max_ms": 1.417103,
+      "stddev_ms": 0.036140369998727544,
+      "sequential_images_per_second": 757.8791484646727,
+      "median_cpu_ms": 1.310500000000001,
+      "maximum_cumulative_process_peak_rss_kib": 21468,
+      "output_bytes": [
+        268718
+      ]
+    },
+    "encode-pdf-photo.webp-jpeg-encoder-q85": {
+      "n": 24,
+      "p50_ms": 2.0079025,
+      "p95_ms": 2.042404,
+      "mean_ms": 2.0091486666666665,
+      "min_ms": 1.9881030000000002,
+      "max_ms": 2.044302,
+      "stddev_ms": 0.017439069290250103,
+      "sequential_images_per_second": 497.72324795609956,
+      "median_cpu_ms": 2.0095,
+      "maximum_cumulative_process_peak_rss_kib": 21468,
+      "output_bytes": [
+        43524
+      ]
+    },
+    "encode-pdf-photo.webp-libjpeg-turbo-rs-q85": {
+      "n": 24,
+      "p50_ms": 0.5198510000000001,
+      "p95_ms": 0.552701,
+      "mean_ms": 0.526354875,
+      "min_ms": 0.5071,
+      "max_ms": 0.640601,
+      "stddev_ms": 0.026604772820112227,
+      "sequential_images_per_second": 1899.8589117275678,
+      "median_cpu_ms": 0.5210000000000004,
+      "maximum_cumulative_process_peak_rss_kib": 21468,
+      "output_bytes": [
+        43327
+      ]
+    },
+    "encode-pdf-photo.webp-libwebp-lossless-q85": {
+      "n": 24,
+      "p50_ms": 177.988763,
+      "p95_ms": 179.278615,
+      "mean_ms": 178.043342125,
+      "min_ms": 177.076364,
+      "max_ms": 179.568463,
+      "stddev_ms": 0.6462570299464088,
+      "sequential_images_per_second": 5.616609911186253,
+      "median_cpu_ms": 177.96950000000015,
+      "maximum_cumulative_process_peak_rss_kib": 31948,
+      "output_bytes": [
+        227748
+      ]
+    },
+    "encode-pdf-photo.webp-libwebp-lossy-q78-matched": {
+      "n": 24,
+      "p50_ms": 21.36871,
+      "p95_ms": 26.714752,
+      "mean_ms": 21.954158208333332,
+      "min_ms": 17.111769,
+      "max_ms": 27.954645,
+      "stddev_ms": 3.054797053512834,
+      "sequential_images_per_second": 45.54945767041167,
+      "median_cpu_ms": 21.355500000000013,
+      "maximum_cumulative_process_peak_rss_kib": 81332,
+      "output_bytes": [
+        28602
+      ]
+    },
+    "encode-pdf-photo.webp-libwebp-lossy-q85": {
+      "n": 24,
+      "p50_ms": 15.674366,
+      "p95_ms": 16.834029,
+      "mean_ms": 15.837008833333332,
+      "min_ms": 15.530528,
+      "max_ms": 17.686930999999998,
+      "stddev_ms": 0.4802628852197752,
+      "sequential_images_per_second": 63.14323686523591,
+      "median_cpu_ms": 15.675999999999995,
+      "maximum_cumulative_process_peak_rss_kib": 21468,
+      "output_bytes": [
+        39878
+      ]
+    },
+    "encode-web-photo.jpg-jpeg-encoder-q90": {
+      "n": 24,
+      "p50_ms": 20.7382335,
+      "p95_ms": 22.096082,
+      "mean_ms": 20.884472708333334,
+      "min_ms": 20.45125,
+      "max_ms": 22.658155999999998,
+      "stddev_ms": 0.517845128581012,
+      "sequential_images_per_second": 47.88246339592665,
+      "median_cpu_ms": 20.740499999999997,
+      "maximum_cumulative_process_peak_rss_kib": 21468,
+      "output_bytes": [
+        498531
+      ]
+    },
+    "encode-web-photo.jpg-libjpeg-turbo-rs-q90": {
+      "n": 24,
+      "p50_ms": 5.487713,
+      "p95_ms": 5.630314,
+      "mean_ms": 5.519276,
+      "min_ms": 5.406013000000001,
+      "max_ms": 6.173715,
+      "stddev_ms": 0.15204767569788896,
+      "sequential_images_per_second": 181.18318417125727,
+      "median_cpu_ms": 5.489000000000001,
+      "maximum_cumulative_process_peak_rss_kib": 21468,
+      "output_bytes": [
+        498545
+      ]
+    },
+    "encode-web-photo.webp-image-webp-lossless-q90": {
+      "n": 24,
+      "p50_ms": 13.217446500000001,
+      "p95_ms": 14.568505,
+      "mean_ms": 13.542186583333333,
+      "min_ms": 12.852789999999999,
+      "max_ms": 17.638205,
+      "stddev_ms": 0.9730210633592996,
+      "sequential_images_per_second": 73.84331871713553,
+      "median_cpu_ms": 13.219000000000001,
+      "maximum_cumulative_process_peak_rss_kib": 21468,
+      "output_bytes": [
+        2099372
+      ]
+    },
+    "encode-web-photo.webp-jpeg-encoder-q90": {
+      "n": 24,
+      "p50_ms": 20.439234,
+      "p95_ms": 20.805584,
+      "mean_ms": 20.480275541666668,
+      "min_ms": 20.223984,
+      "max_ms": 21.235683,
+      "stddev_ms": 0.22364657344238487,
+      "sequential_images_per_second": 48.827468066312,
+      "median_cpu_ms": 20.441500000000005,
+      "maximum_cumulative_process_peak_rss_kib": 21468,
+      "output_bytes": [
+        501261
+      ]
+    },
+    "encode-web-photo.webp-libjpeg-turbo-rs-q90": {
+      "n": 24,
+      "p50_ms": 5.564646,
+      "p95_ms": 6.042795,
+      "mean_ms": 5.658762333333334,
+      "min_ms": 5.432195,
+      "max_ms": 6.270295,
+      "stddev_ms": 0.23350429578073711,
+      "sequential_images_per_second": 176.71708778250508,
+      "median_cpu_ms": 5.5665,
+      "maximum_cumulative_process_peak_rss_kib": 21468,
+      "output_bytes": [
+        501268
+      ]
+    },
+    "encode-web-photo.webp-libwebp-lossless-q90": {
+      "n": 24,
+      "p50_ms": 946.9143125,
+      "p95_ms": 1060.271584,
+      "mean_ms": 957.6809012083334,
+      "min_ms": 907.4591810000001,
+      "max_ms": 1094.644754,
+      "stddev_ms": 48.65634748933703,
+      "sequential_images_per_second": 1.0441891435218886,
+      "median_cpu_ms": 946.8419999999996,
+      "maximum_cumulative_process_peak_rss_kib": 68948,
+      "output_bytes": [
+        1823882
+      ]
+    },
+    "encode-web-photo.webp-libwebp-lossy-q88-matched": {
+      "n": 24,
+      "p50_ms": 183.408747,
+      "p95_ms": 203.736529,
+      "mean_ms": 184.92887270833333,
+      "min_ms": 164.70560700000001,
+      "max_ms": 205.53817999999998,
+      "stddev_ms": 11.456294616556034,
+      "sequential_images_per_second": 5.407484430931361,
+      "median_cpu_ms": 183.4090000000001,
+      "maximum_cumulative_process_peak_rss_kib": 81332,
+      "output_bytes": [
+        445904
+      ]
+    },
+    "encode-web-photo.webp-libwebp-lossy-q90": {
+      "n": 24,
+      "p50_ms": 165.40371850000002,
+      "p95_ms": 192.44155600000002,
+      "mean_ms": 169.77405679166668,
+      "min_ms": 163.537077,
+      "max_ms": 193.147255,
+      "stddev_ms": 8.48515371365909,
+      "sequential_images_per_second": 5.890181449967477,
+      "median_cpu_ms": 165.3930000000001,
+      "maximum_cumulative_process_peak_rss_kib": 27108,
+      "output_bytes": [
+        473686
+      ]
+    }
+  },
+  "quality": {
+    "web-photo.jpg-jpeg-encoder-q90.jpg": {
+      "path": "outputs/micro/web-photo.jpg-jpeg-encoder-q90.jpg",
+      "sha256": "89d3805a33de8b7f73ac418a03ae7249f48dda6fc20a27178391ea9ccce8e50d",
+      "bytes": 498531,
+      "geometry": [
+        1920,
+        863
+      ],
+      "mode": "RGB",
+      "icc_bytes": 612,
+      "jpeg_sampling": [
+        [
+          0,
+          2,
+          2,
+          0
+        ],
+        [
+          1,
+          1,
+          1,
+          1
+        ],
+        [
+          2,
+          1,
+          1,
+          1
+        ]
+      ],
+      "jpeg_quantization": {
+        "0": [
+          3,
+          2,
+          2,
+          3,
+          5,
+          8,
+          10,
+          12,
+          2,
+          2,
+          3,
+          4,
+          5,
+          12,
+          12,
+          11,
+          3,
+          3,
+          3,
+          5,
+          8,
+          11,
+          14,
+          11,
+          3,
+          3,
+          4,
+          6,
+          10,
+          17,
+          16,
+          12,
+          4,
+          4,
+          7,
+          11,
+          14,
+          22,
+          21,
+          15,
+          5,
+          7,
+          11,
+          13,
+          16,
+          21,
+          23,
+          18,
+          10,
+          13,
+          16,
+          17,
+          21,
+          24,
+          24,
+          20,
+          14,
+          18,
+          19,
+          20,
+          22,
+          20,
+          21,
+          20
+        ],
+        "1": [
+          3,
+          4,
+          5,
+          9,
+          20,
+          20,
+          20,
+          20,
+          4,
+          4,
+          5,
+          13,
+          20,
+          20,
+          20,
+          20,
+          5,
+          5,
+          11,
+          20,
+          20,
+          20,
+          20,
+          20,
+          9,
+          13,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20
+        ]
+      },
+      "exif_orientation": 1,
+      "alpha_range": [
+        255,
+        255
+      ],
+      "psnr_db": 42.50045218201126,
+      "mean_absolute_rgb": [
+        1.2132332705677868,
+        1.1112096852066435,
+        1.4540085457705678
+      ],
+      "maximum_channel_delta": 22,
+      "pixels_equal": false
+    },
+    "web-photo.jpg-libjpeg-turbo-rs-q90.jpg": {
+      "path": "outputs/micro/web-photo.jpg-libjpeg-turbo-rs-q90.jpg",
+      "sha256": "4d63f17de668692d857eec9a65d19640bddaeaec72a72cb2256ce47717563e58",
+      "bytes": 498545,
+      "geometry": [
+        1920,
+        863
+      ],
+      "mode": "RGB",
+      "icc_bytes": 612,
+      "jpeg_sampling": [
+        [
+          1,
+          2,
+          2,
+          0
+        ],
+        [
+          2,
+          1,
+          1,
+          1
+        ],
+        [
+          3,
+          1,
+          1,
+          1
+        ]
+      ],
+      "jpeg_quantization": {
+        "0": [
+          3,
+          2,
+          2,
+          3,
+          5,
+          8,
+          10,
+          12,
+          2,
+          2,
+          3,
+          4,
+          5,
+          12,
+          12,
+          11,
+          3,
+          3,
+          3,
+          5,
+          8,
+          11,
+          14,
+          11,
+          3,
+          3,
+          4,
+          6,
+          10,
+          17,
+          16,
+          12,
+          4,
+          4,
+          7,
+          11,
+          14,
+          22,
+          21,
+          15,
+          5,
+          7,
+          11,
+          13,
+          16,
+          21,
+          23,
+          18,
+          10,
+          13,
+          16,
+          17,
+          21,
+          24,
+          24,
+          20,
+          14,
+          18,
+          19,
+          20,
+          22,
+          20,
+          21,
+          20
+        ],
+        "1": [
+          3,
+          4,
+          5,
+          9,
+          20,
+          20,
+          20,
+          20,
+          4,
+          4,
+          5,
+          13,
+          20,
+          20,
+          20,
+          20,
+          5,
+          5,
+          11,
+          20,
+          20,
+          20,
+          20,
+          20,
+          9,
+          13,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20
+        ]
+      },
+      "exif_orientation": 1,
+      "alpha_range": [
+        255,
+        255
+      ],
+      "psnr_db": 42.5009007234678,
+      "mean_absolute_rgb": [
+        1.2129152182309773,
+        1.111107691193511,
+        1.4540646726535342
+      ],
+      "maximum_channel_delta": 22,
+      "pixels_equal": false
+    },
+    "web-photo.webp-image-webp-lossless-q90.webp": {
+      "path": "outputs/micro/web-photo.webp-image-webp-lossless-q90.webp",
+      "sha256": "dd8e3a7f35aac31dbaf58223fd144b6b930cb73be33ce82c85d60324b8986f94",
+      "bytes": 2099372,
+      "geometry": [
+        1920,
+        863
+      ],
+      "mode": "RGB",
+      "icc_bytes": 0,
+      "jpeg_sampling": null,
+      "jpeg_quantization": null,
+      "exif_orientation": 1,
+      "alpha_range": [
+        255,
+        255
+      ],
+      "psnr_db": null,
+      "mean_absolute_rgb": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "maximum_channel_delta": 0,
+      "pixels_equal": true
+    },
+    "web-photo.webp-jpeg-encoder-q90.jpg": {
+      "path": "outputs/micro/web-photo.webp-jpeg-encoder-q90.jpg",
+      "sha256": "4c5992f431eaa85915c2dadc10645b5f14206db9a7737a96016b0afe66f03c8d",
+      "bytes": 501261,
+      "geometry": [
+        1920,
+        863
+      ],
+      "mode": "RGB",
+      "icc_bytes": 612,
+      "jpeg_sampling": [
+        [
+          0,
+          2,
+          2,
+          0
+        ],
+        [
+          1,
+          1,
+          1,
+          1
+        ],
+        [
+          2,
+          1,
+          1,
+          1
+        ]
+      ],
+      "jpeg_quantization": {
+        "0": [
+          3,
+          2,
+          2,
+          3,
+          5,
+          8,
+          10,
+          12,
+          2,
+          2,
+          3,
+          4,
+          5,
+          12,
+          12,
+          11,
+          3,
+          3,
+          3,
+          5,
+          8,
+          11,
+          14,
+          11,
+          3,
+          3,
+          4,
+          6,
+          10,
+          17,
+          16,
+          12,
+          4,
+          4,
+          7,
+          11,
+          14,
+          22,
+          21,
+          15,
+          5,
+          7,
+          11,
+          13,
+          16,
+          21,
+          23,
+          18,
+          10,
+          13,
+          16,
+          17,
+          21,
+          24,
+          24,
+          20,
+          14,
+          18,
+          19,
+          20,
+          22,
+          20,
+          21,
+          20
+        ],
+        "1": [
+          3,
+          4,
+          5,
+          9,
+          20,
+          20,
+          20,
+          20,
+          4,
+          4,
+          5,
+          13,
+          20,
+          20,
+          20,
+          20,
+          5,
+          5,
+          11,
+          20,
+          20,
+          20,
+          20,
+          20,
+          9,
+          13,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20
+        ]
+      },
+      "exif_orientation": 1,
+      "alpha_range": [
+        255,
+        255
+      ],
+      "psnr_db": 40.701237336208095,
+      "mean_absolute_rgb": [
+        1.6281563827732715,
+        1.4400504538431826,
+        1.9405809434144456
+      ],
+      "maximum_channel_delta": 26,
+      "pixels_equal": false
+    },
+    "web-photo.webp-libjpeg-turbo-rs-q90.jpg": {
+      "path": "outputs/micro/web-photo.webp-libjpeg-turbo-rs-q90.jpg",
+      "sha256": "5f97a758ea70e90951ae6f592dc8ed018df533f407a86f3b6b7ea52b5cc7ff9b",
+      "bytes": 501268,
+      "geometry": [
+        1920,
+        863
+      ],
+      "mode": "RGB",
+      "icc_bytes": 612,
+      "jpeg_sampling": [
+        [
+          1,
+          2,
+          2,
+          0
+        ],
+        [
+          2,
+          1,
+          1,
+          1
+        ],
+        [
+          3,
+          1,
+          1,
+          1
+        ]
+      ],
+      "jpeg_quantization": {
+        "0": [
+          3,
+          2,
+          2,
+          3,
+          5,
+          8,
+          10,
+          12,
+          2,
+          2,
+          3,
+          4,
+          5,
+          12,
+          12,
+          11,
+          3,
+          3,
+          3,
+          5,
+          8,
+          11,
+          14,
+          11,
+          3,
+          3,
+          4,
+          6,
+          10,
+          17,
+          16,
+          12,
+          4,
+          4,
+          7,
+          11,
+          14,
+          22,
+          21,
+          15,
+          5,
+          7,
+          11,
+          13,
+          16,
+          21,
+          23,
+          18,
+          10,
+          13,
+          16,
+          17,
+          21,
+          24,
+          24,
+          20,
+          14,
+          18,
+          19,
+          20,
+          22,
+          20,
+          21,
+          20
+        ],
+        "1": [
+          3,
+          4,
+          5,
+          9,
+          20,
+          20,
+          20,
+          20,
+          4,
+          4,
+          5,
+          13,
+          20,
+          20,
+          20,
+          20,
+          5,
+          5,
+          11,
+          20,
+          20,
+          20,
+          20,
+          20,
+          9,
+          13,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20,
+          20
+        ]
+      },
+      "exif_orientation": 1,
+      "alpha_range": [
+        255,
+        255
+      ],
+      "psnr_db": 40.701112119774116,
+      "mean_absolute_rgb": [
+        1.6277315083043646,
+        1.4400812331015835,
+        1.9409490874855155
+      ],
+      "maximum_channel_delta": 26,
+      "pixels_equal": false
+    },
+    "web-photo.webp-libwebp-lossless-q90.webp": {
+      "path": "outputs/micro/web-photo.webp-libwebp-lossless-q90.webp",
+      "sha256": "0b8790d0e75456275a18605c1629fde92357955fa52f94bdeb3392afab4832ab",
+      "bytes": 1823882,
+      "geometry": [
+        1920,
+        863
+      ],
+      "mode": "RGB",
+      "icc_bytes": 0,
+      "jpeg_sampling": null,
+      "jpeg_quantization": null,
+      "exif_orientation": 1,
+      "alpha_range": [
+        255,
+        255
+      ],
+      "psnr_db": null,
+      "mean_absolute_rgb": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "maximum_channel_delta": 0,
+      "pixels_equal": true
+    },
+    "web-photo.webp-libwebp-lossy-q100.webp": {
+      "path": "outputs/micro/web-photo.webp-libwebp-lossy-q100.webp",
+      "sha256": "78ba3c294073da1c1f26d9adbeaeffe305b93c5e9604df88667203080f1455bd",
+      "bytes": 680278,
+      "geometry": [
+        1920,
+        863
+      ],
+      "mode": "RGB",
+      "icc_bytes": 0,
+      "jpeg_sampling": null,
+      "jpeg_quantization": null,
+      "exif_orientation": 1,
+      "alpha_range": [
+        255,
+        255
+      ],
+      "psnr_db": 47.005559581460446,
+      "mean_absolute_rgb": [
+        0.5787870558130552,
+        0.46035933275395907,
+        0.8981924729625338
+      ],
+      "maximum_channel_delta": 11,
+      "pixels_equal": false
+    },
+    "web-photo.webp-libwebp-lossy-q75.webp": {
+      "path": "outputs/micro/web-photo.webp-libwebp-lossy-q75.webp",
+      "sha256": "a594fe10148c805b6968beee31fc558d86b260b39a667c27e347960a766ec43a",
+      "bytes": 245620,
+      "geometry": [
+        1920,
+        863
+      ],
+      "mode": "RGB",
+      "icc_bytes": 0,
+      "jpeg_sampling": null,
+      "jpeg_quantization": null,
+      "exif_orientation": 1,
+      "alpha_range": [
+        255,
+        255
+      ],
+      "psnr_db": 34.46281040053133,
+      "mean_absolute_rgb": [
+        3.3471393395133258,
+        3.0555469051757433,
+        3.7740760187331017
+      ],
+      "maximum_channel_delta": 36,
+      "pixels_equal": false
+    },
+    "web-photo.webp-libwebp-lossy-q80.webp": {
+      "path": "outputs/micro/web-photo.webp-libwebp-lossy-q80.webp",
+      "sha256": "b2c6ee81a6c8af73ec1e6f896dafa987b5ed25e6587b2892e01ce5c61383558a",
+      "bytes": 310784,
+      "geometry": [
+        1920,
+        863
+      ],
+      "mode": "RGB",
+      "icc_bytes": 0,
+      "jpeg_sampling": null,
+      "jpeg_quantization": null,
+      "exif_orientation": 1,
+      "alpha_range": [
+        255,
+        255
+      ],
+      "psnr_db": 35.975330375148616,
+      "mean_absolute_rgb": [
+        2.795835143877945,
+        2.5124408555426805,
+        3.2584510187331017
+      ],
+      "maximum_channel_delta": 33,
+      "pixels_equal": false
+    },
+    "web-photo.webp-libwebp-lossy-q85.webp": {
+      "path": "outputs/micro/web-photo.webp-libwebp-lossy-q85.webp",
+      "sha256": "c2fac4c01b80a3d7d67dc6e487539c2c3be034123c6ab19fa630197ed64c8a4a",
+      "bytes": 387464,
+      "geometry": [
+        1920,
+        863
+      ],
+      "mode": "RGB",
+      "icc_bytes": 0,
+      "jpeg_sampling": null,
+      "jpeg_quantization": null,
+      "exif_orientation": 1,
+      "alpha_range": [
+        255,
+        255
+      ],
+      "psnr_db": 38.59277601605204,
+      "mean_absolute_rgb": [
+        2.0022456788335266,
+        1.7726450849748938,
+        2.4156334492081886
+      ],
+      "maximum_channel_delta": 25,
+      "pixels_equal": false
+    },
+    "web-photo.webp-libwebp-lossy-q86.webp": {
+      "path": "outputs/micro/web-photo.webp-libwebp-lossy-q86.webp",
+      "sha256": "24ad76f1f44202407174c82fa3a2460a38cc2453ef02d91bf6b69d2aa636fd20",
+      "bytes": 402642,
+      "geometry": [
+        1920,
+        863
+      ],
+      "mode": "RGB",
+      "icc_bytes": 0,
+      "jpeg_sampling": null,
+      "jpeg_quantization": null,
+      "exif_orientation": 1,
+      "alpha_range": [
+        255,
+        255
+      ],
+      "psnr_db": 39.20249055769767,
+      "mean_absolute_rgb": [
+        1.8538178350714563,
+        1.6477718230977212,
+        2.2191573725376594
+      ],
+      "maximum_channel_delta": 26,
+      "pixels_equal": false
+    },
+    "web-photo.webp-libwebp-lossy-q87.webp": {
+      "path": "outputs/micro/web-photo.webp-libwebp-lossy-q87.webp",
+      "sha256": "fa1ce5f9e86c5cb4bdb5aab0e99683f0aeed2c6257968af76bd73f486fafb1ed",
+      "bytes": 425100,
+      "geometry": [
+        1920,
+        863
+      ],
+      "mode": "RGB",
+      "icc_bytes": 0,
+      "jpeg_sampling": null,
+      "jpeg_quantization": null,
+      "exif_orientation": 1,
+      "alpha_range": [
+        255,
+        255
+      ],
+      "psnr_db": 40.21010543404364,
+      "mean_absolute_rgb": [
+        1.6356719534569333,
+        1.4439099314407107,
+        1.9898374130938585
+      ],
+      "maximum_channel_delta": 25,
+      "pixels_equal": false
+    },
+    "web-photo.webp-libwebp-lossy-q88.webp": {
+      "path": "outputs/micro/web-photo.webp-libwebp-lossy-q88.webp",
+      "sha256": "d1f685adca992e3fca3d0b52a115b1dc1d9eb91cec6f8be9a5674769a836f88e",
+      "bytes": 445904,
+      "geometry": [
+        1920,
+        863
+      ],
+      "mode": "RGB",
+      "icc_bytes": 0,
+      "jpeg_sampling": null,
+      "jpeg_quantization": null,
+      "exif_orientation": 1,
+      "alpha_range": [
+        255,
+        255
+      ],
+      "psnr_db": 41.322684385648074,
+      "mean_absolute_rgb": [
+        1.4147311944766319,
+        1.2356810061799923,
+        1.7618735515643105
+      ],
+      "maximum_channel_delta": 22,
+      "pixels_equal": false
+    },
+    "web-photo.webp-libwebp-lossy-q89.webp": {
+      "path": "outputs/micro/web-photo.webp-libwebp-lossy-q89.webp",
+      "sha256": "f5d5ed68a68e75907c287a0d88832bf2d120b3c727a406a1fbebc1967570dd0b",
+      "bytes": 460992,
+      "geometry": [
+        1920,
+        863
+      ],
+      "mode": "RGB",
+      "icc_bytes": 0,
+      "jpeg_sampling": null,
+      "jpeg_quantization": null,
+      "exif_orientation": 1,
+      "alpha_range": [
+        255,
+        255
+      ],
+      "psnr_db": 42.68662861434774,
+      "mean_absolute_rgb": [
+        1.1661500579374275,
+        1.0010048522595596,
+        1.4841034183082271
+      ],
+      "maximum_channel_delta": 22,
+      "pixels_equal": false
+    },
+    "web-photo.webp-libwebp-lossy-q90.webp": {
+      "path": "outputs/micro/web-photo.webp-libwebp-lossy-q90.webp",
+      "sha256": "edb5af95f6dddf075af2ad72cb66d5e3a5e631a8f4d48b5267e042dc7f6a6f06",
+      "bytes": 473686,
+      "geometry": [
+        1920,
+        863
+      ],
+      "mode": "RGB",
+      "icc_bytes": 0,
+      "jpeg_sampling": null,
+      "jpeg_quantization": null,
+      "exif_orientation": 1,
+      "alpha_range": [
+        255,
+        255
+      ],
+      "psnr_db": 45.43868507510435,
+      "mean_absolute_rgb": [
+        0.7490965382387021,
+        0.5972039156044805,
+        1.0381234308613365
+      ],
+      "maximum_channel_delta": 16,
+      "pixels_equal": false
+    },
+    "web-photo.webp-libwebp-lossy-q95.webp": {
+      "path": "outputs/micro/web-photo.webp-libwebp-lossy-q95.webp",
+      "sha256": "8c4251fc63bd19682b53bbb458b273697d3133deb419b8aa1f0834ef3d9d52b0",
+      "bytes": 578178,
+      "geometry": [
+        1920,
+        863
+      ],
+      "mode": "RGB",
+      "icc_bytes": 0,
+      "jpeg_sampling": null,
+      "jpeg_quantization": null,
+      "exif_orientation": 1,
+      "alpha_range": [
+        255,
+        255
+      ],
+      "psnr_db": 44.332920027535856,
+      "mean_absolute_rgb": [
+        0.9684144457319428,
+        0.8355053833526458,
+        1.2194319718037852
+      ],
+      "maximum_channel_delta": 13,
+      "pixels_equal": false
+    },
+    "pdf-photo.jpg-jpeg-encoder-q85.jpg": {
+      "path": "outputs/micro/pdf-photo.jpg-jpeg-encoder-q85.jpg",
+      "sha256": "fdb16bac8bb34b38f2475ab95d7ce274a8f6aa6000bec74e79558b11faec2a81",
+      "bytes": 43582,
+      "geometry": [
+        600,
+        269
+      ],
+      "mode": "RGB",
+      "icc_bytes": 612,
+      "jpeg_sampling": [
+        [
+          0,
+          2,
+          2,
+          0
+        ],
+        [
+          1,
+          1,
+          1,
+          1
+        ],
+        [
+          2,
+          1,
+          1,
+          1
+        ]
+      ],
+      "jpeg_quantization": {
+        "0": [
+          5,
+          3,
+          3,
+          5,
+          7,
+          12,
+          15,
+          18,
+          4,
+          4,
+          4,
+          6,
+          8,
+          17,
+          18,
+          17,
+          4,
+          4,
+          5,
+          7,
+          12,
+          17,
+          21,
+          17,
+          4,
+          5,
+          7,
+          9,
+          15,
+          26,
+          24,
+          19,
+          5,
+          7,
+          11,
+          17,
+          20,
+          33,
+          31,
+          23,
+          7,
+          11,
+          17,
+          19,
+          24,
+          31,
+          34,
+          28,
+          15,
+          19,
+          23,
+          26,
+          31,
+          36,
+          36,
+          30,
+          22,
+          28,
+          29,
+          29,
+          34,
+          30,
+          31,
+          30
+        ],
+        "1": [
+          5,
+          5,
+          7,
+          14,
+          30,
+          30,
+          30,
+          30,
+          5,
+          6,
+          8,
+          20,
+          30,
+          30,
+          30,
+          30,
+          7,
+          8,
+          17,
+          30,
+          30,
+          30,
+          30,
+          30,
+          14,
+          20,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30
+        ]
+      },
+      "exif_orientation": 1,
+      "alpha_range": [
+        255,
+        255
+      ],
+      "psnr_db": 32.63232549456684,
+      "mean_absolute_rgb": [
+        3.8712949194547708,
+        2.96317843866171,
+        5.3930049566294915
+      ],
+      "maximum_channel_delta": 53,
+      "pixels_equal": false
+    },
+    "pdf-photo.jpg-libjpeg-turbo-rs-q85.jpg": {
+      "path": "outputs/micro/pdf-photo.jpg-libjpeg-turbo-rs-q85.jpg",
+      "sha256": "db3ecf37fd0c186703c765fae4d65a576c19477117b47088b507d16b095c2dc2",
+      "bytes": 43383,
+      "geometry": [
+        600,
+        269
+      ],
+      "mode": "RGB",
+      "icc_bytes": 612,
+      "jpeg_sampling": [
+        [
+          1,
+          2,
+          2,
+          0
+        ],
+        [
+          2,
+          1,
+          1,
+          1
+        ],
+        [
+          3,
+          1,
+          1,
+          1
+        ]
+      ],
+      "jpeg_quantization": {
+        "0": [
+          5,
+          3,
+          3,
+          5,
+          7,
+          12,
+          15,
+          18,
+          4,
+          4,
+          4,
+          6,
+          8,
+          17,
+          18,
+          17,
+          4,
+          4,
+          5,
+          7,
+          12,
+          17,
+          21,
+          17,
+          4,
+          5,
+          7,
+          9,
+          15,
+          26,
+          24,
+          19,
+          5,
+          7,
+          11,
+          17,
+          20,
+          33,
+          31,
+          23,
+          7,
+          11,
+          17,
+          19,
+          24,
+          31,
+          34,
+          28,
+          15,
+          19,
+          23,
+          26,
+          31,
+          36,
+          36,
+          30,
+          22,
+          28,
+          29,
+          29,
+          34,
+          30,
+          31,
+          30
+        ],
+        "1": [
+          5,
+          5,
+          7,
+          14,
+          30,
+          30,
+          30,
+          30,
+          5,
+          6,
+          8,
+          20,
+          30,
+          30,
+          30,
+          30,
+          7,
+          8,
+          17,
+          30,
+          30,
+          30,
+          30,
+          30,
+          14,
+          20,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30
+        ]
+      },
+      "exif_orientation": 1,
+      "alpha_range": [
+        255,
+        255
+      ],
+      "psnr_db": 32.63205113018224,
+      "mean_absolute_rgb": [
+        3.87180916976456,
+        2.963271375464684,
+        5.392490706319703
+      ],
+      "maximum_channel_delta": 53,
+      "pixels_equal": false
+    },
+    "pdf-photo.webp-image-webp-lossless-q85.webp": {
+      "path": "outputs/micro/pdf-photo.webp-image-webp-lossless-q85.webp",
+      "sha256": "8b7f05fa25c1e7457c566cfb1d5fa805ac846421c0bd25ebced54269f92a7d17",
+      "bytes": 268718,
+      "geometry": [
+        600,
+        269
+      ],
+      "mode": "RGB",
+      "icc_bytes": 0,
+      "jpeg_sampling": null,
+      "jpeg_quantization": null,
+      "exif_orientation": 1,
+      "alpha_range": [
+        255,
+        255
+      ],
+      "psnr_db": null,
+      "mean_absolute_rgb": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "maximum_channel_delta": 0,
+      "pixels_equal": true
+    },
+    "pdf-photo.webp-jpeg-encoder-q85.jpg": {
+      "path": "outputs/micro/pdf-photo.webp-jpeg-encoder-q85.jpg",
+      "sha256": "65c6f3958daf25ba7b95d2e238fc495397d6578096e4b45e9ae08f34f4fca855",
+      "bytes": 43524,
+      "geometry": [
+        600,
+        269
+      ],
+      "mode": "RGB",
+      "icc_bytes": 612,
+      "jpeg_sampling": [
+        [
+          0,
+          2,
+          2,
+          0
+        ],
+        [
+          1,
+          1,
+          1,
+          1
+        ],
+        [
+          2,
+          1,
+          1,
+          1
+        ]
+      ],
+      "jpeg_quantization": {
+        "0": [
+          5,
+          3,
+          3,
+          5,
+          7,
+          12,
+          15,
+          18,
+          4,
+          4,
+          4,
+          6,
+          8,
+          17,
+          18,
+          17,
+          4,
+          4,
+          5,
+          7,
+          12,
+          17,
+          21,
+          17,
+          4,
+          5,
+          7,
+          9,
+          15,
+          26,
+          24,
+          19,
+          5,
+          7,
+          11,
+          17,
+          20,
+          33,
+          31,
+          23,
+          7,
+          11,
+          17,
+          19,
+          24,
+          31,
+          34,
+          28,
+          15,
+          19,
+          23,
+          26,
+          31,
+          36,
+          36,
+          30,
+          22,
+          28,
+          29,
+          29,
+          34,
+          30,
+          31,
+          30
+        ],
+        "1": [
+          5,
+          5,
+          7,
+          14,
+          30,
+          30,
+          30,
+          30,
+          5,
+          6,
+          8,
+          20,
+          30,
+          30,
+          30,
+          30,
+          7,
+          8,
+          17,
+          30,
+          30,
+          30,
+          30,
+          30,
+          14,
+          20,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30
+        ]
+      },
+      "exif_orientation": 1,
+      "alpha_range": [
+        255,
+        255
+      ],
+      "psnr_db": 33.134943651684424,
+      "mean_absolute_rgb": [
+        3.72046468401487,
+        2.940278810408922,
+        5.062013630731103
+      ],
+      "maximum_channel_delta": 51,
+      "pixels_equal": false
+    },
+    "pdf-photo.webp-libjpeg-turbo-rs-q85.jpg": {
+      "path": "outputs/micro/pdf-photo.webp-libjpeg-turbo-rs-q85.jpg",
+      "sha256": "d23610f8f39743d62cd8a39cf7cc766d02f7a6510fd2d47d3c5d125b1644f8ce",
+      "bytes": 43327,
+      "geometry": [
+        600,
+        269
+      ],
+      "mode": "RGB",
+      "icc_bytes": 612,
+      "jpeg_sampling": [
+        [
+          1,
+          2,
+          2,
+          0
+        ],
+        [
+          2,
+          1,
+          1,
+          1
+        ],
+        [
+          3,
+          1,
+          1,
+          1
+        ]
+      ],
+      "jpeg_quantization": {
+        "0": [
+          5,
+          3,
+          3,
+          5,
+          7,
+          12,
+          15,
+          18,
+          4,
+          4,
+          4,
+          6,
+          8,
+          17,
+          18,
+          17,
+          4,
+          4,
+          5,
+          7,
+          12,
+          17,
+          21,
+          17,
+          4,
+          5,
+          7,
+          9,
+          15,
+          26,
+          24,
+          19,
+          5,
+          7,
+          11,
+          17,
+          20,
+          33,
+          31,
+          23,
+          7,
+          11,
+          17,
+          19,
+          24,
+          31,
+          34,
+          28,
+          15,
+          19,
+          23,
+          26,
+          31,
+          36,
+          36,
+          30,
+          22,
+          28,
+          29,
+          29,
+          34,
+          30,
+          31,
+          30
+        ],
+        "1": [
+          5,
+          5,
+          7,
+          14,
+          30,
+          30,
+          30,
+          30,
+          5,
+          6,
+          8,
+          20,
+          30,
+          30,
+          30,
+          30,
+          7,
+          8,
+          17,
+          30,
+          30,
+          30,
+          30,
+          30,
+          14,
+          20,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30,
+          30
+        ]
+      },
+      "exif_orientation": 1,
+      "alpha_range": [
+        255,
+        255
+      ],
+      "psnr_db": 33.135359308963075,
+      "mean_absolute_rgb": [
+        3.7200433705080544,
+        2.9399318463444857,
+        5.06138166047088
+      ],
+      "maximum_channel_delta": 51,
+      "pixels_equal": false
+    },
+    "pdf-photo.webp-libwebp-lossless-q85.webp": {
+      "path": "outputs/micro/pdf-photo.webp-libwebp-lossless-q85.webp",
+      "sha256": "85bbc6d0dd1838acbf1e156713439197718136ce3a5fda392e5ee3fd49e1d14f",
+      "bytes": 227748,
+      "geometry": [
+        600,
+        269
+      ],
+      "mode": "RGB",
+      "icc_bytes": 0,
+      "jpeg_sampling": null,
+      "jpeg_quantization": null,
+      "exif_orientation": 1,
+      "alpha_range": [
+        255,
+        255
+      ],
+      "psnr_db": null,
+      "mean_absolute_rgb": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "maximum_channel_delta": 0,
+      "pixels_equal": true
+    },
+    "pdf-photo.webp-libwebp-lossy-q100.webp": {
+      "path": "outputs/micro/pdf-photo.webp-libwebp-lossy-q100.webp",
+      "sha256": "91b443753aef9c7be7913051dacace7024f3f4a5b8095e15d96fea327844cfe5",
+      "bytes": 92772,
+      "geometry": [
+        600,
+        269
+      ],
+      "mode": "RGB",
+      "icc_bytes": 0,
+      "jpeg_sampling": null,
+      "jpeg_quantization": null,
+      "exif_orientation": 1,
+      "alpha_range": [
+        255,
+        255
+      ],
+      "psnr_db": 38.975448627204514,
+      "mean_absolute_rgb": [
+        1.6656133828996282,
+        0.9346778190830235,
+        2.802812887236679
+      ],
+      "maximum_channel_delta": 35,
+      "pixels_equal": false
+    },
+    "pdf-photo.webp-libwebp-lossy-q75.webp": {
+      "path": "outputs/micro/pdf-photo.webp-libwebp-lossy-q75.webp",
+      "sha256": "739116e7d52fe06cee2acaa4a3a67063be85c545c2b5d567fdb380f6fa6fd7d4",
+      "bytes": 25326,
+      "geometry": [
+        600,
+        269
+      ],
+      "mode": "RGB",
+      "icc_bytes": 0,
+      "jpeg_sampling": null,
+      "jpeg_quantization": null,
+      "exif_orientation": 1,
+      "alpha_range": [
+        255,
+        255
+      ],
+      "psnr_db": 32.67458818758082,
+      "mean_absolute_rgb": [
+        4.2152973977695165,
+        3.2675092936802974,
+        5.088252788104089
+      ],
+      "maximum_channel_delta": 50,
+      "pixels_equal": false
+    },
+    "pdf-photo.webp-libwebp-lossy-q76.webp": {
+      "path": "outputs/micro/pdf-photo.webp-libwebp-lossy-q76.webp",
+      "sha256": "a51d035ee9e820cfadd0213cdfe93d3ff7f87b145a1008bd77cd97288d41d884",
+      "bytes": 26114,
+      "geometry": [
+        600,
+        269
+      ],
+      "mode": "RGB",
+      "icc_bytes": 0,
+      "jpeg_sampling": null,
+      "jpeg_quantization": null,
+      "exif_orientation": 1,
+      "alpha_range": [
+        255,
+        255
+      ],
+      "psnr_db": 32.82033874751957,
+      "mean_absolute_rgb": [
+        4.134151177199504,
+        3.192199504337051,
+        5.0112329615861215
+      ],
+      "maximum_channel_delta": 46,
+      "pixels_equal": false
+    },
+    "pdf-photo.webp-libwebp-lossy-q77.webp": {
+      "path": "outputs/micro/pdf-photo.webp-libwebp-lossy-q77.webp",
+      "sha256": "92c63591aad29a3cdf8c715757b223a224817d7418b16688b9748c3561df9bb2",
+      "bytes": 27522,
+      "geometry": [
+        600,
+        269
+      ],
+      "mode": "RGB",
+      "icc_bytes": 0,
+      "jpeg_sampling": null,
+      "jpeg_quantization": null,
+      "exif_orientation": 1,
+      "alpha_range": [
+        255,
+        255
+      ],
+      "psnr_db": 33.10943966708095,
+      "mean_absolute_rgb": [
+        3.997484510532838,
+        3.074002478314746,
+        4.8858983890954155
+      ],
+      "maximum_channel_delta": 49,
+      "pixels_equal": false
+    },
+    "pdf-photo.webp-libwebp-lossy-q78.webp": {
+      "path": "outputs/micro/pdf-photo.webp-libwebp-lossy-q78.webp",
+      "sha256": "4c2d142e1eeac7e8ffc661964d74184d4730b31d491f19c40a97ee0ffd4f6fde",
+      "bytes": 28602,
+      "geometry": [
+        600,
+        269
+      ],
+      "mode": "RGB",
+      "icc_bytes": 0,
+      "jpeg_sampling": null,
+      "jpeg_quantization": null,
+      "exif_orientation": 1,
+      "alpha_range": [
+        255,
+        255
+      ],
+      "psnr_db": 33.30668795394078,
+      "mean_absolute_rgb": [
+        3.895247831474597,
+        2.98043990086741,
+        4.802893432465924
+      ],
+      "maximum_channel_delta": 47,
+      "pixels_equal": false
+    },
+    "pdf-photo.webp-libwebp-lossy-q79.webp": {
+      "path": "outputs/micro/pdf-photo.webp-libwebp-lossy-q79.webp",
+      "sha256": "aa25cefffadf137c02e3a3eb43b474c47e387fbc4e8be2e9e08790fb746572c0",
+      "bytes": 30116,
+      "geometry": [
+        600,
+        269
+      ],
+      "mode": "RGB",
+      "icc_bytes": 0,
+      "jpeg_sampling": null,
+      "jpeg_quantization": null,
+      "exif_orientation": 1,
+      "alpha_range": [
+        255,
+        255
+      ],
+      "psnr_db": 33.58172216688554,
+      "mean_absolute_rgb": [
+        3.7606753407682776,
+        2.860625774473358,
+        4.702360594795539
+      ],
+      "maximum_channel_delta": 49,
+      "pixels_equal": false
+    },
+    "pdf-photo.webp-libwebp-lossy-q80.webp": {
+      "path": "outputs/micro/pdf-photo.webp-libwebp-lossy-q80.webp",
+      "sha256": "583e72093ce13698d2cdabccae191dcf47c6131f9a0e03759eec5cee834091b3",
+      "bytes": 31430,
+      "geometry": [
+        600,
+        269
+      ],
+      "mode": "RGB",
+      "icc_bytes": 0,
+      "jpeg_sampling": null,
+      "jpeg_quantization": null,
+      "exif_orientation": 1,
+      "alpha_range": [
+        255,
+        255
+      ],
+      "psnr_db": 33.81320864625,
+      "mean_absolute_rgb": [
+        3.646270136307311,
+        2.7694919454770757,
+        4.607732342007435
+      ],
+      "maximum_channel_delta": 46,
+      "pixels_equal": false
+    },
+    "pdf-photo.webp-libwebp-lossy-q85.webp": {
+      "path": "outputs/micro/pdf-photo.webp-libwebp-lossy-q85.webp",
+      "sha256": "4deb06315b1fd1cca3786a8d134abb6f1212a2cedf35537b2d4092cae47a116d",
+      "bytes": 39878,
+      "geometry": [
+        600,
+        269
+      ],
+      "mode": "RGB",
+      "icc_bytes": 0,
+      "jpeg_sampling": null,
+      "jpeg_quantization": null,
+      "exif_orientation": 1,
+      "alpha_range": [
+        255,
+        255
+      ],
+      "psnr_db": 35.22079334893992,
+      "mean_absolute_rgb": [
+        3.0299628252788104,
+        2.228841387856258,
+        4.037664188351921
+      ],
+      "maximum_channel_delta": 40,
+      "pixels_equal": false
+    },
+    "pdf-photo.webp-libwebp-lossy-q90.webp": {
+      "path": "outputs/micro/pdf-photo.webp-libwebp-lossy-q90.webp",
+      "sha256": "4b4dbde8c9ab822abe0aaf31dd0a3bbfd2067f269cf02302d3b89e9618d27dfb",
+      "bytes": 51210,
+      "geometry": [
+        600,
+        269
+      ],
+      "mode": "RGB",
+      "icc_bytes": 0,
+      "jpeg_sampling": null,
+      "jpeg_quantization": null,
+      "exif_orientation": 1,
+      "alpha_range": [
+        255,
+        255
+      ],
+      "psnr_db": 36.76673440330211,
+      "mean_absolute_rgb": [
+        2.4852478314745974,
+        1.7254275092936804,
+        3.4677199504337053
+      ],
+      "maximum_channel_delta": 32,
+      "pixels_equal": false
+    },
+    "pdf-photo.webp-libwebp-lossy-q95.webp": {
+      "path": "outputs/micro/pdf-photo.webp-libwebp-lossy-q95.webp",
+      "sha256": "97106332880ea757de3ee0eef0cf19488f3eb70850d375521be0aea5afc77b34",
+      "bytes": 70390,
+      "geometry": [
+        600,
+        269
+      ],
+      "mode": "RGB",
+      "icc_bytes": 0,
+      "jpeg_sampling": null,
+      "jpeg_quantization": null,
+      "exif_orientation": 1,
+      "alpha_range": [
+        255,
+        255
+      ],
+      "psnr_db": 38.344927842367575,
+      "mean_absolute_rgb": [
+        1.9094857496902107,
+        1.2290706319702602,
+        2.9593990086741018
+      ],
+      "maximum_channel_delta": 32,
+      "pixels_equal": false
+    }
+  },
+  "decode_pixels": {
+    "photo.jpg:zune-jpeg": {
+      "psnr_db": 52.56840672330167,
+      "mean_absolute_rgb": [
+        0.1983626641560448,
+        0.17650335554268057,
+        0.32313031093086136
+      ],
+      "maximum_channel_delta": 4,
+      "pixels_equal": false,
+      "sha256": "9295e132cb66390c6708a0421a71030cad36929517090983dc45805a59a342ea"
+    },
+    "photo.jpg:libjpeg-turbo-rs": {
+      "psnr_db": 56.77792920188455,
+      "mean_absolute_rgb": [
+        0.09132930185399768,
+        0.08350412804171495,
+        0.11279994689069138
+      ],
+      "maximum_channel_delta": 3,
+      "pixels_equal": false,
+      "sha256": "86dd6cf4828f9ce85c45b85c057244a4b9b44c9717fc90a6488ac653d003110a"
+    },
+    "photo.webp:libwebp": {
+      "psnr_db": null,
+      "mean_absolute_rgb": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "maximum_channel_delta": 0,
+      "pixels_equal": true,
+      "sha256": "9f4fdc08e2f0758d5e559c19ae21754da2faeaeb88c880eb4b364e0f797194c7"
+    }
+  },
+  "matched_webp_quality": {
+    "web": {
+      "jpeg_quality": 90,
+      "jpeg_psnr_db": 40.701237336208095,
+      "webp_quality": 88,
+      "webp_psnr_db": 41.322684385648074,
+      "basis": "lowest sampled WebP Q with no lower RGB PSNR, plus separately inspected crops; not numerical Q equivalence"
+    },
+    "pdf": {
+      "jpeg_quality": 85,
+      "jpeg_psnr_db": 33.134943651684424,
+      "webp_quality": 78,
+      "webp_psnr_db": 33.30668795394078,
+      "basis": "lowest sampled WebP Q with no lower RGB PSNR, plus separately inspected crops; not numerical Q equivalence"
+    }
+  }
+}

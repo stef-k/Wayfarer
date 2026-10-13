@@ -1,0 +1,26 @@
+{
+  "path": "/home/stef/wayfarer-research/858-web-recovery-20261013-93ijKYrk",
+  "reports": [
+    {
+      "path": "REPORT.md",
+      "sha256": "0db7532ffa237823fe8cc5ac861707dfdb441985f4a8085baa4fd7552682ad17",
+      "bytes": 13404
+    }
+  ],
+  "root_files": [
+    "REPORT.md",
+    "diagnose.py",
+    "evidence-hash-verification.log",
+    "SHA256SUMS",
+    "analyze.py",
+    "COMMANDS.md",
+    "env.sh",
+    "ARTIFACTS.json"
+  ],
+  "source": {
+    "head": "017e7495c42336d7205b2d6263828ec96e0d980c",
+    "status": "",
+    "worktrees": "worktree /home/stef/wayfarer-research/858-web-recovery-20261013-93ijKYrk/source\nHEAD 017e7495c42336d7205b2d6263828ec96e0d980c\nbranch refs/heads/wip/858-web-image-recovery-20261013",
+    "branches": "refs/heads/wip/858-rust-imaging-prototype-20261012 c998da079838894da32cb331f4f338cd9597047f\nrefs/heads/wip/858-web-image-recovery-20261013 017e7495c42336d7205b2d6263828ec96e0d980c"
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "path": "/home/stef/wayfarer-research/858-rust-diagnosis-20261013-mx7bvah1",
+  "reports": [
+    {
+      "path": "REPORT.md",
+      "sha256": "c64584be8b55d5e7af78b3fe92e636f6351c5a6c29b20b2244c0b58ebf38e8f6",
+      "bytes": 19661
+    }
+  ],
+  "root_files": [
+    "REPORT.md",
+    "diagnose.py",
+    "SHA256SUMS",
+    "analyze.py",
+    "COMMANDS.md",
+    "OWNER.json",
+    "env.sh",
+    "ARTIFACTS.json"
+  ],
+  "source": {
+    "head": "c998da079838894da32cb331f4f338cd9597047f",
+    "status": "M Util/ImageProxyHelper.cs\n M tests/Wayfarer.Tests/Util/ImageHelperPerformanceTests.cs\n M tools/image-helper/src/color.rs\n M tools/image-helper/src/gif_input.rs\n M tools/image-helper/src/lib.rs\n M tools/image-helper/src/main.rs\n M tools/image-helper/src/raster.rs\n M tools/image-helper/src/transform.rs\n M tools/image-helper/src/webp_input.rs\n M tools/image-helper/supervisor/ImageHelperSupervisor.cs",
+    "worktrees": "worktree /home/stef/wayfarer-research/858-rust-diagnosis-20261013-mx7bvah1/source\nHEAD c998da079838894da32cb331f4f338cd9597047f\nbranch refs/heads/wip/858-performance-diagnosis-20261013",
+    "branches": "refs/heads/wip/858-performance-diagnosis-20261013 c998da079838894da32cb331f4f338cd9597047f\nrefs/heads/wip/858-rust-imaging-prototype-20261012 c998da079838894da32cb331f4f338cd9597047f"
+  }
+}

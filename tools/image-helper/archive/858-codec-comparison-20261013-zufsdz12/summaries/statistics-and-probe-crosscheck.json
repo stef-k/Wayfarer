@@ -1,0 +1,354 @@
+{
+  "pass": true,
+  "checked": [
+    {
+      "variant": "baseline",
+      "cell": "pdf-jpeg-cold",
+      "backend": "imagesharp",
+      "n": 8
+    },
+    {
+      "variant": "baseline",
+      "cell": "pdf-jpeg-cold",
+      "backend": "rust",
+      "n": 8
+    },
+    {
+      "variant": "baseline",
+      "cell": "pdf-webp-cold",
+      "backend": "imagesharp",
+      "n": 8
+    },
+    {
+      "variant": "baseline",
+      "cell": "pdf-webp-cold",
+      "backend": "rust",
+      "n": 8
+    },
+    {
+      "variant": "baseline",
+      "cell": "web-jpeg-cold",
+      "backend": "imagesharp",
+      "n": 8
+    },
+    {
+      "variant": "baseline",
+      "cell": "web-jpeg-cold",
+      "backend": "rust",
+      "n": 8
+    },
+    {
+      "variant": "baseline",
+      "cell": "web-webp-cold",
+      "backend": "imagesharp",
+      "n": 8
+    },
+    {
+      "variant": "baseline",
+      "cell": "web-webp-cold",
+      "backend": "rust",
+      "n": 8
+    },
+    {
+      "variant": "jpeg-decode",
+      "cell": "pdf-jpeg-warm",
+      "backend": "imagesharp",
+      "n": 48
+    },
+    {
+      "variant": "jpeg-decode",
+      "cell": "pdf-jpeg-warm",
+      "backend": "original",
+      "n": 48
+    },
+    {
+      "variant": "jpeg-decode",
+      "cell": "pdf-jpeg-warm",
+      "backend": "rust",
+      "n": 48
+    },
+    {
+      "variant": "jpeg-decode",
+      "cell": "pdf-jpeg-cold",
+      "backend": "imagesharp",
+      "n": 8
+    },
+    {
+      "variant": "jpeg-decode",
+      "cell": "pdf-jpeg-cold",
+      "backend": "rust",
+      "n": 8
+    },
+    {
+      "variant": "jpeg-decode",
+      "cell": "pdf-webp-warm",
+      "backend": "imagesharp",
+      "n": 48
+    },
+    {
+      "variant": "jpeg-decode",
+      "cell": "pdf-webp-warm",
+      "backend": "original",
+      "n": 48
+    },
+    {
+      "variant": "jpeg-decode",
+      "cell": "pdf-webp-warm",
+      "backend": "rust",
+      "n": 48
+    },
+    {
+      "variant": "jpeg-decode",
+      "cell": "pdf-webp-cold",
+      "backend": "imagesharp",
+      "n": 8
+    },
+    {
+      "variant": "jpeg-decode",
+      "cell": "pdf-webp-cold",
+      "backend": "rust",
+      "n": 8
+    },
+    {
+      "variant": "jpeg-decode",
+      "cell": "web-jpeg-warm",
+      "backend": "imagesharp",
+      "n": 48
+    },
+    {
+      "variant": "jpeg-decode",
+      "cell": "web-jpeg-warm",
+      "backend": "original",
+      "n": 48
+    },
+    {
+      "variant": "jpeg-decode",
+      "cell": "web-jpeg-warm",
+      "backend": "rust",
+      "n": 48
+    },
+    {
+      "variant": "jpeg-decode",
+      "cell": "web-jpeg-cold",
+      "backend": "imagesharp",
+      "n": 8
+    },
+    {
+      "variant": "jpeg-decode",
+      "cell": "web-jpeg-cold",
+      "backend": "rust",
+      "n": 8
+    },
+    {
+      "variant": "jpeg-decode",
+      "cell": "web-webp-warm",
+      "backend": "imagesharp",
+      "n": 48
+    },
+    {
+      "variant": "jpeg-decode",
+      "cell": "web-webp-warm",
+      "backend": "original",
+      "n": 48
+    },
+    {
+      "variant": "jpeg-decode",
+      "cell": "web-webp-warm",
+      "backend": "rust",
+      "n": 48
+    },
+    {
+      "variant": "jpeg-decode",
+      "cell": "web-webp-cold",
+      "backend": "imagesharp",
+      "n": 8
+    },
+    {
+      "variant": "jpeg-decode",
+      "cell": "web-webp-cold",
+      "backend": "rust",
+      "n": 8
+    },
+    {
+      "variant": "webp-decode",
+      "cell": "pdf-webp-warm",
+      "backend": "imagesharp",
+      "n": 48
+    },
+    {
+      "variant": "webp-decode",
+      "cell": "pdf-webp-warm",
+      "backend": "original",
+      "n": 48
+    },
+    {
+      "variant": "webp-decode",
+      "cell": "pdf-webp-warm",
+      "backend": "rust",
+      "n": 48
+    },
+    {
+      "variant": "webp-decode",
+      "cell": "pdf-webp-cold",
+      "backend": "imagesharp",
+      "n": 8
+    },
+    {
+      "variant": "webp-decode",
+      "cell": "pdf-webp-cold",
+      "backend": "rust",
+      "n": 8
+    },
+    {
+      "variant": "webp-decode",
+      "cell": "web-webp-warm",
+      "backend": "imagesharp",
+      "n": 48
+    },
+    {
+      "variant": "webp-decode",
+      "cell": "web-webp-warm",
+      "backend": "original",
+      "n": 48
+    },
+    {
+      "variant": "webp-decode",
+      "cell": "web-webp-warm",
+      "backend": "rust",
+      "n": 48
+    },
+    {
+      "variant": "webp-decode",
+      "cell": "web-webp-cold",
+      "backend": "imagesharp",
+      "n": 8
+    },
+    {
+      "variant": "webp-decode",
+      "cell": "web-webp-cold",
+      "backend": "rust",
+      "n": 8
+    },
+    {
+      "variant": "combined-decode",
+      "cell": "pdf-jpeg-warm",
+      "backend": "imagesharp",
+      "n": 48
+    },
+    {
+      "variant": "combined-decode",
+      "cell": "pdf-jpeg-warm",
+      "backend": "original",
+      "n": 48
+    },
+    {
+      "variant": "combined-decode",
+      "cell": "pdf-jpeg-warm",
+      "backend": "rust",
+      "n": 48
+    },
+    {
+      "variant": "combined-decode",
+      "cell": "pdf-jpeg-cold",
+      "backend": "imagesharp",
+      "n": 8
+    },
+    {
+      "variant": "combined-decode",
+      "cell": "pdf-jpeg-cold",
+      "backend": "rust",
+      "n": 8
+    },
+    {
+      "variant": "combined-decode",
+      "cell": "pdf-webp-warm",
+      "backend": "imagesharp",
+      "n": 48
+    },
+    {
+      "variant": "combined-decode",
+      "cell": "pdf-webp-warm",
+      "backend": "original",
+      "n": 48
+    },
+    {
+      "variant": "combined-decode",
+      "cell": "pdf-webp-warm",
+      "backend": "rust",
+      "n": 48
+    },
+    {
+      "variant": "combined-decode",
+      "cell": "pdf-webp-cold",
+      "backend": "imagesharp",
+      "n": 8
+    },
+    {
+      "variant": "combined-decode",
+      "cell": "pdf-webp-cold",
+      "backend": "rust",
+      "n": 8
+    },
+    {
+      "variant": "combined-decode",
+      "cell": "web-jpeg-warm",
+      "backend": "imagesharp",
+      "n": 48
+    },
+    {
+      "variant": "combined-decode",
+      "cell": "web-jpeg-warm",
+      "backend": "original",
+      "n": 48
+    },
+    {
+      "variant": "combined-decode",
+      "cell": "web-jpeg-warm",
+      "backend": "rust",
+      "n": 48
+    },
+    {
+      "variant": "combined-decode",
+      "cell": "web-jpeg-cold",
+      "backend": "imagesharp",
+      "n": 8
+    },
+    {
+      "variant": "combined-decode",
+      "cell": "web-jpeg-cold",
+      "backend": "rust",
+      "n": 8
+    },
+    {
+      "variant": "combined-decode",
+      "cell": "web-webp-warm",
+      "backend": "imagesharp",
+      "n": 48
+    },
+    {
+      "variant": "combined-decode",
+      "cell": "web-webp-warm",
+      "backend": "original",
+      "n": 48
+    },
+    {
+      "variant": "combined-decode",
+      "cell": "web-webp-warm",
+      "backend": "rust",
+      "n": 48
+    },
+    {
+      "variant": "combined-decode",
+      "cell": "web-webp-cold",
+      "backend": "imagesharp",
+      "n": 8
+    },
+    {
+      "variant": "combined-decode",
+      "cell": "web-webp-cold",
+      "backend": "rust",
+      "n": 8
+    }
+  ],
+  "normal_diagnostic_pixels_equal": true
+}

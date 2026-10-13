@@ -1,0 +1,26 @@
+{
+  "path": "/home/stef/wayfarer-research/858-simd-experiment-20261013-mfkfwgez",
+  "reports": [
+    {
+      "path": "REPORT.md",
+      "sha256": "79752b488a047ae7583cdf83621d539fc553049c90682b3fc7deabe470262e03",
+      "bytes": 18587
+    }
+  ],
+  "root_files": [
+    "REPORT.md",
+    "diagnose.py",
+    "evidence-hash-verification.log",
+    "SHA256SUMS",
+    "analyze.py",
+    "COMMANDS.md",
+    "env.sh",
+    "ARTIFACTS.json"
+  ],
+  "source": {
+    "head": "8a857230c0751d87b71e227431365d0fb16a7ca4",
+    "status": "",
+    "worktrees": "worktree /home/stef/wayfarer-research/858-simd-experiment-20261013-mfkfwgez/source\nHEAD 8a857230c0751d87b71e227431365d0fb16a7ca4\nbranch refs/heads/wip/858-simd-experiment-20261013\n\nworktree /home/stef/wayfarer-research/858-simd-experiment-20261013-mfkfwgez/encoder-source\nHEAD 5e515719152537d03f1b1b0c6e0fccc8f99de6a0\nbranch refs/heads/wip/858-simd-encoder-only-20261013",
+    "branches": "refs/heads/main f4dbba8cb72213798d24d8b0697187bd46295ca0\nrefs/heads/wip/858-simd-encoder-only-20261013 5e515719152537d03f1b1b0c6e0fccc8f99de6a0\nrefs/heads/wip/858-simd-experiment-20261013 8a857230c0751d87b71e227431365d0fb16a7ca4\nrefs/heads/wip/858-web-image-recovery-20261013 017e7495c42336d7205b2d6263828ec96e0d980c"
+  }
+}

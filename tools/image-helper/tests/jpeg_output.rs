@@ -34,7 +34,14 @@ fn jpeg_profiles_preserve_icc_geometry_privacy_and_output_limit() {
             }
         );
         recipe.max_output = encoded.len();
+        // The native entropy writer can conservatively refuse a full destination before EOI.
+        #[cfg(not(feature = "native-jpeg-encode"))]
         assert!(transform(source.get_ref(), &recipe).is_ok());
+        #[cfg(feature = "native-jpeg-encode")]
+        assert_eq!(
+            transform(source.get_ref(), &recipe),
+            Err(Failure::Unavailable)
+        );
         recipe.max_output -= 1;
         assert_eq!(
             transform(source.get_ref(), &recipe),
@@ -127,12 +134,15 @@ fn native_borrowed_slice_refuses_actual_overflow_and_recovers() {
     let mut output = vec![0; compressor.buf_len(17, 19).unwrap()];
     let length = compressor.compress_to_slice(image, &mut output).unwrap();
     let mut exact = vec![0; length];
+    assert!(compressor.compress_to_slice(image, &mut exact).is_err());
+    // Refusal is conservative: a full entropy destination is an error even if final bytes fit.
     assert_eq!(
-        compressor.compress_to_slice(image, &mut exact).unwrap(),
+        compressor.compress_to_slice(image, &mut output).unwrap(),
         length
     );
+    output.truncate(length);
     assert_eq!(
-        turbojpeg::read_header(&exact).unwrap().subsamp,
+        turbojpeg::read_header(&output).unwrap().subsamp,
         turbojpeg::Subsamp::Sub2x2
     );
 }

@@ -1,0 +1,58 @@
+{
+  "workspace": "/home/stef/wayfarer-research/858-codec-comparison-20261013-zufsdz12",
+  "branch": "wip/858-codec-comparison-20261013",
+  "base": "8a857230c0751d87b71e227431365d0fb16a7ca4",
+  "final_head": "8d6e488f13d7de0b36c93ce10c2b3b5dcea9ccb4",
+  "measured_cli_head": "d87978aaa2ec89b3ed83e3b8126d3cc5bd7f69d7",
+  "measured_micro_head": "e18859a592562d78c66f502453d463f0b51ce8a9",
+  "measured_rss_head": "abefcf00725a31d7ea24a5425974b09a039f5739",
+  "fetched_main": "e5f7298cea0450a862bcd710da1f0579cb0bcd50",
+  "working_tree": "clean",
+  "changed_files": [
+    "tools/image-helper/CODECS.md",
+    "tools/image-helper/Cargo.lock",
+    "tools/image-helper/Cargo.toml",
+    "tools/image-helper/examples/codec_bench.rs",
+    "tools/image-helper/notices/libjpeg-turbo-rs-0.8.0.txt",
+    "tools/image-helper/notices/libwebp-sys-0.9.6.txt",
+    "tools/image-helper/notices/webp-0.3.1.txt",
+    "tools/image-helper/src/codec_candidates.rs",
+    "tools/image-helper/src/lib.rs",
+    "tools/image-helper/src/raster.rs",
+    "tools/image-helper/src/transform.rs",
+    "tools/image-helper/src/webp_input.rs",
+    "tools/image-helper/tests/codec_decode.rs"
+  ],
+  "binaries": {
+    "bin/codec-bench-measured": "35c8c52396eb8881269382d162cce9f97b8cc0fcf64fc6b98ff9adb510b4f558",
+    "bin/codec-bench-rss": "346ca40842f46379ae6a2a9d15e30854e8df770ce20339a30a68374d674d6839",
+    "bin/wayfarer-image-baseline": "9f8814b39fbd17db1f8f1b416e7b75bd655a08d4666e6ebe60d281cfc5f2a810",
+    "bin/wayfarer-image-baseline-diagnostic": "06a2bcdcf5b75bd73e8a6b2a790479f037370c926e250dc48d78523fbd734f4a",
+    "bin/wayfarer-image-combined-decode": "48cd24bd877cba13babe6de1268d29011089571e628c656a6a8ff64692016a34",
+    "bin/wayfarer-image-combined-decode-diagnostic": "94bac9cb4d66270360addbeb5a5e7781660712f3c4585d0797bf90060953029d",
+    "bin/wayfarer-image-combined-decode-final": "e1d6a69f8a1739b41331c8ee59943fa67c99e531f0f469af773a0461f34c19b4",
+    "bin/wayfarer-image-jpeg-decode": "e872c417d18d5e7e94f79d723663d87ec0ed83e1cb097543ca44ef3d613e7b4a",
+    "bin/wayfarer-image-jpeg-decode-diagnostic": "eba76787049e77ca781feb1c1e922e94e23a1c5f9903255426d4f334c366a598",
+    "bin/wayfarer-image-jpeg-decode-final": "8339e549fc792105d6684028a0b217720bd8789d531d64b69496283f66e2070a",
+    "bin/wayfarer-image-webp-decode": "bbc3476e4430f6e4dffac1114d9af9cdb4ddc501075302ba7aa690444d19e765",
+    "bin/wayfarer-image-webp-decode-diagnostic": "9f2a9d9f66e5cb4bc63da663d73673b18edaf570b2acb79091ca79faae09a30d",
+    "bin/wayfarer-image-webp-decode-final": "bbc3476e4430f6e4dffac1114d9af9cdb4ddc501075302ba7aa690444d19e765"
+  },
+  "result": "NO-GO overall; WebP decoder-only passes observed WebP profile gates; JPEG encoder integration UNPROVEN due bounded API fit; WebP output experimental only",
+  "validation": {
+    "retained_final_combined_xunit": 74,
+    "rust_product_cases": 4,
+    "final_admission_controls": 48,
+    "protected_files": 15418,
+    "code_guard": "REVIEW only; accepted inherited parser/aggregation findings; no FAIL/INCOMPLETE"
+  },
+  "reports": [
+    "REPORT.md",
+    "evidence/codec-summary.json",
+    "evidence/codec-rss-corrected.json",
+    "evidence/summary-jpeg-decode.json",
+    "evidence/summary-webp-decode.json",
+    "evidence/summary-combined-decode.json"
+  ],
+  "created_utc": "2026-10-13T20:53:26.411457+00:00"
+}

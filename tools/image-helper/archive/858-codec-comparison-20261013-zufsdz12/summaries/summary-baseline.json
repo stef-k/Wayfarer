@@ -1,0 +1,1154 @@
+{
+  "variant": "baseline",
+  "statistics": "p50 median; p95 nearest rank; throughput inverse mean wall time",
+  "gate": {
+    "maximum_latency_ratio": 1.1,
+    "minimum_throughput_ratio": 0.9
+  },
+  "paired": {
+    "pdf-jpeg-cold": {
+      "files": [
+        "evidence/performance/baseline/pdf-jpeg-cold-1.json",
+        "evidence/performance/baseline/pdf-jpeg-cold-2.json",
+        "evidence/performance/baseline/pdf-jpeg-cold-3.json",
+        "evidence/performance/baseline/pdf-jpeg-cold-4.json",
+        "evidence/performance/baseline/pdf-jpeg-cold-5.json",
+        "evidence/performance/baseline/pdf-jpeg-cold-6.json",
+        "evidence/performance/baseline/pdf-jpeg-cold-7.json",
+        "evidence/performance/baseline/pdf-jpeg-cold-8.json"
+      ],
+      "backends": {
+        "imagesharp": {
+          "n": 8,
+          "p50_ms": 170.3075,
+          "p95_ms": 193.0571,
+          "mean_ms": 170.0635625,
+          "min_ms": 145.6388,
+          "max_ms": 193.0571,
+          "stddev_ms": 21.530807625681554,
+          "sequential_images_per_second": 5.880154368752566
+        },
+        "rust": {
+          "n": 8,
+          "p50_ms": 63.40775,
+          "p95_ms": 71.5513,
+          "mean_ms": 63.1936,
+          "min_ms": 51.8918,
+          "max_ms": 71.5513,
+          "stddev_ms": 6.998064889055299,
+          "sequential_images_per_second": 15.824387279724528
+        }
+      },
+      "comparison": {
+        "imagesharp": {
+          "p50_ratio": 0.3723133156202751,
+          "p95_ratio": 0.37062247386912994,
+          "throughput_ratio": 2.6911516751696367,
+          "pass": true
+        }
+      },
+      "sessions": {
+        "pdf-jpeg-cold-1.json": {
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 145.6388,
+            "p95_ms": 145.6388,
+            "mean_ms": 145.6388,
+            "min_ms": 145.6388,
+            "max_ms": 145.6388,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 6.866302111799877
+          },
+          "rust": {
+            "n": 1,
+            "p50_ms": 51.8918,
+            "p95_ms": 51.8918,
+            "mean_ms": 51.8918,
+            "min_ms": 51.8918,
+            "max_ms": 51.8918,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 19.27086745882779
+          }
+        },
+        "pdf-jpeg-cold-2.json": {
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 186.8752,
+            "p95_ms": 186.8752,
+            "mean_ms": 186.8752,
+            "min_ms": 186.8752,
+            "max_ms": 186.8752,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 5.351164841562711
+          },
+          "rust": {
+            "n": 1,
+            "p50_ms": 60.9709,
+            "p95_ms": 60.9709,
+            "mean_ms": 60.9709,
+            "min_ms": 60.9709,
+            "max_ms": 60.9709,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 16.401266833850247
+          }
+        },
+        "pdf-jpeg-cold-3.json": {
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 151.2654,
+            "p95_ms": 151.2654,
+            "mean_ms": 151.2654,
+            "min_ms": 151.2654,
+            "max_ms": 151.2654,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 6.610897138407065
+          },
+          "rust": {
+            "n": 1,
+            "p50_ms": 59.3164,
+            "p95_ms": 59.3164,
+            "mean_ms": 59.3164,
+            "min_ms": 59.3164,
+            "max_ms": 59.3164,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 16.85874395614029
+          }
+        },
+        "pdf-jpeg-cold-4.json": {
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 191.2283,
+            "p95_ms": 191.2283,
+            "mean_ms": 191.2283,
+            "min_ms": 191.2283,
+            "max_ms": 191.2283,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 5.229351513348181
+          },
+          "rust": {
+            "n": 1,
+            "p50_ms": 68.1606,
+            "p95_ms": 68.1606,
+            "mean_ms": 68.1606,
+            "min_ms": 68.1606,
+            "max_ms": 68.1606,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 14.671232354175286
+          }
+        },
+        "pdf-jpeg-cold-5.json": {
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 153.7398,
+            "p95_ms": 153.7398,
+            "mean_ms": 153.7398,
+            "min_ms": 153.7398,
+            "max_ms": 153.7398,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 6.504496558470871
+          },
+          "rust": {
+            "n": 1,
+            "p50_ms": 70.7088,
+            "p95_ms": 70.7088,
+            "mean_ms": 70.7088,
+            "min_ms": 70.7088,
+            "max_ms": 70.7088,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 14.142511257438962
+          }
+        },
+        "pdf-jpeg-cold-6.json": {
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 193.0571,
+            "p95_ms": 193.0571,
+            "mean_ms": 193.0571,
+            "min_ms": 193.0571,
+            "max_ms": 193.0571,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 5.179814676590501
+          },
+          "rust": {
+            "n": 1,
+            "p50_ms": 71.5513,
+            "p95_ms": 71.5513,
+            "mean_ms": 71.5513,
+            "min_ms": 71.5513,
+            "max_ms": 71.5513,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 13.975986460064318
+          }
+        },
+        "pdf-jpeg-cold-7.json": {
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 149.7518,
+            "p95_ms": 149.7518,
+            "mean_ms": 149.7518,
+            "min_ms": 149.7518,
+            "max_ms": 149.7518,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 6.677716060842006
+          },
+          "rust": {
+            "n": 1,
+            "p50_ms": 57.1044,
+            "p95_ms": 57.1044,
+            "mean_ms": 57.1044,
+            "min_ms": 57.1044,
+            "max_ms": 57.1044,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 17.511785431595463
+          }
+        },
+        "pdf-jpeg-cold-8.json": {
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 188.9521,
+            "p95_ms": 188.9521,
+            "mean_ms": 188.9521,
+            "min_ms": 188.9521,
+            "max_ms": 188.9521,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 5.292346578841939
+          },
+          "rust": {
+            "n": 1,
+            "p50_ms": 65.8446,
+            "p95_ms": 65.8446,
+            "mean_ms": 65.8446,
+            "min_ms": 65.8446,
+            "max_ms": 65.8446,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 15.187274279136027
+          }
+        }
+      },
+      "parent_resources": {
+        "imagesharp": {
+          "median_parent_cpu_ms": 175.2815,
+          "maximum_shared_host_peak_rss_kib": 184164
+        },
+        "rust": {
+          "median_parent_cpu_ms": 42.0185,
+          "maximum_shared_host_peak_rss_kib": 183772
+        }
+      }
+    },
+    "pdf-webp-cold": {
+      "files": [
+        "evidence/performance/baseline/pdf-webp-cold-1.json",
+        "evidence/performance/baseline/pdf-webp-cold-2.json",
+        "evidence/performance/baseline/pdf-webp-cold-3.json",
+        "evidence/performance/baseline/pdf-webp-cold-4.json",
+        "evidence/performance/baseline/pdf-webp-cold-5.json",
+        "evidence/performance/baseline/pdf-webp-cold-6.json",
+        "evidence/performance/baseline/pdf-webp-cold-7.json",
+        "evidence/performance/baseline/pdf-webp-cold-8.json"
+      ],
+      "backends": {
+        "imagesharp": {
+          "n": 8,
+          "p50_ms": 342.6713,
+          "p95_ms": 367.1201,
+          "mean_ms": 341.3996875,
+          "min_ms": 315.7903,
+          "max_ms": 367.1201,
+          "stddev_ms": 23.17801616152915,
+          "sequential_images_per_second": 2.9291180883110792
+        },
+        "rust": {
+          "n": 8,
+          "p50_ms": 95.70285000000001,
+          "p95_ms": 106.6372,
+          "mean_ms": 97.137025,
+          "min_ms": 89.2986,
+          "max_ms": 106.6372,
+          "stddev_ms": 5.850616696371176,
+          "sequential_images_per_second": 10.294735709684335
+        }
+      },
+      "comparison": {
+        "imagesharp": {
+          "p50_ratio": 0.27928469644233417,
+          "p95_ratio": 0.2904695220991714,
+          "throughput_ratio": 3.514619554181323,
+          "pass": true
+        }
+      },
+      "sessions": {
+        "pdf-webp-cold-1.json": {
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 320.8661,
+            "p95_ms": 320.8661,
+            "mean_ms": 320.8661,
+            "min_ms": 320.8661,
+            "max_ms": 320.8661,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 3.116564822522541
+          },
+          "rust": {
+            "n": 1,
+            "p50_ms": 99.7654,
+            "p95_ms": 99.7654,
+            "mean_ms": 99.7654,
+            "min_ms": 99.7654,
+            "max_ms": 99.7654,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 10.023515166580799
+          }
+        },
+        "pdf-webp-cold-2.json": {
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 360.3615,
+            "p95_ms": 360.3615,
+            "mean_ms": 360.3615,
+            "min_ms": 360.3615,
+            "max_ms": 360.3615,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 2.774991224090254
+          },
+          "rust": {
+            "n": 1,
+            "p50_ms": 103.566,
+            "p95_ms": 103.566,
+            "mean_ms": 103.566,
+            "min_ms": 103.566,
+            "max_ms": 103.566,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 9.655678504528513
+          }
+        },
+        "pdf-webp-cold-3.json": {
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 318.1218,
+            "p95_ms": 318.1218,
+            "mean_ms": 318.1218,
+            "min_ms": 318.1218,
+            "max_ms": 318.1218,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 3.1434500873564777
+          },
+          "rust": {
+            "n": 1,
+            "p50_ms": 94.1632,
+            "p95_ms": 94.1632,
+            "mean_ms": 94.1632,
+            "min_ms": 94.1632,
+            "max_ms": 94.1632,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 10.61985998776592
+          }
+        },
+        "pdf-webp-cold-4.json": {
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 367.1201,
+            "p95_ms": 367.1201,
+            "mean_ms": 367.1201,
+            "min_ms": 367.1201,
+            "max_ms": 367.1201,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 2.7239042482283047
+          },
+          "rust": {
+            "n": 1,
+            "p50_ms": 89.2986,
+            "p95_ms": 89.2986,
+            "mean_ms": 89.2986,
+            "min_ms": 89.2986,
+            "max_ms": 89.2986,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 11.198383849242878
+          }
+        },
+        "pdf-webp-cold-5.json": {
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 315.7903,
+            "p95_ms": 315.7903,
+            "mean_ms": 315.7903,
+            "min_ms": 315.7903,
+            "max_ms": 315.7903,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 3.1666583805772373
+          },
+          "rust": {
+            "n": 1,
+            "p50_ms": 93.1816,
+            "p95_ms": 93.1816,
+            "mean_ms": 93.1816,
+            "min_ms": 93.1816,
+            "max_ms": 93.1816,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 10.731732445032065
+          }
+        },
+        "pdf-webp-cold-6.json": {
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 363.3191,
+            "p95_ms": 363.3191,
+            "mean_ms": 363.3191,
+            "min_ms": 363.3191,
+            "max_ms": 363.3191,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 2.7524014014126976
+          },
+          "rust": {
+            "n": 1,
+            "p50_ms": 93.2417,
+            "p95_ms": 93.2417,
+            "mean_ms": 93.2417,
+            "min_ms": 93.2417,
+            "max_ms": 93.2417,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 10.724815184622331
+          }
+        },
+        "pdf-webp-cold-7.json": {
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 324.9811,
+            "p95_ms": 324.9811,
+            "mean_ms": 324.9811,
+            "min_ms": 324.9811,
+            "max_ms": 324.9811,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 3.0771020222406777
+          },
+          "rust": {
+            "n": 1,
+            "p50_ms": 97.2425,
+            "p95_ms": 97.2425,
+            "mean_ms": 97.2425,
+            "min_ms": 97.2425,
+            "max_ms": 97.2425,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 10.283569426948093
+          }
+        },
+        "pdf-webp-cold-8.json": {
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 360.6375,
+            "p95_ms": 360.6375,
+            "mean_ms": 360.6375,
+            "min_ms": 360.6375,
+            "max_ms": 360.6375,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 2.7728674915947455
+          },
+          "rust": {
+            "n": 1,
+            "p50_ms": 106.6372,
+            "p95_ms": 106.6372,
+            "mean_ms": 106.6372,
+            "min_ms": 106.6372,
+            "max_ms": 106.6372,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 9.377590559392031
+          }
+        }
+      },
+      "parent_resources": {
+        "imagesharp": {
+          "median_parent_cpu_ms": 357.89549999999997,
+          "maximum_shared_host_peak_rss_kib": 189476
+        },
+        "rust": {
+          "median_parent_cpu_ms": 40.322500000000005,
+          "maximum_shared_host_peak_rss_kib": 185876
+        }
+      }
+    },
+    "web-jpeg-cold": {
+      "files": [
+        "evidence/performance/baseline/web-jpeg-cold-1.json",
+        "evidence/performance/baseline/web-jpeg-cold-2.json",
+        "evidence/performance/baseline/web-jpeg-cold-3.json",
+        "evidence/performance/baseline/web-jpeg-cold-4.json",
+        "evidence/performance/baseline/web-jpeg-cold-5.json",
+        "evidence/performance/baseline/web-jpeg-cold-6.json",
+        "evidence/performance/baseline/web-jpeg-cold-7.json",
+        "evidence/performance/baseline/web-jpeg-cold-8.json"
+      ],
+      "backends": {
+        "imagesharp": {
+          "n": 8,
+          "p50_ms": 178.8662,
+          "p95_ms": 205.1556,
+          "mean_ms": 176.64925,
+          "min_ms": 144.2447,
+          "max_ms": 205.1556,
+          "stddev_ms": 27.592871101893586,
+          "sequential_images_per_second": 5.660935441276994
+        },
+        "rust": {
+          "n": 8,
+          "p50_ms": 91.53145,
+          "p95_ms": 97.0201,
+          "mean_ms": 90.00138749999999,
+          "min_ms": 81.5362,
+          "max_ms": 97.0201,
+          "stddev_ms": 6.137233537174662,
+          "sequential_images_per_second": 11.110939817455593
+        }
+      },
+      "comparison": {
+        "imagesharp": {
+          "p50_ratio": 0.511731394752055,
+          "p95_ratio": 0.4729098303921511,
+          "throughput_ratio": 1.9627391855486673,
+          "pass": true
+        }
+      },
+      "sessions": {
+        "web-jpeg-cold-1.json": {
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 144.2447,
+            "p95_ms": 144.2447,
+            "mean_ms": 144.2447,
+            "min_ms": 144.2447,
+            "max_ms": 144.2447,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 6.9326637304524885
+          },
+          "rust": {
+            "n": 1,
+            "p50_ms": 86.4248,
+            "p95_ms": 86.4248,
+            "mean_ms": 86.4248,
+            "min_ms": 86.4248,
+            "max_ms": 86.4248,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 11.570752839462747
+          }
+        },
+        "web-jpeg-cold-2.json": {
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 205.1556,
+            "p95_ms": 205.1556,
+            "mean_ms": 205.1556,
+            "min_ms": 205.1556,
+            "max_ms": 205.1556,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 4.874349030686952
+          },
+          "rust": {
+            "n": 1,
+            "p50_ms": 81.6376,
+            "p95_ms": 81.6376,
+            "mean_ms": 81.6376,
+            "min_ms": 81.6376,
+            "max_ms": 81.6376,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 12.249257694983683
+          }
+        },
+        "web-jpeg-cold-3.json": {
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 151.0273,
+            "p95_ms": 151.0273,
+            "mean_ms": 151.0273,
+            "min_ms": 151.0273,
+            "max_ms": 151.0273,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 6.6213194568134375
+          },
+          "rust": {
+            "n": 1,
+            "p50_ms": 95.9558,
+            "p95_ms": 95.9558,
+            "mean_ms": 95.9558,
+            "min_ms": 95.9558,
+            "max_ms": 95.9558,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 10.421464882789785
+          }
+        },
+        "web-jpeg-cold-4.json": {
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 202.5305,
+            "p95_ms": 202.5305,
+            "mean_ms": 202.5305,
+            "min_ms": 202.5305,
+            "max_ms": 202.5305,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 4.937527927892343
+          },
+          "rust": {
+            "n": 1,
+            "p50_ms": 90.9238,
+            "p95_ms": 90.9238,
+            "mean_ms": 90.9238,
+            "min_ms": 90.9238,
+            "max_ms": 90.9238,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 10.998220487925053
+          }
+        },
+        "web-jpeg-cold-5.json": {
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 159.6653,
+            "p95_ms": 159.6653,
+            "mean_ms": 159.6653,
+            "min_ms": 159.6653,
+            "max_ms": 159.6653,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 6.263101625713289
+          },
+          "rust": {
+            "n": 1,
+            "p50_ms": 94.3737,
+            "p95_ms": 94.3737,
+            "mean_ms": 94.3737,
+            "min_ms": 94.3737,
+            "max_ms": 94.3737,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 10.5961724505874
+          }
+        },
+        "web-jpeg-cold-6.json": {
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 202.6438,
+            "p95_ms": 202.6438,
+            "mean_ms": 202.6438,
+            "min_ms": 202.6438,
+            "max_ms": 202.6438,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 4.934767310916988
+          },
+          "rust": {
+            "n": 1,
+            "p50_ms": 81.5362,
+            "p95_ms": 81.5362,
+            "mean_ms": 81.5362,
+            "min_ms": 81.5362,
+            "max_ms": 81.5362,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 12.264491109470395
+          }
+        },
+        "web-jpeg-cold-7.json": {
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 149.8597,
+            "p95_ms": 149.8597,
+            "mean_ms": 149.8597,
+            "min_ms": 149.8597,
+            "max_ms": 149.8597,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 6.672908060005458
+          },
+          "rust": {
+            "n": 1,
+            "p50_ms": 92.1391,
+            "p95_ms": 92.1391,
+            "mean_ms": 92.1391,
+            "min_ms": 92.1391,
+            "max_ms": 92.1391,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 10.853155717822293
+          }
+        },
+        "web-jpeg-cold-8.json": {
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 198.0671,
+            "p95_ms": 198.0671,
+            "mean_ms": 198.0671,
+            "min_ms": 198.0671,
+            "max_ms": 198.0671,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 5.04879407029234
+          },
+          "rust": {
+            "n": 1,
+            "p50_ms": 97.0201,
+            "p95_ms": 97.0201,
+            "mean_ms": 97.0201,
+            "min_ms": 97.0201,
+            "max_ms": 97.0201,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 10.307142540566335
+          }
+        }
+      },
+      "parent_resources": {
+        "imagesharp": {
+          "median_parent_cpu_ms": 193.323,
+          "maximum_shared_host_peak_rss_kib": 186612
+        },
+        "rust": {
+          "median_parent_cpu_ms": 39.007000000000005,
+          "maximum_shared_host_peak_rss_kib": 186360
+        }
+      }
+    },
+    "web-webp-cold": {
+      "files": [
+        "evidence/performance/baseline/web-webp-cold-1.json",
+        "evidence/performance/baseline/web-webp-cold-2.json",
+        "evidence/performance/baseline/web-webp-cold-3.json",
+        "evidence/performance/baseline/web-webp-cold-4.json",
+        "evidence/performance/baseline/web-webp-cold-5.json",
+        "evidence/performance/baseline/web-webp-cold-6.json",
+        "evidence/performance/baseline/web-webp-cold-7.json",
+        "evidence/performance/baseline/web-webp-cold-8.json"
+      ],
+      "backends": {
+        "imagesharp": {
+          "n": 8,
+          "p50_ms": 377.0394,
+          "p95_ms": 393.8613,
+          "mean_ms": 373.5882875,
+          "min_ms": 349.3262,
+          "max_ms": 393.8613,
+          "stddev_ms": 20.45418579693497,
+          "sequential_images_per_second": 2.676743445818012
+        },
+        "rust": {
+          "n": 8,
+          "p50_ms": 138.34325,
+          "p95_ms": 144.7938,
+          "mean_ms": 133.29918750000002,
+          "min_ms": 117.775,
+          "max_ms": 144.7938,
+          "stddev_ms": 10.392894657056742,
+          "sequential_images_per_second": 7.5019211951310645
+        }
+      },
+      "comparison": {
+        "imagesharp": {
+          "p50_ratio": 0.3669198762781821,
+          "p95_ratio": 0.3676263699937008,
+          "throughput_ratio": 2.802629892248967,
+          "pass": true
+        }
+      },
+      "sessions": {
+        "web-webp-cold-1.json": {
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 353.4873,
+            "p95_ms": 353.4873,
+            "mean_ms": 353.4873,
+            "min_ms": 353.4873,
+            "max_ms": 353.4873,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 2.828955948346659
+          },
+          "rust": {
+            "n": 1,
+            "p50_ms": 127.0265,
+            "p95_ms": 127.0265,
+            "mean_ms": 127.0265,
+            "min_ms": 127.0265,
+            "max_ms": 127.0265,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 7.8723730875053635
+          }
+        },
+        "web-webp-cold-2.json": {
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 389.2443,
+            "p95_ms": 389.2443,
+            "mean_ms": 389.2443,
+            "min_ms": 389.2443,
+            "max_ms": 389.2443,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 2.56908065191963
+          },
+          "rust": {
+            "n": 1,
+            "p50_ms": 142.1708,
+            "p95_ms": 142.1708,
+            "mean_ms": 142.1708,
+            "min_ms": 142.1708,
+            "max_ms": 142.1708,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 7.033793155837907
+          }
+        },
+        "web-webp-cold-3.json": {
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 352.1812,
+            "p95_ms": 352.1812,
+            "mean_ms": 352.1812,
+            "min_ms": 352.1812,
+            "max_ms": 352.1812,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 2.83944742081633
+          },
+          "rust": {
+            "n": 1,
+            "p50_ms": 119.5751,
+            "p95_ms": 119.5751,
+            "mean_ms": 119.5751,
+            "min_ms": 119.5751,
+            "max_ms": 119.5751,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 8.36294512820813
+          }
+        },
+        "web-webp-cold-4.json": {
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 393.8613,
+            "p95_ms": 393.8613,
+            "mean_ms": 393.8613,
+            "min_ms": 393.8613,
+            "max_ms": 393.8613,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 2.5389648589490768
+          },
+          "rust": {
+            "n": 1,
+            "p50_ms": 144.7938,
+            "p95_ms": 144.7938,
+            "mean_ms": 144.7938,
+            "min_ms": 144.7938,
+            "max_ms": 144.7938,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 6.906373062935015
+          }
+        },
+        "web-webp-cold-5.json": {
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 349.3262,
+            "p95_ms": 349.3262,
+            "mean_ms": 349.3262,
+            "min_ms": 349.3262,
+            "max_ms": 349.3262,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 2.8626538748024055
+          },
+          "rust": {
+            "n": 1,
+            "p50_ms": 117.775,
+            "p95_ms": 117.775,
+            "mean_ms": 117.775,
+            "min_ms": 117.775,
+            "max_ms": 117.775,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 8.490766291657822
+          }
+        },
+        "web-webp-cold-6.json": {
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 393.1459,
+            "p95_ms": 393.1459,
+            "mean_ms": 393.1459,
+            "min_ms": 393.1459,
+            "max_ms": 393.1459,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 2.543584964258816
+          },
+          "rust": {
+            "n": 1,
+            "p50_ms": 138.3658,
+            "p95_ms": 138.3658,
+            "mean_ms": 138.3658,
+            "min_ms": 138.3658,
+            "max_ms": 138.3658,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 7.2272194429548335
+          }
+        },
+        "web-webp-cold-7.json": {
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 364.8345,
+            "p95_ms": 364.8345,
+            "mean_ms": 364.8345,
+            "min_ms": 364.8345,
+            "max_ms": 364.8345,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 2.740968850259501
+          },
+          "rust": {
+            "n": 1,
+            "p50_ms": 138.3219,
+            "p95_ms": 138.3219,
+            "mean_ms": 138.3219,
+            "min_ms": 138.3219,
+            "max_ms": 138.3219,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 7.229513186270576
+          }
+        },
+        "web-webp-cold-8.json": {
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 392.6256,
+            "p95_ms": 392.6256,
+            "mean_ms": 392.6256,
+            "min_ms": 392.6256,
+            "max_ms": 392.6256,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 2.5469556748209996
+          },
+          "rust": {
+            "n": 1,
+            "p50_ms": 138.3646,
+            "p95_ms": 138.3646,
+            "mean_ms": 138.3646,
+            "min_ms": 138.3646,
+            "max_ms": 138.3646,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 7.227282122739487
+          }
+        }
+      },
+      "parent_resources": {
+        "imagesharp": {
+          "median_parent_cpu_ms": 403.0845,
+          "maximum_shared_host_peak_rss_kib": 195336
+        },
+        "rust": {
+          "median_parent_cpu_ms": 40.169,
+          "maximum_shared_host_peak_rss_kib": 189764
+        }
+      }
+    }
+  },
+  "quality": [],
+  "direct": {
+    "direct-baseline-pdf:photo.jpg:instrumented": {
+      "wall": {
+        "n": 12,
+        "p50_ms": 27.009076,
+        "p95_ms": 29.639873,
+        "mean_ms": 27.41076725,
+        "min_ms": 26.430977,
+        "max_ms": 29.639873,
+        "stddev_ms": 1.0398822704385278,
+        "sequential_images_per_second": 36.48201419827094
+      },
+      "median_child_cpu_ms": 30.758999999999993,
+      "max_sampled_child_peak_rss_kib": 14600,
+      "median_sampled_child_peak_rss_kib": 14486.0,
+      "stages": {
+        "arguments_controls": 0.0138,
+        "stdin": 0.48035000000000005,
+        "source_decode": 12.259839,
+        "color_prepare": 4.5879460000000005,
+        "orientation_drop": 0.2867995,
+        "resize_srgb8": 2.8068975,
+        "encode": 2.087848,
+        "output_verify": 1.7574485,
+        "stdout": 0.0097,
+        "run": 24.9474275
+      },
+      "pixels_sha256": [
+        "6def141e9954f8b3d517d4d0121c69e22b56c68c29c1d83b06420e279df24dd3"
+      ],
+      "output_bytes": [
+        43582
+      ]
+    },
+    "direct-baseline-pdf:photo.jpg:recovered": {
+      "wall": {
+        "n": 12,
+        "p50_ms": 27.3831255,
+        "p95_ms": 28.540974,
+        "mean_ms": 27.47022525,
+        "min_ms": 26.473176,
+        "max_ms": 28.540974,
+        "stddev_ms": 0.6176791802977458,
+        "sequential_images_per_second": 36.40305060840373
+      },
+      "median_child_cpu_ms": 31.32199999999999,
+      "max_sampled_child_peak_rss_kib": 14504,
+      "median_sampled_child_peak_rss_kib": 14408.0,
+      "stages": {},
+      "pixels_sha256": [
+        "6def141e9954f8b3d517d4d0121c69e22b56c68c29c1d83b06420e279df24dd3"
+      ],
+      "output_bytes": [
+        43582
+      ]
+    },
+    "direct-baseline-pdf:photo.webp:instrumented": {
+      "wall": {
+        "n": 12,
+        "p50_ms": 63.711689,
+        "p95_ms": 67.077137,
+        "mean_ms": 64.087997,
+        "min_ms": 63.003939,
+        "max_ms": 67.077137,
+        "stddev_ms": 1.162898007114122,
+        "sequential_images_per_second": 15.603545855864398
+      },
+      "median_child_cpu_ms": 63.87600000000005,
+      "max_sampled_child_peak_rss_kib": 12196,
+      "median_sampled_child_peak_rss_kib": 12006.0,
+      "stages": {
+        "arguments_controls": 0.01235,
+        "stdin": 0.3939495,
+        "source_decode": 53.8503495,
+        "color_prepare": 0.0007,
+        "orientation_drop": 0.00075,
+        "resize_srgb8": 2.6164475,
+        "encode": 2.1165979999999998,
+        "output_verify": 1.845498,
+        "stdout": 0.009600000000000001,
+        "run": 61.6574915
+      },
+      "pixels_sha256": [
+        "66458011e4de7adeb2b90340f1d88a671972830066b1d2ade37cc49fdf944b80"
+      ],
+      "output_bytes": [
+        43524
+      ]
+    },
+    "direct-baseline-pdf:photo.webp:recovered": {
+      "wall": {
+        "n": 12,
+        "p50_ms": 63.845088000000004,
+        "p95_ms": 67.054937,
+        "mean_ms": 64.40675475,
+        "min_ms": 62.690739,
+        "max_ms": 67.054937,
+        "stddev_ms": 1.5197144073825852,
+        "sequential_images_per_second": 15.526321794687224
+      },
+      "median_child_cpu_ms": 64.05399999999983,
+      "max_sampled_child_peak_rss_kib": 12124,
+      "median_sampled_child_peak_rss_kib": 11922.0,
+      "stages": {},
+      "pixels_sha256": [
+        "66458011e4de7adeb2b90340f1d88a671972830066b1d2ade37cc49fdf944b80"
+      ],
+      "output_bytes": [
+        43524
+      ]
+    },
+    "direct-baseline-web:photo.jpg:instrumented": {
+      "wall": {
+        "n": 12,
+        "p50_ms": 55.627978999999996,
+        "p95_ms": 62.945024,
+        "mean_ms": 56.824996416666664,
+        "min_ms": 54.663032,
+        "max_ms": 62.945024,
+        "stddev_ms": 2.6295396974540974,
+        "sequential_images_per_second": 17.59788936311665
+      },
+      "median_child_cpu_ms": 61.44049999999996,
+      "max_sampled_child_peak_rss_kib": 14632,
+      "median_sampled_child_peak_rss_kib": 14488.0,
+      "stages": {
+        "arguments_controls": 0.012199999999999999,
+        "stdin": 0.3757495,
+        "source_decode": 12.439084000000001,
+        "color_prepare": 4.5868445,
+        "orientation_drop": 0.26579949999999997,
+        "resize_srgb8": 0.0001,
+        "encode": 21.818073499999997,
+        "output_verify": 12.2824345,
+        "stdout": 0.49039999999999995,
+        "run": 52.968982
+      },
+      "pixels_sha256": [
+        "8ae3d4052350a65fb6ab986515cf11d3bcd35221152c287d177264687b601929"
+      ],
+      "output_bytes": [
+        498531
+      ]
+    },
+    "direct-baseline-web:photo.jpg:recovered": {
+      "wall": {
+        "n": 12,
+        "p50_ms": 55.583431000000004,
+        "p95_ms": 57.82263,
+        "mean_ms": 55.70561433333333,
+        "min_ms": 54.65933,
+        "max_ms": 57.82263,
+        "stddev_ms": 0.9071733851353218,
+        "sequential_images_per_second": 17.951511925102608
+      },
+      "median_child_cpu_ms": 61.36200000000008,
+      "max_sampled_child_peak_rss_kib": 14512,
+      "median_sampled_child_peak_rss_kib": 14466.0,
+      "stages": {},
+      "pixels_sha256": [
+        "8ae3d4052350a65fb6ab986515cf11d3bcd35221152c287d177264687b601929"
+      ],
+      "output_bytes": [
+        498531
+      ]
+    },
+    "direct-baseline-web:photo.webp:instrumented": {
+      "wall": {
+        "n": 12,
+        "p50_ms": 91.6632845,
+        "p95_ms": 95.799407,
+        "mean_ms": 91.9744275,
+        "min_ms": 90.912483,
+        "max_ms": 95.799407,
+        "stddev_ms": 1.2948119316985076,
+        "sequential_images_per_second": 10.872587383052752
+      },
+      "median_child_cpu_ms": 93.99749999999976,
+      "max_sampled_child_peak_rss_kib": 13144,
+      "median_sampled_child_peak_rss_kib": 12916.0,
+      "stages": {
+        "arguments_controls": 0.0133505,
+        "stdin": 0.4264015,
+        "source_decode": 54.0772295,
+        "color_prepare": 0.0005499999999999999,
+        "orientation_drop": 0.0007,
+        "resize_srgb8": 0.0,
+        "encode": 21.4121815,
+        "output_verify": 12.1776015,
+        "stdout": 0.550852,
+        "run": 89.00787700000001
+      },
+      "pixels_sha256": [
+        "62cc942fdac704ba9c3a697b7a097bbc20b90b944733cb3e77e8ba114ffe06bf"
+      ],
+      "output_bytes": [
+        501261
+      ]
+    },
+    "direct-baseline-web:photo.webp:recovered": {
+      "wall": {
+        "n": 12,
+        "p50_ms": 91.6905855,
+        "p95_ms": 95.455299,
+        "mean_ms": 92.45166108333333,
+        "min_ms": 90.529982,
+        "max_ms": 95.455299,
+        "stddev_ms": 1.7347509089779705,
+        "sequential_images_per_second": 10.81646330938963
+      },
+      "median_child_cpu_ms": 93.96000000000006,
+      "max_sampled_child_peak_rss_kib": 13136,
+      "median_sampled_child_peak_rss_kib": 12918.0,
+      "stages": {},
+      "pixels_sha256": [
+        "62cc942fdac704ba9c3a697b7a097bbc20b90b944733cb3e77e8ba114ffe06bf"
+      ],
+      "output_bytes": [
+        501261
+      ]
+    }
+  },
+  "decision": "UNPROVEN"
+}

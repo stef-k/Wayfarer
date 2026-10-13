@@ -1,0 +1,249 @@
+{
+  "implementation_commit": "388ed351a2f441c184f80ee9dabb06f813223eb2",
+  "profile": {
+    "width": 600,
+    "height": 8192,
+    "quality": 85,
+    "output": "auto",
+    "geometry": [
+      600,
+      269
+    ]
+  },
+  "baseline": "Unmodified ImageProxyHelper.OptimizeImage then ValidateRaster, ImageSharp 3.1.12",
+  "decision": "NO-GO",
+  "observations": [
+    {
+      "fixture": "photo.jpg",
+      "phase": "cold",
+      "stats": {
+        "imagesharp": {
+          "n": 8,
+          "p50_ms": 239.2038,
+          "p95_ms": 247.4579,
+          "sequential_images_per_second": 4.186234478423703
+        },
+        "rust": {
+          "n": 8,
+          "p50_ms": 148.21025,
+          "p95_ms": 156.1739,
+          "sequential_images_per_second": 6.850473431937335
+        }
+      },
+      "p50_ratio": 0.6195982254462513,
+      "p95_ratio": 0.6311130095260649,
+      "throughput_ratio": 1.6364285056762595
+    },
+    {
+      "fixture": "photo.jpg",
+      "phase": "warm",
+      "stats": {
+        "imagesharp": {
+          "n": 20,
+          "p50_ms": 27.00895,
+          "p95_ms": 44.4791,
+          "sequential_images_per_second": 32.98192738797812
+        },
+        "rust": {
+          "n": 20,
+          "p50_ms": 114.66405,
+          "p95_ms": 122.8025,
+          "sequential_images_per_second": 8.631610502719239
+        }
+      },
+      "p50_ratio": 4.245409392071887,
+      "p95_ratio": 2.760903435546133,
+      "throughput_ratio": 0.2617072799046138
+    },
+    {
+      "fixture": "opaque.png",
+      "phase": "cold",
+      "stats": {
+        "imagesharp": {
+          "n": 8,
+          "p50_ms": 387.00509999999997,
+          "p95_ms": 411.8324,
+          "sequential_images_per_second": 2.5527440802263643
+        },
+        "rust": {
+          "n": 8,
+          "p50_ms": 162.92285,
+          "p95_ms": 172.1431,
+          "sequential_images_per_second": 6.179046682774926
+        }
+      },
+      "p50_ratio": 0.4209837286382015,
+      "p95_ratio": 0.4179930962206956,
+      "throughput_ratio": 2.4205507832289244
+    },
+    {
+      "fixture": "opaque.png",
+      "phase": "warm",
+      "stats": {
+        "imagesharp": {
+          "n": 20,
+          "p50_ms": 154.38275,
+          "p95_ms": 188.9531,
+          "sequential_images_per_second": 6.270684243896257
+        },
+        "rust": {
+          "n": 20,
+          "p50_ms": 126.90985,
+          "p95_ms": 138.2279,
+          "sequential_images_per_second": 7.714483271181599
+        }
+      },
+      "p50_ratio": 0.8220468284183305,
+      "p95_ratio": 0.731546082070101,
+      "throughput_ratio": 1.2302458505530243
+    },
+    {
+      "fixture": "photo.webp",
+      "phase": "cold",
+      "stats": {
+        "imagesharp": {
+          "n": 8,
+          "p50_ms": 414.82025,
+          "p95_ms": 573.5278,
+          "sequential_images_per_second": 2.321799090139177
+        },
+        "rust": {
+          "n": 8,
+          "p50_ms": 189.38400000000001,
+          "p95_ms": 212.9758,
+          "sequential_images_per_second": 5.241383395009128
+        }
+      },
+      "p50_ratio": 0.4565447323268332,
+      "p95_ratio": 0.37134346408317087,
+      "throughput_ratio": 2.2574663834048367
+    },
+    {
+      "fixture": "photo.webp",
+      "phase": "warm",
+      "stats": {
+        "imagesharp": {
+          "n": 20,
+          "p50_ms": 55.36345,
+          "p95_ms": 159.6464,
+          "sequential_images_per_second": 14.56534816279981
+        },
+        "rust": {
+          "n": 20,
+          "p50_ms": 148.4139,
+          "p95_ms": 152.4131,
+          "sequential_images_per_second": 6.720430333347794
+        }
+      },
+      "p50_ratio": 2.680719861208072,
+      "p95_ratio": 0.9546917437536956,
+      "throughput_ratio": 0.4613985370093595
+    },
+    {
+      "fixture": "photo.gif",
+      "phase": "cold",
+      "stats": {
+        "imagesharp": {
+          "n": 8,
+          "p50_ms": 377.38120000000004,
+          "p95_ms": 414.2834,
+          "sequential_images_per_second": 2.6144495725783456
+        },
+        "rust": {
+          "n": 8,
+          "p50_ms": 165.05445,
+          "p95_ms": 176.1869,
+          "sequential_images_per_second": 6.11744406763538
+        }
+      },
+      "p50_ratio": 0.4373679716954633,
+      "p95_ratio": 0.42528109984614404,
+      "throughput_ratio": 2.3398592697285854
+    },
+    {
+      "fixture": "photo.gif",
+      "phase": "warm",
+      "stats": {
+        "imagesharp": {
+          "n": 20,
+          "p50_ms": 89.8442,
+          "p95_ms": 140.9625,
+          "sequential_images_per_second": 9.895128460041938
+        },
+        "rust": {
+          "n": 20,
+          "p50_ms": 123.0264,
+          "p95_ms": 127.7605,
+          "sequential_images_per_second": 8.08989229440995
+        }
+      },
+      "p50_ratio": 1.369330463179593,
+      "p95_ratio": 0.9063438857852265,
+      "throughput_ratio": 0.8175631399913794
+    }
+  ],
+  "quality": [
+    {
+      "fixture": "photo.jpg",
+      "geometry": [
+        600,
+        269
+      ],
+      "pairwise_psnr_db": 32.67010780830556,
+      "mean_absolute_rgb_delta": [
+        3.8056753407682775,
+        2.7404275092936805,
+        4.893327137546469
+      ],
+      "baseline_bytes": 43327,
+      "rust_bytes": 56371
+    },
+    {
+      "fixture": "opaque.png",
+      "geometry": [
+        600,
+        269
+      ],
+      "pairwise_psnr_db": 39.24551285420413,
+      "mean_absolute_rgb_delta": [
+        1.8046592317224288,
+        1.09136926889715,
+        0.8007992565055763
+      ],
+      "baseline_bytes": 301570,
+      "rust_bytes": 352754
+    },
+    {
+      "fixture": "photo.webp",
+      "geometry": [
+        600,
+        269
+      ],
+      "pairwise_psnr_db": 33.14173258890278,
+      "mean_absolute_rgb_delta": [
+        3.628475836431227,
+        2.681567534076828,
+        4.612837670384139
+      ],
+      "baseline_bytes": 42685,
+      "rust_bytes": 55437
+    },
+    {
+      "fixture": "photo.gif",
+      "geometry": [
+        600,
+        269
+      ],
+      "pairwise_psnr_db": 35.46025540257582,
+      "mean_absolute_rgb_delta": [
+        3.690625774473358,
+        2.5992441140024782,
+        2.6866666666666665
+      ],
+      "baseline_bytes": 108691,
+      "rust_bytes": 347706
+    }
+  ],
+  "definition": "Wall time from bounded source bytes through complete verified output; Rust includes process start, IPC and reap; cold is a fresh test host, warm follows three warmups; cold does not flush the OS page cache.",
+  "final_documentation_commit": "c998da079838894da32cb331f4f338cd9597047f"
+}

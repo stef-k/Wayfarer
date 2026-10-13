@@ -1,0 +1,29 @@
+{
+  "path": "/home/stef/wayfarer-research/858-final-bottlenecks-20261013-3K3yZ023",
+  "reports": [
+    {
+      "path": "REPORT.md",
+      "sha256": "c49bbd7112460c9221e853151b425d765080e61803789c032c36714dcfac415c",
+      "bytes": 20958
+    },
+    {
+      "path": "retained/REPORT.md",
+      "sha256": "79752b488a047ae7583cdf83621d539fc553049c90682b3fc7deabe470262e03",
+      "bytes": 18587
+    }
+  ],
+  "root_files": [
+    "REPORT.md",
+    "diagnose.py",
+    "SHA256SUMS",
+    "analyze.py",
+    "local-env.sh",
+    "ARTIFACTS.json"
+  ],
+  "source": {
+    "head": "8a857230c0751d87b71e227431365d0fb16a7ca4",
+    "status": "",
+    "worktrees": "worktree /home/stef/wayfarer-research/858-final-bottlenecks-20261013-3K3yZ023/source\nHEAD 8a857230c0751d87b71e227431365d0fb16a7ca4\nbranch refs/heads/wip/858-final-bottlenecks-20261013",
+    "branches": "refs/heads/main f4dbba8cb72213798d24d8b0697187bd46295ca0\nrefs/heads/wip/858-final-bottlenecks-20261013 8a857230c0751d87b71e227431365d0fb16a7ca4\nrefs/heads/wip/858-simd-experiment-20261013 8a857230c0751d87b71e227431365d0fb16a7ca4"
+  }
+}
