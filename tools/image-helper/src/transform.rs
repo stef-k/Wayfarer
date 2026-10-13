@@ -44,6 +44,25 @@ impl Recipe {
 
 /// Decode, normalize color/orientation, resize without enlargement, encode and verify.
 pub fn transform(bytes: &[u8], recipe: &Recipe) -> Result<Vec<u8>> {
+    let (normalized, output_format) = prepare(bytes, recipe)?;
+    let (width, height) = normalized.dimensions();
+    let stage = Instant::now();
+    let encoded = encode(normalized, output_format, recipe)?;
+    diagnostic_timing("encode", stage);
+    let stage = Instant::now();
+    verify(&encoded, output_format, width, height)?;
+    diagnostic_timing("output_verify", stage);
+    Ok(encoded)
+}
+
+/// Reuse the existing normalization stages for identical encode-only benchmark pixels.
+#[cfg(feature = "codec-bench")]
+pub fn benchmark_pixels(bytes: &[u8], recipe: &Recipe) -> Result<DynamicImage> {
+    prepare(bytes, recipe).map(|(pixels, _)| pixels)
+}
+
+/// Admission, color, orientation and resizing retain their original order and behavior.
+fn prepare(bytes: &[u8], recipe: &Recipe) -> Result<(DynamicImage, ImageFormat)> {
     recipe.validate()?;
     if bytes.len() > recipe.max_input {
         return Err(Failure::TooLarge);
@@ -83,14 +102,7 @@ pub fn transform(bytes: &[u8], recipe: &Recipe) -> Result<Vec<u8>> {
     // Truncate fractional axes, matching the existing proxy's bounding-box geometry.
     let width = ((oriented.width() as f64 * scale) as u32).max(1);
     let height = ((oriented.height() as f64 * scale) as u32).max(1);
-    let normalized = resize(oriented, width, height)?;
-    let stage = Instant::now();
-    let encoded = encode(normalized, output_format, recipe)?;
-    diagnostic_timing("encode", stage);
-    let stage = Instant::now();
-    verify(&encoded, output_format, width, height)?;
-    diagnostic_timing("output_verify", stage);
-    Ok(encoded)
+    Ok((resize(oriented, width, height)?, output_format))
 }
 
 /// Conventional Lanczos3 sRGB filtering for opaque bytes; keep precise premultiplied filtering otherwise.

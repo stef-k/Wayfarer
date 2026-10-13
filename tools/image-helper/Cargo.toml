@@ -9,6 +9,8 @@ publish = false
 [features]
 # Opt-in fixed stage labels reuse the retained diagnosis probes; normal builds emit no timings.
 diagnostic-timing = []
+# Scratch-only codec comparison; no candidate is enabled in ordinary builds.
+codec-bench = ["dep:libjpeg-turbo-rs", "dep:webp", "dep:libwebp-sys"]
 
 [dependencies]
 image = { version = "=0.25.10", default-features = false, features = ["jpeg", "png", "gif", "webp"] }
@@ -22,6 +24,16 @@ moxcms = { version = "=0.8.0", features = ["lut"] }
 libc = "=0.2.177"
 # AVX2 is runtime-dispatched on x86; other CPUs and architectures retain scalar encoding.
 jpeg-encoder = { version = "=0.7.1", features = ["simd"] }
+# The exact requested JPEG candidate retains portable runtime SIMD dispatch.
+libjpeg-turbo-rs = { version = "=0.8.0", optional = true }
+# Disable the image adapter and pin the native dependency selected by webp 0.3.1.
+webp = { version = "=0.3.1", default-features = false, optional = true }
+libwebp-sys = { version = "=0.9.6", optional = true }
+
+[[example]]
+# The microbenchmark is intentionally absent from ordinary product builds/tests.
+name = "codec_bench"
+required-features = ["codec-bench"]
 
 [profile.release]
 # A decoder panic invalidates the child rather than unwinding through processing.

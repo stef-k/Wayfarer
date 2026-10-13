@@ -6,6 +6,8 @@ mod raster;
 mod transform;
 mod webp_input;
 
+#[cfg(feature = "codec-bench")]
+pub use transform::benchmark_pixels;
 pub use transform::{OutputFormat, Recipe, transform};
 
 /// Fixed public diagnostics never contain source metadata or decoder error strings.
