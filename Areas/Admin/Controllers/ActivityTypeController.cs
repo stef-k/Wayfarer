@@ -57,7 +57,7 @@ namespace Wayfarer.Areas.Admin.Controllers
             return View();
         }
 
-        /// <summary>Canonicalizes the supplied name and reports database-arbitrated conflicts.</summary>
+        /// <summary>Canonicalizes names and returns the submitted form after a safely discarded failed write.</summary>
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Create([Bind("Name,Description")] ActivityType activityType)
@@ -81,9 +81,16 @@ namespace Wayfarer.Areas.Admin.Controllers
                 ModelState.AddModelError(nameof(ActivityType.Name), "An Activity with this name already exists.");
                 return View(activityType);
             }
+            catch (DbUpdateException ex) when (IsNameCapacity(ex))
+            {
+                _dbContext.Entry(activityType).State = EntityState.Detached;
+                ModelState.AddModelError(nameof(ActivityType.Name), "This Activity name is too large for the catalog index. Please choose a different name.");
+                return View(activityType);
+            }
             catch (Exception ex)
             {
-                HandleError(ex);
+                _dbContext.Entry(activityType).State = EntityState.Detached;
+                HandlePersistenceError(ex);
                 return View(activityType);
             }
         }
@@ -100,7 +107,7 @@ namespace Wayfarer.Areas.Admin.Controllers
             return activityType == null ? (IActionResult)NotFound() : View(activityType);
         }
 
-        /// <summary>Changes display/description explicitly, retaining ID and all references.</summary>
+        /// <summary>Retains IDs/references on success and discards failed edits before validation or missing-entry responses.</summary>
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Edit(int id, [Bind("Id,Name,Description")] ActivityType activityType)
@@ -126,20 +133,28 @@ namespace Wayfarer.Areas.Admin.Controllers
             }
             catch (DbUpdateException ex) when (IsNameConflict(ex))
             {
+                _dbContext.Entry(current).State = EntityState.Detached;
                 ModelState.AddModelError(nameof(ActivityType.Name), "An Activity with this name already exists.");
+                return View(activityType);
+            }
+            catch (DbUpdateException ex) when (IsNameCapacity(ex))
+            {
+                _dbContext.Entry(current).State = EntityState.Detached;
+                ModelState.AddModelError(nameof(ActivityType.Name), "This Activity name is too large for the catalog index. Please choose a different name.");
                 return View(activityType);
             }
             catch (DbUpdateConcurrencyException ex)
             {
-                HandleError(ex);
-                if (!ActivityTypeExists(activityType.Id))
-                {
-                    return NotFound();
-                }
-                else
-                {
-                    throw;
-                }
+                _dbContext.Entry(current).State = EntityState.Detached;
+                if (!await ActivityTypeExistsAsync(id)) return NotFound();
+                HandlePersistenceError(ex);
+                return View(activityType);
+            }
+            catch (Exception ex)
+            {
+                _dbContext.Entry(current).State = EntityState.Detached;
+                HandlePersistenceError(ex);
+                return View(activityType);
             }
         }
 
@@ -156,7 +171,7 @@ namespace Wayfarer.Areas.Admin.Controllers
             return activityType == null ? (IActionResult)NotFound() : View(activityType);
         }
 
-        /// <summary>Deletes only unreferenced entries; the database protects racing references.</summary>
+        /// <summary>Preserves racing references and treats a concurrent winning delete as an already-missing entry.</summary>
         [HttpPost, ActionName("Delete")]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> DeleteConfirmed(int id)
@@ -177,10 +192,22 @@ namespace Wayfarer.Areas.Admin.Controllers
                 await _dbContext.SaveChangesAsync();
                 SetAlert("Activity Type deleted successfully.", "success");
             }
-            catch (DbUpdateException ex) when (ex.InnerException is PostgresException { SqlState: PostgresErrorCodes.ForeignKeyViolation })
+            catch (DbUpdateException ex) when (ex.InnerException is PostgresException
+                { SqlState: PostgresErrorCodes.ForeignKeyViolation,
+                  ConstraintName: "FK_Locations_ActivityTypes_ActivityTypeId" or "FK_ActivityTypeIdRedirects_ActivityTypes_ActivityTypeId" })
             {
                 _dbContext.Entry(activityType).State = EntityState.Unchanged;
                 SetAlert("Activity cannot be deleted: Locations or retained client IDs reference it.", "warning");
+            }
+            catch (DbUpdateConcurrencyException ex)
+            {
+                _dbContext.Entry(activityType).State = EntityState.Detached;
+                if (await ActivityTypeExistsAsync(id)) HandlePersistenceError(ex);
+            }
+            catch (Exception ex)
+            {
+                _dbContext.Entry(activityType).State = EntityState.Detached;
+                HandlePersistenceError(ex);
             }
             return RedirectToAction(nameof(Index));
         }
@@ -207,7 +234,36 @@ namespace Wayfarer.Areas.Admin.Controllers
             exception.InnerException is PostgresException
             { SqlState: PostgresErrorCodes.UniqueViolation, ConstraintName: "IX_ActivityTypes_NormalizedName" };
 
-        /// <summary>Checks whether a concurrently edited catalog entry still exists.</summary>
-        private bool ActivityTypeExists(int id) => _dbContext.ActivityTypes.Any(e => e.Id == id);
+        /// <summary>
+        /// Recognizes catalog index capacity, not arbitrary program limits. Oversized tuple formation lacks
+        /// object diagnostics; the Activity model's only text index is its generated name key.
+        /// </summary>
+        private static bool IsNameCapacity(DbUpdateException exception) =>
+            exception.InnerException is PostgresException { SqlState: PostgresErrorCodes.ProgramLimitExceeded } postgres
+            && exception.Entries.Count == 1 && exception.Entries[0].Entity is ActivityType
+            && (postgres is { SchemaName: "public", TableName: "ActivityTypes", ConstraintName: "IX_ActivityTypes_NormalizedName" }
+                || (postgres is { Routine: "index_form_tuple_context", SchemaName: null, TableName: null, ConstraintName: null }
+                    && (exception.Entries[0].State == EntityState.Added
+                        || exception.Entries[0].Property(nameof(ActivityType.Name)).IsModified)));
+
+        /// <summary>Logs only safe failure metadata and uses the existing alert without saving the failed context.</summary>
+        private void HandlePersistenceError(Exception exception)
+        {
+            _logger.LogError("An error occurred during an action: {ExceptionType}; request {RequestId}",
+                exception.GetType().Name, HttpContext.TraceIdentifier);
+            SetAlert("An unexpected error occurred. Please try again later.", "danger");
+        }
+
+        /// <summary>Checks existence after discarding the stale write; an unavailable lookup uses the failed-operation response.</summary>
+        private async Task<bool> ActivityTypeExistsAsync(int id)
+        {
+            try { return await _dbContext.ActivityTypes.AnyAsync(e => e.Id == id); }
+            catch (Exception exception)
+            {
+                _logger.LogWarning("Activity existence check failed: {ExceptionType}; request {RequestId}",
+                    exception.GetType().Name, HttpContext.TraceIdentifier);
+                return true; // Unknown existence must not be reported as a confirmed missing entry.
+            }
+        }
     }
 }
