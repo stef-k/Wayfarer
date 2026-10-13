@@ -3,11 +3,15 @@
 mod codec_candidates;
 mod color;
 mod gif_input;
+#[cfg(feature = "native-jpeg-encode")]
+mod jpeg_output;
 mod png_input;
 mod raster;
 mod transform;
 mod webp_input;
 
+#[cfg(all(feature = "codec-bench", feature = "native-jpeg-encode"))]
+pub use jpeg_output::encode as benchmark_native_jpeg;
 #[cfg(feature = "codec-bench")]
 pub use transform::benchmark_pixels;
 pub use transform::{OutputFormat, Recipe, transform};

@@ -164,6 +164,18 @@ fn encode(pixels: DynamicImage, format: ImageFormat, recipe: &Recipe) -> Result<
     let profile = moxcms::ColorProfile::new_srgb()
         .encode()
         .map_err(|_| Failure::Unavailable)?;
+    #[cfg(feature = "native-jpeg-encode")]
+    if format == ImageFormat::Jpeg {
+        let rgb = pixels.into_rgb8();
+        return crate::jpeg_output::encode(
+            rgb.as_raw(),
+            rgb.width(),
+            rgb.height(),
+            recipe.quality,
+            &profile,
+            recipe.max_output,
+        );
+    }
     let mut output = BoundedOutput {
         bytes: Vec::new(),
         limit: recipe.max_output,

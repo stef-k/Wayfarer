@@ -14,6 +14,8 @@ codec-bench = ["dep:libjpeg-turbo-rs", "dep:webp", "dep:libwebp-sys"]
 # Independent decode-only CLI candidates retain the accepted output encoders.
 jpeg-candidate-decode = ["dep:libjpeg-turbo-rs"]
 webp-candidate-decode = ["dep:webp", "dep:libwebp-sys"]
+# Final bounded native encoder trial; selected only after its behavioral/resource checks.
+native-jpeg-encode = ["dep:turbojpeg", "dep:turbojpeg-sys"]
 
 [dependencies]
 image = { version = "=0.25.10", default-features = false, features = ["jpeg", "png", "gif", "webp"] }
@@ -32,6 +34,9 @@ libjpeg-turbo-rs = { version = "=0.8.0", optional = true }
 # Disable the image adapter and pin the native dependency selected by webp 0.3.1.
 webp = { version = "=0.3.1", default-features = false, optional = true }
 libwebp-sys = { version = "=0.9.6", optional = true }
+# Use the published safe borrowed-slice API and its exact vendored native implementation.
+turbojpeg = { version = "=1.5.1", optional = true }
+turbojpeg-sys = { version = "=1.2.0", optional = true }
 
 [[example]]
 # The microbenchmark is intentionally absent from ordinary product builds/tests.

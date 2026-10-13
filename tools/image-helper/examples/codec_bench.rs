@@ -104,6 +104,30 @@ fn encode(
     profile: &[u8],
 ) -> Result<Vec<u8>> {
     match codec {
+        "libjpeg-turbo-rs-into" if channels == 3 => {
+            let mut output = vec![0; MAX_ENCODED];
+            let length = libjpeg_turbo_rs::compress_into(
+                &mut output,
+                pixels,
+                width as usize,
+                height as usize,
+                libjpeg_turbo_rs::PixelFormat::Rgb,
+                quality,
+                libjpeg_turbo_rs::Subsampling::S420,
+            )?;
+            output.truncate(length);
+            Ok(output)
+        }
+        #[cfg(feature = "native-jpeg-encode")]
+        "turbojpeg-bounded" if channels == 3 => wayfarer_image::benchmark_native_jpeg(
+            pixels,
+            width,
+            height,
+            quality,
+            profile,
+            MAX_ENCODED,
+        )
+        .map_err(|failure| failure.diagnostic().into()),
         "jpeg-encoder" if channels == 3 => {
             let mut output = Vec::new();
             let mut encoder = jpeg_encoder::Encoder::new(&mut output, quality);
