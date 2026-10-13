@@ -108,9 +108,45 @@ backup with writers stopped before running an old binary. Re-Up after Down and
 ordinary migration-history reruns are supported. There is no redirect expiry.
 
 This is the A+B prerequisite in [#862](https://github.com/stef-k/Wayfarer/issues/862).
-Import name creation/reconciliation belongs to #863, and native file fidelity to
-#814; those workers/parsers/exports are unchanged here. See the
-[accepted design](activity-reconciliation-design.md) for their separate contracts.
+Native export/import fidelity remains separately owned by #814. See the
+[accepted design](activity-reconciliation-design.md) for the slice boundaries.
+
+### Activity reconciliation during location imports
+
+The #863 worker uses the concrete `ActivityCatalogReconciler` with its current
+context and READ COMMITTED transaction. Existing UUID/keyless filtering and keyed
+savepoint arbitration run first, inserting provisional Locations with null Activity
+FKs. Only actual new rows are normalized in one bounded query. PostgreSQL orders
+keys with `C`; earliest accepted file order supplies a new entry's display. Existing
+entries are locked FOR SHARE through commit. A parameterized ON CONFLICT DO NOTHING
+insert is followed by a separate winning-row query/lock, avoiding the concurrent
+INSERT snapshot visibility gap. Names and descriptions on existing entries stay
+unchanged; new entries have null Description. Imported numeric IDs have no authority.
+
+Catalog work uses transaction-local 5-second statement and 2-second lock timeouts,
+restoring prior settings before unrelated persistence. A vanished/renamed winner
+gets at most two resolution attempts. Lock/statement timeout, exhausted resolution,
+deadlock or serialization failure rolls back the entire batch before at most two
+retries with fresh contexts and 100/200 ms cancellation-aware backoff. One 30-second
+deadline covers attempts/backoff; deadline exhaustion is failure, distinct from user
+cancellation. Every attempt resets provisional IDs/FKs, reruns duplicate arbitration
+and checks exact execution authority, with a final epoch/xmin check before commit.
+An unconfirmed commit is read from a fresh durable checkpoint, never blindly retried.
+
+Locations, catalog creations, duplicate/enrichment facts, invalid count and the
+existing 50-row checkpoint commit atomically. Valid reconciliation/storage/schema
+failure cannot commit a valid-but-unclassified Location. Failure retains the staged
+file and prior committed prefix for ordinary owner restart/resume. Cancellation or
+stale authority rolls back uncommitted work. There is no creation quota or account
+counter; existing upload/admission and batch/database resource bounds still apply.
+
+Migration `AddImportUnclassifiedActivityCount` adds one nonnegative integer with
+default zero; old imports start at zero because historical invalidity cannot be
+inferred. Only accepted new rows with invalid supplied values increment it. Missing
+or blank names, duplicates, race losers and rolled-back rows do not. A transient
+parser flag distinguishes non-string native JSON values without retaining private
+labels. SQL failures propagate as batch failures. The owner list renders the durable
+Invalid Activity count beside existing errors; no raw names enter logs or SSE.
 
 ## Quartz is a separate schema responsibility
 

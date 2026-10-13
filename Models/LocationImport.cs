@@ -70,6 +70,9 @@ public class LocationImport
     /// </summary>
     public int SkippedDuplicates { get; set; }
 
+    /// <summary>Accepted new Locations whose supplied Activity was invalid; missing values are optional.</summary>
+    public int UnclassifiedActivityCount { get; set; }
+
     /// <summary>Whether this import may hand remaining enrichment to the user's durable workflow.</summary>
     public bool EnrichmentRequested { get; set; }
 
@@ -107,6 +110,7 @@ public sealed class LocationImportConfiguration : IEntityTypeConfiguration<Locat
         builder.Property(item => item.Version).HasColumnName("xmin").IsRowVersion().ValueGeneratedOnAddOrUpdate();
         builder.ToTable(table =>
         {
+            table.HasCheckConstraint("CK_LocationImport_UnclassifiedActivity", "\"UnclassifiedActivityCount\" >= 0");
             table.HasCheckConstraint("CK_LocationImport_RemainingEnrichment", "\"RemainingEnrichmentCount\" >= 0");
             table.HasCheckConstraint("CK_LocationImport_EnrichmentPauseReason",
                 "\"EnrichmentPauseReason\" IS NULL OR \"EnrichmentPauseReason\" IN "

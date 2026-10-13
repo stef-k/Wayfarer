@@ -24,6 +24,20 @@ Large files process in the background, so you can leave the page and return late
 Your administrator controls the upload-size limit and whether uploads are enabled.
 Check the displayed limit before uploading a large export.
 
+Supplied valid Activity names reuse an existing Activity or automatically create a
+missing entry. Activities form a shared catalog: names you import become visible
+to all authenticated users. Your locations remain private under their existing
+visibility settings. Only newly accepted locations can create catalog entries;
+duplicates keep their original classification. Source numeric Activity IDs and
+descriptions do not change the destination catalog.
+
+Matching ignores capitalization, normalizes Unicode and trims surrounding
+whitespace. Interior whitespace remains significant, and different names such as
+Walking and Hiking stay separate. Missing or blank names are optional. Invalid
+values leave the location without an Activity and add a visible **Invalid Activity**
+warning count to the import history. The count remains after refresh or restart;
+correct those accepted locations through ordinary location editing.
+
 ## Choose a supported format
 
 | Location-history format | Suitable input |
@@ -71,6 +85,10 @@ from server receipt timestamps, can still create duplicates.
 If an import fails, inspect the reported error and progress before retrying; some
 records may already be saved. Confirm the format, CSV headers and timestamps. If
 progress appears stuck, refresh once and contact your administrator if it persists.
+If Activity reconciliation fails, the current batch is rolled back together with
+its classifications and progress. Earlier committed batches remain saved. **Start**
+resumes from that checkpoint once catalog contention or the database problem has
+cleared; replay does not overwrite existing classifications.
 If an uploaded file cannot be removed, ask the administrator to investigate rather
 than assuming that deleting the row removed every copy.
 

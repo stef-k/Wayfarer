@@ -12,4 +12,8 @@ public partial class Location
     /// </summary>
     [NotMapped]
     public string? ImportedActivityName { get; set; }
+
+    /// <summary>Marks an invalid supplied Activity value without persisting its private source text.</summary>
+    [NotMapped]
+    public bool ImportedActivityInvalid { get; set; }
 }
