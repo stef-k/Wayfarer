@@ -20,6 +20,8 @@ gif = "=0.14.2"
 image-webp = "=0.2.4"
 moxcms = { version = "=0.8.0", features = ["lut"] }
 libc = "=0.2.177"
+# AVX2 is runtime-dispatched on x86; other CPUs and architectures retain scalar encoding.
+jpeg-encoder = { version = "=0.7.1", features = ["simd"] }
 
 [profile.release]
 # A decoder panic invalidates the child rather than unwinding through processing.

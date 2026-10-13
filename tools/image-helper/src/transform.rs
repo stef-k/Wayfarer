@@ -159,13 +159,24 @@ fn encode(pixels: DynamicImage, format: ImageFormat, recipe: &Recipe) -> Result<
     let (width, height) = pixels.dimensions();
     if format == ImageFormat::Jpeg {
         let rgb = pixels.into_rgb8();
-        let mut encoder =
-            image::codecs::jpeg::JpegEncoder::new_with_quality(&mut output, recipe.quality);
+        let mut encoder = jpeg_encoder::Encoder::new(&mut output, recipe.quality);
+        // Web/PDF photographs use averaged 4:2:0; higher-quality caller recipes retain 4:4:4.
+        encoder.set_sampling_factor(if recipe.quality <= 90 {
+            jpeg_encoder::SamplingFactor::F_2_2
+        } else {
+            jpeg_encoder::SamplingFactor::F_1_1
+        });
+        encoder.set_chroma_subsampling_method(jpeg_encoder::ChromaSubsamplingMethod::Average);
         encoder
-            .set_icc_profile(profile)
+            .add_icc_profile(&profile)
             .map_err(|_| Failure::Unavailable)?;
         encoder
-            .write_image(rgb.as_raw(), width, height, image::ExtendedColorType::Rgb8)
+            .encode(
+                rgb.as_raw(),
+                width.try_into().map_err(|_| Failure::Unavailable)?,
+                height.try_into().map_err(|_| Failure::Unavailable)?,
+                jpeg_encoder::ColorType::Rgb,
+            )
             .map_err(|_| Failure::Unavailable)?;
     } else {
         let mut encoder = image::codecs::png::PngEncoder::new_with_quality(
