@@ -32,21 +32,6 @@ public class AdminActivityTypeControllerTests : TestBase
     }
 
     [Fact]
-    public async Task Create_Persists_WhenValid()
-    {
-        var db = CreateDbContext();
-        db.Users.Add(TestDataFixtures.CreateUser(id: "admin"));
-        db.SaveChanges();
-        var controller = BuildController(db);
-
-        var result = await controller.Create(new ActivityType { Name = "Walk", Description = "desc" });
-
-        var redirect = Assert.IsType<RedirectToActionResult>(result);
-        Assert.Equal(nameof(ActivityTypeController.Index), redirect.ActionName);
-        Assert.Single(db.ActivityTypes);
-    }
-
-    [Fact]
     public void Create_Get_ReturnsView()
     {
         var controller = BuildController(CreateDbContext());

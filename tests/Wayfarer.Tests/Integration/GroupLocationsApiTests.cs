@@ -9,6 +9,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using NetTopologySuite.Geometries;
 using Wayfarer.Areas.Api.Controllers;
 using Wayfarer.Models;
+using Wayfarer.Tests.Infrastructure;
 using Wayfarer.Models.Dtos;
 using Wayfarer.Parsers;
 using Wayfarer.Services;
@@ -240,6 +241,7 @@ public class GroupLocationsApiTests
     {
         var opts = new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
+            .AddInterceptors(new InMemoryActivityGeneratedKey())
             .Options;
         return new ApplicationDbContext(opts, new ServiceCollection().BuildServiceProvider());
     }

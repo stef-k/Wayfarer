@@ -48,7 +48,8 @@ Bearer-only mobile/integration mutations do not require MVC antiforgery. Do not 
 | Family | Current responsibility | Typical authority |
 | --- | --- | --- |
 | `/api/version` | Application version | anonymous |
-| `/api/icons`, `/api/tags`, `/api/activity`, `/api/settings` | UI/reference data | endpoint/controller rules |
+| `/api/icons`, `/api/tags`, `/api/settings` | UI/reference data | endpoint/controller rules |
+| `GET /api/activity` | shared catalog, ordered by Name, `[{id,name,description}]` | active Identity cookie first, otherwise existing opaque Bearer token; direct 401 on missing/invalid/inactive identity |
 | `/api/users` | user lookup, caller/self statistics from cookie Identity claims, authenticated activity/management actions | endpoint rules; statistics use the caller's `NameIdentifier`; cookie roles and ownership for management |
 | `/api/trips` | trip reads/search, public trip discovery/images and legacy trip mutations/clone | public where explicitly exposed; otherwise token/cookie ownership |
 | `/api/trips/{tripId}/editor` | Vue Trip Editor state, metadata, regions, areas, places, segments, tags, share progress and geocode search | User cookie + ownership; mutations antiforgery |
@@ -228,6 +229,15 @@ clear flags take precedence. Coordinates are bounded decimal degrees and
 timestamps follow the current UTC/coordinate-zone conversion. The ID is the
 server's integer location ID, matched within the selected owner's rows. If a
 cookie selected the account, antiforgery is required even with a bearer header.
+
+Activity writes resolve a current positive `activityTypeId` first, then a permanent
+redirect for IDs removed during catalog duplicate cleanup. The stored FK is the
+survivor even after a client catalog refresh; queued Mobile IDs do not expire.
+PUT's `activityName` fallback uses the database's NFC/full Unicode-folded identity
+with surrounding whitespace trim only and never creates entries. Clear flags,
+absent/null values, unknown and negative offline IDs retain the existing action
+semantics, as do first-writer replay, ownership and response envelopes. Catalog
+lookup overload still returns the existing 429/503 response with `Retry-After`.
 
 `DELETE /api/location/{id}` uses bearer ownership and returns an ordinary success
 object with `id`; a missing/non-owned row is 404. For example, a bearer-only

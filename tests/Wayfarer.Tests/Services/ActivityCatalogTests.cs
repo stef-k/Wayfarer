@@ -13,8 +13,15 @@ public sealed class ActivityCatalogTests
     [InlineData("GPS eBike Πεζοπορία 👩‍🚀", true)]
     [InlineData("A\u0001B", true)]
     [InlineData("A\0B", false)]
-    [InlineData("\ud800", false)]
-    [InlineData("\udc00", false)]
     public void CanTransportPreservesText(string? value, bool expected) =>
         Assert.Equal(expected, ActivityCatalog.CanTransport(value));
+    /// <summary>Constructs unpaired surrogates at runtime because CLR attribute text cannot preserve them.</summary>
+    [Fact]
+    public void MalformedUnicodeNeverUsesReplacementEncoding()
+    {
+        Assert.False(ActivityCatalog.CanTransport(new string((char)0xd800, 1)));
+        Assert.False(ActivityCatalog.CanTransport(new string((char)0xdc00, 1)));
+        Assert.True(ActivityCatalog.CanTransport("\ufffd"));
+    }
 }
+

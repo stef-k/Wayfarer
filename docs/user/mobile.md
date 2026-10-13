@@ -63,6 +63,11 @@ notes when useful. Manual check-ins bypass the automatic time and distance filte
 They can still fail if your API token is invalid, the server is temporarily busy or
 the submitted location is invalid.
 
+Activity choices come from the shared server catalog using your existing API token.
+When administrators consolidate equivalent names, already queued check-ins and
+edits keep working with their saved IDs; refreshing choices does not discard those
+queued selections. Renaming an activity keeps its existing records linked.
+
 Inspect the phone's recording/delivery status, then check the web Timeline when
 you need confirmation that a record reached Wayfarer. An offline record and a
 confirmed server record are different states.
