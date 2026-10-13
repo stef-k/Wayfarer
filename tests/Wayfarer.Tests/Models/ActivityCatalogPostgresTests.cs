@@ -159,7 +159,7 @@ public sealed class ActivityCatalogPostgresTests(PostgresMigrationTestFixture fi
         await db.SaveChangesAsync();
         try
         {
-            var interceptor = new ReferenceBeforeDelete(async () =>
+            var interceptor = new BeforeActivitySave(async () =>
             {
                 await using var writer = fixture.CreateContext();
                 writer.Locations.Add(ActivityCatalogMigrationPostgresTests.Row(owner.Id, activity.Id));
@@ -171,6 +171,143 @@ public sealed class ActivityCatalogPostgresTests(PostgresMigrationTestFixture fi
             Assert.True(await db.ActivityTypes.AnyAsync(a => a.Id == activity.Id));
         }
         finally { await ActivityCatalogMigrationPostgresTests.CleanAsync(db, owner.Id); }
+    }
+
+    /// <summary>Both PostgreSQL index-size limits return the submitted form without a pending failed write.</summary>
+    [PostgresTheory]
+    [InlineData(false, 200)]
+    [InlineData(true, 200)]
+    [InlineData(false, 400)]
+    [InlineData(true, 400)]
+    public async Task AdminCapacityFailureReturnsNameValidation(bool edit, int chunks)
+    {
+        await using var db = fixture.CreateContext();
+        var original = new ActivityType { Name = "Original", Description = "Unchanged" };
+        var unrelated = new ActivityType { Name = "Unrelated", Description = "Untouched" };
+        try
+        {
+            db.ActivityTypes.Add(unrelated);
+            if (edit) db.ActivityTypes.Add(original);
+            await db.SaveChangesAsync();
+            var longName = await db.Database.SqlQuery<string>($"""
+                SELECT string_agg(md5(g::text), '') AS "Value" FROM generate_series(1, {chunks}) g
+                """).SingleAsync();
+            var submitted = new ActivityType { Id = original.Id, Name = longName, Description = "Submitted prose" };
+            var controller = Admin(db);
+            var result = edit ? await controller.Edit(original.Id, submitted) : await controller.Create(submitted);
+
+            var view = Assert.IsType<ViewResult>(result);
+            Assert.Same(submitted, view.Model);
+            Assert.Equal(longName, submitted.Name);
+            Assert.Equal("Submitted prose", submitted.Description);
+            Assert.NotEmpty(controller.ModelState[nameof(ActivityType.Name)]!.Errors);
+            Assert.DoesNotContain(db.ChangeTracker.Entries<ActivityType>(), e =>
+                e.State is EntityState.Added or EntityState.Modified or EntityState.Deleted);
+            await db.SaveChangesAsync(); // A later save must not retry the rejected mutation.
+
+            await using var verify = fixture.CreateContext();
+            Assert.Equal(edit ? 2 : 1, await verify.ActivityTypes.CountAsync());
+            var retained = await verify.ActivityTypes.SingleAsync(a => a.Id == unrelated.Id);
+            Assert.Equal("Unrelated", retained.Name);
+            Assert.Equal("Untouched", retained.Description);
+            if (edit)
+            {
+                var unchanged = await verify.ActivityTypes.SingleAsync(a => a.Id == original.Id);
+                Assert.Equal("Original", unchanged.Name);
+                Assert.Equal("Unchanged", unchanged.Description);
+            }
+        }
+        finally { await ActivityCatalogMigrationPostgresTests.CleanAsync(db); }
+    }
+
+    /// <summary>A committed winning delete produces the established response and cannot resurrect stale state.</summary>
+    [PostgresTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ConcurrentDeletionReturnsHandledResponse(bool edit)
+    {
+        await using var setup = fixture.CreateContext();
+        var activity = new ActivityType { Name = "Deletion race", Description = "Original" };
+        var unrelated = new ActivityType { Name = "Unrelated", Description = "Untouched" };
+        try
+        {
+            setup.ActivityTypes.AddRange(activity, unrelated);
+            await setup.SaveChangesAsync();
+            var barrier = new BeforeActivitySave(async () =>
+            {
+                await using var winner = fixture.CreateContext();
+                Assert.Equal(1, await winner.ActivityTypes.Where(a => a.Id == activity.Id).ExecuteDeleteAsync());
+            });
+            await using var losing = fixture.CreateContext(barrier);
+            var controller = Admin(losing);
+            var result = edit
+                ? await controller.Edit(activity.Id, new ActivityType
+                    { Id = activity.Id, Name = "Renamed", Description = "Submitted prose" })
+                : await controller.DeleteConfirmed(activity.Id);
+
+            if (edit) Assert.IsType<NotFoundResult>(result);
+            else Assert.Equal(nameof(ActivityTypeController.Index), Assert.IsType<RedirectToActionResult>(result).ActionName);
+            Assert.Empty(losing.ChangeTracker.Entries<ActivityType>());
+            await losing.SaveChangesAsync();
+            await using var verify = fixture.CreateContext();
+            Assert.False(await verify.ActivityTypes.AnyAsync(a => a.Id == activity.Id));
+            var retained = Assert.Single(await verify.ActivityTypes.ToListAsync());
+            Assert.Equal(unrelated.Id, retained.Id);
+            Assert.Equal("Unrelated", retained.Name);
+            Assert.Equal("Untouched", retained.Description);
+            Assert.Empty(await verify.AuditLogs.ToListAsync());
+        }
+        finally { await ActivityCatalogMigrationPostgresTests.CleanAsync(setup); }
+    }
+
+    /// <summary>An unrelated 54000 is a failed operation, not Name validation or a retried catalog mutation.</summary>
+    [PostgresTheory]
+    [InlineData("create")]
+    [InlineData("edit")]
+    [InlineData("delete")]
+    public async Task UnexpectedPersistenceFailureDoesNotRetryActivity(string operation)
+    {
+        await using var db = fixture.CreateContext();
+        var original = new ActivityType { Name = "Original", Description = "Unchanged" };
+        try
+        {
+            db.ActivityTypes.Add(original);
+            await db.SaveChangesAsync();
+            await db.Database.ExecuteSqlRawAsync("""
+                CREATE FUNCTION public.activity_test_fail() RETURNS trigger LANGUAGE plpgsql AS $$
+                BEGIN RAISE EXCEPTION USING ERRCODE = '54000', MESSAGE = 'unrelated program limit'; END $$;
+                CREATE TRIGGER activity_test_fail BEFORE INSERT OR UPDATE OR DELETE ON "ActivityTypes"
+                    FOR EACH ROW EXECUTE FUNCTION public.activity_test_fail();
+                """);
+            var submitted = new ActivityType
+                { Id = operation == "edit" ? original.Id : 0, Name = "Proposed", Description = "Submitted prose" };
+            var controller = Admin(db);
+            var result = operation switch
+            {
+                "create" => await controller.Create(submitted),
+                "edit" => await controller.Edit(original.Id, submitted),
+                _ => await controller.DeleteConfirmed(original.Id)
+            };
+
+            if (operation == "delete") Assert.IsType<RedirectToActionResult>(result);
+            else Assert.Same(submitted, Assert.IsType<ViewResult>(result).Model);
+            Assert.True(controller.ModelState.IsValid);
+            Assert.Equal("danger", controller.TempData["AlertType"]);
+            Assert.DoesNotContain(db.ChangeTracker.Entries<ActivityType>(), e =>
+                e.State is EntityState.Added or EntityState.Modified or EntityState.Deleted);
+            await db.SaveChangesAsync();
+            await using var verify = fixture.CreateContext();
+            var retained = Assert.Single(await verify.ActivityTypes.ToListAsync());
+            Assert.Equal(original.Id, retained.Id);
+            Assert.Equal("Original", retained.Name);
+            Assert.Equal("Unchanged", retained.Description);
+            Assert.Empty(await verify.AuditLogs.ToListAsync());
+        }
+        finally
+        {
+            await db.Database.ExecuteSqlRawAsync("DROP TRIGGER IF EXISTS activity_test_fail ON \"ActivityTypes\"; DROP FUNCTION IF EXISTS public.activity_test_fail()");
+            await ActivityCatalogMigrationPostgresTests.CleanAsync(db);
+        }
     }
 
     /// <summary>Existing Admin context and TempData convention, without external work.</summary>
@@ -199,15 +336,16 @@ public sealed class ActivityCatalogPostgresTests(PostgresMigrationTestFixture fi
         }
     }
 
-    /// <summary>Uses the existing EF save seam to reproduce a reachable reference-versus-delete race.</summary>
-    private sealed class ReferenceBeforeDelete(Func<Task> addReference) : SaveChangesInterceptor
+    /// <summary>Commits the competing operation after product reads and before the pending Activity write.</summary>
+    private sealed class BeforeActivitySave(Func<Task> competingWrite) : SaveChangesInterceptor
     {
         /// <inheritdoc />
         public override async ValueTask<InterceptionResult<int>> SavingChangesAsync(DbContextEventData data,
             InterceptionResult<int> result, CancellationToken cancellationToken = default)
         {
-            if (data.Context!.ChangeTracker.Entries<ActivityType>().Any(e => e.State == EntityState.Deleted))
-                await addReference();
+            if (data.Context!.ChangeTracker.Entries<ActivityType>().Any(e =>
+                e.State is EntityState.Added or EntityState.Modified or EntityState.Deleted))
+                await competingWrite();
             return result;
         }
     }
