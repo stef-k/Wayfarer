@@ -9,12 +9,21 @@ Invoke the resulting `target/release/wayfarer-image` executable through
 and core dumps zero. Set `WAYFARER_IMAGE_PARENT_PID` to the launching process PID.
 The launch thread must survive until the child has been reaped.
 
-All six recipe options are mandatory:
+All six recipe options remain mandatory. Ordinary web settings are resolved in the
+standalone C# `ImageTransform` constructor, then passed explicitly to the CLI:
 
 ```text
-transform --width 600 --height 8192 --quality 85 --output-format auto
+transform --width 2048 --height 2048 --quality 90 --output-format auto
           --max-input-bytes 52428800 --max-output-bytes 52428800
 ```
+
+The explicit existing PDF/print recipe remains `--width 600 --height 8192
+--quality 85`. Caller bounds and quality override defaults within mandatory
+safety ceilings. Supplying only one dimension leaves the other unconstrained
+except by the 8192-axis ceiling. No image is enlarged. The separately resolved
+`optimize=false` high-fidelity intent requires explicit dimensions and quality;
+it is not mapped to the ordinary web defaults. This CLI has no optimize flag,
+and production HTTP/cache handling of that alias is unchanged.
 
 Stdin supplies one bounded image through EOF. Stdout contains only a completed,
 decoded and verified JPEG/PNG derivative. Diagnostics are fixed strings.
@@ -28,7 +37,14 @@ container EOF, exact filtered-byte count and complete checksum-verified zlib
 termination using the accepted immutable E+1 buffer. It rejects APNG declarations.
 ICC conversion preserves JPEG CMYK channels and PNG 16-bit precision. Untagged
 CMYK uses multiplicative conversion. EXIF orientation includes post-IDAT PNG eXIf.
-Resizing uses scene-linear premultiplied alpha and Lanczos3, without enlargement.
+Opaque 8-bit inputs use conventional sRGB Lanczos3 without float-raster expansion,
+gamma round trips or alpha arithmetic in the application. Untagged RGB bytes are
+reused, and opaque RGBA is compacted in its owned buffer. Tagged sources retain
+bounded relative-colorimetric CMS conversion; no profile-name shortcut is used.
+Transparent, CMYK and 16-bit inputs retain the original scene-linear
+premultiplied-alpha processing. The pinned library's resampler still uses a float
+intermediate internally. JPEG retains the encoder's fixed 4:4:4 subsampling,
+because this version exposes no supported subsampling setter.
 Fresh encoders retain only generated canonical sRGB ICC metadata.
 
 JPEG ICC assemblies that the decoder cannot assemble are treated as untagged,
@@ -62,4 +78,5 @@ fixtures, then select `ImageHelperPrototype` and `ImageHelperPngCompletion`.
 The observation-only `ImageHelperPerformanceTests` is skipped unless its
 explicit local input/report environment variables are set. It never asserts timings.
 
-See [PROTOTYPE.md](PROTOTYPE.md) for the retained outcome, evidence and limitations.
+See [PROTOTYPE.md](PROTOTYPE.md) for the original retained outcome, and
+[RECOVERY.md](RECOVERY.md) for the bounded web-performance recovery decision.
