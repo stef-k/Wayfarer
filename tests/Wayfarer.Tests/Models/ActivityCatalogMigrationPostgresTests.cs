@@ -15,6 +15,7 @@ namespace Wayfarer.Tests.Models;
 [Collection(PostgresMigrationTestCollection.Name)]
 public sealed class ActivityCatalogMigrationPostgresTests(PostgresMigrationTestFixture fixture)
 {
+    /// <summary>Last migration before the coordinated catalog transition.</summary>
     internal const string Previous = "20261008200336_RetireGroupInvitationEmail";
 
     /// <summary>Moves cross-owner FKs only, preserves prose and IDs, and qualifies retry/Down/re-Up.</summary>

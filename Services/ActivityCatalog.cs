@@ -28,7 +28,7 @@ public sealed class ActivityCatalog(ApplicationDbContext db)
             """).SingleAsync(cancellationToken);
     }
 
-    /// <summary>Canonicalizes initial seed data using the same database authority as Admin writes.</summary>
+    /// <summary>Canonicalizes and saves initial seed data using the same database authority as Admin writes.</summary>
     public async Task SaveInitialAsync(CancellationToken cancellationToken = default)
     {
         foreach (var entry in db.ChangeTracker.Entries<ActivityType>().Where(e => e.State == EntityState.Added))

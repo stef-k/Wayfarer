@@ -189,6 +189,7 @@ public sealed class ActivityCatalogPostgresTests(PostgresMigrationTestFixture fi
     {
         private int arrived;
         private readonly TaskCompletionSource both = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        /// <inheritdoc />
         public override async ValueTask<InterceptionResult<int>> SavingChangesAsync(DbContextEventData data,
             InterceptionResult<int> result, CancellationToken cancellationToken = default)
         {
@@ -201,6 +202,7 @@ public sealed class ActivityCatalogPostgresTests(PostgresMigrationTestFixture fi
     /// <summary>Uses the existing EF save seam to reproduce a reachable reference-versus-delete race.</summary>
     private sealed class ReferenceBeforeDelete(Func<Task> addReference) : SaveChangesInterceptor
     {
+        /// <inheritdoc />
         public override async ValueTask<InterceptionResult<int>> SavingChangesAsync(DbContextEventData data,
             InterceptionResult<int> result, CancellationToken cancellationToken = default)
         {
