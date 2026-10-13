@@ -1,9 +1,18 @@
+using System.Net;
+using AngleSharp.Html.Dom;
+using AngleSharp.Html.Parser;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ViewFeatures;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Moq;
 using Npgsql;
 using Wayfarer.Areas.Admin.Controllers;
@@ -14,9 +23,9 @@ using Xunit;
 
 namespace Wayfarer.Tests.Models;
 
-/// <summary>Database normalization, Admin conflicts and restrictive EF/database deletion behavior.</summary>
+/// <summary>Database normalization, Admin form feedback, conflicts and restrictive deletion behavior.</summary>
 [Collection(PostgresMigrationTestCollection.Name)]
-public sealed class ActivityCatalogPostgresTests(PostgresMigrationTestFixture fixture)
+public sealed class ActivityCatalogPostgresTests(PostgresMigrationTestFixture fixture) : TestBase
 {
     /// <summary>Real v1 vectors prove Unicode folding, NFC, trim-only and actual database enforcement.</summary>
     [PostgresFact]
@@ -218,6 +227,60 @@ public sealed class ActivityCatalogPostgresTests(PostgresMigrationTestFixture fi
             }
         }
         finally { await ActivityCatalogMigrationPostgresTests.CleanAsync(db); }
+    }
+
+    /// <summary>A real Admin POST preserves both encoded controls after PostgreSQL rejects an oversized name key.</summary>
+    [PostgresFact]
+    public async Task AdminCreateCapacityFailurePreservesRenderedFields()
+    {
+        var admin = await fixture.CreateUserAsync();
+        await using var db = fixture.CreateContext();
+        var settings = new ApplicationSettings();
+        try
+        {
+            // The production layout requires the normal settings row in this disposable database.
+            db.ApplicationSettings.Add(settings);
+            await db.SaveChangesAsync();
+            var name = " " + await db.Database.SqlQueryRaw<string>("""
+                SELECT string_agg(md5(g::text), '') AS "Value" FROM generate_series(1, 200) g
+                """).SingleAsync() + " ";
+            const string description = "Original <strong>prose</strong> & \"quoted\" text.\nSecond line.";
+            await using var app = await IdentityRouteHost.StartAsync(db, CreateTestDirectory());
+            using var client = app.GetTestClient();
+            var scheme = IdentityConstants.ApplicationScheme;
+            var options = app.Services.GetRequiredService<IOptionsMonitor<CookieAuthenticationOptions>>().Get(scheme);
+            var ticket = new AuthenticationTicket(BuildHttpContextWithUser(admin.Id, "Admin").User,
+                new AuthenticationProperties
+                { IssuedUtc = DateTimeOffset.UtcNow, ExpiresUtc = DateTimeOffset.UtcNow.AddMinutes(10) }, scheme);
+            var authCookie = options.Cookie.Name + "=" + options.TicketDataFormat.Protect(ticket);
+            client.DefaultRequestHeaders.Add("Cookie", authCookie);
+            var antiforgery = await IdentityRouteHost.AntiforgeryAsync(client);
+            var antiforgeryCookie = client.DefaultRequestHeaders.GetValues("Cookie").Single();
+            client.DefaultRequestHeaders.Remove("Cookie");
+            client.DefaultRequestHeaders.Add("Cookie", authCookie + "; " + antiforgeryCookie);
+
+            using var response = await client.PostAsync("/Admin/ActivityType/Create", new FormUrlEncodedContent(
+                new Dictionary<string, string>
+                {
+                    ["__RequestVerificationToken"] = antiforgery, ["Name"] = name, ["Description"] = description
+                }));
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var html = await response.Content.ReadAsStringAsync();
+            var document = await new HtmlParser().ParseDocumentAsync(html);
+            Assert.Contains("too large for the catalog index", document.QuerySelector("[data-valmsg-for='Name']")!.TextContent);
+            var input = Assert.IsAssignableFrom<IHtmlInputElement>(document.QuerySelector("input[name='Name']"));
+            var textarea = Assert.IsAssignableFrom<IHtmlTextAreaElement>(document.QuerySelector("textarea[name='Description']"));
+            Assert.Equal(name, input.Value); // ModelState must retain the original surrounding spaces.
+            Assert.Equal(description, textarea.Value);
+            Assert.Contains("&lt;strong&gt;prose&lt;/strong&gt;", html);
+            Assert.DoesNotContain("<strong>prose</strong>", html);
+        }
+        finally
+        {
+            await db.ApplicationSettings.Where(s => s.Id == settings.Id).ExecuteDeleteAsync();
+            await ActivityCatalogMigrationPostgresTests.CleanAsync(db, admin.Id);
+        }
     }
 
     /// <summary>A committed winning delete produces the established response and cannot resurrect stale state.</summary>
