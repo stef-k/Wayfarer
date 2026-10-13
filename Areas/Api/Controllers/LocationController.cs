@@ -163,7 +163,7 @@ public class LocationController : BaseApiController
                 Speed = dto.Speed,
                 LocationType = dto.LocationType ?? "Manual", // Default to Manual for check-ins
                 Notes = RichNotes.Normalize(dto.Notes),
-                ActivityTypeId = dto.ActivityTypeId,
+                ActivityTypeId = await new ActivityCatalog(_dbContext).ResolveWriteIdAsync(dto.ActivityTypeId, HttpContext.RequestAborted),
 
                 // Metadata fields
                 Source = dto.Source ?? "api-checkin",
@@ -555,7 +555,7 @@ public class LocationController : BaseApiController
                 Speed = dto.Speed,
                 LocationType = dto.LocationType,
                 Notes = RichNotes.Normalize(dto.Notes),
-                ActivityTypeId = dto.ActivityTypeId,
+                ActivityTypeId = await new ActivityCatalog(_dbContext).ResolveWriteIdAsync(dto.ActivityTypeId, HttpContext.RequestAborted),
 
                 // Metadata fields
                 Source = dto.Source ?? "api-log",
@@ -856,24 +856,10 @@ public class LocationController : BaseApiController
             }
             else if (request.ActivityTypeId.HasValue || !string.IsNullOrWhiteSpace(request.ActivityName))
             {
-                int? resolvedId = null;
-
-                if (request.ActivityTypeId.HasValue)
-                {
-                    var act = await _dbContext.Set<ActivityType>()
-                        .FirstOrDefaultAsync(a => a.Id == request.ActivityTypeId.Value);
-                    if (act != null)
-                        resolvedId = act.Id;
-                }
-
+                var catalog = new ActivityCatalog(_dbContext);
+                var resolvedId = await catalog.ResolveIdAsync(request.ActivityTypeId, HttpContext.RequestAborted);
                 if (resolvedId == null && !string.IsNullOrWhiteSpace(request.ActivityName))
-                {
-                    var name = request.ActivityName!.Trim();
-                    var actByName = await _dbContext.Set<ActivityType>()
-                        .FirstOrDefaultAsync(a => a.Name.ToLower() == name.ToLower());
-                    if (actByName != null)
-                        resolvedId = actByName.Id;
-                }
+                    resolvedId = await catalog.FindByNameAsync(request.ActivityName, HttpContext.RequestAborted);
 
                 // If still null after trying both, set to null (explicit update semantics)
                 location.ActivityTypeId = resolvedId;

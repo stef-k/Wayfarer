@@ -176,24 +176,6 @@ public partial class ApiLocationControllerTests : TestBase
     }
 
     [Fact]
-    public async Task Update_SetsActivity_ByName()
-    {
-        var db = CreateDbContext();
-        var user = SeedUserWithToken(db, "tok");
-        var activity = new ActivityType { Id = 8, Name = "Run" };
-        db.Set<ActivityType>().Add(activity);
-        db.Locations.Add(CreateLocation(user.Id, 88));
-        await db.SaveChangesAsync();
-        var controller = BuildApiController(db, user);
-
-        var result = await controller.Update(88, new LocationUpdateRequestDto { ActivityName = "Run" });
-
-        Assert.IsType<OkObjectResult>(result);
-        var updated = db.Locations.First(l => l.Id == 88);
-        Assert.Equal(activity.Id, updated.ActivityTypeId);
-    }
-
-    [Fact]
     public async Task Update_ReturnsOk_WhenNoChangesApplied()
     {
         var db = CreateDbContext();

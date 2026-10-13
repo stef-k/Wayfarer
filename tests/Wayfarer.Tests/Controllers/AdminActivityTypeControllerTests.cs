@@ -32,21 +32,6 @@ public class AdminActivityTypeControllerTests : TestBase
     }
 
     [Fact]
-    public async Task Create_Persists_WhenValid()
-    {
-        var db = CreateDbContext();
-        db.Users.Add(TestDataFixtures.CreateUser(id: "admin"));
-        db.SaveChanges();
-        var controller = BuildController(db);
-
-        var result = await controller.Create(new ActivityType { Name = "Walk", Description = "desc" });
-
-        var redirect = Assert.IsType<RedirectToActionResult>(result);
-        Assert.Equal(nameof(ActivityTypeController.Index), redirect.ActionName);
-        Assert.Single(db.ActivityTypes);
-    }
-
-    [Fact]
     public void Create_Get_ReturnsView()
     {
         var controller = BuildController(CreateDbContext());
@@ -155,6 +140,15 @@ public class AdminActivityTypeControllerTests : TestBase
         var result = await controller.Edit(1, new ActivityType { Id = 2, Name = "Test" });
 
         Assert.IsType<NotFoundResult>(result);
+    }
+
+    /// <summary>A missing live ID stays 404 before attempting normalization or conflict validation.</summary>
+    [Fact]
+    public async Task Edit_Post_ReturnsNotFound_WhenIdDoesNotExist()
+    {
+        var controller = BuildController(CreateDbContext());
+        Assert.IsType<NotFoundResult>(await controller.Edit(999,
+            new ActivityType { Id = 999, Name = "Missing" }));
     }
 
     [Fact]

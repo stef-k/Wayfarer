@@ -34,6 +34,7 @@ public abstract class TestBase : IDisposable
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning))
+            .AddInterceptors(new InMemoryActivityGeneratedKey())
             .Options;
         var context = new ApplicationDbContext(options, new ServiceCollection().BuildServiceProvider());
         context.Set<TransportProfile>().AddRange(TestDataFixtures.CreateTransportProfiles());
@@ -157,5 +158,33 @@ public abstract class TestBase : IDisposable
             foreach (var directory in _directories) directory.Dispose();
             _directories.Clear();
         }
+    }
+}
+
+/// <summary>Supplies a fixture placeholder because InMemory cannot execute PostgreSQL generated columns.</summary>
+/// <remarks>No name matching, normalization, uniqueness or FK evidence comes from this provider.</remarks>
+internal sealed class InMemoryActivityGeneratedKey : SaveChangesInterceptor
+{
+    /// <summary>Fills only the private required generated property for unrelated unit fixtures.</summary>
+    private static void SupplyPlaceholder(DbContext? context)
+    {
+        if (context == null) return;
+        foreach (var entry in context.ChangeTracker.Entries<ActivityType>().Where(e => e.State == EntityState.Added))
+            entry.Property("NormalizedName").CurrentValue = "PostgreSQL-generated-key-placeholder";
+    }
+
+    /// <summary>Supports existing synchronous fixture seeding.</summary>
+    public override InterceptionResult<int> SavingChanges(DbContextEventData data, InterceptionResult<int> result)
+    {
+        SupplyPlaceholder(data.Context);
+        return result;
+    }
+
+    /// <summary>Supports existing asynchronous fixture seeding.</summary>
+    public override ValueTask<InterceptionResult<int>> SavingChangesAsync(DbContextEventData data,
+        InterceptionResult<int> result, CancellationToken cancellationToken = default)
+    {
+        SupplyPlaceholder(data.Context);
+        return ValueTask.FromResult(result);
     }
 }

@@ -56,6 +56,62 @@ For local application startup, normal non-Production activation calls `Database.
 
 Production startup does not mutate schema or bootstrap administrator state. It checks readiness and refuses activation when preparation is incomplete. Supported production migration/seed/bootstrap operations are explicit maintenance actions; follow the [self-hosting guide](../self-hosting/index.md) rather than copying Development startup behavior into deployment code.
 
+## Activity catalog integrity and coordinated deployment
+
+Activity names use the migration-owned
+`public.wayfarer_activity_name_v1(raw text, identity boolean)` function on PostgreSQL
+18/UTF-8. It trims only surrounding Unicode 16 whitespace, validates XML text,
+preserves NFC display spelling/case and computes NFC/full Unicode case-folded
+identity with `pg_unicode_fast`. Interior spaces, tabs, NBSP and line breaks remain
+significant. The stored generated `NormalizedName` shadow property uses deterministic
+`C` equality and a unique index; there is no second .NET name matcher or arbitrary
+name-length cap. Real full-key B-tree capacity still limits storage. Qualify these
+vectors and reconcile/rebuild deliberately before any PostgreSQL-major upgrade;
+never change v1 semantics under existing generated keys.
+
+Migration `20261013152203_ActivityCatalogIntegrity` preflights names, positive IDs,
+full-key index capacity and every referencing FK while holding fixed-order catalog,
+Location and redirect table locks. It aborts on unknown/weakened references. Lowest
+ID wins each equivalent-name group. Only Location Activity FKs change, across all
+owners; all other metadata stays untouched. Nonblank description text is compared
+exactly: the survivor's prose wins as primary, or the lowest-ID nonblank source if
+absent. Other distinct texts append in source-ID order with the original name/ID
+heading. Exact repeats append once. Any failure rolls back the catalog, descriptions,
+Locations, redirects and schema together; sequence gaps after rollback are harmless.
+
+`ActivityTypeIdRedirects` retains each removed positive ID indefinitely and points
+directly to its live survivor. The sequence advances beyond the previous high-water
+mark; database guards reject explicit reuse. API check-in/log-location/PUT and owner
+MVC Create/Edit resolve live ID first, then a redirect. Renaming preserves IDs and
+redirects. Both Location and redirect FKs remain NO ACTION/NOT DEFERRABLE and EF
+ClientNoAction, so deletion cannot clear tracked optional references. Admin create
+and rename report normalized conflicts, including races; deletion reports references
+and remains possible for unreferenced, unmapped entries. Description replacement is
+an explicit administrator edit. Bundled data seeds only an empty catalog through v1.
+
+Deploy this schema and compatible API/Admin binary as **one coordinated change**.
+Stop/fence all old catalog writers and imports; no rolling overlap with incompatible
+binaries is supported. Under the existing [release authority](../maintainer/versioning.md)
+and [update/recovery procedure](../self-hosting/wayfarerctl.md#update), retain a verified
+quiesced pre-migration backup before preparation. For managed Compose, the existing
+update plan requires a fresh verified quiesced recovery set; review target/source
+authority through that workflow. Source/native operators must likewise stop every
+writer and verify their backup before explicit production preparation. Resume client
+traffic only after the compatible resolver binary is active. Production startup
+still does not migrate automatically; this PR changes no release versions/assets.
+
+Down is deliberately **lossy**: it removes the generated key/check/index/function,
+retains merged descriptions and survivor FKs, and keeps redirects plus retired-ID
+guards. It cannot recreate original IDs or FK assignments. A code rollback must
+retain compatible redirect resolution; otherwise restore the verified pre-cleanup
+backup with writers stopped before running an old binary. Re-Up after Down and
+ordinary migration-history reruns are supported. There is no redirect expiry.
+
+This is the A+B prerequisite in [#862](https://github.com/stef-k/Wayfarer/issues/862).
+Import name creation/reconciliation belongs to #863, and native file fidelity to
+#814; those workers/parsers/exports are unchanged here. See the
+[accepted design](activity-reconciliation-design.md) for their separate contracts.
+
 ## Quartz is a separate schema responsibility
 
 Quartz persists jobs/triggers through its ADO job store using the same PostgreSQL connection and `qrtz_` table prefix. `QuartzSchemaInstaller` owns creation/alignment of that schema. Those tables are not EF entities and should not be modeled as application migrations merely because they live in the same database.

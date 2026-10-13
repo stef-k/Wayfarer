@@ -9,6 +9,13 @@
 
 ### Fixed
 
+- Enforce PostgreSQL Unicode Activity name identity and atomically reconcile equivalent
+  legacy duplicates while preserving descriptions, cross-owner Location metadata and
+  permanent numeric redirects. Existing API/MVC writers accept consolidated IDs;
+  catalog reads require an active cookie or existing opaque Bearer token. Admin
+  conflicts and referenced deletion return useful feedback. Schema and compatible
+  code require one quiesced deployment with a verified backup; Down is lossy (#862).
+
 - Preserve actual UTC event instants for explicit-offset `LocalTimestamp` values
   in Wayfarer GeoJSON imports. Keep Z-valued inputs, legacy no-offset wall-clock
   interpretation and missing/invalid fallback behavior compatible (#813).
