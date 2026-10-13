@@ -18,6 +18,7 @@ Workspace: `/home/stef/wayfarer-research/858-codec-comparison-20261013-zufsdz12`
 Branch: `wip/858-codec-comparison-20261013`.
 Base: `8a857230c0751d87b71e227431365d0fb16a7ca4`.
 Measured microbenchmark source: `e18859a5` (full SHA in ARTIFACTS.json).
+Measured RSS-observer source: `abefcf00725a31d7ea24a5425974b09a039f5739`.
 Measured decoder source: `d87978aaa2ec89b3ed83e3b8126d3cc5bd7f69d7`.
 Final documentation head, exact binary identities and evidence hashes are in
 `ARTIFACTS.json` and `SHA256SUMS`. Paths below are relative to this workspace.
@@ -93,30 +94,30 @@ including the combined WebP p95 failure. It was not rerun to erase it.
 
 ## Decode only
 
-| Codec/input | p50 ms | p95 ms | Median CPU ms | Process HWM MiB |
+| Codec/input | p50 ms | p95 ms | Median CPU ms | VmHWM MiB (RSS probe) |
 | --- | --- | --- | --- | --- |
-| Actual CLI JPEG baseline | 10.914 | 11.778 | 13.508 | 16.21 |
-| zune-jpeg reference | 7.883 | 11.156 | 7.886 | 16.21 |
-| libjpeg-turbo-rs | 6.424 | 7.190 | 6.427 | 16.21 |
-| image-webp baseline | 51.414 | 55.574 | 51.410 | 16.21 |
-| webp/libwebp | 28.993 | 31.161 | 28.978 | 16.21 |
+| Actual CLI JPEG baseline | 10.914 | 11.778 | 13.508 | 14.56 |
+| zune-jpeg reference | 7.883 | 11.156 | 7.886 | 13.98 |
+| libjpeg-turbo-rs | 6.424 | 7.190 | 6.427 | 11.55 |
+| image-webp baseline | 51.414 | 55.574 | 51.410 | 11.93 |
+| webp/libwebp | 28.993 | 31.161 | 28.978 | 13.45 |
 
 JPEG decode saves 41.1% against the actual CLI codec and
 18.5% against zune-jpeg. Native WebP decode saves 43.6%.
 The native RGB photograph and retained RGBA still WebP decode to exactly the
 same pixels as image-webp. JPEG decoded differences versus jpeg-decoder have a
 maximum channel delta of three; observational metrics are in
-`evidence/codec-summary.json`. Process HWM is cumulative over a finite micro
-process, not a per-call allocation bound or aggregate RSS claim.
+`evidence/codec-summary.json`. RSS is current-executable VmHWM from three observations after three warmups, including input and retained allocator pages; it is not a hard or aggregate bound. Original getrusage HWM fields include pre-exec launcher memory and are superseded for RSS by evidence/codec-rss-corrected.json. Primary timing/CPU samples are unchanged.
+
 
 ## JPEG encode only
 
-| Profile/pixels | jpeg-encoder p50/p95 ms | Candidate p50/p95 ms | p50 saving | Bytes old/new | CPU old/new ms | Process HWM old/new MiB |
+| Profile/pixels | jpeg-encoder p50/p95 ms | Candidate p50/p95 ms | p50 saving | Bytes old/new | CPU old/new ms | VmHWM old/new MiB (RSS probe) |
 | --- | --- | --- | --- | --- | --- | --- |
-| web/photo.jpg | 20.738 / 22.096 | 5.488 / 5.630 | 73.5% | 498531 / 498545 | 20.740 / 5.489 | 21.0 / 21.0 |
-| web/photo.webp | 20.439 / 20.806 | 5.565 / 6.043 | 72.8% | 501261 / 501268 | 20.442 / 5.566 | 21.0 / 21.0 |
-| pdf/photo.jpg | 2.012 / 2.045 | 0.518 / 0.554 | 74.2% | 43582 / 43383 | 2.014 / 0.520 | 21.0 / 21.0 |
-| pdf/photo.webp | 2.008 / 2.042 | 0.520 / 0.553 | 74.1% | 43524 / 43327 | 2.010 / 0.521 | 21.0 / 21.0 |
+| web/photo.jpg | 20.738 / 22.096 | 5.488 / 5.630 | 73.5% | 498531 / 498545 | 20.740 / 5.489 | 9.59 / 10.14 |
+| web/photo.webp | 20.439 / 20.806 | 5.565 / 6.043 | 72.8% | 501261 / 501268 | 20.442 / 5.566 | 9.74 / 9.92 |
+| pdf/photo.jpg | 2.012 / 2.045 | 0.518 / 0.554 | 74.2% | 43582 / 43383 | 2.014 / 0.520 | 4.91 / 4.75 |
+| pdf/photo.webp | 2.008 / 2.042 | 0.520 / 0.553 | 74.1% | 43524 / 43327 | 2.010 / 0.521 | 4.94 / 5.03 |
 
 Candidate JPEG geometry, 4:2:0, Q tables, canonical ICC and privacy match the
 photographic intent. Independent LittleCMS display PSNR against normalized
@@ -134,6 +135,7 @@ integration, private codec change or limit relaxation was attempted. The
 independent gain is measured; its complete-pipeline benefit remains UNPROVEN.
 The same API limitation applies even though ICC encoding is supported.
 
+
 ## Experimental WebP-to-WebP output
 
 | Profile | JPEG/WebP Q | JPEG p50/p95 ms | WebP p50/p95 ms | JPEG/WebP bytes | Byte saving | JPEG/WebP RGB PSNR dB | JPEG/WebP CPU ms |
@@ -148,7 +150,7 @@ was never assumed equivalent across formats. PSNR is a proxy and cannot prove
 perceptual equivalence. Raw WebP lacks the 612-byte canonical ICC carried by
 JPEG, so byte savings also exclude the small eventual ICC/mux overhead.
 
-Matched codec-process cumulative HWM observations are web: JPEG 20.96 / WebP 79.43 MiB; pdf: JPEG 20.96 / WebP 79.43 MiB. They include retained input and repeated codec allocation, not a hard allocation bound.
+Matched current-executable RSS probes are web: JPEG 9.74 / WebP 26.49 MiB; PDF: JPEG 4.94 / WebP 6.39 MiB. These are VmHWM maxima over three observations after three warmups, including input/codec allocations; no hard or aggregate bound is claimed.
 
 Both lossless WebP encoders reproduce the prepared photographic pixels exactly:
 
@@ -156,6 +158,8 @@ Both lossless WebP encoders reproduce the prepared photographic pixels exactly:
 | --- | --- | --- | --- |
 | web | 13.217 | 946.914 | 2099372 / 1823882 |
 | pdf | 1.309 | 177.989 | 268718 / 227748 |
+
+Native lossless VmHWM is 65.41 MiB web and 31.56 MiB PDF, versus image-webp 16.90/5.23 MiB.
 
 On the retained transparent 64x32 WebP, native/old decoded RGBA is exact.
 Lossy and both lossless encoded controls retain alpha exactly (range 0..252).
@@ -351,7 +355,7 @@ bare C codec comparison or a third integration. No shared tooling was installed.
 - Every raw CLI cell/backend's sample count, median, nearest-rank p95 and inverse
   mean throughput were independently recomputed. Normal/diagnostic decoded pixel
   sets match in every direct cell. Final JPEG and calibrated WebP crops were
-  visually inspected. No timing assertions or harness-internal tests were added.
+  visually inspected. No timing assertions or harness-internal tests were added. A bounded exec measurement diagnosis confirmed getrusage high-water inheritance (114884 KiB versus current-executable VmHWM 11740 KiB). Only the micro RSS observer/probes were corrected; all primary timing, CPU and failed gate observations remain unchanged. The observer-only delta is outside every CLI qualification seam, documented in final-scope-identity.json.
 - Code Guard task scope is REVIEW only for unchanged webp_input.admit complexity16.
   Comparison to fetched main e5f7298cea0450a862bcd710da1f0579cb0bcd50 retains
   unchanged color.png_profile (90 LOC), gif_input.admit (108 LOC, depth5,
@@ -377,7 +381,7 @@ evidence/statistics-and-probe-crosscheck.json and preservation-before/after.json
 Figures: outputs/quality-web-jpeg.png, quality-pdf-jpeg.png,
 quality-web-webp.png and quality-pdf-webp.png. Exact executed argv/environment are
 in micro-commands.jsonl and pipeline-commands.jsonl; builds/tests retain logs.
-The retained CMS writer timestamps ICC creation fields; encoded hashes may vary while decoded pixels and byte lengths stay stable. Source recovery, binary and evidence hashes are in ARTIFACTS.json/SHA256SUMS.
+The retained CMS writer timestamps ICC creation fields; encoded hashes may vary while decoded pixels and byte lengths stay stable. Corrected RSS evidence is evidence/codec-rss-corrected.json and rss_probe.py. Source recovery, binary and evidence hashes are in ARTIFACTS.json/SHA256SUMS.
 
 ## Reproduction and stopping
 
