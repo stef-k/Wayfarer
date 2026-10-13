@@ -19,6 +19,13 @@ scratch-owned. Protected source/report hashes and Git identities are verified in
 SHA-256 `c64584be8b55d5e7af78b3fe92e636f6351c5a6c29b20b2244c0b58ebf38e8f6`.
 No push, PR, merge, release, production HTTP/cache integration or GitHub write occurred.
 
+The primary checkout's own head/status match the initial snapshot. Its shared
+worktree inventory records an unrelated #862 head advance from `11bcba6e` to
+`09fbb992` during this run; no command in this task writes to that worktree.
+The WSL host is shared, not an exclusive benchmark machine. Environment/process
+snapshots and the inventory difference are retained; the large repeated warm
+failures remain decisive, while cold observations do not qualify broader parity.
+
 ## Implementation and profiles
 
 Opaque 8-bit sources now normalize into RGB8 and use conventional sRGB Lanczos3.
