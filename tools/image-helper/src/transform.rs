@@ -101,7 +101,7 @@ fn resize(pixels: DynamicImage, width: u32, height: u32) -> Result<DynamicImage>
             let resized = if (width, height) == rgb.dimensions() {
                 rgb
             } else {
-                image::imageops::resize(&rgb, width, height, FilterType::Lanczos3)
+                resize_rgb8(&rgb, width, height)?
             };
             diagnostic_timing("resize_srgb8", stage);
             Ok(DynamicImage::ImageRgb8(resized))
@@ -122,6 +122,29 @@ fn resize(pixels: DynamicImage, width: u32, height: u32) -> Result<DynamicImage>
         }
         _ => Err(Failure::Unavailable),
     }
+}
+
+/// Borrow admitted RGB8 pixels and keep Lanczos3 in sRGB; upstream detects SIMD or uses scalar code.
+fn resize_rgb8(rgb: &image::RgbImage, width: u32, height: u32) -> Result<image::RgbImage> {
+    use fast_image_resize::{FilterType, PixelType, ResizeAlg, ResizeOptions, Resizer, images};
+    let source = images::ImageRef::new(rgb.width(), rgb.height(), rgb.as_raw(), PixelType::U8x3)
+        .map_err(|_| Failure::Unavailable)?;
+    let mut destination = images::Image::from_vec_u8(
+        width,
+        height,
+        crate::zeroed(crate::dimensions(width, height)? * 3)?,
+        PixelType::U8x3,
+    )
+    .map_err(|_| Failure::Unavailable)?;
+    // Never force CPU extensions or compile for the build host's instruction set.
+    Resizer::new()
+        .resize(
+            &source,
+            &mut destination,
+            &ResizeOptions::new().resize_alg(ResizeAlg::Convolution(FilterType::Lanczos3)),
+        )
+        .map_err(|_| Failure::Unavailable)?;
+    image::RgbImage::from_raw(width, height, destination.into_vec()).ok_or(Failure::Unavailable)
 }
 
 /// Fresh encoders receive only a generated canonical sRGB profile.
@@ -193,5 +216,42 @@ impl Write for BoundedOutput {
     }
     fn flush(&mut self) -> io::Result<()> {
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Odd RGB strides exercise the product path and agree with the universally supported scalar route.
+    #[test]
+    fn rgb8_lanczos_agrees_with_scalar_on_odd_axes() {
+        use fast_image_resize::{CpuExtensions, PixelType, ResizeOptions, Resizer, images};
+        let rgb = image::RgbImage::from_fn(65, 49, |x, y| {
+            image::Rgb([
+                (x * 17 % 256) as u8,
+                (y * 23 % 256) as u8,
+                ((x + y) * 9 % 256) as u8,
+            ])
+        });
+        let actual = resize_rgb8(&rgb, 23, 17).unwrap();
+        let source = images::ImageRef::new(65, 49, rgb.as_raw(), PixelType::U8x3).unwrap();
+        let mut expected = images::Image::new(23, 17, PixelType::U8x3);
+        let mut scalar = Resizer::new();
+        assert!(scalar.cpu_extensions().is_supported());
+        eprintln!("Resize runtime dispatch: {:?}", scalar.cpu_extensions());
+        // SAFETY: None selects portable scalar operations, which are supported on every CPU.
+        unsafe { scalar.set_cpu_extensions(CpuExtensions::None) };
+        scalar
+            .resize(&source, &mut expected, &ResizeOptions::new())
+            .unwrap();
+        assert_eq!(actual.dimensions(), (23, 17));
+        assert!(
+            actual
+                .as_raw()
+                .iter()
+                .zip(expected.buffer())
+                .all(|(a, b)| a.abs_diff(*b) <= 1)
+        );
     }
 }

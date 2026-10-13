@@ -12,6 +12,8 @@ diagnostic-timing = []
 
 [dependencies]
 image = { version = "=0.25.10", default-features = false, features = ["jpeg", "png", "gif", "webp"] }
+# RGB8 Lanczos3 uses runtime-dispatched SIMD, without a thread pool or image adapter.
+fast_image_resize = { version = "=6.1.0", default-features = false, features = ["std"] }
 jpeg-decoder = { version = "=0.3.2", default-features = false }
 png = "=0.18.1"
 gif = "=0.14.2"
