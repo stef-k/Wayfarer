@@ -4,6 +4,12 @@ This Linux x64 prototype follows the [accepted design](https://github.com/stef-k
 It does not connect to the production image proxy, HTTP or cache.
 
 Build with Rust 1.90.0 using `cargo build --locked --release`.
+The isolated SIMD experiment pins `fast_image_resize` 6.1.0 for RGB8 Lanczos3
+and `jpeg-encoder` 0.7.1 with its `simd` feature. Runtime detection selects
+supported CPU instructions; alpha and precision routes retain the original resize.
+JPEG qualities up to 90 use averaged photographic 4:2:0; higher-quality explicit
+recipes retain 4:4:4. Canonical ICC embedding and complete output verification remain.
+The dependency license texts and IJG acknowledgment are in `notices/`.
 Invoke the resulting `target/release/wayfarer-image` executable through
 `/usr/bin/prlimit` with address space 1 GiB, CPU 20/25 seconds, descriptors 128
 and core dumps zero. Set `WAYFARER_IMAGE_PARENT_PID` to the launching process PID.
@@ -80,3 +86,5 @@ explicit local input/report environment variables are set. It never asserts timi
 
 See [PROTOTYPE.md](PROTOTYPE.md) for the original retained outcome, and
 [RECOVERY.md](RECOVERY.md) for the bounded web-performance recovery decision.
+See [SIMD.md](SIMD.md) for the separate resize-only, encoder-only and combined
+experiment, measured source identities, retained evidence and stop decision.
