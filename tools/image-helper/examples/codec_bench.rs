@@ -185,7 +185,8 @@ fn observe(
     Ok(())
 }
 
-/// Process CPU and cumulative process RSS are observations, not hard allocation bounds.
+/// Process CPU and current-executable VmHWM are observations, not hard allocation bounds.
+/// ru_maxrss retains pre-exec launcher high water, so it cannot attribute codec RSS.
 fn usage() -> (f64, i64) {
     // SAFETY: getrusage fills one initialized output; no pointers survive this call.
     unsafe {
@@ -193,9 +194,14 @@ fn usage() -> (f64, i64) {
         assert_eq!(libc::getrusage(libc::RUSAGE_SELF, &mut usage), 0);
         let seconds = usage.ru_utime.tv_sec + usage.ru_stime.tv_sec;
         let micros = usage.ru_utime.tv_usec + usage.ru_stime.tv_usec;
-        (
-            seconds as f64 * 1000.0 + micros as f64 / 1000.0,
-            usage.ru_maxrss,
-        )
+        let cpu = seconds as f64 * 1000.0 + micros as f64 / 1000.0;
+        let status = std::fs::read_to_string("/proc/self/status").expect("Linux observation");
+        let highwater = status
+            .lines()
+            .find(|line| line.starts_with("VmHWM:"))
+            .and_then(|line| line.split_whitespace().nth(1))
+            .and_then(|value| value.parse().ok())
+            .expect("current executable high water");
+        (cpu, highwater)
     }
 }
