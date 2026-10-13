@@ -1,4 +1,6 @@
 //! Isolated image policy and transform. HTTP, caches and process admission stay in C#.
+#[cfg(any(feature = "jpeg-candidate-decode", feature = "webp-candidate-decode"))]
+mod codec_candidates;
 mod color;
 mod gif_input;
 mod png_input;

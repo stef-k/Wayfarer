@@ -28,8 +28,14 @@ pub(crate) fn decode(bytes: &[u8]) -> Result<Raster> {
         .map(color::parse_profile)
         .transpose()?;
     let exif = decoder.exif_metadata().map_err(webp_error)?;
-    let mut samples = zeroed(decoder.output_buffer_size().ok_or(Failure::Unavailable)?)?;
-    decoder.read_image(&mut samples).map_err(webp_error)?;
+    #[cfg(feature = "webp-candidate-decode")]
+    let samples = crate::codec_candidates::webp_pixels(bytes, width, height, authority.alpha)?;
+    #[cfg(not(feature = "webp-candidate-decode"))]
+    let samples = {
+        let mut samples = zeroed(decoder.output_buffer_size().ok_or(Failure::Unavailable)?)?;
+        decoder.read_image(&mut samples).map_err(webp_error)?;
+        samples
+    };
     Ok(Raster {
         width,
         height,

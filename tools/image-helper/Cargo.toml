@@ -11,6 +11,9 @@ publish = false
 diagnostic-timing = []
 # Scratch-only codec comparison; no candidate is enabled in ordinary builds.
 codec-bench = ["dep:libjpeg-turbo-rs", "dep:webp", "dep:libwebp-sys"]
+# Independent decode-only CLI candidates retain the accepted output encoders.
+jpeg-candidate-decode = ["dep:libjpeg-turbo-rs"]
+webp-candidate-decode = ["dep:webp", "dep:libwebp-sys"]
 
 [dependencies]
 image = { version = "=0.25.10", default-features = false, features = ["jpeg", "png", "gif", "webp"] }

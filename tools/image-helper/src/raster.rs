@@ -39,6 +39,28 @@ fn jpeg(bytes: &[u8]) -> Result<Raster> {
     decoder.read_info().map_err(|_| Failure::Source)?;
     let info = decoder.info().ok_or(Failure::Source)?;
     dimensions(info.width.into(), info.height.into())?;
+    #[cfg(feature = "jpeg-candidate-decode")]
+    let decoded = if info.pixel_format == jpeg_decoder::PixelFormat::RGB24
+        && bytes.ends_with(&[0xff, 0xd9])
+    {
+        match crate::codec_candidates::jpeg_rgb(bytes, info.width.into(), info.height.into()) {
+            Ok(candidate)
+                if candidate.icc_profile == decoder.icc_profile()
+                    && candidate.exif_data.as_deref() == decoder.exif_data() =>
+            {
+                candidate.data
+            }
+            // read_info stops at SOF; later or differently assembled metadata needs the original full route.
+            Ok(_) => decoder.decode().map_err(|_| Failure::Source)?,
+            // Candidate recovery must never broaden admission; reuse the retained bounded JPEG policy.
+            Err(Failure::Source) => decoder.decode().map_err(|_| Failure::Source)?,
+            Err(failure) => return Err(failure),
+        }
+    } else {
+        // Original recovery handles incomplete/trailing JPEGs; grayscale/CMYK interpretation stays unchanged.
+        decoder.decode().map_err(|_| Failure::Source)?
+    };
+    #[cfg(not(feature = "jpeg-candidate-decode"))]
     let decoded = decoder.decode().map_err(|_| Failure::Source)?;
     let (layout, cmyk) = match info.pixel_format {
         jpeg_decoder::PixelFormat::RGB24 => (Layout::Rgb, false),
