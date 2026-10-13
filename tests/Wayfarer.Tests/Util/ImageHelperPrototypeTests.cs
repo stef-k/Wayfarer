@@ -1,5 +1,6 @@
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
+using SixLabors.ImageSharp.Processing;
 using Wayfarer.ImagePrototype;
 using Xunit;
 
@@ -13,6 +14,63 @@ public sealed class ImageHelperPrototypeCollection { }
 [Collection("Image helper prototype")]
 public sealed class ImageHelperPrototypeTests
 {
+    /// <summary>Web defaults apply only when both bounds are absent; PDF and fidelity recipes override them.</summary>
+    [Theory]
+    [InlineData(null, null, null, 2048, 2048, 90)]
+    [InlineData(600, null, 85, 600, 8192, 85)]
+    [InlineData(null, 400, null, 8192, 400, 90)]
+    [InlineData(4096, null, 95, 4096, 8192, 95)]
+    public void WebRecipe_ResolvesOnlyAbsentDefaults(int? width, int? height, int? quality,
+        int expectedWidth, int expectedHeight, int expectedQuality)
+    {
+        var recipe = (width, height, quality) switch
+        {
+            (null, null, null) => new ImageTransform(),
+            (int bound, null, int value) => new ImageTransform(Width: bound, Quality: value),
+            (null, int bound, null) => new ImageTransform(Height: bound),
+            _ => throw new ArgumentException("Unsupported focused profile case.")
+        };
+        Assert.Equal((expectedWidth, expectedHeight, expectedQuality),
+            (recipe.Width, recipe.Height, recipe.Quality));
+    }
+
+    /// <summary>Opaque web resizing averages in sRGB; transparent resizing removes hidden color before filtering.</summary>
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public async Task Resize_PreservesSrgbAndPremultipliedAlphaContracts(bool transparent)
+    {
+        using var input = new Image<Rgba32>(128, 64);
+        for (var y = 0; y < input.Height; y++)
+            for (var x = 0; x < input.Width; x++)
+                input[x, y] = transparent
+                    ? (x % 2 == 0 ? new Rgba32(255, 0, 0, 255) : new Rgba32(0, 0, 255, 0))
+                    : (x % 2 == 0 ? new Rgba32(255, 255, 255, 255) : new Rgba32(0, 0, 0, 255));
+        using var encoded = new MemoryStream();
+        input.SaveAsPng(encoded);
+        var result = await Supervisor.TransformAsync(encoded.ToArray(),
+            new ImageTransform(Width: 16, Height: 8), TimeSpan.FromSeconds(30));
+        Assert.Equal(ImageTransformStatus.Success, result.Status);
+        using var output = Image.Load<Rgba32>(result.Bytes!);
+        var center = output[8, 4];
+        Assert.Equal((16, 8), (output.Width, output.Height));
+        Assert.InRange((int)center.R, transparent ? 254 : 126, transparent ? 255 : 130);
+        Assert.InRange((int)center.G, transparent ? 0 : 126, transparent ? 1 : 130);
+        Assert.InRange((int)center.B, transparent ? 0 : 126, transparent ? 1 : 130);
+        Assert.InRange((int)center.A, transparent ? 126 : 255, transparent ? 130 : 255);
+        AssertReaped(result.ProcessId);
+    }
+
+    /// <summary>The ordinary web profile keeps smaller real photographs at their original dimensions.</summary>
+    [Fact]
+    public async Task WebProfile_DoesNotUpscaleActualPhotograph()
+    {
+        var result = await TransformFixture("photo.jpg", new ImageTransform());
+        Assert.Equal(ImageTransformStatus.Success, result.Status);
+        using var output = Image.Load(result.Bytes!);
+        Assert.Equal((1920, 863), (output.Width, output.Height));
+        AssertReaped(result.ProcessId);
+    }
+
     /// <summary>All accepted static formats produce independently decodable canonical output.</summary>
     [Theory]
     [InlineData("photo.jpg", "JPEG")]
@@ -46,6 +104,18 @@ public sealed class ImageHelperPrototypeTests
             using var output = Image.Load(result.Bytes!);
             Assert.Equal(orientation < 5 ? (64, 32) : (32, 64), (output.Width, output.Height));
             Assert.Null(output.Metadata.ExifProfile);
+            // The RGB8 fast path must preserve flips and rotations, not just swapped axes.
+            if (format == "png")
+            {
+                using var expected = Image.Load<Rgba32>(File.ReadAllBytes(
+                    Path.Combine(Fixtures, $"orientation-{orientation}.png")));
+                expected.Mutate(context => context.AutoOrient());
+                using var actual = Image.Load<Rgba32>(result.Bytes!);
+                Assert.Equal(expected[expected.Width / 4, expected.Height / 4],
+                    actual[actual.Width / 4, actual.Height / 4]);
+                Assert.Equal(expected[3 * expected.Width / 4, 3 * expected.Height / 4],
+                    actual[3 * actual.Width / 4, 3 * actual.Height / 4]);
+            }
         }
     }
 
@@ -252,7 +322,7 @@ public sealed class ImageHelperPrototypeTests
     /// <summary>Reuse retained image bytes without changing their source checkout.</summary>
     internal static Task<ImageTransformResult> TransformFixture(string name, ImageTransform? recipe = null) =>
         Supervisor.TransformAsync(File.ReadAllBytes(Path.Combine(Fixtures, name)),
-            recipe ?? new ImageTransform(), TimeSpan.FromSeconds(30));
+            recipe ?? new ImageTransform(Width: 600, Height: 8192, Quality: 85), TimeSpan.FromSeconds(30));
 
     /// <summary>A completed operation must leave no live child or unreaped zombie.</summary>
     internal static void AssertReaped(int? pid)

@@ -12,8 +12,12 @@ fn main() {
 
 /// Validate the trusted recipe and containment before accepting any image bytes.
 fn run() -> Result<(), Failure> {
+    let total = std::time::Instant::now();
+    let stage = std::time::Instant::now();
     let recipe = arguments()?;
     controls()?;
+    wayfarer_image::diagnostic_timing("arguments_controls", stage);
+    let stage = std::time::Instant::now();
     let mut bytes = Vec::new();
     let mut chunk = [0u8; 8192];
     let mut input = std::io::stdin().lock();
@@ -30,12 +34,17 @@ fn run() -> Result<(), Failure> {
             .map_err(|_| Failure::Unavailable)?;
         bytes.extend_from_slice(&chunk[..length]);
     }
+    wayfarer_image::diagnostic_timing("stdin", stage);
     let output = wayfarer_image::transform(&bytes, &recipe)?;
+    let stage = std::time::Instant::now();
     let mut stdout = std::io::stdout().lock();
     stdout
         .write_all(&output)
         .map_err(|_| Failure::Unavailable)?;
-    stdout.flush().map_err(|_| Failure::Unavailable)
+    stdout.flush().map_err(|_| Failure::Unavailable)?;
+    wayfarer_image::diagnostic_timing("stdout", stage);
+    wayfarer_image::diagnostic_timing("run", total);
+    Ok(())
 }
 
 /// Six distinct explicit options avoid defaults and ambiguous duplicate arguments.

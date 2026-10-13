@@ -1,4 +1,4 @@
-//! Fixed relative-colorimetric conversion to sRGB, preserving source precision and alpha.
+//! Conditional relative-colorimetric conversion to sRGB, preserving source precision and alpha.
 use crate::{
     Failure, Result,
     raster::{Raster, Samples},
@@ -113,6 +113,75 @@ pub(crate) fn png_profile(info: &png::Info<'_>, layout: Layout) -> Result<Option
         return Err(Failure::Source);
     }
     Ok(Some(profile))
+}
+
+/// Opaque 8-bit sources need no float raster or alpha arithmetic. Tagged colors still use CMS.
+pub(crate) fn opaque_rgb8(raster: &mut Raster) -> Result<Option<image::RgbImage>> {
+    if raster.cmyk {
+        return Ok(None);
+    }
+    let Samples::Eight(data) = &mut raster.samples else {
+        return Ok(None);
+    };
+    let pixels = raster.width as usize * raster.height as usize;
+    let channels = raster.layout.channels();
+    if data.len() != pixels * channels {
+        return Err(Failure::Source);
+    }
+    if matches!(raster.layout, Layout::GrayAlpha | Layout::Rgba)
+        && data
+            .chunks_exact(channels)
+            .any(|pixel| pixel[channels - 1] != 255)
+    {
+        return Ok(None);
+    }
+    let rgb = if let Some(profile) = &raster.profile {
+        let expected = if matches!(raster.layout, Layout::Gray | Layout::GrayAlpha) {
+            DataColorSpace::Gray
+        } else {
+            DataColorSpace::Rgb
+        };
+        if profile.color_space != expected {
+            return Err(Failure::Source);
+        }
+        let mut converted = zeroed(pixels * 3)?;
+        profile
+            .create_transform_8bit(
+                raster.layout,
+                &ColorProfile::new_srgb(),
+                Layout::Rgb,
+                TransformOptions {
+                    rendering_intent: RenderingIntent::RelativeColorimetric,
+                    ..Default::default()
+                },
+            )
+            .map_err(|_| Failure::Source)?
+            .transform(data, &mut converted)
+            .map_err(|_| Failure::Source)?;
+        converted
+    } else if raster.layout == Layout::Rgb {
+        std::mem::take(data)
+    } else if raster.layout == Layout::Rgba {
+        // Compact proven opaque RGBA in its owned buffer; copying forward cannot overwrite future pixels.
+        for index in 0..pixels {
+            let pixel = [data[index * 4], data[index * 4 + 1], data[index * 4 + 2]];
+            data[index * 3..index * 3 + 3].copy_from_slice(&pixel);
+        }
+        data.truncate(pixels * 3);
+        std::mem::take(data)
+    } else {
+        let mut converted = zeroed(pixels * 3)?;
+        for (out, pixel) in converted
+            .chunks_exact_mut(3)
+            .zip(data.chunks_exact(channels))
+        {
+            out.fill(pixel[0]);
+        }
+        converted
+    };
+    image::RgbImage::from_raw(raster.width, raster.height, rgb)
+        .map(Some)
+        .ok_or(Failure::Unavailable)
 }
 
 /// Layout Rgba means C/M/Y/K for CMYK profiles; K must never be mistaken for alpha.

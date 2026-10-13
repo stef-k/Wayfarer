@@ -6,6 +6,10 @@ edition = "2024"
 rust-version = "1.90"
 publish = false
 
+[features]
+# Opt-in fixed stage labels reuse the retained diagnosis probes; normal builds emit no timings.
+diagnostic-timing = []
+
 [dependencies]
 image = { version = "=0.25.10", default-features = false, features = ["jpeg", "png", "gif", "webp"] }
 jpeg-decoder = { version = "=0.3.2", default-features = false }

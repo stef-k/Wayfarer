@@ -42,6 +42,16 @@ impl Failure {
 pub(crate) type Result<T> = std::result::Result<T, Failure>;
 pub const MAX_ENCODED: usize = 50 * 1024 * 1024;
 
+/// Local qualification probes contain fixed stage names and durations, never source metadata.
+pub fn diagnostic_timing(stage: &str, start: std::time::Instant) {
+    if cfg!(feature = "diagnostic-timing") {
+        eprintln!(
+            "WF_DIAG {stage} {:.6}",
+            start.elapsed().as_secs_f64() * 1000.0
+        );
+    }
+}
+
 /// Check original geometry before any raster-sized allocation.
 pub(crate) fn dimensions(width: u32, height: u32) -> Result<usize> {
     if width == 0 || height == 0 {
