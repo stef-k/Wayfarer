@@ -142,6 +142,15 @@ public class AdminActivityTypeControllerTests : TestBase
         Assert.IsType<NotFoundResult>(result);
     }
 
+    /// <summary>A missing live ID stays 404 before attempting normalization or conflict validation.</summary>
+    [Fact]
+    public async Task Edit_Post_ReturnsNotFound_WhenIdDoesNotExist()
+    {
+        var controller = BuildController(CreateDbContext());
+        Assert.IsType<NotFoundResult>(await controller.Edit(999,
+            new ActivityType { Id = 999, Name = "Missing" }));
+    }
+
     [Fact]
     public async Task Edit_Post_ReturnsView_WhenModelInvalid()
     {

@@ -110,15 +110,13 @@ namespace Wayfarer.Areas.Admin.Controllers
                 return NotFound();
             }
 
-            if (!ValidateModelState() || !await ValidateActivityAsync(activityType))
-            {
-                return View(activityType);
-            }
+            if (!ValidateModelState()) return View(activityType);
+            var current = await _dbContext.ActivityTypes.FindAsync(id);
+            if (current == null) return NotFound();
+            if (!await ValidateActivityAsync(activityType)) return View(activityType);
 
             try
             {
-                var current = await _dbContext.ActivityTypes.FindAsync(id);
-                if (current == null) return NotFound();
                 current.Name = activityType.Name;
                 current.Description = activityType.Description;
                 await _dbContext.SaveChangesAsync();

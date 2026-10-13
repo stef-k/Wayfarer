@@ -24,4 +24,3 @@ public sealed class ActivityCatalogTests
         Assert.True(ActivityCatalog.CanTransport("\ufffd"));
     }
 }
-
