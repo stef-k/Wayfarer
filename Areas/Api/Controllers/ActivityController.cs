@@ -7,8 +7,10 @@ namespace Wayfarer.Areas.Api.Controllers;
 [Area("Api")]
 [Route("api/[controller]")]
 [ApiController]
+/// <summary>Authenticated shared Activity catalog for existing cookie and opaque-token clients.</summary>
 public class ActivityController : BaseApiController
 {
+    /// <summary>Uses the existing request-owned authentication authority.</summary>
     public ActivityController(ApplicationDbContext dbContext, ILogger<BaseApiController> logger)
         : base(dbContext, logger)
     {
@@ -21,6 +23,9 @@ public class ActivityController : BaseApiController
     [ProducesResponseType(typeof(IEnumerable<ActivityTypeDto>), 200)]
     public IActionResult GetActivityTypes()
     {
+        if (GetUserFromTokenOrCookie() == null)
+            return Unauthorized("Invalid or missing API token.");
+
         var activities = _dbContext.ActivityTypes
             .OrderBy(a => a.Name)
             .Select(a => new ActivityTypeDto

@@ -159,7 +159,7 @@ namespace Wayfarer.Areas.User.Controllers
                     Coordinates =
                         new NetTopologySuite.Geometries.Point(model.Longitude, model.Latitude)
                             { SRID = 4326 }, // Create Point, in PostGIS lon comes first then lat!
-                    ActivityTypeId = model.SelectedActivityId, // Use the selected activity ID
+                    ActivityTypeId = await new ActivityCatalog(_dbContext).ResolveWriteIdAsync(model.SelectedActivityId, HttpContext.RequestAborted), // Accept retained stale-form IDs
                     Accuracy = model.Accuracy,
                     Altitude = model.Altitude,
                     Speed = model.Speed,
@@ -386,7 +386,7 @@ namespace Wayfarer.Areas.User.Controllers
             location.LocalTimestamp = DateTime.SpecifyKind(utc, DateTimeKind.Utc);
             location.TimeZoneId =
                 CoordinateTimeZoneConverter.GetTimeZoneIdFromCoordinates(model.Latitude, model.Longitude);
-            location.ActivityTypeId = model.SelectedActivityId;
+            location.ActivityTypeId = await new ActivityCatalog(_dbContext).ResolveWriteIdAsync(model.SelectedActivityId, HttpContext.RequestAborted);
             location.Notes = RichNotes.Normalize(model.Notes);
 
             await _dbContext.SaveChangesAsync(HttpContext.RequestAborted);

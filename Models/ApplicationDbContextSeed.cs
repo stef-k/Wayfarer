@@ -471,7 +471,7 @@ public class ApplicationDbContextSeed
                 new ActivityType { Name = "Hotel Check-in", Description = "Checking into" }
             );
 
-            await dbContext.SaveChangesAsync();
+            await new Wayfarer.Services.ActivityCatalog(dbContext).SaveInitialAsync();
         }
     }
 }

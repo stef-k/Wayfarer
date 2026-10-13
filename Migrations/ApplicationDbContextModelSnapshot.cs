@@ -331,9 +331,41 @@ namespace Wayfarer.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("NormalizedName")
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("text")
+                        .HasComputedColumnSql("public.wayfarer_activity_name_v1(\"Name\", true)", true)
+                        .UseCollation("C");
+
                     b.HasKey("Id");
 
-                    b.ToTable("ActivityTypes");
+                    b.HasIndex("NormalizedName")
+                        .IsUnique()
+                        .HasDatabaseName("IX_ActivityTypes_NormalizedName");
+
+                    b.ToTable("ActivityTypes", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ActivityTypes_CanonicalName", "(\"Name\" COLLATE \"C\" = public.wayfarer_activity_name_v1(\"Name\", false) COLLATE \"C\" AND \"Name\" <> '') IS TRUE");
+                        });
+                });
+
+            modelBuilder.Entity("Wayfarer.Models.ActivityTypeIdRedirect", b =>
+                {
+                    b.Property<int>("LegacyId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ActivityTypeId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("LegacyId");
+
+                    b.HasIndex("ActivityTypeId");
+
+                    b.ToTable("ActivityTypeIdRedirects", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ActivityTypeIdRedirects_Ids", "\"LegacyId\" > 0 AND \"ActivityTypeId\" > 0 AND \"LegacyId\" <> \"ActivityTypeId\"");
+                        });
                 });
 
             modelBuilder.Entity("Wayfarer.Models.ApiToken", b =>
@@ -2067,6 +2099,15 @@ namespace Wayfarer.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Wayfarer.Models.ActivityTypeIdRedirect", b =>
+                {
+                    b.HasOne("Wayfarer.Models.ActivityType", null)
+                        .WithMany()
+                        .HasForeignKey("ActivityTypeId")
+                        .OnDelete(DeleteBehavior.ClientNoAction)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Wayfarer.Models.ApiToken", b =>
                 {
                     b.HasOne("Wayfarer.Models.ApplicationUser", "User")
@@ -2160,7 +2201,8 @@ namespace Wayfarer.Migrations
                 {
                     b.HasOne("Wayfarer.Models.ActivityType", "ActivityType")
                         .WithMany()
-                        .HasForeignKey("ActivityTypeId");
+                        .HasForeignKey("ActivityTypeId")
+                        .OnDelete(DeleteBehavior.ClientNoAction);
 
                     b.HasOne("Wayfarer.Models.ApplicationUser", null)
                         .WithMany("Locations")
