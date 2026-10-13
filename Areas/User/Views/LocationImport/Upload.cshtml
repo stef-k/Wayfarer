@@ -36,6 +36,13 @@
                         </p>
                     }
 
+                    @* Explain the shared-catalog side effect before the owner submits history. *@
+                    <p class="form-text mb-3">
+                        Valid Activity names reuse or create entries in the shared catalog, visible to all
+                        authenticated users. Missing names are optional. Invalid values leave the Location
+                        without an Activity and appear as a warning count in import history.
+                    </p>
+
                     <form asp-area="User" asp-controller="LocationImport" asp-action="Upload" method="post" enctype="multipart/form-data">
                         @Html.AntiForgeryToken()
 

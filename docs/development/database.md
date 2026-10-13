@@ -140,12 +140,15 @@ file and prior committed prefix for ordinary owner restart/resume. Cancellation 
 stale authority rolls back uncommitted work. There is no creation quota or account
 counter; existing upload/admission and batch/database resource bounds still apply.
 
-Migration `AddImportUnclassifiedActivityCount` adds one nonnegative integer with
+Migration `20261013200141_AddImportUnclassifiedActivityCount` adds one nonnegative integer with
 default zero; old imports start at zero because historical invalidity cannot be
 inferred. Only accepted new rows with invalid supplied values increment it. Missing
 or blank names, duplicates, race losers and rolled-back rows do not. A transient
 parser flag distinguishes non-string native JSON values without retaining private
-labels. SQL failures propagate as batch failures. The owner list renders the durable
+labels. A bounded raw-string reader detects lone surrogate escapes before Json.NET
+can replace them; valid replacement characters and escaped literal text remain valid.
+Strict UTF-8 decoding preserves supported BOM-prefixed native files and rejects
+malformed input bytes. SQL failures propagate as batch failures. The owner list renders the durable
 Invalid Activity count beside existing errors; no raw names enter logs or SSE.
 
 ## Quartz is a separate schema responsibility

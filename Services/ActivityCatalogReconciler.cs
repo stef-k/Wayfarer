@@ -24,11 +24,13 @@ public sealed class ActivityCatalogReconciler(ApplicationDbContext db)
         var names = supplied.Select(l => l.ImportedActivityName!).ToArray();
         // PostgreSQL supplies identity, validation and C ordering; ordinal identifies the accepted file row.
         var normalized = await db.Database.SqlQuery<NormalizedImportActivity>($"""
-            SELECT ordinal::integer AS "Ordinal",
-                   public.wayfarer_activity_name_v1(raw, false) AS "DisplayName",
-                   public.wayfarer_activity_name_v1(raw, true) AS "NormalizedName"
-            FROM unnest({names}::text[]) WITH ORDINALITY AS input(raw, ordinal)
-            ORDER BY "NormalizedName" COLLATE "C", ordinal
+            SELECT * FROM (
+                SELECT ordinal::integer AS "Ordinal",
+                       public.wayfarer_activity_name_v1(raw, false) AS "DisplayName",
+                       public.wayfarer_activity_name_v1(raw, true) AS "NormalizedName"
+                FROM unnest({names}::text[]) WITH ORDINALITY AS input(raw, ordinal)
+            ) AS normalized
+            ORDER BY "NormalizedName" COLLATE "C", "Ordinal"
             """).ToListAsync(token);
         invalid += normalized.Count(n => n.DisplayName is null);
         var valid = normalized.Where(n => !string.IsNullOrEmpty(n.NormalizedName)).ToArray();

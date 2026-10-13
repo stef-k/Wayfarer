@@ -41,8 +41,8 @@ namespace Wayfarer.Parsers
             string userId,
             [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
-            using var text = new StreamReader(fileStream, Encoding.UTF8, false, leaveOpen: true);
-            using var json = new JsonTextReader(text)
+            using var text = new StreamReader(fileStream, new UTF8Encoding(true, true), false, leaveOpen: true);
+            using var json = new ActivityJsonTextReader(text)
             {
                 CloseInput = false,
                 MaxDepth = null,
@@ -70,6 +70,7 @@ namespace Wayfarer.Parsers
                     throw new FormatException("GeoJSON features must be an array.");
                 while (await json.ReadAsync(cancellationToken) && json.TokenType != JsonToken.EndArray)
                 {
+                    json.InvalidActivityValue = false;
                     var featureJson = await JObject.LoadAsync(json, cancellationToken);
                     var wrapper = new JObject
                     {
@@ -128,7 +129,11 @@ namespace Wayfarer.Parsers
                     var accuracy = getDouble("Accuracy");
                     var altitude = getDouble("Altitude");
                     var speed = getDouble("Speed");
-                    var activity = getString("Activity");
+                    // Activity accepts only a raw JSON string; null/missing remain optional.
+                    var activityValue = rawProperties?.GetValue("Activity", StringComparison.Ordinal);
+                    var activity = activityValue?.Type == JTokenType.String ? activityValue.Value<string>() : null;
+                    var invalidActivity = json.InvalidActivityValue ||
+                        (activityValue is not null && activityValue.Type is not JTokenType.String and not JTokenType.Null);
                     var address = getString("Address");
                     var fullAddress = getString("FullAddress") ?? address;
                     var addressNumber = getString("AddressNumber");
@@ -200,7 +205,8 @@ namespace Wayfarer.Parsers
 
                         // Activity mapping handled by LocationImportService
                         ActivityType = null!,
-                        ImportedActivityName = string.IsNullOrWhiteSpace(activity) ? null : activity
+                        ImportedActivityName = string.IsNullOrEmpty(activity) ? null : activity,
+                        ImportedActivityInvalid = invalidActivity
                     };
 
                     yield return loc;

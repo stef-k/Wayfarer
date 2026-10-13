@@ -130,7 +130,8 @@ public sealed class GpxLocationParser : ILocationDataParser
                 ReverseGeocodingStorageMode = feature.StorageMode,
                 ReverseGeocodedAt = feature.EnrichedAt,
                 Notes = notes,
-                ImportedActivityName = string.IsNullOrWhiteSpace(activityName) ? null : activityName,
+                // Preserve raw text for the database-owned Activity validation and normalization.
+                ImportedActivityName = string.IsNullOrEmpty(activityName) ? null : activityName,
                 ActivityType = null!,
                 // Metadata fields
                 Source = source,

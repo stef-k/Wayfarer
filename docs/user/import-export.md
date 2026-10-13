@@ -72,6 +72,8 @@ other records are checked for matching times and coordinates within a small
 tolerance. An import can finish with fewer new records than its source contains
 because of duplicates or invalid rows.
 
+![Completed import with a durable Invalid Activity warning](../images/location-imports.JPG)
+
 For records without a UUID, matching is approximate (within one second and ten
 metres); concurrent live uploads and imports, or capture timestamps that differ
 from server receipt timestamps, can still create duplicates.

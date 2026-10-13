@@ -2,8 +2,10 @@ using System.Diagnostics.CodeAnalysis;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
+using Npgsql;
 using Wayfarer.Models;
 using Wayfarer.Models.Enums;
+using Wayfarer.Services;
 using Wayfarer.Services.LocationEnrichment;
 using Wayfarer.Services.LocationImports;
 using Wayfarer.Services.LocationProviders;
@@ -199,46 +201,138 @@ public sealed class LocationImportService : ILocationImportService, ILocationImp
         return true;
     }
 
+    /// <summary>Bounds fresh whole-batch attempts and distinguishes deadline failure from user cancellation.</summary>
     private async Task<LocationImportExecutionOutcome> PersistBatchAsync(
         LocationImportSnapshot snapshot, int epoch, List<Location> batch, int processed, CancellationToken token)
     {
-        await using var context = await _contexts.CreateDbContextAsync(token);
-        await using var transaction = context.Database.IsRelational()
-            ? await context.Database.BeginTransactionAsync(token) : null;
-        if (context.Database.IsNpgsql() && batch.Any(location => !location.IdempotencyKey.HasValue))
-            _ = await context.Users.FromSqlInterpolated($$"""
-                SELECT * FROM "AspNetUsers" WHERE "Id" = {{snapshot.UserId}} FOR UPDATE
-                """).SingleAsync(token);
-        var import = await context.LocationImports.SingleOrDefaultAsync(item => item.Id == snapshot.Id, token);
-        if (import is not null && import.Status == ImportStatus.Stopping && import.ExecutionEpoch == epoch &&
-            import.DeletionRequestedAtUtc is null)
-            return LocationImportExecutionOutcome.Cancelled;
-        if (!HasExecutionAuthority(import, epoch)) return LocationImportExecutionOutcome.Stale;
-        await ResolveActivityTypesAsync(context, batch, token);
-        var batchKeys = batch.Where(item => item.IdempotencyKey.HasValue)
-            .Select(item => item.IdempotencyKey!.Value).ToHashSet();
-        var (toInsert, skipped) = await LocationImportDeduplicator.FilterAsync(
-            context, batch, batchKeys, snapshot.UserId, _logger, token);
-        import.SkippedDuplicates += skipped;
-        if (toInsert.Count > 0)
+        // The deadline remains independent of user cancellation so an uncertain commit can be read durably.
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+        using var operations = CancellationTokenSource.CreateLinkedTokenSource(token, deadline.Token);
+        try
         {
-            var reused = await LocationImportDeduplicator.InsertAsync(context, toInsert, snapshot.UserId, token);
-            import.SkippedDuplicates += reused;
-            if (import.EnrichmentRequested)
-                import.RemainingEnrichmentCount += toInsert.Count(item =>
-                    context.Entry(item).State != EntityState.Detached && IsMissingAddress(item));
+            for (var attempt = 0; ; attempt++)
+            {
+                try
+                {
+                    operations.Token.ThrowIfCancellationRequested();
+                    foreach (var location in batch)
+                    {
+                        location.Id = 0;
+                        location.ActivityTypeId = null;
+                        location.ActivityType = null;
+                    }
+                    return await PersistBatchAttemptAsync(snapshot, epoch, batch, processed, operations.Token);
+                }
+                catch (UnconfirmedBatchCommitException)
+                {
+                    // Never blindly retry a COMMIT whose server result was not observed.
+                    return await RecoverBatchCommitAsync(snapshot.Id, epoch, processed + batch.Count, deadline.Token);
+                }
+                catch (Exception exception) when (attempt < 2 && IsRetryableBatchFailure(exception)
+                    && !operations.IsCancellationRequested)
+                {
+                    // Attempt disposal has rolled back all provisional rows, catalog writes and facts.
+                    await Task.Delay(TimeSpan.FromMilliseconds(100 * (attempt + 1)), operations.Token);
+                }
+            }
         }
-        import.LastProcessedIndex = processed + batch.Count;
-        var latest = batch.MaxBy(item => item.Timestamp);
-        import.LastImportedRecord = latest is null ? "N/A" : $"Timestamp: {latest.Timestamp:u}" +
-            (!string.IsNullOrWhiteSpace(latest.FullAddress) ? $", {latest.FullAddress}" : "");
-        if (!await context.LocationImports.AsNoTracking().AnyAsync(item => item.Id == snapshot.Id &&
-            item.Status == ImportStatus.InProgress && item.DeletionRequestedAtUtc == null &&
-            item.StopRequestedAtUtc == null && item.ExecutionEpoch == epoch, token))
-            return LocationImportExecutionOutcome.Stale;
-        await context.SaveChangesAsync(token);
-        if (transaction is not null) await transaction.CommitAsync(token);
-        return LocationImportExecutionOutcome.Completed;
+        catch (OperationCanceledException) when (!token.IsCancellationRequested)
+        {
+            throw new TimeoutException("Location import batch deadline exhausted.");
+        }
+    }
+
+    /// <summary>Owns one fresh context/transaction, including Location winner arbitration before catalog writes.</summary>
+    private async Task<LocationImportExecutionOutcome> PersistBatchAttemptAsync(
+        LocationImportSnapshot snapshot, int epoch, List<Location> batch, int processed, CancellationToken token)
+    {
+        await using var context = await _contexts.CreateDbContextAsync(token);
+        var transaction = context.Database.IsRelational()
+            ? await context.Database.BeginTransactionAsync(System.Data.IsolationLevel.ReadCommitted, token) : null;
+        Exception? failure = null;
+        try
+        {
+            var import = await context.LocationImports.SingleOrDefaultAsync(item => item.Id == snapshot.Id, token);
+            if (import is not null && import.Status == ImportStatus.Stopping && import.ExecutionEpoch == epoch &&
+                import.DeletionRequestedAtUtc is null)
+                return LocationImportExecutionOutcome.Cancelled;
+            if (!HasExecutionAuthority(import, epoch) || import.LastProcessedIndex != processed)
+                return LocationImportExecutionOutcome.Stale;
+            if (context.Database.IsNpgsql() && batch.Any(location => !location.IdempotencyKey.HasValue))
+                _ = await context.Users.FromSqlInterpolated($$"""
+                    SELECT * FROM "AspNetUsers" WHERE "Id" = {{snapshot.UserId}} FOR UPDATE
+                    """).SingleAsync(token);
+            var batchKeys = batch.Where(item => item.IdempotencyKey.HasValue)
+                .Select(item => item.IdempotencyKey!.Value).ToHashSet();
+            var (toInsert, skipped) = await LocationImportDeduplicator.FilterAsync(
+                context, batch, batchKeys, snapshot.UserId, _logger, token);
+            var reused = await LocationImportDeduplicator.InsertAsync(context, toInsert, snapshot.UserId, token);
+            var accepted = toInsert.Where(item => context.Entry(item).State != EntityState.Detached).ToList();
+            import.UnclassifiedActivityCount += await new ActivityCatalogReconciler(context).ReconcileAsync(accepted, token);
+            import.SkippedDuplicates += skipped + reused;
+            if (import.EnrichmentRequested)
+                import.RemainingEnrichmentCount += accepted.Count(IsMissingAddress);
+            import.LastProcessedIndex = processed + batch.Count;
+            var latest = batch.MaxBy(item => item.Timestamp);
+            import.LastImportedRecord = latest is null ? "N/A" : $"Timestamp: {latest.Timestamp:u}" +
+                (!string.IsNullOrWhiteSpace(latest.FullAddress) ? $", {latest.FullAddress}" : "");
+            if (!await context.LocationImports.AsNoTracking().AnyAsync(item => item.Id == snapshot.Id &&
+                item.Status == ImportStatus.InProgress && item.DeletionRequestedAtUtc == null &&
+                item.StopRequestedAtUtc == null && item.ExecutionEpoch == epoch, token))
+                return LocationImportExecutionOutcome.Stale;
+            await context.SaveChangesAsync(token);
+            if (transaction is not null)
+            {
+                try { await transaction.CommitAsync(token); }
+                catch (Exception exception) { throw new UnconfirmedBatchCommitException(exception); }
+            }
+            return LocationImportExecutionOutcome.Completed;
+        }
+        catch (Exception exception)
+        {
+            failure = exception;
+            throw;
+        }
+        finally
+        {
+            if (transaction is not null)
+            {
+                try { await transaction.DisposeAsync(); }
+                catch (Exception) when (failure is not null)
+                {
+                    // Retain the primary failure; closing the context also discards its provisional state.
+                    _logger.LogWarning("Location import rollback cleanup failed; code {Code}; import {ImportId}.",
+                        "location-import-rollback-cleanup-failed", snapshot.Id);
+                }
+            }
+        }
+    }
+
+    /// <summary>Classifies only bounded transient database contention; input and schema/storage failures never qualify.</summary>
+    private static bool IsRetryableBatchFailure(Exception exception) => exception switch
+    {
+        ActivityCatalogResolutionException => true,
+        PostgresException postgres => postgres.SqlState is PostgresErrorCodes.LockNotAvailable
+            or PostgresErrorCodes.QueryCanceled or PostgresErrorCodes.DeadlockDetected or PostgresErrorCodes.SerializationFailure,
+        DbUpdateException { InnerException: PostgresException postgres } => IsRetryableBatchFailure(postgres),
+        // Npgsql's nonretrying EF execution strategy wraps its transient PostgreSQL errors for callers.
+        InvalidOperationException { InnerException: PostgresException postgres } => IsRetryableBatchFailure(postgres),
+        _ => false
+    };
+
+    /// <summary>Uses the atomic durable checkpoint to confirm a commit, retaining exact generation authority.</summary>
+    private async Task<LocationImportExecutionOutcome> RecoverBatchCommitAsync(
+        int importId, int epoch, int expectedCheckpoint, CancellationToken token)
+    {
+        try
+        {
+            await using var context = await _contexts.CreateDbContextAsync(token);
+            var import = await context.LocationImports.AsNoTracking().SingleOrDefaultAsync(i => i.Id == importId, token);
+            if (!HasExecutionAuthority(import, epoch)) return LocationImportExecutionOutcome.Stale;
+            return import.LastProcessedIndex == expectedCheckpoint
+                ? LocationImportExecutionOutcome.Completed : LocationImportExecutionOutcome.Failed;
+        }
+        catch (Exception) { return LocationImportExecutionOutcome.Failed; } // Leave durable authority for owner resume.
     }
 
     private async Task<LocationImportExecutionOutcome> HandleBatchOutcomeAsync(
@@ -255,23 +349,6 @@ public sealed class LocationImportService : ILocationImportService, ILocationImp
         await ReconcileEnrichmentAsync(snapshot, token);
         await _sse.BroadcastAsync($"import-{snapshot.UserId}", SafeProgressEvent);
         await Task.Delay(1_000, token);
-    }
-
-    private static async Task ResolveActivityTypesAsync(
-        ApplicationDbContext context, List<Location> locations, CancellationToken token)
-    {
-        if (!locations.Any(item => !string.IsNullOrWhiteSpace(item.ImportedActivityName))) return;
-        var activities = await context.ActivityTypes.AsNoTracking()
-            .Where(item => !string.IsNullOrWhiteSpace(item.Name)).ToListAsync(token);
-        var lookup = activities.ToDictionary(item => item.Name!, item => item.Id, StringComparer.OrdinalIgnoreCase);
-        foreach (var location in locations)
-        {
-            var name = location.ImportedActivityName?.Trim();
-            if (name is null || !lookup.TryGetValue(name, out var id)) continue;
-            location.ActivityTypeId = id;
-            location.ActivityType = null;
-            location.ImportedActivityName = null;
-        }
     }
 
     private async Task<bool> HasCurrentExecutionAuthorityAsync(int importId, int epoch, CancellationToken token)
@@ -323,6 +400,9 @@ public sealed class LocationImportService : ILocationImportService, ILocationImp
 
     /// <summary>Classifies absent staged authority without carrying its private path.</summary>
     private sealed class StagedFileUnavailableException : Exception;
+
+    /// <summary>Prevents transient-failure retry from guessing whether COMMIT reached PostgreSQL.</summary>
+    private sealed class UnconfirmedBatchCommitException(Exception inner) : Exception("Import commit requires durable confirmation.", inner);
 
     private sealed class CloningContextFactory : IDbContextFactory<ApplicationDbContext>
     {

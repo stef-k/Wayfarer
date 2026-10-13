@@ -41,7 +41,7 @@ public sealed class CsvLocationParser : ILocationDataParser
             PrepareHeaderForMatch = args => args.Header?.Trim() ?? string.Empty
         };
 
-        using var reader = new StreamReader(fileStream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true, leaveOpen: true);
+        using var reader = new StreamReader(fileStream, new UTF8Encoding(true, true), detectEncodingFromByteOrderMarks: true, leaveOpen: true);
         using var csv = new CsvReader(reader, config);
 
         if (!await csv.ReadAsync() || !csv.ReadHeader())
@@ -119,7 +119,8 @@ public sealed class CsvLocationParser : ILocationDataParser
                 ReverseGeocodingStorageMode = feature.StorageMode,
                 ReverseGeocodedAt = feature.EnrichedAt,
                 Notes = notes,
-                ImportedActivityName = string.IsNullOrWhiteSpace(activityName) ? null : activityName,
+                // Preserve raw text for the database-owned Activity validation and normalization.
+                ImportedActivityName = string.IsNullOrEmpty(activityName) ? null : activityName,
                 ActivityType = null!,
 
                 // Metadata fields
