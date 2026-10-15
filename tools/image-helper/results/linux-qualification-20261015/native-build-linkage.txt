@@ -1,0 +1,40 @@
+../target-default-only/release/build/libwebp-sys-3aa33d2721b7cc74/output:100:cargo:rustc-link-lib=static=sharpyuv
+../target-default-only/release/build/libwebp-sys-3aa33d2721b7cc74/output:101:cargo:rustc-link-search=native=/home/stef/wayfarer-research/858-linux-qualification-20261015/target-default-only/release/build/libwebp-sys-3aa33d2721b7cc74/out
+../target-default-only/release/build/libwebp-sys-3aa33d2721b7cc74/output:336:cargo:rustc-link-lib=static=webpsys
+../target-default-only/release/build/libwebp-sys-3aa33d2721b7cc74/output:337:cargo:rustc-link-search=native=/home/stef/wayfarer-research/858-linux-qualification-20261015/target-default-only/release/build/libwebp-sys-3aa33d2721b7cc74/out
+../target-default-only/release/build/turbojpeg-sys-dd4d3ea35529c977/out/build/CMakeCache.txt:52:CMAKE_BUILD_TYPE:STRING=Release
+../target-default-only/release/build/turbojpeg-sys-dd4d3ea35529c977/out/build/CMakeCache.txt:64:CMAKE_C_COMPILER:STRING=/usr/bin/cc
+../target-default-only/release/build/turbojpeg-sys-dd4d3ea35529c977/out/build/CMakeCache.txt:68:CMAKE_C_COMPILER_AR:FILEPATH=/usr/bin/gcc-ar-13
+../target-default-only/release/build/turbojpeg-sys-dd4d3ea35529c977/out/build/CMakeCache.txt:72:CMAKE_C_COMPILER_RANLIB:FILEPATH=/usr/bin/gcc-ranlib-13
+../target-default-only/release/build/turbojpeg-sys-dd4d3ea35529c977/out/build/CMakeCache.txt:75:CMAKE_C_FLAGS:STRING= -ffunction-sections -fdata-sections -fPIC -m64 -w
+../target-default-only/release/build/turbojpeg-sys-dd4d3ea35529c977/out/build/CMakeCache.txt:78:CMAKE_C_FLAGS_DEBUG:STRING=-g
+../target-default-only/release/build/turbojpeg-sys-dd4d3ea35529c977/out/build/CMakeCache.txt:81:CMAKE_C_FLAGS_MINSIZEREL:STRING=-Os -DNDEBUG
+../target-default-only/release/build/turbojpeg-sys-dd4d3ea35529c977/out/build/CMakeCache.txt:84:CMAKE_C_FLAGS_RELEASE:STRING=-O3 -DNDEBUG
+../target-default-only/release/build/turbojpeg-sys-dd4d3ea35529c977/out/build/CMakeCache.txt:87:CMAKE_C_FLAGS_RELWITHDEBINFO:STRING=-O2 -g -DNDEBUG
+../target-default-only/release/build/turbojpeg-sys-dd4d3ea35529c977/out/build/CMakeCache.txt:288:ENABLE_SHARED:BOOL=0
+../target-default-only/release/build/turbojpeg-sys-dd4d3ea35529c977/out/build/CMakeCache.txt:291:ENABLE_STATIC:BOOL=1
+../target-default-only/release/build/turbojpeg-sys-dd4d3ea35529c977/out/build/CMakeCache.txt:356://Build Java wrapper for the TurboJPEG API library (implies ENABLE_SHARED=1)
+../target-default-only/release/build/turbojpeg-sys-dd4d3ea35529c977/out/build/CMakeCache.txt:368:WITH_SIMD:BOOL=ON
+../target-default-only/release/build/turbojpeg-sys-dd4d3ea35529c977/out/build/CMakeCache.txt:420://ADVANCED property for variable: CMAKE_C_COMPILER
+../target-default-only/release/build/turbojpeg-sys-dd4d3ea35529c977/out/build/CMakeCache.txt:421:CMAKE_C_COMPILER-ADVANCED:INTERNAL=1
+../target-default-only/release/build/turbojpeg-sys-dd4d3ea35529c977/out/build/CMakeCache.txt:422://ADVANCED property for variable: CMAKE_C_COMPILER_AR
+../target-default-only/release/build/turbojpeg-sys-dd4d3ea35529c977/out/build/CMakeCache.txt:423:CMAKE_C_COMPILER_AR-ADVANCED:INTERNAL=1
+../target-default-only/release/build/turbojpeg-sys-dd4d3ea35529c977/out/build/CMakeCache.txt:424://ADVANCED property for variable: CMAKE_C_COMPILER_RANLIB
+../target-default-only/release/build/turbojpeg-sys-dd4d3ea35529c977/out/build/CMakeCache.txt:425:CMAKE_C_COMPILER_RANLIB-ADVANCED:INTERNAL=1
+../target-default-only/release/build/turbojpeg-sys-dd4d3ea35529c977/out/build/CMakeCache.txt:426://ADVANCED property for variable: CMAKE_C_FLAGS
+../target-default-only/release/build/turbojpeg-sys-dd4d3ea35529c977/out/build/CMakeCache.txt:427:CMAKE_C_FLAGS-ADVANCED:INTERNAL=1
+../target-default-only/release/build/turbojpeg-sys-dd4d3ea35529c977/out/build/CMakeCache.txt:428://ADVANCED property for variable: CMAKE_C_FLAGS_DEBUG
+../target-default-only/release/build/turbojpeg-sys-dd4d3ea35529c977/out/build/CMakeCache.txt:429:CMAKE_C_FLAGS_DEBUG-ADVANCED:INTERNAL=1
+../target-default-only/release/build/turbojpeg-sys-dd4d3ea35529c977/out/build/CMakeCache.txt:430://ADVANCED property for variable: CMAKE_C_FLAGS_MINSIZEREL
+../target-default-only/release/build/turbojpeg-sys-dd4d3ea35529c977/out/build/CMakeCache.txt:431:CMAKE_C_FLAGS_MINSIZEREL-ADVANCED:INTERNAL=1
+../target-default-only/release/build/turbojpeg-sys-dd4d3ea35529c977/out/build/CMakeCache.txt:432://ADVANCED property for variable: CMAKE_C_FLAGS_RELEASE
+../target-default-only/release/build/turbojpeg-sys-dd4d3ea35529c977/out/build/CMakeCache.txt:433:CMAKE_C_FLAGS_RELEASE-ADVANCED:INTERNAL=1
+../target-default-only/release/build/turbojpeg-sys-dd4d3ea35529c977/out/build/CMakeCache.txt:434://ADVANCED property for variable: CMAKE_C_FLAGS_RELWITHDEBINFO
+../target-default-only/release/build/turbojpeg-sys-dd4d3ea35529c977/out/build/CMakeCache.txt:435:CMAKE_C_FLAGS_RELWITHDEBINFO-ADVANCED:INTERNAL=1
+../target-default-only/release/build/turbojpeg-sys-dd4d3ea35529c977/out/build/CMakeCache.txt:593:WITH_SIMD_INT:INTERNAL=1
+../target-default-only/release/build/turbojpeg-sys-dd4d3ea35529c977/output:41:-- CMAKE_BUILD_TYPE = Release
+../target-default-only/release/build/turbojpeg-sys-dd4d3ea35529c977/output:51:-- Shared libraries disabled (ENABLE_SHARED = 0)
+../target-default-only/release/build/turbojpeg-sys-dd4d3ea35529c977/output:52:-- Static libraries enabled (ENABLE_STATIC = 1)
+../target-default-only/release/build/turbojpeg-sys-dd4d3ea35529c977/output:95:-- SIMD extensions: x86_64 (WITH_SIMD = 1)
+../target-default-only/release/build/turbojpeg-sys-dd4d3ea35529c977/output:419:cargo:rustc-link-search=native=/home/stef/wayfarer-research/858-linux-qualification-20261015/target-default-only/release/build/turbojpeg-sys-dd4d3ea35529c977/out/lib
+../target-default-only/release/build/turbojpeg-sys-dd4d3ea35529c977/output:420:cargo:rustc-link-lib=static=turbojpeg

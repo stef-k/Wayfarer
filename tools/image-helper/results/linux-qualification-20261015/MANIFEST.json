@@ -1,0 +1,146 @@
+{
+  "format": 1,
+  "scope": "Only new follow-up evidence; prior archive unchanged. Manifest excludes itself.",
+  "files": [
+    {
+      "path": "arm64.json",
+      "bytes": 2214,
+      "sha256": "e49acf54a76c5d8dfd9ab887778537374c9467a75ea2434c82e94a2be6ea555c"
+    },
+    {
+      "path": "build-identity.json",
+      "bytes": 913,
+      "sha256": "fa4a0868aa4cc6f7a4db0e0460579a46699bbc38502c2be5546253d22087cfc6"
+    },
+    {
+      "path": "code-guard-complete-branch.json",
+      "bytes": 8961,
+      "sha256": "0a31193d68c7d47528b5aaf1b750e7a789f1fdf8da21bf2a131cc92a24c4a877"
+    },
+    {
+      "path": "code-guard-current.json",
+      "bytes": 681,
+      "sha256": "da9d869902e021ed0806aa0cc8bb4ff92778faf231bce30571d8a60f34e88d68"
+    },
+    {
+      "path": "code-guard-disposition.json",
+      "bytes": 14703,
+      "sha256": "dee718739094f0d9ddc6a9a86332623330e8474d125ad8fb874c4f0354f32a13"
+    },
+    {
+      "path": "code-guard-task-delta.json",
+      "bytes": 679,
+      "sha256": "439aac16307d27af1e1d8516bef689d2214dd9041ba6f9c6bcbcd5fb354eeb91"
+    },
+    {
+      "path": "container-smoke.json",
+      "bytes": 2356,
+      "sha256": "4b6817bded8a005bd3c0524e7b42db4e52721477ccf0f72ecc7837c115234dca"
+    },
+    {
+      "path": "default-ldd.txt",
+      "bytes": 297,
+      "sha256": "5849df33b65778ba46e749f8662ba08a51f09ba17130b35b1e4a3be21b001c83"
+    },
+    {
+      "path": "fidelity.json",
+      "bytes": 45171,
+      "sha256": "1908134b475906fd90078c1d9dd6ee29d5aeac6095b744d05eb938b492fdcb03"
+    },
+    {
+      "path": "focused-tests.log",
+      "bytes": 509,
+      "sha256": "6f2600a6b7ecfa221db85e5972c879b0a65c6b92dec5e70866787b7e0bf87bdb"
+    },
+    {
+      "path": "focused.trx.gz",
+      "bytes": 14616,
+      "sha256": "db16eb09869ab96e497ffbddbf9ebaf151522afd149ccd33241862df9d645c29"
+    },
+    {
+      "path": "inputs.json",
+      "bytes": 774,
+      "sha256": "b399427ef9699e301e73a0aa45e199764ba7fe09984286d561e0622315d1c077"
+    },
+    {
+      "path": "libwebp-sys-license-tree.json",
+      "bytes": 230,
+      "sha256": "a7b4fae2ff9389fbe6c005ed867dab26b8c2016d6319c4b632b4f5b1635ef0d0"
+    },
+    {
+      "path": "linked-native-symbols.txt",
+      "bytes": 818,
+      "sha256": "39a75f9ce8cabcc743b93d8ce63c6734ea2dfc7c2e75f768d0e52aff35461d24"
+    },
+    {
+      "path": "method.json",
+      "bytes": 2518,
+      "sha256": "d9e64143dcf2b2e6e2dd82ad4685c50f7697208eccedb2d20a0433bce401b360"
+    },
+    {
+      "path": "native-build-linkage.txt",
+      "bytes": 5795,
+      "sha256": "2fb589ce3c49433efa45930e60dbf0bde6c621e62011ce54f62bae77c5c1e30e"
+    },
+    {
+      "path": "paired-commands.jsonl.gz",
+      "bytes": 1033,
+      "sha256": "a21bc8354d4572741b4c64b3843fd638ca5a579ddb3b59b94af2763bf2732045"
+    },
+    {
+      "path": "paired-observations.json.gz",
+      "bytes": 43829,
+      "sha256": "91f24092752d7e0201da4189c3d6f00036a4bb6ac95d8b1266b565736a55df92"
+    },
+    {
+      "path": "preservation.json",
+      "bytes": 492,
+      "sha256": "120ffbe39d829060480c1c22456e17ee6c2291c4a13dda32cf4258a6bc6a36d4"
+    },
+    {
+      "path": "qualification-summary.json",
+      "bytes": 38607,
+      "sha256": "c38f98f10c9f45c2657e69b0040dbb4d9602c0df5aae4651754ca16f27808773"
+    },
+    {
+      "path": "registry-snapshot.json",
+      "bytes": 3575,
+      "sha256": "db3bea8ea48fb7ebaaec0d2cce61ad464522bec26e8df14a9e8e262ab34e7eee"
+    },
+    {
+      "path": "resource-commands.json",
+      "bytes": 1268,
+      "sha256": "f15ad993dce560d8d7a405291014d18979e657ab263a5529250f7851d161a7e8"
+    },
+    {
+      "path": "resource-observations.json.gz",
+      "bytes": 3567,
+      "sha256": "5c5e3d5750f02ad8c7095592074f9f2165ef41171cc32c3304b6645dfa017d5f"
+    },
+    {
+      "path": "rust-clippy.log",
+      "bytes": 1242,
+      "sha256": "4242b523212a4128183be6d0e8a68b4a9f1f4c9eca8d49939db8acf644db9e08"
+    },
+    {
+      "path": "rust-tests.log",
+      "bytes": 3173,
+      "sha256": "3945ee699b9b8de7f2b8e323adc77ecf964525a343af2360b2b0b4aed1ca031e"
+    },
+    {
+      "path": "security.json",
+      "bytes": 9751,
+      "sha256": "bb1ca05bd777921587c3241034268d39a051cac3ed65364ecb790b9910699fcd"
+    },
+    {
+      "path": "webp-huffman-allocation.json",
+      "bytes": 2994,
+      "sha256": "4ad00ebf686bef6f9a1822a04a524ca3c076cea08c7e9db2f538d950fc30f7a1"
+    },
+    {
+      "path": "webp-huffman-offset-check.json",
+      "bytes": 687,
+      "sha256": "78665c16bb49f4fede1113b684c845f3d8d351068089584a7ae5e6d178989a50"
+    }
+  ]
+}

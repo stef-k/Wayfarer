@@ -1,0 +1,30 @@
+{
+  "source_commit": "ed6be50595f06d44e0d85ff00738eaed656d23ce",
+  "argv": [
+    "cargo",
+    "build",
+    "--manifest-path",
+    "source/tools/image-helper/Cargo.toml",
+    "--locked",
+    "--release",
+    "--message-format=json"
+  ],
+  "features": [
+    "default",
+    "jpeg-candidate-decode",
+    "native-jpeg-encode",
+    "webp-candidate-decode"
+  ],
+  "profile": {
+    "opt_level": "3",
+    "debuginfo": 0,
+    "debug_assertions": false,
+    "overflow_checks": false,
+    "test": false
+  },
+  "executable": "/home/stef/wayfarer-research/858-linux-qualification-20261015/target-default-only/release/wayfarer-image",
+  "sha256": "9ae71918e83017fc477332b8b346628436472b3e05c23fe09ce45b8c3efa7673",
+  "cargo_lock_sha256": "55dc07a09ba5c1076fa50b9462af3388d78fa78b4d43a72cab1b256479033344",
+  "diagnostic_env": {},
+  "post_measurement_sha256": "9ae71918e83017fc477332b8b346628436472b3e05c23fe09ce45b8c3efa7673"
+}

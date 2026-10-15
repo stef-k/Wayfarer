@@ -1,0 +1,10 @@
+00000000005754f0 t BuildHuffmanTable
+0000000000575c90 t VP8LBuildHuffmanTable
+00000000005237c0 T WebPDecode
+0000000000135370 t _ZN10image_webp7decoder20WebPDecoder$LT$R$GT$10read_chunk17h3868fb7d193bc805E
+00000000001355d0 t _ZN10image_webp7decoder20WebPDecoder$LT$R$GT$10read_chunk17h630edea9c16d3633E
+0000000000135820 t _ZN10image_webp7decoder20WebPDecoder$LT$R$GT$16new_with_options17h808f5d19b2d9271cE
+0000000000136720 t _ZN10image_webp7decoder20WebPDecoder$LT$R$GT$16new_with_options17hbf8ee6234583f0feE
+0000000000522560 T _ZN11libwebp_sys53_$LT$impl$u20$libwebp_sys..ffi..WebPDecoderConfig$GT$3new17h8e0dd1e1d298950fE
+00000000003acce0 t _ZN4core3ptr108drop_in_place$LT$image_webp..decoder..WebPDecoder$LT$std..io..cursor..Cursor$LT$$RF$$u5b$u8$u5d$$GT$$GT$$GT$17hc747c845c1e2f7d7E
+000000000043f2a0 T tj3Compress8

@@ -1,5 +1,12 @@
 # Rust imaging research archive (#858)
 
+**2026-10-15 Linux follow-up: BLOCKED; ARM64 UNPROVEN.** The default-only
+Release artifact is now measured and identified. A retained JPEG warm-p50 gate
+deviation, unresolved native WebP hardening and a missing wrapper license notice
+remain explicit. See [LINUX-QUALIFICATION.md](LINUX-QUALIFICATION.md) and
+[native codec notes](notices/NATIVE-CODECS.md). The Linux architecture guards
+admit ARM64 with identical containment; native ARM64 execution is unqualified.
+
 **2026-10-15 Stage 1: BLOCKED.** See [QUALIFICATION.md](QUALIFICATION.md) for
 the final bounded readiness measurements, actual platform coverage, resource
 observations and artifact limitations. The historical result below is preserved.
@@ -11,7 +18,7 @@ WebP passes the observed web/PDF gates. This is a recoverable research archive,
 with no production integration or shipping approval. See [REPORT.md](REPORT.md)
 for the final single-pass assignment, measurements, caps and retained evidence.
 
-This Linux x64 prototype follows the [accepted design](https://github.com/stef-k/Wayfarer/issues/858#issuecomment-6131203483).
+This Linux prototype follows the [accepted design](https://github.com/stef-k/Wayfarer/issues/858#issuecomment-6131203483).
 It does not connect to the production image proxy, HTTP or cache.
 
 Build with Rust 1.90.0 using `cargo build --locked --release`. Native builds also

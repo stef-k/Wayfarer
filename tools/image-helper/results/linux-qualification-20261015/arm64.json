@@ -1,0 +1,66 @@
+{
+  "captured_at_utc": "2026-10-15T09:49:31.572970+00:00",
+  "status": "UNPROVEN",
+  "host": "Linux win 6.18.54.1-microsoft-standard-WSL2 #1 SMP PREEMPT_DYNAMIC Tue Oct  6 19:13:07 UTC 2026 x86_64 x86_64 x86_64 GNU/Linux",
+  "uid": "1000",
+  "user_direction": "No existing host; record UNPROVEN",
+  "repository_runners": {
+    "total_count": 0,
+    "runners": []
+  },
+  "workflows": [
+    {
+      "id": 367249671,
+      "name": "Stable application image",
+      "path": ".github/workflows/application-release.yml",
+      "state": "active"
+    },
+    {
+      "id": 367303961,
+      "name": "Database image publication",
+      "path": ".github/workflows/database-image.yml",
+      "state": "active"
+    },
+    {
+      "id": 374010950,
+      "name": "Public stable lifecycle acceptance",
+      "path": ".github/workflows/public-lifecycle-acceptance.yml",
+      "state": "active"
+    },
+    {
+      "id": 374693727,
+      "name": "Public stable operator acceptance",
+      "path": ".github/workflows/public-operator-acceptance.yml",
+      "state": "active"
+    },
+    {
+      "id": 211227590,
+      "name": "Tests",
+      "path": ".github/workflows/tests.yml",
+      "state": "active"
+    },
+    {
+      "id": 232644315,
+      "name": "Dependabot Updates",
+      "path": "dynamic/dependabot/dependabot-updates",
+      "state": "active"
+    },
+    {
+      "id": 226694563,
+      "name": "pages-build-deployment",
+      "path": "dynamic/pages/pages-build-deployment",
+      "state": "active"
+    }
+  ],
+  "execution": "Not run: no approved native ARM64 host or standalone qualification workflow. Existing ARM64 jobs require a PR or publish release assets; neither used. No emulation or cross-compilation is counted as execution.",
+  "source_changes": "Rust Linux cfg and C# ProcessArchitecture permit x86_64/AMD64 and aarch64/ARM64, with the same prlimit, non-root, parent PID race check, PDEATHSIG, deadline and cleanup controls.",
+  "remaining": [
+    "ARM64 build/link",
+    "native non-root JPEG/WebP end-to-end",
+    "format/input/output caps",
+    "parent death, cancellation and reaping",
+    "RLIMIT_AS/CPU/NOFILE/CORE",
+    "brief native performance smoke",
+    "ARM64 container/native package inventory"
+  ]
+}

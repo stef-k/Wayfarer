@@ -1,0 +1,71 @@
+{
+  "starting_head": "17a568c0af200588294e6725cf48a6b24fae8a38",
+  "runtime_source_commit": "ed6be50595f06d44e0d85ff00738eaed656d23ce",
+  "published_scope": "Research-only Linux qualification; no native Windows, production, PR, release, or issue state changes.",
+  "raw_evidence_root": "/home/stef/wayfarer-research/858-linux-qualification-20261015/evidence",
+  "environment": "See previous env.sh for cache/tool locations; current env.sh replaces target/fixtures/CLI paths.",
+  "measurement_command": [
+    "systemd-run",
+    "--user",
+    "--unit=wayfarer-858-default-paired-20261015",
+    "--collect",
+    "--wait",
+    "--pipe",
+    "-p",
+    "MemoryMax=3G",
+    "-p",
+    "MemorySwapMax=0",
+    "-p",
+    "TasksMax=192",
+    "-p",
+    "CPUQuota=400%",
+    "/bin/bash",
+    "-c",
+    "source /home/stef/wayfarer-research/858-linux-qualification-20261015/env.sh; exec python3 /home/stef/wayfarer-research/858-linux-qualification-20261015/source/tools/image-helper/results/readiness-20261015/qualify-paired.py"
+  ],
+  "primary_source_captures": [
+    {
+      "path": "jpeg-upstream-ChangeLog.md",
+      "bytes": 142915,
+      "sha256": "338a8c300c147ebd5a5f02bacf7aaa4bc737347b194cbf67ecdb16fd2276c548"
+    },
+    {
+      "path": "webp-upstream-review.json",
+      "bytes": 390138,
+      "sha256": "2adde37aa8ed200722343f50d731df3b5355864142de343aad8bc15b3aa72c65"
+    },
+    {
+      "path": "evidence/webp-news.txt",
+      "bytes": 15892,
+      "sha256": "a171d79c17e6b0d5857786a9727f6a44bc52bc0c42e0981527b71c51f08bffd1"
+    },
+    {
+      "path": "evidence/webp-tracker.html",
+      "bytes": 4860,
+      "sha256": "981c1f4976cb745ed916a7b9abbbab9447db5185844ee44c9f5d30b270cf363e"
+    },
+    {
+      "path": "evidence/jpeg-tracker.html",
+      "bytes": 6185,
+      "sha256": "5c484da7512cbc1de2f5d21266bf3a1794961b6719f54d9783ceb54b97db9ef4"
+    },
+    {
+      "path": "evidence/jpeg-png-cve.html",
+      "bytes": 4362,
+      "sha256": "38dc52e3ec139f8d51548f79316419e8e92e7f8c4500edcb14b494be21056bc1"
+    },
+    {
+      "path": "evidence/webp-after-1.6.json",
+      "bytes": 36221,
+      "sha256": "10be162a3b632330638f88796041499ce72a898915d1460129e4669de0748d27"
+    }
+  ],
+  "retained_locally": [
+    "default-only helper and compiler JSONL",
+    "separate all-feature check target",
+    "all 80 raw reports, logs and derivatives",
+    "full .NET build log",
+    "upstream source/review captures"
+  ],
+  "previous_results": "All pre-existing reports, retained fixtures and evidence remain byte-identical."
+}

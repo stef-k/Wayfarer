@@ -1,0 +1,60 @@
+[
+  {
+    "argv": [
+      "python3",
+      "source/tools/image-helper/benchmarks/diagnose.py",
+      "--fixtures",
+      "photo.jpg",
+      "photo.webp",
+      "large-vilaplana.jpg",
+      "large-vilaplana.webp",
+      "--modes",
+      "recovered",
+      "--candidate",
+      "/home/stef/wayfarer-research/858-linux-qualification-20261015/target-default-only/release/wayfarer-image",
+      "--count",
+      "6",
+      "--warmups",
+      "3",
+      "--width",
+      "2048",
+      "--height",
+      "2048",
+      "--quality",
+      "90",
+      "--report",
+      "evidence/direct-web.json"
+    ],
+    "exit": 0,
+    "profile": "web"
+  },
+  {
+    "argv": [
+      "python3",
+      "source/tools/image-helper/benchmarks/diagnose.py",
+      "--fixtures",
+      "photo.jpg",
+      "photo.webp",
+      "large-vilaplana.jpg",
+      "large-vilaplana.webp",
+      "--modes",
+      "recovered",
+      "--candidate",
+      "/home/stef/wayfarer-research/858-linux-qualification-20261015/target-default-only/release/wayfarer-image",
+      "--count",
+      "6",
+      "--warmups",
+      "3",
+      "--width",
+      "600",
+      "--height",
+      "8192",
+      "--quality",
+      "85",
+      "--report",
+      "evidence/direct-pdf.json"
+    ],
+    "exit": 0,
+    "profile": "pdf"
+  }
+]

@@ -1,0 +1,262 @@
+{
+  "captured_at_utc": "2026-10-15T09:49:31.572970+00:00",
+  "status": "BLOCKED",
+  "scope": "Exact native codec provenance, selected API reachability, current upstream changes, notices and bounded Linux packaging; not an exhaustive vulnerability audit.",
+  "native_crates": [
+    {
+      "crate": "turbojpeg-1.5.1",
+      "archive_sha256": "81313fcd64aaa30ddfd59eaa122968136b2dd9cd41d9619b126cf71e67a01702",
+      "matches_lock": true,
+      "vcs": {
+        "git": {
+          "sha1": "7a9702af7f520709ed1b52a85d29960289268f87"
+        },
+        "path_in_vcs": ""
+      },
+      "license_files": [
+        "LICENSE",
+        "UNLICENSE"
+      ]
+    },
+    {
+      "crate": "turbojpeg-sys-1.2.0",
+      "archive_sha256": "49b5a974bc59382d35927e3a07eef2ba9a24fe7227cefe52ec44b508e1b90f86",
+      "matches_lock": true,
+      "vcs": {
+        "git": {
+          "sha1": "05da705c6b6147baec1834a4c1f0de5e1df2614b"
+        },
+        "path_in_vcs": "turbojpeg-sys"
+      },
+      "license_files": []
+    },
+    {
+      "crate": "libwebp-sys-0.9.6",
+      "archive_sha256": "54cd30df7c7165ce74a456e4ca9732c603e8dc5e60784558c1c6dc047f876733",
+      "matches_lock": true,
+      "vcs": {
+        "git": {
+          "sha1": "4007a323c1dcc4ad11d70ddadffc51ecfa1dbb5e"
+        },
+        "path_in_vcs": ""
+      },
+      "license_files": []
+    },
+    {
+      "crate": "webp-0.3.1",
+      "archive_sha256": "c071456adef4aca59bf6a583c46b90ff5eb0b4f758fc347cea81290288f37ce1",
+      "matches_lock": true,
+      "vcs": {
+        "git": {
+          "sha1": "56aaf8449984f9f0fa30dc6862a12d1010b75b3a"
+        },
+        "path_in_vcs": ""
+      },
+      "license_files": [
+        "LICENSE-APACHE",
+        "LICENSE-MIT"
+      ]
+    }
+  ],
+  "source_and_archives": {
+    "sources": [
+      {
+        "crate": "libwebp-sys-0.9.6",
+        "path": "Cargo.toml.orig",
+        "exists": true,
+        "sha256": "e8fa9813934a847cd404f30ea93848fac2adbd3b6afe8eb55c773398a79e3306"
+      },
+      {
+        "crate": "libwebp-sys-0.9.6",
+        "path": "build.rs",
+        "exists": true,
+        "sha256": "2d61293ca8eb96dc44a2958d3cd88129a96ca900cbd8d245f98f99dcfa810a05"
+      },
+      {
+        "crate": "libwebp-sys-0.9.6",
+        "path": "src/lib.rs",
+        "exists": true,
+        "sha256": "79ce417a17c483dcb1b0d63376518f5a33c97a2c30b15c4c10b1b2e0beb43d2a"
+      },
+      {
+        "crate": "libwebp-sys-0.9.6",
+        "path": "vendor/src/utils/huffman_utils.c",
+        "exists": true,
+        "sha256": "76f5806c72e84054e629052f3d26dc86e1fc7c2ff0446ea7dd1fc28953b954c4"
+      },
+      {
+        "crate": "libwebp-sys-0.9.6",
+        "path": "vendor/src/utils/huffman_utils.h",
+        "exists": true,
+        "sha256": "02d259ac3a23a3bf2fd71605f38456b213e989bf08c5f5dc85f1d82c6b669fb6"
+      },
+      {
+        "crate": "libwebp-sys-0.9.6",
+        "path": "vendor/src/dec/vp8l_dec.c",
+        "exists": true,
+        "sha256": "29c352a3be731f97fee82571e8588b5ace5a2945cab809e7ff563f1fa0352c38"
+      },
+      {
+        "crate": "libwebp-sys-0.9.6",
+        "path": "vendor/src/dec/webp_dec.c",
+        "exists": true,
+        "sha256": "060c2a7a9caca443b60e55decbaaed2d2726370be057cdbe4f22fc7acd27f3d3"
+      },
+      {
+        "crate": "libwebp-sys-0.9.6",
+        "path": "vendor/src/webp/decode.h",
+        "exists": true,
+        "sha256": "3570c476348bfbf8b95c65a51eee6d62e0c1e06fcc59df64038a5c044708bb7a"
+      },
+      {
+        "crate": "libwebp-sys-0.9.6",
+        "path": "vendor/COPYING",
+        "exists": true,
+        "sha256": "5aec868f669e384a22372a4e8a1a6cd7d44c64cd451f960ca69cc170d1e13acf"
+      },
+      {
+        "crate": "libwebp-sys-0.9.6",
+        "path": "vendor/PATENTS",
+        "exists": true,
+        "sha256": "cc3273e0694ea5896145e0677699b53471b03ea43021ddc50e7923fbb9f5023c"
+      },
+      {
+        "crate": "libwebp-sys-0.9.6",
+        "path": "vendor/AUTHORS",
+        "exists": true,
+        "sha256": "9f43aafb76998315d1eac1e441fbd8e1edc28107a7d28ae26223d258f577e84a"
+      },
+      {
+        "crate": "turbojpeg-sys-1.2.0",
+        "path": "Cargo.toml.orig",
+        "exists": true,
+        "sha256": "9af21baaff9f6b009ba0bcd81589dc1edcd0f874ac3ebe1178394425bc3a51bc"
+      },
+      {
+        "crate": "turbojpeg-sys-1.2.0",
+        "path": "build.rs",
+        "exists": true,
+        "sha256": "33564c2c2e04f79ade1098891d3524190ce88571cf3eeac2a4d8613b00cd97c6"
+      },
+      {
+        "crate": "turbojpeg-sys-1.2.0",
+        "path": "libjpeg-turbo/CMakeLists.txt",
+        "exists": true,
+        "sha256": "0408ab92e3a81e38e7ceaa3a19bb1009180e02b7a68af70c00292b40b63fb700"
+      },
+      {
+        "crate": "turbojpeg-sys-1.2.0",
+        "path": "libjpeg-turbo/LICENSE.md",
+        "exists": true,
+        "sha256": "96f5b328adbb78eeaaec6980d73fd558cb1e4d62560ed615646bc3cf5e532430"
+      },
+      {
+        "crate": "turbojpeg-sys-1.2.0",
+        "path": "libjpeg-turbo/README.ijg",
+        "exists": true,
+        "sha256": "75815e3bf6484201a3c3d17a1bbf10f2e8e3237f84df10a2357ea896db2a81d6"
+      },
+      {
+        "crate": "webp-0.3.1",
+        "path": "Cargo.toml.orig",
+        "exists": true,
+        "sha256": "ef554512505335878269b45c767b15068d8fa10fd7e4b46488bef22b7dc88dbe"
+      },
+      {
+        "crate": "webp-0.3.1",
+        "path": "src/decoder.rs",
+        "exists": true,
+        "sha256": "d1dfbc60236e7b180c2c491e263d6f6bebb962fa56169ea8ea10e4753f206ba8"
+      }
+    ],
+    "static_archives": [
+      {
+        "path": "target-default-only/release/build/libwebp-sys-3aa33d2721b7cc74/out/libwebpsys.a",
+        "bytes": 1309982,
+        "sha256": "5d7c7313f03b3b4b966ac8490adcbf6054e32955c20563aa6a85b45b8dab1a4e"
+      },
+      {
+        "path": "target-default-only/release/build/libwebp-sys-3aa33d2721b7cc74/out/libsharpyuv.a",
+        "bytes": 67180,
+        "sha256": "bdb8e3d68ed04c062f1efb0b56332450a8443239949e80995a74469243122abf"
+      },
+      {
+        "path": "target-default-only/release/build/turbojpeg-sys-dd4d3ea35529c977/out/lib/libturbojpeg.a",
+        "bytes": 1658520,
+        "sha256": "3d65f5ccd3085e4e0e8a6c3badd6295f2c28b716f5263a2080ceab77dddae5f7"
+      }
+    ]
+  },
+  "upstream": {
+    "jpeg": {
+      "committed": "2026-10-13T23:28:30Z",
+      "sha": "2fa570c514a4b0e70342ef8b32ce1cda21b85710"
+    },
+    "webp": {
+      "committed": "2026-10-14T14:32:07Z",
+      "sha": "4b9e293a86d3ab96eb8ad2798514eddd10af27f2"
+    }
+  },
+  "vendor": {
+    "jpeg_vendor": {
+      "html_url": "https://github.com/libjpeg-turbo/libjpeg-turbo/tree/20ade4dea9589515a69793e447a6c6220b464535",
+      "name": "libjpeg-turbo",
+      "sha": "20ade4dea9589515a69793e447a6c6220b464535",
+      "submodule_git_url": "https://github.com/libjpeg-turbo/libjpeg-turbo.git"
+    },
+    "jpeg_tag": {
+      "object": {
+        "sha": "20ade4dea9589515a69793e447a6c6220b464535",
+        "type": "commit",
+        "url": "https://api.github.com/repos/libjpeg-turbo/libjpeg-turbo/git/commits/20ade4dea9589515a69793e447a6c6220b464535"
+      },
+      "ref": "refs/tags/3.1.0"
+    },
+    "webp_vendor": {
+      "html_url": "https://github.com/webmproject/libwebp/tree/95ea5226c870449522240ccff26f0b006037c520",
+      "name": "vendor",
+      "sha": "95ea5226c870449522240ccff26f0b006037c520",
+      "submodule_git_url": "https://github.com/webmproject/libwebp"
+    },
+    "backport_files": [
+      {
+        "path": "src/utils/huffman_utils.c",
+        "upstream_url": "https://chromium.googlesource.com/webm/libwebp/+/refs/tags/v1.3.2/src/utils/huffman_utils.c?format=TEXT",
+        "upstream_sha256": "76f5806c72e84054e629052f3d26dc86e1fc7c2ff0446ea7dd1fc28953b954c4",
+        "pinned_vendor_sha256": "76f5806c72e84054e629052f3d26dc86e1fc7c2ff0446ea7dd1fc28953b954c4",
+        "byte_equal_to_1_3_2": true
+      },
+      {
+        "path": "src/utils/huffman_utils.h",
+        "upstream_url": "https://chromium.googlesource.com/webm/libwebp/+/refs/tags/v1.3.2/src/utils/huffman_utils.h?format=TEXT",
+        "upstream_sha256": "02d259ac3a23a3bf2fd71605f38456b213e989bf08c5f5dc85f1d82c6b669fb6",
+        "pinned_vendor_sha256": "02d259ac3a23a3bf2fd71605f38456b213e989bf08c5f5dc85f1d82c6b669fb6",
+        "byte_equal_to_1_3_2": true
+      },
+      {
+        "path": "src/dec/vp8l_dec.c",
+        "upstream_url": "https://chromium.googlesource.com/webm/libwebp/+/refs/tags/v1.3.2/src/dec/vp8l_dec.c?format=TEXT",
+        "upstream_sha256": "0285c8681f9219bd9d1c1fa0b4991e2596b21bba94b400190cf50211a1d140cc",
+        "pinned_vendor_sha256": "29c352a3be731f97fee82571e8588b5ace5a2945cab809e7ff563f1fa0352c38",
+        "byte_equal_to_1_3_2": false
+      }
+    ]
+  },
+  "cve_2023_4863_ancestry": {
+    "ahead_by": 1,
+    "behind_by": 0,
+    "merge_base_commit": {
+      "sha": "902bc9190331343b2017211debcec8d2ab87e17a"
+    },
+    "status": "ahead"
+  },
+  "compatible_webp_binding": "webp 0.3.1 requires libwebp-sys ^0.9.3; newest non-yanked matching release is 0.9.6. Newest libwebp-sys 0.14.4 is not a compatible pin substitution.",
+  "security_gap": [
+    "Missing upstream Huffman offset bounds check 0b56dedc98cb0367a2c375651ff7820a16bee9cc. No exploitable counterexample or new CVE asserted.",
+    "Missing upstream initial Huffman allocation limiter 5755839a4772de6123628bb0c61996d7c42a0454 in the shipped VP8L route. AS/CPU containment remains enforced."
+  ],
+  "redistribution_gap": "libwebp-sys declares MIT but its crate and exact upstream tree supply no wrapper license/copyright text; existing notice covers bundled C code, not this missing wrapper notice.",
+  "turbojpeg_sys_mit_matches_retained_notice": true,
+  "pin_change": "None. No small supported compatible update available for the WebP wrapper dependency. No fork or native patch series attempted.",
+  "notes": "../../notices/NATIVE-CODECS.md"
+}

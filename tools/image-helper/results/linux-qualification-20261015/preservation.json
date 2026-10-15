@@ -1,0 +1,13 @@
+{
+  "starting_head": "17a568c0af200588294e6725cf48a6b24fae8a38",
+  "verified_at_utc": "2026-10-15T10:02:10.988167+00:00",
+  "existing_tracked_files": 4878,
+  "existing_files_changed": [
+    "tools/image-helper/README.md",
+    "tools/image-helper/src/main.rs",
+    "tools/image-helper/supervisor/ImageHelperSupervisor.cs"
+  ],
+  "previous_results_fixtures_archives_lock_unchanged": true,
+  "runtime_files_unchanged_since_tested_commit": true,
+  "no_production_file_or_workflow_change": true
+}

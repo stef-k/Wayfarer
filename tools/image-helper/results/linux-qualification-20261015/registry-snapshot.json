@@ -1,0 +1,103 @@
+{
+  "captured_on": "2026-10-15",
+  "crates": {
+    "webp": {
+      "max_stable_version": "0.3.1",
+      "latest": {
+        "num": "0.3.1",
+        "created_at": "2025-08-29T13:50:38.559495Z",
+        "yanked": false,
+        "license": "MIT OR Apache-2.0",
+        "checksum": "c071456adef4aca59bf6a583c46b90ff5eb0b4f758fc347cea81290288f37ce1"
+      },
+      "non_yanked_0_9_versions": [],
+      "raw_response_sha256": "46da6dfdf5145773bb6517d3b0a17bd9297f5934b5104126af748c66291129de"
+    },
+    "libwebp-sys": {
+      "max_stable_version": "0.14.4",
+      "latest": {
+        "num": "0.14.4",
+        "created_at": "2026-04-29T23:00:25.958241Z",
+        "yanked": false,
+        "license": "MIT",
+        "checksum": "6b3a87b44e34d17161e4f17d92a463d596cb13825dcd1758ed18fd3a721e189c"
+      },
+      "non_yanked_0_9_versions": [
+        {
+          "num": "0.9.6",
+          "created_at": "2024-09-02T03:02:18.310306Z",
+          "yanked": false,
+          "license": "MIT",
+          "checksum": "54cd30df7c7165ce74a456e4ca9732c603e8dc5e60784558c1c6dc047f876733"
+        },
+        {
+          "num": "0.9.5",
+          "created_at": "2024-02-19T06:33:54.691563Z",
+          "yanked": false,
+          "license": "MIT",
+          "checksum": "829b6b604f31ed6d2bccbac841fe0788de93dbd87e4eb1ba2c4adfe8c012a838"
+        },
+        {
+          "num": "0.9.4",
+          "created_at": "2023-09-18T04:44:58.803970Z",
+          "yanked": false,
+          "license": "MIT",
+          "checksum": "3e0df0a0f9444d52aee6335cd724d21a2ee3285f646291799a72be518ec8ee3c"
+        },
+        {
+          "num": "0.9.3",
+          "created_at": "2023-09-13T06:53:23.802213Z",
+          "yanked": false,
+          "license": "MIT",
+          "checksum": "0c94b08ea3ec9eedea0fa779848e7fa183dc52aa60882488828883503faf630f"
+        },
+        {
+          "num": "0.9.2",
+          "created_at": "2023-07-12T06:29:17.260964Z",
+          "yanked": false,
+          "license": "MIT",
+          "checksum": "a5df1e76f0acef0058aa2164ccf74e610e716e7f9eeb3ee2283de7d43659d823"
+        },
+        {
+          "num": "0.9.1",
+          "created_at": "2023-05-19T09:22:15.275225Z",
+          "yanked": false,
+          "license": "MIT",
+          "checksum": "5c2a79bd4556d1b538c76e59147768b2d63f97e2dfb185c896548136af408e58"
+        },
+        {
+          "num": "0.9.0",
+          "created_at": "2023-03-20T08:41:22.230779Z",
+          "yanked": false,
+          "license": "MIT",
+          "checksum": "c25c53292693c6651d913eff524d04018372b36bf0547a192238009c5c82d638"
+        }
+      ],
+      "raw_response_sha256": "394610e606b580a8fdac613c12087cf10afc36566e69921925604150390d8d30"
+    },
+    "turbojpeg": {
+      "max_stable_version": "1.5.1",
+      "latest": {
+        "num": "1.5.1",
+        "created_at": "2026-07-25T17:37:28.238805Z",
+        "yanked": false,
+        "license": "Unlicense OR MIT",
+        "checksum": "81313fcd64aaa30ddfd59eaa122968136b2dd9cd41d9619b126cf71e67a01702"
+      },
+      "non_yanked_0_9_versions": [],
+      "raw_response_sha256": "751fd472735d67485fea780b85ca8b4fcabe3f9bc3fc0369f52d527461b0270b"
+    },
+    "turbojpeg-sys": {
+      "max_stable_version": "1.2.0",
+      "latest": {
+        "num": "1.2.0",
+        "created_at": "2026-05-27T07:17:16.857854Z",
+        "yanked": false,
+        "license": "Unlicense OR MIT",
+        "checksum": "49b5a974bc59382d35927e3a07eef2ba9a24fe7227cefe52ec44b508e1b90f86"
+      },
+      "non_yanked_0_9_versions": [],
+      "raw_response_sha256": "1cbd792f287b629d43d894e360f57507e01b37227fef28e10e020ba588ab2bc5"
+    }
+  }
+}

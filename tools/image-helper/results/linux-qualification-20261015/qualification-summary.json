@@ -1,0 +1,1162 @@
+{
+  "status": "BLOCKED",
+  "arm64_status": "UNPROVEN",
+  "default_artifact": "VERIFIED; original performance gate 15/16 pooled cells with both retained JPEG/web warm-session p50 misses preserved",
+  "native_security_redistribution": "BLOCKED; unresolved WebP decoder hardening and missing authoritative wrapper MIT notice",
+  "starting_head": "17a568c0af200588294e6725cf48a6b24fae8a38",
+  "runtime_source_commit": "ed6be50595f06d44e0d85ff00738eaed656d23ce",
+  "artifact_sha256": "9ae71918e83017fc477332b8b346628436472b3e05c23fe09ce45b8c3efa7673",
+  "paired": {
+    "statistics": "median p50; nearest-rank p95; sequential images/s = inverse mean wall time",
+    "artifact_sha256": "9ae71918e83017fc477332b8b346628436472b3e05c23fe09ce45b8c3efa7673",
+    "gate": {
+      "max_latency_ratio": 1.1,
+      "min_throughput_ratio": 0.9
+    },
+    "paired": {
+      "web-photo.jpg-warm": {
+        "measurements": {
+          "rust": {
+            "n": 48,
+            "p50_ms": 33.471500000000006,
+            "p95_ms": 37.3277,
+            "mean_ms": 33.7111875,
+            "min_ms": 31.8441,
+            "max_ms": 37.9978,
+            "stddev_ms": 1.401757180785238,
+            "sequential_images_per_second": 29.663742934003732
+          },
+          "imagesharp": {
+            "n": 48,
+            "p50_ms": 30.1815,
+            "p95_ms": 47.1377,
+            "mean_ms": 32.0476375,
+            "min_ms": 29.0776,
+            "max_ms": 48.6637,
+            "stddev_ms": 4.926883018990724,
+            "sequential_images_per_second": 31.20354815546076
+          }
+        },
+        "ratios": {
+          "p50_ratio": 1.109007173268393,
+          "p95_ratio": 0.79188632453429,
+          "throughput_ratio": 0.950652880442138
+        },
+        "original_gate_pass": false,
+        "sessions": {
+          "web-photo.jpg-warm-1.json": {
+            "rust": {
+              "n": 24,
+              "p50_ms": 33.5697,
+              "p95_ms": 37.3277,
+              "mean_ms": 33.89046666666667,
+              "min_ms": 32.2819,
+              "max_ms": 37.8955,
+              "stddev_ms": 1.437530304759329,
+              "sequential_images_per_second": 29.506822961029354
+            },
+            "imagesharp": {
+              "n": 24,
+              "p50_ms": 30.1411,
+              "p95_ms": 47.0915,
+              "mean_ms": 31.990175,
+              "min_ms": 29.5703,
+              "max_ms": 47.5204,
+              "stddev_ms": 4.9049278471181195,
+              "sequential_images_per_second": 31.259597673348143
+            }
+          },
+          "web-photo.jpg-warm-2.json": {
+            "rust": {
+              "n": 24,
+              "p50_ms": 33.34295,
+              "p95_ms": 37.079,
+              "mean_ms": 33.531908333333334,
+              "min_ms": 31.8441,
+              "max_ms": 37.9978,
+              "stddev_ms": 1.371753455765939,
+              "sequential_images_per_second": 29.822340859912288
+            },
+            "imagesharp": {
+              "n": 24,
+              "p50_ms": 30.2965,
+              "p95_ms": 47.1377,
+              "mean_ms": 32.1051,
+              "min_ms": 29.0776,
+              "max_ms": 48.6637,
+              "stddev_ms": 5.053567388101889,
+              "sequential_images_per_second": 31.147699275193037
+            }
+          }
+        },
+        "parent_resources": {
+          "rust": {
+            "median_parent_cpu_ms": 6.4855,
+            "maximum_shared_host_peak_rss_kib": 219356
+          },
+          "imagesharp": {
+            "median_parent_cpu_ms": 31.0995,
+            "maximum_shared_host_peak_rss_kib": 219364
+          }
+        }
+      },
+      "web-photo.webp-warm": {
+        "measurements": {
+          "rust": {
+            "n": 48,
+            "p50_ms": 48.9428,
+            "p95_ms": 53.7426,
+            "mean_ms": 49.35898125,
+            "min_ms": 46.7665,
+            "max_ms": 56.6894,
+            "stddev_ms": 2.012283472338133,
+            "sequential_images_per_second": 20.259737431270423
+          },
+          "imagesharp": {
+            "n": 48,
+            "p50_ms": 68.96085,
+            "p95_ms": 85.551,
+            "mean_ms": 71.14589583333333,
+            "min_ms": 65.8109,
+            "max_ms": 97.1914,
+            "stddev_ms": 6.792424102425902,
+            "sequential_images_per_second": 14.055624548499665
+          }
+        },
+        "ratios": {
+          "p50_ratio": 0.7097186302082994,
+          "p95_ratio": 0.6281937090156748,
+          "throughput_ratio": 1.4413971688958498
+        },
+        "original_gate_pass": true,
+        "sessions": {
+          "web-photo.webp-warm-1.json": {
+            "rust": {
+              "n": 24,
+              "p50_ms": 48.38505,
+              "p95_ms": 53.5919,
+              "mean_ms": 48.98222916666666,
+              "min_ms": 46.7665,
+              "max_ms": 53.9419,
+              "stddev_ms": 1.963909240460081,
+              "sequential_images_per_second": 20.41556738051683
+            },
+            "imagesharp": {
+              "n": 24,
+              "p50_ms": 68.04835,
+              "p95_ms": 84.2954,
+              "mean_ms": 71.2309375,
+              "min_ms": 65.8109,
+              "max_ms": 97.1914,
+              "stddev_ms": 7.639273698564288,
+              "sequential_images_per_second": 14.03884372573364
+            }
+          },
+          "web-photo.webp-warm-2.json": {
+            "rust": {
+              "n": 24,
+              "p50_ms": 49.4838,
+              "p95_ms": 53.7426,
+              "mean_ms": 49.735733333333336,
+              "min_ms": 47.3462,
+              "max_ms": 56.6894,
+              "stddev_ms": 2.030137641225058,
+              "sequential_images_per_second": 20.106268330214625
+            },
+            "imagesharp": {
+              "n": 24,
+              "p50_ms": 69.42724999999999,
+              "p95_ms": 85.551,
+              "mean_ms": 71.06085416666667,
+              "min_ms": 66.8176,
+              "max_ms": 91.8676,
+              "stddev_ms": 5.9921959499494495,
+              "sequential_images_per_second": 14.072445535971076
+            }
+          }
+        },
+        "parent_resources": {
+          "rust": {
+            "median_parent_cpu_ms": 5.6825,
+            "maximum_shared_host_peak_rss_kib": 236448
+          },
+          "imagesharp": {
+            "median_parent_cpu_ms": 74.196,
+            "maximum_shared_host_peak_rss_kib": 236448
+          }
+        }
+      },
+      "web-large-vilaplana.jpg-warm": {
+        "measurements": {
+          "rust": {
+            "n": 48,
+            "p50_ms": 139.1895,
+            "p95_ms": 166.8126,
+            "mean_ms": 143.62334583333333,
+            "min_ms": 133.4503,
+            "max_ms": 175.8739,
+            "stddev_ms": 10.710383863136137,
+            "sequential_images_per_second": 6.962656343909734
+          },
+          "imagesharp": {
+            "n": 48,
+            "p50_ms": 221.51745,
+            "p95_ms": 270.0079,
+            "mean_ms": 227.41715,
+            "min_ms": 211.1888,
+            "max_ms": 276.1434,
+            "stddev_ms": 17.47255633710166,
+            "sequential_images_per_second": 4.397205751633067
+          }
+        },
+        "ratios": {
+          "p50_ratio": 0.6283455321465646,
+          "p95_ratio": 0.6178063678877543,
+          "throughput_ratio": 1.5834274621613715
+        },
+        "original_gate_pass": true,
+        "sessions": {
+          "web-large-vilaplana.jpg-warm-1.json": {
+            "rust": {
+              "n": 24,
+              "p50_ms": 145.1217,
+              "p95_ms": 168.3776,
+              "mean_ms": 149.9971875,
+              "min_ms": 134.6843,
+              "max_ms": 175.8739,
+              "stddev_ms": 12.06415423682228,
+              "sequential_images_per_second": 6.666791669010461
+            },
+            "imagesharp": {
+              "n": 24,
+              "p50_ms": 235.6662,
+              "p95_ms": 270.8857,
+              "mean_ms": 239.54732916666666,
+              "min_ms": 216.9759,
+              "max_ms": 276.1434,
+              "stddev_ms": 16.243040384181644,
+              "sequential_images_per_second": 4.174540386147421
+            }
+          },
+          "web-large-vilaplana.jpg-warm-2.json": {
+            "rust": {
+              "n": 24,
+              "p50_ms": 137.1319,
+              "p95_ms": 140.2065,
+              "mean_ms": 137.24950416666667,
+              "min_ms": 133.4503,
+              "max_ms": 140.645,
+              "stddev_ms": 2.020871438691987,
+              "sequential_images_per_second": 7.286000820707276
+            },
+            "imagesharp": {
+              "n": 24,
+              "p50_ms": 213.57330000000002,
+              "p95_ms": 223.0621,
+              "mean_ms": 215.28697083333333,
+              "min_ms": 211.1888,
+              "max_ms": 247.5168,
+              "stddev_ms": 7.27600115343342,
+              "sequential_images_per_second": 4.6449629354214865
+            }
+          }
+        },
+        "parent_resources": {
+          "rust": {
+            "median_parent_cpu_ms": 17.2105,
+            "maximum_shared_host_peak_rss_kib": 291616
+          },
+          "imagesharp": {
+            "median_parent_cpu_ms": 228.2905,
+            "maximum_shared_host_peak_rss_kib": 291488
+          }
+        }
+      },
+      "web-large-vilaplana.webp-warm": {
+        "measurements": {
+          "rust": {
+            "n": 48,
+            "p50_ms": 255.96159999999998,
+            "p95_ms": 275.7933,
+            "mean_ms": 257.81200416666667,
+            "min_ms": 247.6704,
+            "max_ms": 276.3137,
+            "stddev_ms": 7.938299885136945,
+            "sequential_images_per_second": 3.8787953386124494
+          },
+          "imagesharp": {
+            "n": 48,
+            "p50_ms": 457.02700000000004,
+            "p95_ms": 502.6281,
+            "mean_ms": 464.6441520833333,
+            "min_ms": 446.3998,
+            "max_ms": 531.9821,
+            "stddev_ms": 17.930516726294037,
+            "sequential_images_per_second": 2.1521846245482315
+          }
+        },
+        "ratios": {
+          "p50_ratio": 0.5600579396840886,
+          "p95_ratio": 0.5487025098676337,
+          "throughput_ratio": 1.8022595712143672
+        },
+        "original_gate_pass": true,
+        "sessions": {
+          "web-large-vilaplana.webp-warm-1.json": {
+            "rust": {
+              "n": 24,
+              "p50_ms": 256.78655000000003,
+              "p95_ms": 275.9518,
+              "mean_ms": 258.6857625,
+              "min_ms": 247.6704,
+              "max_ms": 276.3137,
+              "stddev_ms": 7.688076646895021,
+              "sequential_images_per_second": 3.865694000070839
+            },
+            "imagesharp": {
+              "n": 24,
+              "p50_ms": 464.83845,
+              "p95_ms": 502.6281,
+              "mean_ms": 467.629175,
+              "min_ms": 448.9114,
+              "max_ms": 531.9821,
+              "stddev_ms": 19.235460234370354,
+              "sequential_images_per_second": 2.138446558643395
+            }
+          },
+          "web-large-vilaplana.webp-warm-2.json": {
+            "rust": {
+              "n": 24,
+              "p50_ms": 253.82075,
+              "p95_ms": 275.4456,
+              "mean_ms": 256.9382458333333,
+              "min_ms": 248.0935,
+              "max_ms": 275.7933,
+              "stddev_ms": 8.25065121529832,
+              "sequential_images_per_second": 3.8919857834191967
+            },
+            "imagesharp": {
+              "n": 24,
+              "p50_ms": 453.5965,
+              "p95_ms": 487.7657,
+              "mean_ms": 461.6591291666667,
+              "min_ms": 446.3998,
+              "max_ms": 504.7679,
+              "stddev_ms": 16.3825151311438,
+              "sequential_images_per_second": 2.1661003472520592
+            }
+          }
+        },
+        "parent_resources": {
+          "rust": {
+            "median_parent_cpu_ms": 29.6685,
+            "maximum_shared_host_peak_rss_kib": 429260
+          },
+          "imagesharp": {
+            "median_parent_cpu_ms": 489.1995,
+            "maximum_shared_host_peak_rss_kib": 436932
+          }
+        }
+      },
+      "pdf-photo.jpg-warm": {
+        "measurements": {
+          "rust": {
+            "n": 48,
+            "p50_ms": 20.9988,
+            "p95_ms": 25.6018,
+            "mean_ms": 21.454329166666668,
+            "min_ms": 19.8161,
+            "max_ms": 27.9509,
+            "stddev_ms": 1.7063419949740606,
+            "sequential_images_per_second": 46.61063938338785
+          },
+          "imagesharp": {
+            "n": 48,
+            "p50_ms": 29.471849999999996,
+            "p95_ms": 61.1734,
+            "mean_ms": 34.81364583333333,
+            "min_ms": 18.2354,
+            "max_ms": 67.0182,
+            "stddev_ms": 15.096268508658495,
+            "sequential_images_per_second": 28.724368737115178
+          }
+        },
+        "ratios": {
+          "p50_ratio": 0.7125036263417465,
+          "p95_ratio": 0.4185119676199132,
+          "throughput_ratio": 1.6226862915584828
+        },
+        "original_gate_pass": true,
+        "sessions": {
+          "pdf-photo.jpg-warm-1.json": {
+            "rust": {
+              "n": 24,
+              "p50_ms": 20.713949999999997,
+              "p95_ms": 25.2791,
+              "mean_ms": 21.1019125,
+              "min_ms": 19.8161,
+              "max_ms": 25.6018,
+              "stddev_ms": 1.4139298492261239,
+              "sequential_images_per_second": 47.38906959262579
+            },
+            "imagesharp": {
+              "n": 24,
+              "p50_ms": 38.449749999999995,
+              "p95_ms": 59.085,
+              "mean_ms": 36.8121375,
+              "min_ms": 18.5595,
+              "max_ms": 63.5628,
+              "stddev_ms": 14.429305716697664,
+              "sequential_images_per_second": 27.164953407011478
+            }
+          },
+          "pdf-photo.jpg-warm-2.json": {
+            "rust": {
+              "n": 24,
+              "p50_ms": 21.2466,
+              "p95_ms": 27.3338,
+              "mean_ms": 21.806745833333334,
+              "min_ms": 19.9881,
+              "max_ms": 27.9509,
+              "stddev_ms": 1.9213029503278254,
+              "sequential_images_per_second": 45.857369441680795
+            },
+            "imagesharp": {
+              "n": 24,
+              "p50_ms": 24.783949999999997,
+              "p95_ms": 61.1734,
+              "mean_ms": 32.815154166666666,
+              "min_ms": 18.2354,
+              "max_ms": 67.0182,
+              "stddev_ms": 15.784901711142096,
+              "sequential_images_per_second": 30.473725490395253
+            }
+          }
+        },
+        "parent_resources": {
+          "rust": {
+            "median_parent_cpu_ms": 19.2205,
+            "maximum_shared_host_peak_rss_kib": 200620
+          },
+          "imagesharp": {
+            "median_parent_cpu_ms": 43.7885,
+            "maximum_shared_host_peak_rss_kib": 200608
+          }
+        }
+      },
+      "pdf-photo.webp-warm": {
+        "measurements": {
+          "rust": {
+            "n": 48,
+            "p50_ms": 35.690799999999996,
+            "p95_ms": 37.1062,
+            "mean_ms": 35.85267916666667,
+            "min_ms": 34.9993,
+            "max_ms": 40.1234,
+            "stddev_ms": 0.8104521971171751,
+            "sequential_images_per_second": 27.891918351522545
+          },
+          "imagesharp": {
+            "n": 48,
+            "p50_ms": 54.08605,
+            "p95_ms": 70.4785,
+            "mean_ms": 56.06833125,
+            "min_ms": 52.9042,
+            "max_ms": 80.2612,
+            "stddev_ms": 5.467144058369059,
+            "sequential_images_per_second": 17.83538011040769
+          }
+        },
+        "ratios": {
+          "p50_ratio": 0.6598891950881973,
+          "p95_ratio": 0.5264896386841378,
+          "throughput_ratio": 1.56385331733112
+        },
+        "original_gate_pass": true,
+        "sessions": {
+          "pdf-photo.webp-warm-1.json": {
+            "rust": {
+              "n": 24,
+              "p50_ms": 35.681799999999996,
+              "p95_ms": 37.6858,
+              "mean_ms": 35.895741666666666,
+              "min_ms": 35.0518,
+              "max_ms": 40.1234,
+              "stddev_ms": 1.0661397040834693,
+              "sequential_images_per_second": 27.858457676850712
+            },
+            "imagesharp": {
+              "n": 24,
+              "p50_ms": 54.310050000000004,
+              "p95_ms": 70.4785,
+              "mean_ms": 56.237291666666664,
+              "min_ms": 53.0516,
+              "max_ms": 71.0798,
+              "stddev_ms": 5.054918658608161,
+              "sequential_images_per_second": 17.781795146310834
+            }
+          },
+          "pdf-photo.webp-warm-2.json": {
+            "rust": {
+              "n": 24,
+              "p50_ms": 35.7153,
+              "p95_ms": 36.4758,
+              "mean_ms": 35.80961666666666,
+              "min_ms": 34.9993,
+              "max_ms": 37.1062,
+              "stddev_ms": 0.44910978290552706,
+              "sequential_images_per_second": 27.925459501800496
+            },
+            "imagesharp": {
+              "n": 24,
+              "p50_ms": 53.8777,
+              "p95_ms": 67.4307,
+              "mean_ms": 55.899370833333336,
+              "min_ms": 52.9042,
+              "max_ms": 80.2612,
+              "stddev_ms": 5.955425982535603,
+              "sequential_images_per_second": 17.889289004370873
+            }
+          }
+        },
+        "parent_resources": {
+          "rust": {
+            "median_parent_cpu_ms": 4.519,
+            "maximum_shared_host_peak_rss_kib": 225412
+          },
+          "imagesharp": {
+            "median_parent_cpu_ms": 61.696,
+            "maximum_shared_host_peak_rss_kib": 225408
+          }
+        }
+      },
+      "pdf-large-vilaplana.jpg-warm": {
+        "measurements": {
+          "rust": {
+            "n": 48,
+            "p50_ms": 100.49600000000001,
+            "p95_ms": 107.8515,
+            "mean_ms": 101.51294166666666,
+            "min_ms": 94.9122,
+            "max_ms": 122.5656,
+            "stddev_ms": 4.4941066114688715,
+            "sequential_images_per_second": 9.850960710838757
+          },
+          "imagesharp": {
+            "n": 48,
+            "p50_ms": 143.8349,
+            "p95_ms": 176.1593,
+            "mean_ms": 148.18452291666665,
+            "min_ms": 139.0241,
+            "max_ms": 195.9398,
+            "stddev_ms": 11.457804936397176,
+            "sequential_images_per_second": 6.748343081432074
+          }
+        },
+        "ratios": {
+          "p50_ratio": 0.6986899563318778,
+          "p95_ratio": 0.6122384682500441,
+          "throughput_ratio": 1.4597599132064687
+        },
+        "original_gate_pass": true,
+        "sessions": {
+          "pdf-large-vilaplana.jpg-warm-1.json": {
+            "rust": {
+              "n": 24,
+              "p50_ms": 100.81345,
+              "p95_ms": 105.3996,
+              "mean_ms": 101.50298333333333,
+              "min_ms": 97.5438,
+              "max_ms": 106.1959,
+              "stddev_ms": 2.1312237222996435,
+              "sequential_images_per_second": 9.851927176524697
+            },
+            "imagesharp": {
+              "n": 24,
+              "p50_ms": 143.10674999999998,
+              "p95_ms": 176.1593,
+              "mean_ms": 145.86033333333333,
+              "min_ms": 139.0241,
+              "max_ms": 179.3298,
+              "stddev_ms": 10.154143458992351,
+              "sequential_images_per_second": 6.855873541127243
+            }
+          },
+          "pdf-large-vilaplana.jpg-warm-2.json": {
+            "rust": {
+              "n": 24,
+              "p50_ms": 99.5893,
+              "p95_ms": 113.5664,
+              "mean_ms": 101.5229,
+              "min_ms": 94.9122,
+              "max_ms": 122.5656,
+              "stddev_ms": 6.060511293612116,
+              "sequential_images_per_second": 9.849994434753144
+            },
+            "imagesharp": {
+              "n": 24,
+              "p50_ms": 145.61915,
+              "p95_ms": 167.0983,
+              "mean_ms": 150.5087125,
+              "min_ms": 140.6205,
+              "max_ms": 195.9398,
+              "stddev_ms": 12.405256939221282,
+              "sequential_images_per_second": 6.6441336411006775
+            }
+          }
+        },
+        "parent_resources": {
+          "rust": {
+            "median_parent_cpu_ms": 15.02,
+            "maximum_shared_host_peak_rss_kib": 251476
+          },
+          "imagesharp": {
+            "median_parent_cpu_ms": 144.153,
+            "maximum_shared_host_peak_rss_kib": 251412
+          }
+        }
+      },
+      "pdf-large-vilaplana.webp-warm": {
+        "measurements": {
+          "rust": {
+            "n": 48,
+            "p50_ms": 220.67435,
+            "p95_ms": 238.7833,
+            "mean_ms": 221.27745,
+            "min_ms": 208.5195,
+            "max_ms": 250.1268,
+            "stddev_ms": 8.566991060671011,
+            "sequential_images_per_second": 4.519213322460106
+          },
+          "imagesharp": {
+            "n": 48,
+            "p50_ms": 397.16705,
+            "p95_ms": 448.8805,
+            "mean_ms": 403.9739895833333,
+            "min_ms": 377.9715,
+            "max_ms": 456.9263,
+            "stddev_ms": 20.200977766764,
+            "sequential_images_per_second": 2.4754068969425966
+          }
+        },
+        "ratios": {
+          "p50_ratio": 0.5556209912176753,
+          "p95_ratio": 0.5319529362491799,
+          "throughput_ratio": 1.8256446356523601
+        },
+        "original_gate_pass": true,
+        "sessions": {
+          "pdf-large-vilaplana.webp-warm-1.json": {
+            "rust": {
+              "n": 24,
+              "p50_ms": 216.18875,
+              "p95_ms": 229.8498,
+              "mean_ms": 218.15461666666667,
+              "min_ms": 208.5195,
+              "max_ms": 238.7833,
+              "stddev_ms": 7.416842469833023,
+              "sequential_images_per_second": 4.583904825300893
+            },
+            "imagesharp": {
+              "n": 24,
+              "p50_ms": 390.93665,
+              "p95_ms": 448.8805,
+              "mean_ms": 396.6391875,
+              "min_ms": 377.9715,
+              "max_ms": 456.9263,
+              "stddev_ms": 20.37864653442555,
+              "sequential_images_per_second": 2.5211830588474067
+            }
+          },
+          "pdf-large-vilaplana.webp-warm-2.json": {
+            "rust": {
+              "n": 24,
+              "p50_ms": 222.5248,
+              "p95_ms": 244.3764,
+              "mean_ms": 224.40028333333333,
+              "min_ms": 213.5302,
+              "max_ms": 250.1268,
+              "stddev_ms": 8.638052461998123,
+              "sequential_images_per_second": 4.456322359070105
+            },
+            "imagesharp": {
+              "n": 24,
+              "p50_ms": 408.4624,
+              "p95_ms": 437.8159,
+              "mean_ms": 411.30879166666665,
+              "min_ms": 384.0981,
+              "max_ms": 453.1628,
+              "stddev_ms": 17.502443054760814,
+              "sequential_images_per_second": 2.431263372581691
+            }
+          }
+        },
+        "parent_resources": {
+          "rust": {
+            "median_parent_cpu_ms": 27.6005,
+            "maximum_shared_host_peak_rss_kib": 402472
+          },
+          "imagesharp": {
+            "median_parent_cpu_ms": 422.4565,
+            "maximum_shared_host_peak_rss_kib": 402472
+          }
+        }
+      },
+      "web-photo.jpg-cold": {
+        "measurements": {
+          "rust": {
+            "n": 8,
+            "p50_ms": 69.21764999999999,
+            "p95_ms": 78.7599,
+            "mean_ms": 68.525775,
+            "min_ms": 57.2222,
+            "max_ms": 78.7599,
+            "stddev_ms": 8.457643467766726,
+            "sequential_images_per_second": 14.593049111812308
+          },
+          "imagesharp": {
+            "n": 8,
+            "p50_ms": 166.59840000000003,
+            "p95_ms": 197.8849,
+            "mean_ms": 167.5560125,
+            "min_ms": 138.9268,
+            "max_ms": 197.8849,
+            "stddev_ms": 29.912136334291635,
+            "sequential_images_per_second": 5.968153485390445
+          }
+        },
+        "ratios": {
+          "p50_ratio": 0.4154760790019591,
+          "p95_ratio": 0.39800864037629957,
+          "throughput_ratio": 2.4451531193919367
+        },
+        "original_gate_pass": true,
+        "sessions": {},
+        "parent_resources": {
+          "rust": {
+            "median_parent_cpu_ms": 37.7515,
+            "maximum_shared_host_peak_rss_kib": 182128
+          },
+          "imagesharp": {
+            "median_parent_cpu_ms": 172.2835,
+            "maximum_shared_host_peak_rss_kib": 182404
+          }
+        }
+      },
+      "web-photo.webp-cold": {
+        "measurements": {
+          "rust": {
+            "n": 8,
+            "p50_ms": 75.45,
+            "p95_ms": 91.6931,
+            "mean_ms": 77.645225,
+            "min_ms": 66.2032,
+            "max_ms": 91.6931,
+            "stddev_ms": 9.110057515695813,
+            "sequential_images_per_second": 12.879092049768676
+          },
+          "imagesharp": {
+            "n": 8,
+            "p50_ms": 359.48109999999997,
+            "p95_ms": 446.6267,
+            "mean_ms": 365.0279375,
+            "min_ms": 314.443,
+            "max_ms": 446.6267,
+            "stddev_ms": 41.906412665841756,
+            "sequential_images_per_second": 2.739516341814248
+          }
+        },
+        "ratios": {
+          "p50_ratio": 0.20988586048056493,
+          "p95_ratio": 0.20530142958313954,
+          "throughput_ratio": 4.701228407799707
+        },
+        "original_gate_pass": true,
+        "sessions": {},
+        "parent_resources": {
+          "rust": {
+            "median_parent_cpu_ms": 38.0025,
+            "maximum_shared_host_peak_rss_kib": 185724
+          },
+          "imagesharp": {
+            "median_parent_cpu_ms": 376.7165,
+            "maximum_shared_host_peak_rss_kib": 190432
+          }
+        }
+      },
+      "web-large-vilaplana.jpg-cold": {
+        "measurements": {
+          "rust": {
+            "n": 8,
+            "p50_ms": 173.4681,
+            "p95_ms": 204.911,
+            "mean_ms": 175.3208,
+            "min_ms": 155.9878,
+            "max_ms": 204.911,
+            "stddev_ms": 15.176540815821166,
+            "sequential_images_per_second": 5.703829779467125
+          },
+          "imagesharp": {
+            "n": 8,
+            "p50_ms": 1067.52455,
+            "p95_ms": 1176.8101,
+            "mean_ms": 1057.3876125,
+            "min_ms": 940.8038,
+            "max_ms": 1176.8101,
+            "stddev_ms": 78.67535858850482,
+            "sequential_images_per_second": 0.945726986185967
+          }
+        },
+        "ratios": {
+          "p50_ratio": 0.16249565408121058,
+          "p95_ratio": 0.1741241003964871,
+          "throughput_ratio": 6.031158952617145
+        },
+        "original_gate_pass": true,
+        "sessions": {},
+        "parent_resources": {
+          "rust": {
+            "median_parent_cpu_ms": 49.5955,
+            "maximum_shared_host_peak_rss_kib": 239128
+          },
+          "imagesharp": {
+            "median_parent_cpu_ms": 1430.021,
+            "maximum_shared_host_peak_rss_kib": 238908
+          }
+        }
+      },
+      "web-large-vilaplana.webp-cold": {
+        "measurements": {
+          "rust": {
+            "n": 8,
+            "p50_ms": 297.3557,
+            "p95_ms": 310.9047,
+            "mean_ms": 299.023875,
+            "min_ms": 284.5189,
+            "max_ms": 310.9047,
+            "stddev_ms": 9.48932099795043,
+            "sequential_images_per_second": 3.3442145714953364
+          },
+          "imagesharp": {
+            "n": 8,
+            "p50_ms": 894.7909,
+            "p95_ms": 935.1259,
+            "mean_ms": 890.5435375,
+            "min_ms": 826.555,
+            "max_ms": 935.1259,
+            "stddev_ms": 32.69702687737559,
+            "sequential_images_per_second": 1.1229097263534968
+          }
+        },
+        "ratios": {
+          "p50_ratio": 0.3323186456187697,
+          "p95_ratio": 0.3324736273479325,
+          "throughput_ratio": 2.9781686746585034
+        },
+        "original_gate_pass": true,
+        "sessions": {},
+        "parent_resources": {
+          "rust": {
+            "median_parent_cpu_ms": 145.8945,
+            "maximum_shared_host_peak_rss_kib": 329156
+          },
+          "imagesharp": {
+            "median_parent_cpu_ms": 1037.6045,
+            "maximum_shared_host_peak_rss_kib": 344244
+          }
+        }
+      },
+      "pdf-photo.jpg-cold": {
+        "measurements": {
+          "rust": {
+            "n": 8,
+            "p50_ms": 50.54015,
+            "p95_ms": 61.1728,
+            "mean_ms": 50.4902625,
+            "min_ms": 39.9392,
+            "max_ms": 61.1728,
+            "stddev_ms": 7.986727927351457,
+            "sequential_images_per_second": 19.8057991875166
+          },
+          "imagesharp": {
+            "n": 8,
+            "p50_ms": 165.6859,
+            "p95_ms": 239.0211,
+            "mean_ms": 171.81969999999998,
+            "min_ms": 138.1786,
+            "max_ms": 239.0211,
+            "stddev_ms": 34.434062778840705,
+            "sequential_images_per_second": 5.820054394228369
+          }
+        },
+        "ratios": {
+          "p50_ratio": 0.30503591434153415,
+          "p95_ratio": 0.25593054337043886,
+          "throughput_ratio": 3.403026474659346
+        },
+        "original_gate_pass": true,
+        "sessions": {},
+        "parent_resources": {
+          "rust": {
+            "median_parent_cpu_ms": 36.819,
+            "maximum_shared_host_peak_rss_kib": 178720
+          },
+          "imagesharp": {
+            "median_parent_cpu_ms": 166.493,
+            "maximum_shared_host_peak_rss_kib": 178984
+          }
+        }
+      },
+      "pdf-photo.webp-cold": {
+        "measurements": {
+          "rust": {
+            "n": 8,
+            "p50_ms": 68.40504999999999,
+            "p95_ms": 78.5565,
+            "mean_ms": 68.80205,
+            "min_ms": 57.2425,
+            "max_ms": 78.5565,
+            "stddev_ms": 7.0005630740880935,
+            "sequential_images_per_second": 14.534450645002584
+          },
+          "imagesharp": {
+            "n": 8,
+            "p50_ms": 327.75445,
+            "p95_ms": 349.0141,
+            "mean_ms": 327.020175,
+            "min_ms": 303.2855,
+            "max_ms": 349.0141,
+            "stddev_ms": 22.305051673860145,
+            "sequential_images_per_second": 3.0579153105767864
+          }
+        },
+        "ratios": {
+          "p50_ratio": 0.20870822653971588,
+          "p95_ratio": 0.22508116434264405,
+          "throughput_ratio": 4.753058593457608
+        },
+        "original_gate_pass": true,
+        "sessions": {},
+        "parent_resources": {
+          "rust": {
+            "median_parent_cpu_ms": 36.900499999999994,
+            "maximum_shared_host_peak_rss_kib": 181056
+          },
+          "imagesharp": {
+            "median_parent_cpu_ms": 342.4935,
+            "maximum_shared_host_peak_rss_kib": 182776
+          }
+        }
+      },
+      "pdf-large-vilaplana.jpg-cold": {
+        "measurements": {
+          "rust": {
+            "n": 8,
+            "p50_ms": 129.4246,
+            "p95_ms": 149.2778,
+            "mean_ms": 132.6336625,
+            "min_ms": 120.3225,
+            "max_ms": 149.2778,
+            "stddev_ms": 9.789460914814393,
+            "sequential_images_per_second": 7.53956409821677
+          },
+          "imagesharp": {
+            "n": 8,
+            "p50_ms": 757.1139499999999,
+            "p95_ms": 797.1917,
+            "mean_ms": 755.9085,
+            "min_ms": 710.1322,
+            "max_ms": 797.1917,
+            "stddev_ms": 28.73640543998897,
+            "sequential_images_per_second": 1.3229114370323922
+          }
+        },
+        "ratios": {
+          "p50_ratio": 0.17094467748216766,
+          "p95_ratio": 0.1872545838096408,
+          "throughput_ratio": 5.699220588136891
+        },
+        "original_gate_pass": true,
+        "sessions": {},
+        "parent_resources": {
+          "rust": {
+            "median_parent_cpu_ms": 51.683,
+            "maximum_shared_host_peak_rss_kib": 216752
+          },
+          "imagesharp": {
+            "median_parent_cpu_ms": 926.947,
+            "maximum_shared_host_peak_rss_kib": 218340
+          }
+        }
+      },
+      "pdf-large-vilaplana.webp-cold": {
+        "measurements": {
+          "rust": {
+            "n": 8,
+            "p50_ms": 262.71915,
+            "p95_ms": 295.0989,
+            "mean_ms": 266.5663,
+            "min_ms": 237.6716,
+            "max_ms": 295.0989,
+            "stddev_ms": 19.26973608441115,
+            "sequential_images_per_second": 3.7514119376680397
+          },
+          "imagesharp": {
+            "n": 8,
+            "p50_ms": 726.4557,
+            "p95_ms": 863.7967,
+            "mean_ms": 744.8709125,
+            "min_ms": 685.968,
+            "max_ms": 863.7967,
+            "stddev_ms": 57.17808112401209,
+            "sequential_images_per_second": 1.3425144991146367
+          }
+        },
+        "ratios": {
+          "p50_ratio": 0.3616451078847616,
+          "p95_ratio": 0.34163003864219443,
+          "throughput_ratio": 2.7943176331741864
+        },
+        "original_gate_pass": true,
+        "sessions": {},
+        "parent_resources": {
+          "rust": {
+            "median_parent_cpu_ms": 119.185,
+            "maximum_shared_host_peak_rss_kib": 329628
+          },
+          "imagesharp": {
+            "median_parent_cpu_ms": 884.637,
+            "maximum_shared_host_peak_rss_kib": 333112
+          }
+        }
+      }
+    },
+    "passed_cells": 15,
+    "total_cells": 16
+  },
+  "resources": {
+    "method": "Separate direct-child probes: 3 warmups, 6 samples per cell using retained diagnose.py; shared managed host RSS is not attributable per backend. Neither is an aggregate four-child RSS bound.",
+    "cells": {
+      "web-photo.jpg": {
+        "child_sample_count": 6,
+        "child_cpu_p50_ms": 31.246000000000002,
+        "maximum_sampled_child_hwm_kib": 17264,
+        "output_bytes_rust": 498699,
+        "output_bytes_imagesharp": 498696,
+        "paired_parent_cpu_p50_ms": 31.0995,
+        "maximum_shared_host_peak_rss_kib": 219364
+      },
+      "web-photo.webp": {
+        "child_sample_count": 6,
+        "child_cpu_p50_ms": 48.2555,
+        "maximum_sampled_child_hwm_kib": 17700,
+        "output_bytes_rust": 501268,
+        "output_bytes_imagesharp": 498676,
+        "paired_parent_cpu_p50_ms": 74.196,
+        "maximum_shared_host_peak_rss_kib": 236448
+      },
+      "web-large-vilaplana.jpg": {
+        "child_sample_count": 6,
+        "child_cpu_p50_ms": 168.193,
+        "maximum_sampled_child_hwm_kib": 72416,
+        "output_bytes_rust": 795809,
+        "output_bytes_imagesharp": 901972,
+        "paired_parent_cpu_p50_ms": 228.2905,
+        "maximum_shared_host_peak_rss_kib": 291616
+      },
+      "web-large-vilaplana.webp": {
+        "child_sample_count": 6,
+        "child_cpu_p50_ms": 300.6695000000001,
+        "maximum_sampled_child_hwm_kib": 96860,
+        "output_bytes_rust": 795809,
+        "output_bytes_imagesharp": 790077,
+        "paired_parent_cpu_p50_ms": 489.1995,
+        "maximum_shared_host_peak_rss_kib": 436932
+      },
+      "pdf-photo.jpg": {
+        "child_sample_count": 6,
+        "child_cpu_p50_ms": 24.26049999999999,
+        "maximum_sampled_child_hwm_kib": 14500,
+        "output_bytes_rust": 43354,
+        "output_bytes_imagesharp": 43327,
+        "paired_parent_cpu_p50_ms": 43.7885,
+        "maximum_shared_host_peak_rss_kib": 200620
+      },
+      "pdf-photo.webp": {
+        "child_sample_count": 6,
+        "child_cpu_p50_ms": 44.683,
+        "maximum_sampled_child_hwm_kib": 12080,
+        "output_bytes_rust": 43327,
+        "output_bytes_imagesharp": 42685,
+        "paired_parent_cpu_p50_ms": 61.696,
+        "maximum_shared_host_peak_rss_kib": 225412
+      },
+      "pdf-large-vilaplana.jpg": {
+        "child_sample_count": 6,
+        "child_cpu_p50_ms": 129.2465,
+        "maximum_sampled_child_hwm_kib": 67412,
+        "output_bytes_rust": 66468,
+        "output_bytes_imagesharp": 105154,
+        "paired_parent_cpu_p50_ms": 144.153,
+        "maximum_shared_host_peak_rss_kib": 251476
+      },
+      "pdf-large-vilaplana.webp": {
+        "child_sample_count": 6,
+        "child_cpu_p50_ms": 263.20500000000004,
+        "maximum_sampled_child_hwm_kib": 96856,
+        "output_bytes_rust": 66468,
+        "output_bytes_imagesharp": 66593,
+        "paired_parent_cpu_p50_ms": 422.4565,
+        "maximum_shared_host_peak_rss_kib": 402472
+      }
+    }
+  },
+  "fidelity_summary": {
+    "display_psnr_db_range": [
+      38.817181818708946,
+      46.74048452912651
+    ],
+    "all_eight_previous_decoded_pixel_comparisons_equal": true,
+    "all_eight_previous_icc_equal_except_generated_creation_time": true
+  },
+  "cgroup": {
+    "memory.peak": "451215360\n",
+    "memory.max": "3221225472\n",
+    "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\n",
+    "cpu.stat": "usage_usec 570364375\nuser_usec 519141766\nsystem_usec 51222609\nnice_usec 0\nnr_periods 4760\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0\n",
+    "pids.max": "192\n"
+  },
+  "validation": {
+    "captured_at_utc": "2026-10-15T09:51:52.395937+00:00",
+    "xunit": {
+      "passed": 74,
+      "failed": 0,
+      "skipped": 0,
+      "filter": "FullyQualifiedName~ImageHelperPrototypeTests|FullyQualifiedName~ImageHelperPngCompletionTests",
+      "artifact_sha256": "9ae71918e83017fc477332b8b346628436472b3e05c23fe09ce45b8c3efa7673",
+      "trx_sha256": "1b2c1379290e128f99f8912ee48dd18469eef77f187c1340793f74cd92f5b7bf"
+    },
+    "rust": {
+      "passed": 6,
+      "failed": 0,
+      "features": [
+        "default",
+        "codec-bench"
+      ],
+      "target_dir": "target-checks",
+      "test_log_sha256": "3945ee699b9b8de7f2b8e323adc77ecf964525a343af2360b2b0b4aed1ca031e",
+      "note": "Checks did not rebuild the target-default-only executable."
+    },
+    "fmt": "PASS",
+    "clippy": "PASS release all-targets all-features -D warnings",
+    "dotnet_build": {
+      "status": "PASS",
+      "warnings": 70,
+      "errors": 0,
+      "note": "Existing dependency advisories and analyzer warnings retained; comparator pins unchanged."
+    },
+    "runtime_source_commit": "ed6be50595f06d44e0d85ff00738eaed656d23ce",
+    "supervisor_assembly_sha256": "1271e04af901b7b246765252375e53857213781910e3398b3e4d8822762c6f69",
+    "test_assembly_sha256": "c6c27ac3fbd24dfebab08a9b8035de872e487b48fefe64f14664120395e2cb66"
+  }
+}
