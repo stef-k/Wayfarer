@@ -1,0 +1,113 @@
+{
+  "status": "BLOCKED",
+  "date": "2026-10-15",
+  "authorization": "https://github.com/stef-k/Wayfarer/issues/858#issuecomment-6194604503",
+  "starting_commit": "a67267660fc958bb019557c400ca5fa06d9d1852",
+  "local_branch": "fix/858-webp-security-20261015",
+  "candidate": {
+    "crate": "libwebp-sys",
+    "version": "0.14.4",
+    "yanked": false,
+    "registry_url": "https://crates.io/api/v1/crates/libwebp-sys/0.14.4",
+    "archive_url": "https://static.crates.io/crates/libwebp-sys/libwebp-sys-0.14.4.crate",
+    "archive_sha256": "6b3a87b44e34d17161e4f17d92a463d596cb13825dcd1758ed18fd3a721e189c",
+    "archive_file_count": 209,
+    "declared_wrapper_license": "MIT",
+    "wrapper_commit": "3a40281fd97537b693174acb7375d64d3b471a56",
+    "vendor_commit": "4fa21912338357f89e4fd51cf2368325b59e9bd9",
+    "vendor_date": "2025-07-08T00:20:00Z",
+    "vendor_version": "1.6.0",
+    "wrapper_files_matching_declared_source": 6,
+    "vendor_files_matching_declared_source": 200,
+    "source_mismatches": 0,
+    "selected_file_sha256": [
+      {
+        "path": "Cargo.toml.orig",
+        "sha256": "53dc1c7f36fa009b29a75294709df3606aa712f6432990a06cae90496d4de063"
+      },
+      {
+        "path": "README.md",
+        "sha256": "2ce0be0e66952d7e82d97e2a1df30c74a455fe86b0dd41a9ebbf5a0238ce2bfb"
+      },
+      {
+        "path": "src/lib.rs",
+        "sha256": "dbdb515acfad9695d57d5a2d0cb2de34112bc092fdc99c51c89de839c2cb4428"
+      },
+      {
+        "path": "src/ffi.rs",
+        "sha256": "5d5a828a9fa96db8a83a2875aa09e30bcf27d1eef070d73fa5813f0b21301567"
+      },
+      {
+        "path": "build.rs",
+        "sha256": "7b63516e116efe10e9c496454381c69678039039094f5f71204902c2a8084676"
+      },
+      {
+        "path": "wrap.h",
+        "sha256": "83336888cae8cade1c95b77a64d06e930630dbfc0fa917f6b973de4706d3d439"
+      },
+      {
+        "path": "vendor/src/dec/common_dec.h",
+        "sha256": "89eb36f74a027e5e40176ba73d8e1e95e62803cb3de97bd798922079f412a2f6"
+      },
+      {
+        "path": "vendor/src/dec/vp8l_dec.c",
+        "sha256": "49e4aec24d95d70df3c53e9ae53d5f3bc5646012d9f1d0968a5f88936f310653"
+      },
+      {
+        "path": "vendor/src/utils/huffman_utils.c",
+        "sha256": "15c1d89d7567c2121bae05ce8dea6deba160945dd398bc6d6b9a88b40ba523eb"
+      },
+      {
+        "path": "vendor/COPYING",
+        "sha256": "5aec868f669e384a22372a4e8a1a6cd7d44c64cd451f960ca69cc170d1e13acf"
+      },
+      {
+        "path": "vendor/PATENTS",
+        "sha256": "cc3273e0694ea5896145e0677699b53471b03ea43021ddc50e7923fbb9f5023c"
+      }
+    ]
+  },
+  "security": [
+    {
+      "upstream_commit": "0b56dedc98cb0367a2c375651ff7820a16bee9cc",
+      "status": "PRESENT",
+      "evidence": "src/utils/huffman_utils.c:127 checks offset[symbol_code_length] before the write at line 130."
+    },
+    {
+      "upstream_commit": "5755839a4772de6123628bb0c61996d7c42a0454",
+      "status": "ABSENT_BLOCKING",
+      "upstream_date": "2026-03-24T09:38:24Z",
+      "evidence": "src/dec/vp8l_dec.c:483 still initially allocates num_htree_groups * table_size. MAX_HUFF_IMAGE_SIZE and total_huffman_table_size are absent from this decoder/header. No new CVE or exploit is asserted."
+    }
+  ],
+  "licensing": {
+    "status": "BLOCKED",
+    "package_notice_paths": [
+      "vendor/COPYING",
+      "vendor/PATENTS"
+    ],
+    "exact_wrapper_tree_notice_paths": [],
+    "wrapper_source_notice_scan": {
+      "files": [
+        "src/lib.rs",
+        "src/ffi.rs",
+        "build.rs",
+        "wrap.h",
+        "README.md",
+        "Cargo.toml.orig"
+      ],
+      "only_match": "Cargo.toml.orig:10:license = \"MIT\""
+    },
+    "reason": "No authoritative wrapper copyright/permission notice was found in the published package, its exact upstream tree or README/source headers. Bundled C COPYING/PATENTS do not supply the missing Rust-wrapper notice. The authorization explicitly disallows relying on the MIT metadata alone or inventing a notice."
+  },
+  "action": {
+    "runtime_and_lockfile_edits": false,
+    "corrected_artifact_built": false,
+    "runtime_tests_or_benchmarks_run": false,
+    "reason": "Stopped at the required source/security and licensing gates before implementation or runtime qualification.",
+    "published": false,
+    "publish_condition": "The authorization permits a push only if the correction passes.",
+    "raw_local_evidence": "/home/stef/wayfarer-research/858-webp-correction-20261015/evidence",
+    "preserved": "All pre-existing tracked files, including source, lockfile, notices, fixtures and reports, remain byte-identical to the starting commit."
+  }
+}
