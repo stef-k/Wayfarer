@@ -1,4 +1,4 @@
-//! Linux x64 prototype executable. No source metadata or logging is written to stdout.
+//! Linux AMD64/AArch64 prototype. No source metadata or logging is written to stdout.
 use std::io::{Read, Write};
 use wayfarer_image::{Failure, OutputFormat, Recipe};
 
@@ -113,7 +113,10 @@ fn number<T: std::str::FromStr>(value: &str) -> Result<T, Failure> {
 }
 
 /// prlimit must execute us with finite inherited limits, followed by race-checked parent death.
-#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+#[cfg(all(
+    target_os = "linux",
+    any(target_arch = "x86_64", target_arch = "aarch64")
+))]
 fn controls() -> Result<(), Failure> {
     let expected: libc::pid_t = std::env::var("WAYFARER_IMAGE_PARENT_PID")
         .ok()
@@ -153,7 +156,10 @@ fn controls() -> Result<(), Failure> {
 }
 
 /// Other platform launch controls require a later, separately qualified implementation.
-#[cfg(not(all(target_os = "linux", target_arch = "x86_64")))]
+#[cfg(not(all(
+    target_os = "linux",
+    any(target_arch = "x86_64", target_arch = "aarch64")
+)))]
 fn controls() -> Result<(), Failure> {
     Err(Failure::Unavailable)
 }

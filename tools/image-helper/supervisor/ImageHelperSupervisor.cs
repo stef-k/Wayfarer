@@ -20,7 +20,7 @@ public sealed class ImageHelperSupervisor
         this.helperPath = helperPath;
     }
 
-    /// <summary>Borrow input until completion; cancellation completes only after child cleanup.</summary>
+    /// <summary>Borrow input on Linux AMD64/ARM64; cancellation completes only after child cleanup.</summary>
     public Task<ImageTransformResult> TransformAsync(
         ReadOnlyMemory<byte> input,
         ImageTransform recipe,
@@ -28,7 +28,7 @@ public sealed class ImageHelperSupervisor
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (!OperatingSystem.IsLinux() || RuntimeInformation.ProcessArchitecture != Architecture.X64
+        if (!OperatingSystem.IsLinux() || RuntimeInformation.ProcessArchitecture is not (Architecture.X64 or Architecture.Arm64)
             || !Valid(recipe) || remainingOriginBudget <= TimeSpan.Zero
             || Volatile.Read(ref admissionDisabled) != 0)
             return Task.FromResult(new ImageTransformResult(ImageTransformStatus.Unavailable));
