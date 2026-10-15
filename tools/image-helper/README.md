@@ -51,7 +51,9 @@ C# additionally checks canonical JPEG/PNG boundaries and complete successful exi
 
 Web defaults are 2048x2048 / quality 90; PDF remains explicit width 600 / quality 85.
 An explicit single axis leaves the other at 8192; explicit dimensions/quality win
-within the mandatory ceilings. The existing SHA-256 key formula and byte-derived
+within the mandatory ceilings. Larger positive bounds resolve to 8192 because no
+admitted source can exceed that axis; nonpositive bounds and invalid JPEG quality
+retain the Failed/404 path. PNG/GIF continue to ignore JPEG quality. The existing SHA-256 key formula and byte-derived
 `raster-v1` ETag remain. Null quality now resolves to 90 in both key normalization
 and encoding, so it aliases explicit 90 and does not collide with explicit 95.
 Previously stored keys are never migrated or declared trusted.

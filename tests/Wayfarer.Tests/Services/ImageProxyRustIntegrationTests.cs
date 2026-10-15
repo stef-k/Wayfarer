@@ -18,6 +18,25 @@ namespace Wayfarer.Tests.Services;
 [Collection(ImageProxyStaticStateTestCollection.Name)]
 public sealed class ImageProxyRustIntegrationTests(ITestOutputHelper output) : IDisposable
 {
+    /// <summary>Caller bounds retain no-upscale semantics; invalid JPEG recipes remain source failures.</summary>
+    [Theory]
+    [InlineData("jpeg", 100000, null, 90, ImageProxyResultStatus.Fetched)]
+    [InlineData("jpeg", -1, null, 90, ImageProxyResultStatus.Failed)]
+    [InlineData("jpeg", null, 0, 90, ImageProxyResultStatus.Failed)]
+    [InlineData("jpeg", null, null, 0, ImageProxyResultStatus.Failed)]
+    [InlineData("jpeg", null, null, 101, ImageProxyResultStatus.Failed)]
+    [InlineData("png", null, null, 0, ImageProxyResultStatus.Fetched)]
+    [InlineData("gif", null, null, 101, ImageProxyResultStatus.Fetched)]
+    public async Task CallerOverrides_PreserveBoundsAndFailureClassification(string format,
+        int? width, int? height, int quality, ImageProxyResultStatus expected)
+    {
+        using var origin = new Origin(ImageProxyTestFactory.Raster(format));
+        var result = await Service(origin, Cache()).GetOrFetchAsync(
+            new("https://example.com/overrides.image", width, height, quality), true);
+        Assert.Equal(expected, result.Status);
+        Assert.Equal(expected == ImageProxyResultStatus.Fetched, result.HasBytes);
+    }
+
     /// <summary>The retained exact 236-byte counterexample cannot be served, cached or trusted on rollback.</summary>
     [Theory]
     [InlineData(true)]

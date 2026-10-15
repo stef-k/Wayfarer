@@ -31,9 +31,9 @@ No native WebP package is selected. ELF symbols contain the Rust WebP reader and
 | Locked Release helper build; Rust format check | PASS |
 | Rust Release product tests | 5 passed |
 | Release all-target Clippy, warnings denied | PASS |
-| Focused image/supervisor/service/HTTP tests | 229 passed; 0 failed/skipped |
+| Focused image/supervisor/service/HTTP tests | 236 passed; 0 failed/skipped |
 | Separate HTTP/cache storage/cancellation selection | 71 passed; 0 failed/skipped |
-| Service integration, including final 20-request burst | 7 passed |
+| Service integration, including caller overrides and final 20-request burst | 14 passed |
 | CI scope classifier | 39 passed |
 | Native Linux AMD64 `dotnet publish` | PASS; executable and notices bundled |
 | Published dependency graph | ImageSharp absent |
@@ -44,6 +44,11 @@ The exact 236-byte VP8L control has SHA-256
 It returns helper exit 4, supervisor Failed, no bytes and no live/zombie child.
 The service refuses it as an origin source in both optimize modes and treats
 fresh/stale legacy copies as unusable cache misses without publication.
+
+Seven caller-recipe regressions were first reproduced as Unavailable/503. The
+bounded correction restores success for large positive no-upscale bounds, the
+Failed/404 path for nonpositive bounds and invalid JPEG quality, and PNG/GIF
+indifference to JPEG quality. These cases run through the real service/supervisor.
 
 Other focused controls cover source/output caps, pipe overflow, AS/CPU limits,
 timeout/cancellation/reap, all JPEG/PNG orientation geometries, ICC/CMYK/gamma,
@@ -100,6 +105,16 @@ Local AMD64 results do not qualify ARM64 or Windows.
 
 Production merge remains blocked on an official published WebP crate containing
 the qualified fix and a maintainer decision about native Windows (use WSL2 now).
+The first hosted run passed the main test job, native ARM64 helper/supervisor
+(202 cases), native ARM64 Docker/lifecycle and AMD64 Docker/Compose substrate.
+Its later AMD64 host probe build failed because NASM was not provisioned for the
+new transitive application dependency. The corrected workflow provisions the native
+build prerequisites there too; final exact-head CI must rerun rather than borrowing
+the earlier green jobs as a complete gate.
+
+The product correction changes only C# caller-recipe resolution; Rust sources/artifact,
+ordinary valid recipes and the retained finite-resource observations are unchanged.
+
 Fresh independent exact-head review, successful `ci-gate` and final maintainer
 acceptance remain required. The local helper artifact is
 `a8aad54ac49623138126c1d19bf036fcfab27276fee033bfe835768e594e0005` (SHA-256),

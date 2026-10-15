@@ -242,6 +242,13 @@ jobs:
         if: needs.classify.outputs.run_operator == 'true'
         with:
           dotnet-version: '10.0.x'
+      # Recovery-source probes reference Wayfarer and therefore build its native helper on this host too.
+      - name: Prepare native helper for qualification probes
+        if: needs.classify.outputs.run_operator == 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake nasm pkg-config
+          rustup toolchain install 1.90.0 --profile minimal
       - name: Release tooling tests
         if: needs.classify.outputs.run_release_tooling == 'true'
         run: |

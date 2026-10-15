@@ -9,8 +9,9 @@ public sealed record ImageTransform
         string OutputFormat = "auto", int MaximumInputBytes = 50 * 1024 * 1024,
         int MaximumOutputBytes = 50 * 1024 * 1024)
     {
-        this.Width = Width ?? (Height.HasValue ? 8192 : 2048);
-        this.Height = Height ?? (Width.HasValue ? 8192 : 2048);
+        // Sources are already bounded to 8192: larger caller bounds are equivalent and must still succeed.
+        this.Width = Math.Min(Width ?? (Height.HasValue ? 8192 : 2048), 8192);
+        this.Height = Math.Min(Height ?? (Width.HasValue ? 8192 : 2048), 8192);
         this.Quality = Quality ?? 90;
         this.OutputFormat = OutputFormat;
         this.MaximumInputBytes = MaximumInputBytes;

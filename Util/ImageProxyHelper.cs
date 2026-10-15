@@ -97,6 +97,18 @@ public static class ImageProxyHelper
         int? maxWidth, int? maxHeight, int quality, CancellationToken ct = default)
     {
         RejectPreflight(imageBytes);
+        // Invalid caller recipes follow the established source-failure HTTP path, not infrastructure 503.
+        if (maxWidth is <= 0 || maxHeight is <= 0)
+            throw new ArgumentOutOfRangeException(nameof(maxWidth), "Image bounds must be positive.");
+        if (quality is < 1 or > 100)
+        {
+            // The established lossless PNG/GIF route ignores JPEG quality altogether.
+            var bytes = imageBytes.AsSpan();
+            if (!bytes.StartsWith(PngFrameAuthority.PngSignature)
+                && !bytes.StartsWith("GIF87a"u8) && !bytes.StartsWith("GIF89a"u8))
+                throw new ArgumentOutOfRangeException(nameof(quality));
+            quality = 90;
+        }
         var result = await Supervisor.TransformAsync(imageBytes,
             new ImageTransform(maxWidth, maxHeight, quality), TimeSpan.FromSeconds(30), ct);
         RequireSuccess(result);
@@ -162,7 +174,7 @@ public static class ImageProxyHelper
 /// <summary>Scans bounded PNG chunks only far enough to reject declared animation before decode.</summary>
 internal static class PngFrameAuthority
 {
-    private static ReadOnlySpan<byte> PngSignature => [137, 80, 78, 71, 13, 10, 26, 10];
+    internal static ReadOnlySpan<byte> PngSignature => [137, 80, 78, 71, 13, 10, 26, 10];
 
     public static PngAuthorityResult Inspect(ReadOnlySpan<byte> bytes)
     {
