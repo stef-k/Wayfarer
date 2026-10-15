@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 using System.Xml.Linq;
 using System.Xml;
@@ -72,7 +74,7 @@ public sealed class GpxLocationParser : ILocationDataParser
             var localTimestampRaw = GetExtensionValue(extensions, "localTimestamp");
             var timeZoneId = GetExtensionValue(extensions, "timeZoneId");
             var activityName = GetExtensionValue(extensions, "activity");
-            var locationType = GetExtensionValue(extensions, "locationType");
+            var locationType = ReadLocationType(trkpt, gpxNamespace);
             var accuracy = ParseNullableDouble(GetExtensionValue(extensions, "accuracy"));
             var speed = ParseNullableDouble(GetExtensionValue(extensions, "speed"));
             var address = GetExtensionValue(extensions, "address");
@@ -151,6 +153,34 @@ public sealed class GpxLocationParser : ILocationDataParser
             };
 
             yield return location;
+        }
+    }
+
+    /// <summary>Restores the optional XML-incompatible type, rejecting duplicate, conflicting or malformed fallback fields.</summary>
+    private static string? ReadLocationType(XElement trkpt, XNamespace ns)
+    {
+        var extensions = trkpt.Elements(ns + "extensions").ToArray();
+        var encoded = extensions.SelectMany(element => element.Elements())
+            .Where(element => element.Name.Namespace == WayfarerNamespace && string.Equals(
+                element.Name.LocalName, "locationTypeUtf8Base64V1", StringComparison.OrdinalIgnoreCase)).ToArray();
+        if (encoded.Length == 0) return GetExtensionValue(extensions.FirstOrDefault(), "locationType");
+        if (encoded.Length != 1 || extensions.Any(element => GetExtensionValue(element, "locationType") is not null))
+            throw new FormatException("GPX LocationType has duplicate fallback fields or conflicting ordinary and encoded fields.");
+        if (encoded[0].HasElements)
+            throw new FormatException("GPX locationTypeUtf8Base64V1 must contain only Base64 text.");
+
+        try
+        {
+            var value = encoded[0].Value;
+            var bytes = Convert.FromBase64String(value);
+            // Canonical RFC 4648 text excludes whitespace, missing padding and nonzero unused padding bits.
+            if (bytes.Length == 0 || Convert.ToBase64String(bytes) != value)
+                throw new FormatException("Nonempty canonical Base64 is required.");
+            return new UTF8Encoding(false, true).GetString(bytes);
+        }
+        catch (Exception exception) when (exception is FormatException or DecoderFallbackException)
+        {
+            throw new FormatException("GPX locationTypeUtf8Base64V1 must contain nonempty canonical Base64 with valid UTF-8.", exception);
         }
     }
 

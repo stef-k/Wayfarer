@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Security.Claims;
 using System.Text;
+using System.Xml.Linq;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using NetTopologySuite.Geometries;
@@ -30,7 +31,8 @@ public class LocationExportControllerTests : TestBase
     public async Task LocationType_RoundTripsOptionalValuesAndFieldOnlyRecords(LocationImportFileType format)
     {
         using var db = CreateDbContext();
-        string?[] values = [null, string.Empty, " \t ", " MiXeD, <&> \"\t\u00a0 "];
+        string?[] values = [null, string.Empty, " \t\r\n ", " MiXeD, <&> \"\t\u00a0\r ",
+            "Manual", "locationTypeUtf8Base64V1:AA==", "WayfarerLocationTypeUtf8Base64V1", "🚀"];
         for (var i = 0; i < values.Length; i++)
             db.Locations.Add(new Location
             {
@@ -48,11 +50,44 @@ public class LocationExportControllerTests : TestBase
             _ => await controller.Kml()
         });
         await using var stream = file.FileStream;
+        if (format is LocationImportFileType.Gpx or LocationImportFileType.Kml)
+        {
+            // Ordinary XML-compatible text keeps its existing field and never acquires an encoding marker.
+            var xml = XDocument.Load(stream, LoadOptions.PreserveWhitespace);
+            XNamespace ns = format == LocationImportFileType.Gpx
+                ? "http://www.topografix.com/GPX/1/1" : "http://www.opengis.net/kml/2.2";
+            XNamespace wf = "https://wayfarer.app/schemas/gpx";
+            var fields = format == LocationImportFileType.Gpx ? xml.Descendants(wf + "locationType")
+                : xml.Descendants(ns + "Data").Where(element => (string?)element.Attribute("name") == "LocationType");
+            Assert.Equal(values.Skip(2), fields.Select(element => format == LocationImportFileType.Gpx
+                ? element.Value : element.Element(ns + "value")!.Value));
+            Assert.Empty(xml.Descendants(wf + "locationTypeUtf8Base64V1"));
+            Assert.DoesNotContain(xml.Descendants(ns + "Data"),
+                element => (string?)element.Attribute("name") == "WayfarerLocationTypeUtf8Base64V1");
+            stream.Position = 0;
+        }
         var parser = new LocationDataParserFactory(NullLoggerFactory.Instance).GetParser(format);
         var parsed = await parser.ParseAsync(stream, "destination");
 
-        Assert.Equal(new string?[] { null, null, values[2], values[3] }, parsed.Select(row => row.LocationType));
+        Assert.Equal(values.Select(value => string.IsNullOrEmpty(value) ? null : value), parsed.Select(row => row.LocationType));
         Assert.All(parsed, row => Assert.Null(row.ImportedActivityName));
+    }
+
+    /// <summary>Invalid UTF-16 cannot silently become replacement characters in the UTF-8 fallback.</summary>
+    [Theory]
+    [InlineData(LocationImportFileType.Gpx)]
+    [InlineData(LocationImportFileType.Kml)]
+    public async Task XmlLocationType_RejectsInvalidUnicodeInsteadOfReplacingIt(LocationImportFileType format)
+    {
+        using var db = CreateDbContext();
+        var location = CreateLocation("u1", "Synthetic");
+        location.LocationType = "\ud800";
+        db.Locations.Add(location);
+        await db.SaveChangesAsync();
+        var controller = BuildController(db, "u1");
+
+        await Assert.ThrowsAsync<EncoderFallbackException>(() => format == LocationImportFileType.Gpx
+            ? controller.Gpx() : controller.Kml());
     }
 
     [Fact]

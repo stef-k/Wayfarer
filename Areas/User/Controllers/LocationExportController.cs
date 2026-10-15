@@ -253,7 +253,9 @@ public class LocationExportController : Controller
                     WriteGpxExtension(xw, "accuracy", loc.Accuracy?.ToString(CultureInfo.InvariantCulture));
                     WriteGpxExtension(xw, "speed", loc.Speed?.ToString(CultureInfo.InvariantCulture));
                     WriteGpxExtension(xw, "activity", loc.ActivityType?.Name);
-                    WriteGpxExtension(xw, "locationType", loc.LocationType, preserveWhitespace: true);
+                    var (locationType, encoded) = GetXmlLocationType(loc.LocationType);
+                    WriteGpxExtension(xw, encoded ? "locationTypeUtf8Base64V1" : "locationType",
+                        locationType, preserveWhitespace: true);
                     WriteGpxExtension(xw, "address", loc.Address);
                     WriteGpxExtension(xw, "fullAddress", loc.FullAddress);
                     WriteGpxExtension(xw, "addressNumber", loc.AddressNumber);
@@ -349,7 +351,9 @@ public class LocationExportController : Controller
                 WriteKmlData(xw, "Altitude", loc.Altitude?.ToString(CultureInfo.InvariantCulture));
                 WriteKmlData(xw, "Speed", loc.Speed?.ToString(CultureInfo.InvariantCulture));
                 WriteKmlData(xw, "Activity", loc.ActivityType?.Name);
-                WriteKmlData(xw, "LocationType", loc.LocationType, preserveWhitespace: true);
+                var (locationType, encoded) = GetXmlLocationType(loc.LocationType);
+                WriteKmlData(xw, encoded ? "WayfarerLocationTypeUtf8Base64V1" : "LocationType",
+                    locationType, preserveWhitespace: true);
                 WriteKmlData(xw, "Address", loc.Address);
                 WriteKmlData(xw, "FullAddress", loc.FullAddress);
                 WriteKmlData(xw, "AddressNumber", loc.AddressNumber);
@@ -394,6 +398,21 @@ public class LocationExportController : Controller
 
         ms.Position = 0; // Rewind the stream
         return File(ms, "application/vnd.google-earth.kml+xml", $"{GenerateTitle()}.kml");
+    }
+
+    /// <summary>Uses the versioned fallback only for XML 1.0-incompatible types; invalid Unicode fails strict UTF-8 encoding.</summary>
+    private static (string? Value, bool Encoded) GetXmlLocationType(string? value)
+    {
+        if (string.IsNullOrEmpty(value)) return (value, false);
+        try
+        {
+            XmlConvert.VerifyXmlChars(value);
+            return (value, false);
+        }
+        catch (XmlException)
+        {
+            return (Convert.ToBase64String(new UTF8Encoding(false, true).GetBytes(value)), true);
+        }
     }
 
     private string GenerateTitle()

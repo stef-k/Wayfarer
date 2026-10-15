@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
+using System.Xml.Linq;
 using CsvHelper;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -22,6 +23,64 @@ namespace Wayfarer.Tests.Controllers;
 public sealed class LocationExportRoundTripPostgresTests(PostgresImportTestFixture fixture) : TestBase, IAsyncLifetime
 {
     private readonly string activityPrefix = $"export-activity-{Guid.NewGuid():N}-";
+
+    /// <summary>GeoJSON intake persists the review reproductions, then fresh XML exports recover exact types and metadata.</summary>
+    [PostgresTheory]
+    [InlineData(LocationImportFileType.Gpx)]
+    [InlineData(LocationImportFileType.Kml)]
+    public async Task XmlIncompatibleLocationType_PersistsAndRoundTrips(LocationImportFileType format)
+    {
+        var owner = await fixture.CreateUserAsync();
+        var destination = await fixture.CreateUserAsync();
+        string[] types = ["\u000b", "Home\u0001", "\rΣπίτι 🚀\ufffe\t"];
+        var input = JsonSerializer.SerializeToUtf8Bytes(new
+        {
+            type = "FeatureCollection",
+            features = types.Select((value, index) => new
+            {
+                type = "Feature", geometry = new { type = "Point", coordinates = new[] { 22.2, 40.1 } },
+                properties = new
+                {
+                    TimestampUtc = DateTime.UnixEpoch.AddHours(index), LocationType = value,
+                    Notes = "<p>Preserved note</p>", DeviceModel = "Synthetic device",
+                    ProviderAddressLine1 = "Provider\r\naddress"
+                }
+            })
+        });
+        var intake = await ImportAsync(owner.Id, LocationImportFileType.WayfarerGeoJson, input);
+        Assert.Equal(types.Length, intake.LastProcessedIndex);
+        await using (var persisted = fixture.CreateContext())
+            Assert.Equal(types, await persisted.Locations.Where(row => row.UserId == owner.Id)
+                .OrderBy(row => row.Timestamp).Select(row => row.LocationType).ToArrayAsync());
+
+        var exported = await ExportAsync(owner.Id, format);
+        using (var xml = new MemoryStream(exported))
+        {
+            var document = XDocument.Load(xml);
+            XNamespace wf = "https://wayfarer.app/schemas/gpx";
+            XNamespace kml = "http://www.opengis.net/kml/2.2";
+            var fields = format == LocationImportFileType.Gpx ? document.Descendants(wf + "locationTypeUtf8Base64V1")
+                : document.Descendants(kml + "Data").Where(element => (string?)element.Attribute("name") == "WayfarerLocationTypeUtf8Base64V1");
+            Assert.Equal(new[] { "Cw==", "SG9tZQE=", "Dc6jz4DOr8+Ezrkg8J+agO+/vgk=" }, fields.Select(element => element.Value));
+            Assert.Empty(document.Descendants(wf + "locationType"));
+            Assert.DoesNotContain(document.Descendants(kml + "Data"), element => (string?)element.Attribute("name") == "LocationType");
+        }
+        var recovered = await ParseAsync(destination.Id, format, exported);
+        Assert.Equal(types, recovered.Select(row => row.LocationType));
+        Assert.All(recovered, row =>
+        {
+            Assert.Equal("<p>Preserved note</p>", row.Notes);
+            Assert.Equal("Synthetic device", row.DeviceModel);
+            Assert.Equal("Provider\r\naddress", row.ProviderAddressLine1);
+            Assert.Null(row.IdempotencyKey);
+        });
+        await ImportAsync(destination.Id, format, exported);
+        await using (var persisted = fixture.CreateContext())
+            Assert.Equal(types, await persisted.Locations.Where(row => row.UserId == destination.Id)
+                .OrderBy(row => row.Timestamp).Select(row => row.LocationType).ToArrayAsync());
+        Assert.Equal(types, (await ParseAsync(destination.Id, format, await ExportAsync(destination.Id, format)))
+            .Select(row => row.LocationType));
+    }
 
     /// <summary>Fresh exports and destination imports retain names, independent types and metadata across all native formats.</summary>
     [PostgresTheory]

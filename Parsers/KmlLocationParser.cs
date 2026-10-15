@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 using System.Xml.Linq;
 using System.Xml;
@@ -92,7 +93,7 @@ public sealed class KmlLocationParser : ILocationDataParser
                 ReadDataValue(extendedData, namespaceToUse, "ReverseGeocodingStorageMode"),
                 ReadDataValue(extendedData, namespaceToUse, "ReverseGeocodedAt"));
             var activityName = ReadDataValue(extendedData, namespaceToUse, "Activity");
-            var locationType = ReadDataValue(extendedData, namespaceToUse, "LocationType");
+            var locationType = ReadLocationType(placemark, namespaceToUse);
             var notes = ReadDataValue(extendedData, namespaceToUse, "Notes") ?? placemark.Element(namespaceToUse + "description")?.Value;
             // Metadata fields
             var source = ReadDataValue(extendedData, namespaceToUse, "Source");
@@ -158,6 +159,35 @@ public sealed class KmlLocationParser : ILocationDataParser
             };
 
             yield return location;
+        }
+    }
+
+    /// <summary>Restores the optional XML-incompatible type, rejecting ambiguous fields and invalid Base64 or UTF-8.</summary>
+    private static string? ReadLocationType(XElement placemark, XNamespace ns)
+    {
+        var fields = placemark.Elements(ns + "ExtendedData").Elements(ns + "Data").ToArray();
+        var encoded = fields.Where(element => string.Equals((string?)element.Attribute("name"),
+            "WayfarerLocationTypeUtf8Base64V1", StringComparison.OrdinalIgnoreCase)).ToArray();
+        if (encoded.Length == 0) return ReadDataValue(placemark.Element(ns + "ExtendedData"), ns, "LocationType");
+        if (encoded.Length != 1 || fields.Any(element => string.Equals((string?)element.Attribute("name"),
+                "LocationType", StringComparison.OrdinalIgnoreCase)))
+            throw new FormatException("KML LocationType has duplicate fallback fields or conflicting ordinary and encoded fields.");
+        var values = encoded[0].Elements(ns + "value").ToArray();
+        if (values.Length != 1 || values[0].HasElements)
+            throw new FormatException("KML WayfarerLocationTypeUtf8Base64V1 requires exactly one value containing only Base64 text.");
+
+        try
+        {
+            var value = values[0].Value;
+            var bytes = Convert.FromBase64String(value);
+            // Enforce the same canonical RFC 4648 representation written by native exports.
+            if (bytes.Length == 0 || Convert.ToBase64String(bytes) != value)
+                throw new FormatException("Nonempty canonical Base64 is required.");
+            return new UTF8Encoding(false, true).GetString(bytes);
+        }
+        catch (Exception exception) when (exception is FormatException or DecoderFallbackException)
+        {
+            throw new FormatException("KML WayfarerLocationTypeUtf8Base64V1 must contain nonempty canonical Base64 with valid UTF-8.", exception);
         }
     }
 

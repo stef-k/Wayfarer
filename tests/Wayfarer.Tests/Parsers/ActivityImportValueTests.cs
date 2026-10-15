@@ -94,6 +94,70 @@ public sealed class ActivityImportValueTests
         Assert.Null(location.ImportedActivityName);
     }
 
+    /// <summary>Fallback text must be nonempty canonical Base64 and decode with strict UTF-8.</summary>
+    [Theory]
+    [InlineData("")]
+    [InlineData("%%%")]
+    [InlineData("Cw")]
+    [InlineData("Cw===")]
+    [InlineData("Cw== ")]
+    [InlineData("Cx==")]
+    [InlineData("/w==")]
+    [InlineData("wIA=")]
+    [InlineData("7aCA")]
+    public async Task XmlLocationType_RejectsMalformedFallback(string encoded)
+    {
+        await AssertInvalidXmlLocationTypeAsync(
+            $"<extensions><wf:locationTypeUtf8Base64V1>{encoded}</wf:locationTypeUtf8Base64V1></extensions>",
+            $"<ExtendedData><Data name=\"WayfarerLocationTypeUtf8Base64V1\"><value>{encoded}</value></Data></ExtendedData>");
+    }
+
+    /// <summary>Presence, including empty ordinary fields, never gives one representation precedence over another.</summary>
+    [Theory]
+    [InlineData(
+        "<extensions><wf:locationType/><wf:locationTypeUtf8Base64V1>Cw==</wf:locationTypeUtf8Base64V1></extensions>",
+        "<ExtendedData><Data name=\"LocationType\"/><Data name=\"WayfarerLocationTypeUtf8Base64V1\"><value>Cw==</value></Data></ExtendedData>")]
+    [InlineData(
+        "<extensions><wf:locationTypeUtf8Base64V1>Cw==</wf:locationTypeUtf8Base64V1><wf:LOCATIONTYPEUTF8BASE64V1>Cw==</wf:LOCATIONTYPEUTF8BASE64V1></extensions>",
+        "<ExtendedData><Data name=\"WayfarerLocationTypeUtf8Base64V1\"><value>Cw==</value></Data><Data name=\"WAYFARERLOCATIONTYPEUTF8BASE64V1\"><value>Cw==</value></Data></ExtendedData>")]
+    [InlineData(
+        "<extensions><wf:locationTypeUtf8Base64V1>Cw==</wf:locationTypeUtf8Base64V1></extensions><extensions><wf:locationType>Manual</wf:locationType></extensions>",
+        "<ExtendedData><Data name=\"WayfarerLocationTypeUtf8Base64V1\"><value>Cw==</value></Data></ExtendedData><ExtendedData><Data name=\"LocationType\"><value>Manual</value></Data></ExtendedData>")]
+    [InlineData(
+        "<extensions><wf:locationTypeUtf8Base64V1>Cw==</wf:locationTypeUtf8Base64V1></extensions><extensions><wf:locationTypeUtf8Base64V1>SG9tZQE=</wf:locationTypeUtf8Base64V1></extensions>",
+        "<ExtendedData><Data name=\"WayfarerLocationTypeUtf8Base64V1\"><value>Cw==</value></Data></ExtendedData><ExtendedData><Data name=\"WayfarerLocationTypeUtf8Base64V1\"><value>SG9tZQE=</value></Data></ExtendedData>")]
+    [InlineData(
+        "<extensions><wf:locationTypeUtf8Base64V1><wf:part>Cw==</wf:part></wf:locationTypeUtf8Base64V1></extensions>",
+        "<ExtendedData><Data name=\"WayfarerLocationTypeUtf8Base64V1\"><value><part>Cw==</part></value></Data></ExtendedData>")]
+    [InlineData(
+        "<extensions><wf:locationTypeUtf8Base64V1/></extensions>",
+        "<ExtendedData><Data name=\"WayfarerLocationTypeUtf8Base64V1\"/></ExtendedData>")]
+    [InlineData(
+        "<extensions><wf:locationTypeUtf8Base64V1>Cw==</wf:locationTypeUtf8Base64V1><wf:locationType>Manual</wf:locationType></extensions>",
+        "<ExtendedData><Data name=\"WayfarerLocationTypeUtf8Base64V1\"><value>Cw==</value><value>SG9tZQE=</value></Data></ExtendedData>")]
+    public Task XmlLocationType_RejectsAmbiguousFallback(string gpxFields, string kmlFields) =>
+        AssertInvalidXmlLocationTypeAsync(gpxFields, kmlFields);
+
+    /// <summary>Exercises both production subtree readers with the supplied malformed field shapes.</summary>
+    private static async Task AssertInvalidXmlLocationTypeAsync(string gpxFields, string kmlFields)
+    {
+        foreach (var format in new[] { LocationImportFileType.Gpx, LocationImportFileType.Kml })
+        {
+            var payload = format == LocationImportFileType.Gpx ? $"""
+                <gpx xmlns="http://www.topografix.com/GPX/1/1" xmlns:wf="https://wayfarer.app/schemas/gpx"><trk><trkseg>
+                <trkpt lat="40" lon="22"><time>2026-10-01T00:00:00Z</time>{gpxFields}</trkpt>
+                </trkseg></trk></gpx>
+                """ : $"""
+                <kml xmlns="http://www.opengis.net/kml/2.2"><Document><Placemark><name>2026-10-01T00:00:00Z</name>
+                {kmlFields}<Point><coordinates>22,40</coordinates></Point></Placemark></Document></kml>
+                """;
+            using var stream = new MemoryStream(Encoding.UTF8.GetBytes(payload));
+            var parser = new LocationDataParserFactory(NullLoggerFactory.Instance).GetParser(format);
+            var error = await Assert.ThrowsAsync<FormatException>(async () => await parser.ParseAsync(stream, "owner"));
+            Assert.Contains("LocationType", error.Message, StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
     /// <summary>Only the retained properties.Activity determines invalidity, including replacement containers.</summary>
     [Theory]
     [InlineData("""

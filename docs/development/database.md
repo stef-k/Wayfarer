@@ -158,6 +158,10 @@ text. Only missing/null/empty LocationType becomes null; nonempty whitespace is
 significant. XML writers entitize carriage returns and subtree readers retain
 whitespace so native export/import/re-export preserves both fields. GPX/KML stay
 keyless; CSV/GeoJSON retain stored nullable UUIDs and first-writer semantics.
+XML-incompatible LocationType text uses the versioned strict UTF-8/Base64 fallback
+defined in [design §7](activity-reconciliation-design.md#7-native-history-fidelity-and-compatibility);
+ordinary XML-compatible text keeps its existing representation. Both XML parsers
+reject malformed or conflicting fallback fields explicitly.
 This fidelity correction (#814) adds no migration.
 
 ## Quartz is a separate schema responsibility
