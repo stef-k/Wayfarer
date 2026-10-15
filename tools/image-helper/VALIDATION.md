@@ -127,8 +127,81 @@ ordinary recipes and resource ceilings are unchanged; this is a launcher correct
 not an upstream decoder patch or new codec qualification.
 
 Fresh independent exact-head review, successful `ci-gate` and final maintainer
-acceptance remain required. The local helper artifact is
+acceptance remain required. The original integration helper artifact was
 `5ed4228b3b1aa87df680119ed7e4d6379c431909942d6acca2b17ffeeb7d4354` (SHA-256),
 identical to the native published copy. Docker builds independently from the same
 locked sources. Rollback instructions are in [README.md](README.md#validation-and-rollback).
 Raw local logs, binaries and derivatives are excluded from this draft's source.
+
+## Targeted R1/R2 correction — 2026-10-15
+
+Authority: [the bounded correction assignment](https://github.com/stef-k/Wayfarer/pull/869#issuecomment-6200454834),
+starting at `a6c8785695d39cc9bc9de0abde384afd91cbdbb7`.
+The service/helper and container observations below were measured at
+`b2360af203d1bc29de5b0636c1385fbfda24096a`. The subsequent product delta at
+`8378255e60307ba190a38d9931d42afcb3279e65` adds the controller's immediate 503
+return before anonymous origin admission and extends its existing HTTP test.
+That delta does not change codec execution or the resource measurements below.
+The documentation-only receipt carries these observations without implying a rerun.
+
+Local checks: **132 service/supervisor/cache cases passed**, plus **27 HTTP proxy
+cases passed**, with zero failures/skips. The initial red regressions reproduced
+uncapped validation and the silent input ceiling; the separate HTTP regression
+reproduced a second, origin-enabled service call after cache Unavailable.
+Six Rust tests, formatting and warnings-denied all-target Release Clippy passed.
+The real helper SHA-256 is
+`0a7a293b69f1e1cb5e7b0d55bf09e3dc03187fe1c03b255627d763697811f48c`;
+the test payload and retained reviewer probe used that same executable.
+
+Reused the reviewer's real service/supervisor probe and retained CRC-valid
+4000x3000 16-bit RGBA PNG, SHA-256
+`e313964b5187752b66be41e3e6b364a15934cdfceccd5e2966d864608905443a`.
+Each run used UID 1000, read-only/network-disabled native AMD64 SDK containers,
+3 GiB memory with no extra swap, two CPUs and 192 PIDs. Requests used
+`optimize=false` and allowed origin fetch so accidental refetches were observable.
+
+| Concurrent cache hits | FreshHit | Unavailable | Origin requests | Cgroup memory peak, bytes | OOM kills |
+| --- | --- | --- | --- | --- | --- |
+| 20, same key | 8 | 12 | 0 | 1,646,551,040 | 0 |
+| 32, same key | 8 | 24 | 0 | 1,567,928,320 | 0 |
+| 32, distinct keys | 8 | 24 | 0 | 1,568,190,464 | 0 |
+
+Every run also completed a single valid hit before contention and another after
+reap. All memory max/oom/oom_kill events were zero; parents exited successfully.
+This bounds helper/thread admission to eight without validation waiters. Cache
+reads still precede admission; this is not a bound on all managed cache-read bytes
+or a guarantee for every combined origin/cache load. The focused service regression
+also proves fresh/stale saturation never starts origin work, warm-up fails closed,
+and cancellation releases admission only after reap. The existing four-origin /
+eight-cache-hit success case passed locally and in the constrained container.
+
+The reviewer's exact **53,477,458-byte one-pixel PNG**, SHA-256
+`97c152470373c3d2614caefeffd39899297b29ad81b33ce809882ec7e9740e2e`,
+returned Fetched in both modes at **100 MiB**: raw bytes were identical; optimized
+output was a verified 431-byte, 1x1 PNG. Legacy-original validation returned FreshHit.
+At **50 MiB**, both origin modes returned TooLarge/no bytes and the oversized
+legacy entry remained an inert miss. Container peaks were 406,675,456 and
+123,375,616 bytes respectively, with zero memory max/oom/oom_kill events.
+
+Five existing service cases also passed together under those container controls:
+the four-origin/eight-hit case and four configured-input rows. Those rows prove
+53,477,458 bytes rejected at 50 MiB and accepted at 100 MiB, exactly **209,715,200
+bytes accepted at 200 MiB** in both modes and legacy-cache validation, and
+209,715,201 bytes rejected. Peak was 1,654,362,112 bytes; all memory events were zero.
+Rust contract checks separately reject trusted input arguments above 200 MiB and
+output arguments above 50 MiB. Geometry, decoded-memory, process, metadata,
+animation, quality and derivative-verification controls are unchanged.
+
+Full-branch Code Guard remains **REVIEW: the same 14 findings**, no FAIL/INCOMPLETE,
+new findings or policy/baseline changes. Controller LOC is 609 within its 637
+allowance; service LOC is 466 versus 455, retaining the same lifecycle owner.
+Its download callable remains 89 lines. Existing parser/color/GIF complexity,
+nesting and callable dispositions above still apply. CHANGELOG grew three lines
+within its chronological responsibility. Scratch probe Code Guard passed.
+
+No dependencies or selected codec sources changed. Existing unrelated NuGet
+advisories remain debt. Final-head CI is reported by the PR checks; these local
+results do not substitute for it. Fresh independent exact-head review, the
+official fixed WebP publication/pin, the native Windows maintainer decision and
+maintainer acceptance remain mandatory. PR #869 remains draft/unmerged and
+#807/#858 remain open. No merge, deployment or release is authorized.
