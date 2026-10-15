@@ -9,6 +9,9 @@ This is the starting point for working on the Wayfarer web application. It cover
 ## Maintained development baseline
 
 - .NET 10 SDK.
+- Native Linux/WSL2 AMD64 or ARM64 image processing: Rust 1.90.0 plus C/C++, CMake,
+  NASM on x64 and `pkg-config` at build time; `util-linux` at runtime.
+  [Image helper details and draft merge blockers](../../tools/image-helper/README.md).
 - Node.js 24 and npm. `.nvmrc` selects Node 24.
 - PostgreSQL 18 with PostGIS for local development and guarded relational tests. `citext` is also used by the EF model.
 - Ubuntu 24.04 on Linux or WSL2 is the primary development baseline. Windows is supported as an alternative development environment.

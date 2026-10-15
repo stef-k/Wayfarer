@@ -24,7 +24,7 @@ public sealed class ImageProxyRustIntegrationTests(ITestOutputHelper output) : I
     [InlineData(false)]
     public async Task MaliciousWebp_FailsOriginAndLegacyCache(bool optimize)
     {
-        var bytes = File.ReadAllBytes(Path.Combine(ImageHelperPrototypeTests.Fixtures, "huffman-exact-extent.webp"));
+        var bytes = File.ReadAllBytes(Path.Combine(ImageHelperSupervisorTests.Fixtures, "huffman-exact-extent.webp"));
         Assert.Equal(236, bytes.Length);
         Assert.Equal("FE8DDB4C9FE18AF4B4F62F94B756EA3AF49810ED73AE789C594A94832CA4FFA8",
             Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes)));
@@ -87,7 +87,7 @@ public sealed class ImageProxyRustIntegrationTests(ITestOutputHelper output) : I
     public async Task TripLoad_CompletesBoundedBatches(int count)
     {
         var names = new[] { "photo.jpg", "photo.webp", "opaque.png", "photo.gif" };
-        var bytes = names.Select(name => File.ReadAllBytes(Path.Combine(ImageHelperPrototypeTests.Fixtures, name))).ToArray();
+        var bytes = names.Select(name => File.ReadAllBytes(Path.Combine(ImageHelperSupervisorTests.Fixtures, name))).ToArray();
         using var origin = new Origin(bytes);
         var service = Service(origin, Cache());
         var clock = Stopwatch.StartNew();
@@ -109,6 +109,14 @@ public sealed class ImageProxyRustIntegrationTests(ITestOutputHelper output) : I
         using var host = Process.GetCurrentProcess();
         output.WriteLine("count={0}; success={0}; rejected=0; first-image-ms={1:F3}; completion-ms={2:F3}; host-peak-RSS={3}",
             count, first, clock.Elapsed.TotalMilliseconds, host.PeakWorkingSet64);
+        // In the established finite-container qualification this includes the test host and all children.
+        if (File.Exists("/sys/fs/cgroup/memory.max"))
+        {
+            output.WriteLine("cgroup-memory-max={0}; peak={1}; events={2}",
+                File.ReadAllText("/sys/fs/cgroup/memory.max").Trim(),
+                File.ReadAllText("/sys/fs/cgroup/memory.peak").Trim(),
+                File.ReadAllText("/sys/fs/cgroup/memory.events").Trim());
+        }
         Assert.Equal(count, origin.Requests);
     }
 

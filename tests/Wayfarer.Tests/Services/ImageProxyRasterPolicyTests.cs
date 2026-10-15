@@ -10,12 +10,12 @@ namespace Wayfarer.Tests.Services;
 /// <summary>Proves admission from actual bytes for both origin modes and untrusted legacy cache hits.</summary>
 public partial class ImageProxyServiceTests
 {
-    /// <summary>All four formats accept lying or absent MIME without changing established output routing.</summary>
+    /// <summary>All four formats accept lying or absent MIME; transparent WebP preserves alpha as PNG.</summary>
     [Theory]
     [InlineData("jpeg", "image/jpeg")]
     [InlineData("png", "image/png")]
     [InlineData("gif", "image/png")]
-    [InlineData("webp", "image/jpeg")]
+    [InlineData("webp", "image/png")]
     public async Task RasterPolicy_SupportedBytesDetermineMime(string format, string optimizedMime)
     {
         var bytes = ImageProxyTestFactory.Raster(format);

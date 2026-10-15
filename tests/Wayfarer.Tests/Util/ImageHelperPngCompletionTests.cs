@@ -7,7 +7,7 @@ using Xunit;
 namespace Wayfarer.Tests.Util;
 
 /// <summary>Decisive CRC-valid zlib controls exercise admission through the contained executable.</summary>
-[Collection("Image helper prototype")]
+[Collection("Image helper processes")]
 public sealed class ImageHelperPngCompletionTests
 {
     /// <summary>Exhausted buffers never stand in for a verified Adler trailer or Deflate end.</summary>
@@ -42,7 +42,7 @@ public sealed class ImageHelperPngCompletionTests
         var png = CreatePng(1, 1, 8, 2, 0, chunks);
         if (variant == "bad-crc") png[^1] ^= 1;
         if (variant == "eof") png = png[..^1];
-        var result = await ImageHelperPrototypeTests.Supervisor.TransformAsync(
+        var result = await ImageHelperSupervisorTests.Supervisor.TransformAsync(
             png, new ImageTransform(), TimeSpan.FromSeconds(30));
         Assert.Equal(accepted ? ImageTransformStatus.Success : ImageTransformStatus.Failed, result.Status);
         if (accepted)
@@ -51,7 +51,7 @@ public sealed class ImageHelperPngCompletionTests
             Assert.Equal((1, 1), (output.Width, output.Height));
         }
         else Assert.Null(result.Bytes);
-        ImageHelperPrototypeTests.AssertReaped(result.ProcessId);
+        ImageHelperSupervisorTests.AssertReaped(result.ProcessId);
     }
 
     /// <summary>Filtered-byte accounting covers packed-bit Adam7 empty passes and 16-bit samples.</summary>
@@ -61,7 +61,7 @@ public sealed class ImageHelperPngCompletionTests
     {
         byte[] raw = depth == 1 ? [0, 128] : [0, 0xff, 0xff, 0, 0, 0, 0, 0x80, 0];
         var png = CreatePng(1, 1, (byte)depth, (byte)color, (byte)interlaced, [Compress(raw)]);
-        var result = await ImageHelperPrototypeTests.Supervisor.TransformAsync(
+        var result = await ImageHelperSupervisorTests.Supervisor.TransformAsync(
             png, new ImageTransform(), TimeSpan.FromSeconds(30));
         Assert.Equal(ImageTransformStatus.Success, result.Status);
     }
@@ -72,7 +72,7 @@ public sealed class ImageHelperPngCompletionTests
     {
         byte[] exif = [73,73,42,0,8,0,0,0,1,0,18,1,3,0,1,0,0,0,6,0,0,0,0,0,0,0];
         var png = CreatePng(2, 1, 8, 2, 0, [Compress([0, 255, 0, 0, 0, 255, 0])], exif);
-        var result = await ImageHelperPrototypeTests.Supervisor.TransformAsync(
+        var result = await ImageHelperSupervisorTests.Supervisor.TransformAsync(
             png, new ImageTransform(), TimeSpan.FromSeconds(30));
         using var output = Image.Load(result.Bytes!);
         Assert.Equal((1, 2), (output.Width, output.Height));

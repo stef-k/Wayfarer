@@ -141,6 +141,13 @@ class ApplicationImageScopeTests(unittest.TestCase):
                 self.assert_domains([path], {'app_image', 'arm64'})
         self.assert_domains(['tools/release/image.py'], {'release_tooling', 'app_image', 'arm64'})
 
+    def test_image_helper_owners(self):
+        """Native codec/build changes require application and native supervisor evidence."""
+        for path in ['tools/image-helper/src/webp_input.rs', 'tools/image-helper/Cargo.lock',
+                     'tools/image-helper/Wayfarer.ImageHelper.targets', 'Util/ImageHelperSupervisor.cs']:
+            with self.subTest(path=path):
+                self.assert_domains([path], {'dotnet', 'app_image', 'arm64'})
+
     def test_database_owners(self):
         """Native DB recipes need an application prerequisite, not recovery/update."""
         for path in ['deploy/compose/db/Dockerfile', 'deploy/compose/db/20-wayfarer.sh']:

@@ -13,7 +13,7 @@ internal sealed class FaultHelper : IDisposable
     internal FaultHelper(string body)
     {
         if (!OperatingSystem.IsLinux())
-            throw new PlatformNotSupportedException("This prototype is Linux only.");
+            throw new PlatformNotSupportedException("This helper is Linux only.");
         directory = Path.Combine(Path.GetTempPath(), "process-" + Guid.NewGuid());
         Directory.CreateDirectory(directory);
         var path = Path.Combine(directory, "fault-helper");

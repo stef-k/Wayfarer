@@ -4,6 +4,12 @@
 
 ### Added
 
+- Integrate the contained Rust image helper with the existing image proxy, independent
+  cache validation and native Linux AMD64/ARM64 packaging (#858). Preserve static
+  formats, ICC/alpha and private metadata stripping; web defaults are 2048/90.
+  Draft-only: an official fixed WebP crate and a native Windows maintainer decision
+  are required before merge.
+
 - Automatically reuse or create shared Activities for newly accepted location-history
   imports, with PostgreSQL Unicode identity, atomic classification/checkpoints and
   bounded contention recovery. Duplicates and UUID race losers create nothing.

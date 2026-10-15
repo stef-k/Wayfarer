@@ -6,13 +6,13 @@ using Xunit;
 
 namespace Wayfarer.Tests.Util;
 
-/// <summary>Shared process slots require sequential local prototype checks.</summary>
-[CollectionDefinition("Image helper prototype", DisableParallelization = true)]
-public sealed class ImageHelperPrototypeCollection { }
+/// <summary>Shared process slots require sequential local helper checks.</summary>
+[CollectionDefinition("Image helper processes", DisableParallelization = true)]
+public sealed class ImageHelperProcessCollection { }
 
 /// <summary>Exercise the real executable through its sole standalone process owner.</summary>
-[Collection("Image helper prototype")]
-public sealed class ImageHelperPrototypeTests
+[Collection("Image helper processes")]
+public sealed class ImageHelperSupervisorTests
 {
     /// <summary>Web defaults apply only when both bounds are absent; PDF and fidelity recipes override them.</summary>
     [Theory]
@@ -140,6 +140,7 @@ public sealed class ImageHelperPrototypeTests
     [InlineData("gif-truncated-lzw.gif")] [InlineData("gif-no-trailer.gif")]
     [InlineData("gif-truncated-descriptor.gif")] [InlineData("gif-truncated-extension.gif")]
     [InlineData("animated.gif")] [InlineData("animated.webp")] [InlineData("truncated.webp")]
+    [InlineData("vp8l-animation-declaration.webp")] [InlineData("upstream-partition-claim.webp")]
     [InlineData("metadata.jpg")] [InlineData("metadata.png")]
     public async Task SourceFailures_DiscardAllOutput(string fixture)
     {
@@ -168,10 +169,28 @@ public sealed class ImageHelperPrototypeTests
     {
         var tooLarge = await TransformFixture("over-width.png");
         Assert.Equal(ImageTransformStatus.TooLarge, tooLarge.Status);
+        var tooManyPixels = await TransformFixture("pixel-ceiling.webp");
+        Assert.Equal(ImageTransformStatus.TooLarge, tooManyPixels.Status);
+        Assert.Null(tooManyPixels.Bytes);
+        AssertReaped(tooManyPixels.ProcessId);
         var unavailable = await TransformFixture("photo.jpg", new ImageTransform(MaximumOutputBytes: 100));
         Assert.Equal(ImageTransformStatus.Unavailable, unavailable.Status);
         Assert.Null(unavailable.Bytes);
         AssertReaped(unavailable.ProcessId);
+    }
+
+    /// <summary>Combined WebP ICC/EXIF/XMP applies orientation and strips private source metadata.</summary>
+    [Fact]
+    public async Task WebpMetadata_OrientsAndStripsPrivateProfiles()
+    {
+        var result = await TransformFixture("icc-exif-xmp.webp");
+        Assert.Equal(ImageTransformStatus.Success, result.Status);
+        using var image = Image.Load(result.Bytes!);
+        Assert.Equal((32, 64), (image.Width, image.Height));
+        Assert.NotNull(image.Metadata.IccProfile);
+        Assert.Null(image.Metadata.ExifProfile);
+        Assert.Null(image.Metadata.XmpProfile);
+        AssertReaped(result.ProcessId);
     }
 
     /// <summary>Genuine ICC, CMYK/YCCK and gamma sources produce measured sRGB color controls.</summary>

@@ -322,16 +322,16 @@ Includes:
 
 --------------------------------------------------------------------------------
 
-SixLabors.ImageSharp 3.1.12
----------------------------
-https://sixlabors.com/products/imagesharp/
-Copyright (c) Six Labors
-
-Licensed under the Apache License, Version 2.0.
-https://github.com/SixLabors/ImageSharp/blob/main/LICENSE
-
-Note: For commercial use, please review SixLabors' license terms at
-https://sixlabors.com/pricing/
+Wayfarer Rust image helper
+-------------------------
+Runtime: tools/image-helper/Cargo.lock. The complete dependency license/notice
+inventory is shipped beside the executable as image-helper/THIRD-PARTY-LICENSES.txt.
+WebP decoding uses the unmodified official image-rs/image-webp development revision
+f4d80bd965df2c81e65b6f43c1f70e0750bd4b0f (MIT OR Apache-2.0). This temporary Git
+pin blocks production merge until an official fixed crate is published and qualified.
+JPEG output bundles libjpeg-turbo 3.1.0 through turbojpeg-sys 1.2.0.
+This software is based in part on the work of the Independent JPEG Group.
+ImageSharp 3.1.12 is used only to construct/check test fixtures, not by the application.
 
 --------------------------------------------------------------------------------
 

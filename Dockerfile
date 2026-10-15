@@ -2,7 +2,7 @@
 FROM node:24-bookworm-slim@sha256:0e0ff40c39bc087845bfb27465a0df4ea419520094bc35842ff83dd8cbe6f9b6 AS node
 # Build the locked helper natively. Rust and codec build tools stay in this stage.
 FROM rust:1.90.0-slim-bookworm@sha256:64232e656c058f4468e8d024e990acff04f0fd5a5c0a88a574dc37773d7325c9 AS image-helper
-RUN apt-get update && apt-get install -y --no-install-recommends cmake nasm pkg-config \
+RUN apt-get update && apt-get install -y --no-install-recommends build-essential cmake nasm pkg-config \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /helper
 COPY tools/image-helper/Cargo.toml tools/image-helper/Cargo.lock ./
