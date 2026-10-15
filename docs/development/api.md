@@ -149,6 +149,14 @@ is not the shipped accuracy default.
 
 `POST /api/location/check-in` and `POST /api/location/log-location` accept an optional `Idempotency-Key` header containing a GUID. The key is unique per user. A persisted replay returns the prior success before new-work admission; concurrent duplicate persistence is reconciled against the same database invariant.
 
+Before any automatic threshold or duplicate-timestamp skip, a supplied valid key
+gets a fresh database check for that authenticated account. If the keyed winner
+is already persisted, log-location returns `success: true`, `skipped: false` and
+its numeric `locationId`, preserving the first writer's data. Otherwise the skip
+remains `success: true`, `skipped: true`, `locationId: null`. This check proves only
+what is persisted at lookup time; a later commit is acknowledged on a keyed retry.
+A lookup failure is an error, never evidence of an unpersisted skip.
+
 Use a new key for a new logical location write and retain the same key when retrying that write. An invalid GUID is a 400.
 
 Manual check-in intentionally bypasses automatic accuracy/time/distance filtering;

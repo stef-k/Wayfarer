@@ -210,16 +210,17 @@ public class ApiLocationAdmissionTests : TestBase
         }
     }
 
-    /// <summary>Builds the existing product controller with isolated admission and optional side-effect seams.</summary>
+    /// <summary>Builds the product controller with isolated admission and optional side-effect/settings seams.</summary>
     internal static LocationController Controller(ApplicationDbContext db, ApiWorkAdmission gate,
-        IPlaceVisitDetectionService? visits = null, SseService? sse = null, ReverseGeocodingService? reverse = null)
+        IPlaceVisitDetectionService? visits = null, SseService? sse = null, ReverseGeocodingService? reverse = null,
+        IApplicationSettingsService? settingsService = null)
     {
         var cache = new MemoryCache(new MemoryCacheOptions());
         var locations = new LocationService(db);
         var settings = new Mock<IApplicationSettingsService>();
         settings.Setup(x => x.GetSettings()).Returns(new ApplicationSettings { Id = 1 });
         var controller = new LocationController(db, NullLogger<BaseApiController>.Instance, cache,
-            settings.Object,
+            settingsService ?? settings.Object,
             reverse ?? new ReverseGeocodingService(new HttpClient(), NullLogger<BaseApiController>.Instance),
             locations, sse ?? new SseService(), new LocationStatsService(db), locations,
             visits ?? new NullPlaceVisitDetectionService(), gate);

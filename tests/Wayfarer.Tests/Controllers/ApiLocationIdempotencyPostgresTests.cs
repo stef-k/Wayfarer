@@ -1,10 +1,11 @@
+using System.Data.Common;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
-using NetTopologySuite.Geometries;
+using Point = NetTopologySuite.Geometries.Point;
 using Wayfarer.Areas.Api.Controllers;
 using Wayfarer.Models;
 using Wayfarer.Models.Enums;
@@ -65,6 +66,108 @@ public class ApiLocationIdempotencyPostgresTests(PostgresImportTestFixture fixtu
         sse.VerifyNoOtherCalls();
     }
 
+    /// <summary>Each terminal filter distinguishes a committed matching key from a genuine unpersisted skip.</summary>
+    [PostgresTheory]
+    [InlineData("accuracy", "winner")]
+    [InlineData("accuracy", "absent")]
+    [InlineData("time", "winner")]
+    [InlineData("time", "absent")]
+    [InlineData("distance", "winner")]
+    [InlineData("distance", "absent")]
+    [InlineData("duplicate", "winner")]
+    [InlineData("duplicate", "absent")]
+    [InlineData("time", "other-owner")]
+    [InlineData("time", "keyless")]
+    public async Task LogLocation_TerminalSkip_OnlyAcknowledgesPersistedOwnerKey(string filter, string outcome)
+    {
+        var user = await fixture.CreateUserAsync();
+        await SeedToken(user);
+        var winnerOwner = outcome == "other-owner" ? await fixture.CreateUserAsync() : user;
+        var key = Guid.NewGuid();
+        var dto = ApiLocationAdmissionTests.Dto();
+        dto.Timestamp = new DateTime(2026, 10, 15, 12, 0, 0, DateTimeKind.Utc);
+        dto.Accuracy = filter == "accuracy" ? 51 : 5;
+        await using (var seed = fixture.CreateContext())
+        {
+            seed.Locations.Add(new Location
+            {
+                UserId = user.Id, IdempotencyKey = Guid.NewGuid(), TimeZoneId = "UTC",
+                Timestamp = dto.Timestamp.AddMinutes(filter == "time" ? 0 : -10),
+                LocalTimestamp = dto.Timestamp.AddMinutes(filter == "duplicate" ? 0 : -10),
+                Coordinates = filter == "distance" ? new Point(dto.Longitude, dto.Latitude) { SRID = 4326 }
+                    : new Point(22.2, 40.1) { SRID = 4326 }
+            });
+            await seed.SaveChangesAsync();
+        }
+        var winner = new Location
+        {
+            UserId = winnerOwner.Id, IdempotencyKey = key, TimeZoneId = "UTC",
+            Timestamp = dto.Timestamp.AddMinutes(-20), LocalTimestamp = dto.Timestamp,
+            Coordinates = new Point(23.3, 41.2) { SRID = 4326 }, Notes = "Concurrent winner"
+        };
+        var settings = new Mock<IApplicationSettingsService>();
+        settings.Setup(service => service.GetSettings()).Returns(() =>
+        {
+            // Settings are read after the initial key miss, including before the early accuracy filter.
+            using var concurrent = fixture.CreateContext();
+            if (outcome != "absent")
+            {
+                concurrent.Locations.Add(winner);
+                concurrent.SaveChanges();
+            }
+            return new ApplicationSettings { Id = 1 };
+        });
+        await using var apiDb = fixture.CreateContext();
+        var sse = new Mock<SseService>(MockBehavior.Strict);
+        var controller = ApiLocationAdmissionTests.Controller(apiDb, new ApiWorkAdmission(64, 8),
+            sse: sse.Object, settingsService: settings.Object);
+        controller.Request.Headers.Authorization = $"Bearer {user.Id}";
+        if (outcome != "keyless") controller.Request.Headers["Idempotency-Key"] = key.ToString("D");
+
+        AssertLogResponse(await controller.LogLocation(dto), outcome == "winner" ? winner.Id : null);
+
+        await using var verify = fixture.CreateContext();
+        Assert.Equal(outcome == "absent" ? 1 : 2,
+            await verify.Locations.CountAsync(row => row.UserId == user.Id || row.UserId == winnerOwner.Id));
+        if (outcome != "absent")
+            Assert.Equal("Concurrent winner", (await verify.Locations.AsNoTracking().SingleAsync(row => row.Id == winner.Id)).Notes);
+        sse.VerifyNoOtherCalls();
+    }
+
+    /// <summary>A failed or cancelled persisted-winner lookup cannot turn into a successful skipped/null response.</summary>
+    [PostgresTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task LogLocation_WinnerLookupFailureOrCancellation_DoesNotAcknowledgeSkip(bool cancel)
+    {
+        var user = await fixture.CreateUserAsync();
+        await SeedToken(user);
+        using var cancellation = new CancellationTokenSource();
+        var failure = new LookupFailureInterceptor();
+        await using var apiDb = fixture.CreateContext(failure);
+        var settings = new Mock<IApplicationSettingsService>();
+        settings.Setup(service => service.GetSettings()).Returns(() =>
+        {
+            if (cancel) cancellation.Cancel();
+            else failure.FailLookup = true;
+            return new ApplicationSettings { Id = 1 };
+        });
+        var gate = new ApiWorkAdmission(64, 8);
+        var controller = ApiLocationAdmissionTests.Controller(apiDb, gate, settingsService: settings.Object);
+        controller.Request.Headers.Authorization = $"Bearer {user.Id}";
+        controller.Request.Headers["Idempotency-Key"] = Guid.NewGuid().ToString("D");
+        controller.HttpContext.RequestAborted = cancellation.Token;
+        var dto = ApiLocationAdmissionTests.Dto();
+        dto.Accuracy = 51;
+
+        if (cancel) await Assert.ThrowsAnyAsync<OperationCanceledException>(() => controller.LogLocation(dto));
+        else Assert.Same(failure.Failure,
+            await Assert.ThrowsAsync<InvalidOperationException>(() => controller.LogLocation(dto)));
+        Assert.Equal(0, gate.IdentityCount);
+        await using var verify = fixture.CreateContext();
+        Assert.False(await verify.Locations.AnyAsync(row => row.UserId == user.Id));
+    }
+
     /// <summary>Two first uses converge through save-conflict reread; stored replay ignores saturation.</summary>
     [PostgresFact(Timeout = 30000)]
     public async Task ConcurrentFirstUseAndReplay()
@@ -96,7 +199,9 @@ public class ApiLocationIdempotencyPostgresTests(PostgresImportTestFixture fixtu
         replay.Request.Headers.Authorization = $"Bearer {user.Id}";
         replay.Request.Headers["Idempotency-Key"] = key.ToString();
         Assert.IsType<OkObjectResult>(await replay.CheckIn(ApiLocationAdmissionTests.Dto()));
-        Assert.IsType<OkObjectResult>(await replay.LogLocation(ApiLocationAdmissionTests.Dto()));
+        var winnerId = await verify.Locations.Where(l => l.UserId == user.Id && l.IdempotencyKey == key)
+            .Select(l => l.Id).SingleAsync();
+        AssertLogResponse(await replay.LogLocation(ApiLocationAdmissionTests.Dto()), winnerId);
 
         var other = await fixture.CreateUserAsync();
         await SeedToken(other);
@@ -157,6 +262,24 @@ public class ApiLocationIdempotencyPostgresTests(PostgresImportTestFixture fixtu
         Assert.Equal(!winnerId.HasValue, response.GetProperty("skipped").GetBoolean());
         if (winnerId.HasValue) Assert.Equal(winnerId.Value, response.GetProperty("locationId").GetInt32());
         else Assert.Equal(JsonValueKind.Null, response.GetProperty("locationId").ValueKind);
+    }
+
+    /// <summary>Injects a failure only after the request's initial lookup and before its terminal accuracy skip.</summary>
+    private sealed class LookupFailureInterceptor : DbCommandInterceptor
+    {
+        /// <summary>Enables failure at the post-settings lookup seam.</summary>
+        public bool FailLookup { get; set; }
+        /// <summary>The original database-operation failure must reach the caller unchanged.</summary>
+        public InvalidOperationException Failure { get; } = new("Synthetic persisted-winner lookup failure");
+
+        /// <summary>Leaves earlier reads intact and fails the fresh persisted-winner read.</summary>
+        public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(DbCommand command,
+            CommandEventData eventData, InterceptionResult<DbDataReader> result,
+            CancellationToken cancellationToken = default)
+        {
+            if (FailLookup) throw Failure;
+            return ValueTask.FromResult(result);
+        }
     }
 
     /// <summary>Holds both real first inserts until both actions have passed their replay lookup.</summary>

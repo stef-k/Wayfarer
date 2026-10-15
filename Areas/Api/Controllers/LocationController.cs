@@ -377,6 +377,7 @@ public class LocationController : BaseApiController
         }
     }
 
+    /// <summary>Logs an automatic capture or acknowledges a proven persisted keyed winner when it would be skipped.</summary>
     [HttpPost]
     [Route("/api/location/log-location")]
     public async Task<IActionResult> LogLocation([FromBody] GpsLoggerLocationDto dto)
@@ -417,6 +418,18 @@ public class LocationController : BaseApiController
                 }
             }
 
+            /// <summary>Rereads persisted owner/key identity before confirming an otherwise terminal skip.</summary>
+            async Task<IActionResult> SkipOrReplayAsync()
+            {
+                var locationId = idempotencyKey.HasValue
+                    ? await _dbContext.Locations.AsNoTracking()
+                        .Where(l => l.UserId == user.Id && l.IdempotencyKey == idempotencyKey.Value)
+                        .Select(l => (int?)l.Id)
+                        .FirstOrDefaultAsync(HttpContext.RequestAborted)
+                    : null;
+                return Ok(new { success = true, skipped = !locationId.HasValue, locationId });
+            }
+
             // Persisted replays bypass admission; new work holds the permit through immediate post-write work.
             using var permit = _ingestionAdmission.TryAcquire(user.Id, out var admissionStatus);
             if (permit == null)
@@ -450,7 +463,7 @@ public class LocationController : BaseApiController
             {
                 _logger.LogInformation(
                     "Location skipped due to poor GPS accuracy for user {UserId}", user.Id);
-                return Ok(new { success = true, skipped = true, locationId = (int?)null });
+                return await SkipOrReplayAsync();
             }
 
             DateTime utcTimestamp;
@@ -514,7 +527,7 @@ public class LocationController : BaseApiController
                 {
                     _logger.LogInformation(
                         "Location skipped due to time threshold for user {UserId}", user.Id);
-                    return Ok(new { success = true, skipped = true, locationId = (int?)null });
+                    return await SkipOrReplayAsync();
                 }
 
                 var distanceDifference = DistanceChecker.HaversineDistance(lastLocation.Coordinates.Y,
@@ -525,13 +538,11 @@ public class LocationController : BaseApiController
                 {
                     _logger.LogInformation(
                         "Location skipped due to distance threshold for user {UserId}", user.Id);
-                    return Ok(new { success = true, skipped = true, locationId = (int?)null });
+                    return await SkipOrReplayAsync();
                 }
             }
 
-            // Check for duplicate LocalTimestamp to prevent race condition duplicates.
-            // This handles the case where concurrent requests pass the cache-based threshold
-            // checks before either one saves, resulting in duplicate records.
+            // Best-effort duplicate LocalTimestamp precheck; the owner/key unique index arbitrates keyed writes.
             var duplicateExists = await _dbContext.Locations
                 .AnyAsync(l => l.UserId == user.Id && l.LocalTimestamp == utcTimestamp);
 
@@ -539,7 +550,7 @@ public class LocationController : BaseApiController
             {
                 _logger.LogInformation(
                     "Location skipped due to duplicate LocalTimestamp. UserId: {UserId}", user.Id);
-                return Ok(new { success = true, skipped = true, locationId = (int?)null });
+                return await SkipOrReplayAsync();
             }
 
             var location = new Location
