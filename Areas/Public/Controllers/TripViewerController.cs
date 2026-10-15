@@ -392,8 +392,8 @@ public class TripViewerController : BaseController
     /// <summary>
     /// Proxy external images with optional optimization and disk-based caching.
     /// Cached images are served directly from disk on subsequent requests, avoiding
-    /// repeated external downloads and ImageSharp processing.
-    /// Default: 95% quality (visually lossless, faster loading).
+    /// repeated external downloads. Cache bytes are fully validated before serving.
+    /// Default: fit within 2048 pixels, JPEG quality 90.
     /// Print: Can specify maxWidth=600&amp;quality=85 for smaller PDFs.
     /// Disable: Use optimize=false to serve original image.
     /// GET: /Public/ProxyImage?url=...&amp;maxWidth=600&amp;quality=85&amp;optimize=true

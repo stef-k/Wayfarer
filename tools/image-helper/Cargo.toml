@@ -1,0 +1,27 @@
+# Selected #858 runtime only. The unpublished WebP Git pin blocks production merge.
+[package]
+name = "wayfarer-image"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.90"
+publish = false
+
+[dependencies]
+# Enable only the retained image adapters; WebP uses the exact official fix below.
+image = { version = "=0.25.10", default-features = false, features = ["jpeg", "png", "gif"] }
+fast_image_resize = { version = "=6.1.0", default-features = false, features = ["std"] }
+jpeg-decoder = { version = "=0.3.2", default-features = false }
+png = "=0.18.1"
+gif = "=0.14.2"
+# Development-only: replace with an official fixed publication and requalify before merge.
+image-webp = { git = "https://github.com/image-rs/image-webp", rev = "f4d80bd965df2c81e65b6f43c1f70e0750bd4b0f" }
+moxcms = { version = "=0.8.0", features = ["lut"] }
+libc = "=0.2.177"
+# Pure Rust JPEG decode with portable runtime SIMD dispatch; bounded native JPEG output.
+libjpeg-turbo-rs = "=0.8.0"
+turbojpeg = "=1.5.1"
+turbojpeg-sys = "=1.2.0"
+
+[profile.release]
+# A codec panic invalidates the isolated operation.
+panic = "abort"

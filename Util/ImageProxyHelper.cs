@@ -1,23 +1,20 @@
 using System.Net;
 using System.Security.Cryptography;
 using System.Text;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Formats;
-using SixLabors.ImageSharp.Processing;
-using SixLabors.ImageSharp.Processing.Processors.Transforms;
 using Wayfarer.Services;
 
 namespace Wayfarer.Util;
 
 /// <summary>
 /// Shared utility methods for image proxy operations: SSRF validation, cache key
-/// computation, and ImageSharp optimization. Used by both TripViewerController
+/// computation, and supervised image processing. Used by both TripViewerController
 /// (HTTP pipeline) and ImageProxyService (background warm-up).
 /// </summary>
 public static class ImageProxyHelper
 {
-    /// <summary>The established high-quality resampler used by optimized proxy images.</summary>
-    internal static IResampler OptimizationResampler => KnownResamplers.Lanczos3;
+    /// <summary>The immutable application payload supplies the helper; requests cannot select executables.</summary>
+    internal static ImageHelperSupervisor Supervisor { get; } = new(
+        Path.Combine(AppContext.BaseDirectory, "image-helper", "wayfarer-image"));
 
     /// <summary>
     /// Browser-like User-Agent sent by image proxy HttpClients to avoid 403 rejections
@@ -59,12 +56,12 @@ public static class ImageProxyHelper
     /// <summary>
     /// Computes a deterministic SHA-256 cache key from the proxy request parameters.
     /// Normalizes quality so that quality=null with optimize=true produces the same key
-    /// as quality=95 with optimize=true (both resolve to the same output).
+    /// as quality=90 with optimize=true (both resolve to the same output).
     /// </summary>
     public static string ComputeImageCacheKey(
         string url, int? maxWidth, int? maxHeight, int? quality, bool optimize)
     {
-        var effectiveQuality = optimize ? (quality ?? 95) : quality;
+        var effectiveQuality = optimize ? (quality ?? 90) : quality;
         var raw = $"{url}|{maxWidth}|{maxHeight}|{effectiveQuality}|{optimize}";
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes(raw));
         return Convert.ToHexString(hash).ToLowerInvariant();
@@ -87,152 +84,78 @@ public static class ImageProxyHelper
         return $"/Public/ProxyImage?url={System.Net.WebUtility.UrlEncode(imageUrl)}";
     }
 
-    /// <summary>
-    /// Optimizes an image using ImageSharp: resize and compress while maintaining quality.
-    /// Preserves PNG transparency for icons, converts photos to JPEG.
-    /// Uses pure managed code with no native dependencies for cross-platform support.
-    /// </summary>
+    /// <summary>Compatibility entry point; asynchronous production callers retain cancellation through reap.</summary>
     public static byte[] OptimizeImage(byte[] imageBytes, int? maxWidth, int? maxHeight, int quality, out bool isPng)
     {
-        using var image = LoadSafeRaster(imageBytes);
-
-        // Preserve the established output route: PNG/GIF to PNG, JPEG/WebP to JPEG.
-        var preservePngOutput = image.Metadata.DecodedImageFormat?.Name is "PNG" or "GIF";
-
-        // Calculate new dimensions maintaining aspect ratio
-        int targetWidth = image.Width;
-        int targetHeight = image.Height;
-
-        if (maxWidth.HasValue && targetWidth > maxWidth.Value)
-        {
-            var ratio = (float)maxWidth.Value / targetWidth;
-            targetWidth = maxWidth.Value;
-            targetHeight = (int)(targetHeight * ratio);
-        }
-
-        if (maxHeight.HasValue && targetHeight > maxHeight.Value)
-        {
-            var ratio = (float)maxHeight.Value / targetHeight;
-            targetHeight = maxHeight.Value;
-            targetWidth = (int)(targetWidth * ratio);
-        }
-
-        // Resize if needed
-        if (targetWidth != image.Width || targetHeight != image.Height)
-        {
-            image.Mutate(x => x.Resize(targetWidth, targetHeight, OptimizationResampler));
-        }
-
-        // Choose format based on transparency
-        using var outputStream = new MemoryStream();
-
-        if (preservePngOutput)
-        {
-            // Preserve transparency with PNG (for icons, logos, etc.)
-            image.SaveAsPng(outputStream, new SixLabors.ImageSharp.Formats.Png.PngEncoder
-            {
-                CompressionLevel = SixLabors.ImageSharp.Formats.Png.PngCompressionLevel.BestCompression
-            });
-            isPng = true;
-        }
-        else
-        {
-            // Use JPEG for photos (better compression)
-            image.SaveAsJpeg(outputStream, new SixLabors.ImageSharp.Formats.Jpeg.JpegEncoder
-            {
-                Quality = quality
-            });
-            isPng = false;
-        }
-
-        return outputStream.ToArray();
+        var result = OptimizeImageAsync(imageBytes, maxWidth, maxHeight, quality).GetAwaiter().GetResult();
+        isPng = result.IsPng;
+        return result.Bytes;
     }
 
-    /// <summary>Validates original bytes with the same bounded decoder used for optimization.</summary>
-    public static string ValidateRaster(byte[] imageBytes)
+    /// <summary>Normalize one bounded source to verified JPEG/PNG using the selected Rust runtime.</summary>
+    public static async Task<(byte[] Bytes, bool IsPng)> OptimizeImageAsync(byte[] imageBytes,
+        int? maxWidth, int? maxHeight, int quality, CancellationToken ct = default)
     {
-        using var image = LoadSafeRaster(imageBytes);
-        return CanonicalRasterMime(image.Metadata.DecodedImageFormat?.Name);
+        RejectPreflight(imageBytes);
+        var result = await Supervisor.TransformAsync(imageBytes,
+            new ImageTransform(maxWidth, maxHeight, quality), TimeSpan.FromSeconds(30), ct);
+        RequireSuccess(result);
+        return (result.Bytes!, result.MimeType == "image/png");
     }
 
-    /// <summary>Rejects incidental decoders before resource preflight and full bounded decoding.</summary>
-    private static Image LoadSafeRaster(byte[] imageBytes)
+    /// <summary>Compatibility entry point for full byte validation without changing safe originals.</summary>
+    public static string ValidateRaster(byte[] imageBytes) => ValidateRasterAsync(imageBytes).GetAwaiter().GetResult();
+
+    /// <summary>Full decode for every untrusted cache hit and optimize=false source; no MIME/provenance shortcut.</summary>
+    public static async Task<string> ValidateRasterAsync(byte[] imageBytes, CancellationToken ct = default)
     {
-        CanonicalRasterMime(Image.DetectFormat(imageBytes).Name);
-        var preflight = PreflightDecodedResources(imageBytes);
-        if (preflight.Decision == DecodedImageResourceDecision.TooLarge)
-        {
-            throw new DecodedImageResourceRejectedException(preflight);
-        }
-
-        if (preflight.Decision == DecodedImageResourceDecision.Failed)
-        {
-            throw new InvalidImageContentException("Image metadata could not be validated.");
-        }
-
-        return DecodedImageResourceLimits.Load(imageBytes.AsSpan());
+        RejectPreflight(imageBytes);
+        var result = await Supervisor.ValidateAsync(imageBytes, ct);
+        RequireSuccess(result);
+        return result.MimeType!;
     }
 
-    /// <summary>The four supported raster formats, independent of origin or stored MIME claims.</summary>
-    private static string CanonicalRasterMime(string? name) => name?.ToUpperInvariant() switch
+    /// <summary>Keep existing positive PNG/WebP frame/dimension evidence and bounded structured logging.</summary>
+    private static void RejectPreflight(byte[] bytes)
     {
-        "JPEG" => "image/jpeg",
-        "PNG" => "image/png",
-        "GIF" => "image/gif",
-        "WEBP" => "image/webp",
-        _ => throw new InvalidImageContentException("Unsupported image format.")
-    };
+        var result = PreflightDecodedResources(bytes);
+        if (result.Decision == DecodedImageResourceDecision.TooLarge)
+            throw new DecodedImageResourceRejectedException(result);
+        if (result.Decision == DecodedImageResourceDecision.Failed)
+            throw new InvalidDataException("Unsupported or malformed image.");
+    }
 
-    /// <summary>
-    /// Identifies decoded resource requirements from the downloaded bytes without allocating complete pixel buffers.
-    /// </summary>
-    internal static DecodedImageResourceResult PreflightDecodedResources(ReadOnlySpan<byte> imageBytes)
+    /// <summary>Child infrastructure failures remain 503; only positive source policy evidence is TooLarge.</summary>
+    private static void RequireSuccess(ImageTransformResult result)
     {
-        try
-        {
-            var png = PngFrameAuthority.Inspect(imageBytes);
-            if (png.Decision == PngAuthorityDecision.Failed)
-            {
-                return DecodedImageResourceResult.Failed();
-            }
+        if (result.Status == ImageTransformStatus.Success) return;
+        if (result.Status == ImageTransformStatus.TooLarge)
+            throw new DecodedImageResourceRejectedException(
+                DecodedImageResourceResult.TooLarge("helper-resource-limit", 0, 0));
+        if (result.Status == ImageTransformStatus.Failed)
+            throw new InvalidDataException("Unsupported or malformed image.");
+        throw new ImageHelperUnavailableException();
+    }
 
-            if (png.Decision == PngAuthorityDecision.TooManyFrames)
-            {
-                return DecodedImageResourceResult.TooLarge(
-                    "frame-count",
-                    png.FrameCount,
-                    DecodedImageResourceLimits.MaximumFrameCount);
-            }
-
-            var webp = WebpFrameAuthority.Inspect(imageBytes);
-            if (webp.Decision == WebpAuthorityDecision.Failed)
-            {
-                return DecodedImageResourceResult.Failed();
-            }
-
-            if (webp.Decision == WebpAuthorityDecision.TooManyFrames)
-            {
-                return DecodedImageResourceResult.TooLarge(
-                    "frame-count",
-                    webp.FrameCount,
-                    DecodedImageResourceLimits.MaximumFrameCount);
-            }
-
-            var info = DecodedImageResourceLimits.Identify(imageBytes);
-            var formatName = info.Metadata.DecodedImageFormat?.Name;
-            var usesFrameSentinel = string.Equals(formatName, "GIF", StringComparison.OrdinalIgnoreCase) ||
-                                    string.Equals(formatName, "WEBP", StringComparison.OrdinalIgnoreCase);
-            var frameCount = usesFrameSentinel
-                ? Math.Max(1, info.FrameMetadataCollection.Count)
-                : 1;
-
-            return DecodedImageResourceLimits.Evaluate(info.Width, info.Height, frameCount);
-        }
-        catch (Exception ex) when (ex is UnknownImageFormatException or InvalidImageContentException or
-            NotSupportedException or ArgumentException or SixLabors.ImageSharp.Memory.InvalidMemoryOperationException)
-        {
-            return DecodedImageResourceResult.Failed();
-        }
+    /// <summary>Cheap container authority only. Success always requires subsequent full contained decoding.</summary>
+    internal static DecodedImageResourceResult PreflightDecodedResources(ReadOnlySpan<byte> bytes)
+    {
+        var png = PngFrameAuthority.Inspect(bytes);
+        if (png.Decision == PngAuthorityDecision.Failed) return DecodedImageResourceResult.Failed();
+        if (png.Decision == PngAuthorityDecision.TooManyFrames)
+            return DecodedImageResourceResult.TooLarge("frame-count", png.FrameCount, 1);
+        if (png.Decision == PngAuthorityDecision.StillPng)
+            return DecodedImageResourceLimits.Evaluate(
+                System.Buffers.Binary.BinaryPrimitives.ReadUInt32BigEndian(bytes.Slice(16, 4)),
+                System.Buffers.Binary.BinaryPrimitives.ReadUInt32BigEndian(bytes.Slice(20, 4)), 1);
+        var webp = WebpFrameAuthority.Inspect(bytes);
+        if (webp.Decision == WebpAuthorityDecision.Failed) return DecodedImageResourceResult.Failed();
+        if (webp.Decision == WebpAuthorityDecision.TooManyFrames)
+            return DecodedImageResourceResult.TooLarge("frame-count", webp.FrameCount, 1);
+        if (webp.Decision == WebpAuthorityDecision.Webp || bytes.StartsWith("GIF87a"u8)
+            || bytes.StartsWith("GIF89a"u8) || bytes.StartsWith(new byte[] { 255, 216, 255 }))
+            return DecodedImageResourceResult.Accepted();
+        return DecodedImageResourceResult.Failed();
     }
 }
 
