@@ -94,7 +94,8 @@ public static class ImageProxyHelper
 
     /// <summary>Normalize one bounded source to verified JPEG/PNG using the selected Rust runtime.</summary>
     public static async Task<(byte[] Bytes, bool IsPng)> OptimizeImageAsync(byte[] imageBytes,
-        int? maxWidth, int? maxHeight, int quality, CancellationToken ct = default)
+        int? maxWidth, int? maxHeight, int quality, int maximumInputBytes = 50 * 1024 * 1024,
+        CancellationToken ct = default)
     {
         RejectPreflight(imageBytes);
         // Invalid caller recipes follow the established source-failure HTTP path, not infrastructure 503.
@@ -110,7 +111,8 @@ public static class ImageProxyHelper
             quality = 90;
         }
         var result = await Supervisor.TransformAsync(imageBytes,
-            new ImageTransform(maxWidth, maxHeight, quality), TimeSpan.FromSeconds(30), ct);
+            new ImageTransform(maxWidth, maxHeight, quality, MaximumInputBytes: maximumInputBytes),
+            TimeSpan.FromSeconds(30), ct);
         RequireSuccess(result);
         return (result.Bytes!, result.MimeType == "image/png");
     }
@@ -119,10 +121,11 @@ public static class ImageProxyHelper
     public static string ValidateRaster(byte[] imageBytes) => ValidateRasterAsync(imageBytes).GetAwaiter().GetResult();
 
     /// <summary>Full decode for every untrusted cache hit and optimize=false source; no MIME/provenance shortcut.</summary>
-    public static async Task<string> ValidateRasterAsync(byte[] imageBytes, CancellationToken ct = default)
+    public static async Task<string> ValidateRasterAsync(byte[] imageBytes,
+        int maximumInputBytes = 50 * 1024 * 1024, CancellationToken ct = default)
     {
         RejectPreflight(imageBytes);
-        var result = await Supervisor.ValidateAsync(imageBytes, ct);
+        var result = await Supervisor.ValidateAsync(imageBytes, maximumInputBytes, ct);
         RequireSuccess(result);
         return result.MimeType!;
     }

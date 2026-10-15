@@ -31,7 +31,9 @@ fn run() -> Result<(), Failure> {
         bytes.extend_from_slice(&chunk[..length]);
     }
     let output = if validate {
-        wayfarer_image::validate(&bytes)?.as_bytes().to_vec()
+        wayfarer_image::validate(&bytes, recipe.max_input)?
+            .as_bytes()
+            .to_vec()
     } else {
         wayfarer_image::transform(&bytes, &recipe)?
     };

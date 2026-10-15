@@ -1,5 +1,24 @@
 //! Compatibility contracts for the selected runtime codecs.
-use wayfarer_image::{Failure, MAX_ENCODED, OutputFormat, Recipe, transform};
+use wayfarer_image::{Failure, MAX_ENCODED, MAX_INPUT, OutputFormat, Recipe, transform, validate};
+
+/// Both library routes honor the effective input limit while trusted arguments retain independent hard ceilings.
+#[test]
+fn encoded_limits_preserve_the_admin_range_and_output_ceiling() {
+    let mut configured = recipe();
+    configured.max_input = MAX_INPUT;
+    assert_eq!(configured.validate(), Ok(()));
+    let source = fixture("opaque.png");
+    assert_eq!(validate(&source, MAX_INPUT), Ok("image/png"));
+    configured.max_input = source.len() - 1;
+    assert_eq!(transform(&source, &configured), Err(Failure::TooLarge));
+    assert_eq!(validate(&source, source.len() - 1), Err(Failure::TooLarge));
+    configured.max_input = MAX_INPUT + 1;
+    assert_eq!(configured.validate(), Err(Failure::Arguments));
+    assert_eq!(validate(&source, MAX_INPUT + 1), Err(Failure::Arguments));
+    configured.max_input = MAX_INPUT;
+    configured.max_output = MAX_ENCODED + 1;
+    assert_eq!(configured.validate(), Err(Failure::Arguments));
+}
 
 /// Reuse only the retained local corpus; no fixture generation or host mutation.
 fn fixture(name: &str) -> Vec<u8> {

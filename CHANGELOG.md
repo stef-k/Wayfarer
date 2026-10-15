@@ -7,6 +7,9 @@
 - Integrate the contained Rust image helper with the existing image proxy, independent
   cache validation and native Linux AMD64/ARM64 packaging (#858). Preserve static
   formats, ICC/alpha and private metadata stripping; web defaults are 2048/90.
+  Bound full cache validation to eight independent slots and return temporary 503
+  on saturation without origin refetch. Honor the configured 5–200 MiB input limit
+  in both codec modes and legacy-cache validation; retain the 50 MiB output cap.
   Draft-only: an official fixed WebP crate and a native Windows maintainer decision
   are required before merge.
 

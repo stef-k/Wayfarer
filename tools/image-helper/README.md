@@ -26,7 +26,8 @@ for Linux parent-death semantics. Before exec, `/usr/bin/prlimit` supplies:
 - 1 GiB address space; CPU soft/hard 20/25 seconds;
 - 128 descriptors and no core dumps;
 - a 30-second wall deadline, also cancelled by the owning operation;
-- independent input/output limits of 50 MiB and 4096-byte stderr drainage;
+- the configured 5–200 MiB input limit, a separate 50 MiB derivative output limit,
+  and 4096-byte stderr drainage;
 - a two-second termination/reap watchdog. Failed cleanup disables further admission.
 
 The helper rejects root, unsupported OS/architecture, absent containment and parent
@@ -35,7 +36,9 @@ PID validation, both parent-match checks and parent-death handling still apply.
 Input geometry is limited to 8192 per axis, 12M pixels, one static frame
 and conservative 64 MiB decoded-byte accounting. Codec scratch limits and kernel
 limits are complementary; an address-space ceiling is not an aggregate RSS ceiling.
-The service's configured download limit remains independently enforced while reading.
+The effective configured input limit applies while downloading, to the helper recipe
+and stdin reader, and to full legacy-cache validation. Trusted arguments cannot
+raise the 200 MiB input or 50 MiB output ceilings.
 
 Source MIME is byte-derived. JPEG, PNG, WebP and static GIF are accepted. PNG
 requires complete CRC/checksum-verified zlib and exact container completion; GIF
@@ -64,9 +67,13 @@ Previously stored keys are never migrated or declared trusted.
 fully decodes the source before its original bytes/MIME can be stored or returned.
 It does not apply resize, orientation or metadata stripping to those originals.
 Every cache hit, including legacy/rollback bytes, goes through full validation;
-there is no provenance shortcut. Validation runs outside the origin/transform
-semaphores, preserving independent cache-hit operation. Per-child controls bound
-each decode; aggregate cache-hit concurrency remains a separate resource concern.
+there is no provenance shortcut. Validation has eight process-wide non-queuing
+slots, separate from the four origin/transform slots. Admission happens before
+creating a supervisor thread or child; the slot is retained through cleanup/reap.
+Saturation returns Unavailable/503 without classifying cached bytes as corrupt,
+refetching the origin or retaining inputs in a validation queue. Invalid bytes
+remain inert cache misses. The cache read itself precedes validation admission;
+the budget bounds helper/thread concurrency, not all concurrent cache reads.
 
 Failures carry no image bytes: positive source limits map to TooLarge (HTTP 400),
 malformed source to Failed (404), launch/timeout/pipe/output exhaustion to Unavailable

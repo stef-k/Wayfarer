@@ -26,7 +26,7 @@ public sealed record ImageTransform
     public int Quality { get; init; }
     /// <summary>Only auto, jpeg and png are valid.</summary>
     public string OutputFormat { get; init; }
-    /// <summary>Bounded stdin byte budget, never greater than 50 MiB.</summary>
+    /// <summary>Effective configured stdin byte budget, never greater than the 200 MiB admin ceiling.</summary>
     public int MaximumInputBytes { get; init; }
     /// <summary>Bounded verified stdout byte budget, never greater than 50 MiB.</summary>
     public int MaximumOutputBytes { get; init; }

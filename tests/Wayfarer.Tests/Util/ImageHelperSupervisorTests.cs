@@ -342,6 +342,22 @@ public sealed class ImageHelperSupervisorTests
         }
     }
 
+    /// <summary>Exec failure releases validation admission only after reaping and permits the next real validation.</summary>
+    [Fact]
+    public async Task ValidationLaunchFailure_ReleasesAdmission()
+    {
+        var missing = new ImageHelperSupervisor(Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString()));
+        for (var index = 0; index < 9; index++)
+        {
+            var result = await missing.ValidateAsync(ReadOnlyMemory<byte>.Empty);
+            Assert.Equal(ImageTransformStatus.Unavailable, result.Status);
+            AssertReaped(result.ProcessId);
+        }
+        var valid = await Supervisor.ValidateAsync(File.ReadAllBytes(Path.Combine(Fixtures, "opaque.png")));
+        Assert.Equal(ImageTransformStatus.Success, valid.Status);
+        AssertReaped(valid.ProcessId);
+    }
+
     /// <summary>Read the checked-in focused corpus without modifying it.</summary>
     internal static string Fixtures
     {

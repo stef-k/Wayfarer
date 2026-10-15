@@ -1,5 +1,5 @@
 //! One complete normalized derivative, verified before exposure to stdout.
-use crate::{Failure, MAX_ENCODED, Result, color, raster};
+use crate::{Failure, MAX_ENCODED, MAX_INPUT, Result, color, raster};
 use image::{DynamicImage, GenericImageView, ImageEncoder, ImageFormat, imageops::FilterType};
 use std::io::{self, Write};
 
@@ -31,7 +31,7 @@ impl Recipe {
             || self.quality == 0
             || self.quality > 100
             || self.max_input == 0
-            || self.max_input > MAX_ENCODED
+            || self.max_input > MAX_INPUT
             || self.max_output == 0
             || self.max_output > MAX_ENCODED
         {

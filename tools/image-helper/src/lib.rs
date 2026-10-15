@@ -12,8 +12,11 @@ pub use transform::{OutputFormat, Recipe, transform};
 
 /// Full source validation for untrusted cache hits and the accepted optimize=false route.
 /// Success returns only a fixed MIME token; source bytes never acquire cached provenance.
-pub fn validate(bytes: &[u8]) -> Result<&'static str> {
-    if bytes.len() > MAX_ENCODED {
+pub fn validate(bytes: &[u8], max_input: usize) -> Result<&'static str> {
+    if max_input == 0 || max_input > MAX_INPUT {
+        return Err(Failure::Arguments);
+    }
+    if bytes.len() > max_input {
         return Err(Failure::TooLarge);
     }
     let decoded = raster::decode(bytes)?;
@@ -58,6 +61,9 @@ impl Failure {
 }
 
 pub(crate) type Result<T> = std::result::Result<T, Failure>;
+/// Existing admin input ceiling; separate from the verified derivative output cap.
+pub const MAX_INPUT: usize = 200 * 1024 * 1024;
+/// Maximum verified output size; larger configured originals do not relax this cap.
 pub const MAX_ENCODED: usize = 50 * 1024 * 1024;
 
 /// Check original geometry before any raster-sized allocation.

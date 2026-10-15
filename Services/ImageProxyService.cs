@@ -70,7 +70,12 @@ public class ImageProxyService : IImageProxyService
 
         var cacheKey = ComputeCacheKey(request);
         ct.ThrowIfCancellationRequested();
-        var cached = await GetSafeCacheAsync(cacheKey, ct);
+        ProxiedImageCacheResult cached;
+        try { cached = await GetSafeCacheAsync(cacheKey, ct); }
+        catch (ImageHelperUnavailableException)
+        {
+            return new ImageProxyResult(ImageProxyResultStatus.Unavailable, cacheKey, null, null);
+        }
         if (cached.Status is ProxiedImageCacheStatus.FreshHit or ProxiedImageCacheStatus.StaleHit && cached.HasBytes)
         {
             if (cached.Status == ProxiedImageCacheStatus.StaleHit)
@@ -104,7 +109,9 @@ public class ImageProxyService : IImageProxyService
 
         var cacheKey = ComputeCacheKey(request);
         ct.ThrowIfCancellationRequested();
-        var existing = await GetSafeCacheAsync(cacheKey, ct);
+        ProxiedImageCacheResult existing;
+        try { existing = await GetSafeCacheAsync(cacheKey, ct); }
+        catch (ImageHelperUnavailableException) { return false; }
         if (existing.Status == ProxiedImageCacheStatus.FreshHit && existing.HasBytes)
         {
             return false;
@@ -199,23 +206,28 @@ public class ImageProxyService : IImageProxyService
         completion.SetResult(result);
     }
 
-    /// <summary>Legacy cache bytes are untrusted; invalid entries remain inert until replacement or LRU.</summary>
+    /// <summary>Invalid cache bytes remain inert; temporary validation failures propagate without triggering origin work.</summary>
     private async Task<ProxiedImageCacheResult> GetSafeCacheAsync(string cacheKey, CancellationToken ct)
     {
         var cached = await _imageCacheService.GetAsync(cacheKey, ct);
         if (!cached.HasBytes) return cached;
         try
         {
-            var mime = await ImageProxyHelper.ValidateRasterAsync(cached.Bytes!, ct);
+            var mime = await ImageProxyHelper.ValidateRasterAsync(cached.Bytes!, MaximumInputBytes, ct);
             ct.ThrowIfCancellationRequested();
             return cached with { ContentType = mime };
         }
         catch (OperationCanceledException) { throw; }
+        catch (ImageHelperUnavailableException) { throw; }
         catch (Exception)
         {
             return new ProxiedImageCacheResult(ProxiedImageCacheStatus.Miss, null, null, null);
         }
     }
+
+    /// <summary>Bound even invalid persisted settings to the supported 5–200 MiB input range before checked conversion.</summary>
+    private int MaximumInputBytes => checked(Math.Clamp(_settingsService.GetSettings().MaxProxyImageDownloadMB,
+        5, 200) * 1024 * 1024);
 
     /// <summary>
     /// Downloads, optionally optimizes, and stores an image for one cache key.
@@ -225,7 +237,7 @@ public class ImageProxyService : IImageProxyService
         string cacheKey,
         CancellationToken ct)
     {
-        var maxBytes = _settingsService.GetSettings().MaxProxyImageDownloadMB * 1024L * 1024;
+        var maxBytes = MaximumInputBytes;
         HttpResponseMessage resp;
         try
         {
@@ -267,13 +279,13 @@ public class ImageProxyService : IImageProxyService
                 if (request.Optimize)
                 {
                     var optimized = await ImageProxyHelper.OptimizeImageAsync(
-                        bytes, request.MaxWidth, request.MaxHeight, request.Quality ?? 90, ct);
+                        bytes, request.MaxWidth, request.MaxHeight, request.Quality ?? 90, maxBytes, ct);
                     bytes = optimized.Bytes;
                     contentType = optimized.IsPng ? "image/png" : "image/jpeg";
                 }
                 else
                 {
-                    contentType = await ImageProxyHelper.ValidateRasterAsync(bytes, ct);
+                    contentType = await ImageProxyHelper.ValidateRasterAsync(bytes, maxBytes, ct);
                 }
             }
             catch (OperationCanceledException) { throw; }

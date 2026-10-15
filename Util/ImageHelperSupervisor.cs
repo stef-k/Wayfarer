@@ -4,11 +4,13 @@ using System.Runtime.InteropServices;
 
 namespace Wayfarer.Util;
 
-/// <summary>Owns one fixed helper path, four transform slots, independent validation, finite Linux controls and reaping.</summary>
+/// <summary>Owns one fixed helper path, separate bounded transform/validation admission, Linux controls and reaping.</summary>
 public sealed class ImageHelperSupervisor
 {
-    private const int MaximumBytes = 50 * 1024 * 1024;
+    private const int MaximumInputBytes = 200 * 1024 * 1024;
+    private const int MaximumOutputBytes = 50 * 1024 * 1024;
     private static readonly SemaphoreSlim Slots = new(4, 4);
+    private static readonly SemaphoreSlim ValidationSlots = new(8, 8);
     private static int admissionDisabled;
     private readonly string helperPath;
 
@@ -30,10 +32,11 @@ public sealed class ImageHelperSupervisor
 
     /// <summary>Fully decode cache/raw bytes outside origin admission; emit only their canonical MIME.</summary>
     public Task<ImageTransformResult> ValidateAsync(ReadOnlyMemory<byte> input,
-        CancellationToken cancellationToken = default) =>
-        RunAsync(input, new ImageTransform(), TimeSpan.FromSeconds(30), true, cancellationToken);
+        int maximumInputBytes = 50 * 1024 * 1024, CancellationToken cancellationToken = default) =>
+        RunAsync(input, new ImageTransform(MaximumInputBytes: maximumInputBytes),
+            TimeSpan.FromSeconds(30), true, cancellationToken);
 
-    /// <summary>Origin transforms retain four non-queuing slots; cache trust never consumes them.</summary>
+    /// <summary>Admit before creating a thread/child; eight validators never queue or consume the four transform slots.</summary>
     private Task<ImageTransformResult> RunAsync(ReadOnlyMemory<byte> input, ImageTransform recipe,
         TimeSpan remainingOriginBudget, bool validation, CancellationToken cancellationToken)
     {
@@ -44,21 +47,25 @@ public sealed class ImageHelperSupervisor
             return Task.FromResult(new ImageTransformResult(ImageTransformStatus.Unavailable));
         if (input.Length > recipe.MaximumInputBytes)
             return Task.FromResult(new ImageTransformResult(ImageTransformStatus.TooLarge));
-        if (!validation && !Slots.Wait(0))
+        var slots = validation ? ValidationSlots : Slots;
+        if (!slots.Wait(0))
             return Task.FromResult(new ImageTransformResult(ImageTransformStatus.Unavailable));
 
         var completion = new TaskCompletionSource<ImageTransformResult>(
             TaskCreationOptions.RunContinuationsAsynchronously);
         // Linux PDEATHSIG follows the launching thread. This dedicated thread stays
         // alive through reap instead of delegating Process.Start to a retiring pool thread.
-        var thread = new Thread(() => Supervise(input, recipe,
-            TimeSpan.FromSeconds(Math.Min(30, remainingOriginBudget.TotalSeconds)),
-            cancellationToken, validation, completion))
-        { IsBackground = true, Name = "Wayfarer image supervisor" };
-        try { thread.Start(); }
+        try
+        {
+            var thread = new Thread(() => Supervise(input, recipe,
+                TimeSpan.FromSeconds(Math.Min(30, remainingOriginBudget.TotalSeconds)),
+                cancellationToken, validation, slots, completion))
+            { IsBackground = true, Name = "Wayfarer image supervisor" };
+            thread.Start();
+        }
         catch
         {
-            if (!validation) Slots.Release();
+            slots.Release();
             completion.SetResult(new ImageTransformResult(ImageTransformStatus.Unavailable));
         }
         return completion.Task;
@@ -66,14 +73,16 @@ public sealed class ImageHelperSupervisor
 
     /// <summary>Launch and retain the owning thread until independent cleanup finishes.</summary>
     private void Supervise(ReadOnlyMemory<byte> input, ImageTransform recipe, TimeSpan budget,
-        CancellationToken caller, bool validation, TaskCompletionSource<ImageTransformResult> completion)
+        CancellationToken caller, bool validation, SemaphoreSlim slots,
+        TaskCompletionSource<ImageTransformResult> completion)
     {
-        var process = new Process { StartInfo = StartInfo(recipe, validation) };
+        Process? process = null;
         var started = false;
         var reaped = false;
         ImageTransformResult result = new(ImageTransformStatus.Unavailable);
         try
         {
+            process = new Process { StartInfo = StartInfo(recipe, validation) };
             started = process.Start();
             if (started)
             {
@@ -86,15 +95,15 @@ public sealed class ImageHelperSupervisor
         catch
         {
             if (started)
-                reaped = StopAndReapAsync(process, []).GetAwaiter().GetResult();
+                reaped = StopAndReapAsync(process!, []).GetAwaiter().GetResult();
         }
         finally
         {
-            process.Dispose();
+            process?.Dispose();
             if (started && !reaped)
                 Interlocked.Exchange(ref admissionDisabled, 1);
-            else if (!validation)
-                Slots.Release();
+            else
+                slots.Release();
         }
         if (caller.IsCancellationRequested)
             completion.TrySetCanceled(caller);
@@ -254,8 +263,8 @@ public sealed class ImageHelperSupervisor
     private static bool Valid(ImageTransform recipe) =>
         recipe.Width is > 0 and <= 8192 && recipe.Height is > 0 and <= 8192
         && recipe.Quality is > 0 and <= 100 && recipe.OutputFormat is "auto" or "jpeg" or "png"
-        && recipe.MaximumInputBytes is > 0 and <= MaximumBytes
-        && recipe.MaximumOutputBytes is > 0 and <= MaximumBytes;
+        && recipe.MaximumInputBytes is > 0 and <= MaximumInputBytes
+        && recipe.MaximumOutputBytes is > 0 and <= MaximumOutputBytes;
 
     /// <summary>Numeric arguments never depend on the supervisor's locale.</summary>
     private static string Number(int value) => value.ToString(CultureInfo.InvariantCulture);
