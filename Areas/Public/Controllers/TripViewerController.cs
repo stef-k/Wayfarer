@@ -435,6 +435,9 @@ public class TripViewerController : BaseController
         if (cached.Status == ImageProxyResultStatus.BadRequest)
             return BadRequest("Invalid or disallowed image URL.");
 
+        if (cached.Status == ImageProxyResultStatus.Unavailable)
+            return StatusCode(503);
+
         if (ShouldRateLimitProxyOriginRequest())
             return StatusCode(429, "Too many requests. Please try again later.");
 

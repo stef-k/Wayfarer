@@ -54,21 +54,25 @@ public partial class TripViewerControllerTests
         Assert.NotEqual(etag, controller.Response.Headers.ETag.ToString());
     }
 
-    /// <summary>Capacity/deadline exhaustion has a generic 503 and RequestAborted reaches each service wait.</summary>
-    [Fact]
-    public async Task ProxyImage_UnavailableMapsTo503_AndForwardsRequestCancellation()
+    /// <summary>Cache/origin exhaustion returns 503; a busy cache never enters origin admission and forwards cancellation.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ProxyImage_UnavailableMapsTo503_AndForwardsRequestCancellation(bool cacheBusy)
     {
         using var abort = new CancellationTokenSource();
         var proxy = new Mock<IImageProxyService>();
         proxy.Setup(p => p.GetOrFetchAsync(It.IsAny<ImageProxyRequest>(), false, abort.Token))
-            .ReturnsAsync(new ImageProxyResult(ImageProxyResultStatus.OriginRequired, "key", null, null));
+            .ReturnsAsync(new ImageProxyResult(cacheBusy ? ImageProxyResultStatus.Unavailable : ImageProxyResultStatus.OriginRequired,
+                "key", null, null));
         proxy.Setup(p => p.GetOrFetchAsync(It.IsAny<ImageProxyRequest>(), true, abort.Token))
             .ReturnsAsync(new ImageProxyResult(ImageProxyResultStatus.Unavailable, "key", null, null));
         var controller = BuildController(CreateDbContext(), proxyService: proxy.Object);
         controller.HttpContext.RequestAborted = abort.Token;
         var result = Assert.IsType<StatusCodeResult>(await controller.ProxyImage("https://example.com/busy"));
         Assert.Equal(503, result.StatusCode);
-        proxy.VerifyAll();
+        proxy.Verify(p => p.GetOrFetchAsync(It.IsAny<ImageProxyRequest>(), false, abort.Token), Times.Once);
+        proxy.Verify(p => p.GetOrFetchAsync(It.IsAny<ImageProxyRequest>(), true, abort.Token), cacheBusy ? Times.Never : Times.Once);
         proxy.Setup(p => p.GetOrFetchAsync(It.IsAny<ImageProxyRequest>(), false, abort.Token))
             .ThrowsAsync(new OperationCanceledException(abort.Token));
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => controller.ProxyImage("https://example.com/cancelled"));
