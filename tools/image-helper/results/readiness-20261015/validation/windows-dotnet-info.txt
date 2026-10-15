@@ -1,0 +1,91 @@
+.NET SDK:
+ Version:           10.0.402
+ Commit:            a8dd0577c5
+ Workload version:  10.0.400.1
+ MSBuild version:   18.9.15+a8dd0577c
+
+Runtime Environment:
+ OS Name:     Windows
+ OS Version:  10.0.19045
+ OS Platform: Windows
+ RID:         win-x64
+ Base Path:   C:\Program Files\dotnet\sdk\10.0.402\
+
+.NET workloads installed:
+ [android]
+   Installation Source: SDK 10.0.400, VS 18.7.11911.148
+   Manifest Version:    36.1.69/10.0.100
+   Manifest Path:       C:\Program Files\dotnet\sdk-manifests\10.0.100\microsoft.net.sdk.android\36.1.69\WorkloadManifest.json
+   Install Type:              Msi
+
+ [ios]
+   Installation Source: SDK 10.0.400, VS 18.7.11911.148
+   Manifest Version:    26.5.10315/10.0.100
+   Manifest Path:       C:\Program Files\dotnet\sdk-manifests\10.0.100\microsoft.net.sdk.ios\26.5.10315\WorkloadManifest.json
+   Install Type:              Msi
+
+ [maccatalyst]
+   Installation Source: SDK 10.0.400, VS 18.7.11911.148
+   Manifest Version:    26.5.10315/10.0.100
+   Manifest Path:       C:\Program Files\dotnet\sdk-manifests\10.0.100\microsoft.net.sdk.maccatalyst\26.5.10315\WorkloadManifest.json
+   Install Type:              Msi
+
+ [maui-windows]
+   Installation Source: SDK 10.0.400, VS 18.7.11911.148
+   Manifest Version:    10.0.20/10.0.100
+   Manifest Path:       C:\Program Files\dotnet\sdk-manifests\10.0.100\microsoft.net.sdk.maui\10.0.20\WorkloadManifest.json
+   Install Type:              Msi
+
+Configured to use workload sets when installing new manifests.
+
+Host:
+  Version:      10.0.13
+  Architecture: x64
+  Commit:       4099f83977
+
+.NET SDKs installed:
+  8.0.426 [C:\Program Files\dotnet\sdk]
+  10.0.113 [C:\Program Files\dotnet\sdk]
+  10.0.301 [C:\Program Files\dotnet\sdk]
+  10.0.402 [C:\Program Files\dotnet\sdk]
+
+.NET runtimes installed:
+  Microsoft.AspNetCore.App 8.0.28 [C:\Program Files\dotnet\shared\Microsoft.AspNetCore.App]
+  Microsoft.AspNetCore.App 8.0.32 [C:\Program Files\dotnet\shared\Microsoft.AspNetCore.App]
+  Microsoft.AspNetCore.App 9.0.17 [C:\Program Files\dotnet\shared\Microsoft.AspNetCore.App]
+  Microsoft.AspNetCore.App 10.0.9 [C:\Program Files\dotnet\shared\Microsoft.AspNetCore.App]
+  Microsoft.AspNetCore.App 10.0.13 [C:\Program Files\dotnet\shared\Microsoft.AspNetCore.App]
+  Microsoft.NETCore.App 6.0.0 [C:\Program Files\dotnet\shared\Microsoft.NETCore.App]
+  Microsoft.NETCore.App 6.0.36 [C:\Program Files\dotnet\shared\Microsoft.NETCore.App]
+  Microsoft.NETCore.App 7.0.20 [C:\Program Files\dotnet\shared\Microsoft.NETCore.App]
+  Microsoft.NETCore.App 8.0.28 [C:\Program Files\dotnet\shared\Microsoft.NETCore.App]
+  Microsoft.NETCore.App 8.0.32 [C:\Program Files\dotnet\shared\Microsoft.NETCore.App]
+  Microsoft.NETCore.App 9.0.17 [C:\Program Files\dotnet\shared\Microsoft.NETCore.App]
+  Microsoft.NETCore.App 10.0.9 [C:\Program Files\dotnet\shared\Microsoft.NETCore.App]
+  Microsoft.NETCore.App 10.0.13 [C:\Program Files\dotnet\shared\Microsoft.NETCore.App]
+  Microsoft.WindowsDesktop.App 6.0.0 [C:\Program Files\dotnet\shared\Microsoft.WindowsDesktop.App]
+  Microsoft.WindowsDesktop.App 6.0.36 [C:\Program Files\dotnet\shared\Microsoft.WindowsDesktop.App]
+  Microsoft.WindowsDesktop.App 7.0.20 [C:\Program Files\dotnet\shared\Microsoft.WindowsDesktop.App]
+  Microsoft.WindowsDesktop.App 8.0.28 [C:\Program Files\dotnet\shared\Microsoft.WindowsDesktop.App]
+  Microsoft.WindowsDesktop.App 8.0.32 [C:\Program Files\dotnet\shared\Microsoft.WindowsDesktop.App]
+  Microsoft.WindowsDesktop.App 9.0.17 [C:\Program Files\dotnet\shared\Microsoft.WindowsDesktop.App]
+  Microsoft.WindowsDesktop.App 10.0.9 [C:\Program Files\dotnet\shared\Microsoft.WindowsDesktop.App]
+  Microsoft.WindowsDesktop.App 10.0.13 [C:\Program Files\dotnet\shared\Microsoft.WindowsDesktop.App]
+
+Other architectures found:
+  x86   [C:\Program Files (x86)\dotnet]
+    registered at [HKLM\SOFTWARE\dotnet\Setup\InstalledVersions\x86\InstallLocation]
+
+Environment variables:
+  DOTNET_CLI_HOME                          [C:\Users\stef\AppData\Local\Temp\Wayfarer858Readiness20261015-KKforFH8\.dotnet-cli]
+  DOTNET_CLI_TELEMETRY_OPTOUT              [1]
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE        [1]
+
+global.json file:
+  Not found
+
+Learn more:
+  https://aka.ms/dotnet/info
+
+Download .NET:
+  https://aka.ms/dotnet/download

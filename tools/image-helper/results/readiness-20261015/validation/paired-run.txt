@@ -1,0 +1,31 @@
+Running as unit: wayfarer-858-paired-20261015.service; invocation ID: ea45ba71492448dbacd649bda32c57a0
+Warm 1: web/photo.jpg
+Warm 1: web/photo.webp
+Warm 1: web/large-vilaplana.jpg
+Warm 1: web/large-vilaplana.webp
+Warm 1: pdf/photo.jpg
+Warm 1: pdf/photo.webp
+Warm 1: pdf/large-vilaplana.jpg
+Warm 1: pdf/large-vilaplana.webp
+Warm 2: pdf/large-vilaplana.webp
+Warm 2: pdf/large-vilaplana.jpg
+Warm 2: pdf/photo.webp
+Warm 2: pdf/photo.jpg
+Warm 2: web/large-vilaplana.webp
+Warm 2: web/large-vilaplana.jpg
+Warm 2: web/photo.webp
+Warm 2: web/photo.jpg
+Cold 8 hosts: web/photo.jpg
+Cold 8 hosts: web/photo.webp
+Cold 8 hosts: web/large-vilaplana.jpg
+Cold 8 hosts: web/large-vilaplana.webp
+Cold 8 hosts: pdf/photo.jpg
+Cold 8 hosts: pdf/photo.webp
+Cold 8 hosts: pdf/large-vilaplana.jpg
+Cold 8 hosts: pdf/large-vilaplana.webp
+Finished with result: success
+Main processes terminated with: code=exited/status=0
+Service runtime: 8min 10.752s
+CPU time consumed: 9min 48.552s
+Memory peak: 256.0K
+Memory swap peak: 0B

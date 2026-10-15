@@ -1,0 +1,15 @@
+Running as unit: wayfarer-858-safety-20261015.service; invocation ID: 8902d0801bb94fdc97c73ef558081700
+Test run for /home/stef/wayfarer-research/858-readiness-20261015-KKforFH8/source/tests/Wayfarer.Tests/bin/Release/net10.0/Wayfarer.Tests.dll (.NETCoreApp,Version=v10.0)
+VSTest version 18.0.2 (x64)
+
+Starting test execution, please wait...
+A total of 1 test files matched the specified pattern.
+Results File: /home/stef/wayfarer-research/858-readiness-20261015-KKforFH8/evidence/test-results/readiness-safety.trx
+
+Passed!  - Failed:     0, Passed:    74, Skipped:     0, Total:    74, Duration: 23 s - Wayfarer.Tests.dll (net10.0)
+Finished with result: success
+Main processes terminated with: code=exited/status=0
+Service runtime: 29.007s
+CPU time consumed: 33.128s
+Memory peak: 1020.0K
+Memory swap peak: 0B

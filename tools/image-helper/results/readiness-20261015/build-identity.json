@@ -1,0 +1,72 @@
+{
+  "baseline": "21bac96303ea2040dcf892da6cfee52b65bed73a",
+  "os": "Linux-6.18.54.1-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+  "uid": 1000,
+  "source_hashes": {
+    "tools/image-helper/src/color.rs": "944c8863c8ac85d902056f8f17ae97b4e40f0ad5e38132c9f232d753ae909274",
+    "tools/image-helper/src/raster.rs": "b460095a2d0823a94b2db04f6e91f34d02f2316d89a48a7a6ac350ee1d6eebf3",
+    "tools/image-helper/src/codec_candidates.rs": "ddccb640b6565a8ebf5ee782bad6e4a583087c02d6a667614569cb0e39091e2d",
+    "tools/image-helper/src/transform.rs": "596fd5b5c2dfc45c48151442ac1be3c17604f88b173d987aefaba9655f2a31ae",
+    "tools/image-helper/src/webp_input.rs": "3c2ff05b16c29f3afd93df067875a79fc476fa3244f0472aee1aa556bc128e0a",
+    "tools/image-helper/src/gif_input.rs": "3dc6ae419fe0d2a6ff0808d8a4b9316f0e647e5ad75aaa9002715cb03c9dfaf1",
+    "tools/image-helper/src/png_input.rs": "21bc92220ae07e77d346716dc3fefdd3eafd46e43d729d1e4fac040526c2b2d5",
+    "tools/image-helper/src/main.rs": "aad791459066421f8ea5a4fb543be0649fe613210e39e7e9b3feec4051d52491",
+    "tools/image-helper/src/lib.rs": "6012461a50c4301cceb8ec5fdd5bd87c9dd9169a261fa0f12c7d7375b37a989c",
+    "tools/image-helper/src/jpeg_output.rs": "43db9e338c8352ece2f08d0a05ee0331292d1ba86f2ed0fd7059908e63e8a205",
+    "tools/image-helper/supervisor/ImageTransform.cs": "f73f137857ce196faf162d05fc1486677b388fe2695e0f5cf757e33fbdc7fef2",
+    "tools/image-helper/supervisor/Program.cs": "8e6e6318de9fecfb9a1ce38f089dd032de9e2b2c02a0643b41f1d87234e2cda0",
+    "tools/image-helper/supervisor/ImageHelperSupervisor.cs": "504ee0ff151fe156f1671b87beb012acb2df9b15c9e1a8a59f5e0fcb4660f005",
+    "tools/image-helper/supervisor/ImageHelper.Supervisor.csproj": "cd7349bc540aae9bd87c016774493ffb8df9eb834f45c79eb95c9455eb31b7fa"
+  },
+  "binary_sha256": "7ae92f471217bcbe0f0bcf7ba24cfc467ec1c93d66e92fbb85a1f188748c301b",
+  "rust_version": "rustc 1.90.0 (1159e78c4 2025-09-14)",
+  "dotnet_sdk": "10.0.112",
+  "cmake": "cmake version 3.28.3",
+  "compiler": "cc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0",
+  "nasm": "NASM version 2.16.01",
+  "lock_sha256": "55dc07a09ba5c1076fa50b9462af3388d78fa78b4d43a72cab1b256479033344",
+  "supervisor_dll_sha256": "6675651aa38add0bd01940e29af986a627617ad5140ba6e81f45c722b86797d9",
+  "xunit_dll_sha256": "a9ccf92bbcd8fa41d5db8c77481d6d8b2c83cc8e36333d7b7ad708f1d2b06187",
+  "performance_containment": {
+    "memory_max_bytes": 3221225472,
+    "memory_swap_max_bytes": 0,
+    "tasks_max": 192,
+    "cpu_quota_percent": 400,
+    "child_address_space_max_bytes": 1073741824,
+    "child_cpu_seconds": [
+      20,
+      25
+    ],
+    "child_nofile": 128,
+    "child_core_bytes": 0
+  },
+  "focused_tests": {
+    "rust_passed": 6,
+    "xunit_passed": 74,
+    "xunit_failed": 0,
+    "xunit_skipped": 0,
+    "fmt": "PASS",
+    "clippy": "PASS",
+    "dotnet_build_errors": 0,
+    "dotnet_build_warnings": 70
+  },
+  "build_flag_environment": {
+    "RUSTFLAGS": null,
+    "CFLAGS": null,
+    "CXXFLAGS": null,
+    "RUSTC_WRAPPER": null,
+    "CARGO_BUILD_RUSTFLAGS": null,
+    "RUSTC_BOOTSTRAP": null
+  },
+  "default_release_build_sha256": "5934de5bfdb5e05a2c21caa57fdb0176a811f7208b6190f0e80586317672a864",
+  "measured_cli_features": [
+    "default",
+    "codec-bench",
+    "jpeg-candidate-decode",
+    "native-jpeg-encode",
+    "webp-candidate-decode"
+  ],
+  "measurement_build_note": "cargo test --release --locked --features codec-bench rebuilt the CLI before qualification. Measurements belong to that exact hashed Release artifact, not the initial default-only build. No diagnostic-timing feature was active in this binary.",
+  "load_collector_commit": "4f484aaf68ad3021168c078f390b00b2e85a5fda",
+  "load_xunit_dll_sha256": "6caaf7a6e47c17f21537acd91c90dbbd5fea4559625b7e8ec06bf2413aeb1d8e"
+}

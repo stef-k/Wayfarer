@@ -1,0 +1,46 @@
+[
+  {
+    "crate": "turbojpeg-1.5.1",
+    "license": "Unlicense OR MIT",
+    "vcs": {
+      "git": {
+        "sha1": "7a9702af7f520709ed1b52a85d29960289268f87"
+      },
+      "path_in_vcs": ""
+    },
+    "crate_archive_sha256": "81313fcd64aaa30ddfd59eaa122968136b2dd9cd41d9619b126cf71e67a01702"
+  },
+  {
+    "crate": "turbojpeg-sys-1.2.0",
+    "license": "Unlicense OR MIT",
+    "vcs": {
+      "git": {
+        "sha1": "05da705c6b6147baec1834a4c1f0de5e1df2614b"
+      },
+      "path_in_vcs": "turbojpeg-sys"
+    },
+    "crate_archive_sha256": "49b5a974bc59382d35927e3a07eef2ba9a24fe7227cefe52ec44b508e1b90f86"
+  },
+  {
+    "crate": "libwebp-sys-0.9.6",
+    "license": "MIT",
+    "vcs": {
+      "git": {
+        "sha1": "4007a323c1dcc4ad11d70ddadffc51ecfa1dbb5e"
+      },
+      "path_in_vcs": ""
+    },
+    "crate_archive_sha256": "54cd30df7c7165ce74a456e4ca9732c603e8dc5e60784558c1c6dc047f876733"
+  },
+  {
+    "crate": "webp-0.3.1",
+    "license": "MIT OR Apache-2.0",
+    "vcs": {
+      "git": {
+        "sha1": "56aaf8449984f9f0fa30dc6862a12d1010b75b3a"
+      },
+      "path_in_vcs": ""
+    },
+    "crate_archive_sha256": "c071456adef4aca59bf6a583c46b90ff5eb0b4f758fc347cea81290288f37ce1"
+  }
+]

@@ -1,0 +1,28 @@
+{
+  "source_page": "https://commons.wikimedia.org/wiki/File:Vilaplana.jpg",
+  "source_url": "https://upload.wikimedia.org/wikipedia/commons/9/9f/Vilaplana.jpg",
+  "author": "Beireke1",
+  "license": "CC0-1.0",
+  "source_date": "2010-08-15",
+  "webp_preparation": "Pillow 10.2.0 with libwebp 1.3.2; RGB lossless=True method=4; untimed input preparation",
+  "fixtures": [
+    {
+      "path": "large-vilaplana.jpg",
+      "bytes": 4941658,
+      "sha256": "7b2f7ca7bca961c099946255582d20d8c8b2db81da8a9401d386f70e6716a769",
+      "dimensions": [
+        4000,
+        3000
+      ]
+    },
+    {
+      "path": "large-vilaplana.webp",
+      "bytes": 10493738,
+      "sha256": "fb6f75989678e4daf03c8a9cd14eb00f34a3c2ff02ef718c8b86e5ce3918ccf0",
+      "dimensions": [
+        4000,
+        3000
+      ]
+    }
+  ]
+}

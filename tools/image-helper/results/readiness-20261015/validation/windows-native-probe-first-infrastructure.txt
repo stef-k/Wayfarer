@@ -1,0 +1,7 @@
+dotnet : 
+At C:\Users\stef\AppData\Local\Temp\Wayfarer858Readiness20261015-KKforFH8\qualify-supervisor.ps1:12 char:1
++ dotnet build (Join-Path $taskRoot 'supervisor\ImageHelper.Supervisor. ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 

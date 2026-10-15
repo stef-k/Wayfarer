@@ -1,0 +1,198 @@
+[
+  {
+    "name": "pdf-large-vilaplana.jpg-warm-1.json.imagesharp.jpg",
+    "info_keys": [
+      "dpi",
+      "exif",
+      "jfif",
+      "jfif_density",
+      "jfif_unit",
+      "jfif_version"
+    ],
+    "exif_entries": 11,
+    "icc_bytes": 0
+  },
+  {
+    "name": "pdf-large-vilaplana.jpg-warm-1.json.rust.jpg",
+    "info_keys": [
+      "icc_profile",
+      "jfif",
+      "jfif_density",
+      "jfif_unit",
+      "jfif_version"
+    ],
+    "exif_entries": 0,
+    "icc_bytes": 612
+  },
+  {
+    "name": "pdf-large-vilaplana.webp-warm-1.json.imagesharp.jpg",
+    "info_keys": [
+      "dpi",
+      "jfif",
+      "jfif_density",
+      "jfif_unit",
+      "jfif_version"
+    ],
+    "exif_entries": 0,
+    "icc_bytes": 0
+  },
+  {
+    "name": "pdf-large-vilaplana.webp-warm-1.json.rust.jpg",
+    "info_keys": [
+      "icc_profile",
+      "jfif",
+      "jfif_density",
+      "jfif_unit",
+      "jfif_version"
+    ],
+    "exif_entries": 0,
+    "icc_bytes": 612
+  },
+  {
+    "name": "pdf-photo.jpg-warm-1.json.imagesharp.jpg",
+    "info_keys": [
+      "dpi",
+      "icc_profile",
+      "jfif",
+      "jfif_density",
+      "jfif_unit",
+      "jfif_version"
+    ],
+    "exif_entries": 0,
+    "icc_bytes": 524
+  },
+  {
+    "name": "pdf-photo.jpg-warm-1.json.rust.jpg",
+    "info_keys": [
+      "icc_profile",
+      "jfif",
+      "jfif_density",
+      "jfif_unit",
+      "jfif_version"
+    ],
+    "exif_entries": 0,
+    "icc_bytes": 612
+  },
+  {
+    "name": "pdf-photo.webp-warm-1.json.imagesharp.jpg",
+    "info_keys": [
+      "dpi",
+      "jfif",
+      "jfif_density",
+      "jfif_unit",
+      "jfif_version"
+    ],
+    "exif_entries": 0,
+    "icc_bytes": 0
+  },
+  {
+    "name": "pdf-photo.webp-warm-1.json.rust.jpg",
+    "info_keys": [
+      "icc_profile",
+      "jfif",
+      "jfif_density",
+      "jfif_unit",
+      "jfif_version"
+    ],
+    "exif_entries": 0,
+    "icc_bytes": 612
+  },
+  {
+    "name": "web-large-vilaplana.jpg-warm-1.json.imagesharp.jpg",
+    "info_keys": [
+      "dpi",
+      "exif",
+      "jfif",
+      "jfif_density",
+      "jfif_unit",
+      "jfif_version"
+    ],
+    "exif_entries": 11,
+    "icc_bytes": 0
+  },
+  {
+    "name": "web-large-vilaplana.jpg-warm-1.json.rust.jpg",
+    "info_keys": [
+      "icc_profile",
+      "jfif",
+      "jfif_density",
+      "jfif_unit",
+      "jfif_version"
+    ],
+    "exif_entries": 0,
+    "icc_bytes": 612
+  },
+  {
+    "name": "web-large-vilaplana.webp-warm-1.json.imagesharp.jpg",
+    "info_keys": [
+      "dpi",
+      "jfif",
+      "jfif_density",
+      "jfif_unit",
+      "jfif_version"
+    ],
+    "exif_entries": 0,
+    "icc_bytes": 0
+  },
+  {
+    "name": "web-large-vilaplana.webp-warm-1.json.rust.jpg",
+    "info_keys": [
+      "icc_profile",
+      "jfif",
+      "jfif_density",
+      "jfif_unit",
+      "jfif_version"
+    ],
+    "exif_entries": 0,
+    "icc_bytes": 612
+  },
+  {
+    "name": "web-photo.jpg-warm-1.json.imagesharp.jpg",
+    "info_keys": [
+      "dpi",
+      "icc_profile",
+      "jfif",
+      "jfif_density",
+      "jfif_unit",
+      "jfif_version"
+    ],
+    "exif_entries": 0,
+    "icc_bytes": 524
+  },
+  {
+    "name": "web-photo.jpg-warm-1.json.rust.jpg",
+    "info_keys": [
+      "icc_profile",
+      "jfif",
+      "jfif_density",
+      "jfif_unit",
+      "jfif_version"
+    ],
+    "exif_entries": 0,
+    "icc_bytes": 612
+  },
+  {
+    "name": "web-photo.webp-warm-1.json.imagesharp.jpg",
+    "info_keys": [
+      "dpi",
+      "jfif",
+      "jfif_density",
+      "jfif_unit",
+      "jfif_version"
+    ],
+    "exif_entries": 0,
+    "icc_bytes": 0
+  },
+  {
+    "name": "web-photo.webp-warm-1.json.rust.jpg",
+    "info_keys": [
+      "icc_profile",
+      "jfif",
+      "jfif_density",
+      "jfif_unit",
+      "jfif_version"
+    ],
+    "exif_entries": 0,
+    "icc_bytes": 612
+  }
+]

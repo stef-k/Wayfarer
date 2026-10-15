@@ -1,0 +1,17 @@
+{
+    "elevated":  false,
+    "configuredExecutableExists":  true,
+    "platform":  "Windows x64 native .NET",
+    "configuredExecutable":  "C:\\WINDOWS\\System32\\whoami.exe",
+    "supervisorExitCode":  1,
+    "response":  {
+                     "Status":  3,
+                     "Bytes":  null,
+                     "MimeType":  null,
+                     "ExitCode":  null,
+                     "ProcessId":  null
+                 },
+    "outputExists":  false,
+    "scope":  "Native supervisor build and pre-launch refusal only; no Windows Rust helper execution.",
+    "user":  "WIN\\stef"
+}

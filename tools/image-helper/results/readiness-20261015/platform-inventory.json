@@ -1,0 +1,49 @@
+{
+  "linux_amd64": {
+    "execution": "actual non-root Ubuntu 24.04 under WSL2 x86_64",
+    "uid": 1000,
+    "helper_release_build": "PASS",
+    "supervisor_release_build": "PASS",
+    "focused_xunit": 74
+  },
+  "linux_arm64": {
+    "runner": "no ARM64 host or registered AArch64 emulator present",
+    "runtime": "NOT EXECUTED",
+    "helper_guard": "src/main.rs controls is unavailable outside Linux x86_64",
+    "supervisor_guard": "TransformAsync rejects ProcessArchitecture != X64"
+  },
+  "windows_x64": {
+    "native_host_detected": true,
+    "rust_toolchain_detected": "stable-x86_64-pc-windows-msvc",
+    "dotnet_sdks_detected": [
+      "8.0.426",
+      "10.0.113",
+      "10.0.301",
+      "10.0.402"
+    ],
+    "visual_studio_detected": "18 Community",
+    "native_helper_build": "NOT EXECUTED: stopped at the native supervisor platform refusal",
+    "native_supervisor_execution": {
+      "elevated": false,
+      "configuredExecutableExists": true,
+      "platform": "Windows x64 native .NET",
+      "configuredExecutable": "C:\\WINDOWS\\System32\\whoami.exe",
+      "supervisorExitCode": 1,
+      "response": {
+        "Status": 3,
+        "Bytes": null,
+        "MimeType": null,
+        "ExitCode": null,
+        "ProcessId": null,
+        "StatusMeaning": "Unavailable"
+      },
+      "outputExists": false,
+      "scope": "Native supervisor build and pre-launch refusal only; no Windows Rust helper execution.",
+      "user": "WIN\\stef"
+    },
+    "helper_guard": "src/main.rs controls is unavailable outside Linux x86_64",
+    "supervisor_guard": "TransformAsync rejects !OperatingSystem.IsLinux()",
+    "native_supervisor_release_build": "PASS",
+    "portability_result": "BLOCKED: Linux-specific launch containment has no Windows implementation"
+  }
+}

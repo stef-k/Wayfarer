@@ -1,0 +1,22 @@
+[
+  {
+    "fixture": "large-vilaplana.jpg",
+    "sha256": "7b2f7ca7bca961c099946255582d20d8c8b2db81da8a9401d386f70e6716a769",
+    "bytes": 4941658
+  },
+  {
+    "fixture": "large-vilaplana.webp",
+    "sha256": "fb6f75989678e4daf03c8a9cd14eb00f34a3c2ff02ef718c8b86e5ce3918ccf0",
+    "bytes": 10493738
+  },
+  {
+    "fixture": "alpha-large.png",
+    "sha256": "09c5bc3ee03429216cc4f1b64b56deb2ac66aba528fbb6ce212c925a36e0b689",
+    "bytes": 3119161
+  },
+  {
+    "fixture": "photo.gif",
+    "sha256": "53019f55d8f707dc0cdd2c91d71daa9a83e39b94ad0cc4df5b34c3908ecb1452",
+    "bytes": 1276839
+  }
+]

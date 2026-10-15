@@ -1,0 +1,73 @@
+   Compiling simd-adler32 v0.3.10
+   Compiling cfg-if v1.0.5
+   Compiling adler2 v2.0.1
+   Compiling libc v0.2.177
+   Compiling pxfm v0.1.30
+   Compiling weezl v0.1.12
+   Compiling color_quant v1.1.0
+   Compiling byteorder-lite v0.1.0
+   Compiling quick-error v2.0.1
+   Compiling bitflags v2.13.2
+   Compiling num-traits v0.2.19
+   Compiling zune-core v0.5.3
+   Compiling thiserror v2.0.21
+   Compiling libwebp-sys v0.9.6
+   Compiling thiserror v1.0.69
+   Compiling bytemuck v1.25.2
+   Compiling crc32fast v1.5.2
+   Compiling gcd v2.3.0
+   Compiling libjpeg-turbo-rs v0.8.0
+   Compiling jpeg-encoder v0.7.1
+   Compiling jpeg-decoder v0.3.2
+   Compiling miniz_oxide v0.9.1
+   Compiling fdeflate v0.3.7
+   Compiling miniz_oxide v0.8.9
+   Compiling gif v0.14.2
+   Compiling image-webp v0.2.4
+   Compiling zune-jpeg v0.5.15
+   Compiling webp v0.3.1
+   Compiling wayfarer-image v0.1.0 (/home/stef/wayfarer-research/858-readiness-20261015-KKforFH8/source/tools/image-helper)
+   Compiling flate2 v1.1.10
+   Compiling fast_image_resize v6.1.0
+   Compiling png v0.18.1
+   Compiling turbojpeg-sys v1.2.0
+   Compiling turbojpeg v1.5.1
+   Compiling moxcms v0.8.0
+   Compiling image v0.25.10
+    Finished `release` profile [optimized] target(s) in 1m 01s
+     Running unittests src/lib.rs (target/release/deps/wayfarer_image-0405b223b7e49721)
+
+running 1 test
+test transform::tests::rgb8_lanczos_agrees_with_scalar_on_odd_axes ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/main.rs (target/release/deps/wayfarer_image-b3350dad2d56ab15)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/codec_decode.rs (target/release/deps/codec_decode-ddeb2f025fc684de)
+
+running 2 tests
+test jpeg_recovery_preserves_rejection_and_completed_output ... ok
+test webp_preserves_alpha_and_strict_admission ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/jpeg_output.rs (target/release/deps/jpeg_output-b5740aa79fc2c213)
+
+running 3 tests
+test native_borrowed_slice_refuses_actual_overflow_and_recovers ... ok
+test pure_rust_compress_into_is_a_late_size_check_without_icc ... ok
+test jpeg_profiles_preserve_icc_geometry_privacy_and_output_limit ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+   Doc-tests wayfarer_image
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

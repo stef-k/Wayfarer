@@ -1,0 +1,108 @@
+{
+  "native_crates": [
+    {
+      "crate": "turbojpeg-1.5.1",
+      "license": "Unlicense OR MIT",
+      "vcs": {
+        "git": {
+          "sha1": "7a9702af7f520709ed1b52a85d29960289268f87"
+        },
+        "path_in_vcs": ""
+      },
+      "crate_archive_sha256": "81313fcd64aaa30ddfd59eaa122968136b2dd9cd41d9619b126cf71e67a01702"
+    },
+    {
+      "crate": "turbojpeg-sys-1.2.0",
+      "license": "Unlicense OR MIT",
+      "vcs": {
+        "git": {
+          "sha1": "05da705c6b6147baec1834a4c1f0de5e1df2614b"
+        },
+        "path_in_vcs": "turbojpeg-sys"
+      },
+      "crate_archive_sha256": "49b5a974bc59382d35927e3a07eef2ba9a24fe7227cefe52ec44b508e1b90f86"
+    },
+    {
+      "crate": "libwebp-sys-0.9.6",
+      "license": "MIT",
+      "vcs": {
+        "git": {
+          "sha1": "4007a323c1dcc4ad11d70ddadffc51ecfa1dbb5e"
+        },
+        "path_in_vcs": ""
+      },
+      "crate_archive_sha256": "54cd30df7c7165ce74a456e4ca9732c603e8dc5e60784558c1c6dc047f876733"
+    },
+    {
+      "crate": "webp-0.3.1",
+      "license": "MIT OR Apache-2.0",
+      "vcs": {
+        "git": {
+          "sha1": "56aaf8449984f9f0fa30dc6862a12d1010b75b3a"
+        },
+        "path_in_vcs": ""
+      },
+      "crate_archive_sha256": "c071456adef4aca59bf6a583c46b90ff5eb0b4f758fc347cea81290288f37ce1"
+    }
+  ],
+  "jpeg_vendor": {
+    "html_url": "https://github.com/libjpeg-turbo/libjpeg-turbo/tree/20ade4dea9589515a69793e447a6c6220b464535",
+    "name": "libjpeg-turbo",
+    "sha": "20ade4dea9589515a69793e447a6c6220b464535",
+    "submodule_git_url": "https://github.com/libjpeg-turbo/libjpeg-turbo.git"
+  },
+  "jpeg_tag": {
+    "object": {
+      "sha": "20ade4dea9589515a69793e447a6c6220b464535",
+      "type": "commit",
+      "url": "https://api.github.com/repos/libjpeg-turbo/libjpeg-turbo/git/commits/20ade4dea9589515a69793e447a6c6220b464535"
+    },
+    "ref": "refs/tags/3.1.0"
+  },
+  "webp_vendor": {
+    "html_url": "https://github.com/webmproject/libwebp/tree/95ea5226c870449522240ccff26f0b006037c520",
+    "name": "vendor",
+    "sha": "95ea5226c870449522240ccff26f0b006037c520",
+    "submodule_git_url": "https://github.com/webmproject/libwebp"
+  },
+  "webp_fix_ancestry": {
+    "ahead_by": 1,
+    "behind_by": 0,
+    "merge_base_commit": {
+      "sha": "902bc9190331343b2017211debcec8d2ab87e17a"
+    },
+    "status": "ahead"
+  },
+  "backport_files": [
+    {
+      "path": "src/utils/huffman_utils.c",
+      "upstream_url": "https://chromium.googlesource.com/webm/libwebp/+/refs/tags/v1.3.2/src/utils/huffman_utils.c?format=TEXT",
+      "upstream_sha256": "76f5806c72e84054e629052f3d26dc86e1fc7c2ff0446ea7dd1fc28953b954c4",
+      "pinned_vendor_sha256": "76f5806c72e84054e629052f3d26dc86e1fc7c2ff0446ea7dd1fc28953b954c4",
+      "byte_equal_to_1_3_2": true
+    },
+    {
+      "path": "src/utils/huffman_utils.h",
+      "upstream_url": "https://chromium.googlesource.com/webm/libwebp/+/refs/tags/v1.3.2/src/utils/huffman_utils.h?format=TEXT",
+      "upstream_sha256": "02d259ac3a23a3bf2fd71605f38456b213e989bf08c5f5dc85f1d82c6b669fb6",
+      "pinned_vendor_sha256": "02d259ac3a23a3bf2fd71605f38456b213e989bf08c5f5dc85f1d82c6b669fb6",
+      "byte_equal_to_1_3_2": true
+    },
+    {
+      "path": "src/dec/vp8l_dec.c",
+      "upstream_url": "https://chromium.googlesource.com/webm/libwebp/+/refs/tags/v1.3.2/src/dec/vp8l_dec.c?format=TEXT",
+      "upstream_sha256": "0285c8681f9219bd9d1c1fa0b4991e2596b21bba94b400190cf50211a1d140cc",
+      "pinned_vendor_sha256": "29c352a3be731f97fee82571e8588b5ace5a2945cab809e7ff563f1fa0352c38",
+      "byte_equal_to_1_3_2": false
+    }
+  ],
+  "scope": "Pinned provenance/backport and notices inspection; no complete current vulnerability or release-package audit.",
+  "upstream_sources": [
+    "https://security-tracker.debian.org/tracker/source-package/libwebp",
+    "https://security-tracker.debian.org/tracker/source-package/libjpeg-turbo",
+    "https://chromium.googlesource.com/webm/libwebp/+/refs/tags/v1.6.0/NEWS",
+    "https://github.com/libjpeg-turbo/libjpeg-turbo/blob/main/ChangeLog.md"
+  ],
+  "remaining": "Newer WebP hardening and Windows/native packaging remain unqualified. No pin, codec or policy changed.",
+  "native_crate_archives_match_cargo_lock": true
+}

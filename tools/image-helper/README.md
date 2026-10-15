@@ -1,5 +1,9 @@
 # Rust imaging research archive (#858)
 
+**2026-10-15 Stage 1: BLOCKED.** See [QUALIFICATION.md](QUALIFICATION.md) for
+the final bounded readiness measurements, actual platform coverage, resource
+observations and artifact limitations. The historical result below is preserved.
+
 **Production NO-GO.** This branch selects the bounded native TurboJPEG encoder,
 strict guarded pure Rust JPEG decoding, native WebP decoding, SIMD RGB resizing
 and the recovered opaque-sRGB pipeline. Both warm JPEG p50 gates still fail;

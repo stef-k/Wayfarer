@@ -1,0 +1,11 @@
+Running as unit: wayfarer-858-resource-web-20261015.service; invocation ID: a20f29cdd8164a1aab1e2e0bb0d09419
+Completed photo.jpg: 6 measured samples per mode
+Completed photo.webp: 6 measured samples per mode
+Completed large-vilaplana.jpg: 6 measured samples per mode
+Completed large-vilaplana.webp: 6 measured samples per mode
+Finished with result: success
+Main processes terminated with: code=exited/status=0
+Service runtime: 6.028s
+CPU time consumed: 6.354s
+Memory peak: 508.0K
+Memory swap peak: 0B

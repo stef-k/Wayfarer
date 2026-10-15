@@ -1,0 +1,9 @@
+  Determining projects to restore...
+  Restored C:\Users\stef\AppData\Local\Temp\Wayfarer858Readiness20261015-KKforFH8\supervisor\ImageHelper.Supervisor.csproj (in 79 ms).
+  ImageHelper.Supervisor -> C:\Users\stef\AppData\Local\Temp\Wayfarer858Readiness20261015-KKforFH8\supervisor\bin\Release\net10.0\ImageHelper.Supervisor.dll
+
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:04.43

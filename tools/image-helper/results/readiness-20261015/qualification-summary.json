@@ -1,0 +1,5452 @@
+{
+  "statistics": "retained median p50; nearest-rank p95; throughput inverse arithmetic mean",
+  "gate": {
+    "p50_ratio_max": 1.1,
+    "p95_ratio_max": 1.1,
+    "throughput_ratio_min": 0.9
+  },
+  "paired": {
+    "web-photo.jpg-warm": {
+      "backends": {
+        "rust": {
+          "n": 48,
+          "p50_ms": 32.599000000000004,
+          "p95_ms": 34.6835,
+          "mean_ms": 32.89606666666667,
+          "min_ms": 31.0193,
+          "max_ms": 36.9453,
+          "stddev_ms": 1.2747379420857088,
+          "sequential_images_per_second": 30.39877107901451,
+          "median_parent_cpu_ms": 5.201499999999999,
+          "maximum_shared_host_peak_rss_kib": 218820,
+          "bytes": [
+            498699
+          ],
+          "geometry": [
+            [
+              1920,
+              863
+            ]
+          ]
+        },
+        "imagesharp": {
+          "n": 48,
+          "p50_ms": 30.46145,
+          "p95_ms": 46.7796,
+          "mean_ms": 32.00272291666667,
+          "min_ms": 29.0367,
+          "max_ms": 47.3116,
+          "stddev_ms": 4.664027375436958,
+          "sequential_images_per_second": 31.247341127939176,
+          "median_parent_cpu_ms": 30.804000000000002,
+          "maximum_shared_host_peak_rss_kib": 218844,
+          "bytes": [
+            498696
+          ],
+          "geometry": [
+            [
+              1920,
+              863
+            ]
+          ]
+        }
+      },
+      "ratios": {
+        "p50": 1.0701722997427898,
+        "p95": 0.7414236120018127,
+        "throughput": 0.9728434478488815
+      },
+      "original_gate_pass": true,
+      "sessions": {
+        "web-photo.jpg-warm-1.json": {
+          "rust": {
+            "n": 24,
+            "p50_ms": 31.8018,
+            "p95_ms": 33.0913,
+            "mean_ms": 31.987558333333332,
+            "min_ms": 31.0193,
+            "max_ms": 34.6835,
+            "stddev_ms": 0.7655379704987615,
+            "sequential_images_per_second": 31.262154790912195
+          },
+          "imagesharp": {
+            "n": 24,
+            "p50_ms": 30.31525,
+            "p95_ms": 46.3451,
+            "mean_ms": 31.8440125,
+            "min_ms": 29.0367,
+            "max_ms": 46.7796,
+            "stddev_ms": 4.689201871489016,
+            "sequential_images_per_second": 31.40307773714132
+          }
+        },
+        "web-photo.jpg-warm-2.json": {
+          "rust": {
+            "n": 24,
+            "p50_ms": 33.7576,
+            "p95_ms": 35.9694,
+            "mean_ms": 33.804575,
+            "min_ms": 32.3792,
+            "max_ms": 36.9453,
+            "stddev_ms": 1.005966179416801,
+            "sequential_images_per_second": 29.5817947718615
+          },
+          "imagesharp": {
+            "n": 24,
+            "p50_ms": 30.5082,
+            "p95_ms": 46.9645,
+            "mean_ms": 32.161433333333335,
+            "min_ms": 29.6635,
+            "max_ms": 47.3116,
+            "stddev_ms": 4.734016199313467,
+            "sequential_images_per_second": 31.093141578474423
+          }
+        }
+      }
+    },
+    "web-photo.jpg-cold": {
+      "backends": {
+        "rust": {
+          "n": 8,
+          "p50_ms": 70.35135,
+          "p95_ms": 74.6581,
+          "mean_ms": 68.2336,
+          "min_ms": 57.0261,
+          "max_ms": 74.6581,
+          "stddev_ms": 5.8957873112926995,
+          "sequential_images_per_second": 14.65553627538339,
+          "median_parent_cpu_ms": 36.608000000000004,
+          "maximum_shared_host_peak_rss_kib": 181444,
+          "bytes": [
+            498699
+          ],
+          "geometry": [
+            [
+              1920,
+              863
+            ]
+          ]
+        },
+        "imagesharp": {
+          "n": 8,
+          "p50_ms": 167.9459,
+          "p95_ms": 194.55,
+          "mean_ms": 167.7085875,
+          "min_ms": 140.1291,
+          "max_ms": 194.55,
+          "stddev_ms": 28.37243484336954,
+          "sequential_images_per_second": 5.9627238825799544,
+          "median_parent_cpu_ms": 175.9115,
+          "maximum_shared_host_peak_rss_kib": 181380,
+          "bytes": [
+            498696
+          ],
+          "geometry": [
+            [
+              1920,
+              863
+            ]
+          ]
+        }
+      },
+      "ratios": {
+        "p50": 0.41889292921113286,
+        "p95": 0.38374762271909535,
+        "throughput": 2.4578592877995593
+      },
+      "original_gate_pass": true,
+      "sessions": {
+        "web-photo.jpg-cold-1.json": {
+          "rust": {
+            "n": 1,
+            "p50_ms": 69.6344,
+            "p95_ms": 69.6344,
+            "mean_ms": 69.6344,
+            "min_ms": 69.6344,
+            "max_ms": 69.6344,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 14.360718265684776
+          },
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 141.7014,
+            "p95_ms": 141.7014,
+            "mean_ms": 141.7014,
+            "min_ms": 141.7014,
+            "max_ms": 141.7014,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 7.057093296184794
+          }
+        },
+        "web-photo.jpg-cold-2.json": {
+          "rust": {
+            "n": 1,
+            "p50_ms": 62.4791,
+            "p95_ms": 62.4791,
+            "mean_ms": 62.4791,
+            "min_ms": 62.4791,
+            "max_ms": 62.4791,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 16.00535218977226
+          },
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 194.1884,
+            "p95_ms": 194.1884,
+            "mean_ms": 194.1884,
+            "min_ms": 194.1884,
+            "max_ms": 194.1884,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 5.149638186421022
+          }
+        },
+        "web-photo.jpg-cold-3.json": {
+          "rust": {
+            "n": 1,
+            "p50_ms": 71.0683,
+            "p95_ms": 71.0683,
+            "mean_ms": 71.0683,
+            "min_ms": 71.0683,
+            "max_ms": 71.0683,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 14.070971164358793
+          },
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 140.8668,
+            "p95_ms": 140.8668,
+            "mean_ms": 140.8668,
+            "min_ms": 140.8668,
+            "max_ms": 140.8668,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 7.098904780970392
+          }
+        },
+        "web-photo.jpg-cold-4.json": {
+          "rust": {
+            "n": 1,
+            "p50_ms": 71.2263,
+            "p95_ms": 71.2263,
+            "mean_ms": 71.2263,
+            "min_ms": 71.2263,
+            "max_ms": 71.2263,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 14.039757786098676
+          },
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 194.55,
+            "p95_ms": 194.55,
+            "mean_ms": 194.55,
+            "min_ms": 194.55,
+            "max_ms": 194.55,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 5.140066820868671
+          }
+        },
+        "web-photo.jpg-cold-5.json": {
+          "rust": {
+            "n": 1,
+            "p50_ms": 72.962,
+            "p95_ms": 72.962,
+            "mean_ms": 72.962,
+            "min_ms": 72.962,
+            "max_ms": 72.962,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 13.705764644609522
+          },
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 140.1291,
+            "p95_ms": 140.1291,
+            "mean_ms": 140.1291,
+            "min_ms": 140.1291,
+            "max_ms": 140.1291,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 7.136276476477763
+          }
+        },
+        "web-photo.jpg-cold-6.json": {
+          "rust": {
+            "n": 1,
+            "p50_ms": 74.6581,
+            "p95_ms": 74.6581,
+            "mean_ms": 74.6581,
+            "min_ms": 74.6581,
+            "max_ms": 74.6581,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 13.394393910372752
+          },
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 193.8923,
+            "p95_ms": 193.8923,
+            "mean_ms": 193.8923,
+            "min_ms": 193.8923,
+            "max_ms": 193.8923,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 5.1575023866342296
+          }
+        },
+        "web-photo.jpg-cold-7.json": {
+          "rust": {
+            "n": 1,
+            "p50_ms": 57.0261,
+            "p95_ms": 57.0261,
+            "mean_ms": 57.0261,
+            "min_ms": 57.0261,
+            "max_ms": 57.0261,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 17.53583008482081
+          },
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 141.9995,
+            "p95_ms": 141.9995,
+            "mean_ms": 141.9995,
+            "min_ms": 141.9995,
+            "max_ms": 141.9995,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 7.042278317881401
+          }
+        },
+        "web-photo.jpg-cold-8.json": {
+          "rust": {
+            "n": 1,
+            "p50_ms": 66.8145,
+            "p95_ms": 66.8145,
+            "mean_ms": 66.8145,
+            "min_ms": 66.8145,
+            "max_ms": 66.8145,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 14.966811096393748
+          },
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 194.3412,
+            "p95_ms": 194.3412,
+            "mean_ms": 194.3412,
+            "min_ms": 194.3412,
+            "max_ms": 194.3412,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 5.145589303760603
+          }
+        }
+      }
+    },
+    "web-photo.webp-warm": {
+      "backends": {
+        "rust": {
+          "n": 48,
+          "p50_ms": 47.18605,
+          "p95_ms": 51.3097,
+          "mean_ms": 47.62883333333333,
+          "min_ms": 45.6367,
+          "max_ms": 52.9667,
+          "stddev_ms": 1.6405624744221934,
+          "sequential_images_per_second": 20.995685386653044,
+          "median_parent_cpu_ms": 5.0215,
+          "maximum_shared_host_peak_rss_kib": 240312,
+          "bytes": [
+            501268
+          ],
+          "geometry": [
+            [
+              1920,
+              863
+            ]
+          ]
+        },
+        "imagesharp": {
+          "n": 48,
+          "p50_ms": 67.31989999999999,
+          "p95_ms": 82.8832,
+          "mean_ms": 69.56587708333333,
+          "min_ms": 65.2173,
+          "max_ms": 87.4415,
+          "stddev_ms": 5.426299101018942,
+          "sequential_images_per_second": 14.374863682119535,
+          "median_parent_cpu_ms": 73.13749999999999,
+          "maximum_shared_host_peak_rss_kib": 240308,
+          "bytes": [
+            498676
+          ],
+          "geometry": [
+            [
+              1920,
+              863
+            ]
+          ]
+        }
+      },
+      "ratios": {
+        "p50": 0.7009227583522852,
+        "p95": 0.6190603162040076,
+        "throughput": 1.4605832688882434
+      },
+      "original_gate_pass": true,
+      "sessions": {
+        "web-photo.webp-warm-1.json": {
+          "rust": {
+            "n": 24,
+            "p50_ms": 46.54065,
+            "p95_ms": 48.5698,
+            "mean_ms": 46.887575,
+            "min_ms": 45.6367,
+            "max_ms": 51.3097,
+            "stddev_ms": 1.1515113585688348,
+            "sequential_images_per_second": 21.32761184599545
+          },
+          "imagesharp": {
+            "n": 24,
+            "p50_ms": 67.0677,
+            "p95_ms": 82.0429,
+            "mean_ms": 68.48155833333334,
+            "min_ms": 65.2173,
+            "max_ms": 82.8832,
+            "stddev_ms": 4.814425404599108,
+            "sequential_images_per_second": 14.602471443954435
+          }
+        },
+        "web-photo.webp-warm-2.json": {
+          "rust": {
+            "n": 24,
+            "p50_ms": 47.9317,
+            "p95_ms": 52.2453,
+            "mean_ms": 48.37009166666667,
+            "min_ms": 46.422,
+            "max_ms": 52.9667,
+            "stddev_ms": 1.7398919821335905,
+            "sequential_images_per_second": 20.67393229045979
+          },
+          "imagesharp": {
+            "n": 24,
+            "p50_ms": 69.27855,
+            "p95_ms": 83.3818,
+            "mean_ms": 70.65019583333333,
+            "min_ms": 65.334,
+            "max_ms": 87.4415,
+            "stddev_ms": 5.8768379258325325,
+            "sequential_images_per_second": 14.154242436341443
+          }
+        }
+      }
+    },
+    "web-photo.webp-cold": {
+      "backends": {
+        "rust": {
+          "n": 8,
+          "p50_ms": 80.178,
+          "p95_ms": 90.5407,
+          "mean_ms": 78.90701250000001,
+          "min_ms": 66.744,
+          "max_ms": 90.5407,
+          "stddev_ms": 8.418123317400635,
+          "sequential_images_per_second": 12.673144861491238,
+          "median_parent_cpu_ms": 37.38849999999999,
+          "maximum_shared_host_peak_rss_kib": 184568,
+          "bytes": [
+            501268
+          ],
+          "geometry": [
+            [
+              1920,
+              863
+            ]
+          ]
+        },
+        "imagesharp": {
+          "n": 8,
+          "p50_ms": 354.44575,
+          "p95_ms": 404.1529,
+          "mean_ms": 358.571625,
+          "min_ms": 319.3478,
+          "max_ms": 404.1529,
+          "stddev_ms": 34.4660910509259,
+          "sequential_images_per_second": 2.7888430937612534,
+          "median_parent_cpu_ms": 369.3915,
+          "maximum_shared_host_peak_rss_kib": 189400,
+          "bytes": [
+            498676
+          ],
+          "geometry": [
+            [
+              1920,
+              863
+            ]
+          ]
+        }
+      },
+      "ratios": {
+        "p50": 0.22620669030451065,
+        "p95": 0.22402585754054963,
+        "throughput": 4.5442301468453135
+      },
+      "original_gate_pass": true,
+      "sessions": {
+        "web-photo.webp-cold-1.json": {
+          "rust": {
+            "n": 1,
+            "p50_ms": 86.252,
+            "p95_ms": 86.252,
+            "mean_ms": 86.252,
+            "min_ms": 86.252,
+            "max_ms": 86.252,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 11.593934053703103
+          },
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 319.3478,
+            "p95_ms": 319.3478,
+            "mean_ms": 319.3478,
+            "min_ms": 319.3478,
+            "max_ms": 319.3478,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 3.1313821482408835
+          }
+        },
+        "web-photo.webp-cold-2.json": {
+          "rust": {
+            "n": 1,
+            "p50_ms": 83.4958,
+            "p95_ms": 83.4958,
+            "mean_ms": 83.4958,
+            "min_ms": 83.4958,
+            "max_ms": 83.4958,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 11.976650322531192
+          },
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 404.1529,
+            "p95_ms": 404.1529,
+            "mean_ms": 404.1529,
+            "min_ms": 404.1529,
+            "max_ms": 404.1529,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 2.474311083750729
+          }
+        },
+        "web-photo.webp-cold-3.json": {
+          "rust": {
+            "n": 1,
+            "p50_ms": 73.1063,
+            "p95_ms": 73.1063,
+            "mean_ms": 73.1063,
+            "min_ms": 73.1063,
+            "max_ms": 73.1063,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 13.678711684218733
+          },
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 327.885,
+            "p95_ms": 327.885,
+            "mean_ms": 327.885,
+            "min_ms": 327.885,
+            "max_ms": 327.885,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 3.0498497948976016
+          }
+        },
+        "web-photo.webp-cold-4.json": {
+          "rust": {
+            "n": 1,
+            "p50_ms": 90.5407,
+            "p95_ms": 90.5407,
+            "mean_ms": 90.5407,
+            "min_ms": 90.5407,
+            "max_ms": 90.5407,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 11.044756667443481
+          },
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 388.5799,
+            "p95_ms": 388.5799,
+            "mean_ms": 388.5799,
+            "min_ms": 388.5799,
+            "max_ms": 388.5799,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 2.57347330626211
+          }
+        },
+        "web-photo.webp-cold-5.json": {
+          "rust": {
+            "n": 1,
+            "p50_ms": 83.9697,
+            "p95_ms": 83.9697,
+            "mean_ms": 83.9697,
+            "min_ms": 83.9697,
+            "max_ms": 83.9697,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 11.909057671993589
+          },
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 330.0268,
+            "p95_ms": 330.0268,
+            "mean_ms": 330.0268,
+            "min_ms": 330.0268,
+            "max_ms": 330.0268,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 3.030056952950488
+          }
+        },
+        "web-photo.webp-cold-6.json": {
+          "rust": {
+            "n": 1,
+            "p50_ms": 66.744,
+            "p95_ms": 66.744,
+            "mean_ms": 66.744,
+            "min_ms": 66.744,
+            "max_ms": 66.744,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 14.982620160613688
+          },
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 377.2482,
+            "p95_ms": 377.2482,
+            "mean_ms": 377.2482,
+            "min_ms": 377.2482,
+            "max_ms": 377.2482,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 2.6507747419338252
+          }
+        },
+        "web-photo.webp-cold-7.json": {
+          "rust": {
+            "n": 1,
+            "p50_ms": 70.2874,
+            "p95_ms": 70.2874,
+            "mean_ms": 70.2874,
+            "min_ms": 70.2874,
+            "max_ms": 70.2874,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 14.227301052535731
+          },
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 331.6433,
+            "p95_ms": 331.6433,
+            "mean_ms": 331.6433,
+            "min_ms": 331.6433,
+            "max_ms": 331.6433,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 3.015287810729178
+          }
+        },
+        "web-photo.webp-cold-8.json": {
+          "rust": {
+            "n": 1,
+            "p50_ms": 76.8602,
+            "p95_ms": 76.8602,
+            "mean_ms": 76.8602,
+            "min_ms": 76.8602,
+            "max_ms": 76.8602,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 13.010634892961505
+          },
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 389.6891,
+            "p95_ms": 389.6891,
+            "mean_ms": 389.6891,
+            "min_ms": 389.6891,
+            "max_ms": 389.6891,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 2.566148244844416
+          }
+        }
+      }
+    },
+    "web-large-vilaplana.jpg-warm": {
+      "backends": {
+        "rust": {
+          "n": 48,
+          "p50_ms": 138.31810000000002,
+          "p95_ms": 146.7529,
+          "mean_ms": 139.49151041666667,
+          "min_ms": 133.3929,
+          "max_ms": 165.6914,
+          "stddev_ms": 5.931408455148244,
+          "sequential_images_per_second": 7.168895060444613,
+          "median_parent_cpu_ms": 15.843,
+          "maximum_shared_host_peak_rss_kib": 289300,
+          "bytes": [
+            795809
+          ],
+          "geometry": [
+            [
+              2048,
+              1536
+            ]
+          ]
+        },
+        "imagesharp": {
+          "n": 48,
+          "p50_ms": 219.83405,
+          "p95_ms": 253.4396,
+          "mean_ms": 223.54601875,
+          "min_ms": 214.3689,
+          "max_ms": 256.2811,
+          "stddev_ms": 10.627357452342219,
+          "sequential_images_per_second": 4.473351865498164,
+          "median_parent_cpu_ms": 224.8275,
+          "maximum_shared_host_peak_rss_kib": 289296,
+          "bytes": [
+            901972
+          ],
+          "geometry": [
+            [
+              2048,
+              1536
+            ]
+          ]
+        }
+      },
+      "ratios": {
+        "p50": 0.6291932482706842,
+        "p95": 0.5790448690733414,
+        "throughput": 1.6025779495989338
+      },
+      "original_gate_pass": true,
+      "sessions": {
+        "web-large-vilaplana.jpg-warm-1.json": {
+          "rust": {
+            "n": 24,
+            "p50_ms": 136.76645,
+            "p95_ms": 146.7529,
+            "mean_ms": 138.3742375,
+            "min_ms": 133.3929,
+            "max_ms": 165.6914,
+            "stddev_ms": 6.656279970453041,
+            "sequential_images_per_second": 7.226778756414105
+          },
+          "imagesharp": {
+            "n": 24,
+            "p50_ms": 217.80565,
+            "p95_ms": 231.8407,
+            "mean_ms": 220.69562083333332,
+            "min_ms": 214.3689,
+            "max_ms": 250.1383,
+            "stddev_ms": 7.922480645769387,
+            "sequential_images_per_second": 4.531127515009407
+          }
+        },
+        "web-large-vilaplana.jpg-warm-2.json": {
+          "rust": {
+            "n": 24,
+            "p50_ms": 140.03685000000002,
+            "p95_ms": 144.7479,
+            "mean_ms": 140.60878333333335,
+            "min_ms": 135.2641,
+            "max_ms": 161.6492,
+            "stddev_ms": 4.998163590122195,
+            "sequential_images_per_second": 7.111931248486491
+          },
+          "imagesharp": {
+            "n": 24,
+            "p50_ms": 222.78050000000002,
+            "p95_ms": 255.6421,
+            "mean_ms": 226.39641666666665,
+            "min_ms": 215.3231,
+            "max_ms": 256.2811,
+            "stddev_ms": 12.29106103909124,
+            "sequential_images_per_second": 4.417031041053727
+          }
+        }
+      }
+    },
+    "web-large-vilaplana.jpg-cold": {
+      "backends": {
+        "rust": {
+          "n": 8,
+          "p50_ms": 184.00979999999998,
+          "p95_ms": 192.6614,
+          "mean_ms": 183.2183875,
+          "min_ms": 175.529,
+          "max_ms": 192.6614,
+          "stddev_ms": 6.339992882023381,
+          "sequential_images_per_second": 5.457967476108259,
+          "median_parent_cpu_ms": 53.6995,
+          "maximum_shared_host_peak_rss_kib": 238064,
+          "bytes": [
+            795809
+          ],
+          "geometry": [
+            [
+              2048,
+              1536
+            ]
+          ]
+        },
+        "imagesharp": {
+          "n": 8,
+          "p50_ms": 1005.74865,
+          "p95_ms": 1041.1263,
+          "mean_ms": 992.5402124999999,
+          "min_ms": 923.1664,
+          "max_ms": 1041.1263,
+          "stddev_ms": 43.69017928385664,
+          "sequential_images_per_second": 1.0075158541750266,
+          "median_parent_cpu_ms": 1236.819,
+          "maximum_shared_host_peak_rss_kib": 237848,
+          "bytes": [
+            901972
+          ],
+          "geometry": [
+            [
+              2048,
+              1536
+            ]
+          ]
+        }
+      },
+      "ratios": {
+        "p50": 0.1829580382732803,
+        "p95": 0.18505093954499086,
+        "throughput": 5.41725219855458
+      },
+      "original_gate_pass": true,
+      "sessions": {
+        "web-large-vilaplana.jpg-cold-1.json": {
+          "rust": {
+            "n": 1,
+            "p50_ms": 186.4964,
+            "p95_ms": 186.4964,
+            "mean_ms": 186.4964,
+            "min_ms": 186.4964,
+            "max_ms": 186.4964,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 5.362033797971436
+          },
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 926.395,
+            "p95_ms": 926.395,
+            "mean_ms": 926.395,
+            "min_ms": 926.395,
+            "max_ms": 926.395,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 1.079453149034699
+          }
+        },
+        "web-large-vilaplana.jpg-cold-2.json": {
+          "rust": {
+            "n": 1,
+            "p50_ms": 182.4212,
+            "p95_ms": 182.4212,
+            "mean_ms": 182.4212,
+            "min_ms": 182.4212,
+            "max_ms": 182.4212,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 5.48181899910756
+          },
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 1004.4032,
+            "p95_ms": 1004.4032,
+            "mean_ms": 1004.4032,
+            "min_ms": 1004.4032,
+            "max_ms": 1004.4032,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 0.9956161031745021
+          }
+        },
+        "web-large-vilaplana.jpg-cold-3.json": {
+          "rust": {
+            "n": 1,
+            "p50_ms": 192.6614,
+            "p95_ms": 192.6614,
+            "mean_ms": 192.6614,
+            "min_ms": 192.6614,
+            "max_ms": 192.6614,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 5.190453303048769
+          },
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 1007.0941,
+            "p95_ms": 1007.0941,
+            "mean_ms": 1007.0941,
+            "min_ms": 1007.0941,
+            "max_ms": 1007.0941,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 0.9929558717502167
+          }
+        },
+        "web-large-vilaplana.jpg-cold-4.json": {
+          "rust": {
+            "n": 1,
+            "p50_ms": 175.529,
+            "p95_ms": 175.529,
+            "mean_ms": 175.529,
+            "min_ms": 175.529,
+            "max_ms": 175.529,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 5.697064302764786
+          },
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 1017.6468,
+            "p95_ms": 1017.6468,
+            "mean_ms": 1017.6468,
+            "min_ms": 1017.6468,
+            "max_ms": 1017.6468,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 0.9826592094624579
+          }
+        },
+        "web-large-vilaplana.jpg-cold-5.json": {
+          "rust": {
+            "n": 1,
+            "p50_ms": 176.3798,
+            "p95_ms": 176.3798,
+            "mean_ms": 176.3798,
+            "min_ms": 176.3798,
+            "max_ms": 176.3798,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 5.6695834783801775
+          },
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 1041.1263,
+            "p95_ms": 1041.1263,
+            "mean_ms": 1041.1263,
+            "min_ms": 1041.1263,
+            "max_ms": 1041.1263,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 0.9604982603935758
+          }
+        },
+        "web-large-vilaplana.jpg-cold-6.json": {
+          "rust": {
+            "n": 1,
+            "p50_ms": 177.4468,
+            "p95_ms": 177.4468,
+            "mean_ms": 177.4468,
+            "min_ms": 177.4468,
+            "max_ms": 177.4468,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 5.635491877002009
+          },
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 1000.1579,
+            "p95_ms": 1000.1579,
+            "mean_ms": 1000.1579,
+            "min_ms": 1000.1579,
+            "max_ms": 1000.1579,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 0.9998421249284738
+          }
+        },
+        "web-large-vilaplana.jpg-cold-7.json": {
+          "rust": {
+            "n": 1,
+            "p50_ms": 185.5984,
+            "p95_ms": 185.5984,
+            "mean_ms": 185.5984,
+            "min_ms": 185.5984,
+            "max_ms": 185.5984,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 5.387977482564505
+          },
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 923.1664,
+            "p95_ms": 923.1664,
+            "mean_ms": 923.1664,
+            "min_ms": 923.1664,
+            "max_ms": 923.1664,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 1.0832283324003127
+          }
+        },
+        "web-large-vilaplana.jpg-cold-8.json": {
+          "rust": {
+            "n": 1,
+            "p50_ms": 189.2141,
+            "p95_ms": 189.2141,
+            "mean_ms": 189.2141,
+            "min_ms": 189.2141,
+            "max_ms": 189.2141,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 5.285018399791559
+          },
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 1020.332,
+            "p95_ms": 1020.332,
+            "mean_ms": 1020.332,
+            "min_ms": 1020.332,
+            "max_ms": 1020.332,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 0.9800731526601145
+          }
+        }
+      }
+    },
+    "web-large-vilaplana.webp-warm": {
+      "backends": {
+        "rust": {
+          "n": 48,
+          "p50_ms": 266.59255,
+          "p95_ms": 349.4794,
+          "mean_ms": 286.7466979166667,
+          "min_ms": 251.1448,
+          "max_ms": 351.9721,
+          "stddev_ms": 32.83198336482725,
+          "sequential_images_per_second": 3.4873984853719797,
+          "median_parent_cpu_ms": 30.823500000000003,
+          "maximum_shared_host_peak_rss_kib": 418592,
+          "bytes": [
+            795809
+          ],
+          "geometry": [
+            [
+              2048,
+              1536
+            ]
+          ]
+        },
+        "imagesharp": {
+          "n": 48,
+          "p50_ms": 536.5446999999999,
+          "p95_ms": 671.5054,
+          "mean_ms": 547.907825,
+          "min_ms": 459.2144,
+          "max_ms": 680.1782,
+          "stddev_ms": 84.03185597811714,
+          "sequential_images_per_second": 1.8251245088532912,
+          "median_parent_cpu_ms": 612.919,
+          "maximum_shared_host_peak_rss_kib": 418592,
+          "bytes": [
+            790077
+          ],
+          "geometry": [
+            [
+              2048,
+              1536
+            ]
+          ]
+        }
+      },
+      "ratios": {
+        "p50": 0.4968692263664147,
+        "p95": 0.5204416822262338,
+        "throughput": 1.9107729190284557
+      },
+      "original_gate_pass": true,
+      "sessions": {
+        "web-large-vilaplana.webp-warm-1.json": {
+          "rust": {
+            "n": 24,
+            "p50_ms": 313.39520000000005,
+            "p95_ms": 350.7191,
+            "mean_ms": 315.4311583333333,
+            "min_ms": 260.0284,
+            "max_ms": 351.9721,
+            "stddev_ms": 21.54665336915138,
+            "sequential_images_per_second": 3.1702638549843116
+          },
+          "imagesharp": {
+            "n": 24,
+            "p50_ms": 629.5448,
+            "p95_ms": 679.7204,
+            "mean_ms": 628.4070083333334,
+            "min_ms": 577.3316,
+            "max_ms": 680.1782,
+            "stddev_ms": 28.8699399892287,
+            "sequential_images_per_second": 1.5913253460559087
+          }
+        },
+        "web-large-vilaplana.webp-warm-2.json": {
+          "rust": {
+            "n": 24,
+            "p50_ms": 256.2592,
+            "p95_ms": 265.5611,
+            "mean_ms": 258.0622375,
+            "min_ms": 251.1448,
+            "max_ms": 267.624,
+            "stddev_ms": 4.619815613656543,
+            "sequential_images_per_second": 3.8750342153411736
+          },
+          "imagesharp": {
+            "n": 24,
+            "p50_ms": 464.6924,
+            "p95_ms": 483.4772,
+            "mean_ms": 467.40864166666665,
+            "min_ms": 459.2144,
+            "max_ms": 495.7578,
+            "stddev_ms": 8.515981554849452,
+            "sequential_images_per_second": 2.1394555231889614
+          }
+        }
+      }
+    },
+    "web-large-vilaplana.webp-cold": {
+      "backends": {
+        "rust": {
+          "n": 8,
+          "p50_ms": 311.60825,
+          "p95_ms": 338.9152,
+          "mean_ms": 311.03975,
+          "min_ms": 289.0981,
+          "max_ms": 338.9152,
+          "stddev_ms": 16.023392201492708,
+          "sequential_images_per_second": 3.2150231602230903,
+          "median_parent_cpu_ms": 140.356,
+          "maximum_shared_host_peak_rss_kib": 328908,
+          "bytes": [
+            795809
+          ],
+          "geometry": [
+            [
+              2048,
+              1536
+            ]
+          ]
+        },
+        "imagesharp": {
+          "n": 8,
+          "p50_ms": 892.5402,
+          "p95_ms": 979.5277,
+          "mean_ms": 900.7478125,
+          "min_ms": 827.1373,
+          "max_ms": 979.5277,
+          "stddev_ms": 56.89558670523293,
+          "sequential_images_per_second": 1.1101886522760775,
+          "median_parent_cpu_ms": 1023.6134999999999,
+          "maximum_shared_host_peak_rss_kib": 341768,
+          "bytes": [
+            790077
+          ],
+          "geometry": [
+            [
+              2048,
+              1536
+            ]
+          ]
+        }
+      },
+      "ratios": {
+        "p50": 0.34912517105672103,
+        "p95": 0.3459985868699783,
+        "throughput": 2.8959250787077857
+      },
+      "original_gate_pass": true,
+      "sessions": {
+        "web-large-vilaplana.webp-cold-1.json": {
+          "rust": {
+            "n": 1,
+            "p50_ms": 325.0252,
+            "p95_ms": 325.0252,
+            "mean_ms": 325.0252,
+            "min_ms": 325.0252,
+            "max_ms": 325.0252,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 3.076684515539103
+          },
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 856.0281,
+            "p95_ms": 856.0281,
+            "mean_ms": 856.0281,
+            "min_ms": 856.0281,
+            "max_ms": 856.0281,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 1.1681859509051162
+          }
+        },
+        "web-large-vilaplana.webp-cold-2.json": {
+          "rust": {
+            "n": 1,
+            "p50_ms": 338.9152,
+            "p95_ms": 338.9152,
+            "mean_ms": 338.9152,
+            "min_ms": 338.9152,
+            "max_ms": 338.9152,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 2.9505905902125367
+          },
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 978.5459,
+            "p95_ms": 978.5459,
+            "mean_ms": 978.5459,
+            "min_ms": 978.5459,
+            "max_ms": 978.5459,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 1.0219244697668244
+          }
+        },
+        "web-large-vilaplana.webp-cold-3.json": {
+          "rust": {
+            "n": 1,
+            "p50_ms": 311.4033,
+            "p95_ms": 311.4033,
+            "mean_ms": 311.4033,
+            "min_ms": 311.4033,
+            "max_ms": 311.4033,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 3.2112697585414156
+          },
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 827.1373,
+            "p95_ms": 827.1373,
+            "mean_ms": 827.1373,
+            "min_ms": 827.1373,
+            "max_ms": 827.1373,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 1.2089891242965345
+          }
+        },
+        "web-large-vilaplana.webp-cold-4.json": {
+          "rust": {
+            "n": 1,
+            "p50_ms": 296.0407,
+            "p95_ms": 296.0407,
+            "mean_ms": 296.0407,
+            "min_ms": 296.0407,
+            "max_ms": 296.0407,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 3.377913915215036
+          },
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 921.6114,
+            "p95_ms": 921.6114,
+            "mean_ms": 921.6114,
+            "min_ms": 921.6114,
+            "max_ms": 921.6114,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 1.0850560225274992
+          }
+        },
+        "web-large-vilaplana.webp-cold-5.json": {
+          "rust": {
+            "n": 1,
+            "p50_ms": 315.0513,
+            "p95_ms": 315.0513,
+            "mean_ms": 315.0513,
+            "min_ms": 315.0513,
+            "max_ms": 315.0513,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 3.1740862519849937
+          },
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 875.3704,
+            "p95_ms": 875.3704,
+            "mean_ms": 875.3704,
+            "min_ms": 875.3704,
+            "max_ms": 875.3704,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 1.1423735598096532
+          }
+        },
+        "web-large-vilaplana.webp-cold-6.json": {
+          "rust": {
+            "n": 1,
+            "p50_ms": 311.8132,
+            "p95_ms": 311.8132,
+            "mean_ms": 311.8132,
+            "min_ms": 311.8132,
+            "max_ms": 311.8132,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 3.2070483225213047
+          },
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 909.71,
+            "p95_ms": 909.71,
+            "mean_ms": 909.71,
+            "min_ms": 909.71,
+            "max_ms": 909.71,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 1.099251409789933
+          }
+        },
+        "web-large-vilaplana.webp-cold-7.json": {
+          "rust": {
+            "n": 1,
+            "p50_ms": 300.971,
+            "p95_ms": 300.971,
+            "mean_ms": 300.971,
+            "min_ms": 300.971,
+            "max_ms": 300.971,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 3.322579251821604
+          },
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 858.0517,
+            "p95_ms": 858.0517,
+            "mean_ms": 858.0517,
+            "min_ms": 858.0517,
+            "max_ms": 858.0517,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 1.1654309408162702
+          }
+        },
+        "web-large-vilaplana.webp-cold-8.json": {
+          "rust": {
+            "n": 1,
+            "p50_ms": 289.0981,
+            "p95_ms": 289.0981,
+            "mean_ms": 289.0981,
+            "min_ms": 289.0981,
+            "max_ms": 289.0981,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 3.459033456117491
+          },
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 979.5277,
+            "p95_ms": 979.5277,
+            "mean_ms": 979.5277,
+            "min_ms": 979.5277,
+            "max_ms": 979.5277,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 1.020900174645393
+          }
+        }
+      }
+    },
+    "pdf-photo.jpg-warm": {
+      "backends": {
+        "rust": {
+          "n": 48,
+          "p50_ms": 21.93395,
+          "p95_ms": 28.4287,
+          "mean_ms": 23.8036625,
+          "min_ms": 19.982,
+          "max_ms": 30.4953,
+          "stddev_ms": 3.110009117426945,
+          "sequential_images_per_second": 42.01034189591623,
+          "median_parent_cpu_ms": 23.4295,
+          "maximum_shared_host_peak_rss_kib": 200636,
+          "bytes": [
+            43354
+          ],
+          "geometry": [
+            [
+              600,
+              269
+            ]
+          ]
+        },
+        "imagesharp": {
+          "n": 48,
+          "p50_ms": 30.4274,
+          "p95_ms": 73.2751,
+          "mean_ms": 36.39757083333333,
+          "min_ms": 18.8164,
+          "max_ms": 83.4744,
+          "stddev_ms": 16.087100860812047,
+          "sequential_images_per_second": 27.474360983568385,
+          "median_parent_cpu_ms": 51.918000000000006,
+          "maximum_shared_host_peak_rss_kib": 200596,
+          "bytes": [
+            43327
+          ],
+          "geometry": [
+            [
+              600,
+              269
+            ]
+          ]
+        }
+      },
+      "ratios": {
+        "p50": 0.7208617890453999,
+        "p95": 0.3879721760871019,
+        "throughput": 1.5290743948891619
+      },
+      "original_gate_pass": true,
+      "sessions": {
+        "pdf-photo.jpg-warm-1.json": {
+          "rust": {
+            "n": 24,
+            "p50_ms": 26.87625,
+            "p95_ms": 30.2191,
+            "mean_ms": 26.114191666666667,
+            "min_ms": 21.0804,
+            "max_ms": 30.4953,
+            "stddev_ms": 2.6609726384418595,
+            "sequential_images_per_second": 38.29335453934211
+          },
+          "imagesharp": {
+            "n": 24,
+            "p50_ms": 29.03485,
+            "p95_ms": 74.461,
+            "mean_ms": 36.545608333333334,
+            "min_ms": 19.8858,
+            "max_ms": 83.4744,
+            "stddev_ms": 17.688842220817364,
+            "sequential_images_per_second": 27.363068932359177
+          }
+        },
+        "pdf-photo.jpg-warm-2.json": {
+          "rust": {
+            "n": 24,
+            "p50_ms": 21.18195,
+            "p95_ms": 23.6527,
+            "mean_ms": 21.493133333333333,
+            "min_ms": 19.982,
+            "max_ms": 26.326,
+            "stddev_ms": 1.2420769799243407,
+            "sequential_images_per_second": 46.52648752935046
+          },
+          "imagesharp": {
+            "n": 24,
+            "p50_ms": 34.396,
+            "p95_ms": 58.6572,
+            "mean_ms": 36.24953333333333,
+            "min_ms": 18.8164,
+            "max_ms": 59.7307,
+            "stddev_ms": 14.693559870722028,
+            "sequential_images_per_second": 27.586562033902048
+          }
+        }
+      }
+    },
+    "pdf-photo.jpg-cold": {
+      "backends": {
+        "rust": {
+          "n": 8,
+          "p50_ms": 48.8819,
+          "p95_ms": 69.2724,
+          "mean_ms": 52.1511625,
+          "min_ms": 42.6947,
+          "max_ms": 69.2724,
+          "stddev_ms": 9.075153386336549,
+          "sequential_images_per_second": 19.17502797756426,
+          "median_parent_cpu_ms": 35.835499999999996,
+          "maximum_shared_host_peak_rss_kib": 177780,
+          "bytes": [
+            43354
+          ],
+          "geometry": [
+            [
+              600,
+              269
+            ]
+          ]
+        },
+        "imagesharp": {
+          "n": 8,
+          "p50_ms": 161.0229,
+          "p95_ms": 183.9503,
+          "mean_ms": 160.993175,
+          "min_ms": 138.2826,
+          "max_ms": 183.9503,
+          "stddev_ms": 22.182541795278688,
+          "sequential_images_per_second": 6.211443435412712,
+          "median_parent_cpu_ms": 160.9595,
+          "maximum_shared_host_peak_rss_kib": 177868,
+          "bytes": [
+            43327
+          ],
+          "geometry": [
+            [
+              600,
+              269
+            ]
+          ]
+        }
+      },
+      "ratios": {
+        "p50": 0.3035711069667731,
+        "p95": 0.3765821528967335,
+        "throughput": 3.087048634821899
+      },
+      "original_gate_pass": true,
+      "sessions": {
+        "pdf-photo.jpg-cold-1.json": {
+          "rust": {
+            "n": 1,
+            "p50_ms": 42.6947,
+            "p95_ms": 42.6947,
+            "mean_ms": 42.6947,
+            "min_ms": 42.6947,
+            "max_ms": 42.6947,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 23.422110941170686
+          },
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 139.875,
+            "p95_ms": 139.875,
+            "mean_ms": 139.875,
+            "min_ms": 139.875,
+            "max_ms": 139.875,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 7.149240393208221
+          }
+        },
+        "pdf-photo.jpg-cold-2.json": {
+          "rust": {
+            "n": 1,
+            "p50_ms": 69.2724,
+            "p95_ms": 69.2724,
+            "mean_ms": 69.2724,
+            "min_ms": 69.2724,
+            "max_ms": 69.2724,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 14.435763738516348
+          },
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 178.6575,
+            "p95_ms": 178.6575,
+            "mean_ms": 178.6575,
+            "min_ms": 178.6575,
+            "max_ms": 178.6575,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 5.597302100387613
+          }
+        },
+        "pdf-photo.jpg-cold-3.json": {
+          "rust": {
+            "n": 1,
+            "p50_ms": 48.0981,
+            "p95_ms": 48.0981,
+            "mean_ms": 48.0981,
+            "min_ms": 48.0981,
+            "max_ms": 48.0981,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 20.79084204989386
+          },
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 139.8159,
+            "p95_ms": 139.8159,
+            "mean_ms": 139.8159,
+            "min_ms": 139.8159,
+            "max_ms": 139.8159,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 7.152262367870893
+          }
+        },
+        "pdf-photo.jpg-cold-4.json": {
+          "rust": {
+            "n": 1,
+            "p50_ms": 46.3802,
+            "p95_ms": 46.3802,
+            "mean_ms": 46.3802,
+            "min_ms": 46.3802,
+            "max_ms": 46.3802,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 21.560924704938746
+          },
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 180.6305,
+            "p95_ms": 180.6305,
+            "mean_ms": 180.6305,
+            "min_ms": 180.6305,
+            "max_ms": 180.6305,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 5.536163604706846
+          }
+        },
+        "pdf-photo.jpg-cold-5.json": {
+          "rust": {
+            "n": 1,
+            "p50_ms": 47.477,
+            "p95_ms": 47.477,
+            "mean_ms": 47.477,
+            "min_ms": 47.477,
+            "max_ms": 47.477,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 21.062830423152263
+          },
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 138.2826,
+            "p95_ms": 138.2826,
+            "mean_ms": 138.2826,
+            "min_ms": 138.2826,
+            "max_ms": 138.2826,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 7.231567818366157
+          }
+        },
+        "pdf-photo.jpg-cold-6.json": {
+          "rust": {
+            "n": 1,
+            "p50_ms": 62.8426,
+            "p95_ms": 62.8426,
+            "mean_ms": 62.8426,
+            "min_ms": 62.8426,
+            "max_ms": 62.8426,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 15.912772546011782
+          },
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 183.3453,
+            "p95_ms": 183.3453,
+            "mean_ms": 183.3453,
+            "min_ms": 183.3453,
+            "max_ms": 183.3453,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 5.454189444725335
+          }
+        },
+        "pdf-photo.jpg-cold-7.json": {
+          "rust": {
+            "n": 1,
+            "p50_ms": 50.7786,
+            "p95_ms": 50.7786,
+            "mean_ms": 50.7786,
+            "min_ms": 50.7786,
+            "max_ms": 50.7786,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 19.693335381440214
+          },
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 143.3883,
+            "p95_ms": 143.3883,
+            "mean_ms": 143.3883,
+            "min_ms": 143.3883,
+            "max_ms": 143.3883,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 6.974069711406022
+          }
+        },
+        "pdf-photo.jpg-cold-8.json": {
+          "rust": {
+            "n": 1,
+            "p50_ms": 49.6657,
+            "p95_ms": 49.6657,
+            "mean_ms": 49.6657,
+            "min_ms": 49.6657,
+            "max_ms": 49.6657,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 20.134620069786592
+          },
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 183.9503,
+            "p95_ms": 183.9503,
+            "mean_ms": 183.9503,
+            "min_ms": 183.9503,
+            "max_ms": 183.9503,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 5.436250987359085
+          }
+        }
+      }
+    },
+    "pdf-photo.webp-warm": {
+      "backends": {
+        "rust": {
+          "n": 48,
+          "p50_ms": 45.6393,
+          "p95_ms": 52.8289,
+          "mean_ms": 43.41597708333333,
+          "min_ms": 35.3694,
+          "max_ms": 59.1126,
+          "stddev_ms": 7.477500182810545,
+          "sequential_images_per_second": 23.03299538970605,
+          "median_parent_cpu_ms": 6.78,
+          "maximum_shared_host_peak_rss_kib": 228140,
+          "bytes": [
+            43327
+          ],
+          "geometry": [
+            [
+              600,
+              269
+            ]
+          ]
+        },
+        "imagesharp": {
+          "n": 48,
+          "p50_ms": 68.77485,
+          "p95_ms": 86.7579,
+          "mean_ms": 67.700375,
+          "min_ms": 53.4248,
+          "max_ms": 128.4518,
+          "stddev_ms": 15.335097997876247,
+          "sequential_images_per_second": 14.770966925958684,
+          "median_parent_cpu_ms": 77.3435,
+          "maximum_shared_host_peak_rss_kib": 228140,
+          "bytes": [
+            42685
+          ],
+          "geometry": [
+            [
+              600,
+              269
+            ]
+          ]
+        }
+      },
+      "ratios": {
+        "p50": 0.663604500773175,
+        "p95": 0.6089232219774798,
+        "throughput": 1.5593424252563703
+      },
+      "original_gate_pass": true,
+      "sessions": {
+        "pdf-photo.webp-warm-1.json": {
+          "rust": {
+            "n": 24,
+            "p50_ms": 50.4453,
+            "p95_ms": 54.0178,
+            "mean_ms": 50.430658333333334,
+            "min_ms": 46.9062,
+            "max_ms": 59.1126,
+            "stddev_ms": 2.8382330977773553,
+            "sequential_images_per_second": 19.82920772896249
+          },
+          "imagesharp": {
+            "n": 24,
+            "p50_ms": 75.83615,
+            "p95_ms": 105.4786,
+            "mean_ms": 78.75624583333334,
+            "min_ms": 68.4288,
+            "max_ms": 128.4518,
+            "stddev_ms": 13.07336050184826,
+            "sequential_images_per_second": 12.697405639626782
+          }
+        },
+        "pdf-photo.webp-warm-2.json": {
+          "rust": {
+            "n": 24,
+            "p50_ms": 35.87585,
+            "p95_ms": 39.318,
+            "mean_ms": 36.401295833333336,
+            "min_ms": 35.3694,
+            "max_ms": 44.3724,
+            "stddev_ms": 1.873815366868443,
+            "sequential_images_per_second": 27.47154949039703
+          },
+          "imagesharp": {
+            "n": 24,
+            "p50_ms": 54.47385,
+            "p95_ms": 72.1043,
+            "mean_ms": 56.644504166666664,
+            "min_ms": 53.4248,
+            "max_ms": 86.7579,
+            "stddev_ms": 7.385717837266803,
+            "sequential_images_per_second": 17.65396334051531
+          }
+        }
+      }
+    },
+    "pdf-photo.webp-cold": {
+      "backends": {
+        "rust": {
+          "n": 8,
+          "p50_ms": 65.35135,
+          "p95_ms": 77.6709,
+          "mean_ms": 67.1529625,
+          "min_ms": 57.9337,
+          "max_ms": 77.6709,
+          "stddev_ms": 7.131383541769537,
+          "sequential_images_per_second": 14.891375790010754,
+          "median_parent_cpu_ms": 36.4045,
+          "maximum_shared_host_peak_rss_kib": 180324,
+          "bytes": [
+            43327
+          ],
+          "geometry": [
+            [
+              600,
+              269
+            ]
+          ]
+        },
+        "imagesharp": {
+          "n": 8,
+          "p50_ms": 335.59965,
+          "p95_ms": 381.3136,
+          "mean_ms": 334.8327375,
+          "min_ms": 306.8656,
+          "max_ms": 381.3136,
+          "stddev_ms": 25.763598393632687,
+          "sequential_images_per_second": 2.986565792420462,
+          "median_parent_cpu_ms": 341.7955,
+          "maximum_shared_host_peak_rss_kib": 182824,
+          "bytes": [
+            42685
+          ],
+          "geometry": [
+            [
+              600,
+              269
+            ]
+          ]
+        }
+      },
+      "ratios": {
+        "p50": 0.1947300898555764,
+        "p95": 0.20369297082506369,
+        "throughput": 4.986120120910526
+      },
+      "original_gate_pass": true,
+      "sessions": {
+        "pdf-photo.webp-cold-1.json": {
+          "rust": {
+            "n": 1,
+            "p50_ms": 77.6058,
+            "p95_ms": 77.6058,
+            "mean_ms": 77.6058,
+            "min_ms": 77.6058,
+            "max_ms": 77.6058,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 12.885634836571493
+          },
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 307.7225,
+            "p95_ms": 307.7225,
+            "mean_ms": 307.7225,
+            "min_ms": 307.7225,
+            "max_ms": 307.7225,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 3.249681125039605
+          }
+        },
+        "pdf-photo.webp-cold-2.json": {
+          "rust": {
+            "n": 1,
+            "p50_ms": 65.3044,
+            "p95_ms": 65.3044,
+            "mean_ms": 65.3044,
+            "min_ms": 65.3044,
+            "max_ms": 65.3044,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 15.312903877839778
+          },
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 348.3177,
+            "p95_ms": 348.3177,
+            "mean_ms": 348.3177,
+            "min_ms": 348.3177,
+            "max_ms": 348.3177,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 2.8709422461161176
+          }
+        },
+        "pdf-photo.webp-cold-3.json": {
+          "rust": {
+            "n": 1,
+            "p50_ms": 57.9337,
+            "p95_ms": 57.9337,
+            "mean_ms": 57.9337,
+            "min_ms": 57.9337,
+            "max_ms": 57.9337,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 17.261110545330265
+          },
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 325.8079,
+            "p95_ms": 325.8079,
+            "mean_ms": 325.8079,
+            "min_ms": 325.8079,
+            "max_ms": 325.8079,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 3.0692932860130155
+          }
+        },
+        "pdf-photo.webp-cold-4.json": {
+          "rust": {
+            "n": 1,
+            "p50_ms": 63.3106,
+            "p95_ms": 63.3106,
+            "mean_ms": 63.3106,
+            "min_ms": 63.3106,
+            "max_ms": 63.3106,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 15.795143309335245
+          },
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 348.553,
+            "p95_ms": 348.553,
+            "mean_ms": 348.553,
+            "min_ms": 348.553,
+            "max_ms": 348.553,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 2.869004139972974
+          }
+        },
+        "pdf-photo.webp-cold-5.json": {
+          "rust": {
+            "n": 1,
+            "p50_ms": 61.792,
+            "p95_ms": 61.792,
+            "mean_ms": 61.792,
+            "min_ms": 61.792,
+            "max_ms": 61.792,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 16.183324702226827
+          },
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 306.8656,
+            "p95_ms": 306.8656,
+            "mean_ms": 306.8656,
+            "min_ms": 306.8656,
+            "max_ms": 306.8656,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 3.2587556246122085
+          }
+        },
+        "pdf-photo.webp-cold-6.json": {
+          "rust": {
+            "n": 1,
+            "p50_ms": 68.208,
+            "p95_ms": 68.208,
+            "mean_ms": 68.208,
+            "min_ms": 68.208,
+            "max_ms": 68.208,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 14.661036828524514
+          },
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 345.3914,
+            "p95_ms": 345.3914,
+            "mean_ms": 345.3914,
+            "min_ms": 345.3914,
+            "max_ms": 345.3914,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 2.895266066265692
+          }
+        },
+        "pdf-photo.webp-cold-7.json": {
+          "rust": {
+            "n": 1,
+            "p50_ms": 77.6709,
+            "p95_ms": 77.6709,
+            "mean_ms": 77.6709,
+            "min_ms": 77.6709,
+            "max_ms": 77.6709,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 12.874834719309291
+          },
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 314.6902,
+            "p95_ms": 314.6902,
+            "mean_ms": 314.6902,
+            "min_ms": 314.6902,
+            "max_ms": 314.6902,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 3.177728445309069
+          }
+        },
+        "pdf-photo.webp-cold-8.json": {
+          "rust": {
+            "n": 1,
+            "p50_ms": 65.3983,
+            "p95_ms": 65.3983,
+            "mean_ms": 65.3983,
+            "min_ms": 65.3983,
+            "max_ms": 65.3983,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 15.290917348004458
+          },
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 381.3136,
+            "p95_ms": 381.3136,
+            "mean_ms": 381.3136,
+            "min_ms": 381.3136,
+            "max_ms": 381.3136,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 2.622513332857784
+          }
+        }
+      }
+    },
+    "pdf-large-vilaplana.jpg-warm": {
+      "backends": {
+        "rust": {
+          "n": 48,
+          "p50_ms": 117.05695,
+          "p95_ms": 160.2819,
+          "mean_ms": 124.04840625,
+          "min_ms": 97.5171,
+          "max_ms": 175.5046,
+          "stddev_ms": 25.22761130976025,
+          "sequential_images_per_second": 8.06136918828814,
+          "median_parent_cpu_ms": 18.116500000000002,
+          "maximum_shared_host_peak_rss_kib": 250688,
+          "bytes": [
+            66468
+          ],
+          "geometry": [
+            [
+              600,
+              450
+            ]
+          ]
+        },
+        "imagesharp": {
+          "n": 48,
+          "p50_ms": 177.1662,
+          "p95_ms": 206.4527,
+          "mean_ms": 170.88327916666668,
+          "min_ms": 140.0869,
+          "max_ms": 259.6923,
+          "stddev_ms": 28.998367783655556,
+          "sequential_images_per_second": 5.851947626921855,
+          "median_parent_cpu_ms": 187.20499999999998,
+          "maximum_shared_host_peak_rss_kib": 250896,
+          "bytes": [
+            105154
+          ],
+          "geometry": [
+            [
+              600,
+              450
+            ]
+          ]
+        }
+      },
+      "ratios": {
+        "p50": 0.6607182972824387,
+        "p95": 0.776361365097187,
+        "throughput": 1.3775532014678076
+      },
+      "original_gate_pass": true,
+      "sessions": {
+        "pdf-large-vilaplana.jpg-warm-1.json": {
+          "rust": {
+            "n": 24,
+            "p50_ms": 148.5431,
+            "p95_ms": 165.1054,
+            "mean_ms": 147.37594166666668,
+            "min_ms": 118.8741,
+            "max_ms": 175.5046,
+            "stddev_ms": 12.392775144796778,
+            "sequential_images_per_second": 6.785368009805761
+          },
+          "imagesharp": {
+            "n": 24,
+            "p50_ms": 192.46699999999998,
+            "p95_ms": 206.9954,
+            "mean_ms": 197.0247,
+            "min_ms": 181.7081,
+            "max_ms": 259.6923,
+            "stddev_ms": 15.287313018459056,
+            "sequential_images_per_second": 5.075505761460366
+          }
+        },
+        "pdf-large-vilaplana.jpg-warm-2.json": {
+          "rust": {
+            "n": 24,
+            "p50_ms": 99.8783,
+            "p95_ms": 103.1592,
+            "mean_ms": 100.72087083333334,
+            "min_ms": 97.5171,
+            "max_ms": 115.2398,
+            "stddev_ms": 3.3596955472158316,
+            "sequential_images_per_second": 9.928428852196266
+          },
+          "imagesharp": {
+            "n": 24,
+            "p50_ms": 142.31955,
+            "p95_ms": 164.4005,
+            "mean_ms": 144.74185833333334,
+            "min_ms": 140.0869,
+            "max_ms": 172.6243,
+            "stddev_ms": 7.648414743672827,
+            "sequential_images_per_second": 6.908851465047861
+          }
+        }
+      }
+    },
+    "pdf-large-vilaplana.jpg-cold": {
+      "backends": {
+        "rust": {
+          "n": 8,
+          "p50_ms": 135.99325,
+          "p95_ms": 156.4935,
+          "mean_ms": 136.95338750000002,
+          "min_ms": 121.6758,
+          "max_ms": 156.4935,
+          "stddev_ms": 12.597288078271626,
+          "sequential_images_per_second": 7.301754401657278,
+          "median_parent_cpu_ms": 51.121,
+          "maximum_shared_host_peak_rss_kib": 216356,
+          "bytes": [
+            66468
+          ],
+          "geometry": [
+            [
+              600,
+              450
+            ]
+          ]
+        },
+        "imagesharp": {
+          "n": 8,
+          "p50_ms": 775.94825,
+          "p95_ms": 849.9118,
+          "mean_ms": 782.731575,
+          "min_ms": 740.5855,
+          "max_ms": 849.9118,
+          "stddev_ms": 38.30485481307446,
+          "sequential_images_per_second": 1.2775771821904591,
+          "median_parent_cpu_ms": 1043.7235,
+          "maximum_shared_host_peak_rss_kib": 217924,
+          "bytes": [
+            105154
+          ],
+          "geometry": [
+            [
+              600,
+              450
+            ]
+          ]
+        }
+      },
+      "ratios": {
+        "p50": 0.1752607213174332,
+        "p95": 0.18412910610253913,
+        "throughput": 5.715313723072383
+      },
+      "original_gate_pass": true,
+      "sessions": {
+        "pdf-large-vilaplana.jpg-cold-1.json": {
+          "rust": {
+            "n": 1,
+            "p50_ms": 129.1209,
+            "p95_ms": 129.1209,
+            "mean_ms": 129.1209,
+            "min_ms": 129.1209,
+            "max_ms": 129.1209,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 7.74467959873266
+          },
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 822.3535,
+            "p95_ms": 822.3535,
+            "mean_ms": 822.3535,
+            "min_ms": 822.3535,
+            "max_ms": 822.3535,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 1.2160220635043202
+          }
+        },
+        "pdf-large-vilaplana.jpg-cold-2.json": {
+          "rust": {
+            "n": 1,
+            "p50_ms": 143.6365,
+            "p95_ms": 143.6365,
+            "mean_ms": 143.6365,
+            "min_ms": 143.6365,
+            "max_ms": 143.6365,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 6.962018706944265
+          },
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 745.0674,
+            "p95_ms": 745.0674,
+            "mean_ms": 745.0674,
+            "min_ms": 745.0674,
+            "max_ms": 745.0674,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 1.3421604542085723
+          }
+        },
+        "pdf-large-vilaplana.jpg-cold-3.json": {
+          "rust": {
+            "n": 1,
+            "p50_ms": 141.1682,
+            "p95_ms": 141.1682,
+            "mean_ms": 141.1682,
+            "min_ms": 141.1682,
+            "max_ms": 141.1682,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 7.083748322922584
+          },
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 778.6521,
+            "p95_ms": 778.6521,
+            "mean_ms": 778.6521,
+            "min_ms": 778.6521,
+            "max_ms": 778.6521,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 1.2842706004388866
+          }
+        },
+        "pdf-large-vilaplana.jpg-cold-4.json": {
+          "rust": {
+            "n": 1,
+            "p50_ms": 149.27,
+            "p95_ms": 149.27,
+            "mean_ms": 149.27,
+            "min_ms": 149.27,
+            "max_ms": 149.27,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 6.699269779594024
+          },
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 795.9702,
+            "p95_ms": 795.9702,
+            "mean_ms": 795.9702,
+            "min_ms": 795.9702,
+            "max_ms": 795.9702,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 1.2563284404365893
+          }
+        },
+        "pdf-large-vilaplana.jpg-cold-5.json": {
+          "rust": {
+            "n": 1,
+            "p50_ms": 130.8183,
+            "p95_ms": 130.8183,
+            "mean_ms": 130.8183,
+            "min_ms": 130.8183,
+            "max_ms": 130.8183,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 7.644190453476311
+          },
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 756.0677,
+            "p95_ms": 756.0677,
+            "mean_ms": 756.0677,
+            "min_ms": 756.0677,
+            "max_ms": 756.0677,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 1.3226328806269598
+          }
+        },
+        "pdf-large-vilaplana.jpg-cold-6.json": {
+          "rust": {
+            "n": 1,
+            "p50_ms": 156.4935,
+            "p95_ms": 156.4935,
+            "mean_ms": 156.4935,
+            "min_ms": 156.4935,
+            "max_ms": 156.4935,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 6.390041758922894
+          },
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 849.9118,
+            "p95_ms": 849.9118,
+            "mean_ms": 849.9118,
+            "min_ms": 849.9118,
+            "max_ms": 849.9118,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 1.1765926770283692
+          }
+        },
+        "pdf-large-vilaplana.jpg-cold-7.json": {
+          "rust": {
+            "n": 1,
+            "p50_ms": 123.4439,
+            "p95_ms": 123.4439,
+            "mean_ms": 123.4439,
+            "min_ms": 123.4439,
+            "max_ms": 123.4439,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 8.10084580931095
+          },
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 740.5855,
+            "p95_ms": 740.5855,
+            "mean_ms": 740.5855,
+            "min_ms": 740.5855,
+            "max_ms": 740.5855,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 1.350282985556698
+          }
+        },
+        "pdf-large-vilaplana.jpg-cold-8.json": {
+          "rust": {
+            "n": 1,
+            "p50_ms": 121.6758,
+            "p95_ms": 121.6758,
+            "mean_ms": 121.6758,
+            "min_ms": 121.6758,
+            "max_ms": 121.6758,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 8.218561127192096
+          },
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 773.2444,
+            "p95_ms": 773.2444,
+            "mean_ms": 773.2444,
+            "min_ms": 773.2444,
+            "max_ms": 773.2444,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 1.2932521722756738
+          }
+        }
+      }
+    },
+    "pdf-large-vilaplana.webp-warm": {
+      "backends": {
+        "rust": {
+          "n": 48,
+          "p50_ms": 218.0248,
+          "p95_ms": 228.7996,
+          "mean_ms": 219.62685416666667,
+          "min_ms": 213.746,
+          "max_ms": 265.1784,
+          "stddev_ms": 7.494240902696006,
+          "sequential_images_per_second": 4.553177268755746,
+          "median_parent_cpu_ms": 28.0165,
+          "maximum_shared_host_peak_rss_kib": 393724,
+          "bytes": [
+            66468
+          ],
+          "geometry": [
+            [
+              600,
+              450
+            ]
+          ]
+        },
+        "imagesharp": {
+          "n": 48,
+          "p50_ms": 392.97955,
+          "p95_ms": 420.1077,
+          "mean_ms": 395.7424854166667,
+          "min_ms": 382.7672,
+          "max_ms": 431.7796,
+          "stddev_ms": 10.879901761465703,
+          "sequential_images_per_second": 2.5268957386446056,
+          "median_parent_cpu_ms": 423.2375,
+          "maximum_shared_host_peak_rss_kib": 393724,
+          "bytes": [
+            66593
+          ],
+          "geometry": [
+            [
+              600,
+              450
+            ]
+          ]
+        }
+      },
+      "ratios": {
+        "p50": 0.5547993527907495,
+        "p95": 0.54462129592007,
+        "throughput": 1.8018856888800692
+      },
+      "original_gate_pass": true,
+      "sessions": {
+        "pdf-large-vilaplana.webp-warm-1.json": {
+          "rust": {
+            "n": 24,
+            "p50_ms": 217.1427,
+            "p95_ms": 223.848,
+            "mean_ms": 217.75860833333334,
+            "min_ms": 214.4958,
+            "max_ms": 228.8361,
+            "stddev_ms": 3.1949443059603406,
+            "sequential_images_per_second": 4.592240957332226
+          },
+          "imagesharp": {
+            "n": 24,
+            "p50_ms": 388.6174,
+            "p95_ms": 412.945,
+            "mean_ms": 392.4441708333333,
+            "min_ms": 382.7672,
+            "max_ms": 422.7321,
+            "stddev_ms": 9.960598257197512,
+            "sequential_images_per_second": 2.548133146879353
+          }
+        },
+        "pdf-large-vilaplana.webp-warm-2.json": {
+          "rust": {
+            "n": 24,
+            "p50_ms": 218.7902,
+            "p95_ms": 228.7996,
+            "mean_ms": 221.4951,
+            "min_ms": 213.746,
+            "max_ms": 265.1784,
+            "stddev_ms": 9.862926997071673,
+            "sequential_images_per_second": 4.5147725615600525
+          },
+          "imagesharp": {
+            "n": 24,
+            "p50_ms": 397.6979,
+            "p95_ms": 420.1077,
+            "mean_ms": 399.0408,
+            "min_ms": 386.4191,
+            "max_ms": 431.7796,
+            "stddev_ms": 10.953258851652528,
+            "sequential_images_per_second": 2.5060094105665387
+          }
+        }
+      }
+    },
+    "pdf-large-vilaplana.webp-cold": {
+      "backends": {
+        "rust": {
+          "n": 8,
+          "p50_ms": 259.4092,
+          "p95_ms": 280.239,
+          "mean_ms": 260.38535,
+          "min_ms": 246.22,
+          "max_ms": 280.239,
+          "stddev_ms": 12.364014954351546,
+          "sequential_images_per_second": 3.84046183857886,
+          "median_parent_cpu_ms": 110.316,
+          "maximum_shared_host_peak_rss_kib": 328828,
+          "bytes": [
+            66468
+          ],
+          "geometry": [
+            [
+              600,
+              450
+            ]
+          ]
+        },
+        "imagesharp": {
+          "n": 8,
+          "p50_ms": 758.55885,
+          "p95_ms": 885.2252,
+          "mean_ms": 777.851775,
+          "min_ms": 729.7221,
+          "max_ms": 885.2252,
+          "stddev_ms": 50.53566692787383,
+          "sequential_images_per_second": 1.285591975412025,
+          "median_parent_cpu_ms": 964.3175,
+          "maximum_shared_host_peak_rss_kib": 331884,
+          "bytes": [
+            66593
+          ],
+          "geometry": [
+            [
+              600,
+              450
+            ]
+          ]
+        }
+      },
+      "ratios": {
+        "p50": 0.341976367423569,
+        "p95": 0.31657368091193067,
+        "throughput": 2.9873100579583296
+      },
+      "original_gate_pass": true,
+      "sessions": {
+        "pdf-large-vilaplana.webp-cold-1.json": {
+          "rust": {
+            "n": 1,
+            "p50_ms": 261.6157,
+            "p95_ms": 261.6157,
+            "mean_ms": 261.6157,
+            "min_ms": 261.6157,
+            "max_ms": 261.6157,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 3.822400566938452
+          },
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 787.1448,
+            "p95_ms": 787.1448,
+            "mean_ms": 787.1448,
+            "min_ms": 787.1448,
+            "max_ms": 787.1448,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 1.2704142871807067
+          }
+        },
+        "pdf-large-vilaplana.webp-cold-2.json": {
+          "rust": {
+            "n": 1,
+            "p50_ms": 247.9568,
+            "p95_ms": 247.9568,
+            "mean_ms": 247.9568,
+            "min_ms": 247.9568,
+            "max_ms": 247.9568,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 4.032960580230105
+          },
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 754.4766,
+            "p95_ms": 754.4766,
+            "mean_ms": 754.4766,
+            "min_ms": 754.4766,
+            "max_ms": 754.4766,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 1.325422153583027
+          }
+        },
+        "pdf-large-vilaplana.webp-cold-3.json": {
+          "rust": {
+            "n": 1,
+            "p50_ms": 250.6409,
+            "p95_ms": 250.6409,
+            "mean_ms": 250.6409,
+            "min_ms": 250.6409,
+            "max_ms": 250.6409,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 3.989771820959788
+          },
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 729.7221,
+            "p95_ms": 729.7221,
+            "mean_ms": 729.7221,
+            "min_ms": 729.7221,
+            "max_ms": 729.7221,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 1.3703846985037182
+          }
+        },
+        "pdf-large-vilaplana.webp-cold-4.json": {
+          "rust": {
+            "n": 1,
+            "p50_ms": 280.239,
+            "p95_ms": 280.239,
+            "mean_ms": 280.239,
+            "min_ms": 280.239,
+            "max_ms": 280.239,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 3.5683827019080145
+          },
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 885.2252,
+            "p95_ms": 885.2252,
+            "mean_ms": 885.2252,
+            "min_ms": 885.2252,
+            "max_ms": 885.2252,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 1.1296560468454808
+          }
+        },
+        "pdf-large-vilaplana.webp-cold-5.json": {
+          "rust": {
+            "n": 1,
+            "p50_ms": 274.3065,
+            "p95_ms": 274.3065,
+            "mean_ms": 274.3065,
+            "min_ms": 274.3065,
+            "max_ms": 274.3065,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 3.6455570684617387
+          },
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 745.3819,
+            "p95_ms": 745.3819,
+            "mean_ms": 745.3819,
+            "min_ms": 745.3819,
+            "max_ms": 745.3819,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 1.3415941546206045
+          }
+        },
+        "pdf-large-vilaplana.webp-cold-6.json": {
+          "rust": {
+            "n": 1,
+            "p50_ms": 264.9012,
+            "p95_ms": 264.9012,
+            "mean_ms": 264.9012,
+            "min_ms": 264.9012,
+            "max_ms": 264.9012,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 3.774992336765556
+          },
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 762.6411,
+            "p95_ms": 762.6411,
+            "mean_ms": 762.6411,
+            "min_ms": 762.6411,
+            "max_ms": 762.6411,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 1.31123276728726
+          }
+        },
+        "pdf-large-vilaplana.webp-cold-7.json": {
+          "rust": {
+            "n": 1,
+            "p50_ms": 257.2027,
+            "p95_ms": 257.2027,
+            "mean_ms": 257.2027,
+            "min_ms": 257.2027,
+            "max_ms": 257.2027,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 3.887984068596481
+          },
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 746.6315,
+            "p95_ms": 746.6315,
+            "mean_ms": 746.6315,
+            "min_ms": 746.6315,
+            "max_ms": 746.6315,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 1.3393487952222751
+          }
+        },
+        "pdf-large-vilaplana.webp-cold-8.json": {
+          "rust": {
+            "n": 1,
+            "p50_ms": 246.22,
+            "p95_ms": 246.22,
+            "mean_ms": 246.22,
+            "min_ms": 246.22,
+            "max_ms": 246.22,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 4.061408496466575
+          },
+          "imagesharp": {
+            "n": 1,
+            "p50_ms": 811.591,
+            "p95_ms": 811.591,
+            "mean_ms": 811.591,
+            "min_ms": 811.591,
+            "max_ms": 811.591,
+            "stddev_ms": 0,
+            "sequential_images_per_second": 1.2321477197258224
+          }
+        }
+      }
+    }
+  },
+  "quality": [
+    {
+      "fixture": "web-photo.jpg",
+      "reference": "ImageSharp 3.1.12 unchanged product seam",
+      "baseline": {
+        "path": "evidence/performance/web-photo.jpg-warm-1.json.imagesharp.jpg",
+        "sha256": "293cd91ebd1421a3a3840b95f07444a06bc51f200d3519f38f93a05039256d8c",
+        "bytes": 498696,
+        "geometry": [
+          1920,
+          863
+        ],
+        "mode": "RGB",
+        "icc_bytes": 524,
+        "jpeg_sampling": [
+          [
+            1,
+            2,
+            2,
+            0
+          ],
+          [
+            2,
+            1,
+            1,
+            1
+          ],
+          [
+            3,
+            1,
+            1,
+            1
+          ]
+        ],
+        "jpeg_quantization": {
+          "0": [
+            3,
+            2,
+            2,
+            3,
+            5,
+            8,
+            10,
+            12,
+            2,
+            2,
+            3,
+            4,
+            5,
+            12,
+            12,
+            11,
+            3,
+            3,
+            3,
+            5,
+            8,
+            11,
+            14,
+            11,
+            3,
+            3,
+            4,
+            6,
+            10,
+            17,
+            16,
+            12,
+            4,
+            4,
+            7,
+            11,
+            14,
+            22,
+            21,
+            15,
+            5,
+            7,
+            11,
+            13,
+            16,
+            21,
+            23,
+            18,
+            10,
+            13,
+            16,
+            17,
+            21,
+            24,
+            24,
+            20,
+            14,
+            18,
+            19,
+            20,
+            22,
+            20,
+            21,
+            20
+          ],
+          "1": [
+            3,
+            4,
+            5,
+            9,
+            20,
+            20,
+            20,
+            20,
+            4,
+            4,
+            5,
+            13,
+            20,
+            20,
+            20,
+            20,
+            5,
+            5,
+            11,
+            20,
+            20,
+            20,
+            20,
+            20,
+            9,
+            13,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20
+          ]
+        },
+        "exif_orientation": 1,
+        "alpha_range": [
+          255,
+          255
+        ]
+      },
+      "rust": {
+        "path": "evidence/performance/web-photo.jpg-warm-1.json.rust.jpg",
+        "sha256": "fce09255c3726bb313d4c85d289834b1a73a196a07932d6f271721cc708bc85a",
+        "bytes": 498699,
+        "geometry": [
+          1920,
+          863
+        ],
+        "mode": "RGB",
+        "icc_bytes": 612,
+        "jpeg_sampling": [
+          [
+            1,
+            2,
+            2,
+            0
+          ],
+          [
+            2,
+            1,
+            1,
+            1
+          ],
+          [
+            3,
+            1,
+            1,
+            1
+          ]
+        ],
+        "jpeg_quantization": {
+          "0": [
+            3,
+            2,
+            2,
+            3,
+            5,
+            8,
+            10,
+            12,
+            2,
+            2,
+            3,
+            4,
+            5,
+            12,
+            12,
+            11,
+            3,
+            3,
+            3,
+            5,
+            8,
+            11,
+            14,
+            11,
+            3,
+            3,
+            4,
+            6,
+            10,
+            17,
+            16,
+            12,
+            4,
+            4,
+            7,
+            11,
+            14,
+            22,
+            21,
+            15,
+            5,
+            7,
+            11,
+            13,
+            16,
+            21,
+            23,
+            18,
+            10,
+            13,
+            16,
+            17,
+            21,
+            24,
+            24,
+            20,
+            14,
+            18,
+            19,
+            20,
+            22,
+            20,
+            21,
+            20
+          ],
+          "1": [
+            3,
+            4,
+            5,
+            9,
+            20,
+            20,
+            20,
+            20,
+            4,
+            4,
+            5,
+            13,
+            20,
+            20,
+            20,
+            20,
+            5,
+            5,
+            11,
+            20,
+            20,
+            20,
+            20,
+            20,
+            9,
+            13,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20
+          ]
+        },
+        "exif_orientation": 1,
+        "alpha_range": [
+          255,
+          255
+        ]
+      },
+      "display_psnr_db": 46.74048452912651,
+      "display_pixels_equal": false,
+      "mean_absolute_rgb_delta": [
+        0.6640570683661645,
+        0.5629641029354964,
+        0.9622435061799923
+      ],
+      "quantization_tables_equal": true
+    },
+    {
+      "fixture": "web-photo.webp",
+      "reference": "ImageSharp 3.1.12 unchanged product seam",
+      "baseline": {
+        "path": "evidence/performance/web-photo.webp-warm-1.json.imagesharp.jpg",
+        "sha256": "df5e44ac248421a23d3c34e612ec318f23d152ee3041ef2a8a9dc0d513f4530c",
+        "bytes": 498676,
+        "geometry": [
+          1920,
+          863
+        ],
+        "mode": "RGB",
+        "icc_bytes": 0,
+        "jpeg_sampling": [
+          [
+            1,
+            2,
+            2,
+            0
+          ],
+          [
+            2,
+            1,
+            1,
+            1
+          ],
+          [
+            3,
+            1,
+            1,
+            1
+          ]
+        ],
+        "jpeg_quantization": {
+          "0": [
+            3,
+            2,
+            2,
+            3,
+            5,
+            8,
+            10,
+            12,
+            2,
+            2,
+            3,
+            4,
+            5,
+            12,
+            12,
+            11,
+            3,
+            3,
+            3,
+            5,
+            8,
+            11,
+            14,
+            11,
+            3,
+            3,
+            4,
+            6,
+            10,
+            17,
+            16,
+            12,
+            4,
+            4,
+            7,
+            11,
+            14,
+            22,
+            21,
+            15,
+            5,
+            7,
+            11,
+            13,
+            16,
+            21,
+            23,
+            18,
+            10,
+            13,
+            16,
+            17,
+            21,
+            24,
+            24,
+            20,
+            14,
+            18,
+            19,
+            20,
+            22,
+            20,
+            21,
+            20
+          ],
+          "1": [
+            3,
+            4,
+            5,
+            9,
+            20,
+            20,
+            20,
+            20,
+            4,
+            4,
+            5,
+            13,
+            20,
+            20,
+            20,
+            20,
+            5,
+            5,
+            11,
+            20,
+            20,
+            20,
+            20,
+            20,
+            9,
+            13,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20
+          ]
+        },
+        "exif_orientation": 1,
+        "alpha_range": [
+          255,
+          255
+        ]
+      },
+      "rust": {
+        "path": "evidence/performance/web-photo.webp-warm-1.json.rust.jpg",
+        "sha256": "66b3b90f36108e0e321625149d63c0b0b721a0b9e71ecfe2a4c7d5b4891e400d",
+        "bytes": 501268,
+        "geometry": [
+          1920,
+          863
+        ],
+        "mode": "RGB",
+        "icc_bytes": 612,
+        "jpeg_sampling": [
+          [
+            1,
+            2,
+            2,
+            0
+          ],
+          [
+            2,
+            1,
+            1,
+            1
+          ],
+          [
+            3,
+            1,
+            1,
+            1
+          ]
+        ],
+        "jpeg_quantization": {
+          "0": [
+            3,
+            2,
+            2,
+            3,
+            5,
+            8,
+            10,
+            12,
+            2,
+            2,
+            3,
+            4,
+            5,
+            12,
+            12,
+            11,
+            3,
+            3,
+            3,
+            5,
+            8,
+            11,
+            14,
+            11,
+            3,
+            3,
+            4,
+            6,
+            10,
+            17,
+            16,
+            12,
+            4,
+            4,
+            7,
+            11,
+            14,
+            22,
+            21,
+            15,
+            5,
+            7,
+            11,
+            13,
+            16,
+            21,
+            23,
+            18,
+            10,
+            13,
+            16,
+            17,
+            21,
+            24,
+            24,
+            20,
+            14,
+            18,
+            19,
+            20,
+            22,
+            20,
+            21,
+            20
+          ],
+          "1": [
+            3,
+            4,
+            5,
+            9,
+            20,
+            20,
+            20,
+            20,
+            4,
+            4,
+            5,
+            13,
+            20,
+            20,
+            20,
+            20,
+            5,
+            5,
+            11,
+            20,
+            20,
+            20,
+            20,
+            20,
+            9,
+            13,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20
+          ]
+        },
+        "exif_orientation": 1,
+        "alpha_range": [
+          255,
+          255
+        ]
+      },
+      "display_psnr_db": 46.68606471761337,
+      "display_pixels_equal": false,
+      "mean_absolute_rgb_delta": [
+        0.7246801371185786,
+        0.6524925164156045,
+        0.8631747296253379
+      ],
+      "quantization_tables_equal": true
+    },
+    {
+      "fixture": "web-large-vilaplana.jpg",
+      "reference": "ImageSharp 3.1.12 unchanged product seam",
+      "baseline": {
+        "path": "evidence/performance/web-large-vilaplana.jpg-warm-1.json.imagesharp.jpg",
+        "sha256": "9952304a647df67a592742a9431b4bf72d3134f1b5b150214248999eaff8b6c3",
+        "bytes": 901972,
+        "geometry": [
+          2048,
+          1536
+        ],
+        "mode": "RGB",
+        "icc_bytes": 0,
+        "jpeg_sampling": [
+          [
+            1,
+            2,
+            1,
+            0
+          ],
+          [
+            2,
+            1,
+            1,
+            1
+          ],
+          [
+            3,
+            1,
+            1,
+            1
+          ]
+        ],
+        "jpeg_quantization": {
+          "0": [
+            3,
+            2,
+            2,
+            3,
+            5,
+            8,
+            10,
+            12,
+            2,
+            2,
+            3,
+            4,
+            5,
+            12,
+            12,
+            11,
+            3,
+            3,
+            3,
+            5,
+            8,
+            11,
+            14,
+            11,
+            3,
+            3,
+            4,
+            6,
+            10,
+            17,
+            16,
+            12,
+            4,
+            4,
+            7,
+            11,
+            14,
+            22,
+            21,
+            15,
+            5,
+            7,
+            11,
+            13,
+            16,
+            21,
+            23,
+            18,
+            10,
+            13,
+            16,
+            17,
+            21,
+            24,
+            24,
+            20,
+            14,
+            18,
+            19,
+            20,
+            22,
+            20,
+            21,
+            20
+          ],
+          "1": [
+            3,
+            4,
+            5,
+            9,
+            20,
+            20,
+            20,
+            20,
+            4,
+            4,
+            5,
+            13,
+            20,
+            20,
+            20,
+            20,
+            5,
+            5,
+            11,
+            20,
+            20,
+            20,
+            20,
+            20,
+            9,
+            13,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20
+          ]
+        },
+        "exif_orientation": 1,
+        "alpha_range": [
+          255,
+          255
+        ]
+      },
+      "rust": {
+        "path": "evidence/performance/web-large-vilaplana.jpg-warm-1.json.rust.jpg",
+        "sha256": "11e8c32f190187b5918edf924b206d86b412d0123072bc687339d5ab4c7beb6b",
+        "bytes": 795809,
+        "geometry": [
+          2048,
+          1536
+        ],
+        "mode": "RGB",
+        "icc_bytes": 612,
+        "jpeg_sampling": [
+          [
+            1,
+            2,
+            2,
+            0
+          ],
+          [
+            2,
+            1,
+            1,
+            1
+          ],
+          [
+            3,
+            1,
+            1,
+            1
+          ]
+        ],
+        "jpeg_quantization": {
+          "0": [
+            3,
+            2,
+            2,
+            3,
+            5,
+            8,
+            10,
+            12,
+            2,
+            2,
+            3,
+            4,
+            5,
+            12,
+            12,
+            11,
+            3,
+            3,
+            3,
+            5,
+            8,
+            11,
+            14,
+            11,
+            3,
+            3,
+            4,
+            6,
+            10,
+            17,
+            16,
+            12,
+            4,
+            4,
+            7,
+            11,
+            14,
+            22,
+            21,
+            15,
+            5,
+            7,
+            11,
+            13,
+            16,
+            21,
+            23,
+            18,
+            10,
+            13,
+            16,
+            17,
+            21,
+            24,
+            24,
+            20,
+            14,
+            18,
+            19,
+            20,
+            22,
+            20,
+            21,
+            20
+          ],
+          "1": [
+            3,
+            4,
+            5,
+            9,
+            20,
+            20,
+            20,
+            20,
+            4,
+            4,
+            5,
+            13,
+            20,
+            20,
+            20,
+            20,
+            5,
+            5,
+            11,
+            20,
+            20,
+            20,
+            20,
+            20,
+            9,
+            13,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20
+          ]
+        },
+        "exif_orientation": 1,
+        "alpha_range": [
+          255,
+          255
+        ]
+      },
+      "display_psnr_db": 40.81872809177298,
+      "display_pixels_equal": false,
+      "mean_absolute_rgb_delta": [
+        1.3964284261067708,
+        1.0444695154825847,
+        2.0203332901000977
+      ],
+      "quantization_tables_equal": true
+    },
+    {
+      "fixture": "web-large-vilaplana.webp",
+      "reference": "ImageSharp 3.1.12 unchanged product seam",
+      "baseline": {
+        "path": "evidence/performance/web-large-vilaplana.webp-warm-1.json.imagesharp.jpg",
+        "sha256": "8fb5b7835f5dd5b2ee1353714bd1606f53dea3b5059374ca3ca39d4b74c9b094",
+        "bytes": 790077,
+        "geometry": [
+          2048,
+          1536
+        ],
+        "mode": "RGB",
+        "icc_bytes": 0,
+        "jpeg_sampling": [
+          [
+            1,
+            2,
+            2,
+            0
+          ],
+          [
+            2,
+            1,
+            1,
+            1
+          ],
+          [
+            3,
+            1,
+            1,
+            1
+          ]
+        ],
+        "jpeg_quantization": {
+          "0": [
+            3,
+            2,
+            2,
+            3,
+            5,
+            8,
+            10,
+            12,
+            2,
+            2,
+            3,
+            4,
+            5,
+            12,
+            12,
+            11,
+            3,
+            3,
+            3,
+            5,
+            8,
+            11,
+            14,
+            11,
+            3,
+            3,
+            4,
+            6,
+            10,
+            17,
+            16,
+            12,
+            4,
+            4,
+            7,
+            11,
+            14,
+            22,
+            21,
+            15,
+            5,
+            7,
+            11,
+            13,
+            16,
+            21,
+            23,
+            18,
+            10,
+            13,
+            16,
+            17,
+            21,
+            24,
+            24,
+            20,
+            14,
+            18,
+            19,
+            20,
+            22,
+            20,
+            21,
+            20
+          ],
+          "1": [
+            3,
+            4,
+            5,
+            9,
+            20,
+            20,
+            20,
+            20,
+            4,
+            4,
+            5,
+            13,
+            20,
+            20,
+            20,
+            20,
+            5,
+            5,
+            11,
+            20,
+            20,
+            20,
+            20,
+            20,
+            9,
+            13,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20
+          ]
+        },
+        "exif_orientation": 1,
+        "alpha_range": [
+          255,
+          255
+        ]
+      },
+      "rust": {
+        "path": "evidence/performance/web-large-vilaplana.webp-warm-1.json.rust.jpg",
+        "sha256": "1a44668cccfd40ec5e9a714b564753a4ea47e4b54cfff3530817fe0858d5ee61",
+        "bytes": 795809,
+        "geometry": [
+          2048,
+          1536
+        ],
+        "mode": "RGB",
+        "icc_bytes": 612,
+        "jpeg_sampling": [
+          [
+            1,
+            2,
+            2,
+            0
+          ],
+          [
+            2,
+            1,
+            1,
+            1
+          ],
+          [
+            3,
+            1,
+            1,
+            1
+          ]
+        ],
+        "jpeg_quantization": {
+          "0": [
+            3,
+            2,
+            2,
+            3,
+            5,
+            8,
+            10,
+            12,
+            2,
+            2,
+            3,
+            4,
+            5,
+            12,
+            12,
+            11,
+            3,
+            3,
+            3,
+            5,
+            8,
+            11,
+            14,
+            11,
+            3,
+            3,
+            4,
+            6,
+            10,
+            17,
+            16,
+            12,
+            4,
+            4,
+            7,
+            11,
+            14,
+            22,
+            21,
+            15,
+            5,
+            7,
+            11,
+            13,
+            16,
+            21,
+            23,
+            18,
+            10,
+            13,
+            16,
+            17,
+            21,
+            24,
+            24,
+            20,
+            14,
+            18,
+            19,
+            20,
+            22,
+            20,
+            21,
+            20
+          ],
+          "1": [
+            3,
+            4,
+            5,
+            9,
+            20,
+            20,
+            20,
+            20,
+            4,
+            4,
+            5,
+            13,
+            20,
+            20,
+            20,
+            20,
+            5,
+            5,
+            11,
+            20,
+            20,
+            20,
+            20,
+            20,
+            9,
+            13,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20,
+            20
+          ]
+        },
+        "exif_orientation": 1,
+        "alpha_range": [
+          255,
+          255
+        ]
+      },
+      "display_psnr_db": 45.33241055215459,
+      "display_pixels_equal": false,
+      "mean_absolute_rgb_delta": [
+        0.8443574905395508,
+        0.7622296015421549,
+        0.9477205276489258
+      ],
+      "quantization_tables_equal": true
+    },
+    {
+      "fixture": "pdf-photo.jpg",
+      "reference": "ImageSharp 3.1.12 unchanged product seam",
+      "baseline": {
+        "path": "evidence/performance/pdf-photo.jpg-warm-1.json.imagesharp.jpg",
+        "sha256": "f81065643a2332bc3a952dd7887e95efe4e21b4582273f7edb36bfc90854b238",
+        "bytes": 43327,
+        "geometry": [
+          600,
+          269
+        ],
+        "mode": "RGB",
+        "icc_bytes": 524,
+        "jpeg_sampling": [
+          [
+            1,
+            2,
+            2,
+            0
+          ],
+          [
+            2,
+            1,
+            1,
+            1
+          ],
+          [
+            3,
+            1,
+            1,
+            1
+          ]
+        ],
+        "jpeg_quantization": {
+          "0": [
+            5,
+            3,
+            3,
+            5,
+            7,
+            12,
+            15,
+            18,
+            4,
+            4,
+            4,
+            6,
+            8,
+            17,
+            18,
+            17,
+            4,
+            4,
+            5,
+            7,
+            12,
+            17,
+            21,
+            17,
+            4,
+            5,
+            7,
+            9,
+            15,
+            26,
+            24,
+            19,
+            5,
+            7,
+            11,
+            17,
+            20,
+            33,
+            31,
+            23,
+            7,
+            11,
+            17,
+            19,
+            24,
+            31,
+            34,
+            28,
+            15,
+            19,
+            23,
+            26,
+            31,
+            36,
+            36,
+            30,
+            22,
+            28,
+            29,
+            29,
+            34,
+            30,
+            31,
+            30
+          ],
+          "1": [
+            5,
+            5,
+            7,
+            14,
+            30,
+            30,
+            30,
+            30,
+            5,
+            6,
+            8,
+            20,
+            30,
+            30,
+            30,
+            30,
+            7,
+            8,
+            17,
+            30,
+            30,
+            30,
+            30,
+            30,
+            14,
+            20,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30
+          ]
+        },
+        "exif_orientation": 1,
+        "alpha_range": [
+          255,
+          255
+        ]
+      },
+      "rust": {
+        "path": "evidence/performance/pdf-photo.jpg-warm-1.json.rust.jpg",
+        "sha256": "d3261edb6c83ebe50458de34d31a7fb059b2e5b81e3398ee40a2c259b9e9e72c",
+        "bytes": 43354,
+        "geometry": [
+          600,
+          269
+        ],
+        "mode": "RGB",
+        "icc_bytes": 612,
+        "jpeg_sampling": [
+          [
+            1,
+            2,
+            2,
+            0
+          ],
+          [
+            2,
+            1,
+            1,
+            1
+          ],
+          [
+            3,
+            1,
+            1,
+            1
+          ]
+        ],
+        "jpeg_quantization": {
+          "0": [
+            5,
+            3,
+            3,
+            5,
+            7,
+            12,
+            15,
+            18,
+            4,
+            4,
+            4,
+            6,
+            8,
+            17,
+            18,
+            17,
+            4,
+            4,
+            5,
+            7,
+            12,
+            17,
+            21,
+            17,
+            4,
+            5,
+            7,
+            9,
+            15,
+            26,
+            24,
+            19,
+            5,
+            7,
+            11,
+            17,
+            20,
+            33,
+            31,
+            23,
+            7,
+            11,
+            17,
+            19,
+            24,
+            31,
+            34,
+            28,
+            15,
+            19,
+            23,
+            26,
+            31,
+            36,
+            36,
+            30,
+            22,
+            28,
+            29,
+            29,
+            34,
+            30,
+            31,
+            30
+          ],
+          "1": [
+            5,
+            5,
+            7,
+            14,
+            30,
+            30,
+            30,
+            30,
+            5,
+            6,
+            8,
+            20,
+            30,
+            30,
+            30,
+            30,
+            7,
+            8,
+            17,
+            30,
+            30,
+            30,
+            30,
+            30,
+            14,
+            20,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30
+          ]
+        },
+        "exif_orientation": 1,
+        "alpha_range": [
+          255,
+          255
+        ]
+      },
+      "display_psnr_db": 42.782160917617105,
+      "display_pixels_equal": false,
+      "mean_absolute_rgb_delta": [
+        1.1784696406443618,
+        1.070817843866171,
+        1.3302602230483271
+      ],
+      "quantization_tables_equal": true
+    },
+    {
+      "fixture": "pdf-photo.webp",
+      "reference": "ImageSharp 3.1.12 unchanged product seam",
+      "baseline": {
+        "path": "evidence/performance/pdf-photo.webp-warm-1.json.imagesharp.jpg",
+        "sha256": "7538f4df2be0a5e2c6afa45d06aa115c45cd88a07d373be76a05813af1ec798a",
+        "bytes": 42685,
+        "geometry": [
+          600,
+          269
+        ],
+        "mode": "RGB",
+        "icc_bytes": 0,
+        "jpeg_sampling": [
+          [
+            1,
+            2,
+            2,
+            0
+          ],
+          [
+            2,
+            1,
+            1,
+            1
+          ],
+          [
+            3,
+            1,
+            1,
+            1
+          ]
+        ],
+        "jpeg_quantization": {
+          "0": [
+            5,
+            3,
+            3,
+            5,
+            7,
+            12,
+            15,
+            18,
+            4,
+            4,
+            4,
+            6,
+            8,
+            17,
+            18,
+            17,
+            4,
+            4,
+            5,
+            7,
+            12,
+            17,
+            21,
+            17,
+            4,
+            5,
+            7,
+            9,
+            15,
+            26,
+            24,
+            19,
+            5,
+            7,
+            11,
+            17,
+            20,
+            33,
+            31,
+            23,
+            7,
+            11,
+            17,
+            19,
+            24,
+            31,
+            34,
+            28,
+            15,
+            19,
+            23,
+            26,
+            31,
+            36,
+            36,
+            30,
+            22,
+            28,
+            29,
+            29,
+            34,
+            30,
+            31,
+            30
+          ],
+          "1": [
+            5,
+            5,
+            7,
+            14,
+            30,
+            30,
+            30,
+            30,
+            5,
+            6,
+            8,
+            20,
+            30,
+            30,
+            30,
+            30,
+            7,
+            8,
+            17,
+            30,
+            30,
+            30,
+            30,
+            30,
+            14,
+            20,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30
+          ]
+        },
+        "exif_orientation": 1,
+        "alpha_range": [
+          255,
+          255
+        ]
+      },
+      "rust": {
+        "path": "evidence/performance/pdf-photo.webp-warm-1.json.rust.jpg",
+        "sha256": "9a551e28138d73553c35eb7fa448b3dcb6a0564d94ce991312cbfa6cb3ec2de0",
+        "bytes": 43327,
+        "geometry": [
+          600,
+          269
+        ],
+        "mode": "RGB",
+        "icc_bytes": 612,
+        "jpeg_sampling": [
+          [
+            1,
+            2,
+            2,
+            0
+          ],
+          [
+            2,
+            1,
+            1,
+            1
+          ],
+          [
+            3,
+            1,
+            1,
+            1
+          ]
+        ],
+        "jpeg_quantization": {
+          "0": [
+            5,
+            3,
+            3,
+            5,
+            7,
+            12,
+            15,
+            18,
+            4,
+            4,
+            4,
+            6,
+            8,
+            17,
+            18,
+            17,
+            4,
+            4,
+            5,
+            7,
+            12,
+            17,
+            21,
+            17,
+            4,
+            5,
+            7,
+            9,
+            15,
+            26,
+            24,
+            19,
+            5,
+            7,
+            11,
+            17,
+            20,
+            33,
+            31,
+            23,
+            7,
+            11,
+            17,
+            19,
+            24,
+            31,
+            34,
+            28,
+            15,
+            19,
+            23,
+            26,
+            31,
+            36,
+            36,
+            30,
+            22,
+            28,
+            29,
+            29,
+            34,
+            30,
+            31,
+            30
+          ],
+          "1": [
+            5,
+            5,
+            7,
+            14,
+            30,
+            30,
+            30,
+            30,
+            5,
+            6,
+            8,
+            20,
+            30,
+            30,
+            30,
+            30,
+            7,
+            8,
+            17,
+            30,
+            30,
+            30,
+            30,
+            30,
+            14,
+            20,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30
+          ]
+        },
+        "exif_orientation": 1,
+        "alpha_range": [
+          255,
+          255
+        ]
+      },
+      "display_psnr_db": 43.1220844788541,
+      "display_pixels_equal": false,
+      "mean_absolute_rgb_delta": [
+        1.098289962825279,
+        1.0205266418835193,
+        1.2548389095415118
+      ],
+      "quantization_tables_equal": true
+    },
+    {
+      "fixture": "pdf-large-vilaplana.jpg",
+      "reference": "ImageSharp 3.1.12 unchanged product seam",
+      "baseline": {
+        "path": "evidence/performance/pdf-large-vilaplana.jpg-warm-1.json.imagesharp.jpg",
+        "sha256": "70b2ba32c90b389a1cd6f5557bc1623b212f95c7f33348b3ca6454f00d08ac0a",
+        "bytes": 105154,
+        "geometry": [
+          600,
+          450
+        ],
+        "mode": "RGB",
+        "icc_bytes": 0,
+        "jpeg_sampling": [
+          [
+            1,
+            2,
+            1,
+            0
+          ],
+          [
+            2,
+            1,
+            1,
+            1
+          ],
+          [
+            3,
+            1,
+            1,
+            1
+          ]
+        ],
+        "jpeg_quantization": {
+          "0": [
+            5,
+            3,
+            3,
+            5,
+            7,
+            12,
+            15,
+            18,
+            4,
+            4,
+            4,
+            6,
+            8,
+            17,
+            18,
+            17,
+            4,
+            4,
+            5,
+            7,
+            12,
+            17,
+            21,
+            17,
+            4,
+            5,
+            7,
+            9,
+            15,
+            26,
+            24,
+            19,
+            5,
+            7,
+            11,
+            17,
+            20,
+            33,
+            31,
+            23,
+            7,
+            11,
+            17,
+            19,
+            24,
+            31,
+            34,
+            28,
+            15,
+            19,
+            23,
+            26,
+            31,
+            36,
+            36,
+            30,
+            22,
+            28,
+            29,
+            29,
+            34,
+            30,
+            31,
+            30
+          ],
+          "1": [
+            5,
+            5,
+            7,
+            14,
+            30,
+            30,
+            30,
+            30,
+            5,
+            6,
+            8,
+            20,
+            30,
+            30,
+            30,
+            30,
+            7,
+            8,
+            17,
+            30,
+            30,
+            30,
+            30,
+            30,
+            14,
+            20,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30
+          ]
+        },
+        "exif_orientation": 1,
+        "alpha_range": [
+          255,
+          255
+        ]
+      },
+      "rust": {
+        "path": "evidence/performance/pdf-large-vilaplana.jpg-warm-1.json.rust.jpg",
+        "sha256": "e3b907bf281c716d971bff6c40f6ef885324c5fbea0066fe4207f0b2aed54755",
+        "bytes": 66468,
+        "geometry": [
+          600,
+          450
+        ],
+        "mode": "RGB",
+        "icc_bytes": 612,
+        "jpeg_sampling": [
+          [
+            1,
+            2,
+            2,
+            0
+          ],
+          [
+            2,
+            1,
+            1,
+            1
+          ],
+          [
+            3,
+            1,
+            1,
+            1
+          ]
+        ],
+        "jpeg_quantization": {
+          "0": [
+            5,
+            3,
+            3,
+            5,
+            7,
+            12,
+            15,
+            18,
+            4,
+            4,
+            4,
+            6,
+            8,
+            17,
+            18,
+            17,
+            4,
+            4,
+            5,
+            7,
+            12,
+            17,
+            21,
+            17,
+            4,
+            5,
+            7,
+            9,
+            15,
+            26,
+            24,
+            19,
+            5,
+            7,
+            11,
+            17,
+            20,
+            33,
+            31,
+            23,
+            7,
+            11,
+            17,
+            19,
+            24,
+            31,
+            34,
+            28,
+            15,
+            19,
+            23,
+            26,
+            31,
+            36,
+            36,
+            30,
+            22,
+            28,
+            29,
+            29,
+            34,
+            30,
+            31,
+            30
+          ],
+          "1": [
+            5,
+            5,
+            7,
+            14,
+            30,
+            30,
+            30,
+            30,
+            5,
+            6,
+            8,
+            20,
+            30,
+            30,
+            30,
+            30,
+            7,
+            8,
+            17,
+            30,
+            30,
+            30,
+            30,
+            30,
+            14,
+            20,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30
+          ]
+        },
+        "exif_orientation": 1,
+        "alpha_range": [
+          255,
+          255
+        ]
+      },
+      "display_psnr_db": 38.817181818708946,
+      "display_pixels_equal": false,
+      "mean_absolute_rgb_delta": [
+        1.747348148148148,
+        1.238574074074074,
+        2.552122222222222
+      ],
+      "quantization_tables_equal": true
+    },
+    {
+      "fixture": "pdf-large-vilaplana.webp",
+      "reference": "ImageSharp 3.1.12 unchanged product seam",
+      "baseline": {
+        "path": "evidence/performance/pdf-large-vilaplana.webp-warm-1.json.imagesharp.jpg",
+        "sha256": "d93bd0bec77b09be274edbdc94d1e63e95477f0ab578d7d96cd137d99f56ced6",
+        "bytes": 66593,
+        "geometry": [
+          600,
+          450
+        ],
+        "mode": "RGB",
+        "icc_bytes": 0,
+        "jpeg_sampling": [
+          [
+            1,
+            2,
+            2,
+            0
+          ],
+          [
+            2,
+            1,
+            1,
+            1
+          ],
+          [
+            3,
+            1,
+            1,
+            1
+          ]
+        ],
+        "jpeg_quantization": {
+          "0": [
+            5,
+            3,
+            3,
+            5,
+            7,
+            12,
+            15,
+            18,
+            4,
+            4,
+            4,
+            6,
+            8,
+            17,
+            18,
+            17,
+            4,
+            4,
+            5,
+            7,
+            12,
+            17,
+            21,
+            17,
+            4,
+            5,
+            7,
+            9,
+            15,
+            26,
+            24,
+            19,
+            5,
+            7,
+            11,
+            17,
+            20,
+            33,
+            31,
+            23,
+            7,
+            11,
+            17,
+            19,
+            24,
+            31,
+            34,
+            28,
+            15,
+            19,
+            23,
+            26,
+            31,
+            36,
+            36,
+            30,
+            22,
+            28,
+            29,
+            29,
+            34,
+            30,
+            31,
+            30
+          ],
+          "1": [
+            5,
+            5,
+            7,
+            14,
+            30,
+            30,
+            30,
+            30,
+            5,
+            6,
+            8,
+            20,
+            30,
+            30,
+            30,
+            30,
+            7,
+            8,
+            17,
+            30,
+            30,
+            30,
+            30,
+            30,
+            14,
+            20,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30
+          ]
+        },
+        "exif_orientation": 1,
+        "alpha_range": [
+          255,
+          255
+        ]
+      },
+      "rust": {
+        "path": "evidence/performance/pdf-large-vilaplana.webp-warm-1.json.rust.jpg",
+        "sha256": "01d2c72b5bce495d7b97dd05956763e490231c1b8c1b71c97da4958ed2c890a4",
+        "bytes": 66468,
+        "geometry": [
+          600,
+          450
+        ],
+        "mode": "RGB",
+        "icc_bytes": 612,
+        "jpeg_sampling": [
+          [
+            1,
+            2,
+            2,
+            0
+          ],
+          [
+            2,
+            1,
+            1,
+            1
+          ],
+          [
+            3,
+            1,
+            1,
+            1
+          ]
+        ],
+        "jpeg_quantization": {
+          "0": [
+            5,
+            3,
+            3,
+            5,
+            7,
+            12,
+            15,
+            18,
+            4,
+            4,
+            4,
+            6,
+            8,
+            17,
+            18,
+            17,
+            4,
+            4,
+            5,
+            7,
+            12,
+            17,
+            21,
+            17,
+            4,
+            5,
+            7,
+            9,
+            15,
+            26,
+            24,
+            19,
+            5,
+            7,
+            11,
+            17,
+            20,
+            33,
+            31,
+            23,
+            7,
+            11,
+            17,
+            19,
+            24,
+            31,
+            34,
+            28,
+            15,
+            19,
+            23,
+            26,
+            31,
+            36,
+            36,
+            30,
+            22,
+            28,
+            29,
+            29,
+            34,
+            30,
+            31,
+            30
+          ],
+          "1": [
+            5,
+            5,
+            7,
+            14,
+            30,
+            30,
+            30,
+            30,
+            5,
+            6,
+            8,
+            20,
+            30,
+            30,
+            30,
+            30,
+            7,
+            8,
+            17,
+            30,
+            30,
+            30,
+            30,
+            30,
+            14,
+            20,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30,
+            30
+          ]
+        },
+        "exif_orientation": 1,
+        "alpha_range": [
+          255,
+          255
+        ]
+      },
+      "display_psnr_db": 44.05030608592611,
+      "display_pixels_equal": false,
+      "mean_absolute_rgb_delta": [
+        0.919962962962963,
+        0.8528111111111111,
+        1.0095444444444444
+      ],
+      "quantization_tables_equal": true
+    }
+  ]
+}
