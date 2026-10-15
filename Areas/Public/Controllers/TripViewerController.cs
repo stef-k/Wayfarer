@@ -559,7 +559,7 @@ public class TripViewerController : BaseController
 
     /// <summary>
     /// Serves the cover image for a public trip through the proxied image cache.
-    /// Downloads, optimizes via ImageSharp, and caches the image on first request;
+    /// Downloads, normalizes through the contained helper, and caches the image on first request;
     /// subsequent requests are served from disk cache with ETag/304 support.
     /// Returns 404 if the trip is not found, not public, or has no cover image.
     /// Rate limited for anonymous users using <see cref="RateLimitHelper"/>.

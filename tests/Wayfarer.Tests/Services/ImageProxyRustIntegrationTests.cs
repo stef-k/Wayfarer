@@ -61,8 +61,9 @@ public sealed class ImageProxyRustIntegrationTests(ITestOutputHelper output) : I
         try
         {
             await origin.AllFour.Task.WaitAsync(TimeSpan.FromSeconds(5));
-            Assert.Equal(ImageProxyResultStatus.Unavailable, (await service.GetOrFetchAsync(
-                new("https://example.com/fifth.png"), true)).Status);
+            var rejected = await Task.WhenAll(Enumerable.Range(4, 16).Select(i => service.GetOrFetchAsync(
+                new($"https://example.com/burst-{i}.png"), true)));
+            Assert.All(rejected, result => Assert.Equal(ImageProxyResultStatus.Unavailable, result.Status));
             var hits = await Task.WhenAll(Enumerable.Range(0, 8).Select(_ => service.GetOrFetchAsync(hit, false)));
             Assert.All(hits, result => {
                 Assert.Equal(ImageProxyResultStatus.FreshHit, result.Status);
