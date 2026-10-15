@@ -48,7 +48,7 @@
       "sha256": "1908134b475906fd90078c1d9dd6ee29d5aeac6095b744d05eb938b492fdcb03"
     },
     {
-      "path": "focused-tests.log",
+      "path": "focused-tests.txt",
       "bytes": 509,
       "sha256": "6f2600a6b7ecfa221db85e5972c879b0a65c6b92dec5e70866787b7e0bf87bdb"
     },
@@ -74,8 +74,8 @@
     },
     {
       "path": "method.json",
-      "bytes": 2518,
-      "sha256": "d9e64143dcf2b2e6e2dd82ad4685c50f7697208eccedb2d20a0433bce401b360"
+      "bytes": 3839,
+      "sha256": "86df1e13020b5516ef148ce459b4e320e9d93ef2c6a594d93b897c1617bff830"
     },
     {
       "path": "native-build-linkage.txt",
@@ -118,14 +118,14 @@
       "sha256": "5c5e3d5750f02ad8c7095592074f9f2165ef41171cc32c3304b6645dfa017d5f"
     },
     {
-      "path": "rust-clippy.log",
+      "path": "rust-clippy.txt",
       "bytes": 1242,
       "sha256": "4242b523212a4128183be6d0e8a68b4a9f1f4c9eca8d49939db8acf644db9e08"
     },
     {
-      "path": "rust-tests.log",
-      "bytes": 3173,
-      "sha256": "3945ee699b9b8de7f2b8e323adc77ecf964525a343af2360b2b0b4aed1ca031e"
+      "path": "rust-tests.txt",
+      "bytes": 3172,
+      "sha256": "fa3e163a96b83a55cb83802765554f514404141292037dae244ae622609e9375"
     },
     {
       "path": "security.json",

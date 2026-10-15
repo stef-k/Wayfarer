@@ -67,5 +67,28 @@
     "full .NET build log",
     "upstream source/review captures"
   ],
-  "previous_results": "All pre-existing reports, retained fixtures and evidence remain byte-identical."
+  "previous_results": "All pre-existing reports, retained fixtures and evidence remain byte-identical.",
+  "validation_transcripts": {
+    "focused-tests": {
+      "original_local_path": "evidence/focused-tests.log",
+      "original_sha256": "6f2600a6b7ecfa221db85e5972c879b0a65c6b92dec5e70866787b7e0bf87bdb",
+      "published_path": "focused-tests.txt",
+      "published_sha256": "6f2600a6b7ecfa221db85e5972c879b0a65c6b92dec5e70866787b7e0bf87bdb",
+      "normalization": "Final blank lines removed; one final LF retained. No diagnostic or result line changed."
+    },
+    "rust-tests": {
+      "original_local_path": "evidence/rust-tests.log",
+      "original_sha256": "3945ee699b9b8de7f2b8e323adc77ecf964525a343af2360b2b0b4aed1ca031e",
+      "published_path": "rust-tests.txt",
+      "published_sha256": "fa3e163a96b83a55cb83802765554f514404141292037dae244ae622609e9375",
+      "normalization": "Final blank lines removed; one final LF retained. No diagnostic or result line changed."
+    },
+    "rust-clippy": {
+      "original_local_path": "evidence/rust-clippy.log",
+      "original_sha256": "4242b523212a4128183be6d0e8a68b4a9f1f4c9eca8d49939db8acf644db9e08",
+      "published_path": "rust-clippy.txt",
+      "published_sha256": "4242b523212a4128183be6d0e8a68b4a9f1f4c9eca8d49939db8acf644db9e08",
+      "normalization": "Final blank lines removed; one final LF retained. No diagnostic or result line changed."
+    }
+  }
 }
