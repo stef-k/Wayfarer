@@ -1,9 +1,9 @@
 {
   "overall": "pass",
   "scope": {
-    "selected": 4,
-    "analyzed": 2,
-    "inapplicable": 2,
+    "selected": 45,
+    "analyzed": 5,
+    "inapplicable": 40,
     "excluded": 0
   },
   "requiredPolicies": [],

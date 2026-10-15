@@ -28,7 +28,7 @@
     {
       "file": "code-guard-complete-branch.json",
       "bytes": 8961,
-      "sha256": "fa975d507b200085aca099cda66f938c3e5797546754c5f3e573a6b7074b4cb9"
+      "sha256": "f73861f60f1280523b2d5dd492c722200441ac0fa6e07742615540ffaef98442"
     },
     {
       "file": "code-guard-disposition.json",
@@ -42,8 +42,8 @@
     },
     {
       "file": "code-guard-task-delta.json",
-      "bytes": 679,
-      "sha256": "d80e2dc471621f3809f880d8d36f5d9c5f04265eeab4b1227e2236bcdf2af7ec"
+      "bytes": 681,
+      "sha256": "ce75abd9c0e122ed0d1ff7759aad8e24f70ca1be58dfb81c5e6a94a14a6ba9cc"
     },
     {
       "file": "dependency-tree.txt",
