@@ -1,0 +1,72 @@
+{
+  "starting_commit": "a67267660fc958bb019557c400ca5fa06d9d1852",
+  "candidate_manifest_change": "default = [\"jpeg-candidate-decode\", \"native-jpeg-encode\"]",
+  "features": [
+    "default",
+    "jpeg-candidate-decode",
+    "native-jpeg-encode"
+  ],
+  "profile": {
+    "opt_level": "3",
+    "debuginfo": 0,
+    "debug_assertions": false,
+    "overflow_checks": false,
+    "test": false
+  },
+  "executable": "/home/stef/wayfarer-research/858-webp-fallback-20261015/target-default-only/release/wayfarer-image",
+  "sha256": "c8b4dd3bbf89938e365f107c7e53c2f753166c25d8594393f19f7dbef0441b97",
+  "cargo_lock_sha256": "55dc07a09ba5c1076fa50b9462af3388d78fa78b4d43a72cab1b256479033344",
+  "source_files": [
+    {
+      "path": "codec_candidates.rs",
+      "sha256": "ddccb640b6565a8ebf5ee782bad6e4a583087c02d6a667614569cb0e39091e2d",
+      "unchanged_from_base": true
+    },
+    {
+      "path": "color.rs",
+      "sha256": "944c8863c8ac85d902056f8f17ae97b4e40f0ad5e38132c9f232d753ae909274",
+      "unchanged_from_base": true
+    },
+    {
+      "path": "gif_input.rs",
+      "sha256": "3dc6ae419fe0d2a6ff0808d8a4b9316f0e647e5ad75aaa9002715cb03c9dfaf1",
+      "unchanged_from_base": true
+    },
+    {
+      "path": "jpeg_output.rs",
+      "sha256": "43db9e338c8352ece2f08d0a05ee0331292d1ba86f2ed0fd7059908e63e8a205",
+      "unchanged_from_base": true
+    },
+    {
+      "path": "lib.rs",
+      "sha256": "6012461a50c4301cceb8ec5fdd5bd87c9dd9169a261fa0f12c7d7375b37a989c",
+      "unchanged_from_base": true
+    },
+    {
+      "path": "main.rs",
+      "sha256": "e50cf18f2e40363e150338f81959990b586354b7be642626cb542f0d37e47746",
+      "unchanged_from_base": true
+    },
+    {
+      "path": "png_input.rs",
+      "sha256": "21bc92220ae07e77d346716dc3fefdd3eafd46e43d729d1e4fac040526c2b2d5",
+      "unchanged_from_base": true
+    },
+    {
+      "path": "raster.rs",
+      "sha256": "b460095a2d0823a94b2db04f6e91f34d02f2316d89a48a7a6ac350ee1d6eebf3",
+      "unchanged_from_base": true
+    },
+    {
+      "path": "transform.rs",
+      "sha256": "596fd5b5c2dfc45c48151442ac1be3c17604f88b173d987aefaba9655f2a31ae",
+      "unchanged_from_base": true
+    },
+    {
+      "path": "webp_input.rs",
+      "sha256": "3c2ff05b16c29f3afd93df067875a79fc476fa3244f0472aee1aa556bc128e0a",
+      "unchanged_from_base": true
+    }
+  ],
+  "post_measurement_sha256": "c8b4dd3bbf89938e365f107c7e53c2f753166c25d8594393f19f7dbef0441b97"
+}

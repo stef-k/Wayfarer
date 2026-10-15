@@ -1,0 +1,834 @@
+[
+  {
+    "name": "adler2",
+    "version": "2.0.1",
+    "license": "0BSD OR MIT OR Apache-2.0",
+    "manifest": "/home/stef/wayfarer-research/858-readiness-20261015-KKforFH8/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/adler2-2.0.1/Cargo.toml",
+    "license_files": [
+      {
+        "path": "LICENSE-0BSD",
+        "sha256": "861399f8c21c042b110517e76dc6b63a2b334276c8cf17412fc3c8908ca8dc17"
+      },
+      {
+        "path": "LICENSE-APACHE",
+        "sha256": "8ada45cd9f843acf64e4722ae262c622a2b3b3007c7310ef36ac1061a30f6adb"
+      },
+      {
+        "path": "LICENSE-MIT",
+        "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
+      }
+    ]
+  },
+  {
+    "name": "anyhow",
+    "version": "1.0.104",
+    "license": "MIT OR Apache-2.0",
+    "manifest": "/home/stef/wayfarer-research/858-readiness-20261015-KKforFH8/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/anyhow-1.0.104/Cargo.toml",
+    "license_files": [
+      {
+        "path": "LICENSE-APACHE",
+        "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a"
+      },
+      {
+        "path": "LICENSE-MIT",
+        "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
+      }
+    ]
+  },
+  {
+    "name": "autocfg",
+    "version": "1.5.1",
+    "license": "Apache-2.0 OR MIT",
+    "manifest": "/home/stef/wayfarer-research/858-readiness-20261015-KKforFH8/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/autocfg-1.5.1/Cargo.toml",
+    "license_files": [
+      {
+        "path": "LICENSE-APACHE",
+        "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
+      },
+      {
+        "path": "LICENSE-MIT",
+        "sha256": "27995d58ad5c1145c1a8cd86244ce844886958a35eb2b78c6b772748669999ac"
+      }
+    ]
+  },
+  {
+    "name": "bitflags",
+    "version": "2.13.2",
+    "license": "MIT OR Apache-2.0",
+    "manifest": "/home/stef/wayfarer-research/858-readiness-20261015-KKforFH8/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bitflags-2.13.2/Cargo.toml",
+    "license_files": [
+      {
+        "path": "LICENSE-APACHE",
+        "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
+      },
+      {
+        "path": "LICENSE-MIT",
+        "sha256": "6485b8ed310d3f0340bf1ad1f47645069ce4069dcc6bb46c7d5c6faf41de1fdb"
+      }
+    ]
+  },
+  {
+    "name": "bytemuck",
+    "version": "1.25.2",
+    "license": "Zlib OR Apache-2.0 OR MIT",
+    "manifest": "/home/stef/wayfarer-research/858-readiness-20261015-KKforFH8/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/bytemuck-1.25.2/Cargo.toml",
+    "license_files": [
+      {
+        "path": "LICENSE-APACHE",
+        "sha256": "e3ba223bb1423f0aad8c3dfce0fe3148db48926d41e6fbc3afbbf5ff9e1c89cb"
+      },
+      {
+        "path": "LICENSE-MIT",
+        "sha256": "9df9ba60a11af705f2e451b53762686e615d86f76b169cf075c3237730dbd7e2"
+      },
+      {
+        "path": "LICENSE-ZLIB",
+        "sha256": "84b34dd7608f7fb9b17bd588a6bf392bf7de504e2716f024a77d89f1b145a151"
+      }
+    ]
+  },
+  {
+    "name": "byteorder-lite",
+    "version": "0.1.0",
+    "license": "Unlicense OR MIT",
+    "manifest": "/home/stef/wayfarer-research/858-readiness-20261015-KKforFH8/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/byteorder-lite-0.1.0/Cargo.toml",
+    "license_files": [
+      {
+        "path": "LICENSE-MIT",
+        "sha256": "0f96a83840e146e43c0ec96a22ec1f392e0680e6c1226e6f3ba87e0740af850f"
+      },
+      {
+        "path": "UNLICENSE",
+        "sha256": "7e12e5df4bae12cb21581ba157ced20e1986a0508dd10d0e8a4ab9a4cf94e85c"
+      }
+    ]
+  },
+  {
+    "name": "cc",
+    "version": "1.8.0",
+    "license": "MIT OR Apache-2.0",
+    "manifest": "/home/stef/wayfarer-research/858-readiness-20261015-KKforFH8/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cc-1.8.0/Cargo.toml",
+    "license_files": [
+      {
+        "path": "LICENSE-APACHE",
+        "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
+      },
+      {
+        "path": "LICENSE-MIT",
+        "sha256": "378f5840b258e2779c39418f3f2d7b2ba96f1c7917dd6be0713f88305dbda397"
+      }
+    ]
+  },
+  {
+    "name": "cfg-if",
+    "version": "1.0.5",
+    "license": "MIT OR Apache-2.0",
+    "manifest": "/home/stef/wayfarer-research/858-readiness-20261015-KKforFH8/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cfg-if-1.0.5/Cargo.toml",
+    "license_files": [
+      {
+        "path": "LICENSE-APACHE",
+        "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
+      },
+      {
+        "path": "LICENSE-MIT",
+        "sha256": "378f5840b258e2779c39418f3f2d7b2ba96f1c7917dd6be0713f88305dbda397"
+      }
+    ]
+  },
+  {
+    "name": "cmake",
+    "version": "0.1.58",
+    "license": "MIT OR Apache-2.0",
+    "manifest": "/home/stef/wayfarer-research/858-readiness-20261015-KKforFH8/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cmake-0.1.58/Cargo.toml",
+    "license_files": [
+      {
+        "path": "LICENSE-APACHE",
+        "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
+      },
+      {
+        "path": "LICENSE-MIT",
+        "sha256": "378f5840b258e2779c39418f3f2d7b2ba96f1c7917dd6be0713f88305dbda397"
+      }
+    ]
+  },
+  {
+    "name": "color_quant",
+    "version": "1.1.0",
+    "license": "MIT",
+    "manifest": "/home/stef/wayfarer-research/858-readiness-20261015-KKforFH8/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/color_quant-1.1.0/Cargo.toml",
+    "license_files": [
+      {
+        "path": "LICENSE",
+        "sha256": "592dc80f1a865d20d61a2006a2d29ce34a2bc28cd7e868ab300fdeed6da154ca"
+      }
+    ]
+  },
+  {
+    "name": "crc32fast",
+    "version": "1.5.2",
+    "license": "MIT OR Apache-2.0",
+    "manifest": "/home/stef/wayfarer-research/858-readiness-20261015-KKforFH8/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/crc32fast-1.5.2/Cargo.toml",
+    "license_files": [
+      {
+        "path": "LICENSE-APACHE",
+        "sha256": "c6596eb7be8581c18be736c846fb9173b69eccf6ef94c5135893ec56bd92ba08"
+      },
+      {
+        "path": "LICENSE-MIT",
+        "sha256": "61d383b05b87d78f94d2937e2580cce47226d17823c0430fbcad09596537efcf"
+      }
+    ]
+  },
+  {
+    "name": "document-features",
+    "version": "0.2.12",
+    "license": "MIT OR Apache-2.0",
+    "manifest": "/home/stef/wayfarer-research/858-readiness-20261015-KKforFH8/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/document-features-0.2.12/Cargo.toml",
+    "license_files": [
+      {
+        "path": "LICENSE-APACHE",
+        "sha256": "074e6e32c86a4c0ef8b3ed25b721ca23aca83df277cd88106ef7177c354615ff"
+      },
+      {
+        "path": "LICENSE-MIT",
+        "sha256": "aa893340d14b9844625be6a50ac644169a01b52f0211cbf81b09e1874c8cd81d"
+      }
+    ]
+  },
+  {
+    "name": "fast_image_resize",
+    "version": "6.1.0",
+    "license": "MIT OR Apache-2.0",
+    "manifest": "/home/stef/wayfarer-research/858-readiness-20261015-KKforFH8/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/fast_image_resize-6.1.0/Cargo.toml",
+    "license_files": [
+      {
+        "path": "LICENSE-APACHE",
+        "sha256": "5caa63b85f1c4683ed495f09991128fd777fda36066e2fcdf0f8533212776ed1"
+      },
+      {
+        "path": "LICENSE-MIT",
+        "sha256": "59c7bec3a007a291de2369c504545cb61b5f4d7ac9893e50d523f2aff4fcc7c6"
+      }
+    ]
+  },
+  {
+    "name": "fdeflate",
+    "version": "0.3.7",
+    "license": "MIT OR Apache-2.0",
+    "manifest": "/home/stef/wayfarer-research/858-readiness-20261015-KKforFH8/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/fdeflate-0.3.7/Cargo.toml",
+    "license_files": [
+      {
+        "path": "LICENSE-APACHE",
+        "sha256": "0d542e0c8804e39aa7f37eb00da5a762149dc682d7829451287e11b938e94594"
+      },
+      {
+        "path": "LICENSE-MIT",
+        "sha256": "c77a4cf9da729987d0fe7ccd811e3bd27393914ddf3d23467c18cc22954513b3"
+      }
+    ]
+  },
+  {
+    "name": "find-msvc-tools",
+    "version": "0.1.14",
+    "license": "MIT OR Apache-2.0",
+    "manifest": "/home/stef/wayfarer-research/858-readiness-20261015-KKforFH8/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/find-msvc-tools-0.1.14/Cargo.toml",
+    "license_files": [
+      {
+        "path": "LICENSE-APACHE",
+        "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
+      },
+      {
+        "path": "LICENSE-MIT",
+        "sha256": "378f5840b258e2779c39418f3f2d7b2ba96f1c7917dd6be0713f88305dbda397"
+      }
+    ]
+  },
+  {
+    "name": "flate2",
+    "version": "1.1.10",
+    "license": "MIT OR Apache-2.0",
+    "manifest": "/home/stef/wayfarer-research/858-readiness-20261015-KKforFH8/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/flate2-1.1.10/Cargo.toml",
+    "license_files": [
+      {
+        "path": "LICENSE-APACHE",
+        "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
+      },
+      {
+        "path": "LICENSE-MIT",
+        "sha256": "025436edff4cfcdde17a5811fdea78892d8482efd1abdec5a17872d07a4f2112"
+      }
+    ]
+  },
+  {
+    "name": "gcd",
+    "version": "2.3.0",
+    "license": "MIT/Apache-2.0",
+    "manifest": "/home/stef/wayfarer-research/858-readiness-20261015-KKforFH8/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/gcd-2.3.0/Cargo.toml",
+    "license_files": [
+      {
+        "path": "LICENSE-APACHE",
+        "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
+      },
+      {
+        "path": "LICENSE-MIT",
+        "sha256": "4c9222d8d8ec233ffc1b317729878430f2db2a49cb2324c856a02e9848a3c185"
+      }
+    ]
+  },
+  {
+    "name": "gif",
+    "version": "0.14.2",
+    "license": "MIT OR Apache-2.0",
+    "manifest": "/home/stef/wayfarer-research/858-readiness-20261015-KKforFH8/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/gif-0.14.2/Cargo.toml",
+    "license_files": [
+      {
+        "path": "LICENSE-APACHE",
+        "sha256": "769f80b5bcb42ed0af4e4d2fd74e1ac9bf843cb80c5a29219d1ef3544428a6bb"
+      },
+      {
+        "path": "LICENSE-MIT",
+        "sha256": "77257f3d2181236b1aee78920238062ae64efe13c5d858b2db126e79c9e1b14f"
+      }
+    ]
+  },
+  {
+    "name": "image",
+    "version": "0.25.10",
+    "license": "MIT OR Apache-2.0",
+    "manifest": "/home/stef/wayfarer-research/858-readiness-20261015-KKforFH8/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/image-0.25.10/Cargo.toml",
+    "license_files": [
+      {
+        "path": "LICENSE-APACHE",
+        "sha256": "0d542e0c8804e39aa7f37eb00da5a762149dc682d7829451287e11b938e94594"
+      },
+      {
+        "path": "LICENSE-MIT",
+        "sha256": "c77a4cf9da729987d0fe7ccd811e3bd27393914ddf3d23467c18cc22954513b3"
+      }
+    ]
+  },
+  {
+    "name": "image-webp",
+    "version": "0.2.4",
+    "license": "MIT OR Apache-2.0",
+    "manifest": "/home/stef/wayfarer-research/858-readiness-20261015-KKforFH8/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/image-webp-0.2.4/Cargo.toml",
+    "license_files": [
+      {
+        "path": "LICENSE-APACHE",
+        "sha256": "0d542e0c8804e39aa7f37eb00da5a762149dc682d7829451287e11b938e94594"
+      },
+      {
+        "path": "LICENSE-MIT",
+        "sha256": "c77a4cf9da729987d0fe7ccd811e3bd27393914ddf3d23467c18cc22954513b3"
+      }
+    ]
+  },
+  {
+    "name": "jpeg-decoder",
+    "version": "0.3.2",
+    "license": "MIT OR Apache-2.0",
+    "manifest": "/home/stef/wayfarer-research/858-readiness-20261015-KKforFH8/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/jpeg-decoder-0.3.2/Cargo.toml",
+    "license_files": [
+      {
+        "path": "LICENSE-APACHE",
+        "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
+      },
+      {
+        "path": "LICENSE-MIT",
+        "sha256": "22b83fb92a50418c7df9564b9c179fa2a0e74f293bc58b72dd7e218fc0902143"
+      }
+    ]
+  },
+  {
+    "name": "jpeg-encoder",
+    "version": "0.7.1",
+    "license": "(MIT OR Apache-2.0) AND IJG",
+    "manifest": "/home/stef/wayfarer-research/858-readiness-20261015-KKforFH8/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/jpeg-encoder-0.7.1/Cargo.toml",
+    "license_files": [
+      {
+        "path": "LICENSE-APACHE",
+        "sha256": "85a884980abd6032fc6b5439ba918ab16db9ac9051b5cf18db9c27c587df07c0"
+      },
+      {
+        "path": "LICENSE-IJG",
+        "sha256": "a21e92ec88aefc6823f0c51994783571a849e8d9b43d9ade61ec9d886776721e"
+      },
+      {
+        "path": "LICENSE-MIT",
+        "sha256": "4d022727ea392ebba2fe5e9a5f78c610a0eae506b491f3db29c78b6d430d6503"
+      }
+    ]
+  },
+  {
+    "name": "libc",
+    "version": "0.2.177",
+    "license": "MIT OR Apache-2.0",
+    "manifest": "/home/stef/wayfarer-research/858-readiness-20261015-KKforFH8/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/libc-0.2.177/Cargo.toml",
+    "license_files": [
+      {
+        "path": "LICENSE-APACHE",
+        "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a"
+      },
+      {
+        "path": "LICENSE-MIT",
+        "sha256": "a8d47ff51ca256f56a8932dba07660672dbfe3004257ca8de708aac1415937a1"
+      }
+    ]
+  },
+  {
+    "name": "libjpeg-turbo-rs",
+    "version": "0.8.0",
+    "license": "MIT OR Apache-2.0",
+    "manifest": "/home/stef/wayfarer-research/858-readiness-20261015-KKforFH8/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/libjpeg-turbo-rs-0.8.0/Cargo.toml",
+    "license_files": [
+      {
+        "path": "LICENSE-APACHE",
+        "sha256": "d2bffaebbe756166c10ed2452a2371305f19cfaea88d180675b64448ef1ae1e7"
+      },
+      {
+        "path": "LICENSE-MIT",
+        "sha256": "603a8b2d4280b4a153895dcba6e068a228d5d7947ae128857447b733ddffeba3"
+      }
+    ]
+  },
+  {
+    "name": "litrs",
+    "version": "1.0.1",
+    "license": "MIT OR Apache-2.0",
+    "manifest": "/home/stef/wayfarer-research/858-readiness-20261015-KKforFH8/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/litrs-1.0.1/Cargo.toml",
+    "license_files": [
+      {
+        "path": "LICENSE-APACHE",
+        "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a"
+      },
+      {
+        "path": "LICENSE-MIT",
+        "sha256": "7dc1552e88f49132cb358b1b962fc5e79fa42d70bcbb88c526d33e45b8e98036"
+      }
+    ]
+  },
+  {
+    "name": "miniz_oxide",
+    "version": "0.8.9",
+    "license": "MIT OR Zlib OR Apache-2.0",
+    "manifest": "/home/stef/wayfarer-research/858-readiness-20261015-KKforFH8/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/miniz_oxide-0.8.9/Cargo.toml",
+    "license_files": [
+      {
+        "path": "LICENSE",
+        "sha256": "4108245a1f2df9d4e94df8abed5b4ba0759bb2f9b40a6b939f1be141077ae50b"
+      },
+      {
+        "path": "LICENSE-APACHE.md",
+        "sha256": "0d542e0c8804e39aa7f37eb00da5a762149dc682d7829451287e11b938e94594"
+      },
+      {
+        "path": "LICENSE-MIT.md",
+        "sha256": "799e9ca9d179295ef372f25d3769cdda7d25bb2668add6a6a1e22d1e4c678b8d"
+      },
+      {
+        "path": "LICENSE-ZLIB.md",
+        "sha256": "0a54e647fe54104658b5e563c04c6f9edf251710e47bce692e0bd990a4ddaa39"
+      }
+    ]
+  },
+  {
+    "name": "miniz_oxide",
+    "version": "0.9.1",
+    "license": "MIT OR Zlib OR Apache-2.0",
+    "manifest": "/home/stef/wayfarer-research/858-readiness-20261015-KKforFH8/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/miniz_oxide-0.9.1/Cargo.toml",
+    "license_files": [
+      {
+        "path": "LICENSE",
+        "sha256": "4108245a1f2df9d4e94df8abed5b4ba0759bb2f9b40a6b939f1be141077ae50b"
+      },
+      {
+        "path": "LICENSE-APACHE.md",
+        "sha256": "0d542e0c8804e39aa7f37eb00da5a762149dc682d7829451287e11b938e94594"
+      },
+      {
+        "path": "LICENSE-MIT.md",
+        "sha256": "799e9ca9d179295ef372f25d3769cdda7d25bb2668add6a6a1e22d1e4c678b8d"
+      },
+      {
+        "path": "LICENSE-ZLIB.md",
+        "sha256": "0a54e647fe54104658b5e563c04c6f9edf251710e47bce692e0bd990a4ddaa39"
+      }
+    ]
+  },
+  {
+    "name": "moxcms",
+    "version": "0.8.0",
+    "license": "BSD-3-Clause OR Apache-2.0",
+    "manifest": "/home/stef/wayfarer-research/858-readiness-20261015-KKforFH8/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/moxcms-0.8.0/Cargo.toml",
+    "license_files": [
+      {
+        "path": "LICENSE-APACHE.md",
+        "sha256": "90bf2d659c43045111b65c733ab2a6d4cbcb422a098368c8c58a9ba3db4ed0c5"
+      },
+      {
+        "path": "LICENSE.md",
+        "sha256": "2aa92cada6431e75615e3fe6cb1a9082c98f777d48ae1c087c0da0e37f7b8bff"
+      }
+    ]
+  },
+  {
+    "name": "num-traits",
+    "version": "0.2.19",
+    "license": "MIT OR Apache-2.0",
+    "manifest": "/home/stef/wayfarer-research/858-readiness-20261015-KKforFH8/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/num-traits-0.2.19/Cargo.toml",
+    "license_files": [
+      {
+        "path": "LICENSE-APACHE",
+        "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
+      },
+      {
+        "path": "LICENSE-MIT",
+        "sha256": "6485b8ed310d3f0340bf1ad1f47645069ce4069dcc6bb46c7d5c6faf41de1fdb"
+      }
+    ]
+  },
+  {
+    "name": "pkg-config",
+    "version": "0.3.34",
+    "license": "MIT OR Apache-2.0",
+    "manifest": "/home/stef/wayfarer-research/858-readiness-20261015-KKforFH8/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pkg-config-0.3.34/Cargo.toml",
+    "license_files": [
+      {
+        "path": "LICENSE-APACHE",
+        "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
+      },
+      {
+        "path": "LICENSE-MIT",
+        "sha256": "378f5840b258e2779c39418f3f2d7b2ba96f1c7917dd6be0713f88305dbda397"
+      }
+    ]
+  },
+  {
+    "name": "png",
+    "version": "0.18.1",
+    "license": "MIT OR Apache-2.0",
+    "manifest": "/home/stef/wayfarer-research/858-readiness-20261015-KKforFH8/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/png-0.18.1/Cargo.toml",
+    "license_files": [
+      {
+        "path": "LICENSE-APACHE",
+        "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
+      },
+      {
+        "path": "LICENSE-MIT",
+        "sha256": "eaf40297c75da471f7cda1f3458e8d91b4b2ec866e609527a13acfa93b638652"
+      }
+    ]
+  },
+  {
+    "name": "proc-macro2",
+    "version": "1.0.107",
+    "license": "MIT OR Apache-2.0",
+    "manifest": "/home/stef/wayfarer-research/858-readiness-20261015-KKforFH8/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/proc-macro2-1.0.107/Cargo.toml",
+    "license_files": [
+      {
+        "path": "LICENSE-APACHE",
+        "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a"
+      },
+      {
+        "path": "LICENSE-MIT",
+        "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
+      }
+    ]
+  },
+  {
+    "name": "pxfm",
+    "version": "0.1.30",
+    "license": "BSD-3-Clause OR Apache-2.0",
+    "manifest": "/home/stef/wayfarer-research/858-readiness-20261015-KKforFH8/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/pxfm-0.1.30/Cargo.toml",
+    "license_files": [
+      {
+        "path": "LICENSE-APACHE.md",
+        "sha256": "90bf2d659c43045111b65c733ab2a6d4cbcb422a098368c8c58a9ba3db4ed0c5"
+      },
+      {
+        "path": "LICENSE.md",
+        "sha256": "2aa92cada6431e75615e3fe6cb1a9082c98f777d48ae1c087c0da0e37f7b8bff"
+      }
+    ]
+  },
+  {
+    "name": "quick-error",
+    "version": "2.0.1",
+    "license": "MIT/Apache-2.0",
+    "manifest": "/home/stef/wayfarer-research/858-readiness-20261015-KKforFH8/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/quick-error-2.0.1/Cargo.toml",
+    "license_files": [
+      {
+        "path": "LICENSE-APACHE",
+        "sha256": "c6596eb7be8581c18be736c846fb9173b69eccf6ef94c5135893ec56bd92ba08"
+      },
+      {
+        "path": "LICENSE-MIT",
+        "sha256": "058f01fe181608d027fcde7e528fc03ea3cf90f30903c407644b0a9bbc54f500"
+      }
+    ]
+  },
+  {
+    "name": "quote",
+    "version": "1.0.47",
+    "license": "MIT OR Apache-2.0",
+    "manifest": "/home/stef/wayfarer-research/858-readiness-20261015-KKforFH8/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/quote-1.0.47/Cargo.toml",
+    "license_files": [
+      {
+        "path": "LICENSE-APACHE",
+        "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a"
+      },
+      {
+        "path": "LICENSE-MIT",
+        "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
+      }
+    ]
+  },
+  {
+    "name": "shlex",
+    "version": "2.0.1",
+    "license": "MIT OR Apache-2.0",
+    "manifest": "/home/stef/wayfarer-research/858-readiness-20261015-KKforFH8/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/shlex-2.0.1/Cargo.toml",
+    "license_files": [
+      {
+        "path": "LICENSE-APACHE",
+        "sha256": "553fffcd9b1cb158bc3e9edc35da85ca5c3b3d7d2e61c883ebcfa8a65814b583"
+      },
+      {
+        "path": "LICENSE-MIT",
+        "sha256": "4455bf75a91154108304cb283e0fea9948c14f13e20d60887cf2552449dea3b1"
+      }
+    ]
+  },
+  {
+    "name": "simd-adler32",
+    "version": "0.3.10",
+    "license": "MIT",
+    "manifest": "/home/stef/wayfarer-research/858-readiness-20261015-KKforFH8/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/simd-adler32-0.3.10/Cargo.toml",
+    "license_files": [
+      {
+        "path": "LICENSE.md",
+        "sha256": "42a35170233e83e18856792e748de4c1ce4a63b2afce9a370c89ef3fe23f9f2d"
+      }
+    ]
+  },
+  {
+    "name": "syn",
+    "version": "2.0.119",
+    "license": "MIT OR Apache-2.0",
+    "manifest": "/home/stef/wayfarer-research/858-readiness-20261015-KKforFH8/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/syn-2.0.119/Cargo.toml",
+    "license_files": [
+      {
+        "path": "LICENSE-APACHE",
+        "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a"
+      },
+      {
+        "path": "LICENSE-MIT",
+        "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
+      }
+    ]
+  },
+  {
+    "name": "syn",
+    "version": "3.0.9",
+    "license": "MIT OR Apache-2.0",
+    "manifest": "/home/stef/wayfarer-research/858-readiness-20261015-KKforFH8/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/syn-3.0.9/Cargo.toml",
+    "license_files": [
+      {
+        "path": "LICENSE-APACHE",
+        "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a"
+      },
+      {
+        "path": "LICENSE-MIT",
+        "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
+      }
+    ]
+  },
+  {
+    "name": "thiserror",
+    "version": "1.0.69",
+    "license": "MIT OR Apache-2.0",
+    "manifest": "/home/stef/wayfarer-research/858-readiness-20261015-KKforFH8/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-1.0.69/Cargo.toml",
+    "license_files": [
+      {
+        "path": "LICENSE-APACHE",
+        "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a"
+      },
+      {
+        "path": "LICENSE-MIT",
+        "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
+      }
+    ]
+  },
+  {
+    "name": "thiserror",
+    "version": "2.0.21",
+    "license": "MIT OR Apache-2.0",
+    "manifest": "/home/stef/wayfarer-research/858-readiness-20261015-KKforFH8/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-2.0.21/Cargo.toml",
+    "license_files": [
+      {
+        "path": "LICENSE-APACHE",
+        "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a"
+      },
+      {
+        "path": "LICENSE-MIT",
+        "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
+      }
+    ]
+  },
+  {
+    "name": "thiserror-impl",
+    "version": "1.0.69",
+    "license": "MIT OR Apache-2.0",
+    "manifest": "/home/stef/wayfarer-research/858-readiness-20261015-KKforFH8/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-impl-1.0.69/Cargo.toml",
+    "license_files": [
+      {
+        "path": "LICENSE-APACHE",
+        "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a"
+      },
+      {
+        "path": "LICENSE-MIT",
+        "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
+      }
+    ]
+  },
+  {
+    "name": "thiserror-impl",
+    "version": "2.0.21",
+    "license": "MIT OR Apache-2.0",
+    "manifest": "/home/stef/wayfarer-research/858-readiness-20261015-KKforFH8/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/thiserror-impl-2.0.21/Cargo.toml",
+    "license_files": [
+      {
+        "path": "LICENSE-APACHE",
+        "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a"
+      },
+      {
+        "path": "LICENSE-MIT",
+        "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
+      }
+    ]
+  },
+  {
+    "name": "turbojpeg",
+    "version": "1.5.1",
+    "license": "Unlicense OR MIT",
+    "manifest": "/home/stef/wayfarer-research/858-readiness-20261015-KKforFH8/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/turbojpeg-1.5.1/Cargo.toml",
+    "license_files": [
+      {
+        "path": "LICENSE",
+        "sha256": "1c99d306def307c6e570615a484c65e6eafdd7717913f42118b65847830c5123"
+      },
+      {
+        "path": "UNLICENSE",
+        "sha256": "7e12e5df4bae12cb21581ba157ced20e1986a0508dd10d0e8a4ab9a4cf94e85c"
+      }
+    ]
+  },
+  {
+    "name": "turbojpeg-sys",
+    "version": "1.2.0",
+    "license": "Unlicense OR MIT",
+    "manifest": "/home/stef/wayfarer-research/858-readiness-20261015-KKforFH8/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/turbojpeg-sys-1.2.0/Cargo.toml",
+    "license_files": [
+      {
+        "path": "libjpeg-turbo/LICENSE.md",
+        "sha256": "96f5b328adbb78eeaaec6980d73fd558cb1e4d62560ed615646bc3cf5e532430"
+      },
+      {
+        "path": "libjpeg-turbo/README.ijg",
+        "sha256": "75815e3bf6484201a3c3d17a1bbf10f2e8e3237f84df10a2357ea896db2a81d6"
+      },
+      {
+        "path": "libjpeg-turbo/release/License.rtf",
+        "sha256": "d26120ab237f87dea10aa4fa7fd4243cadffd26e54eb2f3903d5fb0f8ed336b2"
+      }
+    ]
+  },
+  {
+    "name": "unicode-ident",
+    "version": "1.0.27",
+    "license": "(MIT OR Apache-2.0) AND Unicode-3.0",
+    "manifest": "/home/stef/wayfarer-research/858-readiness-20261015-KKforFH8/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/unicode-ident-1.0.27/Cargo.toml",
+    "license_files": [
+      {
+        "path": "LICENSE-APACHE",
+        "sha256": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a"
+      },
+      {
+        "path": "LICENSE-MIT",
+        "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
+      },
+      {
+        "path": "LICENSE-UNICODE",
+        "sha256": "f7db81051789b729fea528a63ec4c938fdcb93d9d61d97dc8cc2e9df6d47f2a1"
+      }
+    ]
+  },
+  {
+    "name": "weezl",
+    "version": "0.1.12",
+    "license": "MIT OR Apache-2.0",
+    "manifest": "/home/stef/wayfarer-research/858-readiness-20261015-KKforFH8/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/weezl-0.1.12/Cargo.toml",
+    "license_files": [
+      {
+        "path": "LICENSE-APACHE",
+        "sha256": "769f80b5bcb42ed0af4e4d2fd74e1ac9bf843cb80c5a29219d1ef3544428a6bb"
+      },
+      {
+        "path": "LICENSE-MIT",
+        "sha256": "573f5227db835cd30bbdd3aed3f82615f80119a4d5c82b4daf642dbfe2b6afde"
+      }
+    ]
+  },
+  {
+    "name": "zlib-rs",
+    "version": "0.6.8",
+    "license": "Zlib",
+    "manifest": "/home/stef/wayfarer-research/858-readiness-20261015-KKforFH8/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/zlib-rs-0.6.8/Cargo.toml",
+    "license_files": [
+      {
+        "path": "LICENSE",
+        "sha256": "e72111c52b7d96ebe25348dee19f0744f444d3c95ae6b1ecb6ccaecc5bce05ba"
+      }
+    ]
+  },
+  {
+    "name": "zune-core",
+    "version": "0.5.3",
+    "license": "MIT OR Apache-2.0 OR Zlib",
+    "manifest": "/home/stef/wayfarer-research/858-readiness-20261015-KKforFH8/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/zune-core-0.5.3/Cargo.toml",
+    "license_files": [
+      {
+        "path": "LICENSE-APACHE",
+        "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+      },
+      {
+        "path": "LICENSE-MIT",
+        "sha256": "d30047bca3b516639339a3c279bb84c3483124fb5a9dafe3c75056a85090e745"
+      },
+      {
+        "path": "LICENSE-ZLIB",
+        "sha256": "d201d14804d3bcd3b944147173175e4abfbd838b7c8069b6bd3452496bf13e6c"
+      }
+    ]
+  },
+  {
+    "name": "zune-jpeg",
+    "version": "0.5.15",
+    "license": "MIT OR Apache-2.0 OR Zlib",
+    "manifest": "/home/stef/wayfarer-research/858-readiness-20261015-KKforFH8/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/zune-jpeg-0.5.15/Cargo.toml",
+    "license_files": [
+      {
+        "path": "LICENSE-APACHE",
+        "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+      },
+      {
+        "path": "LICENSE-MIT",
+        "sha256": "d30047bca3b516639339a3c279bb84c3483124fb5a9dafe3c75056a85090e745"
+      },
+      {
+        "path": "LICENSE-ZLIB",
+        "sha256": "d201d14804d3bcd3b944147173175e4abfbd838b7c8069b6bd3452496bf13e6c"
+      }
+    ]
+  }
+]

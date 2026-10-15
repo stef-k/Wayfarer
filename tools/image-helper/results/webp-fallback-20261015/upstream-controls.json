@@ -1,0 +1,24 @@
+[
+  {
+    "upstream_issue": "https://github.com/image-rs/image-webp/issues/118",
+    "fixture": "upstream-huffman-overflow.webp",
+    "bytes": 235,
+    "sha256": "05d231a5305be24c8d5780cb7ac4f95c5ae9e73d9c9544c498901d71e400929c",
+    "exit": 4,
+    "stdout_bytes": 0,
+    "stderr": "unsupported or malformed source image\n",
+    "declared_riff_bytes": 4876,
+    "authority": "unaltered published input; exact RIFF extent rejected before pixel decode"
+  },
+  {
+    "upstream_issue": "https://github.com/image-rs/image-webp/issues/194",
+    "fixture": "upstream-partition-claim.webp",
+    "bytes": 72,
+    "sha256": "37d662ab4e583cbc8650eb6a21526087f3c4e049d63df12eaf4ffbaaf2866a58",
+    "exit": 4,
+    "stdout_bytes": 0,
+    "stderr": "unsupported or malformed source image\n",
+    "declared_riff_bytes": 1416,
+    "authority": "unaltered published input; exact RIFF extent rejected before pixel decode"
+  }
+]

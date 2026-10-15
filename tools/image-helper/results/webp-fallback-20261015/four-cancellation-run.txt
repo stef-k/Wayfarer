@@ -1,0 +1,14 @@
+Running as unit: wayfarer-858-fallback-cancel-20261015.service; invocation ID: eab5617f2c79425ebb25272725a3bc6d
+Test run for /home/stef/wayfarer-research/858-webp-fallback-20261015/source/tests/Wayfarer.Tests/bin/Release/net10.0/Wayfarer.Tests.dll (.NETCoreApp,Version=v10.0)
+VSTest version 18.0.2 (x64)
+
+Starting test execution, please wait...
+A total of 1 test files matched the specified pattern.
+
+Passed!  - Failed:     0, Passed:     1, Skipped:     0, Total:     1, Duration: 235 ms - Wayfarer.Tests.dll (net10.0)
+Finished with result: success
+Main processes terminated with: code=exited/status=0
+Service runtime: 2.596s
+CPU time consumed: 3.464s
+Memory peak: 508.0K
+Memory swap peak: 0B

@@ -1,0 +1,28 @@
+{
+  "versions": {
+    "rustc": "rustc 1.90.0 (1159e78c4 2025-09-14)",
+    "cargo": "cargo 1.90.0 (840b83a10 2025-07-30)",
+    "dotnet-sdk": "10.0.112",
+    "gcc": "gcc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0",
+    "cmake": "cmake version 3.28.3",
+    "nasm": "NASM version 2.16.01"
+  },
+  "platform": "Linux-6.18.54.1-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+  "uname": [
+    "Linux",
+    "win",
+    "6.18.54.1-microsoft-standard-WSL2",
+    "#1 SMP PREEMPT_DYNAMIC Tue Oct  6 19:13:07 UTC 2026",
+    "x86_64",
+    "x86_64"
+  ],
+  "uid": 1000,
+  "cpu_model": "Intel(R) Core(TM) i7-10700K CPU @ 3.80GHz",
+  "diagnostic_overrides": {},
+  "imagesharp": {
+    "version": "3.1.12",
+    "dll_sha256": "609a57965d0a7b5ccfb79d919ea7384e7ec86c03266b0390a19bd5f2104bc353",
+    "nupkg_sha256": "151f2fef8c383ffd4065d5b90115b4cbcce00ea2edbe1c5098bd422afebcc51d",
+    "copied_dll_matches_package": true
+  }
+}

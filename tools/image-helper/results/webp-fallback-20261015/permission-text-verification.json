@@ -1,0 +1,252 @@
+[
+  {
+    "name": "adler2",
+    "version": "2.0.1",
+    "packaged_permission_text_verified": true
+  },
+  {
+    "name": "anyhow",
+    "version": "1.0.104",
+    "packaged_permission_text_verified": true
+  },
+  {
+    "name": "autocfg",
+    "version": "1.5.1",
+    "packaged_permission_text_verified": true
+  },
+  {
+    "name": "bitflags",
+    "version": "2.13.2",
+    "packaged_permission_text_verified": true
+  },
+  {
+    "name": "bytemuck",
+    "version": "1.25.2",
+    "packaged_permission_text_verified": true
+  },
+  {
+    "name": "byteorder-lite",
+    "version": "0.1.0",
+    "packaged_permission_text_verified": true
+  },
+  {
+    "name": "cc",
+    "version": "1.8.0",
+    "packaged_permission_text_verified": true
+  },
+  {
+    "name": "cfg-if",
+    "version": "1.0.5",
+    "packaged_permission_text_verified": true
+  },
+  {
+    "name": "cmake",
+    "version": "0.1.58",
+    "packaged_permission_text_verified": true
+  },
+  {
+    "name": "color_quant",
+    "version": "1.1.0",
+    "packaged_permission_text_verified": true
+  },
+  {
+    "name": "crc32fast",
+    "version": "1.5.2",
+    "packaged_permission_text_verified": true
+  },
+  {
+    "name": "document-features",
+    "version": "0.2.12",
+    "packaged_permission_text_verified": true
+  },
+  {
+    "name": "fast_image_resize",
+    "version": "6.1.0",
+    "packaged_permission_text_verified": true
+  },
+  {
+    "name": "fdeflate",
+    "version": "0.3.7",
+    "packaged_permission_text_verified": true
+  },
+  {
+    "name": "find-msvc-tools",
+    "version": "0.1.14",
+    "packaged_permission_text_verified": true
+  },
+  {
+    "name": "flate2",
+    "version": "1.1.10",
+    "packaged_permission_text_verified": true
+  },
+  {
+    "name": "gcd",
+    "version": "2.3.0",
+    "packaged_permission_text_verified": true
+  },
+  {
+    "name": "gif",
+    "version": "0.14.2",
+    "packaged_permission_text_verified": true
+  },
+  {
+    "name": "image",
+    "version": "0.25.10",
+    "packaged_permission_text_verified": true
+  },
+  {
+    "name": "image-webp",
+    "version": "0.2.4",
+    "packaged_permission_text_verified": true
+  },
+  {
+    "name": "jpeg-decoder",
+    "version": "0.3.2",
+    "packaged_permission_text_verified": true
+  },
+  {
+    "name": "jpeg-encoder",
+    "version": "0.7.1",
+    "packaged_permission_text_verified": true
+  },
+  {
+    "name": "libc",
+    "version": "0.2.177",
+    "packaged_permission_text_verified": true
+  },
+  {
+    "name": "libjpeg-turbo-rs",
+    "version": "0.8.0",
+    "packaged_permission_text_verified": true
+  },
+  {
+    "name": "litrs",
+    "version": "1.0.1",
+    "packaged_permission_text_verified": true
+  },
+  {
+    "name": "miniz_oxide",
+    "version": "0.8.9",
+    "packaged_permission_text_verified": true
+  },
+  {
+    "name": "miniz_oxide",
+    "version": "0.9.1",
+    "packaged_permission_text_verified": true
+  },
+  {
+    "name": "moxcms",
+    "version": "0.8.0",
+    "packaged_permission_text_verified": true
+  },
+  {
+    "name": "num-traits",
+    "version": "0.2.19",
+    "packaged_permission_text_verified": true
+  },
+  {
+    "name": "pkg-config",
+    "version": "0.3.34",
+    "packaged_permission_text_verified": true
+  },
+  {
+    "name": "png",
+    "version": "0.18.1",
+    "packaged_permission_text_verified": true
+  },
+  {
+    "name": "proc-macro2",
+    "version": "1.0.107",
+    "packaged_permission_text_verified": true
+  },
+  {
+    "name": "pxfm",
+    "version": "0.1.30",
+    "packaged_permission_text_verified": true
+  },
+  {
+    "name": "quick-error",
+    "version": "2.0.1",
+    "packaged_permission_text_verified": true
+  },
+  {
+    "name": "quote",
+    "version": "1.0.47",
+    "packaged_permission_text_verified": true
+  },
+  {
+    "name": "shlex",
+    "version": "2.0.1",
+    "packaged_permission_text_verified": true
+  },
+  {
+    "name": "simd-adler32",
+    "version": "0.3.10",
+    "packaged_permission_text_verified": true
+  },
+  {
+    "name": "syn",
+    "version": "2.0.119",
+    "packaged_permission_text_verified": true
+  },
+  {
+    "name": "syn",
+    "version": "3.0.9",
+    "packaged_permission_text_verified": true
+  },
+  {
+    "name": "thiserror",
+    "version": "1.0.69",
+    "packaged_permission_text_verified": true
+  },
+  {
+    "name": "thiserror",
+    "version": "2.0.21",
+    "packaged_permission_text_verified": true
+  },
+  {
+    "name": "thiserror-impl",
+    "version": "1.0.69",
+    "packaged_permission_text_verified": true
+  },
+  {
+    "name": "thiserror-impl",
+    "version": "2.0.21",
+    "packaged_permission_text_verified": true
+  },
+  {
+    "name": "turbojpeg",
+    "version": "1.5.1",
+    "packaged_permission_text_verified": true
+  },
+  {
+    "name": "turbojpeg-sys",
+    "version": "1.2.0",
+    "packaged_permission_text_verified": true
+  },
+  {
+    "name": "unicode-ident",
+    "version": "1.0.27",
+    "packaged_permission_text_verified": true
+  },
+  {
+    "name": "weezl",
+    "version": "0.1.12",
+    "packaged_permission_text_verified": true
+  },
+  {
+    "name": "zlib-rs",
+    "version": "0.6.8",
+    "packaged_permission_text_verified": true
+  },
+  {
+    "name": "zune-core",
+    "version": "0.5.3",
+    "packaged_permission_text_verified": true
+  },
+  {
+    "name": "zune-jpeg",
+    "version": "0.5.15",
+    "packaged_permission_text_verified": true
+  }
+]

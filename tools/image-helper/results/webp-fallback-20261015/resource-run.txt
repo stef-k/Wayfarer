@@ -1,0 +1,11 @@
+Running as unit: wayfarer-858-fallback-resources-20261015.service; invocation ID: c95aeac2a5b0420280effc9e5641693f
+Completed photo.webp: 6 measured samples per mode
+Completed large-vilaplana.webp: 6 measured samples per mode
+Completed photo.webp: 6 measured samples per mode
+Completed large-vilaplana.webp: 6 measured samples per mode
+Finished with result: success
+Main processes terminated with: code=exited/status=0
+Service runtime: 7.682s
+CPU time consumed: 8.190s
+Memory peak: 256.0K
+Memory swap peak: 0B

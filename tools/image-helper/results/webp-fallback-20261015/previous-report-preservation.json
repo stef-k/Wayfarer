@@ -1,0 +1,44 @@
+[
+  {
+    "path": "tools/image-helper/WEBP-CORRECTION.md",
+    "sha256": "d95663f59173d72ebc68054b47169807bc3a578a3d6b07cae5ed80d95c50033c",
+    "bytes": 5015,
+    "verified_commit": "5f9c56a8eac36a63ef33c1b910a45473043ee91e",
+    "local_worktree_match": true
+  },
+  {
+    "path": "tools/image-helper/results/webp-correction-20261015/code-guard-complete-branch.json",
+    "sha256": "5eabcf82b2244bbc3f1d9cb96db9aef2ff6e075d28ad54c0f2e4b4fd46196f4c",
+    "bytes": 8961,
+    "verified_commit": "5f9c56a8eac36a63ef33c1b910a45473043ee91e",
+    "local_worktree_match": true
+  },
+  {
+    "path": "tools/image-helper/results/webp-correction-20261015/code-guard-current.json",
+    "sha256": "ce9c20f817ee3676d62f50f066df76e8c187c7f9d220769eeb7a6d45d1f85d5c",
+    "bytes": 679,
+    "verified_commit": "5f9c56a8eac36a63ef33c1b910a45473043ee91e",
+    "local_worktree_match": true
+  },
+  {
+    "path": "tools/image-helper/results/webp-correction-20261015/code-guard-disposition.json",
+    "sha256": "4163dd66687b8bc9c215bffc5022c9d03ee782879cb3418824ec795a7ea23425",
+    "bytes": 8568,
+    "verified_commit": "5f9c56a8eac36a63ef33c1b910a45473043ee91e",
+    "local_worktree_match": true
+  },
+  {
+    "path": "tools/image-helper/results/webp-correction-20261015/source-audit.json.gz",
+    "sha256": "723997160df832509e5427dcd529215a44bad4749fa8cfff4ee6720f26dce69b",
+    "bytes": 28524,
+    "verified_commit": "5f9c56a8eac36a63ef33c1b910a45473043ee91e",
+    "local_worktree_match": true
+  },
+  {
+    "path": "tools/image-helper/results/webp-correction-20261015/source-security-license.json",
+    "sha256": "4548b1b64109c366845002a5275ad7249cdb6c7635e1a1778867fec5f77b1a71",
+    "bytes": 4580,
+    "verified_commit": "5f9c56a8eac36a63ef33c1b910a45473043ee91e",
+    "local_worktree_match": true
+  }
+]

@@ -1,0 +1,16 @@
+[
+  {
+    "repo": "image-rs/image-webp",
+    "commit": "08b57d473c90148dd4b37a075df365afc3dfcc2b",
+    "path": "LICENSE-MIT",
+    "sha256": "c77a4cf9da729987d0fe7ccd811e3bd27393914ddf3d23467c18cc22954513b3",
+    "matches_packaged_or_retained_notice": true
+  },
+  {
+    "repo": "honzasp/rust-turbojpeg",
+    "commit": "05da705c6b6147baec1834a4c1f0de5e1df2614b",
+    "path": "LICENSE",
+    "sha256": "1c99d306def307c6e570615a484c65e6eafdd7717913f42118b65847830c5123",
+    "matches_packaged_or_retained_notice": true
+  }
+]

@@ -1,0 +1,8 @@
+Test run for /home/stef/wayfarer-research/858-webp-fallback-20261015/source/tests/Wayfarer.Tests/bin/Release/net10.0/Wayfarer.Tests.dll (.NETCoreApp,Version=v10.0)
+VSTest version 18.0.2 (x64)
+
+Starting test execution, please wait...
+A total of 1 test files matched the specified pattern.
+Results File: /home/stef/wayfarer-research/858-webp-fallback-20261015/evidence/focused.trx
+
+Passed!  - Failed:     0, Passed:    74, Skipped:     0, Total:    74, Duration: 25 s - Wayfarer.Tests.dll (net10.0)

@@ -1,0 +1,40 @@
+{
+  "overall": "pass",
+  "scope": {
+    "selected": 6,
+    "analyzed": 1,
+    "inapplicable": 5,
+    "excluded": 0
+  },
+  "requiredPolicies": [],
+  "guards": {
+    "loc": {
+      "state": "pass",
+      "findings": []
+    },
+    "policyRelaxation": {
+      "state": "pass",
+      "findings": []
+    },
+    "callableSize": {
+      "state": "pass",
+      "findings": []
+    },
+    "nesting": {
+      "state": "pass",
+      "findings": []
+    },
+    "complexity": {
+      "state": "pass",
+      "findings": []
+    },
+    "markdownDocumentSize": {
+      "state": "pass",
+      "findings": []
+    },
+    "markdownSectionSize": {
+      "state": "pass",
+      "findings": []
+    }
+  }
+}

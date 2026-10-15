@@ -1,0 +1,302 @@
+[
+  {
+    "name": "adler2",
+    "version": "2.0.1",
+    "compared_packaged_files": 13,
+    "differences": []
+  },
+  {
+    "name": "anyhow",
+    "version": "1.0.104",
+    "compared_packaged_files": 54,
+    "differences": []
+  },
+  {
+    "name": "autocfg",
+    "version": "1.5.1",
+    "compared_packaged_files": 23,
+    "differences": []
+  },
+  {
+    "name": "bitflags",
+    "version": "2.13.2",
+    "compared_packaged_files": 64,
+    "differences": []
+  },
+  {
+    "name": "bytemuck",
+    "version": "1.25.2",
+    "compared_packaged_files": 38,
+    "differences": []
+  },
+  {
+    "name": "byteorder-lite",
+    "version": "0.1.0",
+    "compared_packaged_files": 8,
+    "differences": []
+  },
+  {
+    "name": "cc",
+    "version": "1.8.0",
+    "compared_packaged_files": 37,
+    "differences": []
+  },
+  {
+    "name": "cfg-if",
+    "version": "1.0.5",
+    "compared_packaged_files": 14,
+    "differences": []
+  },
+  {
+    "name": "cmake",
+    "version": "0.1.58",
+    "compared_packaged_files": 14,
+    "differences": []
+  },
+  {
+    "name": "color_quant",
+    "version": "1.1.0",
+    "compared_packaged_files": 10,
+    "differences": []
+  },
+  {
+    "name": "crc32fast",
+    "version": "1.5.2",
+    "compared_packaged_files": 19,
+    "differences": []
+  },
+  {
+    "name": "document-features",
+    "version": "0.2.12",
+    "compared_packaged_files": 13,
+    "differences": []
+  },
+  {
+    "name": "fast_image_resize",
+    "version": "6.1.0",
+    "compared_packaged_files": 204,
+    "differences": []
+  },
+  {
+    "name": "fdeflate",
+    "version": "0.3.7",
+    "compared_packaged_files": 16,
+    "differences": []
+  },
+  {
+    "name": "find-msvc-tools",
+    "version": "0.1.14",
+    "compared_packaged_files": 19,
+    "differences": []
+  },
+  {
+    "name": "flate2",
+    "version": "1.1.10",
+    "compared_packaged_files": 63,
+    "differences": []
+  },
+  {
+    "name": "gcd",
+    "version": "2.3.0",
+    "compared_packaged_files": 10,
+    "differences": []
+  },
+  {
+    "name": "gif",
+    "version": "0.14.2",
+    "compared_packaged_files": 16,
+    "differences": []
+  },
+  {
+    "name": "image",
+    "version": "0.25.10",
+    "compared_packaged_files": 86,
+    "differences": []
+  },
+  {
+    "name": "image-webp",
+    "version": "0.2.4",
+    "compared_packaged_files": 21,
+    "differences": []
+  },
+  {
+    "name": "jpeg-decoder",
+    "version": "0.3.2",
+    "compared_packaged_files": 41,
+    "differences": []
+  },
+  {
+    "name": "jpeg-encoder",
+    "version": "0.7.1",
+    "compared_packaged_files": 22,
+    "differences": []
+  },
+  {
+    "name": "libc",
+    "version": "0.2.177",
+    "compared_packaged_files": 208,
+    "differences": []
+  },
+  {
+    "name": "libjpeg-turbo-rs",
+    "version": "0.8.0",
+    "compared_packaged_files": 358,
+    "differences": []
+  },
+  {
+    "name": "litrs",
+    "version": "1.0.1",
+    "compared_packaged_files": 33,
+    "differences": []
+  },
+  {
+    "name": "miniz_oxide",
+    "version": "0.8.9",
+    "compared_packaged_files": 23,
+    "differences": []
+  },
+  {
+    "name": "miniz_oxide",
+    "version": "0.9.1",
+    "compared_packaged_files": 23,
+    "differences": []
+  },
+  {
+    "name": "moxcms",
+    "version": "0.8.0",
+    "compared_packaged_files": 127,
+    "differences": []
+  },
+  {
+    "name": "num-traits",
+    "version": "0.2.19",
+    "compared_packaged_files": 29,
+    "differences": []
+  },
+  {
+    "name": "pkg-config",
+    "version": "0.3.34",
+    "compared_packaged_files": 16,
+    "differences": []
+  },
+  {
+    "name": "png",
+    "version": "0.18.1",
+    "compared_packaged_files": 39,
+    "differences": []
+  },
+  {
+    "name": "proc-macro2",
+    "version": "1.0.107",
+    "compared_packaged_files": 33,
+    "differences": []
+  },
+  {
+    "name": "pxfm",
+    "version": "0.1.30",
+    "compared_packaged_files": 266,
+    "differences": []
+  },
+  {
+    "name": "quick-error",
+    "version": "2.0.1",
+    "compared_packaged_files": 13,
+    "differences": []
+  },
+  {
+    "name": "quote",
+    "version": "1.0.47",
+    "compared_packaged_files": 35,
+    "differences": []
+  },
+  {
+    "name": "shlex",
+    "version": "2.0.1",
+    "compared_packaged_files": 13,
+    "differences": []
+  },
+  {
+    "name": "simd-adler32",
+    "version": "0.3.10",
+    "compared_packaged_files": 22,
+    "differences": []
+  },
+  {
+    "name": "syn",
+    "version": "2.0.119",
+    "compared_packaged_files": 105,
+    "differences": []
+  },
+  {
+    "name": "syn",
+    "version": "3.0.9",
+    "compared_packaged_files": 104,
+    "differences": []
+  },
+  {
+    "name": "thiserror",
+    "version": "1.0.69",
+    "compared_packaged_files": 91,
+    "differences": []
+  },
+  {
+    "name": "thiserror",
+    "version": "2.0.21",
+    "compared_packaged_files": 105,
+    "differences": []
+  },
+  {
+    "name": "thiserror-impl",
+    "version": "1.0.69",
+    "compared_packaged_files": 15,
+    "differences": []
+  },
+  {
+    "name": "thiserror-impl",
+    "version": "2.0.21",
+    "compared_packaged_files": 17,
+    "differences": []
+  },
+  {
+    "name": "turbojpeg",
+    "version": "1.5.1",
+    "compared_packaged_files": 29,
+    "differences": []
+  },
+  {
+    "name": "turbojpeg-sys",
+    "version": "1.2.0",
+    "compared_packaged_files": 451,
+    "differences": []
+  },
+  {
+    "name": "unicode-ident",
+    "version": "1.0.27",
+    "compared_packaged_files": 26,
+    "differences": []
+  },
+  {
+    "name": "weezl",
+    "version": "0.1.12",
+    "compared_packaged_files": 25,
+    "differences": []
+  },
+  {
+    "name": "zlib-rs",
+    "version": "0.6.8",
+    "compared_packaged_files": 53,
+    "differences": []
+  },
+  {
+    "name": "zune-core",
+    "version": "0.5.3",
+    "compared_packaged_files": 27,
+    "differences": []
+  },
+  {
+    "name": "zune-jpeg",
+    "version": "0.5.15",
+    "compared_packaged_files": 39,
+    "differences": []
+  }
+]

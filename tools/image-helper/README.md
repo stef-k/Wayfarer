@@ -1,5 +1,10 @@
 # Rust imaging research archive (#858)
 
+**2026-10-15 pure-Rust WebP fallback: NO-GO.** The single authorized comparison
+misses the small-WebP PDF warm-p50 gate and reproduces a Release-mode malformed
+VP8L decoder abort. See [WEBP-FALLBACK.md](WEBP-FALLBACK.md). The selected runtime,
+features, lockfile and earlier optimizations remain unchanged; this adds evidence only.
+
 **2026-10-15 Linux follow-up: BLOCKED; ARM64 UNPROVEN.** The default-only
 Release artifact is now measured and identified. A retained JPEG warm-p50 gate
 deviation, unresolved native WebP hardening and a missing wrapper license notice

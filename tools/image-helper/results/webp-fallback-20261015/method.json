@@ -1,0 +1,69 @@
+{
+  "authorization": "https://github.com/stef-k/Wayfarer/issues/858#issuecomment-6194984703",
+  "starting_commit": "a67267660fc958bb019557c400ca5fa06d9d1852",
+  "worktree_branch": "wip/858-webp-fallback-20261015",
+  "workspace": "/home/stef/wayfarer-research/858-webp-fallback-20261015",
+  "selected_runtime_unchanged": true,
+  "candidate_location": "Exact copy of Cargo.toml/Cargo.lock/rust-toolchain.toml/src/examples/tests outside Git worktree. Only default feature list excludes webp-candidate-decode. One existing Rust WebP test cfg gate removed so it exercises fallback.",
+  "build": [
+    "cargo",
+    "build",
+    "--manifest-path",
+    "/home/stef/wayfarer-research/858-webp-fallback-20261015/candidate/Cargo.toml",
+    "--locked",
+    "--release",
+    "--message-format=json"
+  ],
+  "check_target": "/home/stef/wayfarer-research/858-webp-fallback-20261015/target-checks",
+  "checks": [
+    "cargo fmt --check",
+    "cargo test --locked --release --target-dir target-checks",
+    "cargo clippy --locked --release --all-targets --target-dir target-checks -- -D warnings",
+    "dotnet build tests/Wayfarer.Tests/Wayfarer.Tests.csproj -c Release",
+    "dotnet test --no-build --no-restore --filter FullyQualifiedName~ImageHelperPrototype|FullyQualifiedName~ImageHelperPngCompletion"
+  ],
+  "paired_collector": "Unchanged results/readiness-20261015/qualify-paired.py invoked by retained run-paired.py",
+  "paired_run": "systemd-run --user --collect --wait --pipe -p MemoryMax=3G -p MemorySwapMax=0 -p TasksMax=192 -p CPUQuota=400% /bin/bash -c \"source WORK/env.sh; exec python3 WORK/run-paired.py\"",
+  "cold_definition": "Fresh managed host with zero warmups; no OS-cache flush; helper is a fresh process for every cold or warm operation.",
+  "profiles": {
+    "web": [
+      2048,
+      2048,
+      90
+    ],
+    "pdf": [
+      600,
+      8192,
+      85
+    ]
+  },
+  "source_geometries": {
+    "photo.webp": [
+      1920,
+      863
+    ],
+    "large-vilaplana.webp": [
+      4000,
+      3000
+    ]
+  },
+  "source_hashes": {
+    "photo.webp": "802b8ccd7aa35d4cad8625bd0b565a7af6d64faf6560964e9b6dc530b53a3b93",
+    "large-vilaplana.webp": "fb6f75989678e4daf03c8a9cd14eb00f34a3c2ff02ef718c8b86e5ce3918ccf0",
+    "photo.jpg": "166807a3de2d35931156b56e05db36664d49d85e956b09943d16bc9bffa05964"
+  },
+  "raw_report_counts": {
+    "warm_webp": 8,
+    "cold_webp": 32,
+    "jpeg_smoke": 2
+  },
+  "resource_collector": "Existing benchmarks/diagnose.py --modes recovered --candidate measured-helper --fixtures photo.webp large-vilaplana.webp --count 6 --warmups 3 with explicit matching profile options. Child-only CPU/HWM; not parity timings.",
+  "cancellation": "Existing RecordStandaloneLoad cancel/count4 uses alpha-large.png; observed four real children, all reaped and next transform Success. No claim of four-WebP aggregate RSS.",
+  "safety": "74 focused xUnit cases; five default-only Rust cases; 16 explicit WebP controls (15 expected contracts, one reachable panic); actual supervisor panic mapping verified.",
+  "deviations": [
+    "Supplemental Pillow control reader initially used n_frames on JPEG; fixed to getattr(...,1) and reran the bounded control script once. Retained traceback is infrastructure evidence, not a codec failure.",
+    "No OS page-cache flush, native ARM64/Windows, real-trip load or production packaging evidence; none authorized here."
+  ],
+  "preservation": "Failed report and all five related evidence files match local 5f9c56a8eac36a63ef33c1b910a45473043ee91e and its original worktree exactly. No failed native code cherry-picked.",
+  "transcripts": "Rust test transcript and exact unified test patch are gzip-compressed losslessly to retain blank lines/context without diff-whitespace errors."
+}

@@ -1,0 +1,21 @@
+Running as unit: wayfarer-858-fallback-paired-20261015.service; invocation ID: 3873432f8c7141018315e868bda1f576
+Warm 1: web/photo.webp
+Warm 1: web/large-vilaplana.webp
+Warm 1: pdf/photo.webp
+Warm 1: pdf/large-vilaplana.webp
+Warm 2: pdf/large-vilaplana.webp
+Warm 2: pdf/photo.webp
+Warm 2: web/large-vilaplana.webp
+Warm 2: web/photo.webp
+Cold 8 hosts: web/photo.webp
+Cold 8 hosts: web/large-vilaplana.webp
+Cold 8 hosts: pdf/photo.webp
+Cold 8 hosts: pdf/large-vilaplana.webp
+JPEG smoke: web
+JPEG smoke: pdf
+Finished with result: success
+Main processes terminated with: code=exited/status=0
+Service runtime: 5min 5.945s
+CPU time consumed: 6min 4.203s
+Memory peak: 508.0K
+Memory swap peak: 0B

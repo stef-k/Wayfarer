@@ -1,0 +1,63 @@
+{
+  "mode": "cancel",
+  "count": 4,
+  "observations": [
+    {
+      "Index": 0,
+      "Fixture": "alpha-large.png",
+      "Status": "Canceled",
+      "Bytes": 0,
+      "ProcessId": null,
+      "CompletedMilliseconds": 148.8989,
+      "Reaped": true
+    },
+    {
+      "Index": 1,
+      "Fixture": "alpha-large.png",
+      "Status": "Canceled",
+      "Bytes": 0,
+      "ProcessId": null,
+      "CompletedMilliseconds": 148.8988,
+      "Reaped": true
+    },
+    {
+      "Index": 2,
+      "Fixture": "alpha-large.png",
+      "Status": "Canceled",
+      "Bytes": 0,
+      "ProcessId": null,
+      "CompletedMilliseconds": 148.9015,
+      "Reaped": true
+    },
+    {
+      "Index": 3,
+      "Fixture": "alpha-large.png",
+      "Status": "Canceled",
+      "Bytes": 0,
+      "ProcessId": null,
+      "CompletedMilliseconds": 173.6043,
+      "Reaped": true
+    }
+  ],
+  "firstResponseMilliseconds": 148.8988,
+  "firstSuccessMilliseconds": null,
+  "totalMilliseconds": 174.3797,
+  "success": 0,
+  "rejected": 0,
+  "canceled": 4,
+  "peakSampledCgroupProcessRssBytes": 568381440,
+  "kernelCgroupPeakBytes": 350941184,
+  "cgroupCpuMilliseconds": 643.334,
+  "parentCpuMilliseconds": 257.851,
+  "maximumChildren": 4,
+  "observedHelpers": [
+    95185,
+    95186,
+    95187,
+    95188
+  ],
+  "helpersReaped": true,
+  "recovery": "Success",
+  "memoryEvents": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\n",
+  "cpuStat": "usage_usec 3220583\nuser_usec 2831821\nsystem_usec 388761\nnice_usec 0\nnr_periods 24\nnr_throttled 1\nthrottled_usec 34608\nnr_bursts 0\nburst_usec 0\n"
+}

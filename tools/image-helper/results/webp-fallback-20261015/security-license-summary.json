@@ -1,0 +1,103 @@
+{
+  "decision": "NO-GO",
+  "candidate_decoder": {
+    "name": "image-webp",
+    "version": "0.2.4",
+    "source_commit": "08b57d473c90148dd4b37a075df365afc3dfcc2b",
+    "crate_sha256": "525e9ff3e1a4be2fbea1fdf0e98686a6d98b4d8f937e1bf7402245af1909e8c3",
+    "unsafe_code": "forbidden by the exact packaged crate",
+    "dependencies": [
+      "byteorder-lite 0.1.0",
+      "quick-error 2.0.1"
+    ]
+  },
+  "rustsec": {
+    "snapshot_commit": "edb58f5974b83eb8302332821cb6d389777aa351",
+    "complete_tree": true,
+    "matching_advisories": {
+      "anyhow 1.0.104": [
+        "RUSTSEC-2026-0190: patched >=1.0.103"
+      ],
+      "image 0.25.10": [
+        "RUSTSEC-2019-0014: patched >=0.21.3",
+        "RUSTSEC-2020-0073: patched >=0.23.12"
+      ],
+      "shlex 2.0.1": [
+        "RUSTSEC-2024-0006: patched >=1.3.0"
+      ],
+      "zlib-rs 0.6.8": [
+        "RUSTSEC-2024-0401: patched >=0.4.0"
+      ]
+    },
+    "image_webp_entry_present": false,
+    "interpretation": "No applicable entry in this snapshot; not a complete security qualification."
+  },
+  "reachable_failure": {
+    "upstream_issue": "https://github.com/image-rs/image-webp/issues/118",
+    "upstream_fix": "https://github.com/image-rs/image-webp/commit/4a794cd8b88e",
+    "control": {
+      "control": "huffman-exact-extent",
+      "source_sha256": "fe8ddb4c9fe18af4b4f62f94b756ea3af49810ed73ae789c594a94832ca4ffa8",
+      "source_bytes": 236,
+      "exit": -6,
+      "command": [
+        "/usr/bin/prlimit",
+        "--as=1073741824:1073741824",
+        "--cpu=20:25",
+        "--nofile=128:128",
+        "--core=0:0",
+        "--",
+        "/home/stef/wayfarer-research/858-webp-fallback-20261015/target-default-only/release/wayfarer-image",
+        "transform",
+        "--width",
+        "600",
+        "--height",
+        "8192",
+        "--quality",
+        "85",
+        "--output-format",
+        "auto",
+        "--max-input-bytes",
+        "52428800",
+        "--max-output-bytes",
+        "52428800"
+      ],
+      "output_bytes": 0,
+      "stderr": "\nthread 'main' panicked at /home/stef/wayfarer-research/858-readiness-20261015-KKforFH8/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/image-webp-0.2.4/src/huffman.rs:117:36:\nindex out of bounds: the len is 0 but the index is 131090\nnote: run with `RUST_BACKTRACE=1` environment variable to display a backtrace\n"
+    },
+    "original_input_bytes": 235,
+    "changes": "Only RIFF/VP8L length fields and one mandatory padding byte; pixel payload unchanged.",
+    "release_panic": "src/huffman.rs:117:36: index out of bounds: len 0, index 131090",
+    "supervisor": {
+      "Status": 3,
+      "Bytes": null,
+      "MimeType": null,
+      "ExitCode": 134,
+      "ProcessId": 95245
+    },
+    "classification": "Known malformed-input availability defect; not demonstrated memory corruption or process escape. Existing supervision discards all bytes and reaps. This does not close the required decoder safety gate."
+  },
+  "other_history": {
+    "issue_194": "Published 72-byte lossy partition-claim input refused by exact RIFF extent authority. Pin memory limit covers metadata reads and does not bound every scratch allocation. 1 GiB RLIMIT_AS / CPU and wall containment remain required.",
+    "issue_182": "Animated ANMF route is refused by container admission before decoding.",
+    "post_pin_dimensions_fix": "Commit 5ba3d7bf fixes 16384 axes; outside the unchanged 8192-axis contract, whose invalid/zero geometries fail closed.",
+    "native_webp": "No active webp/libwebp-sys packages or native WebP symbols in measured executable. No prior native decoder was enabled or executed.",
+    "native_jpeg": "Same turbojpeg 1.5.1 / turbojpeg-sys 1.2.0 / vendored 3.1.0 bounded RGB8 encoding path. Retained exact-source security review in notices/NATIVE-CODECS.md remains context, with no new affected-path finding asserted."
+  },
+  "licensing": {
+    "candidate_status": "Permissive notice closure verified for the measured AMD64 artifact and build dependencies; not release/package approval.",
+    "package_archives_verified": 50,
+    "package_files_matching_archives": 3130,
+    "rust_webp_chain": "Exact packaged MIT texts exist for image-webp, byteorder-lite and quick-error; image-webp notice matches its declared upstream source commit.",
+    "native_encoder": "Authoritative root MIT at turbojpeg-sys exact VCS commit matches the retained wrapper license. Retain libjpeg-turbo BSD/IJG/SIMD-zlib terms and IJG acknowledgment.",
+    "other_obligations": "All packaged notices retained, including Unicode-3.0, IJG, BSD and zlib requirements; choose MIT alternatives where offered.",
+    "missing_notices": [],
+    "shipped_release": false,
+    "fallback_selected": false
+  },
+  "platforms": {
+    "AMD64": "Measured and tested",
+    "ARM64": "UNPROVEN; no native execution in this task",
+    "native_Windows": "UNPROVEN; unresolved separate decision"
+  }
+}

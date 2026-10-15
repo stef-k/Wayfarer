@@ -1,0 +1,495 @@
+{
+  "method": "Unchanged retained C# paired collector; p50 median, nearest-rank p95, inverse-mean sequential throughput. Two warm sessions of 20 warmups + 24 measurements/backend; eight cold managed hosts alternating order. Cold does not flush OS caches. JPEG smoke is one warm session per profile.",
+  "cells": [
+    {
+      "fixture": "large-vilaplana.webp",
+      "profile": "pdf",
+      "phase": "cold",
+      "backends": {
+        "rust": {
+          "n": 8,
+          "p50_ms": 322.18615,
+          "p95_ms": 339.4098,
+          "mean_ms": 322.40115000000003,
+          "min_ms": 307.5491,
+          "max_ms": 339.4098,
+          "stddev_ms": 10.912401694402568,
+          "sequential_images_per_second": 3.101725908856094
+        },
+        "imagesharp": {
+          "n": 8,
+          "p50_ms": 743.39955,
+          "p95_ms": 778.3345,
+          "mean_ms": 741.7627125,
+          "min_ms": 709.4912,
+          "max_ms": 778.3345,
+          "stddev_ms": 23.37115176545878,
+          "sequential_images_per_second": 1.348140022608645
+        }
+      },
+      "ratios": {
+        "p50_ms": 0.4333956753134973,
+        "p95_ms": 0.4360718945389161,
+        "sequential_images_per_second": 2.3007446235846243
+      },
+      "pass": true,
+      "resources": {
+        "rust": {
+          "parent_cpu_p50_ms": 187.577,
+          "maximum_shared_host_peak_rss_kib": 329336,
+          "output_bytes": [
+            66468
+          ]
+        },
+        "imagesharp": {
+          "parent_cpu_p50_ms": 892.098,
+          "maximum_shared_host_peak_rss_kib": 332592,
+          "output_bytes": [
+            66593
+          ]
+        }
+      }
+    },
+    {
+      "fixture": "large-vilaplana.webp",
+      "profile": "pdf",
+      "phase": "warm",
+      "backends": {
+        "rust": {
+          "n": 48,
+          "p50_ms": 287.14785,
+          "p95_ms": 335.9422,
+          "mean_ms": 293.62905,
+          "min_ms": 278.0607,
+          "max_ms": 353.8894,
+          "stddev_ms": 17.112225863735247,
+          "sequential_images_per_second": 3.4056575805425244
+        },
+        "imagesharp": {
+          "n": 48,
+          "p50_ms": 400.7922,
+          "p95_ms": 463.4253,
+          "mean_ms": 408.1718354166667,
+          "min_ms": 383.8734,
+          "max_ms": 534.6363,
+          "stddev_ms": 27.84222498248123,
+          "sequential_images_per_second": 2.4499485589915535
+        }
+      },
+      "ratios": {
+        "p50_ms": 0.7164506943997414,
+        "p95_ms": 0.7249112208591115,
+        "sequential_images_per_second": 1.3900935054507264
+      },
+      "pass": true,
+      "resources": {
+        "rust": {
+          "parent_cpu_p50_ms": 27.716,
+          "maximum_shared_host_peak_rss_kib": 410496,
+          "output_bytes": [
+            66468
+          ]
+        },
+        "imagesharp": {
+          "parent_cpu_p50_ms": 434.062,
+          "maximum_shared_host_peak_rss_kib": 410496,
+          "output_bytes": [
+            66593
+          ]
+        }
+      }
+    },
+    {
+      "fixture": "large-vilaplana.webp",
+      "profile": "web",
+      "phase": "cold",
+      "backends": {
+        "rust": {
+          "n": 8,
+          "p50_ms": 380.9829,
+          "p95_ms": 434.0831,
+          "mean_ms": 381.9982125,
+          "min_ms": 349.0573,
+          "max_ms": 434.0831,
+          "stddev_ms": 28.18876764860366,
+          "sequential_images_per_second": 2.6178132967048895
+        },
+        "imagesharp": {
+          "n": 8,
+          "p50_ms": 874.2111500000001,
+          "p95_ms": 961.4294,
+          "mean_ms": 875.2640125,
+          "min_ms": 818.5758,
+          "max_ms": 961.4294,
+          "stddev_ms": 50.31837557571184,
+          "sequential_images_per_second": 1.1425124142185612
+        }
+      },
+      "ratios": {
+        "p50_ms": 0.43580192268195156,
+        "p95_ms": 0.45149763466771453,
+        "sequential_images_per_second": 2.2912777700497746
+      },
+      "pass": true,
+      "resources": {
+        "rust": {
+          "parent_cpu_p50_ms": 213.4905,
+          "maximum_shared_host_peak_rss_kib": 329096,
+          "output_bytes": [
+            795809
+          ]
+        },
+        "imagesharp": {
+          "parent_cpu_p50_ms": 1021.5235,
+          "maximum_shared_host_peak_rss_kib": 343300,
+          "output_bytes": [
+            790077
+          ]
+        }
+      }
+    },
+    {
+      "fixture": "large-vilaplana.webp",
+      "profile": "web",
+      "phase": "warm",
+      "backends": {
+        "rust": {
+          "n": 48,
+          "p50_ms": 323.9357,
+          "p95_ms": 332.4768,
+          "mean_ms": 324.19759375,
+          "min_ms": 314.7419,
+          "max_ms": 340.2695,
+          "stddev_ms": 4.7634971627284335,
+          "sequential_images_per_second": 3.0845386248336397
+        },
+        "imagesharp": {
+          "n": 48,
+          "p50_ms": 458.60265000000004,
+          "p95_ms": 487.917,
+          "mean_ms": 461.1111854166667,
+          "min_ms": 446.7886,
+          "max_ms": 502.3436,
+          "stddev_ms": 10.258726686675617,
+          "sequential_images_per_second": 2.1686743493250673
+        }
+      },
+      "ratios": {
+        "p50_ms": 0.7063537465385339,
+        "p95_ms": 0.6814208154255745,
+        "sequential_images_per_second": 1.4223152617605344
+      },
+      "pass": true,
+      "resources": {
+        "rust": {
+          "parent_cpu_p50_ms": 29.509,
+          "maximum_shared_host_peak_rss_kib": 428432,
+          "output_bytes": [
+            795809
+          ]
+        },
+        "imagesharp": {
+          "parent_cpu_p50_ms": 484.9175,
+          "maximum_shared_host_peak_rss_kib": 428432,
+          "output_bytes": [
+            790077
+          ]
+        }
+      }
+    },
+    {
+      "fixture": "photo.jpg",
+      "profile": "pdf",
+      "phase": "warm",
+      "backends": {
+        "rust": {
+          "n": 24,
+          "p50_ms": 20.8046,
+          "p95_ms": 25.6537,
+          "mean_ms": 21.462429166666666,
+          "min_ms": 20.0914,
+          "max_ms": 25.8934,
+          "stddev_ms": 1.6462483537291075,
+          "sequential_images_per_second": 46.59304835601282
+        },
+        "imagesharp": {
+          "n": 24,
+          "p50_ms": 43.970299999999995,
+          "p95_ms": 56.4875,
+          "mean_ms": 39.61015833333333,
+          "min_ms": 19.0741,
+          "max_ms": 59.9392,
+          "stddev_ms": 12.416844909337325,
+          "sequential_images_per_second": 25.246049045920252
+        }
+      },
+      "ratios": {
+        "p50_ms": 0.4731511952386043,
+        "p95_ms": 0.45414826289001997,
+        "sequential_images_per_second": 1.845558022614324
+      },
+      "pass": true,
+      "resources": {
+        "rust": {
+          "parent_cpu_p50_ms": 6.232,
+          "maximum_shared_host_peak_rss_kib": 198948,
+          "output_bytes": [
+            43354
+          ]
+        },
+        "imagesharp": {
+          "parent_cpu_p50_ms": 45.667500000000004,
+          "maximum_shared_host_peak_rss_kib": 198932,
+          "output_bytes": [
+            43327
+          ]
+        }
+      }
+    },
+    {
+      "fixture": "photo.jpg",
+      "profile": "web",
+      "phase": "warm",
+      "backends": {
+        "rust": {
+          "n": 24,
+          "p50_ms": 33.2511,
+          "p95_ms": 35.1333,
+          "mean_ms": 33.458729166666664,
+          "min_ms": 32.6078,
+          "max_ms": 35.5441,
+          "stddev_ms": 0.662655139163762,
+          "sequential_images_per_second": 29.887566709982885
+        },
+        "imagesharp": {
+          "n": 24,
+          "p50_ms": 30.19285,
+          "p95_ms": 46.7958,
+          "mean_ms": 31.840529166666666,
+          "min_ms": 29.7686,
+          "max_ms": 46.9347,
+          "stddev_ms": 4.745237315775193,
+          "sequential_images_per_second": 31.4065132135707
+        }
+      },
+      "ratios": {
+        "p50_ms": 1.1012905373292021,
+        "p95_ms": 0.7507789160565691,
+        "sequential_images_per_second": 0.9516359395499058
+      },
+      "pass": false,
+      "resources": {
+        "rust": {
+          "parent_cpu_p50_ms": 5.947,
+          "maximum_shared_host_peak_rss_kib": 219524,
+          "output_bytes": [
+            498699
+          ]
+        },
+        "imagesharp": {
+          "parent_cpu_p50_ms": 30.537,
+          "maximum_shared_host_peak_rss_kib": 219564,
+          "output_bytes": [
+            498696
+          ]
+        }
+      }
+    },
+    {
+      "fixture": "photo.webp",
+      "profile": "pdf",
+      "phase": "cold",
+      "backends": {
+        "rust": {
+          "n": 8,
+          "p50_ms": 93.05975,
+          "p95_ms": 107.4471,
+          "mean_ms": 94.8024625,
+          "min_ms": 86.1624,
+          "max_ms": 107.4471,
+          "stddev_ms": 7.8184517862622345,
+          "sequential_images_per_second": 10.54824920818908
+        },
+        "imagesharp": {
+          "n": 8,
+          "p50_ms": 342.8864,
+          "p95_ms": 444.5963,
+          "mean_ms": 350.0863125,
+          "min_ms": 305.7007,
+          "max_ms": 444.5963,
+          "stddev_ms": 46.590782509187285,
+          "sequential_images_per_second": 2.8564384390206627
+        }
+      },
+      "ratios": {
+        "p50_ms": 0.27140111127183814,
+        "p95_ms": 0.24167340124063114,
+        "sequential_images_per_second": 3.69279766862596
+      },
+      "pass": true,
+      "resources": {
+        "rust": {
+          "parent_cpu_p50_ms": 36.926500000000004,
+          "maximum_shared_host_peak_rss_kib": 180516,
+          "output_bytes": [
+            43327
+          ]
+        },
+        "imagesharp": {
+          "parent_cpu_p50_ms": 360.6445,
+          "maximum_shared_host_peak_rss_kib": 182740,
+          "output_bytes": [
+            42685
+          ]
+        }
+      }
+    },
+    {
+      "fixture": "photo.webp",
+      "profile": "pdf",
+      "phase": "warm",
+      "backends": {
+        "rust": {
+          "n": 48,
+          "p50_ms": 61.904,
+          "p95_ms": 66.1098,
+          "mean_ms": 62.655685416666664,
+          "min_ms": 60.2337,
+          "max_ms": 76.0557,
+          "stddev_ms": 2.732791672466446,
+          "sequential_images_per_second": 15.960243565286989
+        },
+        "imagesharp": {
+          "n": 48,
+          "p50_ms": 54.87205,
+          "p95_ms": 77.8412,
+          "mean_ms": 57.423254166666666,
+          "min_ms": 52.8545,
+          "max_ms": 89.9328,
+          "stddev_ms": 7.506576338939257,
+          "sequential_images_per_second": 17.414547721339083
+        }
+      },
+      "ratios": {
+        "p50_ms": 1.1281517639672658,
+        "p95_ms": 0.8492906070307241,
+        "sequential_images_per_second": 0.916489122811381
+      },
+      "pass": false,
+      "resources": {
+        "rust": {
+          "parent_cpu_p50_ms": 5.5115,
+          "maximum_shared_host_peak_rss_kib": 234768,
+          "output_bytes": [
+            43327
+          ]
+        },
+        "imagesharp": {
+          "parent_cpu_p50_ms": 65.17150000000001,
+          "maximum_shared_host_peak_rss_kib": 234768,
+          "output_bytes": [
+            42685
+          ]
+        }
+      }
+    },
+    {
+      "fixture": "photo.webp",
+      "profile": "web",
+      "phase": "cold",
+      "backends": {
+        "rust": {
+          "n": 8,
+          "p50_ms": 103.99440000000001,
+          "p95_ms": 117.8893,
+          "mean_ms": 106.95658750000001,
+          "min_ms": 100.5476,
+          "max_ms": 117.8893,
+          "stddev_ms": 6.848350062906185,
+          "sequential_images_per_second": 9.349587747458752
+        },
+        "imagesharp": {
+          "n": 8,
+          "p50_ms": 364.7733,
+          "p95_ms": 476.4019,
+          "mean_ms": 368.76142500000003,
+          "min_ms": 319.1762,
+          "max_ms": 476.4019,
+          "stddev_ms": 52.68253547992515,
+          "sequential_images_per_second": 2.7117803875500264
+        }
+      },
+      "ratios": {
+        "p50_ms": 0.2850932346199681,
+        "p95_ms": 0.24745766127297142,
+        "sequential_images_per_second": 3.4477673009154297
+      },
+      "pass": true,
+      "resources": {
+        "rust": {
+          "parent_cpu_p50_ms": 37.917,
+          "maximum_shared_host_peak_rss_kib": 185432,
+          "output_bytes": [
+            501268
+          ]
+        },
+        "imagesharp": {
+          "parent_cpu_p50_ms": 374.8855,
+          "maximum_shared_host_peak_rss_kib": 189532,
+          "output_bytes": [
+            498676
+          ]
+        }
+      }
+    },
+    {
+      "fixture": "photo.webp",
+      "profile": "web",
+      "phase": "warm",
+      "backends": {
+        "rust": {
+          "n": 48,
+          "p50_ms": 74.5093,
+          "p95_ms": 81.752,
+          "mean_ms": 75.36392083333334,
+          "min_ms": 72.0956,
+          "max_ms": 86.7215,
+          "stddev_ms": 3.116866386050725,
+          "sequential_images_per_second": 13.268948708381181
+        },
+        "imagesharp": {
+          "n": 48,
+          "p50_ms": 68.93039999999999,
+          "p95_ms": 87.3669,
+          "mean_ms": 71.71842916666667,
+          "min_ms": 65.8854,
+          "max_ms": 93.7126,
+          "stddev_ms": 6.69561989976357,
+          "sequential_images_per_second": 13.943417495607678
+        }
+      },
+      "ratios": {
+        "p50_ms": 1.0809352622355304,
+        "p95_ms": 0.9357319534056948,
+        "sequential_images_per_second": 0.9516281580581689
+      },
+      "pass": true,
+      "resources": {
+        "rust": {
+          "parent_cpu_p50_ms": 5.693,
+          "maximum_shared_host_peak_rss_kib": 236280,
+          "output_bytes": [
+            501268
+          ]
+        },
+        "imagesharp": {
+          "parent_cpu_p50_ms": 78.572,
+          "maximum_shared_host_peak_rss_kib": 236264,
+          "output_bytes": [
+            498676
+          ]
+        }
+      }
+    }
+  ]
+}

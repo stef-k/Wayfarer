@@ -1,0 +1,82 @@
+{
+  "resolved_packages": 50,
+  "compiler_artifact_packages": [
+    "path+file:///home/stef/wayfarer-research/858-webp-fallback-20261015/candidate#wayfarer-image@0.1.0",
+    "registry+https://github.com/rust-lang/crates.io-index#adler2@2.0.1",
+    "registry+https://github.com/rust-lang/crates.io-index#anyhow@1.0.104",
+    "registry+https://github.com/rust-lang/crates.io-index#autocfg@1.5.1",
+    "registry+https://github.com/rust-lang/crates.io-index#bitflags@2.13.2",
+    "registry+https://github.com/rust-lang/crates.io-index#bytemuck@1.25.2",
+    "registry+https://github.com/rust-lang/crates.io-index#byteorder-lite@0.1.0",
+    "registry+https://github.com/rust-lang/crates.io-index#cc@1.8.0",
+    "registry+https://github.com/rust-lang/crates.io-index#cfg-if@1.0.5",
+    "registry+https://github.com/rust-lang/crates.io-index#cmake@0.1.58",
+    "registry+https://github.com/rust-lang/crates.io-index#color_quant@1.1.0",
+    "registry+https://github.com/rust-lang/crates.io-index#crc32fast@1.5.2",
+    "registry+https://github.com/rust-lang/crates.io-index#document-features@0.2.12",
+    "registry+https://github.com/rust-lang/crates.io-index#fast_image_resize@6.1.0",
+    "registry+https://github.com/rust-lang/crates.io-index#fdeflate@0.3.7",
+    "registry+https://github.com/rust-lang/crates.io-index#find-msvc-tools@0.1.14",
+    "registry+https://github.com/rust-lang/crates.io-index#flate2@1.1.10",
+    "registry+https://github.com/rust-lang/crates.io-index#gcd@2.3.0",
+    "registry+https://github.com/rust-lang/crates.io-index#gif@0.14.2",
+    "registry+https://github.com/rust-lang/crates.io-index#image-webp@0.2.4",
+    "registry+https://github.com/rust-lang/crates.io-index#image@0.25.10",
+    "registry+https://github.com/rust-lang/crates.io-index#jpeg-decoder@0.3.2",
+    "registry+https://github.com/rust-lang/crates.io-index#jpeg-encoder@0.7.1",
+    "registry+https://github.com/rust-lang/crates.io-index#libc@0.2.177",
+    "registry+https://github.com/rust-lang/crates.io-index#libjpeg-turbo-rs@0.8.0",
+    "registry+https://github.com/rust-lang/crates.io-index#litrs@1.0.1",
+    "registry+https://github.com/rust-lang/crates.io-index#miniz_oxide@0.8.9",
+    "registry+https://github.com/rust-lang/crates.io-index#miniz_oxide@0.9.1",
+    "registry+https://github.com/rust-lang/crates.io-index#moxcms@0.8.0",
+    "registry+https://github.com/rust-lang/crates.io-index#num-traits@0.2.19",
+    "registry+https://github.com/rust-lang/crates.io-index#pkg-config@0.3.34",
+    "registry+https://github.com/rust-lang/crates.io-index#png@0.18.1",
+    "registry+https://github.com/rust-lang/crates.io-index#proc-macro2@1.0.107",
+    "registry+https://github.com/rust-lang/crates.io-index#pxfm@0.1.30",
+    "registry+https://github.com/rust-lang/crates.io-index#quick-error@2.0.1",
+    "registry+https://github.com/rust-lang/crates.io-index#quote@1.0.47",
+    "registry+https://github.com/rust-lang/crates.io-index#shlex@2.0.1",
+    "registry+https://github.com/rust-lang/crates.io-index#simd-adler32@0.3.10",
+    "registry+https://github.com/rust-lang/crates.io-index#syn@2.0.119",
+    "registry+https://github.com/rust-lang/crates.io-index#syn@3.0.9",
+    "registry+https://github.com/rust-lang/crates.io-index#thiserror-impl@1.0.69",
+    "registry+https://github.com/rust-lang/crates.io-index#thiserror-impl@2.0.21",
+    "registry+https://github.com/rust-lang/crates.io-index#thiserror@1.0.69",
+    "registry+https://github.com/rust-lang/crates.io-index#thiserror@2.0.21",
+    "registry+https://github.com/rust-lang/crates.io-index#turbojpeg-sys@1.2.0",
+    "registry+https://github.com/rust-lang/crates.io-index#turbojpeg@1.5.1",
+    "registry+https://github.com/rust-lang/crates.io-index#unicode-ident@1.0.27",
+    "registry+https://github.com/rust-lang/crates.io-index#weezl@0.1.12",
+    "registry+https://github.com/rust-lang/crates.io-index#zune-core@0.5.3",
+    "registry+https://github.com/rust-lang/crates.io-index#zune-jpeg@0.5.15"
+  ],
+  "native_webp_symbols": [],
+  "selected_linked_symbols": [
+    "0000000000426630 t image_webp::decoder::WebPDecoder<R>::read_image",
+    "0000000000454320 T tj3Compress8"
+  ],
+  "native_archives": [
+    {
+      "path": "target-default-only/release/build/turbojpeg-sys-81496caa2b523200/out/build/libjpeg.a",
+      "sha256": "1bf6bf8051ea4ee4a7ab196f801fb2aeadee30a03e10a711fb3f6141e48f6d37",
+      "bytes": 1324740
+    },
+    {
+      "path": "target-default-only/release/build/turbojpeg-sys-81496caa2b523200/out/build/libturbojpeg.a",
+      "sha256": "3d65f5ccd3085e4e0e8a6c3badd6295f2c28b716f5263a2080ceab77dddae5f7",
+      "bytes": 1658520
+    },
+    {
+      "path": "target-default-only/release/build/turbojpeg-sys-81496caa2b523200/out/lib/libjpeg.a",
+      "sha256": "1bf6bf8051ea4ee4a7ab196f801fb2aeadee30a03e10a711fb3f6141e48f6d37",
+      "bytes": 1324740
+    },
+    {
+      "path": "target-default-only/release/build/turbojpeg-sys-81496caa2b523200/out/lib/libturbojpeg.a",
+      "sha256": "3d65f5ccd3085e4e0e8a6c3badd6295f2c28b716f5263a2080ceab77dddae5f7",
+      "bytes": 1658520
+    }
+  ]
+}

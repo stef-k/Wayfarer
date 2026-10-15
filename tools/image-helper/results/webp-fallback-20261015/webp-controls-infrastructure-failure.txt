@@ -1,0 +1,8 @@
+Traceback (most recent call last):
+  File "/home/stef/wayfarer-research/858-webp-fallback-20261015/check-webp-controls.py", line 54, in <module>
+    rows.append(invoke(name, (FIXTURES / name).read_bytes(), 0))
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/stef/wayfarer-research/858-webp-fallback-20261015/check-webp-controls.py", line 42, in invoke
+    assert image.n_frames == 1 and not image.getexif() and not image.info.get('xmp')
+           ^^^^^^^^^^^^^^
+AttributeError: 'JpegImageFile' object has no attribute 'n_frames'

@@ -1,0 +1,30 @@
+{
+  "web/photo.webp": {
+    "child_cpu_p50_ms": 70.90100000000005,
+    "maximum_sampled_child_hwm_kib": 17984,
+    "output_bytes": [
+      501268
+    ]
+  },
+  "web/large-vilaplana.webp": {
+    "child_cpu_p50_ms": 319.0160000000001,
+    "maximum_sampled_child_hwm_kib": 97388,
+    "output_bytes": [
+      795809
+    ]
+  },
+  "pdf/photo.webp": {
+    "child_cpu_p50_ms": 59.56050000000046,
+    "maximum_sampled_child_hwm_kib": 12100,
+    "output_bytes": [
+      43327
+    ]
+  },
+  "pdf/large-vilaplana.webp": {
+    "child_cpu_p50_ms": 274.41749999999956,
+    "maximum_sampled_child_hwm_kib": 97416,
+    "output_bytes": [
+      66468
+    ]
+  }
+}
