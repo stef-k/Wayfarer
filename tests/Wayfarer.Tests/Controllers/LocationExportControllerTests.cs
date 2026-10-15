@@ -30,12 +30,12 @@ public class LocationExportControllerTests : TestBase
     public async Task LocationType_RoundTripsOptionalValuesAndFieldOnlyRecords(LocationImportFileType format)
     {
         using var db = CreateDbContext();
-        string?[] values = [null, string.Empty, " \t\r\n\u00a0 ", " MiXeD, <&> \"\t "];
-        foreach (var value in values)
+        string?[] values = [null, string.Empty, " \t ", " MiXeD, <&> \"\t\u00a0 "];
+        for (var i = 0; i < values.Length; i++)
             db.Locations.Add(new Location
             {
-                UserId = "u1", TimeZoneId = string.Empty, LocationType = value,
-                Timestamp = DateTime.UnixEpoch, LocalTimestamp = DateTime.UnixEpoch,
+                UserId = "u1", TimeZoneId = string.Empty, LocationType = values[i],
+                Timestamp = DateTime.UnixEpoch.AddHours(i), LocalTimestamp = DateTime.UnixEpoch.AddHours(i),
                 Coordinates = new Point(22, 40) { SRID = 4326 }
             });
         await db.SaveChangesAsync();

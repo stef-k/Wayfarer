@@ -15,6 +15,11 @@
 
 ### Fixed
 
+- Preserve current catalog Activity names and independent LocationType text through
+  native CSV, Wayfarer GeoJSON, GPX and KML history export/import, including fresh
+  authenticated exports, destination Activity IDs and significant XML whitespace.
+  Retain optional-field, UUID, metadata and owner-isolation compatibility (#814).
+
 - Enforce PostgreSQL Unicode Activity name identity and atomically reconcile equivalent
   legacy duplicates while preserving descriptions, cross-owner Location metadata and
   permanent numeric redirects. Existing API/MVC writers accept consolidated IDs;

@@ -34,9 +34,18 @@ public sealed class LocationExportRoundTripPostgresTests(PostgresImportTestFixtu
         var owner = await fixture.CreateUserAsync();
         var destination = await fixture.CreateUserAsync();
         var other = await fixture.CreateUserAsync();
-        var names = new[] { activityPrefix + "Eating  \tOut\u00a0& <\rHome", activityPrefix + "eBike  \tRide\u00a0& <\rHome" };
+        var names = new[]
+        {
+            activityPrefix + "Eating  \tOut\u00a0& <\rHome",
+            activityPrefix + "eBike  \tRide\u00a0& <\rHome"
+        };
         var activities = names.Select(name => new ActivityType { Name = name }).ToArray();
-        var originals = new[] { CreateLocation(owner.Id, Guid.NewGuid()), CreateLocation(owner.Id, Guid.NewGuid()), CreateLocation(owner.Id, null) };
+        var originals = new[]
+        {
+            CreateLocation(owner.Id, Guid.NewGuid()),
+            CreateLocation(owner.Id, Guid.NewGuid()),
+            CreateLocation(owner.Id, null)
+        };
         var types = new[] { "Manual", " MiXeD,\t\u00a0<&\"'\r\n ", " \t\r\n " };
         for (var i = 0; i < originals.Length; i++)
         {
@@ -92,7 +101,8 @@ public sealed class LocationExportRoundTripPostgresTests(PostgresImportTestFixtu
             {
                 AssertMetadata(originals[i], saved[i]);
                 Assert.Equal(types[i], saved[i].LocationType);
-                Assert.Equal(format is LocationImportFileType.Gpx or LocationImportFileType.Kml ? null : originals[i].IdempotencyKey, saved[i].IdempotencyKey);
+                Assert.Equal(format is LocationImportFileType.Gpx or LocationImportFileType.Kml
+                    ? null : originals[i].IdempotencyKey, saved[i].IdempotencyKey);
                 if (i < activities.Length) Assert.NotEqual(activities[i].Id, saved[i].ActivityTypeId);
             }
         }
@@ -161,6 +171,7 @@ public sealed class LocationExportRoundTripPostgresTests(PostgresImportTestFixtu
     {
         var owner = await fixture.CreateUserAsync();
         var original = CreateLocation(owner.Id, Guid.NewGuid());
+        original.LocationType = "Original type";
         await using (var seed = fixture.CreateContext())
         {
             seed.Locations.Add(original);

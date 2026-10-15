@@ -24,11 +24,12 @@ public class LocationExportController : Controller
     private readonly ApplicationDbContext _db;
     public LocationExportController(ApplicationDbContext db) => _db = db;
 
-    // helper to get only this user’s locations, in time order
+    /// <summary>Loads the signed-in owner's history and current catalog names in timestamp order.</summary>
     private IQueryable<Models.Location> UserLocations()
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
         return _db.Locations
+            .Include(l => l.ActivityType)
             .Where(l => l.UserId == userId)
             .OrderBy(l => l.Timestamp);
     }
@@ -56,6 +57,7 @@ public class LocationExportController : Controller
                 { "Altitude", loc.Altitude },
                 { "Speed", loc.Speed },
                 { "Activity", loc.ActivityType?.Name },
+                { "LocationType", loc.LocationType },
                 { "Address", shortAddress },
                 { "FullAddress", loc.FullAddress },
                 { "AddressNumber", loc.AddressNumber },
@@ -119,6 +121,7 @@ public class LocationExportController : Controller
             l.Altitude,
             l.Speed,
             Activity = l.ActivityType?.Name,
+            l.LocationType,
             Address = l.Address,
             FullAddress = l.FullAddress,
             AddressNumber = l.AddressNumber,
@@ -169,14 +172,16 @@ public class LocationExportController : Controller
     {
         var locs = await UserLocations().ToListAsync();
 
-        static void WriteGpxExtension(XmlWriter writer, string localName, string? value)
+        /// <summary>Writes optional extension text, retaining nonempty whitespace for LocationType.</summary>
+        static void WriteGpxExtension(XmlWriter writer, string localName, string? value, bool preserveWhitespace = false)
         {
-            if (!string.IsNullOrWhiteSpace(value))
+            if (!string.IsNullOrEmpty(value) && (preserveWhitespace || !string.IsNullOrWhiteSpace(value)))
             {
                 writer.WriteElementString("wf", localName, "https://wayfarer.app/schemas/gpx", value);
             }
         }
 
+        /// <summary>Includes nonempty LocationType even when it is the track point's only extension data.</summary>
         static bool HasGpxExtensionData(Wayfarer.Models.Location loc)
         {
             return !string.IsNullOrWhiteSpace(loc.TimeZoneId)
@@ -197,6 +202,7 @@ public class LocationExportController : Controller
                    || loc.Accuracy.HasValue
                    || loc.Speed.HasValue
                    || !string.IsNullOrWhiteSpace(loc.ActivityType?.Name)
+                   || !string.IsNullOrEmpty(loc.LocationType)
                    || !string.IsNullOrWhiteSpace(Wayfarer.Util.RichNotes.Normalize(loc.Notes))
                    // Metadata fields
                    || !string.IsNullOrWhiteSpace(loc.Source)
@@ -212,7 +218,11 @@ public class LocationExportController : Controller
         }
 
         var ms = new MemoryStream();
-        var settings = new XmlWriterSettings { Indent = true, Encoding = Encoding.UTF8 };
+        // XML readers normalize literal CR; character references preserve significant Activity/type text.
+        var settings = new XmlWriterSettings
+        {
+            Indent = true, Encoding = Encoding.UTF8, NewLineHandling = NewLineHandling.Entitize
+        };
         using (var xw = XmlWriter.Create(ms, settings))
         {
             xw.WriteStartDocument();
@@ -243,6 +253,7 @@ public class LocationExportController : Controller
                     WriteGpxExtension(xw, "accuracy", loc.Accuracy?.ToString(CultureInfo.InvariantCulture));
                     WriteGpxExtension(xw, "speed", loc.Speed?.ToString(CultureInfo.InvariantCulture));
                     WriteGpxExtension(xw, "activity", loc.ActivityType?.Name);
+                    WriteGpxExtension(xw, "locationType", loc.LocationType, preserveWhitespace: true);
                     WriteGpxExtension(xw, "address", loc.Address);
                     WriteGpxExtension(xw, "fullAddress", loc.FullAddress);
                     WriteGpxExtension(xw, "addressNumber", loc.AddressNumber);
@@ -294,9 +305,10 @@ public class LocationExportController : Controller
     {
         var locs = await UserLocations().ToListAsync();
 
-        static void WriteKmlData(XmlWriter writer, string name, string? value)
+        /// <summary>Writes optional data text, retaining nonempty whitespace for LocationType.</summary>
+        static void WriteKmlData(XmlWriter writer, string name, string? value, bool preserveWhitespace = false)
         {
-            if (string.IsNullOrWhiteSpace(value))
+            if (string.IsNullOrEmpty(value) || (!preserveWhitespace && string.IsNullOrWhiteSpace(value)))
             {
                 return;
             }
@@ -308,7 +320,11 @@ public class LocationExportController : Controller
         }
 
         var ms = new MemoryStream(); // Do NOT use 'using' here
-        var settings = new XmlWriterSettings { Indent = true, Encoding = Encoding.UTF8 };
+        // Match GPX's lossless XML handling of significant carriage returns.
+        var settings = new XmlWriterSettings
+        {
+            Indent = true, Encoding = Encoding.UTF8, NewLineHandling = NewLineHandling.Entitize
+        };
 
         using (var xw = XmlWriter.Create(ms, settings))
         {
@@ -333,6 +349,7 @@ public class LocationExportController : Controller
                 WriteKmlData(xw, "Altitude", loc.Altitude?.ToString(CultureInfo.InvariantCulture));
                 WriteKmlData(xw, "Speed", loc.Speed?.ToString(CultureInfo.InvariantCulture));
                 WriteKmlData(xw, "Activity", loc.ActivityType?.Name);
+                WriteKmlData(xw, "LocationType", loc.LocationType, preserveWhitespace: true);
                 WriteKmlData(xw, "Address", loc.Address);
                 WriteKmlData(xw, "FullAddress", loc.FullAddress);
                 WriteKmlData(xw, "AddressNumber", loc.AddressNumber);

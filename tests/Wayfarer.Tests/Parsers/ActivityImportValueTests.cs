@@ -1,11 +1,12 @@
 using System.Text;
 using Microsoft.Extensions.Logging.Abstractions;
 using Wayfarer.Parsers;
+using Wayfarer.Models.Enums;
 using Xunit;
 
 namespace Wayfarer.Tests.Parsers;
 
-/// <summary>Qualifies the small invalid-value intake at the native parser seam.</summary>
+/// <summary>Qualifies native Activity invalid-value intake and independent optional LocationType text.</summary>
 public sealed class ActivityImportValueTests
 {
     /// <summary>Wrong types and lone escapes are invalid; optional and valid Unicode/literal escapes remain unchanged.</summary>
@@ -66,6 +67,31 @@ public sealed class ActivityImportValueTests
         Assert.True(location.ImportedActivityInvalid);
         Assert.Null(location.ImportedActivityName);
         Assert.Equal("destination", location.UserId);
+    }
+
+    /// <summary>Explicit empty XML values and both CSV empty-cell encodings retain optional null semantics.</summary>
+    [Theory]
+    [InlineData(LocationImportFileType.Csv, "Latitude,Longitude,TimestampUtc,LocationType\r\n40,22,2026-10-01T00:00:00Z,\r\n")]
+    [InlineData(LocationImportFileType.Csv, "Latitude,Longitude,TimestampUtc,LocationType\r\n40,22,2026-10-01T00:00:00Z,\"\"\r\n")]
+    [InlineData(LocationImportFileType.Gpx, """
+        <gpx xmlns="http://www.topografix.com/GPX/1/1" xmlns:wf="https://wayfarer.app/schemas/gpx"><trk><trkseg>
+        <trkpt lat="40" lon="22"><time>2026-10-01T00:00:00Z</time><extensions><wf:locationType/></extensions></trkpt>
+        </trkseg></trk></gpx>
+        """)]
+    [InlineData(LocationImportFileType.Kml, """
+        <kml xmlns="http://www.opengis.net/kml/2.2"><Document><Placemark><name>2026-10-01T00:00:00Z</name>
+        <ExtendedData><Data name="LocationType"><value/></Data></ExtendedData>
+        <Point><coordinates>22,40</coordinates></Point></Placemark></Document></kml>
+        """)]
+    public async Task NativeLocationType_EmptyWireValuesBecomeNull(LocationImportFileType format, string payload)
+    {
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(payload));
+        var parser = new LocationDataParserFactory(NullLoggerFactory.Instance).GetParser(format);
+
+        var location = Assert.Single(await parser.ParseAsync(stream, "owner"));
+
+        Assert.Null(location.LocationType);
+        Assert.Null(location.ImportedActivityName);
     }
 
     /// <summary>Only the retained properties.Activity determines invalidity, including replacement containers.</summary>

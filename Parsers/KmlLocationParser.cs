@@ -54,7 +54,8 @@ public sealed class KmlLocationParser : ILocationDataParser
                 reader.NamespaceURI != namespaceToUse.NamespaceName) continue;
             XElement placemark;
             using (var subtree = reader.ReadSubtree())
-                placemark = (XElement)await XElement.LoadAsync(subtree, LoadOptions.None, cancellationToken);
+                // Whitespace-only ExtendedData text can be a nonempty LocationType.
+                placemark = (XElement)await XElement.LoadAsync(subtree, LoadOptions.PreserveWhitespace, cancellationToken);
             var pointElement = placemark.Element(namespaceToUse + "Point");
             if (pointElement == null)
             {
@@ -91,6 +92,7 @@ public sealed class KmlLocationParser : ILocationDataParser
                 ReadDataValue(extendedData, namespaceToUse, "ReverseGeocodingStorageMode"),
                 ReadDataValue(extendedData, namespaceToUse, "ReverseGeocodedAt"));
             var activityName = ReadDataValue(extendedData, namespaceToUse, "Activity");
+            var locationType = ReadDataValue(extendedData, namespaceToUse, "LocationType");
             var notes = ReadDataValue(extendedData, namespaceToUse, "Notes") ?? placemark.Element(namespaceToUse + "description")?.Value;
             // Metadata fields
             var source = ReadDataValue(extendedData, namespaceToUse, "Source");
@@ -140,6 +142,8 @@ public sealed class KmlLocationParser : ILocationDataParser
                 // Preserve raw text for the database-owned Activity validation and normalization.
                 ImportedActivityName = string.IsNullOrEmpty(activityName) ? null : activityName,
                 ActivityType = null!,
+                // LocationType is independent text; only missing and zero-length values become null.
+                LocationType = string.IsNullOrEmpty(locationType) ? null : locationType,
                 // Metadata fields
                 Source = source,
                 IsUserInvoked = isUserInvoked,

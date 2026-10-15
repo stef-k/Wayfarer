@@ -53,7 +53,8 @@ public sealed class GpxLocationParser : ILocationDataParser
                 reader.NamespaceURI != gpxNamespace.NamespaceName) continue;
             XElement trkpt;
             using (var subtree = reader.ReadSubtree())
-                trkpt = (XElement)await XElement.LoadAsync(subtree, LoadOptions.None, cancellationToken);
+                // Whitespace-only extension text can be a nonempty LocationType.
+                trkpt = (XElement)await XElement.LoadAsync(subtree, LoadOptions.PreserveWhitespace, cancellationToken);
             var latRaw = trkpt.Attribute("lat")?.Value;
             var lonRaw = trkpt.Attribute("lon")?.Value;
 
@@ -71,6 +72,7 @@ public sealed class GpxLocationParser : ILocationDataParser
             var localTimestampRaw = GetExtensionValue(extensions, "localTimestamp");
             var timeZoneId = GetExtensionValue(extensions, "timeZoneId");
             var activityName = GetExtensionValue(extensions, "activity");
+            var locationType = GetExtensionValue(extensions, "locationType");
             var accuracy = ParseNullableDouble(GetExtensionValue(extensions, "accuracy"));
             var speed = ParseNullableDouble(GetExtensionValue(extensions, "speed"));
             var address = GetExtensionValue(extensions, "address");
@@ -133,6 +135,8 @@ public sealed class GpxLocationParser : ILocationDataParser
                 // Preserve raw text for the database-owned Activity validation and normalization.
                 ImportedActivityName = string.IsNullOrEmpty(activityName) ? null : activityName,
                 ActivityType = null!,
+                // LocationType is independent text; only missing and zero-length values become null.
+                LocationType = string.IsNullOrEmpty(locationType) ? null : locationType,
                 // Metadata fields
                 Source = source,
                 IsUserInvoked = isUserInvoked,
