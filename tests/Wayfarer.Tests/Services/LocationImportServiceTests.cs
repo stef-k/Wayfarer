@@ -50,14 +50,11 @@ public class LocationImportServiceTests : TestBase
     public async Task ProcessImport_ImportsCsvWithoutMapboxKey()
     {
         var db = CreateDbContext();
-        db.ActivityTypes.Add(new ActivityType { Id = 5, Name = "Walking" });
-        await db.SaveChangesAsync();
-
         var tempFile = ImportStaging.TempFile();
         await File.WriteAllTextAsync(
             tempFile,
             "Latitude,Longitude,TimestampUtc,LocalTimestamp,TimeZoneId,Activity,Accuracy,Altitude,Speed,Address,FullAddress,Notes,AddressNumber,StreetName,PostCode,Place,Region,Country\r\n" +
-            "37.1,-122.2,2025-01-01T00:00:00Z,2025-01-01T00:00:00Z,UTC,Walking,5,10,1,Addr,FullAddr,Note,10,Street,12345,City,Region,Country");
+            "37.1,-122.2,2025-01-01T00:00:00Z,2025-01-01T00:00:00Z,UTC,,5,10,1,Addr,FullAddr,Note,10,Street,12345,City,Region,Country");
 
         var import = new LocationImport
         {
@@ -84,7 +81,8 @@ public class LocationImportServiceTests : TestBase
         }
 
         var stored = Assert.Single(db.Locations);
-        Assert.Equal(5, stored.ActivityTypeId);
+        // PostgreSQL tests own database-authoritative Activity reconciliation; this seam owns optional import metadata.
+        Assert.Null(stored.ActivityTypeId);
         Assert.Null(stored.ImportedActivityName);
 
         var updatedImport = db.LocationImports.Single(li => li.Id == import.Id);

@@ -1234,6 +1234,9 @@ namespace Wayfarer.Migrations
                     b.Property<int>("TotalRecords")
                         .HasColumnType("integer");
 
+                    b.Property<int>("UnclassifiedActivityCount")
+                        .HasColumnType("integer");
+
                     b.Property<DateTime>("UpdatedAt")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
@@ -1262,6 +1265,8 @@ namespace Wayfarer.Migrations
                             t.HasCheckConstraint("CK_LocationImport_LifecycleState", "((\"Status\" = 'In Progress' AND \"StopRequestedAtUtc\" IS NULL AND \"DeletionRequestedAtUtc\" IS NULL) OR (\"Status\" = 'Stopping' AND \"StopRequestedAtUtc\" IS NOT NULL AND \"DeletionRequestedAtUtc\" IS NULL AND \"ProjectionPending\") OR (\"Status\" = 'Stopped' AND NOT \"ProjectionPending\") OR (\"Status\" IN ('Completed','Failed') AND \"StopRequestedAtUtc\" IS NULL AND NOT \"ProjectionPending\")) IS TRUE");
 
                             t.HasCheckConstraint("CK_LocationImport_RemainingEnrichment", "\"RemainingEnrichmentCount\" >= 0");
+
+                            t.HasCheckConstraint("CK_LocationImport_UnclassifiedActivity", "\"UnclassifiedActivityCount\" >= 0");
                         });
                 });
 

@@ -12,4 +12,10 @@ public partial class Location
     /// </summary>
     [NotMapped]
     public string? ImportedActivityName { get; set; }
+
+    /// <summary>Marks an invalid supplied Activity value without persisting its private source text.</summary>
+    [NotMapped]
+    [System.Text.Json.Serialization.JsonIgnore]
+    [Newtonsoft.Json.JsonIgnore]
+    public bool ImportedActivityInvalid { get; set; }
 }

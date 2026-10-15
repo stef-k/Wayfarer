@@ -27,7 +27,7 @@
             <th>
                 Status
                 <i class="bi bi-question-circle text-muted ms-1"
-                   data-tippy-content="InProgress: currently processing. Completed: finished successfully. Stopped: paused by user. Failed: encountered errors."></i>
+                   data-tippy-content="InProgress: currently processing. Completed: history processed; check Activity warnings. Stopped: paused by user. Failed: encountered errors."></i>
             </th>
             <th>Processed Records</th>
             <th>Last Processed Record</th>
@@ -71,6 +71,14 @@
             </td>
             <td class="text-center errorMessage">
                 @import.ErrorMessage
+                @* Durable classification feedback survives reload/restart and stays separate from terminal errors. *@
+                @if (import.UnclassifiedActivityCount > 0)
+                {
+                    <div class="text-warning-emphasis" role="status">
+                        Invalid Activity: @import.UnclassifiedActivityCount @(import.UnclassifiedActivityCount == 1 ? "Location" : "Locations") with unresolved Activity (invalid value).
+                        Correct these Locations through ordinary location editing.
+                    </div>
+                }
             </td>
             <td>
                 @{
