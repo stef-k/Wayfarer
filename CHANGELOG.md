@@ -15,6 +15,11 @@
 
 ### Fixed
 
+- Return the persisted same-account UUID winner's numeric ID when an automatic
+  location upload reaches a filter after a concurrent import commits. Genuine
+  unpersisted skips and keyless responses retain skipped/null semantics; existing
+  locations are never overwritten (#815).
+
 - Preserve current catalog Activity names and independent LocationType text through
   native CSV, Wayfarer GeoJSON, GPX and KML history export/import, including fresh
   authenticated exports, destination Activity IDs and significant XML whitespace.
