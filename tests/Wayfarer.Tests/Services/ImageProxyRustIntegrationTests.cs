@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Buffers.Binary;
 using System.Net;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
@@ -99,6 +100,115 @@ public sealed class ImageProxyRustIntegrationTests(ITestOutputHelper output) : I
         Assert.All(pending, task => Assert.Equal(ImageProxyResultStatus.Fetched, task.Result.Status));
     }
 
+    /// <summary>Validation saturation is aggregate across keys and never becomes origin work or cache corruption.</summary>
+    [Fact]
+    public async Task BusyCacheValidation_ReturnsUnavailableWithoutFetchingAndRecoversAfterReap()
+    {
+        using var cancellation = new CancellationTokenSource();
+        var helpers = Enumerable.Range(0, 8).Select(_ => new FaultHelper("time.sleep(60)")).ToArray();
+        var pending = helpers.Select(helper => helper.Supervisor.ValidateAsync(
+            ReadOnlyMemory<byte>.Empty, cancellationToken: cancellation.Token)).ToArray();
+        var bytes = ImageProxyTestFactory.Raster("png");
+        var cache = Cache();
+        using var origin = new Origin(bytes);
+        var service = Service(origin, cache);
+        try
+        {
+            await Task.WhenAll(helpers.Select(helper => helper.WaitForPid()));
+            foreach (var status in new[] { ProxiedImageCacheStatus.FreshHit, ProxiedImageCacheStatus.StaleHit })
+            {
+                cache.Setup(x => x.GetAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(
+                    new ProxiedImageCacheResult(status, bytes, "image/png", null));
+                foreach (var allowOrigin in new[] { false, true })
+                    Assert.Equal(ImageProxyResultStatus.Unavailable, (await service.GetOrFetchAsync(
+                        new($"https://example.com/{status}-{allowOrigin}.png"), allowOrigin)).Status);
+                Assert.False(await service.FetchAndCacheAsync("https://example.com/warm.png"));
+            }
+            Assert.Equal(0, origin.Requests);
+        }
+        finally
+        {
+            cancellation.Cancel();
+            foreach (var task in pending)
+                await Assert.ThrowsAnyAsync<OperationCanceledException>(() => task);
+            foreach (var helper in helpers)
+            {
+                ImageHelperSupervisorTests.AssertReaped(await helper.WaitForPid());
+                helper.Dispose();
+            }
+        }
+        cache.Setup(x => x.GetAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(
+            new ProxiedImageCacheResult(ProxiedImageCacheStatus.FreshHit, bytes, "image/png", null));
+        Assert.Equal(ImageProxyResultStatus.FreshHit, (await service.GetOrFetchAsync(
+            new("https://example.com/recovered.png"), true)).Status);
+        Assert.Equal(0, origin.Requests);
+    }
+
+    /// <summary>Configured encoded limits survive both codec routes and full legacy-cache validation.</summary>
+    [Theory]
+    [InlineData(50, 53_477_458, false)]
+    [InlineData(100, 53_477_458, true)]
+    [InlineData(200, 200 * 1024 * 1024, true)]
+    [InlineData(200, 200 * 1024 * 1024 + 1, false)]
+    public async Task ConfiguredInputLimit_PreservesOriginalsAndTransforms(int megabytes, int length, bool accepted)
+    {
+        var bytes = PaddedPng(length);
+        var cache = Cache();
+        using var origin = new Origin(bytes);
+        var service = Service(origin, cache, megabytes);
+        foreach (var optimize in new[] { false, true })
+        {
+            var request = new ImageProxyRequest("https://example.com/padded.png", Optimize: optimize);
+            var result = await service.GetOrFetchAsync(request, true);
+            Assert.Equal(accepted ? ImageProxyResultStatus.Fetched : ImageProxyResultStatus.TooLarge, result.Status);
+            if (accepted)
+            {
+                Assert.Equal("image/png", result.ContentType);
+                if (!optimize) Assert.True(bytes.AsSpan().SequenceEqual(result.Bytes));
+                else
+                {
+                    using var image = Image.Load(result.Bytes!);
+                    Assert.Equal((1, 1), (image.Width, image.Height));
+                    Assert.True(result.Bytes!.Length < 50 * 1024 * 1024);
+                }
+            }
+            else Assert.Null(result.Bytes);
+        }
+        cache.Setup(x => x.GetAsync(It.IsAny<string>(), It.IsAny<CancellationToken>())).ReturnsAsync(
+            new ProxiedImageCacheResult(ProxiedImageCacheStatus.FreshHit, bytes, "text/html", null));
+        var hit = await service.GetOrFetchAsync(new("https://example.com/legacy.png", Optimize: false), false);
+        Assert.Equal(accepted ? ImageProxyResultStatus.FreshHit : ImageProxyResultStatus.OriginRequired, hit.Status);
+        if (accepted) Assert.Same(bytes, hit.Bytes);
+        Assert.Equal(2, origin.Requests);
+    }
+
+    /// <summary>One real pixel plus an inert CRC-valid chunk exercises encoded size without decoded-memory pressure.</summary>
+    private static byte[] PaddedPng(int length)
+    {
+        using var image = new Image<SixLabors.ImageSharp.PixelFormats.Rgba32>(1, 1);
+        using var encoded = new MemoryStream();
+        image.SaveAsPng(encoded);
+        var source = encoded.ToArray();
+        var bytes = new byte[length];
+        const int offset = 33; // Signature and IHDR, before IDAT.
+        source.AsSpan(0, offset).CopyTo(bytes);
+        var padding = length - source.Length - 12;
+        BinaryPrimitives.WriteInt32BigEndian(bytes.AsSpan(offset), padding);
+        "raNd"u8.CopyTo(bytes.AsSpan(offset + 4));
+        var table = new uint[256];
+        for (uint i = 0; i < table.Length; i++)
+        {
+            var value = i;
+            for (var bit = 0; bit < 8; bit++) value = (value >> 1) ^ ((value & 1) == 0 ? 0 : 0xedb88320u);
+            table[i] = value;
+        }
+        var crc = uint.MaxValue;
+        foreach (var value in bytes.AsSpan(offset + 4, padding + 4)) crc = table[(crc ^ value) & 255] ^ (crc >> 8);
+        BinaryPrimitives.WriteUInt32BigEndian(bytes.AsSpan(offset + padding + 8), ~crc);
+        source.AsSpan(offset).CopyTo(bytes.AsSpan(offset + padding + 12));
+        return bytes;
+    }
+
     /// <summary>A finite client feeder loads real mixed-format trip images without changing non-queuing admission.</summary>
     [Theory]
     [InlineData(10)]
@@ -162,11 +272,12 @@ public sealed class ImageProxyRustIntegrationTests(ITestOutputHelper output) : I
     }
 
     /// <summary>Reuse scoped origin ownership without starting a database or opening a network socket.</summary>
-    private static ImageProxyService Service(HttpMessageHandler handler, Mock<IProxiedImageCacheService> cache)
+    private static ImageProxyService Service(HttpMessageHandler handler, Mock<IProxiedImageCacheService> cache,
+        int inputMegabytes = 50)
     {
         var client = new HttpClient(handler);
         var settings = new Mock<IApplicationSettingsService>();
-        settings.Setup(x => x.GetSettings()).Returns(new ApplicationSettings());
+        settings.Setup(x => x.GetSettings()).Returns(new ApplicationSettings { MaxProxyImageDownloadMB = inputMegabytes });
         return new ImageProxyService(client, cache.Object, settings.Object,
             ImageProxyTestFactory.ScopeFactory(client, cache.Object, settings.Object), NullLogger<ImageProxyService>.Instance);
     }
