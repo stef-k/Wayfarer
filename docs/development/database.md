@@ -151,6 +151,19 @@ Strict UTF-8 decoding preserves supported BOM-prefixed native files and rejects
 malformed input bytes. SQL failures propagate as batch failures. The owner list renders the durable
 Invalid Activity count beside existing errors; no raw names enter logs or SSE.
 
+Native owner-history exports load Activity names in the shared authenticated
+query. CSV, Wayfarer GeoJSON, GPX and location-history KML carry the current catalog
+name, resolved by the destination worker, plus independent nullable LocationType
+text. Only missing/null/empty LocationType becomes null; nonempty whitespace is
+significant. XML writers entitize carriage returns and subtree readers retain
+whitespace so native export/import/re-export preserves both fields. GPX/KML stay
+keyless; CSV/GeoJSON retain stored nullable UUIDs and first-writer semantics.
+XML-incompatible LocationType text uses the versioned strict UTF-8/Base64 fallback
+defined in [design §7](activity-reconciliation-design.md#7-native-history-fidelity-and-compatibility);
+ordinary XML-compatible text keeps its existing representation. Both XML parsers
+reject malformed or conflicting fallback fields explicitly.
+This fidelity correction (#814) adds no migration.
+
 ## Quartz is a separate schema responsibility
 
 Quartz persists jobs/triggers through its ADO job store using the same PostgreSQL connection and `qrtz_` table prefix. `QuartzSchemaInstaller` owns creation/alignment of that schema. Those tables are not EF entities and should not be modeled as application migrations merely because they live in the same database.

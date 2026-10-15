@@ -467,7 +467,18 @@ tests. Export Activity **Name**, never its numeric ID or generated identity key.
 looked up in a catalog. Missing/null/zero-length values parse as null in all pairs;
 all other string contents, including whitespace, retain their value. CSV null and
 empty serialize as an ordinary empty field; empty/quoted-empty cells both read as
-null. Do not introduce a null sentinel, escaping scheme or another schema layer.
+null. Do not introduce a null sentinel, escaping scheme or another schema layer,
+except for the maintainer-approved #814 XML 1.0 exception (2026-10-15): a nonempty
+LocationType containing XML-forbidden characters uses strictly encoded UTF-8 bytes
+in canonical RFC 4648 Base64. GPX writes `wf:locationTypeUtf8Base64V1` in the existing
+Wayfarer namespace; KML writes ExtendedData `Data name="WayfarerLocationTypeUtf8Base64V1"`
+with one `value`. Emit only this fallback for such a value; ordinary XML-compatible
+text keeps the existing field and escaping unchanged. Production readers restore
+the original string with strict UTF-8 decoding and reject malformed/noncanonical
+or empty Base64, invalid UTF-8, duplicate/ambiguous fallback fields and simultaneous
+ordinary/fallback fields with explicit parse errors. This exception does not change
+CSV/GeoJSON or any other metadata contract. Other readers may ignore the optional
+Wayfarer fallback, so cannot be promised fidelity for these exceptional values.
 XML writers must emit nonempty whitespace values for this field rather than reuse
 helpers that omit every whitespace-only value; GPX's extension-presence check must
 include LocationType so a field-only record also exports it.

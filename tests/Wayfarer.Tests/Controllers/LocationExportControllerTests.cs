@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Security.Claims;
 using System.Text;
+using System.Xml.Linq;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using NetTopologySuite.Geometries;
@@ -10,6 +11,9 @@ using Wayfarer.Tests.Infrastructure;
 using Xunit;
 using Location = Wayfarer.Models.Location;
 using Wayfarer.Models;
+using Wayfarer.Models.Enums;
+using Wayfarer.Parsers;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Wayfarer.Tests.Controllers;
 
@@ -18,6 +22,74 @@ namespace Wayfarer.Tests.Controllers;
 /// </summary>
 public class LocationExportControllerTests : TestBase
 {
+    /// <summary>Optional types retain nonempty text, including records with no other GPX extension data.</summary>
+    [Theory]
+    [InlineData(LocationImportFileType.Csv)]
+    [InlineData(LocationImportFileType.WayfarerGeoJson)]
+    [InlineData(LocationImportFileType.Gpx)]
+    [InlineData(LocationImportFileType.Kml)]
+    public async Task LocationType_RoundTripsOptionalValuesAndFieldOnlyRecords(LocationImportFileType format)
+    {
+        using var db = CreateDbContext();
+        string?[] values = [null, string.Empty, " \t\r\n ", " MiXeD, <&> \"\t\u00a0\r ",
+            "Manual", "locationTypeUtf8Base64V1:AA==", "WayfarerLocationTypeUtf8Base64V1", "🚀"];
+        for (var i = 0; i < values.Length; i++)
+            db.Locations.Add(new Location
+            {
+                UserId = "u1", TimeZoneId = string.Empty, LocationType = values[i],
+                Timestamp = DateTime.UnixEpoch.AddHours(i), LocalTimestamp = DateTime.UnixEpoch.AddHours(i),
+                Coordinates = new Point(22, 40) { SRID = 4326 }
+            });
+        await db.SaveChangesAsync();
+        var controller = BuildController(db, "u1");
+        var file = Assert.IsType<FileStreamResult>(format switch
+        {
+            LocationImportFileType.Csv => await controller.Csv(),
+            LocationImportFileType.WayfarerGeoJson => await controller.GeoJson(),
+            LocationImportFileType.Gpx => await controller.Gpx(),
+            _ => await controller.Kml()
+        });
+        await using var stream = file.FileStream;
+        if (format is LocationImportFileType.Gpx or LocationImportFileType.Kml)
+        {
+            // Ordinary XML-compatible text keeps its existing field and never acquires an encoding marker.
+            var xml = XDocument.Load(stream, LoadOptions.PreserveWhitespace);
+            XNamespace ns = format == LocationImportFileType.Gpx
+                ? "http://www.topografix.com/GPX/1/1" : "http://www.opengis.net/kml/2.2";
+            XNamespace wf = "https://wayfarer.app/schemas/gpx";
+            var fields = format == LocationImportFileType.Gpx ? xml.Descendants(wf + "locationType")
+                : xml.Descendants(ns + "Data").Where(element => (string?)element.Attribute("name") == "LocationType");
+            Assert.Equal(values.Skip(2), fields.Select(element => format == LocationImportFileType.Gpx
+                ? element.Value : element.Element(ns + "value")!.Value));
+            Assert.Empty(xml.Descendants(wf + "locationTypeUtf8Base64V1"));
+            Assert.DoesNotContain(xml.Descendants(ns + "Data"),
+                element => (string?)element.Attribute("name") == "WayfarerLocationTypeUtf8Base64V1");
+            stream.Position = 0;
+        }
+        var parser = new LocationDataParserFactory(NullLoggerFactory.Instance).GetParser(format);
+        var parsed = await parser.ParseAsync(stream, "destination");
+
+        Assert.Equal(values.Select(value => string.IsNullOrEmpty(value) ? null : value), parsed.Select(row => row.LocationType));
+        Assert.All(parsed, row => Assert.Null(row.ImportedActivityName));
+    }
+
+    /// <summary>Invalid UTF-16 cannot silently become replacement characters in the UTF-8 fallback.</summary>
+    [Theory]
+    [InlineData(LocationImportFileType.Gpx)]
+    [InlineData(LocationImportFileType.Kml)]
+    public async Task XmlLocationType_RejectsInvalidUnicodeInsteadOfReplacingIt(LocationImportFileType format)
+    {
+        using var db = CreateDbContext();
+        var location = CreateLocation("u1", "Synthetic");
+        location.LocationType = "\ud800";
+        db.Locations.Add(location);
+        await db.SaveChangesAsync();
+        var controller = BuildController(db, "u1");
+
+        await Assert.ThrowsAsync<EncoderFallbackException>(() => format == LocationImportFileType.Gpx
+            ? controller.Gpx() : controller.Kml());
+    }
+
     [Fact]
     public async Task GeoJson_ExportsOnlyCurrentUserLocations()
     {
@@ -148,10 +220,8 @@ public class LocationExportControllerTests : TestBase
         var imported = new List<Location>();
         await foreach (var row in parser.ParseAsync(file.FileStream, "import-owner")) imported.Add(row);
         var saved = Assert.Single(imported);
-        // XML element text normalizes line endings to LF; JSON and quoted CSV preserve them.
-        var expectedLine = format is "gpx" or "kml"
-            ? original.ProviderAddressLine1.Replace("\r\n", "\n") : original.ProviderAddressLine1;
-        Assert.Equal(expectedLine, saved.ProviderAddressLine1);
+        // Native writers preserve carriage returns with XML character references where required.
+        Assert.Equal(original.ProviderAddressLine1, saved.ProviderAddressLine1);
         Assert.Equal(original.FullAddress, saved.FullAddress);
         Assert.Equal(original.Address, saved.Address);
         Assert.Equal(("geoapify", "persistent", original.ReverseGeocodedAt),

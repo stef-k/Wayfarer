@@ -70,6 +70,7 @@ public sealed class CsvLocationParser : ILocationDataParser
             var timeZoneId = GetField(csv, "TimeZoneId");
 
             var activityName = GetField(csv, "Activity");
+            var locationType = GetField(csv, "LocationType");
             var accuracy = GetNullableDouble(csv, "Accuracy");
             var altitude = GetNullableDouble(csv, "Altitude");
             var speed = GetNullableDouble(csv, "Speed");
@@ -122,6 +123,8 @@ public sealed class CsvLocationParser : ILocationDataParser
                 // Preserve raw text for the database-owned Activity validation and normalization.
                 ImportedActivityName = string.IsNullOrEmpty(activityName) ? null : activityName,
                 ActivityType = null!,
+                // LocationType is independent text; only missing and zero-length values become null.
+                LocationType = string.IsNullOrEmpty(locationType) ? null : locationType,
 
                 // Metadata fields
                 Source = source,

@@ -91,7 +91,7 @@ namespace Wayfarer.Parsers
                             ? rawProperties[key]!.Value<string>()
                             : attrs.Exists(key) && attrs[key] != null ? attrs[key]!.ToString() : null;
 
-                    // Imported enrichment tuples accept only raw JSON string scalars.
+                    // Enrichment tuples and independent LocationType text accept only raw JSON string scalars.
                     string? getTupleString(string key)
                         => rawProperties?.GetValue(key, StringComparison.Ordinal) is { Type: JTokenType.String } token
                             ? token.Value<string>() : null;
@@ -129,6 +129,7 @@ namespace Wayfarer.Parsers
                     var accuracy = getDouble("Accuracy");
                     var altitude = getDouble("Altitude");
                     var speed = getDouble("Speed");
+                    var locationType = getTupleString("LocationType");
                     // Activity accepts only a raw JSON string; null/missing remain optional.
                     var activityValue = rawProperties?.GetValue("Activity", StringComparison.Ordinal);
                     var activity = activityValue?.Type == JTokenType.String ? activityValue.Value<string>() : null;
@@ -174,6 +175,8 @@ namespace Wayfarer.Parsers
                         Accuracy = accuracy,
                         Altitude = altitude,
                         Speed = speed,
+                        // Preserve nonempty text exactly without Activity validation or catalog lookup.
+                        LocationType = string.IsNullOrEmpty(locationType) ? null : locationType,
                         Notes = notes,
                         Address = address,
                         FullAddress = fullAddress,

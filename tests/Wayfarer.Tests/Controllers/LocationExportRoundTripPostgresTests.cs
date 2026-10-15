@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
+using System.Xml.Linq;
 using CsvHelper;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -19,8 +20,159 @@ namespace Wayfarer.Tests.Controllers;
 
 /// <summary>Exercises owner exports through the production parsers, worker and PostgreSQL persistence.</summary>
 [Collection(PostgresImportTestCollection.Name)]
-public sealed class LocationExportRoundTripPostgresTests(PostgresImportTestFixture fixture) : TestBase
+public sealed class LocationExportRoundTripPostgresTests(PostgresImportTestFixture fixture) : TestBase, IAsyncLifetime
 {
+    private readonly string activityPrefix = $"export-activity-{Guid.NewGuid():N}-";
+
+    /// <summary>GeoJSON intake persists the review reproductions, then fresh XML exports recover exact types and metadata.</summary>
+    [PostgresTheory]
+    [InlineData(LocationImportFileType.Gpx)]
+    [InlineData(LocationImportFileType.Kml)]
+    public async Task XmlIncompatibleLocationType_PersistsAndRoundTrips(LocationImportFileType format)
+    {
+        var owner = await fixture.CreateUserAsync();
+        var destination = await fixture.CreateUserAsync();
+        string[] types = ["\u000b", "Home\u0001", "\rΣπίτι 🚀\ufffe\t"];
+        var input = JsonSerializer.SerializeToUtf8Bytes(new
+        {
+            type = "FeatureCollection",
+            features = types.Select((value, index) => new
+            {
+                type = "Feature", geometry = new { type = "Point", coordinates = new[] { 22.2, 40.1 } },
+                properties = new
+                {
+                    TimestampUtc = DateTime.UnixEpoch.AddHours(index), LocationType = value,
+                    Notes = "<p>Preserved note</p>", DeviceModel = "Synthetic device",
+                    ProviderAddressLine1 = "Provider\r\naddress"
+                }
+            })
+        });
+        var intake = await ImportAsync(owner.Id, LocationImportFileType.WayfarerGeoJson, input);
+        Assert.Equal(types.Length, intake.LastProcessedIndex);
+        await using (var persisted = fixture.CreateContext())
+            Assert.Equal(types, await persisted.Locations.Where(row => row.UserId == owner.Id)
+                .OrderBy(row => row.Timestamp).Select(row => row.LocationType).ToArrayAsync());
+
+        var exported = await ExportAsync(owner.Id, format);
+        using (var xml = new MemoryStream(exported))
+        {
+            var document = XDocument.Load(xml);
+            XNamespace wf = "https://wayfarer.app/schemas/gpx";
+            XNamespace kml = "http://www.opengis.net/kml/2.2";
+            var fields = format == LocationImportFileType.Gpx ? document.Descendants(wf + "locationTypeUtf8Base64V1")
+                : document.Descendants(kml + "Data").Where(element => (string?)element.Attribute("name") == "WayfarerLocationTypeUtf8Base64V1");
+            Assert.Equal(new[] { "Cw==", "SG9tZQE=", "Dc6jz4DOr8+Ezrkg8J+agO+/vgk=" }, fields.Select(element => element.Value));
+            Assert.Empty(document.Descendants(wf + "locationType"));
+            Assert.DoesNotContain(document.Descendants(kml + "Data"), element => (string?)element.Attribute("name") == "LocationType");
+        }
+        var recovered = await ParseAsync(destination.Id, format, exported);
+        Assert.Equal(types, recovered.Select(row => row.LocationType));
+        Assert.All(recovered, row =>
+        {
+            Assert.Equal("<p>Preserved note</p>", row.Notes);
+            Assert.Equal("Synthetic device", row.DeviceModel);
+            Assert.Equal("Provider\r\naddress", row.ProviderAddressLine1);
+            Assert.Null(row.IdempotencyKey);
+        });
+        await ImportAsync(destination.Id, format, exported);
+        await using (var persisted = fixture.CreateContext())
+            Assert.Equal(types, await persisted.Locations.Where(row => row.UserId == destination.Id)
+                .OrderBy(row => row.Timestamp).Select(row => row.LocationType).ToArrayAsync());
+        Assert.Equal(types, (await ParseAsync(destination.Id, format, await ExportAsync(destination.Id, format)))
+            .Select(row => row.LocationType));
+    }
+
+    /// <summary>Fresh exports and destination imports retain names, independent types and metadata across all native formats.</summary>
+    [PostgresTheory]
+    [InlineData(LocationImportFileType.Csv)]
+    [InlineData(LocationImportFileType.WayfarerGeoJson)]
+    [InlineData(LocationImportFileType.Gpx)]
+    [InlineData(LocationImportFileType.Kml)]
+    public async Task NativeRoundTrip_ReconcilesDestinationActivitiesAndPreservesLocationType(LocationImportFileType format)
+    {
+        var owner = await fixture.CreateUserAsync();
+        var destination = await fixture.CreateUserAsync();
+        var other = await fixture.CreateUserAsync();
+        var names = new[]
+        {
+            activityPrefix + "Eating  \tOut\u00a0& <\rHome",
+            activityPrefix + "eBike  \tRide\u00a0& <\rHome"
+        };
+        var activities = names.Select(name => new ActivityType { Name = name }).ToArray();
+        var originals = new[]
+        {
+            CreateLocation(owner.Id, Guid.NewGuid()),
+            CreateLocation(owner.Id, Guid.NewGuid()),
+            CreateLocation(owner.Id, null)
+        };
+        var types = new[] { "Manual", " MiXeD,\t\u00a0<&\"'\r\n ", " \t\r\n " };
+        for (var i = 0; i < originals.Length; i++)
+        {
+            originals[i].Timestamp = originals[i].Timestamp.AddHours(i * 2);
+            originals[i].LocalTimestamp = originals[i].LocalTimestamp.AddHours(i * 2);
+            originals[i].LocationType = types[i];
+            if (i < activities.Length) originals[i].ActivityType = activities[i];
+        }
+        var privateLocation = CreateLocation(other.Id, Guid.NewGuid());
+        privateLocation.Notes = "Other owner's private native history";
+        await using (var seed = fixture.CreateContext())
+        {
+            seed.Locations.AddRange(originals);
+            seed.Locations.Add(privateLocation);
+            await seed.SaveChangesAsync();
+        }
+
+        var exported = await ExportAsync(owner.Id, format);
+        var parsed = await ParseAsync(destination.Id, format, exported);
+        Assert.Equal(new string?[] { names[0], names[1], null }, parsed.Select(row => row.ImportedActivityName));
+        Assert.Equal(types, parsed.Select(row => row.LocationType));
+        Assert.DoesNotContain(privateLocation.Notes, Encoding.UTF8.GetString(exported));
+        Assert.DoesNotContain(owner.Id, Encoding.UTF8.GetString(exported));
+        Assert.DoesNotContain("ActivityTypeId", Encoding.UTF8.GetString(exported));
+        Assert.DoesNotContain("NormalizedName", Encoding.UTF8.GetString(exported));
+
+        // The fixture shares one catalog: retire source names to model a destination with different IDs.
+        var existing = new ActivityType { Name = names[0].Replace("Eating", "EATING"), Description = "Destination description" };
+        await using (var catalog = fixture.CreateContext())
+        {
+            foreach (var activity in activities)
+            {
+                var source = await catalog.ActivityTypes.SingleAsync(row => row.Id == activity.Id);
+                source.Name += " retired";
+            }
+            catalog.ActivityTypes.Add(existing);
+            await catalog.SaveChangesAsync();
+        }
+
+        var import = await ImportAsync(destination.Id, format, exported);
+        await using (var verification = fixture.CreateContext())
+        {
+            var saved = await verification.Locations.Include(row => row.ActivityType)
+                .Where(row => row.UserId == destination.Id).OrderBy(row => row.Timestamp).ToListAsync();
+            Assert.Equal(3, saved.Count);
+            Assert.Equal(0, import.UnclassifiedActivityCount);
+            Assert.Equal(0, import.SkippedDuplicates);
+            Assert.Equal(existing.Id, saved[0].ActivityTypeId);
+            Assert.Equal("Destination description", saved[0].ActivityType!.Description);
+            Assert.Equal(new string?[] { existing.Name, names[1], null }, saved.Select(row => row.ActivityType?.Name));
+            Assert.Null(saved[1].ActivityType!.Description);
+            for (var i = 0; i < saved.Count; i++)
+            {
+                AssertMetadata(originals[i], saved[i]);
+                Assert.Equal(types[i], saved[i].LocationType);
+                Assert.Equal(format is LocationImportFileType.Gpx or LocationImportFileType.Kml
+                    ? null : originals[i].IdempotencyKey, saved[i].IdempotencyKey);
+                if (i < activities.Length) Assert.NotEqual(activities[i].Id, saved[i].ActivityTypeId);
+            }
+        }
+        var reexported = await ParseAsync(destination.Id, format, await ExportAsync(destination.Id, format));
+        Assert.Equal(new string?[] { existing.Name, names[1], null }, reexported.Select(row => row.ImportedActivityName));
+        Assert.Equal(types, reexported.Select(row => row.LocationType));
+        for (var i = 0; i < originals.Length; i++) AssertMetadata(originals[i], reexported[i]);
+        var replay = await ImportAsync(destination.Id, format, exported);
+        Assert.Equal(3, replay.SkippedDuplicates);
+    }
+
     /// <summary>Distinct keyed captures transfer independently with destination identity and supported metadata.</summary>
     [PostgresTheory]
     [InlineData(LocationImportFileType.Csv)]
@@ -78,6 +230,7 @@ public sealed class LocationExportRoundTripPostgresTests(PostgresImportTestFixtu
     {
         var owner = await fixture.CreateUserAsync();
         var original = CreateLocation(owner.Id, Guid.NewGuid());
+        original.LocationType = "Original type";
         await using (var seed = fixture.CreateContext())
         {
             seed.Locations.Add(original);
@@ -92,6 +245,7 @@ public sealed class LocationExportRoundTripPostgresTests(PostgresImportTestFixtu
             saved.LocalTimestamp = saved.LocalTimestamp.AddDays(1);
             saved.Notes = "<p>Edited after export</p>";
             saved.Address = "Edited address";
+            saved.LocationType = "Edited type";
             await edit.SaveChangesAsync();
         }
 
@@ -105,6 +259,7 @@ public sealed class LocationExportRoundTripPostgresTests(PostgresImportTestFixtu
         Assert.Equal(original.LocalTimestamp.AddDays(1), retained.LocalTimestamp);
         Assert.Equal("<p>Edited after export</p>", retained.Notes);
         Assert.Equal("Edited address", retained.Address);
+        Assert.Equal("Edited type", retained.LocationType);
         Assert.Equal(1, import.SkippedDuplicates);
         Assert.Equal(1, import.LastProcessedIndex);
     }
@@ -113,23 +268,42 @@ public sealed class LocationExportRoundTripPostgresTests(PostgresImportTestFixtu
     [PostgresTheory]
     [InlineData(LocationImportFileType.Csv)]
     [InlineData(LocationImportFileType.WayfarerGeoJson)]
+    [InlineData(LocationImportFileType.Gpx)]
+    [InlineData(LocationImportFileType.Kml)]
     public async Task LegacyFileWithoutKey_RemainsAccepted(LocationImportFileType format)
     {
         var owner = await fixture.CreateUserAsync();
-        var payload = format == LocationImportFileType.Csv
-            ? "Latitude,Longitude,TimestampUtc\r\n40.1,22.2,2026-08-25T12:00:00Z\r\n"
-            : """
+        var payload = format switch
+        {
+            LocationImportFileType.Csv => "Latitude,Longitude,TimestampUtc\r\n40.1,22.2,2026-08-25T12:00:00Z\r\n",
+            LocationImportFileType.WayfarerGeoJson => """
               {"type":"FeatureCollection","features":[{"type":"Feature",
               "geometry":{"type":"Point","coordinates":[22.2,40.1]},
               "properties":{"TimestampUtc":"2026-08-25T12:00:00Z"}}]}
-              """;
+              """,
+            LocationImportFileType.Gpx => """
+              <gpx xmlns="http://www.topografix.com/GPX/1/1"><trk><trkseg>
+              <trkpt lat="40.1" lon="22.2"><time>2026-08-25T12:00:00Z</time></trkpt>
+              </trkseg></trk></gpx>
+              """,
+            _ => """
+              <kml xmlns="http://www.opengis.net/kml/2.2"><Document><Placemark>
+              <name>2026-08-25T12:00:00Z</name><Point><coordinates>22.2,40.1</coordinates></Point>
+              </Placemark></Document></kml>
+              """
+        };
         var import = await ImportAsync(owner.Id, format, Encoding.UTF8.GetBytes(payload));
         await using var verification = fixture.CreateContext();
         var saved = Assert.Single(await verification.Locations.Where(row => row.UserId == owner.Id).ToListAsync());
         Assert.Null(saved.IdempotencyKey);
+        Assert.Null(saved.ActivityTypeId);
+        Assert.Null(saved.LocationType);
         Assert.Equal(0, import.SkippedDuplicates);
         Assert.Equal(1, import.LastProcessedIndex);
-        AssertExportIdentities(await ExportAsync(owner.Id, format), format, [saved]);
+        var reexported = Assert.Single(await ParseAsync(owner.Id, format, await ExportAsync(owner.Id, format)));
+        Assert.Null(reexported.IdempotencyKey);
+        Assert.Null(reexported.ImportedActivityName);
+        Assert.Null(reexported.LocationType);
     }
 
     /// <summary>Uses a fresh context and the established authenticated controller principal for each export.</summary>
@@ -137,12 +311,27 @@ public sealed class LocationExportRoundTripPostgresTests(PostgresImportTestFixtu
     {
         await using var db = fixture.CreateContext();
         var controller = ConfigureControllerWithUser(new LocationExportController(db), userId);
-        var file = Assert.IsType<FileStreamResult>(format == LocationImportFileType.Csv
-            ? await controller.Csv() : await controller.GeoJson());
+        var file = Assert.IsType<FileStreamResult>(format switch
+        {
+            LocationImportFileType.Csv => await controller.Csv(),
+            LocationImportFileType.WayfarerGeoJson => await controller.GeoJson(),
+            LocationImportFileType.Gpx => await controller.Gpx(),
+            _ => await controller.Kml()
+        });
         await using var stream = file.FileStream;
         using var output = new MemoryStream();
         await stream.CopyToAsync(output);
         return output.ToArray();
+    }
+
+    /// <summary>Materializes the actual native parser without supplying catalog IDs or source-owner authority.</summary>
+    private static async Task<List<Location>> ParseAsync(string userId, LocationImportFileType format, byte[] payload)
+    {
+        using var stream = new MemoryStream(payload);
+        var rows = new List<Location>();
+        var parser = new LocationDataParserFactory(NullLoggerFactory.Instance).GetParser(format);
+        await foreach (var row in parser.ParseAsync(stream, userId)) rows.Add(row);
+        return rows;
     }
 
     /// <summary>Stages unchanged exported bytes and runs the current production worker with no enrichment opt-in.</summary>
@@ -204,7 +393,7 @@ public sealed class LocationExportRoundTripPostgresTests(PostgresImportTestFixtu
         Assert.Equal(expected.OrderBy(row => row.Id), actual.OrderBy(row => row.Id));
     }
 
-    /// <summary>Compares supported metadata without asserting the separate Activity/LocationType correction.</summary>
+    /// <summary>Compares supported history metadata independently of format-specific identity fields.</summary>
     private static void AssertMetadata(Location expected, Location actual)
     {
         Assert.Equal((expected.Timestamp, expected.LocalTimestamp, expected.TimeZoneId,
@@ -251,5 +440,17 @@ public sealed class LocationExportRoundTripPostgresTests(PostgresImportTestFixtu
     {
         /// <summary>Creates an independent context for production batch and checkpoint ownership.</summary>
         public ApplicationDbContext CreateDbContext() => fixture.CreateContext();
+    }
+
+    /// <summary>Relies on the shared fixture to initialize the guarded database.</summary>
+    public Task InitializeAsync() => Task.CompletedTask;
+
+    /// <summary>Removes only this case's Activity references and catalog rows before fixture-owned user cleanup.</summary>
+    public async Task DisposeAsync()
+    {
+        if (!fixture.IsAvailable) return;
+        await using var db = fixture.CreateContext();
+        await db.Locations.Where(row => row.ActivityType != null && row.ActivityType.Name.StartsWith(activityPrefix)).ExecuteDeleteAsync();
+        await db.ActivityTypes.Where(row => row.Name.StartsWith(activityPrefix)).ExecuteDeleteAsync();
     }
 }

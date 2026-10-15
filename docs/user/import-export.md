@@ -121,6 +121,17 @@ the tool you will use:
 | **GPX** | GPS-track tools, with Wayfarer extensions for extra details. |
 | **KML** | Map viewers such as Google Earth, with extended location details. |
 
+All four native history formats preserve the current catalog Activity name and
+the independent `LocationType` value. Importing into another Wayfarer instance
+reuses or creates its Activity by name; source numeric Activity IDs have no
+authority. Renaming a catalog Activity changes the name in subsequent exports.
+Missing or empty LocationType values import as null; other text retains its case
+and whitespace. Older files without this field remain supported. GPX and KML
+retain these details in Wayfarer extensions and ExtendedData respectively; other
+tools may remove them. LocationType text containing characters XML cannot represent
+uses a reversible Wayfarer field in GPX/KML; native imports restore the original
+text, while other tools may ignore this field. These two formats remain keyless.
+
 Owner CSV and Wayfarer GeoJSON exports preserve each record's stored UUID as
 `IdempotencyKey`. Records without a UUID remain keyless; export does not generate
 one. Reimporting a UUID already present in your account skips that record without
