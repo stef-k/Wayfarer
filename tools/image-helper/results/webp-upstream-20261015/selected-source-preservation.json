@@ -1,0 +1,71 @@
+{
+  "starting_commit": "64e704bcee433a077b212975dd64a22106379e3d",
+  "original_preserved_worktree_head_unchanged": true,
+  "runtime_and_supervisor_files": [
+    {
+      "path": "tools/image-helper/src/codec_candidates.rs",
+      "sha256": "ddccb640b6565a8ebf5ee782bad6e4a583087c02d6a667614569cb0e39091e2d",
+      "identical_to_starting_head": true
+    },
+    {
+      "path": "tools/image-helper/src/color.rs",
+      "sha256": "944c8863c8ac85d902056f8f17ae97b4e40f0ad5e38132c9f232d753ae909274",
+      "identical_to_starting_head": true
+    },
+    {
+      "path": "tools/image-helper/src/gif_input.rs",
+      "sha256": "3dc6ae419fe0d2a6ff0808d8a4b9316f0e647e5ad75aaa9002715cb03c9dfaf1",
+      "identical_to_starting_head": true
+    },
+    {
+      "path": "tools/image-helper/src/jpeg_output.rs",
+      "sha256": "43db9e338c8352ece2f08d0a05ee0331292d1ba86f2ed0fd7059908e63e8a205",
+      "identical_to_starting_head": true
+    },
+    {
+      "path": "tools/image-helper/src/lib.rs",
+      "sha256": "6012461a50c4301cceb8ec5fdd5bd87c9dd9169a261fa0f12c7d7375b37a989c",
+      "identical_to_starting_head": true
+    },
+    {
+      "path": "tools/image-helper/src/main.rs",
+      "sha256": "e50cf18f2e40363e150338f81959990b586354b7be642626cb542f0d37e47746",
+      "identical_to_starting_head": true
+    },
+    {
+      "path": "tools/image-helper/src/png_input.rs",
+      "sha256": "21bc92220ae07e77d346716dc3fefdd3eafd46e43d729d1e4fac040526c2b2d5",
+      "identical_to_starting_head": true
+    },
+    {
+      "path": "tools/image-helper/src/raster.rs",
+      "sha256": "b460095a2d0823a94b2db04f6e91f34d02f2316d89a48a7a6ac350ee1d6eebf3",
+      "identical_to_starting_head": true
+    },
+    {
+      "path": "tools/image-helper/src/transform.rs",
+      "sha256": "596fd5b5c2dfc45c48151442ac1be3c17604f88b173d987aefaba9655f2a31ae",
+      "identical_to_starting_head": true
+    },
+    {
+      "path": "tools/image-helper/src/webp_input.rs",
+      "sha256": "3c2ff05b16c29f3afd93df067875a79fc476fa3244f0472aee1aa556bc128e0a",
+      "identical_to_starting_head": true
+    },
+    {
+      "path": "tools/image-helper/supervisor/ImageHelperSupervisor.cs",
+      "sha256": "e16e9e9d99c5cf32f3fa45f8a94b623bbf23a29cdc2d674834bad3543a8cd863",
+      "identical_to_starting_head": true
+    },
+    {
+      "path": "tools/image-helper/supervisor/ImageTransform.cs",
+      "sha256": "f73f137857ce196faf162d05fc1486677b388fe2695e0f5cf757e33fbdc7fef2",
+      "identical_to_starting_head": true
+    },
+    {
+      "path": "tools/image-helper/supervisor/Program.cs",
+      "sha256": "8e6e6318de9fecfb9a1ce38f089dd032de9e2b2c02a0643b41f1d87234e2cda0",
+      "identical_to_starting_head": true
+    }
+  ]
+}

@@ -1,0 +1,391 @@
+{
+  "status": "REVIEW",
+  "task_delta_status": "PASS",
+  "complete_branch_base": "origin/main",
+  "complete_branch_base_sha": "1aa091fcad727fdf02416dd55c5a4fa1745a1972",
+  "why_origin_main": "The isolated research repository has no local main branch; its existing remote main ref supplies the full-branch comparison.",
+  "reviewed_policies": [
+    "callableSize",
+    "complexity",
+    "nesting"
+  ],
+  "findings": [
+    {
+      "guard": "callableSize",
+      "path": "tests/Wayfarer.Tests/Util/ImageHelperPerformanceTests.cs",
+      "callable": "Wayfarer.Tests.Util.ImageHelperPerformanceTests.RecordStandaloneLoad",
+      "range": {
+        "startLine": 102,
+        "endLine": 199
+      },
+      "measured": 98,
+      "state": "review",
+      "thresholds": {
+        "reviewAt": 80
+      },
+      "embeddedLanguage": "csharp",
+      "unchanged_since_starting_head": true,
+      "source_sha256": "654857c6e73561e2655950bdd6f4e2f4744d042879cfd2e4702bb88880070828",
+      "disposition": "Retained REVIEW with justification; no threshold/baseline/exception change.",
+      "reason": "Unchanged opt-in finite cgroup collector keeps sampling, cancellation, cleanup and one receipt together. This task reused only its four-child cancellation control; it is not a production queue."
+    },
+    {
+      "guard": "callableSize",
+      "path": "tools/image-helper/examples/codec_bench.rs",
+      "callable": "codec_bench.encode",
+      "range": {
+        "startLine": 97,
+        "endLine": 181
+      },
+      "measured": 85,
+      "state": "review",
+      "thresholds": {
+        "reviewAt": 80
+      },
+      "embeddedLanguage": "rust",
+      "unchanged_since_starting_head": true,
+      "source_sha256": "5e1a08eae28fd7e94059835f81da465cce8c2977ab93c8886d12c50d18dade8e",
+      "disposition": "Retained REVIEW with justification; no threshold/baseline/exception change.",
+      "reason": "Existing benchmark-only codec switch preserves rejected experiments. It is unchanged and excluded from the default-only artifact."
+    },
+    {
+      "guard": "callableSize",
+      "path": "tools/image-helper/src/color.rs",
+      "callable": "color.png_profile",
+      "range": {
+        "startLine": 27,
+        "endLine": 116
+      },
+      "measured": 90,
+      "state": "review",
+      "thresholds": {
+        "reviewAt": 80
+      },
+      "embeddedLanguage": "rust",
+      "unchanged_since_starting_head": true,
+      "source_sha256": "944c8863c8ac85d902056f8f17ae97b4e40f0ad5e38132c9f232d753ae909274",
+      "disposition": "Retained REVIEW with justification; no threshold/baseline/exception change.",
+      "reason": "One unchanged PNG color-precedence policy handles validated cICP/ICC/gamma/chromaticity and fail-closed unsupported declarations. Splitting it is outside this qualification."
+    },
+    {
+      "guard": "callableSize",
+      "path": "tools/image-helper/src/gif_input.rs",
+      "callable": "gif_input.admit",
+      "range": {
+        "startLine": 76,
+        "endLine": 183
+      },
+      "measured": 108,
+      "state": "review",
+      "thresholds": {
+        "reviewAt": 80
+      },
+      "embeddedLanguage": "rust",
+      "unchanged_since_starting_head": true,
+      "source_sha256": "3dc6ae419fe0d2a6ff0808d8a4b9316f0e647e5ad75aaa9002715cb03c9dfaf1",
+      "disposition": "Retained REVIEW with justification; no threshold/baseline/exception change.",
+      "reason": "One unchanged format-admission state machine keeps chunk/frame transition, byte boundary, completion and source-limit authority together. Focused behavioral cases passed; no metric-driven parser rewrite is appropriate."
+    },
+    {
+      "guard": "nesting",
+      "path": "tools/image-helper/src/gif_input.rs",
+      "callable": "gif_input.admit",
+      "range": {
+        "startLine": 76,
+        "endLine": 183
+      },
+      "measured": 5,
+      "state": "review",
+      "thresholds": {
+        "reviewAt": 4
+      },
+      "details": {
+        "deepestLine": 114
+      },
+      "embeddedLanguage": "rust",
+      "unchanged_since_starting_head": true,
+      "source_sha256": "3dc6ae419fe0d2a6ff0808d8a4b9316f0e647e5ad75aaa9002715cb03c9dfaf1",
+      "disposition": "Retained REVIEW with justification; no threshold/baseline/exception change.",
+      "reason": "One unchanged format-admission state machine keeps chunk/frame transition, byte boundary, completion and source-limit authority together. Focused behavioral cases passed; no metric-driven parser rewrite is appropriate."
+    },
+    {
+      "guard": "complexity",
+      "path": "tools/image-helper/archive/858-codec-comparison-20261013-zufsdz12/analyze.py",
+      "callable": "analyze.main",
+      "range": {
+        "startLine": 60,
+        "endLine": 122
+      },
+      "measured": 38,
+      "state": "review",
+      "thresholds": {
+        "reviewAt": 15
+      },
+      "details": {
+        "boundaryKind": "callable",
+        "decisions": {
+          "comprehension": 24,
+          "condition": 1,
+          "loop": 11,
+          "ternary": 1
+        }
+      },
+      "embeddedLanguage": "python",
+      "unchanged_since_starting_head": true,
+      "source_sha256": "9594e57681b373f044cf1b5372272a09c69d67a65683d0bce1d89e7d1207fd3d",
+      "disposition": "Retained REVIEW with justification; no threshold/baseline/exception change.",
+      "reason": "Unchanged retained analysis of finite fixture/profile/backend groups. Comprehension and loop decisions express explicit statistics/fidelity comparisons; historical reproduction is preserved without refactoring an archived experiment."
+    },
+    {
+      "guard": "complexity",
+      "path": "tools/image-helper/archive/858-codec-comparison-20261013-zufsdz12/quality_codec.py",
+      "callable": "quality_codec.main",
+      "range": {
+        "startLine": 27,
+        "endLine": 80
+      },
+      "measured": 23,
+      "state": "review",
+      "thresholds": {
+        "reviewAt": 15
+      },
+      "details": {
+        "boundaryKind": "callable",
+        "decisions": {
+          "comprehension": 7,
+          "condition": 3,
+          "loop": 8,
+          "ternary": 4
+        }
+      },
+      "embeddedLanguage": "python",
+      "unchanged_since_starting_head": true,
+      "source_sha256": "d713f30094bf3710904784f32215ba2a0eda7e3b8ebad85663465aa563508f84",
+      "disposition": "Retained REVIEW with justification; no threshold/baseline/exception change.",
+      "reason": "Unchanged retained analysis of finite fixture/profile/backend groups. Comprehension and loop decisions express explicit statistics/fidelity comparisons; historical reproduction is preserved without refactoring an archived experiment."
+    },
+    {
+      "guard": "complexity",
+      "path": "tools/image-helper/archive/858-final-bottlenecks-20261013-3K3yZ023/analyze.py",
+      "callable": "analyze.main",
+      "range": {
+        "startLine": 60,
+        "endLine": 122
+      },
+      "measured": 38,
+      "state": "review",
+      "thresholds": {
+        "reviewAt": 15
+      },
+      "details": {
+        "boundaryKind": "callable",
+        "decisions": {
+          "comprehension": 24,
+          "condition": 1,
+          "loop": 11,
+          "ternary": 1
+        }
+      },
+      "embeddedLanguage": "python",
+      "unchanged_since_starting_head": true,
+      "source_sha256": "9594e57681b373f044cf1b5372272a09c69d67a65683d0bce1d89e7d1207fd3d",
+      "disposition": "Retained REVIEW with justification; no threshold/baseline/exception change.",
+      "reason": "Unchanged retained analysis of finite fixture/profile/backend groups. Comprehension and loop decisions express explicit statistics/fidelity comparisons; historical reproduction is preserved without refactoring an archived experiment."
+    },
+    {
+      "guard": "complexity",
+      "path": "tools/image-helper/archive/858-rust-diagnosis-20261013-mx7bvah1/analyze.py",
+      "callable": "analyze.main",
+      "range": {
+        "startLine": 102,
+        "endLine": 151
+      },
+      "measured": 24,
+      "state": "review",
+      "thresholds": {
+        "reviewAt": 15
+      },
+      "details": {
+        "boundaryKind": "callable",
+        "decisions": {
+          "comprehension": 11,
+          "loop": 11,
+          "ternary": 1
+        }
+      },
+      "embeddedLanguage": "python",
+      "unchanged_since_starting_head": true,
+      "source_sha256": "54f15b3b44977e37c046176405165f84512361adbf24346f01e406fea3334a7d",
+      "disposition": "Retained REVIEW with justification; no threshold/baseline/exception change.",
+      "reason": "Unchanged retained analysis of finite fixture/profile/backend groups. Comprehension and loop decisions express explicit statistics/fidelity comparisons; historical reproduction is preserved without refactoring an archived experiment."
+    },
+    {
+      "guard": "complexity",
+      "path": "tools/image-helper/archive/858-simd-experiment-20261013-mfkfwgez/analyze.py",
+      "callable": "analyze.main",
+      "range": {
+        "startLine": 60,
+        "endLine": 122
+      },
+      "measured": 38,
+      "state": "review",
+      "thresholds": {
+        "reviewAt": 15
+      },
+      "details": {
+        "boundaryKind": "callable",
+        "decisions": {
+          "comprehension": 24,
+          "condition": 1,
+          "loop": 11,
+          "ternary": 1
+        }
+      },
+      "embeddedLanguage": "python",
+      "unchanged_since_starting_head": true,
+      "source_sha256": "9594e57681b373f044cf1b5372272a09c69d67a65683d0bce1d89e7d1207fd3d",
+      "disposition": "Retained REVIEW with justification; no threshold/baseline/exception change.",
+      "reason": "Unchanged retained analysis of finite fixture/profile/backend groups. Comprehension and loop decisions express explicit statistics/fidelity comparisons; historical reproduction is preserved without refactoring an archived experiment."
+    },
+    {
+      "guard": "complexity",
+      "path": "tools/image-helper/archive/858-web-recovery-20261013-93ijKYrk/analyze.py",
+      "callable": "analyze.main",
+      "range": {
+        "startLine": 59,
+        "endLine": 121
+      },
+      "measured": 36,
+      "state": "review",
+      "thresholds": {
+        "reviewAt": 15
+      },
+      "details": {
+        "boundaryKind": "callable",
+        "decisions": {
+          "comprehension": 22,
+          "condition": 1,
+          "loop": 11,
+          "ternary": 1
+        }
+      },
+      "embeddedLanguage": "python",
+      "unchanged_since_starting_head": true,
+      "source_sha256": "fbca01cb641122744ad76af31841d265168c23dd7db3c5e82ac692bc49e1999f",
+      "disposition": "Retained REVIEW with justification; no threshold/baseline/exception change.",
+      "reason": "Unchanged retained analysis of finite fixture/profile/backend groups. Comprehension and loop decisions express explicit statistics/fidelity comparisons; historical reproduction is preserved without refactoring an archived experiment."
+    },
+    {
+      "guard": "complexity",
+      "path": "tools/image-helper/benchmarks/analyze.py",
+      "callable": "analyze.main",
+      "range": {
+        "startLine": 61,
+        "endLine": 123
+      },
+      "measured": 38,
+      "state": "review",
+      "thresholds": {
+        "reviewAt": 15
+      },
+      "details": {
+        "boundaryKind": "callable",
+        "decisions": {
+          "comprehension": 24,
+          "condition": 1,
+          "loop": 11,
+          "ternary": 1
+        }
+      },
+      "embeddedLanguage": "python",
+      "unchanged_since_starting_head": true,
+      "source_sha256": "3b310f7cc1a9ff8e6925373b65695043b23f2cc733b576713e57326a6014fcc7",
+      "disposition": "Retained REVIEW with justification; no threshold/baseline/exception change.",
+      "reason": "Unchanged retained analysis of finite fixture/profile/backend groups. Comprehension and loop decisions express explicit statistics/fidelity comparisons; historical reproduction is preserved without refactoring an archived experiment."
+    },
+    {
+      "guard": "complexity",
+      "path": "tools/image-helper/src/gif_input.rs",
+      "callable": "gif_input.admit",
+      "range": {
+        "startLine": 76,
+        "endLine": 183
+      },
+      "measured": 24,
+      "state": "review",
+      "thresholds": {
+        "reviewAt": 15
+      },
+      "details": {
+        "boundaryKind": "callable",
+        "decisions": {
+          "condition": 13,
+          "loop": 1,
+          "pattern_guard": 1,
+          "switch_arm": 8
+        }
+      },
+      "embeddedLanguage": "rust",
+      "unchanged_since_starting_head": true,
+      "source_sha256": "3dc6ae419fe0d2a6ff0808d8a4b9316f0e647e5ad75aaa9002715cb03c9dfaf1",
+      "disposition": "Retained REVIEW with justification; no threshold/baseline/exception change.",
+      "reason": "One unchanged format-admission state machine keeps chunk/frame transition, byte boundary, completion and source-limit authority together. Focused behavioral cases passed; no metric-driven parser rewrite is appropriate."
+    },
+    {
+      "guard": "complexity",
+      "path": "tools/image-helper/src/png_input.rs",
+      "callable": "png_input.admit",
+      "range": {
+        "startLine": 47,
+        "endLine": 104
+      },
+      "measured": 18,
+      "state": "review",
+      "thresholds": {
+        "reviewAt": 15
+      },
+      "details": {
+        "boundaryKind": "callable",
+        "decisions": {
+          "condition": 4,
+          "loop": 1,
+          "pattern_guard": 3,
+          "switch_arm": 9
+        }
+      },
+      "embeddedLanguage": "rust",
+      "unchanged_since_starting_head": true,
+      "source_sha256": "21bc92220ae07e77d346716dc3fefdd3eafd46e43d729d1e4fac040526c2b2d5",
+      "disposition": "Retained REVIEW with justification; no threshold/baseline/exception change.",
+      "reason": "One unchanged format-admission state machine keeps chunk/frame transition, byte boundary, completion and source-limit authority together. Focused behavioral cases passed; no metric-driven parser rewrite is appropriate."
+    },
+    {
+      "guard": "complexity",
+      "path": "tools/image-helper/src/webp_input.rs",
+      "callable": "webp_input.admit",
+      "range": {
+        "startLine": 62,
+        "endLine": 137
+      },
+      "measured": 16,
+      "state": "review",
+      "thresholds": {
+        "reviewAt": 15
+      },
+      "details": {
+        "boundaryKind": "callable",
+        "decisions": {
+          "condition": 7,
+          "loop": 1,
+          "switch_arm": 7
+        }
+      },
+      "embeddedLanguage": "rust",
+      "unchanged_since_starting_head": true,
+      "source_sha256": "3c2ff05b16c29f3afd93df067875a79fc476fa3244f0472aee1aa556bc128e0a",
+      "disposition": "Retained REVIEW with justification; no threshold/baseline/exception change.",
+      "reason": "One unchanged format-admission state machine keeps chunk/frame transition, byte boundary, completion and source-limit authority together. Focused behavioral cases passed; no metric-driven parser rewrite is appropriate."
+    }
+  ],
+  "policies_or_baselines_modified": false
+}

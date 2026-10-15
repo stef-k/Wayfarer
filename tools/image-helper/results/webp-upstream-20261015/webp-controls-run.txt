@@ -1,0 +1,94 @@
+[
+  {
+    "control": "static.webp",
+    "exit": 0,
+    "output_bytes": 3523,
+    "geometry": [
+      64,
+      32
+    ]
+  },
+  {
+    "control": "rgb-icc.webp",
+    "exit": 0,
+    "output_bytes": 1290,
+    "geometry": [
+      64,
+      32
+    ]
+  },
+  {
+    "control": "animated.webp",
+    "exit": 4,
+    "output_bytes": 0
+  },
+  {
+    "control": "truncated.webp",
+    "exit": 4,
+    "output_bytes": 0
+  },
+  {
+    "control": "metadata.webp",
+    "exit": 4,
+    "output_bytes": 0
+  },
+  {
+    "control": "alpha-explicit-jpeg",
+    "exit": 4,
+    "output_bytes": 0
+  },
+  {
+    "control": "input-ceiling",
+    "exit": 3,
+    "output_bytes": 0
+  },
+  {
+    "control": "output-ceiling",
+    "exit": 70,
+    "output_bytes": 0
+  },
+  {
+    "control": "missing-tail",
+    "exit": 4,
+    "output_bytes": 0
+  },
+  {
+    "control": "axis-ceiling",
+    "exit": 3,
+    "output_bytes": 0
+  },
+  {
+    "control": "pixel-ceiling",
+    "exit": 3,
+    "output_bytes": 0
+  },
+  {
+    "control": "vp8l-animation-declaration",
+    "exit": 4,
+    "output_bytes": 0
+  },
+  {
+    "control": "icc-exif-xmp",
+    "exit": 0,
+    "output_bytes": 1290,
+    "geometry": [
+      32,
+      64
+    ]
+  },
+  {
+    "control": "upstream-huffman-overflow.webp",
+    "exit": 4,
+    "output_bytes": 0
+  },
+  {
+    "control": "upstream-partition-claim.webp",
+    "exit": 4,
+    "output_bytes": 0
+  },
+  {
+    "control": "huffman-exact-extent",
+    "exit": 4,
+    "output_bytes": 0
+  }
+]

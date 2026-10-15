@@ -1,0 +1,38 @@
+[
+  {
+    "control": "static.webp",
+    "geometry": [
+      64,
+      32
+    ],
+    "mode": "RGBA",
+    "decoded_pixels_equal_to_retained_fallback": true
+  },
+  {
+    "control": "rgb-icc.webp",
+    "geometry": [
+      64,
+      32
+    ],
+    "mode": "RGB",
+    "decoded_pixels_equal_to_retained_fallback": true
+  },
+  {
+    "control": "icc-exif-xmp",
+    "geometry": [
+      32,
+      64
+    ],
+    "mode": "RGB",
+    "decoded_pixels_equal_to_retained_fallback": true
+  },
+  {
+    "control": "alpha",
+    "alpha_exact": true,
+    "visible_rgb_exact": true
+  },
+  {
+    "control": "icc-exif-xmp",
+    "pixels_equal_to_rotated_icc_control": true
+  }
+]

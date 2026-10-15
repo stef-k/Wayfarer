@@ -1,0 +1,16 @@
+{
+  "selected_external_packages": 50,
+  "registry_packages_reverified": 49,
+  "registry_source_files_reverified": 3109,
+  "registry_versions_unchanged_from_retained_notice_bundle": true,
+  "retained_notice_bundle_sha256": "8125b92974afe8261949e32193a7b19b72cb1c8fd58811c9543cde507f9c2f25",
+  "upstream_git_license": "MIT OR Apache-2.0",
+  "upstream_legal_files": [
+    "LICENSE-APACHE",
+    "LICENSE-MIT"
+  ],
+  "upstream_mit_notice_matches_retained_bundle": true,
+  "upstream_mit_notice_sha256": "c77a4cf9da729987d0fe7ccd811e3bd27393914ddf3d23467c18cc22954513b3",
+  "separately_retained_upstream_apache_license": true,
+  "production_redistribution_approval": false
+}

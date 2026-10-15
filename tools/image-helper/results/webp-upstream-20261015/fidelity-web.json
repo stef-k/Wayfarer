@@ -1,0 +1,86 @@
+[
+  {
+    "mode": "recovered",
+    "fixture": "photo.webp",
+    "iteration": 0,
+    "wall_ms": 72.889099,
+    "popen_ms": 0.528965,
+    "child_cpu_ms": 71.316,
+    "sampled_child_peak_rss_kib": 17712,
+    "children_kernel_rss_highwater_kib": 24744,
+    "width_limit": 2048,
+    "height_limit": 2048,
+    "quality": 90,
+    "output_bytes": 501268,
+    "geometry": [
+      1920,
+      863
+    ],
+    "jpeg_sampling": [
+      [
+        1,
+        2,
+        2,
+        0
+      ],
+      [
+        2,
+        1,
+        1,
+        1
+      ],
+      [
+        3,
+        1,
+        1,
+        1
+      ]
+    ],
+    "output_sha256": "53cc952abb99bec844a8320909868ce1bbeadbc98a77604c300ced9301e5b9d3",
+    "pixels_sha256": "d8c517284184e76c9265f6af05d73be7749029225ae2ec42987fcaab3c823319",
+    "stages": [],
+    "stderr": ""
+  },
+  {
+    "mode": "recovered",
+    "fixture": "large-vilaplana.webp",
+    "iteration": 0,
+    "wall_ms": 307.48091,
+    "popen_ms": 0.572364,
+    "child_cpu_ms": 301.639,
+    "sampled_child_peak_rss_kib": 96552,
+    "children_kernel_rss_highwater_kib": 96456,
+    "width_limit": 2048,
+    "height_limit": 2048,
+    "quality": 90,
+    "output_bytes": 795809,
+    "geometry": [
+      2048,
+      1536
+    ],
+    "jpeg_sampling": [
+      [
+        1,
+        2,
+        2,
+        0
+      ],
+      [
+        2,
+        1,
+        1,
+        1
+      ],
+      [
+        3,
+        1,
+        1,
+        1
+      ]
+    ],
+    "output_sha256": "61ef34adceb814c4674bd5309689c9281ac82d7d14f3e17b55e7d27832d973dd",
+    "pixels_sha256": "894ce87231b375e1a9e25aef33e9770948a90e11e96288b323eb4b53d6c348ee",
+    "stages": [],
+    "stderr": ""
+  }
+]

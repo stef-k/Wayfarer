@@ -1,0 +1,53 @@
+{
+  "status": "UPSTREAM FIX QUALIFIED",
+  "authorization": "https://github.com/stef-k/Wayfarer/issues/858#issuecomment-6195912944",
+  "starting_commit": "64e704bcee433a077b212975dd64a22106379e3d",
+  "tested_implementation_commit": "fe4b053ed3091f07d7521dd72fc5f31e6e23825f",
+  "workspace": "/home/stef/wayfarer-research/858-webp-upstream-20261015",
+  "branch": "wip/858-webp-upstream-20261015",
+  "upstream_git_commit": "f4d80bd965df2c81e65b6f43c1f70e0750bd4b0f",
+  "dependency_change": "Qualification worktree only: remove native WebP default feature; pin direct official Git decoder; make image/webp benchmark-only; preserve all other locked versions.",
+  "test_delta": "Enable existing WebP Rust case for fallback, replay both retained Huffman fixtures; two xUnit cases assert Failed/exit4/null bytes/reaped child.",
+  "initial_lock_resolution": "cargo metadata --manifest-path tools/image-helper/Cargo.toml --format-version 1",
+  "commands": [
+    "cargo build --manifest-path tools/image-helper/Cargo.toml --locked --release --message-format=json",
+    "cargo fmt --manifest-path tools/image-helper/Cargo.toml --check",
+    "cargo test --manifest-path tools/image-helper/Cargo.toml --locked --release --target-dir ../target-checks",
+    "cargo clippy --manifest-path tools/image-helper/Cargo.toml --locked --release --all-targets --target-dir ../target-checks -- -D warnings",
+    "dotnet build tests/Wayfarer.Tests/Wayfarer.Tests.csproj -c Release -m:2 --nologo",
+    "dotnet test tests/Wayfarer.Tests/Wayfarer.Tests.csproj -c Release --no-build --no-restore --filter 'FullyQualifiedName~ImageHelperPrototype|FullyQualifiedName~ImageHelperPngCompletion' --logger 'trx;LogFileName=focused.trx' --results-directory ../evidence",
+    "python3 tools/image-helper/results/webp-fallback-20261015/check-webp-controls.py",
+    "python3 tools/image-helper/benchmarks/diagnose.py --modes recovered --candidate $WAYFARER_IMAGE_HELPER --fixtures photo.webp large-vilaplana.webp --count 1 --warmups 0 --width 2048 --height 2048 --quality 90 --report evidence/fidelity-web.json",
+    "python3 tools/image-helper/benchmarks/diagnose.py --modes recovered --candidate $WAYFARER_IMAGE_HELPER --fixtures photo.webp large-vilaplana.webp --count 1 --warmups 0 --width 600 --height 8192 --quality 85 --report evidence/fidelity-pdf.json",
+    "code-guard . --changed-only --json --json-mode compact",
+    "code-guard . --base-ref 64e704bcee433a077b212975dd64a22106379e3d --ci --json --json-mode compact",
+    "code-guard . --base-ref origin/main --ci --json --json-mode compact"
+  ],
+  "commands_cwd": "/home/stef/wayfarer-research/858-webp-upstream-20261015/source",
+  "environment": "Source ../env.sh first. CARGO_BUILD_JOBS=4; no code-generation/CPU feature overrides. Release and checks use separate target directories.",
+  "fixture_setup": "Exact retained fallback evidence/fixtures and evidence/controls copied into the isolated workspace. Exact retained 236-byte control also copied to evidence/fixtures/huffman-exact-extent.webp. No source fixtures modified.",
+  "checks": {
+    "rust_tests": 5,
+    "xunit_tests": 76,
+    "webp_controls": 16,
+    "photographic_smoke_outputs": 4,
+    "clippy": "PASS",
+    "fmt": "PASS",
+    "dotnet_build_errors": 0,
+    "dotnet_preexisting_warnings": 70
+  },
+  "original_upstream_control": "Retained 235-byte control matches upstream #118 comment base64 exactly; helper container authority rejects it before pixel decoding.",
+  "counterexample": "Exact 236-byte control returns exit4, zero stdout and controlled malformed-source stderr; actual supervisor returns Failed/null bytes and reaps child.",
+  "fidelity": "Fresh retained alpha/ICC/EXIF controls and four photographic outputs compared with retained fallback derivatives; decoded pixels equal, plus matching JPEG sampling/quantization and ICC except timestamp.",
+  "smoke_is_not_performance_qualification": true,
+  "preexisting_small_webp_pdf_p50_waiver_widened": false,
+  "performance_or_optimization_cycle": false,
+  "upstream_source_modifications": false,
+  "new_harness": false,
+  "preservation": "All helper runtime/supervisor source bytes and selected previous checkout HEAD unchanged. Existing reports, fixture bytes, previous performance evidence and worktrees preserved.",
+  "release_blocker": "Official crate release containing the fix required before production merge. Git pin is qualification-only. Integration, ARM64/native Linux packaging, independent review, CI and maintainer approval remain separate gates.",
+  "deviations": [
+    "Used origin/main for complete branch Code Guard: no local main exists in the isolated research repository.",
+    "No general performance comparison was rerun; only four existing-tool functional/fidelity smoke invocations."
+  ]
+}

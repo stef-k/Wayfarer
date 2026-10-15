@@ -1,0 +1,62 @@
+[
+  {
+    "profile": "web",
+    "fixture": "photo.webp",
+    "source_sha256": "802b8ccd7aa35d4cad8625bd0b565a7af6d64faf6560964e9b6dc530b53a3b93",
+    "output_sha256": "53cc952abb99bec844a8320909868ce1bbeadbc98a77604c300ced9301e5b9d3",
+    "geometry": [
+      1920,
+      863
+    ],
+    "decoded_pixels_equal_to_retained_fallback": true,
+    "jpeg_sampling_and_quantization_equal": true,
+    "canonical_icc_equal_except_timestamp": true,
+    "exif_entries": 0,
+    "xmp_absent": true
+  },
+  {
+    "profile": "web",
+    "fixture": "large-vilaplana.webp",
+    "source_sha256": "fb6f75989678e4daf03c8a9cd14eb00f34a3c2ff02ef718c8b86e5ce3918ccf0",
+    "output_sha256": "61ef34adceb814c4674bd5309689c9281ac82d7d14f3e17b55e7d27832d973dd",
+    "geometry": [
+      2048,
+      1536
+    ],
+    "decoded_pixels_equal_to_retained_fallback": true,
+    "jpeg_sampling_and_quantization_equal": true,
+    "canonical_icc_equal_except_timestamp": true,
+    "exif_entries": 0,
+    "xmp_absent": true
+  },
+  {
+    "profile": "pdf",
+    "fixture": "photo.webp",
+    "source_sha256": "802b8ccd7aa35d4cad8625bd0b565a7af6d64faf6560964e9b6dc530b53a3b93",
+    "output_sha256": "7cda43ccbf787096aafdccfe24e629805862b09ca4036e59c3febf7389f4dd21",
+    "geometry": [
+      600,
+      269
+    ],
+    "decoded_pixels_equal_to_retained_fallback": true,
+    "jpeg_sampling_and_quantization_equal": true,
+    "canonical_icc_equal_except_timestamp": true,
+    "exif_entries": 0,
+    "xmp_absent": true
+  },
+  {
+    "profile": "pdf",
+    "fixture": "large-vilaplana.webp",
+    "source_sha256": "fb6f75989678e4daf03c8a9cd14eb00f34a3c2ff02ef718c8b86e5ce3918ccf0",
+    "output_sha256": "49f5a78511a812fca2dc2409b189ab45a707164baee4818aa23d9ddefe56d748",
+    "geometry": [
+      600,
+      450
+    ],
+    "decoded_pixels_equal_to_retained_fallback": true,
+    "jpeg_sampling_and_quantization_equal": true,
+    "canonical_icc_equal_except_timestamp": true,
+    "exif_entries": 0,
+    "xmp_absent": true
+  }
+]

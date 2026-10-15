@@ -1,0 +1,78 @@
+wayfarer-image v0.1.0 (/home/stef/wayfarer-research/858-webp-upstream-20261015/source/tools/image-helper)
+├── fast_image_resize v6.1.0
+│   ├── cfg-if v1.0.5
+│   ├── document-features v0.2.12 (proc-macro)
+│   │   └── litrs v1.0.1
+│   ├── num-traits v0.2.19
+│   │   [build-dependencies]
+│   │   └── autocfg v1.5.1
+│   └── thiserror v2.0.21
+│       └── thiserror-impl v2.0.21 (proc-macro)
+│           ├── proc-macro2 v1.0.107
+│           │   └── unicode-ident v1.0.27
+│           ├── quote v1.0.47
+│           │   └── proc-macro2 v1.0.107 (*)
+│           └── syn v3.0.9
+│               ├── proc-macro2 v1.0.107 (*)
+│               ├── quote v1.0.47 (*)
+│               └── unicode-ident v1.0.27
+├── gif v0.14.2
+│   ├── color_quant v1.1.0
+│   └── weezl v0.1.12
+├── image v0.25.10
+│   ├── bytemuck v1.25.2
+│   ├── byteorder-lite v0.1.0
+│   ├── color_quant v1.1.0
+│   ├── gif v0.14.2 (*)
+│   ├── moxcms v0.8.0
+│   │   ├── num-traits v0.2.19 (*)
+│   │   └── pxfm v0.1.30
+│   ├── num-traits v0.2.19 (*)
+│   ├── png v0.18.1
+│   │   ├── bitflags v2.13.2
+│   │   ├── crc32fast v1.5.2
+│   │   │   └── cfg-if v1.0.5
+│   │   ├── fdeflate v0.3.7
+│   │   │   └── simd-adler32 v0.3.10
+│   │   ├── flate2 v1.1.10
+│   │   │   ├── crc32fast v1.5.2 (*)
+│   │   │   └── miniz_oxide v0.9.1
+│   │   │       ├── adler2 v2.0.1
+│   │   │       └── simd-adler32 v0.3.10
+│   │   └── miniz_oxide v0.8.9
+│   │       ├── adler2 v2.0.1
+│   │       └── simd-adler32 v0.3.10
+│   ├── zune-core v0.5.3
+│   └── zune-jpeg v0.5.15
+│       └── zune-core v0.5.3
+├── image-webp v0.2.4 (https://github.com/image-rs/image-webp?rev=f4d80bd965df2c81e65b6f43c1f70e0750bd4b0f#f4d80bd9)
+│   ├── byteorder-lite v0.1.0
+│   └── quick-error v2.0.1
+├── jpeg-decoder v0.3.2
+├── jpeg-encoder v0.7.1
+├── libc v0.2.177
+├── libjpeg-turbo-rs v0.8.0
+│   └── thiserror v2.0.21 (*)
+├── moxcms v0.8.0 (*)
+├── png v0.18.1 (*)
+├── turbojpeg v1.5.1
+│   ├── gcd v2.3.0
+│   ├── libc v0.2.177
+│   ├── thiserror v1.0.69
+│   │   └── thiserror-impl v1.0.69 (proc-macro)
+│   │       ├── proc-macro2 v1.0.107 (*)
+│   │       ├── quote v1.0.47 (*)
+│   │       └── syn v2.0.119
+│   │           ├── proc-macro2 v1.0.107 (*)
+│   │           ├── quote v1.0.47 (*)
+│   │           └── unicode-ident v1.0.27
+│   └── turbojpeg-sys v1.2.0
+│       └── libc v0.2.177
+│       [build-dependencies]
+│       ├── anyhow v1.0.104
+│       ├── cmake v0.1.58
+│       │   └── cc v1.8.0
+│       │       ├── find-msvc-tools v0.1.14
+│       │       └── shlex v2.0.1
+│       └── pkg-config v0.3.34
+└── turbojpeg-sys v1.2.0 (*)

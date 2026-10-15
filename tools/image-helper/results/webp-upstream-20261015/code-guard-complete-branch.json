@@ -1,0 +1,348 @@
+{
+  "overall": "review",
+  "scope": {
+    "selected": 377,
+    "analyzed": 72,
+    "inapplicable": 305,
+    "excluded": 0
+  },
+  "requiredPolicies": [
+    "callableSize",
+    "complexity",
+    "nesting"
+  ],
+  "guards": {
+    "loc": {
+      "state": "pass",
+      "findings": []
+    },
+    "policyRelaxation": {
+      "state": "pass",
+      "findings": []
+    },
+    "callableSize": {
+      "state": "review",
+      "findings": [
+        {
+          "path": "tests/Wayfarer.Tests/Util/ImageHelperPerformanceTests.cs",
+          "callable": "Wayfarer.Tests.Util.ImageHelperPerformanceTests.RecordStandaloneLoad",
+          "range": {
+            "startLine": 102,
+            "endLine": 199
+          },
+          "measured": 98,
+          "state": "review",
+          "thresholds": {
+            "reviewAt": 80
+          },
+          "embeddedLanguage": "csharp"
+        },
+        {
+          "path": "tools/image-helper/examples/codec_bench.rs",
+          "callable": "codec_bench.encode",
+          "range": {
+            "startLine": 97,
+            "endLine": 181
+          },
+          "measured": 85,
+          "state": "review",
+          "thresholds": {
+            "reviewAt": 80
+          },
+          "embeddedLanguage": "rust"
+        },
+        {
+          "path": "tools/image-helper/src/color.rs",
+          "callable": "color.png_profile",
+          "range": {
+            "startLine": 27,
+            "endLine": 116
+          },
+          "measured": 90,
+          "state": "review",
+          "thresholds": {
+            "reviewAt": 80
+          },
+          "embeddedLanguage": "rust"
+        },
+        {
+          "path": "tools/image-helper/src/gif_input.rs",
+          "callable": "gif_input.admit",
+          "range": {
+            "startLine": 76,
+            "endLine": 183
+          },
+          "measured": 108,
+          "state": "review",
+          "thresholds": {
+            "reviewAt": 80
+          },
+          "embeddedLanguage": "rust"
+        }
+      ]
+    },
+    "nesting": {
+      "state": "review",
+      "findings": [
+        {
+          "path": "tools/image-helper/src/gif_input.rs",
+          "callable": "gif_input.admit",
+          "range": {
+            "startLine": 76,
+            "endLine": 183
+          },
+          "measured": 5,
+          "state": "review",
+          "thresholds": {
+            "reviewAt": 4
+          },
+          "details": {
+            "deepestLine": 114
+          },
+          "embeddedLanguage": "rust"
+        }
+      ]
+    },
+    "complexity": {
+      "state": "review",
+      "findings": [
+        {
+          "path": "tools/image-helper/archive/858-codec-comparison-20261013-zufsdz12/analyze.py",
+          "callable": "analyze.main",
+          "range": {
+            "startLine": 60,
+            "endLine": 122
+          },
+          "measured": 38,
+          "state": "review",
+          "thresholds": {
+            "reviewAt": 15
+          },
+          "details": {
+            "boundaryKind": "callable",
+            "decisions": {
+              "comprehension": 24,
+              "condition": 1,
+              "loop": 11,
+              "ternary": 1
+            }
+          },
+          "embeddedLanguage": "python"
+        },
+        {
+          "path": "tools/image-helper/archive/858-codec-comparison-20261013-zufsdz12/quality_codec.py",
+          "callable": "quality_codec.main",
+          "range": {
+            "startLine": 27,
+            "endLine": 80
+          },
+          "measured": 23,
+          "state": "review",
+          "thresholds": {
+            "reviewAt": 15
+          },
+          "details": {
+            "boundaryKind": "callable",
+            "decisions": {
+              "comprehension": 7,
+              "condition": 3,
+              "loop": 8,
+              "ternary": 4
+            }
+          },
+          "embeddedLanguage": "python"
+        },
+        {
+          "path": "tools/image-helper/archive/858-final-bottlenecks-20261013-3K3yZ023/analyze.py",
+          "callable": "analyze.main",
+          "range": {
+            "startLine": 60,
+            "endLine": 122
+          },
+          "measured": 38,
+          "state": "review",
+          "thresholds": {
+            "reviewAt": 15
+          },
+          "details": {
+            "boundaryKind": "callable",
+            "decisions": {
+              "comprehension": 24,
+              "condition": 1,
+              "loop": 11,
+              "ternary": 1
+            }
+          },
+          "embeddedLanguage": "python"
+        },
+        {
+          "path": "tools/image-helper/archive/858-rust-diagnosis-20261013-mx7bvah1/analyze.py",
+          "callable": "analyze.main",
+          "range": {
+            "startLine": 102,
+            "endLine": 151
+          },
+          "measured": 24,
+          "state": "review",
+          "thresholds": {
+            "reviewAt": 15
+          },
+          "details": {
+            "boundaryKind": "callable",
+            "decisions": {
+              "comprehension": 11,
+              "loop": 11,
+              "ternary": 1
+            }
+          },
+          "embeddedLanguage": "python"
+        },
+        {
+          "path": "tools/image-helper/archive/858-simd-experiment-20261013-mfkfwgez/analyze.py",
+          "callable": "analyze.main",
+          "range": {
+            "startLine": 60,
+            "endLine": 122
+          },
+          "measured": 38,
+          "state": "review",
+          "thresholds": {
+            "reviewAt": 15
+          },
+          "details": {
+            "boundaryKind": "callable",
+            "decisions": {
+              "comprehension": 24,
+              "condition": 1,
+              "loop": 11,
+              "ternary": 1
+            }
+          },
+          "embeddedLanguage": "python"
+        },
+        {
+          "path": "tools/image-helper/archive/858-web-recovery-20261013-93ijKYrk/analyze.py",
+          "callable": "analyze.main",
+          "range": {
+            "startLine": 59,
+            "endLine": 121
+          },
+          "measured": 36,
+          "state": "review",
+          "thresholds": {
+            "reviewAt": 15
+          },
+          "details": {
+            "boundaryKind": "callable",
+            "decisions": {
+              "comprehension": 22,
+              "condition": 1,
+              "loop": 11,
+              "ternary": 1
+            }
+          },
+          "embeddedLanguage": "python"
+        },
+        {
+          "path": "tools/image-helper/benchmarks/analyze.py",
+          "callable": "analyze.main",
+          "range": {
+            "startLine": 61,
+            "endLine": 123
+          },
+          "measured": 38,
+          "state": "review",
+          "thresholds": {
+            "reviewAt": 15
+          },
+          "details": {
+            "boundaryKind": "callable",
+            "decisions": {
+              "comprehension": 24,
+              "condition": 1,
+              "loop": 11,
+              "ternary": 1
+            }
+          },
+          "embeddedLanguage": "python"
+        },
+        {
+          "path": "tools/image-helper/src/gif_input.rs",
+          "callable": "gif_input.admit",
+          "range": {
+            "startLine": 76,
+            "endLine": 183
+          },
+          "measured": 24,
+          "state": "review",
+          "thresholds": {
+            "reviewAt": 15
+          },
+          "details": {
+            "boundaryKind": "callable",
+            "decisions": {
+              "condition": 13,
+              "loop": 1,
+              "pattern_guard": 1,
+              "switch_arm": 8
+            }
+          },
+          "embeddedLanguage": "rust"
+        },
+        {
+          "path": "tools/image-helper/src/png_input.rs",
+          "callable": "png_input.admit",
+          "range": {
+            "startLine": 47,
+            "endLine": 104
+          },
+          "measured": 18,
+          "state": "review",
+          "thresholds": {
+            "reviewAt": 15
+          },
+          "details": {
+            "boundaryKind": "callable",
+            "decisions": {
+              "condition": 4,
+              "loop": 1,
+              "pattern_guard": 3,
+              "switch_arm": 9
+            }
+          },
+          "embeddedLanguage": "rust"
+        },
+        {
+          "path": "tools/image-helper/src/webp_input.rs",
+          "callable": "webp_input.admit",
+          "range": {
+            "startLine": 62,
+            "endLine": 137
+          },
+          "measured": 16,
+          "state": "review",
+          "thresholds": {
+            "reviewAt": 15
+          },
+          "details": {
+            "boundaryKind": "callable",
+            "decisions": {
+              "condition": 7,
+              "loop": 1,
+              "switch_arm": 7
+            }
+          },
+          "embeddedLanguage": "rust"
+        }
+      ]
+    },
+    "markdownDocumentSize": {
+      "state": "pass",
+      "findings": []
+    },
+    "markdownSectionSize": {
+      "state": "pass",
+      "findings": []
+    }
+  }
+}

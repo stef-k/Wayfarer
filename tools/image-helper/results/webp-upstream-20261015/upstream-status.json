@@ -1,0 +1,39 @@
+{
+  "checked_at_utc": "2026-10-15T15:47:22.505343+00:00",
+  "latest_published_release": "0.2.4",
+  "main_commit": "f4d80bd965df2c81e65b6f43c1f70e0750bd4b0f",
+  "release_branch_commit": "75f810915d02ae4ff55d3f825bf6a4b07efdf994",
+  "fix_pr": {
+    "body": "This ports over the huffman table building logic from `fdeflate`. The most significant difference is that it uses a secondary decoding table rather than forcing `read_symbol_slowpath` to walk a tree structure. The primary tree now uses `u16` entries rather than `u32`'s which should save memory.\r\n\r\nImproves end-to-end performance by 1-2%\r\n\r\n",
+    "files": [
+      {
+        "path": "src/huffman.rs",
+        "additions": 136,
+        "deletions": 129,
+        "changeType": "MODIFIED"
+      }
+    ],
+    "mergeCommit": {
+      "oid": "4a794cd8b88efe5e7ea82ce35f97979e5d0c64b1"
+    },
+    "mergedAt": "2025-11-12T02:22:21Z",
+    "state": "MERGED",
+    "title": "Improve huffman decoder"
+  },
+  "main_fix_ancestry": {
+    "status": "ahead",
+    "ahead_by": 11,
+    "behind_by": 0,
+    "total_commits": 11
+  },
+  "release_fix_ancestry": {
+    "status": "diverged",
+    "ahead_by": 4,
+    "behind_by": 7,
+    "total_commits": 4
+  },
+  "release_fix_merge_base": "08b57d473c90148dd4b37a075df365afc3dfcc2b",
+  "official_release_blocker": true,
+  "upstream_posting": false,
+  "github_receipts": "Complete official gh responses retained in the local evidence root."
+}

@@ -1,0 +1,200 @@
+{
+  "files": [
+    {
+      "file": "THIRD-PARTY-LICENSES.txt.gz",
+      "bytes": 32070,
+      "sha256": "82f6e84a8ad725bc47015c53fc99d2ed7c405a9529342cf63ba52414cf70ede2"
+    },
+    {
+      "file": "build-identity.json",
+      "bytes": 4754,
+      "sha256": "6106af713b1289b334b68fb03e66b2cd5f12127dd1b772627b9b3233db04c855"
+    },
+    {
+      "file": "build.jsonl.gz",
+      "bytes": 4219,
+      "sha256": "2a1efcdf237c51629ac86d3289114ff56f88e60779c6dc8afb2ed0441457f365"
+    },
+    {
+      "file": "build.log.gz",
+      "bytes": 684,
+      "sha256": "09b2e40228a4ff391a7dbef5497b595f804c88a821b7b718ac01e91752ae6ca7"
+    },
+    {
+      "file": "code-guard-changed-only.json",
+      "bytes": 681,
+      "sha256": "f8b35ed16f0aa5baacae6bd5934fba4c88a418c046022f8ff9e19cbb20222d33"
+    },
+    {
+      "file": "code-guard-complete-branch.json",
+      "bytes": 8961,
+      "sha256": "fa975d507b200085aca099cda66f938c3e5797546754c5f3e573a6b7074b4cb9"
+    },
+    {
+      "file": "code-guard-disposition.json",
+      "bytes": 14953,
+      "sha256": "077e4aa9552d81968fd02544c54e1a2e0977524832395733e65dbbae88e24f60"
+    },
+    {
+      "file": "code-guard-environment.json",
+      "bytes": 602,
+      "sha256": "6388865edb9af26a9a977a54441d8323d718f7a74fce1f579bb8572ce8ba54f5"
+    },
+    {
+      "file": "code-guard-task-delta.json",
+      "bytes": 679,
+      "sha256": "d80e2dc471621f3809f880d8d36f5d9c5f04265eeab4b1227e2236bcdf2af7ec"
+    },
+    {
+      "file": "dependency-tree.txt",
+      "bytes": 3178,
+      "sha256": "4bd1b46464e3ae82f87cd36a411e9126907a8553d07c56b1c276a121f9a7b5a2"
+    },
+    {
+      "file": "dotnet-build.log.gz",
+      "bytes": 1739,
+      "sha256": "34e899d9440389e8517adbdb815c9ddc2e9fbd2cf577155d5658da4c8d04896a"
+    },
+    {
+      "file": "env.sh",
+      "bytes": 535,
+      "sha256": "116ceea6cd06912d2efa29e8399a95c2841cd432a5102ce8577ec4865e69db2b"
+    },
+    {
+      "file": "environment.json",
+      "bytes": 785,
+      "sha256": "1b7379c3b9834f6980be1b72be54a5faf0be3865755b96b8f9a8c70800fa66bc"
+    },
+    {
+      "file": "fidelity-controls.json",
+      "bytes": 650,
+      "sha256": "3144de1c8bd3251a95fb0735ea2bc6c32787124d91c5c0d1ccc346215a11600b"
+    },
+    {
+      "file": "fidelity-pdf.json",
+      "bytes": 1668,
+      "sha256": "95df17920f71cefe79bf41084353c96b48fcf631fefb0b84924f999d1dfbab31"
+    },
+    {
+      "file": "fidelity-photos.json",
+      "bytes": 1966,
+      "sha256": "90eacf4df6293c10712fcd3d0daae068fff90b6acaebd1b8a92af4343ee441ec"
+    },
+    {
+      "file": "fidelity-web.json",
+      "bytes": 1653,
+      "sha256": "08cbe25f69ba62c8484d3376b1dccfb06601519de1c229a920ad1770d85a9031"
+    },
+    {
+      "file": "fixture-identities.json",
+      "bytes": 467,
+      "sha256": "2d08c5b900a1ad316f66bce7f7f37d2a35c8b230bb089c26feef407e29911dcc"
+    },
+    {
+      "file": "focused-tests.txt",
+      "bytes": 497,
+      "sha256": "54bc2f237c0c9c002f264d639f03c9cf5f00134b3f4088cb53bdcc627955cbe9"
+    },
+    {
+      "file": "focused.trx.gz",
+      "bytes": 15357,
+      "sha256": "0fcb9b64d412615c87004c1131545a17db47ec3b0f86ce426d4185c9b7cbd521"
+    },
+    {
+      "file": "image-webp-upstream-Cargo.toml",
+      "bytes": 595,
+      "sha256": "578c495e6dcaaf3815a8ac5060b995b6d5ee32d78f69cefc75d5bc6124274a49"
+    },
+    {
+      "file": "image-webp-upstream-LICENSE-APACHE",
+      "bytes": 10174,
+      "sha256": "0d542e0c8804e39aa7f37eb00da5a762149dc682d7829451287e11b938e94594"
+    },
+    {
+      "file": "image-webp-upstream-LICENSE-MIT",
+      "bytes": 1036,
+      "sha256": "c77a4cf9da729987d0fe7ccd811e3bd27393914ddf3d23467c18cc22954513b3"
+    },
+    {
+      "file": "image-webp-upstream-README.md",
+      "bytes": 2690,
+      "sha256": "36eb220a060c9e4338203e65ed417c31c6044251d7f729b8d0d5bab6fb67cfbe"
+    },
+    {
+      "file": "ldd.txt",
+      "bytes": 297,
+      "sha256": "065b077b256f3bdc75125867e2bfa82d337434c229faf2c564fb37fdc48792cd"
+    },
+    {
+      "file": "license-provenance.json",
+      "bytes": 668,
+      "sha256": "711dd0c4f969277c808b7d5f77c7e79d9cb14e7dacdc166f38e066131ab15323"
+    },
+    {
+      "file": "linked-symbols.txt.gz",
+      "bytes": 53505,
+      "sha256": "32d3345e1bcf41b5988450e7989eb7f0148d9065d6cc5cc8393dd602e769be63"
+    },
+    {
+      "file": "method.json",
+      "bytes": 4762,
+      "sha256": "8925c4d3a9ae340a712fc5eacb8a83f3550e077d2aec42635bfad8adf4389495"
+    },
+    {
+      "file": "notice-coverage.json",
+      "bytes": 37199,
+      "sha256": "cb32c29f3e11c10567c83e372bfda45d791900cfa8e6153d3f55d25234a349e6"
+    },
+    {
+      "file": "registry-source-verification.json",
+      "bytes": 9968,
+      "sha256": "3ad3d01d4c00483debc3aa4710ecf259424b224c9d51d54aa721434c66aba882"
+    },
+    {
+      "file": "rust-clippy.txt",
+      "bytes": 1274,
+      "sha256": "730c60267356fc1c1bd25808285368e428c6abac9340343b5427797f6d259f3a"
+    },
+    {
+      "file": "rust-fmt.txt",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "file": "rust-tests.txt.gz",
+      "bytes": 1086,
+      "sha256": "ea45fe004e3b09fcbccf76d872e96fb033661e6df0cfb8446e4048c94bbc86c6"
+    },
+    {
+      "file": "selected-dependencies.json",
+      "bytes": 23998,
+      "sha256": "039ceb8db5e8a94250d63ecf357c80300c235391e15c0ac599c2d5c4e780cd4a"
+    },
+    {
+      "file": "selected-source-preservation.json",
+      "bytes": 2673,
+      "sha256": "c616f6d5f7b84fe63b2822dbae0622afc11f85a2e931716a926ad1f4d2e27ba0"
+    },
+    {
+      "file": "upstream-source-verification.json",
+      "bytes": 21256,
+      "sha256": "5b1d78cd01bf004409f3869b45ae2aaf85fbf1dc2b2def75509e96434806b5bb"
+    },
+    {
+      "file": "upstream-status.json",
+      "bytes": 1425,
+      "sha256": "e632d6994d05f8aec7155555feb857186d03abdf22a094b1dd4122b9bae41a3c"
+    },
+    {
+      "file": "webp-controls-run.txt",
+      "bytes": 1448,
+      "sha256": "5be6fe2db9167f323b720e871bbde7e10b2aa41cbadb8dfe56221483f32ce3fc"
+    },
+    {
+      "file": "webp-controls.json",
+      "bytes": 12718,
+      "sha256": "091444934e0d92975df242ed9281613ce20b46e92738bf2c5434e5e3244ff333"
+    }
+  ],
+  "manifest_excludes_itself": true
+}
