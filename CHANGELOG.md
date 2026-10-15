@@ -15,6 +15,11 @@
 
 ### Fixed
 
+- Count a newly persisted keyed automatic capture toward visit detection only
+  after its Location insert succeeds. Failed writes, losing keyed conflicts and
+  persisted replays add no visit hit. Preserve genuine filtered-ping observations,
+  accuracy rejection, keyless behavior and manual check-in semantics (#818).
+
 - Skip non-finite and out-of-range WGS84 points in CSV, Wayfarer GeoJSON, GPX,
   KML and Google Timeline location-history imports before geography storage can
   alter their coordinates. Preserve valid extrema, `(0,0)`, metadata, UUIDs and

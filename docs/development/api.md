@@ -157,6 +157,15 @@ remains `success: true`, `skipped: true`, `locationId: null`. This check proves 
 what is persisted at lookup time; a later commit is acknowledged on a keyed retry.
 A lookup failure is an error, never evidence of an unpersisted skip.
 
+Automatic keyed captures selected for persistence enter visit detection only
+after their Location insert succeeds. Failed inserts, losing keyed conflicts and
+persisted replays add no visit hit. Genuine time/distance/duplicate-timestamp
+filtered pings still feed visit detection; a skip that instead finds a persisted
+same-account keyed winner adds no hit. Accuracy rejects stay outside visit detection.
+Unpersisted filtered pings have no durable creation receipt, so repeated deliveries
+and hard crashes carry no universal once-only visit guarantee. Keyless automatic
+pings and manual check-in retain their existing visit behavior.
+
 Use a new key for a new logical location write and retain the same key when retrying that write. An invalid GUID is a 400.
 
 Manual check-in intentionally bypasses automatic accuracy/time/distance filtering;
