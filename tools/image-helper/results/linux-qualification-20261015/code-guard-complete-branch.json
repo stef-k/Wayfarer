@@ -1,9 +1,9 @@
 {
   "overall": "review",
   "scope": {
-    "selected": 281,
-    "analyzed": 66,
-    "inapplicable": 215,
+    "selected": 311,
+    "analyzed": 67,
+    "inapplicable": 244,
     "excluded": 0
   },
   "requiredPolicies": [

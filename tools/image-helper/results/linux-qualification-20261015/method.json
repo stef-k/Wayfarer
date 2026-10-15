@@ -90,5 +90,13 @@
       "published_sha256": "4242b523212a4128183be6d0e8a68b4a9f1f4c9eca8d49939db8acf644db9e08",
       "normalization": "Final blank lines removed; one final LF retained. No diagnostic or result line changed."
     }
+  },
+  "code_guard": {
+    "task_base": "17a568c0af200588294e6725cf48a6b24fae8a38",
+    "full_branch_base_ref": "origin/main",
+    "fetched_origin_main": "1aa091fcad727fdf02416dd55c5a4fa1745a1972",
+    "task_delta": "PASS",
+    "complete_archived_branch": "REVIEW; 15 unchanged findings individually justified in code-guard-disposition.json",
+    "policies_unchanged": true
   }
 }
