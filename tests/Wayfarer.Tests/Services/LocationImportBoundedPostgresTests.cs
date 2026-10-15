@@ -4,8 +4,12 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Moq;
+using Quartz;
+using Quartz.Impl;
 using GeoPoint = NetTopologySuite.Geometries.Point;
 using Wayfarer.Areas.Api.Controllers;
+using Wayfarer.Jobs;
 using Wayfarer.Models;
 using Wayfarer.Models.Enums;
 using Wayfarer.Parsers;
@@ -20,6 +24,158 @@ namespace Wayfarer.Tests.Services;
 [Collection(PostgresImportTestCollection.Name)]
 public sealed class LocationImportBoundedPostgresTests(PostgresImportTestFixture fixture, ITestOutputHelper output)
 {
+    /// <summary>Rejects changed legacy ordinals through the production job and recovers only by a new import.</summary>
+    [PostgresFact]
+    public async Task LegacyCheckpoint_ChangedParserCountFails_AndNewImportRecoversMissingKey()
+    {
+        var user = await fixture.CreateUserAsync();
+        var keys = Enumerable.Range(0, 51).Select(_ => Guid.NewGuid()).ToArray();
+        var path = ImportStaging.TempFile();
+        var logs = new TestLogProvider();
+        using var logFactory = LoggerFactory.Create(builder => builder.AddProvider(logs));
+        using var client = new HttpClient();
+        var contexts = new FixtureFactory(fixture);
+        var worker = new LocationImportService(ImportStaging.Files, contexts,
+            new ReverseGeocodingService(client, NullLogger<BaseApiController>.Instance),
+            logFactory.CreateLogger<LocationImportService>(),
+            new LocationDataParserFactory(NullLoggerFactory.Instance), new SseService());
+        var scheduler = await new StdSchedulerFactory(new System.Collections.Specialized.NameValueCollection
+        {
+            ["quartz.scheduler.instanceName"] = $"checkpoint-{Guid.NewGuid():N}"
+        }).GetScheduler();
+        try
+        {
+            await File.WriteAllLinesAsync(path, ["Latitude,Longitude,TimestampUtc,IdempotencyKey,Notes",
+                .. keys.Select((key, index) =>
+                    $"{(index == 0 ? "100,200" : "40.1,22.2")},2026-08-25T00:00:{index:00}Z,{key:D},private-source-notes")]);
+            await using var db = fixture.CreateContext();
+            var legacyRows = keys.Take(50).Select((key, index) =>
+            {
+                var row = Location(user.Id, key, index);
+                if (index == 0) row.Coordinates = new GeoPoint(200, 100) { SRID = 4326 };
+                row.Notes = "Owner edit";
+                return row;
+            }).ToArray();
+            db.Locations.AddRange(legacyRows);
+            var legacy = new LocationImport
+            {
+                UserId = user.Id, FilePath = path, FileType = LocationImportFileType.Csv,
+                Status = ImportStatus.Stopped, ExecutionEpoch = 6,
+                TotalRecords = 51, LastProcessedIndex = 50
+            };
+            db.LocationImports.Add(legacy);
+            await db.SaveChangesAsync();
+            var original = await db.Locations.AsNoTracking().Where(row => row.UserId == user.Id)
+                .OrderBy(row => row.Id).ToListAsync();
+            var normalized = original.Single(row => row.IdempotencyKey == keys[0]);
+            Assert.Equal((-160, 80), (normalized.Coordinates.X, normalized.Coordinates.Y));
+            var lifecycle = new LocationImportLifecycle(ImportStaging.Files, contexts, scheduler,
+                NullLogger<LocationImportLifecycle>.Instance);
+            var job = new LocationImportJob(worker, NullLogger<LocationImportJob>.Instance, lifecycle);
+            for (var attempt = 0; attempt < 2; attempt++)
+            {
+                Assert.True((await lifecycle.StartAsync(user.Id, legacy.Id)).Succeeded);
+                var execution = new Mock<IJobExecutionContext>();
+                execution.SetupGet(item => item.JobDetail).Returns(
+                    (await scheduler.GetJobDetail(LocationImportSchedulerKeys.Job(legacy.Id, 7 + attempt)))!);
+                execution.SetupProperty(item => item.Result);
+                await job.Execute(execution.Object);
+                await db.Entry(legacy).ReloadAsync();
+                var rows = await db.Locations.AsNoTracking().Where(row => row.UserId == user.Id).ToListAsync();
+                output.WriteLine($"Legacy resume {attempt}: outcome={execution.Object.Result}, status={legacy.Status}, total={legacy.TotalRecords}, checkpoint={legacy.LastProcessedIndex}, rows={rows.Count}, final-valid-present={rows.Any(row => row.IdempotencyKey == keys[50])}");
+                Assert.Equal(LocationImportExecutionOutcome.Failed, execution.Object.Result);
+                Assert.Equal("Failed", LocationImportJobOutcome.ToHistoryStatus((LocationImportExecutionOutcome)execution.Object.Result!));
+                Assert.Equal(ImportStatus.Failed, legacy.Status);
+                Assert.Equal((51, 50, 0, 7 + attempt),
+                    (legacy.TotalRecords, legacy.LastProcessedIndex, legacy.SkippedDuplicates, legacy.ExecutionEpoch));
+                Assert.Contains("new import", legacy.ErrorMessage, StringComparison.OrdinalIgnoreCase);
+                Assert.InRange(legacy.ErrorMessage!.Length, 1, 200);
+                Assert.False(legacy.ProjectionPending);
+                Assert.Equal(original.Select(row => (row.Id, row.IdempotencyKey, row.Notes)),
+                    rows.OrderBy(row => row.Id).Select(row => (row.Id, row.IdempotencyKey, row.Notes)));
+            }
+            var recovery = new LocationImport
+            {
+                UserId = user.Id, FilePath = path, FileType = LocationImportFileType.Csv,
+                Status = ImportStatus.InProgress, ExecutionEpoch = 1,
+                TotalRecords = 0, LastProcessedIndex = 0
+            };
+            db.LocationImports.Add(recovery);
+            await db.SaveChangesAsync();
+            await worker.ProcessImport(recovery.Id, 1, CancellationToken.None);
+            await db.Entry(recovery).ReloadAsync();
+            var recovered = await db.Locations.AsNoTracking().Where(row => row.UserId == user.Id)
+                .OrderBy(row => row.Id).ToListAsync();
+            Assert.Equal(ImportStatus.Completed, recovery.Status);
+            Assert.Equal((50, 50, 49), (recovery.TotalRecords, recovery.LastProcessedIndex, recovery.SkippedDuplicates));
+            Assert.Null(recovery.ErrorMessage);
+            Assert.Equal(51, recovered.Count);
+            Assert.Equal(original.Select(row => (row.Id, row.IdempotencyKey, row.Notes, row.Coordinates.X, row.Coordinates.Y)),
+                recovered.Take(50).Select(row => (row.Id, row.IdempotencyKey, row.Notes, row.Coordinates.X, row.Coordinates.Y)));
+            Assert.Single(recovered, row => row.IdempotencyKey == keys[50]);
+            output.WriteLine("New import completed: total/checkpoint=50/50, duplicates=49, rows=51; missing valid key recovered, existing history preserved.");
+            Assert.Equal(2, logs.Entries.Count(entry => entry.Level == LogLevel.Error));
+            Assert.All(logs.Entries.Where(entry => entry.Level == LogLevel.Error), entry =>
+            {
+                Assert.Equal("location-import-checkpoint-incompatible", entry.Fields["Code"]);
+                Assert.Equal(2, entry.Fields.Count);
+                Assert.Null(entry.Exception);
+                Assert.DoesNotContain(path, entry.Message, StringComparison.Ordinal);
+                Assert.DoesNotContain("private-source-notes", entry.Message, StringComparison.Ordinal);
+                Assert.InRange(entry.Message.Length, 1, 200);
+            });
+        }
+        finally
+        {
+            File.Delete(path);
+            await scheduler.Shutdown();
+        }
+    }
+
+    /// <summary>Preserves compatible nonzero resumes and rejects missing totals or impossible saved ordinals.</summary>
+    [PostgresTheory]
+    [InlineData(2, 1, true)]
+    [InlineData(0, 1, false)]
+    [InlineData(-1, 1, false)]
+    [InlineData(1, 1, false)]
+    [InlineData(2, 3, false)]
+    public async Task SavedCheckpoint_RequiresUsableMatchingTotal(int savedTotal, int checkpoint, bool compatible)
+    {
+        var user = await fixture.CreateUserAsync();
+        var path = ImportStaging.TempFile();
+        try
+        {
+            var keys = new[] { Guid.NewGuid(), Guid.NewGuid() };
+            await File.WriteAllLinesAsync(path, ["Latitude,Longitude,TimestampUtc,IdempotencyKey",
+                .. keys.Select((key, index) => $"40.1,22.2,2026-08-25T00:00:{index:00}Z,{key:D}")]);
+            await using var db = fixture.CreateContext();
+            db.Locations.Add(Location(user.Id, keys[0], 0));
+            var import = new LocationImport
+            {
+                UserId = user.Id, FilePath = path, FileType = LocationImportFileType.Csv,
+                Status = ImportStatus.InProgress, ExecutionEpoch = 7,
+                TotalRecords = savedTotal, LastProcessedIndex = checkpoint
+            };
+            db.LocationImports.Add(import);
+            await db.SaveChangesAsync();
+            using var client = new HttpClient();
+            var worker = new LocationImportService(ImportStaging.Files, new FixtureFactory(fixture),
+                new ReverseGeocodingService(client, NullLogger<BaseApiController>.Instance),
+                NullLogger<LocationImportService>.Instance,
+                new LocationDataParserFactory(NullLoggerFactory.Instance), new SseService());
+            await worker.ProcessImport(import.Id, 7, CancellationToken.None);
+            await db.Entry(import).ReloadAsync();
+            Assert.Equal(compatible ? ImportStatus.Completed : ImportStatus.Failed, import.Status);
+            Assert.Equal(compatible ? 2 : savedTotal, import.TotalRecords);
+            Assert.Equal(compatible ? 2 : checkpoint, import.LastProcessedIndex);
+            Assert.Equal(compatible, await db.Locations.AnyAsync(row => row.UserId == user.Id && row.IdempotencyKey == keys[1]));
+            Assert.Equal(0, import.SkippedDuplicates);
+            if (compatible) Assert.Null(import.ErrorMessage);
+            else Assert.Contains("new import", import.ErrorMessage, StringComparison.OrdinalIgnoreCase);
+        }
+        finally { File.Delete(path); }
+    }
+
     /// <summary>Filters the original geography-wrapping witness before checkpoints and keyed replay.</summary>
     [PostgresFact]
     public async Task MixedCsv_InvalidCoordinatesNeverPersist_AndReplayPreservesCommittedHistory()
