@@ -15,6 +15,11 @@
 
 ### Fixed
 
+- Skip non-finite and out-of-range WGS84 points in CSV, Wayfarer GeoJSON, GPX,
+  KML and Google Timeline location-history imports before geography storage can
+  alter their coordinates. Preserve valid extrema, `(0,0)`, metadata, UUIDs and
+  existing yielded-record progress and replay behavior (#817).
+
 - Return the persisted same-account UUID winner's numeric ID when an automatic
   location upload reaches a filter after a concurrent import commits. Genuine
   unpersisted skips and keyless responses retain skipped/null semantics; existing

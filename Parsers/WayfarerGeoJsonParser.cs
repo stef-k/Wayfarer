@@ -81,6 +81,14 @@ namespace Wayfarer.Parsers
                         .Read<FeatureCollection>(wrapper.ToString())?.FirstOrDefault();
                     // skip non‑Points
                     if (feat?.Geometry is not Point pt) continue;
+                    // Validate decoded ordinates before yielding a WGS84 geography point.
+                    if (!double.IsFinite(pt.Y) || pt.Y is < -90 or > 90 ||
+                        !double.IsFinite(pt.X) || pt.X is < -180 or > 180)
+                    {
+                        _logger.LogWarning("Skipping GeoJSON feature; code {Code}.",
+                            "location-import-invalid-coordinate");
+                        continue;
+                    }
 
                     var attrs = feat.Attributes;
                     var rawProperties = featureJson["properties"] as JObject;

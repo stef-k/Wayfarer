@@ -53,10 +53,14 @@ public sealed class CsvLocationParser : ILocationDataParser
         while (await csv.ReadAsync())
         {
             cancellationToken.ThrowIfCancellationRequested();
+            // Reject invalid WGS84 input before PostGIS can normalize a geography point.
             if (!TryGetRequiredDouble(csv, "Latitude", out var latitude) ||
-                !TryGetRequiredDouble(csv, "Longitude", out var longitude))
+                !TryGetRequiredDouble(csv, "Longitude", out var longitude) ||
+                !double.IsFinite(latitude) || latitude is < -90 or > 90 ||
+                !double.IsFinite(longitude) || longitude is < -180 or > 180)
             {
-                _logger.LogWarning("Skipping CSV record due to missing coordinates at row {Row}.", csv.Context?.Parser?.Row ?? 0);
+                _logger.LogWarning("Skipping CSV record; code {Code}; row {Row}.",
+                    "location-import-invalid-coordinate", csv.Context?.Parser?.Row ?? 0);
                 continue;
             }
 

@@ -52,6 +52,11 @@ Generic GeoJSON is not supported for new location-history uploads. Google My Map
 and Wayfarer **Trip** KML belong in the [Trip importer](#move-trip-plans), not this
 history workflow.
 
+All five history formats require finite latitude in `[-90, 90]` and longitude in
+`[-180, 180]`, including the endpoints. `(0,0)` is valid. Points with missing,
+malformed, non-finite or out-of-range coordinates are skipped without changing
+the valid records. Malformed GeoJSON syntax can still fail the import.
+
 For CSV, the required columns are `Latitude`, `Longitude` and `TimestampUtc`.
 Use decimal latitude/longitude coordinates and timestamps with an explicit UTC
 or timezone offset. For example:
@@ -71,6 +76,9 @@ errors. Records carrying portable identifiers are recognized by those identifier
 other records are checked for matching times and coordinates within a small
 tolerance. An import can finish with fewer new records than its source contains
 because of duplicates or invalid rows.
+
+Skipped invalid points do not contribute to the total or last processed record;
+duplicates still do. Repeating an import does not restore filtered invalid points.
 
 ![Completed import with a durable Invalid Activity warning](../images/location-imports.JPG)
 

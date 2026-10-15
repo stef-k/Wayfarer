@@ -106,8 +106,7 @@ public class GoogleTimelineJsonParser : ILocationDataParser
         };
     }
 
-    // Helper: parse "40.8497007°, 25.869276°"
-    //  └── parts[0] = latitude, parts[1] = longitude
+    /// <summary>Reads latitude/longitude text and skips invalid WGS84 input before constructing a point.</summary>
     private bool TryParsePoint(string raw, out Point pt)
     {
         pt = null!;
@@ -115,10 +114,16 @@ public class GoogleTimelineJsonParser : ILocationDataParser
                        .Split(',', StringSplitOptions.TrimEntries);
         if (parts.Length != 2) return false;
 
-        // CORRECTED: first element is LATITUDE
+        // The first element is latitude; the second is longitude.
         if (!double.TryParse(parts[0], out double lat)) return false;
-        // second element is LONGITUDE
         if (!double.TryParse(parts[1], out double lng)) return false;
+        if (!double.IsFinite(lat) || lat is < -90 or > 90 ||
+            !double.IsFinite(lng) || lng is < -180 or > 180)
+        {
+            _logger.LogWarning("Skipping Google Timeline point; code {Code}.",
+                "location-import-invalid-coordinate");
+            return false;
+        }
 
         // Point expects (longitude, latitude)
         pt = new Point(lng, lat) { SRID = 4326 };
