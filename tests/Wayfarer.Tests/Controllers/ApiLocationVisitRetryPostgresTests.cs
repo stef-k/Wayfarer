@@ -73,6 +73,69 @@ public sealed class ApiLocationVisitRetryPostgresTests(PostgresImportTestFixture
         Assert.False(await verify.PlaceVisitCandidates.AnyAsync(row => row.UserId == user.Id));
     }
 
+    /// <summary>Distinct filtered observations still confirm visits; accuracy rejection contributes no hit.</summary>
+    [PostgresTheory]
+    [InlineData("time", true)]
+    [InlineData("distance", true)]
+    [InlineData("duplicate", true)]
+    [InlineData("accuracy", true)]
+    [InlineData("time", false)]
+    public async Task LogLocation_DistinctFilteredPing_PreservesVisitPolicy(string filter, bool keyed)
+    {
+        var user = await SeedPlaceAsync();
+        var dto = ApiLocationAdmissionTests.Dto();
+        await using (var firstDb = fixture.CreateContext())
+            AssertSaved(await Controller(firstDb, user.Id, keyed ? Guid.NewGuid() : null).LogLocation(dto));
+
+        if (filter == "duplicate")
+        {
+            // Keep the original capture timestamp but pass the server-time and distance filters.
+            await using var seed = fixture.CreateContext();
+            await seed.Locations.Where(row => row.UserId == user.Id)
+                .ExecuteUpdateAsync(update => update.SetProperty(row => row.Timestamp, dto.Timestamp.AddMinutes(-10)));
+            dto.Longitude += 0.0002;
+        }
+        else dto.Timestamp = dto.Timestamp.AddMinutes(filter == "time" ? 1 : 6);
+        if (filter == "accuracy") dto.Accuracy = 51;
+
+        await using (var filteredDb = fixture.CreateContext())
+        {
+            var result = await Controller(filteredDb, user.Id, keyed ? Guid.NewGuid() : null).LogLocation(dto);
+            var response = JsonSerializer.SerializeToElement(Assert.IsType<OkObjectResult>(result).Value);
+            Assert.True(response.GetProperty("success").GetBoolean());
+            Assert.True(response.GetProperty("skipped").GetBoolean());
+            Assert.Equal(JsonValueKind.Null, response.GetProperty("locationId").ValueKind);
+        }
+
+        await using var verify = fixture.CreateContext();
+        Assert.Equal(1, await verify.Locations.CountAsync(row => row.UserId == user.Id));
+        Assert.Equal(filter == "accuracy" ? 0 : 1,
+            await verify.PlaceVisitEvents.CountAsync(row => row.UserId == user.Id));
+        Assert.Equal(filter == "accuracy" ? 1 : 0,
+            await verify.PlaceVisitCandidates.CountAsync(row => row.UserId == user.Id));
+    }
+
+    /// <summary>A best-effort visit failure after a keyed insert does not turn durable creation into an error.</summary>
+    [PostgresFact]
+    public async Task LogLocation_VisitFailureAfterSave_StillAcknowledgesLocation()
+    {
+        var user = await SeedPlaceAsync();
+        var visits = new Mock<IPlaceVisitDetectionService>(MockBehavior.Strict);
+        visits.Setup(service => service.ProcessPingAsync(user.Id, It.IsAny<NetTopologySuite.Geometries.Point>(),
+                It.IsAny<double?>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("Synthetic visit failure"));
+        await using var db = fixture.CreateContext();
+        var controller = ApiLocationAdmissionTests.Controller(db, new ApiWorkAdmission(64, 8), visits.Object);
+        controller.Request.Headers.Authorization = $"Bearer {user.Id}";
+        controller.Request.Headers["Idempotency-Key"] = Guid.NewGuid().ToString("D");
+
+        AssertSaved(await controller.LogLocation(ApiLocationAdmissionTests.Dto()));
+
+        await using var verify = fixture.CreateContext();
+        Assert.Equal(1, await verify.Locations.CountAsync(row => row.UserId == user.Id));
+        visits.VerifyAll();
+    }
+
     /// <summary>Seeds only fixture-owned identity, token and spatial trip data for the default two-hit policy.</summary>
     private async Task<ApplicationUser> SeedPlaceAsync()
     {

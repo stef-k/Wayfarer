@@ -32,19 +32,17 @@ public class ApiLocationIdempotencyPostgresTests(PostgresImportTestFixture fixtu
         dto.Timestamp = new DateTime(2026, 10, 15, 12, 0, 0, DateTimeKind.Utc);
         dto.Notes = "API retry must not overwrite the import";
         var importCommitted = false;
-        var visits = new Mock<IPlaceVisitDetectionService>(MockBehavior.Strict);
-        visits.Setup(service => service.ProcessPingAsync(user.Id, It.IsAny<Point>(), dto.Accuracy,
-                It.IsAny<CancellationToken>()))
-            .Returns(async () =>
+        var afterKeyMiss = new KeyMissImportInterceptor(async () =>
             {
-                // The API is suspended at its existing visit seam, after the initial keyed lookup missed.
+                // The initial SELECT has executed with no winner; import before the API evaluates filters.
                 await using var before = fixture.CreateContext();
                 Assert.False(await before.Locations.AnyAsync(row => row.UserId == user.Id));
                 await ImportWinner(user.Id, key, dto.Timestamp);
                 importCommitted = true;
             });
+        var visits = new Mock<IPlaceVisitDetectionService>(MockBehavior.Strict);
         var sse = new Mock<SseService>(MockBehavior.Strict);
-        await using var apiDb = fixture.CreateContext();
+        await using var apiDb = fixture.CreateContext(afterKeyMiss);
         var controller = ApiLocationAdmissionTests.Controller(apiDb, new ApiWorkAdmission(64, 8), visits.Object, sse.Object);
         controller.Request.Headers.Authorization = $"Bearer {user.Id}";
         controller.Request.Headers["Idempotency-Key"] = key.ToString("B");
@@ -61,8 +59,7 @@ public class ApiLocationIdempotencyPostgresTests(PostgresImportTestFixture fixtu
         Assert.Equal(dto.Timestamp, winner.LocalTimestamp);
         Assert.Equal("Imported winner", winner.Notes);
         Assert.Equal("Imported device", winner.DeviceModel);
-        visits.Verify(service => service.ProcessPingAsync(user.Id, It.IsAny<Point>(), dto.Accuracy,
-            It.IsAny<CancellationToken>()), Times.Once);
+        visits.VerifyNoOtherCalls();
         sse.VerifyNoOtherCalls();
     }
 
@@ -118,9 +115,12 @@ public class ApiLocationIdempotencyPostgresTests(PostgresImportTestFixture fixtu
             return new ApplicationSettings { Id = 1 };
         });
         await using var apiDb = fixture.CreateContext();
+        var visits = new Mock<IPlaceVisitDetectionService>(MockBehavior.Strict);
+        visits.Setup(service => service.ProcessPingAsync(user.Id, It.IsAny<Point>(), dto.Accuracy,
+            It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
         var sse = new Mock<SseService>(MockBehavior.Strict);
         var controller = ApiLocationAdmissionTests.Controller(apiDb, new ApiWorkAdmission(64, 8),
-            sse: sse.Object, settingsService: settings.Object);
+            visits.Object, sse.Object, settingsService: settings.Object);
         controller.Request.Headers.Authorization = $"Bearer {user.Id}";
         if (outcome != "keyless") controller.Request.Headers["Idempotency-Key"] = key.ToString("D");
 
@@ -131,6 +131,8 @@ public class ApiLocationIdempotencyPostgresTests(PostgresImportTestFixture fixtu
             await verify.Locations.CountAsync(row => row.UserId == user.Id || row.UserId == winnerOwner.Id));
         if (outcome != "absent")
             Assert.Equal("Concurrent winner", (await verify.Locations.AsNoTracking().SingleAsync(row => row.Id == winner.Id)).Notes);
+        visits.Verify(service => service.ProcessPingAsync(user.Id, It.IsAny<Point>(), dto.Accuracy,
+            It.IsAny<CancellationToken>()), outcome == "winner" || filter == "accuracy" ? Times.Never() : Times.Once());
         sse.VerifyNoOtherCalls();
     }
 
@@ -168,7 +170,7 @@ public class ApiLocationIdempotencyPostgresTests(PostgresImportTestFixture fixtu
         Assert.False(await verify.Locations.AnyAsync(row => row.UserId == user.Id));
     }
 
-    /// <summary>Two first uses converge through save-conflict reread; stored replay ignores saturation.</summary>
+    /// <summary>Two automatic first uses converge with one visit hit; stored replay ignores saturation without a hit.</summary>
     [PostgresFact(Timeout = 30000)]
     public async Task ConcurrentFirstUseAndReplay()
     {
@@ -177,31 +179,38 @@ public class ApiLocationIdempotencyPostgresTests(PostgresImportTestFixture fixtu
         var key = Guid.NewGuid();
         var gate = new ApiWorkAdmission(64, 8);
         var barrier = new SaveBarrier();
+        var visits = new Mock<IPlaceVisitDetectionService>(MockBehavior.Strict);
+        visits.Setup(service => service.ProcessPingAsync(user.Id, It.IsAny<Point>(), It.IsAny<double?>(),
+            It.IsAny<CancellationToken>())).Returns(Task.CompletedTask);
         await using var firstDb = fixture.CreateContext(barrier);
         await using var secondDb = fixture.CreateContext(barrier);
-        var first = ApiLocationAdmissionTests.Controller(firstDb, gate);
-        var second = ApiLocationAdmissionTests.Controller(secondDb, gate);
+        var first = ApiLocationAdmissionTests.Controller(firstDb, gate, visits.Object);
+        var second = ApiLocationAdmissionTests.Controller(secondDb, gate, visits.Object);
         foreach (var controller in new[] { first, second })
         {
             controller.Request.Headers.Authorization = $"Bearer {user.Id}";
             controller.Request.Headers["Idempotency-Key"] = key.ToString();
         }
-        var results = await Task.WhenAll(first.CheckIn(ApiLocationAdmissionTests.Dto()),
+        var results = await Task.WhenAll(first.LogLocation(ApiLocationAdmissionTests.Dto()),
             second.LogLocation(ApiLocationAdmissionTests.Dto()));
         Assert.All(results, result => Assert.IsType<OkObjectResult>(result));
         await using var verify = fixture.CreateContext();
         Assert.Equal(1, await verify.Locations.CountAsync(l => l.UserId == user.Id && l.IdempotencyKey == key));
+        visits.Verify(service => service.ProcessPingAsync(user.Id, It.IsAny<Point>(), It.IsAny<double?>(),
+            It.IsAny<CancellationToken>()), Times.Once);
         Assert.Equal(0, gate.IdentityCount);
 
         var saturated = new ApiWorkAdmission(1, 1);
         using var held = saturated.TryAcquire(user.Id, out _);
-        var replay = ApiLocationAdmissionTests.Controller(verify, saturated);
+        var replay = ApiLocationAdmissionTests.Controller(verify, saturated, visits.Object);
         replay.Request.Headers.Authorization = $"Bearer {user.Id}";
         replay.Request.Headers["Idempotency-Key"] = key.ToString();
         Assert.IsType<OkObjectResult>(await replay.CheckIn(ApiLocationAdmissionTests.Dto()));
         var winnerId = await verify.Locations.Where(l => l.UserId == user.Id && l.IdempotencyKey == key)
             .Select(l => l.Id).SingleAsync();
         AssertLogResponse(await replay.LogLocation(ApiLocationAdmissionTests.Dto()), winnerId);
+        visits.Verify(service => service.ProcessPingAsync(user.Id, It.IsAny<Point>(), It.IsAny<double?>(),
+            It.IsAny<CancellationToken>()), Times.Once);
 
         var other = await fixture.CreateUserAsync();
         await SeedToken(other);
@@ -262,6 +271,24 @@ public class ApiLocationIdempotencyPostgresTests(PostgresImportTestFixture fixtu
         Assert.Equal(!winnerId.HasValue, response.GetProperty("skipped").GetBoolean());
         if (winnerId.HasValue) Assert.Equal(winnerId.Value, response.GetProperty("locationId").GetInt32());
         else Assert.Equal(JsonValueKind.Null, response.GetProperty("locationId").ValueKind);
+    }
+
+    /// <summary>Commits the real import after the initial keyed SELECT has observed its statement snapshot.</summary>
+    private sealed class KeyMissImportInterceptor(Func<Task> import) : DbCommandInterceptor
+    {
+        private bool _imported;
+
+        /// <summary>Leaves the already-executed key lookup empty while making its winner visible to subsequent queries.</summary>
+        public override async ValueTask<DbDataReader> ReaderExecutedAsync(DbCommand command,
+            CommandExecutedEventData eventData, DbDataReader result, CancellationToken cancellationToken = default)
+        {
+            if (!_imported && command.CommandText.Contains("\"IdempotencyKey\"", StringComparison.Ordinal))
+            {
+                _imported = true;
+                await import();
+            }
+            return result;
+        }
     }
 
     /// <summary>Injects a failure only after the request's initial lookup and before its terminal accuracy skip.</summary>
