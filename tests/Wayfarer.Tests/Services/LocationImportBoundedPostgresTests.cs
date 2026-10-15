@@ -2,6 +2,7 @@ using System.Data.Common;
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using GeoPoint = NetTopologySuite.Geometries.Point;
 using Wayfarer.Areas.Api.Controllers;
@@ -11,13 +12,92 @@ using Wayfarer.Parsers;
 using Wayfarer.Services.LocationImports;
 using Wayfarer.Tests.Infrastructure;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace Wayfarer.Tests.Services;
 
 /// <summary>Proves keyed import work remains batch-shaped as persisted history grows.</summary>
 [Collection(PostgresImportTestCollection.Name)]
-public sealed class LocationImportBoundedPostgresTests(PostgresImportTestFixture fixture)
+public sealed class LocationImportBoundedPostgresTests(PostgresImportTestFixture fixture, ITestOutputHelper output)
 {
+    /// <summary>Filters the original geography-wrapping witness before checkpoints and keyed replay.</summary>
+    [PostgresFact]
+    public async Task MixedCsv_InvalidCoordinatesNeverPersist_AndReplayPreservesCommittedHistory()
+    {
+        var user = await fixture.CreateUserAsync();
+        var validKey = Guid.NewGuid();
+        var invalidKey = Guid.NewGuid();
+        var path = ImportStaging.TempFile();
+        var logs = new TestLogProvider();
+        using var logFactory = LoggerFactory.Create(builder => builder.AddProvider(logs));
+        using var client = new HttpClient();
+        var worker = new LocationImportService(ImportStaging.Files, new FixtureFactory(fixture),
+            new ReverseGeocodingService(client, NullLogger<BaseApiController>.Instance),
+            NullLogger<LocationImportService>.Instance, new LocationDataParserFactory(logFactory), new SseService());
+        try
+        {
+            await File.WriteAllTextAsync(path,
+                "Latitude,Longitude,TimestampUtc,LocalTimestamp,TimeZoneId,IdempotencyKey,Notes,DeviceModel,LocationType,Source\r\n" +
+                $"100,200,2026-08-25T00:00:00Z,2026-08-25T02:00:00+02:00,Europe/Athens,{invalidKey:D},private-invalid-notes,private-invalid-device,Manual,fixture\r\n" +
+                $"40.1,22.2,2026-08-25T00:00:01Z,2026-08-25T02:00:01+02:00,Europe/Athens,{validKey:D},Valid notes,Valid device,Manual,fixture\r\n");
+            int? savedId = null;
+            for (var replay = 0; replay < 2; replay++)
+            {
+                await using var db = fixture.CreateContext();
+                var import = new LocationImport
+                {
+                    UserId = user.Id, FilePath = path, FileType = LocationImportFileType.Csv,
+                    Status = ImportStatus.InProgress, ExecutionEpoch = 7,
+                    TotalRecords = 0, LastProcessedIndex = 0
+                };
+                db.LocationImports.Add(import);
+                await db.SaveChangesAsync();
+                await worker.ProcessImport(import.Id, import.ExecutionEpoch, CancellationToken.None);
+
+                var rows = await db.Locations.Where(row => row.UserId == user.Id).ToListAsync();
+                foreach (var row in rows)
+                    output.WriteLine($"Persisted synthetic point: keyed-invalid={row.IdempotencyKey == invalidKey}, lon={row.Coordinates.X}, lat={row.Coordinates.Y}");
+                var saved = Assert.Single(rows);
+                Assert.Equal(user.Id, saved.UserId);
+                Assert.Equal(validKey, saved.IdempotencyKey);
+                Assert.Equal((22.2, 40.1, 4326), (saved.Coordinates.X, saved.Coordinates.Y, saved.Coordinates.SRID));
+                Assert.Equal(new DateTime(2026, 8, 25, 0, 0, 1, DateTimeKind.Utc), saved.Timestamp);
+                Assert.Equal(saved.Timestamp, saved.LocalTimestamp);
+                Assert.Equal("Europe/Athens", saved.TimeZoneId);
+                Assert.Equal("Valid device", saved.DeviceModel);
+                Assert.Equal("Manual", saved.LocationType);
+                Assert.Equal("fixture", saved.Source);
+                Assert.Equal(replay == 0 ? "Valid notes" : "Owner edit", saved.Notes);
+                if (savedId.HasValue) Assert.Equal(savedId.Value, saved.Id);
+                savedId = saved.Id;
+                await db.Entry(import).ReloadAsync();
+                Assert.Equal(ImportStatus.Completed, import.Status);
+                Assert.Equal(1, import.TotalRecords);
+                Assert.Equal(1, import.LastProcessedIndex);
+                Assert.Equal(replay, import.SkippedDuplicates);
+                Assert.Equal(7, import.ExecutionEpoch);
+                Assert.Null(import.ErrorMessage);
+                Assert.False(import.ProjectionPending);
+                output.WriteLine($"Replay {replay}: total={import.TotalRecords}, checkpoint={import.LastProcessedIndex}, duplicates={import.SkippedDuplicates}");
+                saved.Notes = "Owner edit";
+                await db.SaveChangesAsync();
+            }
+            Assert.Equal(4, logs.Entries.Count);
+            Assert.All(logs.Entries, entry =>
+            {
+                Assert.Equal(LogLevel.Warning, entry.Level);
+                Assert.Equal("location-import-invalid-coordinate", entry.Fields["Code"]);
+                Assert.Equal(2, entry.Fields["Row"]);
+                Assert.Equal(2, entry.Fields.Count);
+                Assert.Null(entry.Exception);
+                Assert.DoesNotContain("private-invalid", entry.Message, StringComparison.Ordinal);
+                Assert.DoesNotContain("100", entry.Message, StringComparison.Ordinal);
+                Assert.DoesNotContain("200", entry.Message, StringComparison.Ordinal);
+            });
+        }
+        finally { File.Delete(path); }
+    }
+
     /// <summary>Direct and compatibility execution cannot borrow a newer generation's authority.</summary>
     [PostgresTheory]
     [InlineData(-1)]
