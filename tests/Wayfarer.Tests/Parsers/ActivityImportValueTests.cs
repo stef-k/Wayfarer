@@ -31,12 +31,41 @@ public sealed class ActivityImportValueTests
         var json = $$$"""
             {"type":"FeatureCollection","features":[{"type":"Feature",
             "geometry":{"type":"Point","coordinates":[22,40]},
-            "properties":{"TimestampUtc":"2026-10-01T00:00:00Z","Activity":{{{activity}}} } } ] }
+            "properties":{"TimestampUtc":"2026-10-01T00:00:00Z","Activity":{{{activity}}},"LocationType":" Manual "} } ] }
             """;
         using var stream = new MemoryStream(Encoding.UTF8.GetBytes(json));
         var parser = new WayfarerGeoJsonParser(NullLogger<WayfarerGeoJsonParser>.Instance);
         var location = Assert.Single(await parser.ParseAsync(stream, "owner"));
         Assert.Equal(invalid, location.ImportedActivityInvalid);
+        Assert.Equal(" Manual ", location.LocationType);
+    }
+
+    /// <summary>LocationType accepts only nonempty strings without changing malformed Activity classification.</summary>
+    [Theory]
+    [InlineData("null", null)]
+    [InlineData("\"\"", null)]
+    [InlineData("42", null)]
+    [InlineData("true", null)]
+    [InlineData("{}", null)]
+    [InlineData("[]", null)]
+    [InlineData("\" \\t\\r\\n \"", " \t\r\n ")]
+    [InlineData("\" MiXeD \\u00a0<& \"", " MiXeD \u00a0<& ")]
+    public async Task NativeLocationType_IgnoresUnexpectedTypesAndPreservesStrings(string value, string? expected)
+    {
+        var json = $$$"""
+            {"type":"FeatureCollection","features":[{"type":"Feature",
+            "geometry":{"type":"Point","coordinates":[22,40]},
+            "properties":{"TimestampUtc":"2026-10-01T00:00:00Z","Activity":42,"LocationType":{{{value}}}}}]}
+            """;
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(json));
+        var parser = new WayfarerGeoJsonParser(NullLogger<WayfarerGeoJsonParser>.Instance);
+
+        var location = Assert.Single(await parser.ParseAsync(stream, "destination"));
+
+        Assert.Equal(expected, location.LocationType);
+        Assert.True(location.ImportedActivityInvalid);
+        Assert.Null(location.ImportedActivityName);
+        Assert.Equal("destination", location.UserId);
     }
 
     /// <summary>Only the retained properties.Activity determines invalidity, including replacement containers.</summary>

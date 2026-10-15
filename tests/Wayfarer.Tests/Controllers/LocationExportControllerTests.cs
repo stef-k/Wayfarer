@@ -10,6 +10,9 @@ using Wayfarer.Tests.Infrastructure;
 using Xunit;
 using Location = Wayfarer.Models.Location;
 using Wayfarer.Models;
+using Wayfarer.Models.Enums;
+using Wayfarer.Parsers;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace Wayfarer.Tests.Controllers;
 
@@ -18,6 +21,40 @@ namespace Wayfarer.Tests.Controllers;
 /// </summary>
 public class LocationExportControllerTests : TestBase
 {
+    /// <summary>Optional types retain nonempty text, including records with no other GPX extension data.</summary>
+    [Theory]
+    [InlineData(LocationImportFileType.Csv)]
+    [InlineData(LocationImportFileType.WayfarerGeoJson)]
+    [InlineData(LocationImportFileType.Gpx)]
+    [InlineData(LocationImportFileType.Kml)]
+    public async Task LocationType_RoundTripsOptionalValuesAndFieldOnlyRecords(LocationImportFileType format)
+    {
+        using var db = CreateDbContext();
+        string?[] values = [null, string.Empty, " \t\r\n\u00a0 ", " MiXeD, <&> \"\t "];
+        foreach (var value in values)
+            db.Locations.Add(new Location
+            {
+                UserId = "u1", TimeZoneId = string.Empty, LocationType = value,
+                Timestamp = DateTime.UnixEpoch, LocalTimestamp = DateTime.UnixEpoch,
+                Coordinates = new Point(22, 40) { SRID = 4326 }
+            });
+        await db.SaveChangesAsync();
+        var controller = BuildController(db, "u1");
+        var file = Assert.IsType<FileStreamResult>(format switch
+        {
+            LocationImportFileType.Csv => await controller.Csv(),
+            LocationImportFileType.WayfarerGeoJson => await controller.GeoJson(),
+            LocationImportFileType.Gpx => await controller.Gpx(),
+            _ => await controller.Kml()
+        });
+        await using var stream = file.FileStream;
+        var parser = new LocationDataParserFactory(NullLoggerFactory.Instance).GetParser(format);
+        var parsed = await parser.ParseAsync(stream, "destination");
+
+        Assert.Equal(new string?[] { null, null, values[2], values[3] }, parsed.Select(row => row.LocationType));
+        Assert.All(parsed, row => Assert.Null(row.ImportedActivityName));
+    }
+
     [Fact]
     public async Task GeoJson_ExportsOnlyCurrentUserLocations()
     {
@@ -148,10 +185,8 @@ public class LocationExportControllerTests : TestBase
         var imported = new List<Location>();
         await foreach (var row in parser.ParseAsync(file.FileStream, "import-owner")) imported.Add(row);
         var saved = Assert.Single(imported);
-        // XML element text normalizes line endings to LF; JSON and quoted CSV preserve them.
-        var expectedLine = format is "gpx" or "kml"
-            ? original.ProviderAddressLine1.Replace("\r\n", "\n") : original.ProviderAddressLine1;
-        Assert.Equal(expectedLine, saved.ProviderAddressLine1);
+        // Native writers preserve carriage returns with XML character references where required.
+        Assert.Equal(original.ProviderAddressLine1, saved.ProviderAddressLine1);
         Assert.Equal(original.FullAddress, saved.FullAddress);
         Assert.Equal(original.Address, saved.Address);
         Assert.Equal(("geoapify", "persistent", original.ReverseGeocodedAt),
