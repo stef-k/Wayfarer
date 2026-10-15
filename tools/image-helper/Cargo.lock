@@ -170,7 +170,7 @@ dependencies = [
  "byteorder-lite",
  "color_quant",
  "gif",
- "image-webp",
+ "image-webp 0.2.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "moxcms",
  "num-traits",
  "png",
@@ -183,6 +183,15 @@ name = "image-webp"
 version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "525e9ff3e1a4be2fbea1fdf0e98686a6d98b4d8f937e1bf7402245af1909e8c3"
+dependencies = [
+ "byteorder-lite",
+ "quick-error",
+]
+
+[[package]]
+name = "image-webp"
+version = "0.2.4"
+source = "git+https://github.com/image-rs/image-webp?rev=f4d80bd965df2c81e65b6f43c1f70e0750bd4b0f#f4d80bd965df2c81e65b6f43c1f70e0750bd4b0f"
 dependencies = [
  "byteorder-lite",
  "quick-error",
@@ -446,7 +455,7 @@ dependencies = [
  "fast_image_resize",
  "gif",
  "image",
- "image-webp",
+ "image-webp 0.2.4 (git+https://github.com/image-rs/image-webp?rev=f4d80bd965df2c81e65b6f43c1f70e0750bd4b0f)",
  "jpeg-decoder",
  "jpeg-encoder",
  "libc",

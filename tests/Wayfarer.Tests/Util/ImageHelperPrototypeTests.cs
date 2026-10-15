@@ -149,6 +149,19 @@ public sealed class ImageHelperPrototypeTests
         AssertReaped(result.ProcessId);
     }
 
+    /// <summary>The exact retained Huffman controls return a source error, emit no bytes and leave no child.</summary>
+    [Theory]
+    [InlineData("huffman-exact-extent.webp")]
+    [InlineData("upstream-huffman-overflow.webp")]
+    public async Task WebpHuffmanFailures_ReturnControlledErrorAndReap(string fixture)
+    {
+        var result = await TransformFixture(fixture);
+        Assert.Equal(ImageTransformStatus.Failed, result.Status);
+        Assert.Equal(4, result.ExitCode);
+        Assert.Null(result.Bytes);
+        AssertReaped(result.ProcessId);
+    }
+
     /// <summary>Size evidence and output exhaustion have distinct classifications.</summary>
     [Fact]
     public async Task Limits_ClassifySourceAndOutputSeparately()

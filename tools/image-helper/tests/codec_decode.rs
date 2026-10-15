@@ -39,8 +39,7 @@ fn jpeg_recovery_preserves_rejection_and_completed_output() {
     image::load_from_memory(&recovered).unwrap();
 }
 
-/// Native WebP preserves alpha and rejects animated, incomplete and invalid metadata controls.
-#[cfg(feature = "webp-candidate-decode")]
+/// Both WebP routes preserve alpha and reject malformed payloads and container controls.
 #[test]
 fn webp_preserves_alpha_and_strict_admission() {
     let source = fixture("static.webp");
@@ -54,7 +53,13 @@ fn webp_preserves_alpha_and_strict_admission() {
     let mut explicit = recipe();
     explicit.output = OutputFormat::Jpeg;
     assert_eq!(transform(&source, &explicit), Err(Failure::Source));
-    for name in ["animated.webp", "truncated.webp", "metadata.webp"] {
+    for name in [
+        "animated.webp",
+        "truncated.webp",
+        "metadata.webp",
+        "upstream-huffman-overflow.webp",
+        "huffman-exact-extent.webp",
+    ] {
         assert_eq!(
             transform(&fixture(name), &recipe()),
             Err(Failure::Source),
