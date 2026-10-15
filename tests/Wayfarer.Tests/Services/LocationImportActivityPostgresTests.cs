@@ -367,6 +367,55 @@ public sealed class LocationImportActivityPostgresTests(PostgresImportTestFixtur
         Assert.Equal(328, await db.ActivityTypes.CountAsync(a => a.Name.StartsWith(prefix)));
     }
 
+    /// <summary>Raw parser regressions retain correct classification, invalid counts, catalog effects and checkpoint.</summary>
+    [PostgresTheory]
+    [InlineData("""
+        "properties":{"TimestampUtc":"2026-10-01T00:00:00Z","Activity":"NAME\ud800"},
+        "extra":{"Activity":"ignored"}
+        """, 1, false)]
+    [InlineData("""
+        "properties":{"TimestampUtc":"2026-10-01T00:00:00Z","Activity":"NAMEWalking"},
+        "extra":{"Activity":"\ud800"}
+        """, 0, true)]
+    [InlineData("""
+        "properties":{"Activity":"NAME\ud800"},
+        "properties":{"TimestampUtc":"2026-10-01T00:00:00Z"}
+        """, 0, false)]
+    [InlineData("""
+        properties:{TimestampUtc:"2026-10-01T00:00:00Z",Activity:"NAMEWalking"}
+        """, 0, true)]
+    public async Task RawActivityInput_CommitsEffectiveClassification(string members, int invalidCount, bool classified)
+    {
+        var import = await SeedAsync([new(null)]);
+        var json = $$$"""
+            {"type":"FeatureCollection","features":[{"type":"Feature",
+            "geometry":{"type":"Point","coordinates":[22,40]},{{{members.Replace("NAME", prefix, StringComparison.Ordinal)}}}}]}
+            """;
+        await File.WriteAllTextAsync(import.FilePath, json);
+
+        await Worker().ProcessImport(import.Id, 0, CancellationToken.None);
+
+        await using var db = fixture.CreateContext();
+        var state = await db.LocationImports.SingleAsync(i => i.Id == import.Id);
+        Assert.Equal(ImportStatus.Completed, state.Status);
+        Assert.Equal(1, state.LastProcessedIndex);
+        Assert.Equal(0, state.SkippedDuplicates);
+        Assert.Equal(invalidCount, state.UnclassifiedActivityCount);
+        var location = await db.Locations.SingleAsync(l => l.UserId == import.UserId);
+        var activities = await db.ActivityTypes.Where(a => a.Name.StartsWith(prefix)).ToListAsync();
+        if (classified)
+        {
+            var activity = Assert.Single(activities);
+            Assert.Equal(prefix + "Walking", activity.Name);
+            Assert.Equal(activity.Id, location.ActivityTypeId);
+        }
+        else
+        {
+            Assert.Empty(activities);
+            Assert.Null(location.ActivityTypeId);
+        }
+    }
+
     /// <summary>The actual owner route renders durable feedback on reload while preserving existing errors.</summary>
     [PostgresFact]
     public async Task OwnerHistory_ReloadShowsInvalidCountAndUploadExplainsSharedCatalog()
