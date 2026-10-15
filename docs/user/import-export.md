@@ -95,6 +95,14 @@ from server receipt timestamps, can still create duplicates.
 If an import fails, inspect the reported error and progress before retrying; some
 records may already be saved. Confirm the format, CSV headers and timestamps. If
 progress appears stuck, refresh once and contact your administrator if it persists.
+If a saved checkpoint no longer matches the parsed record count, **Start** fails
+with an instruction to upload the file as a **new import**. This can affect older
+imports whose invalid coordinates are now skipped. The failed import retains its
+saved progress and locations; restarting it again cannot repair the checkpoint.
+A new import can recover remaining valid records without overwriting existing
+UUID-bearing locations or owner edits. Matching records without a UUID remains
+approximate. Previously stored invalid points are not automatically repaired.
+
 If Activity reconciliation fails, the current batch is rolled back together with
 its classifications and progress. Earlier committed batches remain saved. **Start**
 resumes from that checkpoint once catalog contention or the database problem has
