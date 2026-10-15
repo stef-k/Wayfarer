@@ -16,18 +16,22 @@ internal sealed class ActivityJsonTextReader : JsonTextReader
     /// <summary>One transient fact for the current native feature; unrelated string fields keep existing parsing.</summary>
     internal bool InvalidActivityValue { get; set; }
 
-    /// <summary>Consumes raw strings in token order; only properties.Activity at native feature depth is inspected.</summary>
+    /// <summary>Pairs quoted tokens with raw strings and scopes invalidity to the effective feature properties.Activity.</summary>
     public override async Task<bool> ReadAsync(CancellationToken cancellationToken = default)
     {
         var read = await base.ReadAsync(cancellationToken);
         string? raw = null;
-        if (TokenType is JsonToken.String or JsonToken.PropertyName)
+        if (TokenType == JsonToken.String || (TokenType == JsonToken.PropertyName && QuoteChar != '\0'))
             raw = source.Strings.Dequeue();
         // Preserve Json.NET comment handling and last-property-wins behavior without a rewritten identity.
         if (activityValue && TokenType != JsonToken.Comment)
             InvalidActivityValue = TokenType == JsonToken.String && HasInvalidSurrogate(raw!);
+        // A replacement properties value starts with no Activity, even if the previous object was invalid.
+        if (TokenType == JsonToken.PropertyName && Depth == 3 && (string?)Value == "properties")
+            InvalidActivityValue = false;
         if (TokenType != JsonToken.Comment)
-            activityValue = TokenType == JsonToken.PropertyName && Depth == 4 && (string?)Value == "Activity";
+            activityValue = TokenType == JsonToken.PropertyName && Depth == 4 && (string?)Value == "Activity"
+                && Path.EndsWith(".properties.Activity", StringComparison.Ordinal);
         return read;
     }
 
