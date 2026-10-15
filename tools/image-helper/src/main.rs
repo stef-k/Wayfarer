@@ -117,7 +117,8 @@ fn controls() -> Result<(), Failure> {
     let expected: libc::pid_t = std::env::var("WAYFARER_IMAGE_PARENT_PID")
         .ok()
         .and_then(|value| value.parse().ok())
-        .filter(|pid| *pid > 1)
+        // The supervised application can itself be PID 1 inside a container.
+        .filter(|pid| *pid > 0)
         .ok_or(Failure::Unavailable)?;
     // SAFETY: these libc calls use scalar arguments and an initialized rlimit output.
     unsafe {

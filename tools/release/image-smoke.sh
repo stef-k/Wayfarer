@@ -21,7 +21,7 @@ test -s wwwroot/vite/trip-editor/manifest.json
 test -d wwwroot/dist
 # Use the native published driver; the runtime has no host Node dependency.
 case "$(uname -m)" in x86_64) driver=linux-x64 ;; aarch64) driver=linux-arm64 ;; *) exit 1 ;; esac
-.playwright/node/$driver/node <<'JAVASCRIPT'
+exec .playwright/node/$driver/node <<'JAVASCRIPT'
 const {chromium}=require("./.playwright/package");
 const {spawnSync}=require("node:child_process");
 const fs=require("node:fs");
@@ -35,21 +35,24 @@ function image(input, cap=52428800) {
       maxBuffer:52428800, timeout:30000});
 }
 (async()=>{
+  if (process.pid !== 1) throw Error("Image qualification must own container PID 1");
   const browser=await chromium.launch();
   const page=await browser.newPage();
   await page.setContent("<h1>Wayfarer image qualification</h1>");
   await page.pdf({path:"/tmp/wayfarer/probe.pdf"});
   await page.screenshot({path:"/tmp/wayfarer/probe.png"});
   await browser.close();
+  if (!fs.statSync("/tmp/wayfarer/probe.pdf").size) throw Error("PDF output missing");
   const source=fs.readFileSync("/tmp/wayfarer/probe.png");
   const transformed=image(source);
-  if (transformed.status !== 0 || transformed.stdout.length < 45) throw Error("Image transform failed");
+  if (transformed.status !== 0 || transformed.stdout.length < 45) {
+    console.error("Contained image transform failed", {parentPid:process.pid, exit:transformed.status});
+    throw Error("Image transform failed");
+  }
   const rejected=image(Buffer.from("malformed image"));
   const capped=image(source, 100);
   if (rejected.status !== 4 || rejected.stdout.length || capped.status !== 70 || capped.stdout.length)
     throw Error("Image rejection/cap failed");
 })().catch(()=>process.exit(1));
 JAVASCRIPT
-test -s /tmp/wayfarer/probe.pdf
-test -s /tmp/wayfarer/probe.png
 SHELL

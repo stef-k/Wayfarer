@@ -80,6 +80,8 @@ mixed-corpus observation, not an aggregate ceiling for arbitrary inputs or unlim
 cache-hit traffic. Host transient-service memory accounting was unusable and is
 excluded from the resource claim. The final burst assertion adds only immediate
 admission rejections and was separately rerun after this resource observation.
+The later parent-PID correction does not change codec work or resource ceilings;
+the timings above remain the earlier observation, rather than a rerun of that load.
 
 ## Maintainability and remaining authority
 
@@ -112,12 +114,21 @@ new transitive application dependency. The corrected workflow provisions the nat
 build prerequisites there too; final exact-head CI must rerun rather than borrowing
 the earlier green jobs as a complete gate.
 
-The product correction changes only C# caller-recipe resolution; Rust sources/artifact,
-ordinary valid recipes and the retained finite-resource observations are unchanged.
+A subsequent existing Docker-smoke check, with the caller made container PID 1,
+reproduced helper exit 70. The launcher had excluded PID 1 despite a matching,
+non-root supervised application. It now accepts any positive matching parent PID,
+retaining both parent checks, parent-death signaling and every resource control.
+The image smoke owns PID 1 and passes against the rebuilt image. The retained
+C# supervisor CLI also successfully transforms a JPEG as container PID 1 against
+the new helper, under non-root/read-only/network-disabled controls. The current
+application supervisor is separately covered by the focused application tests.
+Codec source,
+ordinary recipes and resource ceilings are unchanged; this is a launcher correction,
+not an upstream decoder patch or new codec qualification.
 
 Fresh independent exact-head review, successful `ci-gate` and final maintainer
 acceptance remain required. The local helper artifact is
-`a8aad54ac49623138126c1d19bf036fcfab27276fee033bfe835768e594e0005` (SHA-256),
+`5ed4228b3b1aa87df680119ed7e4d6379c431909942d6acca2b17ffeeb7d4354` (SHA-256),
 identical to the native published copy. Docker builds independently from the same
 locked sources. Rollback instructions are in [README.md](README.md#validation-and-rollback).
 Raw local logs, binaries and derivatives are excluded from this draft's source.

@@ -30,7 +30,9 @@ for Linux parent-death semantics. Before exec, `/usr/bin/prlimit` supplies:
 - a two-second termination/reap watchdog. Failed cleanup disables further admission.
 
 The helper rejects root, unsupported OS/architecture, absent containment and parent
-mismatch. Input geometry is limited to 8192 per axis, 12M pixels, one static frame
+mismatch. A supervised parent may legitimately be PID 1 in a container; positive
+PID validation, both parent-match checks and parent-death handling still apply.
+Input geometry is limited to 8192 per axis, 12M pixels, one static frame
 and conservative 64 MiB decoded-byte accounting. Codec scratch limits and kernel
 limits are complementary; an address-space ceiling is not an aggregate RSS ceiling.
 The service's configured download limit remains independently enforced while reading.
