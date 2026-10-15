@@ -33,5 +33,26 @@
     "load_reports": 6,
     "resource_samples_per_cell": 6
   },
-  "aggregate_memory_note": "Actual sampled simultaneous RSS and live kernel cgroup memory.peak are separate observations, not a proven production four-child RSS ceiling."
+  "aggregate_memory_note": "Actual sampled simultaneous RSS and live kernel cgroup memory.peak are separate observations, not a proven production four-child RSS ceiling.",
+  "validation_text_normalization": {
+    "method": "UTF-8/LF; trim trailing whitespace and terminal empty lines; observation data unchanged",
+    "original_receipts_commit": "45953c95",
+    "files": [
+      {
+        "path": "tools/image-helper/results/readiness-20261015/validation/windows-native-probe.txt",
+        "original_sha256": "170418254ed294187280753bd254e1d986290dc6ff3d953d4502b6e506c3e076",
+        "normalized_sha256": "4245c3ef73222df73c40f7a1ffd6879a3252e2b77ec9f501528f70c69195b978"
+      },
+      {
+        "path": "tools/image-helper/results/readiness-20261015/validation/rust-test.txt",
+        "original_sha256": "c64d09cc5b71e9b7c6a4db04ff9fc278261f7c6b1224b99ebe39b38b8caee1ac",
+        "normalized_sha256": "fc4aad4eeac539df59814d2b2ee4cf8ed2ea88f68f4aa7825b59e1a807807f74"
+      },
+      {
+        "path": "tools/image-helper/results/readiness-20261015/validation/windows-native-probe-first-infrastructure.txt",
+        "original_sha256": "083cf0f53f1364ae6999b3487e11932974ab9f0a243e9e7579f1c6477abe3ae3",
+        "normalized_sha256": "fcf28aac747adc169252644d0dd9a975f3000afa7f1380edb236097d626bb5fb"
+      }
+    ]
+  }
 }
