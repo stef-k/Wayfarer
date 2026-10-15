@@ -1,0 +1,37 @@
+{
+  "assignment": "https://github.com/stef-k/Wayfarer/issues/858#issuecomment-6188087992",
+  "decision": "BLOCKED",
+  "publication_branch": "research/858-rust-imaging",
+  "frozen_baseline": "21bac96303ea2040dcf892da6cfee52b65bed73a",
+  "qualification_report_commit": "45953c958f204a240e0bb88c3e03d5670cfc5095",
+  "runtime_sources_and_lock": "byte-identical to frozen baseline",
+  "existing_files_changed": [
+    "tests/Wayfarer.Tests/Util/ImageHelperPerformanceTests.cs",
+    "tools/image-helper/README.md"
+  ],
+  "scope": "Stage 1 only. No integration, PR, merge, release, issue closure or optimization.",
+  "artifact_gap": "Measured CLI uses default+codec-bench, not the initial default-only build; both exact hashes are retained.",
+  "checks": {
+    "raw_statistics_recomputed": "PASS",
+    "representative_derivative_hashes_match_raw": "PASS",
+    "relative_report_links": "PASS",
+    "focused_rust_tests": 6,
+    "focused_xunit_safety_tests": 74,
+    "standalone_observation_runs": 6,
+    "code_guard_qualification_delta": "REVIEW: one accepted 98-line observational collector",
+    "code_guard_complete_branch": "REVIEW: preserved cohesive format authorities and archival statistics; no FAIL/INCOMPLETE"
+  },
+  "platforms": {
+    "linux_amd64": "actual non-root runtime evidence",
+    "linux_arm64": "UNPROVEN; no runtime runner",
+    "windows_x64": "native C# Release build PASS; supervisor rejects before launch; no Rust runtime qualification"
+  },
+  "measurement_counts": {
+    "paired_reports": 80,
+    "warm_measured_per_backend_cell": 48,
+    "cold_measured_per_backend_cell": 8,
+    "load_reports": 6,
+    "resource_samples_per_cell": 6
+  },
+  "aggregate_memory_note": "Actual sampled simultaneous RSS and live kernel cgroup memory.peak are separate observations, not a proven production four-child RSS ceiling."
+}

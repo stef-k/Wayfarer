@@ -1,0 +1,57 @@
+{
+  "overall": "review",
+  "scope": {
+    "selected": 43,
+    "analyzed": 6,
+    "inapplicable": 37,
+    "excluded": 0
+  },
+  "requiredPolicies": [
+    "callableSize"
+  ],
+  "guards": {
+    "loc": {
+      "state": "pass",
+      "findings": []
+    },
+    "policyRelaxation": {
+      "state": "pass",
+      "findings": []
+    },
+    "callableSize": {
+      "state": "review",
+      "findings": [
+        {
+          "path": "tests/Wayfarer.Tests/Util/ImageHelperPerformanceTests.cs",
+          "callable": "Wayfarer.Tests.Util.ImageHelperPerformanceTests.RecordStandaloneLoad",
+          "range": {
+            "startLine": 102,
+            "endLine": 199
+          },
+          "measured": 98,
+          "state": "review",
+          "thresholds": {
+            "reviewAt": 80
+          },
+          "embeddedLanguage": "csharp"
+        }
+      ]
+    },
+    "nesting": {
+      "state": "pass",
+      "findings": []
+    },
+    "complexity": {
+      "state": "pass",
+      "findings": []
+    },
+    "markdownDocumentSize": {
+      "state": "pass",
+      "findings": []
+    },
+    "markdownSectionSize": {
+      "state": "pass",
+      "findings": []
+    }
+  }
+}
