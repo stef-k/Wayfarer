@@ -172,13 +172,9 @@ public class LocationController : BaseApiController
 
             try
             {
-                var enrichment = await _reverseGeocodingService.EnrichAsync(user.Id, dto.Latitude, dto.Longitude,
-                    ReverseGeocodingIntent.LocationCreate, HttpContext.RequestAborted);
-                enrichment.ApplyTo(location, DateTimeOffset.UtcNow);
-
-                // Save location (same as log-location)
-                _dbContext.Locations.Add(location);
-                await _dbContext.SaveChangesAsync();
+                // Keyed creates commit their winner before optional provider admission/contact.
+                location = await ApiLocationCreation.PersistAsync(
+                    _dbContext, _reverseGeocodingService, location, HttpContext.RequestAborted);
 
                 _logger.LogInformation("Check-in location saved with ID {LocationId}", location.Id);
             }
@@ -571,12 +567,9 @@ public class LocationController : BaseApiController
 
             try
             {
-                var enrichment = await _reverseGeocodingService.EnrichAsync(user.Id, dto.Latitude, dto.Longitude,
-                    ReverseGeocodingIntent.LocationCreate, HttpContext.RequestAborted);
-                enrichment.ApplyTo(location, DateTimeOffset.UtcNow);
-
-                _dbContext.Locations.Add(location);
-                await _dbContext.SaveChangesAsync();
+                // Keyed creates commit their winner before optional provider admission/contact.
+                location = await ApiLocationCreation.PersistAsync(
+                    _dbContext, _reverseGeocodingService, location, HttpContext.RequestAborted);
 
                 _logger.LogInformation("Location saved with ID {LocationId}", location.Id);
             }
