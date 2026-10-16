@@ -1,7 +1,7 @@
 using System.Net;
 using System.Text;
 using System.Text.Json;
-using Microsoft.AspNetCore.Builder;
+using System.Data.Common;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
@@ -10,11 +10,13 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging.Abstractions;
+using Moq;
 using Wayfarer.Areas.Api.Controllers;
 using Wayfarer.Models;
 using Wayfarer.Models.LocationProviders;
 using Wayfarer.Parsers;
 using Wayfarer.Services;
+using Wayfarer.Services.LocationEnrichment;
 using Wayfarer.Services.LocationProviders;
 using Wayfarer.Tests.Infrastructure;
 using Wayfarer.Util;
@@ -37,6 +39,16 @@ public sealed class ApiLocationProviderCreatePostgresTests(PostgresImportTestFix
         var (userId, token) = await SeedAsync(provider, protection);
         var barrier = new InsertControl(barrier: true);
         using var handler = new ControlledProvider();
+        var sse = new Mock<SseService>();
+        sse.Setup(service => service.BroadcastAsync(It.IsAny<string>(), It.IsAny<string>()))
+            .Returns(async (string _, string payload) =>
+            {
+                await using var db = fixture.CreateContext();
+                var published = await db.Locations.AsNoTracking().SingleAsync(row => row.UserId == userId);
+                using var json = JsonDocument.Parse(payload);
+                Assert.Equal(published.Id, json.RootElement.GetProperty("locationId").GetInt32());
+                Assert.Equal("Controlled address", published.FullAddress);
+            });
         await WithHostAsync(protection, handler, [barrier], async client =>
         {
             var key = Guid.NewGuid();
@@ -45,10 +57,20 @@ public sealed class ApiLocationProviderCreatePostgresTests(PostgresImportTestFix
             var responses = await Task.WhenAll(client.SendAsync(first), client.SendAsync(second));
             await using var db = fixture.CreateContext();
             var winner = Assert.Single(await db.Locations.AsNoTracking().Where(row => row.UserId == userId).ToListAsync());
+            var addresses = new List<string?>();
             foreach (var response in responses)
             {
-                using (response) await AssertResponseAsync(response, route, winner.Id);
+                using (response)
+                {
+                    await AssertResponseAsync(response, route, winner.Id);
+                    if (route == "check-in")
+                    {
+                        using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+                        addresses.Add(json.RootElement.GetProperty("location").GetProperty("fullAddress").GetString());
+                    }
+                }
             }
+            if (route == "check-in") Assert.Contains("Controlled address", addresses);
             var admissions = await AdmissionCountAsync(userId, provider);
             output.WriteLine("{0}: Locations=1, admissions={1}, HTTP contacts={2}", route, admissions, handler.Calls);
             Assert.Equal(1, admissions);
@@ -64,6 +86,166 @@ public sealed class ApiLocationProviderCreatePostgresTests(PostgresImportTestFix
             Assert.Equal(1, handler.Calls);
             Assert.Equal(1, await AdmissionCountAsync(userId, provider));
             Assert.Equal(1, await db.Locations.CountAsync(row => row.UserId == userId));
+        }, sse.Object);
+        sse.Verify(service => service.BroadcastAsync(It.IsAny<string>(), It.IsAny<string>()), Times.Once);
+    }
+
+    /// <summary>Provider failure retains an eligible blank row; ordinary replay never substitutes a recovery contact.</summary>
+    [PostgresTheory(Timeout = 30000)]
+    [InlineData("check-in")]
+    [InlineData("log-location")]
+    public async Task ProviderFailure_PreservesWinnerAndExplicitRecoveryEligibility(string route)
+    {
+        var protection = new EphemeralDataProtectionProvider();
+        var (userId, token) = await SeedAsync("geoapify", protection);
+        using var handler = new ControlledProvider
+        {
+            BeforeResponse = _ => throw new HttpRequestException("Synthetic provider failure")
+        };
+        await WithHostAsync(protection, handler, [], async client =>
+        {
+            var key = Guid.NewGuid();
+            using var request = Request(route, token, key);
+            using var response = await client.SendAsync(request);
+            await using var db = fixture.CreateContext();
+            var saved = await LocationEnrichmentProgressQuery.WhollyUnenriched(
+                db.Locations.Where(row => row.UserId == userId)).SingleAsync();
+            await AssertResponseAsync(response, route, saved.Id);
+            using var replayRequest = Request(route, token, key);
+            using var replay = await client.SendAsync(replayRequest);
+            await AssertResponseAsync(replay, route, saved.Id);
+            Assert.Equal(1, handler.Calls);
+            Assert.Equal(1, await AdmissionCountAsync(userId, "geoapify"));
+            Assert.False(await db.LocationEnrichmentAttempts.AnyAsync(row => row.UserId == userId));
+            Assert.False(await db.LocationEnrichmentWorkflows.AnyAsync(row => row.UserId == userId));
+        });
+    }
+
+    /// <summary>Request cancellation after transport entry propagates while its committed row remains replayable.</summary>
+    [PostgresFact(Timeout = 30000)]
+    public async Task ProviderCancellation_PreservesWinnerWithoutSuccessProvenance()
+    {
+        var protection = new EphemeralDataProtectionProvider();
+        var (userId, token) = await SeedAsync("geoapify", protection);
+        using var cancellation = new CancellationTokenSource();
+        using var handler = new ControlledProvider { BeforeResponse = ct =>
+        {
+            cancellation.Cancel();
+            return Task.FromCanceled(ct);
+        } };
+        await using var db = fixture.CreateContext();
+        var credentials = CredentialTestFactory.Create(protection);
+        var gate = new PersonalProviderContactGate(db, credentials, new LegacyMapboxMigrationService(db, credentials),
+            new ConfigurationBuilder().Build());
+        var reverse = new ReverseGeocodingService(new HttpClient(handler), NullLogger<BaseApiController>.Instance, gate, db);
+        var controller = ApiLocationAdmissionTests.Controller(db, new ApiWorkAdmission(64, 8), reverse: reverse);
+        var key = Guid.NewGuid();
+        controller.Request.Headers.Authorization = $"Bearer {token}";
+        controller.Request.Headers["Idempotency-Key"] = key.ToString("D");
+        controller.HttpContext.RequestAborted = cancellation.Token;
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => controller.CheckIn(ApiLocationAdmissionTests.Dto()));
+        var saved = await LocationEnrichmentProgressQuery.WhollyUnenriched(
+            db.Locations.AsNoTracking().Where(row => row.UserId == userId)).SingleAsync();
+        await WithHostAsync(protection, handler, [], async client =>
+        {
+            using var request = Request("log-location", token, key);
+            using var replay = await client.SendAsync(request);
+            await AssertResponseAsync(replay, "log-location", saved.Id);
+        });
+        Assert.Equal(1, handler.Calls);
+        Assert.Equal(1, await AdmissionCountAsync(userId, "geoapify"));
+    }
+
+    /// <summary>Owner edits during HTTP and authority changes after service revalidation supersede a stale result.</summary>
+    [PostgresTheory(Timeout = 30000)]
+    [InlineData("owner-edit", "geoapify")]
+    [InlineData("provider-result", "geoapify")]
+    [InlineData("credential", "geoapify")]
+    [InlineData("selection", "geoapify")]
+    [InlineData("consent", "mapbox")]
+    public async Task StaleResult_DoesNotOverwriteCurrentRowOrAuthority(string mutation, string provider)
+    {
+        var protection = new EphemeralDataProtectionProvider();
+        var (userId, token) = await SeedAsync(provider, protection);
+        async Task MutateAsync()
+        {
+            await using var edit = fixture.CreateContext();
+            var row = await edit.Locations.SingleAsync(item => item.UserId == userId);
+            if (mutation is "owner-edit" or "provider-result")
+            {
+                if (mutation == "owner-edit") row.Coordinates = new(21, 11) { SRID = 4326 };
+                row.FullAddress = "Owner address";
+                row.ReverseGeocodingProvider = mutation == "owner-edit" ? "manual" : "geoapify";
+                row.ReverseGeocodingStorageMode = mutation == "owner-edit" ? null : "persistent";
+                row.ReverseGeocodedAt = mutation == "owner-edit" ? null : new DateTimeOffset(2026, 10, 16, 12, 0, 0, TimeSpan.Zero);
+                row.Notes = "Owner notes";
+            }
+            else if (mutation == "selection")
+                (await edit.PersonalLocationProviderSelections.SingleAsync(item => item.UserId == userId))
+                    .Select(PersonalProviderCapability.Geocoding, null);
+            else
+            {
+                var profile = await edit.PersonalLocationProviderProfiles.SingleAsync(item => item.UserId == userId);
+                if (mutation == "consent") profile.ClearPermanentGeocodingConsent();
+                else CredentialTestFactory.Create(protection).Replace(profile, "replacement-synthetic");
+            }
+            await edit.SaveChangesAsync();
+        }
+        using var handler = new ControlledProvider();
+        var rowEdited = mutation is "owner-edit" or "provider-result";
+        if (rowEdited) handler.BeforeResponse = _ => MutateAsync();
+        var lateMutation = new BeforeAddressPersistence(MutateAsync);
+        await WithHostAsync(protection, handler, rowEdited ? [] : [lateMutation], async client =>
+        {
+            using var request = Request("check-in", token, Guid.NewGuid());
+            using var response = await client.SendAsync(request);
+            await using var db = fixture.CreateContext();
+            var saved = await db.Locations.AsNoTracking().SingleAsync(row => row.UserId == userId);
+            await AssertResponseAsync(response, "check-in", saved.Id);
+            using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+            Assert.Equal(saved.FullAddress, json.RootElement.GetProperty("location").GetProperty("fullAddress").GetString());
+            Assert.Equal(rowEdited ? "Owner address" : null, saved.FullAddress);
+            Assert.Equal(rowEdited ? mutation == "owner-edit" ? "manual" : "geoapify" : null, saved.ReverseGeocodingProvider);
+            Assert.Equal(mutation == "provider-result" ? new DateTimeOffset(2026, 10, 16, 12, 0, 0, TimeSpan.Zero) : (DateTimeOffset?)null,
+                saved.ReverseGeocodedAt);
+            if (mutation == "owner-edit")
+            {
+                Assert.Equal((21d, 11d), (saved.Coordinates.X, saved.Coordinates.Y));
+                Assert.Equal("Owner notes", saved.Notes);
+            }
+            else if (!rowEdited) Assert.True(lateMutation.Applied);
+            Assert.Equal(1, handler.Calls);
+            Assert.Equal(1, await AdmissionCountAsync(userId, provider));
+        });
+    }
+
+    /// <summary>Distinct UUIDs, another owner using the same UUID and keyless legacy creates charge independently.</summary>
+    [PostgresFact(Timeout = 30000)]
+    public async Task IndependentCreates_KeepOwnerIsolationAndKeylessBehavior()
+    {
+        var protection = new EphemeralDataProtectionProvider();
+        var first = await SeedAsync("geoapify", protection);
+        var other = await SeedAsync("geoapify", protection);
+        using var handler = new ControlledProvider();
+        await WithHostAsync(protection, handler, [], async client =>
+        {
+            var key = Guid.NewGuid();
+            foreach (var sample in new[] { (first.Token, (Guid?)key), (first.Token, (Guid?)Guid.NewGuid()),
+                (other.Token, (Guid?)key), (first.Token, (Guid?)null) })
+            {
+                using var request = Request("check-in", sample.Token, sample.Item2);
+                using var response = await client.SendAsync(request);
+                Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            }
+            using var deniedRequest = Request("check-in", "invalid-token", Guid.NewGuid());
+            using var denied = await client.SendAsync(deniedRequest);
+            Assert.Equal(HttpStatusCode.Unauthorized, denied.StatusCode);
+            await using var db = fixture.CreateContext();
+            Assert.Equal(3, await db.Locations.CountAsync(row => row.UserId == first.UserId));
+            Assert.Equal(1, await db.Locations.CountAsync(row => row.UserId == other.UserId));
+            Assert.Equal(3, await AdmissionCountAsync(first.UserId, "geoapify"));
+            Assert.Equal(1, await AdmissionCountAsync(other.UserId, "geoapify"));
+            Assert.Equal(4, handler.Calls);
         });
     }
 
@@ -121,13 +303,14 @@ public sealed class ApiLocationProviderCreatePostgresTests(PostgresImportTestFix
 
     /// <summary>Uses real request-scoped contexts/controllers and substitutes only external transport and noncritical work.</summary>
     private async Task WithHostAsync(IDataProtectionProvider protection, ControlledProvider handler,
-        IInterceptor[] interceptors, Func<HttpClient, Task> run)
+        IInterceptor[] interceptors, Func<HttpClient, Task> run, SseService? sse = null)
     {
         var root = Path.Combine(Path.GetTempPath(), $"wayfarer-822-{Guid.NewGuid():N}");
         Directory.CreateDirectory(root);
         try
         {
             await using var seed = fixture.CreateContext();
+            var workAdmission = new ApiWorkAdmission(64, 8);
             await using var app = await IdentityRouteHost.StartAsync(seed, root, services =>
             {
                 services.RemoveAll<ApplicationDbContext>();
@@ -143,7 +326,7 @@ public sealed class ApiLocationProviderCreatePostgresTests(PostgresImportTestFix
                         NullLogger<BaseApiController>.Instance, gate, db);
                 });
                 services.AddScoped(sp => ApiLocationAdmissionTests.Controller(sp.GetRequiredService<ApplicationDbContext>(),
-                    new ApiWorkAdmission(64, 8), reverse: sp.GetRequiredService<ReverseGeocodingService>()));
+                    workAdmission, sse: sse, reverse: sp.GetRequiredService<ReverseGeocodingService>()));
                 services.AddControllers().AddControllersAsServices();
             });
             using var client = app.GetTestClient();
@@ -151,6 +334,24 @@ public sealed class ApiLocationProviderCreatePostgresTests(PostgresImportTestFix
             await run(client);
         }
         finally { Directory.Delete(root, recursive: true); }
+    }
+
+    /// <summary>Mutates authority after reverse-service revalidation but before final persistence locks are acquired.</summary>
+    private sealed class BeforeAddressPersistence(Func<Task> mutate) : DbCommandInterceptor
+    {
+        public bool Applied { get; private set; }
+
+        /// <summary>Uses a deterministic command boundary, leaving provider admission and HTTP untouched.</summary>
+        public override async ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(DbCommand command,
+            CommandEventData eventData, InterceptionResult<DbDataReader> result, CancellationToken cancellationToken = default)
+        {
+            if (!Applied && command.CommandText.Contains("FOR SHARE", StringComparison.Ordinal))
+            {
+                Applied = true;
+                await mutate();
+            }
+            return result;
+        }
     }
 
     /// <summary>Counts durable provider-native charges independently of synthetic transport calls.</summary>
@@ -222,12 +423,16 @@ public sealed class ApiLocationProviderCreatePostgresTests(PostgresImportTestFix
     private sealed class ControlledProvider : HttpMessageHandler
     {
         private int _calls;
+        /// <summary>Optional coordinated failure or owner edit at the actual transport boundary.</summary>
+        public Func<CancellationToken, Task>? BeforeResponse { get; set; }
+        /// <summary>Counts actual HTTP-handler entries independently of durable usage records.</summary>
         public int Calls => Volatile.Read(ref _calls);
 
         /// <summary>Checks the selected provider product and supplies a deterministic complete address result.</summary>
-        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             Interlocked.Increment(ref _calls);
+            if (BeforeResponse != null) await BeforeResponse(cancellationToken);
             var geoapify = request.RequestUri!.Host == "api.geoapify.com";
             Assert.True(geoapify || request.RequestUri.Host == "api.mapbox.com");
             if (!geoapify) Assert.Contains("permanent=true", request.RequestUri.Query);
@@ -241,7 +446,7 @@ public sealed class ApiLocationProviderCreatePostgresTests(PostgresImportTestFix
                 "context":{"address":{"address_number":"12","street_name":"Main Street"},
                 "postcode":{"name":"12345"},"place":{"name":"Town"},"region":{"name":"Region"},"country":{"name":"Country"}}}}]}
                 """;
-            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(json) });
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(json) };
         }
     }
 }
