@@ -50,9 +50,17 @@ public sealed class CsvLocationParser : ILocationDataParser
             yield break;
         }
 
+        var seenZeroKey = false;
         while (await csv.ReadAsync())
         {
             cancellationToken.ThrowIfCancellationRequested();
+            // Validate every input identity before coordinate/timestamp filtering, independently on each pass.
+            var idempotencyKey = ParseOptionalGuid(GetField(csv, "IdempotencyKey"));
+            if (idempotencyKey == Guid.Empty)
+            {
+                if (seenZeroKey) throw LocationImportValidationException.MultipleZeroKeys();
+                seenZeroKey = true;
+            }
             // Reject invalid WGS84 input before PostGIS can normalize a geography point.
             if (!TryGetRequiredDouble(csv, "Latitude", out var latitude) ||
                 !TryGetRequiredDouble(csv, "Longitude", out var longitude) ||
@@ -93,7 +101,6 @@ public sealed class CsvLocationParser : ILocationDataParser
             var osVersion = GetField(csv, "OsVersion");
             var batteryLevel = GetNullableInt(csv, "BatteryLevel");
             var isCharging = GetNullableBool(csv, "IsCharging");
-            var idempotencyKey = ParseOptionalGuid(GetField(csv, "IdempotencyKey"));
             var feature = ResolvedFeatureMetadata.NormalizeImported(
                 GetField(csv, "ResolvedFeatureName"), GetField(csv, "ResolvedFeatureType"),
                 GetField(csv, "ReverseGeocodingProvider"), GetField(csv, "ReverseGeocodingStorageMode"),
@@ -153,9 +160,11 @@ public sealed class CsvLocationParser : ILocationDataParser
         return csv.TryGetField(field, out string? value) ? value : null;
     }
 
+    /// <summary>Preserves legacy optional identity and all accepted GUID spellings without demoting malformed input.</summary>
     private static Guid? ParseOptionalGuid(string? value)
     {
-        return Guid.TryParse(value, out var key) ? key : null;
+        if (string.IsNullOrWhiteSpace(value)) return null;
+        return Guid.TryParse(value, out var key) ? key : throw LocationImportValidationException.InvalidKey();
     }
 
     private static double? GetNullableDouble(CsvReader csv, string field)

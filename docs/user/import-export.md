@@ -69,6 +69,13 @@ Latitude,Longitude,TimestampUtc
 A Wayfarer CSV export is a useful template when preparing your own file. Preserve
 quoted notes and address text; do not split fields on commas by hand.
 
+In CSV and Wayfarer GeoJSON, a missing, null, empty or whitespace-only
+`IdempotencyKey` remains keyless. Valid UUID spellings, including braces, retain
+their identity. A supplied nonblank malformed UUID fails the entire file.
+GeoJSON UUID values must be strings or null; numbers, booleans, arrays and objects
+fail. Validation reads the complete file before adding locations and checks
+identities even on records whose coordinates, timestamps or geometry are skipped.
+
 ## Follow progress and control an import
 
 The imports list shows status, processed records, the last processed record and
@@ -102,6 +109,12 @@ saved progress and locations; restarting it again cannot repair the checkpoint.
 A new import can recover remaining valid records without overwriting existing
 UUID-bearing locations or owner edits. Matching records without a UUID remains
 approximate. Previously stored invalid points are not automatically repaired.
+
+For an invalid UUID or multiple zero UUIDs, correct the identities in a copy and
+upload it as a **new import**. **Start** on the unchanged failed upload fails again.
+Failure preserves earlier saved totals, checkpoints, counters and locations; a
+fresh import adds no locations from the invalid file. Keep the staged upload
+unchanged and retain the original as a reference.
 
 If Activity reconciliation fails, the current batch is rolled back together with
 its classifications and progress. Earlier committed batches remain saved. **Start**
@@ -154,6 +167,18 @@ one. Reimporting a UUID already present in your account skips that record withou
 overwriting edits. Different UUIDs remain distinct even at the same time and
 position. Another account can import the same UUID independently; numeric `Id`
 values belong to the destination database and are not portable identity.
+
+For historical compatibility, each CSV or Wayfarer GeoJSON file may contain at
+most one all-zero UUID (`00000000-0000-0000-0000-000000000000`). It stays a real key:
+an account without zero imports it unchanged, including a transfer from another
+account; replay in an account already holding zero skips it and preserves owner
+edits. A second zero occurrence fails the entire file, even for identical or
+otherwise skipped records, or when the account already holds zero.
+
+Zero alone cannot identify whether a record is a replay or a different capture.
+A distinct capture supplied as the sole zero in a later separate file can still
+match the account's existing zero and count as a skipped duplicate. Give distinct
+new captures distinct nonzero UUIDs. Existing stored keys are never rekeyed.
 
 Keep an untouched export when using another tool to transform the data. These
 files can include precise positions, times, notes and device metadata. Store and

@@ -1,6 +1,8 @@
+using System.Data.Common;
 using System.Globalization;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
@@ -146,6 +148,64 @@ public sealed class LocationImportIdentityPostgresTests(PostgresImportTestFixtur
         }
     }
 
+    /// <summary>Stop/delete/new epochs, cancellation and a concurrent xmin update take priority over a validation diagnostic.</summary>
+    [PostgresTheory]
+    [InlineData("stop")]
+    [InlineData("delete")]
+    [InlineData("epoch")]
+    [InlineData("xmin")]
+    [InlineData("cancel")]
+    public async Task ValidationDiagnostic_RespectsCancellationAndDurableAuthority(string change)
+    {
+        var user = await fixture.CreateUserAsync();
+        var path = ImportStaging.TempFile();
+        using var client = new HttpClient();
+        using var cancellation = new CancellationTokenSource();
+        try
+        {
+            await WriteInputAsync(path, LocationImportFileType.Csv, [Guid.NewGuid()], "private-malformed-uuid");
+            await using var db = fixture.CreateContext();
+            var import = Import(user.Id, path, LocationImportFileType.Csv);
+            db.LocationImports.Add(import);
+            await db.SaveChangesAsync();
+            var interceptor = new DiagnosticRaceInterceptor(change == "xmin", async () =>
+            {
+                if (change == "cancel") { cancellation.Cancel(); return; }
+                await using var authority = fixture.CreateContext();
+                var current = await authority.LocationImports.SingleAsync(row => row.Id == import.Id);
+                switch (change)
+                {
+                    case "stop":
+                        current.Status = ImportStatus.Stopping;
+                        current.StopRequestedAtUtc = DateTime.UtcNow;
+                        current.ProjectionPending = true;
+                        break;
+                    case "delete":
+                        current.Status = ImportStatus.Stopped;
+                        current.DeletionRequestedAtUtc = DateTime.UtcNow;
+                        break;
+                    case "epoch": current.ExecutionEpoch++; break;
+                    case "xmin": current.RemainingEnrichmentCount = 9; break;
+                }
+                await authority.SaveChangesAsync();
+            });
+            var worker = Worker(client, NullLoggerFactory.Instance, interceptor);
+            var outcome = await worker.ProcessImportExecution(import.Id, import.ExecutionEpoch, cancellation.Token);
+            Assert.True(interceptor.Invoked);
+            Assert.Equal(change == "cancel" ? LocationImportExecutionOutcome.Cancelled : LocationImportExecutionOutcome.Stale, outcome);
+            await db.Entry(import).ReloadAsync();
+            Assert.Null(import.ErrorMessage);
+            Assert.Equal((0, 0, 0), (import.TotalRecords, import.LastProcessedIndex, import.SkippedDuplicates));
+            Assert.Empty(await db.Locations.Where(row => row.UserId == user.Id).ToListAsync());
+            Assert.Equal(change == "epoch" ? 8 : 7, import.ExecutionEpoch);
+            Assert.Equal(change == "xmin" ? 9 : 0, import.RemainingEnrichmentCount);
+            Assert.Equal(change == "stop", import.StopRequestedAtUtc.HasValue);
+            Assert.Equal(change == "delete", import.DeletionRequestedAtUtc.HasValue);
+            output.WriteLine($"Diagnostic race {change}: outcome={outcome}, no diagnostic or Location writes.");
+        }
+        finally { File.Delete(path); }
+    }
+
     /// <summary>Checks only fixed diagnostic content and safe structured fields after terminal projection.</summary>
     private static void AssertDiagnostic(LocationImport import, bool multipleZeros, string path, TestLogProvider logs, int count)
     {
@@ -168,8 +228,8 @@ public sealed class LocationImportIdentityPostgresTests(PostgresImportTestFixtur
     }
 
     /// <summary>Uses existing production parser, staged-file and batch ownership seams without provider calls.</summary>
-    private LocationImportService Worker(HttpClient client, ILoggerFactory logs) => new(ImportStaging.Files,
-        new FixtureFactory(fixture), new ReverseGeocodingService(client, NullLogger<BaseApiController>.Instance),
+    private LocationImportService Worker(HttpClient client, ILoggerFactory logs, IInterceptor? interceptor = null) => new(ImportStaging.Files,
+        new FixtureFactory(fixture, interceptor), new ReverseGeocodingService(client, NullLogger<BaseApiController>.Instance),
         logs.CreateLogger<LocationImportService>(), new LocationDataParserFactory(logs), new SseService());
 
     /// <summary>Creates explicit current-generation import authority with no preexisting progress.</summary>
@@ -202,9 +262,46 @@ public sealed class LocationImportIdentityPostgresTests(PostgresImportTestFixtur
     }
 
     /// <summary>Retains real independent PostgreSQL contexts for each worker operation.</summary>
-    private sealed class FixtureFactory(PostgresImportTestFixture fixture) : IDbContextFactory<ApplicationDbContext>
+    private sealed class FixtureFactory(PostgresImportTestFixture fixture, IInterceptor? interceptor = null) : IDbContextFactory<ApplicationDbContext>
     {
         /// <inheritdoc />
-        public ApplicationDbContext CreateDbContext() => fixture.CreateContext();
+        public ApplicationDbContext CreateDbContext() => interceptor is null ? fixture.CreateContext() : fixture.CreateContext(interceptor);
+    }
+
+    /// <summary>Changes durable authority around the diagnostic read, after the initial execution snapshot.</summary>
+    private sealed class DiagnosticRaceInterceptor(bool afterRead, Func<Task> change) : DbCommandInterceptor
+    {
+        private int reads;
+
+        /// <summary>Records that the intended product interleaving actually occurred.</summary>
+        internal bool Invoked { get; private set; }
+
+        /// <inheritdoc />
+        public override async ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
+            DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result,
+            CancellationToken cancellationToken = default)
+        {
+            if (command.CommandText.TrimStart().StartsWith("SELECT", StringComparison.Ordinal)
+                && command.CommandText.Contains("LocationImports", StringComparison.Ordinal)
+                && ++reads == 2 && !afterRead)
+            {
+                Invoked = true;
+                await change();
+            }
+            return result;
+        }
+
+        /// <inheritdoc />
+        public override async ValueTask<DbDataReader> ReaderExecutedAsync(
+            DbCommand command, CommandExecutedEventData eventData, DbDataReader result,
+            CancellationToken cancellationToken = default)
+        {
+            if (reads == 2 && afterRead && !Invoked)
+            {
+                Invoked = true;
+                await change();
+            }
+            return result;
+        }
     }
 }

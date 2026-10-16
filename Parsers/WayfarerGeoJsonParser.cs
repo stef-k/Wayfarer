@@ -49,6 +49,7 @@ namespace Wayfarer.Parsers
                 DateParseHandling = DateParseHandling.None
             };
             var isFeatureCollection = false;
+            var seenZeroKey = false;
             while (await json.ReadAsync(cancellationToken))
             {
                 if (json.TokenType != JsonToken.PropertyName) continue;
@@ -72,6 +73,14 @@ namespace Wayfarer.Parsers
                 {
                     json.InvalidActivityValue = false;
                     var featureJson = await JObject.LoadAsync(json, cancellationToken);
+                    // Raw identity types and zero occurrences are checked before geometry/timestamp filters or NTS coercion.
+                    var rawProperties = featureJson["properties"] as JObject;
+                    var idempotencyKey = ParseOptionalGuid(rawProperties?.GetValue("IdempotencyKey", StringComparison.Ordinal));
+                    if (idempotencyKey == Guid.Empty)
+                    {
+                        if (seenZeroKey) throw LocationImportValidationException.MultipleZeroKeys();
+                        seenZeroKey = true;
+                    }
                     var wrapper = new JObject
                     {
                         ["type"] = "FeatureCollection",
@@ -91,7 +100,6 @@ namespace Wayfarer.Parsers
                     }
 
                     var attrs = feat.Attributes;
-                    var rawProperties = featureJson["properties"] as JObject;
 
                     // helper to safely get a string attribute
                     string? getString(string key)
@@ -168,9 +176,6 @@ namespace Wayfarer.Parsers
                     var osVersion = getString("OsVersion");
                     var batteryLevel = getInt("BatteryLevel");
                     var isCharging = getBool("IsCharging");
-                    var idempotencyKey = Guid.TryParse(getString("IdempotencyKey"), out var parsedKey)
-                        ? parsedKey
-                        : (Guid?)null;
 
                     // 4) Construct domain object with explicit SRID
                     var loc = new Location
@@ -225,6 +230,16 @@ namespace Wayfarer.Parsers
                 yield break;
             }
             throw new FormatException("GeoJSON does not contain a features array.");
+        }
+
+        /// <summary>Accepts only optional raw JSON strings and GUID spellings supported by legacy imports.</summary>
+        private static Guid? ParseOptionalGuid(JToken? value)
+        {
+            if (value is null || value.Type == JTokenType.Null) return null;
+            if (value.Type != JTokenType.String) throw LocationImportValidationException.InvalidKey();
+            var text = value.Value<string>();
+            if (string.IsNullOrWhiteSpace(text)) return null;
+            return Guid.TryParse(text, out var key) ? key : throw LocationImportValidationException.InvalidKey();
         }
 
         /// <summary>
