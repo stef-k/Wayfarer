@@ -7,8 +7,8 @@ public interface IProxiedImageCacheService
 {
     /// <summary>
     /// Returns an explicit cache result for the requested key.
-    /// Fresh and stale hits include bounded local bytes; callers must validate their raster content.
-    /// Cancellation covers database, file and cache-lock waits.
+    /// Fresh and stale hits own pre-read admission; callers must dispose the result after full validation/reap.
+    /// Cancellation covers database, admission, file and cache-lock waits. Busy admission is temporarily unavailable.
     /// </summary>
     Task<ProxiedImageCacheResult> GetAsync(string cacheKey, CancellationToken ct = default);
 
@@ -47,14 +47,20 @@ public enum ProxiedImageCacheStatus
 }
 
 /// <summary>
-/// Explicit result returned by proxied image cache reads.
+/// Owns cache bytes and their read-through-validation admission. Dispose only after the helper has reaped.
 /// </summary>
 public sealed record ProxiedImageCacheResult(
     ProxiedImageCacheStatus Status,
     byte[]? Bytes,
     string? ContentType,
-    string? FilePath)
+    string? FilePath) : IDisposable
 {
+    /// <summary>One shared reservation follows actual disk bytes through full validation.</summary>
+    internal System.Threading.RateLimiting.RateLimitLease? ValidationAdmission { get; init; }
+
+    /// <summary>Release on every completed validation, cancellation or failure path.</summary>
+    public void Dispose() => ValidationAdmission?.Dispose();
+
     /// <summary>
     /// Gets whether this result contains bytes that can be returned to the browser.
     /// </summary>

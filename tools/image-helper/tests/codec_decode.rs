@@ -1,0 +1,87 @@
+//! Compatibility contracts for the selected runtime codecs.
+use wayfarer_image::{Failure, MAX_ENCODED, MAX_INPUT, OutputFormat, Recipe, transform, validate};
+
+/// Both library routes honor the effective input limit while trusted arguments retain independent hard ceilings.
+#[test]
+fn encoded_limits_preserve_the_admin_range_and_output_ceiling() {
+    let mut configured = recipe();
+    configured.max_input = MAX_INPUT;
+    assert_eq!(configured.validate(), Ok(()));
+    let source = fixture("opaque.png");
+    assert_eq!(validate(&source, MAX_INPUT), Ok("image/png"));
+    configured.max_input = source.len() - 1;
+    assert_eq!(transform(&source, &configured), Err(Failure::TooLarge));
+    assert_eq!(validate(&source, source.len() - 1), Err(Failure::TooLarge));
+    configured.max_input = MAX_INPUT + 1;
+    assert_eq!(configured.validate(), Err(Failure::Arguments));
+    assert_eq!(validate(&source, MAX_INPUT + 1), Err(Failure::Arguments));
+    configured.max_input = MAX_INPUT;
+    configured.max_output = MAX_ENCODED + 1;
+    assert_eq!(configured.validate(), Err(Failure::Arguments));
+}
+
+/// Reuse only the retained local corpus; no fixture generation or host mutation.
+fn fixture(name: &str) -> Vec<u8> {
+    let root = std::env::var("WAYFARER_IMAGE_FIXTURES")
+        .unwrap_or_else(|_| format!("{}/fixtures", env!("CARGO_MANIFEST_DIR")));
+    std::fs::read(std::path::Path::new(&root).join(name)).unwrap()
+}
+
+/// A complete recipe exercises the actual normalization and derivative verification seam.
+fn recipe() -> Recipe {
+    Recipe {
+        width: 600,
+        height: 8192,
+        quality: 85,
+        output: OutputFormat::Auto,
+        max_input: MAX_ENCODED,
+        max_output: MAX_ENCODED,
+    }
+}
+
+/// Preserve prior truncated-JPEG rejection and the previously successful bounded recovery control.
+#[test]
+fn jpeg_recovery_preserves_rejection_and_completed_output() {
+    for name in [
+        "jpeg-without-eoi.jpg",
+        "jpeg-truncated-entropy.jpg",
+        "truncated.jpg",
+    ] {
+        assert_eq!(
+            transform(&fixture(name), &recipe()),
+            Err(Failure::Source),
+            "{name}"
+        );
+    }
+    let recovered = transform(&fixture("jpeg-truncated-entropy-with-eoi.jpg"), &recipe()).unwrap();
+    image::load_from_memory(&recovered).unwrap();
+}
+
+/// Both WebP routes preserve alpha and reject malformed payloads and container controls.
+#[test]
+fn webp_preserves_alpha_and_strict_admission() {
+    let source = fixture("static.webp");
+    let output = transform(&source, &recipe()).unwrap();
+    assert_eq!(
+        image::guess_format(&output).unwrap(),
+        image::ImageFormat::Png
+    );
+    let pixels = image::load_from_memory(&output).unwrap().into_rgba8();
+    assert!(pixels.pixels().any(|pixel| pixel[3] < 255));
+    let mut explicit = recipe();
+    explicit.output = OutputFormat::Jpeg;
+    assert_eq!(transform(&source, &explicit), Err(Failure::Source));
+    for name in [
+        "animated.webp",
+        "truncated.webp",
+        "metadata.webp",
+        "upstream-huffman-overflow.webp",
+        "huffman-exact-extent.webp",
+    ] {
+        assert_eq!(
+            transform(&fixture(name), &recipe()),
+            Err(Failure::Source),
+            "{name}"
+        );
+    }
+}

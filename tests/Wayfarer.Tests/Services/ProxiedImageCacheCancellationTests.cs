@@ -15,11 +15,13 @@ public partial class ProxiedImageCacheServiceTests
         var service = CreateService(db: db);
         var key = Key("oversized-legacy");
         await service.SetAsync(key, ImageProxyTestFactory.Raster(), "image/jpeg");
-        var path = (await service.GetAsync(key)).FilePath!;
+        using var initial = await service.GetAsync(key);
+        var path = initial.FilePath!;
         await using (var file = new FileStream(path, FileMode.Open, FileAccess.Write))
             file.SetLength(51L * 1024 * 1024);
         Assert.True(db.ImageCacheMetadata.Single().Size < 1024);
-        Assert.False((await service.GetAsync(key)).HasBytes);
+        using var oversized = await service.GetAsync(key);
+        Assert.False(oversized.HasBytes);
         Assert.Single(db.ImageCacheMetadata);
     }
 
@@ -43,7 +45,8 @@ public partial class ProxiedImageCacheServiceTests
             service.SetAsync(key, ImageProxyTestFactory.Raster("png"), "image/png", cancellation.Token));
         ProxiedImageCacheService.SetMetadataSaverForTesting(null);
         Assert.Equal(originalPath, db.ImageCacheMetadata.Single().FilePath);
-        Assert.Equal(original, (await service.GetAsync(key)).Bytes);
+        using var restored = await service.GetAsync(key);
+        Assert.Equal(original, restored.Bytes);
         Assert.Single(Directory.GetFiles(_tempDir));
     }
 }

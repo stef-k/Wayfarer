@@ -3,9 +3,6 @@ using SixLabors.ImageSharp.Formats.Gif;
 using SixLabors.ImageSharp.Formats.Webp;
 using SixLabors.ImageSharp.Metadata.Profiles.Exif;
 using SixLabors.ImageSharp.PixelFormats;
-using SixLabors.ImageSharp.Memory;
-using SixLabors.ImageSharp.Processing;
-using System.Reflection;
 using Wayfarer.Util;
 using Xunit;
 
@@ -31,7 +28,7 @@ public sealed class ImageProxyHelperOptimizationTests
     [Theory]
     [InlineData("jpeg", false, "JPEG")]
     [InlineData("png", true, "PNG")]
-    [InlineData("webp", false, "JPEG")]
+    [InlineData("webp", true, "PNG")]
     [InlineData("gif", true, "PNG")]
     public void OptimizeImage_AcceptsSupportedStillFormats(
         string format,
@@ -51,26 +48,12 @@ public sealed class ImageProxyHelperOptimizationTests
         Assert.Single(decoded.Frames);
     }
 
-    /// <summary>GIF identification accepts one frame and rejects on the second observed frame.</summary>
-    [Theory]
-    [InlineData(1, 0)]
-    [InlineData(2, 1)]
-    public void Preflight_EnforcesGifFrameSentinel(int frames, int expectedDecision)
+    /// <summary>Static GIF validates; multiple frames reject through full contained decoding.</summary>
+    [Fact]
+    public void ValidateRaster_RejectsMultipleGifFrames()
     {
-        var result = ImageProxyHelper.PreflightDecodedResources(CreateAnimation(frames, "gif"));
-
-        Assert.Equal(expectedDecision, (int)result.Decision);
-    }
-
-    /// <summary>WebP identification accepts one frame and rejects on the second observed frame.</summary>
-    [Theory]
-    [InlineData(1, 0)]
-    [InlineData(2, 1)]
-    public void Preflight_EnforcesWebpFrameSentinel(int frames, int expectedDecision)
-    {
-        var result = ImageProxyHelper.PreflightDecodedResources(CreateAnimation(frames, "webp"));
-
-        Assert.Equal(expectedDecision, (int)result.Decision);
+        Assert.Equal("image/gif", ImageProxyHelper.ValidateRaster(CreateAnimation(1, "gif")));
+        Assert.ThrowsAny<Exception>(() => ImageProxyHelper.ValidateRaster(CreateAnimation(2, "gif")));
     }
 
     /// <summary>Original-byte validation rejects the same animated inputs as optimized output.</summary>
@@ -139,7 +122,7 @@ public sealed class ImageProxyHelperOptimizationTests
         Assert.NotEqual(byte.MaxValue, decoded[0, 0].A);
     }
 
-    /// <summary>JPEG orientation and ordinary EXIF metadata retain the current pass-through behavior.</summary>
+    /// <summary>JPEG orientation is applied before private EXIF is stripped.</summary>
     [Fact]
     public void OptimizeImage_PreservesOrientationAndMetadata()
     {
@@ -153,13 +136,10 @@ public sealed class ImageProxyHelperOptimizationTests
         var output = ImageProxyHelper.OptimizeImage(input.ToArray(), null, null, 90, out _);
 
         using var decoded = Image.Load(output);
-        var profile = Assert.IsType<ExifProfile>(decoded.Metadata.ExifProfile);
-        Assert.Equal(2, decoded.Width);
-        Assert.Equal(1, decoded.Height);
-        Assert.True(profile.TryGetValue(ExifTag.Orientation, out var orientation));
-        Assert.True(profile.TryGetValue(ExifTag.Software, out var software));
-        Assert.Equal((ushort)6, orientation.Value);
-        Assert.Equal("Wayfarer test", software.Value);
+        Assert.Equal(1, decoded.Width);
+        Assert.Equal(2, decoded.Height);
+        Assert.Null(decoded.Metadata.ExifProfile);
+        Assert.Null(decoded.Metadata.XmpProfile);
     }
 
     /// <summary>The requested JPEG quality continues to affect opaque output encoding.</summary>
@@ -186,27 +166,6 @@ public sealed class ImageProxyHelperOptimizationTests
 
         Assert.False(lowQuality.SequenceEqual(highQuality));
         Assert.True(highQuality.Length > lowQuality.Length);
-    }
-
-    /// <summary>The production resize seam remains explicitly configured with Lanczos3.</summary>
-    [Fact]
-    public void OptimizationResampler_UsesLanczos3()
-    {
-        Assert.Same(KnownResamplers.Lanczos3, ImageProxyHelper.OptimizationResampler);
-    }
-
-    /// <summary>The dedicated allocator exposes the fixed allocation-group capacity as defense in depth.</summary>
-    [Fact]
-    public void ProxyAllocator_UsesFixedAllocationGroupLimit()
-    {
-        var configurationField = typeof(DecodedImageResourceLimits).GetField(
-            "ProxyConfiguration",
-            BindingFlags.NonPublic | BindingFlags.Static);
-        var configuration = Assert.IsType<Configuration>(configurationField?.GetValue(null));
-
-        Assert.NotSame(Configuration.Default.MemoryAllocator, configuration.MemoryAllocator);
-        Assert.Throws<InvalidMemoryOperationException>(() =>
-            configuration.MemoryAllocator.Allocate<byte>(128 * 1024 * 1024 + 1));
     }
 
     private static byte[] CreateStaticImage(string format)

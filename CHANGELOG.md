@@ -4,6 +4,22 @@
 
 ### Added
 
+- Integrate the contained Rust image helper with the existing image proxy, independent
+  cache validation and native Linux AMD64/ARM64 packaging (#858). Preserve static
+  formats, ICC/alpha and private metadata stripping; web defaults are 2048/90.
+  Admit cache reads before allocation with one size-weighted lease through full
+  validation/reap; wait finitely and cancellably for ordinary warm bursts. Bound
+  live untrusted cache inputs to 200 MiB and eight validators (one at 200 MiB),
+  returning temporary 503 on sustained overload without origin refetch.
+  Honor the configured 5–200 MiB input limit
+  in both codec modes and legacy-cache validation; retain the 50 MiB output cap.
+  Permit the qualified unmodified official WebP Git pin temporarily until a fixed
+  crates.io release is available, with an explicit source/checksum/notices update
+  and review before adoption. Linux/WSL2 retain complete imaging; native Windows
+  builds omit the helper and image-proxy operations return uncached HTTP 501.
+  Native Windows production deployment remains unsupported; actual startup smoke
+  requires the established safe PostgreSQL 18/PostGIS prerequisite.
+
 - Automatically reuse or create shared Activities for newly accepted location-history
   imports, with PostgreSQL Unicode identity, atomic classification/checkpoints and
   bounded contention recovery. Duplicates and UUID race losers create nothing.

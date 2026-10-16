@@ -48,6 +48,8 @@ A practical native host needs:
 - .NET 10 runtime (SDK on the build host);
 - PostgreSQL + PostGIS;
 - Node 24/npm on the build host;
+- Rust 1.90.0, C/C++, CMake and NASM on the native build host for the image helper;
+- `util-linux` providing `/usr/bin/prlimit` on the runtime host;
 - a reverse proxy such as Nginx;
 - enough disk for application data, caches, imports, logs and backups.
 
@@ -103,6 +105,13 @@ npm ci
 npm run build
 dotnet publish Wayfarer.csproj -c Release -o /absolute/publish
 ```
+
+The native Linux AMD64/ARM64 build also bundles `image-helper/wayfarer-image` and
+its complete third-party notices. Build on the target architecture and retain the
+helper executable mode; do not grant the service write access to its payload.
+See the [image helper contract](../../tools/image-helper/README.md) for prerequisites,
+containment, the draft-only upstream pin and rollback. Native Windows remains
+unqualified; use WSL2 pending the required maintainer decision before merge.
 
 Validate the **published** output, not only a source-tree Production run. Published
 static-web assets and the Trip Editor manifest must be present.

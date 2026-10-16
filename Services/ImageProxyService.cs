@@ -5,7 +5,7 @@ using Wayfarer.Util;
 namespace Wayfarer.Services;
 
 /// <summary>
-/// Fetches external images, optimizes them via ImageSharp, and stores them in the
+/// Fetches external images, optimizes them via the contained Rust helper, and stores them in the
 /// proxied image disk cache. Delegates to <see cref="ImageProxyHelper"/> for
 /// shared SSRF checks, cache key computation, and image optimization.
 /// </summary>
@@ -18,7 +18,7 @@ public class ImageProxyService : IImageProxyService
     private readonly ILogger<ImageProxyService> _logger;
 
     /// <summary>
-    /// Coalesces active origin download and ImageSharp work by image cache key.
+    /// Coalesces active origin download and image processing work by image cache key.
     /// </summary>
     private static readonly Dictionary<string, Task<ImageProxyResult>> _originWork = new();
     private static readonly object OriginWorkLock = new();
@@ -31,7 +31,7 @@ public class ImageProxyService : IImageProxyService
     private static readonly ConcurrentDictionary<string, ImageRefreshSeries> _refreshSeries = new();
 
     /// <summary>
-    /// Process-wide concurrency budget for origin download and ImageSharp optimization.
+    /// Process-wide concurrency budget for origin download and image optimization.
     /// </summary>
     private static readonly SemaphoreSlim _originWorkBudget = new(4, 4);
 
@@ -70,7 +70,12 @@ public class ImageProxyService : IImageProxyService
 
         var cacheKey = ComputeCacheKey(request);
         ct.ThrowIfCancellationRequested();
-        var cached = await GetSafeCacheAsync(cacheKey, ct);
+        ProxiedImageCacheResult cached;
+        try { cached = await GetSafeCacheAsync(cacheKey, ct); }
+        catch (ImageHelperUnavailableException)
+        {
+            return new ImageProxyResult(ImageProxyResultStatus.Unavailable, cacheKey, null, null);
+        }
         if (cached.Status is ProxiedImageCacheStatus.FreshHit or ProxiedImageCacheStatus.StaleHit && cached.HasBytes)
         {
             if (cached.Status == ProxiedImageCacheStatus.StaleHit)
@@ -104,7 +109,9 @@ public class ImageProxyService : IImageProxyService
 
         var cacheKey = ComputeCacheKey(request);
         ct.ThrowIfCancellationRequested();
-        var existing = await GetSafeCacheAsync(cacheKey, ct);
+        ProxiedImageCacheResult existing;
+        try { existing = await GetSafeCacheAsync(cacheKey, ct); }
+        catch (ImageHelperUnavailableException) { return false; }
         if (existing.Status == ProxiedImageCacheStatus.FreshHit && existing.HasBytes)
         {
             return false;
@@ -199,23 +206,29 @@ public class ImageProxyService : IImageProxyService
         completion.SetResult(result);
     }
 
-    /// <summary>Legacy cache bytes are untrusted; invalid entries remain inert until replacement or LRU.</summary>
+    /// <summary>Invalid cache bytes remain inert; temporary validation failures propagate without triggering origin work.</summary>
     private async Task<ProxiedImageCacheResult> GetSafeCacheAsync(string cacheKey, CancellationToken ct)
     {
-        var cached = await _imageCacheService.GetAsync(cacheKey, ct);
+        using var cached = await _imageCacheService.GetAsync(cacheKey, ct);
         if (!cached.HasBytes) return cached;
         try
         {
-            var mime = ImageProxyHelper.ValidateRaster(cached.Bytes!);
+            var mime = await ImageProxyHelper.ValidateRasterAsync(cached.Bytes!, MaximumInputBytes, ct,
+                cached.ValidationAdmission);
             ct.ThrowIfCancellationRequested();
-            return cached with { ContentType = mime };
+            return cached with { ContentType = mime, ValidationAdmission = null };
         }
         catch (OperationCanceledException) { throw; }
+        catch (ImageHelperUnavailableException) { throw; }
         catch (Exception)
         {
             return new ProxiedImageCacheResult(ProxiedImageCacheStatus.Miss, null, null, null);
         }
     }
+
+    /// <summary>Bound even invalid persisted settings to the supported 5–200 MiB input range before checked conversion.</summary>
+    private int MaximumInputBytes => checked(Math.Clamp(_settingsService.GetSettings().MaxProxyImageDownloadMB,
+        5, 200) * 1024 * 1024);
 
     /// <summary>
     /// Downloads, optionally optimizes, and stores an image for one cache key.
@@ -225,7 +238,7 @@ public class ImageProxyService : IImageProxyService
         string cacheKey,
         CancellationToken ct)
     {
-        var maxBytes = _settingsService.GetSettings().MaxProxyImageDownloadMB * 1024L * 1024;
+        var maxBytes = MaximumInputBytes;
         HttpResponseMessage resp;
         try
         {
@@ -266,18 +279,20 @@ public class ImageProxyService : IImageProxyService
             {
                 if (request.Optimize)
                 {
-                    bytes = ImageProxyHelper.OptimizeImage(
-                        bytes,
-                        request.MaxWidth,
-                        request.MaxHeight,
-                        request.Quality ?? 95,
-                        out var isPng);
-                    contentType = isPng ? "image/png" : "image/jpeg";
+                    var optimized = await ImageProxyHelper.OptimizeImageAsync(
+                        bytes, request.MaxWidth, request.MaxHeight, request.Quality ?? 90, maxBytes, ct);
+                    bytes = optimized.Bytes;
+                    contentType = optimized.IsPng ? "image/png" : "image/jpeg";
                 }
                 else
                 {
-                    contentType = ImageProxyHelper.ValidateRaster(bytes);
+                    contentType = await ImageProxyHelper.ValidateRasterAsync(bytes, maxBytes, ct);
                 }
+            }
+            catch (OperationCanceledException) { throw; }
+            catch (ImageHelperUnavailableException)
+            {
+                return new ImageProxyResult(ImageProxyResultStatus.Unavailable, cacheKey, null, null);
             }
             catch (DecodedImageResourceRejectedException ex)
             {

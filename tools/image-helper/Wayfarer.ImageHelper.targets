@@ -1,0 +1,17 @@
+<Project>
+  <!-- A prebuilt helper comes only from the native Docker build stage. Normal Linux builds use Cargo. -->
+  <PropertyGroup>
+    <ImageHelperPath Condition="'$(ImageHelperPrebuilt)' == ''">$(MSBuildThisFileDirectory)target/release/wayfarer-image</ImageHelperPath>
+    <ImageHelperPath Condition="'$(ImageHelperPrebuilt)' != ''">$(ImageHelperPrebuilt)</ImageHelperPath>
+  </PropertyGroup>
+  <Target Name="BuildWayfarerImageHelper" BeforeTargets="PrepareForBuild"
+          Condition="$([MSBuild]::IsOSPlatform('Linux')) and '$(ImageHelperPrebuilt)' == ''">
+    <Exec Command="bash &quot;$(MSBuildThisFileDirectory)build.sh&quot; &quot;$(RuntimeIdentifier)&quot;" />
+  </Target>
+  <ItemGroup Condition="$([MSBuild]::IsOSPlatform('Linux'))">
+    <Content Include="$(ImageHelperPath)" Link="image-helper/wayfarer-image"
+             CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="$(MSBuildThisFileDirectory)THIRD-PARTY-LICENSES.txt" Link="image-helper/THIRD-PARTY-LICENSES.txt"
+             CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

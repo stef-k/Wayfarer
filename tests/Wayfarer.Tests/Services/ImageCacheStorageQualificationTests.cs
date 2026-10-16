@@ -26,7 +26,7 @@ public sealed class ImageCacheStorageQualificationTests : TestBase
         var storage = Storage();
         var row = await SeedAsync(db, storage, "legacy", replacement, stale);
         var original = db.Entry(row).CurrentValues.Clone();
-        var result = await Service(db, storage).GetAsync(row.CacheKey);
+        using var result = await Service(db, storage).GetAsync(row.CacheKey);
         Assert.Equal(stale ? ProxiedImageCacheStatus.StaleHit : ProxiedImageCacheStatus.FreshHit, result.Status);
         Assert.Equal(new byte[] { 1, 2 }, result.Bytes);
         Assert.Equal("image/jpeg", result.ContentType);
@@ -50,7 +50,7 @@ public sealed class ImageCacheStorageQualificationTests : TestBase
         var service = Service(db, storage);
         if (kind == "unsafe")
         {
-            var miss = await service.GetAsync(row.CacheKey);
+            using var miss = await service.GetAsync(row.CacheKey);
             Assert.Equal(ProxiedImageCacheStatus.DiskMissingOrError, miss.Status);
             Assert.Null(miss.FilePath);
             Assert.Equal(oldReference, (await db.ImageCacheMetadata.SingleAsync()).FilePath);
@@ -67,7 +67,8 @@ public sealed class ImageCacheStorageQualificationTests : TestBase
         finally { ProxiedImageCacheService.SetMetadataSaverForTesting(null); }
         Assert.NotEqual(oldReference, row.FilePath);
         Assert.Equal(kind == "unsafe", File.Exists(oldPath));
-        Assert.Equal(new byte[] { 3, 4, 5 }, (await service.GetAsync(row.CacheKey)).Bytes);
+        using var refreshed = await service.GetAsync(row.CacheKey);
+        Assert.Equal(new byte[] { 3, 4, 5 }, refreshed.Bytes);
         // A second refresh must retain exactly one generation component.
         Assert.True((await service.SetAsync(row.CacheKey, [6], "image/webp")).Stored);
         Assert.Equal(101, row.FilePath.Length);
@@ -97,10 +98,12 @@ public sealed class ImageCacheStorageQualificationTests : TestBase
         var row = await SeedAsync(db, storage, "legacy");
         File.Delete(row.FilePath);
         var service = Service(db, storage);
-        Assert.Equal(ProxiedImageCacheStatus.DiskMissingOrError, (await service.GetAsync(row.CacheKey)).Status);
+        using var missing = await service.GetAsync(row.CacheKey);
+        Assert.Equal(ProxiedImageCacheStatus.DiskMissingOrError, missing.Status);
         Assert.Empty(db.ImageCacheMetadata);
         Assert.False((await service.SetAsync("../invalid", [1], "image/png")).Stored);
-        Assert.Equal(ProxiedImageCacheStatus.Miss, (await service.GetAsync("../invalid")).Status);
+        using var invalid = await service.GetAsync("../invalid");
+        Assert.Equal(ProxiedImageCacheStatus.Miss, invalid.Status);
         Assert.False(Directory.Exists(storage.CurrentRoot));
     }
 

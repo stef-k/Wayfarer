@@ -9,9 +9,16 @@ This is the starting point for working on the Wayfarer web application. It cover
 ## Maintained development baseline
 
 - .NET 10 SDK.
+- Native Linux/WSL2 AMD64 or ARM64 image processing: Rust 1.90.0 plus C/C++, CMake,
+  NASM on x64 and `pkg-config` at build time; `util-linux` at runtime.
+  [Image helper packaging and dependency policy](../../tools/image-helper/README.md).
 - Node.js 24 and npm. `.nvmrc` selects Node 24.
 - PostgreSQL 18 with PostGIS for local development and guarded relational tests. `citext` is also used by the EF model.
-- Ubuntu 24.04 on Linux or WSL2 is the primary development baseline. Windows is supported as an alternative development environment.
+- Ubuntu 24.04 on Linux or WSL2 is the complete development baseline, including imaging.
+  Native Windows application builds exclude the Linux image helper. Native Windows
+  image-proxy operations return HTTP 501 with `Cache-Control: no-store`, including
+  `optimize=false` and public trip covers; invalid URLs still return 400 and missing/
+  private covers 404. Native Windows production deployment is unsupported.
 
 WayfarerMobile is a separate repository. Changes to the server do not implicitly change the mobile application.
 
@@ -42,6 +49,13 @@ dotnet run
 ~~~
 
 `dotnet watch run` is the normal hot-reload alternative. Non-Production startup applies pending EF migrations, aligns the Quartz schema and seeds required development data. Production startup deliberately does not perform those mutations; see [Database](database.md) and the [self-hosting documentation](../self-hosting/index.md).
+
+Native Windows uses the same .NET commands from PowerShell or Command Prompt,
+with a native checkout and a local development/test PostgreSQL 18 + PostGIS
+connection. Keep disposable smoke storage and Data Protection keys separate from
+existing user data; do not bypass startup/readiness checks. The current native
+Windows build/controller evidence and remaining actual-startup prerequisite are
+recorded in [helper validation](../../tools/image-helper/VALIDATION.md#native-windows-and-shipping-policy--2026-10-16).
 
 ## Frontend development
 

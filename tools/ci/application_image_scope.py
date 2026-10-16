@@ -53,8 +53,13 @@ SHARED_BUILD = (
     '*/Directory.*.props', '*/Directory.*.targets', '*packages.lock.json',
     '*nuget.config', '*NuGet.Config', '*NuGet.config', '*global.json',
 )
+# The image helper is a native application dependency, including its locked build and notices.
+IMAGE_HELPER_OWNERS = (
+    'tools/image-helper/*', 'Util/ImageHelperSupervisor.cs', 'Util/ImageTransform.cs',
+    'Util/ImageProxyHelper.cs', 'Util/DecodedImageResourceLimits.cs',
+)
 # Explicit ABI, platform/RID, OCI-selection and native qualification owners.
-NATIVE_OWNERS = (
+NATIVE_OWNERS = IMAGE_HELPER_OWNERS + (
     'Dockerfile', '.dockerignore', 'Services/BrowserWorkflow.cs',
     'tools/release/image.py', 'tools/release/image-smoke.sh',
     'tools/release/db_image.py', 'tools/release/database-release.json',
@@ -76,7 +81,7 @@ NATIVE_OWNERS = (
 )
 # Plain path patterns map current product contracts; '*' includes nested paths.
 OWNERS = {
-    'dotnet': (
+    'dotnet': IMAGE_HELPER_OWNERS + (
         '*.cs', '*.cshtml', '*.razor', '*.csproj', '*.props', '*.targets', '*.pubxml',
         '*.sln', '*.slnx', '*.resx', '*.sql', '*packages.lock.json',
         '*nuget.config', '*NuGet.Config', '*NuGet.config', '*global.json',
@@ -120,7 +125,7 @@ OWNERS = {
         'tools/release/*.py', 'tools/release/tests/*', 'tools/release/database-release.json',
         'tools/WayfarerCtl/ReleaseManifest.cs', 'Version.props', 'CHANGELOG.md',
     ),
-    'app_image': (
+    'app_image': IMAGE_HELPER_OWNERS + (
         'Dockerfile', '.dockerignore', 'Version.props', 'Services/AppVersionProvider.cs',
         'CommandLine/AppVersionCli.cs', 'Services/BrowserRuntime.cs', 'Services/BrowserWorkflow.cs',
         'tools/release/image.py', 'tools/release/image-smoke.sh',

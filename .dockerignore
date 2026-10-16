@@ -27,6 +27,13 @@
 !ClientApps/**
 !wwwroot/**
 !docs/**
+# Only native helper build inputs and notices enter the application image context.
+!tools/image-helper/
+!tools/image-helper/Cargo.toml
+!tools/image-helper/Cargo.lock
+!tools/image-helper/src/**
+!tools/image-helper/Wayfarer.ImageHelper.targets
+!tools/image-helper/THIRD-PARTY-LICENSES.txt
 wwwroot/dist/**
 wwwroot/vite/**
 wwwroot/frontend.manifest.json

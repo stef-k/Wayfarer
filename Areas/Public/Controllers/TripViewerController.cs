@@ -392,8 +392,8 @@ public class TripViewerController : BaseController
     /// <summary>
     /// Proxy external images with optional optimization and disk-based caching.
     /// Cached images are served directly from disk on subsequent requests, avoiding
-    /// repeated external downloads and ImageSharp processing.
-    /// Default: 95% quality (visually lossless, faster loading).
+    /// repeated external downloads. Cache bytes are fully validated before serving.
+    /// Default: fit within 2048 pixels, JPEG quality 90.
     /// Print: Can specify maxWidth=600&amp;quality=85 for smaller PDFs.
     /// Disable: Use optimize=false to serve original image.
     /// GET: /Public/ProxyImage?url=...&amp;maxWidth=600&amp;quality=85&amp;optimize=true
@@ -413,6 +413,7 @@ public class TripViewerController : BaseController
 
     /// <summary>
     /// Shared HTTP pipeline for serving proxied image bytes from cache or allowed origin work.
+    /// Native Windows returns an uncacheable 501 before any image work or validators.
     /// Local cache hits are served before anonymous rate limiting is applied to cache misses.
     /// </summary>
     /// <param name="settings">Admin application settings (cache expiry, download limit).</param>
@@ -422,6 +423,13 @@ public class TripViewerController : BaseController
         ApplicationSettings settings,
         ImageProxyRequest request)
     {
+        // Full validation requires the Linux helper, including for original bytes and cache hits.
+        if (OperatingSystem.IsWindows())
+        {
+            Response.Headers.CacheControl = "no-store";
+            return StatusCode(501);
+        }
+
         // Compute cache duration and download limit from admin settings
         var maxAgeSeconds = settings.ImageCacheExpiryDays * 86400;
 
@@ -434,6 +442,9 @@ public class TripViewerController : BaseController
 
         if (cached.Status == ImageProxyResultStatus.BadRequest)
             return BadRequest("Invalid or disallowed image URL.");
+
+        if (cached.Status == ImageProxyResultStatus.Unavailable)
+            return StatusCode(503);
 
         if (ShouldRateLimitProxyOriginRequest())
             return StatusCode(429, "Too many requests. Please try again later.");
@@ -559,7 +570,7 @@ public class TripViewerController : BaseController
 
     /// <summary>
     /// Serves the cover image for a public trip through the proxied image cache.
-    /// Downloads, optimizes via ImageSharp, and caches the image on first request;
+    /// Downloads, normalizes through the contained helper, and caches the image on first request;
     /// subsequent requests are served from disk cache with ETag/304 support.
     /// Returns 404 if the trip is not found, not public, or has no cover image.
     /// Rate limited for anonymous users using <see cref="RateLimitHelper"/>.
