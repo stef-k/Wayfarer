@@ -212,6 +212,7 @@ public sealed class KmlLocationParser : ILocationDataParser
         return null;
     }
 
+    /// <summary>Reads the first longitude/latitude tuple, validating WGS84 bounds before constructing a point.</summary>
     private static bool TryParsePoint(string? raw, out GeoPoint point, out double? altitude)
     {
         point = null!;
@@ -235,7 +236,9 @@ public sealed class KmlLocationParser : ILocationDataParser
         }
 
         if (!double.TryParse(parts[0], NumberStyles.Float | NumberStyles.AllowThousands, ParsingCulture, out var longitude) ||
-            !double.TryParse(parts[1], NumberStyles.Float | NumberStyles.AllowThousands, ParsingCulture, out var latitude))
+            !double.TryParse(parts[1], NumberStyles.Float | NumberStyles.AllowThousands, ParsingCulture, out var latitude) ||
+            !double.IsFinite(latitude) || latitude is < -90 or > 90 ||
+            !double.IsFinite(longitude) || longitude is < -180 or > 180)
         {
             return false;
         }

@@ -130,15 +130,7 @@ public class LocationController : BaseApiController
                 timeZoneId = CoordinateTimeZoneConverter.GetTimeZoneIdFromCoordinates(
                     dto.Latitude, dto.Longitude);
 
-                // Convert to UTC if not already
-                if (dto.Timestamp.Kind == DateTimeKind.Utc)
-                    utcTimestamp = dto.Timestamp;
-                else
-                    utcTimestamp = CoordinateTimeZoneConverter.ConvertToUtc(
-                        dto.Latitude, dto.Longitude, dto.Timestamp);
-
-                // Ensure UTC marking for EF/SQL
-                utcTimestamp = DateTime.SpecifyKind(utcTimestamp, DateTimeKind.Utc);
+                utcTimestamp = CaptureTimestampUtc(dto);
             }
             catch (Exception ex)
             {
@@ -180,13 +172,9 @@ public class LocationController : BaseApiController
 
             try
             {
-                var enrichment = await _reverseGeocodingService.EnrichAsync(user.Id, dto.Latitude, dto.Longitude,
-                    ReverseGeocodingIntent.LocationCreate, HttpContext.RequestAborted);
-                enrichment.ApplyTo(location, DateTimeOffset.UtcNow);
-
-                // Save location (same as log-location)
-                _dbContext.Locations.Add(location);
-                await _dbContext.SaveChangesAsync();
+                // Keyed creates commit their winner before optional provider admission/contact.
+                location = await ApiLocationCreation.PersistAsync(
+                    _dbContext, _reverseGeocodingService, location, HttpContext.RequestAborted);
 
                 _logger.LogInformation("Check-in location saved with ID {LocationId}", location.Id);
             }
@@ -254,6 +242,17 @@ public class LocationController : BaseApiController
             return Ok(new { Message = "Check-in logged successfully", Location = location.ForPublication() });
         }
     }
+
+    /// <summary>
+    /// Preserves UTC and MVC-bound numeric-offset instants; only unspecified clocks use coordinate time.
+    /// Numeric offsets bind as host-local DateTime values, without retaining the literal offset.
+    /// </summary>
+    private static DateTime CaptureTimestampUtc(GpsLoggerLocationDto dto) => dto.Timestamp.Kind switch
+    {
+        DateTimeKind.Utc => dto.Timestamp,
+        DateTimeKind.Local => dto.Timestamp.ToUniversalTime(),
+        _ => CoordinateTimeZoneConverter.ConvertToUtc(dto.Latitude, dto.Longitude, dto.Timestamp)
+    };
 
     /// <summary>
     ///     Broadcasts enriched SSE payloads for the supplied location across the per-user channel and all active group
@@ -377,6 +376,10 @@ public class LocationController : BaseApiController
         }
     }
 
+    /// <summary>
+    /// Logs an automatic capture, counting persisted keyed captures only after a successful insert.
+    /// Genuine filtered pings still contribute visits; a persisted keyed winner is acknowledged without another hit.
+    /// </summary>
     [HttpPost]
     [Route("/api/location/log-location")]
     public async Task<IActionResult> LogLocation([FromBody] GpsLoggerLocationDto dto)
@@ -417,6 +420,20 @@ public class LocationController : BaseApiController
                 }
             }
 
+            /// <summary>Rereads owner/key identity before a terminal skip and evaluates only genuine filtered pings.</summary>
+            async Task<IActionResult> SkipOrReplayAsync(Point? filteredCoordinates = null)
+            {
+                var locationId = idempotencyKey.HasValue
+                    ? await _dbContext.Locations.AsNoTracking()
+                        .Where(l => l.UserId == user.Id && l.IdempotencyKey == idempotencyKey.Value)
+                        .Select(l => (int?)l.Id)
+                        .FirstOrDefaultAsync(HttpContext.RequestAborted)
+                    : null;
+                if (idempotencyKey.HasValue && !locationId.HasValue && filteredCoordinates != null)
+                    await ProcessAutomaticVisitAsync(user.Id, filteredCoordinates, dto.Accuracy);
+                return Ok(new { success = true, skipped = !locationId.HasValue, locationId });
+            }
+
             // Persisted replays bypass admission; new work holds the permit through immediate post-write work.
             using var permit = _ingestionAdmission.TryAcquire(user.Id, out var admissionStatus);
             if (permit == null)
@@ -450,7 +467,7 @@ public class LocationController : BaseApiController
             {
                 _logger.LogInformation(
                     "Location skipped due to poor GPS accuracy for user {UserId}", user.Id);
-                return Ok(new { success = true, skipped = true, locationId = (int?)null });
+                return await SkipOrReplayAsync();
             }
 
             DateTime utcTimestamp;
@@ -460,15 +477,7 @@ public class LocationController : BaseApiController
                 timeZoneId = CoordinateTimeZoneConverter.GetTimeZoneIdFromCoordinates(
                     dto.Latitude, dto.Longitude);
 
-                // Only convert if the incoming timestamp isn’t already UTC
-                if (dto.Timestamp.Kind == DateTimeKind.Utc)
-                    utcTimestamp = dto.Timestamp;
-                else
-                    utcTimestamp = CoordinateTimeZoneConverter.ConvertToUtc(
-                        dto.Latitude, dto.Longitude, dto.Timestamp);
-
-                // Ensure we mark this as UTC so EF/SQL stores it correctly
-                utcTimestamp = DateTime.SpecifyKind(utcTimestamp, DateTimeKind.Utc);
+                utcTimestamp = CaptureTimestampUtc(dto);
             }
             catch (Exception ex)
             {
@@ -479,21 +488,9 @@ public class LocationController : BaseApiController
 
             var coordinates = new Point(dto.Longitude, dto.Latitude) { SRID = 4326 };
 
-            // Process visit detection (side-effect only, does not affect response)
-            // Called before threshold checks so every ping is evaluated for visits
-            try
-            {
-                await _placeVisitDetectionService.ProcessPingAsync(
-                    user.Id,
-                    coordinates,
-                    dto.Accuracy,
-                    HttpContext.RequestAborted);
-            }
-            catch (Exception ex)
-            {
-                // Log but do not fail the request - visit detection is non-critical
-                _logger.LogWarning("Visit detection failed for user {UserId} Failure type: {ExceptionType}", user.Id, ex.GetType().Name);
-            }
+            // Keyless pings keep their existing pre-filter visit behavior; keyed writes wait for persistence.
+            if (!idempotencyKey.HasValue)
+                await ProcessAutomaticVisitAsync(user.Id, coordinates, dto.Accuracy);
 
             var cacheKey = $"lastLocation_{user.Id}";
             if (!_cache.TryGetValue(cacheKey, out Location? lastLocation))
@@ -514,7 +511,7 @@ public class LocationController : BaseApiController
                 {
                     _logger.LogInformation(
                         "Location skipped due to time threshold for user {UserId}", user.Id);
-                    return Ok(new { success = true, skipped = true, locationId = (int?)null });
+                    return await SkipOrReplayAsync(coordinates);
                 }
 
                 var distanceDifference = DistanceChecker.HaversineDistance(lastLocation.Coordinates.Y,
@@ -525,13 +522,11 @@ public class LocationController : BaseApiController
                 {
                     _logger.LogInformation(
                         "Location skipped due to distance threshold for user {UserId}", user.Id);
-                    return Ok(new { success = true, skipped = true, locationId = (int?)null });
+                    return await SkipOrReplayAsync(coordinates);
                 }
             }
 
-            // Check for duplicate LocalTimestamp to prevent race condition duplicates.
-            // This handles the case where concurrent requests pass the cache-based threshold
-            // checks before either one saves, resulting in duplicate records.
+            // Best-effort duplicate LocalTimestamp precheck; the owner/key unique index arbitrates keyed writes.
             var duplicateExists = await _dbContext.Locations
                 .AnyAsync(l => l.UserId == user.Id && l.LocalTimestamp == utcTimestamp);
 
@@ -539,7 +534,7 @@ public class LocationController : BaseApiController
             {
                 _logger.LogInformation(
                     "Location skipped due to duplicate LocalTimestamp. UserId: {UserId}", user.Id);
-                return Ok(new { success = true, skipped = true, locationId = (int?)null });
+                return await SkipOrReplayAsync(coordinates);
             }
 
             var location = new Location
@@ -572,12 +567,9 @@ public class LocationController : BaseApiController
 
             try
             {
-                var enrichment = await _reverseGeocodingService.EnrichAsync(user.Id, dto.Latitude, dto.Longitude,
-                    ReverseGeocodingIntent.LocationCreate, HttpContext.RequestAborted);
-                enrichment.ApplyTo(location, DateTimeOffset.UtcNow);
-
-                _dbContext.Locations.Add(location);
-                await _dbContext.SaveChangesAsync();
+                // Keyed creates commit their winner before optional provider admission/contact.
+                location = await ApiLocationCreation.PersistAsync(
+                    _dbContext, _reverseGeocodingService, location, HttpContext.RequestAborted);
 
                 _logger.LogInformation("Location saved with ID {LocationId}", location.Id);
             }
@@ -607,6 +599,10 @@ public class LocationController : BaseApiController
                 return StatusCode(500, "Internal server error while saving location.");
             }
 
+            // Only the durable keyed insert winner contributes a new visit observation.
+            if (idempotencyKey.HasValue)
+                await ProcessAutomaticVisitAsync(user.Id, coordinates, dto.Accuracy);
+
             _cache.Set(cacheKey, location, TimeSpan.FromMinutes(locationTimeThreshold));
 
             var cancellationToken = HttpContext?.RequestAborted ?? CancellationToken.None;
@@ -619,6 +615,19 @@ public class LocationController : BaseApiController
                 cancellationToken);
 
             return Ok(new { success = true, skipped = false, locationId = location.Id });
+        }
+    }
+
+    /// <summary>Evaluates an eligible automatic ping while preserving best-effort visit failure handling.</summary>
+    private async Task ProcessAutomaticVisitAsync(string userId, Point coordinates, double? accuracy)
+    {
+        try
+        {
+            await _placeVisitDetectionService.ProcessPingAsync(userId, coordinates, accuracy, HttpContext.RequestAborted);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning("Visit detection failed for user {UserId} Failure type: {ExceptionType}", userId, ex.GetType().Name);
         }
     }
 

@@ -99,7 +99,7 @@ public sealed class LocationImportService : ILocationImportService, ILocationImp
         };
         if (outcome is LocationImportExecutionOutcome.Failed or LocationImportExecutionOutcome.StagedFileUnavailable)
             import.ErrorMessage = outcome == LocationImportExecutionOutcome.StagedFileUnavailable
-                ? "Import staged file unavailable." : "Import processing failed.";
+                ? "Import staged file unavailable." : import.ErrorMessage ?? "Import processing failed.";
         import.ProjectionPending = false;
         try { await context.SaveChangesAsync(CancellationToken.None); }
         catch (DbUpdateConcurrencyException) { } // A later lifecycle command retains authority.
@@ -122,8 +122,13 @@ public sealed class LocationImportService : ILocationImportService, ILocationImp
         try
         {
             var total = await CountLocationsAsync(snapshot, cancellationToken);
-            if (!await SetTotalAsync(snapshot.Id, epoch, total, cancellationToken))
-                return LocationImportExecutionOutcome.Stale;
+            var countOutcome = await SetTotalAsync(snapshot.Id, epoch, total, cancellationToken);
+            if (countOutcome != LocationImportExecutionOutcome.Completed)
+            {
+                if (countOutcome == LocationImportExecutionOutcome.Failed)
+                    await _sse.BroadcastAsync($"import-{snapshot.UserId}", SafeProgressEvent);
+                return countOutcome;
+            }
             var processed = snapshot.LastProcessedIndex;
             var batch = new List<Location>(BatchSize);
             await using var stream = OpenStagedFile(snapshot.FilePath);
@@ -171,6 +176,12 @@ public sealed class LocationImportService : ILocationImportService, ILocationImp
             await _sse.BroadcastAsync($"import-{snapshot.UserId}", SafeProgressEvent);
             return LocationImportExecutionOutcome.StagedFileUnavailable;
         }
+        catch (LocationImportValidationException failure)
+        {
+            var outcome = await SaveValidationFailureAsync(importId, epoch, failure, cancellationToken);
+            await _sse.BroadcastAsync($"import-{snapshot.UserId}", SafeProgressEvent);
+            return outcome;
+        }
         catch (DbUpdateConcurrencyException) { return LocationImportExecutionOutcome.Stale; }
         catch (Exception)
         {
@@ -179,6 +190,24 @@ public sealed class LocationImportService : ILocationImportService, ILocationImp
             await _sse.BroadcastAsync($"import-{snapshot.UserId}", SafeProgressEvent);
             return LocationImportExecutionOutcome.Failed;
         }
+    }
+
+    /// <summary>Retains progress and writes only fixed diagnostics under current execution authority and xmin fencing.</summary>
+    private async Task<LocationImportExecutionOutcome> SaveValidationFailureAsync(
+        int importId, int epoch, LocationImportValidationException failure, CancellationToken token)
+    {
+        try
+        {
+            await using var context = await _contexts.CreateDbContextAsync(token);
+            var import = await context.LocationImports.SingleOrDefaultAsync(item => item.Id == importId, token);
+            if (!HasExecutionAuthority(import, epoch)) return LocationImportExecutionOutcome.Stale;
+            import.ErrorMessage = failure.Message;
+            await context.SaveChangesAsync(token);
+            _logger.LogError("Location import failed; code {Code}; import {ImportId}.", failure.Code, importId);
+            return LocationImportExecutionOutcome.Failed;
+        }
+        catch (DbUpdateConcurrencyException) { return LocationImportExecutionOutcome.Stale; }
+        catch (OperationCanceledException) { return LocationImportExecutionOutcome.Cancelled; }
     }
 
     private async Task<int> CountLocationsAsync(LocationImportSnapshot snapshot, CancellationToken token)
@@ -191,14 +220,25 @@ public sealed class LocationImportService : ILocationImportService, ILocationImp
         return count;
     }
 
-    private async Task<bool> SetTotalAsync(int importId, int epoch, int total, CancellationToken token)
+    /// <summary>Checks durable resume compatibility before replacing the total or admitting ordinal replay.</summary>
+    private async Task<LocationImportExecutionOutcome> SetTotalAsync(int importId, int epoch, int total, CancellationToken token)
     {
         await using var context = await _contexts.CreateDbContextAsync(token);
         var import = await context.LocationImports.SingleOrDefaultAsync(item => item.Id == importId, token);
-        if (!HasExecutionAuthority(import, epoch)) return false;
+        if (!HasExecutionAuthority(import, epoch)) return LocationImportExecutionOutcome.Stale;
+        if (import.LastProcessedIndex != 0 && (import.TotalRecords <= 0 || import.TotalRecords != total
+            || import.LastProcessedIndex < 0 || import.LastProcessedIndex > total))
+        {
+            // Keep committed progress intact; changed parser counts cannot safely remap legacy ordinals.
+            import.ErrorMessage = "Import checkpoint no longer matches parsed records. Upload the file as a new import to continue.";
+            await context.SaveChangesAsync(token);
+            _logger.LogError("Location import failed; code {Code}; import {ImportId}. Upload the file as a new import.",
+                "location-import-checkpoint-incompatible", importId);
+            return LocationImportExecutionOutcome.Failed;
+        }
         import.TotalRecords = total;
         await context.SaveChangesAsync(token);
-        return true;
+        return LocationImportExecutionOutcome.Completed;
     }
 
     /// <summary>Bounds fresh whole-batch attempts and distinguishes deadline failure from user cancellation.</summary>

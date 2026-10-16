@@ -173,18 +173,20 @@ public sealed class LocationExportRoundTripPostgresTests(PostgresImportTestFixtu
         Assert.Equal(3, replay.SkippedDuplicates);
     }
 
-    /// <summary>Distinct keyed captures transfer independently with destination identity and supported metadata.</summary>
+    /// <summary>Normal and singleton-zero captures transfer independently, replay without writes and retain keyless fallback.</summary>
     [PostgresTheory]
-    [InlineData(LocationImportFileType.Csv)]
-    [InlineData(LocationImportFileType.WayfarerGeoJson)]
-    public async Task RoundTrip_PreservesDistinctKeysNullAndMetadataForAnotherOwner(LocationImportFileType format)
+    [InlineData(LocationImportFileType.Csv, false)]
+    [InlineData(LocationImportFileType.Csv, true)]
+    [InlineData(LocationImportFileType.WayfarerGeoJson, false)]
+    [InlineData(LocationImportFileType.WayfarerGeoJson, true)]
+    public async Task RoundTrip_PreservesDistinctKeysNullAndMetadataForAnotherOwner(LocationImportFileType format, bool zeroKey)
     {
         var owner = await fixture.CreateUserAsync();
         var destination = await fixture.CreateUserAsync();
         var other = await fixture.CreateUserAsync();
         var originals = new[]
         {
-            CreateLocation(owner.Id, Guid.NewGuid()),
+            CreateLocation(owner.Id, zeroKey ? Guid.Empty : Guid.NewGuid()),
             CreateLocation(owner.Id, Guid.NewGuid()),
             CreateLocation(owner.Id, null)
         };
@@ -220,16 +222,22 @@ public sealed class LocationExportRoundTripPostgresTests(PostgresImportTestFixtu
         AssertExportIdentities(await ExportAsync(destination.Id, format), format, transferred);
         var retained = await verification.Locations.Where(row => row.UserId == owner.Id).OrderBy(row => row.Id).ToListAsync();
         Assert.Equal(originals.Select(row => row.IdempotencyKey), retained.Select(row => row.IdempotencyKey));
+        var replay = await ImportAsync(destination.Id, format, exported);
+        Assert.Equal((3, 3, 3), (replay.TotalRecords, replay.LastProcessedIndex, replay.SkippedDuplicates));
+        Assert.Equal(transferred.Select(row => row.Id).Order(), await verification.Locations
+            .Where(row => row.UserId == destination.Id).OrderBy(row => row.Id).Select(row => row.Id).ToArrayAsync());
     }
 
-    /// <summary>Replaying an old keyed export skips creation and preserves edits outside the keyless tolerance.</summary>
+    /// <summary>Replaying an old normal or singleton-zero export preserves owner edits outside the keyless tolerance.</summary>
     [PostgresTheory]
-    [InlineData(LocationImportFileType.Csv)]
-    [InlineData(LocationImportFileType.WayfarerGeoJson)]
-    public async Task EditedReplay_SkipsWithoutDuplicatingOrOverwriting(LocationImportFileType format)
+    [InlineData(LocationImportFileType.Csv, false)]
+    [InlineData(LocationImportFileType.Csv, true)]
+    [InlineData(LocationImportFileType.WayfarerGeoJson, false)]
+    [InlineData(LocationImportFileType.WayfarerGeoJson, true)]
+    public async Task EditedReplay_SkipsWithoutDuplicatingOrOverwriting(LocationImportFileType format, bool zeroKey)
     {
         var owner = await fixture.CreateUserAsync();
-        var original = CreateLocation(owner.Id, Guid.NewGuid());
+        var original = CreateLocation(owner.Id, zeroKey ? Guid.Empty : Guid.NewGuid());
         original.LocationType = "Original type";
         await using (var seed = fixture.CreateContext())
         {

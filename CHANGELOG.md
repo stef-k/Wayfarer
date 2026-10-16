@@ -31,6 +31,42 @@
 
 ### Fixed
 
+- Commit UUID-keyed API check-in and automatic Location winners before optional
+  provider admission/contact, avoiding charges for losing or failed initial inserts.
+  Save successful immediate addresses before response/publication under owner,
+  coordinate, retained-address and provider-generation guards. Replays never
+  recontact; interruption after commit may leave a valid addressless Location for
+  existing opt-in missing-address enrichment. Keyless ordering is unchanged (#822).
+
+- Fail native CSV and Wayfarer GeoJSON history files before new writes for
+  malformed supplied UUIDs or a second all-zero UUID, including filtered records.
+  Preserve keyless legacy history, normal keyed replay and singleton-zero historic
+  transfers/replays with owner edits. Failure retains saved progress; upload a
+  corrected copy as a new import. A sole zero in a later file can still match an
+  existing zero; distinct new captures need distinct nonzero UUIDs (#820).
+
+- Preserve numeric-offset capture instants in API check-in and log-location,
+  alongside unchanged UTC `Z` and legacy coordinate-local no-offset interpretation.
+  Keep coordinate timezone metadata and server receipt time; literal input offset
+  text is not retained by MVC DateTime binding (#819).
+
+- Count a newly persisted keyed automatic capture toward visit detection only
+  after its Location insert succeeds. Failed writes, losing keyed conflicts and
+  persisted replays add no visit hit. Preserve genuine filtered-ping observations,
+  accuracy rejection, keyless behavior and manual check-in semantics (#818).
+
+- Skip non-finite and out-of-range WGS84 points in CSV, Wayfarer GeoJSON, GPX,
+  KML and Google Timeline location-history imports before geography storage can
+  alter their coordinates. Preserve valid extrema, `(0,0)`, metadata, UUIDs and
+  compatible yielded-record progress and replay behavior. Fail incompatible saved
+  checkpoints before replacing totals or replaying ordinals; require a new import
+  while preserving existing history and owner edits (#817).
+
+- Return the persisted same-account UUID winner's numeric ID when an automatic
+  location upload reaches a filter after a concurrent import commits. Genuine
+  unpersisted skips and keyless responses retain skipped/null semantics; existing
+  locations are never overwritten (#815).
+
 - Preserve current catalog Activity names and independent LocationType text through
   native CSV, Wayfarer GeoJSON, GPX and KML history export/import, including fresh
   authenticated exports, destination Activity IDs and significant XML whitespace.

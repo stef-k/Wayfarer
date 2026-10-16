@@ -4,15 +4,22 @@ title: Option C Activity reconciliation contract
 
 # Option C Activity reconciliation contract
 
-**Status: CORRECTED DESIGN READY for fresh independent review.**
-This is a proposed implementation contract, not shipped behavior or authorization
-to implement. It belongs to [#814][issue] under [#805][parent]. The maintainer's
-Option C selection supersedes name-only lookup and historical-label-only designs.
-The live #814 migration exclusion remains in force until explicitly amended.
-This revision addresses the [independent review][design-review] and incorporates
-the maintainer's approved decisions: automatic creation without creation quotas,
-case-insensitive matching with surrounding trim only, and an authenticated catalog
-endpoint compatible with existing Mobile clients. Implementation remains separate.
+**Status: Option C design accepted; implementation independently qualified and merged.**
+The design was accepted and merged via [PR #861][design-pr]. Catalog and Admin
+compatibility ([#862][catalog-issue] / [PR #864][catalog-pr]), import reconciliation
+([#863][import-issue] / [PR #866][import-pr]) and native Activity/LocationType fidelity
+([#814][issue] / [PR #867][fidelity-pr]) are all independently qualified and merged
+under [#805][parent], as recorded in the [final acceptance audit][acceptance-audit].
+The maintainer's Option C selection supersedes name-only lookup and
+historical-label-only designs and incorporates the [independent review][design-review].
+
+**Historical design material:** Section 1's source inventory and the proposed
+implementation steps, issue criteria and test plans below record the original
+design at its pinned baseline; they are not outstanding work or new instructions
+to implement or amend issues. The accepted technical contract and historical
+evidence remain below. See the [current developer database/Activity guide][activity-guide]
+for implemented behavior and coordinated migration/deployment requirements.
+Merged implementation does not establish production deployment.
 
 ## 1. Evidence and current behavior
 
@@ -566,11 +573,20 @@ exhaustive environment matrix or synthetic tests of harness internals is require
 Local relational qualification must actually run; a skipped guarded test in CI is
 not PostgreSQL evidence. Exact-head CI and fresh independent review remain separate.
 
-## 10. Readiness and remaining decisions
+## 10. Acceptance, implementation and deployment status
 
-**CORRECTED DESIGN READY for fresh independent review.** The maintainer-approved
-choices are applied throughout: valid missing names create automatically without
-creation quotas; only surrounding whitespace is trimmed; mixed-capital Unicode
+**Accepted design; all three implementation slices independently qualified and merged.**
+The [final acceptance audit][acceptance-audit] records the completed gates:
+
+| Scope | Issue / merged PR | Accepted qualification |
+| --- | --- | --- |
+| Option C design | [PR #861][design-pr] | Design accepted and merged; separate from implementation qualification. |
+| Catalog and Admin compatibility (A+B) | [#862][catalog-issue] / [PR #864][catalog-pr] | [Independent PASS][catalog-pass]; merged. |
+| Import reconciliation (C) | [#863][import-issue] / [PR #866][import-pr] | [Independent PASS][import-pass]; merged. |
+| Native Activity/LocationType fidelity (D) | [#814][issue] / [PR #867][fidelity-pr] | [Independent PASS][fidelity-pass]; merged. |
+
+The maintainer-approved choices are applied throughout: valid missing names create
+automatically without creation quotas; only surrounding whitespace is trimmed; mixed-capital Unicode
 matching preserves internal spelling/display; catalog reads require existing
 cookie or API-token authentication. Valid reconciliation failure rolls back the
 current batch and preserves safe resume. Numeric redirects protect cached/offline
@@ -584,16 +600,30 @@ retention for offline clients. Preflight must classify real legacy/storage failu
 without arbitrary name-length/property blockers. A separate support decision is
 needed only if redirects are later retired; retirement is not a prerequisite here.
 
-This draft PR changes documentation only. Code, migration, concurrency, failure
-and native fidelity qualification remain unimplemented. A fresh independent Codex
-instance reviews the exact corrected PR head; the earlier CHANGES REQUIRED review
-is not a PASS for this revision. Continue correction/review cycles until an
-independent PASS, with maintainer approval still required before issue amendments
-or implementation. Do not merge this PR, close #814, start follow-ups or claim
-Option C is shipped from this document's readiness label.
+The original source inventory, proposed implementation steps and issue amendments,
+and test plans in Sections 1, 8 and 9 remain historical design material, not an
+outstanding implementation backlog. The accepted contract, pinned source links
+and investigation witnesses remain part of the design record; current behavior is
+documented in the [developer database/Activity guide][activity-guide].
+
+Merged implementation and accepted qualification do not establish production
+deployment. Production migration, coordinated rollout and rollback still require
+the existing release authority, quiesced writers and verified pre-migration backup
+described in Section 4 and the current guide.
 
 [issue]: https://github.com/stef-k/Wayfarer/issues/814
 [parent]: https://github.com/stef-k/Wayfarer/issues/805
+[design-pr]: https://github.com/stef-k/Wayfarer/pull/861
+[catalog-issue]: https://github.com/stef-k/Wayfarer/issues/862
+[catalog-pr]: https://github.com/stef-k/Wayfarer/pull/864
+[catalog-pass]: https://github.com/stef-k/Wayfarer/pull/864#pullrequestreview-5508898708
+[import-issue]: https://github.com/stef-k/Wayfarer/issues/863
+[import-pr]: https://github.com/stef-k/Wayfarer/pull/866
+[import-pass]: https://github.com/stef-k/Wayfarer/pull/866#pullrequestreview-5531055617
+[fidelity-pr]: https://github.com/stef-k/Wayfarer/pull/867
+[fidelity-pass]: https://github.com/stef-k/Wayfarer/pull/867#pullrequestreview-5535829896
+[acceptance-audit]: https://github.com/stef-k/Wayfarer/issues/805#issuecomment-6222822893
+[activity-guide]: database.md#activity-catalog-integrity-and-coordinated-deployment
 [agents]: https://github.com/stef-k/Wayfarer/blob/9d8ee6b4132dfef53beb167b86b282be31c88973/AGENTS.md
 [metadata-evidence]: https://github.com/stef-k/Wayfarer/issues/805#issuecomment-6084542747
 [design-review]: https://github.com/stef-k/Wayfarer/pull/861#issuecomment-6131031378

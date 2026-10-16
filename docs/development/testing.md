@@ -81,6 +81,13 @@ keys must match the import ID and still supply an explicit epoch. Explicit zero
 authorizes only durable zero. `LocationImportBoundedPostgresTests` covers rejection
 through both worker entry points and preservation of transactional deduplication/savepoints.
 
+The same PostgreSQL fixture covers legacy checkpoint compatibility through the real
+worker, `LocationImportJob` and fenced terminal convergence. A saved total/checkpoint
+of 51/50 against 50 newly yielded records fails without changing progress or history,
+including on repeated Start. A new checkpoint-zero import recovers the missing valid
+UUID and preserves earlier owner edits; a matching nonzero checkpoint still resumes.
+Missing/unusable totals and checkpoints beyond the new count also fail closed.
+
 `CorruptTriggerLink_ReconcilesTwiceAndRealWorkerCompletes` first asserts a persisted
 wrong link, repairs it with and without an existing current job, verifies idempotence
 and completes through the real worker. Replacement preserves even a non-durable

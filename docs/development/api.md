@@ -127,11 +127,20 @@ configuration; these endpoints accept JSON POST, not GET/query-token logging.
 | Fields | Meaning |
 | --- | --- |
 | `latitude`, `longitude` | Decimal degrees, ±90/±180; `(0,0)` is rejected. |
-| `timestamp` | Capture DateTime; supply ISO UTC with `Z`. No-offset local time is converted using coordinates. Non-nullable DTO defaults are not required-field validation. |
+| `timestamp` | Capture DateTime; ISO UTC `Z` and numeric offsets preserve the capture instant. No-offset local time is converted using coordinates. Non-nullable DTO defaults are not required-field validation. |
 | `accuracy`, `altitude`, `speed` | Optional metres, metres, metres/second respectively. |
 | `locationType`, `notes`, `activityTypeId` | Optional capture description, notes and existing activity ID. |
 | `source`, `isUserInvoked`, `provider`, `bearing` | Optional origin, invocation flag, sensor/provider and bearing in degrees. |
 | `appVersion`, `appBuild`, `deviceModel`, `osVersion`, `batteryLevel`, `isCharging` | Optional capture metadata; battery percentage is 0–100. |
+
+For both check-in and log-location, `2026-08-22T10:00:00+02:00` and
+`2026-08-22T08:00:00Z` store capture `LocalTimestamp` as `08:00Z`. An offset-free
+`2026-08-22T10:00:00` at Athens coordinates retains coordinate-local interpretation
+and stores `07:00Z`; invalid or ambiguous coordinate-local times retain their
+existing conversion error. MVC binds numeric offsets to a host-local `DateTime`
+representing the same instant; the literal offset text is not retained.
+`TimeZoneId` still comes from coordinates, independently of the supplied offset.
+`Timestamp` remains server receipt UTC time, separate from capture `LocalTimestamp`.
 
 Omit unavailable measurements. Metadata does not change endpoint filtering:
 `isUserInvoked` on log-location is not a check-in bypass. Automatic capture applies
@@ -148,6 +157,50 @@ ID 1 or throws if it is missing; the controller's defensive null-result fallback
 is not the shipped accuracy default.
 
 `POST /api/location/check-in` and `POST /api/location/log-location` accept an optional `Idempotency-Key` header containing a GUID. The key is unique per user. A persisted replay returns the prior success before new-work admission; concurrent duplicate persistence is reconciled against the same database invariant.
+
+For a new UUID-keyed create, the Location winner commits before optional personal
+provider admission/contact. Only the newly inserted winner attempts immediate
+geocoding; a losing insert, persisted replay or failed initial insert consumes no
+creation-geocoding admission/contact. Keyless requests retain their existing
+enrich-before-insert sequence. Different keys and accounts remain independent.
+
+Successful immediate enrichment saves the complete address/provenance tuple before
+the winning response and SSE publication. The short post-HTTP save checks the same
+owner and numeric row, unchanged coordinates, untouched address fields and current
+provider, credential, verification, consent and selection generations. Owner edits
+or another retained result take precedence; responses and publication use saved
+state. No database transaction spans provider HTTP. A concurrent replay can observe
+the committed winner before its optional address is saved.
+
+Provider failure, request cancellation, process death or an enrichment-save failure
+after the initial commit can leave a valid Location without an optional address.
+Normal provider unavailability retains a successful create; request cancellation
+propagates, and other errors can still return 500 after persistence. A same-key
+retry acknowledges that row without contacting again. Admissions already consumed
+remain charged even when no address is saved. Creation adds no automatic enrichment
+workflow or durable attempt: eligible wholly missing addresses can be processed
+through the existing explicit [missing-address enrichment controls](../user/location-providers.md#address-enrichment-controls),
+or a history import's user-wide enrichment opt-in. An already enabled workflow may
+also select eligible rows during reconciliation. With no such opt-in, the
+post-commit/pre-enrichment gap has no automatic recovery or globally exactly-once
+external-contact guarantee.
+
+Before any automatic threshold or duplicate-timestamp skip, a supplied valid key
+gets a fresh database check for that authenticated account. If the keyed winner
+is already persisted, log-location returns `success: true`, `skipped: false` and
+its numeric `locationId`, preserving the first writer's data. Otherwise the skip
+remains `success: true`, `skipped: true`, `locationId: null`. This check proves only
+what is persisted at lookup time; a later commit is acknowledged on a keyed retry.
+A lookup failure is an error, never evidence of an unpersisted skip.
+
+Automatic keyed captures selected for persistence enter visit detection only
+after their Location insert succeeds. Failed inserts, losing keyed conflicts and
+persisted replays add no visit hit. Genuine time/distance/duplicate-timestamp
+filtered pings still feed visit detection; a skip that instead finds a persisted
+same-account keyed winner adds no hit. Accuracy rejects stay outside visit detection.
+Unpersisted filtered pings have no durable creation receipt, so repeated deliveries
+and hard crashes carry no universal once-only visit guarantee. Keyless automatic
+pings and manual check-in retain their existing visit behavior.
 
 Use a new key for a new logical location write and retain the same key when retrying that write. An invalid GUID is a 400.
 

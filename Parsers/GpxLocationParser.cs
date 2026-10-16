@@ -60,7 +60,10 @@ public sealed class GpxLocationParser : ILocationDataParser
             var latRaw = trkpt.Attribute("lat")?.Value;
             var lonRaw = trkpt.Attribute("lon")?.Value;
 
-            if (!TryParseDouble(latRaw, out var latitude) || !TryParseDouble(lonRaw, out var longitude))
+            // WGS84 extrema and (0,0) are valid; non-finite or out-of-range points are skipped.
+            if (!TryParseDouble(latRaw, out var latitude) || !TryParseDouble(lonRaw, out var longitude) ||
+                !double.IsFinite(latitude) || latitude is < -90 or > 90 ||
+                !double.IsFinite(longitude) || longitude is < -180 or > 180)
             {
                 _logger.LogWarning("Skipping GPX track point; code {Code}.",
                     "location-import-invalid-coordinate");

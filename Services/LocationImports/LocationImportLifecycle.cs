@@ -254,6 +254,7 @@ public sealed class LocationImportLifecycle(
         }
     }
 
+    /// <summary>Persists the fenced terminal outcome, retaining bounded diagnostics saved by its worker.</summary>
     public async Task<LocationImportExecutionOutcome> ConvergeExecutionAsync(
         int importId, int epoch, LocationImportExecutionOutcome outcome,
         CancellationToken cancellationToken = default)
@@ -278,7 +279,7 @@ public sealed class LocationImportLifecycle(
         {
             import.Status = ImportStatus.Failed;
             import.ErrorMessage = effectiveOutcome == LocationImportExecutionOutcome.StagedFileUnavailable
-                ? "Import staged file unavailable." : "Import processing failed.";
+                ? "Import staged file unavailable." : import.ErrorMessage ?? "Import processing failed.";
         }
         else return LocationImportExecutionOutcome.Stale;
         import.ProjectionPending = false;
