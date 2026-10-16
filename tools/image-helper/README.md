@@ -67,13 +67,26 @@ Previously stored keys are never migrated or declared trusted.
 fully decodes the source before its original bytes/MIME can be stored or returned.
 It does not apply resize, orientation or metadata stripping to those originals.
 Every cache hit, including legacy/rollback bytes, goes through full validation;
-there is no provenance shortcut. Validation has eight process-wide non-queuing
-slots, separate from the four origin/transform slots. Admission happens before
-creating a supervisor thread or child; the slot is retained through cleanup/reap.
-Saturation returns Unavailable/503 without classifying cached bytes as corrupt,
-refetching the origin or retaining inputs in a validation queue. Invalid bytes
-remain inert cache misses. The cache read itself precedes validation admission;
-the budget bounds helper/thread concurrency, not all concurrent cache reads.
+there is no provenance shortcut. One process-wide validation budget covers disk
+reads, retained untrusted bytes and validation through child cleanup/reap. Each
+read reserves `max(1, ceil(actual file bytes / 25 MiB))` of eight units before
+allocating its exact-sized array or reading the full file. No MemoryStream/copy is
+used for cache reads. The same lease is borrowed by the validator, with no second
+admission or release between reading and validation. Fresh, stale and concurrent
+refresh reads use this boundary; admission waits never hold the cache write lock.
+
+Ordinary inputs up to 25 MiB retain eight-way validation. Equal-sized 50/100/200
+MiB inputs have effective concurrency four/two/one; the admin input limit remains
+5–200 MiB. Cache reads wait cancellably for up to 15 seconds before allocation.
+The framework limiter admits oldest waiters first and bounds pending demand to
+32 units (at most 32 small-input waiters or four 200 MiB waiters). Queue saturation
+or timeout returns Unavailable/503 without origin refetch, stale refresh or a
+false corrupt-cache classification. An absent entry still reaches the unchanged
+four-operation nonqueuing origin budget. Direct source validation is nonqueuing
+and shares the weighted validation budget; the four transform slots remain separate.
+Invalid bytes remain inert misses. This bounds live untrusted cache input arrays
+to 200 MiB and validation threads/children to eight; see [memory accounting and
+qualification limits](VALIDATION.md#r3-pre-allocation-cache-admission--2026-10-16).
 
 Failures carry no image bytes: positive source limits map to TooLarge (HTTP 400),
 malformed source to Failed (404), launch/timeout/pipe/output exhaustion to Unavailable
