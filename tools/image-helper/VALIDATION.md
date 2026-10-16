@@ -203,9 +203,9 @@ within its chronological responsibility. Scratch probe Code Guard passed.
 
 No dependencies or selected codec sources changed. Existing unrelated NuGet
 advisories remain debt. Final-head CI is reported by the PR checks; these local
-results do not substitute for it. Fresh independent exact-head review, the
-the then-required fixed WebP publication/pin, native Windows maintainer decision and
-maintainer acceptance remain mandatory. PR #869 remains draft/unmerged and
+results do not substitute for it. Fresh independent exact-head review and
+maintainer acceptance remain mandatory. The then-pending published-crate and
+Windows-policy gates are superseded by the decision below. PR #869 remains draft/unmerged and
 #807/#858 remain open. No merge, deployment or release is authorized.
 
 ## R3 pre-allocation cache admission — 2026-10-16
@@ -314,3 +314,97 @@ service/controller orchestration, parser security decisions and chronological
 changelog retain their documented responsibilities. Existing NuGet advisory debt
 is unchanged. Applicable final-head CI is reported by the PR checks; fresh
 independent exact-head review and all standing merge gates remain required.
+
+## Native Windows and shipping policy — 2026-10-16
+
+Authority: [the maintainer's final shipping/platform assignment](https://github.com/stef-k/Wayfarer/pull/869#issuecomment-6220923425),
+starting at exact head `0a24a134faca6c68fb8a4d4e3706a18bc78da5f5` and its
+[independent R3 technical PASS](https://github.com/stef-k/Wayfarer/pull/869#pullrequestreview-5550926820).
+The official immutable WebP Git pin is now **temporarily approved for production**
+until an official fixed crates.io release is available. Production imaging is
+Linux AMD64/ARM64; Linux/WSL2 provides complete development imaging. Native
+Windows application builds are desired, with image proxy explicitly unsupported
+(501/no-store); native Windows production deployment is unsupported.
+
+### Small controller delta and focused checks
+
+The common `ServeProxyImageAsync` controller seam checks `OperatingSystem.IsWindows()`
+before cache validation, origin admission/fetch, helper startup and image-response
+headers. Both direct optimization modes and valid public cover URLs return 501
+with `Cache-Control: no-store`; cached bytes and If-None-Match cannot bypass it.
+The callers retain URL/SSRF 400 and missing/private/empty cover 404 precedence.
+There is no middleware blanket, fallback decoder or platform abstraction.
+
+- **Native Windows x64 / Windows 10.0.19045 / .NET SDK 10.0.402:** the actual
+  application and existing test project built in Release in a native NTFS source
+  snapshot. The Linux-only helper target was excluded; no `image-helper` output
+  was copied. No project/startup/build-target/CI configuration needed changing.
+- The eight new controller cases first ran on native Windows before the guard:
+  three expected failures (both valid direct modes and valid public cover), five
+  validation cases passing. After the guard, **22 native Windows cases passed,
+  zero failed/skipped**: those eight plus the 14 existing disallowed-URL cases.
+  Strict proxy mocks prove no image-service call for 501 and preceding 400/404;
+  these are controller tests, not a running application or a real cover fixture.
+- **64 focused Linux controller cases passed, zero failed/skipped**, preserving
+  real-helper cache/ETag, origin limiting, 400/404/503/429 and settings semantics.
+  Eight platform cases are included in that count. Linux builds still produce
+  the helper and complete notices through the unchanged native targets.
+
+### Actual native startup — BLOCKED on the established prerequisite
+
+The native Windows user-scoped guarded connection names `wayfarer_import_tests`
+at localhost:5432. A read-only native `psql.exe` query reports server version
+`170002` (PostgreSQL 17.2). The established WSL test connection independently
+reports PostgreSQL `180006`, PostGIS 3.6.4 and citext 1.8, but that server listens
+only on WSL 127.0.0.1:5432. Native Windows already has its PostgreSQL 17 service
+listening on port 5432. A safe native Windows-accessible PG18/PostGIS startup
+environment has therefore not been established.
+
+**The actual application was not launched on native Windows.** `/health/live`,
+an ordinary MVC/static route, live proxy 501/no-store/no-origin behavior and live
+cover-image 501/404 remain **UNPROVEN**. The 22 controller cases do not substitute
+for those HTTP observations or comprehensive Windows compatibility. No smoke
+migration/seeding, startup/readiness bypass, Data Protection change, database or
+network reconfiguration, or new PostgreSQL/browser infrastructure was attempted.
+The next native startup attempt requires the established safe PG18/PostGIS
+prerequisite and isolated smoke storage/key paths, with normal startup checks.
+
+### Source, notices and retained qualification
+
+The active Cargo metadata and unchanged Cargo.lock resolve the same official
+`image-webp f4d80bd965df2c81e65b6f43c1f70e0750bd4b0f`. Rechecked the official
+upstream Git tree `0e909cdd4b49d4858330979478e8e05883a2e319` against all **91**
+actual tracked source files, **48** registry archive checksums and **3,087**
+packaged source files. All **106** complete shipped notice texts match their
+inventory hashes; only the non-license policy preamble changed. Cargo.lock
+SHA-256 remains `3208da5d649a6c47710c270153aacb93ffe438790f62259fe41716efbecbf3a9`.
+The rebuilt Linux helper and its copied payload match SHA-256
+`746dd533034ade530139d329f04848db0f136a2653075987b187683d4884d6ae`;
+the application output includes the complete updated notices. ELF symbols and
+link dependencies retain Rust WebP/TurboJPEG, with no native WebP or production
+ImageSharp. This is a build/source review, not a new codec/performance qualification.
+
+The prior exact-head R1/R2/R3 results remain recorded above. The **229 C# cases,
+six Rust tests and 216 native ARM64 cases** accepted by the R3 review are reused
+at their recorded heads: codec sources, lockfile, Linux supervisor/admission and
+packaging behavior are unchanged. No heavy resource/OOM probe or codec benchmark
+was rerun. The temporary Git-source security/availability trade-off and concrete
+#858/#807 replacement/version/checksum/notices/regression/review tracking are in
+[README.md](README.md#dependencies-and-licenses) and DEPENDENCIES.json; future
+security updates remain required. Full rollback instructions remain unchanged.
+
+Full-branch Code Guard against live main `c94c40f55a75113cd75571c719c2fd75bd260320`:
+**15 REVIEW findings**, no FAIL/INCOMPLETE or policy/baseline changes. Inspected
+the required LOC/callable/complexity/nesting/Markdown policies and source. The
+controller remains within its 637-line allowance (616 counted); unchanged
+Index/Preview and service/cache lifecycle callables retain cohesive ownership.
+PNG/WebP/GIF container state machines and PNG color precedence retain their
+readable security decisions; CHANGELOG remains chronological. The new guard and
+tests introduce no new findings. The full-branch and nine-file delta scopes are
+both covered. Final exact-head CI is reported on the PR, not inferred here.
+
+Native startup qualification remains BLOCKED; existing unrelated NuGet advisories
+remain. Pre-existing Rich Notes renderer defects are tracked separately in #874
+and must be coordinated before the first Rust replacement deployment. PR #869
+must stay draft/unmerged for a fresh independent exact-head review and separate
+maintainer merge approval. No deployment, release or issue closure is authorized.
