@@ -15,6 +15,11 @@
 
 ### Fixed
 
+- Preserve numeric-offset capture instants in API check-in and log-location,
+  alongside unchanged UTC `Z` and legacy coordinate-local no-offset interpretation.
+  Keep coordinate timezone metadata and server receipt time; literal input offset
+  text is not retained by MVC DateTime binding (#819).
+
 - Count a newly persisted keyed automatic capture toward visit detection only
   after its Location insert succeeds. Failed writes, losing keyed conflicts and
   persisted replays add no visit hit. Preserve genuine filtered-ping observations,
