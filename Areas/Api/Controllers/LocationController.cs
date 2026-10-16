@@ -248,15 +248,6 @@ public class LocationController : BaseApiController
     }
 
     /// <summary>
-    ///     Broadcasts enriched SSE payloads for the supplied location across the per-user channel and all active group
-    ///     channels.
-    /// </summary>
-    /// <param name="user">The user whose location has been updated.</param>
-    /// <param name="location">The persisted location entity.</param>
-    /// <param name="locationTimeThresholdMinutes">Threshold window (in minutes) used to determine live status.</param>
-    /// <param name="isCheckIn">Indicates whether the location originated from a manual check-in.</param>
-    /// <param name="cancellationToken">Cancellation token tied to the HTTP request.</param>
-    /// <summary>
     /// Preserves UTC and MVC-bound numeric-offset instants; only unspecified clocks use coordinate time.
     /// Numeric offsets bind as host-local DateTime values, without retaining the literal offset.
     /// </summary>
@@ -267,6 +258,15 @@ public class LocationController : BaseApiController
         _ => CoordinateTimeZoneConverter.ConvertToUtc(dto.Latitude, dto.Longitude, dto.Timestamp)
     };
 
+    /// <summary>
+    ///     Broadcasts enriched SSE payloads for the supplied location across the per-user channel and all active group
+    ///     channels.
+    /// </summary>
+    /// <param name="user">The user whose location has been updated.</param>
+    /// <param name="location">The persisted location entity.</param>
+    /// <param name="locationTimeThresholdMinutes">Threshold window (in minutes) used to determine live status.</param>
+    /// <param name="isCheckIn">Indicates whether the location originated from a manual check-in.</param>
+    /// <param name="cancellationToken">Cancellation token tied to the HTTP request.</param>
     private async Task BroadcastLocationUpdatesAsync(
         ApplicationUser user,
         Location location,
