@@ -158,6 +158,33 @@ is not the shipped accuracy default.
 
 `POST /api/location/check-in` and `POST /api/location/log-location` accept an optional `Idempotency-Key` header containing a GUID. The key is unique per user. A persisted replay returns the prior success before new-work admission; concurrent duplicate persistence is reconciled against the same database invariant.
 
+For a new UUID-keyed create, the Location winner commits before optional personal
+provider admission/contact. Only the newly inserted winner attempts immediate
+geocoding; a losing insert, persisted replay or failed initial insert consumes no
+creation-geocoding admission/contact. Keyless requests retain their existing
+enrich-before-insert sequence. Different keys and accounts remain independent.
+
+Successful immediate enrichment saves the complete address/provenance tuple before
+the winning response and SSE publication. The short post-HTTP save checks the same
+owner and numeric row, unchanged coordinates, untouched address fields and current
+provider, credential, verification, consent and selection generations. Owner edits
+or another retained result take precedence; responses and publication use saved
+state. No database transaction spans provider HTTP. A concurrent replay can observe
+the committed winner before its optional address is saved.
+
+Provider failure, request cancellation, process death or an enrichment-save failure
+after the initial commit can leave a valid Location without an optional address.
+Normal provider unavailability retains a successful create; request cancellation
+propagates, and other errors can still return 500 after persistence. A same-key
+retry acknowledges that row without contacting again. Admissions already consumed
+remain charged even when no address is saved. Creation adds no automatic enrichment
+workflow or durable attempt: eligible wholly missing addresses can be processed
+through the existing explicit [missing-address enrichment controls](../user/location-providers.md#address-enrichment-controls),
+or a history import's user-wide enrichment opt-in. An already enabled workflow may
+also select eligible rows during reconciliation. With no such opt-in, the
+post-commit/pre-enrichment gap has no automatic recovery or globally exactly-once
+external-contact guarantee.
+
 Before any automatic threshold or duplicate-timestamp skip, a supplied valid key
 gets a fresh database check for that authenticated account. If the keyed winner
 is already persisted, log-location returns `success: true`, `skipped: false` and

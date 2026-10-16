@@ -15,6 +15,13 @@
 
 ### Fixed
 
+- Commit UUID-keyed API check-in and automatic Location winners before optional
+  provider admission/contact, avoiding charges for losing or failed initial inserts.
+  Save successful immediate addresses before response/publication under owner,
+  coordinate, retained-address and provider-generation guards. Replays never
+  recontact; interruption after commit may leave a valid addressless Location for
+  existing opt-in missing-address enrichment. Keyless ordering is unchanged (#822).
+
 - Fail native CSV and Wayfarer GeoJSON history files before new writes for
   malformed supplied UUIDs or a second all-zero UUID, including filtered records.
   Preserve keyless legacy history, normal keyed replay and singleton-zero historic
