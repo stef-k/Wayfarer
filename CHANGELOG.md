@@ -15,6 +15,13 @@
 
 ### Fixed
 
+- Fail native CSV and Wayfarer GeoJSON history files before new writes for
+  malformed supplied UUIDs or a second all-zero UUID, including filtered records.
+  Preserve keyless legacy history, normal keyed replay and singleton-zero historic
+  transfers/replays with owner edits. Failure retains saved progress; upload a
+  corrected copy as a new import. A sole zero in a later file can still match an
+  existing zero; distinct new captures need distinct nonzero UUIDs (#820).
+
 - Preserve numeric-offset capture instants in API check-in and log-location,
   alongside unchanged UTC `Z` and legacy coordinate-local no-offset interpretation.
   Keep coordinate timezone metadata and server receipt time; literal input offset
