@@ -25,7 +25,8 @@ public sealed class ImageCacheStoragePostgresTests
             var legacyPath = row.FilePath;
             var version = row.RowVersion;
             Assert.NotEqual(0u, version);
-            Assert.Equal(ProxiedImageCacheStatus.StaleHit, (await service.GetAsync(row.CacheKey)).Status);
+            using var stale = await service.GetAsync(row.CacheKey);
+            Assert.Equal(ProxiedImageCacheStatus.StaleHit, stale.Status);
             Assert.Equal(legacyPath, row.FilePath);
             await ImageCacheStorageQualificationTests.AssertFailurePreservesAsync(db, storage, row);
             Assert.Equal(version, row.RowVersion);
@@ -46,7 +47,8 @@ public sealed class ImageCacheStoragePostgresTests
             Assert.NotEqual(version, row.RowVersion);
             Assert.True(ImageCacheStorage.IsReference(row.FilePath, row.CacheKey));
             Assert.False(File.Exists(legacyPath));
-            Assert.Equal(new byte[] { 3, 4, 5 }, (await service.GetAsync(row.CacheKey)).Bytes);
+            using var refreshed = await service.GetAsync(row.CacheKey);
+            Assert.Equal(new byte[] { 3, 4, 5 }, refreshed.Bytes);
             staleRow.ContentType = "image/webp";
             await Assert.ThrowsAsync<DbUpdateConcurrencyException>(() => competing.SaveChangesAsync());
         }
@@ -98,6 +100,7 @@ public sealed class ImageCacheStoragePostgresTests
         try { result = await reader.GetAsync(oldRow.CacheKey); }
         finally { ProxiedImageCacheService.SetMetadataSaverForTesting(null); }
 
+        using var admission = result;
         Assert.True(refreshCommitted);
         Assert.Equal(1, conflicts);
         Assert.Equal(ProxiedImageCacheStatus.FreshHit, result.Status);

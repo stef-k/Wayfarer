@@ -123,9 +123,16 @@ public static class ImageProxyHelper
     /// <summary>Full decode for every untrusted cache hit and optimize=false source; no MIME/provenance shortcut.</summary>
     public static async Task<string> ValidateRasterAsync(byte[] imageBytes,
         int maximumInputBytes = 50 * 1024 * 1024, CancellationToken ct = default)
+        => await ValidateRasterAsync(imageBytes, maximumInputBytes, ct, null);
+
+    /// <summary>Keep the disk reader's admission active through preflight, decoding and process cleanup.</summary>
+    internal static async Task<string> ValidateRasterAsync(byte[] imageBytes, int maximumInputBytes,
+        CancellationToken ct, System.Threading.RateLimiting.RateLimitLease? admission)
     {
         RejectPreflight(imageBytes);
-        var result = await Supervisor.ValidateAsync(imageBytes, maximumInputBytes, ct);
+        var result = admission == null
+            ? await Supervisor.ValidateAsync(imageBytes, maximumInputBytes, ct)
+            : await Supervisor.ValidateAdmittedAsync(imageBytes, maximumInputBytes, admission, ct);
         RequireSuccess(result);
         return result.MimeType!;
     }

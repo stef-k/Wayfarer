@@ -209,13 +209,14 @@ public class ImageProxyService : IImageProxyService
     /// <summary>Invalid cache bytes remain inert; temporary validation failures propagate without triggering origin work.</summary>
     private async Task<ProxiedImageCacheResult> GetSafeCacheAsync(string cacheKey, CancellationToken ct)
     {
-        var cached = await _imageCacheService.GetAsync(cacheKey, ct);
+        using var cached = await _imageCacheService.GetAsync(cacheKey, ct);
         if (!cached.HasBytes) return cached;
         try
         {
-            var mime = await ImageProxyHelper.ValidateRasterAsync(cached.Bytes!, MaximumInputBytes, ct);
+            var mime = await ImageProxyHelper.ValidateRasterAsync(cached.Bytes!, MaximumInputBytes, ct,
+                cached.ValidationAdmission);
             ct.ThrowIfCancellationRequested();
-            return cached with { ContentType = mime };
+            return cached with { ContentType = mime, ValidationAdmission = null };
         }
         catch (OperationCanceledException) { throw; }
         catch (ImageHelperUnavailableException) { throw; }

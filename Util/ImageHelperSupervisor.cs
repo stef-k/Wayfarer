@@ -1,16 +1,16 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.InteropServices;
+using System.Threading.RateLimiting;
 
 namespace Wayfarer.Util;
 
 /// <summary>Owns one fixed helper path, separate bounded transform/validation admission, Linux controls and reaping.</summary>
-public sealed class ImageHelperSupervisor
+public sealed partial class ImageHelperSupervisor
 {
     private const int MaximumInputBytes = 200 * 1024 * 1024;
     private const int MaximumOutputBytes = 50 * 1024 * 1024;
     private static readonly SemaphoreSlim Slots = new(4, 4);
-    private static readonly SemaphoreSlim ValidationSlots = new(8, 8);
     private static int admissionDisabled;
     private readonly string helperPath;
 
@@ -36,9 +36,10 @@ public sealed class ImageHelperSupervisor
         RunAsync(input, new ImageTransform(MaximumInputBytes: maximumInputBytes),
             TimeSpan.FromSeconds(30), true, cancellationToken);
 
-    /// <summary>Admit before creating a thread/child; eight validators never queue or consume the four transform slots.</summary>
+    /// <summary>Admit before thread/child creation, reusing a disk read lease without double admission.</summary>
     private Task<ImageTransformResult> RunAsync(ReadOnlyMemory<byte> input, ImageTransform recipe,
-        TimeSpan remainingOriginBudget, bool validation, CancellationToken cancellationToken)
+        TimeSpan remainingOriginBudget, bool validation, CancellationToken cancellationToken,
+        RateLimitLease? admission = null)
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (!OperatingSystem.IsLinux() || RuntimeInformation.ProcessArchitecture is not (Architecture.X64 or Architecture.Arm64)
@@ -47,9 +48,13 @@ public sealed class ImageHelperSupervisor
             return Task.FromResult(new ImageTransformResult(ImageTransformStatus.Unavailable));
         if (input.Length > recipe.MaximumInputBytes)
             return Task.FromResult(new ImageTransformResult(ImageTransformStatus.TooLarge));
-        var slots = validation ? ValidationSlots : Slots;
-        if (!slots.Wait(0))
+        var ownsAdmission = admission == null;
+        if (validation) admission ??= ValidationAdmission.AttemptAcquire(ValidationUnits(input.Length));
+        if (validation ? !admission!.IsAcquired : !Slots.Wait(0))
+        {
+            admission?.Dispose();
             return Task.FromResult(new ImageTransformResult(ImageTransformStatus.Unavailable));
+        }
 
         var completion = new TaskCompletionSource<ImageTransformResult>(
             TaskCreationOptions.RunContinuationsAsynchronously);
@@ -59,13 +64,14 @@ public sealed class ImageHelperSupervisor
         {
             var thread = new Thread(() => Supervise(input, recipe,
                 TimeSpan.FromSeconds(Math.Min(30, remainingOriginBudget.TotalSeconds)),
-                cancellationToken, validation, slots, completion))
+                cancellationToken, validation, admission, ownsAdmission, completion))
             { IsBackground = true, Name = "Wayfarer image supervisor" };
             thread.Start();
         }
         catch
         {
-            slots.Release();
+            if (!validation) Slots.Release();
+            else if (ownsAdmission) admission!.Dispose();
             completion.SetResult(new ImageTransformResult(ImageTransformStatus.Unavailable));
         }
         return completion.Task;
@@ -73,7 +79,7 @@ public sealed class ImageHelperSupervisor
 
     /// <summary>Launch and retain the owning thread until independent cleanup finishes.</summary>
     private void Supervise(ReadOnlyMemory<byte> input, ImageTransform recipe, TimeSpan budget,
-        CancellationToken caller, bool validation, SemaphoreSlim slots,
+        CancellationToken caller, bool validation, RateLimitLease? admission, bool ownsAdmission,
         TaskCompletionSource<ImageTransformResult> completion)
     {
         Process? process = null;
@@ -102,8 +108,10 @@ public sealed class ImageHelperSupervisor
             process?.Dispose();
             if (started && !reaped)
                 Interlocked.Exchange(ref admissionDisabled, 1);
-            else
-                slots.Release();
+            else if (!validation)
+                Slots.Release();
+            else if (ownsAdmission)
+                admission!.Dispose();
         }
         if (caller.IsCancellationRequested)
             completion.TrySetCanceled(caller);

@@ -30,6 +30,7 @@ public partial class ProxiedImageCacheServiceTests : TestBase, IDisposable
         ProxiedImageCacheService.SetImageFileReplacerForTesting(null);
         ProxiedImageCacheService.SetMetadataSaverForTesting(null);
         ProxiedImageCacheService.SetBeforeFileReadForTesting(null);
+        ProxiedImageCacheService.BeforeAllocationForTesting = null;
         try
         {
             if (Directory.Exists(_tempDir))
@@ -44,7 +45,7 @@ public partial class ProxiedImageCacheServiceTests : TestBase, IDisposable
     {
         var service = CreateService();
 
-        var result = await service.GetAsync(Key("nonexistent_key"));
+        using var result = await service.GetAsync(Key("nonexistent_key"));
 
         Assert.Equal(ProxiedImageCacheStatus.Miss, result.Status);
     }
@@ -59,7 +60,7 @@ public partial class ProxiedImageCacheServiceTests : TestBase, IDisposable
 
         var stored = await service.SetAsync(Key("test_key_1"), imageBytes, contentType);
 
-        var result = await service.GetAsync(Key("test_key_1"));
+        using var result = await service.GetAsync(Key("test_key_1"));
 
         Assert.True(stored.Stored);
         Assert.Equal(Key("test_key_1") + ".dat", db.ImageCacheMetadata.Single().FilePath);
@@ -83,7 +84,7 @@ public partial class ProxiedImageCacheServiceTests : TestBase, IDisposable
         metadata.CreatedAt = DateTime.UtcNow.AddDays(-2);
         await db.SaveChangesAsync();
 
-        var result = await service.GetAsync(Key("expired_key"));
+        using var result = await service.GetAsync(Key("expired_key"));
 
         Assert.Equal(ProxiedImageCacheStatus.StaleHit, result.Status);
         Assert.Equal(imageBytes, result.Bytes);
@@ -103,7 +104,7 @@ public partial class ProxiedImageCacheServiceTests : TestBase, IDisposable
         var metadata = db.ImageCacheMetadata.First(m => m.CacheKey == Key("disk_missing_key"));
         File.Delete(Path.Combine(_tempDir, metadata.FilePath));
 
-        var result = await service.GetAsync(Key("disk_missing_key"));
+        using var result = await service.GetAsync(Key("disk_missing_key"));
 
         Assert.Equal(ProxiedImageCacheStatus.DiskMissingOrError, result.Status);
         // DB entry should also be cleaned up
@@ -137,7 +138,7 @@ public partial class ProxiedImageCacheServiceTests : TestBase, IDisposable
 
         await service.SetAsync(Key("refresh_key"), new byte[] { 3, 4, 5 }, "image/png");
 
-        var result = await service.GetAsync(Key("refresh_key"));
+        using var result = await service.GetAsync(Key("refresh_key"));
         await db.Entry(metadata).ReloadAsync();
         Assert.Equal(ProxiedImageCacheStatus.FreshHit, result.Status);
         Assert.Equal(new byte[] { 3, 4, 5 }, result.Bytes);
@@ -180,7 +181,7 @@ public partial class ProxiedImageCacheServiceTests : TestBase, IDisposable
             Assert.False(File.Exists(Path.Combine(_tempDir, oldFilePath)));
         });
 
-        var result = await service.GetAsync(Key("refresh_race_key"));
+        using var result = await service.GetAsync(Key("refresh_race_key"));
         ProxiedImageCacheService.SetBeforeFileReadForTesting(null);
         var currentMetadata = db.ImageCacheMetadata.Single(m => m.CacheKey == Key("refresh_race_key"));
 
@@ -222,7 +223,7 @@ public partial class ProxiedImageCacheServiceTests : TestBase, IDisposable
 
         var stored = await service.SetAsync(Key("metadata_existing_fail"), new byte[] { 3, 4, 5 }, "image/png");
         ProxiedImageCacheService.SetMetadataSaverForTesting(null);
-        var result = await service.GetAsync(Key("metadata_existing_fail"));
+        using var result = await service.GetAsync(Key("metadata_existing_fail"));
         await db.Entry(oldMetadata).ReloadAsync();
 
         Assert.False(stored.Stored);
@@ -247,7 +248,7 @@ public partial class ProxiedImageCacheServiceTests : TestBase, IDisposable
 
         var stored = await service.SetAsync(Key("replace_existing_fail"), new byte[] { 3, 4, 5 }, "image/png");
         ProxiedImageCacheService.SetImageFileReplacerForTesting(null);
-        var result = await service.GetAsync(Key("replace_existing_fail"));
+        using var result = await service.GetAsync(Key("replace_existing_fail"));
         await db.Entry(oldMetadata).ReloadAsync();
 
         Assert.False(stored.Stored);
@@ -263,7 +264,7 @@ public partial class ProxiedImageCacheServiceTests : TestBase, IDisposable
         var service = CreateService(maxSizeMB: -1);
         await service.SetAsync(Key("disabled_key"), new byte[] { 1 }, "image/png");
 
-        var result = await service.GetAsync(Key("disabled_key"));
+        using var result = await service.GetAsync(Key("disabled_key"));
 
         Assert.Equal(ProxiedImageCacheStatus.Miss, result.Status);
     }
@@ -352,7 +353,7 @@ public partial class ProxiedImageCacheServiceTests : TestBase, IDisposable
         var lastAccessedBefore = metaBefore.LastAccessed;
 
         // Read immediately (within 1-hour window) — should NOT update LastAccessed
-        await service.GetAsync(Key("recent_key"));
+        using var result = await service.GetAsync(Key("recent_key"));
 
         // Re-query to get current value
         await db.Entry(metaBefore).ReloadAsync();
@@ -376,7 +377,7 @@ public partial class ProxiedImageCacheServiceTests : TestBase, IDisposable
         var staleBefore = metadata.LastAccessed;
 
         // Read — should update LastAccessed because it's >1 hour old
-        await service.GetAsync(Key("stale_key"));
+        using var result = await service.GetAsync(Key("stale_key"));
 
         await db.Entry(metadata).ReloadAsync();
         Assert.True(metadata.LastAccessed > staleBefore);

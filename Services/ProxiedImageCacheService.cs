@@ -1,14 +1,15 @@
 using Microsoft.EntityFrameworkCore;
 using Wayfarer.Models;
 using Wayfarer.Parsers;
+using Wayfarer.Util;
 
 namespace Wayfarer.Services;
 
 /// <summary>
 /// Disk-based image proxy cache with DB-tracked LRU eviction.
 /// Caches optimized images from the ProxyImage endpoint to avoid repeated
-/// downloads and ImageSharp processing on every request.
-/// Read operations are lock-free for concurrent performance; writes and eviction
+/// downloads and image processing on every request.
+/// Reads share bounded validation admission; writes and eviction
 /// are serialized via static SemaphoreSlim (same pattern as <see cref="TileCacheService"/>).
 /// </summary>
 public partial class ProxiedImageCacheService : IProxiedImageCacheService
@@ -66,6 +67,9 @@ public partial class ProxiedImageCacheService : IProxiedImageCacheService
     /// Test-only hook that runs after metadata is captured and before file existence is checked.
     /// </summary>
     private static Func<string, string, Task> _beforeFileReadForTesting = (_, _) => Task.CompletedTask;
+
+    /// <summary>Test observation/fault seam immediately after admission and before the byte-array allocation.</summary>
+    internal static Func<string, Task>? BeforeAllocationForTesting { get; set; }
 
     /// <summary>Uses the image authority for all persisted reference interpretation.</summary>
     public ProxiedImageCacheService(
@@ -173,10 +177,10 @@ public partial class ProxiedImageCacheService : IProxiedImageCacheService
                 return await HandleMissingCapturedFileAsync(cacheKey, capturedReference, settings, ct);
             }
 
-            var bytes = await ReadBoundedFileAsync(filePath, settings, ct);
-            return new ProxiedImageCacheResult(status, bytes, contentType!, filePath);
+            return await ReadBoundedFileAsync(filePath, settings, status, contentType, ct);
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+        catch (ImageHelperUnavailableException) { throw; }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error reading cached image file for key {CacheKey}.", cacheKey);
@@ -192,10 +196,11 @@ public partial class ProxiedImageCacheService : IProxiedImageCacheService
         string capturedReference,
         ApplicationSettings settings, CancellationToken ct)
     {
+        ImageCacheMetadata? currentMetadata;
         await _cacheLock.WaitAsync(ct);
         try
         {
-            var currentMetadata = await _dbContext.ImageCacheMetadata
+            currentMetadata = await _dbContext.ImageCacheMetadata
                 .FirstOrDefaultAsync(m => m.CacheKey == cacheKey, ct);
 
             if (currentMetadata != null)
@@ -212,34 +217,29 @@ public partial class ProxiedImageCacheService : IProxiedImageCacheService
                     null);
             }
 
-            if (!string.Equals(currentMetadata.FilePath, capturedReference, StringComparison.Ordinal))
+            if (string.Equals(currentMetadata.FilePath, capturedReference, StringComparison.Ordinal))
             {
-                return await ReadConcurrentRefreshFileAsync(currentMetadata, settings, ct);
+                _logger.LogWarning("Image cache file missing for key {CacheKey}. Removing DB entry.", cacheKey);
+                _dbContext.ImageCacheMetadata.Remove(currentMetadata);
+                try
+                {
+                    await SaveMetadataChangesAsync(ct);
+                }
+                catch
+                {
+                    _dbContext.Entry(currentMetadata).State = EntityState.Unchanged;
+                    throw;
+                }
+                Interlocked.Add(ref _currentCacheSize, -currentMetadata.Size);
+                return new ProxiedImageCacheResult(ProxiedImageCacheStatus.DiskMissingOrError, null, null, null);
             }
-
-            _logger.LogWarning("Image cache file missing for key {CacheKey}. Removing DB entry.", cacheKey);
-            _dbContext.ImageCacheMetadata.Remove(currentMetadata);
-            try
-            {
-                await SaveMetadataChangesAsync(ct);
-            }
-            catch
-            {
-                _dbContext.Entry(currentMetadata).State = EntityState.Unchanged;
-                throw;
-            }
-            Interlocked.Add(ref _currentCacheSize, -currentMetadata.Size);
-
-            return new ProxiedImageCacheResult(
-                ProxiedImageCacheStatus.DiskMissingOrError,
-                null,
-                null,
-                null);
         }
         finally
         {
             _cacheLock.Release();
         }
+        // Admission may wait; never hold the write/missing-file lock while waiting for validation capacity.
+        return await ReadConcurrentRefreshFileAsync(currentMetadata, settings, ct);
     }
 
     /// <summary>
@@ -263,27 +263,34 @@ public partial class ProxiedImageCacheService : IProxiedImageCacheService
         var status = DateTime.UtcNow - metadata.CreatedAt > maxAge
             ? ProxiedImageCacheStatus.StaleHit
             : ProxiedImageCacheStatus.FreshHit;
-        var bytes = await ReadBoundedFileAsync(path, settings, ct);
-        return new ProxiedImageCacheResult(status, bytes, metadata.ContentType, path);
+        return await ReadBoundedFileAsync(path, settings, status, metadata.ContentType, ct);
     }
 
-    /// <summary>Bounds actual file bytes without trusting legacy metadata size, including concurrent refresh reads.</summary>
-    private static async Task<byte[]?> ReadBoundedFileAsync(
-        string path, ApplicationSettings settings, CancellationToken ct)
+    /// <summary>Admit actual file bytes before allocation; return the lease with one exact-sized array and no copy.</summary>
+    private static async Task<ProxiedImageCacheResult> ReadBoundedFileAsync(string path,
+        ApplicationSettings settings, ProxiedImageCacheStatus status, string? contentType, CancellationToken ct)
     {
         await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read,
-            81920, FileOptions.Asynchronous | FileOptions.SequentialScan);
-        var limit = settings.MaxProxyImageDownloadMB * 1024L * 1024;
-        if (stream.Length > limit) return null;
-        using var output = new MemoryStream();
-        var buffer = new byte[81920];
-        int read;
-        while ((read = await stream.ReadAsync(buffer, ct)) > 0)
+            1, FileOptions.Asynchronous | FileOptions.SequentialScan);
+        var length = stream.Length;
+        var limit = checked(Math.Clamp(settings.MaxProxyImageDownloadMB, 5, 200) * 1024 * 1024);
+        if (length > limit) return new ProxiedImageCacheResult(status, null, contentType, path);
+        var admission = await ImageHelperSupervisor.AdmitCacheReadAsync((int)length, ct);
+        try
         {
-            if (output.Length + read > limit) return null;
-            output.Write(buffer, 0, read);
+            if (BeforeAllocationForTesting != null) await BeforeAllocationForTesting(path);
+            ct.ThrowIfCancellationRequested();
+            var bytes = new byte[(int)length];
+            await stream.ReadExactlyAsync(bytes, ct);
+            if (await stream.ReadAsync(new byte[1], ct) != 0)
+                throw new IOException("Cached image changed length during read.");
+            return new ProxiedImageCacheResult(status, bytes, contentType, path) { ValidationAdmission = admission };
         }
-        return output.ToArray();
+        catch
+        {
+            admission.Dispose();
+            throw;
+        }
     }
 
     /// <inheritdoc />
