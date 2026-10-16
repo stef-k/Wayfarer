@@ -413,6 +413,7 @@ public class TripViewerController : BaseController
 
     /// <summary>
     /// Shared HTTP pipeline for serving proxied image bytes from cache or allowed origin work.
+    /// Native Windows returns an uncacheable 501 before any image work or validators.
     /// Local cache hits are served before anonymous rate limiting is applied to cache misses.
     /// </summary>
     /// <param name="settings">Admin application settings (cache expiry, download limit).</param>
@@ -422,6 +423,13 @@ public class TripViewerController : BaseController
         ApplicationSettings settings,
         ImageProxyRequest request)
     {
+        // Full validation requires the Linux helper, including for original bytes and cache hits.
+        if (OperatingSystem.IsWindows())
+        {
+            Response.Headers.CacheControl = "no-store";
+            return StatusCode(501);
+        }
+
         // Compute cache duration and download limit from admin settings
         var maxAgeSeconds = settings.ImageCacheExpiryDays * 86400;
 

@@ -13,8 +13,12 @@
   returning temporary 503 on sustained overload without origin refetch.
   Honor the configured 5–200 MiB input limit
   in both codec modes and legacy-cache validation; retain the 50 MiB output cap.
-  Draft-only: an official fixed WebP crate and a native Windows maintainer decision
-  are required before merge.
+  Permit the qualified unmodified official WebP Git pin temporarily until a fixed
+  crates.io release is available, with an explicit source/checksum/notices update
+  and review before adoption. Linux/WSL2 retain complete imaging; native Windows
+  builds omit the helper and image-proxy operations return uncached HTTP 501.
+  Native Windows production deployment remains unsupported; actual startup smoke
+  requires the established safe PostgreSQL 18/PostGIS prerequisite.
 
 - Automatically reuse or create shared Activities for newly accepted location-history
   imports, with PostgreSQL Unicode identity, atomic classification/checkpoints and

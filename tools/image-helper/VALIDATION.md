@@ -105,8 +105,10 @@ its own exact-head results. Native ARM64 helper + supervisor and Docker evidence
 must come from the existing `application-image-arm64` job on `ubuntu-24.04-arm`.
 Local AMD64 results do not qualify ARM64 or Windows.
 
-Production merge remains blocked on an official published WebP crate containing
-the qualified fix and a maintainer decision about native Windows (use WSL2 now).
+At this historical stage, production merge was blocked on a published fixed WebP
+crate and a native Windows decision. The maintainer superseded both policy gates
+on 2026-10-16; see the shipping-policy section below. The recorded execution
+evidence here remains unchanged.
 The first hosted run passed the main test job, native ARM64 helper/supervisor
 (202 cases), native ARM64 Docker/lifecycle and AMD64 Docker/Compose substrate.
 Its later AMD64 host probe build failed because NASM was not provisioned for the
@@ -202,7 +204,7 @@ within its chronological responsibility. Scratch probe Code Guard passed.
 No dependencies or selected codec sources changed. Existing unrelated NuGet
 advisories remain debt. Final-head CI is reported by the PR checks; these local
 results do not substitute for it. Fresh independent exact-head review, the
-official fixed WebP publication/pin, the native Windows maintainer decision and
+the then-required fixed WebP publication/pin, native Windows maintainer decision and
 maintainer acceptance remain mandatory. PR #869 remains draft/unmerged and
 #807/#858 remain open. No merge, deployment or release is authorized.
 

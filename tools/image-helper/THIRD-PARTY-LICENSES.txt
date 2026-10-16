@@ -1,7 +1,7 @@
 Complete notices for the locked Rust image helper and build dependencies.
 Select MIT where offered; retain additional BSD, IJG, Unicode, zlib and Rust stdlib obligations.
 This software is based in part on the work of the Independent JPEG Group.
-The unmodified official WebP Git pin is provisional and blocks production merge.
+The unmodified official WebP Git pin is temporarily approved for production; track its fixed crates.io replacement under #858/#807.
 
 ===== adler2 2.0.1 / LICENSE-0BSD =====
 Copyright (C) Jonas Schievink <jonasschievink@gmail.com>

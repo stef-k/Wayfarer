@@ -1,5 +1,11 @@
 {
   "scope": "Locked Rust runtime/build dependency closure; test-only ImageSharp is absent from the application.",
+  "webpSourcePolicy": {
+    "officialRevision": "f4d80bd965df2c81e65b6f43c1f70e0750bd4b0f",
+    "approval": "Temporary production use until an official fixed crates.io release is available; source and complete notices must remain verified.",
+    "tracking": "#858/#807; https://github.com/stef-k/Wayfarer/pull/869#issuecomment-6220923425",
+    "replacement": "Confirm the qualified fix, explicitly update version/lock checksum/inventory/notices, and run the retained malformed-VP8L regression, focused checks and independent review before adoption. Future security updates remain required."
+  },
   "packages": [
     {
       "name": "adler2",

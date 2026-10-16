@@ -5,11 +5,16 @@ This is the selected runtime imported from qualification commit
 Historical experiments and results remain on `research/858-rust-imaging`.
 Authority: [the integration assignment](https://github.com/stef-k/Wayfarer/issues/858#issuecomment-6197378228).
 
-**Draft only: production merge is blocked.** `image-webp` is the unmodified official
-Git revision `f4d80bd965df2c81e65b6f43c1f70e0750bd4b0f`. The official published
-0.2.4 crate lacks the qualified malformed-VP8L fix. Before merge, select an official
-published crate containing the fix, update Cargo.lock and the inventory/notices,
-then rerun the exact retained counterexample, focused tests and native CI.
+**Temporary production dependency approved by the maintainer:** the unmodified
+official `image-webp` Git revision `f4d80bd965df2c81e65b6f43c1f70e0750bd4b0f`,
+under [the shipping/platform decision](https://github.com/stef-k/Wayfarer/pull/869#issuecomment-6220923425).
+The qualified pin is permitted until an official fixed crates.io release is
+available; a released-crate-only prohibition no longer blocks this PR. The
+previously assessed published 0.2.4 crate lacks the qualified malformed-VP8L fix.
+This accepts Git-source availability and maintenance risk to ship that security
+fix without changing the qualified decoder. Cargo.toml and Cargo.lock identify
+the same immutable official SHA; builds must use `--locked` and verify source
+and complete notices. Git provenance does not waive future security updates.
 No private patches, vendored fork, alternate decoder or native WebP linkage is used.
 
 ## Runtime boundary
@@ -111,11 +116,18 @@ rejection and output exhaustion. Native `application-image-arm64` CI separately
 executes helper + C# supervisor and verifies transform, caps, malformed input,
 cancellation and reaping; image construction alone is insufficient.
 
-**Native Windows remains unqualified and unwaived.** Use WSL2 with the checkout on
-the Linux filesystem. Before merge the maintainer must explicitly decide whether
-to accept Linux/WSL2-only image processing or require a separately implemented and
-qualified Windows containment/package path. This change does not claim Windows
-support. Other unsupported hosts fail unavailable rather than silently falling back.
+Production image processing is supported on native Linux AMD64/ARM64. WSL2
+provides the complete development path with the checkout on the Linux filesystem.
+Native Windows application development/builds exclude the Linux helper target;
+native Windows production deployment is unsupported. Valid image-proxy operations
+return **HTTP 501 with `Cache-Control: no-store`**, for both optimization modes and
+public trip cover images. URL/SSRF rejection remains 400; absent/nonpublic covers
+remain 404. The common controller decides before cache validation, origin access,
+helper startup or image ETags/304. Unrelated routes and local/static images remain
+available. There is no Windows helper or ImageSharp fallback. Other unsupported
+hosts retain fail-closed Unavailable behavior. See [native Windows qualification
+and its startup prerequisite](VALIDATION.md#native-windows-and-shipping-policy--2026-10-16);
+a successful build/controller test does not qualify actual application startup.
 
 ## Dependencies and licenses
 
@@ -131,6 +143,15 @@ revision above. Rust JPEG decode is `libjpeg-turbo-rs 0.8.0`, resize is
 ImageSharp 3.1.12 remains only in the test project for fixture creation and independent
 output assertions; it is absent from the published application dependency graph.
 The focused fixtures are retained unchanged from the linked research qualification.
+
+Tracking under **#858/#807**: replace this temporary WebP Git source when an
+official crates.io version containing the qualified fix is available. Confirm
+that release's source contains the fix; explicitly update Cargo.toml, Cargo.lock
+(including the registry checksum), DEPENDENCIES.json and all complete shipped
+notices. Run the retained 236-byte malformed-VP8L rejection and focused codec/
+supervisor regressions, applicable native checks and a small independent review
+before adoption. The temporary approval has no automatic upgrade or security
+update exemption and makes no claim that a fixed release is already available.
 
 ## Validation and rollback
 
@@ -152,6 +173,7 @@ not just the helper. Preserve durable data and key rings. Existing cache entries
 remain subject to the selected application's full byte validation and normal stale
 replacement/LRU; do not bless bytes or weaken validation during rollback.
 
-Before merge: official fixed crate publication/pin, native Windows maintainer decision,
-successful exact-head `ci-gate`, fresh independent review and maintainer acceptance.
+Before merge: successful applicable exact-head `ci-gate`, fresh independent review
+and maintainer acceptance, with the Windows startup qualification gap explicitly
+reported. The temporary official Git pin and Linux/WSL2 imaging policy are approved.
 The draft must remain unmerged, with #807/#858 open. No release/deploy is authorized.
