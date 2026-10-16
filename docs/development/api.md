@@ -127,11 +127,20 @@ configuration; these endpoints accept JSON POST, not GET/query-token logging.
 | Fields | Meaning |
 | --- | --- |
 | `latitude`, `longitude` | Decimal degrees, ±90/±180; `(0,0)` is rejected. |
-| `timestamp` | Capture DateTime; supply ISO UTC with `Z`. No-offset local time is converted using coordinates. Non-nullable DTO defaults are not required-field validation. |
+| `timestamp` | Capture DateTime; ISO UTC `Z` and numeric offsets preserve the capture instant. No-offset local time is converted using coordinates. Non-nullable DTO defaults are not required-field validation. |
 | `accuracy`, `altitude`, `speed` | Optional metres, metres, metres/second respectively. |
 | `locationType`, `notes`, `activityTypeId` | Optional capture description, notes and existing activity ID. |
 | `source`, `isUserInvoked`, `provider`, `bearing` | Optional origin, invocation flag, sensor/provider and bearing in degrees. |
 | `appVersion`, `appBuild`, `deviceModel`, `osVersion`, `batteryLevel`, `isCharging` | Optional capture metadata; battery percentage is 0–100. |
+
+For both check-in and log-location, `2026-08-22T10:00:00+02:00` and
+`2026-08-22T08:00:00Z` store capture `LocalTimestamp` as `08:00Z`. An offset-free
+`2026-08-22T10:00:00` at Athens coordinates retains coordinate-local interpretation
+and stores `07:00Z`; invalid or ambiguous coordinate-local times retain their
+existing conversion error. MVC binds numeric offsets to a host-local `DateTime`
+representing the same instant; the literal offset text is not retained.
+`TimeZoneId` still comes from coordinates, independently of the supplied offset.
+`Timestamp` remains server receipt UTC time, separate from capture `LocalTimestamp`.
 
 Omit unavailable measurements. Metadata does not change endpoint filtering:
 `isUserInvoked` on log-location is not a check-in bypass. Automatic capture applies

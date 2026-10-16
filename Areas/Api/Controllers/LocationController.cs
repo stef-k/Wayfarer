@@ -130,15 +130,7 @@ public class LocationController : BaseApiController
                 timeZoneId = CoordinateTimeZoneConverter.GetTimeZoneIdFromCoordinates(
                     dto.Latitude, dto.Longitude);
 
-                // Convert to UTC if not already
-                if (dto.Timestamp.Kind == DateTimeKind.Utc)
-                    utcTimestamp = dto.Timestamp;
-                else
-                    utcTimestamp = CoordinateTimeZoneConverter.ConvertToUtc(
-                        dto.Latitude, dto.Longitude, dto.Timestamp);
-
-                // Ensure UTC marking for EF/SQL
-                utcTimestamp = DateTime.SpecifyKind(utcTimestamp, DateTimeKind.Utc);
+                utcTimestamp = CaptureTimestampUtc(dto);
             }
             catch (Exception ex)
             {
@@ -254,6 +246,17 @@ public class LocationController : BaseApiController
             return Ok(new { Message = "Check-in logged successfully", Location = location.ForPublication() });
         }
     }
+
+    /// <summary>
+    /// Preserves UTC and MVC-bound numeric-offset instants; only unspecified clocks use coordinate time.
+    /// Numeric offsets bind as host-local DateTime values, without retaining the literal offset.
+    /// </summary>
+    private static DateTime CaptureTimestampUtc(GpsLoggerLocationDto dto) => dto.Timestamp.Kind switch
+    {
+        DateTimeKind.Utc => dto.Timestamp,
+        DateTimeKind.Local => dto.Timestamp.ToUniversalTime(),
+        _ => CoordinateTimeZoneConverter.ConvertToUtc(dto.Latitude, dto.Longitude, dto.Timestamp)
+    };
 
     /// <summary>
     ///     Broadcasts enriched SSE payloads for the supplied location across the per-user channel and all active group
@@ -478,15 +481,7 @@ public class LocationController : BaseApiController
                 timeZoneId = CoordinateTimeZoneConverter.GetTimeZoneIdFromCoordinates(
                     dto.Latitude, dto.Longitude);
 
-                // Only convert if the incoming timestamp isn’t already UTC
-                if (dto.Timestamp.Kind == DateTimeKind.Utc)
-                    utcTimestamp = dto.Timestamp;
-                else
-                    utcTimestamp = CoordinateTimeZoneConverter.ConvertToUtc(
-                        dto.Latitude, dto.Longitude, dto.Timestamp);
-
-                // Ensure we mark this as UTC so EF/SQL stores it correctly
-                utcTimestamp = DateTime.SpecifyKind(utcTimestamp, DateTimeKind.Utc);
+                utcTimestamp = CaptureTimestampUtc(dto);
             }
             catch (Exception ex)
             {
