@@ -105,7 +105,8 @@ public partial class TripImportService : ITripImportService
             await _dbContext.SaveChangesAsync(cancellationToken);
             _dbContext.ChangeTracker.Clear();
             await SegmentMeasurementWriterReconciler.ReconcileTripAsync(
-                _dbContext, mapped.Id, allowUnavailableAutomatic: true, cancellationToken);
+                _dbContext, mapped.Id, allowUnavailableAutomatic: true, cancellationToken,
+                preserveSavedMeasurements: source.Version == 3);
             await ValidateCompatibilityMeasurementsAsync(source, mapped, cancellationToken);
             if (transaction is not null) await transaction.CommitAsync(cancellationToken);
             _dbContext.ChangeTracker.Clear();
@@ -156,13 +157,13 @@ public partial class TripImportService : ITripImportService
             var expected = source.Segments[index];
             if (!persisted.TryGetValue(mapped.Segments.ElementAt(index).Id, out var actual))
                 throw new TripImportValidationException("An imported Segment identity changed during reconciliation.");
-            if (expected.DistanceKm.HasValue && actual.EstimatedDistanceKm != expected.DistanceKm)
+            if ((source.Version == 3 || expected.DistanceKm.HasValue) && actual.EstimatedDistanceKm != expected.DistanceKm)
                 throw new TripImportValidationException("Distance compatibility metadata does not match canonical reconciliation.");
             if (expected.DurationSource == EstimatedDurationSource.Manual
-                && actual.EstimatedDuration?.TotalSeconds != expected.DurationSeconds)
+                && actual.EstimatedDuration != expected.Duration)
                 throw new TripImportValidationException("Manual duration did not reconcile exactly.");
-            if (expected.DurationSource == EstimatedDurationSource.Automatic && expected.DurationSeconds.HasValue
-                && actual.EstimatedDuration?.TotalSeconds != expected.DurationSeconds)
+            if (expected.DurationSource == EstimatedDurationSource.Automatic && (source.Version == 3 || expected.Duration.HasValue)
+                && actual.EstimatedDuration != expected.Duration)
                 throw new TripImportValidationException("Automatic duration compatibility metadata does not match canonical reconciliation.");
         }
     }

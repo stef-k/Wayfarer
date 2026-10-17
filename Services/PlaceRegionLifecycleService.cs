@@ -388,6 +388,7 @@ public sealed partial class PlaceRegionLifecycleService
 
     private static void RewriteLocation(Segment segment, Guid placeId, Point? location)
     {
+        SegmentRouteProvenance.Clear(segment);
         if (segment.RouteGeometry == null) return;
         if (location == null)
         {

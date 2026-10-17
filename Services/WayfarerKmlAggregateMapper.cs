@@ -86,7 +86,7 @@ internal static class WayfarerKmlAggregateMapper
             var fromId = MapReference(sourceSegment.FromPlaceId, placeIds, "From");
             var toId = MapReference(sourceSegment.ToPlaceId, placeIds, "To");
             var profile = ResolveProfile(source.Version, sourceSegment, profiles);
-            ValidateDuration(sourceSegment, profile);
+            ValidateDuration(sourceSegment, profile, source.Version);
             var segment = new Segment
             {
                 Id = segmentIds[sourceSegment.Id], TripId = tripId, UserId = userId,
@@ -94,13 +94,19 @@ internal static class WayfarerKmlAggregateMapper
                 ToPlaceId = toId, ToPlace = sourceSegment.ToPlaceId.HasValue ? places[sourceSegment.ToPlaceId.Value] : null,
                 Mode = sourceSegment.Mode, TransportProfileId = profile?.Id,
                 RouteGeometry = sourceSegment.HasCustomRoute ? Copy(sourceSegment.Geometry) : null,
-                EstimatedDistanceKm = null,
-                EstimatedDuration = sourceSegment.DurationSource == EstimatedDurationSource.Manual && sourceSegment.DurationSeconds.HasValue
-                    ? TimeSpan.FromSeconds(sourceSegment.DurationSeconds.Value) : null,
+                EstimatedDistanceKm = source.Version == 3 ? sourceSegment.DistanceKm : null,
+                EstimatedDuration = source.Version == 3 || sourceSegment.DurationSource == EstimatedDurationSource.Manual
+                    ? sourceSegment.Duration : null,
                 EstimatedDurationSource = sourceSegment.DurationSource,
                 DisplayOrder = sourceSegment.DisplayOrder,
                 Notes = sourceSegment.Notes
             };
+            sourceSegment.RouteProvenance?.ApplyTo(segment);
+            if (source.Version == 3)
+            {
+                try { SegmentMeasurementState.Validate(segment); }
+                catch (InvalidOperationException exception) { throw new TripImportValidationException(exception.Message); }
+            }
             for (var position = 0; position < sourceSegment.WaypointPlaceIds.Count; position++)
             {
                 var sourcePlaceId = sourceSegment.WaypointPlaceIds[position];
@@ -147,13 +153,13 @@ internal static class WayfarerKmlAggregateMapper
         return profile;
     }
 
-    private static void ValidateDuration(WayfarerKmlSegment segment, TransportProfile? profile)
+    private static void ValidateDuration(WayfarerKmlSegment segment, TransportProfile? profile, int version)
     {
-        if (segment.DurationSource == EstimatedDurationSource.Manual && !segment.DurationSeconds.HasValue)
+        if (segment.DurationSource == EstimatedDurationSource.Manual && !segment.Duration.HasValue)
             throw new TripImportValidationException("Manual duration requires exact whole seconds.");
-        if (segment.DurationSeconds < 0 || segment.DurationSeconds > TimeSpan.MaxValue.TotalSeconds)
+        if (segment.Duration is { Ticks: < 0 })
             throw new TripImportValidationException("Manual duration is outside the supported range.");
-        if (segment.DurationSource == EstimatedDurationSource.Automatic && profile is null && segment.DurationSeconds.HasValue)
+        if (version != 3 && segment.DurationSource == EstimatedDurationSource.Automatic && profile is null && segment.Duration.HasValue)
             throw new TripImportValidationException("Unavailable Automatic duration metadata must be empty.");
     }
 

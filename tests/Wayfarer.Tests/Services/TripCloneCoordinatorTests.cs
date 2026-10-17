@@ -102,7 +102,7 @@ public sealed class TripCloneCoordinatorTests : TestBase
         Assert.Equal(clonedPlaces["A"].Id, loop.ToPlaceId);
         Assert.Equal(clonedPlaces["B"].Id, Assert.Single(loop.Waypoints).PlaceId);
         Assert.Null(Assert.Single(loop.Waypoints).RouteVertexIndex);
-        Assert.NotEqual(TimeSpan.FromDays(1), custom.EstimatedDuration);
+        Assert.Equal(TimeSpan.FromDays(1), custom.EstimatedDuration);
         Assert.Equal(EstimatedDurationSource.Automatic, custom.EstimatedDurationSource);
         Assert.Equal(manualDuration, loop.EstimatedDuration);
         Assert.Equal(EstimatedDurationSource.Manual, loop.EstimatedDurationSource);
@@ -166,9 +166,9 @@ public sealed class TripCloneCoordinatorTests : TestBase
         Assert.False(await db.Trips.AnyAsync(trip => trip.UserId == destination.Id));
     }
 
-    /// <summary>Rejects persisted sub-second Manual duration without leaving destination aggregate residue.</summary>
+    /// <summary>Rejects a negative Manual duration without leaving destination aggregate residue.</summary>
     [Fact]
-    public async Task CloneAsync_SubSecondManualDurationLeavesNoCloneResidue()
+    public async Task CloneAsync_NegativeManualDurationLeavesNoCloneResidue()
     {
         var db = CreateDbContext();
         var owner = TestDataFixtures.CreateUser(id: "owner");
@@ -178,7 +178,7 @@ public sealed class TripCloneCoordinatorTests : TestBase
         var region = RegionWithPlaces(source, owner.Id, out var places);
         source.Regions = [region];
         var segment = Segment(source, owner.Id, places[0], places[2], places[1], null, null);
-        segment.EstimatedDuration = TimeSpan.FromTicks(TimeSpan.TicksPerSecond + 4_000_000);
+        segment.EstimatedDuration = TimeSpan.FromSeconds(-1.4);
         source.Segments = [segment];
         db.Trips.Add(source);
         await db.SaveChangesAsync();

@@ -29,17 +29,17 @@ using Xunit.Abstractions;
 
 namespace Wayfarer.Tests.Controllers;
 
-/// <summary>Characterizes #886 at the real proposal-save, PostgreSQL and routed export boundaries.</summary>
+/// <summary>Proves #886 at the real proposal-save, PostgreSQL and routed native interchange boundaries.</summary>
 [Collection(PostgresImportTestCollection.Name)]
 public sealed class TripSegmentMeasurementExportPostgresTests(
     PostgresImportTestFixture fixture, ITestOutputHelper output) : TestBase
 {
-    /// <summary>Valid provider estimates survive persistence but violate the native exporter's different measurement policy.</summary>
+    /// <summary>The accepted provider result survives owner/public export and native import without recalculation.</summary>
     [PostgresTheory]
     [InlineData(false, false, "Segment distance is not canonical.")]
     [InlineData(true, true, "Segment duration must use whole seconds.")]
     [InlineData(true, false, "Automatic duration is not canonical.")]
-    public async Task ProviderSave_PersistsEstimatesRejectedByOwnerAndPublicNativeExport(
+    public async Task ProviderSave_PreservesAcceptedEstimatesThroughOwnerAndPublicNativeInterchange(
         bool canonicalDistance, bool fractionalDuration, string expectedFailure)
     {
         var support = new TripEditorSegmentMutationPostgresTestSupport(fixture);
@@ -107,17 +107,19 @@ public sealed class TripSegmentMeasurementExportPostgresTests(
         Assert.Equal(stored.EstimatedDistanceKm, projection.Segment!.EstimatedDistanceKm);
         Assert.Equal(stored.EstimatedDuration.Value.TotalMinutes, projection.Segment.EstimatedDurationMinutes);
         var exporter = Exporter(read);
-        Assert.Equal(expectedFailure, Assert.Throws<InvalidOperationException>(() => exporter.GenerateWayfarerKml(seed.TripId)).Message);
+        output.WriteLine($"Former rejection: {expectedFailure}");
+        var exported = exporter.GenerateWayfarerKml(seed.TripId);
+        await AssertRoundTripAsync(exported, stored);
 
         await using var app = await StartHostAsync(read);
         using var client = app.GetTestClient();
         client.BaseAddress = new Uri("https://wayfarer.test");
         Authenticate(client, app.Services, seed.UserId);
-        await AssertNativeFailureAndGoogleSuccessAsync(client, seed.TripId);
+        await AssertNativeAndGoogleSuccessAsync(client, seed.TripId);
         await read.Trips.Where(item => item.Id == seed.TripId)
             .ExecuteUpdateAsync(set => set.SetProperty(item => item.IsPublic, true));
         client.DefaultRequestHeaders.Remove("Cookie");
-        await AssertNativeFailureAndGoogleSuccessAsync(client, seed.TripId);
+        await AssertNativeAndGoogleSuccessAsync(client, seed.TripId);
     }
 
     /// <summary>Ordinary manual edits normalize fractional minutes before persistence and retain native round-trip compatibility.</summary>
@@ -159,11 +161,11 @@ public sealed class TripSegmentMeasurementExportPostgresTests(
         Assert.Equal(MeasurementData(original), MeasurementData(reexported));
     }
 
-    /// <summary>Historical numeric/interval values remain unchanged on read and still reach both native rejection classes.</summary>
+    /// <summary>Valid historical values export and round-trip without invented provider provenance or read-side repair.</summary>
     [PostgresTheory]
     [InlineData(false, "Segment distance is not canonical.")]
     [InlineData(true, "Segment duration must use whole seconds.")]
-    public async Task HistoricalMeasurements_AreRetainedAndRejectedWithoutAnApprovedCompatibilityPolicy(
+    public async Task HistoricalMeasurements_PreserveSavedValuesThroughNativeInterchange(
         bool fractionalDuration, string expectedFailure)
     {
         var support = new TripEditorSegmentMutationPostgresTestSupport(fixture);
@@ -186,8 +188,9 @@ public sealed class TripSegmentMeasurementExportPostgresTests(
         Assert.Equal(duration.Ticks, stored.EstimatedDuration!.Value.Ticks);
         Assert.Null(stored.RouteProvider);
         Assert.Equal(EstimatedDurationSource.Manual, stored.EstimatedDurationSource);
-        Assert.Equal(expectedFailure, Assert.Throws<InvalidOperationException>(() => Exporter(read).GenerateWayfarerKml(seed.TripId)).Message);
-        output.WriteLine($"historical storedKm={distance:R}; storedTicks={duration.Ticks}; outcome={expectedFailure}");
+        var exported = Exporter(read).GenerateWayfarerKml(seed.TripId);
+        await AssertRoundTripAsync(exported, stored);
+        output.WriteLine($"historical storedKm={distance:R}; storedTicks={duration.Ticks}; former rejection={expectedFailure}");
     }
 
     /// <summary>Uses production Identity, MVC routing and the established safe server-error page.</summary>
@@ -220,18 +223,44 @@ public sealed class TripSegmentMeasurementExportPostgresTests(
         client.DefaultRequestHeaders.Add("Cookie", options.Cookie.Name + "=" + options.TicketDataFormat.Protect(ticket));
     }
 
-    /// <summary>Observes the known native failure separately from successful Google presentation output.</summary>
-    private static async Task AssertNativeFailureAndGoogleSuccessAsync(HttpClient client, Guid tripId)
+    /// <summary>Both routed exports accept the saved estimates while retaining their separate format contracts.</summary>
+    private static async Task AssertNativeAndGoogleSuccessAsync(HttpClient client, Guid tripId)
     {
         using var native = await client.GetAsync($"/Trip/ExportWayfarerKml/{tripId:D}");
-        Assert.Equal(HttpStatusCode.InternalServerError, native.StatusCode);
-        Assert.Null(native.Content.Headers.ContentDisposition);
-        Assert.DoesNotContain("Segment distance", await native.Content.ReadAsStringAsync());
+        Assert.Equal(HttpStatusCode.OK, native.StatusCode);
+        Assert.NotNull(native.Content.Headers.ContentDisposition);
+        XDocument.Parse(await native.Content.ReadAsStringAsync());
         using var google = await client.GetAsync($"/Trip/ExportGoogleMyMapsKml/{tripId:D}");
         Assert.Equal(HttpStatusCode.OK, google.StatusCode);
         XNamespace kml = "http://www.opengis.net/kml/2.2";
         var document = XDocument.Parse(await google.Content.ReadAsStringAsync());
         Assert.NotEmpty(document.Descendants(kml + "LineString"));
+    }
+
+    /// <summary>Uses a different owner and fresh contexts to prove exact active values and provenance survive import/re-export.</summary>
+    private async Task AssertRoundTripAsync(string exported, Segment original)
+    {
+        var destination = await fixture.CreateUserAsync();
+        Guid imported;
+        await using (var write = fixture.CreateContext())
+        {
+            using var stream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(exported));
+            imported = (await new TripImportService(write, NullLogger<TripImportService>.Instance)
+                .ImportWayfarerKmlAsync(stream, destination.Id)).TripId;
+            fixture.RegisterTrip(imported);
+        }
+        await using var verify = fixture.CreateContext();
+        var saved = await verify.Segments.AsNoTracking().SingleAsync(item => item.TripId == imported);
+        Assert.Equal(original.EstimatedDistanceKm, saved.EstimatedDistanceKm);
+        Assert.Equal(original.EstimatedDuration, saved.EstimatedDuration);
+        Assert.Equal(original.EstimatedDurationSource, saved.EstimatedDurationSource);
+        Assert.Equal(original.RouteProvider, saved.RouteProvider);
+        Assert.Equal(original.RouteMappingMode, saved.RouteMappingMode);
+        Assert.Equal(original.RouteStorageMode, saved.RouteStorageMode);
+        Assert.Equal(original.RouteAttribution, saved.RouteAttribution);
+        Assert.Equal(original.RouteGeneratedAt, saved.RouteGeneratedAt);
+        Assert.Equal(original.RouteInstructionsJson, saved.RouteInstructionsJson);
+        Assert.Equal(MeasurementData(exported), MeasurementData(Exporter(verify).GenerateWayfarerKml(imported)));
     }
 
     /// <summary>Submits the protected proposal through the ordinary complete editor JSON request.</summary>
@@ -250,7 +279,7 @@ public sealed class TripSegmentMeasurementExportPostgresTests(
     /// <summary>Compares the native measurement metadata independently of remapped identities.</summary>
     private static string[] MeasurementData(string xml) => XDocument.Parse(xml).Descendants()
         .Where(item => item.Name.LocalName == "Data" && item.Attribute("name")?.Value
-            is "DistanceKm" or "DurationSeconds" or "DurationSource")
+            is "DistanceKm" or "DurationSeconds" or "DurationTicks" or "DurationSource")
         .Select(item => item.Value).ToArray();
 
     /// <summary>Controls only the external HTTP boundary; geometry validation and proposal acceptance remain real.</summary>

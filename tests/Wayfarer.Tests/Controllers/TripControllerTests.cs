@@ -353,7 +353,7 @@ public class TripControllerTests : TestBase
         Assert.Equal(segment.Notes, clonedSegment.Notes);
         Assert.Equal(segment.EstimatedDuration, clonedSegment.EstimatedDuration);
         Assert.Equal(EstimatedDurationSource.Manual, clonedSegment.EstimatedDurationSource);
-        Assert.NotEqual(segment.EstimatedDistanceKm, clonedSegment.EstimatedDistanceKm);
+        Assert.Equal(segment.EstimatedDistanceKm, clonedSegment.EstimatedDistanceKm);
 
         // Verify place ID mapping worked
         Assert.NotEqual(place1.Id, clonedSegment.FromPlaceId);

@@ -1,6 +1,7 @@
 using System.Xml.Linq;
 using NetTopologySuite.Geometries;
 using Wayfarer.Models;
+using Wayfarer.Services;
 
 namespace Wayfarer.Parsers;
 
@@ -30,12 +31,13 @@ public sealed record WayfarerKmlArea(
 /// <summary>Detached Segment transport data with explicit route and measurement provenance.</summary>
 public sealed record WayfarerKmlSegment(
     Guid Id, Guid? FromPlaceId, Guid? ToPlaceId, string Mode, string TransportProfileKey,
-    double? DistanceKm, long? DurationSeconds, EstimatedDurationSource DurationSource,
+    double? DistanceKm, TimeSpan? Duration, EstimatedDurationSource DurationSource,
     int DisplayOrder, string? Notes, bool HasCustomRoute, IReadOnlyList<Guid> WaypointPlaceIds,
-    IReadOnlyList<int?> WaypointRouteVertexIndices, LineString? Geometry);
+    IReadOnlyList<int?> WaypointRouteVertexIndices, LineString? Geometry,
+    SegmentRouteProvenance? RouteProvenance = null);
 
 /// <summary>Structural classification for one parsed KML document.</summary>
-public enum WayfarerKmlKind { Generic, NativeV1, NativeV2 }
+public enum WayfarerKmlKind { Generic, NativeV1, NativeV2, NativeV3 }
 
 /// <summary>Retains one hardened detached XML document with its structural native classification.</summary>
 public sealed record WayfarerKmlClassification(
