@@ -1,3 +1,4 @@
+import { notesHtmlForDisplay } from '../../../util/notes-images.js';
 let locations = []; // Declare locations as a global variable
 let mapContainer = null;
 let zoomLevel = 2;
@@ -29,7 +30,6 @@ import {
 const urlParams = new URLSearchParams(window.location.search);
 const initialLat = parseFloat(urlParams.get('lat'));
 const initialLng = parseFloat(urlParams.get('lng'));
-const initialZoom = parseInt(urlParams.get('zoom'), 10);
 const z = parseInt(urlParams.get('zoom'), 10);
 zoomLevel = (!isNaN(z) && z >= 0) ? z : 3;
 let initialCenter = (
@@ -484,7 +484,7 @@ const generateLocationModalContent = location => {
         <div class="row mb-2">
             <div class="col-12" style="${style}"><strong>Notes:</strong>
                 <div class="border p-1">
-                    ${location.notes}
+                    ${notesHtmlForDisplay(location.notes)}
                 </div>
             </div>
         </div>

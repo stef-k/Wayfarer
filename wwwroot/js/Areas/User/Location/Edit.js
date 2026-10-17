@@ -1,4 +1,5 @@
-﻿import { renderLocationAddress } from '../../../util/location-address.js';
+import { notesHtmlForDisplay, notesHtmlForSave, registerNoteImageBlot } from '../../../util/notes-images.js';
+import { renderLocationAddress } from '../../../util/location-address.js';
 import { createTileLayer } from '../../../retryTileLayer.js';
 
 let mapContainer = null;
@@ -53,6 +54,8 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     // Initialize Quill editor
+    // Proxy image creation before Quill can attach a remote src to the live editor.
+    registerNoteImageBlot(Quill);
     var quill = new Quill('#notes', {
         theme: 'snow',
         placeholder: 'Add your notes...',
@@ -142,13 +145,13 @@ document.addEventListener("DOMContentLoaded", function () {
     const notesContent = notesElement.dataset.notesContent;
 
     // Set the notes content in the Quill editor
-    quill.root.innerHTML = notesContent;
+    quill.root.innerHTML = notesHtmlForDisplay(notesContent);
 
     // When the form is submitted, update the hidden input field with the Quill content
     var form = document.getElementById("locationForm");
     form.addEventListener("submit", function () {
         var hiddenNotesField = document.getElementById("hiddenNotes");
-        hiddenNotesField.value = quill.root.innerHTML;  // Set the hidden input value to the Quill content
+        hiddenNotesField.value = notesHtmlForSave(quill.root.innerHTML);  // Set the hidden input value to the Quill content
     });
 
     // Initialize TomSelect on Activity dropdown with API-based loading

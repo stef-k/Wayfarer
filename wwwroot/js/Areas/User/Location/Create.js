@@ -1,4 +1,5 @@
-﻿import { createTileLayer } from '../../../retryTileLayer.js';
+import { notesHtmlForSave, registerNoteImageBlot } from '../../../util/notes-images.js';
+import { createTileLayer } from '../../../retryTileLayer.js';
 
 document.addEventListener("DOMContentLoaded", function () {
 
@@ -68,6 +69,8 @@ document.addEventListener("DOMContentLoaded", function () {
     // Set the value of the datetime-local input field
     document.getElementById('LocalTimestamp').value = localDateTime;
 
+    // Proxy image creation before Quill can attach a remote src to the live editor.
+    registerNoteImageBlot(Quill);
     var quill = new Quill('#notes', {
         theme: 'snow',
         modules: {
@@ -116,7 +119,7 @@ document.addEventListener("DOMContentLoaded", function () {
     var form = document.querySelector('form');
     form.addEventListener('submit', function () {
         var notes = document.getElementById('Notes');
-        notes.value = quill.root.innerHTML; // Save HTML content of the editor
+        notes.value = notesHtmlForSave(quill.root.innerHTML); // Save HTML content of the editor
     });
 
     // Initialize TomSelect on Activity dropdown with API-based loading

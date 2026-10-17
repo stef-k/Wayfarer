@@ -1,3 +1,4 @@
+import { notesHtmlForDisplay } from '../../../util/notes-images.js';
 import { renderStatistics } from './statistics.js';
 ﻿let locations = []; // Declare locations as a global variable
 let mapContainer = null;
@@ -394,7 +395,7 @@ const generateLocationModalContent = (location, {isLive, isLatest}) => {
         <div class="row mb-2">
             <div class="col-12" style="${style}"><strong>Notes:</strong>
                 <div class="border p-1" >
-                    ${location.notes || 'No notes available'}
+                    ${notesHtmlForDisplay(location.notes) || 'No notes available'}
                 </div>
             </div>
         </div>

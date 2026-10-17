@@ -1,4 +1,4 @@
-﻿let locations = []; // Declare locations as a global variable
+let locations = []; // Declare locations as a global variable
 let mapContainer = null;
 let zoomLevel = 3;
 let mapBounds = null;
@@ -32,6 +32,7 @@ const getLocationTimestampInfo = location => formatViewerAndSourceTimes({
 import {addZoomLevelControl, latestLocationMarker, liveMarker} from '../../../map-utils.js';
 import {embeddedMapOptions, installEmbeddedMap} from '../../../embeddedMap.js';
 import { createTileLayer } from '../../../retryTileLayer.js'; import { renderLocationAddress, locationAddressText } from '../../../util/location-address.js';
+import { notesHtmlForDisplay } from '../../../util/notes-images.js';
 import {
     formatViewerAndSourceTimes,
     formatDate,
@@ -348,7 +349,7 @@ const generateLocationModalContent = (location, { isLive, isLatest }) => {
         <div class="row mb-2">
             <div class="col-12" style="${style}"><strong>Notes:</strong>
                 <div class="border p-1" >
-                    ${location.notes || 'No notes available'}
+                    ${notesHtmlForDisplay(location.notes) || 'No notes available'}
                 </div>
             </div>
         </div>

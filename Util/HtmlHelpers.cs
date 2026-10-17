@@ -103,13 +103,15 @@ namespace Wayfarer.Util
         /// the /Public/ProxyImage cache endpoint, ensuring consistent caching and SSRF protection.
         /// Adds loading="lazy" to the canonical image elements.
         /// Canonicalization removes unsupported sources and unwraps existing display proxies first.
+        /// Optional linkification preserves bare URL links on surfaces previously using LinkifyHtml.
         /// </summary>
-        public static IHtmlContent ProxyNotesImages(this IHtmlHelper html, string? htmlContent)
+        public static IHtmlContent ProxyNotesImages(this IHtmlHelper html, string? htmlContent, bool linkify = false)
         {
             if (string.IsNullOrEmpty(htmlContent))
                 return HtmlString.Empty;
 
             var body = new HtmlParser().ParseDocument(NormalizeNotesForDisplay(htmlContent)).Body!;
+            if (linkify) LinkifyText(body);
             foreach (var image in body.QuerySelectorAll("img"))
             {
                 image.SetAttribute("src", "/Public/ProxyImage?url=" + Uri.EscapeDataString(image.GetAttribute("src")!));

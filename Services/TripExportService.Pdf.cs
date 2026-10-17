@@ -1,5 +1,6 @@
-using System.Text.RegularExpressions;
-using System.Web;
+using AngleSharp;
+using AngleSharp.Dom;
+using AngleSharp.Html.Parser;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Playwright;
 using Wayfarer.Models.ViewModels;
@@ -211,20 +212,20 @@ public partial class TripExportService
             "~/Views/Trip/Print.cshtml", vm).WaitAsync(cancellationToken);
 
         var baseUrl = policy.Origin.GetLeftPart(UriPartial.Authority);
-        html = Regex.Replace(html,
-            "<img([^>]+?)src=[\"'](?<url>https?://[^\"']+)[\"']",
-            m =>
-            {
-                var encoded = HttpUtility.UrlEncode(m.Groups["url"].Value);
-                return m.Value.Replace(
-                    m.Groups["url"].Value,
-                    $"{baseUrl}/Public/ProxyImage?url={encoded}" // ← now absolute
-                );
-            },
-            RegexOptions.IgnoreCase);
-
-
-        html = html.Replace("<head>", $"<head><base href=\"{baseUrl}/\">");
+        // DOM attributes decode HTML once; encoding their serialized text corrupts literal entities and queries.
+        var document = new HtmlParser().ParseDocument(html);
+        foreach (var image in document.QuerySelectorAll("img[src]"))
+        {
+            var source = image.GetAttribute("src")!;
+            if (!Uri.TryCreate(source, UriKind.Absolute, out var uri)
+                || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps)
+                || policy.Allows(source)) continue;
+            image.SetAttribute("src", $"{baseUrl}/Public/ProxyImage?url={Uri.EscapeDataString(source)}");
+        }
+        var baseElement = document.CreateElement("base");
+        baseElement.SetAttribute("href", baseUrl + "/");
+        document.Head!.Prepend(baseElement);
+        html = document.ToHtml();
 
         // Playwright ➜ PDF
         await ReportProgress("🌐 Starting PDF generator...");

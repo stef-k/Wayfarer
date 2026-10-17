@@ -336,7 +336,7 @@
             @if (HtmlHelpers.HasVisibleContent(Model.Notes))
             {
                 <div class="trip-notes rich-notes-content px-3 pb-2" style="max-height: 200px; overflow-y: auto;">
-                    @Html.LinkifyHtml(Model.Notes)
+                    @Html.ProxyNotesImages(Model.Notes, linkify: true)
                 </div>
             }
         </section>
@@ -801,20 +801,15 @@
             });
         });
 
-        // Proxy images in readable modal when it opens
+        // Notes already use the proxy in Razor; local map snapshots keep their original URLs.
         const readableModal = document.getElementById('readableViewModal');
         const modalBody = document.getElementById('readable-modal-body');
         const backToTopBtn = document.getElementById('btn-back-to-top');
 
         if (readableModal) {
             readableModal.addEventListener('shown.bs.modal', function() {
-                // Proxy all images in the modal to avoid CORS issues
+                // Preserve server-selected image sources and defer off-screen loading.
                 readableModal.querySelectorAll('img').forEach(img => {
-                    const orig = img.src;
-                    if (orig && !orig.includes('/Public/ProxyImage')) {
-                        img.setAttribute('data-original', orig);
-                        img.src = `/Public/ProxyImage?url=${encodeURIComponent(orig)}`;
-                    }
                     if (!img.hasAttribute('loading')) {
                         img.setAttribute('loading', 'lazy');
                     }
@@ -913,15 +908,15 @@
                     return;
                 }
 
-                // If already using ProxyImage, add optimization parameters
-                if (currentSrc.includes('/Public/ProxyImage')) {
-                    const url = new URL(currentSrc, window.location.origin);
+                // Apply the print recipe only to the actual same-origin proxy endpoint.
+                const url = new URL(currentSrc, currentOrigin);
+                if (url.origin === currentOrigin && url.pathname.toLowerCase() === '/public/proxyimage') {
                     // Add optimization parameters: maxWidth=600, quality=85
                     // 85% JPEG quality - excellent for print with good compression
                     url.searchParams.set('maxWidth', '600');
                     url.searchParams.set('quality', '85');
                     img.src = url.toString();
-                } else if (currentSrc.startsWith('http') && !currentSrc.startsWith(currentOrigin + '/')) {
+                } else if (['http:', 'https:'].includes(url.protocol) && url.origin !== currentOrigin) {
                     // For external images only (not local), route through proxy with optimization
                     img.src = `/Public/ProxyImage?url=${encodeURIComponent(currentSrc)}&maxWidth=600&quality=85`;
                 }
