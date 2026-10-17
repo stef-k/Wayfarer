@@ -50,6 +50,36 @@ Maintainer/guarded relational evidence uses PostgreSQL 18 with PostGIS and the d
 
 If that connection is configured, the connected server must report PostgreSQL major 18. An unsupported configured major fails the guarded prerequisite rather than counting as relational evidence. An absent connection retains the opt-in skip behavior.
 
+In GitHub Actions, the existing ordinary Release invocation always receives this
+connection when `run_dotnet=true`. Its native service uses the upstream Debian
+[`postgis/postgis:18-3.6`](https://hub.docker.com/r/postgis/postgis) image, pinned by
+digest in `tests.yml`. The workflow checks healthy TCP readiness, the exact database
+name, PostgreSQL major 18, PostGIS 3.6 and the administrative permissions the existing
+extension/migration fixtures need. Fixtures apply the current migrations themselves.
+The fixed `wayfarer_ci` superuser uses password-free trust only in this disposable
+service, with the host port bound to `127.0.0.1`; no password enters initialization
+logs, application configuration or artifacts. Never reuse this authentication setup
+for a persistent database.
+
+The same ordinary test discovery and Spatialite/Playwright/root exclusions apply;
+there is no relational test-name allowlist or fixed count. The
+`ordinary-test-results` artifact retains `ordinary.trx`, including pass/skip details.
+A missing result or a skipped result whose reason mentions PostgreSQL, PostGIS or
+the guarded database fails the job. Unrelated intentional skips remain permitted.
+After the run, read-only checks reject leaked `wayfarer_migration_tests_*` databases
+and fixture-owned users, and report the applied migration count. They never widen
+fixture cleanup authority.
+
+When `run_dotnet=false`, the native service's image expression resolves to an empty
+string, so GitHub starts no PostgreSQL service. Documentation-only PRs still run
+classification and Code Guard. PostgreSQL adds no recurring image, Compose,
+operator, recovery or ARM64 qualification; editing the workflow itself retains the
+existing one-time broad gate self-qualification. Measure the hosted `Initialize
+containers`, `Run ordinary tests`, `test` job and complete workflow durations when
+changing this wiring; these distinguish database startup and suite cost from the
+separate broad qualification. Stop for a maintainer decision if ordinary CI adds
+over roughly eight minutes or threatens its existing 30-minute job timeout.
+
 Never point guarded fixtures at the normal `wayfarer` development database or at production. The fixtures validate the database name and use separate disposable schemas/databases where a test requires destructive migration ownership.
 
 On Linux/WSL, attach a privately stored connection to the test process without committing or echoing it:
