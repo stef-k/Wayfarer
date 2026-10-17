@@ -13,6 +13,7 @@ namespace Wayfarer.Tests.Models;
 public sealed class GroupInvitationEmailMigrationPostgresTests(PostgresMigrationTestFixture fixture)
 {
     private const string PreviousMigration = "20260924220353_StablePersonalCredentialCompanion";
+    private const string RetireEmailMigration = "20261008200336_RetireGroupInvitationEmail";
 
     /// <summary>A freshly migrated database and current model have no email column or dependency on it.</summary>
     [PostgresFact]
@@ -89,7 +90,8 @@ public sealed class GroupInvitationEmailMigrationPostgresTests(PostgresMigration
             """).SingleAsync());
         Assert.Equal(GroupInvitation.InvitationStatuses.Revoked,
             (await db.GroupInvitations.AsNoTracking().SingleAsync(i => i.Id == unresolvedId)).Status);
-        await migrator.MigrateAsync();
+        // Re-Up only this schema: later migrations retain temporary tables until this outer transaction ends.
+        await migrator.MigrateAsync(RetireEmailMigration);
         Assert.Equal(0, await EmailColumnCountAsync(db));
         await transaction.RollbackAsync();
     }

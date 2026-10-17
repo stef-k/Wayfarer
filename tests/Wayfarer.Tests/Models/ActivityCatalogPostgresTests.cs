@@ -290,6 +290,8 @@ public sealed class ActivityCatalogPostgresTests(PostgresMigrationTestFixture fi
     public async Task ConcurrentDeletionReturnsHandledResponse(bool edit)
     {
         await using var setup = fixture.CreateContext();
+        // Other migration scenarios retain legitimate audits; this operation must neither add nor delete any.
+        var auditIds = await setup.AuditLogs.OrderBy(a => a.Id).Select(a => a.Id).ToArrayAsync();
         var activity = new ActivityType { Name = "Deletion race", Description = "Original" };
         var unrelated = new ActivityType { Name = "Unrelated", Description = "Untouched" };
         try
@@ -318,7 +320,7 @@ public sealed class ActivityCatalogPostgresTests(PostgresMigrationTestFixture fi
             Assert.Equal(unrelated.Id, retained.Id);
             Assert.Equal("Unrelated", retained.Name);
             Assert.Equal("Untouched", retained.Description);
-            Assert.Empty(await verify.AuditLogs.ToListAsync());
+            Assert.Equal(auditIds, await verify.AuditLogs.OrderBy(a => a.Id).Select(a => a.Id).ToArrayAsync());
         }
         finally { await ActivityCatalogMigrationPostgresTests.CleanAsync(setup); }
     }
@@ -331,6 +333,8 @@ public sealed class ActivityCatalogPostgresTests(PostgresMigrationTestFixture fi
     public async Task UnexpectedPersistenceFailureDoesNotRetryActivity(string operation)
     {
         await using var db = fixture.CreateContext();
+        // Preserve unrelated history while detecting any audit from the failed operation or a later retry.
+        var auditIds = await db.AuditLogs.OrderBy(a => a.Id).Select(a => a.Id).ToArrayAsync();
         var original = new ActivityType { Name = "Original", Description = "Unchanged" };
         try
         {
@@ -364,7 +368,7 @@ public sealed class ActivityCatalogPostgresTests(PostgresMigrationTestFixture fi
             Assert.Equal(original.Id, retained.Id);
             Assert.Equal("Original", retained.Name);
             Assert.Equal("Unchanged", retained.Description);
-            Assert.Empty(await verify.AuditLogs.ToListAsync());
+            Assert.Equal(auditIds, await verify.AuditLogs.OrderBy(a => a.Id).Select(a => a.Id).ToArrayAsync());
         }
         finally
         {
