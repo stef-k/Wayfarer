@@ -33,7 +33,9 @@
 
 - Proxy external Rich Notes images before Trip/Place/Location display and Location
   editor insertion while saving canonical URLs. Keep readable-modal map snapshots
-  local and preserve decoded image query strings in PDF guides (#874).
+  local and preserve decoded image query strings in PDF guides. Neutralize
+  scheme-relative image sources, including nested proxy targets, before browser
+  insertion (#874).
 
 - Commit UUID-keyed API check-in and automatic Location winners before optional
   provider admission/contact, avoiding charges for losing or failed initial inserts.

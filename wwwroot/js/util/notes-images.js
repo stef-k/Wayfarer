@@ -3,6 +3,8 @@ export const canonicalNoteImageSource = value => {
     let source = (value || '').trim();
     const seen = new Set();
     for (let depth = 0; depth <= 32 && !seen.has(source); depth++) {
+        // Reject network-path sources, including browser-normalized slashes/controls, before any live src assignment.
+        if (/^[\u0000-\u0020]*[\\/][\t\n\r]*[\\/]/.test(source)) return '';
         seen.add(source);
         try {
             const url = new URL(source, window.location.origin);
