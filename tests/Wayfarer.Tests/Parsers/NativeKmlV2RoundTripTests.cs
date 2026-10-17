@@ -92,6 +92,30 @@ public sealed class NativeKmlV2RoundTripTests
         Assert.Throws<FormatException>(() => WayfarerKmlParser.ClassifyAndParse(stream));
     }
 
+    /// <summary>New precision/provenance fields cannot reinterpret older versions or smuggle ambiguous v3 state.</summary>
+    [Theory]
+    [InlineData("old-version")]
+    [InlineData("ticks")]
+    [InlineData("seconds")]
+    [InlineData("unknown-provenance")]
+    [InlineData("duplicate-provenance")]
+    public void V3_RejectsContradictoryPrecisionOrProvenance(string invalid)
+    {
+        var (trip, _, _) = CreateWaypointTrip(true);
+        var xml = System.Xml.Linq.XDocument.Parse(TripWayfarerKmlExporter.BuildKml(trip));
+        var segment = xml.Descendants().Single(item => item.Name.LocalName == "Placemark"
+            && item.Descendants().Any(child => child.Name.LocalName == "Data" && child.Attribute("name")?.Value == "SegmentId"));
+        var fields = segment.Descendants().Where(item => item.Name.LocalName == "Data")
+            .ToDictionary(item => item.Attribute("name")!.Value, item => item);
+        if (invalid == "old-version") xml.Descendants().Single(item => item.Attribute("name")?.Value == "WayfarerSchemaVersion").Elements().Single().Value = "2";
+        if (invalid == "ticks") fields["DurationTicks"].Elements().Single().Value = "11";
+        if (invalid == "seconds") fields["DurationTicks"].SetAttributeValue("name", "DurationSeconds");
+        if (invalid == "unknown-provenance") fields["RouteProvenance"].Elements().Single().Value = "{\"Credential\":\"not-a-supported-field\"}";
+        if (invalid == "duplicate-provenance") fields["RouteProvenance"].Elements().Single().Value = "{\"Provider\":\"geoapify\",\"Provider\":null}";
+        using var stream = Stream(xml.ToString());
+        Assert.Throws<FormatException>(() => WayfarerKmlParser.ClassifyAndParse(stream));
+    }
+
     /// <summary>Rejects persisted duration provenance outside the two native values before serialization.</summary>
     [Fact]
     public void Export_InvalidDurationProvenance_RejectsCompleteDocument()

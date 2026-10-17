@@ -104,6 +104,7 @@ public static partial class SegmentRouteReconciler
         return new(true, [], anchors);
     }
 
+    /// <summary>Retains the accepted set for an unchanged route; calculates only a deliberate new Wayfarer result.</summary>
     private static async Task<CalculatedSegmentMeasurements?> CalculateMeasurementsAsync(
         ApplicationDbContext dbContext,
         Segment segment,

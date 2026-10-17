@@ -122,9 +122,11 @@ public sealed class TripSegmentMeasurementExportPostgresTests(
         await AssertNativeAndGoogleSuccessAsync(client, seed.TripId);
     }
 
-    /// <summary>Ordinary manual edits normalize fractional minutes before persistence and retain native round-trip compatibility.</summary>
-    [PostgresFact]
-    public async Task ManualEditorSave_NormalizesSecondsAndExportsImportsReexports()
+    /// <summary>Wayfarer and Manual saves round-trip their accepted values even if the destination planning speed differs.</summary>
+    [PostgresTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task WayfarerEditorSave_PreservesAcceptedMeasurementsAcrossDifferentImportPlanningSpeed(bool automatic)
     {
         var support = new TripEditorSegmentMutationPostgresTestSupport(fixture);
         var seed = await support.SeedAsync(includeSegment: false);
@@ -134,6 +136,7 @@ public sealed class TripSegmentMeasurementExportPostgresTests(
                 [seed.FirstWaypointId, seed.SecondWaypointId], [1, 2], null, customRoute: true);
             var request = (await JsonNode.ParseAsync(baselineBody))!;
             request["estimatedDurationMinutes"] = 1.5125;
+            request["estimatedDurationSource"] = automatic ? "Automatic" : "Manual";
             using var body = new MemoryStream(JsonSerializer.SerializeToUtf8Bytes(request));
             var saved = await support.Service(write).CreateSegmentAsync(seed.TripId, seed.UserId, body, CancellationToken.None);
             Assert.Equal(EditorRegionMutationStatus.Success, saved.Status);
@@ -142,11 +145,17 @@ public sealed class TripSegmentMeasurementExportPostgresTests(
         await using (var read = fixture.CreateContext())
         {
             var stored = await read.Segments.AsNoTracking().SingleAsync(item => item.TripId == seed.TripId);
-            Assert.Equal(TimeSpan.FromSeconds(91), stored.EstimatedDuration);
+            var measured = SegmentMeasurementCalculator.CalculateDistance(stored.RouteGeometry!.Coordinates);
+            Assert.Equal(automatic ? SegmentMeasurementCalculator.CalculateAutomaticDuration(measured.UnroundedMetres, 5)
+                : TimeSpan.FromSeconds(91), stored.EstimatedDuration);
             Assert.Equal(SegmentMeasurementCalculator.CalculateDistance(stored.RouteGeometry!.Coordinates).RoundedKilometres,
                 stored.EstimatedDistanceKm);
             original = Exporter(read).GenerateWayfarerKml(seed.TripId);
         }
+        // Simulate another installation's profile settings without changing the exported active result.
+        await using (var destinationSettings = fixture.CreateContext())
+            await destinationSettings.Set<TransportProfile>().Where(item => item.Id == seed.FirstProfileId)
+                .ExecuteUpdateAsync(set => set.SetProperty(item => item.PlanningSpeedKmh, 20));
         var destination = await fixture.CreateUserAsync();
         Guid imported;
         await using (var write = fixture.CreateContext())
@@ -159,6 +168,33 @@ public sealed class TripSegmentMeasurementExportPostgresTests(
         await using var verify = fixture.CreateContext();
         var reexported = Exporter(verify).GenerateWayfarerKml(imported);
         Assert.Equal(MeasurementData(original), MeasurementData(reexported));
+    }
+
+    /// <summary>Invalid v3 measurements or retention provenance cannot partially replace an owned Trip.</summary>
+    [PostgresTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task NativeV3_InvalidActiveStateRejectsUpsertWithoutChangingSavedTrip(bool invalidProvenance)
+    {
+        var support = new TripEditorSegmentMutationPostgresTestSupport(fixture);
+        var seed = await support.SeedAsync();
+        await using var read = fixture.CreateContext();
+        var original = Exporter(read).GenerateWayfarerKml(seed.TripId);
+        var xml = XDocument.Parse(original);
+        var data = xml.Descendants().Single(item => item.Name.LocalName == "Data"
+            && item.Attribute("name")?.Value == (invalidProvenance ? "RouteProvenance" : "DistanceKm"));
+        data.Elements().Single().Value = invalidProvenance
+            ? "{\"Provider\":\"google\",\"StorageMode\":\"ephemeral\"}" : "-1";
+        await using (var write = fixture.CreateContext())
+        {
+            using var body = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(xml.ToString()));
+            await Assert.ThrowsAsync<TripImportValidationException>(() =>
+                new TripImportService(write, NullLogger<TripImportService>.Instance)
+                    .ImportWayfarerKmlAsync(body, seed.UserId, TripImportMode.Upsert));
+            Assert.Empty(write.ChangeTracker.Entries());
+        }
+        await using var verify = fixture.CreateContext();
+        Assert.Equal(original, Exporter(verify).GenerateWayfarerKml(seed.TripId));
     }
 
     /// <summary>Valid historical values export and round-trip without invented provider provenance or read-side repair.</summary>
@@ -235,6 +271,8 @@ public sealed class TripSegmentMeasurementExportPostgresTests(
         XNamespace kml = "http://www.opengis.net/kml/2.2";
         var document = XDocument.Parse(await google.Content.ReadAsStringAsync());
         Assert.NotEmpty(document.Descendants(kml + "LineString"));
+        Assert.Contains(document.Descendants(kml + "description"), item =>
+            item.Value.StartsWith("00:06 h by ", StringComparison.Ordinal));
     }
 
     /// <summary>Uses a different owner and fresh contexts to prove exact active values and provenance survive import/re-export.</summary>

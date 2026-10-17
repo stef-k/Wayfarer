@@ -156,6 +156,7 @@ public static class WayfarerKmlParser
             OptionalInt(owner, "DisplayOrder") ?? 0, Scalar(owner, "NotesHtml"), Scalar(owner, "FillHex"), polygon);
     }
 
+    /// <summary>Reads each version's distinct duration representation and optional v3 persisted route provenance.</summary>
     private static WayfarerKmlSegment ParseSegment(XElement owner, int version)
     {
         var geometryText = owner.Element(Kml + "LineString")?.Element(Kml + "coordinates")?.Value;
@@ -228,6 +229,7 @@ public static class WayfarerKmlParser
         }
     }
 
+    /// <summary>Projects detached native data for established parser callers without changing its active v3 values.</summary>
     private static Trip ToCompatibilityTrip(WayfarerKmlDocument source)
     {
         var trip = new Trip { Id = source.TripId, Name = source.Name, CoverImageUrl = source.CoverImageUrl, Notes = source.Notes,

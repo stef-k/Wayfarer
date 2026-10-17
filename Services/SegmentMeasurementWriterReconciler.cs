@@ -6,7 +6,7 @@ namespace Wayfarer.Services;
 /// <summary>Reconciles every persisted Segment written inside an import or clone transaction.</summary>
 public static class SegmentMeasurementWriterReconciler
 {
-    /// <summary>Locks and reconciles every Segment aggregate for one already-persisted Trip.</summary>
+    /// <summary>Locks and validates each imported/cloned aggregate, preserving its active set when the source contract requires it.</summary>
     public static async Task ReconcileTripAsync(
         ApplicationDbContext dbContext,
         Guid tripId,

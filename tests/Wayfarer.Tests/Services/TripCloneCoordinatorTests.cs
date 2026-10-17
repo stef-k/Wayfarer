@@ -106,8 +106,8 @@ public sealed class TripCloneCoordinatorTests : TestBase
         Assert.Equal(EstimatedDurationSource.Automatic, custom.EstimatedDurationSource);
         Assert.Equal(manualDuration, loop.EstimatedDuration);
         Assert.Equal(EstimatedDurationSource.Manual, loop.EstimatedDurationSource);
-        Assert.NotNull(custom.EstimatedDistanceKm);
-        Assert.NotNull(loop.EstimatedDistanceKm);
+        Assert.Equal(persistedCustom.EstimatedDistanceKm, custom.EstimatedDistanceKm);
+        Assert.Equal(persistedLoop.EstimatedDistanceKm, loop.EstimatedDistanceKm);
         Assert.Equal(3, clonedPlaces.Count);
         Assert.Equal(("Tokyo Tower", "building", "geoapify", "persistent"),
             (clonedPlaces["A"].ResolvedFeatureName, clonedPlaces["A"].ResolvedFeatureType,
@@ -134,7 +134,7 @@ public sealed class TripCloneCoordinatorTests : TestBase
         Assert.Equal(importedPlaces["B"].Id, Assert.Single(importedLoop.Waypoints).PlaceId);
         Assert.Equal("walk", importedCustom.Mode);
         Assert.Equal("walk", importedCustom.TransportProfile!.Key);
-        Assert.NotNull(importedCustom.EstimatedDistanceKm);
+        Assert.Equal(custom.EstimatedDistanceKm, importedCustom.EstimatedDistanceKm);
         Assert.Equal(EstimatedDurationSource.Automatic, importedCustom.EstimatedDurationSource);
         Assert.Equal(EstimatedDurationSource.Manual, importedLoop.EstimatedDurationSource);
         Assert.Equal(manualDuration, importedLoop.EstimatedDuration);

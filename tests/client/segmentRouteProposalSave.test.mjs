@@ -9,9 +9,8 @@ const { createSegmentRouteProposalDraftController } = await import(`data:text/ja
 
 test('pending proposal alone is dirty and Save transports it without changing preview fields; discard retains edits', () => {
   const draft = { id: 'segment', fromPlaceId: '', toPlaceId: '', waypointRows: [], mode: '', route: null, notesHtml: '', estimatedDurationSource: 'Automatic', aggregateConcurrencyToken: 'aggregate', estimatedDistanceKm: '7', estimatedDurationMinutes: '8' };
-  const baseline = structuredClone(draft);
   const previews = [];
-  const controller = createSegmentRouteProposalDraftController(draft, () => 'segment', preview => previews.push(preview), () => baseline);
+  const controller = createSegmentRouteProposalDraftController(draft, () => 'segment', preview => previews.push(preview));
   const before = structuredClone(draft);
   controller.preview({ proposalId: 'proposal', segmentId: 'segment', protectedContext: 'protected',
     geometry: [{ longitude: 1, latitude: 2 }, { longitude: 3, latitude: 4 }], waypointIndices: [0, 1],
@@ -39,8 +38,7 @@ for (const [distance, duration] of [[1250, 360], [null, null], [undefined, undef
   test(`proposal estimates ${distance}/${duration} remain transient and Manual edit wins`, () => {
     const draft = { id: 'segment', fromPlaceId: '', toPlaceId: '', waypointRows: [], mode: '', route: null,
       notesHtml: '', estimatedDurationSource: 'Automatic', estimatedDistanceKm: '7', estimatedDurationMinutes: '8' };
-    const baseline = structuredClone(draft);
-    const controller = createSegmentRouteProposalDraftController(draft, () => 'segment', () => {}, () => baseline);
+    const controller = createSegmentRouteProposalDraftController(draft, () => 'segment', () => {});
     controller.preview({ proposalId: 'p', segmentId: 'segment', protectedContext: 'protected',
       geometry: [{ longitude: 1, latitude: 2 }, { longitude: 3, latitude: 4 }], waypointIndices: [0, 1],
       distanceMetres: distance, durationSeconds: duration });
@@ -62,11 +60,10 @@ for (const [distance, duration] of [[1250, 360], [null, null], [undefined, undef
 }
 
 // A preview snapshot already contains unsaved edits made before generation.
-test('Manual edit before generation survives a missing duration without overriding present estimates', () => {
+test('Manual intent before generation overrides both missing and present provider durations', () => {
   const draft = { id: 'segment', fromPlaceId: '', toPlaceId: '', waypointRows: [], mode: '', route: null,
     notesHtml: '', estimatedDurationSource: 'Automatic', estimatedDistanceKm: '7', estimatedDurationMinutes: '8' };
-  const baseline = structuredClone(draft);
-  const controller = createSegmentRouteProposalDraftController(draft, () => 'segment', () => {}, () => baseline);
+  const controller = createSegmentRouteProposalDraftController(draft, () => 'segment', () => {});
   draft.estimatedDurationSource = 'Manual';
   draft.estimatedDurationMinutes = '12';
   const proposal = { proposalId: 'p', segmentId: 'segment', protectedContext: 'protected',
@@ -78,13 +75,11 @@ test('Manual edit before generation survives a missing duration without overridi
   assert.equal(request.estimatedDurationSource, 'Manual');
   assert.equal(request.proposal.manualDurationOverride, true);
   controller.preview({ ...proposal, durationSeconds: 0 });
-  assert.equal(controller.buildRequest().estimatedDurationMinutes, 0);
-  assert.equal(controller.buildRequest().proposal.manualDurationOverride, false);
-  // An unchanged canonical Manual value is preservation, not an explicit override.
-  baseline.estimatedDurationSource = 'Manual';
-  baseline.estimatedDurationMinutes = '12';
+  assert.equal(controller.buildRequest().estimatedDurationMinutes, 12);
+  assert.equal(controller.buildRequest().proposal.manualDurationOverride, true);
+  // A persisted Manual choice remains the duration authority when a new route is generated.
   controller.preview(proposal);
-  assert.equal(controller.buildRequest().proposal.manualDurationOverride, false);
+  assert.equal(controller.buildRequest().proposal.manualDurationOverride, true);
 });
 
 test('Generate followed by ordinary Save makes no separate acceptance request and failed Save retains proposal', async () => {
@@ -102,8 +97,7 @@ test('Generate followed by ordinary Save makes no separate acceptance request an
   try {
     const draft = { id: 'segment', fromPlaceId: '', toPlaceId: '', waypointRows: [], mode: '', route: null,
       notesHtml: '', estimatedDurationSource: 'Automatic', estimatedDistanceKm: '7', estimatedDurationMinutes: '8' };
-    const baseline = structuredClone(draft);
-    const controller = createSegmentRouteProposalDraftController(draft, () => 'segment', () => {}, () => baseline);
+    const controller = createSegmentRouteProposalDraftController(draft, () => 'segment', () => {});
     controller.preview(await api.generateExternalRouteProposal('trip', 'segment', 'anti', 'aggregate', 'drive', new AbortController().signal));
     await assert.rejects(api.updateSegment('/editor', 'segment', 'anti', controller.buildRequest()));
     assert.equal(controller.hasProposal.value, true);

@@ -30,9 +30,8 @@ public sealed partial class TripEditorSegmentMutationService
         var route = BuildProposal(canonical.Id, request, mode);
         var retained = SegmentRouteReconciler.SameRouteIdentity(canonical, route);
         if (binding == null && !retained) return route;
-        var manual = request.EstimatedDurationSource == EstimatedDurationSource.Manual
-            && (binding == null || request.Proposal!.ManualDurationOverride);
-        var provider = SegmentRouteProvenance.Capture(canonical)?.IsQualifiedProvider == true;
+        var manual = request.EstimatedDurationSource == EstimatedDurationSource.Manual;
+        var provider = SegmentRouteProvenance.Capture(canonical)?.IsQualifiedProvider() == true;
         var duration = binding != null
             ? binding.DurationSeconds is { } seconds ? TimeSpan.FromSeconds(seconds) : (TimeSpan?)null
             : !manual && canonical.EstimatedDurationSource == EstimatedDurationSource.Manual ? null : canonical.EstimatedDuration;

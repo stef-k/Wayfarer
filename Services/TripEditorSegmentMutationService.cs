@@ -226,7 +226,7 @@ public sealed partial class TripEditorSegmentMutationService
             }, null);
         }
 
-        var proposal = BuildProposal(segment.Id, parsed.Value!, mode.Value);
+        var proposal = BuildSavedRoute(segment, parsed.Value!, mode.Value, null);
         var reconciliation = await SegmentRouteReconciler.ReconcileAsync(_dbContext, proposal, cancellationToken);
         if (!reconciliation.Succeeded)
             return ReconciliationFailed(reconciliation);

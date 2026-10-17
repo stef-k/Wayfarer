@@ -142,7 +142,7 @@ public partial class TripImportService : ITripImportService
         _dbContext.ChangeTracker.Clear();
     }
 
-    /// <summary>Checks serialized compatibility measurements after canonical reconciliation.</summary>
+    /// <summary>Checks v1/v2 compatibility reconciliation or exact v3 saved-value retention before commit.</summary>
     private async Task ValidateCompatibilityMeasurementsAsync(
         WayfarerKmlDocument source,
         Trip mapped,

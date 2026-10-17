@@ -147,7 +147,7 @@ public static class TransportProfileMeasurementReconciler
         {
             var canonical = await SegmentRouteReconciler.LoadAggregateAsync(dbContext, snapshot.Id, cancellationToken);
             if (canonical == null) return TransportProfileMeasurementResult.Failure("A referenced Segment changed concurrently.");
-            if (SegmentRouteProvenance.Capture(canonical)?.IsQualifiedProvider == true)
+            if (SegmentRouteProvenance.Capture(canonical)?.IsQualifiedProvider() == true)
             {
                 SegmentMeasurementState.Validate(canonical);
                 var errors = await SegmentRouteReconciler.ValidateLockedAggregateAsync(dbContext, canonical, cancellationToken);

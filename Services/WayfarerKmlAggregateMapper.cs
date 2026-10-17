@@ -153,10 +153,11 @@ internal static class WayfarerKmlAggregateMapper
         return profile;
     }
 
+    /// <summary>Keeps established v1/v2 planning constraints while allowing valid saved v3 automatic estimates.</summary>
     private static void ValidateDuration(WayfarerKmlSegment segment, TransportProfile? profile, int version)
     {
         if (segment.DurationSource == EstimatedDurationSource.Manual && !segment.Duration.HasValue)
-            throw new TripImportValidationException("Manual duration requires exact whole seconds.");
+            throw new TripImportValidationException("Manual duration is required.");
         if (segment.Duration is { Ticks: < 0 })
             throw new TripImportValidationException("Manual duration is outside the supported range.");
         if (version != 3 && segment.DurationSource == EstimatedDurationSource.Automatic && profile is null && segment.Duration.HasValue)

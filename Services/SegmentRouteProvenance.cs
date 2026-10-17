@@ -1,5 +1,4 @@
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using Wayfarer.Models;
 using Wayfarer.Services.ExternalRouting;
 
@@ -12,9 +11,7 @@ public sealed record SegmentRouteProvenance(
     Guid? ProviderConfigurationId, int? ProviderConfigurationVersion)
 {
     /// <summary>Recognizes supported persistent source evidence; no client-supplied Boolean grants authority.</summary>
-    [JsonIgnore]
-    public bool IsQualifiedProvider => Provider == "geoapify" && StorageMode == "persistent"
-        && ProviderDirectionsCatalog.TryParse(Provider, MappingMode, out _);
+    public bool IsQualifiedProvider() => Provider == "geoapify" && StorageMode == "persistent";
 
     /// <summary>Copies existing persisted metadata without inferring a provider from numerical differences.</summary>
     public static SegmentRouteProvenance? Capture(Segment segment) =>
@@ -50,13 +47,14 @@ public sealed record SegmentRouteProvenance(
         if (StorageMode != null && StorageMode != "persistent"
             || Provider != null && Provider != "geoapify"
             || MappingMode != null && !ProviderDirectionsCatalog.TryParse(Provider, MappingMode, out _)
-            || IsQualifiedProvider && segment.RouteGeometry == null)
+            || IsQualifiedProvider() && segment.RouteGeometry == null)
             throw new InvalidOperationException("Segment route provenance does not permit persistent retention.");
         if (InstructionsJson == null) return;
         try
         {
             var instructions = JsonSerializer.Deserialize<RouteInstruction[]>(InstructionsJson)
                 ?? throw new JsonException();
+            if (instructions.Length > 0 && segment.RouteGeometry == null) throw new JsonException();
             if (instructions.Any(item => item == null || item.Text == null || item.Text.Length > 500 || item.Type == null || item.Type.Length > 80
                 || item.FromIndex < 0 || item.ToIndex < item.FromIndex || item.ToIndex >= segment.RouteGeometry?.NumPoints
                 || !double.IsFinite(item.DistanceMetres) || item.DistanceMetres < 0
@@ -91,6 +89,8 @@ public static class SegmentMeasurementState
     public static void Validate(Segment segment)
     {
         ValidateValues(segment.EstimatedDistanceKm, segment.EstimatedDuration, segment.EstimatedDurationSource);
+        if (segment.EstimatedDuration is { Ticks: var ticks } && ticks % 10 != 0)
+            throw new InvalidOperationException("Segment duration exceeds PostgreSQL microsecond precision.");
         SegmentRouteProvenance.Capture(segment)?.Validate(segment);
     }
 

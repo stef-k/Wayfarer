@@ -31,6 +31,15 @@
 
 ### Fixed
 
+- Preserve each Segment's accepted distance, duration and route provenance through
+  native Trip export/import and public copying, fixing valid saved estimates
+  rejected as noncanonical distance or fractional duration (#886). Native KML v3
+  retains double precision and PostgreSQL interval ticks; established v1/v2
+  readers remain supported. Keep Manual intent across provider generation, retain
+  provider estimates during metadata/planning-speed edits, and replace stale
+  measurements/provenance atomically when routes or anchors change. No historical
+  data normalization or database migration is required.
+
 - Write Google My Maps KML Point and LineString coordinates with invariant,
   round-trip-safe precision in decimal-comma locales. Report Trip KML serialization
   failures through the existing server-error handler instead of returning a false

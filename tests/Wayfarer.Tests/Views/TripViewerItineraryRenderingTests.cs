@@ -121,9 +121,14 @@ public sealed class TripViewerItineraryRenderingTests
             using var host = BuildRazorHost(webRoot);
             using var scope = host.Services.CreateScope();
 
-            var html = await RenderViewerAsync(scope.ServiceProvider, WaypointTrip());
+            var savedTrip = WaypointTrip();
+            Assert.Single(savedTrip.Segments).EstimatedDistanceKm = 2.135123;
+            Assert.Single(savedTrip.Segments).EstimatedDuration = TimeSpan.FromSeconds(360.25);
+            var html = await RenderViewerAsync(scope.ServiceProvider, savedTrip);
             var document = await new HtmlParser().ParseDocumentAsync(html);
             var segment = Assert.Single(document.QuerySelectorAll(".segment-list-item"));
+            Assert.Contains("2.14", segment.TextContent);
+            Assert.Contains("00:06", segment.TextContent);
 
             Assert.Equal(["A — Start — A", "B — Via 1 — B", "C — End — C"],
                 segment.QuerySelectorAll(".segment-journey-role").Select(item => NormalizeText(item.TextContent)));
@@ -213,6 +218,8 @@ public sealed class TripViewerItineraryRenderingTests
             using var host = BuildRazorHost(webRoot);
             using var scope = host.Services.CreateScope();
             var trip = WaypointTrip();
+            Assert.Single(trip.Segments).EstimatedDistanceKm = 2.135123;
+            Assert.Single(trip.Segments).EstimatedDuration = TimeSpan.FromSeconds(360.25);
             trip.User = new ApplicationUser { DisplayName = "Fixture owner" };
             var model = new TripPrintViewModel
             {
@@ -224,6 +231,8 @@ public sealed class TripViewerItineraryRenderingTests
 
             var html = await RenderViewAsync(scope.ServiceProvider, "/Views/Trip/Print.cshtml", model);
             var document = await new HtmlParser().ParseDocumentAsync(html);
+            Assert.Contains("Estimated Distance: 2.14 km", NormalizeText(document.QuerySelector("#segments_all")!.TextContent));
+            Assert.Contains("Estimated Duration: 6 min", NormalizeText(document.QuerySelector("#segments_all")!.TextContent));
 
             Assert.Contains("A A → B B → C C", NormalizeText(document.QuerySelector("#segments_all")?.TextContent ?? string.Empty));
             Assert.Equal(["A — Start — A", "B — Via 1 — B", "C — End — C"],

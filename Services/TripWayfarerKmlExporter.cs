@@ -98,6 +98,7 @@ public static class TripWayfarerKmlExporter
         return placemark;
     }
 
+    /// <summary>Writes the active double, exact duration ticks and existing credential-free route provenance.</summary>
     private static XElement BuildSegment(Segment segment, Guid tripId)
     {
         var waypoints = segment.Waypoints.OrderBy(waypoint => waypoint.Position).ToArray();
@@ -131,6 +132,7 @@ public static class TripWayfarerKmlExporter
         return new LineString(places.Select(place => new Coordinate(place!.Location!.X, place.Location.Y)).ToArray()) { SRID = 4326 };
     }
 
+    /// <summary>Checks complete ownership/geometry state and valid saved values without recalculating them.</summary>
     private static void ValidateAggregate(Trip trip)
     {
         var regionIds = new HashSet<Guid>();
