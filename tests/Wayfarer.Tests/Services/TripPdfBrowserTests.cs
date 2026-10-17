@@ -1,4 +1,6 @@
+using AngleSharp.Html.Parser;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Playwright;
 using Moq;
@@ -16,6 +18,41 @@ namespace Wayfarer.Tests.Services;
 [Collection(PlaywrightEnvironmentTestCollection.Name)]
 public sealed class TripPdfBrowserTests : TestBase
 {
+    /// <summary>Checks the HTML delivered to capture, including one HTML decode and one proxy encoding.</summary>
+    [Fact]
+    public async Task PdfImageSourcesPreserveDecodedQueriesAndLocalImages()
+    {
+        using var db = CreateDbContext();
+        var trip = Seed(db, 0);
+        var runtime = Runtime();
+        const string origin = "http://wayfarer.example.org:5500";
+        const string source = "https://images.example.test/photo?a=1&b=two+words%20here";
+        const string literal = "https://images.example.test/photo?entity=&amp;&copy;&q=\"quoted\"";
+        var proxy = "/Public/ProxyImage?url=" + Uri.EscapeDataString(source);
+        var razor = new Mock<IRazorViewRenderer>();
+        var sources = new[] { source, literal, proxy, origin + proxy, "/thumbs/trips/map.jpg?v=1&b=2", "data:image/png;base64,AQI=", origin + "/icons/local.png", "ftp://images.example.test/a" };
+        razor.Setup(r => r.RenderViewToStringAsync(It.IsAny<string>(), It.IsAny<object>()))
+            .ReturnsAsync("<html><head></head><body>" + string.Concat(sources.Select(src =>
+                $"<img src=\"{System.Net.WebUtility.HtmlEncode(src)}\">")) + "</body></html>");
+        string? captured = null;
+        runtime.Page.Setup(p => p.SetContentAsync(It.IsAny<string>(), It.IsAny<PageSetContentOptions>()))
+            .Callback<string, PageSetContentOptions>((html, _) => captured = html).Returns(Task.CompletedTask);
+
+        using var pdf = await Service(db, runtime.Playwright.Object, razor.Object).GeneratePdfGuideAsync(trip.Id);
+
+        var document = new HtmlParser().ParseDocument(captured!);
+        var images = document.QuerySelectorAll("img");
+        Assert.Equal(sources.Length, images.Length);
+        for (var i = 0; i < 4; i++)
+        {
+            var url = new Uri(new Uri(origin), images[i].GetAttribute("src")!);
+            Assert.Equal(origin, url.GetLeftPart(UriPartial.Authority));
+            Assert.Equal("/Public/ProxyImage", url.AbsolutePath);
+            Assert.Equal(i == 1 ? literal : source, QueryHelpers.ParseQuery(url.Query)["url"]);
+        }
+        for (var i = 4; i < sources.Length; i++) Assert.Equal(sources[i], images[i].GetAttribute("src"));
+    }
+
     /// <summary>The 64-map limit leaves every textual region in the template and launches exactly one browser.</summary>
     [Fact]
     public async Task PdfReusesOneBrowserAndKeepsTextAfterMapBudget()

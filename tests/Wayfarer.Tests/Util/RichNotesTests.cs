@@ -131,6 +131,107 @@ public sealed class RichNotesTests
         Assert.Equal(0, await page.Locator("[onclick], [onerror], script").CountAsync());
         Assert.Null(await page.Locator("a").First.GetAttributeAsync("href"));
     }
+    /// <summary>Exercises the production client formatter in real DOM templates without an application host.</summary>
+    [Fact]
+    [Trait("Category", "RequiresPlaywright")]
+    public async Task BrowserNoteImagesTransformBeforeInsertionAndRestoreCanonicalHtml()
+    {
+        var root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../.."));
+        using var playwright = await Playwright.CreateAsync();
+        await using var browser = await playwright.Chromium.LaunchAsync(new() { Headless = true });
+        var page = await browser.NewPageAsync();
+        var directRequests = 0;
+        await page.RouteAsync("https://images.example.test/**", route =>
+        {
+            Interlocked.Increment(ref directRequests);
+            return route.AbortAsync();
+        });
+        await page.RouteAsync("http://notes.test/**", async route =>
+        {
+            var script = new Uri(route.Request.Url).AbsolutePath == "/js/util/notes-images.js";
+            await route.FulfillAsync(new() { Body = script
+                ? await File.ReadAllTextAsync(Path.Combine(root, "wwwroot/js/util/notes-images.js")) : "<main></main>",
+                ContentType = script ? "text/javascript" : "text/html" });
+        });
+        await page.GotoAsync("http://notes.test/");
+        const string notes = "<img alt=\"Photo\" src=\"https://images.example.test/photo?a=1&amp;literal=&amp;amp;\"><img src=\"/local.png\"><img src=\"data:image/png;base64,AQI=\">";
+        var saved = await page.EvaluateAsync<string>("""
+            async html => {
+                const module = await import('/js/util/notes-images.js');
+                const display = module.notesHtmlForDisplay(html);
+                document.querySelector('main').innerHTML = module.notesHtmlForDisplay(display);
+                return module.notesHtmlForSave(document.querySelector('main').innerHTML);
+            }
+            """, notes);
+        await page.WaitForFunctionAsync("() => [...document.images].every(image => image.complete)");
+        Assert.Equal(notes, saved);
+        Assert.Equal("/Public/ProxyImage?url=" + Uri.EscapeDataString("https://images.example.test/photo?a=1&literal=&amp;"),
+            await page.Locator("img").Nth(0).GetAttributeAsync("src"));
+        Assert.Equal("Photo", await page.Locator("img").Nth(0).GetAttributeAsync("alt"));
+        Assert.Equal("/local.png", await page.Locator("img").Nth(1).GetAttributeAsync("src"));
+        Assert.Equal("data:image/png;base64,AQI=", await page.Locator("img").Nth(2).GetAttributeAsync("src"));
+        Assert.Equal(0, directRequests);
+    }
+
+    /// <summary>Real Quill must neutralize unsupported proxy targets before image creation while retaining canonical saves.</summary>
+    [Fact]
+    [Trait("Category", "RequiresPlaywright")]
+    public async Task BrowserQuillNoteImagesRejectSchemeRelativeTargetsBeforeInsertion()
+    {
+        var root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../.."));
+        using var playwright = await Playwright.CreateAsync();
+        await using var browser = await playwright.Chromium.LaunchAsync(new() { Headless = true });
+        var page = await browser.NewPageAsync();
+        var directRequests = 0;
+        var proxyRequests = 0;
+        await page.RouteAsync("**/*", async route =>
+        {
+            var uri = new Uri(route.Request.Url);
+            if (uri.Host != "notes.test")
+            {
+                Interlocked.Increment(ref directRequests);
+                await route.AbortAsync();
+                return;
+            }
+            if (uri.AbsolutePath == "/Public/ProxyImage")
+            {
+                Interlocked.Increment(ref proxyRequests);
+                await route.FulfillAsync(new() { ContentType = "image/png", BodyBytes = Convert.FromBase64String(
+                    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=") });
+                return;
+            }
+            var script = uri.AbsolutePath.EndsWith(".js");
+            await route.FulfillAsync(new() { ContentType = script ? "text/javascript" : "text/html", Body = script
+                ? await File.ReadAllTextAsync(Path.Combine(root, "wwwroot", uri.AbsolutePath.TrimStart('/')))
+                : "<form><div id='notes'></div><input id='Notes' type='hidden'></form>" });
+        });
+        await page.GotoAsync("http://notes.test/");
+        await page.AddScriptTagAsync(new() { Url = "http://notes.test/lib/quill/quill-2.0.3.js" });
+        const string source = "https://images.example.test/photo?a=1&literal=&amp;";
+        var result = await page.EvaluateAsync<string[]>("""
+            async source => {
+                const module = await import('/js/util/notes-images.js');
+                module.registerNoteImageBlot(Quill);
+                const quill = new Quill('#notes');
+                quill.insertEmbed(0, 'image', 'http://notes.test/Public/ProxyImage?url=%2F%2Fimages.example.test%2Fnegative.png');
+                quill.insertEmbed(1, 'image', source);
+                document.querySelector('#Notes').value = module.notesHtmlForSave(quill.root.innerHTML);
+                return [Quill.version, quill.getContents().ops[1].insert.image, document.querySelector('#Notes').value];
+            }
+            """, source);
+        await page.WaitForFunctionAsync("() => [...document.images].every(image => image.complete)");
+        Assert.Equal(0, directRequests);
+        Assert.Equal(1, proxyRequests);
+        Assert.Equal("2.0.3", result[0]);
+        Assert.Equal(source, result[1]);
+        Assert.Equal("", await page.Locator(".ql-editor img").Nth(0).GetAttributeAsync("src"));
+        Assert.Equal("/Public/ProxyImage?url=" + Uri.EscapeDataString(source),
+            await page.Locator(".ql-editor img").Nth(1).GetAttributeAsync("src"));
+        Assert.Contains("src=\"https://images.example.test/photo?a=1&amp;literal=&amp;amp;\"", result[2]);
+        Assert.DoesNotContain("/Public/ProxyImage", result[2]);
+        Assert.DoesNotContain("negative.png", result[2]);
+    }
+
     /// <summary>Uses real DOM parsing to keep note-derived and Group description text inert in JS templates.</summary>
     [Fact]
     [Trait("Category", "RequiresPlaywright")]

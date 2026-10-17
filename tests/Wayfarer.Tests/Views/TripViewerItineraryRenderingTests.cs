@@ -25,6 +25,57 @@ namespace Wayfarer.Tests.Views;
 /// <summary>Verifies canonical itinerary collisions through the compiled normal and readable Razor markup.</summary>
 public sealed class TripViewerItineraryRenderingTests
 {
+    /// <summary>Every image-bearing note surface proxies once without rewriting the source model or local map.</summary>
+    [Fact]
+    public async Task ViewerProxiesNotesBeforeInsertionAndPreservesLocalMapsAndLinks()
+    {
+        var webRoot = Path.Combine(Path.GetTempPath(), $"wayfarer-notes-images-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(webRoot);
+        await File.WriteAllTextAsync(Path.Combine(webRoot, "frontend.manifest.json"), "{}");
+        try
+        {
+            using var host = BuildRazorHost(webRoot);
+            using var scope = host.Services.CreateScope();
+            var trip = WaypointTrip();
+            const string source = "https://images.example.test/photo?a=1&b=2";
+            const string notes = "<p>https://example.test/link</p><img src=\"https://images.example.test/photo?a=1&amp;b=2\">";
+            trip.Notes = notes;
+            trip.CenterLat = 37.98;
+            trip.CenterLon = 23.73;
+            var region = Assert.Single(trip.Regions);
+            region.Notes = notes;
+            foreach (var place in region.Places) place.Notes = notes;
+            region.Areas.Add(new Area { Id = Guid.NewGuid(), RegionId = region.Id, Name = "Area", Notes = notes });
+            Assert.Single(trip.Segments).Notes = notes;
+
+            var viewer = new HtmlParser().ParseDocument(await RenderViewerAsync(scope.ServiceProvider, trip));
+            foreach (var selector in new[] {
+                ".trip-notes img", ".place-notes img", ".accordion-body > .rich-notes-content img",
+                ".area-list-item .rich-notes-content img", ".segment-notes-preview img",
+                "#readable-modal-body .rich-notes-content img", ".segment-readable .rich-notes-content img"
+            })
+            {
+                var images = viewer.QuerySelectorAll(selector);
+                Assert.NotEmpty(images);
+                Assert.All(images, image =>
+                {
+                    var src = image.GetAttribute("src")!;
+                    Assert.Equal("/Public/ProxyImage?url=" + Uri.EscapeDataString(source), src);
+                    Assert.Equal("lazy", image.GetAttribute("loading"));
+                });
+            }
+            Assert.NotNull(viewer.QuerySelector(".trip-notes a[href='https://example.test/link']"));
+            Assert.NotNull(viewer.QuerySelector(".place-notes a[href='https://example.test/link']"));
+            Assert.NotEmpty(viewer.QuerySelectorAll("#readable-modal-body img[src^='/thumbs/trips/']"));
+            Assert.Equal(notes, trip.Notes);
+            Assert.Equal(notes, region.Notes);
+            Assert.All(region.Places, place => Assert.Equal(notes, place.Notes));
+            Assert.Equal(notes, Assert.Single(region.Areas).Notes);
+            Assert.Equal(notes, Assert.Single(trip.Segments).Notes);
+        }
+        finally { Directory.Delete(webRoot, recursive: true); }
+    }
+
     [Fact]
     public async Task ViewerRendersEqualAndNullableOrdersIdenticallyAcrossNormalAndReadableMarkup()
     {

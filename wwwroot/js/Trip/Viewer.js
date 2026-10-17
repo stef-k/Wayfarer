@@ -431,14 +431,8 @@ const init = () => {
     window.wayfarer.openPlaceDetails = pid => {
         const li = $(`.place-list-item[data-place-id="${pid}"]`);
         if (!li) return;
+        // The hidden Razor notes already contain display proxies before either DOM insertion.
         pane.innerHTML = detailsHtml(li);
-        pane
-            .querySelectorAll('.trip-notes img')
-            .forEach(img => {
-                const orig = img.src;
-                img.setAttribute('data-original', orig);
-                img.src = `/Public/ProxyImage?url=${encodeURIComponent(orig)}`;
-            });
         pane.classList.add('open');
         updateButtonsVisibility();
         highlightMarker(pid);

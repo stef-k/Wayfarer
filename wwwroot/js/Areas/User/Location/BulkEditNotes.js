@@ -1,3 +1,4 @@
+import { notesHtmlForDisplay, notesHtmlForSave, registerNoteImageBlot } from '../../../util/notes-images.js';
 // js/Areas/User/Location/BulkEditNotes.js
 // JavaScript for the Bulk Edit Notes view
 
@@ -76,6 +77,8 @@ document.addEventListener('DOMContentLoaded', function () {
     updateCount();
 
     // ------------------ Quill Initialization ------------------
+    // Proxy image creation before Quill can attach a remote src to the live editor.
+    registerNoteImageBlot(Quill);
     var quill = new Quill('#notes', {
         theme: 'snow',
         placeholder: 'Add your notes...',
@@ -132,11 +135,11 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 
     // Load existing notes
-    quill.root.innerHTML = document.getElementById('notes').dataset.notesContent || '';
+    quill.root.innerHTML = notesHtmlForDisplay(document.getElementById('notes').dataset.notesContent);
 
     // On submit copy HTML
     document.getElementById('locationForm')
         .addEventListener('submit', () => {
-            document.getElementById('hiddenNotes').value = quill.root.innerHTML;
+            document.getElementById('hiddenNotes').value = notesHtmlForSave(quill.root.innerHTML);
         });
 });

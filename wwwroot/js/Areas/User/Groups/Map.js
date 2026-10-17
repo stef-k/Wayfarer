@@ -1,3 +1,4 @@
+import { notesHtmlForDisplay } from '../../../util/notes-images.js';
 import { bindGroupSharingControls, refreshGroupState } from '../../../groupSharingControls.js';
 import { addZoomLevelControl } from '../../../map-utils.js';
 import { createTileLayer } from '../../../retryTileLayer.js';
@@ -601,7 +602,7 @@ import {
     // In group map context, displayed locations are always the latest for each user
     const isLatest = !isLive;
     const badge = isLive ? '<span class="badge bg-danger float-end ms-2">LIVE LOCATION</span>' : (isLatest ? '<span class="badge bg-success float-end ms-2">LATEST LOCATION</span>' : '');
-    const notes = location.notes || '';
+    const notes = notesHtmlForDisplay(location.notes);
     const hasNotes = !!notes && notes.length>0;
     const timestamps = renderTimestampBlock(location);
     const html = `<div class=\"container-fluid\">`

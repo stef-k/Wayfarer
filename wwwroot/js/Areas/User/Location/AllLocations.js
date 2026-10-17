@@ -1,3 +1,4 @@
+import { notesHtmlForDisplay } from '../../../util/notes-images.js';
 // AllLocations.js
 import {
     formatViewerAndSourceTimes,
@@ -418,7 +419,7 @@ const generateLocationModalContent = (location) => {
       </div>
       <div class="row mb-2">
         <div class="col-12" style="${style}">
-            <strong>Notes:</strong><div class="border p-1">${location.notes || ''}
+            <strong>Notes:</strong><div class="border p-1">${notesHtmlForDisplay(location.notes)}
         </div>
       </div>
       <div class="row">
@@ -455,9 +456,7 @@ const generateGoogleMapsLink = (location) => {
 
 const getUserStats = async () => {
 
-    const url = `/api/users/stats`;
-
-    const response = await fetch(url, {
+    const response = await fetch('/api/users/stats', {
         method: "GET",
         headers: {
             "Accept": "application/json"

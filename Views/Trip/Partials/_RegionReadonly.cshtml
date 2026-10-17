@@ -131,7 +131,7 @@
                             @if (HtmlHelpers.HasVisibleContent(p.Notes))
                             {
                                 <div class="d-none place-notes rich-notes-content">
-                                    @Html.LinkifyHtml(p.Notes)
+                                    @Html.ProxyNotesImages(p.Notes, linkify: true)
                                 </div>
                             }
                         </li>
