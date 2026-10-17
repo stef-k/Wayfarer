@@ -16,36 +16,91 @@ namespace Wayfarer.Tests.Controllers;
 /// </summary>
 public class TripExportControllerTests : TestBase
 {
-    [Fact]
-    public async Task ExportWayfarerKml_ReturnsFile_ForOwner()
+    /// <summary>Both KML formats preserve their payload, MIME and attachment name for owners and public viewers.</summary>
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public async Task Kml_ReturnsFile_ForOwnerOrPublicViewer(bool google, bool isPublic)
     {
         var db = CreateDbContext();
         var user = TestDataFixtures.CreateUser(id: "u1");
         db.Users.Add(user);
-        db.Trips.Add(new Trip { Id = Guid.NewGuid(), UserId = user.Id, Name = "Trip", IsPublic = false });
+        db.Trips.Add(new Trip { Id = Guid.NewGuid(), UserId = user.Id, Name = "Trip", IsPublic = isPublic });
         await db.SaveChangesAsync();
 
         var exportSvc = new Mock<ITripExportService>();
         exportSvc.Setup(s => s.GenerateWayfarerKml(It.IsAny<Guid>())).Returns("<kml/>");
-        var controller = BuildController(db, user, exportSvc.Object);
+        exportSvc.Setup(s => s.GenerateGoogleMyMapsKml(It.IsAny<Guid>())).Returns("<kml/>");
+        var controller = BuildController(db, isPublic ? TestDataFixtures.CreateUser(id: "other") : user, exportSvc.Object);
 
-        var result = await controller.ExportWayfarerKml(db.Trips.Single().Id);
+        var result = google ? await controller.ExportGoogleMyMapsKml(db.Trips.Single().Id)
+            : await controller.ExportWayfarerKml(db.Trips.Single().Id);
 
         var file = Assert.IsType<FileContentResult>(result);
         Assert.Equal("application/vnd.google-earth.kml+xml", file.ContentType);
+        Assert.Equal($"Trip-{(google ? "Google" : "Wayfarer")}.kml", file.FileDownloadName);
+        Assert.Equal(System.Text.Encoding.UTF8.GetBytes("<kml/>"), file.FileContents);
     }
 
-    [Fact]
-    public async Task ExportWayfarerKml_ForbidForPrivateNonOwner()
+    /// <summary>Private Trips deny anonymous and foreign viewers before invoking either exporter.</summary>
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public async Task Kml_ForbidForPrivateNonOwner(bool google, bool anonymous)
     {
         var db = CreateDbContext();
         db.Trips.Add(new Trip { Id = Guid.NewGuid(), UserId = "owner", Name = "Trip", IsPublic = false });
         await db.SaveChangesAsync();
-        var controller = BuildController(db, TestDataFixtures.CreateUser(id: "other"), Mock.Of<ITripExportService>());
+        var exportSvc = new Mock<ITripExportService>(MockBehavior.Strict);
+        var controller = BuildController(db, TestDataFixtures.CreateUser(id: "other"), exportSvc.Object);
+        if (anonymous) controller.HttpContext.User = new ClaimsPrincipal(new ClaimsIdentity());
 
-        var result = await controller.ExportWayfarerKml(db.Trips.Single().Id);
+        var result = google ? await controller.ExportGoogleMyMapsKml(db.Trips.Single().Id)
+            : await controller.ExportWayfarerKml(db.Trips.Single().Id);
 
         Assert.IsType<ForbidResult>(result);
+        exportSvc.VerifyNoOtherCalls();
+    }
+
+    /// <summary>Missing Trips remain 404 without reaching serialization.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Kml_NotFoundWhenMissing(bool google)
+    {
+        var controller = BuildController(CreateDbContext(), TestDataFixtures.CreateUser(),
+            new Mock<ITripExportService>(MockBehavior.Strict).Object);
+        var result = google ? await controller.ExportGoogleMyMapsKml(Guid.NewGuid())
+            : await controller.ExportWayfarerKml(Guid.NewGuid());
+        Assert.IsType<NotFoundResult>(result);
+    }
+
+    /// <summary>Serializer argument failures and cancellation propagate unchanged to existing request handling.</summary>
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(false, true)]
+    [InlineData(true, true)]
+    public async Task Kml_PropagatesExporterFailure(bool google, bool cancelled)
+    {
+        using var db = CreateDbContext();
+        var trip = TestDataFixtures.CreateTrip("owner", isPublic: true);
+        db.Trips.Add(trip);
+        await db.SaveChangesAsync();
+        Exception failure = cancelled ? new OperationCanceledException() : new ArgumentException("private XML content");
+        var service = new Mock<ITripExportService>();
+        service.Setup(s => s.GenerateWayfarerKml(trip.Id)).Throws(failure);
+        service.Setup(s => s.GenerateGoogleMyMapsKml(trip.Id)).Throws(failure);
+        var controller = BuildController(db, TestDataFixtures.CreateUser(), service.Object);
+
+        var observed = await Record.ExceptionAsync(() => google ? controller.ExportGoogleMyMapsKml(trip.Id)
+            : controller.ExportWayfarerKml(trip.Id));
+
+        Assert.Same(failure, observed);
     }
 
     [Fact]
@@ -152,6 +207,7 @@ public class TripExportControllerTests : TestBase
         Assert.Equal("10", controller.Response.Headers.RetryAfter);
     }
 
+    /// <summary>Creates a controller with a synthetic authenticated viewer and request context.</summary>
     private static TripExportController BuildController(ApplicationDbContext db, ApplicationUser user, ITripExportService exportSvc, SseService? sse = null)
     {
         var controller = new TripExportController(
