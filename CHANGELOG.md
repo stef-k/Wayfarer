@@ -31,6 +31,11 @@
 
 ### Fixed
 
+- Write Google My Maps KML Point and LineString coordinates with invariant,
+  round-trip-safe precision in decimal-comma locales. Report Trip KML serialization
+  failures through the existing server-error handler instead of returning a false
+  missing-Trip 404; preserve access checks and valid download names (#886).
+
 - Retire ImageSharp from all active projects, including tests. Preserve the original
   image inputs as hashed golden fixtures and independently verify Rust helper output
   pixels, dimensions, frames, orientation and ICC/EXIF/XMP with test-only Magick.NET

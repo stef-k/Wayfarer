@@ -47,17 +47,14 @@ namespace Wayfarer.Controllers
             return trip;
         }
 
+        /// <summary>Exports native KML after access checks; serialization failures use the existing server-error handler.</summary>
         [HttpGet]
         public async Task<IActionResult> ExportWayfarerKml(Guid id)
         {
+            Trip trip;
             try
             {
-                var trip = await LoadAndAuthorizeAsync(id);
-                var kml = _exportSvc.GenerateWayfarerKml(trip.Id);
-                var bytes = System.Text.Encoding.UTF8.GetBytes(kml);
-                return File(bytes,
-                    "application/vnd.google-earth.kml+xml",
-                    $"{trip.Name}-Wayfarer.kml");
+                trip = await LoadAndAuthorizeAsync(id);
             }
             catch (ArgumentException)
             {
@@ -67,19 +64,23 @@ namespace Wayfarer.Controllers
             {
                 return Forbid();
             }
+
+            // Only lookup/authentication failures above are translated into 404/403.
+            var kml = _exportSvc.GenerateWayfarerKml(trip.Id);
+            var bytes = System.Text.Encoding.UTF8.GetBytes(kml);
+            return File(bytes,
+                "application/vnd.google-earth.kml+xml",
+                $"{trip.Name}-Wayfarer.kml");
         }
 
+        /// <summary>Exports Google KML after access checks; serialization failures use the existing server-error handler.</summary>
         [HttpGet]
         public async Task<IActionResult> ExportGoogleMyMapsKml(Guid id)
         {
+            Trip trip;
             try
             {
-                var trip = await LoadAndAuthorizeAsync(id);
-                var kml = _exportSvc.GenerateGoogleMyMapsKml(trip.Id);
-                var bytes = System.Text.Encoding.UTF8.GetBytes(kml);
-                return File(bytes,
-                    "application/vnd.google-earth.kml+xml",
-                    $"{trip.Name}-Google.kml");
+                trip = await LoadAndAuthorizeAsync(id);
             }
             catch (ArgumentException)
             {
@@ -89,6 +90,13 @@ namespace Wayfarer.Controllers
             {
                 return Forbid();
             }
+
+            // Keep serialization outside the missing-Trip and access-denial boundary.
+            var kml = _exportSvc.GenerateGoogleMyMapsKml(trip.Id);
+            var bytes = System.Text.Encoding.UTF8.GetBytes(kml);
+            return File(bytes,
+                "application/vnd.google-earth.kml+xml",
+                $"{trip.Name}-Google.kml");
         }
 
         /// <summary>
