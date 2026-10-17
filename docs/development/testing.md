@@ -63,6 +63,14 @@ On Windows, the same variable can be stored at user scope and copied into the cu
 
 Use relational tests when the claim depends on migrations, Npgsql/PostGIS translation, database constraints, transactions, concurrent writers or persisted workflow state.
 
+Historical migration tests may use one outer transaction for rollback isolation.
+In that transaction, reapply only the migration being qualified: unrelated later
+migrations can retain `ON COMMIT DROP` temporary tables until the outer transaction
+ends. Check repaired historical data at the target revision, then upgrade to the
+current schema before exercising current controllers and services. In the shared
+migration fixture, compare audits before and after the operation instead of assuming
+unrelated scenarios leave the entire audit table empty.
+
 ### Location-import generation and recovery evidence
 
 `LocationImportQuartzPostgresTests` exercises persisted historical job rejection,

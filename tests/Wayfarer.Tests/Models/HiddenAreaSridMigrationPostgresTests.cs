@@ -1,4 +1,5 @@
 using System.Runtime.ExceptionServices;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -68,6 +69,8 @@ public sealed class HiddenAreaSridMigrationPostgresTests(PostgresMigrationTestFi
             Assert.All(after, a => Assert.Equal(4326, a.Area.SRID));
             Assert.Equal(before[0].Area.AsBinary(), after[0].Area.AsBinary());
             Assert.Equal(before[1].Area.AsBinary(), after[1].Area.AsBinary());
+            // Current endpoint queries include Activity.NormalizedName, which is absent at the repair revision.
+            await migrator.MigrateAsync();
             await AssertRepairedEndpointsAsync(db, user, visible);
 
             // Down removes history only; it must not undo correct polygon metadata.
@@ -168,9 +171,12 @@ public sealed class HiddenAreaSridMigrationPostgresTests(PostgresMigrationTestFi
         Coordinates = new Point(longitude, 40) { SRID = 4326 }, Country = label, Region = label, Place = label
     };
 
-    /// <summary>Constructs the real controller with its production query consumers.</summary>
+    /// <summary>Constructs the real controller with request context and its production query consumers.</summary>
     private static UsersTimelineController Controller(ApplicationDbContext db) =>
-        new(NullLogger<BaseController>.Instance, db, new LocationService(db), new LocationStatsService(db));
+        new(NullLogger<BaseController>.Instance, db, new LocationService(db), new LocationStatsService(db))
+        {
+            ControllerContext = new ControllerContext { HttpContext = new DefaultHttpContext() }
+        };
 
     /// <summary>Includes both visible and hidden history at a zoom that returns individual points.</summary>
     private static LocationFilterRequest Request(string username) => new()

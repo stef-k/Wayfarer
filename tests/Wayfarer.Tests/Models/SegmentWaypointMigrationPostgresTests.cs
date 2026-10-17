@@ -14,6 +14,7 @@ namespace Wayfarer.Tests.Models;
 public sealed class SegmentWaypointMigrationPostgresTests(PostgresMigrationTestFixture fixture)
 {
     private const string PreviousMigration = "20260728152323_AdminManagedTransportProfiles";
+    private const string WaypointMigration = "20260802085255_AddSegmentWaypoints";
 
     /// <summary>Executes exact-base upgrade and downgrade while preserving every legacy Segment value.</summary>
     [PostgresFact]
@@ -45,7 +46,8 @@ public sealed class SegmentWaypointMigrationPostgresTests(PostgresMigrationTestF
         await migrator.MigrateAsync(PreviousMigration);
         Assert.False(await TableExistsAsync(context, "SegmentWaypoints"));
         Assert.True(await TableExistsAsync(context, "Segments"));
-        await migrator.MigrateAsync();
+        // Re-Up only this schema: later migrations retain temporary tables until this outer transaction ends.
+        await migrator.MigrateAsync(WaypointMigration);
         Assert.True(await TableExistsAsync(context, "SegmentWaypoints"));
         await transaction.RollbackAsync();
     }
