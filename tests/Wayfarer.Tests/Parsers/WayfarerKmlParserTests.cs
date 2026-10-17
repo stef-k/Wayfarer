@@ -29,7 +29,7 @@ public sealed class WayfarerKmlParserTests
         var segment = Assert.Single(parsed.Document!.Segments);
         Assert.Empty(segment.WaypointPlaceIds);
         Assert.True(segment.HasCustomRoute);
-        Assert.Equal(90, segment.DurationSeconds);
+        Assert.Equal(TimeSpan.FromSeconds(90), segment.Duration);
     }
 
     /// <summary>Proves explicit v1 cannot silently accept a v2-only field.</summary>

@@ -241,10 +241,20 @@ Timeline exports still omit that identifier. Queue-recovery files carry it for
 [delivery reconciliation](#deliver-queued-records-through-a-server-import).
 
 Native Trip KML preserves Regions, Places, Areas, ordered From/Via/To connections,
-route geometry and automatic/manual duration choices. Older Wayfarer KML remains
-supported. Creating a new copy keeps a loop's shared endpoint and waypoint order
-consistent. Distances for imported manual geometry are recalculated; import does
-not call a routing provider to invent a route.
+route geometry, the saved distance and duration, and automatic/manual duration
+choices. Current exports use native version 3 so provider estimates, fractional
+seconds and retained route attribution survive import and copying. Wayfarer
+estimates are equally valid; a provider connection is not required to transfer a
+Trip. A different planning speed at the destination does not replace the saved
+version 3 values.
+
+Existing version 1 and 2 files remain readable under their established import
+rules. Older Wayfarer releases that support only those versions cannot read new
+version 3 exports. Creating a new copy keeps a loop's shared endpoint and waypoint
+order consistent. Generic KML and older native files still use their established
+geometry/planning reconciliation; import never calls a provider to invent a route.
+See the [native measurement contract](../development/api.md#saved-trip-measurements-and-native-kml)
+for version and precision details.
 
 Generic interchange formats cannot promise Wayfarer's full planning semantics.
 Route coordinates alone do not establish which saved Places are Via stops.

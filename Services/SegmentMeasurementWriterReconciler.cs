@@ -6,12 +6,13 @@ namespace Wayfarer.Services;
 /// <summary>Reconciles every persisted Segment written inside an import or clone transaction.</summary>
 public static class SegmentMeasurementWriterReconciler
 {
-    /// <summary>Locks and reconciles every Segment aggregate for one already-persisted Trip.</summary>
+    /// <summary>Locks and validates each imported/cloned aggregate, preserving its active set when the source contract requires it.</summary>
     public static async Task ReconcileTripAsync(
         ApplicationDbContext dbContext,
         Guid tripId,
         bool allowUnavailableAutomatic,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        bool preserveSavedMeasurements = false)
     {
         var segmentIds = await dbContext.Segments.AsNoTracking()
             .Where(segment => segment.TripId == tripId)
@@ -36,7 +37,11 @@ public static class SegmentMeasurementWriterReconciler
                     .Select(item => new SegmentWaypointProposal(item.PlaceId, item.Position, item.RouteVertexIndex)).ToArray(),
                 segment.RouteGeometry,
                 new(segment.Mode, segment.TransportProfileId, segment.EstimatedDurationSource,
-                    segment.EstimatedDuration?.TotalMinutes, allowUnavailableAutomatic));
+                    segment.EstimatedDuration?.TotalMinutes, allowUnavailableAutomatic))
+            {
+                PreservedMeasurements = preserveSavedMeasurements
+                    ? new(segment.EstimatedDistanceKm, segment.EstimatedDuration, segment.EstimatedDurationSource) : null
+            };
             var result = await SegmentRouteReconciler.ReconcileLockedAsync(
                 dbContext, proposal, refreshCanonicalState: dbContext.Database.IsRelational(), cancellationToken);
             if (!result.Succeeded)

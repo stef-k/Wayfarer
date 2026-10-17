@@ -465,6 +465,7 @@ public class TripExportServiceTests : TestBase
             FromPlaceId = from.Id,
             ToPlaceId = to.Id,
             Mode = "driving",
+            EstimatedDuration = TimeSpan.FromMinutes(26 * 60 + 6),
             RouteGeometry = new LineString([from.Location!.Coordinate, to.Location!.Coordinate]) { SRID = 4326 }
         }];
         db.Users.Add(user);
@@ -506,6 +507,7 @@ public class TripExportServiceTests : TestBase
         Assert.Contains("End Point", kml);
         Assert.Contains("A great park", kml);
         Assert.Contains("driving", kml);
+        Assert.Contains("26:06 h by driving", kml);
     }
 
     [Fact]

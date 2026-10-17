@@ -52,7 +52,7 @@ public sealed class TripCloneCoordinator(ApplicationDbContext dbContext)
             await dbContext.SaveChangesAsync(cancellationToken);
             dbContext.ChangeTracker.Clear();
             await SegmentMeasurementWriterReconciler.ReconcileTripAsync(
-                dbContext, clone.Id, allowUnavailableAutomatic: true, cancellationToken);
+                dbContext, clone.Id, allowUnavailableAutomatic: true, cancellationToken, preserveSavedMeasurements: true);
             if (transaction != null) await transaction.CommitAsync(cancellationToken);
 
             var requiresWarmup = !string.IsNullOrWhiteSpace(clone.CoverImageUrl)
@@ -157,7 +157,7 @@ public sealed class TripCloneCoordinator(ApplicationDbContext dbContext)
         string destinationUserId,
         IReadOnlyDictionary<Guid, Guid> placeMap)
     {
-        ValidatePersistedManualDuration(source);
+        SegmentMeasurementState.Validate(source);
         var segment = new Segment
         {
             Id = Guid.NewGuid(), TripId = cloneTripId, UserId = destinationUserId,
@@ -167,8 +167,9 @@ public sealed class TripCloneCoordinator(ApplicationDbContext dbContext)
             RouteGeometry = source.RouteGeometry == null ? null : (LineString)source.RouteGeometry.Copy(),
             EstimatedDuration = source.EstimatedDuration,
             EstimatedDurationSource = source.EstimatedDurationSource,
-            EstimatedDistanceKm = null, DisplayOrder = source.DisplayOrder, Notes = source.Notes
+            EstimatedDistanceKm = source.EstimatedDistanceKm, DisplayOrder = source.DisplayOrder, Notes = source.Notes
         };
+        SegmentRouteProvenance.Capture(source)?.ApplyTo(segment);
         foreach (var waypoint in source.Waypoints.OrderBy(item => item.Position))
         {
             segment.Waypoints.Add(new SegmentWaypoint
@@ -178,20 +179,6 @@ public sealed class TripCloneCoordinator(ApplicationDbContext dbContext)
             });
         }
         return segment;
-    }
-
-    /// <summary>Rejects persisted Manual duration state that clone reconciliation must not normalize or repair.</summary>
-    private static void ValidatePersistedManualDuration(Segment source)
-    {
-        if (source.EstimatedDurationSource != EstimatedDurationSource.Manual) return;
-
-        var duration = source.EstimatedDuration;
-        var maximumWholeSecondTicks = TimeSpan.MaxValue.Ticks
-            - (TimeSpan.MaxValue.Ticks % TimeSpan.TicksPerSecond);
-        if (!duration.HasValue || duration.Value.Ticks < 0
-            || duration.Value.Ticks > maximumWholeSecondTicks
-            || duration.Value.Ticks % TimeSpan.TicksPerSecond != 0)
-            throw new InvalidOperationException("A persisted Manual Segment duration is invalid.");
     }
 
     /// <summary>Maps an optional endpoint without converting an invalid source reference to null.</summary>

@@ -28,16 +28,20 @@ public sealed partial class TripEditorSegmentMutationService
         ExternalRouteProposalBinding? binding)
     {
         var route = BuildProposal(canonical.Id, request, mode);
-        var retained = canonical.RouteProvider != null && canonical.RouteStorageMode == "persistent"
-            && SegmentRouteReconciler.SameRouteIdentity(canonical, route);
+        var retained = SegmentRouteReconciler.SameRouteIdentity(canonical, route);
         if (binding == null && !retained) return route;
-        var manual = request.EstimatedDurationSource == EstimatedDurationSource.Manual
-            && (binding == null || request.Proposal!.ManualDurationOverride);
-        var duration = binding?.DurationSeconds is { } seconds ? TimeSpan.FromSeconds(seconds) : canonical.EstimatedDuration;
-        var source = manual ? EstimatedDurationSource.Manual
-            : binding?.DurationSeconds != null ? EstimatedDurationSource.Automatic : canonical.EstimatedDurationSource;
+        var manual = request.EstimatedDurationSource == EstimatedDurationSource.Manual;
+        var provider = SegmentRouteProvenance.Capture(canonical)?.IsQualifiedProvider() == true;
+        var duration = binding != null
+            ? binding.DurationSeconds is { } seconds ? TimeSpan.FromSeconds(seconds) : (TimeSpan?)null
+            : !manual && canonical.EstimatedDurationSource == EstimatedDurationSource.Manual ? null : canonical.EstimatedDuration;
+        var source = manual ? EstimatedDurationSource.Manual : EstimatedDurationSource.Automatic;
+        var recalculateDuration = binding == null && !provider && !manual
+            && (canonical.EstimatedDurationSource == EstimatedDurationSource.Manual
+                || mode.Key != canonical.Mode || mode.ProfileId != canonical.TransportProfileId);
         return route with { PreservedMeasurements = new(
-            binding?.DistanceMetres is { } metres ? metres / 1000d : canonical.EstimatedDistanceKm, duration, source, manual ? request.EstimatedDurationMinutes : null) };
+            binding != null ? binding.DistanceMetres / 1000d : canonical.EstimatedDistanceKm,
+            duration, source, manual ? request.EstimatedDurationMinutes : null, recalculateDuration) };
     }
 
     /// <summary>Copies provenance exclusively from the final validated binding, before the caller commits.</summary>

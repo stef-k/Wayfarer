@@ -4,10 +4,10 @@ using NetTopologySuite.Geometries;
 
 namespace Wayfarer.Models;
 
-/// <summary>Identifies whether a segment duration is server-calculated or explicitly supplied.</summary>
+/// <summary>Identifies automatic route-estimate versus explicit Manual duration intent, independently of route provenance.</summary>
 public enum EstimatedDurationSource
 {
-    /// <summary>The server derives duration from the canonical route and linked planning speed.</summary>
+    /// <summary>The accepted provider result or Wayfarer planner supplies the automatic estimate.</summary>
     Automatic = 0,
 
     /// <summary>The user explicitly supplies the duration.</summary>
@@ -65,13 +65,13 @@ public class Segment
     /// <summary>Geometry of the route as a LineString.</summary>
     public LineString? RouteGeometry { get; set; }
 
-    /// <summary>Estimated duration of this segment.</summary>
+    /// <summary>The single active saved duration, including a Manual override when selected.</summary>
     public TimeSpan? EstimatedDuration { get; set; }
 
     /// <summary>Identifies whether the estimated duration is automatic or manual.</summary>
     public EstimatedDurationSource EstimatedDurationSource { get; set; } = EstimatedDurationSource.Automatic;
 
-    /// <summary>Estimated distance in kilometers.</summary>
+    /// <summary>The accepted route's saved distance in kilometres; a different planning formula does not replace it.</summary>
     public double? EstimatedDistanceKm { get; set; }
 
     /// <summary>Bounded provider-neutral normalized route instructions.</summary>

@@ -424,6 +424,46 @@ visibility and provider gates. These are limited API contracts, not unrestricted
 account access or full Web editor parity; Web invitations, provider backfill,
 account/admin tools and editor mutations keep their cookie/role/antiforgery rules.
 
+## Saved Trip measurements and native KML
+
+A Segment has one active saved distance/duration set. `Automatic`/`Manual` owns
+duration intent independently of route provenance. Protected provider proposal
+acceptance establishes provider estimates; ordinary editor JSON cannot assert
+provider authority. Qualified persistent provenance comes from the saved
+`RouteProvider` and persistent storage marker, with a supported mapping mode when
+present. Provider credentials,
+verification, availability and current planning speeds do not participate in
+reading, transferring or cloning an already accepted result.
+
+New native Trip exports declare `WayfarerSchemaVersion=3`. Geometry, identities,
+waypoint integrity, ownership and numerical validity remain checked. The native
+version controls the following distinct representations:
+
+| Version | Duration | Measurement handling |
+| --- | --- | --- |
+| v1 / recognized versionless legacy | `DurationMin` | Established Manual normalization and geometry/planning reconciliation. |
+| v2 | Integer `DurationSeconds` | Established canonical compatibility checks; no reinterpretation as fractional time. |
+| v3 | Integer `DurationTicks` | Exact active `TimeSpan` ticks; values must be nonnegative multiples of 10, matching PostgreSQL interval microseconds. |
+
+V3 writes `DistanceKm` with round-trip double precision and carries existing
+credential-free source metadata in `RouteProvenance` JSON: `Provider`,
+`StorageMode`, `MappingMode`, `GeneratedAt`, `Attribution`, `InstructionsJson`,
+`TransportProfileId`, `ProviderConfigurationId`, `ProviderConfigurationVersion`.
+Configuration/profile IDs in this provenance are historical scalar identities,
+not execution authority. The actual planning profile still resolves through
+`TransportProfileKey`. JSON members are bounded and duplicate/unknown claims,
+unsupported retention rights and invalid normalized instructions are rejected.
+Neither `DurationTicks` in older versions nor `DurationSeconds` in v3 is accepted.
+
+V3 imports and clones preserve valid nulls, active values and Manual intent
+without numerical recalculation. Finite nonnegative historical estimates remain
+valid even when current geometry/planning produces different numbers. Missing
+source metadata stays unknown; numerical differences never invent provider
+attribution. Export does not rewrite existing rows. Manual geometry/anchor changes
+clear obsolete provider provenance and calculate the deliberate Wayfarer result;
+unchanged-route metadata edits preserve the saved set. Planning-speed mutations
+retain qualified provider estimates and reconcile Wayfarer estimates.
+
 ## SSE families
 
 `SseService` sends ordinary SSE `data:` frames containing JSON and optional comment heartbeats. Transport is best-effort and bounded; durable database state is authoritative.

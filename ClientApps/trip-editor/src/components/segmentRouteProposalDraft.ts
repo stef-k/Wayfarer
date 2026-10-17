@@ -34,17 +34,11 @@ export const toRouteProposalPreview = (
 export const createSegmentRouteProposalDraftController = (
   draft: EditorSegmentDraft,
   identity: () => string,
-  emitPreview: (preview: SegmentDraftRoutePreview | null) => void,
-  persistedBaseline: () => EditorSegmentDraft
+  emitPreview: (preview: SegmentDraftRoutePreview | null) => void
 ) => {
   const current = shallowRef<ExternalRouteProposal | null>(null);
-  const durationAtPreview = shallowRef('');
-  const manualOverride = (): boolean => current.value !== null && draft.estimatedDurationSource === 'Manual'
-    && (JSON.stringify([draft.estimatedDurationSource, draft.estimatedDurationMinutes]) !== durationAtPreview.value
-      // Missing estimates must also preserve Manual edits that predate generation.
-      || (current.value.durationSeconds == null
-        && (draft.estimatedDurationSource !== persistedBaseline().estimatedDurationSource
-          || Number(draft.estimatedDurationMinutes) !== Number(persistedBaseline().estimatedDurationMinutes))));
+  // Manual intent belongs to the user, including choices made before route generation.
+  const manualOverride = (): boolean => current.value !== null && draft.estimatedDurationSource === 'Manual';
   return {
     hasProposal: computed(() => current.value !== null),
     manualOverride: computed(manualOverride),
@@ -70,7 +64,6 @@ export const createSegmentRouteProposalDraftController = (
     },
     preview: (proposal: ExternalRouteProposal | null): void => {
       current.value = proposal;
-      durationAtPreview.value = JSON.stringify([draft.estimatedDurationSource, draft.estimatedDurationMinutes]);
     }
   };
 };

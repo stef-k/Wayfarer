@@ -1,4 +1,6 @@
 using System.Globalization;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Xml;
 using System.Xml.Linq;
 using NetTopologySuite.Geometries;
@@ -21,6 +23,7 @@ public static class WayfarerKmlParser
     private static readonly CultureInfo Invariant = CultureInfo.InvariantCulture;
     private static readonly HashSet<string> V2OnlyFields =
         ["TransportProfileKey", "DurationSeconds", "DurationSource", "HasCustomRoute", "WaypointPlaceIds", "WaypointRouteVertexIndices"];
+    private static readonly HashSet<string> V3OnlyFields = ["DurationTicks", "RouteProvenance"];
 
     /// <summary>Parses XML once and returns its structural kind plus native transport data when applicable.</summary>
     public static WayfarerKmlClassification ClassifyAndParse(Stream xml)
@@ -48,6 +51,8 @@ public static class WayfarerKmlParser
         if (versionValues.Count > 1) throw new FormatException("Duplicate Wayfarer schema version metadata.");
         var hasV2Fields = document.Descendants(Kml + "Placemark").Any(owner => owner.Elements(Kml + "ExtendedData")
             .Elements(Kml + "Data").Any(data => data.Attribute("name") is { Value: var name } && V2OnlyFields.Contains(name)));
+        var hasV3Fields = document.Descendants(Kml + "Placemark").Any(owner => owner.Elements(Kml + "ExtendedData")
+            .Elements(Kml + "Data").Any(data => data.Attribute("name") is { Value: var name } && V3OnlyFields.Contains(name)));
 
         WayfarerKmlKind kind;
         if (versionValues.Count == 1)
@@ -56,14 +61,17 @@ public static class WayfarerKmlParser
             {
                 "1" => WayfarerKmlKind.NativeV1,
                 "2" => WayfarerKmlKind.NativeV2,
+                "3" => WayfarerKmlKind.NativeV3,
                 _ => throw new FormatException("Unsupported Wayfarer schema version.")
             };
             if (kind == WayfarerKmlKind.NativeV1 && hasV2Fields)
                 throw new FormatException("Version 1 KML cannot contain version 2 Segment metadata.");
+            if (kind != WayfarerKmlKind.NativeV3 && hasV3Fields)
+                throw new FormatException("Version 3 Segment metadata requires schema version 3.");
         }
         else
         {
-            if (hasV2Fields) throw new FormatException("Version 2 Segment metadata requires an explicit schema version.");
+            if (hasV2Fields || hasV3Fields) throw new FormatException("Versioned Segment metadata requires an explicit schema version.");
             var tripIds = Values(document, "TripId");
             var nativeChild = document.Elements(Kml + "Folder").Any(folder =>
                 Values(folder, "RegionId").Count > 0 || folder.Elements(Kml + "Placemark").Any(pm => Values(pm, "SegmentId").Count > 0));
@@ -71,7 +79,7 @@ public static class WayfarerKmlParser
             if (tripIds.Count > 1) throw new FormatException("Duplicate Trip identity metadata.");
         }
         return new(kind, kind == WayfarerKmlKind.Generic ? null : ParseDocument(
-            document, kind == WayfarerKmlKind.NativeV2 ? 2 : 1), source);
+            document, kind switch { WayfarerKmlKind.NativeV3 => 3, WayfarerKmlKind.NativeV2 => 2, _ => 1 }), source);
     }
 
     /// <summary>Compatibility wrapper for existing v1 parser callers.</summary>
@@ -148,6 +156,7 @@ public static class WayfarerKmlParser
             OptionalInt(owner, "DisplayOrder") ?? 0, Scalar(owner, "NotesHtml"), Scalar(owner, "FillHex"), polygon);
     }
 
+    /// <summary>Reads each version's distinct duration representation and optional v3 persisted route provenance.</summary>
     private static WayfarerKmlSegment ParseSegment(XElement owner, int version)
     {
         var geometryText = owner.Element(Kml + "LineString")?.Element(Kml + "coordinates")?.Value;
@@ -157,7 +166,7 @@ public static class WayfarerKmlParser
             var minutes = OptionalDouble(owner, "DurationMin");
             return new(RequiredGuid(owner, "SegmentId"), OptionalGuid(owner, "FromPlaceId"), OptionalGuid(owner, "ToPlaceId"),
                 Scalar(owner, "Mode") ?? "", "", null,
-                minutes.HasValue ? (long?)SegmentMeasurementCalculator.NormalizeManualDuration(minutes.Value).TotalSeconds : null,
+                minutes.HasValue ? SegmentMeasurementCalculator.NormalizeManualDuration(minutes.Value) : null,
                 minutes.HasValue ? EstimatedDurationSource.Manual : EstimatedDurationSource.Automatic,
                 OptionalInt(owner, "DisplayOrder") ?? 0, Scalar(owner, "NotesHtml"), geometry is not null, [], [], geometry);
         }
@@ -172,10 +181,55 @@ public static class WayfarerKmlParser
         };
         return new(RequiredGuid(owner, "SegmentId"), OptionalGuid(owner, "FromPlaceId"), OptionalGuid(owner, "ToPlaceId"),
             RequiredScalar(owner, "Mode"), RequiredScalar(owner, "TransportProfileKey"), OptionalDouble(owner, "DistanceKm"),
-            OptionalLong(owner, "DurationSeconds"), source, RequiredInt(owner, "DisplayOrder"), Scalar(owner, "NotesHtml"),
-            RequiredBool(owner, "HasCustomRoute"), waypointIds, indices, geometry);
+            ParseDuration(owner, version), source, RequiredInt(owner, "DisplayOrder"), Scalar(owner, "NotesHtml"),
+            RequiredBool(owner, "HasCustomRoute"), waypointIds, indices, geometry,
+            version == 3 ? ParseRouteProvenance(owner) : null);
     }
 
+    /// <summary>Keeps v2 integer seconds distinct from v3 exact ticks at PostgreSQL interval precision.</summary>
+    private static TimeSpan? ParseDuration(XElement owner, int version)
+    {
+        if (version == 3)
+        {
+            if (Scalar(owner, "DurationSeconds") != null)
+                throw new FormatException("Version 3 uses DurationTicks, not DurationSeconds.");
+            _ = RequiredScalar(owner, "DurationTicks");
+            var ticks = OptionalLong(owner, "DurationTicks");
+            if (ticks % 10 != 0 && ticks.HasValue)
+                throw new FormatException("DurationTicks must use PostgreSQL microsecond precision.");
+            return ticks.HasValue ? TimeSpan.FromTicks(ticks.Value) : null;
+        }
+        var seconds = OptionalLong(owner, "DurationSeconds");
+        if (seconds > TimeSpan.MaxValue.Ticks / TimeSpan.TicksPerSecond)
+            throw new FormatException("DurationSeconds is outside the supported range.");
+        return seconds.HasValue ? TimeSpan.FromTicks(seconds.Value * TimeSpan.TicksPerSecond) : null;
+    }
+
+    /// <summary>Reads only the documented credential-free provenance shape, rejecting duplicate or unknown claims.</summary>
+    private static SegmentRouteProvenance? ParseRouteProvenance(XElement owner)
+    {
+        var value = RequiredScalar(owner, "RouteProvenance");
+        if (value.Length == 0) return null;
+        // JSON escaping can use six characters for each bounded persisted metadata character.
+        if (value.Length > 6 * 67_000) throw new FormatException("Route provenance exceeds its supported size.");
+        try
+        {
+            using var json = JsonDocument.Parse(value);
+            if (json.RootElement.ValueKind != JsonValueKind.Object) throw new JsonException();
+            var names = json.RootElement.EnumerateObject().Select(item => item.Name).ToArray();
+            if (names.Distinct(StringComparer.Ordinal).Count() != names.Length) throw new JsonException();
+            return JsonSerializer.Deserialize<SegmentRouteProvenance>(value, new JsonSerializerOptions
+            {
+                UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow
+            }) ?? throw new JsonException();
+        }
+        catch (JsonException)
+        {
+            throw new FormatException("Invalid route provenance metadata.");
+        }
+    }
+
+    /// <summary>Projects detached native data for established parser callers without changing its active v3 values.</summary>
     private static Trip ToCompatibilityTrip(WayfarerKmlDocument source)
     {
         var trip = new Trip { Id = source.TripId, Name = source.Name, CoverImageUrl = source.CoverImageUrl, Notes = source.Notes,
@@ -194,10 +248,13 @@ public static class WayfarerKmlParser
         var places = trip.Regions.SelectMany(region => region.Places.Select(place => (region, place))).ToDictionary(item => item.place.Id);
         foreach (var (region, place) in places.Values) place.Region = region;
         trip.Segments = source.Segments.Select(segment => new Segment { Id = segment.Id, TripId = source.TripId,
-            FromPlaceId = segment.FromPlaceId, ToPlaceId = segment.ToPlaceId, Mode = segment.Mode, EstimatedDistanceKm = null,
-            EstimatedDuration = segment.DurationSeconds.HasValue ? TimeSpan.FromSeconds(segment.DurationSeconds.Value) : null,
+            FromPlaceId = segment.FromPlaceId, ToPlaceId = segment.ToPlaceId, Mode = segment.Mode,
+            EstimatedDistanceKm = source.Version == 3 ? segment.DistanceKm : null,
+            EstimatedDuration = segment.Duration,
             EstimatedDurationSource = segment.DurationSource, DisplayOrder = segment.DisplayOrder, Notes = segment.Notes,
             RouteGeometry = segment.HasCustomRoute ? segment.Geometry : null }).ToList();
+        for (var index = 0; index < trip.Segments.Count; index++)
+            source.Segments[index].RouteProvenance?.ApplyTo(trip.Segments.ElementAt(index));
         return trip;
     }
 

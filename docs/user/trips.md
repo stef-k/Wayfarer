@@ -111,6 +111,10 @@ can continue manual planning if the provider is unavailable or its guard is full
 Distance is read-only. For manual routes it is calculated from the saved geometry,
 or the ordered anchor connections when there is no custom geometry. A saved
 provider route can retain the provider's distance and travel-time estimates.
+The accepted saved result remains authoritative through reload, export, import
+and copying. Provider unavailability and planning-speed changes do not replace a
+saved provider estimate. Changing the route or its anchors establishes a new
+result and clears attribution that described the previous route.
 
 **Use automatic estimate** calculates manual-plan duration using the selected
 transport profile's planning speed. An incomplete route or missing planning speed
@@ -118,6 +122,10 @@ can leave that estimate unavailable. **Manual** lets you enter a duration, inclu
 zero; it remains your choice when the route or profile changes until you explicitly
 select automatic estimation again. Provider travel-time estimates and planning
 estimates are guidance rather than a promised arrival time.
+Manual intent also survives generating a new provider route. If you switch a
+saved provider route from Manual back to Automatic, regenerate its routed path
+to obtain a fresh provider duration; Wayfarer does not keep a competing hidden
+automatic estimate behind your Manual value.
 
 ## Record and review visits
 

@@ -1,5 +1,6 @@
 using Wayfarer.Util;
 using System.Globalization;
+using System.Text.Json;
 using System.Xml.Linq;
 using NetTopologySuite.Geometries;
 using Wayfarer.Models;
@@ -7,13 +8,13 @@ using Wayfarer.Services;
 
 namespace Wayfarer.Parsers;
 
-/// <summary>Serializes a completely loaded and validated Trip as deterministic Wayfarer-native KML v2.</summary>
+/// <summary>Serializes the active saved Trip state as deterministic native KML v3.</summary>
 public static class TripWayfarerKmlExporter
 {
     private static readonly XNamespace Kml = "http://www.opengis.net/kml/2.2";
     private static readonly CultureInfo Invariant = CultureInfo.InvariantCulture;
 
-    /// <summary>Builds one native v2 document or rejects the complete malformed aggregate.</summary>
+    /// <summary>Preserves the active measurement set and rejects malformed geometry, identities or numbers.</summary>
     public static string BuildKml(Trip trip)
     {
         ArgumentNullException.ThrowIfNull(trip);
@@ -21,7 +22,7 @@ public static class TripWayfarerKmlExporter
 
         var document = new XElement(Kml + "Document", new XElement(Kml + "name", trip.Name));
         AddData(document,
-            ("WayfarerSchemaVersion", "2"),
+            ("WayfarerSchemaVersion", "3"),
             ("TripId", GuidText(trip.Id)),
             ("UpdatedAt", trip.UpdatedAt.ToString("O", Invariant)),
             ("CoverImageUrl", trip.CoverImageUrl ?? ""),
@@ -97,6 +98,7 @@ public static class TripWayfarerKmlExporter
         return placemark;
     }
 
+    /// <summary>Writes the active double, exact duration ticks and existing credential-free route provenance.</summary>
     private static XElement BuildSegment(Segment segment, Guid tripId)
     {
         var waypoints = segment.Waypoints.OrderBy(waypoint => waypoint.Position).ToArray();
@@ -107,14 +109,16 @@ public static class TripWayfarerKmlExporter
             ("SegmentId", GuidText(segment.Id)), ("FromPlaceId", GuidText(segment.FromPlaceId)),
             ("ToPlaceId", GuidText(segment.ToPlaceId)), ("Mode", segment.Mode),
             ("TransportProfileKey", segment.TransportProfile?.Key ?? ""),
-            ("DistanceKm", segment.EstimatedDistanceKm?.ToString("0.###", Invariant) ?? ""),
-            ("DurationSeconds", segment.EstimatedDuration?.TotalSeconds.ToString("0", Invariant) ?? ""),
+            ("DistanceKm", segment.EstimatedDistanceKm?.ToString("R", Invariant) ?? ""),
+            ("DurationTicks", Number(segment.EstimatedDuration?.Ticks)),
             ("DurationSource", segment.EstimatedDurationSource.ToString()),
             ("DisplayOrder", Number(segment.DisplayOrder)), ("NotesHtml", RichNotes.Normalize(segment.Notes) ?? ""),
             ("HasCustomRoute", hasCustomRoute ? "true" : "false"),
             ("WaypointPlaceIds", string.Join(',', waypoints.Select(waypoint => GuidText(waypoint.PlaceId)))),
             ("WaypointRouteVertexIndices", string.Join(',', waypoints.Select(waypoint => waypoint.RouteVertexIndex?.ToString(Invariant) ?? "null"))));
         AddData(placemark, ("TripId", GuidText(tripId)));
+        AddData(placemark, ("RouteProvenance", SegmentRouteProvenance.Capture(segment) is { } provenance
+            ? JsonSerializer.Serialize(provenance) : ""));
         if (line is not null)
             placemark.Add(new XElement(Kml + "LineString", new XElement(Kml + "tessellate", "1"),
                 new XElement(Kml + "coordinates", string.Join(' ', line.Coordinates.Select(CoordinateText)))));
@@ -128,6 +132,7 @@ public static class TripWayfarerKmlExporter
         return new LineString(places.Select(place => new Coordinate(place!.Location!.X, place.Location.Y)).ToArray()) { SRID = 4326 };
     }
 
+    /// <summary>Checks complete ownership/geometry state and valid saved values without recalculating them.</summary>
     private static void ValidateAggregate(Trip trip)
     {
         var regionIds = new HashSet<Guid>();
@@ -150,45 +155,14 @@ public static class TripWayfarerKmlExporter
                 throw new InvalidOperationException("The Trip contains malformed Segment identity state.");
             var errors = SegmentRouteReconciler.ValidateProjectedAggregate(segment);
             if (errors.Count > 0) throw new InvalidOperationException(string.Join(" ", errors));
-            if (segment.EstimatedDuration is { Ticks: var ticks } && ticks % TimeSpan.TicksPerSecond != 0)
-                throw new InvalidOperationException("Segment duration must use whole seconds.");
             if (segment.TransportProfileId.HasValue && segment.TransportProfile is null)
                 throw new InvalidOperationException("The Segment transport profile was not loaded.");
             if (segment.TransportProfile is { } profile
                 && (profile.Key != TransportProfile.NormalizeKey(profile.Key)
                     || TransportProfile.NormalizeKey(segment.Mode) != profile.Key))
                 throw new InvalidOperationException("Segment mode and transport profile key do not match.");
-            ValidateMeasurements(segment);
+            SegmentMeasurementState.Validate(segment);
         }
-    }
-
-    private static void ValidateMeasurements(Segment segment)
-    {
-        if (segment.EstimatedDurationSource is not EstimatedDurationSource.Automatic
-            and not EstimatedDurationSource.Manual)
-            throw new InvalidOperationException("Segment duration provenance is invalid.");
-
-        var waypoints = segment.Waypoints.OrderBy(waypoint => waypoint.Position).ToArray();
-        var route = segment.RouteGeometry ?? BuildFallback(segment, waypoints);
-        if (route is null)
-        {
-            if (segment.EstimatedDistanceKm.HasValue || segment.EstimatedDurationSource == EstimatedDurationSource.Automatic
-                && segment.EstimatedDuration.HasValue)
-                throw new InvalidOperationException("Unavailable route measurements must be empty.");
-            return;
-        }
-        var measurement = SegmentMeasurementCalculator.CalculateDistance(route.Coordinates);
-        if (segment.EstimatedDistanceKm != measurement.RoundedKilometres)
-            throw new InvalidOperationException("Segment distance is not canonical.");
-        if (segment.EstimatedDurationSource == EstimatedDurationSource.Manual)
-        {
-            if (!segment.EstimatedDuration.HasValue) throw new InvalidOperationException("Manual duration is required.");
-            return;
-        }
-        var speed = segment.TransportProfile?.PlanningSpeedKmh;
-        var expected = speed is > 0 ? SegmentMeasurementCalculator.CalculateAutomaticDuration(measurement.UnroundedMetres, speed.Value) : (TimeSpan?)null;
-        if (segment.EstimatedDuration != expected)
-            throw new InvalidOperationException("Automatic duration is not canonical.");
     }
 
     private static void AddData(XElement owner, params (string Name, string Value)[] values) =>

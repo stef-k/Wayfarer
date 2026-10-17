@@ -20,6 +20,7 @@ public sealed class ExternalRouteProposalSaveValidator(
         var envelope = request.Proposal!;
         if (!proposalContexts.TryRead(envelope.ProtectedContext, out var binding) || binding == null)
             return (null, "route-proposal-invalid-or-expired");
+        if (!ValidMeasurements(binding)) return (null, "route-proposal-invalid-measurements");
         var geometry = request.Route?.Coordinates.Select(item => new RouteCoordinate(item.X, item.Y)).ToArray();
         var indices = new[] { (int?)0 }.Concat(request.WaypointRouteVertexIndices)
             .Append(geometry?.Length - 1).ToArray();
@@ -103,4 +104,17 @@ public sealed class ExternalRouteProposalSaveValidator(
         && indices.Count >= 2 && indices[0] == 0 && indices[^1] == geometry.Count - 1
         && indices.All(index => index >= 0 && index < geometry.Count)
         && indices.Zip(indices.Skip(1), (first, second) => second > first).All(value => value);
+
+    /// <summary>Checks the bounded active estimates before any protected proposal can become persisted state.</summary>
+    private static bool ValidMeasurements(ExternalRouteProposalBinding binding)
+    {
+        if (binding.DistanceMetres is { } distance && (!double.IsFinite(distance) || distance < 0)
+            || binding.DurationSeconds is { } seconds && (!double.IsFinite(seconds) || seconds < 0)) return false;
+        try
+        {
+            if (binding.DurationSeconds.HasValue) _ = TimeSpan.FromSeconds(binding.DurationSeconds.Value);
+            return true;
+        }
+        catch (OverflowException) { return false; }
+    }
 }

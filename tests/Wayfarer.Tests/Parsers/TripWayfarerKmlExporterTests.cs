@@ -295,7 +295,7 @@ public class TripWayfarerKmlExporterTests
         Assert.Contains("driving", kml);
         Assert.Contains("DistanceKm", kml);
         Assert.Contains("DistanceKm", kml);
-        Assert.Contains("DurationSeconds", kml); Assert.Contains("DurationSource", kml);
+        Assert.Contains("DurationTicks", kml); Assert.Contains("DurationSource", kml);
     }
 
     [Fact]

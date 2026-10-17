@@ -10,6 +10,7 @@ using NetTopologySuite.Geometries;
 using Wayfarer.Models;
 using Wayfarer.Models.ViewModels;
 using Wayfarer.Services;
+using Wayfarer.Util;
 using static Wayfarer.Parsers.KmlMappings;
 
 namespace Wayfarer.Parsers
@@ -67,7 +68,7 @@ namespace Wayfarer.Parsers
         }
 
         /// <summary>
-        /// Exports My Maps KML with culture-independent, round-trip-safe Point and LineString coordinates.
+        /// Exports My Maps KML with invariant coordinates and saved duration totals that do not wrap at one day.
         /// </summary>
         /// <param name="tripId">The stored Trip to export.</param>
         /// <returns>The complete Google My Maps KML document.</returns>
@@ -222,7 +223,7 @@ namespace Wayfarer.Parsers
                 string toTxt = to == null ? "End" : $"{to.Name} ({to.Region?.Name})";
 
                 string etaTxt = s.EstimatedDuration.HasValue
-                    ? $"{s.EstimatedDuration:hh\\:mm} h"
+                    ? $"{s.EstimatedDuration.FormatHoursMinutes()} h"
                     : "";
                 string modeTxt = string.IsNullOrWhiteSpace(s.Mode) ? "segment" : s.Mode;
 

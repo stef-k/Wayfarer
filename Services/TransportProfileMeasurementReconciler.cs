@@ -142,10 +142,19 @@ public static class TransportProfileMeasurementReconciler
         var automatic = segments.Count(segment => segment.EstimatedDurationSource == EstimatedDurationSource.Automatic);
         var manual = segments.Length - automatic;
         var unavailable = 0;
+        var retainedProviderAutomatic = 0;
         foreach (var snapshot in segments)
         {
             var canonical = await SegmentRouteReconciler.LoadAggregateAsync(dbContext, snapshot.Id, cancellationToken);
             if (canonical == null) return TransportProfileMeasurementResult.Failure("A referenced Segment changed concurrently.");
+            if (SegmentRouteProvenance.Capture(canonical)?.IsQualifiedProvider() == true)
+            {
+                SegmentMeasurementState.Validate(canonical);
+                var errors = await SegmentRouteReconciler.ValidateLockedAggregateAsync(dbContext, canonical, cancellationToken);
+                if (errors.Count > 0) return TransportProfileMeasurementResult.Failure(string.Join(" ", errors));
+                if (canonical.EstimatedDurationSource == EstimatedDurationSource.Automatic) retainedProviderAutomatic++;
+                continue;
+            }
             var proposal = new SegmentRouteProposal(
                 canonical.Id,
                 canonical.FromPlaceId,
@@ -178,10 +187,10 @@ public static class TransportProfileMeasurementReconciler
             UserId = actorUserId,
             Action = "TransportProfileSpeedReconciliation",
             Timestamp = DateTime.UtcNow,
-            Details = $"ProfileId={profile.Id}; Key={profile.Key}; OldSpeed={FormatSpeed(oldSpeed)}; NewSpeed={FormatSpeed(proposedSpeedKmh)}; Total={segments.Length}; Automatic={automatic}; Manual={manual}; Recalculated={automatic - unavailable}; Unavailable={unavailable}; Outcome=Committed"
+            Details = $"ProfileId={profile.Id}; Key={profile.Key}; OldSpeed={FormatSpeed(oldSpeed)}; NewSpeed={FormatSpeed(proposedSpeedKmh)}; Total={segments.Length}; Automatic={automatic}; Manual={manual}; Recalculated={automatic - unavailable - retainedProviderAutomatic}; Unavailable={unavailable}; Outcome=Committed"
         });
         await dbContext.SaveChangesAsync(cancellationToken);
-        return new(true, [], segments.Length, automatic, manual, automatic - unavailable, unavailable);
+        return new(true, [], segments.Length, automatic, manual, automatic - unavailable - retainedProviderAutomatic, unavailable);
     }
 
     private static Task<Guid[]> ReferenceIdsAsync(

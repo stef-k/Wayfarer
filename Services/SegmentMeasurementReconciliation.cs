@@ -23,7 +23,8 @@ public sealed record SegmentMeasurementProposal(
 
 /// <summary>Measurements sourced from a protected proposal or an unchanged canonical trusted route.</summary>
 internal sealed record PreservedRouteMeasurements(
-    double? DistanceKm, TimeSpan? Duration, EstimatedDurationSource Source, double? ManualDurationMinutes = null);
+    double? DistanceKm, TimeSpan? Duration, EstimatedDurationSource Source, double? ManualDurationMinutes = null,
+    bool RecalculateAutomaticDuration = false);
 
 /// <summary>Measurement portion of the transaction-neutral locked Segment aggregate core.</summary>
 public static partial class SegmentRouteReconciler
@@ -89,7 +90,7 @@ public static partial class SegmentRouteReconciler
             dbContext, segment, proposal, geometry, anchors, errors, cancellationToken);
         if (errors.Count > 0) return new(false, errors, anchors);
 
-        if (!SameRouteIdentity(segment, proposal)) ClearRouteMetadata(segment);
+        if (!SameRouteIdentity(segment, proposal)) SegmentRouteProvenance.Clear(segment);
         if (dbContext.Database.IsRelational())
         {
             await dbContext.Set<SegmentWaypoint>()
@@ -103,6 +104,7 @@ public static partial class SegmentRouteReconciler
         return new(true, [], anchors);
     }
 
+    /// <summary>Retains the accepted set for an unchanged route; calculates only a deliberate new Wayfarer result.</summary>
     private static async Task<CalculatedSegmentMeasurements?> CalculateMeasurementsAsync(
         ApplicationDbContext dbContext,
         Segment segment,
@@ -133,17 +135,19 @@ public static partial class SegmentRouteReconciler
         else if (profile != null && !string.Equals(profile.Key, TransportProfile.NormalizeKey(proposal.Mode), StringComparison.Ordinal))
             errors.Add("Mode must match the linked transport profile.");
 
-        if (routeProposal.PreservedMeasurements is { } preserved)
+        var preserved = routeProposal.PreservedMeasurements;
+        if (preserved is { RecalculateAutomaticDuration: false })
         {
             try
             {
                 var retainedDuration = preserved.ManualDurationMinutes is { } minutes
-                    ? SegmentMeasurementCalculator.NormalizeManualDuration(minutes) : preserved.Duration;
+                    ? ManualDuration(segment, minutes) : preserved.Duration;
+                SegmentMeasurementState.ValidateValues(preserved.DistanceKm, retainedDuration, preserved.Source);
                 return errors.Count == 0
                     ? new(proposal.Mode, proposal.TransportProfileId, preserved.Source, preserved.DistanceKm, retainedDuration)
                     : null;
             }
-            catch (ArgumentOutOfRangeException exception)
+            catch (Exception exception) when (exception is ArgumentOutOfRangeException or InvalidOperationException)
             {
                 errors.Add(exception.Message);
                 return null;
@@ -170,7 +174,7 @@ public static partial class SegmentRouteReconciler
                 if (!proposal.ManualDurationMinutes.HasValue)
                     errors.Add("Manual duration is required.");
                 else
-                    duration = SegmentMeasurementCalculator.NormalizeManualDuration(proposal.ManualDurationMinutes.Value);
+                    duration = ManualDuration(segment, proposal.ManualDurationMinutes.Value);
             }
             else if ((proposal.UsePlanningSpeedOverride ? proposal.PlanningSpeedKmhOverride : profile?.PlanningSpeedKmh)
                      is > 0d and var speed && double.IsFinite(speed))
@@ -189,33 +193,32 @@ public static partial class SegmentRouteReconciler
             errors.Add(exception.Message);
         }
 
+        var savedDistance = preserved != null ? preserved.DistanceKm : distance?.RoundedKilometres;
+        if (errors.Count == 0)
+        {
+            try { SegmentMeasurementState.ValidateValues(savedDistance, duration, proposal.DurationSource); }
+            catch (InvalidOperationException exception) { errors.Add(exception.Message); }
+        }
         return errors.Count == 0
-            ? new(proposal.Mode, proposal.TransportProfileId, proposal.DurationSource, distance?.RoundedKilometres, duration)
+            ? new(proposal.Mode, proposal.TransportProfileId, proposal.DurationSource,
+                savedDistance, duration)
             : null;
     }
 
     /// <summary>Uses exact geometry and ordered anchor/index semantics to identify a retained route.</summary>
     internal static bool SameRouteIdentity(Segment segment, SegmentRouteProposal proposal) =>
-        segment.RouteGeometry != null && proposal.RouteGeometry != null
-        && segment.RouteGeometry.EqualsExact(proposal.RouteGeometry)
+        (segment.RouteGeometry == null && proposal.RouteGeometry == null
+            || segment.RouteGeometry != null && proposal.RouteGeometry != null && segment.RouteGeometry.EqualsExact(proposal.RouteGeometry))
         && segment.FromPlaceId == proposal.FromPlaceId && segment.ToPlaceId == proposal.ToPlaceId
         && segment.Waypoints.OrderBy(item => item.Position)
             .Select(item => new SegmentWaypointProposal(item.PlaceId, item.Position, item.RouteVertexIndex))
             .SequenceEqual(proposal.Waypoints);
 
-    /// <summary>Removes attribution and instructions that no longer describe the submitted route.</summary>
-    private static void ClearRouteMetadata(Segment segment)
-    {
-        segment.RouteInstructionsJson = null;
-        segment.RouteProvider = null;
-        segment.RouteProviderConfigurationId = null;
-        segment.RouteProviderConfigurationVersion = null;
-        segment.RouteTransportProfileId = null;
-        segment.RouteMappingMode = null;
-        segment.RouteGeneratedAt = null;
-        segment.RouteAttribution = null;
-        segment.RouteStorageMode = null;
-    }
+    /// <summary>Preserves an unchanged Manual value, including valid historical precision, across unrelated mutations.</summary>
+    private static TimeSpan ManualDuration(Segment segment, double minutes) =>
+        segment.EstimatedDurationSource == EstimatedDurationSource.Manual
+        && segment.EstimatedDuration is { Ticks: >= 0 } duration && duration.TotalMinutes == minutes
+            ? duration : SegmentMeasurementCalculator.NormalizeManualDuration(minutes);
 
     private static IReadOnlyList<Coordinate>? EffectiveCoordinates(
         SegmentRouteProposal proposal,
