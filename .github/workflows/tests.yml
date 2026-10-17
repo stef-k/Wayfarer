@@ -144,11 +144,18 @@ jobs:
         if: needs.classify.outputs.run_frontend == 'true'
         run: npm run smoke:trip-editor:assets:built
 
-      - name: Prepare native image helper toolchain
+      # The CLI recovery test uses host pg_dump/pg_restore; the runner's default major is older.
+      - name: Prepare ordinary test toolchains
         if: needs.classify.outputs.run_dotnet == 'true'
         run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl --fail --silent --show-error --location https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+            -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list
           sudo apt-get update
-          sudo apt-get install -y cmake nasm pkg-config
+          sudo apt-get install -y cmake nasm pkg-config postgresql-client-18
+          echo '/usr/lib/postgresql/18/bin' >> "$GITHUB_PATH"
           rustup toolchain install 1.90.0 --profile minimal --component rustfmt --component clippy
       - name: Validate locked image helper
         if: needs.classify.outputs.run_dotnet == 'true'
@@ -168,6 +175,10 @@ jobs:
         env:
           POSTGRES_SERVICE_ID: ${{ job.services.postgres.id }}
         run: |
+          [[ "$(pg_dump --version)" == 'pg_dump (PostgreSQL) 18.'* ]]
+          [[ "$(pg_restore --version)" == 'pg_restore (PostgreSQL) 18.'* ]]
+          pg_dump --version
+          pg_restore --version
           test "$(docker inspect --format '{{.State.Health.Status}}' "$POSTGRES_SERVICE_ID")" = healthy
           docker exec -i "$POSTGRES_SERVICE_ID" psql -X -v ON_ERROR_STOP=1 -U wayfarer_ci -d wayfarer_import_tests <<'SQL'
           DO $$

@@ -56,6 +56,10 @@ connection when `run_dotnet=true`. Its native service uses the upstream Debian
 digest in `tests.yml`. The workflow checks healthy TCP readiness, the exact database
 name, PostgreSQL major 18, PostGIS 3.6 and the administrative permissions the existing
 extension/migration fixtures need. Fixtures apply the current migrations themselves.
+The job also installs `postgresql-client-18` from PostgreSQL's signed Ubuntu apt
+repository and selects its binaries ahead of the runner defaults. The prerequisite
+check verifies and reports both client versions: the existing CLI database-copy test
+needs host `pg_dump`/`pg_restore` compatible with server major 18.
 The fixed `wayfarer_ci` superuser uses password-free trust only in this disposable
 service, with the host port bound to `127.0.0.1`; no password enters initialization
 logs, application configuration or artifacts. Never reuse this authentication setup
