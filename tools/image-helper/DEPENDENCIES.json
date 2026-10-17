@@ -1,5 +1,5 @@
 {
-  "scope": "Locked Rust runtime/build dependency closure; test-only ImageSharp is absent from the application.",
+  "scope": "Locked Rust runtime/build dependency closure; independent test-oracle dependencies are excluded.",
   "webpSourcePolicy": {
     "officialRevision": "f4d80bd965df2c81e65b6f43c1f70e0750bd4b0f",
     "approval": "Temporary production use until an official fixed crates.io release is available; source and complete notices must remain verified.",

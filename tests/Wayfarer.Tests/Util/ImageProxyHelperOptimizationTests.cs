@@ -1,8 +1,5 @@
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Formats.Gif;
-using SixLabors.ImageSharp.Formats.Webp;
-using SixLabors.ImageSharp.Metadata.Profiles.Exif;
-using SixLabors.ImageSharp.PixelFormats;
+using ImageMagick;
+using Wayfarer.Tests.Infrastructure;
 using Wayfarer.Util;
 using Xunit;
 
@@ -26,14 +23,14 @@ public sealed class ImageProxyHelperOptimizationTests
 
     /// <summary>Every supported single-frame input completes the established PNG/JPEG output route.</summary>
     [Theory]
-    [InlineData("jpeg", false, "JPEG")]
-    [InlineData("png", true, "PNG")]
-    [InlineData("webp", true, "PNG")]
-    [InlineData("gif", true, "PNG")]
+    [InlineData("jpeg", false, MagickFormat.Jpeg)]
+    [InlineData("png", true, MagickFormat.Png)]
+    [InlineData("webp", true, MagickFormat.Png)]
+    [InlineData("gif", true, MagickFormat.Png)]
     public void OptimizeImage_AcceptsSupportedStillFormats(
         string format,
         bool expectedPng,
-        string expectedOutputFormat)
+        MagickFormat expectedOutputFormat)
     {
         var output = ImageProxyHelper.OptimizeImage(
             CreateStaticImage(format),
@@ -42,10 +39,10 @@ public sealed class ImageProxyHelperOptimizationTests
             90,
             out var isPng);
 
-        using var decoded = Image.Load(output);
+        using var frames = new MagickImageCollection(output);
+        var decoded = Assert.Single(frames);
         Assert.Equal(expectedPng, isPng);
-        Assert.Equal(expectedOutputFormat, decoded.Metadata.DecodedImageFormat?.Name);
-        Assert.Single(decoded.Frames);
+        Assert.Equal(expectedOutputFormat, decoded.Format);
     }
 
     /// <summary>Static GIF validates; multiple frames reject through full contained decoding.</summary>
@@ -86,17 +83,15 @@ public sealed class ImageProxyHelperOptimizationTests
     [Fact]
     public void OptimizeImage_PreservesProportionalResizeAndJpegRouting()
     {
-        using var image = new Image<Rgb24>(400, 200, new Rgb24(10, 20, 30));
-        using var input = new MemoryStream();
-        image.SaveAsJpeg(input);
+        var output = ImageProxyHelper.OptimizeImage(
+            ImageProxyTestFactory.Fixture("resize.jpeg"), 300, 100, 82, out var isPng);
 
-        var output = ImageProxyHelper.OptimizeImage(input.ToArray(), 300, 100, 82, out var isPng);
-
-        using var decoded = Image.Load(output);
+        using var frames = new MagickImageCollection(output);
+        var decoded = Assert.Single(frames);
         Assert.False(isPng);
-        Assert.Equal(200, decoded.Width);
-        Assert.Equal(100, decoded.Height);
-        Assert.Equal("JPEG", decoded.Metadata.DecodedImageFormat?.Name);
+        Assert.Equal(200u, decoded.Width);
+        Assert.Equal(100u, decoded.Height);
+        Assert.Equal(MagickFormat.Jpeg, decoded.Format);
     }
 
     /// <summary>Images smaller than requested bounds are not upscaled.</summary>
@@ -105,9 +100,10 @@ public sealed class ImageProxyHelperOptimizationTests
     {
         var output = ImageProxyHelper.OptimizeImage(CreateStaticImage("jpeg"), 20, 20, 90, out _);
 
-        using var decoded = Image.Load(output);
-        Assert.Equal(2, decoded.Width);
-        Assert.Equal(1, decoded.Height);
+        using var frames = new MagickImageCollection(output);
+        var decoded = Assert.Single(frames);
+        Assert.Equal(2u, decoded.Width);
+        Assert.Equal(1u, decoded.Height);
     }
 
     /// <summary>Transparent PNG input retains PNG routing and non-opaque alpha.</summary>
@@ -116,102 +112,53 @@ public sealed class ImageProxyHelperOptimizationTests
     {
         var output = ImageProxyHelper.OptimizeImage(CreateStaticImage("png"), null, null, 90, out var isPng);
 
-        using var decoded = Image.Load<Rgba32>(output);
+        using var frames = new MagickImageCollection(output);
+        var decoded = Assert.Single(frames);
+        using var pixels = decoded.GetPixels();
         Assert.True(isPng);
-        Assert.Equal("PNG", decoded.Metadata.DecodedImageFormat?.Name);
-        Assert.NotEqual(byte.MaxValue, decoded[0, 0].A);
+        Assert.Equal(MagickFormat.Png, decoded.Format);
+        Assert.Equal((byte)128, pixels.GetPixel(0, 0).ToColor()!.A);
     }
 
     /// <summary>JPEG orientation is applied before private EXIF is stripped.</summary>
     [Fact]
     public void OptimizeImage_PreservesOrientationAndMetadata()
     {
-        using var image = new Image<Rgb24>(2, 1, new Rgb24(10, 20, 30));
-        image.Metadata.ExifProfile = new ExifProfile();
-        image.Metadata.ExifProfile.SetValue(ExifTag.Orientation, (ushort)6);
-        image.Metadata.ExifProfile.SetValue(ExifTag.Software, "Wayfarer test");
-        using var input = new MemoryStream();
-        image.SaveAsJpeg(input);
+        var input = ImageProxyTestFactory.Fixture("orientation.jpeg");
+        using var source = new MagickImage(input);
+        Assert.Equal(Orientation.RightTop, source.Orientation);
+        Assert.Equal("Wayfarer test", source.GetExifProfile()!.GetValue(ExifTag.Software)!.Value);
+        var output = ImageProxyHelper.OptimizeImage(input, null, null, 90, out _);
 
-        var output = ImageProxyHelper.OptimizeImage(input.ToArray(), null, null, 90, out _);
-
-        using var decoded = Image.Load(output);
-        Assert.Equal(1, decoded.Width);
-        Assert.Equal(2, decoded.Height);
-        Assert.Null(decoded.Metadata.ExifProfile);
-        Assert.Null(decoded.Metadata.XmpProfile);
+        using var frames = new MagickImageCollection(output);
+        var decoded = Assert.Single(frames);
+        Assert.Equal(1u, decoded.Width);
+        Assert.Equal(2u, decoded.Height);
+        Assert.Null(decoded.GetExifProfile());
+        Assert.Null(decoded.GetXmpProfile());
     }
 
     /// <summary>The requested JPEG quality continues to affect opaque output encoding.</summary>
     [Fact]
     public void OptimizeImage_PreservesRequestedJpegQuality()
     {
-        using var image = new Image<Rgb24>(64, 64);
-        image.ProcessPixelRows(accessor =>
-        {
-            for (var y = 0; y < accessor.Height; y++)
-            {
-                var row = accessor.GetRowSpan(y);
-                for (var x = 0; x < row.Length; x++)
-                {
-                    row[x] = new Rgb24((byte)(x * 3), (byte)(y * 3), (byte)((x + y) * 2));
-                }
-            }
-        });
-        using var input = new MemoryStream();
-        image.SaveAsJpeg(input);
-
-        var lowQuality = ImageProxyHelper.OptimizeImage(input.ToArray(), null, null, 20, out _);
-        var highQuality = ImageProxyHelper.OptimizeImage(input.ToArray(), null, null, 95, out _);
+        var input = ImageProxyTestFactory.Fixture("quality.jpeg");
+        var lowQuality = ImageProxyHelper.OptimizeImage(input, null, null, 20, out _);
+        var highQuality = ImageProxyHelper.OptimizeImage(input, null, null, 95, out _);
 
         Assert.False(lowQuality.SequenceEqual(highQuality));
         Assert.True(highQuality.Length > lowQuality.Length);
     }
 
-    private static byte[] CreateStaticImage(string format)
-    {
-        using var image = new Image<Rgba32>(2, 1, new Rgba32(10, 20, 30, 128));
-        using var output = new MemoryStream();
-        switch (format)
-        {
-            case "jpeg":
-                image.SaveAsJpeg(output);
-                break;
-            case "png":
-                image.SaveAsPng(output);
-                break;
-            case "webp":
-                image.SaveAsWebp(output);
-                break;
-            case "gif":
-                image.SaveAsGif(output);
-                break;
-            default:
-                throw new ArgumentOutOfRangeException(nameof(format));
-        }
+    /// <summary>Reuses the original 2x1 semi-transparent source encodings without regenerating bytes.</summary>
+    private static byte[] CreateStaticImage(string format) => ImageProxyTestFactory.Fixture($"static.{format}");
 
-        return output.ToArray();
-    }
-
+    /// <summary>Preserves one/two GIF frames and the original animated WebP rejection vector.</summary>
     private static byte[] CreateAnimation(int frameCount, string format)
     {
-        using var image = new Image<Rgba32>(1, 1, new Rgba32(10, 20, 30, 128));
-        while (image.Frames.Count < frameCount)
-        {
-            image.Frames.AddFrame(image.Frames.RootFrame);
-        }
-
-        using var output = new MemoryStream();
-        if (format == "gif")
-        {
-            image.Save(output, new GifEncoder());
-        }
-        else
-        {
-            image.Save(output, new WebpEncoder());
-        }
-
-        return output.ToArray();
+        return frameCount == 1
+            ? ImageProxyTestFactory.Fixture($"pixel.{format}")
+            : ImageProxyTestFactory.Fixture($"animated.{format}");
     }
 
     /// <summary>Inserts a bounded RIFF chunk after the first encoded WebP animation frame.</summary>

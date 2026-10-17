@@ -331,7 +331,12 @@ f4d80bd965df2c81e65b6f43c1f70e0750bd4b0f (MIT OR Apache-2.0). This temporary Git
 pin blocks production merge until an official fixed crate is published and qualified.
 JPEG output bundles libjpeg-turbo 3.1.0 through turbojpeg-sys 1.2.0.
 This software is based in part on the work of the Independent JPEG Group.
-ImageSharp 3.1.12 is used only to construct/check test fixtures, not by the application.
+Test-only output verification uses Magick.NET-Q8-AnyCPU / Magick.NET.Core 15.0.0
+(Copyright Dirk Lemstra, Apache-2.0), with ImageMagick 7.1.2-33 and bundled native
+components under their respective licenses in the NuGet package Notice.txt.
+https://github.com/dlemstra/Magick.NET/releases/tag/15.0.0
+These packages are not application/runtime or release dependencies. No active
+Wayfarer project depends on ImageSharp; historical fixture provenance is retained.
 
 --------------------------------------------------------------------------------
 

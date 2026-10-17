@@ -18,8 +18,8 @@
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
-    <!-- Test fixture generation and independent output checks only; absent from production. -->
-    <PackageReference Include="SixLabors.ImageSharp" Version="3.1.12" />
+    <!-- Independent pixel/metadata decoder for test output only; never flows to production. -->
+    <PackageReference Include="Magick.NET-Q8-AnyCPU" Version="15.0.0" PrivateAssets="all" />
     <!-- For UseInMemoryDatabase in tests -->
     <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.11" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.11" />
@@ -43,5 +43,10 @@
     <ProjectReference Include="..\..\tools\WayfarerCtl\WayfarerCtl.csproj" />
     <!-- Exercise the actual browser database/identity fixture at its narrow data seam. -->
     <ProjectReference Include="../../tools/Wayfarer.WaypointBrowserFixture/Wayfarer.WaypointBrowserFixture.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Frozen original encoder inputs and provenance; no image encoder runs during tests. -->
+    <Content Include="Fixtures/Imaging/*" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

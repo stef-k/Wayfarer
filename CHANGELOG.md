@@ -31,6 +31,11 @@
 
 ### Fixed
 
+- Retire ImageSharp from all active projects, including tests. Preserve the original
+  image inputs as hashed golden fixtures and independently verify Rust helper output
+  pixels, dimensions, frames, orientation and ICC/EXIF/XMP with test-only Magick.NET
+  (#878).
+
 - Proxy external Rich Notes images before Trip/Place/Location display and Location
   editor insertion while saving canonical URLs. Keep readable-modal map snapshots
   local and preserve decoded image query strings in PDF guides. Neutralize

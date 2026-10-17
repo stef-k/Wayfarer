@@ -140,9 +140,11 @@ Registry packages retain Cargo.lock checksums; the WebP source uses the exact Gi
 revision above. Rust JPEG decode is `libjpeg-turbo-rs 0.8.0`, resize is
 `fast_image_resize 6.1.0`, and JPEG output is `turbojpeg 1.5.1` /
 `turbojpeg-sys 1.2.0` with bundled libjpeg-turbo 3.1.0.
-ImageSharp 3.1.12 remains only in the test project for fixture creation and independent
-output assertions; it is absent from the published application dependency graph.
-The focused fixtures are retained unchanged from the linked research qualification.
+No active project depends on ImageSharp. Test-only Magick.NET 15.0.0 independently
+checks output pixels, dimensions, frames, orientation and ICC/EXIF/XMP. Frozen,
+hashed source encodings replace runtime fixture generation; see the
+[oracle and fixture provenance](../../tests/Wayfarer.Tests/Fixtures/Imaging/README.md).
+The research qualification corpus and Rust production dependencies remain unchanged.
 
 Tracking under **#858/#807**: replace this temporary WebP Git source when an
 official crates.io version containing the qualified fix is available. Confirm

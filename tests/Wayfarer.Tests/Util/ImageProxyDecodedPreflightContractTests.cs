@@ -1,5 +1,4 @@
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
+using Wayfarer.Tests.Infrastructure;
 using Wayfarer.Util;
 using Xunit;
 
@@ -119,16 +118,14 @@ public enum PngContractFixtureMode
 /// <summary>Builds compact deterministic PNG structures without allocating declared dimensions.</summary>
 internal static class PngContractFixture
 {
+    /// <summary>Mutates a fresh original 1x1 PNG seed and recomputes the relevant chunk CRCs.</summary>
     public static byte[] Create(
         uint width,
         uint height,
         uint? apngFrames = null,
         PngContractFixtureMode mode = PngContractFixtureMode.Valid)
     {
-        using var image = new Image<Rgba32>(1, 1, new Rgba32(10, 20, 30, 128));
-        using var output = new MemoryStream();
-        image.SaveAsPng(output);
-        var png = output.ToArray();
+        var png = ImageProxyTestFactory.Fixture("pixel.png");
         WriteUInt32BigEndian(png.AsSpan(16, 4), width);
         WriteUInt32BigEndian(png.AsSpan(20, 4), height);
         WriteUInt32BigEndian(png.AsSpan(29, 4), ComputeCrc(png.AsSpan(12, 17)));
