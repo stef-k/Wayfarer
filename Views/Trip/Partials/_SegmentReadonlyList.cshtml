@@ -52,7 +52,8 @@
                     latitude = anchor.Location?.Y
                 }));
 
-                var durTxt = seg.EstimatedDuration?.ToString(@"hh\:mm") ?? "—";
+                // A saved duration can exceed one day; unavailable values remain distinct from zero.
+                var durTxt = seg.EstimatedDuration.FormatHoursMinutes() ?? "—";
                 var distTxt = seg.EstimatedDistanceKm?.ToString("0.##") ?? "—";
 
                 var wkt = journey.RouteWkt;

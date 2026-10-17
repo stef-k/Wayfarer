@@ -37,7 +37,9 @@
   retains double precision and PostgreSQL interval ticks; established v1/v2
   readers remain supported. Keep Manual intent across provider generation, retain
   provider estimates during metadata/planning-speed edits, and replace stale
-  measurements/provenance atomically when routes or anchors change. No historical
+  measurements/provenance atomically when routes or anchors change. Keep missing
+  durations distinct from zero and show total hours in viewer/Google labels.
+  No historical
   data normalization or database migration is required.
 
 - Write Google My Maps KML Point and LineString coordinates with invariant,

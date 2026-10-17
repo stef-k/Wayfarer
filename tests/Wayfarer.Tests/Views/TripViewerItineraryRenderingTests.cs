@@ -143,6 +143,7 @@ public sealed class TripViewerItineraryRenderingTests
             Assert.Contains("A A → B B → C C", NormalizeText(document.QuerySelector("#readable-modal-body")?.TextContent ?? string.Empty));
 
             var customTrip = WaypointTrip();
+            Assert.Single(customTrip.Segments).EstimatedDuration = TimeSpan.FromMinutes(26 * 60 + 6);
             Assert.Single(customTrip.Segments).RouteGeometry = new LineString([
                 new Coordinate(1, 1), new Coordinate(1.5, 1.5), new Coordinate(2, 2), new Coordinate(3, 3)
             ]) { SRID = 4326 };
@@ -150,6 +151,7 @@ public sealed class TripViewerItineraryRenderingTests
             var customHtml = await RenderViewerAsync(scope.ServiceProvider, customTrip);
             var customDocument = await new HtmlParser().ParseDocumentAsync(customHtml);
             var customSegment = Assert.Single(customDocument.QuerySelectorAll(".segment-list-item"));
+            Assert.Contains("26:06", customSegment.TextContent);
             Assert.True(customSegment.ClassList.Contains("segment-list-item-view"));
             Assert.Contains("1.5 1.5", customSegment.GetAttribute("data-route-wkt"));
         }
@@ -207,8 +209,12 @@ public sealed class TripViewerItineraryRenderingTests
         }
     }
 
-    [Fact]
-    public async Task PdfRendersTheSameOrderedWaypointJourney()
+    /// <summary>Print preserves unavailable versus zero estimates and displays saved duration totals.</summary>
+    [Theory]
+    [InlineData(null, "—")]
+    [InlineData(360.25, "6 min")]
+    [InlineData(93960d, "26 h")]
+    public async Task PdfRendersTheSameOrderedWaypointJourney(double? seconds, string durationText)
     {
         var webRoot = Path.Combine(Path.GetTempPath(), $"wayfarer-waypoint-pdf-render-{Guid.NewGuid():N}");
         Directory.CreateDirectory(webRoot);
@@ -219,7 +225,7 @@ public sealed class TripViewerItineraryRenderingTests
             using var scope = host.Services.CreateScope();
             var trip = WaypointTrip();
             Assert.Single(trip.Segments).EstimatedDistanceKm = 2.135123;
-            Assert.Single(trip.Segments).EstimatedDuration = TimeSpan.FromSeconds(360.25);
+            Assert.Single(trip.Segments).EstimatedDuration = seconds.HasValue ? TimeSpan.FromSeconds(seconds.Value) : null;
             trip.User = new ApplicationUser { DisplayName = "Fixture owner" };
             var model = new TripPrintViewModel
             {
@@ -232,7 +238,7 @@ public sealed class TripViewerItineraryRenderingTests
             var html = await RenderViewAsync(scope.ServiceProvider, "/Views/Trip/Print.cshtml", model);
             var document = await new HtmlParser().ParseDocumentAsync(html);
             Assert.Contains("Estimated Distance: 2.14 km", NormalizeText(document.QuerySelector("#segments_all")!.TextContent));
-            Assert.Contains("Estimated Duration: 6 min", NormalizeText(document.QuerySelector("#segments_all")!.TextContent));
+            Assert.Contains($"Estimated Duration: {durationText}", NormalizeText(document.QuerySelector("#segments_all")!.TextContent));
 
             Assert.Contains("A A → B B → C C", NormalizeText(document.QuerySelector("#segments_all")?.TextContent ?? string.Empty));
             Assert.Equal(["A — Start — A", "B — Via 1 — B", "C — End — C"],

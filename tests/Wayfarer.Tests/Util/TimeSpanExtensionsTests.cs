@@ -35,7 +35,7 @@ public class TimeSpanExtensionsTests
     }
 
     [Fact]
-    public void FormatDuration_ReturnsZeroMinutes_WhenNull()
+    public void FormatDuration_PreservesUnavailableEstimate_WhenNull()
     {
         // Arrange
         TimeSpan? duration = null;
@@ -44,7 +44,7 @@ public class TimeSpanExtensionsTests
         var result = duration.FormatDuration();
 
         // Assert
-        Assert.Equal("0 min", result);
+        Assert.Null(result);
     }
 
     [Fact]
