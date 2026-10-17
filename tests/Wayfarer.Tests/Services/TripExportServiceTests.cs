@@ -459,8 +459,12 @@ public class TripExportServiceTests : TestBase
         trip.Regions = [region];
         trip.Segments = [new Segment
         {
-            Id = Guid.NewGuid(), TripId = trip.Id, UserId = user.Id,
-            FromPlaceId = from.Id, ToPlaceId = to.Id, Mode = "driving",
+            Id = Guid.NewGuid(),
+            TripId = trip.Id,
+            UserId = user.Id,
+            FromPlaceId = from.Id,
+            ToPlaceId = to.Id,
+            Mode = "driving",
             RouteGeometry = new LineString([from.Location!.Coordinate, to.Location!.Coordinate]) { SRID = 4326 }
         }];
         db.Users.Add(user);

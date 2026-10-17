@@ -67,10 +67,10 @@ namespace Wayfarer.Parsers
         }
 
         /// <summary>
-        /// My Maps exporter 
+        /// Exports My Maps KML with culture-independent, round-trip-safe Point and LineString coordinates.
         /// </summary>
-        /// <param name="tripId"></param>
-        /// <returns></returns>
+        /// <param name="tripId">The stored Trip to export.</param>
+        /// <returns>The complete Google My Maps KML document.</returns>
         public string GenerateGoogleMyMapsKml(Guid tripId)
         {
             var trip = _db.Trips
@@ -167,7 +167,7 @@ namespace Wayfarer.Parsers
                             /* geometry */
                             new XElement(k + "Point",
                                 new XElement(k + "coordinates",
-                                    $"{p.Location.X},{p.Location.Y},0")))
+                                    FormattableString.Invariant($"{p.Location.X:R},{p.Location.Y:R},0"))))
                     );
                 }
 
@@ -240,7 +240,7 @@ namespace Wayfarer.Parsers
                             new XElement(k + "tessellate", 1),
                             new XElement(k + "coordinates",
                                 string.Join(" ",
-                                    line.Coordinates.Select(c => $"{c.X},{c.Y},0")))))
+                                    line.Coordinates.Select(c => FormattableString.Invariant($"{c.X:R},{c.Y:R},0"))))))
                 );
             }
 

@@ -217,6 +217,9 @@ From your personal **Trips** list:
   distances and links. Follow generation progress and cancel if you no longer
   need it. Links to external searches or maps contact those services when opened.
 
+Google My Maps KML coordinates use decimal points regardless of the server's
+number-formatting locale, preserving their precision when moved between tools.
+
 For planning, routes and visits, see [Trips](trips.md). Downloading a Trip to
 [Mobile](mobile.md#download-trip-content) is a separate action from exporting a file.
 
