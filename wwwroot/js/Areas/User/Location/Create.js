@@ -116,7 +116,7 @@ document.addEventListener("DOMContentLoaded", function () {
     });
 
     // handler form submision and quill field
-    var form = document.querySelector('form');
+    var form = document.getElementById('notes').closest('form');
     form.addEventListener('submit', function () {
         var notes = document.getElementById('Notes');
         notes.value = notesHtmlForSave(quill.root.innerHTML); // Save HTML content of the editor

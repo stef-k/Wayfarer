@@ -131,6 +131,48 @@ public sealed class RichNotesTests
         Assert.Equal(0, await page.Locator("[onclick], [onerror], script").CountAsync());
         Assert.Null(await page.Locator("a").First.GetAttributeAsync("href"));
     }
+    /// <summary>Exercises the production client formatter in real DOM templates without an application host.</summary>
+    [Fact]
+    [Trait("Category", "RequiresPlaywright")]
+    public async Task BrowserNoteImagesTransformBeforeInsertionAndRestoreCanonicalHtml()
+    {
+        var root = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../.."));
+        using var playwright = await Playwright.CreateAsync();
+        await using var browser = await playwright.Chromium.LaunchAsync(new() { Headless = true });
+        var page = await browser.NewPageAsync();
+        var directRequests = 0;
+        await page.RouteAsync("https://images.example.test/**", route =>
+        {
+            Interlocked.Increment(ref directRequests);
+            return route.AbortAsync();
+        });
+        await page.RouteAsync("http://notes.test/**", async route =>
+        {
+            var script = new Uri(route.Request.Url).AbsolutePath == "/js/util/notes-images.js";
+            await route.FulfillAsync(new() { Body = script
+                ? await File.ReadAllTextAsync(Path.Combine(root, "wwwroot/js/util/notes-images.js")) : "<main></main>",
+                ContentType = script ? "text/javascript" : "text/html" });
+        });
+        await page.GotoAsync("http://notes.test/");
+        const string notes = "<img alt=\"Photo\" src=\"https://images.example.test/photo?a=1&amp;literal=&amp;amp;\"><img src=\"/local.png\"><img src=\"data:image/png;base64,AQI=\">";
+        var saved = await page.EvaluateAsync<string>("""
+            async html => {
+                const module = await import('/js/util/notes-images.js');
+                const display = module.notesHtmlForDisplay(html);
+                document.querySelector('main').innerHTML = module.notesHtmlForDisplay(display);
+                return module.notesHtmlForSave(document.querySelector('main').innerHTML);
+            }
+            """, notes);
+        await page.WaitForFunctionAsync("() => [...document.images].every(image => image.complete)");
+        Assert.Equal(notes, saved);
+        Assert.Equal("/Public/ProxyImage?url=" + Uri.EscapeDataString("https://images.example.test/photo?a=1&literal=&amp;"),
+            await page.Locator("img").Nth(0).GetAttributeAsync("src"));
+        Assert.Equal("Photo", await page.Locator("img").Nth(0).GetAttributeAsync("alt"));
+        Assert.Equal("/local.png", await page.Locator("img").Nth(1).GetAttributeAsync("src"));
+        Assert.Equal("data:image/png;base64,AQI=", await page.Locator("img").Nth(2).GetAttributeAsync("src"));
+        Assert.Equal(0, directRequests);
+    }
+
     /// <summary>Uses real DOM parsing to keep note-derived and Group description text inert in JS templates.</summary>
     [Fact]
     [Trait("Category", "RequiresPlaywright")]

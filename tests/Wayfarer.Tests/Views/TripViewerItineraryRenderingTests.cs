@@ -49,7 +49,11 @@ public sealed class TripViewerItineraryRenderingTests
             Assert.Single(trip.Segments).Notes = notes;
 
             var viewer = new HtmlParser().ParseDocument(await RenderViewerAsync(scope.ServiceProvider, trip));
-            foreach (var selector in new[] { ".trip-notes img", ".place-notes img", "#regions-accordion .rich-notes-content img", "#readable-modal-body .rich-notes-content img" })
+            foreach (var selector in new[] {
+                ".trip-notes img", ".place-notes img", ".accordion-body > .rich-notes-content img",
+                ".area-list-item .rich-notes-content img", ".segment-notes-preview img",
+                "#readable-modal-body .rich-notes-content img", ".segment-readable .rich-notes-content img"
+            })
             {
                 var images = viewer.QuerySelectorAll(selector);
                 Assert.NotEmpty(images);

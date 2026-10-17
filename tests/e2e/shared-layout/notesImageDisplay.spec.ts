@@ -27,9 +27,12 @@ test('notes images stay proxied before insertion while local maps and canonical 
     const api = `/api/trips/${tripId}/editor`;
     const state = await (await page.request.get(api)).json();
     const update = await page.request.patch(`${api}/metadata`, {
-        headers: { RequestVerificationToken: token }, data: { ...state.metadata, notesHtml: notes }
+        headers: { RequestVerificationToken: token }, data: {
+            name: state.metadata.name, notesHtml: notes, isPublic: state.metadata.isPublic,
+            coverImage: state.metadata.coverImage, center: state.metadata.center, zoom: state.metadata.zoom
+        }
     });
-    expect(update.ok()).toBeTruthy();
+    expect(update.ok(), `Metadata fixture returned ${update.status()}: ${await update.text()}`).toBeTruthy();
 
     await page.goto(`/Public/Trips/${tripId}`);
     await page.locator('[data-bs-target="#readableViewModal"]').click();
