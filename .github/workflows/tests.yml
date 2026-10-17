@@ -49,6 +49,24 @@ jobs:
     env:
       MvcFrontendKitEnabled: 'false'
 
+    # An empty image disables the native service when ordinary .NET evidence is unselected.
+    services:
+      postgres:
+        image: ${{ needs.classify.outputs.run_dotnet == 'true' && 'postgis/postgis:18-3.6@sha256:60f6ad1d21ea86a67d47780b9a0d1e1d200500f62b19293fa834d0dea80b8677' || '' }}
+        env:
+          POSTGRES_DB: wayfarer_import_tests
+          POSTGRES_USER: wayfarer_ci
+          # Disposable runner-only trust avoids passwords in container initialization logs.
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 127.0.0.1:5432:5432
+        # TCP readiness excludes the entrypoint's temporary socket-only initialization server.
+        options: >-
+          --health-cmd "pg_isready -h 127.0.0.1 -U wayfarer_ci -d wayfarer_import_tests"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
     steps:
       - uses: actions/checkout@v4
         with:
@@ -126,11 +144,18 @@ jobs:
         if: needs.classify.outputs.run_frontend == 'true'
         run: npm run smoke:trip-editor:assets:built
 
-      - name: Prepare native image helper toolchain
+      # The CLI recovery test uses host pg_dump/pg_restore; the runner's default major is older.
+      - name: Prepare ordinary test toolchains
         if: needs.classify.outputs.run_dotnet == 'true'
         run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl --fail --silent --show-error --location https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+            -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list
           sudo apt-get update
-          sudo apt-get install -y cmake nasm pkg-config
+          sudo apt-get install -y cmake nasm pkg-config postgresql-client-18
+          echo '/usr/lib/postgresql/18/bin' >> "$GITHUB_PATH"
           rustup toolchain install 1.90.0 --profile minimal --component rustfmt --component clippy
       - name: Validate locked image helper
         if: needs.classify.outputs.run_dotnet == 'true'
@@ -144,9 +169,95 @@ jobs:
         if: needs.classify.outputs.run_dotnet == 'true'
         run: dotnet build tests/Wayfarer.Tests/Wayfarer.Tests.csproj --configuration Release --no-restore
 
-      - name: Run ordinary tests
+      # Validate the actual service; fixtures still own migrations and disposable database cleanup.
+      - name: Verify ordinary PostgreSQL prerequisite
         if: needs.classify.outputs.run_dotnet == 'true'
-        run: dotnet test tests/Wayfarer.Tests/Wayfarer.Tests.csproj --configuration Release --no-build --verbosity normal --filter "Category!=RequiresSpatialite&Category!=RequiresPlaywright&Category!=RequiresRoot"
+        env:
+          POSTGRES_SERVICE_ID: ${{ job.services.postgres.id }}
+        run: |
+          [[ "$(pg_dump --version)" == 'pg_dump (PostgreSQL) 18.'* ]]
+          [[ "$(pg_restore --version)" == 'pg_restore (PostgreSQL) 18.'* ]]
+          pg_dump --version
+          pg_restore --version
+          test "$(docker inspect --format '{{.State.Health.Status}}' "$POSTGRES_SERVICE_ID")" = healthy
+          docker exec -i "$POSTGRES_SERVICE_ID" psql -X -v ON_ERROR_STOP=1 -U wayfarer_ci -d wayfarer_import_tests <<'SQL'
+          DO $$
+          BEGIN
+            IF current_database() <> 'wayfarer_import_tests' THEN
+              RAISE EXCEPTION 'Ordinary CI requires the guarded test database';
+            END IF;
+            IF current_setting('server_version_num')::integer / 10000 <> 18 THEN
+              RAISE EXCEPTION 'Ordinary CI requires PostgreSQL major 18';
+            END IF;
+            IF postgis_lib_version() NOT LIKE '3.6.%' THEN
+              RAISE EXCEPTION 'Ordinary CI requires PostGIS 3.6';
+            END IF;
+            IF NOT (SELECT rolsuper FROM pg_roles WHERE rolname = current_user) THEN
+              RAISE EXCEPTION 'Ordinary CI requires extension and disposable database privileges';
+            END IF;
+          END $$;
+          SELECT current_database() AS database, current_setting('server_version') AS postgresql,
+                 postgis_lib_version() AS postgis;
+          SQL
+
+      - name: Run ordinary tests
+        id: ordinary-tests
+        if: needs.classify.outputs.run_dotnet == 'true'
+        env:
+          WAYFARER_TEST_POSTGRES_CONNECTION: Host=127.0.0.1;Port=5432;Database=wayfarer_import_tests;Username=wayfarer_ci;Timeout=5
+        run: dotnet test tests/Wayfarer.Tests/Wayfarer.Tests.csproj --configuration Release --no-build --verbosity normal --filter "Category!=RequiresSpatialite&Category!=RequiresPlaywright&Category!=RequiresRoot" --logger "trx;LogFileName=ordinary.trx" --results-directory "${{ runner.temp }}/wayfarer-ordinary-results"
+
+      # Inspect skip reasons, including runtime guards and tests without a PostgresTests suffix.
+      - name: Verify ordinary PostgreSQL execution
+        if: always() && needs.classify.outputs.run_dotnet == 'true' && steps.ordinary-tests.outcome != 'skipped'
+        shell: python
+        run: |
+          from collections import Counter
+          import os
+          from pathlib import Path
+          import re
+          import xml.etree.ElementTree as ET
+
+          report = Path(os.environ['RUNNER_TEMP']) / 'wayfarer-ordinary-results/ordinary.trx'
+          root = ET.parse(report).getroot()
+          ns = {'t': 'http://microsoft.com/schemas/VisualStudio/TeamTest/2010'}
+          results = root.findall('t:Results/t:UnitTestResult', ns)
+          if not results:
+              raise SystemExit('Missing ordinary .NET test execution evidence')
+          print('Ordinary .NET outcomes:', dict(Counter(result.get('outcome') for result in results)))
+          postgres_skips = [result.get('testName') for result in results
+                            if result.get('outcome') == 'NotExecuted'
+                            and re.search(r'postgres|postgis|wayfarer_import_tests',
+                                          ' '.join(result.itertext()), re.IGNORECASE)]
+          if postgres_skips:
+              raise SystemExit('PostgreSQL prerequisite skips: ' + ', '.join(postgres_skips))
+          print('PASS: zero skips caused by PostgreSQL prerequisites')
+
+      - name: Verify ordinary PostgreSQL cleanup
+        if: always() && needs.classify.outputs.run_dotnet == 'true' && steps.ordinary-tests.outcome != 'skipped'
+        env:
+          POSTGRES_SERVICE_ID: ${{ job.services.postgres.id }}
+        run: |
+          docker exec -i "$POSTGRES_SERVICE_ID" psql -X -v ON_ERROR_STOP=1 -U wayfarer_ci -d wayfarer_import_tests <<'SQL'
+          DO $$
+          BEGIN
+            IF EXISTS (SELECT FROM pg_database WHERE starts_with(datname, 'wayfarer_migration_tests_')) THEN
+              RAISE EXCEPTION 'Migration fixture databases remain after ordinary tests';
+            END IF;
+            IF EXISTS (SELECT FROM "AspNetUsers" WHERE "Id" LIKE 'import-fixture-%') THEN
+              RAISE EXCEPTION 'Import fixture users remain after ordinary tests';
+            END IF;
+          END $$;
+          SELECT count(*) AS applied_migrations FROM "__EFMigrationsHistory";
+          SQL
+
+      - name: Retain ordinary test results
+        if: always() && needs.classify.outputs.run_dotnet == 'true' && steps.ordinary-tests.outcome != 'skipped'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ordinary-test-results
+          path: ${{ runner.temp }}/wayfarer-ordinary-results/ordinary.trx
+          if-no-files-found: error
 
       # File publication regressions exercise the actual root/consumer ownership contract in private temporary trees.
       - name: Run protected setup provisioning tests
