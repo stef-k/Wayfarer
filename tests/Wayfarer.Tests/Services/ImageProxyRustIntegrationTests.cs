@@ -3,7 +3,7 @@ using System.Buffers.Binary;
 using System.Net;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
-using SixLabors.ImageSharp;
+using ImageMagick;
 using Wayfarer.Models;
 using Wayfarer.Parsers;
 using Wayfarer.Services;
@@ -167,8 +167,9 @@ public sealed class ImageProxyRustIntegrationTests(ITestOutputHelper output) : I
                 if (!optimize) Assert.True(bytes.AsSpan().SequenceEqual(result.Bytes));
                 else
                 {
-                    using var image = Image.Load(result.Bytes!);
-                    Assert.Equal((1, 1), (image.Width, image.Height));
+                    using var frames = new MagickImageCollection(result.Bytes!);
+                    var image = Assert.Single(frames);
+                    Assert.Equal((1u, 1u), (image.Width, image.Height));
                     Assert.True(result.Bytes!.Length < 50 * 1024 * 1024);
                 }
             }
@@ -185,10 +186,7 @@ public sealed class ImageProxyRustIntegrationTests(ITestOutputHelper output) : I
     /// <summary>One real pixel plus an inert CRC-valid chunk exercises encoded size without decoded-memory pressure.</summary>
     private static byte[] PaddedPng(int length)
     {
-        using var image = new Image<SixLabors.ImageSharp.PixelFormats.Rgba32>(1, 1);
-        using var encoded = new MemoryStream();
-        image.SaveAsPng(encoded);
-        var source = encoded.ToArray();
+        var source = ImageProxyTestFactory.Fixture("empty-pixel.png");
         var bytes = new byte[length];
         const int offset = 33; // Signature and IHDR, before IDAT.
         source.AsSpan(0, offset).CopyTo(bytes);
@@ -227,11 +225,12 @@ public sealed class ImageProxyRustIntegrationTests(ITestOutputHelper output) : I
             var tasks = Enumerable.Range(start, Math.Min(4, count - start)).Select(async i => {
                 var result = await service.GetOrFetchAsync(new($"https://example.com/trip-{i}.image"), true);
                 Assert.Equal(ImageProxyResultStatus.Fetched, result.Status);
-                using var image = Image.Load(result.Bytes!);
-                Assert.InRange(image.Width, 1, 2048);
-                Assert.InRange(image.Height, 1, 2048);
-                Assert.Null(image.Metadata.ExifProfile);
-                Assert.Null(image.Metadata.XmpProfile);
+                using var frames = new MagickImageCollection(result.Bytes!);
+                var image = Assert.Single(frames);
+                Assert.InRange(image.Width, 1u, 2048u);
+                Assert.InRange(image.Height, 1u, 2048u);
+                Assert.Null(image.GetExifProfile());
+                Assert.Null(image.GetXmpProfile());
                 lock (clock) first ??= clock.Elapsed.TotalMilliseconds;
             });
             await Task.WhenAll(tasks);

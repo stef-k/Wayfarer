@@ -1,8 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
 using Wayfarer.Services;
 using Wayfarer.Parsers;
 
@@ -21,24 +19,15 @@ internal static class ImageProxyTestFactory
         return services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>();
     }
 
-    /// <summary>Encodes real pixels; magic bytes alone are not a valid image fixture.</summary>
-    internal static byte[] Raster(string format = "jpeg")
+    /// <summary>Reads fresh copies of the original valid and rejected-format 2x2 golden rasters.</summary>
+    internal static byte[] Raster(string format = "jpeg") => format switch
     {
-        using var image = new Image<Rgba32>(2, 2);
-        using var stream = new MemoryStream();
-        switch (format)
-        {
-            case "jpeg": image.SaveAsJpeg(stream); break;
-            case "png": image.SaveAsPng(stream); break;
-            case "gif": image.SaveAsGif(stream); break;
-            case "webp": image.SaveAsWebp(stream); break;
-            case "bmp": image.SaveAsBmp(stream); break;
-            case "tiff": image.SaveAsTiff(stream); break;
-            case "pbm": image.SaveAsPbm(stream); break;
-            case "tga": image.SaveAsTga(stream); break;
-            case "qoi": image.SaveAsQoi(stream); break;
-            default: throw new ArgumentException("Unknown fixture format.", nameof(format));
-        }
-        return stream.ToArray();
-    }
+        "jpeg" or "png" or "gif" or "webp" or "bmp" or "tiff" or "pbm" or "tga" or "qoi" =>
+            Fixture($"raster.{format}"),
+        _ => throw new ArgumentException("Unknown fixture format.", nameof(format))
+    };
+
+    /// <summary>Loads the documented test-only corpus copied beside the test assembly.</summary>
+    internal static byte[] Fixture(string name) =>
+        File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "Fixtures", "Imaging", name));
 }

@@ -1,0 +1,2 @@
+# Preserve the captured Netpbm image, including encoder-owned whitespace and line endings.
+tests/Wayfarer.Tests/Fixtures/Imaging/raster.pbm binary

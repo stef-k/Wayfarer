@@ -1,6 +1,5 @@
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.PixelFormats;
-using SixLabors.ImageSharp.Processing;
+using ImageMagick;
+using Wayfarer.Tests.Infrastructure;
 using Wayfarer.Util;
 using Xunit;
 
@@ -39,20 +38,15 @@ public sealed class ImageHelperSupervisorTests
     [InlineData(false)] [InlineData(true)]
     public async Task Resize_PreservesSrgbAndPremultipliedAlphaContracts(bool transparent)
     {
-        using var input = new Image<Rgba32>(128, 64);
-        for (var y = 0; y < input.Height; y++)
-            for (var x = 0; x < input.Width; x++)
-                input[x, y] = transparent
-                    ? (x % 2 == 0 ? new Rgba32(255, 0, 0, 255) : new Rgba32(0, 0, 255, 0))
-                    : (x % 2 == 0 ? new Rgba32(255, 255, 255, 255) : new Rgba32(0, 0, 0, 255));
-        using var encoded = new MemoryStream();
-        input.SaveAsPng(encoded);
-        var result = await Supervisor.TransformAsync(encoded.ToArray(),
+        var input = ImageProxyTestFactory.Fixture(transparent ? "stripes-alpha.png" : "stripes-opaque.png");
+        var result = await Supervisor.TransformAsync(input,
             new ImageTransform(Width: 16, Height: 8), TimeSpan.FromSeconds(30));
         Assert.Equal(ImageTransformStatus.Success, result.Status);
-        using var output = Image.Load<Rgba32>(result.Bytes!);
-        var center = output[8, 4];
-        Assert.Equal((16, 8), (output.Width, output.Height));
+        using var frames = new MagickImageCollection(result.Bytes!);
+        var output = Assert.Single(frames);
+        using var pixels = output.GetPixels();
+        var center = pixels.GetPixel(8, 4).ToColor()!;
+        Assert.Equal((16u, 8u), (output.Width, output.Height));
         Assert.InRange((int)center.R, transparent ? 254 : 126, transparent ? 255 : 130);
         Assert.InRange((int)center.G, transparent ? 0 : 126, transparent ? 1 : 130);
         Assert.InRange((int)center.B, transparent ? 0 : 126, transparent ? 1 : 130);
@@ -66,28 +60,29 @@ public sealed class ImageHelperSupervisorTests
     {
         var result = await TransformFixture("photo.jpg", new ImageTransform());
         Assert.Equal(ImageTransformStatus.Success, result.Status);
-        using var output = Image.Load(result.Bytes!);
-        Assert.Equal((1920, 863), (output.Width, output.Height));
+        using var frames = new MagickImageCollection(result.Bytes!);
+        var output = Assert.Single(frames);
+        Assert.Equal((1920u, 863u), (output.Width, output.Height));
         AssertReaped(result.ProcessId);
     }
 
     /// <summary>All accepted static formats produce independently decodable canonical output.</summary>
     [Theory]
-    [InlineData("photo.jpg", "JPEG")]
-    [InlineData("opaque.png", "PNG")]
-    [InlineData("photo.webp", "JPEG")]
-    [InlineData("photo.gif", "PNG")]
-    public async Task SupportedFormats_TransformActualImages(string fixture, string format)
+    [InlineData("photo.jpg", MagickFormat.Jpeg)]
+    [InlineData("opaque.png", MagickFormat.Png)]
+    [InlineData("photo.webp", MagickFormat.Jpeg)]
+    [InlineData("photo.gif", MagickFormat.Png)]
+    public async Task SupportedFormats_TransformActualImages(string fixture, MagickFormat format)
     {
         var result = await TransformFixture(fixture);
         Assert.Equal(ImageTransformStatus.Success, result.Status);
-        using var image = Image.Load(result.Bytes!);
-        Assert.Equal((600, 269), (image.Width, image.Height));
-        Assert.Equal(format, image.Metadata.DecodedImageFormat!.Name);
-        Assert.Single(image.Frames);
-        Assert.NotNull(image.Metadata.IccProfile);
-        Assert.Null(image.Metadata.ExifProfile);
-        Assert.Null(image.Metadata.XmpProfile);
+        using var frames = new MagickImageCollection(result.Bytes!);
+        var image = Assert.Single(frames);
+        Assert.Equal((600u, 269u), (image.Width, image.Height));
+        Assert.Equal(format, image.Format);
+        Assert.NotEmpty(image.GetColorProfile()!.ToByteArray());
+        Assert.Null(image.GetExifProfile());
+        Assert.Null(image.GetXmpProfile());
         AssertReaped(result.ProcessId);
     }
 
@@ -101,20 +96,22 @@ public sealed class ImageHelperSupervisorTests
         {
             var result = await TransformFixture($"orientation-{orientation}.{format}");
             Assert.Equal(ImageTransformStatus.Success, result.Status);
-            using var output = Image.Load(result.Bytes!);
-            Assert.Equal(orientation < 5 ? (64, 32) : (32, 64), (output.Width, output.Height));
-            Assert.Null(output.Metadata.ExifProfile);
+            using var frames = new MagickImageCollection(result.Bytes!);
+            var output = Assert.Single(frames);
+            Assert.Equal(orientation < 5 ? (64u, 32u) : (32u, 64u), (output.Width, output.Height));
+            Assert.Null(output.GetExifProfile());
             // The RGB8 fast path must preserve flips and rotations, not just swapped axes.
             if (format == "png")
             {
-                using var expected = Image.Load<Rgba32>(File.ReadAllBytes(
-                    Path.Combine(Fixtures, $"orientation-{orientation}.png")));
-                expected.Mutate(context => context.AutoOrient());
-                using var actual = Image.Load<Rgba32>(result.Bytes!);
-                Assert.Equal(expected[expected.Width / 4, expected.Height / 4],
-                    actual[actual.Width / 4, actual.Height / 4]);
-                Assert.Equal(expected[3 * expected.Width / 4, 3 * expected.Height / 4],
-                    actual[3 * actual.Width / 4, 3 * actual.Height / 4]);
+                using var expected = new MagickImage(Path.Combine(Fixtures, $"orientation-{orientation}.png"));
+                Assert.Equal((ushort)orientation, expected.GetExifProfile()!.GetValue(ExifTag.Orientation)!.Value);
+                expected.AutoOrient();
+                using var expectedPixels = expected.GetPixels();
+                using var actualPixels = output.GetPixels();
+                Assert.Equal(expectedPixels.GetPixel((int)expected.Width / 4, (int)expected.Height / 4).ToColor(),
+                    actualPixels.GetPixel((int)output.Width / 4, (int)output.Height / 4).ToColor());
+                Assert.Equal(expectedPixels.GetPixel(3 * (int)expected.Width / 4, 3 * (int)expected.Height / 4).ToColor(),
+                    actualPixels.GetPixel(3 * (int)output.Width / 4, 3 * (int)output.Height / 4).ToColor());
             }
         }
     }
@@ -124,9 +121,10 @@ public sealed class ImageHelperSupervisorTests
     public async Task Alpha_IsPreservedAndExplicitJpegRejects()
     {
         var result = await TransformFixture("alpha.png");
-        using var output = Image.Load<Rgba32>(result.Bytes!);
-        Assert.Contains(Enumerable.Range(0, output.Width * output.Height)
-            .Select(index => output[index % output.Width, index / output.Width].A), alpha => alpha < 255);
+        using var frames = new MagickImageCollection(result.Bytes!);
+        var output = Assert.Single(frames);
+        using var pixels = output.GetPixels();
+        Assert.Contains(pixels, pixel => pixel.ToColor()!.A < 255);
         var failed = await TransformFixture("alpha.png", new ImageTransform(OutputFormat: "jpeg"));
         Assert.Equal(ImageTransformStatus.Failed, failed.Status);
         Assert.Null(failed.Bytes);
@@ -183,13 +181,19 @@ public sealed class ImageHelperSupervisorTests
     [Fact]
     public async Task WebpMetadata_OrientsAndStripsPrivateProfiles()
     {
+        using var source = new MagickImage(Path.Combine(Fixtures, "icc-exif-xmp.webp"));
+        Assert.NotEmpty(source.GetColorProfile()!.ToByteArray());
+        Assert.NotNull(source.GetExifProfile());
+        Assert.NotNull(source.GetXmpProfile());
+        Assert.Equal(Orientation.RightTop, source.Orientation);
         var result = await TransformFixture("icc-exif-xmp.webp");
         Assert.Equal(ImageTransformStatus.Success, result.Status);
-        using var image = Image.Load(result.Bytes!);
-        Assert.Equal((32, 64), (image.Width, image.Height));
-        Assert.NotNull(image.Metadata.IccProfile);
-        Assert.Null(image.Metadata.ExifProfile);
-        Assert.Null(image.Metadata.XmpProfile);
+        using var frames = new MagickImageCollection(result.Bytes!);
+        var image = Assert.Single(frames);
+        Assert.Equal((32u, 64u), (image.Width, image.Height));
+        Assert.NotEmpty(image.GetColorProfile()!.ToByteArray());
+        Assert.Null(image.GetExifProfile());
+        Assert.Null(image.GetXmpProfile());
         AssertReaped(result.ProcessId);
     }
 
@@ -206,8 +210,10 @@ public sealed class ImageHelperSupervisorTests
     {
         var result = await TransformFixture(fixture);
         Assert.Equal(ImageTransformStatus.Success, result.Status);
-        using var image = Image.Load<Rgba32>(result.Bytes!);
-        var pixel = image[0, 0];
+        using var frames = new MagickImageCollection(result.Bytes!);
+        var image = Assert.Single(frames);
+        using var pixels = image.GetPixels();
+        var pixel = pixels.GetPixel(0, 0).ToColor()!;
         Assert.InRange((int)pixel.R, red - 2, red + 2);
         Assert.InRange((int)pixel.G, green - 2, green + 2);
         Assert.InRange((int)pixel.B, blue - 2, blue + 2);

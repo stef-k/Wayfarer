@@ -1,7 +1,5 @@
-using SixLabors.ImageSharp;
-using SixLabors.ImageSharp.Formats.Webp;
-using SixLabors.ImageSharp.PixelFormats;
 using System.Buffers.Binary;
+using Wayfarer.Tests.Infrastructure;
 using Wayfarer.Util;
 using Xunit;
 
@@ -19,7 +17,7 @@ public sealed class WebpFrameAuthorityTests
         Assert.Equal(DecodedImageResourceDecision.Accepted, result.Decision);
     }
 
-    /// <summary>One bounded ANMF continues through ImageSharp identification as permitted still input.</summary>
+    /// <summary>One bounded ANMF continues through early container preflight as permitted still input.</summary>
     [Fact]
     public void Preflight_AcceptsOneBoundedWebpAnimationFrame()
     {
@@ -104,21 +102,13 @@ public enum WebpMalformedMode
 /// <summary>Builds compact deterministic WebP containers and structural mutations.</summary>
 internal static class WebpContractFixture
 {
-    public static byte[] CreateStatic()
-    {
-        using var image = new Image<Rgba32>(1, 1, new Rgba32(10, 20, 30, 128));
-        using var output = new MemoryStream();
-        image.SaveAsWebp(output);
-        return output.ToArray();
-    }
+    /// <summary>Preserves the original independently encoded 1x1 still seed.</summary>
+    public static byte[] CreateStatic() => ImageProxyTestFactory.Fixture("pixel.webp");
 
+    /// <summary>Mutates the retained two-frame seed to preserve one/two ANMF authority cases.</summary>
     public static byte[] CreateAnimation(int frameCount)
     {
-        using var image = new Image<Rgba32>(1, 1, new Rgba32(10, 20, 30, 128));
-        image.Frames.AddFrame(image.Frames.RootFrame);
-        using var output = new MemoryStream();
-        image.Save(output, new WebpEncoder());
-        var bytes = output.ToArray();
+        var bytes = ImageProxyTestFactory.Fixture("animated.webp");
         return frameCount == 1 ? RemoveSecondFrame(bytes) : bytes;
     }
 

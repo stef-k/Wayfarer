@@ -1,0 +1,222 @@
+{
+  "sourceRevision": "c69c3219c45d96788d0078acc8b2b9c7f47105cf",
+  "encoder": "Historical ImageSharp 3.1.12 test recipes; captured once for #878",
+  "entries": [
+    {
+      "name": "raster.jpeg",
+      "sha256": "ece05dddc3e0a48dc3d653bfbcb0e81160def084387e9d6b637109061bd853ca",
+      "length": 615,
+      "width": 2,
+      "height": 2,
+      "frames": 1,
+      "recipe": "ImageProxyTestFactory.Raster: 2x2 RGBA(0,0,0,0)"
+    },
+    {
+      "name": "raster.png",
+      "sha256": "cc9deb62826e63792e246506dd098f09f7614c6394471ea1ad9ffd108e87fa1a",
+      "length": 91,
+      "width": 2,
+      "height": 2,
+      "frames": 1,
+      "recipe": "ImageProxyTestFactory.Raster: 2x2 RGBA(0,0,0,0)"
+    },
+    {
+      "name": "raster.gif",
+      "sha256": "09763fbb6e3792fe81932b6895edbabc338f7f6cafd4799c9adbe35aa34b1b89",
+      "length": 809,
+      "width": 2,
+      "height": 2,
+      "frames": 1,
+      "recipe": "ImageProxyTestFactory.Raster: 2x2 RGBA(0,0,0,0)"
+    },
+    {
+      "name": "raster.webp",
+      "sha256": "519f7d4757e5d30d2ea0caf5f58762fd234d428e9dcbc7438430f25638bcddd2",
+      "length": 86,
+      "width": 2,
+      "height": 2,
+      "frames": 1,
+      "recipe": "ImageProxyTestFactory.Raster: 2x2 RGBA(0,0,0,0)"
+    },
+    {
+      "name": "raster.bmp",
+      "sha256": "5eff83fefdaa478bee87964761b0fdf511440741c93c1eca4ace1bb9d155794c",
+      "length": 70,
+      "width": 2,
+      "height": 2,
+      "frames": 1,
+      "recipe": "ImageProxyTestFactory.Raster: 2x2 RGBA(0,0,0,0)"
+    },
+    {
+      "name": "raster.tiff",
+      "sha256": "e99c057ee8e00ddfb40133021d0038a08ac75cc1505db0635c1bb91f322c8f68",
+      "length": 228,
+      "width": 2,
+      "height": 2,
+      "frames": 1,
+      "recipe": "ImageProxyTestFactory.Raster: 2x2 RGBA(0,0,0,0)"
+    },
+    {
+      "name": "raster.pbm",
+      "sha256": "f695604d56985bc1fff4cf30a7308073b17aaf1da3ac01f541b7cd07ede84cc0",
+      "length": 20,
+      "width": 2,
+      "height": 2,
+      "frames": 1,
+      "recipe": "ImageProxyTestFactory.Raster: 2x2 RGBA(0,0,0,0)"
+    },
+    {
+      "name": "raster.tga",
+      "sha256": "60bb564478626dee42ae45956f9b090925f4428475d3420e570d485f12d6f71f",
+      "length": 26,
+      "width": 2,
+      "height": 2,
+      "frames": 1,
+      "recipe": "ImageProxyTestFactory.Raster: 2x2 RGBA(0,0,0,0)"
+    },
+    {
+      "name": "raster.qoi",
+      "sha256": "8698faaf82c3c36e85af6503984b35367786c36f12816ecb7a3c33b76cdd55f2",
+      "length": 24,
+      "width": 2,
+      "height": 2,
+      "frames": 1,
+      "recipe": "ImageProxyTestFactory.Raster: 2x2 RGBA(0,0,0,0)"
+    },
+    {
+      "name": "static.jpeg",
+      "sha256": "800c81a47fab5abc3d1c94f993863ff35c48314b81ad568a31b17303fdb43f6f",
+      "length": 616,
+      "width": 2,
+      "height": 1,
+      "frames": 1,
+      "recipe": "ImageProxyHelperOptimizationTests.CreateStaticImage: 2x1 RGBA(10,20,30,128)"
+    },
+    {
+      "name": "static.png",
+      "sha256": "76845e008e6e9566e5765c50754b5571c48f4d374146994460f667fbfa7ad7ab",
+      "length": 93,
+      "width": 2,
+      "height": 1,
+      "frames": 1,
+      "recipe": "ImageProxyHelperOptimizationTests.CreateStaticImage: 2x1 RGBA(10,20,30,128)"
+    },
+    {
+      "name": "static.gif",
+      "sha256": "81cc11f7ced9748b1d4ebd4c0f2236ce9c9f6b118bbe02ab204d368ffdeb1448",
+      "length": 808,
+      "width": 2,
+      "height": 1,
+      "frames": 1,
+      "recipe": "ImageProxyHelperOptimizationTests.CreateStaticImage: 2x1 RGBA(10,20,30,128)"
+    },
+    {
+      "name": "static.webp",
+      "sha256": "3d7ade7bdc5e953cf747b4468ba807b58be77f8b8d4b5b68a2b36f86c58ca548",
+      "length": 92,
+      "width": 2,
+      "height": 1,
+      "frames": 1,
+      "recipe": "ImageProxyHelperOptimizationTests.CreateStaticImage: 2x1 RGBA(10,20,30,128)"
+    },
+    {
+      "name": "animated.gif",
+      "sha256": "854f6eae63753576d9b75110ee7459b720a935cfbe22b4ef025f1e631e6a702d",
+      "length": 832,
+      "width": 1,
+      "height": 1,
+      "frames": 2,
+      "recipe": "CreateAnimation: two identical 1x1 RGBA(10,20,30,128) frames"
+    },
+    {
+      "name": "animated.webp",
+      "sha256": "1b22653abc6c86f54afadecd0a2ea54d6aba0186b25e0576490ba808d1150a25",
+      "length": 204,
+      "width": 1,
+      "height": 1,
+      "frames": 2,
+      "recipe": "CreateAnimation: two identical 1x1 RGBA(10,20,30,128) frames"
+    },
+    {
+      "name": "pixel.png",
+      "sha256": "dd80226d2e30625a307975fdf2473445ea7fc856eae20fa17303f571cda4c417",
+      "length": 91,
+      "width": 1,
+      "height": 1,
+      "frames": 1,
+      "recipe": "PngContractFixture/WebpContractFixture: 1x1 RGBA(10,20,30,128)"
+    },
+    {
+      "name": "pixel.webp",
+      "sha256": "86ab7d465bb3092d8b01c5d8c24a1c95e5a67ac3224de1d155f088d575ae3f9c",
+      "length": 90,
+      "width": 1,
+      "height": 1,
+      "frames": 1,
+      "recipe": "PngContractFixture/WebpContractFixture: 1x1 RGBA(10,20,30,128)"
+    },
+    {
+      "name": "pixel.gif",
+      "sha256": "5071a30b97b874c4da77b46d46614f9dd83161ddb2e54075b95f5a86f1fc45c0",
+      "length": 807,
+      "width": 1,
+      "height": 1,
+      "frames": 1,
+      "recipe": "PngContractFixture/WebpContractFixture: 1x1 RGBA(10,20,30,128)"
+    },
+    {
+      "name": "empty-pixel.png",
+      "sha256": "c578077141c51e225e4f693e034eb2ccba0ba2daa8ce91953e87e199f42c2c85",
+      "length": 89,
+      "width": 1,
+      "height": 1,
+      "frames": 1,
+      "recipe": "ImageProxyRustIntegrationTests.PaddedPng: 1x1 RGBA(0,0,0,0)"
+    },
+    {
+      "name": "resize.jpeg",
+      "sha256": "6ab6ff0cbea95bdc2452fddb901f4d12ef8612ae0bfd3a3ab656add176b6a03c",
+      "length": 1912,
+      "width": 400,
+      "height": 200,
+      "frames": 1,
+      "recipe": "ProportionalResize: 400x200 RGB(10,20,30)"
+    },
+    {
+      "name": "orientation.jpeg",
+      "sha256": "569ec0c9e35bd8b5d81b26610617a9aff080ca6f573f46ef38d2a072e47ecef6",
+      "length": 678,
+      "width": 2,
+      "height": 1,
+      "frames": 1,
+      "recipe": "PreservesOrientationAndMetadata: 2x1 RGB(10,20,30); EXIF orientation=6, Software=Wayfarer test"
+    },
+    {
+      "name": "quality.jpeg",
+      "sha256": "efe77d1d2624f0f12199c828319d14d2667568e85ea9fe7234f825cf36d6f2df",
+      "length": 920,
+      "width": 64,
+      "height": 64,
+      "frames": 1,
+      "recipe": "RequestedJpegQuality: 64x64 RGB(x*3,y*3,(x\u002By)*2)"
+    },
+    {
+      "name": "stripes-opaque.png",
+      "sha256": "ccb0fc70027b8f87510a9614b06ebb3871793a6766cfc6e8d0d53f1d73166c85",
+      "length": 261,
+      "width": 128,
+      "height": 64,
+      "frames": 1,
+      "recipe": "Resize_PreservesSrgbAndPremultipliedAlphaContracts: alternating opaque white / black columns"
+    },
+    {
+      "name": "stripes-alpha.png",
+      "sha256": "39f89a98b9630126f32d2601778385a9160feadd1b61aa759918ea1e459b17fe",
+      "length": 262,
+      "width": 128,
+      "height": 64,
+      "frames": 1,
+      "recipe": "Resize_PreservesSrgbAndPremultipliedAlphaContracts: alternating opaque red / hidden transparent blue columns"
+    }
+  ]
+}

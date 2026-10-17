@@ -1,6 +1,6 @@
 using System.Buffers.Binary;
 using System.IO.Compression;
-using SixLabors.ImageSharp;
+using ImageMagick;
 using Wayfarer.Util;
 using Xunit;
 
@@ -47,8 +47,9 @@ public sealed class ImageHelperPngCompletionTests
         Assert.Equal(accepted ? ImageTransformStatus.Success : ImageTransformStatus.Failed, result.Status);
         if (accepted)
         {
-            using var output = Image.Load(result.Bytes!);
-            Assert.Equal((1, 1), (output.Width, output.Height));
+            using var frames = new MagickImageCollection(result.Bytes!);
+            var output = Assert.Single(frames);
+            Assert.Equal((1u, 1u), (output.Width, output.Height));
         }
         else Assert.Null(result.Bytes);
         ImageHelperSupervisorTests.AssertReaped(result.ProcessId);
@@ -74,9 +75,10 @@ public sealed class ImageHelperPngCompletionTests
         var png = CreatePng(2, 1, 8, 2, 0, [Compress([0, 255, 0, 0, 0, 255, 0])], exif);
         var result = await ImageHelperSupervisorTests.Supervisor.TransformAsync(
             png, new ImageTransform(), TimeSpan.FromSeconds(30));
-        using var output = Image.Load(result.Bytes!);
-        Assert.Equal((1, 2), (output.Width, output.Height));
-        Assert.Null(output.Metadata.ExifProfile);
+        using var frames = new MagickImageCollection(result.Bytes!);
+        var output = Assert.Single(frames);
+        Assert.Equal((1u, 2u), (output.Width, output.Height));
+        Assert.Null(output.GetExifProfile());
     }
 
     /// <summary>Test construction uses the platform compressor, never a product codec implementation.</summary>
