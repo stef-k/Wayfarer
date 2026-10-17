@@ -20,8 +20,9 @@ namespace Wayfarer.Tests.Infrastructure;
 /// <summary>Real production Identity/MVC parts without database migrations, jobs or startup seeding.</summary>
 internal static class IdentityRouteHost
 {
+    /// <summary>Starts production MVC/Identity parts with optional service and pre-routing middleware setup.</summary>
     public static async Task<WebApplication> StartAsync(ApplicationDbContext db, string root,
-        Action<IServiceCollection>? configure = null)
+        Action<IServiceCollection>? configure = null, Action<WebApplication>? configureApp = null)
     {
         var assembly = typeof(ApplicationUser).Assembly;
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions
@@ -56,6 +57,7 @@ internal static class IdentityRouteHost
         // Routed mutation tests replace only external work at existing service seams.
         configure?.Invoke(builder.Services);
         var app = builder.Build();
+        configureApp?.Invoke(app);
         // Test transport supplies the socket peer; only production forwarding interprets XFF.
         app.Use(async (context, next) =>
         {

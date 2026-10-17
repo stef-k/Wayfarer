@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Xml.Linq;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -388,56 +389,6 @@ public class TripExportServiceTests : TestBase
     }
 
     [Fact]
-    public void GenerateGoogleMyMapsKml_IncludesPlacesWithCoordinates()
-    {
-        // Arrange
-        var db = CreateDbContext();
-        var user = TestDataFixtures.CreateUser();
-        var trip = TestDataFixtures.CreateTrip(user.Id, "Places Trip");
-        var region = new Region
-        {
-            Id = Guid.NewGuid(),
-            TripId = trip.Id,
-            UserId = user.Id,
-            Name = "Region 1",
-            DisplayOrder = 1,
-            Areas = new List<Area>()
-        };
-        var place = new Place
-        {
-            Id = Guid.NewGuid(),
-            RegionId = region.Id,
-            UserId = user.Id,
-            Name = "Central Park",
-            Notes = "A great park in NYC",
-            Location = new Point(-73.9654, 40.7829) { SRID = 4326 },
-            IconName = "park",
-            MarkerColor = "green",
-            DisplayOrder = 1
-        };
-        region.Places = new List<Place> { place };
-        trip.Regions = new List<Region> { region };
-        trip.Segments = new List<Segment>();
-        trip.Tags = new List<Tag>();
-
-        db.Users.Add(user);
-        db.Trips.Add(trip);
-        db.SaveChanges();
-
-        var service = CreateService(db);
-
-        // Act
-        var kml = service.GenerateGoogleMyMapsKml(trip.Id);
-
-        // Assert
-        Assert.Contains("<Placemark>", kml);
-        Assert.Contains("Central Park", kml);
-        Assert.Contains("A great park in NYC", kml);
-        Assert.Contains("<Point>", kml);
-        Assert.Contains("-73.9654,40.7829,0", kml);
-    }
-
-    [Fact]
     public void GenerateGoogleMyMapsKml_IncludesAreasAsPolygons()
     {
         // Arrange
@@ -491,82 +442,69 @@ public class TripExportServiceTests : TestBase
         Assert.Contains("<LinearRing>", kml);
     }
 
-    [Fact]
-    public void GenerateGoogleMyMapsKml_IncludesSegmentsAsLineStrings()
+    /// <summary>Point and line tuples retain longitude/latitude order and full precision in any request culture.</summary>
+    [Theory]
+    [InlineData("el-GR")]
+    [InlineData("")]
+    public void GenerateGoogleMyMapsKml_IncludesPlacesAndLinesWithInvariantCoordinates(string culture)
     {
-        // Arrange
-        var db = CreateDbContext();
+        using var db = CreateDbContext();
         var user = TestDataFixtures.CreateUser();
-        var trip = TestDataFixtures.CreateTrip(user.Id, "Segments Trip");
-        var region = new Region
+        var trip = TestDataFixtures.CreateTrip(user.Id, "Coordinates Trip");
+        var region = TestDataFixtures.CreateRegion(trip, "Region 1");
+        var from = TestDataFixtures.CreatePlace(region, "Start Point", 37.25, 23.25);
+        var to = TestDataFixtures.CreatePlace(region, "End Point", 37.123456789012344, -73.12345678901234, 1);
+        from.Notes = "A great park";
+        region.Places = [from, to];
+        trip.Regions = [region];
+        trip.Segments = [new Segment
         {
             Id = Guid.NewGuid(),
             TripId = trip.Id,
             UserId = user.Id,
-            Name = "Region 1",
-            DisplayOrder = 1,
-            Areas = new List<Area>()
-        };
-        var placeFrom = new Place
-        {
-            Id = Guid.NewGuid(),
-            RegionId = region.Id,
-            UserId = user.Id,
-            Name = "Start Point",
-            Location = new Point(-74.0060, 40.7128) { SRID = 4326 },
-            IconName = "marker",
-            MarkerColor = "red",
-            DisplayOrder = 1
-        };
-        var placeTo = new Place
-        {
-            Id = Guid.NewGuid(),
-            RegionId = region.Id,
-            UserId = user.Id,
-            Name = "End Point",
-            Location = new Point(-73.9855, 40.7580) { SRID = 4326 },
-            IconName = "marker",
-            MarkerColor = "red",
-            DisplayOrder = 2
-        };
-        region.Places = new List<Place> { placeFrom, placeTo };
-        placeFrom.Region = region;
-        placeTo.Region = region;
-
-        var segment = new Segment
-        {
-            Id = Guid.NewGuid(),
-            TripId = trip.Id,
-            UserId = user.Id,
-            FromPlaceId = placeFrom.Id,
-            ToPlaceId = placeTo.Id,
+            FromPlaceId = from.Id,
+            ToPlaceId = to.Id,
             Mode = "driving",
-            EstimatedDuration = TimeSpan.FromMinutes(30),
-            DisplayOrder = 1,
-            RouteGeometry = new LineString(new[]
-            {
-                new Coordinate(-74.0060, 40.7128),
-                new Coordinate(-73.9855, 40.7580)
-            }) { SRID = 4326 }
-        };
-
-        trip.Regions = new List<Region> { region };
-        trip.Segments = new List<Segment> { segment };
-        trip.Tags = new List<Tag>();
-
+            RouteGeometry = new LineString([from.Location!.Coordinate, to.Location!.Coordinate]) { SRID = 4326 }
+        }];
         db.Users.Add(user);
         db.Trips.Add(trip);
         db.SaveChanges();
-
         var service = CreateService(db);
 
-        // Act
-        var kml = service.GenerateGoogleMyMapsKml(trip.Id);
+        // CurrentCulture flows with the test execution context; always restore it, including on failure.
+        var previousCulture = CultureInfo.CurrentCulture;
+        string kml;
+        try
+        {
+            CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo(culture);
+            kml = service.GenerateGoogleMyMapsKml(trip.Id);
+        }
+        finally
+        {
+            CultureInfo.CurrentCulture = previousCulture;
+        }
 
-        // Assert
-        Assert.Contains("<LineString>", kml);
+        XNamespace ns = "http://www.opengis.net/kml/2.2";
+        var doc = XDocument.Parse(kml);
+        Assert.Equal(2, doc.Descendants(ns + "Point").Count());
+        Assert.Single(doc.Descendants(ns + "LineString"));
+        var tuples = doc.Descendants(ns + "coordinates")
+            .SelectMany(element => element.Value.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+            .Select(tuple =>
+            {
+                var components = tuple.Split(',');
+                Assert.Equal(3, components.Length);
+                return components.Select(value => double.Parse(value, NumberStyles.Float, CultureInfo.InvariantCulture)).ToArray();
+            }).ToArray();
+        Assert.Equal(4, tuples.Length);
+        Assert.Equal(new[] { from.Location.X, from.Location.Y, 0d }, tuples[0]);
+        Assert.Equal(new[] { to.Location.X, to.Location.Y, 0d }, tuples[1]);
+        Assert.Equal(tuples[0], tuples[2]);
+        Assert.Equal(tuples[1], tuples[3]);
         Assert.Contains("Start Point", kml);
         Assert.Contains("End Point", kml);
+        Assert.Contains("A great park", kml);
         Assert.Contains("driving", kml);
     }
 
