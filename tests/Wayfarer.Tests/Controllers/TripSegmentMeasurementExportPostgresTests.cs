@@ -36,10 +36,11 @@ public sealed class TripSegmentMeasurementExportPostgresTests(
 {
     /// <summary>Valid provider estimates survive persistence but violate the native exporter's different measurement policy.</summary>
     [PostgresTheory]
-    [InlineData(false, "Segment distance is not canonical.")]
-    [InlineData(true, "Segment duration must use whole seconds.")]
+    [InlineData(false, false, "Segment distance is not canonical.")]
+    [InlineData(true, true, "Segment duration must use whole seconds.")]
+    [InlineData(true, false, "Automatic duration is not canonical.")]
     public async Task ProviderSave_PersistsEstimatesRejectedByOwnerAndPublicNativeExport(
-        bool fractionalDuration, string expectedFailure)
+        bool canonicalDistance, bool fractionalDuration, string expectedFailure)
     {
         var support = new TripEditorSegmentMutationPostgresTestSupport(fixture);
         var seed = await support.SeedAsync(customRoute: false);
@@ -47,6 +48,11 @@ public sealed class TripSegmentMeasurementExportPostgresTests(
         var credentials = CredentialTestFactory.Create(protection);
         await using (var authority = fixture.CreateContext())
         {
+            // Keep the controlled provider estimates representative of a short urban journey.
+            var anchorIds = new[] { seed.FromId, seed.FirstWaypointId, seed.SecondWaypointId, seed.ToId };
+            var places = await authority.Places.Where(item => anchorIds.Contains(item.Id)).ToDictionaryAsync(item => item.Id);
+            for (var index = 0; index < anchorIds.Length; index++)
+                places[anchorIds[index]].Location = new Point(23.7 + index * 0.005, 37.9 + index * 0.005) { SRID = 4326 };
             var profile = PersonalLocationProviderProfile.Create(seed.UserId, PersonalLocationProvider.Geoapify);
             credentials.Replace(profile, "synthetic-test-credential");
             profile.SetAuthorization(PersonalProviderCapability.Routing, true);
@@ -69,7 +75,7 @@ public sealed class TripSegmentMeasurementExportPostgresTests(
             var original = await write.Segments.AsNoTracking().SingleAsync(item => item.Id == seed.SegmentId);
             var token = service.IssueAggregateToken(seed.UserId, seed.TripId, original);
             var generator = new ExternalRouteProposalGenerator(write, tokens,
-                new MeasurementRouteClient(fractionalDuration), new ProviderRouteGeometryValidator(), contexts,
+                new MeasurementRouteClient(canonicalDistance, fractionalDuration), new ProviderRouteGeometryValidator(), contexts,
                 new RoutingRequestBudget(), resolver);
             var generated = await generator.GenerateAsync(seed.UserId, seed.TripId, original.Id,
                 token, "drive", CancellationToken.None);
@@ -153,6 +159,37 @@ public sealed class TripSegmentMeasurementExportPostgresTests(
         Assert.Equal(MeasurementData(original), MeasurementData(reexported));
     }
 
+    /// <summary>Historical numeric/interval values remain unchanged on read and still reach both native rejection classes.</summary>
+    [PostgresTheory]
+    [InlineData(false, "Segment distance is not canonical.")]
+    [InlineData(true, "Segment duration must use whole seconds.")]
+    public async Task HistoricalMeasurements_AreRetainedAndRejectedWithoutAnApprovedCompatibilityPolicy(
+        bool fractionalDuration, string expectedFailure)
+    {
+        var support = new TripEditorSegmentMutationPostgresTestSupport(fixture);
+        var seed = await support.SeedAsync();
+        double distance;
+        var duration = fractionalDuration ? TimeSpan.FromMinutes(1.5125) : TimeSpan.FromMinutes(90);
+        await using (var write = fixture.CreateContext())
+        {
+            var segment = await write.Segments.SingleAsync(item => item.Id == seed.SegmentId);
+            distance = SegmentMeasurementCalculator.CalculateDistance(segment.RouteGeometry!.Coordinates).RoundedKilometres
+                + (fractionalDuration ? 0 : 0.010123);
+            segment.EstimatedDistanceKm = distance;
+            segment.EstimatedDuration = duration;
+            await write.SaveChangesAsync();
+        }
+
+        await using var read = fixture.CreateContext();
+        var stored = await read.Segments.AsNoTracking().SingleAsync(item => item.Id == seed.SegmentId);
+        Assert.Equal(distance, stored.EstimatedDistanceKm);
+        Assert.Equal(duration.Ticks, stored.EstimatedDuration!.Value.Ticks);
+        Assert.Null(stored.RouteProvider);
+        Assert.Equal(EstimatedDurationSource.Manual, stored.EstimatedDurationSource);
+        Assert.Equal(expectedFailure, Assert.Throws<InvalidOperationException>(() => Exporter(read).GenerateWayfarerKml(seed.TripId)).Message);
+        output.WriteLine($"historical storedKm={distance:R}; storedTicks={duration.Ticks}; outcome={expectedFailure}");
+    }
+
     /// <summary>Uses production Identity, MVC routing and the established safe server-error page.</summary>
     private Task<Microsoft.AspNetCore.Builder.WebApplication> StartHostAsync(ApplicationDbContext db) =>
         IdentityRouteHost.StartAsync(db, CreateTestDirectory(), services =>
@@ -217,7 +254,7 @@ public sealed class TripSegmentMeasurementExportPostgresTests(
         .Select(item => item.Value).ToArray();
 
     /// <summary>Controls only the external HTTP boundary; geometry validation and proposal acceptance remain real.</summary>
-    private sealed class MeasurementRouteClient(bool fractionalDuration) : IProviderRouteClient
+    private sealed class MeasurementRouteClient(bool canonicalDistance, bool fractionalDuration) : IProviderRouteClient
     {
         public Task<ProviderRouteResult> RouteAsync(ResolvedRoutingProviderExecution execution,
             IReadOnlyList<RouteCoordinate> anchors, Func<CancellationToken, Task<bool>> validateAuthority,
@@ -226,7 +263,7 @@ public sealed class TripSegmentMeasurementExportPostgresTests(
             var distance = SegmentMeasurementCalculator.CalculateDistance(
                 anchors.Select(item => new Coordinate(item.Longitude, item.Latitude)).ToArray());
             return Task.FromResult(new ProviderRouteResult(true, anchors, anchors, null,
-                (distance.RoundedKilometres + (fractionalDuration ? 0 : 0.010123)) * 1000d,
+                (distance.RoundedKilometres + (canonicalDistance ? 0 : 0.010123)) * 1000d,
                 fractionalDuration ? 360.25 : 360, [], Enumerable.Range(0, anchors.Count).ToArray()));
         }
     }
