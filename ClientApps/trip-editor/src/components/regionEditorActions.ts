@@ -1,11 +1,21 @@
-import { createRegion, deleteRegion, EditorLifecycleConfirmationError, orderRegions, updateRegion } from '../api/tripEditorApi';
+import { onUnmounted } from 'vue';
+import { createRegion, orderRegions, updateRegion } from '../api/tripEditorApi';
 import type { EditorMutationResult, EditorRegion, EditorRegionSaveRequest, Guid } from '../types';
+import { createRegionDeletionController, heldRegionDeletionKey } from './regionDeletionState';
 import { confirm } from '../composables/useConfirmDialog';
 import { buildRegionCreateTarget, buildRegionEditTarget } from './regionPlaceEditorTargets';
 import { buildRegionRequest, emptyAreaDraft, emptyPlaceDraft, emptyRegionDraft, toRegionDraft } from './regionPlaceDrafts';
 
 /// Coordinates region-specific editor actions while RegionManager owns shared draft state.
 export function useRegionEditorActions(context: any) {
+  let editorAlive = true;
+  onUnmounted(() => { editorAlive = false; });
+  /// Unknown earlier Region effects fence conflicting metadata/reorder/deletion actions in this Trip.
+  const held = (): boolean => {
+    const mount = document.getElementById('trip-editor-app');
+    if (!mount?.dataset.accountId || !mount.dataset.tripId) return true;
+    return Boolean(localStorage.getItem(heldRegionDeletionKey(location.origin, mount.dataset.accountId, mount.dataset.tripId)));
+  };
   const openCreate = async (): Promise<void> => {
     const target = buildRegionCreateTarget();
     const isAlreadyActive = context.props.editorSurface.isTargetActive(target);
@@ -54,6 +64,7 @@ export function useRegionEditorActions(context: any) {
   };
 
   const saveDraft = async (): Promise<void> => {
+    if (held()) { context.applyError(new Error('An earlier Region deletion has an unresolved outcome. Reconcile it before changing Regions.'), 'Region operation held.'); return; }
     context.isSaving.value = true;
     context.resetFeedback();
 
@@ -79,50 +90,34 @@ export function useRegionEditorActions(context: any) {
       return;
     }
 
-    if (!(await context.confirmDiscard('Discard unsaved region or place draft changes before deleting?'))) {
-      return;
-    }
-
-    context.isSaving.value = true;
-    context.resetFeedback();
-    try {
-      const deletedTarget = context.activeRegionTarget.value;
-      let confirmationToken: string | undefined;
-      let result: Awaited<ReturnType<typeof deleteRegion>> | undefined;
-      for (let attempt = 0; attempt < 3 && !result; attempt += 1) {
-        try {
-          result = await deleteRegion(context.props.editorEndpoint, context.activeRegion.value.id, context.props.antiforgeryToken, confirmationToken);
-        } catch (error) {
-          if (!(error instanceof EditorLifecycleConfirmationError)) throw error;
-          const warning = error.conflict;
-          // The dependency request is complete while the user decides, so its trigger can receive restored focus.
-          context.isSaving.value = false;
-          const confirmed = await confirm({
-            title: warning.code === 'lifecycle-confirmation-stale' ? 'Dependencies changed' : 'Delete region?',
-            message: `This deletes ${warning.deletedPlaces.count} place(s), ${warning.deletedAreas.count} area(s), ${warning.endpointSegments.count} connected segment(s), and updates ${warning.waypointOnlySegments.count} waypoint route(s).`,
-            confirmLabel: 'Delete',
-            cancelLabel: 'Keep region',
-            variant: 'danger'
-          });
-          if (!confirmed) return;
-          context.isSaving.value = true;
-          confirmationToken = warning.confirmationToken;
-        }
+    const region = context.activeRegion.value;
+    const deletedTarget = context.activeRegionTarget.value;
+    const mount = document.getElementById('trip-editor-app');
+    const account = mount?.dataset.accountId;
+    if (!account) { context.applyError(new Error('Reload the editor to verify your account.'), 'Account unavailable.'); return; }
+    const scopeKey = heldRegionDeletionKey(location.origin, account, region.tripId);
+    const controller = createRegionDeletionController({
+      sourceId: region.id, tripId: region.tripId, endpoint: context.props.editorEndpoint,
+      antiforgeryToken: context.props.antiforgeryToken, storage: localStorage, scopeKey, fetch: window.fetch.bind(window),
+      isCurrent: () => editorAlive && document.getElementById('trip-editor-app') === mount && mount?.dataset.accountId === account && mount?.dataset.tripId === region.tripId,
+      onSuccess: result => {
+        context.emit('mutationApplied', result as EditorMutationResult<unknown>);
+        // Only the deleted Region's own draft is cleared, after authoritative slices have been applied.
+        Object.assign(context.draft, emptyRegionDraft());
+        context.regionCreateBaselineRequest.value = null;
+        context.props.editorSurface.clearActiveTarget(deletedTarget);
+        context.markSaved();
       }
-      if (!result) throw new Error('Region dependencies changed repeatedly. Please retry.');
-      context.emit('mutationApplied', result as EditorMutationResult<unknown>);
-      context.clearAllDraftsAndBaselines();
-      context.props.editorSurface.clearActiveTarget(deletedTarget);
-      context.markSaved();
-    } catch (error) {
-      context.applyError(error, 'Region delete failed.');
-    } finally {
-      context.isSaving.value = false;
-    }
+    });
+    const settled = confirm({ title: `Delete Region ‘${region.name}’?`,
+      message: 'The Region and its name, notes, cover and map center will be lost. Choose independently what happens to Places and Areas.',
+      cancelLabel: 'Cancel', variant: 'danger', regionDeletion: controller });
+    void controller.refresh();
+    await settled;
   };
 
   const reorderRegions = async (ids: Guid[], previousIds: Guid[]): Promise<void> => {
-    if (context.isOrdering.value) {
+    if (context.isOrdering.value || held()) {
       await context.restoreRegionOrder(previousIds);
       return;
     }

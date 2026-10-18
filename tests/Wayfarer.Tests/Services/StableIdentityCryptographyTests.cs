@@ -152,6 +152,7 @@ public sealed class StableIdentityCryptographyTests
             "Wayfarer.ExternalRouting.ProposalContext.v1",
             "Wayfarer.LocationProviders.PersonalCredentials.v1",
             "Wayfarer.PlaceRegionLifecycle.DependencyConfirmation.v1",
+            "Wayfarer.RegionDeletion.Content.v1",
             "Wayfarer.TripEditor.SegmentAggregate.v1",
             "Wayfarer.TripEditor.SegmentRouteClear.v1"
         }, purposes);

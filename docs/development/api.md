@@ -564,3 +564,6 @@ Location/group streams carry typed JSON events such as location updates/deletion
 - Reuse a GUID `Idempotency-Key` only for retries of the same location-ingestion operation.
 - Treat SSE as a presentation signal over durable HTTP/database state.
 - Do not log bearer tokens, provider credentials or private request payloads while diagnosing failures.
+
+See [Four-way Region deletion](region-deletion.md) for the additive cookie/bearer
+preview and confirmed-operation contracts, including unknown outcomes.

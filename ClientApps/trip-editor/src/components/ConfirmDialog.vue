@@ -1,12 +1,25 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue';
+import { computed, nextTick, onUnmounted, ref, watch } from 'vue';
 import { confirmDialogState, settleConfirmDialog } from '../composables/useConfirmDialog';
 
+import RegionDeletionHoldNotice from './RegionDeletionHoldNotice.vue';
+import RegionDeletionChoices from './RegionDeletionChoices.vue';
+import { regionDeletionLabel } from './regionDeletionState';
+
+const inertBackground = new Map<HTMLElement, boolean>();
+/// Reuses the confirmation host's focus trap while making the Region dialog background inert.
+const restoreBackground = (): void => { inertBackground.forEach((value, element) => { element.inert = value; }); inertBackground.clear(); };
+onUnmounted(restoreBackground);
 const dialogElement = ref<HTMLElement | null>(null);
 const confirmButton = ref<HTMLButtonElement | null>(null);
 const cancelButton = ref<HTMLButtonElement | null>(null);
 
 const dialog = computed(() => confirmDialogState.value);
+/// A renewed preview supplies the current label if another writer renamed the selected Region.
+const displayedTitle = computed(() => {
+  const preview = dialog.value?.regionDeletion?.state.preview;
+  return preview ? `Delete Region ‘${preview.sourceRegionName}’?` : dialog.value?.title;
+});
 const titleId = computed(() => (dialog.value ? `trip-editor-confirm-title-${dialog.value.id}` : undefined));
 const bodyId = computed(() => (dialog.value ? `trip-editor-confirm-body-${dialog.value.id}` : undefined));
 const confirmClass = computed(() => {
@@ -25,21 +38,31 @@ const variantClass = computed(() => (dialog.value ? `trip-editor-confirm-dialog-
 watch(
   () => dialog.value?.id,
   async id => {
+    restoreBackground();
     if (!id) {
       return;
     }
 
     await nextTick();
+    if (dialog.value?.regionDeletion) {
+      const overlay = dialogElement.value?.closest('.trip-editor-confirm');
+      for (const element of Array.from(document.body.children)) {
+        if (element instanceof HTMLElement && element !== overlay) { inertBackground.set(element, element.inert); element.inert = true; }
+      }
+    }
     const initialButton = dialog.value?.variant === 'default' ? confirmButton.value : cancelButton.value;
     initialButton?.focus();
   }
 );
 
 const cancel = (): void => {
+  if (dialog.value?.regionDeletion?.state.submitting) return;
   settleConfirmDialog(false);
 };
 
-const confirmChoice = (): void => {
+const confirmChoice = async (): Promise<void> => {
+  const controller = dialog.value?.regionDeletion;
+  if (controller && !(await controller.submit())) return;
   settleConfirmDialog(true);
 };
 
@@ -91,13 +114,14 @@ function getFocusableElements(): HTMLElement[] {
 </script>
 
 <template>
+  <RegionDeletionHoldNotice />
   <Teleport to="body">
     <div v-if="dialog" class="trip-editor-confirm">
       <div class="modal-backdrop fade show trip-editor-confirm__backdrop" aria-hidden="true"></div>
       <div class="modal fade show trip-editor-confirm__modal" tabindex="-1" @keydown="onDialogKeydown">
         <div
           ref="dialogElement"
-          class="modal-dialog modal-dialog-centered trip-editor-confirm-dialog"
+          class="modal-dialog modal-dialog-centered modal-dialog-scrollable trip-editor-confirm-dialog"
           :class="variantClass"
           role="dialog"
           aria-modal="true"
@@ -106,14 +130,15 @@ function getFocusableElements(): HTMLElement[] {
         >
           <div class="modal-content trip-editor-confirm-dialog__content">
             <div class="modal-header trip-editor-confirm-dialog__header">
-              <h2 :id="titleId" class="modal-title trip-editor-confirm-dialog__title">{{ dialog.title }}</h2>
+              <h2 :id="titleId" class="modal-title trip-editor-confirm-dialog__title">{{ displayedTitle }}</h2>
             </div>
             <div :id="bodyId" class="modal-body trip-editor-confirm-dialog__body">
               <p>{{ dialog.message }}</p>
+              <RegionDeletionChoices v-if="dialog.regionDeletion" :controller="dialog.regionDeletion" />
             </div>
             <div class="modal-footer trip-editor-confirm-dialog__footer">
-              <button ref="cancelButton" type="button" class="btn btn-secondary" @click="cancel">{{ dialog.cancelLabel }}</button>
-              <button ref="confirmButton" type="button" class="btn" :class="confirmClass" @click="confirmChoice">{{ dialog.confirmLabel }}</button>
+              <button ref="cancelButton" type="button" class="btn btn-secondary" :disabled="dialog.regionDeletion?.state.submitting" @click="cancel">{{ dialog.cancelLabel }}</button>
+              <button ref="confirmButton" type="button" class="btn" :class="confirmClass" :disabled="Boolean(dialog.regionDeletion && (!dialog.regionDeletion.state.preview || dialog.regionDeletion.state.loading || dialog.regionDeletion.state.submitting || dialog.regionDeletion.state.held))" @click="confirmChoice">{{ dialog.regionDeletion ? regionDeletionLabel(dialog.regionDeletion.state) : dialog.confirmLabel }}</button>
             </div>
           </div>
         </div>

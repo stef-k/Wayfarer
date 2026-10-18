@@ -77,11 +77,13 @@ test.describe.serial('Trip Editor #406 real lifecycle contracts', () => {
     const card = regionCard(page, target.id);
     await card.locator('.trip-editor-region-card__header').getByRole('button', { name: 'Edit' }).click();
     await page.getByRole('button', { name: 'Delete', exact: true }).click();
-    const dialog = page.getByRole('dialog', { name: 'Delete region?' });
-    await expect(dialog).toHaveAccessibleDescription(
-      `This deletes ${target.deletedPlaces} place(s), ${target.deletedAreas} area(s), ${target.endpointSegments} connected segment(s), and updates ${target.waypointOnlySegments} waypoint route(s).`
-    );
-    await dialog.getByRole('button', { name: 'Delete', exact: true }).click();
+    const dialog = page.getByRole('dialog', { name: `Delete Region ‘${target.name}’?` });
+    await dialog.getByRole('group', { name: /^places /i }).getByRole('radio', { name: /Delete permanently/ }).check();
+    await dialog.getByRole('group', { name: /^areas /i }).getByRole('radio', { name: /Delete permanently/ }).check();
+    await expect(dialog).toContainText(`Places: 0 kept, ${target.deletedPlaces} deleted.`);
+    await expect(dialog).toContainText(`Areas: 0 kept, ${target.deletedAreas} deleted.`);
+    await expect(dialog).toContainText(`Segments deleted: ${target.endpointSegments}.`);
+    await dialog.getByRole('button', { name: 'Delete Region, Places and Areas', exact: true }).click();
     await expect(card).toHaveCount(0);
     await expect(segmentRow(page, fixture.segmentIds[3])).toHaveCount(0);
     await expect(segmentRow(page, fixture.segmentIds[4])).toBeVisible();
@@ -330,10 +332,11 @@ async function assertPhoneRegionWarning(page: Page, target: LifecycleFixture['ph
   const card = regionCard(page, target.id);
   await card.locator('.trip-editor-region-card__header').getByRole('button', { name: 'Edit' }).click();
   await page.getByRole('button', { name: 'Delete', exact: true }).click();
-  const dialog = page.getByRole('dialog', { name: 'Delete region?' });
+  const dialog = page.getByRole('dialog', { name: `Delete Region ‘${target.name}’?` });
   await assertContainedDialog(dialog, viewport);
-  await expect(dialog).toContainText(`${target.deletedPlaces} place(s), ${target.deletedAreas} area(s)`);
-  await dialog.getByRole('button', { name: 'Keep region' }).click();
+  await expect(dialog).toContainText(`Places: ${target.deletedPlaces} kept, 0 deleted.`);
+  await expect(dialog).toContainText(`Areas: ${target.deletedAreas} kept, 0 deleted.`);
+  await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
   await expect(page.locator('.trip-editor-workspace')).toBeFocused();
 }
 
@@ -388,7 +391,8 @@ async function assertContainedDialog(dialog: Locator, viewport: { width: number;
   expect(box!.x + box!.width).toBeLessThanOrEqual(viewport.width);
   expect(box!.y).toBeGreaterThanOrEqual(0);
   expect(box!.y + box!.height).toBeLessThanOrEqual(viewport.height);
-  for (const button of [dialog.getByRole('button').first(), dialog.getByRole('button').last()]) {
+  const actions = dialog.locator('.trip-editor-confirm-dialog__footer').getByRole('button');
+  for (const button of [actions.first(), actions.last()]) {
     await expect(button).toBeVisible();
     const buttonBox = await button.boundingBox();
     expect(buttonBox!.height).toBeGreaterThanOrEqual(38);

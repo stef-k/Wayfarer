@@ -460,7 +460,7 @@ function moveAreaByKeyboard(regionId: Guid, areaId: Guid, offset: number): void 
               :data-area-id="area.id"
             >
               <button
-                v-if="!region.isShadow"
+                v-if="props.state.permissions.canEditAreas"
                 type="button"
                 class="trip-editor-icon-button trip-editor-area-drag-handle"
                 title="Drag to reorder area"

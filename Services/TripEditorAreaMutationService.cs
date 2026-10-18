@@ -165,7 +165,7 @@ public sealed class TripEditorAreaMutationService
     }
 
     /// <summary>
-    /// Persists the complete desired order for areas inside one normal region.
+    /// Persists the complete desired order for existing owned Areas, including Unassigned Places.
     /// </summary>
     public async Task<EditorRegionMutationOutcome<EditorMutationResult<EditorAreaOrderResult>>> OrderAreasAsync(
         Guid tripId,
@@ -184,11 +184,6 @@ public sealed class TripEditorAreaMutationService
         if (region == null)
         {
             return EditorRegionMutationOutcome<EditorMutationResult<EditorAreaOrderResult>>.NotFound();
-        }
-
-        if (IsShadowRegion(region))
-        {
-            return EditorRegionMutationOutcome<EditorMutationResult<EditorAreaOrderResult>>.Forbidden("Areas in the shadow region cannot be reordered.");
         }
 
         var request = await ParseJsonBodyAsync(requestBody, "Area order request must be valid JSON.", cancellationToken);

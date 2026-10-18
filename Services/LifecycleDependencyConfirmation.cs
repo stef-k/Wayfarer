@@ -12,13 +12,18 @@ public sealed class LifecycleDependencyConfirmation
     private const string ContractVersion = "LIFE-1";
     private static readonly TimeSpan Lifetime = TimeSpan.FromMinutes(10);
     private readonly IDataProtector _protector;
+    private readonly IDataProtector _regionDeletionProtector;
     private readonly TimeProvider _timeProvider;
+    /// <summary>Uses the application protector for fresh affected Segment aggregate tokens.</summary>
+    internal SegmentAggregateTokenService RegionDeletionAggregateTokens { get; }
 
     /// <summary>Initializes lifecycle confirmation with application data protection and time authority.</summary>
     public LifecycleDependencyConfirmation(IDataProtectionProvider provider, TimeProvider? timeProvider = null)
     {
         _protector = provider.CreateProtector("Wayfarer.PlaceRegionLifecycle.DependencyConfirmation.v1");
+        _regionDeletionProtector = provider.CreateProtector("Wayfarer.RegionDeletion.Content.v1");
         _timeProvider = timeProvider ?? TimeProvider.System;
+        RegionDeletionAggregateTokens = new(provider);
     }
 
     /// <summary>Creates a bounded warning and token bound to the exact dependency identities.</summary>
@@ -78,6 +83,33 @@ public sealed class LifecycleDependencyConfirmation
         }
     }
 
+    /// <summary>Protects complete content approval under a purpose that legacy DELETE cannot consume.</summary>
+    internal RegionDeletionConfirmationDto IssueRegionDeletion(string userId, Guid tripId, Guid sourceId,
+        string places, string areas, RegionDeletionDestinationDto destination, string fingerprint)
+    {
+        var expires = _timeProvider.GetUtcNow().Add(Lifetime);
+        var payload = new RegionDeletionApproval(userId, tripId, sourceId, places, areas, destination,
+            fingerprint, expires);
+        return new(_regionDeletionProtector.Protect(JsonSerializer.Serialize(payload)), expires);
+    }
+
+    /// <summary>Authenticates the token separately from expiry/content checks so malformed input is a 400.</summary>
+    internal RegionDeletionApproval ReadRegionDeletion(string token)
+    {
+        try
+        {
+            return JsonSerializer.Deserialize<RegionDeletionApproval>(_regionDeletionProtector.Unprotect(token))
+                ?? throw new JsonException();
+        }
+        catch (Exception exception) when (exception is CryptographicException or JsonException)
+        {
+            throw new RegionDeletionRejectedException(400, "region-deletion-request-invalid", "Confirmation is invalid. Request a new preview.");
+        }
+    }
+
+    /// <summary>Checks time with the same authority used to issue the confirmation.</summary>
+    internal bool IsRegionDeletionExpired(RegionDeletionApproval approval) => approval.ExpiresAt <= _timeProvider.GetUtcNow();
+
     private static EditorLifecycleDependencySampleDto Sample(IEnumerable<Guid> identities)
     {
         var ordered = identities.Distinct().Order().ToArray();
@@ -136,3 +168,7 @@ public sealed record LifecycleDependencies(
     private static string Ordered(string category, IEnumerable<Guid> ids) =>
         string.Join(',', ids.Distinct().Order().Select(id => $"{category}:{id:N}"));
 }
+
+/// <summary>Protected operation/version-scoped approval; only a hash of authored content leaves the server.</summary>
+internal sealed record RegionDeletionApproval(string UserId, Guid TripId, Guid SourceId, string Places, string Areas,
+    RegionDeletionDestinationDto Destination, string Fingerprint, DateTimeOffset ExpiresAt);

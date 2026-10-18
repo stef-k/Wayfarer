@@ -92,7 +92,7 @@ public sealed class TripEditorAreaControllerTests : TestBase
     }
 
     [Fact]
-    public async Task ShadowRegionRejectsCreateAndOrderWithForbidden()
+    public async Task ShadowRegionRejectsCreateButAllowsExistingAreaOrder()
     {
         using var db = CreateDbContext();
         var trip = SeedTripGraph(db, "owner-user");
@@ -104,7 +104,7 @@ public sealed class TripEditorAreaControllerTests : TestBase
         var order = await SendJson(controller, c => c.OrderAreas(trip.Id, shadow.Id, CancellationToken.None), """{ "areaIds": [] }""");
 
         Assert.Equal(StatusCodes.Status403Forbidden, Assert.IsType<ObjectResult>(create).StatusCode);
-        Assert.Equal(StatusCodes.Status403Forbidden, Assert.IsType<ObjectResult>(order).StatusCode);
+        Assert.IsType<OkObjectResult>(order);
     }
 
     [Theory]
