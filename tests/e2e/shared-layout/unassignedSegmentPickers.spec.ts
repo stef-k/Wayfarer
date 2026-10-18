@@ -61,7 +61,7 @@ test('Unassigned Segment pickers persist endpoints and waypoints after Region pr
   await expect(form.getByLabel(/Intermediate place 1:/).locator(':checked')).toBeEnabled();
   await expect(form.getByLabel('From place').locator('optgroup[label="Unassigned Places"]')).toHaveCount(1);
   await expect(form.getByLabel('To place').locator('optgroup[label="Unassigned Places"]')).toHaveCount(1);
-  await page.screenshot({ path: process.env.SEGMENT_PICKER_SCREENSHOT || testInfo.outputPath('unassigned-segment-pickers.png') });
+  await page.screenshot({ path: testInfo.outputPath('unassigned-segment-pickers.png') });
 
   // An ordinary metadata save retains custom geometry, anchor indices and manual measurements.
   await form.locator('.ql-editor').fill('Edited preserved route');
@@ -106,7 +106,7 @@ test('Unassigned Segment pickers persist endpoints and waypoints after Region pr
   await expect(protectedCard.getByRole('button', { name: 'Add Area', exact: true })).toHaveCount(0);
   const denied = await page.request.post(`${endpoint}/regions/${canonical.id}/areas`, { headers,
     data: { name: 'Forbidden Area', notesHtml: null, fillHex: '#123456', geometry: { type: 'Polygon', coordinates: [[[23,38],[24,38],[24,39],[23,38]]] } } });
-  expect(denied.status()).toBe(400);
+  expect(denied.status()).toBe(403);
   expect((await state()).areasById).toEqual(moved.areasById);
 
   // Deliberately incomplete catalogue response: missing references and locationless Places remain disabled,
