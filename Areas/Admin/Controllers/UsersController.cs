@@ -13,6 +13,9 @@ namespace Wayfarer.Areas.Admin.Controllers
     [Authorize(Roles = "Admin")] // This attribute restricts access to the UsersController to users in the Admin role.
     public class UsersController : BaseController
     {
+        // Admin edits always replace membership with one supported installation role.
+        private static readonly string[] AllowedEditRoles =
+            [ApplicationRoles.Admin, ApplicationRoles.Manager, ApplicationRoles.User];
         private readonly RoleManager<IdentityRole> _roleManager;
         private readonly SignInManager<ApplicationUser> _signInManager;
         private readonly UserManager<ApplicationUser> _userManager;
@@ -339,7 +342,9 @@ namespace Wayfarer.Areas.Admin.Controllers
                 return NotFound();
             }
 
-            string? userRole = (await _userManager.GetRolesAsync(user)).FirstOrDefault(); // Get the first role if there's one
+            IList<string> roles = await _userManager.GetRolesAsync(user);
+            // Ambiguous or unsupported memberships require a deliberate replacement selection.
+            string? userRole = roles.Count == 1 && AllowedEditRoles.Contains(roles[0]) ? roles[0] : null;
 
             ApplicationUser? currentUser = await _userManager.GetUserAsync(User);
 
@@ -360,106 +365,77 @@ namespace Wayfarer.Areas.Admin.Controllers
             return View(model);
         }
 
-        /// <summary>
-        /// Edit user
-        /// </summary>
-        /// <param name="model">EditUserViewModel</param>
-        /// <returns></returns>
+        /// <summary>Validates an explicit role, then atomically saves account fields, membership, stamp and audit.</summary>
+        /// <param name="model">Submitted Admin edit fields; Manager validation remains independent.</param>
+        /// <returns>The existing success redirect or the form with validation errors.</returns>
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Edit(EditUserViewModel model)
         {
-            if (ModelState.IsValid)
+            if (string.IsNullOrWhiteSpace(model.Role))
+                ModelState.AddModelError(nameof(model.Role), "Please select a role.");
+            if (!ModelState.IsValid) return View(model);
+
+            ApplicationUser? user = await _userManager.FindByIdAsync(model.Id);
+            if (user == null) return NotFound();
+            // The default account is immutable here, including its username, activity and protection.
+            if (user.UserName == "admin")
             {
-                ApplicationUser? user = await _userManager.FindByIdAsync(model.Id);
-                if (user == null)
-                {
-                    return NotFound();
-                }
+                ModelState.AddModelError(nameof(model.Role), "The default Administrator role cannot be changed.");
+                return View(model);
+            }
+            if (user.UserName != model.UserName)
+            {
+                ModelState.AddModelError(nameof(model.UserName), "Username changes are not allowed.");
+                return View(model);
+            }
 
-                // Prevent changes to the default admin account
-                if (user.UserName == "admin")
-                {
-                    ModelState.AddModelError("Role", "The default Administrator role cannot be changed.");
-                    return View(model);
-                }
+            string? role = AllowedEditRoles.FirstOrDefault(candidate =>
+                _userManager.NormalizeName(candidate) == _userManager.NormalizeName(model.Role));
+            if (role == null || !await _roleManager.RoleExistsAsync(role))
+            {
+                ModelState.AddModelError(nameof(model.Role), "Selected role is not valid.");
+                return View(model);
+            }
 
-                // Check if the user is the default admin and ensure they cannot be deactivated
-                if (user.UserName == "admin" && model.IsActive == false)
-                {
-                    ModelState.AddModelError("IsActive", "The default Administrator user cannot be deactivated.");
-                    return View(model);
-                }
-
-                // Prevent the default admin from changing their username
-                if (user.UserName == "admin" && model.UserName != user.UserName)
-                {
-                    ModelState.AddModelError("UserName", "The default Administrator user cannot change their username.");
-                    return View(model);
-                }
-
-                // Prevent any user from changing the username
-                if (user.UserName != model.UserName)
-                {
-                    ModelState.AddModelError("UserName", "Username changes are not allowed.");
-                    return View(model);
-                }
-
-                // Update user fields such as IsActive and IsProtected
+            CancellationToken cancellation = HttpContext.RequestAborted;
+            cancellation.ThrowIfCancellationRequested();
+            await using (var transaction = await _dbContext.Database.BeginTransactionAsync(cancellation))
+            {
+                IList<string> currentRoles = await _userManager.GetRolesAsync(user);
+                cancellation.ThrowIfCancellationRequested();
                 user.DisplayName = model.DisplayName;
                 user.IsActive = model.IsActive;
                 user.IsProtected = model.IsProtected;
 
-                // Remove the current roles
-                IList<string> currentRoles = await _userManager.GetRolesAsync(user);
-                IdentityResult roleResult = await _userManager.RemoveFromRolesAsync(user, currentRoles);
-                if (!roleResult.Succeeded)
+                // Identity updates the parent account row, retaining #823's lock conflict through commit.
+                // Only an already exact single membership can safely avoid role-table rewrites.
+                if (currentRoles.Count != 1 || _userManager.NormalizeName(currentRoles[0]) != _userManager.NormalizeName(role))
                 {
-                    ModelState.AddModelError(string.Empty, "Failed to remove existing roles.");
-                    return View(model);
+                    if (!AcceptEditResult(await _userManager.RemoveFromRolesAsync(user, currentRoles))) return View(model);
+                    if (!AcceptEditResult(await _userManager.AddToRoleAsync(user, role))) return View(model);
                 }
+                if (!AcceptEditResult(await _userManager.UpdateAsync(user))) return View(model);
+                if (!AcceptEditResult(await _userManager.UpdateSecurityStampAsync(user))) return View(model);
 
-                // If not the default admin, allow updating the role
-                if (user.UserName != "admin" && !string.IsNullOrEmpty(model.Role))
-                {
-                    roleResult = await _userManager.AddToRoleAsync(user, model.Role);
-                }
-
-                if (roleResult.Succeeded)
-                {
-                    // Update user in the database after roles are changed
-                    IdentityResult updateResult = await _userManager.UpdateAsync(user);
-                    if (updateResult.Succeeded)
-                    {
-                        // Log the role change to the database
-                        LogAudit("Edit User", "User Data Changed", $"User {model.UserName} role: {model.Role}, IsActive: {model.IsActive}");
-                        LogAction("User Edit", $"User {model.UserName} role: {model.Role}, IsActive: {model.IsActive}");
-
-                        // Invalidate user sessions by updating the security stamp
-                        await _userManager.UpdateSecurityStampAsync(user);
-                        LogAction("User Edit", $"Invalidate User {user.UserName} sessions after role change");
-
-                        // Redirect to index after saving
-                        return RedirectToAction("Index");
-                    }
-                    else
-                    {
-                        foreach (IdentityError error in updateResult.Errors)
-                        {
-                            ModelState.AddModelError(string.Empty, error.Description);
-                        }
-                    }
-                }
-                else
-                {
-                    foreach (IdentityError error in roleResult.Errors)
-                    {
-                        ModelState.AddModelError(string.Empty, error.Description);
-                    }
-                }
+                // LogAudit synchronously saves this same context and joins the enclosing transaction.
+                LogAudit("Edit User", "User Data Changed", $"User {model.UserName} role: {role}, IsActive: {model.IsActive}");
+                cancellation.ThrowIfCancellationRequested();
+                await transaction.CommitAsync(cancellation);
             }
 
-            return View(model);  // If validation fails, re-display the form
+            // Failure paths never call a saving error helper or publish an external success message.
+            LogAction("User Edit", $"User {model.UserName} role: {role}, IsActive: {model.IsActive}");
+            LogAction("User Edit", $"Invalidate User {user.UserName} sessions after role change");
+            return RedirectToAction("Index");
+        }
+
+        /// <summary>Surfaces checked Identity errors without saving any failed tracked changes.</summary>
+        private bool AcceptEditResult(IdentityResult result)
+        {
+            foreach (IdentityError error in result.Errors)
+                ModelState.AddModelError(string.Empty, error.Description);
+            return result.Succeeded;
         }
 
         /// <summary>

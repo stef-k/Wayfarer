@@ -32,11 +32,9 @@
                 {
                     <div class="form-text text-danger">This account is protected. Modify its status to make changes.</div>
                 }
-                else
-                {
-                    <input type="text" class="form-control" id="DisplayName" name="DisplayName" value="@Model.DisplayName" />
-                    @Html.ValidationMessageFor(m => m.DisplayName, "", new { @class = "text-danger" })
-                }
+                @* Readonly controls still submit the required value when unprotecting an account. *@
+                <input type="text" class="form-control" id="DisplayName" name="DisplayName" value="@Model.DisplayName" readonly="@Model.IsProtected" />
+                @Html.ValidationMessageFor(m => m.DisplayName, "", new { @class = "text-danger" })
             </div>
 
             <!-- Active Status Toggle -->
@@ -54,19 +52,26 @@
             <!-- Role Selection -->
             <div class="mb-3">
                 <label for="Role" class="form-label">Role</label>
-                @if (Model.IsProtected)
+                @* Retain an unambiguous protected role; never silently select from multiple/no roles. *@
+                @if (Model.IsProtected && !string.IsNullOrEmpty(Model.Role))
                 {
-                    <div class="form-text text-danger">This account is protected. Modify its status to make changes.</div>
+                    <input type="hidden" asp-for="Role" />
+                    <div class="form-text">@Model.Role — unprotect this account to change its role.</div>
                 }
                 else
                 {
-                    <select asp-for="Role" class="form-select">
+                    @if (string.IsNullOrEmpty(Model.Role))
+                    {
+                        <div class="form-text">Select one role to replace this account's existing memberships.</div>
+                    }
+                    <select asp-for="Role" class="form-select" required>
+                        <option value="">Select a role</option>
                         <option value="Admin">Admin</option>
                         <option value="Manager">Manager</option>
                         <option value="User">User</option>
                     </select>
-                    @Html.ValidationMessageFor(m => m.Role, "", new { @class = "text-danger" })
                 }
+                @Html.ValidationMessageFor(m => m.Role, "", new { @class = "text-danger" })
             </div>
 
             <!-- Submit Button -->
