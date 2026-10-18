@@ -8,13 +8,69 @@ using Wayfarer.Models;
 using Wayfarer.Services;
 using Wayfarer.Tests.Infrastructure;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace Wayfarer.Tests.Models;
 
 /// <summary>Executes lifecycle cancellation, provider, rollback, recovery, and invalidation paths.</summary>
 [Collection(PostgresImportTestCollection.Name)]
-public sealed class PlaceRegionLifecycleRecoveryPostgresTests(PostgresImportTestFixture fixture)
+public sealed class PlaceRegionLifecycleRecoveryPostgresTests(PostgresImportTestFixture fixture, ITestOutputHelper output)
 {
+    /// <summary>Preserves a partially tracked sibling through three post-SQL failures and a later ordinary save.</summary>
+    [PostgresFact]
+    public async Task PlaceUpdate_ExhaustedSerializationRetries_PreservesPendingPartialTrackerSibling()
+    {
+        var seeded = await SeedAsync(includeSibling: true);
+        var failure = new PostSqlSerializationInterceptor();
+        await using var context = fixture.CreateContext(failure);
+        var sibling = await context.Places.SingleAsync(item =>
+            item.Name == "Sibling" && item.Region.TripId == seeded.TripId);
+        Assert.Single(context.ChangeTracker.Entries());
+        Assert.Null(sibling.Region);
+        sibling.Notes = "pending sibling edit";
+        var confirmation = new LifecycleDependencyConfirmation(new EphemeralDataProtectionProvider());
+
+        var thrown = await Assert.ThrowsAsync<PostgresException>(() => Service(context, confirmation).UpdatePlaceAsync(
+            seeded.TripId, seeded.WaypointId, seeded.UserId,
+            new(sibling.RegionId, "Rejected", "rejected notes", "rejected address", "marker", "bg-red",
+                new Point(2, 2) { SRID = 4326 }, 1), CancellationToken.None));
+
+        Assert.Equal(3, failure.Failures.Count);
+        Assert.All(failure.Failures, exception => Assert.Equal(PostgresErrorCodes.SerializationFailure, exception.SqlState));
+        Assert.Same(failure.Failures[^1], thrown);
+        var recoveredState = context.Entry(sibling).State;
+        var recoveredNotes = sibling.Notes;
+        var recoveredSibling = context.ChangeTracker.Entries<Place>()
+            .SingleOrDefault(entry => entry.Entity.Id == sibling.Id)?.Entity;
+        output.WriteLine($"Recovered sibling: state={recoveredState}; same instance={ReferenceEquals(sibling, recoveredSibling)}; notes={recoveredNotes}");
+        await AssertStoredAsync(seeded);
+        await context.SaveChangesAsync();
+
+        await using var verification = fixture.CreateContext();
+        var storedSibling = await verification.Places.AsNoTracking().SingleAsync(item => item.Id == sibling.Id);
+        Assert.Equal("pending sibling edit", storedSibling.Notes);
+        Assert.Equal(EntityState.Modified, recoveredState);
+        Assert.Equal("pending sibling edit", recoveredNotes);
+        Assert.Same(sibling, recoveredSibling);
+        Assert.Equal(4, storedSibling.DisplayOrder);
+        var target = await verification.Places.AsNoTracking().SingleAsync(item => item.Id == seeded.WaypointId);
+        Assert.Equal("Waypoint", target.Name);
+        Assert.Null(target.Notes);
+        Assert.Null(target.Address);
+        Assert.Equal(sibling.RegionId, target.RegionId);
+        Assert.Equal(2, target.DisplayOrder);
+        Assert.Equal(new Coordinate(2, 2), target.Location!.Coordinate);
+        var segment = await verification.Segments.AsNoTracking().SingleAsync(item => item.Id == seeded.SegmentId);
+        Assert.Null(segment.EstimatedDistanceKm);
+        Assert.Null(segment.EstimatedDuration);
+        Assert.Equal(new Coordinate(2, 2), segment.RouteGeometry!.Coordinates[1]);
+        var waypoint = await verification.Set<SegmentWaypoint>().AsNoTracking()
+            .SingleAsync(item => item.SegmentId == seeded.SegmentId);
+        Assert.Equal(0, waypoint.Position);
+        Assert.Equal(1, waypoint.RouteVertexIndex);
+        AssertClean(context);
+    }
+
     /// <summary>Uses non-cancelled rollback/recovery after cancellation following destructive waypoint work.</summary>
     [PostgresFact]
     public async Task PlaceDeletion_CancellationAfterDestructiveWork_RestoresStateAndReusableContext()
@@ -126,7 +182,8 @@ public sealed class PlaceRegionLifecycleRecoveryPostgresTests(PostgresImportTest
         await AssertStoredAsync(seeded);
     }
 
-    private async Task<RecoverySeed> SeedAsync()
+    /// <summary>Seeds a waypoint route, optionally with a sibling outside the Segment anchor set.</summary>
+    private async Task<RecoverySeed> SeedAsync(bool includeSibling = false)
     {
         fixture.RequireAvailable();
         var user = await fixture.CreateUserAsync();
@@ -141,6 +198,7 @@ public sealed class PlaceRegionLifecycleRecoveryPostgresTests(PostgresImportTest
         var from = Place(region, user.Id, "From", 1, 1);
         var waypoint = Place(region, user.Id, "Waypoint", 2, 2);
         var to = Place(region, user.Id, "To", 3, 3);
+        if (includeSibling) Place(region, user.Id, "Sibling", 4, 4);
         var segment = new Segment
         {
             Id = Guid.NewGuid(), Trip = trip, TripId = trip.Id, UserId = user.Id,
@@ -212,6 +270,31 @@ public sealed class PlaceRegionLifecycleRecoveryPostgresTests(PostgresImportTest
         Guid WaypointId,
         Guid SegmentId,
         DateTime UpdatedAt);
+
+    /// <summary>Raises real PostgreSQL serialization errors after SQL and EF acceptance on exactly three attempts.</summary>
+    private sealed class PostSqlSerializationInterceptor : SaveChangesInterceptor
+    {
+        internal List<PostgresException> Failures { get; } = [];
+
+        /// <summary>Aborts the active transaction only after the lifecycle save has completed.</summary>
+        public override async ValueTask<int> SavedChangesAsync(
+            SaveChangesCompletedEventData eventData, int result, CancellationToken cancellationToken = default)
+        {
+            if (Failures.Count >= 3) return result;
+            try
+            {
+                await eventData.Context!.Database.ExecuteSqlRawAsync(
+                    "DO $$ BEGIN RAISE EXCEPTION 'Injected post-SQL serialization failure' USING ERRCODE = '40001'; END $$;",
+                    cancellationToken);
+            }
+            catch (PostgresException exception)
+            {
+                Failures.Add(exception);
+                throw;
+            }
+            return result;
+        }
+    }
 
     private sealed class SaveFailureInterceptor(Func<Exception> failure) : SaveChangesInterceptor
     {
