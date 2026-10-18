@@ -35,6 +35,12 @@
 
 ### Fixed
 
+- Make Admin account edits atomic across fields, complete role replacement,
+  security-stamp invalidation and success auditing. Require an explicit supported
+  role, retain required protected-form values and prompt for ambiguous membership.
+  Preserve default-admin/username restrictions and Manager token row-lock
+  compatibility; no database migration is required (#824).
+
 - Restrict every Manager account and named-token action to persisted User-only
   targets, excluding privileged, multi-role, roleless and unknown-role accounts.
   Validate Manager edits before field changes and retain existing User membership

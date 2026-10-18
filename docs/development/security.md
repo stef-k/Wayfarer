@@ -67,7 +67,28 @@ existing named-token service saves join the controller's shared DbContext
 transaction. Denial, early returns, exceptions and cancellation before commit
 dispose the transaction and roll back; no generated secret is retained or revealed.
 Non-PostgreSQL unit stores still enforce the role predicate but do not establish
-production concurrency evidence. Admin handlers remain unchanged (#824).
+production concurrency evidence.
+
+Admin account edits require an explicitly submitted `Admin`, `Manager` or `User`
+role, normalized through Identity and verified to exist before fields change.
+Blank, omitted, unknown and unsupported roles leave persisted state unchanged.
+Admins can deliberately replace the complete membership of multi-role or roleless
+accounts. Protected single-role forms retain DisplayName and Role when submitting
+activity/protection changes; ambiguous memberships require a visible selection.
+The literal default `admin` account remains immutable in this editor, and usernames
+cannot change.
+
+One shared-context relational transaction encloses account fields, checked Identity
+role replacement/update, checked security-stamp invalidation and the success audit.
+Identity keeps updating the parent `AspNetUsers` row, so promotion conflicts with the
+Manager token lock through commit (#823). Exact single-role membership is retained
+without rewriting role rows; account/stamp updates still occur. Identity failures,
+store/audit exceptions and cancellation before commit roll back the transaction.
+The synchronous `LogAudit` save participates in it; external success logs follow
+commit. Failed edits do not call saving error helpers. Identity's intermediate
+methods do not accept RequestAborted; the enclosing transaction observes it before
+mutation and commit. Cancellation after durable commit and ambiguous commit outcomes
+cannot establish rollback. No schema or password-credential change is needed (#824).
 
 ## Antiforgery
 
