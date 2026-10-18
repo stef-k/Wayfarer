@@ -1,6 +1,7 @@
 using System.Data.Common;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Npgsql;
 using Wayfarer.Models;
 using Wayfarer.Models.Dtos.Editor;
 using Wayfarer.Services;
@@ -106,6 +107,58 @@ public sealed class RegionDeletionConcurrencyPostgresTests(PostgresImportTestFix
         finally { gate.Release.TrySetResult(); }
         Assert.Equal("region-deletion-preview-stale", (await Assert.ThrowsAsync<RegionDeletionRejectedException>(() => attempt)).Code);
         Assert.Equal(3, await db.Areas.CountAsync(a => a.RegionId == g.SourceId));
+    }
+
+    /// <summary>The held FK parent barrier blocks a late legacy-style child insert until deletion commits.</summary>
+    [PostgresFact]
+    public async Task HeldParentBarrier_RejectsLateMembershipInsertionAfterCommit()
+    {
+        var g = await RegionDeletionTestGraph.SeedAsync(fixture);
+        var gate = new SaveGate();
+        await using var db = fixture.CreateContext(gate);
+        var service = new PlaceRegionLifecycleService(db, RegionDeletionTestGraph.Confirmation());
+        var preview = await service.PreviewRegionDeletionAsync(g.TripId, g.SourceId, g.UserId, new("keep", "keep"), default);
+        var deletion = service.ConfirmRegionDeletionAsync(g.TripId, g.SourceId, g.UserId, new("keep", "keep", preview.Confirmation.Token), default);
+        await gate.Entered.Task.WaitAsync(TimeSpan.FromSeconds(15));
+        await using var writer = fixture.CreateContext();
+        await writer.Database.OpenConnectionAsync();
+        var pid = await writer.Database.SqlQueryRaw<int>("SELECT pg_backend_pid() AS \"Value\"").SingleAsync();
+        var insertedId = Guid.NewGuid();
+        var insertion = writer.Database.ExecuteSqlInterpolatedAsync($"""
+            INSERT INTO public."Areas" ("Id", "RegionId", "Name", "Geometry")
+            SELECT {insertedId}, {g.SourceId}, 'Late Area', "Geometry" FROM public."Areas" WHERE "Id" = {g.AreaIds[0]}
+            """);
+        try
+        {
+            await using var observer = fixture.CreateContext();
+            var blocked = false;
+            for (var attempt = 0; attempt < 1000; attempt++)
+            {
+                if (await observer.Database.SqlQueryRaw<int>("SELECT cardinality(pg_blocking_pids({0})) AS \"Value\"", pid).SingleAsync() > 0)
+                { blocked = true; break; }
+                await Task.Delay(5);
+            }
+            Assert.True(blocked, "Late child insertion must wait on the production Region/Trip barriers.");
+        }
+        finally { gate.Release.TrySetResult(); }
+        Assert.True((await deletion).Success);
+        Assert.Equal(PostgresErrorCodes.ForeignKeyViolation, (await Assert.ThrowsAsync<PostgresException>(() => insertion)).SqlState);
+        await using var verify = fixture.CreateContext();
+        Assert.False(await verify.Areas.AnyAsync(a => a.Id == insertedId));
+        Assert.Equal(2, await verify.Areas.CountAsync(a => g.AreaIds.Contains(a.Id) && a.RegionId == g.DestinationId));
+    }
+
+    private sealed class SaveGate : SaveChangesInterceptor
+    {
+        internal TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        internal TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public override async ValueTask<InterceptionResult<int>> SavingChangesAsync(DbContextEventData data,
+            InterceptionResult<int> result, CancellationToken token = default)
+        {
+            Entered.TrySetResult();
+            await Release.Task.WaitAsync(token);
+            return result;
+        }
     }
 
     private sealed class LockGate(string? table = null) : DbCommandInterceptor
