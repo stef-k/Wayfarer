@@ -14,9 +14,9 @@ using Xunit;
 
 namespace Wayfarer.Tests.Controllers;
 
-/// <summary>Production Manager routes, genuine Identity login/antiforgery and fresh PostgreSQL postconditions.</summary>
-[Collection(PostgresMigrationTestCollection.Name)]
-public sealed class ManagerAccountAuthorizationPostgresTests(PostgresMigrationTestFixture fixture) : TestBase
+/// <summary>Production Manager routes, real Identity and fresh postconditions in an independently owned PostgreSQL database.</summary>
+public sealed class ManagerAccountAuthorizationPostgresTests(PostgresMigrationTestFixture fixture)
+    : TestBase, IClassFixture<PostgresMigrationTestFixture>
 {
     /// <summary>Every existing-account surface denies the entire ineligible role set before disclosure or mutation.</summary>
     [Theory]
