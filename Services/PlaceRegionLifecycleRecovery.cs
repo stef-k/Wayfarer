@@ -97,8 +97,7 @@ public sealed partial class PlaceRegionLifecycleService
         {
             if (trackerSnapshot.Entries.TryGetValue(entry.Entity, out var original))
             {
-                entry.CurrentValues.SetValues(original.Values);
-                entry.State = original.State;
+                RestoreEntry(entry, original);
                 restored.Add(entry.Entity);
             }
         }
@@ -106,13 +105,22 @@ public sealed partial class PlaceRegionLifecycleService
         foreach (var pair in trackerSnapshot.Entries.Where(pair => !restored.Contains(pair.Key)))
         {
             var replacement = _dbContext.ChangeTracker.Entries()
-                .FirstOrDefault(entry => HasSamePrimaryKey(entry, pair.Key, pair.Value.Values));
+                .FirstOrDefault(entry => HasSamePrimaryKey(entry, pair.Key, pair.Value.CurrentValues));
             if (replacement != null) replacement.State = EntityState.Detached;
             var entry = _dbContext.Entry(pair.Key);
-            entry.State = EntityState.Unchanged;
-            entry.CurrentValues.SetValues(pair.Value.Values);
-            entry.State = pair.Value.State;
+            RestoreEntry(entry, pair.Value);
         }
+    }
+
+    /// <summary>Restores concurrency originals and caller intent after any accepted-but-rolled-back save.</summary>
+    private static void RestoreEntry(EntityEntry entry, LifecycleTrackedEntrySnapshot snapshot)
+    {
+        // Finish Unchanged's acceptance/rejection before restoring concurrency originals.
+        entry.State = EntityState.Unchanged;
+        entry.OriginalValues.SetValues(snapshot.OriginalValues);
+        // Restore state before current scalars so an Unchanged transition cannot reject those values.
+        entry.State = snapshot.State;
+        entry.CurrentValues.SetValues(snapshot.CurrentValues);
     }
 
     private static bool HasSamePrimaryKey(EntityEntry entry, object entity, PropertyValues values)
@@ -143,13 +151,13 @@ internal sealed record LifecycleRecoveryScope(
 internal sealed record LifecycleTrackerSnapshot(
     IReadOnlyDictionary<object, LifecycleTrackedEntrySnapshot> Entries)
 {
-    /// <summary>Captures entity identity, scalar values, and state before lifecycle work begins.</summary>
+    /// <summary>Captures identity, original/current scalar values, and state before lifecycle work begins.</summary>
     internal static LifecycleTrackerSnapshot Capture(DbContext context) => new(
         context.ChangeTracker.Entries().ToDictionary(
             entry => entry.Entity,
-            entry => new LifecycleTrackedEntrySnapshot(entry.State, entry.CurrentValues.Clone()),
+            entry => new LifecycleTrackedEntrySnapshot(entry.State, entry.OriginalValues.Clone(), entry.CurrentValues.Clone()),
             ReferenceEqualityComparer.Instance));
 }
 
 /// <summary>One caller-owned tracked entry as it existed before lifecycle orchestration.</summary>
-internal sealed record LifecycleTrackedEntrySnapshot(EntityState State, PropertyValues Values);
+internal sealed record LifecycleTrackedEntrySnapshot(EntityState State, PropertyValues OriginalValues, PropertyValues CurrentValues);

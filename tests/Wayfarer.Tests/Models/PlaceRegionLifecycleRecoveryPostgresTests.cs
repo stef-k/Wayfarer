@@ -89,6 +89,9 @@ public sealed class PlaceRegionLifecycleRecoveryPostgresTests(PostgresImportTest
             Assert.True(result!.Succeeded);
             Assert.Equal(2, failure.Attempts.Count);
             AssertClean(context);
+            await using var committed = fixture.CreateContext();
+            Assert.Equal(segment.Notes, await committed.Segments.Where(item => item.Id == segment.Id)
+                .Select(item => item.Notes).SingleAsync());
         }
         Assert.Same(segment, context.Segments.Local.Single(item => item.Id == segment.Id));
         Assert.Same(sibling, context.Places.Local.Single(item => item.Id == sibling.Id));
@@ -108,6 +111,20 @@ public sealed class PlaceRegionLifecycleRecoveryPostgresTests(PostgresImportTest
         Assert.Equal(sibling.RegionId, storedTarget.RegionId);
         Assert.Equal(2, storedTarget.DisplayOrder);
         Assert.Equal(failedAttempts == 3 ? new Coordinate(2, 2) : new Coordinate(8, 8), storedTarget.Location!.Coordinate);
+        if (failedAttempts == 3)
+        {
+            var route = await verification.Segments.AsNoTracking().Include(item => item.Waypoints)
+                .SingleAsync(item => item.Id == seeded.SegmentId);
+            Assert.Equal(new Coordinate(2, 2), route.RouteGeometry!.Coordinates[1]);
+            Assert.Equal(12.345, route.EstimatedDistanceKm);
+            Assert.Equal(TimeSpan.FromMinutes(37), route.EstimatedDuration);
+            Assert.Equal(EstimatedDurationSource.Manual, route.EstimatedDurationSource);
+            Assert.Equal("native-kml-v3", route.RouteProvider);
+            Assert.Equal("permanent", route.RouteStorageMode);
+            Assert.Equal("[]", route.RouteInstructionsJson);
+            Assert.Equal(0, Assert.Single(route.Waypoints).Position);
+            Assert.Equal(1, route.Waypoints.Single().RouteVertexIndex);
+        }
         AssertClean(context);
 
         // A real competing update must still conflict through the recovered lifecycle caller.
@@ -330,7 +347,7 @@ public sealed class PlaceRegionLifecycleRecoveryPostgresTests(PostgresImportTest
         await AssertStoredAsync(seeded);
     }
 
-    /// <summary>Seeds a waypoint route, optionally with a sibling outside the Segment anchor set.</summary>
+    /// <summary>Seeds a waypoint route, optionally with a sibling and unrelated caller-owned Segment/Tags.</summary>
     private async Task<RecoverySeed> SeedAsync(bool includeSibling = false, bool includeCallerWork = false)
     {
         fixture.RequireAvailable();
@@ -364,6 +381,12 @@ public sealed class PlaceRegionLifecycleRecoveryPostgresTests(PostgresImportTest
         await using var context = fixture.CreateContext();
         if (includeCallerWork)
         {
+            segment.EstimatedDistanceKm = 12.345;
+            segment.EstimatedDuration = TimeSpan.FromMinutes(37);
+            segment.EstimatedDurationSource = EstimatedDurationSource.Manual;
+            segment.RouteProvider = "native-kml-v3";
+            segment.RouteStorageMode = "permanent";
+            segment.RouteInstructionsJson = "[]";
             trip.Segments.Add(unrelated);
             fixture.RegisterTag(deletedTag);
             context.Tags.Add(deletedTag);
