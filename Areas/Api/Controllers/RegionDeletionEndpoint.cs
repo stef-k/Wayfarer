@@ -25,8 +25,12 @@ internal static class RegionDeletionEndpoint
         }
         catch (RegionDeletionRejectedException rejection)
         {
-            var problem = new ProblemDetails { Status = rejection.Status, Title = rejection.Message,
-                Type = $"https://wayfarer/errors/{rejection.Code}" };
+            ProblemDetails problem = rejection.Status == 400
+                ? new ValidationProblemDetails(new Dictionary<string, string[]> { ["request"] = [rejection.Message] })
+                : new ProblemDetails();
+            problem.Status = rejection.Status;
+            problem.Title = rejection.Message;
+            problem.Type = $"https://wayfarer/errors/{rejection.Code}";
             problem.Extensions["code"] = rejection.Code;
             if (rejection.Preview != null) problem.Extensions["preview"] = rejection.Preview;
             return new ObjectResult(problem) { StatusCode = rejection.Status, ContentTypes = { "application/problem+json" } };

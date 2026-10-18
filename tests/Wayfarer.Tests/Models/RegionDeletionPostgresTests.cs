@@ -24,6 +24,7 @@ public sealed class RegionDeletionPostgresTests(PostgresImportTestFixture fixtur
         await using var db = fixture.CreateContext();
         var service = new PlaceRegionLifecycleService(db, RegionDeletionTestGraph.Confirmation());
         var beforeSegments = await db.Segments.AsNoTracking().Include(s => s.Waypoints).Where(s => s.TripId == graph.TripId).ToArrayAsync();
+        var beforePlaces = await db.Places.AsNoTracking().Where(p => graph.PlaceIds.Contains(p.Id)).ToArrayAsync();
         var beforeAreas = await db.Areas.AsNoTracking().Where(a => graph.AreaIds.Contains(a.Id)).ToArrayAsync();
         var preview = await service.PreviewRegionDeletionAsync(graph.TripId, graph.SourceId, graph.UserId, new(places, areas), default);
         Assert.Equal(graph.DestinationId, preview.Destination.RegionId ?? graph.DestinationId);
@@ -37,6 +38,22 @@ public sealed class RegionDeletionPostgresTests(PostgresImportTestFixture fixtur
         Assert.Equal(places == "delete" ? graph.PlaceIds.Order() : [], result.DeletedIds.Places);
         Assert.Equal(areas == "delete" ? graph.AreaIds.Order() : [], result.DeletedIds.Areas);
         Assert.Equal(places == "delete" ? graph.EndpointIds.Order() : [], result.DeletedIds.Segments);
+        if (places == "keep")
+        {
+            foreach (var original in beforePlaces)
+            {
+                var saved = await verify.Places.AsNoTracking().SingleAsync(p => p.Id == original.Id);
+                Assert.Equal(graph.DestinationId, saved.RegionId);
+                Assert.Equal(original.Name, saved.Name);
+                Assert.Equal(original.Notes, saved.Notes);
+                Assert.Equal(original.Address, saved.Address);
+                Assert.Equal(original.IconName, saved.IconName);
+                Assert.Equal(original.MarkerColor, saved.MarkerColor);
+                Assert.Equal(original.Location!.AsBinary(), saved.Location!.AsBinary());
+            }
+            Assert.Equal(new[] { 1, 2, 3 }, await verify.Places.Where(p => p.RegionId == graph.DestinationId)
+                .OrderBy(p => p.DisplayOrder).Select(p => p.DisplayOrder!.Value).ToArrayAsync());
+        }
         if (areas == "keep")
         {
             foreach (var original in beforeAreas)

@@ -1,3 +1,4 @@
+import { onUnmounted } from 'vue';
 import { createRegion, orderRegions, updateRegion } from '../api/tripEditorApi';
 import type { EditorMutationResult, EditorRegion, EditorRegionSaveRequest, Guid } from '../types';
 import { createRegionDeletionController, heldRegionDeletionKey } from './regionDeletionState';
@@ -7,6 +8,14 @@ import { buildRegionRequest, emptyAreaDraft, emptyPlaceDraft, emptyRegionDraft, 
 
 /// Coordinates region-specific editor actions while RegionManager owns shared draft state.
 export function useRegionEditorActions(context: any) {
+  let editorAlive = true;
+  onUnmounted(() => { editorAlive = false; });
+  /// Unknown earlier Region effects fence conflicting metadata/reorder/deletion actions in this Trip.
+  const held = (): boolean => {
+    const mount = document.getElementById('trip-editor-app');
+    if (!mount?.dataset.accountId || !mount.dataset.tripId) return true;
+    return Boolean(localStorage.getItem(heldRegionDeletionKey(location.origin, mount.dataset.accountId, mount.dataset.tripId)));
+  };
   const openCreate = async (): Promise<void> => {
     const target = buildRegionCreateTarget();
     const isAlreadyActive = context.props.editorSurface.isTargetActive(target);
@@ -55,6 +64,7 @@ export function useRegionEditorActions(context: any) {
   };
 
   const saveDraft = async (): Promise<void> => {
+    if (held()) { context.applyError(new Error('An earlier Region deletion has an unresolved outcome. Reconcile it before changing Regions.'), 'Region operation held.'); return; }
     context.isSaving.value = true;
     context.resetFeedback();
 
@@ -82,13 +92,14 @@ export function useRegionEditorActions(context: any) {
 
     const region = context.activeRegion.value;
     const deletedTarget = context.activeRegionTarget.value;
-    const account = document.getElementById('trip-editor-app')?.dataset.accountId;
+    const mount = document.getElementById('trip-editor-app');
+    const account = mount?.dataset.accountId;
     if (!account) { context.applyError(new Error('Reload the editor to verify your account.'), 'Account unavailable.'); return; }
     const scopeKey = heldRegionDeletionKey(location.origin, account, region.tripId);
     const controller = createRegionDeletionController({
       sourceId: region.id, tripId: region.tripId, endpoint: context.props.editorEndpoint,
       antiforgeryToken: context.props.antiforgeryToken, storage: localStorage, scopeKey, fetch: window.fetch.bind(window),
-      isCurrent: () => document.getElementById('trip-editor-app')?.dataset.accountId === account,
+      isCurrent: () => editorAlive && document.getElementById('trip-editor-app') === mount && mount?.dataset.accountId === account && mount?.dataset.tripId === region.tripId,
       onSuccess: result => {
         context.emit('mutationApplied', result as EditorMutationResult<unknown>);
         // Only the deleted Region's own draft is cleared, after authoritative slices have been applied.
@@ -106,7 +117,7 @@ export function useRegionEditorActions(context: any) {
   };
 
   const reorderRegions = async (ids: Guid[], previousIds: Guid[]): Promise<void> => {
-    if (context.isOrdering.value) {
+    if (context.isOrdering.value || held()) {
       await context.restoreRegionOrder(previousIds);
       return;
     }

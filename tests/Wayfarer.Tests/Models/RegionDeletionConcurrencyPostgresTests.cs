@@ -55,7 +55,7 @@ public sealed class RegionDeletionConcurrencyPostgresTests(PostgresImportTestFix
                 case "delete": await writer.Areas.Where(a => a.Id == g.AreaIds[0]).ExecuteDeleteAsync(); break;
                 case "order": await writer.Regions.Where(r => r.TripId == g.TripId && r.Id != g.SourceId).ExecuteUpdateAsync(s => s.SetProperty(r => r.DisplayOrder, 22)); break;
                 case "destination-order": await writer.Areas.Where(a => a.RegionId == g.DestinationId).ExecuteUpdateAsync(s => s.SetProperty(a => a.DisplayOrder, 29)); break;
-                case "waypoint": await writer.Set<SegmentWaypoint>().Where(w => w.SegmentId == g.SurvivorIds[0]).ExecuteUpdateAsync(s => s.SetProperty(w => w.RouteVertexIndex, 1)); break;
+                case "waypoint": await writer.Set<SegmentWaypoint>().Where(w => w.SegmentId == g.SurvivorIds[0] && w.Position == 0).ExecuteUpdateAsync(s => s.SetProperty(w => w.RouteVertexIndex, 1)); break;
                 case "destination-create": writer.Regions.Add(new Region { Id = Guid.NewGuid(), TripId = g.TripId, UserId = g.UserId, Name = "Unassigned Places" }); await writer.SaveChangesAsync(); break;
             }
         }

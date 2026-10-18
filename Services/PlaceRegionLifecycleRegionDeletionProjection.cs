@@ -15,14 +15,16 @@ public sealed partial class PlaceRegionLifecycleService
     {
         var reader = new TripEditorPlaceMutationReader(_dbContext, _confirmation.RegionDeletionAggregateTokens);
         var places = await reader.LoadPlaceDtosAsync(orderedPlaces.Select(p => p.Id).ToArray(), s.Trip.Id, userId, token);
-        var segments = await reader.LoadSegmentDtosAsync(surviving, s.Trip.Id, userId, token);
+        var projectedSegmentIds = deletedSegments.Count > 0 ? s.SegmentOrders.Where(x => !deletedSegments.Contains(x.Id)).Select(x => x.Id).ToArray() : surviving;
+        var segments = await reader.LoadSegmentDtosAsync(projectedSegmentIds, s.Trip.Id, userId, token);
         var baseSlices = await reader.BuildAffectedAsync(s.Trip.Id, userId, places, [], segments, null, true, token);
         IReadOnlyList<Guid>? segmentOrder = deletedSegments.Count > 0
             ? await _dbContext.Segments.AsNoTracking().Where(x => x.TripId == s.Trip.Id && x.UserId == userId)
                 .OrderBy(x => x.DisplayOrder).ThenBy(x => x.Id).Select(x => x.Id).ToArrayAsync(token) : null;
         var affected = baseSlices with
         {
-            Metadata = EditorTripStateMapper.ToMetadata(s.Trip, null, null),
+            Metadata = EditorTripStateMapper.ToMetadata(s.Trip, s.Trip.IsPublic ? $"/Public/Trips/{s.Trip.Id}" : null,
+                s.Trip.IsPublic && s.Trip.ShareProgressEnabled ? $"/Public/Trips/{s.Trip.Id}?progress=1" : null),
             Regions = regions.Select(EditorTripStateMapper.ToRegion).ToArray(),
             RegionOrder = regions.Select(r => r.Id).ToArray(),
             PlaceOrdersByRegionId = orderedPlaces.Length > 0

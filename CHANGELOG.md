@@ -4,6 +4,12 @@
 
 ### Added
 
+- Add atomic four-way Region deletion with independent Keep/Delete choices for
+  Places and Areas, content-bound preview/confirmation for editor and bearer
+  clients, an accessible Vue confirmation dialog and held unknown outcomes.
+  Kept children retain IDs, geometry, history and routes; kept Areas remain usable
+  and reorderable in protected Unassigned Places (#848; picker UX follows #847).
+
 - Add read-only `GET /api/mobile/me` account proof for active incoming bearer
   tokens, returning only the stable server-scoped `userId` with no-store responses
   and distinct authentication, overload and server-failure outcomes (#844).
