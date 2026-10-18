@@ -30,6 +30,7 @@ public sealed class ManagerTokenConcurrencyPostgresTests(PostgresMigrationTestFi
         var target = await manager.UserAsync("User");
         var name = action == "Delete" ? "named" : ApiTokenService.ConnectionTokenName;
         var token = initiallyAbsent ? null : await manager.TokenAsync(target, name);
+        var originalHash = token?.TokenHash;
         var before = await SnapshotAsync(target.Id);
         pause.Armed = true;
         var mutation = manager.PostAsync("ApiToken/" + action, ("id", target.Id), ("name", name),
@@ -57,7 +58,7 @@ public sealed class ManagerTokenConcurrencyPostgresTests(PostgresMigrationTestFi
                     Assert.NotNull(changed);
                     Assert.Null(changed.Token);
                     Assert.False(string.IsNullOrWhiteSpace(changed.TokenHash));
-                    Assert.NotEqual(token?.TokenHash, changed.TokenHash);
+                    Assert.NotEqual(originalHash, changed.TokenHash);
                 }
             }
             // In the strongest counterexample no credential existed before this Admin-only creation.
@@ -109,6 +110,28 @@ public sealed class ManagerTokenConcurrencyPostgresTests(PostgresMigrationTestFi
             pause.Release.TrySetResult();
             await DrainAsync(mutation);
         }
+    }
+
+    /// <summary>A failure after the service save rolls back the hash and releases the account lock before Admin work.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task FailureAfterTokenSave_RollsBackAndReleasesLock(bool cancellation)
+    {
+        var failure = new FailAfterSave(cancellation);
+        await using var manager = await StartAsync("Manager", failure);
+        await using var admin = await StartAsync("Admin");
+        var target = await manager.UserAsync("User");
+        var token = await manager.TokenAsync(target, ApiTokenService.ConnectionTokenName);
+        var before = await SnapshotAsync(target.Id);
+        failure.Armed = true;
+        using var response = await manager.PostAsync("ApiToken/Regenerate", ("id", target.Id), ("name", token.Name));
+        Assert.False(failure.Armed);
+        Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
+        Assert.Equal(before, await SnapshotAsync(target.Id));
+        using var promoted = await PromoteAsync(admin, target).WaitAsync(TimeSpan.FromSeconds(15));
+        AssertRedirect(promoted);
+        await IssueAdminCredentialAsync(admin, target, token.Name);
     }
 
     /// <summary>Promotes through the unchanged production Admin role handler with genuine cookies and antiforgery.</summary>
@@ -200,6 +223,23 @@ public sealed class ManagerTokenConcurrencyPostgresTests(PostgresMigrationTestFi
     {
         try { using var response = await pending.WaitAsync(TimeSpan.FromSeconds(15)); }
         catch { /* The host and class-owned database still dispose after the primary failure. */ }
+    }
+
+    /// <summary>Injects a terminal exception only after the real service save, before the controller can commit.</summary>
+    private sealed class FailAfterSave(bool cancellation) : SaveChangesInterceptor
+    {
+        internal bool Armed { get; set; }
+
+        /// <summary>Confirms enlistment, then exercises transaction disposal on ordinary and cancellation exceptions.</summary>
+        public override ValueTask<int> SavedChangesAsync(SaveChangesCompletedEventData data, int result,
+            CancellationToken cancellationToken = default)
+        {
+            if (!Armed) return ValueTask.FromResult(result);
+            Armed = false;
+            Assert.NotNull(data.Context!.Database.CurrentTransaction);
+            if (cancellation) throw new OperationCanceledException("Test-owned cancellation after token save.");
+            throw new InvalidOperationException("Test-owned failure after token save.");
+        }
     }
 
     /// <summary>Pauses scheduling only, returning the original production SQL result unchanged.</summary>
