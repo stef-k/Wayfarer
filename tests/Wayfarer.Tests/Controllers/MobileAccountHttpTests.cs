@@ -69,9 +69,12 @@ public sealed class MobileAccountHttpTests : TestBase
         Assert.Equal(auditCount, await db.AuditLogs.CountAsync());
         Assert.Empty(db.Locations);
         Assert.Empty(db.PlaceVisitEvents);
-        var diagnostics = JsonSerializer.Serialize(logs.Entries);
+        var diagnostics = string.Join(Environment.NewLine, logs.Entries.Select(entry =>
+            $"{entry.Message} {entry.Exception} {string.Join(" ", entry.Fields.Values)}"));
         foreach (var secret in new[] { FirstToken, SecondToken, OtherToken, owner.Email!, owner.UserName! })
             Assert.DoesNotContain(secret, diagnostics);
+        foreach (var token in new[] { FirstToken, SecondToken, OtherToken })
+            Assert.DoesNotContain(ApiTokenService.HashToken(token), diagnostics);
     }
 
     /// <summary>Anonymous, cookie-only, malformed and invalid credentials never disclose cookie or bearer identity.</summary>
