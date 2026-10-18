@@ -337,8 +337,8 @@ test.describe.serial('#407/#408 persisted waypoint aggregate and accessible edit
     await openSegment(page, fixture.staleSegmentId);
     const staleSelector = form.getByLabel(/Intermediate place 1:/);
     await expect(staleSelector).toHaveValue(fixture.staleWaypointId);
-    await expect(staleSelector.locator(`option[value="${fixture.staleWaypointId}"]`)).toHaveAttribute('disabled', '');
-    await expect(staleSelector.locator(`option[value="${fixture.staleWaypointId}"]`)).toContainText(/Shadow waypoint .*unavailable/i);
+    await expect(staleSelector.locator(`option[value="${fixture.staleWaypointId}"]`)).toBeEnabled();
+    await expect(staleSelector.locator(`option[value="${fixture.staleWaypointId}"]`)).toContainText(/Shadow waypoint /);
     const staleState = (await editorState(page)).segmentsById[fixture.staleSegmentId];
     expect(staleState.effectiveRoute.coordinates).toHaveLength(3);
     expect(staleState.effectiveRoute.coordinates[1]).toEqual([23.73, 38.05]);

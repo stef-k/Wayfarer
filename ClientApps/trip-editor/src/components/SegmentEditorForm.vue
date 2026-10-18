@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue';
-import type { EditorRegion, EditorSegmentDraft, EditorTripState, Guid } from '../types';
+import type { EditorSegmentDraft, EditorTripState, Guid } from '../types';
 import RichNotesEditor from './RichNotesEditor.vue';
 import SegmentWaypointEditor from './SegmentWaypointEditor.vue';
 import { fallbackRoute } from './segmentRouteMapWork';
+import { segmentPlaceGroups, segmentPlaceHasLocation, segmentPlaceUnavailableLabel } from './segmentPlaceChoices';
 
 const props = defineProps<{
   baselineDraft: EditorSegmentDraft;
@@ -32,7 +33,7 @@ function focusNotes(): void {
 
 defineExpose({ focusNotes });
 
-const normalRegions = computed(() => props.state.regionOrder.map(id => props.state.regionsById[id]).filter(region => region && !region.isShadow) as EditorRegion[]);
+const placeGroups = computed(() => segmentPlaceGroups(props.state));
 // Preserve the current inactive or legacy value as a disabled option; changing away removes it from the selectable list.
 const transportModes = computed(() => {
   const active = props.state.options.transportModes;
@@ -49,8 +50,9 @@ const routeSummary = computed(() => {
     : 'No route';
 });
 
-function orderedPlaceIds(regionId: Guid): Guid[] {
-  return props.state.placeOrderByRegionId[regionId] ?? [];
+/** Keeps a stale endpoint visible without silently changing the saved draft. */
+function unavailableEndpoint(id: Guid | null): boolean {
+  return Boolean(id && !placeGroups.value.some(group => group.places.some(place => place.id === id)));
 }
 </script>
 
@@ -64,8 +66,9 @@ function orderedPlaceIds(regionId: Guid): Guid[] {
       <span>From place</span>
       <select v-model="draft.fromPlaceId" data-segment-field="fromPlaceId" @change="$emit('clearError', 'fromPlaceId'); $emit('semanticEditsUnsafe')">
         <option :value="null">Unlinked</option>
-        <optgroup v-for="region in normalRegions" :key="region.id" :label="region.name">
-          <option v-for="placeId in orderedPlaceIds(region.id)" :key="placeId" :value="placeId">{{ state.placesById[placeId]?.name }}</option>
+        <option v-if="draft.fromPlaceId && unavailableEndpoint(draft.fromPlaceId)" :value="draft.fromPlaceId" disabled>{{ segmentPlaceUnavailableLabel(state, draft.fromPlaceId) }}</option>
+        <optgroup v-for="group in placeGroups" :key="group.id" :label="group.label">
+          <option v-for="place in group.places" :key="place.id" :value="place.id" :disabled="!segmentPlaceHasLocation(place)">{{ segmentPlaceHasLocation(place) ? place.name : segmentPlaceUnavailableLabel(state, place.id) }}</option>
         </optgroup>
       </select>
       <small v-for="message in fieldErrors('fromPlaceId')" :key="message">{{ message }}</small>
@@ -77,8 +80,9 @@ function orderedPlaceIds(regionId: Guid): Guid[] {
       <span>To place</span>
       <select v-model="draft.toPlaceId" data-segment-field="toPlaceId" @change="$emit('clearError', 'toPlaceId'); $emit('semanticEditsUnsafe')">
         <option :value="null">Unlinked</option>
-        <optgroup v-for="region in normalRegions" :key="region.id" :label="region.name">
-          <option v-for="placeId in orderedPlaceIds(region.id)" :key="placeId" :value="placeId">{{ state.placesById[placeId]?.name }}</option>
+        <option v-if="draft.toPlaceId && unavailableEndpoint(draft.toPlaceId)" :value="draft.toPlaceId" disabled>{{ segmentPlaceUnavailableLabel(state, draft.toPlaceId) }}</option>
+        <optgroup v-for="group in placeGroups" :key="group.id" :label="group.label">
+          <option v-for="place in group.places" :key="place.id" :value="place.id" :disabled="!segmentPlaceHasLocation(place)">{{ segmentPlaceHasLocation(place) ? place.name : segmentPlaceUnavailableLabel(state, place.id) }}</option>
         </optgroup>
       </select>
       <small v-for="message in fieldErrors('toPlaceId')" :key="message">{{ message }}</small>
