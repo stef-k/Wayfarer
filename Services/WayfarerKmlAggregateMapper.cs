@@ -15,6 +15,8 @@ internal static class WayfarerKmlAggregateMapper
         bool remapIdentities,
         Guid? targetTripId = null)
     {
+        if (source.Regions.Count(region => region.Name == "Unassigned Places") > 1)
+            throw new TripImportValidationException("Duplicate Unassigned Places Regions require reconciliation.");
         var tripId = targetTripId ?? (remapIdentities ? Guid.NewGuid() : source.TripId);
         var regionIds = MapIds(source.Regions.Select(region => region.Id), remapIdentities, "Region");
         var sourcePlaces = source.Regions.SelectMany(region => region.Places).ToArray();

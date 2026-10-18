@@ -46,6 +46,9 @@ public sealed class TripCloneCoordinator(ApplicationDbContext dbContext)
             if (!source.IsPublic) return new(TripCloneStatus.NotPublic);
             if (source.UserId == destinationUserId) return new(TripCloneStatus.AlreadyOwned);
 
+            if (source.Regions.Count(region => region.Name == "Unassigned Places") > 1)
+                throw new InvalidOperationException("Duplicate Unassigned Places Regions require reconciliation.");
+
             var clone = await ConstructCloneAsync(source, destinationUserId, cancellationToken);
             TripRichNotes.NormalizeDestination(clone);
             dbContext.Trips.Add(clone);

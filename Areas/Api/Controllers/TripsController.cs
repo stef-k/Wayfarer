@@ -13,7 +13,7 @@ namespace Wayfarer.Areas.Api.Controllers;
 [Area("Api")]
 [Route("api/[controller]")]
 [ApiController]
-public class TripsController : BaseApiController
+public partial class TripsController : BaseApiController
 {
     /// <summary>
     /// Thread-safe dictionary for rate limiting anonymous image metadata requests by IP address.
@@ -609,82 +609,6 @@ return Ok(dto);
     }
 
     /// <summary>
-    /// Creates a Place with optional finite WGS84 coordinates within the given trip.
-    /// If regionId is omitted, any needed "Unassigned Places" region is saved atomically with the Place.
-    /// </summary>
-    /// <param name="tripId">Trip ID (must belong to the token user)</param>
-    /// <param name="request">Place creation payload</param>
-    [HttpPost("{tripId}/places")]
-    public async Task<IActionResult> CreatePlace(Guid tripId, [FromBody] PlaceCreateRequestDto request)
-    {
-        var user = GetUserFromToken();
-        if (user == null) return Unauthorized("Missing or invalid API token.");
-        var cancellationToken = HttpContext.RequestAborted;
-
-        var trip = await _dbContext.Trips
-            .Include(t => t.Regions)
-            .FirstOrDefaultAsync(t => t.Id == tripId && t.UserId == user.Id, cancellationToken);
-        if (trip == null) return NotFound("Trip not found.");
-
-        if (request == null) return BadRequest("Invalid request.");
-        if (string.IsNullOrWhiteSpace(request.Name)) return BadRequest("Name is required.");
-
-        // Preserve explicit destination lookup/ownership precedence before coordinate validation.
-        Region? destRegion = null;
-        if (request.RegionId.HasValue)
-        {
-            destRegion = await _dbContext.Regions
-                .FirstOrDefaultAsync(r => r.Id == request.RegionId.Value, cancellationToken);
-            if (destRegion == null || destRegion.TripId != tripId || destRegion.UserId != user.Id)
-                return BadRequest("Invalid regionId.");
-        }
-
-        // Validate finite pairs before constructing geometry or creating a fallback Region.
-        NetTopologySuite.Geometries.Point? location = null;
-        if (request.Latitude.HasValue || request.Longitude.HasValue)
-        {
-            if (!(request.Latitude.HasValue && request.Longitude.HasValue))
-                return BadRequest("Both latitude and longitude must be provided together.");
-            double lat = request.Latitude.Value; double lon = request.Longitude.Value;
-            if (!IsValidCoordinate(lat, lon))
-                return BadRequest("Latitude or Longitude is out of range.");
-            location = new NetTopologySuite.Geometries.Point(lon, lat) { SRID = 4326 };
-        }
-
-        destRegion ??= await GetOrCreateUnassignedRegion(trip, user.Id, cancellationToken);
-
-        // Defaults for icon and color
-        string iconName = string.IsNullOrWhiteSpace(request.IconName) ? "marker" : request.IconName!;
-        string markerColor = string.IsNullOrWhiteSpace(request.MarkerColor) ? "bg-blue" : request.MarkerColor!;
-
-        // Display order
-        int displayOrder = request.DisplayOrder ?? await GetNextPlaceOrder(destRegion.Id, cancellationToken);
-
-        var place = new Place
-        {
-            Id = Guid.NewGuid(),
-            UserId = user.Id,
-            RegionId = destRegion.Id,
-            Region = destRegion,
-            Name = request.Name!,
-            Notes = RichNotes.Normalize(request.Notes),
-            Location = location,
-            DisplayOrder = displayOrder,
-            IconName = iconName,
-            MarkerColor = markerColor,
-        };
-
-        _dbContext.Places.Add(place);
-        // EF's relational transaction includes the staged fallback, Place and automatic Trip timestamp.
-        await _dbContext.SaveChangesAsync(cancellationToken);
-
-        // Use the canonical Place projection, including its finite-coordinate response guard.
-        var placeDto = place.ToApiDto();
-
-        return Ok(new { success = true, place = placeDto });
-    }
-
-    /// <summary>
     /// Partially updates a Place with optional finite WGS84 coordinates.
     /// Region moves remain within the same owned trip.
     /// </summary>
@@ -1133,24 +1057,6 @@ return Ok(dto);
         return Ok(new { success = true, message = "Region deleted.", regionId });
     }
 
-    /// <summary>Reuses the existing fallback or stages it for the caller's atomic Place save.</summary>
-    private async Task<Region> GetOrCreateUnassignedRegion(Trip trip, string userId, CancellationToken cancellationToken)
-    {
-        var region = await _dbContext.Regions
-            .FirstOrDefaultAsync(r => r.TripId == trip.Id && r.Name == ShadowRegionName, cancellationToken);
-        if (region != null) return region;
-        region = new Region
-        {
-            Id = Guid.NewGuid(),
-            TripId = trip.Id,
-            UserId = userId,
-            Name = ShadowRegionName,
-            DisplayOrder = 0
-        };
-        _dbContext.Regions.Add(region);
-        return region;
-    }
-
     /// <summary>
     /// Returns a paginated, searchable list of all public trips.
     /// </summary>
@@ -1423,14 +1329,6 @@ return Ok(dto);
             _logger.LogError(ex, "Failed to clone trip {TripId} for user {UserId}", id, user.Id);
             return StatusCode(500, new { error = "Failed to clone trip. Please try again." });
         }
-    }
-
-    /// <summary>Appends after the maximum stored Place order, starting at one without flushing a staged Region.</summary>
-    private async Task<int> GetNextPlaceOrder(Guid regionId, CancellationToken cancellationToken)
-    {
-        var max = await _dbContext.Places.Where(p => p.RegionId == regionId)
-            .MaxAsync(p => (int?)p.DisplayOrder, cancellationToken) ?? 0;
-        return max + 1;
     }
 
     private async Task<int> GetNextRegionOrder(Guid tripId)

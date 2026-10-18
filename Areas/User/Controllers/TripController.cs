@@ -104,11 +104,11 @@ namespace Wayfarer.Areas.User.Controllers
             });
         }
 
-        // POST: /User/Trip/Create
+        /// <summary>Commits a new owned Trip and its server-created fallback together before scheduling images.</summary>
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> Create(
-            Trip model,
+            [Bind("Id,Name,Notes,IsPublic,ShareProgressEnabled,CenterLat,CenterLon,Zoom,CoverImageUrl")] Trip model,
             [FromForm] string submitAction // will be "save" (default) or "save-edit"
         )
         {
@@ -134,53 +134,49 @@ namespace Wayfarer.Areas.User.Controllers
             {
                 try
                 {
-                    // Persist
-                    _dbContext.Trips.Add(model);
-                    await _dbContext.SaveChangesAsync();
-                    
-                    // ✅ Always create shadow region after trip insert
-                    var shadowRegion = new Region
+                    // The form creates a Trip shell. Child graphs are server-owned, even for direct action callers.
+                    model.Regions = [new Region
                     {
-                        Id = Guid.NewGuid(),
-                        TripId = model.Id,
-                        UserId = model.UserId,
-                        Name = "Unassigned Places",         // 🧭 Do not allow edit in UI
-                        DisplayOrder = 0,                   // 🥇 Always shown at top
-                        Notes = null,
-                        Center = null,
-                        CoverImageUrl = null
-                    };
-                    _dbContext.Regions.Add(shadowRegion);
-                    await _dbContext.SaveChangesAsync();
+                        Id = Guid.NewGuid(), TripId = model.Id, UserId = userId,
+                        Name = "Unassigned Places", DisplayOrder = 0
+                    }];
+                    model.Segments = [];
+                    model.Tags = [];
+                    _dbContext.Trips.Add(model);
+                    await _dbContext.SaveChangesAsync(HttpContext.RequestAborted);
+                }
+                catch (Exception creationFailure)
+                {
+                    // HandleError saves its audit on this context. Discard the failed graph before any audit save.
+                    _dbContext.ChangeTracker.Clear();
+                    try { HandleError(creationFailure); }
+                    catch (Exception auditFailure)
+                    {
+                        throw new AggregateException("Trip creation failed and error auditing also failed.",
+                            creationFailure, auditFailure);
+                    }
+                    return View(model);
+                }
 
+                SetAlert("Trip created successfully!");
+                try
+                {
                     // Schedule immediate cache warm-up if the new trip has images
                     if (!string.IsNullOrWhiteSpace(model.CoverImageUrl)
                         || HtmlHelpers.ExtractExternalImageUrls(model.Notes).Any())
                     {
                         await _warmupScheduler.ScheduleWarmupAsync(model.Id, immediate: true);
                     }
-
-                    SetAlert("Trip created successfully!");
-
-                    // Branch on which button was clicked
-                    if (submitAction == "save-edit")
-                    {
-                        // Redirect to Edit for further configuration
-                        return RedirectToAction(
-                            actionName: nameof(Edit),
-                            controllerName: "Trip",
-                            routeValues: new { area = "User", id = model.Id }
-                        );
-                    }
-
-                    // Default: back to list
-                    return RedirectToAction(nameof(Index));
                 }
-                catch (Exception ex)
+                catch (Exception warmupFailure)
                 {
-                    HandleError(ex);
-                    return View(model);
+                    _logger.LogError(warmupFailure, "Trip {TripId} was created but cache warm-up scheduling failed.", model.Id);
+                    SetAlert("Trip created, but image cache warm-up could not be scheduled.", "warning");
                 }
+
+                return submitAction == "save-edit"
+                    ? RedirectToAction(nameof(Edit), "Trip", new { area = "User", id = model.Id })
+                    : RedirectToAction(nameof(Index));
             }
 
             // ModelState invalid
