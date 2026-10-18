@@ -17,6 +17,8 @@ public partial class TripImportService
         if (mode == TripImportMode.Upsert)
             throw new InvalidOperationException("Generic KML upsert is not supported.");
         var parsed = GoogleMyMapsKmlParser.Parse(source, userId, cancellationToken);
+        if (parsed.Trip.Regions.Count(region => region.Name == "Unassigned Places") > 1)
+            throw new TripImportValidationException("Duplicate Unassigned Places Regions require reconciliation.");
         var target = CreateNewShell(parsed.Trip, userId);
         TripRichNotes.NormalizeDestination(target);
         target.Name = $"{target.Name} (Imported)";

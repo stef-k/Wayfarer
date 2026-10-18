@@ -35,6 +35,13 @@
 
 ### Fixed
 
+- Enforce one exact `Unassigned Places` Region per Trip with a transactional,
+  stop-on-conflict migration. Recover one verified concurrent bearer Place
+  collision using fresh ownership checks, reject duplicate import/clone aggregates,
+  and commit Web Trip bootstrap atomically without error-audit resurrection.
+  Historical conflicts require backup, maintenance and separately approved
+  reconciliation; no automatic data repair is performed (#842).
+
 - Preserve pending sibling Place edits after failed lifecycle operations on partially
   tracked graphs. Detach lifecycle-loaded entries before restoring caller-owned
   instances so relationship fixup cannot discard pending work on a later save.

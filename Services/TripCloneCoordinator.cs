@@ -46,6 +46,9 @@ public sealed class TripCloneCoordinator(ApplicationDbContext dbContext)
             if (!source.IsPublic) return new(TripCloneStatus.NotPublic);
             if (source.UserId == destinationUserId) return new(TripCloneStatus.AlreadyOwned);
 
+            if (source.Regions.Count(region => region.Name == "Unassigned Places") > 1)
+                throw new InvalidOperationException("Duplicate Unassigned Places Regions require reconciliation.");
+
             var clone = await ConstructCloneAsync(source, destinationUserId, cancellationToken);
             TripRichNotes.NormalizeDestination(clone);
             dbContext.Trips.Add(clone);
@@ -59,8 +62,11 @@ public sealed class TripCloneCoordinator(ApplicationDbContext dbContext)
                 || HtmlHelpers.ExtractExternalImageUrls(clone.Notes).Any();
             return new(TripCloneStatus.Succeeded, clone.Id, source.Name, requiresWarmup);
         }
-        catch (Exception cloneFailure) when (transaction != null)
+        catch (Exception cloneFailure)
         {
+            // A controller may audit with this context after rollback; never leave the failed clone staged.
+            dbContext.ChangeTracker.Clear();
+            if (transaction == null) throw;
             try { await transaction.RollbackAsync(CancellationToken.None); }
             catch (Exception rollbackFailure)
             {

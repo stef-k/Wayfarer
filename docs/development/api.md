@@ -422,9 +422,31 @@ Cancellation before commit leaves no partial Region/Place pair; cancellation
 after commit cannot undo it. Losing the connection or response at commit can
 leave the outcome unknown, so an error does not guarantee that nothing committed
 and this endpoint supplies no automatic replay or idempotency guarantee.
-Atomicity is per request: simultaneous fallback lookup/creation can still produce
-duplicate Unassigned Places Regions or Place display orders. Concurrent
-uniqueness and historical duplicate repair remain outside this contract.
+PostgreSQL enforces at most one exact-name `Unassigned Places` Region within each
+Trip, independently of owner/order. A missing-fallback request that receives a
+verified `23505` naming `UX_Regions_Trip_UnassignedPlaces` may recover once after
+EF rolls back its implicit transaction. Recovery uses a fresh DI-owned context,
+revalidates bearer and Trip ownership, resolves exactly one correctly owned
+winner, then inserts only the Place. There are at most two save attempts. Explicit
+Place order is preserved; implicit append order is recomputed at the winner.
+Both legitimate competing requests retain the existing 200/Place DTO response.
+Place orders are not guaranteed unique or gap-free.
+
+Malformed/ambiguous destinations, or an absent winner after collision, return 409:
+`{ "error": "unassigned_region_conflict", "message": "Unassigned Places requires reconciliation." }`.
+No retry occurs for explicit-Region requests, caller-owned transactions, unrelated
+constraints, cancellation, timeout or unknown commit outcomes. Historical repair
+requires separate maintainer approval; see [database rollout](database.md#canonical-unassigned-places-region-rollout-842).
+
+Web Trip creation commits the Trip and one server-owned order-0 fallback in one
+graph save. Form child graphs are excluded. Failed/cancelled graphs are cleared
+before the normal error audit can save again. Image warm-up runs after commit;
+a scheduling failure retains the created Trip and redirect with a warning.
+Native/generic imports reject duplicate exact-name fallbacks with the existing
+422 `validation_failed` envelope before replacement or graph mutation. Cloning
+rejects such malformed source aggregates before creating a destination. Native
+v2/v3 and clone compatibility still permit missing fallbacks; existing canonical
+orders, metadata and ordinary Region names retain their meaning.
 
 Legacy Region PUT recognizes an existing **Unassigned Places** Region by its
 stored name, case-insensitively, regardless of display order. Its stored name and
