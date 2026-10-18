@@ -89,7 +89,7 @@ public sealed class PlaceRegionLifecycleRecoveryPostgresTests(PostgresImportTest
         var result = await Service(context, confirmation).UpdatePlaceAsync(
             seeded.TripId, seeded.WaypointId, seeded.UserId,
             new(sibling.RegionId, "Accepted", "accepted notes", "accepted address", "marker", "bg-red",
-                new Point(2, 2) { SRID = 4326 }, 1), CancellationToken.None);
+                new Point(2, 2) { SRID = 4326 }, 99), CancellationToken.None);
 
         Assert.True(result.Succeeded);
         Assert.Equal(failedAttempts, failure.Failures.Count);
@@ -100,7 +100,7 @@ public sealed class PlaceRegionLifecycleRecoveryPostgresTests(PostgresImportTest
             .Where(item => item.Id == sibling.Id).Select(item => item.Notes).SingleAsync());
         var target = await verification.Places.AsNoTracking().SingleAsync(item => item.Id == seeded.WaypointId);
         Assert.Equal("Accepted", target.Name);
-        Assert.Equal(1, target.DisplayOrder);
+        Assert.Equal(4, target.DisplayOrder);
         sibling.Notes = "subsequent sibling edit";
         await context.SaveChangesAsync();
         Assert.Equal("subsequent sibling edit", await verification.Places.AsNoTracking()
