@@ -40,7 +40,7 @@ def report_error(phase, error, root=None):
     if root is not None:
         try:
             root.append_diagnostic(diagnostic)
-        except (OSError, ValueError, NotImplementedError) as log_error:
+        except Exception as log_error:
             # Diagnostic storage failure must not replace the primary failure or skip cleanup.
             print(f'Browser diagnostic retention failed: {type(log_error).__name__}', file=sys.stderr)
 

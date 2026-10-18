@@ -172,6 +172,53 @@ class SupervisorTests(unittest.TestCase):
         self.assertIn('Browser diagnostic retention failed: PermissionError', output.getvalue())
         self.assertNotIn('private-path', output.getvalue())
 
+    def test_recursive_diagnostic_failure_preserves_status_and_independent_cleanup(self):
+        """Injected recursion cannot escape execution/cleanup reporting or touch foreign files."""
+        sentinel = self.run.repository / 'sentinel'
+        sentinel.write_text('foreign')
+        before = set(self.run.repository.iterdir())
+        self.run.provision_attempted = True
+        self.run.manifest.write_text('{}')
+        self.run.preparation.write_text('{}')
+        for error, status in ((subprocess.CalledProcessError(7, 'playwright'), 7),
+                              (RuntimeError('private-execution-failure'), 1)):
+            with self.subTest(status=status):
+                phases = []
+                self.run.cleanup_errors.clear()
+
+                def execute(_):
+                    raise error
+
+                def fixture(command, manifest=None):
+                    phases.append(command)
+                    if command == 'cleanup-layout':
+                        raise RuntimeError('private-cleanup-failure')
+
+                self.run.execute = execute
+                self.run.fixture = fixture
+                output = io.StringIO()
+                failure = RecursionError('private-retention-failure', self.run.root.path,
+                                         {'connection': 'Host=guarded',
+                                          'password': self.run.env['WAYFARER_E2E_PASSWORD']})
+                with patch.object(self.run.root, 'append_diagnostic', side_effect=failure) as append:
+                    with redirect_stderr(output):
+                        self.assertEqual(status, run_owned(self.run, []))
+                self.assertEqual(1 if status == 7 else 2, append.call_count)
+                self.assertEqual(['cleanup-layout', 'verify-cleanup-layout',
+                                  'cleanup-environment', 'verify-environment'], phases)
+                self.assertEqual([('fixture-cleanup', 'RuntimeError')], self.run.cleanup_errors)
+                self.assertIn('Browser execution failed: ' + ('playwright (exit 7)' if status == 7
+                                                             else 'RuntimeError'), output.getvalue())
+                self.assertIn('Browser diagnostic retention failed: RecursionError', output.getvalue())
+                diagnostic = output.getvalue().split('Owned residue retained:')[0]
+                for private in ('private-retention-failure', 'private-execution-failure',
+                                'private-cleanup-failure', self.run.env['WAYFARER_E2E_PASSWORD'],
+                                'Host=guarded', str(Path(__file__).parent), str(self.run.root.path),
+                                'raise error'):
+                    self.assertNotIn(private, diagnostic)
+                self.assertEqual(before, set(self.run.repository.iterdir()))
+                self.assertEqual('foreign', sentinel.read_text())
+
     @unittest.skipIf(os.name == 'nt', 'Unix symbolic-link diagnostic target')
     def test_linked_diagnostic_never_changes_foreign_sentinel(self):
         """Execution and finalizer failures cannot append through a linked log target."""
