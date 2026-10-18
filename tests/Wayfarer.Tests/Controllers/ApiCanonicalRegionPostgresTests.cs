@@ -79,6 +79,36 @@ public sealed class ApiCanonicalRegionPostgresTests(PostgresMigrationTestFixture
         Assert.All(fallback.Places, place => Assert.Equal(trip.UserId, place.UserId));
     }
 
+    /// <summary>Sequential omission retains a historical exact fallback's identity/order and ignores near-names.</summary>
+    [PostgresFact]
+    public async Task SequentialReusePreservesHistoricalFallback()
+    {
+        var trip = await SeedAsync();
+        await using var db = fixture.CreateContext();
+        var fallback = new Region
+        {
+            Id = Guid.NewGuid(), TripId = trip.Id, UserId = trip.UserId,
+            Name = "Unassigned Places", DisplayOrder = 17
+        };
+        db.Places.Add(new Place
+        {
+            Id = Guid.NewGuid(), UserId = trip.UserId, Region = fallback, Name = "Existing", DisplayOrder = 5
+        });
+        db.Regions.Add(new Region
+        {
+            Id = Guid.NewGuid(), TripId = trip.Id, UserId = trip.UserId, Name = "unassigned places", DisplayOrder = 0
+        });
+        await db.SaveChangesAsync();
+        var controller = Controller(db, trip.UserId);
+        Assert.IsType<OkObjectResult>(await controller.CreatePlace(trip.Id, new() { Name = "Appended" }));
+        Assert.IsType<OkObjectResult>(await controller.CreatePlace(trip.Id, new() { Name = "Again" }));
+        await using var verify = fixture.CreateContext();
+        var stored = await verify.Regions.Include(region => region.Places).SingleAsync(region => region.Id == fallback.Id);
+        Assert.Equal((17, "Unassigned Places"), (stored.DisplayOrder, stored.Name));
+        Assert.Equal(new int?[] { 5, 6, 7 }, stored.Places.Select(place => place.DisplayOrder).Order());
+        Assert.Equal(2, await verify.Regions.CountAsync(region => region.TripId == trip.Id));
+    }
+
     /// <summary>Recovery stops on an absent or incorrectly owned winner instead of recreating or hiding it.</summary>
     [PostgresTheory]
     [InlineData(false)]
@@ -218,10 +248,10 @@ public sealed class ApiCanonicalRegionPostgresTests(PostgresMigrationTestFixture
 
     /// <summary>Supplies fresh recovery scopes while retaining the production token and action path.</summary>
     private static Wayfarer.Areas.Api.Controllers.TripsController Controller(ApplicationDbContext db, string token,
-        IServiceProvider services)
+        IServiceProvider? services = null)
     {
         var http = CreateHttpContext(token);
-        http.RequestServices = services;
+        if (services != null) http.RequestServices = services;
         return new(db, NullLogger<Wayfarer.Areas.Api.Controllers.BaseApiController>.Instance,
             Mock.Of<ITripTagService>(), Mock.Of<IApplicationSettingsService>(), Mock.Of<ICacheWarmupScheduler>())
         {

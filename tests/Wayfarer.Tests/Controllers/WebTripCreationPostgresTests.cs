@@ -28,15 +28,14 @@ public sealed class WebTripCreationPostgresTests(PostgresMigrationTestFixture fi
     {
         var id = Guid.NewGuid();
         var visibility = new CommitVisibility(fixture, id);
-        await using var browser = await Browser.StartAsync(fixture, CreateTestDirectory(), "User", services =>
-            services.AddSingleton(Mock.Of<ICacheWarmupScheduler>()), visibility);
+        await using var browser = await Browser.StartAsync(fixture, CreateTestDirectory(), "User", ConfigureWebServices, visibility);
         using var response = await browser.PostAsync("/User/Trip/Create",
             ("Id", id.ToString()), ("Name", "Web canonical"), ("submitAction", action),
             ("Notes", "<p onclick='bad()'>Safe</p><script>bad()</script>"), ("UserId", "untrusted"),
             ("Regions[0].Name", "Unassigned Places"), ("Regions[0].UserId", "untrusted"),
             ("Regions[1].Name", "Unassigned Places"), ("Regions[1].UserId", "untrusted"));
 
-        Assert.True(response.StatusCode == HttpStatusCode.Redirect, await response.Content.ReadAsStringAsync());
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
         Assert.Equal(action == "save-edit" ? redirect + id : redirect, response.Headers.Location!.OriginalString);
         await using var db = fixture.CreateContext();
         var trip = await db.Trips.Include(item => item.Regions).SingleAsync(item => item.Id == id);
@@ -51,8 +50,7 @@ public sealed class WebTripCreationPostgresTests(PostgresMigrationTestFixture fi
     [PostgresFact]
     public async Task RegionFailureThenNormalAuditCommitsNeitherTripNorRegion()
     {
-        await using var browser = await Browser.StartAsync(fixture, CreateTestDirectory(), "User", services =>
-            services.AddSingleton(Mock.Of<ICacheWarmupScheduler>()));
+        await using var browser = await Browser.StartAsync(fixture, CreateTestDirectory(), "User", ConfigureWebServices);
         var id = Guid.NewGuid();
         await using var db = fixture.CreateContext();
         var audits = await db.AuditLogs.Select(log => log.Id).ToArrayAsync();
@@ -75,7 +73,7 @@ public sealed class WebTripCreationPostgresTests(PostgresMigrationTestFixture fi
         using var response = await browser.PostAsync("/User/Trip/Create",
             ("Id", id.ToString()), ("Name", "Reject Web bootstrap"), ("submitAction", "save"));
 
-        Assert.True(response.StatusCode == HttpStatusCode.OK, await response.Content.ReadAsStringAsync());
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.False(await db.Trips.AnyAsync(trip => trip.Id == id));
         Assert.False(await db.Regions.AnyAsync(region => region.TripId == id));
         var audit = Assert.Single(await db.AuditLogs.Where(log => !audits.Contains(log.Id)).ToArrayAsync());
@@ -92,8 +90,7 @@ public sealed class WebTripCreationPostgresTests(PostgresMigrationTestFixture fi
         using var unauthenticated = await anonymous.PostAsync("/User/Trip/Create", ("Id", id.ToString()), ("Name", "Rejected"));
         Assert.Equal(HttpStatusCode.Redirect, unauthenticated.StatusCode);
         Assert.Contains("/Identity/Account/Login", unauthenticated.Headers.Location!.OriginalString);
-        await using var browser = await Browser.StartAsync(fixture, CreateTestDirectory(), "User", services =>
-            services.AddSingleton(Mock.Of<ICacheWarmupScheduler>()));
+        await using var browser = await Browser.StartAsync(fixture, CreateTestDirectory(), "User", ConfigureWebServices);
         using var noToken = await browser.PostAsync("/User/Trip/Create", false, ("Id", id.ToString()), ("Name", "Rejected"));
         Assert.Equal(HttpStatusCode.BadRequest, noToken.StatusCode);
         using var invalid = await browser.PostAsync("/User/Trip/Create", ("Id", id.ToString()), ("Name", ""), ("submitAction", "save"));
@@ -173,6 +170,13 @@ public sealed class WebTripCreationPostgresTests(PostgresMigrationTestFixture fi
         Assert.Equal("Edit", result.ActionName);
         Assert.Equal("warning", controller.TempData["AlertType"]);
         scheduler.Verify(service => service.ScheduleWarmupAsync(id, true), Times.Once);
+    }
+
+    /// <summary>Replaces only external image work omitted by the established routed test host.</summary>
+    private static void ConfigureWebServices(IServiceCollection services)
+    {
+        services.AddSingleton(Mock.Of<ICacheWarmupScheduler>());
+        services.AddSingleton(Mock.Of<ITripMapThumbnailGenerator>());
     }
 
     /// <summary>Observes an independent reader while the bootstrap transaction is still uncommitted.</summary>

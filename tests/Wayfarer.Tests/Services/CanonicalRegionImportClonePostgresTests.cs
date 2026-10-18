@@ -84,14 +84,14 @@ public sealed class CanonicalRegionImportClonePostgresTests(PostgresMigrationTes
         Assert.All(imported.Regions, region => Assert.Equal(owner.Id, region.UserId));
         imported.IsPublic = true;
         await db.SaveChangesAsync();
-        var expected = imported.Regions.OrderBy(region => region.DisplayOrder)
+        var expected = imported.Regions.OrderBy(region => region.DisplayOrder).ThenBy(region => region.Name)
             .Select(region => (region.Name, region.DisplayOrder, region.Notes)).ToArray();
 
         var cloneResult = await new TripCloneCoordinator(db).CloneAsync(imported.Id, destination.Id);
 
         var clone = await db.Trips.Include(trip => trip.Regions).SingleAsync(trip => trip.Id == cloneResult.ClonedTripId);
         Assert.False(clone.IsPublic);
-        Assert.Equal(expected, clone.Regions.OrderBy(region => region.DisplayOrder)
+        Assert.Equal(expected, clone.Regions.OrderBy(region => region.DisplayOrder).ThenBy(region => region.Name)
             .Select(region => (region.Name, region.DisplayOrder, region.Notes)));
         Assert.All(clone.Regions, region =>
         {

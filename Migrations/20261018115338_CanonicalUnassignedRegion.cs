@@ -40,7 +40,6 @@ namespace Wayfarer.Migrations
             migrationBuilder.DropIndex(
                 name: "UX_Regions_Trip_UnassignedPlaces",
                 table: "Regions");
-
         }
     }
 }
