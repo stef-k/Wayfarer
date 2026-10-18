@@ -63,6 +63,22 @@ public sealed partial class PlaceRegionLifecycleService
         }
     }
 
+    /// <summary>Retires an unapplied operation's context when rollback itself fails, retaining the original failure.</summary>
+    private async Task RecoverUnappliedRegionDeletionAsync(Exception original, IDbContextTransaction? transaction)
+    {
+        try
+        {
+            await RollbackAsync(transaction);
+        }
+        catch (Exception rollbackFailure)
+        {
+            var failures = new List<Exception> { original, rollbackFailure };
+            try { await _dbContext.DisposeAsync(); }
+            catch (Exception disposalFailure) { failures.Add(disposalFailure); }
+            throw new AggregateException("Region deletion failed and rollback could not be confirmed.", failures);
+        }
+    }
+
     /// <summary>Verifies rollback restored every lifecycle-owned canonical row before tracker reuse.</summary>
     private async Task VerifyRecoveredRowsAsync(LifecycleRecoveryScope scope)
     {

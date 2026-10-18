@@ -41,7 +41,7 @@ public sealed partial class PlaceRegionLifecycleService
             await LockRegionDeletionAsync(candidates, token);
             var current = await ReadRegionDeletionAsync(tripId, regionId, userId, request,
                 approval.Destination.RegionId ?? Guid.NewGuid(), token);
-            if (current.Locks.RequiresLocksOutside(candidates.Locks) || current.AreaIds.Except(candidates.AreaIds).Any()
+            if (_confirmation.IsRegionDeletionExpired(approval) || current.Locks.RequiresLocksOutside(candidates.Locks) || current.AreaIds.Except(candidates.AreaIds).Any()
                 || current.Destination != approval.Destination || RegionDeletionFingerprint(current) != approval.Fingerprint)
                 throw StaleRegionDeletion();
 
@@ -58,7 +58,7 @@ public sealed partial class PlaceRegionLifecycleService
         catch (Exception original)
         {
             if (trackerIsolated) await RecoverAsync(original, transaction, scope, snapshot);
-            else await RollbackAsync(transaction);
+            else await RecoverUnappliedRegionDeletionAsync(original, transaction);
             if (!commitStarted && IsRegionDeletionContention(original)) throw StaleRegionDeletion();
             throw;
         }
