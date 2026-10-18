@@ -71,6 +71,43 @@ public sealed class PlaceRegionLifecycleRecoveryPostgresTests(PostgresImportTest
         AssertClean(context);
     }
 
+    /// <summary>Retries with the original sibling instance and commits its pending edit before a later ordinary save.</summary>
+    [PostgresTheory]
+    [InlineData(1)]
+    [InlineData(2)]
+    public async Task PlaceUpdate_SerializationRetry_PreservesPendingPartialTrackerSibling(int failedAttempts)
+    {
+        var seeded = await SeedAsync(includeSibling: true);
+        var failure = new PostSqlSerializationInterceptor(failedAttempts);
+        await using var context = fixture.CreateContext(failure);
+        var sibling = await context.Places.SingleAsync(item =>
+            item.Name == "Sibling" && item.Region.TripId == seeded.TripId);
+        Assert.Single(context.ChangeTracker.Entries());
+        sibling.Notes = "pending sibling edit";
+        var confirmation = new LifecycleDependencyConfirmation(new EphemeralDataProtectionProvider());
+
+        var result = await Service(context, confirmation).UpdatePlaceAsync(
+            seeded.TripId, seeded.WaypointId, seeded.UserId,
+            new(sibling.RegionId, "Accepted", "accepted notes", "accepted address", "marker", "bg-red",
+                new Point(2, 2) { SRID = 4326 }, 1), CancellationToken.None);
+
+        Assert.True(result.Succeeded);
+        Assert.Equal(failedAttempts, failure.Failures.Count);
+        Assert.Same(sibling, context.Places.Local.Single(item => item.Id == sibling.Id));
+        Assert.Equal(EntityState.Unchanged, context.Entry(sibling).State);
+        await using var verification = fixture.CreateContext();
+        Assert.Equal("pending sibling edit", await verification.Places.AsNoTracking()
+            .Where(item => item.Id == sibling.Id).Select(item => item.Notes).SingleAsync());
+        var target = await verification.Places.AsNoTracking().SingleAsync(item => item.Id == seeded.WaypointId);
+        Assert.Equal("Accepted", target.Name);
+        Assert.Equal(1, target.DisplayOrder);
+        sibling.Notes = "subsequent sibling edit";
+        await context.SaveChangesAsync();
+        Assert.Equal("subsequent sibling edit", await verification.Places.AsNoTracking()
+            .Where(item => item.Id == sibling.Id).Select(item => item.Notes).SingleAsync());
+        AssertClean(context);
+    }
+
     /// <summary>Uses non-cancelled rollback/recovery after cancellation following destructive waypoint work.</summary>
     [PostgresFact]
     public async Task PlaceDeletion_CancellationAfterDestructiveWork_RestoresStateAndReusableContext()
@@ -271,16 +308,17 @@ public sealed class PlaceRegionLifecycleRecoveryPostgresTests(PostgresImportTest
         Guid SegmentId,
         DateTime UpdatedAt);
 
-    /// <summary>Raises real PostgreSQL serialization errors after SQL and EF acceptance on exactly three attempts.</summary>
-    private sealed class PostSqlSerializationInterceptor : SaveChangesInterceptor
+    /// <summary>Raises real PostgreSQL serialization errors after SQL and EF acceptance on the requested early attempts.</summary>
+    private sealed class PostSqlSerializationInterceptor(int failedAttempts = 3) : SaveChangesInterceptor
     {
+        /// <summary>Records the original server exceptions in attempt order.</summary>
         internal List<PostgresException> Failures { get; } = [];
 
         /// <summary>Aborts the active transaction only after the lifecycle save has completed.</summary>
         public override async ValueTask<int> SavedChangesAsync(
             SaveChangesCompletedEventData eventData, int result, CancellationToken cancellationToken = default)
         {
-            if (Failures.Count >= 3) return result;
+            if (Failures.Count >= failedAttempts) return result;
             try
             {
                 await eventData.Context!.Database.ExecuteSqlRawAsync(

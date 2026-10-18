@@ -35,6 +35,10 @@
 
 ### Fixed
 
+- Preserve pending sibling Place edits after failed lifecycle operations on partially
+  tracked graphs. Detach lifecycle-loaded entries before restoring caller-owned
+  instances so relationship fixup cannot discard pending work on a later save (#839).
+
 - Make Admin account edits atomic across fields, complete role replacement,
   security-stamp invalidation and success auditing. Require an explicit supported
   role, retain required protected-form values and prompt for ambiguous membership.

@@ -80,8 +80,18 @@ public sealed partial class PlaceRegionLifecycleService
         }
     }
 
+    /// <summary>Detaches lifecycle-created entries before restoring caller instances so fixup cannot undo restoration.</summary>
     private void RestoreTracker(LifecycleRecoveryScope scope, LifecycleTrackerSnapshot trackerSnapshot)
     {
+        // Detaching a loaded principal can detach its dependents, including caller-owned entries.
+        // Complete that relationship fixup before deciding which original instances need reattaching.
+        foreach (var entry in _dbContext.ChangeTracker.Entries().ToArray())
+        {
+            if (!trackerSnapshot.Entries.ContainsKey(entry.Entity)
+                && (entry.State != EntityState.Unchanged || IsAffected(entry.Entity, scope)))
+                entry.State = EntityState.Detached;
+        }
+
         var restored = new HashSet<object>(ReferenceEqualityComparer.Instance);
         foreach (var entry in _dbContext.ChangeTracker.Entries().ToArray())
         {
@@ -90,11 +100,7 @@ public sealed partial class PlaceRegionLifecycleService
                 entry.CurrentValues.SetValues(original.Values);
                 entry.State = original.State;
                 restored.Add(entry.Entity);
-                continue;
             }
-
-            if (entry.State != EntityState.Unchanged || IsAffected(entry.Entity, scope))
-                entry.State = EntityState.Detached;
         }
 
         foreach (var pair in trackerSnapshot.Entries.Where(pair => !restored.Contains(pair.Key)))
