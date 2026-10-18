@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
+import { parse, compileScript, compileTemplate } from '@vue/compiler-sfc';
+import { build } from 'esbuild';
+import { createSSRApp, proxyRefs, reactive } from 'vue';
+import { renderToString } from 'vue/server-renderer';
 import { segmentPlaceGroups, segmentWaypointChoices, segmentPlaceUnavailableLabel, segmentPlaceHasLocation } from '../../ClientApps/trip-editor/src/components/segmentPlaceChoices.ts';
 
 const componentPath = new URL('../../ClientApps/trip-editor/src/components/SegmentWaypointEditor.vue', import.meta.url);
@@ -71,6 +75,62 @@ test('missing, inaccessible, invalid-location and unavailable membership referen
   assert.equal(draft.waypointRows[0].placeId, 'c');
   assert.equal(draft.waypointRows[0].routeVertexIndex, 2);
 });
+
+/** Uses the established SFC compiler seam; child editors are boundaries, both real picker templates run below. */
+async function loadSelectorComponent(name) {
+  const filename = `ClientApps/trip-editor/src/components/${name}.vue`;
+  const { descriptor } = parse(await readFile(filename, 'utf8'), { filename });
+  const script = compileScript(descriptor, { id: name });
+  const template = compileTemplate({ source: descriptor.template.content, filename, id: name,
+    compilerOptions: { bindingMetadata: script.bindings } });
+  const bundled = await build({ stdin: { contents: `${script.content}\n${template.code}`, loader: 'ts',
+    resolveDir: 'ClientApps/trip-editor/src/components' }, bundle: true, write: false, format: 'esm', platform: 'node',
+    external: ['vue'], plugins: [{ name: 'child-editors', setup(builder) {
+      builder.onLoad({ filter: /\.vue$/ }, () => ({ contents: 'export default { render: () => null };' }));
+    } }] });
+  const code = bundled.outputFiles[0].text.replaceAll('from "vue"', `from "${import.meta.resolve('vue')}"`);
+  return import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`);
+}
+
+for (const name of ['SegmentEditorForm', 'SegmentWaypointEditor']) {
+  test(`${name} renders eligible Unassigned choices and retains draft state across catalogue changes`, async () => {
+    const { default: component, render } = await loadSelectorComponent(name);
+    const state = reactive({ ...catalogue(), options: { transportModes: [] } });
+    const draft = { fromPlaceId: 'a', toPlaceId: 'a', mode: '', estimatedDurationSource: 'Manual', estimatedDurationMinutes: 12,
+      waypointPlaceIds: ['c'], waypointRouteVertexIndices: [1], waypointRows: [{ clientId: 'row', placeId: 'c', routeVertexIndex: 1 }],
+      route: { type: 'LineString', coordinates: [[23,38],[24,39],[23,38]] } };
+    const original = structuredClone(draft);
+    const events = [];
+    const props = { state, draft, baselineDraft: structuredClone(draft), fieldErrors: () => [], formSummaryErrors: [],
+      isDirty: false, isSaving: false, semanticEditsSafe: true, formId: 'segment-form' };
+    let bindings;
+    const app = createSSRApp({ setup() {
+      bindings = proxyRefs(component.setup(props, { expose() {}, emit: (...args) => events.push(args) }));
+      return () => render({}, [], props, bindings, {}, {});
+    } });
+    const initial = await renderToString(app);
+    assert.match(initial, /value="c"[^>]*>c<\/option>/);
+    assert.match(initial, /value="invalid"[^>]*disabled[^>]*>invalid — location required/);
+    if (name === 'SegmentEditorForm') assert.equal(initial.match(/optgroup label="Unassigned Places"/g).length, 2);
+    state.placesById.a.regionId = 'unassigned';
+    state.placeOrderByRegionId.normal = ['b'];
+    state.placeOrderByRegionId.unassigned.unshift('a');
+    const rerender = () => renderToString(createSSRApp({ render: () => render({}, [], props, bindings, {}, {}) }));
+    assert.match(await rerender(), /value="c"[^>]*>c<\/option>/);
+    assert.deepEqual(draft, original);
+    assert.deepEqual(events, []);
+    if (name === 'SegmentWaypointEditor') {
+      bindings.substitute(draft.waypointRows[0], 'b');
+      assert.match(await rerender(), /value="c"[^>]*>c<\/option>/);
+      bindings.substitute(draft.waypointRows[0], 'c');
+      assert.deepEqual(draft, original);
+    }
+    delete state.placesById.c;
+    delete state.placesById.a;
+    assert.match(await rerender(), /disabled[^>]*>Place no longer available/);
+    assert.deepEqual(draft, original);
+  });
+}
 
 test('the Segment editor exposes visible intermediate-place controls', async () => {
   const source = await sourceOrEmpty(componentPath);
