@@ -79,12 +79,12 @@ test('Unassigned Segment pickers persist endpoints and waypoints after Region pr
   await form.getByLabel('From place').selectOption(from.id);
   await form.getByLabel('To place').selectOption(to.id);
   await form.getByLabel('Transport mode').selectOption(mode);
-  await form.getByLabel('Place to add', { exact: true }).selectOption(via.id);
+  await form.getByLabel('Place to add').selectOption(via.id);
   await form.getByRole('button', { name: 'Add intermediate place', exact: true }).click();
   const waypoint = form.getByLabel(/Intermediate place 1:/);
   await waypoint.selectOption(alternate.id);
   await waypoint.selectOption(via.id);
-  for (const id of [from.id, to.id, via.id]) await expect(form.getByLabel('Place to add', { exact: true }).locator(`option[value="${id}"]`)).toHaveCount(0);
+  for (const id of [from.id, to.id, via.id]) await expect(form.getByLabel('Place to add').locator(`option[value="${id}"]`)).toHaveCount(0);
   const createdResponse = page.waitForResponse(r => r.request().method() === 'POST' && r.url().endsWith('/segments'));
   await page.getByRole('button', { name: 'Save Segment', exact: true }).click();
   const response = await createdResponse;
