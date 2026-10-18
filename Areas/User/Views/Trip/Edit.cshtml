@@ -1,6 +1,7 @@
 @model Wayfarer.Models.ViewModels.TripEditorShellViewModel
 @inject IWebHostEnvironment Environment
 @using System.Text.Json
+@using System.Security.Claims
 
 @{
     Layout = "~/Views/Shared/_Layout.cshtml";
@@ -55,6 +56,7 @@
 </form>
 
 <div id="trip-editor-app"
+     data-account-id="@User.FindFirstValue(ClaimTypes.NameIdentifier)"
      data-trip-id="@Model.TripId"
      data-trip-name="@Model.TripName"
      data-editor-endpoint="@Model.EditorEndpointUrl"

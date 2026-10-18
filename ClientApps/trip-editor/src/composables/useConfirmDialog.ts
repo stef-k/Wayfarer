@@ -1,4 +1,5 @@
 import { nextTick, readonly, ref } from 'vue';
+import type { RegionDeletionController } from '../components/regionDeletionState';
 
 export type ConfirmDialogVariant = 'default' | 'warning' | 'danger';
 
@@ -8,9 +9,10 @@ export type ConfirmDialogOptions = {
   confirmLabel?: string;
   cancelLabel?: string;
   variant?: ConfirmDialogVariant;
+  regionDeletion?: RegionDeletionController;
 };
 
-export type ActiveConfirmDialog = Required<ConfirmDialogOptions> & {
+export type ActiveConfirmDialog = Required<Omit<ConfirmDialogOptions, 'regionDeletion'>> & Pick<ConfirmDialogOptions, 'regionDeletion'> & {
   id: number;
   returnFocusTarget: HTMLElement | null;
 };
@@ -54,6 +56,7 @@ export const confirm = (options: ConfirmDialogOptions): Promise<boolean> => {
     confirmLabel: options.confirmLabel ?? 'Confirm',
     cancelLabel: options.cancelLabel ?? 'Cancel',
     variant: options.variant ?? 'default',
+    regionDeletion: options.regionDeletion,
     returnFocusTarget
   };
 

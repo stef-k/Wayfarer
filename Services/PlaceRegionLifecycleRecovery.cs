@@ -70,9 +70,14 @@ public sealed partial class PlaceRegionLifecycleService
             .CountAsync(item => scope.PlaceIds.Contains(item.Id), CancellationToken.None);
         var regionCount = await _dbContext.Regions.AsNoTracking().TagWith("LIFECYCLE RECOVERY")
             .CountAsync(item => scope.RegionIds.Contains(item.Id), CancellationToken.None);
+        var areaCount = await _dbContext.Areas.AsNoTracking().TagWith("LIFECYCLE RECOVERY")
+            .CountAsync(item => scope.AreaIds!.Contains(item.Id), CancellationToken.None);
+        var createdRegionCount = await _dbContext.Regions.AsNoTracking().TagWith("LIFECYCLE RECOVERY")
+            .CountAsync(item => scope.CreatedRegionIds!.Contains(item.Id), CancellationToken.None);
         var segmentCount = await _dbContext.Segments.AsNoTracking().TagWith("LIFECYCLE RECOVERY")
             .CountAsync(item => scope.SegmentIds.Contains(item.Id), CancellationToken.None);
-        if (placeCount != scope.PlaceIds.Distinct().Count()
+        if (areaCount != scope.AreaIds!.Distinct().Count() || createdRegionCount != 0
+            || placeCount != scope.PlaceIds.Distinct().Count()
             || regionCount != scope.RegionIds.Distinct().Count()
             || segmentCount != scope.SegmentIds.Distinct().Count())
         {
@@ -134,7 +139,8 @@ public sealed partial class PlaceRegionLifecycleService
     private static bool IsAffected(object entity, LifecycleRecoveryScope scope) => entity switch
     {
         Place place => scope.PlaceIds.Contains(place.Id),
-        Region region => scope.RegionIds.Contains(region.Id),
+        Area area => scope.AreaIds!.Contains(area.Id),
+        Region region => scope.RegionIds.Contains(region.Id) || scope.CreatedRegionIds!.Contains(region.Id),
         Segment segment => scope.SegmentIds.Contains(segment.Id),
         SegmentWaypoint waypoint => scope.SegmentIds.Contains(waypoint.SegmentId) || scope.PlaceIds.Contains(waypoint.PlaceId),
         _ => false
@@ -145,7 +151,15 @@ public sealed partial class PlaceRegionLifecycleService
 internal sealed record LifecycleRecoveryScope(
     IReadOnlyList<Guid> PlaceIds,
     IReadOnlyList<Guid> RegionIds,
-    IReadOnlyList<Guid> SegmentIds);
+    IReadOnlyList<Guid> SegmentIds,
+    IReadOnlyList<Guid>? AreaIds = null,
+    IReadOnlyList<Guid>? CreatedRegionIds = null)
+{
+    /// <summary>Includes Areas without changing legacy callers' recovery footprints.</summary>
+    public IReadOnlyList<Guid>? AreaIds { get; init; } = AreaIds ?? [];
+    /// <summary>Newly staged destinations must disappear on rollback.</summary>
+    public IReadOnlyList<Guid>? CreatedRegionIds { get; init; } = CreatedRegionIds ?? [];
+}
 
 /// <summary>Exact pre-operation tracker values used to preserve caller-owned state during recovery.</summary>
 internal sealed record LifecycleTrackerSnapshot(
