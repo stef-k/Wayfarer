@@ -1,5 +1,7 @@
 """Behavioral supervisor contracts at real child/endpoint and finalizer seams."""
 
+from contextlib import redirect_stderr
+import io
 import os
 from pathlib import Path
 import socket
@@ -117,6 +119,28 @@ class SupervisorTests(unittest.TestCase):
         self.assertEqual(['cleanup-layout', 'verify-cleanup-layout'], phases)
         self.assertEqual('fixture-cleanup', self.run.cleanup_errors[0][0])
         self.assertTrue(self.run.root.path.exists())
+
+    def test_unexpected_failure_retains_frames_without_private_values(self):
+        """Real finalization preserves sanitized diagnostics after removing the run root."""
+        def execute(_):
+            raise RuntimeError('fixture-secret', {'environment': self.run.env, 'private': self.run.root.path})
+
+        self.run.execute = execute
+        output = io.StringIO()
+        with redirect_stderr(output):
+            self.assertEqual(1, run_owned(self.run, []))
+        retained = self.run.repository / '.local/browser-e2e' / self.run.root.run_id / 'supervisor.log'
+        diagnostic = retained.read_text()
+        self.assertIn(diagnostic, output.getvalue())
+        self.assertIn('Browser execution failed: RuntimeError', diagnostic)
+        self.assertIn('File "browser_e2e.py", line ', diagnostic)
+        self.assertIn('in run_owned', diagnostic)
+        self.assertIn('File "test_browser_e2e.py", line ', diagnostic)
+        self.assertIn('in execute', diagnostic)
+        for private in ('fixture-secret', str(self.run.root.path), str(Path(__file__).parent),
+                        self.run.env['WAYFARER_E2E_PASSWORD'], 'raise RuntimeError', 'Host=guarded'):
+            self.assertNotIn(private, diagnostic)
+        self.assertFalse(self.run.root.path.exists())
 
     def test_environment_replaces_human_identity_and_scopes_every_storage_root(self):
         """Caller secrets/key authority stay unchanged; child uses only run-owned credentials/writes."""
