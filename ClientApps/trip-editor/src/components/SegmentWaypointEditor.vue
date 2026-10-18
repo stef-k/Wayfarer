@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed, nextTick, ref } from 'vue';
-import type { EditorPlace, EditorRegion, EditorSegmentDraft, EditorSegmentWaypointDraftRow, EditorTripState, Guid } from '../types';
+import type { EditorPlace, EditorSegmentDraft, EditorSegmentWaypointDraftRow, EditorTripState } from '../types';
 import { preserveWaypointRouteChange, type WaypointRouteChangeResult } from '../segments/segmentWaypointRoutePreservation';
 import { createWaypointRow, syncWaypointArrays } from './regionPlaceDrafts';
+import { segmentWaypointChoices, segmentPlaceHasLocation, segmentPlaceUnavailableLabel } from './segmentPlaceChoices';
 
 const props = defineProps<{
   baselineDraft: EditorSegmentDraft;
@@ -23,7 +24,6 @@ const legend = ref<HTMLElement | null>(null);
 const rowControls = new Map<string, HTMLSelectElement>();
 const announcement = ref('');
 const preservedRouteFingerprint = ref<string | null>(null);
-const normalRegions = computed(() => props.state.regionOrder.map(id => props.state.regionsById[id]).filter(region => region && !region.isShadow) as EditorRegion[]);
 const aggregateErrors = computed(() => [...new Set([...props.fieldErrors('waypointPlaceIds'), ...props.fieldErrors('waypointRouteVertexIndices')])]);
 const preservationMessage = computed(() => preservedRouteFingerprint.value === routeFingerprint()
   ? 'Existing route geometry was preserved. The new connection to this Place is straight; edit the route or request an external route if needed.'
@@ -33,17 +33,11 @@ defineExpose({ focusLegend: () => legend.value?.focus() });
 
 /** Returns deterministic region/place choices while retaining the logical row's current value. */
 function choices(row: EditorSegmentWaypointDraftRow | null): EditorPlace[] {
-  const used = new Set(props.draft.waypointRows.filter(candidate => candidate.clientId !== row?.clientId).map(candidate => candidate.placeId));
-  return normalRegions.value.flatMap(region => orderedPlaceIds(region.id).map(id => props.state.placesById[id]).filter(Boolean))
-    .filter(place => place.id === row?.placeId || (!used.has(place.id) && place.id !== props.draft.fromPlaceId && place.id !== props.draft.toPlaceId));
-}
-
-function orderedPlaceIds(regionId: Guid): Guid[] {
-  return props.state.placeOrderByRegionId[regionId] ?? [];
+  return segmentWaypointChoices(props.state, props.draft, row);
 }
 
 function addWaypoint(): void {
-  if (props.isSaving || !placeToAdd.value || !choices(null).some(place => place.id === placeToAdd.value && place.location)) return;
+  if (props.isSaving || !placeToAdd.value || !choices(null).some(place => place.id === placeToAdd.value && segmentPlaceHasLocation(place))) return;
   const row = createWaypointRow(placeToAdd.value);
   const preservation = props.semanticEditsSafe && endpointsMatchBaseline()
     ? preserveChange([...props.draft.waypointRows.map(candidate => candidate.placeId), row.placeId])
@@ -149,15 +143,6 @@ function clearAggregateErrors(): void {
   emit('clearError', 'waypointRouteVertexIndices');
 }
 
-/** Describes a persisted current value that is outside the normal eligible catalogue. */
-function unavailableCurrentLabel(row: EditorSegmentWaypointDraftRow): string {
-  const place = props.state.placesById[row.placeId];
-  if (!place) return 'Place no longer available';
-  const region = props.state.regionsById[place.regionId];
-  if (!region || !props.state.regionOrder.includes(place.regionId) || region.isShadow) return `${place.name} — region unavailable`;
-  return `${place.name} — unavailable in this Region`;
-}
-
 const journeyOrder = computed(() => [props.draft.fromPlaceId ? placeName(props.draft.fromPlaceId) : 'From not selected',
   ...props.draft.waypointRows.map(row => placeName(row.placeId)), props.draft.toPlaceId ? placeName(props.draft.toPlaceId) : 'To not selected'].join(' → '));
 </script>
@@ -171,7 +156,7 @@ const journeyOrder = computed(() => [props.draft.fromPlaceId ? placeName(props.d
         <span>Place to add</span>
         <select ref="addSelect" v-model="placeToAdd">
           <option value="">Select a saved Place</option>
-          <option v-for="place in choices(null)" :key="place.id" :value="place.id" :disabled="!place.location">{{ place.name }}{{ place.location ? '' : ' — location required' }}</option>
+          <option v-for="place in choices(null)" :key="place.id" :value="place.id" :disabled="!segmentPlaceHasLocation(place)">{{ segmentPlaceHasLocation(place) ? place.name : segmentPlaceUnavailableLabel(state, place.id) }}</option>
         </select>
       </label>
       <button type="button" class="btn btn-outline-light btn-sm" :disabled="!placeToAdd || isSaving" @click="addWaypoint">Add intermediate place</button>
@@ -180,8 +165,8 @@ const journeyOrder = computed(() => [props.draft.fromPlaceId ? placeName(props.d
       <label class="trip-editor-field segment-waypoints__select">
         <span>{{ `Intermediate place ${index + 1}: ${placeName(row.placeId)}` }}</span>
         <select :ref="element => { if (element) rowControls.set(row.clientId, element as HTMLSelectElement); }" :data-waypoint-client-id="row.clientId" :value="row.placeId" :aria-invalid="rowErrors(row).length > 0 ? 'true' : undefined" :aria-errormessage="rowErrors(row).length > 0 ? rowErrorId(row.clientId) : undefined" @change="substitute(row, ($event.target as HTMLSelectElement).value)">
-          <option v-if="!choices(row).some(place => place.id === row.placeId)" :value="row.placeId" disabled>{{ unavailableCurrentLabel(row) }}</option>
-          <option v-for="place in choices(row)" :key="place.id" :value="place.id" :disabled="!place.location">{{ place.name }}{{ place.location ? '' : ' — location required' }}</option>
+          <option v-if="!choices(row).some(place => place.id === row.placeId)" :value="row.placeId" disabled>{{ segmentPlaceUnavailableLabel(state, row.placeId) }}</option>
+          <option v-for="place in choices(row)" :key="place.id" :value="place.id" :disabled="!segmentPlaceHasLocation(place)">{{ segmentPlaceHasLocation(place) ? place.name : segmentPlaceUnavailableLabel(state, place.id) }}</option>
         </select>
         <div v-if="rowErrors(row).length > 0" :id="rowErrorId(row.clientId)">
           <small v-for="message in rowErrors(row)" :key="message">{{ message }}</small>
