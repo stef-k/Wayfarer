@@ -235,6 +235,10 @@ credentials; the existing safe post-hide screenshot remains local.
 Unexpected supervisor errors include frame filenames, line numbers and function
 names on stderr and in private `supervisor.log` diagnostics. Exception values,
 source lines, directory paths and local variables are omitted.
+Diagnostic file writes require verified root ownership and pinned directory/file
+descriptors, rejecting links and replaced targets. Unsafe storage or platforms
+without descriptor-relative, no-follow opens (including Windows) use sanitized
+stderr only and report the retention failure without interrupting cleanup.
 
 `npm run test:e2e:trip-editor` remains the externally attached mode. The distinct
 Lifecycle spec's real database outage requires an independently owned disposable

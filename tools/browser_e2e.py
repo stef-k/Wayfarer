@@ -39,9 +39,8 @@ def report_error(phase, error, root=None):
     print(diagnostic, file=sys.stderr, end='')
     if root is not None:
         try:
-            with (root / 'supervisor.log').open('a', encoding='utf-8') as log:
-                log.write(diagnostic)
-        except OSError as log_error:
+            root.append_diagnostic(diagnostic)
+        except (OSError, ValueError, NotImplementedError) as log_error:
             # Diagnostic storage failure must not replace the primary failure or skip cleanup.
             print(f'Browser diagnostic retention failed: {type(log_error).__name__}', file=sys.stderr)
 
@@ -274,7 +273,7 @@ class BrowserRun:
             return True
         except Exception as error:
             self.cleanup_errors.append((name, type(error).__name__))
-            report_error(f'cleanup ({name})', error, self.root.path)
+            report_error(f'cleanup ({name})', error, self.root)
             return False
 
     def finalize(self, failed=False):
@@ -338,7 +337,7 @@ def run_owned(run, selection):
         print(f'Browser execution failed: {error.cmd} (exit {status})', file=sys.stderr)
     except Exception as error:
         status = 1
-        report_error('execution', error, run.root.path)
+        report_error('execution', error, run.root)
     finally:
         # A second console signal cannot interrupt the single safe finalizer.
         handlers = {value: signal.signal(value, signal.SIG_IGN) for value in (signal.SIGINT, signal.SIGTERM)}
