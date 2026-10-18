@@ -29,7 +29,7 @@ namespace Wayfarer.Areas.Manager.Controllers
         }
 
         /// <summary>
-        /// Get all users with role User.
+        /// Lists only accounts whose persisted installation role set is exactly User.
         /// </summary>
         /// <param name="search"></param>
         /// <param name="page"></param>
@@ -38,9 +38,7 @@ namespace Wayfarer.Areas.Manager.Controllers
         {
             _logger.LogInformation("Manager Users index page accessed");
             const int PageSize = 10; // Number of items per page
-            string[] roleNames = new[] { "User" };
-
-            IEnumerable<ApplicationUser> usersQuery = await GetUsersByRolesAsync(roleNames);
+            IQueryable<ApplicationUser> usersQuery = ManagerTargetUsers.Eligible(_dbContext);
 
             if (!string.IsNullOrEmpty(search))
             {
@@ -49,8 +47,10 @@ namespace Wayfarer.Areas.Manager.Controllers
                     EF.Functions.ILike(u.DisplayName ?? string.Empty, $"%{search}%"));
             }
 
-            int totalUsers = usersQuery.Count();
-            List<UserViewModel> users = usersQuery
+            int totalUsers = await usersQuery.CountAsync();
+            string? currentUserName = User.Identity?.Name;
+            List<UserViewModel> users = await usersQuery
+                .OrderBy(u => u.UserName)
                 .Skip((page - 1) * PageSize)
                 .Take(PageSize)
                 .Select(u => new UserViewModel
@@ -58,11 +58,11 @@ namespace Wayfarer.Areas.Manager.Controllers
                     Id = u.Id,
                     Username = u.UserName ?? string.Empty,
                     DisplayName = u.DisplayName,
-                    Role = string.Join(", ", _userManager.GetRolesAsync(u).Result),
+                    Role = ApplicationRoles.User,
                     IsActive = u.IsActive,
                     IsProtected = u.IsProtected, // Example condition
-                    IsCurrentUser = User.Identity?.Name == u.UserName // Example condition
-                }).ToList();
+                    IsCurrentUser = currentUserName == u.UserName
+                }).ToListAsync();
 
             ViewBag.TotalPages = (int)Math.Ceiling(totalUsers / (double)PageSize);
             ViewBag.CurrentPage = page;
@@ -189,11 +189,10 @@ namespace Wayfarer.Areas.Manager.Controllers
                 return NotFound();
             }
 
-            // Ensure the manager can only delete User role accounts
-            IList<string> roles = await _userManager.GetRolesAsync(user);
-            if (!roles.Contains("User"))
+            // Resolve all persisted installation roles before revealing the target.
+            if (!await ManagerTargetUsers.IsEligibleAsync(_dbContext, user.Id))
             {
-                return RedirectToAction("AccessDenied", "Account");
+                return Forbid();
             }
 
             DeleteUserViewModel model = new DeleteUserViewModel
@@ -220,6 +219,12 @@ namespace Wayfarer.Areas.Manager.Controllers
             if (user == null)
             {
                 return NotFound();
+            }
+
+            // Direct POSTs require the same target authority as the GET form.
+            if (!await ManagerTargetUsers.IsEligibleAsync(_dbContext, user.Id))
+            {
+                return Forbid();
             }
 
             // Check if the user is protected, and if so, prevent deletion
@@ -269,17 +274,14 @@ namespace Wayfarer.Areas.Manager.Controllers
                 return NotFound();
             }
 
-            // Get the user's role
-            string? userRole = (await _userManager.GetRolesAsync(user)).FirstOrDefault();
+            // Check the entire persisted role set before exposing account fields.
+            if (!await ManagerTargetUsers.IsEligibleAsync(_dbContext, user.Id))
+            {
+                return Forbid();
+            }
 
             // Get the current user (the manager performing the edit)
             ApplicationUser? currentUser = await _userManager.GetUserAsync(User);
-
-            // Check if the current user is a Manager and prevent them from editing Admin/Manager roles
-            if (userRole != "User")
-            {
-                return RedirectToAction("Index", "Users");
-            }
 
             // Set the model
             EditUserViewModel model = new EditUserViewModel
@@ -289,7 +291,7 @@ namespace Wayfarer.Areas.Manager.Controllers
                 DisplayName = user.DisplayName,
                 IsProtected = user.IsProtected,
                 IsActive = user.IsActive,
-                Role = userRole ?? string.Empty, // Assign the role to the model
+                Role = ApplicationRoles.User,
                 IsCurrentUser = user.UserName == currentUser?.UserName
             };
             LogAudit("Manager User Edit", "User Edit GET", $"Manager is editing user {user.UserName}");
@@ -300,7 +302,7 @@ namespace Wayfarer.Areas.Manager.Controllers
         }
 
         /// <summary>
-        /// Edit user
+        /// Validates the persisted target and submitted identity fields before changing User-only account fields.
         /// </summary>
         /// <param name="model">EditUserViewModel</param>
         /// <returns></returns>
@@ -316,17 +318,15 @@ namespace Wayfarer.Areas.Manager.Controllers
                     return NotFound();
                 }
 
-                // Prevent changes to the default admin account
-                if (user.UserName == "admin")
+                // Submitted roles and usernames never establish target authority.
+                if (!await ManagerTargetUsers.IsEligibleAsync(_dbContext, user.Id))
                 {
-                    ModelState.AddModelError("Role", "The default Administrator role cannot be changed.");
-                    return View(model);
+                    return Forbid();
                 }
 
-                // Check if the manager is trying to change the role to Admin or Manager
-                if (user.UserName != "admin" && (model.Role == "Admin" || model.Role == "Manager"))
+                if (model.Role != ApplicationRoles.User)
                 {
-                    ModelState.AddModelError("Role", "Managers are not allowed to change roles to Admin or Manager.");
+                    ModelState.AddModelError("Role", "Managers can only assign the 'User' role.");
                     return View(model);
                 }
 
@@ -342,53 +342,22 @@ namespace Wayfarer.Areas.Manager.Controllers
                 user.IsActive = model.IsActive;
                 user.IsProtected = model.IsProtected;
 
-                // Remove the current roles
-                IList<string> currentRoles = await _userManager.GetRolesAsync(user);
-                IdentityResult roleResult = await _userManager.RemoveFromRolesAsync(user, currentRoles);
-                if (!roleResult.Succeeded)
+                // Eligibility already proves exactly User; leave role membership untouched.
+                IdentityResult updateResult = await _userManager.UpdateAsync(user);
+                if (updateResult.Succeeded)
                 {
-                    ModelState.AddModelError(string.Empty, "Failed to remove existing roles.");
-                    return View(model);
-                }
+                    LogAudit("Edit User", "User Data Changed", $"User {model.UserName} role: {model.Role}, IsActive: {model.IsActive}");
+                    LogAction("User Edit", $"User {model.UserName} role: {model.Role}, IsActive: {model.IsActive}");
 
-                // Only allow updating roles to User
-                if (model.Role == "User")
-                {
-                    roleResult = await _userManager.AddToRoleAsync(user, model.Role);
-                }
-                else
-                {
-                    ModelState.AddModelError("Role", "Managers can only assign the 'User' role.");
-                    return View(model);
-                }
+                    // Successful account edits continue invalidating existing sessions.
+                    await _userManager.UpdateSecurityStampAsync(user);
+                    LogAction("User Edit", $"Invalidate User {user.UserName} sessions after account update");
 
-                if (roleResult.Succeeded)
-                {
-                    // Update user in the database after roles are changed
-                    IdentityResult updateResult = await _userManager.UpdateAsync(user);
-                    if (updateResult.Succeeded)
-                    {
-                        // Log the role change to the database
-                        LogAudit("Edit User", "User Data Changed", $"User {model.UserName} role: {model.Role}, IsActive: {model.IsActive}");
-                        LogAction("User Edit", $"User {model.UserName} role: {model.Role}, IsActive: {model.IsActive}");
-
-                        // Invalidate user sessions by updating the security stamp
-                        await _userManager.UpdateSecurityStampAsync(user);
-                        LogAction("User Edit", $"Invalidate User {user.UserName} sessions after role change");
-
-                        return RedirectWithAlert("Index", "Users", $"User {model.UserName} data has been updated successfuly", "success", routeValues: null, "Manager");
-                    }
-                    else
-                    {
-                        foreach (IdentityError error in updateResult.Errors)
-                        {
-                            ModelState.AddModelError(string.Empty, error.Description);
-                        }
-                    }
+                    return RedirectWithAlert("Index", "Users", $"User {model.UserName} data has been updated successfuly", "success", routeValues: null, "Manager");
                 }
                 else
                 {
-                    foreach (IdentityError error in roleResult.Errors)
+                    foreach (IdentityError error in updateResult.Errors)
                     {
                         ModelState.AddModelError(string.Empty, error.Description);
                     }
@@ -416,10 +385,10 @@ namespace Wayfarer.Areas.Manager.Controllers
                 return NotFound();
             }
 
-            // Only allow managers to change passwords for User role accounts
-            if (!await _userManager.IsInRoleAsync(user, "User"))
+            // Privileged multi-role targets are excluded even when they also hold User.
+            if (!await ManagerTargetUsers.IsEligibleAsync(_dbContext, user.Id))
             {
-                return Forbid(); // Return Forbidden if the user is not a User role
+                return Forbid();
             }
 
             ChangePasswordViewModel model = new ChangePasswordViewModel
@@ -450,10 +419,10 @@ namespace Wayfarer.Areas.Manager.Controllers
                     return NotFound();
                 }
 
-                // Only allow managers to change passwords for User role accounts
-                if (!await _userManager.IsInRoleAsync(user, "User"))
+                // Direct POSTs require the same complete persisted role set as the form.
+                if (!await ManagerTargetUsers.IsEligibleAsync(_dbContext, user.Id))
                 {
-                    return Forbid(); // Return Forbidden if the user is not a User role
+                    return Forbid();
                 }
 
                 if (model.NewPassword != model.ConfirmPassword)

@@ -23,12 +23,16 @@ public class ManagerUsersControllerSmokeTests : TestBase
         var user = TestDataFixtures.CreateUser(id: "target", username: "alice");
         var manager = MockUserManager(user);
         var rejected = IdentityResult.Failed(new IdentityErrorDescriber().PasswordTooShort(15));
-        manager.Setup(m => m.IsInRoleAsync(user, "User")).ReturnsAsync(true);
+        var db = CreateDbContext();
+        db.Users.Add(user);
+        db.Roles.Add(new IdentityRole { Id = "user-role", Name = "User", NormalizedName = "USER" });
+        db.UserRoles.Add(new IdentityUserRole<string> { UserId = user.Id, RoleId = "user-role" });
+        await db.SaveChangesAsync();
         manager.Setup(m => m.RemovePasswordAsync(user)).ReturnsAsync(IdentityResult.Success);
         manager.Setup(m => m.AddPasswordAsync(user, "Admin2!")).ReturnsAsync(rejected);
         manager.Setup(m => m.GeneratePasswordResetTokenAsync(user)).ReturnsAsync("fixture-reset-token");
         manager.Setup(m => m.ResetPasswordAsync(user, "fixture-reset-token", "Admin2!")).ReturnsAsync(rejected);
-        var controller = BuildController(CreateDbContext(), manager.Object);
+        var controller = BuildController(db, manager.Object);
         var model = new ChangePasswordViewModel
         {
             UserId = user.Id, NewPassword = "Admin2!", ConfirmPassword = "Admin2!"

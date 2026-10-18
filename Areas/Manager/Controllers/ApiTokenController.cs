@@ -35,6 +35,12 @@ namespace Wayfarer.Areas.Manager.Controllers
                 return RedirectToAction("Index", "Home");
             }
 
+            // Target eligibility precedes token metadata retrieval.
+            if (!await ManagerTargetUsers.IsEligibleAsync(_dbContext, user.Id))
+            {
+                return Forbid();
+            }
+
             List<ApiToken> tokens = await _apiTokenService.GetTokensForUserAsync(id);
 
             ApiTokenViewModel viewModel = new ApiTokenViewModel
@@ -60,6 +66,13 @@ namespace Wayfarer.Areas.Manager.Controllers
             {
                 SetAlert("User ID and token name are required.", "danger");
                 return RedirectToAction("Index", new { id });
+            }
+
+            // Preserve missing-target handling, but deny every existing ineligible account before token work.
+            ApplicationUser? target = await _dbContext.Users.FindAsync(id);
+            if (target != null && !await ManagerTargetUsers.IsEligibleAsync(_dbContext, target.Id))
+            {
+                return Forbid();
             }
 
             try
@@ -99,6 +112,13 @@ namespace Wayfarer.Areas.Manager.Controllers
                 return RedirectToAction("Index", new { id });
             }
 
+            // Preserve missing-target handling, but deny every existing ineligible account before token work.
+            ApplicationUser? target = await _dbContext.Users.FindAsync(id);
+            if (target != null && !await ManagerTargetUsers.IsEligibleAsync(_dbContext, target.Id))
+            {
+                return Forbid();
+            }
+
             try
             {
                 (ApiToken apiToken, _) = await _apiTokenService.RegenerateTokenAsync(id, name);
@@ -126,6 +146,13 @@ namespace Wayfarer.Areas.Manager.Controllers
             {
                 SetAlert("Invalid request. Token and User ID are required.", "danger");
                 return RedirectToAction("Index", new { id });
+            }
+
+            // Preserve missing-target handling, but deny every existing ineligible account before token work.
+            ApplicationUser? target = await _dbContext.Users.FindAsync(id);
+            if (target != null && !await ManagerTargetUsers.IsEligibleAsync(_dbContext, target.Id))
+            {
+                return Forbid();
             }
 
             ApiToken? token = await _dbContext.ApiTokens.FindAsync(tokenId);

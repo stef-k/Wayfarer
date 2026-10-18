@@ -28,18 +28,15 @@ public sealed class ManagerAccountAuthorizationPostgresTests(PostgresMigrationTe
     [InlineData("Unknown", false)]
     [InlineData("User,Unknown", false)]
     [InlineData("Admin", true)]
-    public async Task IneligibleTargets_DenyAllActionsAndRetainAccountAndDependents(string roles, bool defaultAdmin)
+    [InlineData("Admin", false, true)]
+    public async Task IneligibleTargets_DenyAllActionsAndRetainAccountAndDependents(string roles, bool defaultAdmin, bool protectedAdmin = false)
     {
         await using var browser = await StartAsync();
-        var target = await browser.UserAsync(roles, protect: defaultAdmin, name: defaultAdmin ? "admin" : null);
+        var target = await browser.UserAsync(roles, protect: defaultAdmin || protectedAdmin, name: defaultAdmin ? "admin" : null);
         await browser.DependentsAsync(target);
         var token = await browser.TokenAsync(target, ApiTokenService.ConnectionTokenName);
         var before = await SnapshotAsync(target.Id);
 
-        using var index = await browser.Client.GetAsync($"/Manager/Users?search={target.UserName}");
-        Assert.Equal(HttpStatusCode.OK, index.StatusCode);
-        var document = await new HtmlParser().ParseDocumentAsync(await index.Content.ReadAsStringAsync());
-        Assert.DoesNotContain(target.UserName!, document.QuerySelector("tbody")!.TextContent);
         foreach (var action in new[] { "Edit", "Delete", "ChangePassword" })
         {
             using var get = await browser.Client.GetAsync($"/Manager/Users/{action}/{target.Id}");
@@ -60,6 +57,10 @@ public sealed class ManagerAccountAuthorizationPostgresTests(PostgresMigrationTe
         AssertDenied(regenerate);
         using var deleteToken = await browser.PostAsync("ApiToken/Delete", ("id", target.Id), ("tokenId", token.Id.ToString()));
         AssertDenied(deleteToken);
+        using var index = await browser.Client.GetAsync($"/Manager/Users?search={target.UserName}");
+        Assert.Equal(HttpStatusCode.OK, index.StatusCode);
+        var document = await new HtmlParser().ParseDocumentAsync(await index.Content.ReadAsStringAsync());
+        Assert.DoesNotContain(target.UserName!, document.QuerySelector("tbody")!.TextContent);
         Assert.Equal(before, await SnapshotAsync(target.Id));
     }
 
@@ -128,6 +129,8 @@ public sealed class ManagerAccountAuthorizationPostgresTests(PostgresMigrationTe
             .ToDictionary(g => g.Key, g => g.First().GetAttribute("value") ?? g.First().QuerySelector("option")?.GetAttribute("value") ?? "");
         Assert.Equal("User", fields["Role"]);
         Assert.Equal(target.DisplayName, fields["DisplayName"]);
+        var expectedDisplayName = protect ? target.DisplayName : "Changed";
+        fields["DisplayName"] = expectedDisplayName;
         fields["IsProtected"] = "false";
         fields["IsActive"] = "false";
         var oldStamp = await ReadStampAsync(target.Id);
@@ -136,7 +139,7 @@ public sealed class ManagerAccountAuthorizationPostgresTests(PostgresMigrationTe
         await using (var fresh = fixture.CreateContext())
         {
             var updated = await fresh.Users.SingleAsync(u => u.Id == target.Id);
-            Assert.Equal(target.DisplayName, updated.DisplayName);
+            Assert.Equal(expectedDisplayName, updated.DisplayName);
             Assert.False(updated.IsProtected);
             Assert.False(updated.IsActive);
             Assert.NotEqual(oldStamp, updated.SecurityStamp);
@@ -156,7 +159,8 @@ public sealed class ManagerAccountAuthorizationPostgresTests(PostgresMigrationTe
     [InlineData("User", true)]
     [InlineData("Admin", true)]
     [InlineData("Manager", false)]
-    public async Task CallerAndAntiforgeryGuards_PreserveState(string callerRole, bool antiforgery)
+    [InlineData("Manager", false, true)]
+    public async Task CallerAndAntiforgeryGuards_PreserveState(string callerRole, bool antiforgery, bool invalidAntiforgery = false)
     {
         await using var browser = await StartAsync(callerRole);
         var target = await browser.UserAsync("User");
@@ -167,6 +171,7 @@ public sealed class ManagerAccountAuthorizationPostgresTests(PostgresMigrationTe
             using var response = await browser.PostAsync(action, antiforgery,
                 ("id", target.Id), ("UserId", target.Id), ("UserName", target.UserName!),
                 ("DisplayName", "changed"), ("Role", "User"), ("name", "existing"), ("tokenId", token.Id.ToString()),
+                ("__RequestVerificationToken", invalidAntiforgery ? "invalid" : ""),
                 ("NewPassword", Browser.ReplacementPassword), ("ConfirmPassword", Browser.ReplacementPassword));
             if (callerRole == "Manager") Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
             else
@@ -194,7 +199,7 @@ public sealed class ManagerAccountAuthorizationPostgresTests(PostgresMigrationTe
         using var delete = await browser.PostAsync("Users/DeleteConfirmed", ("id", missing.Id));
         Assert.All(new[] { edit, password, delete }, r => Assert.Equal(HttpStatusCode.NotFound, r.StatusCode));
         using var index = await browser.Client.GetAsync("/Manager/ApiToken/Index/missing");
-        Assert.Equal("/Manager/Home", index.Headers.Location!.OriginalString);
+        Assert.Equal("/Manager", index.Headers.Location!.OriginalString);
         foreach (var action in new[] { "Create", "Regenerate", "Delete" })
         {
             using var response = await browser.PostAsync("ApiToken/" + action, ("id", missing.Id), ("name", "missing"), ("tokenId", "-1"));

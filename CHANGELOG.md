@@ -35,6 +35,13 @@
 
 ### Fixed
 
+- Restrict every Manager account and named-token action to persisted User-only
+  targets, excluding privileged, multi-role, roleless and unknown-role accounts.
+  Validate Manager edits before field changes and retain existing User membership
+  to prevent partial persistence on rejected roles. Preserve protected/inactive
+  User workflows and required protected-edit form values (#823). Admin role-edit
+  atomicity remains separate in #824; no database migration is required.
+
 - Preserve each Segment's accepted distance, duration and route provenance through
   native Trip export/import and public copying, fixing valid saved estimates
   rejected as noncanonical distance or fractional duration (#886). Native KML v3

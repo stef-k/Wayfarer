@@ -39,7 +39,6 @@ public class ManagerUsersControllerTests : TestBase
         var manager = TestDataFixtures.CreateUser(id: "manager", username: "mgr");
         var userManager = MockUserManager(manager);
         userManager.SetupGet(m => m.Users).Returns(db.Users);
-        userManager.Setup(m => m.GetRolesAsync(It.IsAny<ApplicationUser>())).ReturnsAsync(new[] { "User" });
         userManager.Setup(m => m.GetUserAsync(It.IsAny<ClaimsPrincipal>())).ReturnsAsync(manager);
         var controller = BuildController(db, userManager.Object);
 
@@ -72,7 +71,6 @@ public class ManagerUsersControllerTests : TestBase
         await db.SaveChangesAsync();
 
         var userManager = MockUserManager(protectedUser);
-        userManager.Setup(m => m.GetRolesAsync(protectedUser)).ReturnsAsync(new List<string> { "User" });
         var controller = BuildController(db, userManager.Object);
 
         var result = await controller.Delete(protectedUser.Id);
@@ -116,7 +114,6 @@ public class ManagerUsersControllerTests : TestBase
         await db.SaveChangesAsync();
 
         var userManager = MockUserManager(target);
-        userManager.Setup(m => m.GetRolesAsync(target)).ReturnsAsync(new List<string> { "User" });
         var controller = BuildController(db, userManager.Object);
 
         var result = await controller.Delete(target.Id);
@@ -135,7 +132,6 @@ public class ManagerUsersControllerTests : TestBase
         await db.SaveChangesAsync();
 
         var userManager = MockUserManager(target);
-        userManager.Setup(m => m.GetRolesAsync(target)).ReturnsAsync(new[] { "User" });
         userManager.Setup(m => m.GetUserAsync(It.IsAny<ClaimsPrincipal>())).ReturnsAsync(TestDataFixtures.CreateUser(id: "mgr", username: "manager"));
         var controller = BuildController(db, userManager.Object);
 
@@ -155,7 +151,6 @@ public class ManagerUsersControllerTests : TestBase
 
         var userManager = MockUserManager(user);
         userManager.Setup(m => m.FindByIdAsync(user.Id)).ReturnsAsync(user);
-        userManager.Setup(m => m.IsInRoleAsync(user, "User")).ReturnsAsync(false);
         var controller = BuildController(db, userManager.Object);
 
         var result = await controller.ChangePassword(new ChangePasswordViewModel
@@ -176,11 +171,11 @@ public class ManagerUsersControllerTests : TestBase
         var db = CreateDbContext();
         var user = TestDataFixtures.CreateUser(id: "target-2", username: "bob");
         db.Users.Add(user);
+        AddUserRole(db, user.Id);
         await db.SaveChangesAsync();
 
         var userManager = MockUserManager(user);
         userManager.Setup(m => m.FindByIdAsync(user.Id)).ReturnsAsync(user);
-        userManager.Setup(m => m.IsInRoleAsync(user, "User")).ReturnsAsync(true);
         userManager.Setup(m => m.GeneratePasswordResetTokenAsync(user)).ReturnsAsync("fixture-reset-token");
         userManager.Setup(m => m.ResetPasswordAsync(user, "fixture-reset-token", It.IsAny<string>())).ReturnsAsync(IdentityResult.Success);
         var controller = BuildController(db, userManager.Object);
@@ -204,11 +199,11 @@ public class ManagerUsersControllerTests : TestBase
         var db = CreateDbContext();
         var user = TestDataFixtures.CreateUser(id: "edit-1", username: "charlie");
         db.Users.Add(user);
+        AddUserRole(db, user.Id);
         await db.SaveChangesAsync();
 
         var userManager = MockUserManager(user);
         userManager.Setup(m => m.FindByIdAsync(user.Id)).ReturnsAsync(user);
-        userManager.Setup(m => m.GetRolesAsync(user)).ReturnsAsync(new[] { "User" });
         userManager.Setup(m => m.GetUserAsync(It.IsAny<ClaimsPrincipal>())).ReturnsAsync(TestDataFixtures.CreateUser(id: "mgr", username: "manager"));
         var controller = BuildController(db, userManager.Object);
 
@@ -252,7 +247,7 @@ public class ManagerUsersControllerTests : TestBase
     }
 
     [Fact]
-    public async Task Edit_Get_RedirectsToIndex_WhenUserIsNotUser()
+    public async Task Edit_Get_Forbids_WhenUserIsNotUser()
     {
         var db = CreateDbContext();
         var admin = TestDataFixtures.CreateUser(id: "admin", username: "admin");
@@ -260,17 +255,15 @@ public class ManagerUsersControllerTests : TestBase
         await db.SaveChangesAsync();
 
         var userManager = MockUserManager(admin);
-        userManager.Setup(m => m.GetRolesAsync(admin)).ReturnsAsync(new[] { "Admin" });
         var controller = BuildController(db, userManager.Object);
 
         var result = await controller.Edit(admin.Id);
 
-        var redirect = Assert.IsType<RedirectToActionResult>(result);
-        Assert.Equal("Index", redirect.ActionName);
+        Assert.IsType<ForbidResult>(result);
     }
 
     [Fact]
-    public async Task Edit_Post_PreventsAdminUsernameChange()
+    public async Task Edit_Post_ForbidsAdminTarget()
     {
         var db = CreateDbContext();
         var admin = TestDataFixtures.CreateUser(id: "admin", username: "admin");
@@ -290,8 +283,7 @@ public class ManagerUsersControllerTests : TestBase
             IsProtected = false
         });
 
-        var view = Assert.IsType<ViewResult>(result);
-        Assert.True(controller.ModelState.ContainsKey("Role"));
+        Assert.IsType<ForbidResult>(result);
     }
 
     [Fact]
@@ -300,6 +292,7 @@ public class ManagerUsersControllerTests : TestBase
         var db = CreateDbContext();
         var user = TestDataFixtures.CreateUser(id: "user1", username: "user1");
         db.Users.Add(user);
+        AddUserRole(db, user.Id);
         await db.SaveChangesAsync();
 
         var userManager = MockUserManager(user);
@@ -325,12 +318,10 @@ public class ManagerUsersControllerTests : TestBase
         var db = CreateDbContext();
         var user = TestDataFixtures.CreateUser(id: "user2", username: "user2");
         db.Users.Add(user);
+        AddUserRole(db, user.Id);
         await db.SaveChangesAsync();
 
         var userManager = MockUserManager(user);
-        userManager.Setup(m => m.GetRolesAsync(user)).ReturnsAsync(new[] { "User" });
-        userManager.Setup(m => m.RemoveFromRolesAsync(user, It.IsAny<IList<string>>())).ReturnsAsync(IdentityResult.Success);
-        userManager.Setup(m => m.AddToRoleAsync(user, "User")).ReturnsAsync(IdentityResult.Success);
         userManager.Setup(m => m.UpdateAsync(user)).ReturnsAsync(IdentityResult.Success);
         userManager.Setup(m => m.UpdateSecurityStampAsync(user)).ReturnsAsync(IdentityResult.Success);
 
@@ -351,6 +342,8 @@ public class ManagerUsersControllerTests : TestBase
         Assert.Equal("Updated Name", user.DisplayName);
         Assert.False(user.IsActive);
         Assert.True(user.IsProtected);
+        userManager.Verify(m => m.RemoveFromRolesAsync(user, It.IsAny<IEnumerable<string>>()), Times.Never);
+        userManager.Verify(m => m.AddToRoleAsync(user, It.IsAny<string>()), Times.Never);
     }
 
     [Fact]
@@ -360,6 +353,7 @@ public class ManagerUsersControllerTests : TestBase
         var protectedUser = TestDataFixtures.CreateUser(id: "prot", username: "protected");
         protectedUser.IsProtected = true;
         db.Users.Add(protectedUser);
+        AddUserRole(db, protectedUser.Id);
         await db.SaveChangesAsync();
 
         var userManager = MockUserManager(protectedUser);
@@ -378,10 +372,10 @@ public class ManagerUsersControllerTests : TestBase
         var db = CreateDbContext();
         var user = TestDataFixtures.CreateUser(id: "chgpwd", username: "user");
         db.Users.Add(user);
+        AddUserRole(db, user.Id);
         await db.SaveChangesAsync();
 
         var userManager = MockUserManager(user);
-        userManager.Setup(m => m.IsInRoleAsync(user, "User")).ReturnsAsync(true);
         var controller = BuildController(db, userManager.Object);
 
         var result = await controller.ChangePassword(user.Id);
@@ -409,10 +403,10 @@ public class ManagerUsersControllerTests : TestBase
         var db = CreateDbContext();
         var user = TestDataFixtures.CreateUser(id: "pwd", username: "user");
         db.Users.Add(user);
+        AddUserRole(db, user.Id);
         await db.SaveChangesAsync();
 
         var userManager = MockUserManager(user);
-        userManager.Setup(m => m.IsInRoleAsync(user, "User")).ReturnsAsync(true);
         var controller = BuildController(db, userManager.Object);
 
         var result = await controller.ChangePassword(new ChangePasswordViewModel
@@ -437,7 +431,6 @@ public class ManagerUsersControllerTests : TestBase
 
         var userManager = MockUserManager(adminUser);
         userManager.Setup(m => m.FindByIdAsync(adminUser.Id)).ReturnsAsync(adminUser);
-        userManager.Setup(m => m.IsInRoleAsync(adminUser, "User")).ReturnsAsync(false);
         var controller = BuildController(db, userManager.Object);
 
         var result = await controller.ChangePassword(adminUser.Id);
@@ -455,7 +448,6 @@ public class ManagerUsersControllerTests : TestBase
 
         var userManager = MockUserManager(adminUser);
         userManager.Setup(m => m.FindByIdAsync(adminUser.Id)).ReturnsAsync(adminUser);
-        userManager.Setup(m => m.IsInRoleAsync(adminUser, "User")).ReturnsAsync(false);
         var controller = BuildController(db, userManager.Object);
 
         var result = await controller.ChangePassword(new ChangePasswordViewModel
@@ -479,14 +471,11 @@ public class ManagerUsersControllerTests : TestBase
         await db.SaveChangesAsync();
 
         var userManager = MockUserManager(admin);
-        userManager.Setup(m => m.GetRolesAsync(admin)).ReturnsAsync(new[] { "Admin" });
         var controller = BuildController(db, userManager.Object);
 
         var result = await controller.Delete(admin.Id);
 
-        var redirect = Assert.IsType<RedirectToActionResult>(result);
-        Assert.Equal("AccessDenied", redirect.ActionName);
-        Assert.Equal("Account", redirect.ControllerName);
+        Assert.IsType<ForbidResult>(result);
     }
 
     [Fact]
@@ -624,7 +613,6 @@ public class ManagerUsersControllerTests : TestBase
                 db.Users.Add(u);
                 db.SaveChanges();
             });
-        userManager.Setup(m => m.AddToRoleAsync(It.IsAny<ApplicationUser>(), "User")).ReturnsAsync(IdentityResult.Success);
         var controller = BuildController(db, userManager.Object);
         var model = new CreateUserViewModel
         {
@@ -741,6 +729,7 @@ public class ManagerUsersControllerTests : TestBase
         return controller;
     }
 
+    /// <summary>Seeds the persisted User-only target boundary used by Manager actions.</summary>
     private static void AddUserRole(ApplicationDbContext db, string userId)
     {
         if (!db.Roles.Local.Any(r => r.Id == "role-user") && !db.Roles.Any(r => r.Id == "role-user"))

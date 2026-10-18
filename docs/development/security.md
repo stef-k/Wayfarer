@@ -43,6 +43,22 @@ Apply authorization at the boundary that has enough context to decide it. `[Auth
 
 Do not accept a user ID, trip ID, group ID or provider profile ID from a request as proof of ownership. Resolve the authenticated caller independently and join the resource to that authority.
 
+Installation Managers may administer an existing account only when its complete
+persisted Identity-role set is exactly `{ User }`. The Manager user list/forms,
+edits, deletion, password resets and named-token actions share this boundary.
+Admin/Manager membership, any other multi-role set, unknown roles and roleless
+accounts are excluded, including bootstrapped administrators with operator-chosen
+usernames. Submitted roles, Group membership and UI visibility grant no authority.
+
+Eligible inactive and protected Users retain their existing management operations;
+protection prevents deletion until explicitly removed. Manager edits validate the
+unchanged username and submitted `Role="User"` before assigning fields, leave role
+membership intact and invalidate sessions after success. Rejected submissions must
+leave account fields, roles, credentials and security stamps unchanged. Token owner
+matching, duplicate-name handling, canonical deletion protection and secret-free
+administrative presentation remain required. This rule does not change Admin role
+editing, personal connection-token authority or bearer/Mobile contracts (#823).
+
 ## Antiforgery
 
 Cookie-authenticated browser mutations require antiforgery. Trip Editor mutations and other browser POST/PUT/PATCH/DELETE actions use the existing MVC antiforgery mechanisms.

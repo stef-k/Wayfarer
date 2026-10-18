@@ -32,6 +32,8 @@
                 <label for="DisplayName" class="form-label">Display Name</label>
                 @if (Model.IsProtected)
                 {
+                    @* Preserve required identity fields while the existing status toggles permit explicit unprotection. *@
+                    <input type="hidden" asp-for="DisplayName" />
                     <div class="form-text text-danger">This account is protected. Modify its status to make changes.</div>
                 }
                 else
@@ -58,6 +60,8 @@
                 <label for="Role" class="form-label">Role</label>
                 @if (Model.IsProtected)
                 {
+                    @* The server still validates the submitted role against the persisted target. *@
+                    <input type="hidden" asp-for="Role" />
                     <div class="form-text text-danger">This account is protected. Modify its status to make changes.</div>
                 }
                 else
