@@ -21,11 +21,12 @@ namespace Wayfarer.Tests.Controllers;
 public class ManagerApiTokenControllerTests : TestBase
 {
     [Fact]
-    public async Task Create_AddsToken_ForManagerUser()
+    public async Task Create_AddsToken_ForUserOnlyTarget()
     {
         var db = CreateDbContext();
         var user = TestDataFixtures.CreateUser(id: "mgr-user", username: "manager");
         db.Users.Add(user);
+        AddUserRole(db, user.Id);
         await db.SaveChangesAsync();
 
         var userManager = MockUserManager(user);
@@ -49,6 +50,7 @@ public class ManagerApiTokenControllerTests : TestBase
         var db = CreateDbContext();
         var user = TestDataFixtures.CreateUser();
         db.Users.Add(user);
+        AddUserRole(db, user.Id);
         await db.SaveChangesAsync();
         var controller = BuildController(db, MockUserManager(user).Object);
         controller.TempData["NewToken"] = "legacy-secret";
@@ -79,6 +81,7 @@ public class ManagerApiTokenControllerTests : TestBase
         var db = CreateDbContext();
         var user = TestDataFixtures.CreateUser(id: "mgr-user3", username: "carol");
         db.Users.Add(user);
+        AddUserRole(db, user.Id);
         db.ApiTokens.Add(new ApiToken { Id = 7, UserId = user.Id, User = user, Name = "existing", Token = "tok" });
         await db.SaveChangesAsync();
         var userManager = MockUserManager(user);
@@ -99,6 +102,7 @@ public class ManagerApiTokenControllerTests : TestBase
         var db = CreateDbContext();
         var user = TestDataFixtures.CreateUser(id: "mgr-user4", username: "dave");
         db.Users.Add(user);
+        AddUserRole(db, user.Id);
         db.ApiTokens.Add(new ApiToken { Id = 9, UserId = user.Id, User = user, Name = "dupe", Token = "tok" });
         await db.SaveChangesAsync();
         var controller = BuildController(db, MockUserManager(user).Object);
@@ -116,6 +120,7 @@ public class ManagerApiTokenControllerTests : TestBase
         var db = CreateDbContext();
         var user = TestDataFixtures.CreateUser(id: "mgr-user5", username: "erin");
         db.Users.Add(user);
+        AddUserRole(db, user.Id);
         db.ApiTokens.Add(new ApiToken { Id = 11, UserId = user.Id, User = user, Name = "reporting", Token = "old" });
         await db.SaveChangesAsync();
         var controller = BuildController(db, MockUserManager(user).Object);
@@ -137,6 +142,7 @@ public class ManagerApiTokenControllerTests : TestBase
         var db = CreateDbContext();
         var user = TestDataFixtures.CreateUser(id: "mgr-user2", username: "bob");
         db.Users.Add(user);
+        AddUserRole(db, user.Id);
         var token = new ApiToken
         {
             Id = 5,
@@ -156,6 +162,13 @@ public class ManagerApiTokenControllerTests : TestBase
         var redirect = Assert.IsType<RedirectToActionResult>(result);
         Assert.Equal("Index", redirect.ActionName);
         Assert.Single(db.ApiTokens);
+    }
+
+    /// <summary>Seeds the persisted User-only target authority independently of caller claims.</summary>
+    private static void AddUserRole(ApplicationDbContext db, string id)
+    {
+        db.Roles.Add(new IdentityRole { Id = "user-role", Name = "User", NormalizedName = "USER" });
+        db.UserRoles.Add(new IdentityUserRole<string> { UserId = id, RoleId = "user-role" });
     }
 
     private static ApiTokenController BuildController(ApplicationDbContext db, UserManager<ApplicationUser> userManager)
