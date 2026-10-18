@@ -134,7 +134,11 @@ public sealed partial class PlaceRegionLifecycleService
             .OrderBy(r => r.Name == "Unassigned Places" ? 0 : 1).ThenBy(r => r.DisplayOrder).ThenBy(r => r.Id).ToArray();
         var nextOrder = 1;
         foreach (var region in regionOrder) region.DisplayOrder = region.Name == "Unassigned Places" ? 0 : nextOrder++;
-        await _dbContext.SaveRegionDeletionAsync(s.Trip, token);
+        // Save the isolated footprint through EF's explicit overload. The broad timestamp override
+        // marks whole Trips modified; this operation owns only a fresh UpdatedAt property change.
+        _dbContext.Entry(s.Trip).Property(t => t.UpdatedAt).CurrentValue = DateTime.UtcNow;
+        _dbContext.Entry(s.Trip).Property(t => t.UpdatedAt).IsModified = true;
+        await _dbContext.SaveChangesAsync(acceptAllChangesOnSuccess: true, cancellationToken: token);
         return await ProjectRegionDeletionAsync(s, userId, request, orderedPlaces, orderedAreas, regionOrder,
             deletedPlaces, deletedAreas, deletedSegments, surviving, detached, token);
     }
