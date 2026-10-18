@@ -15,6 +15,11 @@ const confirmButton = ref<HTMLButtonElement | null>(null);
 const cancelButton = ref<HTMLButtonElement | null>(null);
 
 const dialog = computed(() => confirmDialogState.value);
+/// A renewed preview supplies the current label if another writer renamed the selected Region.
+const displayedTitle = computed(() => {
+  const preview = dialog.value?.regionDeletion?.state.preview;
+  return preview ? `Delete Region ‘${preview.sourceRegionName}’?` : dialog.value?.title;
+});
 const titleId = computed(() => (dialog.value ? `trip-editor-confirm-title-${dialog.value.id}` : undefined));
 const bodyId = computed(() => (dialog.value ? `trip-editor-confirm-body-${dialog.value.id}` : undefined));
 const confirmClass = computed(() => {
@@ -125,7 +130,7 @@ function getFocusableElements(): HTMLElement[] {
         >
           <div class="modal-content trip-editor-confirm-dialog__content">
             <div class="modal-header trip-editor-confirm-dialog__header">
-              <h2 :id="titleId" class="modal-title trip-editor-confirm-dialog__title">{{ dialog.title }}</h2>
+              <h2 :id="titleId" class="modal-title trip-editor-confirm-dialog__title">{{ displayedTitle }}</h2>
             </div>
             <div :id="bodyId" class="modal-body trip-editor-confirm-dialog__body">
               <p>{{ dialog.message }}</p>
