@@ -57,6 +57,8 @@ public partial class TripImportService : ITripImportService
         TripImportMode mode,
         CancellationToken cancellationToken)
     {
+        if (source.Regions.Count(region => region.Name == "Unassigned Places") > 1)
+            throw new TripImportValidationException("Duplicate Unassigned Places Regions require reconciliation.");
         await using var transaction = _dbContext.Database.IsRelational()
             ? await _dbContext.Database.BeginTransactionAsync(cancellationToken)
             : null;

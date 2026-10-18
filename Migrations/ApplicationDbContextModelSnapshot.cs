@@ -1701,6 +1701,11 @@ namespace Wayfarer.Migrations
 
                     b.HasIndex("TripId");
 
+                    b.HasIndex(new[] { "TripId" }, "UX_Regions_Trip_UnassignedPlaces")
+                        .IsUnique()
+                        .HasDatabaseName("UX_Regions_Trip_UnassignedPlaces")
+                        .HasFilter("\"Name\" = 'Unassigned Places'");
+
                     b.ToTable("Regions");
                 });
 

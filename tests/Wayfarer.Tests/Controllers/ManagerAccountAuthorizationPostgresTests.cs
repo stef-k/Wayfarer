@@ -293,6 +293,11 @@ public sealed class ManagerAccountAuthorizationPostgresTests(PostgresMigrationTe
         /// <summary>Starts production routing and signs in through the real Identity login endpoint.</summary>
         internal static async Task<Browser> StartAsync(PostgresMigrationTestFixture fixture, string root, string callerRole,
             params IInterceptor[] interceptors)
+            => await StartAsync(fixture, root, callerRole, null, interceptors);
+
+        /// <summary>Allows mutation tests to replace external scheduling at the existing DI seam.</summary>
+        internal static async Task<Browser> StartAsync(PostgresMigrationTestFixture fixture, string root, string callerRole,
+            Action<IServiceCollection>? configure, params IInterceptor[] interceptors)
         {
             fixture.RequireAvailable();
             var db = fixture.CreateContext(interceptors);
@@ -301,7 +306,7 @@ public sealed class ManagerAccountAuthorizationPostgresTests(PostgresMigrationTe
                 db.ApplicationSettings.Add(new ApplicationSettings());
                 await db.SaveChangesAsync();
             }
-            var app = await IdentityRouteHost.StartAsync(db, root);
+            var app = await IdentityRouteHost.StartAsync(db, root, configure);
             var scope = app.Services.CreateScope();
             var client = app.GetTestClient();
             client.BaseAddress = new Uri("https://wayfarer.test");

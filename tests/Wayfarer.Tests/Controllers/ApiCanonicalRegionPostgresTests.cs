@@ -8,11 +8,15 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Moq;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging.Abstractions;
 using Npgsql;
 using Wayfarer.Models;
 using Wayfarer.Models.Configuration;
+using Wayfarer.Parsers;
 using Wayfarer.Services;
 using Wayfarer.Tests.Infrastructure;
+using Wayfarer.Util;
 using Xunit;
 
 namespace Wayfarer.Tests.Controllers;
@@ -75,6 +79,84 @@ public sealed class ApiCanonicalRegionPostgresTests(PostgresMigrationTestFixture
         Assert.All(fallback.Places, place => Assert.Equal(trip.UserId, place.UserId));
     }
 
+    /// <summary>Recovery stops on an absent or incorrectly owned winner instead of recreating or hiding it.</summary>
+    [PostgresTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CollisionWithInvalidWinnerReturnsReconciliation(bool wrongOwner)
+    {
+        var trip = await SeedAsync();
+        var other = await fixture.CreateUserAsync();
+        var interceptor = new CollisionIntervention(async () =>
+        {
+            await using var competing = fixture.CreateContext();
+            competing.Regions.Add(new Region
+            {
+                Id = Guid.NewGuid(), TripId = trip.Id, UserId = trip.UserId,
+                Name = "Unassigned Places", DisplayOrder = 17
+            });
+            await competing.SaveChangesAsync();
+        }, async () =>
+        {
+            await using var repair = fixture.CreateContext();
+            if (wrongOwner) await repair.Regions.Where(region => region.TripId == trip.Id)
+                .ExecuteUpdateAsync(set => set.SetProperty(region => region.UserId, other.Id));
+            else await repair.Regions.Where(region => region.TripId == trip.Id).ExecuteDeleteAsync();
+        });
+        await using var db = fixture.CreateContext(interceptor);
+        await using var services = new ServiceCollection().AddScoped(_ => fixture.CreateContext()).BuildServiceProvider();
+        var controller = Controller(db, trip.UserId, services);
+
+        Assert.IsType<ConflictObjectResult>(await controller.CreatePlace(trip.Id, new() { Name = "Rejected" }));
+
+        Assert.Equal(1, interceptor.Attempts);
+        await using var verify = fixture.CreateContext();
+        Assert.False(await verify.Places.AnyAsync(place => place.Region.TripId == trip.Id));
+    }
+
+    /// <summary>A second SQL failure is propagated after exactly two attempts, leaving the winner and no losing Place.</summary>
+    [PostgresFact]
+    public async Task RecoveryDoesNotRetryItsOwnFailure()
+    {
+        var trip = await SeedAsync();
+        var attempts = 0;
+        var interceptor = new CollisionIntervention(async () =>
+        {
+            await using var competing = fixture.CreateContext();
+            competing.Regions.Add(new Region
+            {
+                Id = Guid.NewGuid(), TripId = trip.Id, UserId = trip.UserId,
+                Name = "Unassigned Places", DisplayOrder = 17
+            });
+            await competing.SaveChangesAsync();
+            await competing.Database.ExecuteSqlRawAsync("""
+                CREATE FUNCTION reject_retried_place() RETURNS trigger LANGUAGE plpgsql AS $$
+                BEGIN RAISE EXCEPTION 'Controlled retry failure' USING ERRCODE = '23514'; END;
+                $$;
+                CREATE TRIGGER reject_retried_place BEFORE INSERT ON "Places"
+                    FOR EACH ROW WHEN (NEW."Name" = 'Rejected retry') EXECUTE FUNCTION reject_retried_place();
+                """);
+        });
+        await using var db = fixture.CreateContext(interceptor);
+        db.SavingChanges += (_, _) => attempts++;
+        await using var services = new ServiceCollection().AddScoped(_ =>
+        {
+            var context = fixture.CreateContext();
+            context.SavingChanges += (_, _) => attempts++;
+            return context;
+        }).BuildServiceProvider();
+        var controller = Controller(db, trip.UserId, services);
+
+        var failure = await Assert.ThrowsAsync<DbUpdateException>(() => controller.CreatePlace(
+            trip.Id, new() { Name = "Rejected retry" }));
+
+        Assert.Equal("23514", Assert.IsType<PostgresException>(failure.InnerException).SqlState);
+        Assert.Equal(2, attempts);
+        await using var verify = fixture.CreateContext();
+        Assert.Equal(1, await verify.Regions.CountAsync(region => region.TripId == trip.Id));
+        Assert.False(await verify.Places.AnyAsync(place => place.Region.TripId == trip.Id));
+    }
+
     /// <summary>Malformed ownership and historical ambiguity reject without timestamp or graph mutation.</summary>
     [PostgresTheory]
     [InlineData(false)]
@@ -128,10 +210,46 @@ public sealed class ApiCanonicalRegionPostgresTests(PostgresMigrationTestFixture
         db.Trips.Add(trip);
         db.ApiTokens.Add(new ApiToken
         {
-            UserId = user.Id, Name = "canonical-test", TokenHash = ApiTokenService.HashToken(user.Id)
+            UserId = user.Id, User = null!, Name = "canonical-test", TokenHash = ApiTokenService.HashToken(user.Id)
         });
         await db.SaveChangesAsync();
         return trip;
+    }
+
+    /// <summary>Supplies fresh recovery scopes while retaining the production token and action path.</summary>
+    private static Wayfarer.Areas.Api.Controllers.TripsController Controller(ApplicationDbContext db, string token,
+        IServiceProvider services)
+    {
+        var http = CreateHttpContext(token);
+        http.RequestServices = services;
+        return new(db, NullLogger<Wayfarer.Areas.Api.Controllers.BaseApiController>.Instance,
+            Mock.Of<ITripTagService>(), Mock.Of<IApplicationSettingsService>(), Mock.Of<ICacheWarmupScheduler>())
+        {
+            ControllerContext = new() { HttpContext = http }
+        };
+    }
+
+    /// <summary>Commits a real contender after the action's miss and optionally changes the winner before recovery.</summary>
+    private sealed class CollisionIntervention(Func<Task> beforeSave, Func<Task>? afterCollision = null) : SaveChangesInterceptor
+    {
+        public int Attempts { get; private set; }
+
+        /// <summary>Runs once on the original context, after the fallback is staged.</summary>
+        public override async ValueTask<InterceptionResult<int>> SavingChangesAsync(DbContextEventData eventData,
+            InterceptionResult<int> result, CancellationToken cancellationToken = default)
+        {
+            Attempts++;
+            if (Attempts == 1) await beforeSave();
+            return result;
+        }
+
+        /// <summary>Changes only the disposable contender after a verified index collision has rolled back.</summary>
+        public override async Task SaveChangesFailedAsync(DbContextErrorEventData eventData, CancellationToken cancellationToken = default)
+        {
+            Assert.Equal(RegionConfiguration.UnassignedIndex,
+                Assert.IsType<PostgresException>(eventData.Exception.InnerException).ConstraintName);
+            if (afterCollision != null) await afterCollision();
+        }
     }
 
     /// <summary>Holds both staged graphs, then commits the winner before allowing the loser's real index collision.</summary>

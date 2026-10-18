@@ -62,8 +62,11 @@ public sealed class TripCloneCoordinator(ApplicationDbContext dbContext)
                 || HtmlHelpers.ExtractExternalImageUrls(clone.Notes).Any();
             return new(TripCloneStatus.Succeeded, clone.Id, source.Name, requiresWarmup);
         }
-        catch (Exception cloneFailure) when (transaction != null)
+        catch (Exception cloneFailure)
         {
+            // A controller may audit with this context after rollback; never leave the failed clone staged.
+            dbContext.ChangeTracker.Clear();
+            if (transaction == null) throw;
             try { await transaction.RollbackAsync(CancellationToken.None); }
             catch (Exception rollbackFailure)
             {

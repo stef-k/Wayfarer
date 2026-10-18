@@ -186,3 +186,59 @@ Do not use the normal `wayfarer` development database or any production database
 Let the service/workflow that owns an invariant own its transaction. Avoid splitting a required atomic transition across controller saves or background-job callbacks. Preserve cancellation tokens on database operations.
 
 When concurrent writers are possible, use an existing database-enforced invariant or concurrency token rather than relying on an in-memory check. Unique constraints, row-version/`xmin` checks and workflow epochs already appear in the repository; choose the concrete mechanism required by the current owner.
+
+## Canonical Unassigned Places Region rollout (#842)
+
+`UX_Regions_Trip_UnassignedPlaces` is a partial unique index on `Regions(TripId)`
+with predicate `"Name" = 'Unassigned Places'`. Owner and display order do not
+participate. It guarantees at most one exact canonical Region, not mandatory
+existence. Existing IDs, orders, metadata, ordinary repeated names and near-names
+are preserved. Case variants and trimmed matches are not reinterpreted.
+
+Before applying `CanonicalUnassignedRegion` through the existing explicit
+maintenance workflow, retain and verify a restorable backup and pause all writers.
+Run these read-only diagnostics privately; Trip and user identifiers are private
+operator data:
+
+~~~sql
+-- Blocking exact duplicates: obtain separately approved reconciliation before retrying.
+SELECT "TripId", COUNT(*) FROM public."Regions"
+WHERE "Name" = 'Unassigned Places' GROUP BY "TripId" HAVING COUNT(*) > 1;
+
+-- Diagnose malformed ownership and historical order drift without changing either.
+SELECT r."Id", r."TripId", r."UserId", t."UserId" AS "TripOwner", r."DisplayOrder"
+FROM public."Regions" r JOIN public."Trips" t ON t."Id" = r."TripId"
+WHERE r."Name" = 'Unassigned Places'
+  AND (r."UserId" <> t."UserId" OR r."DisplayOrder" <> 0);
+
+-- Report near-names separately; they are not canonical fallback destinations.
+SELECT "Id", "TripId", "Name" FROM public."Regions"
+WHERE lower(btrim("Name")) = lower('Unassigned Places')
+  AND "Name" <> 'Unassigned Places';
+~~~
+
+Confirm the maintained required Name/TripId/UserId/order columns and deterministic
+text collation before upgrading customized schemas. Production prevalence is
+unknown. The normal transactional, non-concurrent migration locks Regions against
+writers before its conflict check. Exact duplicates abort with an explicit
+reconciliation diagnostic: data and migration history remain unchanged. It never
+renames, deletes, merges, elects a winner or reparents Places. Keep writers paused
+until a maintainer approves any required repair and the migration succeeds.
+
+Afterward, verify the applied EF history entry and the actual index before
+reopening writers:
+
+~~~sql
+SELECT indexdef FROM pg_indexes
+WHERE schemaname = 'public' AND indexname = 'UX_Regions_Trip_UnassignedPlaces';
+SELECT indisunique, indisvalid FROM pg_index
+WHERE indexrelid = 'public."UX_Regions_Trip_UnassignedPlaces"'::regclass;
+SELECT "MigrationId" FROM public."__EFMigrationsHistory"
+WHERE "MigrationId" LIKE '%_CanonicalUnassignedRegion';
+~~~
+
+The key must be TripId only, the predicate must be the exact canonical name, and
+both flags must be true. The full `IX_Regions_TripId` index remains available for
+ordinary Region queries and cascades. Restored historical archives require the
+same diagnostics and maintenance upgrade before activation claims this invariant.
+No production startup, deployment or release authority changes are included.

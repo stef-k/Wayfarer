@@ -10,9 +10,13 @@ public sealed class RegionConfiguration : IEntityTypeConfiguration<Region>
     public const string UnassignedIndex = "UX_Regions_Trip_UnassignedPlaces";
 
     /// <summary>Leaves ordinary and near-name Regions unrestricted.</summary>
-    public void Configure(EntityTypeBuilder<Region> builder) => builder
-        .HasIndex(region => region.TripId, UnassignedIndex)
-        .HasDatabaseName(UnassignedIndex)
-        .IsUnique()
-        .HasFilter("\"Name\" = 'Unassigned Places'");
+    public void Configure(EntityTypeBuilder<Region> builder)
+    {
+        // Keep the full Trip foreign-key index for ordinary Region queries and cascades.
+        builder.HasIndex(region => region.TripId);
+        builder.HasIndex(region => region.TripId, UnassignedIndex)
+            .HasDatabaseName(UnassignedIndex)
+            .IsUnique()
+            .HasFilter("\"Name\" = 'Unassigned Places'");
+    }
 }

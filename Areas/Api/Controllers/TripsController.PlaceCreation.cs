@@ -80,6 +80,7 @@ public partial class TripsController
             && failure.InnerException is PostgresException
             {
                 SqlState: PostgresErrorCodes.UniqueViolation,
+                SchemaName: "public", TableName: "Regions",
                 ConstraintName: RegionConfiguration.UnassignedIndex
             })
         {
@@ -95,8 +96,14 @@ public partial class TripsController
     {
         await using var scope = HttpContext.RequestServices.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        var user = await new IncomingApiTokenResolver(db, ApiWorkAdmission.TokenLookups)
-            .ResolveAsync(HttpContext, cancellationToken);
+        var resolver = new IncomingApiTokenResolver(db, ApiWorkAdmission.TokenLookups);
+        ApplicationUser? user;
+        try { user = await resolver.ResolveAsync(HttpContext, cancellationToken); }
+        catch (ApiTokenAdmissionException)
+        {
+            Response.Headers.RetryAfter = "5";
+            return StatusCode(resolver.DeniedStatus, new { message = "API token lookup capacity exceeded." });
+        }
         if (user == null || user.Id != originalUserId) return Unauthorized("Missing or invalid API token.");
         var trip = await db.Trips.SingleOrDefaultAsync(t => t.Id == tripId && t.UserId == user.Id, cancellationToken);
         if (trip == null) return NotFound("Trip not found.");
