@@ -41,6 +41,10 @@
 
 ### Fixed
 
+- Allow valid saved Unassigned Places in Segment From/To and intermediate Place
+  pickers, retaining saved route identities and truthful unavailable-reference
+  labels without changing protected Region permissions (#847).
+
 - Enforce one exact `Unassigned Places` Region per Trip with a transactional,
   stop-on-conflict migration. Recover one verified concurrent bearer Place
   collision using fresh ownership checks, reject duplicate import/clone aggregates,
