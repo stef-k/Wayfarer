@@ -74,3 +74,21 @@ test('late response from a former account/editor session cannot apply or clear h
   pending.resolve(response({ success: true, data: { tripId: 'trip', sourceRegionId: 'source', places: 'keep', areas: 'keep' } }));
   assert.equal(await dispatch, false); assert.deepEqual(s.applied, []); assert.equal(s.values.size, 1);
 });
+
+test('refresh restores the original dispositions of a held destructive intent', async () => {
+  const s = setup(async (url, init) => {
+    if (!url.endsWith('deletion-preview')) throw new TypeError('lost reply');
+    const choices = JSON.parse(init.body);
+    return response(preview(choices.places, choices.areas));
+  });
+  await s.controller.select('places', 'delete');
+  await s.controller.select('areas', 'delete');
+  await s.controller.submit();
+  const reopened = createRegionDeletionController(s.options);
+  assert.equal(reopened.state.held, true);
+  assert.equal(reopened.state.places, 'delete');
+  assert.equal(reopened.state.areas, 'delete');
+  await reopened.select('places', 'keep');
+  assert.equal(reopened.state.places, 'delete');
+  assert.equal(await reopened.submit(), false);
+});

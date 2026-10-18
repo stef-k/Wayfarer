@@ -31,9 +31,20 @@ export const createRegionDeletionController = (options: {
   scopeKey: string; isCurrent: () => boolean;
   fetch: typeof fetch; onSuccess: (result: EditorMutationResult<RegionDeletionResult>) => void;
 }) => {
-  const state = reactive({ places: 'keep' as Disposition, areas: 'keep' as Disposition,
+  const heldRecord = options.storage.getItem(options.scopeKey);
+  let heldChoices: RegionDeletionChoices | null = null;
+  try {
+    const retained = JSON.parse(heldRecord ?? 'null') as HeldRegionDeletion | null;
+    if (retained?.sourceId === options.sourceId && ['keep', 'delete'].includes(retained.places)
+        && ['keep', 'delete'].includes(retained.areas)) {
+      heldChoices = { places: retained.places, areas: retained.areas };
+    }
+  } catch {
+    // Invalid retained records still hold the operation; they never authorize a new attempt.
+  }
+  const state = reactive({ places: heldChoices?.places ?? 'keep' as Disposition, areas: heldChoices?.areas ?? 'keep' as Disposition,
     preview: null as RegionDeletionPreview | null, loading: false, submitting: false,
-    held: Boolean(options.storage.getItem(options.scopeKey)), error: '', generation: 0 });
+    held: Boolean(heldRecord), error: '', generation: 0 });
   const choices = (): RegionDeletionChoices => ({ places: state.places, areas: state.areas });
   const matches = (preview: RegionDeletionPreview): boolean => preview.contractVersion === 1
     && preview.tripId === options.tripId && preview.sourceRegionId === options.sourceId
