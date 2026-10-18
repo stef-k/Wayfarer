@@ -1,5 +1,7 @@
 """Behavioral supervisor contracts at real child/endpoint and finalizer seams."""
 
+from contextlib import redirect_stderr
+import io
 import os
 from pathlib import Path
 import socket
@@ -117,6 +119,154 @@ class SupervisorTests(unittest.TestCase):
         self.assertEqual(['cleanup-layout', 'verify-cleanup-layout'], phases)
         self.assertEqual('fixture-cleanup', self.run.cleanup_errors[0][0])
         self.assertTrue(self.run.root.path.exists())
+
+    def test_unexpected_failure_retains_frames_without_private_values(self):
+        """Real finalization preserves sanitized diagnostics after removing the run root."""
+        def execute(_):
+            raise RuntimeError('fixture-secret', {'environment': self.run.env, 'private': self.run.root.path})
+
+        self.run.execute = execute
+        output = io.StringIO()
+        with redirect_stderr(output):
+            self.assertEqual(1, run_owned(self.run, []))
+        retained = self.run.repository / '.local/browser-e2e' / self.run.root.run_id / 'supervisor.log'
+        if os.name == 'nt':
+            self.assertFalse(retained.exists())
+            self.assertIn('Browser diagnostic retention failed: NotImplementedError', output.getvalue())
+            diagnostic = output.getvalue().split('Browser diagnostic retention failed:')[0]
+        else:
+            diagnostic = retained.read_text()
+        self.assertIn(diagnostic, output.getvalue())
+        self.assertIn('Browser execution failed: RuntimeError', diagnostic)
+        self.assertIn('File "browser_e2e.py", line ', diagnostic)
+        self.assertIn('in run_owned', diagnostic)
+        self.assertIn('File "test_browser_e2e.py", line ', diagnostic)
+        self.assertIn('in execute', diagnostic)
+        for private in ('fixture-secret', str(self.run.root.path), str(Path(__file__).parent),
+                        self.run.env['WAYFARER_E2E_PASSWORD'], 'raise RuntimeError', 'Host=guarded'):
+            self.assertNotIn(private, diagnostic)
+        self.assertFalse(self.run.root.path.exists())
+
+    def test_diagnostic_storage_failure_preserves_status_and_cleanup(self):
+        """Storage errors stay visible without overriding execution status or cleanup phases."""
+        def execute(_):
+            raise subprocess.CalledProcessError(7, 'playwright')
+
+        phases = []
+        self.run.execute = execute
+        self.run.provision_attempted = True
+        self.run.manifest.write_text('{}')
+
+        def fixture(command, manifest=None):
+            phases.append(command)
+            if command == 'cleanup-layout':
+                raise RuntimeError('private-cleanup-failure')
+
+        self.run.fixture = fixture
+        with patch.object(self.run.root, 'append_diagnostic', side_effect=PermissionError('private-path')):
+            output = io.StringIO()
+            with redirect_stderr(output):
+                self.assertEqual(7, run_owned(self.run, []))
+        self.assertEqual(['cleanup-layout', 'verify-cleanup-layout'], phases)
+        self.assertEqual([('fixture-cleanup', 'RuntimeError')], self.run.cleanup_errors)
+        self.assertIn('Browser diagnostic retention failed: PermissionError', output.getvalue())
+        self.assertNotIn('private-path', output.getvalue())
+
+    def test_recursive_diagnostic_failure_preserves_status_and_independent_cleanup(self):
+        """Injected recursion cannot escape execution/cleanup reporting or touch foreign files."""
+        sentinel = self.run.repository / 'sentinel'
+        sentinel.write_text('foreign')
+        before = set(self.run.repository.iterdir())
+        self.run.provision_attempted = True
+        self.run.manifest.write_text('{}')
+        self.run.preparation.write_text('{}')
+        for error, status in ((subprocess.CalledProcessError(7, 'playwright'), 7),
+                              (RuntimeError('private-execution-failure'), 1)):
+            with self.subTest(status=status):
+                phases = []
+                self.run.cleanup_errors.clear()
+
+                def execute(_):
+                    raise error
+
+                def fixture(command, manifest=None):
+                    phases.append(command)
+                    if command == 'cleanup-layout':
+                        raise RuntimeError('private-cleanup-failure')
+
+                self.run.execute = execute
+                self.run.fixture = fixture
+                output = io.StringIO()
+                failure = RecursionError('private-retention-failure', self.run.root.path,
+                                         {'connection': 'Host=guarded',
+                                          'password': self.run.env['WAYFARER_E2E_PASSWORD']})
+                with patch.object(self.run.root, 'append_diagnostic', side_effect=failure) as append:
+                    with redirect_stderr(output):
+                        self.assertEqual(status, run_owned(self.run, []))
+                self.assertEqual(1 if status == 7 else 2, append.call_count)
+                self.assertEqual(['cleanup-layout', 'verify-cleanup-layout',
+                                  'cleanup-environment', 'verify-environment'], phases)
+                self.assertEqual([('fixture-cleanup', 'RuntimeError')], self.run.cleanup_errors)
+                self.assertIn('Browser execution failed: ' + ('playwright (exit 7)' if status == 7
+                                                             else 'RuntimeError'), output.getvalue())
+                self.assertIn('Browser diagnostic retention failed: RecursionError', output.getvalue())
+                diagnostic = output.getvalue().split('Owned residue retained:')[0]
+                for private in ('private-retention-failure', 'private-execution-failure',
+                                'private-cleanup-failure', self.run.env['WAYFARER_E2E_PASSWORD'],
+                                'Host=guarded', str(Path(__file__).parent), str(self.run.root.path),
+                                'raise error'):
+                    self.assertNotIn(private, diagnostic)
+                self.assertEqual(before, set(self.run.repository.iterdir()))
+                self.assertEqual('foreign', sentinel.read_text())
+
+    @unittest.skipIf(os.name == 'nt', 'Unix symbolic-link diagnostic target')
+    def test_linked_diagnostic_never_changes_foreign_sentinel(self):
+        """Execution and finalizer failures cannot append through a linked log target."""
+        sentinel = self.run.repository / 'sentinel'
+        sentinel.write_text('foreign')
+        log = self.run.root.path / 'supervisor.log'
+        log.symlink_to(sentinel)
+        self.addCleanup(log.unlink)
+
+        def execute(_):
+            raise RuntimeError('private-failure')
+
+        self.run.execute = execute
+        output = io.StringIO()
+        with redirect_stderr(output):
+            self.assertEqual(1, run_owned(self.run, []))
+        self.assertEqual('foreign', sentinel.read_text())
+        self.assertTrue(log.is_symlink())
+        self.assertEqual([('private-evidence', 'ValueError')], self.run.cleanup_errors)
+        self.assertIn('Browser execution failed: RuntimeError', output.getvalue())
+        self.assertIn('Browser cleanup (private-evidence) failed: ValueError', output.getvalue())
+
+    def test_finalizer_diagnostics_never_write_through_replaced_root(self):
+        """Refused symlink/junction roots retain foreign entries without creating a log."""
+        path = self.run.root.path
+        saved = path.with_name(path.name + '-test-saved')
+        sentinel = self.run.repository / 'sentinel'
+        sentinel.write_text('foreign')
+        path.rename(saved)
+        try:
+            if os.name == 'nt':
+                subprocess.run(['cmd', '/c', 'mklink', '/J', str(path), str(self.run.repository)],
+                               check=True, capture_output=True)
+            else:
+                path.symlink_to(self.run.repository, target_is_directory=True)
+            before = set(self.run.repository.iterdir())
+            try:
+                output = io.StringIO()
+                with redirect_stderr(output):
+                    self.assertFalse(self.run.finalize())
+                self.assertEqual([('artifact-removal', 'ValueError')], self.run.cleanup_errors)
+                self.assertEqual(before, set(self.run.repository.iterdir()))
+                self.assertEqual('foreign', sentinel.read_text())
+                self.assertIn('Browser cleanup (artifact-removal) failed: ValueError', output.getvalue())
+            finally:
+                path.rmdir() if os.name == 'nt' else path.unlink()
+        finally:
+            saved.rename(path)
 
     def test_environment_replaces_human_identity_and_scopes_every_storage_root(self):
         """Caller secrets/key authority stay unchanged; child uses only run-owned credentials/writes."""

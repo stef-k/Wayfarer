@@ -227,7 +227,8 @@ class Child:
                     try:
                         if identity(pid) != self.members[pid][0]:
                             raise RuntimeError('Reused child PID refused')
-                    except FileNotFoundError:
+                    except (FileNotFoundError, ProcessLookupError):
+                        # procfs can return ESRCH if the member is reaped after open.
                         continue
         known = set(self._owners)
         for owner in self._owners.values():
@@ -255,7 +256,8 @@ class Child:
                     if identity(pid) != record:
                         raise RuntimeError('Reused descendant PID refused')
                     active.append((pid, descriptor))
-            except FileNotFoundError:
+            except (FileNotFoundError, ProcessLookupError):
+                # An opened stat file can disappear before either read completes.
                 continue
         return active
 

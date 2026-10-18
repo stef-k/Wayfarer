@@ -7,6 +7,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from test_artifact_paths import BrowserRoot, ordinary
@@ -27,6 +28,86 @@ class ArtifactTests(unittest.TestCase):
         self.root.remove()
         self.root.remove()
         self.assertFalse(self.root.path.exists())
+
+    @unittest.skipIf(os.name == 'nt', 'Pinned descriptor-relative opens unavailable on Windows')
+    def test_diagnostic_append_refuses_unowned_and_replaced_targets(self):
+        """Only a newly created private log may retain further diagnostic frames."""
+        log = self.root.path / 'supervisor.log'
+        log.write_text('foreign')
+        with self.assertRaises(FileExistsError):
+            self.root.append_diagnostic('first frame\n')
+        self.assertEqual('foreign', log.read_text())
+        log.unlink()
+        self.root.append_diagnostic('first frame\n')
+        self.root.append_diagnostic('second frame\n')
+        self.assertEqual('first frame\nsecond frame\n', log.read_text())
+        log.rename(self.root.path / 'saved.log')
+        log.write_text('replacement')
+        with self.assertRaises(ValueError):
+            self.root.append_diagnostic('third frame\n')
+        self.assertEqual('replacement', log.read_text())
+
+    @unittest.skipIf(os.name == 'nt', 'Pinned descriptor-relative opens unavailable on Windows')
+    def test_diagnostic_root_replaced_after_verification_is_refused(self):
+        """An ordinary directory with a copied marker cannot replace the verified inode."""
+        path = self.root.path
+        saved = path.with_name(path.name + '-test-saved')
+        verify = self.root.verify
+
+        def substitute():
+            verify()
+            path.rename(saved)
+            path.mkdir()
+            (path / 'owner.json').write_bytes((saved / 'owner.json').read_bytes())
+
+        try:
+            with patch.object(self.root, 'verify', side_effect=substitute):
+                with self.assertRaises(ValueError):
+                    self.root.append_diagnostic('private frame\n')
+            self.assertEqual({'owner.json'}, {entry.name for entry in path.iterdir()})
+        finally:
+            if saved.exists():
+                (path / 'owner.json').unlink()
+                path.rmdir()
+                saved.rename(path)
+
+    @unittest.skipIf(os.name == 'nt', 'Pinned descriptor-relative opens unavailable on Windows')
+    def test_diagnostic_open_descriptors_cannot_be_redirected(self):
+        """Root and log swaps after opening leave a foreign directory and sentinel untouched."""
+        path = self.root.path
+        saved = path.with_name(path.name + '-test-saved')
+        fstat = os.fstat
+        with tempfile.TemporaryDirectory() as foreign:
+            sentinel = Path(foreign) / 'sentinel'
+            sentinel.write_text('foreign')
+
+            def substitute(descriptor):
+                info = fstat(descriptor)
+                if (info.st_dev, info.st_ino) == self.root._identity:
+                    path.rename(saved)
+                    path.symlink_to(foreign, target_is_directory=True)
+                else:
+                    (saved / 'supervisor.log').rename(saved / 'pinned.log')
+                    (saved / 'supervisor.log').symlink_to(sentinel)
+                return info
+
+            try:
+                with patch('test_artifact_paths.os.fstat', side_effect=substitute):
+                    self.root.append_diagnostic('owned frame\n')
+                self.assertEqual({'sentinel'}, {entry.name for entry in Path(foreign).iterdir()})
+                self.assertEqual('foreign', sentinel.read_text())
+                self.assertEqual('owned frame\n', (saved / 'pinned.log').read_text())
+            finally:
+                if saved.exists():
+                    (saved / 'supervisor.log').unlink(missing_ok=True)
+                    path.unlink()
+                    saved.rename(path)
+
+    def test_diagnostic_filesystem_errors_are_not_accepted(self):
+        """Ownership/storage errors propagate from the writer for the reporter to classify."""
+        with patch.object(self.root, 'verify', side_effect=PermissionError('denied')):
+            with self.assertRaises(PermissionError):
+                self.root.append_diagnostic('frame\n')
 
     def test_foreign_root_and_forged_marker_are_preserved(self):
         """Neither a path substitution nor a JSON record grants deletion authority."""

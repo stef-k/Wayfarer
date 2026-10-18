@@ -22,7 +22,7 @@ test('Unassigned Segment pickers persist endpoints and waypoints after Region pr
   };
   const source = await post('/regions', { name: 'Preserved route Places', notesHtml: null, center: null, coverImage: null });
   const createPlace = (name: string, longitude: number) => post(`/regions/${source.id}/places`, {
-    name, notesHtml: null, address: '', location: { longitude, latitude: 38 }, iconName: 'marker', markerColor: 'blue', reverseGeocode: false
+    name, notesHtml: null, address: '', location: { longitude, latitude: 38 }, iconName: 'marker', markerColor: 'bg-blue', reverseGeocode: false
   });
   const from = await createPlace('Unassigned From', 23);
   const via = await createPlace('Unassigned Via', 23.1);
