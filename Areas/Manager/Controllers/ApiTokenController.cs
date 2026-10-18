@@ -1,6 +1,8 @@
+using System.Data;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Wayfarer.Models;
 using Wayfarer.Models.ViewModels;
 using Wayfarer.Util;
@@ -68,9 +70,9 @@ namespace Wayfarer.Areas.Manager.Controllers
                 return RedirectToAction("Index", new { id });
             }
 
-            // Preserve missing-target handling, but deny every existing ineligible account before token work.
-            ApplicationUser? target = await _dbContext.Users.FindAsync(id);
-            if (target != null && !await ManagerTargetUsers.IsEligibleAsync(_dbContext, target.Id))
+            var cancellationToken = HttpContext.RequestAborted;
+            await using var transaction = await BeginTokenMutationAsync(cancellationToken);
+            if (!await LockAndAuthorizeTargetAsync(id, cancellationToken))
             {
                 return Forbid();
             }
@@ -78,7 +80,8 @@ namespace Wayfarer.Areas.Manager.Controllers
             try
             {
                 // check if token exists for current user before creating it
-                bool exists = await _dbContext.Users.Where(u => u.Id == id).SelectMany(u => u.ApiTokens).AnyAsync(t => t.Name == name);
+                bool exists = await _dbContext.Users.Where(u => u.Id == id).SelectMany(u => u.ApiTokens)
+                    .AnyAsync(t => t.Name == name, cancellationToken);
 
                 if (exists)
                 {
@@ -87,6 +90,7 @@ namespace Wayfarer.Areas.Manager.Controllers
                 }
 
                 (ApiToken apiToken, _) = await _apiTokenService.CreateApiTokenAsync(id, name);
+                if (transaction != null) await transaction.CommitAsync(cancellationToken);
                 SetAlert($"New token '{name}' created for {apiToken.User.UserName}. No plaintext is retained or displayed here.", "success");
             }
             catch (ArgumentException ex)
@@ -112,9 +116,9 @@ namespace Wayfarer.Areas.Manager.Controllers
                 return RedirectToAction("Index", new { id });
             }
 
-            // Preserve missing-target handling, but deny every existing ineligible account before token work.
-            ApplicationUser? target = await _dbContext.Users.FindAsync(id);
-            if (target != null && !await ManagerTargetUsers.IsEligibleAsync(_dbContext, target.Id))
+            var cancellationToken = HttpContext.RequestAborted;
+            await using var transaction = await BeginTokenMutationAsync(cancellationToken);
+            if (!await LockAndAuthorizeTargetAsync(id, cancellationToken))
             {
                 return Forbid();
             }
@@ -123,6 +127,7 @@ namespace Wayfarer.Areas.Manager.Controllers
             {
                 (ApiToken apiToken, _) = await _apiTokenService.RegenerateTokenAsync(id, name);
                 ApplicationUser? user = await _dbContext.ApplicationUsers.FindAsync(id);
+                if (transaction != null) await transaction.CommitAsync(cancellationToken);
                 SetAlert($"Token '{name}' has been regenerated for {user?.UserName ?? id}. No plaintext is retained or displayed here.", "success");
             }
             catch (ArgumentException ex)
@@ -148,14 +153,14 @@ namespace Wayfarer.Areas.Manager.Controllers
                 return RedirectToAction("Index", new { id });
             }
 
-            // Preserve missing-target handling, but deny every existing ineligible account before token work.
-            ApplicationUser? target = await _dbContext.Users.FindAsync(id);
-            if (target != null && !await ManagerTargetUsers.IsEligibleAsync(_dbContext, target.Id))
+            var cancellationToken = HttpContext.RequestAborted;
+            await using var transaction = await BeginTokenMutationAsync(cancellationToken);
+            if (!await LockAndAuthorizeTargetAsync(id, cancellationToken))
             {
                 return Forbid();
             }
 
-            ApiToken? token = await _dbContext.ApiTokens.FindAsync(tokenId);
+            ApiToken? token = await _dbContext.ApiTokens.FindAsync([tokenId], cancellationToken);
             if (token == null || token.UserId != id)
             {
                 SetAlert("Token not found or does not belong to the specified user.", "danger");
@@ -169,10 +174,40 @@ namespace Wayfarer.Areas.Manager.Controllers
             }
 
             _dbContext.ApiTokens.Remove(token);
-            await _dbContext.SaveChangesAsync();
+            await _dbContext.SaveChangesAsync(cancellationToken);
+            if (transaction != null) await transaction.CommitAsync(cancellationToken);
 
             SetAlert($"Token '{token.Name}' has been deleted.", "success");
             return RedirectToAction("Index", new { id });
+        }
+
+        /// <summary>
+        /// Owns the entire named-token mutation, including service saves on this scoped DbContext.
+        /// Explicit PostgreSQL Read Committed gives the role SELECT a fresh snapshot after any lock wait.
+        /// Disposal rolls back denial, early return, service failure or cancellation before commit.
+        /// Nonrelational unit-test stores have no transactions; other relational test stores use their default.
+        /// </summary>
+        private async Task<IDbContextTransaction?> BeginTokenMutationAsync(CancellationToken cancellationToken)
+        {
+            if (!_dbContext.Database.IsRelational()) return null;
+            return _dbContext.Database.IsNpgsql()
+                ? await _dbContext.Database.BeginTransactionAsync(IsolationLevel.ReadCommitted, cancellationToken)
+                : await _dbContext.Database.BeginTransactionAsync(cancellationToken);
+        }
+
+        /// <summary>
+        /// Locks the PostgreSQL Identity parent before querying complete persisted roles. Identity role
+        /// writes update this row, so promotion cannot cross authorization and token commit. Missing
+        /// targets continue to the existing action-specific handling. Unit stores still check roles.
+        /// </summary>
+        private async Task<bool> LockAndAuthorizeTargetAsync(string id, CancellationToken cancellationToken)
+        {
+            if (_dbContext.Database.IsNpgsql())
+                await _dbContext.Database.ExecuteSqlInterpolatedAsync(
+                    $"""SELECT 1 FROM "AspNetUsers" WHERE "Id" = {id} FOR UPDATE""", cancellationToken);
+
+            return !await _dbContext.Users.AnyAsync(user => user.Id == id, cancellationToken)
+                || await ManagerTargetUsers.Eligible(_dbContext).AnyAsync(user => user.Id == id, cancellationToken);
         }
     }
 }

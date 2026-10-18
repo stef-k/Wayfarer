@@ -59,6 +59,16 @@ matching, duplicate-name handling, canonical deletion protection and secret-free
 administrative presentation remain required. This rule does not change Admin role
 editing, personal connection-token authority or bearer/Mobile contracts (#823).
 
+Manager named-token Create, Regenerate and Delete own a short database transaction.
+On PostgreSQL they lock the target `AspNetUsers` row before reading its complete
+persisted roles, then retain the lock through the token write and commit. Explicit
+`READ COMMITTED` gives the role query a fresh snapshot after a lock wait. The
+existing named-token service saves join the controller's shared DbContext
+transaction. Denial, early returns, exceptions and cancellation before commit
+dispose the transaction and roll back; no generated secret is retained or revealed.
+Non-PostgreSQL unit stores still enforce the role predicate but do not establish
+production concurrency evidence. Admin handlers remain unchanged (#824).
+
 ## Antiforgery
 
 Cookie-authenticated browser mutations require antiforgery. Trip Editor mutations and other browser POST/PUT/PATCH/DELETE actions use the existing MVC antiforgery mechanisms.

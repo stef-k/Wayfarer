@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using NetTopologySuite.Geometries;
 using Wayfarer.Models;
@@ -280,7 +281,7 @@ public sealed class ManagerAccountAuthorizationPostgresTests(PostgresMigrationTe
     private Task<Browser> StartAsync(string callerRole = "Manager") => Browser.StartAsync(fixture, CreateTestDirectory(), callerRole);
 
     /// <summary>Local browser transport for actual password sign-in and identity-bound forms; no fabricated principal.</summary>
-    private sealed class Browser(ApplicationDbContext db, WebApplication app, IServiceScope scope, HttpClient client) : IAsyncDisposable
+    internal sealed class Browser(ApplicationDbContext db, WebApplication app, IServiceScope scope, HttpClient client) : IAsyncDisposable
     {
         private const string Password = "Disposable-Fixture-Password1!";
         internal const string ReplacementPassword = "Replacement-Fixture-Password2!";
@@ -290,10 +291,11 @@ public sealed class ManagerAccountAuthorizationPostgresTests(PostgresMigrationTe
         private UserManager<ApplicationUser> Users => scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
 
         /// <summary>Starts production routing and signs in through the real Identity login endpoint.</summary>
-        internal static async Task<Browser> StartAsync(PostgresMigrationTestFixture fixture, string root, string callerRole)
+        internal static async Task<Browser> StartAsync(PostgresMigrationTestFixture fixture, string root, string callerRole,
+            params IInterceptor[] interceptors)
         {
             fixture.RequireAvailable();
-            var db = fixture.CreateContext();
+            var db = fixture.CreateContext(interceptors);
             if (!await db.ApplicationSettings.AnyAsync())
             {
                 db.ApplicationSettings.Add(new ApplicationSettings());

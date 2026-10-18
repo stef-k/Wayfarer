@@ -39,8 +39,10 @@
   targets, excluding privileged, multi-role, roleless and unknown-role accounts.
   Validate Manager edits before field changes and retain existing User membership
   to prevent partial persistence on rejected roles. Preserve protected/inactive
-  User workflows and required protected-edit form values (#823). Admin role-edit
-  atomicity remains separate in #824; no database migration is required.
+  User workflows and required protected-edit form values. Serialize Manager token
+  authorization and mutation against concurrent Identity promotion by holding the
+  PostgreSQL account-row lock through commit (#823). Admin role-edit atomicity
+  remains separate in #824; no database migration is required.
 
 - Preserve each Segment's accepted distance, duration and route provenance through
   native Trip export/import and public copying, fixing valid saved estimates
