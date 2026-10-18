@@ -37,6 +37,49 @@ public sealed class AdminAccountEditPostgresTests(PostgresMigrationTestFixture f
         Assert.True(before == await ReadAsync(target.Id));
     }
 
+    /// <summary>A supported name whose backing Identity role is absent is still rejected before mutation.</summary>
+    [Fact]
+    public async Task MissingBackingRole_RetainsCompletePersistedState()
+    {
+        await using var browser = await StartAsync();
+        var target = await browser.UserAsync("User");
+        await using var setup = fixture.CreateContext();
+        await setup.Roles.Where(r => r.Name == "Manager").ExecuteDeleteAsync();
+        var before = await ReadAsync(target.Id);
+        using var response = await EditAsync(browser, target, "Manager");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.True(before == await ReadAsync(target.Id));
+    }
+
+    /// <summary>An unchanged single role avoids membership writes while still updating the parent account and stamp.</summary>
+    [Fact]
+    public async Task UnchangedSingleRole_RetainsMembershipWithoutRewritingIt()
+    {
+        await using var browser = await StartAsync();
+        var target = await browser.UserAsync("User");
+        var before = await ReadAsync(target.Id);
+        await using var setup = fixture.CreateContext();
+        // Reject all membership writes during this request in the class-owned, nonparallel disposable database.
+        await setup.Database.ExecuteSqlRawAsync("""
+            CREATE FUNCTION public.retain_admin_membership() RETURNS trigger LANGUAGE plpgsql AS
+            $body$ BEGIN RAISE EXCEPTION 'Unchanged membership must be retained'; END $body$;
+            CREATE TRIGGER retain_admin_membership BEFORE INSERT OR DELETE ON "AspNetUserRoles"
+            FOR EACH ROW EXECUTE FUNCTION public.retain_admin_membership();
+            """);
+        try
+        {
+            using var response = await EditAsync(browser, target, "user");
+            Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+            var after = await ReadAsync(target.Id);
+            Assert.Equal(new[] { "User" }, after.Roles);
+            AssertChanged(before, after, stampChanged: true);
+        }
+        finally
+        {
+            await setup.Database.ExecuteSqlRawAsync("DROP TRIGGER retain_admin_membership ON \"AspNetUserRoles\"; DROP FUNCTION public.retain_admin_membership();");
+        }
+    }
+
     /// <summary>All six directed changes retain legitimate Admin authority, including protected targets.</summary>
     [Theory]
     [InlineData("User", "Manager", false)]
@@ -347,7 +390,7 @@ public sealed class AdminAccountEditPostgresTests(PostgresMigrationTestFixture f
         internal string[] Roles => JsonSerializer.Deserialize<string[]>(RoleJson)!;
     }
 
-    /// <summary>Injects a checked real-store concurrency result or an exception at a chosen account save.</summary>
+    /// <summary>Supplies a stale concurrency token to the real EF store, or an exception at a chosen account save.</summary>
     private sealed class SaveFault(int atSave, string failure) : SaveChangesInterceptor
     {
         internal string? TargetId { get; set; }
@@ -362,9 +405,17 @@ public sealed class AdminAccountEditPostgresTests(PostgresMigrationTestFixture f
                     .Any(e => e.Entity.Id == TargetId && e.State == EntityState.Modified) || ++_saves != atSave)
                 return ValueTask.FromResult(result);
             Fired = true;
+            Assert.NotNull(data.Context.Database.CurrentTransaction);
+            if (failure == "concurrency")
+            {
+                // The actual PostgreSQL UPDATE affects zero rows and Identity returns its concurrency error.
+                var user = data.Context.ChangeTracker.Entries<ApplicationUser>().Single(e => e.Entity.Id == TargetId);
+                user.Property(u => u.ConcurrencyStamp).OriginalValue = Guid.NewGuid().ToString();
+                return ValueTask.FromResult(result);
+            }
             if (failure == "cancel") throw new OperationCanceledException("Fixture-owned cancellation before commit.");
             if (failure == "persistence") throw new DbUpdateException("Fixture-owned persistence failure.");
-            throw new DbUpdateConcurrencyException("Fixture-owned Identity concurrency failure.");
+            throw new InvalidOperationException("Unknown fixture failure mode.");
         }
     }
 
