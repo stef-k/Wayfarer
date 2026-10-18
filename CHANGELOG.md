@@ -4,6 +4,10 @@
 
 ### Added
 
+- Add read-only `GET /api/mobile/me` account proof for active incoming bearer
+  tokens, returning only the stable server-scoped `userId` with no-store responses
+  and distinct authentication, overload and server-failure outcomes (#844).
+
 - Integrate the contained Rust image helper with the existing image proxy, independent
   cache validation and native Linux AMD64/ARM64 packaging (#858). Preserve static
   formats, ICC/alpha and private metadata stripping; web defaults are 2048/90.

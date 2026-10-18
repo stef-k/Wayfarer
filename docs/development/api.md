@@ -16,7 +16,7 @@ Wayfarer has three API access patterns:
 - **API token/bearer**: integration and mobile endpoints resolve the `Authorization` value through the request-scoped `IncomingApiTokenResolver`. Current Wayfarer tokens are generated once for the user, stored as SHA-256 hashes and require an active account.
 - **Dual cookie/token endpoints**: selected legacy/general API actions can resolve the active cookie user first and otherwise fall back to an API token. The endpoint still owns resource/role checks.
 
-`api/mobile/*` controllers use the mobile token accessor and are bearer/API-token paths. They do not create an ASP.NET authentication principal merely from the token.
+`api/mobile/*` controllers use the shared incoming token authority, normally via the mobile token accessor, and are bearer/API-token paths. They do not create an ASP.NET authentication principal merely from the token.
 
 ### Acquire and replace a connection token
 
@@ -34,6 +34,53 @@ are no-store; Done/navigation clears browser token and QR state without revocati
 If the response is lost, refresh safe status and require another explicit replacement;
 do not automatically retry credential POSTs. Existing extra administrative tokens
 remain separate from this single-credential User workflow.
+
+### Prove the current bearer account
+
+`GET /api/mobile/me` is the additive account-proof contract for successor clients
+(#844). Send exactly one `Authorization: Bearer <connection-token>` header to the
+verified, trusted HTTPS server origin. The scheme is case-insensitive; cookie
+sessions and arbitrary authorization schemes cannot authorize this route. It uses
+the same stored hash/legacy incoming-token matching and active-account checks as
+existing mobile APIs, with a fresh lookup on each HTTP request.
+
+Success is HTTP 200 with `Content-Type: application/json` and exactly:
+
+~~~json
+{ "userId": "<ApplicationUser.Id>" }
+~~~
+
+Treat `userId` as an opaque, case-sensitive string scoped to the verified server
+origin/instance. Two valid tokens for the same active account return the same ID;
+different accounts return different IDs. No username, display name, email, roles,
+token value/hash, token metadata or other profile fields are returned. This is a
+read-only proof: it does not ingest locations, update last-use counters, rotate
+credentials, invoke visits/providers or broadcast SSE. Existing infrastructure
+still performs request logging, bounded lookup admission and database reads.
+
+| Outcome | HTTP contract | Consumer interpretation |
+| --- | --- | --- |
+| Missing, malformed, invalid, revoked token; inactive/deleted account; cookie only | 401 JSON `{"message":"Invalid or missing API token."}`, no login redirect | No bearer account proof |
+| Per-IP / global lookup capacity exhausted | 429 / 503 JSON `{"message":"API token lookup capacity exceeded."}`, `Retry-After: 5` | Temporary overload; honor retry hint, do not reject credentials |
+| Store/server failure | Existing generic API 500 envelope, including `requestId` | Transient/unproved outcome; do not classify as invalid credentials |
+| Cancellation / lost response | No usable proof; the existing API error boundary may emit a generic 500 if still writable | Preserve the candidate as unverified |
+| Older backend without this route | Usually 404 (possibly an incompatible response) | Unsupported/unverified candidate, not invalid credentials |
+
+Responses from the action, including authentication, overload and handled lookup
+errors, carry `Cache-Control: no-store`. The endpoint adds no token/profile logging;
+deployment must retain the existing HTTPS, trusted-proxy/origin and secret-safe
+logging configuration. These routed server tests do not establish production
+deployment, Android or iOS behavior.
+
+This initial wire contract does not require a new API namespace, application version
+or client change in published WayfarerMobile. A successor must require a successful,
+well-formed account proof before committing candidate credentials or claiming
+same-owner continuity. Offline, unsupported, malformed or otherwise unproved
+responses must preserve existing credentials/data and hold or isolate candidate
+work. Public Trip success, anonymous settings, URL equality and token hashes are
+not identity proof. Account partitions, in-flight fences, atomic credential
+replacement and delivery eligibility remain WayfarerApp #5 responsibilities; this
+GET never authorizes transferring old work to a new account/server.
 
 ## Antiforgery boundary
 
@@ -57,6 +104,7 @@ Bearer-only mobile/integration mutations do not require MVC antiforgery. Do not 
 | `/api/location` | location ingestion, queries, edits, deletion and stats | token/cookie depending on action; ownership required |
 | `/api/visit`, `/api/backfill` | visit queries/mutations and visit backfill | authenticated/owned browser API |
 | `/api/groups`, `/api/invitations` | group membership, visibility, location sharing and invitations | authenticated membership/role; browser mutations antiforgery |
+| `GET /api/mobile/me` | minimal stable current-account proof, no writes | active bearer/API token only |
 | `/api/mobile/groups` | mobile group/member/location/visibility operations | bearer/API token |
 | `/api/mobile/visits` | mobile recent-visit recovery | bearer/API token |
 | `/api/mobile/routing` | routing profiles, capability and route requests | bearer/API token |
