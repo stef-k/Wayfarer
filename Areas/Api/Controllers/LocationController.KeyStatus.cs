@@ -22,10 +22,11 @@ public partial class LocationController
         if (request?.Keys is not { Length: >= 1 and <= 100 })
             return BadRequest("Supply between 1 and 100 UUID keys.");
         var keys = new List<Guid>();
+        var distinct = new HashSet<Guid>();
         foreach (var value in request.Keys)
         {
             if (!Guid.TryParse(value, out var key)) return BadRequest("Invalid UUID key.");
-            if (!keys.Contains(key)) keys.Add(key);
+            if (distinct.Add(key)) keys.Add(key);
         }
         var requested = keys.ToArray();
         // UNION ALL keeps markers and winners in the same MVCC snapshot; no history enumeration or locking.
@@ -37,9 +38,10 @@ public partial class LocationController
                 .Select(row => new { Key = row.IdempotencyKey!.Value, LocationId = (int?)row.Id,
                     LocalTimestamp = (DateTime?)row.LocalTimestamp }))
             .ToListAsync(HttpContext.RequestAborted);
+        var byKey = known.ToLookup(row => row.Key);
         var results = keys.Select(key =>
         {
-            var rows = known.Where(row => row.Key == key).ToList();
+            var rows = byKey[key];
             if (rows.Any(row => row.LocationId == null)) return (object)new { key, state = "deleted" };
             var present = rows.FirstOrDefault();
             return present == null ? (object)new { key, state = "unknown" }
