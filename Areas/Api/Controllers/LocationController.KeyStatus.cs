@@ -13,6 +13,7 @@ public partial class LocationController
 {
     /// <summary>Classifies only the caller's bounded known-key list in one read-only statement snapshot.</summary>
     [HttpPost("key-status")]
+    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None, Order = -3000)]
     public async Task<IActionResult> KeyStatus([FromBody] KeyStatusRequest? request)
     {
         Response.Headers.CacheControl = "no-store";

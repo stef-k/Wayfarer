@@ -514,7 +514,8 @@ public sealed class LocationImportBoundedPostgresTests(PostgresImportTestFixture
             trackerSizes.Add(context.ChangeTracker.Entries<Location>().Count());
         }
 
-        Assert.Equal(4, keyedLookups.Count);
+        Assert.Equal(4, keyedLookups.Count(shape => shape.Sql.Contains("\"Locations\"", StringComparison.Ordinal)));
+        Assert.Equal(4, keyedLookups.Count(shape => shape.Sql.Contains("\"LocationDeletionMarkers\"", StringComparison.Ordinal)));
         Assert.All(keyedLookups, shape =>
         {
             Assert.Contains("IdempotencyKey", shape.Sql, StringComparison.Ordinal);

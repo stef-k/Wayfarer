@@ -144,7 +144,7 @@ public sealed partial class LocationDeletionPostgresTests
         Assert.False(cache.TryGetValue($"lastLocation_{user.Id}", out _));
         Assert.Single(await verify.Set<LocationDeletionMarker>().Where(row => row.UserId == user.Id).ToListAsync());
         Assert.Equal(new[] { "IdempotencyKey", "UserId" }, verify.Model.FindEntityType(typeof(LocationDeletionMarker))!
-            .GetProperties().Select(property => property.Name));
+            .GetProperties().Select(property => property.Name).Order());
         await verify.Users.Where(row => row.Id == user.Id).ExecuteDeleteAsync();
         Assert.False(await verify.Set<LocationDeletionMarker>().AnyAsync(row => row.UserId == user.Id));
     }

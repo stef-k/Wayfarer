@@ -20,9 +20,10 @@ internal static class LocationDeletionFence
             await AcquireAsync(db, userId, token);
             return transaction;
         }
-        catch
+        catch (Exception failure)
         {
-            await transaction.DisposeAsync();
+            try { await transaction.DisposeAsync(); }
+            catch (Exception cleanup) { failure.Data["DeletionFenceCleanupFailure"] = cleanup.GetType().Name; }
             throw;
         }
     }

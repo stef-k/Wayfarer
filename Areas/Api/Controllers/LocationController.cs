@@ -194,6 +194,8 @@ public partial class LocationController : BaseApiController
             catch (LocationDeletedException) { return DeletedLocationResult(); }
             catch (DbUpdateException ex) when (idempotencyKey.HasValue)
             {
+                if (await LocationDeletionFence.IsDeletedAsync(_dbContext, user.Id, idempotencyKey, HttpContext.RequestAborted))
+                    return DeletedLocationResult();
                 var existingLocation = await _dbContext.Locations
                     .AsNoTracking()
                     .FirstOrDefaultAsync(l => l.UserId == user.Id && l.IdempotencyKey == idempotencyKey.Value);
@@ -552,6 +554,8 @@ public partial class LocationController : BaseApiController
             catch (LocationDeletedException) { return DeletedLocationResult(); }
             catch (DbUpdateException ex) when (idempotencyKey.HasValue)
             {
+                if (await LocationDeletionFence.IsDeletedAsync(_dbContext, user.Id, idempotencyKey, HttpContext.RequestAborted))
+                    return DeletedLocationResult();
                 var existingLocation = await _dbContext.Locations
                     .AsNoTracking()
                     .FirstOrDefaultAsync(l => l.UserId == user.Id && l.IdempotencyKey == idempotencyKey.Value);

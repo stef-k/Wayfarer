@@ -189,17 +189,59 @@ public sealed partial class ApiLocationProviderCreatePostgresTests
             Assert.DoesNotContain("Private", await response.Content.ReadAsStringAsync());
             foreach (var payload in new object[] { new { keys = Array.Empty<string>() }, new { keys = new[] { "bad" } },
                 new { keys = new string?[] { null } }, new { keys = Enumerable.Repeat(present.ToString(), 101).ToArray() },
+                new { keys = new object[] { 1 } },
                 new { keys = new[] { present.ToString() }, userId = other.UserId } })
             {
                 using var invalid = await client.PostAsJsonAsync("/api/location/key-status", payload);
                 Assert.Equal(HttpStatusCode.BadRequest, invalid.StatusCode);
+                Assert.True(invalid.Headers.CacheControl?.NoStore);
             }
             client.DefaultRequestHeaders.Authorization = null;
+            client.DefaultRequestHeaders.Add("Cookie", OwnerCookie(owner.UserId));
             using var denied = await client.PostAsJsonAsync("/api/location/key-status", new { keys = new[] { deleted.ToString() } });
             Assert.Equal(HttpStatusCode.Unauthorized, denied.StatusCode);
             Assert.True(denied.Headers.CacheControl?.NoStore);
+            client.DefaultRequestHeaders.Remove("Cookie");
+            client.DefaultRequestHeaders.Authorization = new("Bearer", owner.Token);
+            await using (var db = fixture.CreateContext())
+            {
+                var inactive = await db.Users.SingleAsync(row => row.Id == owner.UserId);
+                inactive.IsActive = false;
+                await db.SaveChangesAsync();
+            }
+            using var inactiveResponse = await client.PostAsJsonAsync("/api/location/key-status", new { keys = new[] { deleted.ToString() } });
+            Assert.Equal(HttpStatusCode.Unauthorized, inactiveResponse.StatusCode);
             Assert.Equal(0, handler.Calls);
             Assert.Equal(0, await AdmissionCountAsync(owner.UserId, "geoapify"));
+        });
+    }
+
+    /// <summary>A deletion between statement execution and response materialization cannot mix marker and row snapshots.</summary>
+    [PostgresFact(Timeout = 30000)]
+    public async Task KeyStatus_UsesOneStatementSnapshotDuringDeletion()
+    {
+        var protection = new EphemeralDataProtectionProvider();
+        var owner = await SeedAsync("geoapify", protection);
+        var key = Guid.NewGuid();
+        var id = await SeedLocationAsync(owner.UserId, key);
+        var snapshot = new AfterStatusSnapshot(async () =>
+        {
+            await using var deletion = fixture.CreateContext();
+            await LocationDeletionFence.DeleteAsync(deletion, owner.UserId, [id], null, CancellationToken.None);
+        });
+        using var handler = new ControlledProvider();
+        await WithHostAsync(protection, handler, [snapshot], async client =>
+        {
+            client.DefaultRequestHeaders.Authorization = new("Bearer", owner.Token);
+            foreach (var state in new[] { "present", "deleted" })
+            {
+                using var response = await client.PostAsJsonAsync("/api/location/key-status", new { keys = new[] { key.ToString() } });
+                response.EnsureSuccessStatusCode();
+                using var body = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+                Assert.Equal(state, Assert.Single(body.RootElement.GetProperty("results").EnumerateArray()).GetProperty("state").GetString());
+            }
+            Assert.True(snapshot.Triggered);
+            Assert.Equal(0, handler.Calls);
         });
     }
 
@@ -271,6 +313,22 @@ public sealed partial class ApiLocationProviderCreatePostgresTests
         {
             if (command.CommandText.Contains(", 838)", StringComparison.Ordinal)
                 && Interlocked.Increment(ref _count) == ordinal)
+            {
+                Triggered = true;
+                await deletion();
+            }
+            return result;
+        }
+    }
+
+    /// <summary>Executes deletion after the real key-status UNION has taken its database snapshot.</summary>
+    private sealed class AfterStatusSnapshot(Func<Task> deletion) : DbCommandInterceptor
+    {
+        public bool Triggered { get; private set; }
+        public override async ValueTask<DbDataReader> ReaderExecutedAsync(DbCommand command,
+            CommandExecutedEventData data, DbDataReader result, CancellationToken cancellationToken = default)
+        {
+            if (!Triggered && command.CommandText.Contains("UNION ALL", StringComparison.Ordinal))
             {
                 Triggered = true;
                 await deletion();

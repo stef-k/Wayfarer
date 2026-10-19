@@ -72,9 +72,10 @@ public static class LocationPresence
             }
             return transaction;
         }
-        catch
+        catch (Exception failure)
         {
-            if (transaction != null) await transaction.DisposeAsync();
+            try { if (transaction != null) await transaction.DisposeAsync(); }
+            catch (Exception cleanup) { failure.Data["PresenceLockCleanupFailure"] = cleanup.GetType().Name; }
             throw;
         }
     }
