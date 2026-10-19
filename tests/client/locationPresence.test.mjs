@@ -19,27 +19,53 @@ test('observation freshness fails closed independently of recent human event tim
     assert.equal(isLiveLocation({ ...fresh, locationTimeThresholdMinutes: -1 }, now), false);
 });
 
-/** Exercise the actual embedded/owner renderers with a recent event that carries no admitted observation. */
-for (const entry of ['Public/UsersTimeline/Embed.js', 'User/Location/Index.js']) {
-    test(`${entry} renders historical-only as last-known and eligible observations as live`, async () => {
+/** Execute actual renderer/timer owners at a controlled Leaflet clock boundary, including time spent rendering. */
+for (const entry of ['Public/UsersTimeline/Embed.js', 'Public/UsersTimeline/Timeline.js', 'User/Location/Index.js',
+    'User/Timeline/Index.js', 'User/Timeline/Chronological.js']) {
+    test(`${entry} withholds historical LIVE and expires at/during the render boundary`, async () => {
         const source = await readFile(`wwwroot/js/Areas/${entry}`, 'utf8');
-        const start = source.indexOf('const buildLayers = (locations) => {');
-        const end = source.indexOf('\n};', start) + 3;
+        const block = name => {
+            const start = source.indexOf(`const ${name} = (`);
+            return source.slice(start, source.indexOf('\n};', start) + 3);
+        };
         const icons = [];
+        const callbacks = new Map();
+        let clock = now;
+        let renderDelay = 0;
+        let render;
+        let nextId = 0;
         const layer = () => ({ addLayer() {}, clearLayers() {}, addTo() {}, bringToFront() {} });
-        const context = vm.createContext({ location: { ...fresh, presenceObservedAtUtc: null, isLatestLocation: true },
-            Date: class extends Date { static now() { return now; } },
+        const context = vm.createContext({ markerTransitionTimer: null,
+            Date: class extends Date { static now() { return clock; } },
+            setTimeout: (fn, delay) => { const id = ++nextId; callbacks.set(id, { fn, delay }); return id; },
+            clearTimeout: id => callbacks.delete(id), displayLocationsOnMap: (_, rows) => render(rows),
             highlightLayer: layer(), mapContainer: { getZoom: () => 3, addLayer() {} },
-            latestLocationMarker: 'latest', liveMarker: 'live', scheduleMarkerTransition() {},
+            latestLocationMarker: 'latest', liveMarker: 'live',
             L: { layerGroup: layer, markerClusterGroup: layer, marker: (_, options) => {
                 icons.push(options.icon);
+                clock += renderDelay;
                 return { bindTooltip() {}, on() {}, addTo() {}, setZIndexOffset() {} };
             } } });
-        vm.runInContext(`const isLiveLocation = ${isLiveLocation.toString()};\n${source.slice(start, end)}; buildLayers([location]);`, context);
-        assert.deepEqual(icons, ['latest']);
-        context.location = { ...fresh, isLatestLocation: true };
-        vm.runInContext('buildLayers([location])', context);
-        assert.deepEqual(icons, ['latest', 'live']);
+        vm.runInContext(`const isLiveLocation = ${isLiveLocation.toString()};
+            const scheduleLocationExpiry = ${scheduleLocationExpiry.toString()};
+            ${block('scheduleMarkerTransition')}\n${block('buildLayers')}`, context);
+        render = vm.runInContext('buildLayers', context);
+        render([{ ...fresh, presenceObservedAtUtc: null, isLatestLocation: true }]);
+        assert.equal(icons.at(-1), 'latest');
+        assert.equal(callbacks.size, 0);
+        for (const remaining of [0, 1]) {
+            clock = now;
+            renderDelay = remaining ? 2 : 0;
+            render([{ ...fresh, isLatestLocation: true,
+                presenceObservedAtUtc: new Date(now - 300000 + remaining).toISOString() }]);
+            assert.equal(icons.at(-1), 'live');
+            const expiry = [...callbacks.values()][0];
+            assert.equal(expiry.delay, 1);
+            clock += expiry.delay;
+            expiry.fn();
+            assert.equal(icons.at(-1), 'latest');
+            assert.equal(callbacks.size, 0);
+        }
     });
 }
 
@@ -51,6 +77,7 @@ for (const area of ['User', 'Manager']) {
         const end = source.indexOf('\n  /**', start);
         const callbacks = new Map();
         let clock = now;
+        let renderDelay = 0;
         let nextId = 0;
         const latestMarkers = new Map();
         const timers = { setTimeout: (fn, delay) => { const id = ++nextId; callbacks.set(id, { fn, delay }); return id; },
@@ -60,9 +87,9 @@ for (const area of ['User', 'Manager']) {
             idToInfoMap: () => new Map(), colorFromString: () => 'red',
             latestIconHtml: (_, live) => live ? 'live' : 'latest', buildTooltipHtml: () => 'Location',
             openLocationModal: () => {},
-            L: { divIcon: options => options, marker: (_, options) => ({ icon: options.icon, handlers: {},
+            L: { divIcon: options => options, marker: (_, options) => { clock += renderDelay; return { icon: options.icon, handlers: {},
                 bindTooltip(text) { this.tooltip = text; return this; }, on(type, fn) { this.handlers[type] = fn; },
-                addTo() {}, setLatLng() {}, setIcon(icon) { this.icon = icon; }, setZIndexOffset() {} }) } });
+                addTo() {}, setLatLng() {}, setIcon(icon) { this.icon = icon; clock += renderDelay; }, setZIndexOffset() {} }; } } });
         // Import-free production functions execute in the same controlled clock/timer realm as the marker owner.
         vm.runInContext(`const isLiveLocation = ${isLiveLocation.toString()};
             const scheduleLocationExpiry = ${scheduleLocationExpiry.toString()};\n${source.slice(start, end)}`, context);
@@ -90,5 +117,19 @@ for (const area of ['User', 'Manager']) {
         clock += removedExpiry.delay;
         removedExpiry.fn();
         assert.equal(latestMarkers.size, 0);
+        for (const remaining of [0, 1]) {
+            clock = now;
+            renderDelay = remaining ? 2 : 0;
+            context.location = { ...fresh, presenceObservedAtUtc: new Date(now - 300000 + remaining).toISOString() };
+            vm.runInContext('upsertLatestForUser("owner", location)', context);
+            const atBoundary = latestMarkers.get('owner');
+            assert.equal(atBoundary.icon.html, 'live');
+            const due = [...callbacks.values()][0];
+            assert.equal(due.delay, 1);
+            clock += due.delay;
+            due.fn();
+            assert.equal(atBoundary.icon.html, 'latest');
+            assert.equal(callbacks.size, 0);
+        }
     });
 }

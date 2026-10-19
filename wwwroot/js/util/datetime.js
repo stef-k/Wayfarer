@@ -268,12 +268,13 @@ export const isLiveLocation = (location, nowMs = Date.now()) => {
  * Schedule one bounded live-to-last-known render; the caller cancels when its marker changes or is removed.
  * @param {object} location Backend location projection.
  * @param {Function} onExpiry Refreshes the retained marker's presentation.
- * @returns {number|null} Browser timer handle, or null for historical/expired observations.
+ * @param {boolean} [renderedLive] Captured render state, so expiry during rendering still receives a transition.
+ * @returns {number|null} Browser timer handle, or null when no LIVE marker needs a transition.
  */
-export const scheduleLocationExpiry = (location, onExpiry) => {
+export const scheduleLocationExpiry = (location, onExpiry, renderedLive = isLiveLocation(location)) => {
     const nowMs = Date.now();
-    if (!isLiveLocation(location, nowMs)) return null;
+    if (!renderedLive) return null;
     const expiryMs = new Date(location.presenceObservedAtUtc).getTime()
         + location.locationTimeThresholdMinutes * 60000;
-    return setTimeout(onExpiry, Math.min(expiryMs - nowMs + 1, 2147483647));
+    return setTimeout(onExpiry, Math.min(Math.max(expiryMs - nowMs + 1, 1), 2147483647));
 };

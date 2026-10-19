@@ -160,7 +160,7 @@ import {
     clearTimeout(marker.presenceExpiryTimer);
     marker.presenceExpiryTimer = scheduleLocationExpiry(loc, () => {
       if (latestMarkers.get(userId) === marker) upsertLatestForUser(userId, loc);
-    });
+    }, live);
   }
   /**
    * Loads latest locations for specified users and removes markers for deselected users.
