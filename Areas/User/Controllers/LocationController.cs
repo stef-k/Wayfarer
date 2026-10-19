@@ -336,7 +336,7 @@ namespace Wayfarer.Areas.User.Controllers
             // Update the location fields
             var utc = CoordinateTimeZoneConverter.ConvertToUtc(model.Latitude, model.Longitude, model.LocalTimestamp);
             var coordinatesChanged = !location.Coordinates.X.Equals(model.Longitude) || !location.Coordinates.Y.Equals(model.Latitude);
-            if (coordinatesChanged || location.LocalTimestamp != utc) LocationPresence.Invalidate(location);
+            if (coordinatesChanged || location.LocalTimestamp != utc) LocationPresence.Invalidate(location, _dbContext);
             LocationManualAddressEdit.Apply(location, model, coordinatesChanged);
             location.Coordinates.X = model.Longitude;
             location.Coordinates.Y = model.Latitude;

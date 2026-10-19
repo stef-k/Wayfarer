@@ -141,6 +141,8 @@ namespace Wayfarer.Areas.Public.Controllers
                 {
                     Id = location.Id,
                     Timestamp = location.Timestamp,
+                    PresenceObservedAtUtc = location.PresenceObservedAtUtc,
+                    IsLive = location.IsLive,
                     LocalTimestamp = location.LocalTimestamp,
                     Coordinates = location.Coordinates,
                     Timezone = location.Timezone,
@@ -166,9 +168,7 @@ namespace Wayfarer.Areas.Public.Controllers
                     // User's latest location unrelated from filtered zoom & viewport but based on threshold
                     // the user has set for his public timeline.
                     IsLatestLocation = location.Id == latestLocation?.Id,
-                    // set if is live location based on application's settings location logging settings
-                    // the frontend will then compare local timestamp if current date time is <= to LocationTimeThresholdMinutes
-                    // and set the realitime  marker.
+                    // Live styling uses admitted observation UTC; event time remains display/history only.
                     LocationTimeThresholdMinutes = location.LocationTimeThresholdMinutes
                 });
 

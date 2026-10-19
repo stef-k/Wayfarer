@@ -228,6 +228,54 @@ public sealed class LocationPresencePostgresTests(PostgresImportTestFixture fixt
         Assert.Equal(eventTime, edited.LocalTimestamp);
     }
 
+    /// <summary>An edit loaded before admission must still clear a presence decision committed before its write.</summary>
+    [PostgresFact]
+    public async Task CoordinateEdit_RacingAdmission_CannotRetainPresence()
+    {
+        var user = await SeedAsync();
+        var pause = new PauseAfterInsert();
+        using var cache = new MemoryCache(new MemoryCacheOptions());
+        await using var intakeDb = fixture.CreateContext(pause);
+        var intake = Controller(intakeDb, user.Id, cache, new Recorder());
+        intake.Request.Headers["Idempotency-Key"] = Guid.NewGuid().ToString("D");
+        var first = intake.CheckIn(Dto(DateTime.UtcNow.AddSeconds(-1)));
+        await pause.Inserted.Task.WaitAsync(TimeSpan.FromSeconds(15));
+        try
+        {
+            await using var editDb = fixture.CreateContext(new BeforeEditSave(async () =>
+            {
+                pause.Release.TrySetResult();
+                Assert.IsType<OkObjectResult>(await first);
+            }));
+            var row = await editDb.Locations.SingleAsync(location => location.UserId == user.Id);
+            Assert.Null(row.PresenceObservedAtUtc);
+            var edit = Controller(editDb, user.Id, cache, new Recorder());
+            Assert.IsType<OkObjectResult>(await edit.Update(row.Id,
+                new LocationUpdateRequestDto { Latitude = 11, Longitude = 21 }));
+            await using var verify = fixture.CreateContext();
+            var edited = await verify.Locations.SingleAsync(location => location.Id == row.Id);
+            Assert.Null(edited.CoordinateOrigin);
+            Assert.Null(edited.PresenceObservedAtUtc);
+        }
+        finally { pause.Release.TrySetResult(); await first; }
+    }
+
+    /// <summary>Failed automatic visit tracking must not be retried by the later presence admission save.</summary>
+    [PostgresFact]
+    public async Task AutomaticVisitWriteFailure_DoesNotRetryDirtyEntriesDuringAdmission()
+    {
+        var user = await SeedAsync();
+        await using var db = fixture.CreateContext(new FailCandidateWrite());
+        using var cache = new MemoryCache(new MemoryCacheOptions());
+        var controller = Controller(db, user.Id, cache, new Recorder());
+        controller.Request.Headers["Idempotency-Key"] = Guid.NewGuid().ToString("D");
+        var response = Assert.IsType<OkObjectResult>(await controller.LogLocation(Dto(DateTime.UtcNow.AddSeconds(-1))));
+        Assert.False(JsonSerializer.SerializeToElement(response.Value).GetProperty("skipped").GetBoolean());
+        await using var verify = fixture.CreateContext();
+        Assert.NotNull((await verify.Locations.SingleAsync(row => row.UserId == user.Id)).PresenceObservedAtUtc);
+        Assert.False(await verify.PlaceVisitCandidates.AnyAsync(row => row.UserId == user.Id));
+    }
+
     /// <summary>Real Group latest projections and protected-frame authorization share the persisted audience.</summary>
     private async Task AssertGroupPrivacyAsync(ApplicationDbContext db, HttpClient client, ApplicationUser owner, int? currentId)
     {
@@ -330,6 +378,30 @@ public sealed class LocationPresencePostgresTests(PostgresImportTestFixture fixt
     {
         internal List<(string Channel, string Data)> Events { get; } = [];
         public override Task BroadcastAsync(string channel, string data) { Events.Add((channel, data)); return Task.CompletedTask; }
+    }
+
+    /// <summary>Models an actual best-effort candidate write failure without failing Location persistence.</summary>
+    private sealed class FailCandidateWrite : SaveChangesInterceptor
+    {
+        public override ValueTask<InterceptionResult<int>> SavingChangesAsync(DbContextEventData data,
+            InterceptionResult<int> result, CancellationToken ct = default)
+        {
+            if (data.Context!.ChangeTracker.Entries<PlaceVisitCandidate>().Any(entry => entry.State == EntityState.Added))
+                throw new DbUpdateException("Synthetic visit candidate write failure");
+            return ValueTask.FromResult(result);
+        }
+    }
+
+    /// <summary>Lets actual admission complete after the edit snapshot, immediately before its Location UPDATE.</summary>
+    private sealed class BeforeEditSave(Func<Task> admit) : SaveChangesInterceptor
+    {
+        public override async ValueTask<InterceptionResult<int>> SavingChangesAsync(DbContextEventData data,
+            InterceptionResult<int> result, CancellationToken ct = default)
+        {
+            if (data.Context!.ChangeTracker.Entries<Location>().Any(entry => entry.State == EntityState.Modified))
+                await admit();
+            return result;
+        }
     }
 
     /// <summary>Pauses a committed keyed insert before optional enrichment and postwrite effects.</summary>

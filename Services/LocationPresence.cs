@@ -43,12 +43,14 @@ public static class LocationPresence
         && observed <= nowUtc + ClockSkewTolerance && nowUtc - observed <= TimeSpan.FromMinutes(windowMinutes);
 
     /// <summary>Coordinate or event edits invalidate coordinate-bound evidence and server admission together.</summary>
-    public static void Invalidate(Location location)
+    public static void Invalidate(Location location, ApplicationDbContext db)
     {
         location.CoordinateOrigin = null;
         location.ObservedAtUtc = null;
         location.ObservedAgeAtEventMs = null;
         location.PresenceObservedAtUtc = null;
+        // Admission can commit after an API editor read null. Force SQL invalidation even for that old null snapshot.
+        db.Entry(location).Property(row => row.PresenceObservedAtUtc).IsModified = true;
     }
 
     /// <summary>Serializes postcommit decisions across processes without enclosing provider contact or the UUID insert.</summary>

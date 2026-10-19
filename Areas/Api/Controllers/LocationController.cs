@@ -607,7 +607,12 @@ public class LocationController : BaseApiController
                 location.PresenceObservedAtUtc = observedUtc;
                 if (LocationPresence.IsLive(location, windowMinutes, DateTime.UtcNow))
                 {
-                    var tracked = _dbContext.Locations.Local.Single(row => row.Id == location.Id);
+                    var tracked = _dbContext.Locations.Local.SingleOrDefault(row => row.Id == location.Id);
+                    if (tracked == null)
+                    {
+                        tracked = retained; // A failed best-effort visit may have discarded its dirty tracker.
+                        _dbContext.Locations.Attach(tracked);
+                    }
                     tracked.PresenceObservedAtUtc = observedUtc;
                     await _dbContext.SaveChangesAsync(ct);
                 }
@@ -648,8 +653,9 @@ public class LocationController : BaseApiController
                     ex.Data["VisitRollbackFailure"] = cleanup.GetType().Name;
                     System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(ex).Throw();
                 }
-                _dbContext.ChangeTracker.Clear(); // Discard only the failed noncritical visit work after rollback.
             }
+            // Failed automatic visit entries must not be retried by the subsequent presence/history save.
+            _dbContext.ChangeTracker.Clear();
             _logger.LogWarning("Visit detection failed for user {UserId} Failure type: {ExceptionType}", userId, ex.GetType().Name);
         }
     }
@@ -864,7 +870,7 @@ public class LocationController : BaseApiController
                     return BadRequest(new { success = false, message = "Latitude or Longitude is out of range." });
 
                 if (!location.Coordinates.X.Equals(lon) || !location.Coordinates.Y.Equals(lat))
-                    LocationPresence.Invalidate(location);
+                    LocationPresence.Invalidate(location, _dbContext);
                 location.Coordinates = new Point(lon, lat) { SRID = 4326 };
                 anyChange = true;
                 coordsUpdated = true;
@@ -920,7 +926,7 @@ public class LocationController : BaseApiController
 
                     utcTimestamp = DateTime.SpecifyKind(utcTimestamp, DateTimeKind.Utc);
 
-                    if (location.LocalTimestamp != utcTimestamp) LocationPresence.Invalidate(location);
+                    if (location.LocalTimestamp != utcTimestamp) LocationPresence.Invalidate(location, _dbContext);
                     location.LocalTimestamp = utcTimestamp;
                     location.TimeZoneId = tzId;
                     anyChange = true;
