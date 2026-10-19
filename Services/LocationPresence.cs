@@ -53,15 +53,21 @@ public static class LocationPresence
 
     /// <summary>Serializes postcommit decisions across processes without enclosing provider contact or the UUID insert.</summary>
     public static async Task<Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction?> LockAsync(
-        ApplicationDbContext db, string userId, CancellationToken cancellationToken)
+        ApplicationDbContext db, string userId, int locationId, CancellationToken cancellationToken)
     {
         if (!db.Database.IsRelational()) return null;
         var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
         try
         {
             if (db.Database.IsNpgsql())
+            {
                 await db.Database.ExecuteSqlInterpolatedAsync(
-                    $"SELECT pg_advisory_xact_lock(hashtextextended({'p' + userId}, 855))", cancellationToken);
+                    $"SELECT pg_advisory_xact_lock(hashtextextended({"presence:" + userId}, 855))", cancellationToken);
+                // Coordinate/event edits use this row lock too, so their invalidation cannot race current effects.
+                await db.Database.SqlQuery<int>($$"""
+                    SELECT 1 AS "Value" FROM "Locations" WHERE "UserId" = {{userId}} AND "Id" = {{locationId}} FOR UPDATE
+                    """).ToListAsync(cancellationToken);
+            }
             return transaction;
         }
         catch

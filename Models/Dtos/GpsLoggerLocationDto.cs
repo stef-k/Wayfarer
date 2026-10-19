@@ -14,6 +14,7 @@ public class GpsLoggerLocationDto
     public string? CoordinateOrigin { get; set; }
 
     /// <summary>Original sensor fix instant with an explicit UTC/offset representation.</summary>
+    [System.Text.Json.Serialization.JsonConverter(typeof(Wayfarer.Util.ObservationInstantJsonConverter))]
     public DateTimeOffset? ObservedAtUtc { get; set; }
 
     /// <summary>Known monotonic fix age at final submit; omit when reboot/clock change makes it uncertain.</summary>

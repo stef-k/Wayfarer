@@ -239,18 +239,20 @@ public class LocationController : BaseApiController
     /// <param name="location">The persisted location entity.</param>
     /// <param name="locationTimeThresholdMinutes">Threshold window (in minutes) used to determine live status.</param>
     /// <param name="isCheckIn">Indicates whether the location originated from a manual check-in.</param>
+    /// <param name="isCurrent">Whether this record still owns the committed observation order.</param>
     /// <param name="cancellationToken">Cancellation token tied to the HTTP request.</param>
     private async Task BroadcastLocationUpdatesAsync(
         ApplicationUser user,
         Location location,
         int locationTimeThresholdMinutes,
         bool isCheckIn,
+        bool isCurrent,
         CancellationToken cancellationToken)
     {
         if (user == null) throw new ArgumentNullException(nameof(user));
         if (location == null) throw new ArgumentNullException(nameof(location));
 
-        var isLive = LocationPresence.IsLive(location, locationTimeThresholdMinutes, DateTime.UtcNow);
+        var isLive = isCurrent && LocationPresence.IsLive(location, locationTimeThresholdMinutes, DateTime.UtcNow);
 
         // Per-user broadcast for timeline views (User/Timeline, Public/Timeline, Embed)
         // Note: Timeline views refresh all data on any event, so payload content is informational
@@ -265,8 +267,8 @@ public class LocationController : BaseApiController
         };
         await _sse.BroadcastAsync($"location-update-{user.UserName}", JsonSerializer.Serialize(userPayload));
 
-        // Historical history invalidation stays on the owner channel; it cannot announce Group presence.
-        if (location.PresenceObservedAtUtc == null) return;
+        // History invalidation stays on the per-user channel; it cannot announce Group presence.
+        if (!isCurrent) return;
 
         // Broadcast to all group channels
         var groupPayload = GroupSseEventDto.Location(
@@ -587,50 +589,67 @@ public class LocationController : BaseApiController
         int windowMinutes, bool processVisit)
     {
         var ct = HttpContext.RequestAborted;
-        await using var transaction = await LocationPresence.LockAsync(_dbContext, user.Id, ct);
-        if (_dbContext.Database.IsNpgsql())
-            await _dbContext.Database.SqlQuery<int>($$"""
-                SELECT 1 AS "Value" FROM "Locations" WHERE "UserId" = {{user.Id}} AND "Id" = {{location.Id}} FOR UPDATE
-                """).ToListAsync(ct);
-        var retained = await _dbContext.Locations.AsNoTracking().SingleOrDefaultAsync(
-            row => row.UserId == user.Id && row.Id == location.Id, ct);
-        if (retained == null) return;
-        if (!retained.Coordinates.EqualsExact(location.Coordinates) || retained.LocalTimestamp.Ticks / 10 != location.LocalTimestamp.Ticks / 10
-            || retained.CoordinateOrigin != location.CoordinateOrigin || retained.ObservedAtUtc?.UtcTicks / 10 != location.ObservedAtUtc?.UtcTicks / 10
-            || retained.ObservedAgeAtEventMs != location.ObservedAgeAtEventMs) observedUtc = null;
+        // Commit admission before any cache or broadcast can expose it. Provider contact remains outside these locks.
+        await using (var admission = await LocationPresence.LockAsync(_dbContext, user.Id, location.Id, ct))
+        {
+            var retained = await _dbContext.Locations.AsNoTracking().SingleOrDefaultAsync(
+                row => row.UserId == user.Id && row.Id == location.Id, ct);
+            if (retained == null) return;
+            // PostgreSQL stores microseconds; sub-microsecond CLR serialization differences are not owner edits.
+            if (!retained.Coordinates.EqualsExact(location.Coordinates) || retained.LocalTimestamp.Ticks / 10 != location.LocalTimestamp.Ticks / 10
+                || retained.CoordinateOrigin != location.CoordinateOrigin || retained.ObservedAtUtc?.UtcTicks / 10 != location.ObservedAtUtc?.UtcTicks / 10
+                || retained.ObservedAgeAtEventMs != location.ObservedAgeAtEventMs) observedUtc = null;
+            var previous = await LocationPresence.Current(_dbContext.Locations.AsNoTracking()
+                .Where(row => row.UserId == user.Id)).FirstOrDefaultAsync(ct);
+            if (observedUtc.HasValue && (previous == null || observedUtc > previous.PresenceObservedAtUtc
+                || observedUtc == previous.PresenceObservedAtUtc && location.Id > previous.Id))
+            {
+                location.PresenceObservedAtUtc = observedUtc;
+                if (LocationPresence.IsLive(location, windowMinutes, DateTime.UtcNow))
+                {
+                    var tracked = _dbContext.Locations.Local.Single(row => row.Id == location.Id);
+                    tracked.PresenceObservedAtUtc = observedUtc;
+                    await _dbContext.SaveChangesAsync(ct);
+                }
+                else location.PresenceObservedAtUtc = null;
+            }
+            if (admission != null) await admission.CommitAsync(ct);
+        }
+        // A newer admission may have committed between phases; reacquire order before visits, cache or hints.
+        await using var effects = await LocationPresence.LockAsync(_dbContext, user.Id, location.Id, ct);
         var current = await LocationPresence.Current(_dbContext.Locations.AsNoTracking()
             .Where(row => row.UserId == user.Id)).FirstOrDefaultAsync(ct);
-        if (observedUtc.HasValue && (current == null || observedUtc > current.PresenceObservedAtUtc
-            || observedUtc == current.PresenceObservedAtUtc && location.Id > current.Id))
-        {
-            // Recheck freshness after provider work/lock waits. Only this durable winner may feed arrival-time visits.
-            location.PresenceObservedAtUtc = observedUtc;
-            if (LocationPresence.IsLive(location, windowMinutes, DateTime.UtcNow))
-            {
-                var tracked = _dbContext.Locations.Local.Single(row => row.Id == location.Id);
-                tracked.PresenceObservedAtUtc = observedUtc;
-                await _dbContext.SaveChangesAsync(ct);
-                current = location;
-                if (processVisit) await ProcessAutomaticVisitAsync(user.Id, location.Coordinates, location.Accuracy);
-            }
-            else location.PresenceObservedAtUtc = null;
-        }
-        // Serialize cache publication with the database decision; all admission reads still query durable authority.
+        var isCurrent = current?.Id == location.Id;
+        if (isCurrent && processVisit && LocationPresence.IsLive(current!, windowMinutes, DateTime.UtcNow))
+            await ProcessAutomaticVisitAsync(user.Id, current!.Coordinates, current.Accuracy, effects);
         if (current != null) _cache.Set($"lastLocation_{user.Id}", current, TimeSpan.FromMinutes(30));
         else _cache.Remove($"lastLocation_{user.Id}");
-        await BroadcastLocationUpdatesAsync(user, location, windowMinutes, location.IsUserInvoked == true, ct);
-        if (transaction != null) await transaction.CommitAsync(ct);
+        await BroadcastLocationUpdatesAsync(user, location, windowMinutes, location.IsUserInvoked == true, isCurrent, ct);
+        if (effects != null) await effects.CommitAsync(ct);
     }
 
     /// <summary>Evaluates an eligible automatic ping while preserving best-effort visit failure handling.</summary>
-    private async Task ProcessAutomaticVisitAsync(string userId, Point coordinates, double? accuracy)
+    private async Task ProcessAutomaticVisitAsync(string userId, Point coordinates, double? accuracy,
+        Microsoft.EntityFrameworkCore.Storage.IDbContextTransaction? transaction = null)
     {
+        // A provider/database visit failure must not abort the durable presence decision or history acknowledgement.
+        if (transaction != null) await transaction.CreateSavepointAsync("arrival_visit", HttpContext.RequestAborted);
         try
         {
             await _placeVisitDetectionService.ProcessPingAsync(userId, coordinates, accuracy, HttpContext.RequestAborted);
         }
         catch (Exception ex)
         {
+            if (transaction != null)
+            {
+                try { await transaction.RollbackToSavepointAsync("arrival_visit", CancellationToken.None); }
+                catch (Exception cleanup)
+                {
+                    ex.Data["VisitRollbackFailure"] = cleanup.GetType().Name;
+                    System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(ex).Throw();
+                }
+                _dbContext.ChangeTracker.Clear(); // Discard only the failed noncritical visit work after rollback.
+            }
             _logger.LogWarning("Visit detection failed for user {UserId} Failure type: {ExceptionType}", userId, ex.GetType().Name);
         }
     }

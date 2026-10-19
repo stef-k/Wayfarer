@@ -184,6 +184,50 @@ public sealed class LocationPresencePostgresTests(PostgresImportTestFixture fixt
         Assert.Equal(2, backfill.GetProperty("totalItems").GetInt32());
     }
 
+    /// <summary>A real PostgreSQL visit failure rolls back noncritical visit work without losing history or presence.</summary>
+    [PostgresFact]
+    public async Task VisitDatabaseFailure_StillAcknowledgesDurableWinner()
+    {
+        var user = await SeedAsync();
+        await using var db = fixture.CreateContext();
+        var visits = new Mock<IPlaceVisitDetectionService>();
+        visits.Setup(service => service.ProcessPingAsync(user.Id, It.IsAny<NetTopologySuite.Geometries.Point>(),
+            It.IsAny<double?>(), It.IsAny<CancellationToken>())).Returns(async () =>
+                await db.Database.ExecuteSqlRawAsync("SELECT 1 / 0"));
+        var controller = ApiLocationAdmissionTests.Controller(db, new ApiWorkAdmission(64, 8), visits.Object);
+        controller.Request.Headers.Authorization = $"Bearer {user.Id}";
+        controller.Request.Headers["Idempotency-Key"] = Guid.NewGuid().ToString("D");
+        Assert.IsType<OkObjectResult>(await controller.CheckIn(Dto(DateTime.UtcNow.AddSeconds(-1))));
+        await using var verify = fixture.CreateContext();
+        var winner = await verify.Locations.SingleAsync(row => row.UserId == user.Id);
+        Assert.NotNull(winner.PresenceObservedAtUtc);
+        visits.VerifyAll();
+    }
+
+    /// <summary>Owner coordinate edits invalidate sensor evidence without changing UUID identity or retained event time.</summary>
+    [PostgresFact]
+    public async Task CoordinateEdit_ClearsCoordinateBoundEvidence()
+    {
+        var user = await SeedAsync();
+        await using var db = fixture.CreateContext();
+        using var cache = new MemoryCache(new MemoryCacheOptions());
+        var controller = Controller(db, user.Id, cache, new Recorder());
+        var key = Guid.NewGuid();
+        controller.Request.Headers["Idempotency-Key"] = key.ToString("D");
+        Assert.IsType<OkObjectResult>(await controller.CheckIn(Dto(DateTime.UtcNow.AddSeconds(-1))));
+        var row = await db.Locations.SingleAsync(location => location.UserId == user.Id);
+        var eventTime = row.LocalTimestamp;
+        Assert.IsType<OkObjectResult>(await controller.Update(row.Id, new LocationUpdateRequestDto { Latitude = 11, Longitude = 21 }));
+        await using var verify = fixture.CreateContext();
+        var edited = await verify.Locations.SingleAsync(location => location.UserId == user.Id);
+        Assert.Null(edited.CoordinateOrigin);
+        Assert.Null(edited.ObservedAtUtc);
+        Assert.Null(edited.ObservedAgeAtEventMs);
+        Assert.Null(edited.PresenceObservedAtUtc);
+        Assert.Equal(key, edited.IdempotencyKey);
+        Assert.Equal(eventTime, edited.LocalTimestamp);
+    }
+
     /// <summary>Real Group latest projections and protected-frame authorization share the persisted audience.</summary>
     private async Task AssertGroupPrivacyAsync(ApplicationDbContext db, HttpClient client, ApplicationUser owner, int? currentId)
     {

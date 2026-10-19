@@ -1,4 +1,5 @@
 using NetTopologySuite.Geometries;
+using Wayfarer.Models.Dtos;
 using Location = Wayfarer.Models.Location;
 using Wayfarer.Services;
 using Xunit;
@@ -8,6 +9,20 @@ namespace Wayfarer.Tests.Services;
 /// <summary>Deterministic clock/provenance cases supplement the routed persistence and effect evidence.</summary>
 public sealed class LocationPresenceTests
 {
+    /// <summary>New fix-clock syntax requires an offset; legacy event clocks retain their separate existing binder.</summary>
+    [Theory]
+    [InlineData("2026-10-19T12:00:00Z", true)]
+    [InlineData("2026-10-19T14:00:00+02:00", true)]
+    [InlineData("2026-10-19T12:00:00", false)]
+    public void ObservationClock_RequiresExplicitOffset(string clock, bool valid)
+    {
+        var json = "{\"ObservedAtUtc\":\"" + clock + "\"}";
+        if (!valid)
+            Assert.Throws<System.Text.Json.JsonException>(() => System.Text.Json.JsonSerializer.Deserialize<GpsLoggerLocationDto>(json));
+        else
+            Assert.Equal(12, System.Text.Json.JsonSerializer.Deserialize<GpsLoggerLocationDto>(json)!.ObservedAtUtc!.Value.Hour);
+    }
+
     /// <summary>History admission is independent; only defensible recent sensor observations authorize presence.</summary>
     [Theory]
     [InlineData("sensor", 0, 0, 0, 5, true)]
